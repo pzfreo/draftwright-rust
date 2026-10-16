@@ -401,8 +401,9 @@
     module: "linting/hole_coverage.py"
     issues: [1378]
     tests: [tests/test_issue_1378_diameter_leader_targets.py]
-  status: pending
-  rust_note: "Not ported: lint would need each callout's leader tip and its view's projection from the part to the page, which the Drawing does not record (output::DrawnView keeps a view's visible box and edges, Drawn a callout's lines and elbow, not the projection), and the edges of the hole's defining faces, which the Analysis does not carry (it keeps face indices only). Recording the view projection in the Drawing (src/output.rs, model::render) is outside the lint module. On Python's captured sheets the code appears once (ctc04's hc_plan3)."
+  status: ported
+  rust_test: "tests/leader_rules.rs::a_diameter_tip_touches_the_rim_of_the_hole_it_names"
+  rust_note: "Stream K4, src/lint/leaders.rs (run by lint::lint): the tip is the first point of the drawn callout's leader (Drawn::lines), projected targets come from the Analysis's hole records (bridge::holes::Hole: opening, depth, recess and countersink diameters) and double-D records, through the view's recorded transform (Sheet::frames); tolerance 0.002 mm as draftwright. The defining edges are the occurrence's rim circles rather than the BRep's edges (the Analysis keeps face indices only); seen end-on, where the port calls a hole out, they coincide. A view without a recorded transform (a captured Python sheet) is not judged."
   port_note: "Keep: check leader tips against projected feature edges."
 
 - id: LINT-code-diameter_leader_target_unverifiable
@@ -413,8 +414,9 @@
     module: "linting/hole_coverage.py"
     issues: [1378]
     tests: [tests/test_issue_1378_diameter_leader_targets.py]
-  status: pending
-  rust_note: "Not ported, with LINT-code-diameter_leader_target_mismatch: the Drawing records no view projection or leader tip for lint to check. On Python's captured sheets it appears for connector109's and spool132's rotational bore leaders (same-run ownership unavailable)."
+  status: ported
+  rust_test: "tests/leader_rules.rs::a_diameter_tip_touches_the_rim_of_the_hole_it_names"
+  rust_note: "Stream K4, src/lint/leaders.rs: a callout claiming bore.diameter in a view with a recorded transform, none of whose named holes has a readable boundary there (a hole record without axis, location or diameter; a double-D not seen end-on), is a warning with its reason. Recognition is always same-run in the port, and claims name their occurrence, so draftwright's ownership reasons do not arise."
   port_note: "Keep."
 
 # ---------------------------------------------------------------------------------------
@@ -515,7 +517,7 @@
     tests: [tests/test_issue_885_prismatic_coverage.py, tests/test_issue_1351_structured_note_coverage.py]
   status: ported
   rust_test: src/lint/prismatic.rs::tests::a_pad_is_defined_by_its_sizes_height_and_location
-  rust_note: "Partly ported (src/lint/prismatic.rs::undefined_pads, run by lint::check after the location backstop, as Python orders it). Each Analysis pad is defined when each of lint::pads' requirements (pad_width, pad_length, pad_height, its locations from the part's box corner) is claimed by an annotation that prints it; a pad standing along z is also located along x or y by an edge on the part's box there (within 0.6 mm); a pad whose record cannot be read is undefined; one finding counting them, Python's message. Not ported: Python's dimension-witness evidence (any dimension spanning the pad's edges in the plan or side) and structured location notes (the Drawing records neither), and the assembly severity. Python judges the pads its conversion modelled, counting a dropped one undefined; here every Analysis pad is judged (there is no conversion), and a side pad's location coincident with the datum is not asked for, as the pad ledger and draftwright's compiler leave it out (Python's check still asks for it). On draftwright's test parts with sheets the findings agree but for the port's own drawing of the pad part, which states no pad dimensions yet (tests/lint_coverage.rs::prismatic_and_profile_findings_on_draftwrights_test_parts_are_known, rust-correct). Pads are not read from Rust quiddity's recognition yet. Closed by the rules assessment of 2026-10-11: witness evidence and notes have no input on the port's drawings; reading pads natively is the native recess work (ISSUE-885-a)."
+  rust_note: "Partly ported (src/lint/prismatic.rs::undefined_pads, run by lint::check after the location backstop, as Python orders it). Each Analysis pad is defined when each of lint::pads' requirements (pad_width, pad_length, pad_height, its locations from the part's box corner) is claimed by an annotation that prints it; a pad standing along z is also located along x or y by an edge on the part's box there (within 0.6 mm); a pad whose record cannot be read is undefined; one finding counting them, Python's message. Not ported: Python's dimension-witness evidence (any dimension spanning the pad's edges in the plan or side) and structured location notes (the Drawing records neither), and the assembly severity. Python judges the pads its conversion modelled, counting a dropped one undefined; here every Analysis pad is judged (there is no conversion), and a side pad's location coincident with the datum is not asked for, as the pad ledger and draftwright's compiler leave it out (Python's check still asks for it). On draftwright's test parts with sheets the findings agree, the port's own drawing of the pad part included since stream K5 dimensions pads (src/dims/pads.rs; tests/lint_coverage.rs::prismatic_and_profile_findings_on_draftwrights_test_parts_are_known). Closed by the rules assessment of 2026-10-11: witness evidence and notes have no input on the port's drawings; reading pads natively is the native recess work (ISSUE-885-a)."
   port_note: "Keep (or fold into the pad ledger)."
 
 - id: LINT-code-pocket_not_located
@@ -541,7 +543,9 @@
     module: "linting/coverage.py"
     issues: [223, 443, 1357]
     tests: [tests/test_axial_dimensions.py, tests/test_issue_443_grm03_axial_coverage.py]
-  status: pending
+  status: ported
+  rust_test: "tests/completeness.rs::unstated_turned_band_length_and_diameter_are_lint_findings"
+  rust_note: "src/lint/turned.rs: each band's step.length not placed is axial_length_missing (one per band, naming it, where Python counts per profile), judged per band and so per body-local profile; a baseline from an end locating both shoulders places it (#33), and a grouped label only when it states exactly its adjoining members (stream K5, tests/completeness_rules.rs::a_grouped_length_states_exactly_its_adjoining_members). Differences: Python's witness-on-both-shoulders and schedule/structured-note evidence have no input on the port's drawings (lint reads printed claims), and its suppression when a chain drop was reported is not reached (the port drops no chain)."
   port_note: "Keep."
 
 - id: LINT-code-boss_height_missing
@@ -553,9 +557,9 @@
     module: "linting/coverage.py"
     issues: [632, 1154, 964]
     tests: [tests/test_issue_1154_one_owner_per_measurement.py, tests/test_issue_1511_turned_boss_heights.py]
-  status: pending
-  rust_test: a_boss_states_its_height_by_a_dimension
-  rust_note: "Partial (src/lint/bosses.rs): each boss whose record gives a height must have boss_height.length claimed by an annotation that prints it; a boss that shares a face with a groove of its diameter (within 0.15 mm) is the groove's floor and not judged (draftwright's boss_groove_owner). The port reports one boss_height_missing per boss, naming it, where Python reports one finding counting them. A boss on exactly a turned step's faces is the step's band and not judged (draftwright's boss_turned_step_owner: lint::bosses::turned_band, tests/repeated_dimensions.rs::a_turned_band_is_dimensioned_by_its_step_not_again_as_a_boss). Not ported: a height consolidated onto an overall extent (the omission's conveyed_by lives in the plan), bosses absorbed into blends by recognition ownership, and the assembly severity. Done in substance (rules assessment of 2026-10-11). Left pending: a height consolidated onto an overall extent is still reported missing (GRM-04), which goes with ISSUE-1154-a."
+  status: ported
+  rust_test: "tests/h5_chains.rs::consolidated_flush_boss_height_is_not_reported_missing"
+  rust_note: "src/lint/bosses.rs: each boss whose record gives a height must have boss_height.length claimed by an annotation that prints it (src/lint/bosses.rs::tests::a_boss_states_its_height_by_a_dimension); a groove's floor and a turned step's band are not judged. A boss flush with the part's box along its axis is credited from the stated overall extent, read from the boss's physical span, not the plan's omission (Stage H second pass; the remainder this entry was left pending for). Differences: one finding per boss, naming it, where Python counts them; bosses absorbed into blends by recognition ownership and the assembly severity are not reached (the Analysis says neither). Rules re-assessment in stream K5 (no new code)."
   port_note: "Keep."
 
 - id: LINT-code-turned_profile_not_spanned
@@ -614,9 +618,9 @@
     module: "linting/envelope_coverage.py"
     issues: [1560]
     tests: [tests/test_issue_1560_envelope_axes.py]
-  status: pending
-  rust_test: ledgers_on_pythons_sheets_match_pythons_or_are_known
-  rust_note: "Partial (src/lint/envelope.rs): a ledger, lint::envelope::outcomes, placed or missing per non-zero axis of the Analysis's box; as in Python it gives no lint finding, so lint::check does not run it, and no completeness report reads it yet. Carriers: an envelope extent claim, a centred turned-step, boss or overall (envelope od.diameter) diameter, or a contiguous chain of turned-step lengths on one axis line, each only when its text prints the value. Not ported: any other measurement whose span runs end to end, profile_group chains, and the suppressed, dropped and satisfied states (omissions and drops live outside the drawing). Compared with Python's ledger (tests/fixtures/lint_ledgers.json) on the captured sheets; differences in known_lint.json (ledgers). Stage G1: lint now reports a missing extent as a finding (tests/completeness.rs::omitted_overall_extents_are_lint_findings), where Python's ledger feeds completeness only; the other carriers above remain unported."
+  status: ported
+  rust_test: "src/lint/envelope.rs::tests::any_measurement_spanning_the_box_states_the_extent"
+  rust_note: "src/lint/envelope.rs: a ledger, placed or missing per non-zero axis of the Analysis's box, reported as missing_principal_dimension (Stage G1). Carriers, each only when its text prints the value: an envelope extent claim; any other claim whose physical span as lint reads it (redundancy::span: a face level, step position, plate thickness, slot length or width, boss height) is the axis's whole interval (stream K5); a centred turned-step, boss or overall diameter; a contiguous chain of turned-step lengths on one axis line (an overlap or gap breaks it). Compared with Python's ledger on the captured sheets (tests/fixtures/lint_ledgers.json, known_lint.json). Differences: draftwright's declared profile_group chains (the port has no declared models), measurements whose span lint does not read (a hole location end to end), and the suppressed, dropped and satisfied states (omissions and drops live outside the drawing, R1)."
   port_note: "Keep."
 
 - id: LINT-code-missing_principal_dimension
@@ -806,8 +810,9 @@
     module: "linting/blend_coverage.py"
     issues: [1479]
     tests: [tests/test_issue_1479_radius_leader_targets.py]
-  status: pending
-  rust_note: "Not ported, for the reason LINT-code-diameter_leader_target_mismatch gives: lint would need the radius callout's leader tip, its view's projection and the blend's trimmed profile arc, and the Drawing records no projection (src/lint/blends.rs judges the radii only)."
+  status: ported
+  rust_test: "tests/leader_rules.rs::a_radius_tip_lands_on_the_trimmed_profile_arc"
+  rust_note: "Stream K4, src/lint/leaders.rs: a straight blend's (path.direction) callout tip, in a view seeing its arc end-on, must lie within 0.002 mm of the circle of its radius about its rolling axis and within the trimmed arc's sector, read from Analysis::blend_sites (sampled at a quarter, half and three quarters of the face's parameter range, so the arc runs half their spread beyond them; a lone point gives a quarter turn either way, an overturnable judgement). Circular-path blends are not checked, as in draftwright. Not judged: a fillet callout carrying the blends' claims."
   port_note: "Keep."
 
 - id: LINT-code-radius_leader_target_unverifiable
@@ -818,8 +823,9 @@
     module: "linting/blend_coverage.py"
     issues: [1479]
     tests: [tests/test_issue_1479_radius_leader_targets.py]
-  status: pending
-  rust_note: "Not ported, for the reason LINT-code-diameter_leader_target_mismatch gives: lint would need the radius callout's leader tip, its view's projection and the blend's trimmed profile arc, and the Drawing records no projection (src/lint/blends.rs judges the radii only)."
+  status: ported
+  rust_test: "tests/leader_rules.rs::a_radius_tip_lands_on_the_trimmed_profile_arc"
+  rust_note: "Stream K4, src/lint/leaders.rs: a straight blend whose path, radius or proven trimmed points cannot be read, or whose callout is in a view that does not show its arc end-on, is a warning with its reason."
   port_note: "Keep."
 
 # ---------------------------------------------------------------------------------------
@@ -1057,7 +1063,7 @@
     issues: [1372]
     tests: [tests/test_pocket_pattern_completeness_evidence.py]
   status: pending
-  rust_note: "Not ported: blocked on the Analysis, which carries no pocket pattern. Python's sources are quiddity's derived section_recess_patterns (SectionRecessArray/Grid whose members all read as pockets); the bridge drops them (DERIVED_NOT_READ), and the native path reads neither section recesses nor quiddity-rust's pocket_patterns (PocketGrid/PocketArray), so a pattern's members are judged as lone pockets by src/lint/pockets.rs. Lint may not recognise a pattern itself; porting this needs the bridge and src/bridge/native.rs to read the patterns into the Analysis first (outside lint). No corpus recognition fixture has a recess pattern."
+  rust_note: "Not ported (re-assessed in stream K5): blocked on the Analysis, which carries no pocket pattern on either path. On the default (native) path Rust quiddity's document has pocket_patterns (PocketGrid, PocketArray) and their pockets, but src/bridge/native.rs reads neither pockets nor section recesses yet (the G7b reader stream), so on draftwright's pocket-pattern-grid.step and pocket-pattern-linear.step the plan reports features_not_recognised for pockets and pocket_patterns and draws none; the Python bridge drops section_recess_patterns (DERIVED_NOT_READ). Reading them is new Analysis data, outside this stream's scope (dimension selection and coverage lints) and owned by the recess reader work; the planner and lint follow once the Analysis has them."
   port_note: "Keep."
 
 - id: LINT-code-pocket_pattern_requirement_state
@@ -1069,7 +1075,7 @@
     issues: [1372]
     tests: [tests/test_pocket_pattern_completeness_evidence.py, tests/test_issue_1485_rounded_pockets.py]
   status: pending
-  rust_note: "Not ported: see LINT-pocket_pattern_coverage-requirements."
+  rust_note: "Not ported: see LINT-pocket_pattern_coverage-requirements (no pocket pattern reaches the Analysis; stream K5 re-assessment)."
   port_note: "Keep."
 
 - id: LINT-section_recess_coverage-hex_pocket
@@ -1150,9 +1156,9 @@
     module: "linting/oriented_slot_coverage.py"
     issues: [1432]
     tests: [tests/test_issue_1432_oriented_slot_semantics.py]
-  status: pending
-  rust_test: an_oriented_slot_states_its_width_and_length
-  rust_note: "Partial (src/lint/oriented_slots.rs): each oriented_slot feature has oriented_slot_width.length and oriented_slot_length.length, its record's width and length, judged by the claiming annotation's printed text (draftwright's callout ORIENTED SLOT 2 WIDE × 4.5 LONG); a record without a positive width or length, or two records the same (Python's two sources with one key), has both unverifiable. On Python's sheet of mfcadpp_holdout/467 both are read as stated, as Python's lint finds (oriented_slots_and_through_steps_match_pythons_lint_or_are_known); the port's own sheet draws no oriented slot, so lint reports both missing (rust-correct, known_lint.json family_rest). Not ported, and blocked on data the Analysis does not carry: Python excludes the members of oriented slot patterns (standalone_oriented_slots; the patterns are an undecided family, #1430), but the bridge reads the members one by one and drops the patterns, so every slot is judged and a pattern's members are reported missing where Python reports nothing (quiddity's golden oriented_slots plate, undetermined in known_lint.json). Question for the maintainer: should the Analysis record oriented slot pattern membership so lint can exclude members as Python does, or should lint keep reporting their unstated sizes until #1430 gives patterns a grammar? Python's contract checks on the record (unit directions, canonical passage frame, serialisation) are the bridge's field checks here. Done in substance (rules assessment of 2026-10-11): lint is correct for standalone slots; the planner does not yet call them out. Left pending on the recorded question about oriented slot pattern membership (#1430)."
+  status: ported
+  rust_test: "tests/completeness_rules.rs::an_oriented_slot_is_called_out_once_with_both_requirements_on_its_rim"
+  rust_note: "src/lint/oriented_slots.rs: each oriented_slot feature has oriented_slot_width.length and oriented_slot_length.length, judged by the claiming annotation's printed text; a record without a positive width or length, or two records the same, has both unverifiable (an_oriented_slot_states_its_width_and_length). Stream K5: the planner states them (src/dims/oriented_slots.rs): one callout ORIENTED SLOT W WIDE × L LONG in the view along the slot's dominant run axis, its leader to the rim (the record's section boundary at the run's end facing the viewer), equal slots in one view counted (2× ORIENTED SLOT …); on mfcadpp_holdout/467 lint now finds both stated on the port's own sheet, and on quiddity's golden oriented_slots plate the three members of its oriented slot array are stated by one counted callout (known_lint.json family_rest entries removed). Difference: Python leaves the members of oriented slot patterns undrawn and unjudged (#1430); the Analysis does not record pattern membership, so the port states and judges them, which leaves nothing missing on either sheet."
   port_note: "Keep."
 
 - id: LINT-code-oriented_slot_requirement_state
@@ -1408,6 +1414,7 @@
     issues: [1177]
     tests: [tests/test_canonical_angles.py, tests/test_issue_1177_angular_dimensions.py]
   status: pending
+  rust_note: "Not ported (assessed in stream K5): draftwright derives these requirements from quiddity's PlanarOuterProfileEvidence, every planar face's ordered outer profile (lines and arcs), choosing the foremost camera-facing profile per body and view and leaving out corners a chamfer or regular-polygon callout defines (profile_angles.py). The Analysis carries no ordered outer profiles (principal_profiles keeps only principal boundary faces' unordered straight edges and arcs), so neither the planner nor lint can name a corner. Porting needs that evidence recorded at analysis time (new Analysis data, outside this stream's dimension-selection and lint scope), then angular items through dims::angular's placement and a profile_angle ledger in lint; it would add angles to every corpus part with a non-right outer corner (on draftwright's issue_909 case study, 51.1° and 128.9°)."
   port_note: "Keep."
 
 - id: LINT-code-angular_label_vs_geometry
@@ -1801,7 +1808,9 @@
     module: "linting/structural.py"
     issues: [796, 798]
     tests: [tests/test_issue_798_silhouette_lint.py, tests/test_diameter_leaders.py]
-  status: pending
+  status: ported
+  rust_test: "tests/leader_rules.rs::a_shaft_cutting_back_into_the_material_is_reported_with_its_depth"
+  rust_note: "Stream K4, src/lint/leaders.rs (run by lint::lint): each drawn callout's shaft against its own view's material (material::solids through the view's recorded transform), measured by material::reentry; info, with draftwright's message and the depth. A view without a recorded transform is not judged."
   port_note: "Keep."
 
 - id: LINT-code-leader_shaft_unverified

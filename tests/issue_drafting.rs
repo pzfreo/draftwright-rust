@@ -515,10 +515,10 @@ fn a_sheet_the_spec_names_is_never_escalated() {
     }
 }
 
-/// ISSUE-1378-a, in part: a hole callout's leader tip touches the rim of a hole it names. On
-/// every part, each placed hole callout's arrow tip lies on the projected bore circle of one of
-/// the members it claims, in its view. Not ported: lint's check of a drawn tip (a tip in blank
-/// material lowering fidelity); double-D holes (not recognised).
+/// ISSUE-1378-a, the planner's part: a hole callout's leader tip touches the rim of a hole it
+/// names. On every part, each placed hole callout's arrow tip lies on the projected bore circle
+/// of one of the members it claims, in its view. Lint's check of the drawn tip, double-D
+/// profiles included, is `tests/leader_rules.rs` (stream K4).
 #[test]
 fn a_hole_callouts_tip_is_on_the_rim_of_a_hole_it_names() {
     let mut seen = 0;

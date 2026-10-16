@@ -352,8 +352,9 @@
     adr: "ADR 2 invariant 8; archive 0014 Amendment 3"
     issues: [798, 1187]
     tests: ["test_issue_798_material_field.py", "test_issue_798_silhouette_lint.py", "test_issue_798_floor_cardinality.py", "test_issue_1187_unroutable_leaders.py"]
-  status: pending
-  rust_note: "Partial: the plan has no projected material (ADR R1: it is made from the Analysis), so src/dims/leaders.rs takes the view's box as its material: a leader re-entering its own view's box after leaving it is a hard blocker (a gate, not draftwright's cost), and crossing another view is one too. Lint has no leader_crosses_silhouette check yet."
+  status: ported
+  rust_test: "src/material.rs::tests::the_reentry_is_a_magnitude_not_a_flag"
+  rust_note: "Stream K4: src/material.rs is the one predicate: material::reentry measures the page length of a shaft inside the material after its exit at the tip, and material::solids builds the material (each solid's projected box). The router (src/dims/leaders.rs, through dims::footprints) and lint's leader_crosses_silhouette (src/lint/leaders.rs) both call it, so they agree on every shaft (tests/leader_rules.rs::the_plan_and_lint_agree_on_a_leader_cutting_back_into_the_material, on a pinned leader cutting across the plate-and-pin assembly). It is a cost: a re-entering candidate counts one hard blocker and adds its depth to its length; nothing is dropped for it. Differences: it outranks crossings (draftwright prices one unit per stroke width beside the Policy-B penalty), and the material is the solids' projected boxes, not a tessellated filled face (the plan is made from the Analysis, ADR R1), so a concave silhouette's notch reads as material."
   port_note: "Keep: one re-entry function used by planner and lint; tessellation must be deterministic in the Rust kernel."
 
 - id: ADR2-9
@@ -664,9 +665,10 @@
     adr: "ADR 3 invariant 12; archive 0020 §5"
     issues: [354]
     tests: ["test_issue_1357_plural_turned_profiles.py"]
-  status: pending
+  status: ported
+  rust_test: "tests/completeness_rules.rs::a_groove_names_one_turned_profile_or_is_refused"
+  rust_note: "Stream K5: every turned profile (the bands of one axis line and one recorded profile) is planned on its own, its chain and diameters (src/dims/turned.rs); a part turned whole needs one axis line (turned::turned), so no first profile is chosen and no disjoint bodies merge (tests/completeness_rules.rs::each_turned_body_has_its_own_chain_on_its_own_silhouette, on draftwright's turned-step-compound.step). On a part of several turned profiles a groove whose record names none of them is refused, feature_not_dimensioned, 'no one owner' (src/dims/grooves.rs::owner; checked on groove-compound.step with one groove's profile removed)."
   port_note: "Keep: Analysis carries every turned body; planner handles them independently."
-  rust_note: "Not ported: grooves are called out from their own records (src/dims/grooves.rs) without checking that their turned profile names one owner, and no planner reads plural turned profiles."
 
 - id: ADR3-13
   statement: "A second consumer of one recognition run costs no second run: the evidence projector never recognises, imports geometry or reads the filesystem."
@@ -1776,6 +1778,8 @@
     issues: []
     tests: []
   status: pending
+  rust_test: "tests/leader_rules.rs::the_ports_own_callouts_touch_their_targets"
+  rust_note: "Partial (stream K4): every callout leader is tipped at a site the Analysis proves (dims::leaders rim_tip on a feature's projected rim or a proven surface point; never a page coordinate), and lint now verifies the hole (rim, double-D profile) and blend (trimmed arc) targets on the drawn sheet. Not verified: the other callouts' targets (fillets, chamfers, flats, slots, turned diameters, recesses), which lint does not yet check against their faces."
   port_note: "Keep: leader anchor selection in the planner uses Analysis face geometry."
 
 - id: ARCH0018-1
@@ -1961,8 +1965,8 @@
     issues: [354]
     tests: ["test_issue_1357_plural_turned_profiles.py"]
   status: pending
-  rust_test: tests/issue_drafting.rs::eccentric_cylinders_are_not_one_turned_profile
-  rust_note: "Partial: each turned profile (the bands of one axis line and one recorded profile) has its own chain, one item per band, so equal lengths on parallel shafts keep separate items (src/dims/turned.rs). Not ported: witnesses on the body's own silhouette (they run from the view's outline), and moving a profile that would share a lane to the other profile view, or dropping its chain with a diagnostic; no fixture has two parallel bodies."
+  rust_test: "tests/completeness_rules.rs::each_turned_body_has_its_own_chain_on_its_own_silhouette"
+  rust_note: "Stream K5 (src/dims/turned.rs::own_body, src/dims/placement.rs::body_strip): on a part of several turned bodies along one axis each body's chain is its own (one item per band, so equal lengths on parallel shafts keep separate marks), drawn in the profile view that separates its axis line, its witnesses starting at its own silhouette (the outer corner of each shoulder) on the side of the view its body is nearer, in that side's strip, so it never stands on a sibling's outline (draftwright's turned-step-compound.step: before, the left shaft's chain stood beside the right shaft with witnesses from the view's outline). Not ported: a body between two others (its nearer side still has a sibling between it and the strip), a strip that overflows to the other side (fall_through), and draftwright's drop with a required-outcome diagnostic when no conflict-free lane exists (the port draws and reports collisions instead, R1)."
   port_note: "Keep: planner per-body chain placement; Plan problem on drop."
 
 - id: ARCH0020-3

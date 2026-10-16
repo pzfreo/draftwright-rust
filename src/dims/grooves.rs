@@ -12,7 +12,8 @@
 //!   floor radius across the axis.
 //!
 //! A groove whose record lacks its width, floor diameter, position or a principal axis is
-//! reported (`feature_not_dimensioned`), never dropped. A boss that is a groove's floor is left
+//! reported (`feature_not_dimensioned`), never dropped; so is one on a part of several turned
+//! profiles whose record names none of them (ADR3-12: it has no one owner). A boss that is a groove's floor is left
 //! to the groove ([`super::bosses`]).
 
 use serde_json::Value;
@@ -108,11 +109,37 @@ fn want(cx: &Context, f: &Feature) -> Result<Want, String> {
     })
 }
 
+/// ADR3-12: on a part of several turned profiles (the turned steps' recorded profiles), a groove
+/// whose record names none of them cannot name its one owner, so it is refused rather than
+/// called out on whichever body happens to lie under it.
+fn owner(cx: &Context, f: &Feature) -> Result<(), String> {
+    let mut profiles: Vec<&Value> = cx
+        .analysis
+        .features
+        .iter()
+        .filter(|s| s.kind == "turned_step")
+        .filter_map(|s| s.parameters.get("profile"))
+        .collect();
+    profiles.sort_by_key(|p| p.to_string());
+    profiles.dedup();
+    if profiles.len() < 2
+        || f.parameters
+            .get("profile")
+            .is_some_and(|p| profiles.contains(&p))
+    {
+        return Ok(());
+    }
+    Err(format!(
+        "the part has {} turned profiles and its record names none of them, so it has no one owner",
+        profiles.len()
+    ))
+}
+
 fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let mut out = Vec::new();
     let mut problems = Vec::new();
     for f in cx.analysis.features.iter().filter(|f| f.kind == "groove") {
-        match want(cx, f) {
+        match owner(cx, f).and_then(|()| want(cx, f)) {
             Ok(w) => out.push(w),
             Err(why) => problems.push(not_dimensioned(f, &why)),
         }

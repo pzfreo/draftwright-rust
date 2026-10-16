@@ -153,7 +153,8 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
         ));
     }
     let available = |source: &str| !spec.views.get(source).is_some_and(|v| v.omit);
-    let section_letter = (crate::demand::read(a).section.is_some()
+    let demand = crate::demand::read(a);
+    let section_letter = (demand.section.is_some()
         || spec.views.contains_key(crate::model::SECTION))
         && !spec
             .views
@@ -195,7 +196,20 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
             (w[0].1.hi - w[0].1.lo - (w[1].1.hi - w[1].1.lo)).abs() < 1e-3
                 && (w[0].1.hi - w[0].1.lo - (w[2].1.hi - w[2].1.lo)).abs() < 1e-3
         });
-        if available(source) && !repeated {
+        // The vertical-head extension describes a whole turned part. A pin on a plate
+        // has a connected profile too, but its optional crop must not commandeer the
+        // assembly's sheet search or its per-body dimensions (K5).
+        if available(source)
+            && !repeated
+            // Preserve the established principal scale and aligned frame corridors for
+            // GD&T drawings. An authored crop still takes precedence above.
+            && demand.gdt.iter().all(Vec::is_empty)
+            // A declared schedule and explicit minimum main scale own the spare paper.
+            // Do not repeatedly add then withdraw an optional turned crop in each
+            // multi-sheet prefix; all its dimensions remain on the principal views.
+            && !(crate::sheets::floor(spec).is_some() && !spec.tables.is_empty())
+            && (axis != 2 || crate::dims::inspection_datum(a).is_some())
+        {
             let mut runs: Vec<Vec<usize>> = Vec::new();
             if axis == 1 {
                 let short = bands.iter().any(|(_, b)| {
@@ -422,7 +436,14 @@ fn pads(d: &Detail) -> [f64; 4] {
             12.0,
         ]
     } else {
-        [12.0, 42.0, 28.0, 12.0]
+        // An X-profile head can put a local band length above its silhouette.
+        // Reserve the first dimension gap and text, including its baseline lift.
+        let top = if d.axis == 0 {
+            crate::dims::FIRST + 2.0 * crate::dims::TEXT
+        } else {
+            12.0
+        };
+        [12.0, 42.0, 28.0, top]
     }
 }
 pub(crate) fn at(d: &Detail, area: Rect) -> [f64; 2] {

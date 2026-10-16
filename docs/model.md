@@ -462,6 +462,25 @@ lines, and its rays along visible edges of the view (`angular_label_vs_geometry`
 than max(24 mm, 2.5 × its frame) from its surface (`datum_leader_remote`, warning). These are
 findings, not plan problems: no wire format changes.
 
+Lint (`review`'s `lint`) also checks each callout's leader against the part (stream K4,
+`lint::leaders`), from its drawn leader, its view's recorded transform and the Analysis: a hole
+callout's tip must lie within 0.002 mm of a boundary circle of a hole it names (a double-D bore's
+trimmed profile, flats included) as projected in its view (`diameter_leader_target_mismatch`,
+warning; `diameter_leader_target_unverifiable` when no named hole can be read), a straight
+blend's radius callout's tip on that blend's trimmed profile arc seen end-on
+(`radius_leader_target_mismatch` and `_unverifiable`, warnings), and no callout's shaft may cut
+back into the part's material after leaving it at its tip (`leader_crosses_silhouette`, info,
+with the depth cut). The material is each solid's projected box (`material::solids`) and the
+measure `material::reentry`, the same predicate the leader router prices: a candidate that
+re-enters is a hard blocker, its depth added to its length, and a chosen one is reported as
+`annotation_line_over_view` with the depth in its message; a pinned callout's leader, which the
+router does not route, is reported the same way ("The pinned leader of … runs back across its own
+view, …, cutting … mm of it. Its bend and label are kept at the prescribed position.", with the
+unpinning fix). A callout's `annotation_ink_overlap`
+reads its leader's rendered ink, its arrowhead's flare included; a contact only the flare makes
+is worded "The arrowhead of … reaches into the label of …".
+These add findings and problem wording only: no wire format changes.
+
 Placement problems provide `edit` operations addressing `place`. Resetting an annotation's
 `place` to `{}` releases it to automatic placement; removing a view's `place` restores automatic
 packing. Suggestions for free annotations choose another strip or label position and must be
@@ -664,6 +683,21 @@ basis, placed, reference?, determined_by?}`:
   unless the spec tolerances them or omits that rung. A PMI length across the same span takes its
   rung's place. Lint counts a band's length as placed when a baseline locates both its
   shoulders.
+  On a part of several turned bodies along one axis (stream K5, ARCH0020-2), each body's
+  chain goes in the profile view that separates its axis line from the others' and its witnesses
+  start at its own silhouette, on the side of the view it is nearer; a groove whose record names
+  none of the part's turned profiles is refused (`feature_not_dimensioned`, ADR3-12). Lint
+  credits a grouped length (`3× 10`) only when it prints exactly the count of the adjoining bands
+  it claims.
+- **Raised pads** (`src/dims/pads.rs`, stream K5): `d:f:pad:<n>/pad_width.length` and
+  `pad_length.length` between the pad's own edges, `pad_height.length` as a callout `5 HIGH`, and
+  `location_pad.location.x|y` (a pad along z) or `location_pad.<axis>` from the part's corner to
+  its centre, all in the view that looks down on it; a direction on the datum is an info
+  `location_on_datum`.
+- **Free-direction slots** (`src/dims/oriented_slots.rs`, stream K5): one callout
+  `d:f:oriented_slot:<n>/oriented_slot_width.length`, `ORIENTED SLOT 2 WIDE × 4.5 LONG`, claiming
+  width and length, in the view along the slot's dominant run axis, its leader to the slot's rim;
+  equal slots in one view share a counted callout.
 - **Hole callouts** in draftwright's grammar (`4× ⌀10 THRU ⌴ ⌀16 ↧ 5 (2×2)`), in the view that
   looks along the hole. Identical holes drilled the same way are grouped and counted; quiddity's
   hole patterns (kept by the bridge in `recognition.patterns` as `f:hole_pattern:<n>`) are called
@@ -730,7 +764,7 @@ stating a thickness or letting lint read the Spec. Outcomes use
 `plate_requirement_missing`, `_suppressed` and `_unverifiable`.
 
 Each family is a planner module in `src/dims/` (`envelope`, `turned`, `holes`, `slots`, `bosses`,
-`edges`), listed in `dims::PLANNERS` with the feature kinds it dimensions. Every other recognised
+`edges`, `pads`, `oriented_slots`, …), listed in `dims::PLANNERS` with the feature kinds it dimensions. Every other recognised
 feature gets one warning problem, `dimensions_not_ported`, on its
 ID: draftwright dimensions those kinds and the port does not yet, so this is a gap in the port,
 not in the part. Record types draftwright itself leaves undimensioned (freeform surfaces,
@@ -1177,6 +1211,24 @@ instead: an open question). A threaded owner keeps a callout of its own. No owne
 or text that disagrees with the cylinder is `pmi_not_lowered` (error) with draftwright's reason; a
 requirement a boss owns is refused too, as the boss callout prints none yet
 (`tests/pmi_thread_knurl.rs`).
+
+A semantic AP242 `thread` (haecceity's, with its 'thread manufacturing' attribute set: pitch,
+and a thread length for an external one) is read as draftwright's structured `internal_thread` or
+`external_thread`; a `turned_knurl` as a structured `knurl`. Beyond draftwright (#23), an external
+thread whose callout prints it (not `SEE MFG n`) prints its designation in place of the plain
+diameter (`M10 x 1.5-6g RH, FULL AVAILABLE LENGTH`, not `ø10 M10 x …`), and a turned step's
+external thread or knurl is drawn in its profile views (not section views) on the SVG/PDF/DXF
+layer `thin` (thin continuous, 0.25 mm; only a drawing that has such lines has the layer): ISO
+6410's thin line each side of the axis at the minor diameter d3 = d − 1.22687·P over the thread
+length, and a knurl's band over the middle half of its length (lines along the axis for a
+straight knurl, crossed at 30° for a diamond one, the pitch apart on paper but at least 3 mm).
+The thread's limit is the step's own end (ownership requires the stated length to be the step's
+cylinder or span), so the shoulder edge is its limit line and the step length dimensions it. The
+plan is unchanged: these lines are render furniture, not plan items. In the session's SVG
+fragments they travel in their view's fragment (layer `thin`), not in `furniture`, so they move
+with the view. A turned step's diameter callout is led to the silhouette at 15° or more to it: a
+leader along the silhouette would lie on the part's edge (ISO 128-22), so the placer counts one as
+a hard blocker.
 
 **IDs and views.** A dimension's ID names what it measures, never the view that carries it
 (`draftwright.spec/2`; version 1 added `@<view>`). The view is the item's `view`. Omitting that

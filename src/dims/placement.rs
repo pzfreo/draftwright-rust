@@ -426,6 +426,26 @@ fn plate_strip(frame: &Frame, view: &str, shape: &Shape, horizontal: bool) -> Si
     }
 }
 
+/// The strip of a turned step length anchored on its own body's silhouette (both witnesses off
+/// the outline: [`super::turned`]'s chains on a part of several turned bodies, ARCH0020-2): the
+/// side of the view its witnesses leave the body on, so they never cross a sibling body. None for
+/// any other item.
+fn body_strip(frame: &Frame, w: &Want, horizontal: bool) -> Option<Side> {
+    match &w.shape {
+        Shape::Linear {
+            a,
+            a_edge: false,
+            b_edge: false,
+            ..
+        } if !w.measurements.is_empty()
+            && w.measurements.iter().all(|m| m.parameter == "step.length") =>
+        {
+            Some(silhouette_gap(frame, *a, horizontal).0)
+        }
+        _ => None,
+    }
+}
+
 /// For each item, the item whose lane it shares, when the defaults merge it away: one span, one
 /// dimension (ARCH0009-6; [`super::bosses::consolidate`], [`super::holes::consolidate`],
 /// [`super::share`]) leaves one dimension on a span that several items measure, so the others
@@ -511,6 +531,8 @@ pub(super) fn lanes<'a>(
                         .any(|m| m.parameter == "thickness.length")
                     {
                         plate_strip(f, view, &w.shape, horizontal)
+                    } else if let Some(side) = body_strip(f, w, horizontal) {
+                        side
                     } else {
                         strip(view, horizontal)
                     },
@@ -1113,6 +1135,59 @@ pub(super) fn avoid_fixed(
     }
 }
 
+/// A label that cannot slide clear of a witness may have a clear lane across its view.
+/// Try that corridor before leaders settle around the edited linear ink. The caller
+/// keeps canonical and authored placements; every candidate clears the full inventory.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn clear_linear(
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    chosen: &[Option<&str>],
+    sides: &mut [Option<Side>],
+    lanes: &mut [usize],
+    placed: &mut [Option<Placed>],
+    obstacles: &[PlannedDimension],
+    page: &Page,
+) {
+    let conflict = |a: &Placed, b: &Placed| {
+        boxes_overlap(a.label_box, b.label_box)
+            || a.lines.iter().any(|l| crosses(*l, b.label_box))
+            || b.lines.iter().any(|l| crosses(*l, a.label_box))
+            || (a.arrows.len() == 2
+                && b.arrows.len() == 2
+                && shared_dimension_line(&a.lines, &b.lines))
+    };
+    for i in 0..items.len() {
+        if !matches!(items[i].shape, Shape::Linear { .. }) {
+            continue;
+        }
+        let (Some(p), Some(view), Some(side)) = (&placed[i], chosen[i], sides[i]) else {
+            continue;
+        };
+        let others: Vec<_> = placed
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| *j != i)
+            .filter_map(|(_, p)| p.as_ref())
+            .chain(obstacles.iter().filter_map(|d| d.placed.as_ref()))
+            .collect();
+        if !others.iter().any(|q| conflict(p, q)) {
+            continue;
+        }
+        // The opposite strip's first eight lanes are a bounded search of spare paper,
+        // not permission to grow the existing tower beyond the sheet.
+        let found = (0..8).find_map(|lane| {
+            let c = place(&frames[view], &items[i], opposite(side), lane)?;
+            (page.fits(&c, view) && others.iter().all(|q| !conflict(&c, q))).then_some((lane, c))
+        });
+        if let Some((lane, c)) = found {
+            sides[i] = Some(opposite(side));
+            lanes[i] = lane;
+            placed[i] = Some(c);
+        }
+    }
+}
+
 // Linear placements store their dimension line after the two extension lines.
 // Dimensions sharing a datum must stay on separate lines when moving around a pin.
 fn dimension_lines_overlap(p: &Placed, q: &Placed) -> bool {
@@ -1558,6 +1633,34 @@ pub(super) fn ink_points(p: &Placed) -> impl Iterator<Item = P2> + '_ {
         .chain([[b[0], b[1]], [b[2], b[1]], [b[0], b[3]], [b[2], b[3]]])
 }
 
+/// Whether placed item *p*'s rendered ink reaches into the open box *b* (ISSUE-367-a): its
+/// lines and each arrowhead's filled flare as `dims::render` draws it, not only the shaft. The
+/// flare is tested where it is, at the tip, not along the whole shaft. The stroke's width (the
+/// annotation layer's 0.05 mm) is not added: a graze that thin flipped sheet choices (a
+/// GD&T leader 0.01 mm under a label moved hw_string_post_tapped_intent from A3 5:1 to A4 2:1)
+/// without a contact a reader can see.
+pub(super) fn ink_through(p: &Placed, b: [f64; 4]) -> bool {
+    if p.lines.iter().any(|s| crosses(*s, b)) {
+        return true;
+    }
+    p.arrows.iter().any(|&[tip, tail]| {
+        let n = [tail[1] - tip[1], tip[0] - tail[0]];
+        let k = ARROW_HALF / n[0].hypot(n[1]).max(1e-12);
+        let a = [tail[0] + k * n[0], tail[1] + k * n[1]];
+        let c = [tail[0] - k * n[0], tail[1] - k * n[1]];
+        let edges = [[tip, a], [a, c], [c, tip]];
+        // An edge through the box, or the box wholly inside the filled head.
+        let mid = [0.5 * (b[0] + b[2]), 0.5 * (b[1] + b[3])];
+        let side =
+            |[u, v]: [P2; 2]| (v[0] - u[0]) * (mid[1] - u[1]) - (v[1] - u[1]) * (mid[0] - u[0]);
+        let within = {
+            let s = edges.map(side);
+            s.iter().all(|x| *x > 0.0) || s.iter().all(|x| *x < 0.0)
+        };
+        edges.iter().any(|e| crosses(*e, b)) || within
+    })
+}
+
 pub(super) fn boxes_overlap(a: [f64; 4], b: [f64; 4]) -> bool {
     a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1]
 }
@@ -1971,16 +2074,29 @@ pub(crate) fn collisions_cached(
             if a.id == b.id {
                 continue;
             }
-            if pa.lines.iter().any(|s| crosses(*s, pb.label_box)) {
+            // A callout's leader is judged by its rendered ink, its arrowhead's flare included
+            // (ISSUE-367-a), as `dims::leaders` places it; a contact only the flare makes is
+            // worded as such. Other items keep the centreline test their placement (`settle`)
+            // uses.
+            let through = pa.lines.iter().any(|s| crosses(*s, pb.label_box));
+            if through || (a.kind == "callout" && ink_through(pa, pb.label_box)) {
                 problem(
                     "annotation_ink_overlap",
                     "warning",
                     vec![a.id.clone(), b.id.clone()],
-                    format!(
-                        "A line of {} runs through the label of {}.",
-                        named(a),
-                        named(b)
-                    ),
+                    if through {
+                        format!(
+                            "A line of {} runs through the label of {}.",
+                            named(a),
+                            named(b)
+                        )
+                    } else {
+                        format!(
+                            "The arrowhead of {} reaches into the label of {}.",
+                            named(a),
+                            named(b)
+                        )
+                    },
                 );
             }
             // A callout's leader or shoulder across, or laid along, another item's line (its
@@ -2138,5 +2254,93 @@ mod tests {
             "{problems:#?}"
         );
         assert!(!has("annotation_leader_crossing", "d:a", "d:c"));
+    }
+    /// ISSUE-367-a: a callout's collision checks read its rendered ink, not only the shaft. An
+    /// arrowhead whose flare (not its shaft) reaches into another label is reported; the flare
+    /// is evidence only at the tip (a label beside the shaft further up is not met).
+    #[test]
+    fn a_callouts_arrowhead_flare_is_collision_evidence() {
+        let leader = |tip: P2, elbow: P2| Placed {
+            lines: vec![[tip, elbow], [elbow, [elbow[0] + 10.0, elbow[1]]]],
+            arrows: vec![arrow(tip, elbow)],
+            label_at: [elbow[0] + 1.0, elbow[1] + 0.5],
+            rotation: 0.0,
+            label_box: [
+                elbow[0] + 1.0,
+                elbow[1] + 0.5,
+                elbow[0] + 9.0,
+                elbow[1] + 3.0,
+            ],
+        };
+        let other = |b: [f64; 4]| Placed {
+            lines: vec![],
+            arrows: vec![],
+            label_at: [b[0], b[1]],
+            rotation: 0.0,
+            label_box: b,
+        };
+        // A vertical leader up from (50, 50): its flare is 0.45 mm either side at the tail.
+        let up = leader([50.0, 50.0], [50.0, 80.0]);
+        // A label whose left edge is 0.3 mm right of the shaft, beside the arrowhead.
+        assert!(ink_through(&up, [50.3, 51.0, 60.0, 53.0]));
+        assert!(
+            !up.lines
+                .iter()
+                .any(|s| crosses(*s, [50.3, 51.0, 60.0, 53.0]))
+        );
+        // The same label further up the shaft, past the arrowhead: clear.
+        assert!(!ink_through(&up, [50.3, 60.0, 60.0, 62.0]));
+        // A tiny label wholly inside the flare.
+        assert!(ink_through(&up, [49.9, 52.0, 50.1, 52.2]));
+        // Reported by the plan's collision checks.
+        let analysis: Analysis = serde_json::from_value(serde_json::json!({
+            "schema": "draftwright.analysis/5",
+            "binding": {"source_sha256": "", "part": "", "face_count": 0, "loader": ""},
+            "envelope": [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]],
+            "iso_bounds": [0.0, 0.0, 0.0, 0.0]
+        }))
+        .unwrap();
+        let sheet: PlannedSheet = serde_json::from_value(serde_json::json!({
+            "size": "A4", "page": [297.0, 210.0], "scale": "1:1", "scale_factor": 1.0,
+            "arrangement": "columns", "title_block": [200.0, 10.0, 287.0, 40.0],
+            "default": true, "basis": "", "state": { "kind": "shown" }, "title": {}
+        }))
+        .unwrap();
+        let item = |id: &str, kind: &str, placed: Placed| PlannedDimension {
+            reference: false,
+            determined_by: Vec::new(),
+            region: None,
+            id: id.into(),
+            kind: kind.into(),
+            view: "v:plan".into(),
+            value: 1.0,
+            label: id.into(),
+            terms: vec![id.into()],
+            measurements: vec![],
+            default: true,
+            from_spec: vec![],
+            basis: String::new(),
+            state: crate::items::State::Shown,
+            placed: Some(placed),
+        };
+        let problems = collisions(
+            &analysis,
+            &[
+                item("d:c", "callout", up),
+                item("d:l", "linear", other([50.3, 51.0, 60.0, 53.0])),
+            ],
+            &sheet,
+            &[],
+        );
+        let overlap = problems
+            .iter()
+            .find(|p| p.code == "annotation_ink_overlap")
+            .expect("the flare's contact is reported");
+        assert_eq!(overlap.subjects, ["d:c", "d:l"]);
+        assert!(
+            overlap.message.starts_with("The arrowhead of"),
+            "{}",
+            overlap.message
+        );
     }
 }

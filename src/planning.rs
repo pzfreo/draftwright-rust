@@ -1,9 +1,11 @@
 //! Preparation shared by sheet-search candidates during one immutable planning call.
+//! Exact cross-call results use bounded memos with short lock scopes.
 
 use std::any::Any;
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use crate::model::Analysis;
 
@@ -113,9 +115,93 @@ pub(crate) fn enabled(analysis: &Analysis) -> bool {
     })
 }
 
+type SharedValues<T> = VecDeque<([u8; 32], Arc<T>)>;
+
+/// Bounded exact results across immutable calls. Only reference/queue updates hold
+/// the lock: cloning and destroying a large Plan must not stall other planners.
+pub(crate) struct BoundedMemo<T> {
+    capacity: usize,
+    values: Mutex<SharedValues<T>>,
+}
+
+impl<T: Clone> BoundedMemo<T> {
+    pub(crate) const fn new(capacity: usize) -> Self {
+        assert!(capacity > 0);
+        Self {
+            capacity,
+            values: Mutex::new(VecDeque::new()),
+        }
+    }
+
+    pub(crate) fn get(&self, key: &[u8; 32]) -> Option<T> {
+        let stored = self
+            .values
+            .lock()
+            .expect("planning memo lock")
+            .iter()
+            .find(|(k, _)| k == key)
+            .map(|(_, value)| Arc::clone(value));
+        stored.map(|value| value.as_ref().clone())
+    }
+
+    pub(crate) fn insert(&self, key: [u8; 32], value: T) {
+        let value = Arc::new(value);
+        let mut values = self.values.lock().expect("planning memo lock");
+        let previous = values.iter().position(|(k, _)| *k == key);
+        let replaced = previous.and_then(|at| values.remove(at));
+        let evicted = if values.len() == self.capacity {
+            values.pop_front()
+        } else {
+            None
+        };
+        values.push_back((key, value));
+        drop(values);
+        drop((replaced, evicted));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shared_memo_clones_and_drops_values_outside_its_lock() {
+        use std::sync::{Arc, Weak};
+        struct Probe {
+            cache: Weak<BoundedMemo<Probe>>,
+            value: u8,
+        }
+        impl Clone for Probe {
+            fn clone(&self) -> Self {
+                assert!(self.cache.upgrade().unwrap().values.try_lock().is_ok());
+                Self {
+                    cache: self.cache.clone(),
+                    value: self.value,
+                }
+            }
+        }
+        impl Drop for Probe {
+            fn drop(&mut self) {
+                if let Some(cache) = self.cache.upgrade() {
+                    assert!(cache.values.try_lock().is_ok());
+                }
+            }
+        }
+        let cache = Arc::new(BoundedMemo::new(2));
+        let value = |n| Probe {
+            cache: Arc::downgrade(&cache),
+            value: n,
+        };
+        cache.insert([1; 32], value(1));
+        cache.insert([2; 32], value(2));
+        let mut owned = cache.get(&[1; 32]).unwrap();
+        owned.value = 99;
+        assert_eq!(cache.get(&[1; 32]).unwrap().value, 1);
+        cache.insert([1; 32], value(3));
+        cache.insert([3; 32], value(4));
+        assert!(cache.get(&[2; 32]).is_none());
+        assert_eq!(cache.get(&[1; 32]).unwrap().value, 3);
+    }
 
     fn analysis() -> Analysis {
         serde_json::from_value(serde_json::json!({

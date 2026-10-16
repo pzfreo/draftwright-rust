@@ -1774,6 +1774,33 @@ pub struct Owned {
     /// A through tap: its suffix states `THRU`, so the hole callout's own `THRU` is not
     /// repeated.
     pub through: bool,
+    /// How the owner's profile views draw it ([`crate::cosmetic`]): an external thread's
+    /// minor diameter or a knurl's band; none for an internal thread.
+    pub depiction: Option<Depiction>,
+}
+
+/// Where and what a turned step's thread or knurl is drawn, in the drawing's frame (as
+/// [`crate::lint::turned::band`] reads the step).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Depiction {
+    /// The world axis the step turns about.
+    pub axis: usize,
+    /// A point on that axis.
+    pub on: [f64; 3],
+    /// The threaded or knurled length along the axis.
+    pub span: [f64; 2],
+    /// The major (thread) or maximum (knurl) diameter.
+    pub diameter: f64,
+    pub kind: DepictionKind,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum DepictionKind {
+    /// ISO 6410: a thin line at the minor diameter over the thread length.
+    Thread { minor: f64 },
+    /// A band of thin lines over part of the knurled length: straight (along the axis) or
+    /// diamond (crossed); its pitch along the circumference.
+    Knurl { diamond: bool, pitch: f64 },
 }
 
 /// What the part's thread and knurl requirements come to ([`manufacturing`]).
@@ -1802,6 +1829,24 @@ impl Manufacturing {
         let mut out: Vec<&Owned> = self.owned.iter().filter(|o| o.owner == id).collect();
         out.sort_by_key(|o| o.aspect != "thread");
         out
+    }
+
+    /// Whether feature *id*'s callout prints an external thread's designation itself (not
+    /// `SEE MFG n`): the designation then stands in place of the plain diameter, as ISO 6410
+    /// designates a thread (`M10 x 1.5-6g RH`, not `ø10 M10 x 1.5-6g RH`). Beyond
+    /// draftwright, which prints the diameter before it (draftwright-rust #23).
+    pub fn replaces_diameter(&self, id: &str) -> bool {
+        self.on(id).iter().any(|o| {
+            o.aspect == "thread"
+                && matches!(
+                    o.depiction,
+                    Some(Depiction {
+                        kind: DepictionKind::Thread { .. },
+                        ..
+                    })
+                )
+                && self.printed(o) == o.suffix
+        })
     }
 
     /// Who states the requirements feature *id* carries, for its callout's basis: `the spec's`
@@ -2840,6 +2885,9 @@ fn internal_owner(c: &Cylinder, o: &Owner, envelope: [[f64; 3]; 2]) -> bool {
     same_number(hi - lo, depth, 0.01) && (lo - station).abs().min((hi - station).abs()) <= 0.01
 }
 
+/// A requirement's owner (its index), its reading, and how its owner's views draw it.
+type Proposal = (usize, Aspect, Option<Depiction>);
+
 /// A requirement read from its record.
 enum Aspect {
     Thread(Thread),
@@ -3075,12 +3123,13 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
     let chamfers = turned_chamfers(analysis);
     let mut claimed: Vec<(usize, u64)> = Vec::new();
     // Each record's proposal: its owner's index and its aspect, or why it has none.
-    let mut proposals: Vec<Result<(usize, Aspect), String>> = Vec::new();
+    let mut proposals: Vec<Result<Proposal, String>> = Vec::new();
     for r in &records {
         let proposal = (|| {
             // A thread or knurl the Spec authors names its feature ([`crate::spec_notes`]).
             if r.source_id.starts_with(crate::spec_gdt::SOURCE_PREFIX) {
-                return authored(r, &candidates, analysis);
+                return authored(r, &candidates, analysis)
+                    .map(|(owner, aspect)| (owner, aspect, None));
             }
             let mut reasons = blockers(r);
             let g = r.geometry.clone().unwrap_or_default();
@@ -3167,7 +3216,30 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
                     return Err("structured thread length disagrees with source cylinder or evidenced owner span".into());
                 }
             }
-            Ok((owner, aspect))
+            // The drawn length is the requirement's cylinder: where a stated thread length is the
+            // owner's span, the difference is a tip chamfer, whose narrower profile the minor
+            // diameter line must not run past.
+            let span = c.interval;
+            let kind = match &aspect {
+                Aspect::Thread(t) if t.internal => None,
+                Aspect::Authored(_) => None,
+                // ISO 724's basic minor diameter of an external thread, d3 = d − 1.22687·P.
+                Aspect::Thread(t) => Some(DepictionKind::Thread {
+                    minor: t.nominal - 1.226_87 * t.pitch,
+                }),
+                Aspect::Knurl(k) => Some(DepictionKind::Knurl {
+                    diamond: k.pattern == "diamond",
+                    pitch: k.pitch,
+                }),
+            };
+            let depiction = kind.filter(|_| o.kind == "step").map(|kind| Depiction {
+                axis: o.axis,
+                on: o.at,
+                span,
+                diameter: o.diameter,
+                kind,
+            });
+            Ok((owner, aspect, depiction))
         })();
         proposals.push(proposal);
     }
@@ -3184,7 +3256,7 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
     for (r, p) in records.iter().zip(proposals) {
         let refusal = match (p, ids.id(&r.source_id)) {
             (Err(why), _) | (Ok(_), Err(why)) => Some(why),
-            (Ok((owner, aspect)), Ok(id)) => {
+            (Ok((owner, aspect, depiction)), Ok(id)) => {
                 let name = aspect_name(&aspect);
                 let o = &candidates[owner];
                 if claims[&(owner, name)] > 1 {
@@ -3210,6 +3282,7 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
                         suffix,
                         text,
                         through,
+                        depiction,
                     });
                     None
                 }
@@ -3365,6 +3438,7 @@ mod tests {
             suffix: suffix.into(),
             text: suffix.into(),
             through: false,
+            depiction: None,
         };
         let mut m = Manufacturing {
             owned: vec![

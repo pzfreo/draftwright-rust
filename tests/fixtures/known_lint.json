@@ -364,16 +364,6 @@
   ],
   "family_rest": [
     {
-      "part": "h467",
-      "sheet": "own",
-      "subject": "f:oriented_slot:1",
-      "python": null,
-      "rust": "oriented_slot_requirement_missing",
-      "count": 2,
-      "verdict": "rust-correct",
-      "reason": "The port's dimensions draw no oriented slot (no planner claims oriented_slot; the plan reports it dimensions_not_ported), so its sheet states neither the slot's width (2) nor its length (4.543), and lint says so. Python's sheet calls it out (m_oriented_slot_x_0, \"ORIENTED SLOT 2 WIDE × 4.5 LONG\", claiming both), and lint on Python's sheet reads both as stated, as Python's lint does. The finding is right; the gap is the port's dimensions."
-    },
-    {
       "part": "oriented_slots",
       "sheet": "python",
       "subject": "f:oriented_slot:1",
@@ -396,36 +386,6 @@
     {
       "part": "oriented_slots",
       "sheet": "python",
-      "subject": "f:oriented_slot:3",
-      "python": null,
-      "rust": "oriented_slot_requirement_missing",
-      "count": 2,
-      "verdict": "undetermined",
-      "reason": "The three slots are the members of one oriented slot array (quiddity 0.3.9's derived oriented_slot_patterns: one OrientedSlotArray of all three, as draftwright's own recognition finds). Python's lint judges only standalone slots (oriented_slot_contract.standalone_oriented_slots consumes each pattern's members) and its quality report lists oriented_slot_patterns as an undecided family (linting/quality.py, #1430), so it reports nothing; neither sheet states the slots' widths or lengths. The Analysis does not record the patterns (src/bridge.rs reads their members one by one, as oriented slots, and DERIVED_NOT_READ drops the patterns), so lint cannot tell a member from a lone slot and reports both sizes of each missing. Undetermined until draftwright decides #1430 and the maintainer decides whether the Analysis should carry oriented slot pattern membership (docs/rules/lint.yaml, LINT-oriented_slot_coverage-width_length)."
-    },
-    {
-      "part": "oriented_slots",
-      "sheet": "own",
-      "subject": "f:oriented_slot:1",
-      "python": null,
-      "rust": "oriented_slot_requirement_missing",
-      "count": 2,
-      "verdict": "undetermined",
-      "reason": "The three slots are the members of one oriented slot array (quiddity 0.3.9's derived oriented_slot_patterns: one OrientedSlotArray of all three, as draftwright's own recognition finds). Python's lint judges only standalone slots (oriented_slot_contract.standalone_oriented_slots consumes each pattern's members) and its quality report lists oriented_slot_patterns as an undecided family (linting/quality.py, #1430), so it reports nothing; neither sheet states the slots' widths or lengths. The Analysis does not record the patterns (src/bridge.rs reads their members one by one, as oriented slots, and DERIVED_NOT_READ drops the patterns), so lint cannot tell a member from a lone slot and reports both sizes of each missing. Undetermined until draftwright decides #1430 and the maintainer decides whether the Analysis should carry oriented slot pattern membership (docs/rules/lint.yaml, LINT-oriented_slot_coverage-width_length)."
-    },
-    {
-      "part": "oriented_slots",
-      "sheet": "own",
-      "subject": "f:oriented_slot:2",
-      "python": null,
-      "rust": "oriented_slot_requirement_missing",
-      "count": 2,
-      "verdict": "undetermined",
-      "reason": "The three slots are the members of one oriented slot array (quiddity 0.3.9's derived oriented_slot_patterns: one OrientedSlotArray of all three, as draftwright's own recognition finds). Python's lint judges only standalone slots (oriented_slot_contract.standalone_oriented_slots consumes each pattern's members) and its quality report lists oriented_slot_patterns as an undecided family (linting/quality.py, #1430), so it reports nothing; neither sheet states the slots' widths or lengths. The Analysis does not record the patterns (src/bridge.rs reads their members one by one, as oriented slots, and DERIVED_NOT_READ drops the patterns), so lint cannot tell a member from a lone slot and reports both sizes of each missing. Undetermined until draftwright decides #1430 and the maintainer decides whether the Analysis should carry oriented slot pattern membership (docs/rules/lint.yaml, LINT-oriented_slot_coverage-width_length)."
-    },
-    {
-      "part": "oriented_slots",
-      "sheet": "own",
       "subject": "f:oriented_slot:3",
       "python": null,
       "rust": "oriented_slot_requirement_missing",

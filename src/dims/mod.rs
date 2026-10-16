@@ -20,7 +20,11 @@
 //! - **planar steps**: a through step's two legs, a circular blind step's `R × DEEP` and a
 //!   paired-ramp step's `2× θ° × RUN` callouts, in the view along the step's run;
 //! - **the height ladder** of a prismatic part: its face levels' heights from its base, in the
-//!   front view, and its shoulders' positions along x and y.
+//!   front view, and its shoulders' positions along x and y;
+//! - **raised pads**: footprint, `HIGH` height callout and location, in the view down on each
+//!   ([`pads`]);
+//! - **free-direction slots**: one `ORIENTED SLOT W WIDE × L LONG` callout led to the rim
+//!   ([`oriented_slots`]).
 //!
 //! Each is a [`PlannedDimension`] with a stable ID, `d:<feature>/<parameter>`, the view that
 //! carries it, its value,
@@ -66,6 +70,8 @@ mod leaders;
 pub(crate) use label_lanes::settle_inventory;
 pub(crate) use placement::collisions_cached as label_collisions;
 pub(crate) mod levels;
+mod oriented_slots;
+mod pads;
 mod placement;
 mod plates;
 mod pmi_dimensions;
@@ -421,7 +427,8 @@ struct Want {
     basis: String,
     shape: Shape,
     /// For a turned part's diameter: its turning axis. The diameter is then drawn across
-    /// whichever radial axis the carrying view shows.
+    /// whichever radial axis the carrying view shows; a step diameter's callout, led to the
+    /// silhouette, keeps its leader off the silhouette's direction ([`leaders`]).
     turning: Option<usize>,
 }
 
@@ -490,7 +497,7 @@ struct Planner {
 }
 
 /// The planners, in the order their items are planned.
-const PLANNERS: [Planner; 14] = [
+const PLANNERS: [Planner; 16] = [
     turned::PLANNER,
     envelope::PLANNER,
     stock::PLANNER,
@@ -505,6 +512,8 @@ const PLANNERS: [Planner; 14] = [
     levels::PLANNER,
     recesses::PLANNER,
     plates::PLANNER,
+    pads::PLANNER,
+    oriented_slots::PLANNER,
 ];
 
 /// Everything the defaults would dimension, with the problems met on the way, and what the part's
@@ -1069,14 +1078,25 @@ pub(crate) fn plan_inventory(
     // not solve again solely for that presentation policy or a frame's explanation.
     let mut geometry_spec = spec.clone();
     geometry_spec.hole_table = crate::hole_table::Setting::Auto;
+    // The placer reads the title block rectangle, never its cells or their text.
+    // Keep the actual rectangle below: an expanded title block still invalidates ink.
+    geometry_spec.sheet.title.clear();
     let mut geometry_sheet = sheet.clone();
+    geometry_sheet.title.clear();
+    geometry_sheet.title_cells.clear();
     geometry_sheet.basis.clear();
     geometry_sheet.arrangement.clear();
     let mut geometry_views = views.to_vec();
     for view in &mut geometry_views {
         view.basis.clear();
     }
+    use sha2::{Digest, Sha256};
+    let analysis_key: [u8; 32] =
+        crate::planning::memo(analysis, "analysis_digest", Vec::new(), || {
+            Sha256::digest(serde_json::to_vec(analysis).expect("Analysis serializes")).into()
+        });
     let key = serde_json::to_vec(&(
+        analysis_key,
         geometry_spec,
         geometry_sheet,
         geometry_views,
@@ -1085,10 +1105,22 @@ pub(crate) fn plan_inventory(
         excluded,
     ))
     .expect("dimension placement inputs serialize");
-    crate::planning::memo(analysis, "dimension_placement", key, || {
-        plan_inventory_uncached(
+    crate::planning::memo(analysis, "dimension_placement", key.clone(), || {
+        // Stateless reconstruction and title edits revisit the same physical placement.
+        // This bounded process memo owns its results and hashes every read input, including
+        // the complete Analysis, so edited PMI/geometry cannot reuse an old placement.
+        type Inventory = Result<(Planned, Vec<PlannedDimension>), Invalid>;
+        static MEMO: crate::planning::BoundedMemo<Inventory> =
+            crate::planning::BoundedMemo::new(64);
+        let digest: [u8; 32] = Sha256::digest(&key).into();
+        if let Some(result) = MEMO.get(&digest) {
+            return result;
+        }
+        let result = plan_inventory_uncached(
             analysis, spec, sheet, views, obstacles, held, cache, excluded,
-        )
+        );
+        MEMO.insert(digest, result.clone());
+        result
     })
 }
 
@@ -1518,6 +1550,23 @@ fn plan_inventory_uncached(
         &page,
     );
     placement::settle_fixed(&mut placed, &fixed, obstacles, analysis, sheet, views);
+    // Edited text can outgrow the canonical lanes. Keep the canonical layout stable
+    // for pins and omission edits; their avoidance pass above owns that geometry.
+    if (spec.dimensions.values().any(|d| d.tolerance.is_some())
+        || spec.features.values().any(|f| f.fit.is_some()))
+        && intended.iter().all(Option::is_none)
+    {
+        placement::clear_linear(
+            &frames,
+            &all,
+            &chosen,
+            &mut sides,
+            &mut lane,
+            &mut placed,
+            obstacles,
+            &page,
+        );
+    }
     angular::place(&frames, &all, &chosen, &mut placed, &page);
     // Radius exceptions are placed around the existing drawing ink. Their addition must not
     // reroute unrelated approved callouts into clutter.
@@ -2257,6 +2306,29 @@ pub fn feature_origin(analysis: &Analysis, id: &str) -> Option<P3> {
             .iter()
             .fold([0.0; 3], |s, m| add(s, scale3(*m, 1.0 / n)))
     })
+}
+
+/// How far callout *d*'s leader shaft cuts back into its view's material after leaving it at
+/// its tip, page mm: [`crate::material::reentry`] on the router's own material for the view
+/// (ADR2-8), zero for none or for a view the router does not place in.
+pub(crate) fn leader_reentry(
+    analysis: &Analysis,
+    views: &[PlannedView],
+    d: &PlannedDimension,
+) -> f64 {
+    let (Some(v), Some(shaft)) = (
+        views.iter().find(|v| {
+            let name = v.id.strip_prefix("v:").unwrap_or(&v.id);
+            v.id == d.view && (NAMES.contains(&name) || crate::detail::NAMES.contains(&name))
+        }),
+        d.placed.as_ref().and_then(|p| p.lines.first()),
+    ) else {
+        return 0.0;
+    };
+    crate::material::reentry(
+        footprints::Cache::default().get(analysis, v).solids(),
+        *shaft,
+    )
 }
 
 /// Geometry-backed placement choices for the editor, including omitted dimensions.

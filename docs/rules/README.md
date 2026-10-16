@@ -15,15 +15,20 @@ Status, as brought up to date from the rules assessment of 2026-10-11 and the St
 integration of 2026-10-12 (G1 completeness, G2 plates, G5 title block) and the Stage H
 integration of 2026-10-12 (H1 tables, H3 label settlement, H6 sheet fit, H7 interior,
 G3 blends, G6 centre lines), stream K7 (2026-10-16: lint's self-checks of label against ink,
-angle against rays and datum symbol against surface, `src/lint/fidelity.rs`) and stream K1b
-(Spec-authored finish, threads, knurls and notes: ARCH0011-1 ported):
+angle against rays and datum symbol against surface, `src/lint/fidelity.rs`), stream K1b
+(Spec-authored finish, threads, knurls and notes: ARCH0011-1 ported) and stream K4
+(2026-10-16: leader tips on the rims and arcs they name, one material re-entry predicate shared
+by the router and lint, `src/lint/leaders.rs` and `src/material.rs`) and stream K5
+(2026-10-16: dimensioning completeness: a chain per turned body on its own silhouette, raised
+pads, oriented slot callouts, any end-to-end span carrying an extent, exact grouped lengths,
+`tests/completeness_rules.rs`):
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 48 | 54 | 33 | 25 |
-| `lint.yaml` | 52 | 100 | 0 | 13 |
-| `issues.yaml` | 109 | 54 | 6 | 21 |
-| **All** | **209** | **208** | **39** | **59** |
+| `adr.yaml` | 46 | 56 | 33 | 25 |
+| `lint.yaml` | 43 | 109 | 0 | 13 |
+| `issues.yaml` | 101 | 62 | 6 | 21 |
+| **All** | **190** | **227** | **39** | **59** |
 
 The assessment rated each of the 353 rules then pending; 20 rules pending today were not rated.
 Rules it found done but with no test to name, or with a real remainder, stay pending with a

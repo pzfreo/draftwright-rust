@@ -618,6 +618,8 @@ pub struct Request {
     pub strips: Strips,
     /// The number of section views beside the side view.
     pub sections: usize,
+    /// Keep the section aligned when view-dependent annotation corridors are reserved.
+    pub section_row_fixed: bool,
     /// Optional tables (one of them must fit, top right) and required ones.
     pub table_sizes: Vec<[f64; 2]>,
     pub required_tables: Vec<([f64; 2], Corner)>,
@@ -644,6 +646,7 @@ impl Request {
             size,
             strips: Strips::without_features(),
             sections: 0,
+            section_row_fixed: false,
             table_sizes: Vec::new(),
             required_tables: Vec::new(),
             margins: Margins::uniform(MARGIN),
@@ -1121,6 +1124,44 @@ fn geometry_with(
     let on_tb = |boxes: &[Rect]| boxes.iter().any(|b| overlaps(b, &tb_rect));
     let boxes = placed_boxes(fv_y, pv_y, sv_y, section_y);
     let mut tb_clear = !on_tb(&boxes);
+
+    // A section may sit above the title block without lifting the projection column.
+    // Lifting every view to clear one section can push an otherwise fitting end view
+    // off the top of the sheet. Keep the aligned row when it fits; on an overflow
+    // candidate, try lifting just the sections, preserving front/plan alignment.
+    if !tb_clear && req.sections > 0 && !req.section_row_fixed {
+        let lift = boxes
+            .iter()
+            .filter(|b| overlaps(b, &tb_rect))
+            .map(|b| tb_rect[3] - b[1])
+            .fold(0.0, f64::max);
+        let row_top = boxes.iter().map(|b| b[3]).fold(0.0, f64::max);
+        let principals: Vec<_> = [
+            (fv, fv_x, fv_y, has_front),
+            (pv, pv_x, pv_y, has_plan),
+            (sv, sv_x, sv_y, has_side),
+        ]
+        .iter()
+        .filter(|v| v.3)
+        .map(|(b, x, y, _)| b.footprint(*x, *y))
+        .collect();
+        let raised: Vec<_> = (0..req.sections)
+            .map(|i| section_at(i, section_x, section_y + lift.next_up()))
+            .collect();
+        if row_top + lift > page_h - top
+            && !on_tb(&principals)
+            && principals
+                .iter()
+                .chain(&raised)
+                .all(|b| b[1] >= bottom && b[3] <= page_h - top && !overlaps(b, &tb_rect))
+            && raised
+                .iter()
+                .all(|a| principals.iter().all(|b| !overlaps(a, b)))
+        {
+            section_y += lift.next_up();
+            tb_clear = true;
+        }
+    }
 
     if !tb_clear {
         let mut lift = boxes

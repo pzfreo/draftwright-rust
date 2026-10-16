@@ -7104,6 +7104,142 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   release Clippy; Python quality 40 and CI acceptance 21; schema generation no diff; scripted
   MCP 7/7 with `tasks.json` and the scripted answers unchanged. No quality.py run: no SVG changed.
 
+## F1 external threads and knurls drawn (2026-10-15, unattended; overturnable judgements)
+
+- haecceity's AP242 external `thread` (the editor's M10×1.5-6g on the spindle's ⌀10) is now
+  projected like the internal one, as a structured `external_thread`, and lowered to its turned
+  step. Its callout prints draftwright's designation (`M10 x 1.5-6g RH, FULL AVAILABLE LENGTH`)
+  **in place of** the plain `ø10`, as #23 asks (draftwright prints `ø10 M10 x …`). Kept: "RH"
+  and ", FULL AVAILABLE LENGTH" exactly as draftwright prints them. When the table is used
+  (`SEE MFG n`) the diameter stays.
+- Thread and knurl depiction are render furniture on a new `thin` layer (only drawings that
+  have such lines get it), not plan items: no wire-format change, and they are not annotation
+  obstacles or lint `Drawn` items. Profile views only; section views and end views (ISO 6410's
+  ¾ circle) are not drawn. Minor diameter d3 = d − 1.22687·P. The thread is drawn over its
+  cylinder (not over a tip chamfer). No separate limit line: ownership requires the thread
+  length to be the step's cylinder or span, so the shoulder edge is the limit and the step
+  length dimension states the length.
+- Knurl band: middle half of the knurled length (all of it when that is under one gap), lines
+  the pitch apart on paper but at least 3 mm, straight along the axis or diamond at ±30°.
+  Python draftwright draws neither; this is the usual convention, not a port.
+- Byte guard: nine cases change, all parts that carry threads or knurls (bolt_thread_knurl ×6,
+  thumbwheel_thread_knurl, hw_thumbwheel_notes_add: SVG/PDF/PNG gain only the `thin` layer;
+  hw_thumbwheel_thread_knurl_intent: its haecceity-written M5 external thread is now projected,
+  so its plan changes too). Approved under stream `f1-ext-threads-knurl` with macOS hashes; the
+  three stale Linux SVG overrides for those cases were removed. Linux must be recorded with
+  CI's `record_single_sheet` workflow before the guard passes on Linux.
+
+## F1 fix round (2026-10-15, unattended; overturnable judgements)
+
+- Review major (leader on the outline): a turned step's diameter callout may no longer take a
+  leader within 15° of the silhouette it points at (hard blocker in `dims/leaders.rs`, applied
+  to every turned step diameter, `Want::turning` now set on those callouts). 15° is a judgement:
+  ISO 128-22 asks for an angle but states no figure. The spindle's
+  `M10 x 1.5-6g RH, FULL AVAILABLE LENGTH` now meets the ⌀10 silhouette at an angle; with that
+  the default sheet's fill tie (A3 2:1 28.1% against A4 1:1 28.6%) goes to A4 1:1, where the
+  leader also meets it at an angle (A3 2:1 still does when the Spec names it; both checked by
+  `the_threads_leader_meets_the_silhouette_at_an_angle`).
+- The same defect was common on base sheets (vertical leaders running down a silhouette), so
+  the rule moves 37 single-sheet cases beyond the 9 already approved, 46 in all (GRM-03 ×15, GRM-05,
+  string_post ×2, nist_ctc_05 ×4, turned ×2, assembly_plate_pin ×3,
+  hw_assembly_plate_pin_intent ×2, spool_fits ×8; the 6 bolt_thread_knurl cases already
+  approved move again). Plans were diffed old/new per case: only callout leaders (and, in a few, the
+  neighbour callouts the joint assignment re-solves) move; turned.step's tolerance spec
+  (abdce800) flips A3 2:1 → A4 1:1 on a 0.1% fill tie. Looked at as a draftsman: GRM-03,
+  GRM-05 and assembly_plate_pin read better; on bolt_thread_knurl and turned.step at A4 1:1
+  the only clear alternative the placer finds is a longer leader across the part to the far
+  silhouette. That is unambiguous where the old one was not, but it is not pretty. Requiring the leader to
+  arrive from outside the part was tried (as a hard blocker and as a crossing-weight penalty);
+  it flipped the sheets of assembly_plate_pin (A4 1:5 → A2 1:1) and spool_fits (→ A3 1:2) and
+  did not improve the bolt, so it was dropped. Better candidates for silhouette sites (an
+  angled leader from above, clear of the step dimensions' extension lines) are the follow-up.
+- Review minor (editor staleness): the session's view fragments now carry their view's
+  thread/knurl thin lines (layer `thin`), and `furniture` none, so a moved view's lines move with
+  it (`thread_and_knurl_lines_travel_in_their_views_fragment`).
+- Review minor (no limit line; thread shorter than its band, or no length): unchanged and
+  still refused with draftwright's reasons. The ownership rules are draftwright's
+  (`lower_ap242_manufacturing_requirements`): an external thread is owned only when its length
+  is the step's cylinder or span, or when its prose says full available length. Drawing a
+  partial thread (minor-diameter line over the stated length from the free end, a thick limit
+  line, a length dimension) means choosing the free end and adding a dimension item. That is
+  a separate change.
+- Linux single-sheet hashes for every approved case of this stream still need CI's
+  `record_single_sheet` workflow; stale Linux overrides of the changed cases were removed.
+
+## f1-ext-threads-knurl integration: not merged (2026-10-15, unattended)
+
+- PR #35 CI: `tools/check_leader_routes.py` (the quality-pins jobs) fails on
+  `nist_ctc_05_asme1_rd: d:f:turned_step:2/step.diameter: hidden 0 -> 1`. That comes from the
+  stream's fix round, not from the merge. With leaders within 15° of a turned silhouette blocked, the ⌀304.8
+  leader now runs inward and down across the flange's visible edges and a hidden line, where it
+  used to lie on the outline. The stream did not run this gate.
+- One fix was tried and reverted: a hard block on a silhouette leader's shaft crossing any model edge
+  (visible or hidden). It gives a clean horizontal leader square to the silhouette on
+  nist_ctc_05, but (a) the route is 7 mm longer than the recorded one, so the same gate fails on
+  length (21.2 -> 28.2 mm > base + 2), and (b) it moves 152 single-sheet cases, against the
+  46 that were reviewed. That is a placer change needing its own review and a deliberate
+  leader_routes.json approval, so it was not committed. Next: a fix round on the stream with
+  silhouette routes that do not cross the part's edges, and a reviewed, deliberate update of the
+  nist_ctc_05 entry in tests/fixtures/leader_routes.json (length).
+- Kept on the integration branch: `tests/pmi_lowering.rs` scratch directories are now per
+  process (nextest runs each test in its own process, where the counter restarts at 0, so two
+  tests raced on one file). The merge's test-count change moved two of these tests into one
+  shard, which exposed the race (test 3/5: NotFound on remove_file).
+
+## F1 fix round 2: grazing is a cost, not a block (2026-10-15, unattended; overturnable)
+
+- The fix round's hard block (no turned-step diameter leader within 15° of its silhouette) is
+  replaced by a steer in `dims/leaders.rs` `inventory`: only when a callout's best route grazes
+  does grazing cost anything, and then every route except an angled one that crosses no more of
+  the view's model line-work (edges, hidden included, and square-on cylinder silhouettes, via the
+  shared `view_ink`) and passes through no more features than the grazing route costs 20 mm of
+  ink (`GRAZE`). No such route, or room for it only at more than 20 mm of the neighbours' ink: the
+  grazing route stands, as on main. Judgement calls: 20 mm (a hard tier sent GRM-05's C1 leader
+  65 mm round the part and moved nist_ctc_05's ⌀558.8 onto the 25.4 dimension line); "no more
+  crossings than the grazing route" rather than "none" (none forces nist_ctc_05's ⌀304.8 onto a
+  clean but 7 mm longer route, which the leader-routes gate rejects).
+- Result: `check_leader_routes.py` passes (nist_ctc_05's ⌀304.8 now leaves the band at an angle,
+  through the same flange edges, 0 hidden, within length). The spindle's
+  `M10 x 1.5-6g RH, FULL AVAILABLE LENGTH` meets the ⌀10 band at an angle from outside the part
+  at its default A4 1:1 and at A3 2:1. Quality over 30 parts matches ci-quality-baseline.
+- Superseded by the maintainer's large-sheet rule below: assembly_plate_pin and
+  hw_assembly_plate_pin_intent stay on main's A4 1:5 (A3 1:1 is not valid: two hard findings);
+  their ⌀6 leader's elbow moves 0.3 mm, nothing else.
+
+## F1 round 3: large sheets, thread vs fit, J3 merge (2026-10-16, unattended; overturnable)
+
+- **Large-sheet rule (maintainer, 2026-10-15).** `model::recover_uncached`: A2 and larger are
+  tried only for a part whose views do not fit A3 at 1:1 (`fits_a3_at_full_size`: drawn full
+  size, each view with one dimension row, `layout::DIM_PAD`, on either side; the front's row with
+  the side and sections no wider than A3's usable paper, the plan-over-front column no taller).
+  For a small part a large first estimate vetoes nothing. Test
+  `sheet_fill::a_part_about_100_mm_never_gets_a2_or_larger_by_default`.
+  Judgement calls: (a) the dimension-row allowance. Counting the bare views only called a
+  380 mm sheet-metal part (cgb245) small and sent it from A2 1:2 to a cramped A3 1:5.
+  (b) When nothing on A4 or A3 is valid, the search goes on to A2 and up as before. Forcing A3
+  then put 16–18 annotations off the sheet on nist_ftc_10 and stc_10, and dropped notes or
+  location dimensions elsewhere. That is lost information, worse than a large sheet.
+- **Census.** 255 unpinned single-sheet cases are A2 or larger on main cbbfb800 (unchanged at 5febcc0f: the same case diff). The rule changes
+  one: string_post spec 1c29f39d, A2 10:1 → A3 2:1 (fill 17% → 7%, one more leader through a
+  feature). That is what the rule asks; the part is 15 mm long, and it reads smaller than at
+  10:1. The other 254 do not fit A3 at 1:1 with a dimension row (NIST ftc_06 ×101, cgb245 ×71,
+  ctc_04 ×12, ...), or have nothing valid below A2 (ftc_10 ×9, scattered_holes ×9, bracket ×4, ...).
+- **Thread vs fit.** With J3 a diameter can carry an ISO 286 shaft fit. A band or fit was
+  inserted after the first term containing a digit, which on a threaded diameter sits inside
+  the designation ("M10 +0.0 -0.1 x 1.5-6g …"). Now `tolerance::thread_designated` diameters take
+  none. PMI bands and fits are refused with the reason; a spec tolerance or fit is
+  `tolerance_withheld`. Plain diameters keep their fits (hw_thumbwheel_thread_knurl_intent:
+  `ø10 f7 (-0.013/-0.028)` beside the M5 designation). Test
+  `pmi_thread_knurl::a_threaded_diameter_keeps_its_designation_and_a_plain_one_its_fit`.
+- **J3 merge.** known_pmi_coverage.json is main's list without the two thread entries F1
+  projects.
+- **Single-sheet.** Re-baselined on the merged tree (main 5febcc0f; J4, K1 and gz input in), then Linux recorded by CI. Against main's
+  own macOS output, 151 cases differ: 117 plan-only (the sheet basis lists the closed large
+  sheets, or an unchosen candidate's fill), 34 drawn (GRM-03 ×13, ctc_05 ×4, turned ×2,
+  plate_pin ×5, string_post, F1's thread/knurl parts ×8). Main's committed fixture itself
+  differs from main's macOS output on 118 cases (GRM-03, 10127, ctc_01, mounting_plate). Those
+  are not this branch's.
+
 - From stream f4-page-fit-projection (#13: page fit and a projection setting), base 19a969c9:
   - **Fit judged as the search judges.** A spec pinning both `sheet/size` and `sheet/scale` keeps
     `page_fit_uncertain` only when the finished drawing does not fit (`model::recover`'s pinned
@@ -7481,6 +7617,19 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   green) before the draftwright merge, rather than leaving the dependency for the maintainer. The
   merge commit keeps 7cb26d8 reachable from quiddity-rust main, so the pin was not changed.
 
+## A4 string-post layout correction (2026-10-16)
+
+The fourteen-tolerance string post now fits one A4 sheet at 5:1 with no hard
+findings and 35.1% fill. A free section can lift independently when the aligned
+row would leave the page; GD&T corridors retain their row. Edited linear text
+can try spare opposite-side lanes before callouts settle. Hard checks, fill
+targets and the A2 rule are unchanged. See [the diagnosis and visual review](string-post-a4-layout.md).
+
+Main's macOS single-sheet expectations were re-recorded: 171 of 1,876 cases
+change (127 plan-only, 44 rendered, including existing F1 changes). Linux is
+pending CI. Quality and leader routes pass. The release suite has only the seven
+known sandbox socket-bind failures; all remaining integration binaries pass.
+
 ## K1b: finish, threads, knurls and notes authored in the Spec (#43 item 1) (2026-10-16, unattended; overturnable)
 
 - **What**: `features/<id>/finish|thread|knurl|note`, `faces/<face>/finish|note`,
@@ -7526,3 +7675,87 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   2:1, unchanged): `ø10 M10; 15 MIN FULL THREAD`, `ø24 DIAMOND KNURL P0.8` on the overall
   diameter, the note on the ⌀4.2 hole above the front view, Ra 1.6 on the ø15 step (its leader
   crosses the 22 and 52 dimension lines: cosmetic).
+
+## K4: Python leader-correctness rules (#43 item 2, 2026-10-16, unattended; overturnable)
+
+- **What:** `src/lint/leaders.rs` (run by `lint::lint`): `diameter_leader_target_mismatch` /
+  `_unverifiable` (a hole callout's drawn tip on a rim of a hole it claims, double-D trimmed
+  profile included, 0.002 mm), `radius_leader_target_mismatch` / `_unverifiable` (a straight
+  blend's tip on its trimmed arc, seen end-on), `leader_crosses_silhouette` (info, depth cut).
+  `src/material.rs`: one re-entry predicate (`material::reentry` over `material::solids`, each
+  solid's projected box) used by the leader router (`dims::leaders`, hard blocker plus the
+  depth added to the length; `annotation_line_over_view` now states the depth) and by lint.
+  `dims::placement::ink_through`: a callout's `annotation_ink_overlap` includes its arrowhead's
+  flare. Tests: `tests/leader_rules.rs` (3 of 4 fail on the base; the fourth checks the planner
+  already meets ISSUE-1378-a/1479-a), `src/material.rs` tests, and
+  `dims::placement::tests::a_callouts_arrowhead_flare_is_collision_evidence` (fails on the base).
+- **Rules:** ported ISSUE-1378-a, ISSUE-1479-a, ISSUE-798-b, ISSUE-798-d, ADR2-8 and the five
+  LINT codes; ISSUE-367-a and ARCH0017-6 stay pending with notes.
+- **Output:** single-sheet guard: 5 cases change (the plate-and-pin assemblies, one ø6 leader's
+  elbow 0.75 mm along its row; approved as stream `k4-leader-rules`, Linux PNG needs CI's
+  `record_single_sheet`). Quality parts: no lint target finding on any of the 30.
+- **Judgement calls:** (1) The stroke width (0.05 mm) is not added to the ink check: with it a
+  GD&T leader 0.01 mm under a label became a hard layout finding and moved
+  hw_string_post_tapped_intent from A3 5:1 to a crowded A4 2:1 (looked at; worse), and linear
+  dimensions' grazes changed 392 guard cases. ISSUE-367-a stays pending for it. (2) The flare
+  check covers callouts only; linear dimensions keep the centreline test `settle` places them by.
+  (3) Material is solids' projected boxes, not a filled face: a concave notch reads as material
+  (over-reports, never under-reports a second body); a tip clear of the material is charged for
+  its first traversal (stricter than draftwright, as the old box test was). (4) Re-entry stays in
+  the hard tier (outranks crossings), not draftwright's stroke-width units beside them. (5) A
+  blend's arc sector is read from its proven points' spread (half again each side); one point
+  gives a quarter turn each way. (6) A fillet leader carrying equal blends' claims
+  (`dims::blends::consolidate`) is not radius-checked (its target is the fillet). (7) A view
+  without a recorded transform (captured Python sheets) is not judged, as K7.
+- **Fix round (review):** `crate::material` is added to the lint guard's allowed paths (a
+  function of the Analysis's solids and a page projection alone) and `src/material.rs` is read by
+  the guard too. The router/lint agreement test was vacuous (no automatic drawing re-enters), and
+  a real gap showed up behind it: a pinned callout is not routed, so a pinned leader cutting back
+  into the material reached lint but not the plan. `placement_intent::finish` now reports it as
+  `annotation_line_over_view` by the router's own measure (`dims::leader_reentry`), with the
+  unpinning fix; `tests/leader_rules.rs::the_plan_and_lint_agree_on_a_leader_cutting_back_into_
+  the_material` pins the plate-and-pin assembly's ø10 callout across the plate and checks both
+  report it with the same depth (fails on the base). Judgement call (8): lint's material is not
+  cropped to the drawn view: the port draws no cropped (detail) views, so every view shows each
+  solid whole; when one exists, the crop belongs in `material::solids`'s caller for both.
+
+## K5: Python dimensioning-completeness rules (#43 item 2, 2026-10-16, unattended; overturnable)
+
+- **What:** `src/dims/turned.rs::own_body` + `src/dims/placement.rs::body_strip`: on a part of
+  several turned bodies along one axis, each body's chain goes in the profile view that separates
+  its axis line and its witnesses start at its own silhouette (outer corner of each shoulder), in
+  the strip on the side its body is nearer (ARCH0020-2, ISSUE-1357-b/c). `src/dims/grooves.rs::owner`:
+  a groove naming none of several turned profiles is refused (ADR3-12). `src/dims/pads.rs`: raised
+  pads' footprint, `N HIGH` height callout and location (ISSUE-885-a, ISSUE-909-a).
+  `src/dims/oriented_slots.rs`: `ORIENTED SLOT W WIDE × L LONG` led to the rim
+  (LINT-oriented_slot_coverage, ISSUE-1432-a). `src/lint/envelope.rs`: any claim whose physical
+  span (`redundancy::span`) is the whole axis carries the extent (LINT-envelope_coverage,
+  ISSUE-1560-a). `src/lint/turned.rs::grouped`: a grouped length is credited only when it prints
+  exactly its count and its bands adjoin with none skipped (ISSUE-1374-c). Tests:
+  `tests/completeness_rules.rs` (7) and `lint::envelope::tests::any_measurement_spanning_the_box_states_the_extent`,
+  on draftwright's own evaluation fixtures copied to `tests/fixtures/parts/k5/`.
+- **Rules:** ported ADR3-12, ISSUE-1357-b, ISSUE-1374-c, ISSUE-1560-a, ISSUE-909-a,
+  LINT-code-axial_length_missing, LINT-envelope_coverage, LINT-code-boss_height_missing (already
+  met by the H5 flush-hub credit; re-assessed, no code), LINT-oriented_slot_coverage. Pending with
+  notes: ARCH0020-2, ISSUE-1357-c, ISSUE-1432-a, ISSUE-885-a, both pocket-pattern rules,
+  LINT-angular-profile_angle.
+- **Output:** single-sheet guard byte-identical (no guard case has pads, oriented slots or plural
+  turned bodies); quality parts: every cell equal to the base run and none worse than
+  `tools/ci-quality-baseline.json`; lint findings on the 30 parts unchanged (76). Off the quality
+  set: missing/undefined pad and oriented-slot findings go from 6/6/11/6/2 to 0 on mfcadpp_holdout
+  205, 238, mfcadpp 10092, 10255 and mfcadpp_holdout 467, sheets unchanged in size; 10255 (A1 5:1)
+  gains two `extension_through_feature` warnings from the new pad location 10.2 (crowding of new
+  information on a dense part).
+- **Judgement calls:** (1) Pad height is a `HIGH` callout as draftwright draws it, even where the
+  face-level ladder also implies it (issue 909: 26 and 33 beside 7 HIGH); draftwright keeps both.
+  (2) A z pad's two locations stay in the plan view (draftwright puts y in the side), as decided
+  for pockets and holes on 2026-10-08. (3) Oriented slot pattern members (the Analysis has no
+  membership) are stated by one counted callout rather than left undrawn as draftwright does
+  (#1430); this states every size and leaves lint nothing missing. (4) The per-body chain rule
+  only applies with two or more distinct axis lines on one axis, so single-body parts keep their
+  witnesses on the outline (no guard change). (5) The superimposed-view warning draftwright gives
+  is not reachable without the spec's views (distinct parallel axis lines always separate in one
+  of the two profile views), so none was added. (6) Pocket patterns and outer-profile angles stay
+  pending: each needs new Analysis data (native pocket/section-recess reading; ordered planar
+  outer profiles), outside this stream's dimension-selection and lint scope; both notes say what
+  remains.

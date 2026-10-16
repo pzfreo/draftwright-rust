@@ -74,7 +74,7 @@ fn not_dimensioned(f: &Feature, why: &str) -> Problem {
     }
 }
 
-fn on_datum(a: &crate::model::Analysis, owner: &str, k: usize) -> Problem {
+pub(super) fn on_datum(a: &crate::model::Analysis, owner: &str, k: usize) -> Problem {
     Problem {
         id: format!("p:location_on_datum:{owner}/{}", AXES[k]),
         code: "location_on_datum".into(),
@@ -96,7 +96,7 @@ fn words(s: &str) -> Vec<String> {
 
 /// A location from the part's box to *at* along *k*, stated in *view* for *owners* (the first
 /// names it).
-fn location(
+pub(super) fn location(
     owners: &[&Feature],
     parameter: &str,
     at: P3,
