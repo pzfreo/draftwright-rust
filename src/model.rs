@@ -1629,7 +1629,7 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Pla
             ordinary.spec = spec.clone();
             return Ok(ordinary);
         }
-        let detailed = recover_candidates(analysis, spec, first, true, true)?;
+        let mut detailed = recover_candidates(analysis, spec, first, true, true)?;
         let detailed_complete = findings(&detailed).clean()
             && undrawn_gdt(&detailed) == 0
             && drawn_sheets_fit(analysis, &detailed)
@@ -1644,6 +1644,29 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Pla
         if complete && (!detailed_complete || paper(&ordinary) <= paper(&detailed)) {
             ordinary.spec = spec.clone();
             return Ok(ordinary);
+        }
+        // A refused optional search keeps the seed. Keep the ordinary search's
+        // evidence too: its real candidates must not disappear from the diagnostic.
+        if !complete
+            && !detailed_complete
+            && let Some(ordinary) = ordinary
+                .problems
+                .iter()
+                .find(|p| p.code == "layout_recovery_exhausted")
+            && let Some(refused) = detailed
+                .problems
+                .iter_mut()
+                .find(|p| p.code == "layout_recovery_exhausted")
+            && refused.message != ordinary.message
+        {
+            let alternatives = refused
+                .message
+                .split_once(" Tried ")
+                .map_or(refused.message.as_str(), |(_, tried)| tried);
+            refused.message = format!(
+                "{} Automatic detail alternatives: {alternatives}",
+                ordinary.message
+            );
         }
         return Ok(detailed);
     }
@@ -4553,6 +4576,19 @@ impl Projections {
         geometry.breaks = boundary.ink(rect);
         self.stats.bounds += 1;
         geometry.bbox = items_bbox(&geometry.visible);
+        // Breaks are owned visible ink too; their short end strokes can extend
+        // past a clipped silhouette. Captions must sit below that actual ink.
+        for curve in &geometry.breaks {
+            let b = curve.bbox();
+            geometry.bbox = Some(geometry.bbox.map_or(b, |a| {
+                [
+                    a[0].min(b[0]),
+                    a[1].min(b[1]),
+                    a[2].max(b[2]),
+                    a[3].max(b[3]),
+                ]
+            }));
+        }
         self.geometry.insert(key, (placement, geometry.clone()));
         self.dirty = true;
         Ok(geometry)

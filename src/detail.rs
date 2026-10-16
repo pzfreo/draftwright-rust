@@ -631,10 +631,17 @@ fn pads(d: &Detail) -> [f64; 4] {
             12.0,
         ]
     } else {
-        // An X-profile head can put a local band length above its silhouette.
-        // Reserve the first dimension gap and text, including its baseline lift.
+        // X-profile lengths stack above the silhouette. Reserve every owned row,
+        // including the text's baseline lift, before placing this detail block.
         let top = if d.axis == 0 {
-            crate::dims::FIRST + 2.0 * crate::dims::TEXT
+            let rows = d
+                .dimensions
+                .iter()
+                .filter(|id| id.ends_with("/step.length"))
+                .count();
+            crate::dims::FIRST
+                + rows.saturating_sub(1) as f64 * crate::dims::LANE
+                + 2.0 * crate::dims::TEXT
         } else {
             12.0
         };

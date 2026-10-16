@@ -623,6 +623,16 @@ fn section_parent_reuses_the_section_projection_without_duplicating_furniture() 
     assert_eq!(v.detail.as_ref().unwrap().source_cut, parent.cut);
     let mut projections = model::Projections::default();
     let geometry = model::render_geometry(&part, &a, &p, &mut projections).unwrap();
+    for (_, g) in &geometry.views {
+        for c in &g.breaks {
+            let b = c.bbox();
+            let ink = g.bbox.expect("a break is visible owned ink");
+            assert!(
+                b[0] >= ink[0] && b[1] >= ink[1] && b[2] <= ink[2] && b[3] <= ink[3],
+                "break outside the ink bounds used to anchor its caption: {b:?} / {ink:?}"
+            );
+        }
+    }
     assert!(
         geometry
             .views
