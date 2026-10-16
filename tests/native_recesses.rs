@@ -238,6 +238,48 @@ fn rounded_pocket_corner_radius_reaches_native_ink_and_lint() {
     );
 }
 
+#[test]
+fn a_size_numeral_cannot_supply_a_pocket_patterns_quantity() {
+    let (_, a) = read("recesses/array.step.gz");
+    let pattern = a
+        .features
+        .iter()
+        .find(|f| f.kind == "pocket_pattern")
+        .unwrap();
+    assert_eq!(pattern.parameters["members"].as_array().unwrap().len(), 3);
+    let mut mark = lint::Mark {
+        name: "pattern-callout".into(),
+        view: Some("v:plan".into()),
+        text: String::new(),
+        claims: vec![draftwright::output::Claim {
+            feature: pattern.id.clone(),
+            parameter: "grouping.count".into(),
+        }],
+    };
+    for text in ["8 × 3 × 4 DEEP", "2× 3 × 8 × 4 DEEP", "POCKETS"] {
+        mark.text = text.into();
+        let issues = lint::pocket_patterns::coverage(&a, &[mark.clone()]);
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.code == "pocket_pattern_requirement_unverifiable"
+                    && i.requirements
+                        .iter()
+                        .any(|r| r.parameter == "grouping.count")),
+            "{text}: {issues:#?}"
+        );
+    }
+    mark.text = "3× 8 × 3 × 4 DEEP".into();
+    assert!(
+        lint::pocket_patterns::coverage(&a, &[mark])
+            .iter()
+            .all(|i| i
+                .requirements
+                .iter()
+                .all(|r| r.parameter != "grouping.count"))
+    );
+}
+
 /// LINT-code-pocket_pattern_requirement_state: missing, unverifiable and authored
 /// suppression remain distinguishable and honest.
 #[test]

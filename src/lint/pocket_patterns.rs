@@ -201,11 +201,35 @@ pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 }
             }
         }
-        let shown: Vec<_> = marks
-            .iter()
-            .filter(|m| !m.name.starts_with("suppressed:"))
-            .cloned()
-            .collect();
+        let mut shown = Vec::new();
+        for m in marks.iter().filter(|m| !m.name.starts_with("suppressed:")) {
+            let mut ordinary = m.clone();
+            let count_claims: Vec<_> = ordinary
+                .claims
+                .iter()
+                .filter(|c| c.feature == f.id && c.parameter == "grouping.count")
+                .cloned()
+                .collect();
+            if !count_claims.is_empty() {
+                // Quantity is the explicit leading N× token, never an equal width or
+                // length numeral elsewhere in the size/depth callout.
+                let mut count = m.clone();
+                count.claims = count_claims;
+                count.text = m
+                    .text
+                    .split_whitespace()
+                    .next()
+                    .and_then(|s| s.strip_suffix('×'))
+                    .and_then(|s| s.parse::<usize>().ok())
+                    .map(|n| n.to_string())
+                    .unwrap_or_default();
+                ordinary
+                    .claims
+                    .retain(|c| c.feature != f.id || c.parameter != "grouping.count");
+                shown.push(count);
+            }
+            shown.push(ordinary);
+        }
         let mut issues = parameters::coverage(
             "pocket_pattern",
             &wanted,
