@@ -1518,7 +1518,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/issue_drafting.rs::what_the_spec_asks_of_the_views_is_kept_or_reported"
-  rust_note: "Partial: on every part, omitting each shown view plans it out (the view is absent, and each dimension it carried moves to a view left or stays unplaced with view_plan_incomplete); a section is kept only with the plan view its cutting plane is marked on, and omitting the plan reports section_not_shown (ftc06, string_post); a pinned sheet scale is never relaxed (a_scale_that_does_not_fit_is_reported). Not ported: per-view scales (an exact view scale or an authored iso scale) and pinned view positions: the spec has neither."
+  rust_note: "Partial: authored omissions replan before projection, derived sections require their plan parent, and named sheet scales are never relaxed. Spec.iso_scale_factor now preserves an exact authored iso scale through fitting/recovery and captions every result off sheet scale (tests/iso_nts.rs). Per-principal exact scales and detail-view generation remain unported, so this rule stays pending; view placement constraints are covered by placement_intent."
   port_note: "Keep: Spec view constraints -> Plan honours them or reports infeasibility; never silently relaxes."
 
 - id: ISSUE-1260-b

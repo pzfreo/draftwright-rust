@@ -83,6 +83,14 @@ pub fn union_area(boxes: &[Rect]) -> f64 {
 /// Furniture outside the title block: scale, projection symbol and section marks/captions.
 /// These use the same resolved paper geometry and font metrics as the renderer.
 pub fn furniture_footprints(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
+    furniture_bounds(analysis, &plan.sheet, &plan.views)
+}
+
+pub(crate) fn furniture_bounds(
+    analysis: &Analysis,
+    sheet: &crate::model::PlannedSheet,
+    views: &[crate::model::PlannedView],
+) -> Vec<Rect> {
     let mut out = Vec::new();
     let text_box = |text: &str, size: f64, at: [f64; 2]| {
         let laid = crate::title_block::lay(text, size);
@@ -93,13 +101,13 @@ pub fn furniture_footprints(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
             at[1] + laid.max[1],
         ]
     };
-    let scale = format!("SCALE {}", plan.sheet.scale);
+    let scale = format!("SCALE {}", sheet.scale);
     out.push(text_box(
         &scale,
         crate::title_block::TEXT,
-        crate::title_block::scale_note(plan.sheet.title_block, &scale),
+        crate::title_block::scale_note(sheet.title_block, &scale),
     ));
-    if let Some(symbol) = &plan.sheet.projection_symbol {
+    if let Some(symbol) = &sheet.projection_symbol {
         let mut b = [
             f64::INFINITY,
             f64::INFINITY,
@@ -115,7 +123,10 @@ pub fn furniture_footprints(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
             out.push(b);
         }
     }
-    for v in plan.views.iter().filter(|v| v.cut.is_some()) {
+    for v in views
+        .iter()
+        .filter(|v| v.sheet == sheet.number && v.cut.is_some())
+    {
         let cut = v.cut.as_ref().expect("section cut");
         let view = haecceity::hlr::View::new(v.direction, v.up).expect("planned view");
         let half = crate::model::extent(analysis, &view).0[1] * v.scale / 2.0;
@@ -124,7 +135,7 @@ pub fn furniture_footprints(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
             crate::section::FONT_SIZE,
             [v.at[0], v.at[1] - half - 7.0],
         ));
-        if let Some(m) = plan.views.iter().find(|m| m.id == cut.marked_in) {
+        if let Some(m) = views.iter().find(|m| m.id == cut.marked_in) {
             let view = haecceity::hlr::View::new(m.direction, m.up).expect("planned view");
             let centre = crate::model::extent(analysis, &view).1;
             let at = |p| {
@@ -274,6 +285,7 @@ pub fn fill(analysis: &Analysis, plan: &Plan) -> f64 {
 pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
     if !plan.problems.iter().any(|p| p.code == "page_fit_uncertain")
         || crate::placement_intent::has_pins(&plan.spec)
+        || plan.spec.iso_scale_factor.is_some()
         || plan.spec.views.contains_key("iso")
         || !plan.gdt.is_empty()
         || !plan.balloons.is_empty()
@@ -354,8 +366,9 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
     let [w, h] = plan.sheet.page;
     let rect =
         crate::layout::largest_empty_rect([MARGIN, MARGIN, w - MARGIN, h - MARGIN], &groups, size);
-    let scale = (0.9 * ((rect[2] - rect[0]) / size[0]).min((rect[3] - rect[1]) / size[1]))
-        .min(1.3 * plan.sheet.scale_factor);
+    let fit = ((rect[2] - rect[0]) / size[0]).min((rect[3] - rect[1]) / size[1]);
+    let sheet_scale = plan.sheet.scale_factor;
+    let scale = crate::layout::keep_sheet_scale((0.9 * fit).min(1.3 * sheet_scale), sheet_scale);
     if scale <= 0.0 {
         return;
     }
@@ -367,8 +380,13 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
     ];
     iso.area = rect;
     iso.basis = format!(
-        "the automatic orientation view, fitted once around measured row blocks at {:.4} page mm per model mm (not to scale)",
-        iso.scale
+        "the automatic orientation view, fitted once around measured row blocks at {:.4} page mm per model mm{}",
+        iso.scale,
+        if scale == sheet_scale {
+            " (the sheet's scale)"
+        } else {
+            " (not to scale)"
+        }
     );
 }
 
@@ -376,7 +394,8 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
 /// leaders. The template is built at the same scale on A0; only owned paper geometry moves.
 /// Page-anchored blocks and authored view relations stay with the existing planner.
 pub(crate) fn pack_gdt(analysis: &Analysis, template: &Plan, recipient: &Plan) -> Option<Plan> {
-    if template.gdt.is_empty()
+    if template.spec.iso_scale_factor.is_some()
+        || template.gdt.is_empty()
         || template.hole_table.is_some()
         || !template.balloons.is_empty()
         || !template.notes.is_empty()
@@ -562,6 +581,7 @@ pub(crate) fn pack_gdt(analysis: &Analysis, template: &Plan, recipient: &Plan) -
             }
         }
     }
+    let sheet_scale = p.sheet.scale_factor;
     if let Some(iso) = p.views.iter_mut().find(|v| v.id == "v:iso") {
         boxes.push(tb);
         for b in &mut boxes {
@@ -580,9 +600,8 @@ pub(crate) fn pack_gdt(analysis: &Analysis, template: &Plan, recipient: &Plan) -
             &boxes,
             size,
         );
-        let scale = iso
-            .scale
-            .min(0.9 * ((rect[2] - rect[0]) / size[0]).min((rect[3] - rect[1]) / size[1]));
+        let fit = ((rect[2] - rect[0]) / size[0]).min((rect[3] - rect[1]) / size[1]);
+        let scale = crate::layout::keep_sheet_scale(iso.scale.min(0.9 * fit), sheet_scale);
         if scale <= 0.0 {
             return None;
         }
@@ -593,8 +612,13 @@ pub(crate) fn pack_gdt(analysis: &Analysis, template: &Plan, recipient: &Plan) -
             (rect[1] + rect[3] - scale * (b[1] + b[3])) / 2.0,
         ];
         iso.basis = format!(
-            "the orientation view, fitted around the measured annotated blocks at {:.4} page mm per model mm (not to scale)",
-            iso.scale
+            "the orientation view, fitted around the measured annotated blocks at {:.4} page mm per model mm{}",
+            iso.scale,
+            if scale == sheet_scale {
+                " (the sheet's scale)"
+            } else {
+                " (not to scale)"
+            }
         );
     }
     let checked = crate::dims::recheck(analysis, &p);

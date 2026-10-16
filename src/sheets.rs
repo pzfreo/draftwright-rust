@@ -328,6 +328,12 @@ pub(crate) fn allocate_counted(
     spec: &Spec,
     steps: &mut usize,
 ) -> Result<Plan, Invalid> {
+    let mut plan = allocate_inner(analysis, spec, steps)?;
+    crate::iso_caption::refresh(analysis, &mut plan);
+    Ok(plan)
+}
+
+fn allocate_inner(analysis: &Analysis, spec: &Spec, steps: &mut usize) -> Result<Plan, Invalid> {
     if spec.sheets.is_none()
         && spec.views.values().all(|v| v.sheet.is_none())
         && spec.tables.iter().all(|t| t.sheet.is_none())
@@ -765,7 +771,18 @@ fn pack_with_overflow(
                 for scale in scales {
                     let mut trial = existing.clone();
                     trial.extend(names.iter().filter_map(|name| {
-                        auxiliary(analysis, name, scale, n, plan.sheet.scale_factor)
+                        auxiliary(
+                            analysis,
+                            name,
+                            if *name == "iso" {
+                                spec.iso_scale_factor
+                                    .map_or(scale, |f| f * plan.sheet.scale_factor)
+                            } else {
+                                scale
+                            },
+                            n,
+                            plan.sheet.scale_factor,
+                        )
                     }));
                     if trial.len() == existing.len() {
                         found = Some((n, sheet.clone(), trial));
@@ -836,7 +853,12 @@ fn pack_with_overflow(
                 if let Some(mut view) = auxiliary(
                     analysis,
                     name,
-                    layout::SCALES[15],
+                    if *name == "iso" {
+                        spec.iso_scale_factor
+                            .map_or(layout::SCALES[15], |f| f * plan.sheet.scale_factor)
+                    } else {
+                        layout::SCALES[15]
+                    },
                     n,
                     plan.sheet.scale_factor,
                 ) {

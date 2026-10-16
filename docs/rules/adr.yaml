@@ -427,7 +427,9 @@
     adr: "ADR 2 invariant 14; archive 0018 §7"
     issues: []
     tests: ["test_issue_1204_multiscale_view_issues.py"]
-  status: pending
+  status: ported
+  rust_test: tests/iso_nts.rs::an_isometric_drawn_off_the_sheet_scale_is_captioned
+  rust_note: "PlannedView.scale is exact; principals share the sheet scale. Plan.captions carries automatic note_iso_nts (ISO VIEW (NTS), 3 mm, Kind::Caption) exactly when the drawn iso is off sheet scale, including Spec.iso_scale_factor. iso_caption::plan reserves it before late notes/tables with Python's five candidates and 2 mm padding; refresh reconciles measured refits and sheet allocation against settled ink. layout::iso_factor and keep_sheet_scale retain Python's strict 5 % no-op band. iso_factor_with_detail keeps a fitting sheet-scale iso when a detail claims space, but detail generation itself is not ported. Tests: tests/iso_nts.rs. Existing measured recovery and conservative principal-envelope bounds remain port policies; the caption does not participate in sheet-size selection."
   port_note: "Keep: Plan views carry exact scale; validation rejects unequal principal scales."
 
 - id: ADR2-15
@@ -1646,7 +1648,7 @@
     tests: []
   status: ported
   rust_test: tests/centrelines.rs::turned_axes_extend_beyond_the_profile_and_survive_omitted_dimensions
-  rust_note: "Stage G6: centre lines, centre marks and the cutting-plane line are automatic plan furniture (PlannedView.line_work), sized off the geometry, never Spec-addressable."
+  rust_note: "Stage G6: centre lines, centre marks and the cutting-plane line are automatic plan furniture (PlannedView.line_work), sized off the geometry, never Spec-addressable. NTS furniture is now carried by Plan.captions, exposed as a read-only caption item, and rendered from its resolved placement (tests/iso_nts.rs)."
   port_note: "Keep: Plan furniture entries carry ids for provenance but are not Spec-addressable dimensions."
 
 - id: ARCH0016-5

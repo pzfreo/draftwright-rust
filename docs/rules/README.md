@@ -18,10 +18,10 @@ G3 blends, G6 centre lines):
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 50 | 52 | 33 | 25 |
+| `adr.yaml` | 49 | 53 | 33 | 25 |
 | `lint.yaml` | 58 | 94 | 0 | 13 |
 | `issues.yaml` | 110 | 53 | 6 | 21 |
-| **All** | **218** | **199** | **39** | **59** |
+| **All** | **217** | **200** | **39** | **59** |
 
 The assessment rated each of the 353 rules then pending; 20 rules pending today were not rated.
 Rules it found done but with no test to name, or with a real remainder, stay pending with a
