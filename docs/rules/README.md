@@ -13,14 +13,18 @@ pzfreo/draftwright at `586628b96db6779454d499c7d92d37f1aa8f1df9`.
 
 Status after the maintainer-approved triage of 2026-10-16, including the earlier Stage G/H
 and K1b/K4/K5/K7 integrations, merged with PR #56 (datum placement) and PR #57
-(K6, one owner per measurement). Counts are computed from the YAML entries:
+(K6, one owner per measurement). The coverage/holes stream adds nine ported rules
+(body-local corridors, prismatic shoulders, countersink seats, compound double-D callouts,
+pattern counts and balloon assignment) and partial angular evidence. Automatic profile-angle
+placement remains pending after failing the unchanged drawing-quality bar. Counts are computed
+from the YAML entries:
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 14 | 58 | 62 | 26 |
-| `lint.yaml` | 19 | 112 | 15 | 19 |
-| `issues.yaml` | 46 | 66 | 52 | 26 |
-| **All** | **79** | **236** | **129** | **71** |
+| `adr.yaml` | 12 | 60 | 62 | 26 |
+| `lint.yaml` | 17 | 114 | 15 | 19 |
+| `issues.yaml` | 41 | 71 | 52 | 26 |
+| **All** | **70** | **245** | **129** | **71** |
 
 The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
 The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE
