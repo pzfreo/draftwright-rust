@@ -1866,8 +1866,15 @@ fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan,
         at.sheet.size = Some(baseline.sheet.size.clone());
         at.sheet.scale = Some(scale_name(baseline.sheet.scale_factor));
     }
-    let mut scheduled =
-        plan_with_presentation(analysis, &at, false, replanned, None, Some(&selection))?;
+    let mut scheduled = plan_with_presentation(
+        analysis,
+        &at,
+        false,
+        replanned,
+        None,
+        true,
+        Some(&selection),
+    )?;
     if replanned {
         scheduled.spec = spec.clone();
         scheduled.sheet.default = true;
@@ -1950,6 +1957,7 @@ fn plan_escalated_uncached(
             beyond_lanes,
             automatic_pair,
             candidate_arrangement,
+            true,
         )
         .and_then(|mut p| {
             let selection = crate::hole_table::select(analysis, &p);
@@ -1967,6 +1975,7 @@ fn plan_escalated_uncached(
                     beyond_lanes,
                     automatic_pair,
                     candidate_arrangement,
+                    true,
                     Some(&selection),
                 )?;
                 if crate::hole_table::install(analysis, &mut scheduled, &selection) {
@@ -2038,7 +2047,7 @@ fn gdt_misplaced(plan: &Plan) -> (usize, usize) {
 /// drawing's findings. That recovery is [`recover`], applied by [`plan_recovered`], never here:
 /// its tries are plans made by this function (ISSUE-1299-a).
 pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
-    plan_with(analysis, spec, false, false, None)
+    plan_with(analysis, spec, false, false, None, false)
 }
 
 /// [`plan`], the GD&T's room reserved beyond every dimension lane of its strips when
@@ -2049,6 +2058,7 @@ fn plan_with(
     gdt_beyond_lanes: bool,
     automatic_pair: bool,
     candidate_arrangement: Option<layout::Arrangement>,
+    complete_views: bool,
 ) -> Result<Plan, Invalid> {
     plan_with_presentation(
         analysis,
@@ -2056,6 +2066,7 @@ fn plan_with(
         gdt_beyond_lanes,
         automatic_pair,
         candidate_arrangement,
+        complete_views,
         None,
     )
 }
@@ -2066,6 +2077,7 @@ fn plan_with_presentation(
     gdt_beyond_lanes: bool,
     automatic_pair: bool,
     candidate_arrangement: Option<layout::Arrangement>,
+    complete_views: bool,
     presentation: Option<&crate::hole_table::Selection>,
 ) -> Result<Plan, Invalid> {
     let excluded = presentation
@@ -2301,7 +2313,11 @@ fn plan_with_presentation(
             && !omitted(kept[0])
             && !pmi_views.contains(dropped)
             && !(demand.section.is_some() && *dropped == "plan")
-            && crate::dims::reduction_preserves_requirements(analysis, spec, kept, &excluded)
+            // The single-pass estimate exposes missing-view diagnostics. The
+            // automatic build preflights every requirement before projection,
+            // as Python's builder does before accepting a reduced candidate.
+            && (!complete_views
+                || crate::dims::reduction_preserves_requirements(analysis, spec, kept, &excluded))
     });
     let shown = |name: &str| match spec.views.get(name) {
         Some(v) => !v.omit,

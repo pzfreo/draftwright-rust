@@ -309,6 +309,10 @@ fn a_radial_flat_or_cross_slot_vetoes_turning_view_reduction() {
             "slot",
             json!({"long_axis":"x","width_axis":"z","width":4.0,"length":10.0,"lo":5.0,"hi":15.0,"w_center":0.0,"d_lo":-10.0,"d_hi":10.0}),
         ),
+        (
+            "fillet",
+            json!({"axis":"y","at":[20.0,0.0,0.0],"radius":1.5,"turned":false}),
+        ),
     ] {
         let mut a = a.clone();
         // A planner-input regression: these radial requirements need the side end-on.
@@ -320,20 +324,34 @@ fn a_radial_flat_or_cross_slot_vetoes_turning_view_reduction() {
         for scale in [None, Some("1:1")] {
             let mut s = Spec::default();
             s.sheet.scale = scale.map(String::from);
-            let p = model::plan(&a, &s).unwrap();
-            assert!(p.views.iter().any(|v| v.id == "v:side"), "{kind}");
-            assert!(
-                !p.problems.iter().any(|p| p.code == "view_plan_incomplete"),
-                "{kind}: {:?}",
-                p.problems
-            );
-            assert!(
-                p.dimensions.iter().any(|d| d.placed.is_some()
-                    && d.measurements
-                        .iter()
-                        .any(|m| m.feature == format!("f:radial:{kind}"))),
-                "{kind}"
-            );
+            for recovered in [false, true] {
+                let p = if recovered {
+                    model::plan_recovered(&a, &s)
+                } else {
+                    model::plan_escalated(&a, &s)
+                }
+                .unwrap();
+                assert!(p.views.iter().any(|v| v.id == "v:side"), "{kind}");
+                assert!(
+                    !p.problems.iter().any(|p| p.code == "view_plan_incomplete"),
+                    "{kind}: {:?}",
+                    p.problems
+                );
+                let required: Vec<_> = p
+                    .dimensions
+                    .iter()
+                    .filter(|d| {
+                        d.measurements
+                            .iter()
+                            .any(|m| m.feature == format!("f:radial:{kind}"))
+                    })
+                    .collect();
+                assert!(!required.is_empty(), "{kind}: no requirements were planned");
+                assert!(
+                    required.iter().all(|d| d.placed.is_some()),
+                    "{kind}: {required:?}"
+                );
+            }
         }
     }
 }

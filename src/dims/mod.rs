@@ -723,18 +723,12 @@ pub(crate) fn reduction_preserves_requirements(
             !excluded.contains(&w.id) && !spec.dimensions.get(&w.id).is_some_and(|d| d.omit)
         })
         .all(|w| {
-            let requested = spec.dimensions.get(&w.id).and_then(|d| {
-                d.place
-                    .as_ref()
-                    .and_then(|p| p.view.as_deref())
-                    .or(d.view.as_deref())
-            });
+            // A dimension's view is a preference in Spec; asking to retain a
+            // principal view belongs to views/<name>. Preserve that contract.
             !NAMES.iter().any(|v| carries(w, v))
-                || kept.iter().any(|v| {
-                    carries(w, v)
-                        && !spec.views.get(*v).is_some_and(|v| v.omit)
-                        && requested.is_none_or(|r| r == *v)
-                })
+                || kept
+                    .iter()
+                    .any(|v| carries(w, v) && !spec.views.get(*v).is_some_and(|v| v.omit))
         })
 }
 

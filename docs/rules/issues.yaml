@@ -1610,7 +1610,7 @@
     corpus_parts: ["grm03_thumbwheel_drive_screw_ap242_pmi.step"]
   status: ported
   rust_test: "tests/views_layout_rules.rs::a_radial_flat_or_cross_slot_vetoes_turning_view_reduction; tests/sections.rs::a_turned_part_leaves_out_the_view_that_repeats_its_profile"
-  rust_note: "The automatic reduced set is vetoed before composition when any wanted dimension that the full set can carry has no carrier in the kept set, including radial flats and cross slots, requested dimension views and PMI. A needed section also retains its cutting-plane carrier. Omitted requirements are excluded. Plain turned parts still keep profile, end and iso, with an explicit scale too."
+  rust_note: "The complete automatic build (escalated/recovered planning, used by every drawing API) vetoes a reduced candidate before composition if any wanted measurement the full set can carry has no carrier in the kept set, including radial flats, cross slots and fillets. PMI targets and a needed section also retain their carriers. The low-level single-pass estimate keeps its existing missing-view diagnostics; the complete build never accepts that loss. DimensionSpec view remains a preference; retaining a view is authored in views/name, preserving the existing dimension ownership contract. Omitted requirements are excluded. Plain turned parts still keep profile, end and iso, with an explicit scale too."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream views-and-layout"
 
 - id: ISSUE-1276-a
