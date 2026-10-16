@@ -17,10 +17,10 @@ and K1b/K4/K5/K7 integrations, merged with PR #56 (datum placement) and PR #57
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 15 | 57 | 62 | 26 |
+| `adr.yaml` | 14 | 58 | 62 | 26 |
 | `lint.yaml` | 19 | 112 | 15 | 19 |
-| `issues.yaml` | 46 | 65 | 53 | 26 |
-| **All** | **80** | **234** | **130** | **71** |
+| `issues.yaml` | 46 | 66 | 52 | 26 |
+| **All** | **79** | **236** | **129** | **71** |
 
 The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
 The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE
