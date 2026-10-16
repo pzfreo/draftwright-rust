@@ -17,8 +17,8 @@
       - "tests/test_issue_367_leader_ink.py::test_zero_length_leader_uses_its_local_ink_extent"
     corpus_parts: []
   status: pending
-  rust_test: "src/dims/placement.rs::tests::an_arrowhead_and_a_leader_through_other_ink_are_reported"
-  rust_note: "Not ported: the collision checks (src/dims/placement.rs::settle and collisions) and the callout leaders' placement (src/dims/leaders.rs) test a line's zero-width centreline against a label's box and leave out the arrowhead's flare (2.7 by 0.9 mm as drawn) and the stroke width, so a flare-only contact would go unreported. tests/issue_drafting.rs::an_arrowhead_in_another_label_is_reported checks that every drawn arrowhead reaching into another label on the fixtures and sampled parts is reported; since stream d-callout-leaders no part there has one (m10127's side-depth collision, the only one before, is gone), so the planted unit test above keeps the check exercised: an arrowhead whose shaft runs through another label is reported. No case has a flare-only contact, so the gap is not shown failing."
+  rust_test: "src/dims/placement.rs::tests::a_callouts_arrowhead_flare_is_collision_evidence"
+  rust_note: "Partial (stream K4): a callout's collision check (src/dims/placement.rs::collisions, annotation_ink_overlap) reads its rendered ink through dims::placement::ink_through: its lines and each arrowhead's filled flare (2.7 by 0.9 mm as drawn), tested at the tip only, so a flare-only contact is reported ('The arrowhead of ... reaches into the label of ...'); the leader router already scored its own and the fixed items' flares against labels. Linear dimensions keep the centreline test their placement (settle) uses. Not ported: the stroke width. Adding the annotation layer's 0.05 mm (half each side) made a GD&T leader 0.01 mm under a label a hard layout finding and moved hw_string_post_tapped_intent from A3 5:1 to a crowded A4 2:1; it needs the placers (settle, gdt, the router) to keep the same clearance first. No guard case or quality part changes from the flare."
   port_note: "Keep: unit test on the leader-ink collision primitive (arrow + stroked shaft polygons) used by the layout solver."
 
 - id: ISSUE-367-b
@@ -222,7 +222,7 @@
     corpus_parts: []
   status: ported
   rust_test: "tests/leaders.rs::a_leader_has_a_horizontal_shoulder_and_reads_outward"
-  rust_note: "A callout whose every candidate is blocked takes the least blocked (src/dims/leaders.rs: hard blockers, then crossings, then text touched, then ink out of its view's area, then length), and the plan reports what it still crosses (annotation_leader_crossing, annotation_ink_overlap, annotation_over_view, ...). No callout is dropped for routing; only an item no shown view can carry is unplaced (view_plan_incomplete). Material cutting is the leader re-entering its view's box (the plan has no projected material; ADR2-8)."
+  rust_note: "A callout whose every candidate is blocked takes the least blocked (src/dims/leaders.rs: hard blockers, then crossings, then text touched, then ink out of its view's area, then length), and the plan reports what it still crosses (annotation_leader_crossing, annotation_ink_overlap, annotation_over_view, ...). No callout is dropped for routing; only an item no shown view can carry is unplaced (view_plan_incomplete). Material cutting is the leader re-entering the material after leaving it at its tip, measured over each solid's projected box (src/material.rs, shared with lint, ADR2-8)."
   port_note: "Keep: leader router unit test; plan records the crossing as a problem rather than dropping the callout."
 
 - id: ISSUE-798-b
@@ -237,7 +237,9 @@
       - "tests/test_issue_798_material_field.py::test_the_defect_is_a_magnitude_not_a_flag"
       - "tests/test_issue_798_material_field.py::test_a_crossing_segment_measures_only_the_traversed_part"
     corpus_parts: []
-  status: pending
+  status: ported
+  rust_test: "src/material.rs::tests::cutting_a_second_body_is_measured"
+  rust_note: "Stream K4, src/material.rs (tests: a_leader_exiting_its_own_body_is_not_a_reentry, cutting_a_second_body_is_measured, the_reentry_is_a_magnitude_not_a_flag; on a drawing: tests/leader_rules.rs::a_shaft_cutting_back_into_the_material_is_reported_with_its_depth): only material after the exit at the tip counts; exiting the own body, passing over a bore inside it, or a gap of 0.05 mm or less does not; a second body or the body again is measured over the part traversed. Material is each solid's projected box, so a through hole inside it is never a second traversal; a shaft over a concave notch reads as cutting (conservative). A tip already clear of the material is charged for its first traversal too."
   port_note: "Keep: unit tests on the projected material field / segment-span probe."
 
 - id: ISSUE-798-c
@@ -268,7 +270,9 @@
       - "tests/test_issue_798_silhouette_lint.py::test_covers_diameters_is_no_longer_a_blanket_escape"
       - "tests/test_issue_798_silhouette_lint.py::test_material_is_never_an_acceptance_test"
     corpus_parts: ["nist_ctc_04_asme1_ap203", "nist_ctc_05_asme1_ap242"]
-  status: pending
+  status: ported
+  rust_test: "tests/leader_rules.rs::the_plan_and_lint_agree_on_a_leader_cutting_back_into_the_material"
+  rust_note: "Stream K4: the router (src/dims/leaders.rs) and lint's leader_crosses_silhouette (src/lint/leaders.rs) share material::reentry on the same material (material::solids); the plan reports a chosen re-entering leader as annotation_line_over_view with the depth cut, and a pinned callout's leader, which the router does not route, the same way (src/placement_intent.rs); lint reports leader_crosses_silhouette (info) with the depth. On the plate-and-pin assembly with the pin's callout pinned across the plate both name it with the same depth, and on the port's automatic drawings neither reports any callout (the_ports_own_callouts_touch_their_targets). Difference from draftwright, where material is a soft preference: in the router a re-entering candidate counts one hard blocker, outranking crossings, with its depth added to its length; it is still never rejected or dropped, so the least-cutting route wins when every candidate re-enters. Every drawn callout has a readable shaft (Drawn::lines), so #2112's unreadable case does not arise; there is no covers_diameters exemption."
   port_note: "Keep: plan problem 'leader crosses silhouette' derived from the same predicate the router uses."
 
 - id: ISSUE-827-a
@@ -2195,9 +2199,9 @@
       - "tests/test_issue_1378_diameter_leader_targets.py::test_double_d_target_uses_trimmed_profile_including_flats"
       - "tests/test_issue_1378_diameter_leader_targets.py::test_split_declared_holes_cannot_claim_the_other_members_rim"
     corpus_parts: []
-  status: pending
-  rust_test: "tests/issue_drafting.rs::a_hole_callouts_tip_is_on_the_rim_of_a_hole_it_names"
-  rust_note: "Partial: on every part each placed hole callout's arrow tip lies on the projected bore circle of one of the holes it claims, in its view (within 0.001 mm). Not ported: lint's check of a drawn tip (a tip in blank material lowering fidelity); double-D holes are not recognised (not-applicable)."
+  status: ported
+  rust_test: "tests/leader_rules.rs::a_diameter_tip_touches_the_rim_of_the_hole_it_names"
+  rust_note: "Stream K4: lint (src/lint/leaders.rs, diameter_leader_target_mismatch, warning) checks each drawn hole callout's tip against the boundary circles of the holes it claims (bore rim at the opening and far end, counterbore/spotface and countersink rims), as projected by its view's recorded transform; a double-D bore's boundary is its trimmed profile, flats included. A tip in blank material or on another hole's rim is reported; a callout naming another member may tip it. The planner meets the rule: tests/issue_drafting.rs::a_hole_callouts_tip_is_on_the_rim_of_a_hole_it_names (the plan) and tests/leader_rules.rs::the_ports_own_callouts_touch_their_targets (lint on the drawn fixtures), and no quality part has a finding. The port has no fidelity score: the warning is the lowered fidelity. The planner draws no double-D diameter callout of its own."
   port_note: "Keep: leader target = projected hole boundary; post-render check verifies."
 
 - id: ISSUE-1392-a
@@ -2470,7 +2474,9 @@
       - "tests/test_issue_1479_radius_leader_targets.py::test_unverifiable_declared_support_is_an_explicit_placement_drop"
       - "tests/test_issue_1479_radius_leader_targets.py::test_wrong_radius_tip_lowers_fidelity"
     corpus_parts: ["GRM-04", "grm04_drive_plate.step"]
-  status: pending
+  status: ported
+  rust_test: "tests/leader_rules.rs::a_radius_tip_lands_on_the_trimmed_profile_arc"
+  rust_note: "Stream K4: the planner tips a blend's radius callout at one of the blend's proven trimmed-surface points (Analysis::blend_sites, src/dims/blends.rs), in the view that shows its arc end-on; a group without one is an explicit drop (feature_not_dimensioned, 'no principal view has a proven attachment on its trimmed blend surface'). Lint (src/lint/leaders.rs, radius_leader_target_mismatch) checks the drawn tip against the trimmed arc from the Analysis (circle of the radius about the path, the sector from the proven points), so a centre bore, another circle or the untrimmed extension is reported, wherever the geometry is placed. Met on the port's drawings (tests/leader_rules.rs::the_ports_own_callouts_touch_their_targets, string_post's blend). A fillet leader that carries its equal blends' claims (dims::blends::consolidate) is judged as the fillet's callout and is not checked here."
   port_note: "Keep."
 
 - id: ISSUE-1485-a

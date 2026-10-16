@@ -60,6 +60,7 @@ pub mod grooves;
 pub mod gussets;
 pub mod hole_patterns;
 pub mod holes;
+pub mod leaders;
 pub mod oriented_slots;
 pub mod pads;
 pub mod paired_ramp_steps;
@@ -327,6 +328,9 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
         .chain(relief_issues)
         .collect();
     issues.extend(coverage::drawn_centre_marks(analysis, drawing));
+    // Stream K4: each callout's tip against the edge it names, and its shaft against the
+    // material (`leaders`).
+    issues.extend(leaders::check(analysis, drawing));
     issues
 }
 
