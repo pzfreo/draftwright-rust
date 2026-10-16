@@ -8,6 +8,7 @@ from build123d import (Align, Box, BuildPart, Compound, Cylinder, Hole, Pos, Rot
                       export_step)
 
 out = Path(__file__).parent
+# Python tests/test_issue_958_cross_solid_recognition.py.
 base = Box(80, 60, 10)
 detached = Pos(0, 0, 10) * Box(30, 20, 4)
 wall = Pos(0, -10.5, 6.5) * Box(30, 1, 3)

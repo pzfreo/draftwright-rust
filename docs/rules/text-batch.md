@@ -61,13 +61,15 @@ IDs stay intact during corruption tests. This is deliberately a partial port: th
 searchable text runs do not independently prove that the filled glyph paths say the same
 thing. Datum, GD&T, detail-view and measurement-ownership implementations were unchanged.
 
-A central bore in prismatic stock now gets horizontal rim-normal interior candidates whose
+A central bore in prismatic stock now prefers horizontal rim-normal interior candidates whose
 label midpoint stays within the 3 mm font height of the view centre. Candidate generation
 retains the 64-alternative bound and all existing material, feature, furniture and peer-ink
-checks. The row is a spacing hint: an impossible interior placement retains its exterior
-fallback. Turning profiles and analytic round stock are excluded, including plain cylinders
+checks. The row preference is ranked after clearance: if that row is blocked, another safe
+interior route remains eligible. If no interior route fits, the exterior fallback remains. Turning profiles and analytic round stock are excluded, including plain cylinders
 without native `turned_step` records. Their coaxial labels still clear the centre axis. The
-new geometry regression failed before this change with a 10.266 mm row displacement.
+new geometry regression failed before this change with a 10.266 mm row displacement. A separate
+blocked-row regression failed with a hard row filter; the final policy ranks row-aligned
+candidates after clearance and retains other safe interior alternatives within the same budget.
 
 The new tests are:
 
@@ -75,6 +77,7 @@ The new tests are:
 - `src/lint/pmi_coverage.rs::tests::manufacturing_source_text_is_checked_independently_of_its_identity`
 - `tests/pmi_coverage.rs::a_source_edge_note_must_keep_every_word_when_wrapped`
 - `tests/surface_texture.rs::a_face_finish_text_cannot_disagree_with_its_source`
+- `src/dims/interior.rs::tests::a_blocked_centre_row_keeps_safe_interior_alternatives`
 - `tests/rules_text.rs::prismatic_central_bores_keep_their_row_and_turned_bores_clear_axis_ink`
 - `tests/rules_text.rs::callout_symbols_are_geometry_and_claims_are_semantic_roles`
 - `tests/rules_text.rs::separate_solids_do_not_invent_features_and_preserve_real_slots_pads_and_pockets`
@@ -107,7 +110,27 @@ native document before checking any reader/planner behavior.
 
 ## Drawing and validation evidence
 
-Validation results and render paths are recorded here after the final checks.
+Before and after SVG, PNG, plan and render-report artifacts are in
+`target/rules-text-row-before/` and `target/rules-text-row-after/`, respectively.
+All three PNG pairs were inspected as drawings: the short horizontal rim-normal leader
+makes the text read on the bore row, with clear text, location dimensions and adjacent views.
+There is no change to the dimension inventory or sheet choice.
+
+| Part stem | Before row offset (mm) | After row offset (mm) |
+| --- | ---: | ---: |
+| `central-prismatic` | -10.266278 | -0.045 |
+| `central-prismatic-wide` | -13.059755 | -0.045 |
+| `central-prismatic-square` | -8.921441 | -0.063 |
+
+The five bore STEP fixtures were regenerated with the committed generator and compared
+by Boolean subtraction in both directions: every difference had zero volume.
+
+The round and stepped-shaft controls also assert an off-axis label midpoint and check the
+actual drawing for foreign horizontal lines crossing the label. The existing three corpus
+control renders (`cgb203`, `GRM-03_thumbwheel_drive_screw`, `nist_ctc_01_asme1_rd`) inspected
+before the row change are in `target/rules-text-before/`.
+
+Final validation results follow after the serial checks.
 
 The unsettled symbol mechanism is resolved for this batch by retaining Python's geometric
 counterbore, countersink and depth symbols, with the existing searchable Unicode text layer.
