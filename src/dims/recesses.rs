@@ -717,6 +717,65 @@ pub(super) fn consolidate(
     given: &mut Vec<Vec<String>>,
     omitted: &mut Vec<super::Omitted>,
 ) {
+    // Equal channel widths in one projection can share a counted size statement.
+    // Their stations remain fixed by the wall scheme; retain every independent
+    // width claim and the covered IDs for edits and completeness.
+    let channel = |k: &Kept| {
+        let m = k.0.measurements.first()?;
+        if m.parameter != "channel_width.length" {
+            return None;
+        }
+        match k.0.shape {
+            Shape::Linear { axis, .. } => Some((k.2.unwrap_or(k.0.views[0]), axis)),
+            _ => None,
+        }
+    };
+    let mut channel_gone = std::collections::BTreeSet::new();
+    for i in 0..kept.len() {
+        let Some(key) = channel(&kept[i]) else {
+            continue;
+        };
+        if channel_gone.contains(&i) {
+            continue;
+        }
+        let peers: Vec<_> = (i + 1..kept.len())
+            .filter(|&j| {
+                channel(&kept[j]) == Some(key)
+                    && !channel_gone.contains(&j)
+                    && (kept[i].0.value - kept[j].0.value).abs() <= crate::lint::redundancy::TOL
+                    && kept[i].0.terms == kept[j].0.terms
+                    && given[i] == given[j]
+            })
+            .collect();
+        let count = peers.len() + 1;
+        for j in peers {
+            let claims = kept[j].0.measurements.clone();
+            kept[i].0.measurements.extend(claims);
+            let by = kept[i].0.id.clone();
+            omitted.push(super::Omitted {
+                id: kept[j].0.id.clone(), label: kept[j].0.terms.join(" "),
+                basis: format!("conveyed by {by}: equal channel widths in the same projection, explicitly counted"),
+                state: crate::items::State::Covered { by },
+            });
+            channel_gone.insert(j);
+        }
+        if count > 1 {
+            kept[i].0.terms.insert(0, format!("{count}×"));
+            kept[i].0.basis += "; equal channel widths share one counted statement, retaining each width measurement";
+        }
+    }
+    let mut index = 0;
+    kept.retain(|_| {
+        let keep = !channel_gone.contains(&index);
+        index += 1;
+        keep
+    });
+    let mut index = 0;
+    given.retain(|_| {
+        let keep = !channel_gone.contains(&index);
+        index += 1;
+        keep
+    });
     let recess_location = |w: &Want| {
         w.measurements.first().is_some_and(|m| {
             m.parameter.starts_with("seat_location.")

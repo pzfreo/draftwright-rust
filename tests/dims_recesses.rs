@@ -245,19 +245,21 @@ fn ftc06_channels_state_their_widths_in_the_view_along_them() {
     let a = analysed(&corpus, "ftc06");
     let plan = model::plan(&a, &Spec::default()).unwrap();
     // A base and walls (quiddity's plates along two axes): each open channel's width, as
-    // draftwright's seven dim_channel_* dimensions.
+    // draftwright's seven dim_channel_* measurements, explicitly counted per projection.
     assert_eq!(
         stating(&plan, &a),
         strs(&[
+            ("channel_width.length", "front", "2× 3.1"),
             ("channel_width.length", "front", "3.1"),
-            ("channel_width.length", "front", "3.1"),
-            ("channel_width.length", "front", "3.1"),
-            ("channel_width.length", "plan", "12.7"),
-            ("channel_width.length", "plan", "12.7"),
-            ("channel_width.length", "side", "3.1"),
-            ("channel_width.length", "side", "3.1"),
+            ("channel_width.length", "plan", "2× 12.7"),
+            ("channel_width.length", "side", "2× 3.1"),
         ])
     );
+    let claims: Vec<_> = plan.dimensions.iter().flat_map(|d| &d.measurements)
+        .filter(|m| m.parameter == "channel_width.length").collect();
+    assert_eq!(claims.len(), 7, "counting must retain every physical width");
+    let owners: std::collections::BTreeSet<_> = claims.iter().map(|m| &m.feature).collect();
+    assert_eq!(owners.len(), 7, "one independent width claim per channel");
     for d in plan.dimensions.iter().filter(|d| d.id.contains("channel")) {
         assert_eq!(d.kind, "linear", "{d:?}");
     }
