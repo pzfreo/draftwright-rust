@@ -8,7 +8,10 @@
 //! The denominator is the part's box (the Analysis's `envelope`), not any recognised feature. An
 //! axis is **placed** when the marks prove its whole interval (within 1e-3 mm), by:
 //!
-//! - one measurement reaching from end to end: an `envelope` extent (`width.length`, …);
+//! - one measurement reaching from end to end: an `envelope` extent (`width.length`, …), or any
+//!   other claim whose physical span, as lint reads it (`redundancy::span`: a face level, a
+//!   step position, a plate thickness, a slot length, a boss height), is the axis's whole
+//!   interval (stream K5);
 //! - a turned profile's diameter across the axis, centred on it: a turned step's or a boss's
 //!   diameter, or the part's overall diameter (`envelope`/`od.diameter`, the largest turned
 //!   band's, which Python's `rotational` OD stands for);
@@ -16,9 +19,9 @@
 //!   exactly (an overlap or a gap breaks the chain).
 //!
 //! Each counts only when its mark's text states its value ([`holes::states`]). Otherwise the axis
-//! is **missing**. Not ported: Python also accepts any other measurement whose span runs end to
-//! end along the axis (a location, a step leg) and step lengths chained by a declared profile
-//! group; such an axis is reported missing here. `suppressed`, `dropped` and
+//! is **missing**. Not ported: measurements whose span lint does not read (a hole location, a
+//! through step's leg) and step lengths chained by a declared profile group; such an axis is
+//! reported missing here. `suppressed`, `dropped` and
 //! `satisfied_by_structured_note` are not reached: lint cannot see the author's omissions or the
 //! placement drops.
 
@@ -132,6 +135,22 @@ fn carriers(analysis: &Analysis, marks: &[Mark]) -> Vec<Carrier> {
                     out.extend(across(k, on, d, &m.name));
                 }
                 continue;
+            }
+            // Any other measurement whose physical span (lint's own reading of the claim,
+            // `redundancy::span`: a face level, a plate thickness, a slot length, a boss height,
+            // …) runs along a principal axis carries that interval (ISSUE-1560-a; Python's
+            // "one measurement spanning the full bbox interval").
+            if let Some(s) = super::redundancy::span(analysis, &c.feature, &c.parameter)
+                && !(c.feature.starts_with("f:turned_step:") && c.parameter == "step.length")
+                && states(s.hi - s.lo)
+            {
+                out.push(Carrier {
+                    axis: s.axis,
+                    lo: s.lo.min(s.hi),
+                    hi: s.lo.max(s.hi),
+                    chain: None,
+                    mark: m.name.clone(),
+                });
             }
             let Some(f) = analysis.features.iter().find(|f| f.id == c.feature) else {
                 continue;
@@ -365,5 +384,39 @@ mod tests {
                 "z Missing []"
             ]
         );
+    }
+
+    /// ISSUE-1560-a, stream K5: any other measurement whose span runs end to end carries the
+    /// extent. On m10127's box a boss along +z (its location its free end) as tall as the part
+    /// (its stated height spans 0..44.7) places z; one standing 2 mm higher, whose height spans
+    /// 2..44.7, does not, and a misprinted height places nothing.
+    #[test]
+    fn any_measurement_spanning_the_box_states_the_extent() {
+        let identity = json!([
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0]
+        ]);
+        let boss = |z: f64, h: f64| {
+            json!({ "axis": [0.0, 0.0, 1.0], "location": [14.0, 16.0, z], "diameter": 8.4,
+                    "height": h })
+        };
+        let envelope = [[0.0, 0.0, 0.0], [28.794, 32.268, 44.729]];
+        let a = part(
+            envelope,
+            identity.clone(),
+            &[("boss", boss(44.729, 44.729))],
+        );
+        let height = [mark("m_boss_h", "44.7", "f:boss:1", "boss_height.length")];
+        assert_eq!(
+            states(&a, &height),
+            ["x Missing []", "y Missing []", "z Placed [\"m_boss_h\"]"]
+        );
+        let wrong = [mark("m_boss_h", "44", "f:boss:1", "boss_height.length")];
+        assert_eq!(states(&a, &wrong)[2], "z Missing []");
+        let short = part(envelope, identity, &[("boss", boss(44.729, 42.729))]);
+        let height = [mark("m_boss_h", "42.7", "f:boss:1", "boss_height.length")];
+        assert_eq!(states(&short, &height)[2], "z Missing []");
     }
 }

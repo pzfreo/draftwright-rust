@@ -44,9 +44,10 @@
 //!
 //! Not ported, as placement decisions the planners cannot see (they do not know the scale):
 //! draftwright's dropping of the smallest diameters when its row or column overflows, its
-//! stagger and dense-chain drop, its enlarged details for a crowded head of short bands, and its
-//! moving of a second parallel profile to the other profile view when both would share a line.
-//! Every item is planned, and placement reports what collides.
+//! stagger and dense-chain drop, and its enlarged details for a crowded head of short bands.
+//! Every item is planned, and placement reports what collides. A part of several turned bodies
+//! along one axis gives each body's chain the view that separates its axis line and witnesses on
+//! its own silhouette ([`own_body`], ARCH0020-2).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -599,6 +600,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             }
             continue;
         }
+        let first = out.len();
         if full {
             // Keep individual links so exactly one, rather than an entire counted
             // chain, can become reference beside the controlling overall length.
@@ -608,8 +610,91 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         } else {
             out.extend(chain(p));
         }
+        own_body(&mut out[first..], p, &profiles, cx.analysis);
     }
     (out, problems)
+}
+
+/// The radius of profile *p*'s silhouette at station *at* along its axis: the largest band
+/// ending there, so a witness starts at the outer corner of the shoulder it locates.
+fn radius_at(p: &[&Banded], at: f64) -> f64 {
+    p.iter()
+        .filter(|(_, b)| (b.lo - at).abs() <= 1e-3 || (b.hi - at).abs() <= 1e-3)
+        .map(|(_, b)| 0.5 * b.diameter)
+        .fold(0.0, f64::max)
+}
+
+/// The world axis a profile view of axis *k* shows across it (neither *k* nor the axis *view*
+/// looks along).
+fn shown_across(k: usize, view: &str) -> usize {
+    let look = super::TOWARD
+        .iter()
+        .find(|(n, _)| *n == view)
+        .map(|(_, t)| {
+            t.iter()
+                .position(|c| c.abs() == 1.0)
+                .expect("a principal view")
+        })
+        .expect("a named view");
+    (0..3).find(|&j| j != k && j != look).expect("three axes")
+}
+
+/// ARCH0020-2 and ISSUE-1357-c: when the part has several turned profiles along one axis on
+/// distinct axis lines (separate bodies), each profile's chain *chain* is its own: it goes in the
+/// first profile view that separates its axis line from every other's (one of the two always
+/// does: distinct parallel lines differ across one of them), and its witnesses start at its own
+/// silhouette (the outer corner of each shoulder) on the side of the view its body is nearer, so
+/// a chain never stands on a sibling's outline (`dims::placement::lanes` puts such a chain in
+/// that side's strip). A part with one profile per axis keeps its witnesses on the view's
+/// outline, as before. Not ported: a spec that omits the separating view leaves the chain to
+/// fall back to the other (where draftwright drops it with a diagnostic): the planners do not see
+/// the spec's views.
+fn own_body(chain: &mut [Want], p: &[&Banded], profiles: &[Vec<&Banded>], analysis: &Analysis) {
+    let b0 = &p[0].1;
+    let k = b0.axis;
+    let siblings: Vec<P3> = profiles
+        .iter()
+        .map(|q| &q[0].1)
+        .filter(|c| c.axis == k && !same_line(k, c.on, b0.on))
+        .map(|c| c.on)
+        .collect();
+    if siblings.is_empty() {
+        return;
+    }
+    let views = profile_views(k);
+    let view = views
+        .iter()
+        .copied()
+        .find(|v| {
+            let j = shown_across(k, v);
+            siblings.iter().all(|s| (s[j] - b0.on[j]).abs() > 1e-3)
+        })
+        .unwrap_or(views[0]);
+    let j = shown_across(k, view);
+    let [lo, hi] = analysis.envelope;
+    let sign = if b0.on[j] - lo[j] <= hi[j] - b0.on[j] {
+        -1.0
+    } else {
+        1.0
+    };
+    for w in chain.iter_mut() {
+        let mut order = vec![view];
+        order.extend(w.views.iter().copied().filter(|v| *v != view));
+        w.views = order;
+        if let Shape::Linear {
+            a,
+            b,
+            a_edge,
+            b_edge,
+            ..
+        } = &mut w.shape
+        {
+            a[j] = b0.on[j] + sign * radius_at(p, a[k]);
+            b[j] = b0.on[j] + sign * radius_at(p, b[k]);
+            *a_edge = false;
+            *b_edge = false;
+        }
+    }
 }
 
 /// The end of turned profile *p* (its bands in order along their axis, adjoining from end to end
