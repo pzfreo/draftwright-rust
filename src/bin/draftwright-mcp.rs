@@ -118,6 +118,11 @@ fn tools() -> Value {
                 features/<id>/controls and faces/<face>/controls (feature control frames, a list \
                 of {\"characteristic\": \"position\", \"tolerance\": 0.1, \"datums\": [\"A\"], \
                 \"diameter\"?: true, \"modifier\"?: \"M\"|\"L\"}; add appends one), \
+                features/<id>/finish and faces/<face>/finish ({\"ra\": 0.8, \"removal\"?: \
+                required|prohibited|any}), sheet/default_finish (the same, beside the title block), \
+                features/<id>/thread ({\"designation\": \"M6\", \"length\"?: 10}, on a hole, hole \
+                pattern or turned step), features/<id>/knurl ({\"pattern\": \"straight\", \"pitch\": \
+                0.8}, on a turned step), features/<id>/note and faces/<face>/note (text on a leader), \
                 dimensions/<id>/view (front, \
                 plan or side: the view that carries it, among those that can). An ID never names \
                 a view, so it stays when the dimension moves to another view or the sheet or \

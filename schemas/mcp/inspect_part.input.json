@@ -98,6 +98,12 @@
                 "first",
                 "third"
               ]
+            },
+            "default_finish": {
+              "type": [
+                "object",
+                "null"
+              ]
             }
           },
           "additionalProperties": false

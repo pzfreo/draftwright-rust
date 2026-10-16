@@ -7473,3 +7473,49 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   quiddity-rust `k/k2-hlr-speed` and merged it through quiddity-rust PR #12 (merge commit, CI
   green) before the draftwright merge, rather than leaving the dependency for the maintainer. The
   merge commit keeps 7cb26d8 reachable from quiddity-rust main, so the pin was not changed.
+
+## K1b: finish, threads, knurls and notes authored in the Spec (#43 item 1) (2026-10-16, unattended; overturnable)
+
+- **What**: `features/<id>/finish|thread|knurl|note`, `faces/<face>/finish|note`,
+  `sheet/default_finish` (`src/spec_notes.rs`, docs/model.md "Finish, threads, knurls and notes
+  authored in the Spec"). Each is lowered into the record the AP242 path reads (`surface_finish`,
+  `internal_thread`/`external_thread`, `knurl`, a surface label of kind `note`, the part's
+  `surface_texture`) and merged by `spec_gdt::effective` beside K1's datums and controls, so the
+  existing F2 symbol, thread/knurl callout, label and default-finish paths draw them. The Spec
+  wins (`spec_overrides_pmi`). Default plans are unchanged: `effective` returns the Analysis
+  itself when the spec authors none of these.
+- **Shared code touched (minimal, commented)**: `pmi_lowering::owners` lists established hole
+  patterns as owners of kind `pattern` (no AP242 cylinder matches them, `owns`); `manufacturing`
+  sends a `spec:` record to `authored` (its owner is the feature it names, checked against the
+  callouts' owners); `dims::holes` computes `manufacturing` before the patterns and prints a
+  pattern's spec thread before its pattern suffix; the label, face-finish and default-finish
+  bases and the hole/turned callouts' thread clauses say `spec-authored`/`the spec's` for a
+  spec record (text unchanged for the file's).
+- **Judgement calls (overturnable)**:
+  - General tolerance needs no new path: `sheet/title/tolerance` already fills the title block
+    and wins over the file's. A sheet note is the existing `notes`; the acceptance test for it
+    is combined with the feature note's (the sheet note alone passed on the base).
+  - Thread length prints in the existing vocabulary, `M10; 15 MIN FULL THREAD` (for holes and
+    turned diameters alike), not `↧ 15`. A through hole's thread does not take the bore's `THRU`
+    (`4× ⌀6 THRU M6 (2×2)`, draftwright's `ø2.5 THRU M3x0.5`).
+  - Designations: ISO metric only, printed as written. Checks: a hole from nominal less 1.5
+    pitches to the nominal (+0.01; a cosmetic thread modelled at its major diameter is accepted),
+    an external thread's nominal equal to its diameter (0.01, as the AP242 owner match), a length
+    within a blind hole's depth or a step's length. With no pitch, ISO 261's coarse pitch.
+  - A thread on a pattern member is refused (pointing at the pattern) rather than splitting the
+    pattern's callout. A finish on a hole pattern (cylinders on several axes) is reported as the
+    PMI path reports such a record (`pmi_not_lowered`), not drawn on one member.
+  - A spec thread and knurl on one feature both print (they do not claim faces against each
+    other); against the file's PMI the Spec's replaces any thread or knurl sharing a face.
+  - A note's view follows the label rule (front, or side when its faces' box is longest in y),
+    so a note on a vertical hole hangs in the front view; a note leader ends in an arrowhead
+    (the label path's), where ISO 128-22 would end a leader inside an outline with a dot.
+  - The MCP schema budget in tests/engine_version.rs rose 41,700 -> 42,200 bytes for
+    `sheet/default_finish` across the twelve spec-carrying tools (41,972 measured).
+- **By eye**: plate (A4): Ra 0.8 above the front view's top edge, `4× ⌀6 THRU M6 (2×2)`, DEBURR
+  on the front face; with `sheet/default_finish` alone the recovered sheet is A4 1:1 instead of
+  A4 2:1 (the default-finish symbol beside the title block gives A4 2:1 two hard findings in the
+  existing sheet policy; the same happens for an AP242 default finish, not chased). Spindle (A3
+  2:1, unchanged): `ø10 M10; 15 MIN FULL THREAD`, `ø24 DIAMOND KNURL P0.8` on the overall
+  diameter, the note on the ⌀4.2 hole above the front view, Ra 1.6 on the ø15 step (its leader
+  crosses the 22 and 52 dimension lines: cosmetic).
