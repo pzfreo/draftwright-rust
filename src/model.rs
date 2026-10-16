@@ -1152,7 +1152,7 @@ pub(crate) fn findings(plan: &Plan) -> layout::Findings {
 
 /// A plan's annotations over a view not their own: a label on a view's box or a line across
 /// another view (`annotation_over_view`, `annotation_line_over_view`), at warning or error.
-fn over_views(plan: &Plan) -> usize {
+pub(crate) fn over_views(plan: &Plan) -> usize {
     plan.problems
         .iter()
         .filter(|p| {
@@ -1278,6 +1278,37 @@ fn carried(plan: &Plan) -> BTreeSet<(String, String)> {
         }
     }
     out
+}
+
+pub(crate) fn carries_required(required: &Plan, candidate: &Plan) -> bool {
+    carried(required).is_subset(&carried(candidate))
+}
+
+/// Check actual bounds independently on each sheet; coincident coordinates on different
+/// pages are expected. Keep the single-sheet gate identical.
+pub(crate) fn drawn_sheets_fit(analysis: &Analysis, plan: &Plan) -> bool {
+    std::iter::once(&plan.sheet)
+        .chain(&plan.sheets)
+        .all(|sheet| {
+            let mut local = plan.clone();
+            local.sheet = sheet.clone();
+            local.views.retain(|v| v.sheet == sheet.number);
+            let carries = |id: &str| local.views.iter().any(|v| v.id == id);
+            local.dimensions.retain(|d| carries(&d.view));
+            local.gdt.retain(|g| carries(&g.view));
+            local.balloons.retain(|b| carries(&b.view));
+            local.tables.retain(|t| t.sheet == sheet.number);
+            local.hole_table = local.hole_table.filter(|t| t.sheet == sheet.number);
+            local.hole_tables.retain(|t| t.sheet == sheet.number);
+            if sheet.number > 1 {
+                local.notes.clear();
+                local.notes_block = None;
+                local.radius_notes_block = None;
+                local.radius_table = None;
+                local.requirements.clear();
+            }
+            drawn_items_fit(analysis, &local)
+        })
 }
 
 fn drawn_items_fit(analysis: &Analysis, p: &Plan) -> bool {
@@ -1427,8 +1458,9 @@ const LARGE_SHEET: usize = 2;
 /// Whether the part's views fit A3 at 1:1 (maintainer, 2026-10-15): drawn full size, each with
 /// one dimension row ([`layout::DIM_PAD`]) on either side, the row of views (the front with the
 /// side and any sections beside it) is no wider than A3's usable paper and the column (the plan
-/// above the front) no taller. Such a part never takes A2 or larger by default.
-fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
+/// above the front) no taller. Such a part exhausts single- and multi-sheet A4/A3 plans
+/// before the automatic search admits A2 or larger.
+pub(crate) fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
     let (_, w, h) = layout::PAGES[LARGE_SHEET - 1];
     let size = |v: &PlannedView| {
         let view = View::new(v.direction, v.up).expect("planned view");
@@ -1523,9 +1555,7 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
     let mut smallest = None;
     let mut smallest_iso: Option<f64> = None;
     let mut recipes = BTreeMap::new();
-    // The large sheets stay closed to a small part only while it has a valid drawing below
-    // them; with none, the search goes on to A2 and up as before (judgement, 2026-10-16: redrawn
-    // smaller, such a drawing would lose items off the sheet).
+    // Exhaust practical single sheets, then R5 allocation, before admitting large paper.
     let mut rule = true;
     let mut first_sheet = 0;
     loop {
@@ -1720,6 +1750,21 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
         }
         if cut && candidates.is_empty() {
             tried.pop();
+            // Already allocated content is assembled by the caller. Its completed document
+            // gets the same fallback in sheets::allocate_counted, rather than nesting moves.
+            let assigned = spec.views.values().any(|v| v.sheet.is_some_and(|n| n > 1))
+                || spec.tables.iter().any(|t| t.sheet.is_some_and(|n| n > 1))
+                || spec
+                    .sheets
+                    .as_ref()
+                    .and_then(|s| s.hole_table)
+                    .is_some_and(|n| n > 1);
+            if !assigned
+                && let Some(plan) =
+                    crate::sheets::small_fallback(analysis, spec, &first, &mut tried)
+            {
+                return Ok(plan);
+            }
             rule = false;
             seed_kept = seed_clean;
             first_sheet = LARGE_SHEET;

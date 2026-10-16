@@ -240,7 +240,11 @@ message names it (`…; A4 at 1:1 fits.`).
 
 #### Sheet allocation (R5, Stage I)
 
-`sheets.max` allows 1–9 sheets; absent means one. `sheets.smallest_scale` is an ISO
+`sheets.max` allows 1–9 sheets. An explicit count is binding. With no count,
+the normal search starts with one sheet; a small part with no valid complete A4/A3
+single-sheet drawing tries R5 allocation on A4/A3 before A2 or larger (up to the
+existing nine-sheet bound). Named paper keeps the original default of one.
+See the [R5 small-part amendment](adr/R5-multi-sheet.md#small-part-overflow-amendment-2026-10-16). `sheets.smallest_scale` is an ISO
 5455 scale floor, `keep_together` is a list of groups of view names (also allowing
 `hole_table`), `hole_table` assigns a rescue hole table if escalation actually makes
 one, and `gdt_on_sheet_1` records that requirement. A hole-table assignment does not
@@ -257,7 +261,24 @@ an explicit sheet assignment remains possible for an auxiliary group. A stated
 scale or lower the floor. List-index edits are supported only for
 `tables/<index>/sheet`, with `set` and `remove`.
 
-Without sheet controls the existing planner path and serialized bytes are unchanged.
+The [2026-10-16 audit](second-sheet-audit.csv) lists all 68 small A2+ cases found
+among 2,150 native default/spec cases over 190 corpus and fixture STEP inputs
+(baseline `53aa9f3f`, origin/main at the start of the change). All 63 source hashes
+in the captured single-sheet spec fixture are covered. Three selections
+improved: 10224 and 10255 use two A3 sheets at 2:1; GRM-03's fixed 10:1 spec fits
+one A3. The 44 named large-paper requests stay as authored. Every other small
+large-paper case records both failed practical-paper allocations. The report's
+required-drop count includes unreadably crowded location dimensions. When no
+allocation prefix is clean, the reported best step may be the original one-sheet
+step; each audit's `audit.json` retains every paper/scale and moved-prefix trial.
+All 742 cases whose full-size views need larger paper retain their size, scale
+and count.
+
+Run `cargo run --release --example sheet_policy_audit -- CORPUS OUT` against each
+revision, then `python3 -I tools/compare_sheet_policy.py BEFORE/audit.json
+AFTER/audit.json OUT` to reproduce the case table and the unchanged-large-part gate.
+
+Without sheet controls a valid single A4/A3 drawing keeps the existing planner path.
 A floor alone enters the existing recovery. With `sheets.max > 1`, each allocation
 prefix uses the existing finished-sheet recovery with the floor, including table
 recovery. There are at most four prefixes; H6's exhaustive selection supersedes

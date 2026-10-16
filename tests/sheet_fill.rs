@@ -420,3 +420,159 @@ fn section_correction_preserves_the_gdt_string_posts_readable_scale() {
             | "page_fit_uncertain"
     )));
 }
+
+/// A second small sheet must be tried before enlargement onto impractical paper.
+fn assert_small_overflow(name: &str) {
+    let Some(dir) = corpus::dir() else { return };
+    let a = model::analyse_native(&dir.join(format!("mfcadpp/{name}.step")))
+        .unwrap()
+        .1;
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert!(
+        matches!(p.sheet.size.as_str(), "A4" | "A3"),
+        "{name}: {}",
+        p.sheet.basis
+    );
+    assert!(!p.sheets.is_empty(), "{name}: overflow needs another sheet");
+    assert!(
+        p.views
+            .iter()
+            .filter(|v| ["v:front", "v:plan", "v:side"].contains(&v.id.as_str()))
+            .all(|v| v.sheet == 1)
+    );
+    assert!(p.views.iter().any(|v| v.sheet > 1));
+    for v in &p.views {
+        if v.sheet > 1
+            && let Some(cut) = &v.cut
+        {
+            assert!(
+                v.xref.is_some() && cut.xref.is_some(),
+                "{name}: section needs both addresses"
+            );
+        }
+    }
+    assert!(
+        !p.problems.iter().any(|q| [
+            "annotation_off_sheet",
+            "views_overlap",
+            "view_on_title_block",
+            "cross_reference_missing",
+            "layout_recovery_exhausted"
+        ]
+        .contains(&q.code.as_str())),
+        "{name}: {:?}",
+        p.problems
+    );
+    assert!(
+        p.spec.sheets.is_none(),
+        "allocation must not rewrite intent"
+    );
+}
+
+#[test]
+fn small_10224_uses_multiple_small_sheets() {
+    assert_small_overflow("10224");
+}
+
+#[test]
+fn small_10255_uses_multiple_small_sheets() {
+    assert_small_overflow("10255");
+}
+
+/// This 279 mm principal projection already needs large paper at full size.
+#[test]
+fn a_part_needing_large_paper_at_full_size_keeps_large_paper() {
+    let Some(dir) = corpus::dir() else { return };
+    let a = model::analyse_native(&dir.join("nist/nist_ftc_09_asme1_rd.stp"))
+        .unwrap()
+        .1;
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert!(
+        matches!(p.sheet.size.as_str(), "A2" | "A1" | "A0"),
+        "{}",
+        p.sheet.basis
+    );
+    assert_eq!(p.sheet.scale, "1:1");
+    assert!(p.sheets.is_empty());
+    assert!(!p.sheet.basis.contains("R5 allocation before"));
+}
+
+#[test]
+fn overflow_honours_named_paper_and_sheet_count() {
+    let Some(dir) = corpus::dir() else { return };
+    let a = model::analyse_native(&dir.join("mfcadpp/10224.step"))
+        .unwrap()
+        .1;
+    for (intent, size, count) in [
+        (json!({"sheet":{"size":"A2"}}), "A2", 1),
+        (json!({"sheets":{"max":1}}), "A1", 1),
+    ] {
+        let spec: Spec = serde_json::from_value(intent).unwrap();
+        let p = model::plan_recovered(&a, &spec).unwrap();
+        assert_eq!(p.sheet.size, size);
+        assert_eq!(1 + p.sheets.len(), count);
+        assert_eq!(p.spec.sheets, spec.sheets);
+    }
+    let spec: Spec = serde_json::from_value(json!({"sheets":{"max":2}})).unwrap();
+    let p = model::plan_recovered(&a, &spec).unwrap();
+    assert!(
+        matches!(p.sheet.size.as_str(), "A4" | "A3"),
+        "{}",
+        p.sheet.basis
+    );
+    assert_eq!(p.sheets.len(), 1);
+    assert_eq!(p.spec.sheets, spec.sheets);
+}
+
+#[test]
+fn small_overflow_respects_explicit_auxiliary_assignment() {
+    let Some(dir) = corpus::dir() else { return };
+    let a = model::analyse_native(&dir.join("mfcadpp/10224.step"))
+        .unwrap()
+        .1;
+    let spec: Spec =
+        serde_json::from_value(json!({"sheets":{"max":2},"views":{"iso":{"sheet":2}}})).unwrap();
+    let p = model::plan_recovered(&a, &spec).unwrap();
+    assert!(
+        matches!(p.sheet.size.as_str(), "A4" | "A3"),
+        "{}",
+        p.sheet.basis
+    );
+    assert_eq!(p.sheets.len(), 1);
+    assert_eq!(p.views.iter().find(|v| v.id == "v:iso").unwrap().sheet, 2);
+    assert_eq!(p.spec.views["iso"].sheet, Some(2));
+    assert_eq!(p.spec.sheets, spec.sheets);
+}
+
+#[test]
+fn large_paper_fallthrough_records_both_failed_small_allocations() {
+    let Some(dir) = corpus::dir() else { return };
+    let a = model::analyse_native(&dir.join("mfcadpp/10190.step"))
+        .unwrap()
+        .1;
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert_eq!(p.sheet.size, "A1");
+    assert!(p.sheets.is_empty());
+    for paper in ["A4", "A3"] {
+        assert!(
+            p.sheet.basis.contains(&format!("{paper} multi-sheet:")),
+            "{}",
+            p.sheet.basis
+        );
+    }
+    assert!(p.sheet.basis.contains("1 required drops"));
+}
+
+#[test]
+fn fixed_scale_can_use_a_valid_smaller_sheet_without_changing_scale() {
+    let Some(dir) = corpus::dir() else { return };
+    let a = model::analyse_native(&dir.join("gramel/GRM-03_thumbwheel_drive_screw.step"))
+        .unwrap()
+        .1;
+    let spec: Spec = serde_json::from_value(json!({"sheet":{"scale":"10:1"}})).unwrap();
+    let p = model::plan_recovered(&a, &spec).unwrap();
+    assert_eq!(p.sheet.size, "A3", "{}", p.sheet.basis);
+    assert_eq!(p.sheet.scale, "10:1");
+    assert!(p.sheets.is_empty());
+    assert_eq!(p.spec.sheet.scale, spec.sheet.scale);
+}
