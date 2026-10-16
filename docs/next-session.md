@@ -3,8 +3,7 @@
 ## Release 0.1.0-alpha.3 (2026-10-16)
 
 Version, README and CHANGELOG are prepared for alpha 3. haecceity and quiddity are pinned
-by rev to quiddity-rust's `0.1.0-alpha.4` release commit
-`f5ddb726783f2e9384a55164eb7e36a1ec9a6f7c` (tag pending), replacing `7cb26d85`.
+to quiddity-rust's `v0.1.0-alpha.4` tag (commit `f5ddb726`), replacing rev `7cb26d85`.
 The changelog retains the existing entries and covers the merged PRs since alpha 2.
 The single-sheet byte guard remains opt-in (`DRAFTWRIGHT_SINGLE_SHEET=1`); its fixtures
 are not re-baselined for this release. No source/API compatibility fixes were needed.

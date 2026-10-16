@@ -233,9 +233,9 @@ every corpus-backed test; without it they are skipped.
 ## Taking a new haecceity
 
 haecceity and Rust quiddity come by git from `pzfreo/quiddity-rust`. Alpha 3 pins them to the
-`0.1.0-alpha.4` release commit `f5ddb726783f2e9384a55164eb7e36a1ec9a6f7c` (tag pending),
-by `rev` in `Cargo.toml` and one commit in `Cargo.lock`. To follow the development branch again,
-set `branch = "main"` in place of `rev` in `Cargo.toml`; then, to move the pin to what is pushed
+`v0.1.0-alpha.4` tag (commit `f5ddb726`),
+by `tag` in `Cargo.toml` and one commit in `Cargo.lock`. To follow the development branch again,
+set `branch = "main"` in place of `tag` in `Cargo.toml`; then, to move the pin to what is pushed
 on that branch:
 
 1. `cargo update -p haecceity -p quiddity`. Both must name the same commit (the `source` lines

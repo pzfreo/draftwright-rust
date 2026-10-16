@@ -41,8 +41,7 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Changed
 
-- Pinned haecceity and quiddity to quiddity-rust `0.1.0-alpha.4` release commit
-  `f5ddb726783f2e9384a55164eb7e36a1ec9a6f7c` (tag pending), from `7cb26d85`.
+- Pinned haecceity and quiddity to quiddity-rust `v0.1.0-alpha.4` (commit `f5ddb726`), from rev `7cb26d85`.
 - Plan problems use drawing language and identify the affected faces and callouts;
   reference dimensions carry `reference` and `determined_by` (#29).
 - Turned profiles measured from a datum end use baseline shoulder positions; existing band
