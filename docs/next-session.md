@@ -7195,18 +7195,43 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   through the same flange edges, 0 hidden, within length). The spindle's
   `M10 x 1.5-6g RH, FULL AVAILABLE LENGTH` meets the ⌀10 band at an angle from outside the part
   at its default A4 1:1 and at A3 2:1. Quality over 30 parts matches ci-quality-baseline.
-- Single-sheet: re-baselined (`DRAFTWRIGHT_REBASELINE_SINGLE_SHEET=f1-ext-threads-knurl`) against
-  main 9be5aa8b (J1 merged). 136 of 1,876 cases differ from main: 103 plan-only (an unchosen candidate
-  sheet's fill figure in `sheet.basis`), 33 drawn. Drawn: GRM-03 ×13 (⌀6 off the shoulder edge,
-  two specs one leader crossing fewer), nist_ctc_05 ×4 (⌀304.8 angled), turned ×2 (⌀16 off the
-  outline), thread/knurl parts ×10 (F1's own thin lines and designation), and
-  assembly_plate_pin ×3 + hw_assembly_plate_pin_intent ×2, whose default sheet goes A4 1:5 →
-  A2 1:1. That flip (overturnable): at A2 1:1 the pin's ⌀6 no longer runs down the pin through two
-  ⌀6.6 holes, so A4 1:5 now "adds a material crossing" against the valid A2 estimate and the
-  search keeps the estimate; findings fall (one extension through a feature, two leader
-  crossings) and the 100 mm plate is no longer drawn at 1:5 on A4. bolt_thread_knurl's leaders
-  are now main's (no angled route was room-neutral); the hard block's long cross-part leaders
-  are gone, its grazing ⌀6.2 remains.
+- Superseded by the maintainer's large-sheet rule below: assembly_plate_pin and
+  hw_assembly_plate_pin_intent stay on main's A4 1:5 (A3 1:1 is not valid: two hard findings);
+  their ⌀6 leader's elbow moves 0.3 mm, nothing else.
+
+## F1 round 3: large sheets, thread vs fit, J3 merge (2026-10-16, unattended; overturnable)
+
+- **Large-sheet rule (maintainer, 2026-10-15).** `model::recover_uncached`: A2 and larger are
+  tried only for a part whose views do not fit A3 at 1:1 (`fits_a3_at_full_size`: drawn full
+  size, each view with one dimension row, `layout::DIM_PAD`, on either side; the front's row with
+  the side and sections no wider than A3's usable paper, the plan-over-front column no taller).
+  For a small part a large first estimate vetoes nothing. Test
+  `sheet_fill::a_part_about_100_mm_never_gets_a2_or_larger_by_default`.
+  Judgement calls: (a) the dimension-row allowance. Counting the bare views only called a
+  380 mm sheet-metal part (cgb245) small and sent it from A2 1:2 to a cramped A3 1:5.
+  (b) When nothing on A4 or A3 is valid, the search goes on to A2 and up as before. Forcing A3
+  then put 16–18 annotations off the sheet on nist_ftc_10 and stc_10, and dropped notes or
+  location dimensions elsewhere. That is lost information, worse than a large sheet.
+- **Census.** 255 unpinned single-sheet cases are A2 or larger on main cbbfb800. The rule changes
+  one: string_post spec 1c29f39d, A2 10:1 → A3 2:1 (fill 17% → 7%, one more leader through a
+  feature). That is what the rule asks; the part is 15 mm long, and it reads smaller than at
+  10:1. The other 254 do not fit A3 at 1:1 with a dimension row (NIST ftc_06 ×101, cgb245 ×71,
+  ctc_04 ×12, ...), or have nothing valid below A2 (ftc_10 ×9, scattered_holes ×9, bracket ×4, ...).
+- **Thread vs fit.** With J3 a diameter can carry an ISO 286 shaft fit. A band or fit was
+  inserted after the first term containing a digit, which on a threaded diameter sits inside
+  the designation ("M10 +0.0 -0.1 x 1.5-6g …"). Now `tolerance::thread_designated` diameters take
+  none. PMI bands and fits are refused with the reason; a spec tolerance or fit is
+  `tolerance_withheld`. Plain diameters keep their fits (hw_thumbwheel_thread_knurl_intent:
+  `ø10 f7 (-0.013/-0.028)` beside the M5 designation). Test
+  `pmi_thread_knurl::a_threaded_diameter_keeps_its_designation_and_a_plain_one_its_fit`.
+- **J3 merge.** known_pmi_coverage.json is main's list without the two thread entries F1
+  projects.
+- **Single-sheet.** Re-baselined on the merged tree, then Linux recorded by CI. Against main's
+  own macOS output, 151 cases differ: 117 plan-only (the sheet basis lists the closed large
+  sheets, or an unchosen candidate's fill), 34 drawn (GRM-03 ×13, ctc_05 ×4, turned ×2,
+  plate_pin ×5, string_post, F1's thread/knurl parts ×8). Main's committed fixture itself
+  differs from main's macOS output on 118 cases (GRM-03, 10127, ctc_01, mounting_plate). Those
+  are not this branch's.
 
 - From stream f4-page-fit-projection (#13: page fit and a projection setting), base 19a969c9:
   - **Fit judged as the search judges.** A spec pinning both `sheet/size` and `sheet/scale` keeps
