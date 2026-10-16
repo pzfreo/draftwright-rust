@@ -358,7 +358,7 @@ struct Planner {
 impl Planner {
     fn plan(&mut self, analysis: &Analysis, spec: &Spec) -> Result<Plan, Error> {
         self.calls += 1;
-        Ok(crate::planning::with(analysis, || {
+        Ok(crate::planning::with_retained(analysis, spec, || {
             crate::sheets::allocate_counted(analysis, spec, &mut self.sheet_steps)
         })?)
     }
