@@ -7526,3 +7526,35 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   2:1, unchanged): `ø10 M10; 15 MIN FULL THREAD`, `ø24 DIAMOND KNURL P0.8` on the overall
   diameter, the note on the ⌀4.2 hole above the front view, Ra 1.6 on the ø15 step (its leader
   crosses the 22 and 52 dimension lines: cosmetic).
+
+## K4: Python leader-correctness rules (#43 item 2, 2026-10-16, unattended; overturnable)
+
+- **What:** `src/lint/leaders.rs` (run by `lint::lint`): `diameter_leader_target_mismatch` /
+  `_unverifiable` (a hole callout's drawn tip on a rim of a hole it claims, double-D trimmed
+  profile included, 0.002 mm), `radius_leader_target_mismatch` / `_unverifiable` (a straight
+  blend's tip on its trimmed arc, seen end-on), `leader_crosses_silhouette` (info, depth cut).
+  `src/material.rs`: one re-entry predicate (`material::reentry` over `material::solids`, each
+  solid's projected box) used by the leader router (`dims::leaders`, hard blocker plus the
+  depth added to the length; `annotation_line_over_view` now states the depth) and by lint.
+  `dims::placement::ink_through`: a callout's `annotation_ink_overlap` includes its arrowhead's
+  flare. Tests: `tests/leader_rules.rs` (3 of 4 fail on the base; the fourth checks the planner
+  already meets ISSUE-1378-a/1479-a), `src/material.rs` tests, and
+  `dims::placement::tests::a_callouts_arrowhead_flare_is_collision_evidence` (fails on the base).
+- **Rules:** ported ISSUE-1378-a, ISSUE-1479-a, ISSUE-798-b, ISSUE-798-d, ADR2-8 and the five
+  LINT codes; ISSUE-367-a and ARCH0017-6 stay pending with notes.
+- **Output:** single-sheet guard: 5 cases change (the plate-and-pin assemblies, one ø6 leader's
+  elbow 0.75 mm along its row; approved as stream `k4-leader-rules`, Linux PNG needs CI's
+  `record_single_sheet`). Quality parts: no lint target finding on any of the 30.
+- **Judgement calls:** (1) The stroke width (0.05 mm) is not added to the ink check: with it a
+  GD&T leader 0.01 mm under a label became a hard layout finding and moved
+  hw_string_post_tapped_intent from A3 5:1 to a crowded A4 2:1 (looked at; worse), and linear
+  dimensions' grazes changed 392 guard cases. ISSUE-367-a stays pending for it. (2) The flare
+  check covers callouts only; linear dimensions keep the centreline test `settle` places them by.
+  (3) Material is solids' projected boxes, not a filled face: a concave notch reads as material
+  (over-reports, never under-reports a second body); a tip clear of the material is charged for
+  its first traversal (stricter than draftwright, as the old box test was). (4) Re-entry stays in
+  the hard tier (outranks crossings), not draftwright's stroke-width units beside them. (5) A
+  blend's arc sector is read from its proven points' spread (half again each side); one point
+  gives a quarter turn each way. (6) A fillet leader carrying equal blends' claims
+  (`dims::blends::consolidate`) is not radius-checked (its target is the fillet). (7) A view
+  without a recorded transform (captured Python sheets) is not judged, as K7.

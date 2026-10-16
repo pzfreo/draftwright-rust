@@ -26,8 +26,10 @@
 //! cannot reorder candidates (ISSUE-740-b). Its blockers are counted in two tiers:
 //! - **hard** (`_hard_fixed_blockers`): ink off the drawing area; the label or a line in the
 //!   title block; the label or shoulder over any view (the exterior region); the leader across
-//!   another view, or back into its own view's box after leaving it; a leader longer than
-//!   [`MAX_LEADER`];
+//!   another view, or back into the part's material after leaving it at its tip (each solid's
+//!   box, measured by [`crate::material::reentry`], the predicate lint's
+//!   `leader_crosses_silhouette` shares, ADR2-8; its depth is also added to the length); a leader
+//!   longer than [`MAX_LEADER`];
 //! - **crossings** (Policy B, ADR2-D6): one per other item met and kind of contact, as the
 //!   plan's collision checks report one problem per pair and code: an item whose line the
 //!   leader or shoulder crosses or runs along, and (again) one whose ink and the label meet (its
@@ -67,8 +69,9 @@
 //! the Analysis alone (ADR R1), does not have; the port keeps every label outside the views, as
 //! draftwright's `--leader-region exterior`. Feature footprints from the Analysis count crossings inside the box, shared with the
 //! plan collision checks. The incomplete principal outer wires use solid bounds for re-entry
-//! and distance to an exit; projected material remains unavailable (ADR2-8). Arrowheads
-//! are tested by their shafts (ISSUE-367-a).
+//! and distance to an exit; a filled projected material field is unavailable (ADR2-8). A
+//! label's contacts include the arrowheads' flares, its own and the fixed ink's (ISSUE-367-a);
+//! line contacts are tested by the shafts.
 
 use std::cell::OnceCell;
 use std::cmp::Reverse;
@@ -744,7 +747,7 @@ pub(super) fn place_with_obstacles(
         problems.extend(route_reports(
             &items[*i],
             job.view,
-            job.outline,
+            job.footprints.solids(),
             [chosen.tip, chosen.elbow],
         ));
     }
@@ -766,18 +769,24 @@ pub(super) fn place_with_obstacles(
 }
 
 /// Geometry findings are rebuilt when a refinement replaces their route.
-fn route_reports(item: &Want, view_name: &str, outline: [f64; 4], shaft: [P2; 2]) -> Vec<Problem> {
+fn route_reports(
+    item: &Want,
+    view_name: &str,
+    solids: &[[f64; 4]],
+    shaft: [P2; 2],
+) -> Vec<Problem> {
     let mut problems = Vec::new();
     let named = super::wording_of(item);
     let view = format!("v:{}", view_name);
-    if reenters(shaft, outline) {
+    let cut = crate::material::reentry(solids, shaft);
+    if cut > 0.0 {
         let subjects = vec![item.id.clone(), view.clone()];
         problems.push(Problem {
                 id: format!("p:annotation_line_over_view:{}", subjects.join("|")),
                 code: "annotation_line_over_view".into(),
                 severity: "warning".into(),
                 message: format!(
-                    "The leader of {} runs back across its own view, {}: every place it had was blocked.",
+                    "The leader of {} runs back across its own view, {}, cutting {cut:.1} mm of it: every place it had was blocked.",
                     named,
                     crate::wording::view(&view)
                 ),
@@ -1222,7 +1231,7 @@ pub(super) fn refine(
         if let Some(p) = chosen {
             updated.insert(
                 w.id.clone(),
-                route_reports(w, view, job.outline, p.lines[0]),
+                route_reports(w, view, job.footprints.solids(), p.lines[0]),
             );
             placed[i] = Some(p);
         }
@@ -1861,7 +1870,6 @@ fn measure_at_bounds(
     }
     let (label_at, lb) = label_geometry(elbow, end, right, job.ink_min, job.ink_max);
     let segs = [[tip, elbow], [elbow, end]];
-    let o = job.outline;
     let mut hard = 0u32;
     // On the drawing area.
     let dr = page.drawable();
@@ -1887,7 +1895,11 @@ fn measure_at_bounds(
             hard += 1;
         }
     }
-    if reenters(segs[0], o) {
+    // Material re-entry (ADR2-8): measured by the predicate lint's `leader_crosses_silhouette`
+    // shares, it is a hard blocker, and its depth (in micrometres) is added to the length so a
+    // shallower cut is preferred when every candidate re-enters.
+    let cut = crate::material::reentry(job.footprints.solids(), segs[0]);
+    if cut > 0.0 {
         hard += 1;
     }
     if shaft > MAX_LEADER {
@@ -1907,7 +1919,8 @@ fn measure_at_bounds(
                 p[0] < a[0] - 1e-6 || p[0] > a[2] + 1e-6 || p[1] < a[1] - 1e-6 || p[1] > a[3] + 1e-6
             })
     });
-    let cost = ((shaft + (end[0] - elbow[0]).hypot(end[1] - elbow[1])) * 1000.0).round() as i64;
+    let cost =
+        ((shaft + (end[0] - elbow[0]).hypot(end[1] - elbow[1]) + cut) * 1000.0).round() as i64;
     // The material's boxes are cheap; resolving this length now keeps the score bound tight.
     let inside = (job.footprints.inside_length(segs[0]) * 1000.0).round() as i64;
     Some(Candidate {
@@ -2155,32 +2168,6 @@ pub fn clear_routes(
             .filter(Candidate::clear)
             .count(),
     )
-}
-
-/// Whether segment *s*, leaving from its first point, runs into the box *b* from outside it: a
-/// leader re-entering its own view (its tip on the view's edge, the elbow across the view).
-fn reenters(s: [P2; 2], b: [f64; 4]) -> bool {
-    let (p, d) = (s[0], [s[1][0] - s[0][0], s[1][1] - s[0][1]]);
-    let (mut t0, mut t1) = (0.0f64, 1.0f64);
-    for (num, den) in [
-        (p[0] - b[0], -d[0]),
-        (b[2] - p[0], d[0]),
-        (p[1] - b[1], -d[1]),
-        (b[3] - p[1], d[1]),
-    ] {
-        if den == 0.0 {
-            if num <= 0.0 {
-                return false;
-            }
-        } else if den < 0.0 {
-            t0 = t0.max(num / den);
-        } else {
-            t1 = t1.min(num / den);
-        }
-    }
-    let len = d[0].hypot(d[1]);
-    // Entering after it starts (beyond a hair at the tip), and running inside for a while.
-    t0 * len > 0.05 && (t1 - t0) * len > 0.05
 }
 
 /// Whether boxes *a* and *b* meet or come within a hair of each other: a pre-check that every

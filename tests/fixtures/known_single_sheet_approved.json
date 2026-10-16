@@ -765,6 +765,46 @@
       },
       "svg": "d2257cfc43eedbac9b4c5ea6df631c670691e975c6fe9b6ae709613eecd3aaea"
     },
+    "pmi/step/assembly_plate_pin.step:default": {
+      "plan": "6d866eceddc3eb9e701449ab00842b4576731b1de9158f13e4093c9b90232373",
+      "svg": "b494f991457076eed6b57e018909b6de24daf131ffe9b890d7265daa547a6993",
+      "pdf": "1765e7731dd606a8c7fbfcf7fa6484f802aadf39325e1b6e6c6021aa615fe646",
+      "png": {
+        "macos": "b3f612ee6eae028af8ca747e43a9884f43b0550f80b537ba525b6d85765f55df"
+      }
+    },
+    "pmi/step/assembly_plate_pin.step:spec:4ab114ca38a7a6f9865a5dd4094565a35179c8bf97ac5a3d55ff0675ccec7589": {
+      "plan": "072f71868730a4261abd1a98326e61f91fb6fb5e7e3e586eaad4bb9ccc19f1c9",
+      "svg": "22779cf779087ef2d9b8dcfd3d83dbbd5b3bcb75bdf259da1a61672982b82d23",
+      "pdf": "3c8a55e385e611afe96a8870660c523340358997ce13f3be955be817555d9a60",
+      "png": {
+        "macos": "e2b2b453ea9cb2c9100a0952dbcefd1828b5de062b98507ff66a23dfa6b2e0e0"
+      }
+    },
+    "pmi/step/assembly_plate_pin.step:spec:b04471db070f405dbd8748bd71a800e353bcc24e2bde2b5d49844e5b134c2af9": {
+      "plan": "98bced40ef27b63d4d75e565f3b8071dedcb813c68cf8f84ed34758a2e4bf888",
+      "svg": "c084c4eb3b1d1e6f5c90e1197fef45d1198f986e5a7ebf1b2eb3c1021ad37c14",
+      "pdf": "0c1a1d8ea22705222d3a78ffa1c503c88464f372cd2df16372ee297453ce4a80",
+      "png": {
+        "macos": "ccee9e2b133ecbe64b9ad15780e13f49591a1b7481139e17c1ba8dce7e3450ba"
+      }
+    },
+    "pmi/step/hw_assembly_plate_pin_intent.step:default": {
+      "plan": "f7e40b9f5c9c231e28c524517d32c03fbccbe622620982a7375202018c6300f4",
+      "svg": "c7c6649c5513b7d392549012af528b9e336ee726d7f8fc25c3bde1aba4795442",
+      "pdf": "7c649f848484b25c3dfec51484e8d48820fc90d36bba34015ddb545be615e3b4",
+      "png": {
+        "macos": "b9956bbbb506d4e4737953425a936f0e2a64c608d96e825888775839c909e311"
+      }
+    },
+    "pmi/step/hw_assembly_plate_pin_intent.step:spec:6d4f60c06c96ca13f06dd38caf28cbd47ad3957ef9314ff0988f644f1306f2fd": {
+      "plan": "ab000da398c48f9f78ff33218165ca5acd4bca023cbb458b860122145f2e4bae",
+      "svg": "3bc8f5f338169d3eb15fcc7e435f245a6044ae04d27f9d9c39a29af5ed82e86e",
+      "pdf": "07bcb599d8248459a0229ff85b18829482fa9cca07b585158243f4e6fe294ecb",
+      "png": {
+        "macos": "726ec96cce5fe47ffa8f0562fdd95ddf61e487d45e91e9b2c431e47a22ba5b53"
+      }
+    },
     "pmi/step/hw_spool_fits_intent.step:default": {
       "pdf": "652d4c4a269b7820331359f97cb45322f296344518de1f9ba8c4953cec54e7a7",
       "plan": "db67b83237be0820772493e9e1d407c0257d85e740f0218f861b58f09e5aecaf",
@@ -1109,6 +1149,10 @@
     "j3-shaft-fits": {
       "cases": 2,
       "note": "J3 (#30): an AP242 shaft fit stated as a class alone (LIMITS_AND_FITS('g','shaft','6') etc.) is printed on the turned diameter that states its size, with its ISO 286 limits, as a hole fit is on its bore's callout: hw_spool_fits_intent's 2× ø130 gains 'g6 (-0.014/-0.039)' and its ø70 OD 'f7 (-0.030/-0.060)', hw_thumbwheel_thread_knurl_intent's ø10 'f7 (-0.013/-0.028)', and their 'stated without limits' pmi_not_lowered problems go. Plan diff: those labels, bases and claims, and the placements the longer labels move (the front view's dimension band grows 2 mm on the spool; the spool's ø70 leader now runs along its silhouette, and three new leader-crosses-hole findings); SVG/PDF follow. macOS PNG hashes recorded; their stale Linux plan/svg/pdf overrides are removed, and Linux PNG (and any Linux byte override) is to be recorded by CI's record_single_sheet job. Re-recorded on the merged tree after J1's re-baseline (projection symbol) folded the earlier record."
+    },
+    "k4-leader-rules": {
+      "cases": 5,
+      "note": "K4 (#43 item 2): the leader router's material re-entry is now the shared predicate (src/material.rs) over each solid's projected box rather than the part's whole box, its depth added to a re-entering candidate's length. On the two-body plate-and-pin assemblies (assembly_plate_pin default and two saved specs, hw_assembly_plate_pin_intent default and one saved spec) one callout's elbow, the front view's ø6 on the pin, moves 0.75 mm along its row (36.85 → 36.1 mm); its tip and label are unchanged. Plans and SVGs diffed against the base: only that leader moved; checked by eye at 2400 px. macOS record run; the Linux PNG needs CI's record_single_sheet."
     }
   }
 }

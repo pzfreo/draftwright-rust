@@ -406,6 +406,22 @@ lines, and its rays along visible edges of the view (`angular_label_vs_geometry`
 than max(24 mm, 2.5 × its frame) from its surface (`datum_leader_remote`, warning). These are
 findings, not plan problems: no wire format changes.
 
+Lint (`review`'s `lint`) also checks each callout's leader against the part (stream K4,
+`lint::leaders`), from its drawn leader, its view's recorded transform and the Analysis: a hole
+callout's tip must lie within 0.002 mm of a boundary circle of a hole it names (a double-D bore's
+trimmed profile, flats included) as projected in its view (`diameter_leader_target_mismatch`,
+warning; `diameter_leader_target_unverifiable` when no named hole can be read), a straight
+blend's radius callout's tip on that blend's trimmed profile arc seen end-on
+(`radius_leader_target_mismatch` and `_unverifiable`, warnings), and no callout's shaft may cut
+back into the part's material after leaving it at its tip (`leader_crosses_silhouette`, info,
+with the depth cut). The material is each solid's projected box (`material::solids`) and the
+measure `material::reentry`, the same predicate the leader router prices: a candidate that
+re-enters is a hard blocker, its depth added to its length, and a chosen one is reported as
+`annotation_line_over_view` with the depth in its message. A callout's `annotation_ink_overlap`
+reads its leader's rendered ink, its arrowhead's flare included; a contact only the flare makes
+is worded "The arrowhead of … reaches into the label of …".
+These add findings and problem wording only: no wire format changes.
+
 Placement problems provide `edit` operations addressing `place`. Resetting an annotation's
 `place` to `{}` releases it to automatic placement; removing a view's `place` restores automatic
 packing. Suggestions for free annotations choose another strip or label position and must be

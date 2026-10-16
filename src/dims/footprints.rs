@@ -2,7 +2,8 @@
 //! These are drafting obstacles, not projected line-work (ADR R1). Circular openings are exact;
 //! side-on cylinders and slots use their projected bounds. Principal-face inner loops fill gaps
 //! in recognition. The Analysis retains no complete outer wire, so solid bounds detect re-entry
-//! and measure the distance to an exit without pretending to describe a concave silhouette.
+//! (`crate::material`) and measure the distance to an exit without pretending to describe a
+//! concave silhouette.
 
 use std::cell::{OnceCell, RefCell};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -450,15 +451,9 @@ impl Footprints {
                 }
             }
         }
-        let solids = if analysis.principal_profiles.is_empty() {
-            vec![frame.outline()]
-        } else {
-            analysis
-                .principal_profiles
-                .iter()
-                .map(|s| bounds(box_points(s.bounds).map(|p| frame.page(p))))
-                .collect()
-        };
+        // The material the router's re-entry and lint's `leader_crosses_silhouette` share
+        // (ADR2-8): each solid's projected box.
+        let solids = crate::material::solids(analysis, |p| frame.page(p));
         let mut members: BTreeMap<String, BTreeSet<String>> = analysis
             .recognition
             .iter()
@@ -604,6 +599,11 @@ impl Footprints {
             .collect()
     }
     /// Travel to an exit is a length tie-break, never a crossing or a containment warning.
+    /// The view's material: each solid's box on the page ([`crate::material::solids`]).
+    pub(super) fn solids(&self) -> &[[f64; 4]] {
+        &self.solids
+    }
+
     pub(super) fn inside_length(&self, shaft: [P2; 2]) -> f64 {
         let len = (shaft[1][0] - shaft[0][0]).hypot(shaft[1][1] - shaft[0][1]);
         self.solids
