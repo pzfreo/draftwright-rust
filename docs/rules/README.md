@@ -21,14 +21,17 @@ angle against rays and datum symbol against surface, `src/lint/fidelity.rs`), st
 by the router and lint, `src/lint/leaders.rs` and `src/material.rs`) and stream K5
 (2026-10-16: dimensioning completeness: a chain per turned body on its own silhouette, raised
 pads, oriented slot callouts, any end-to-end span carrying an extent, exact grouped lengths,
-`tests/completeness_rules.rs`):
+`tests/completeness_rules.rs`) and stream K6 (2026-10-16: one owner per measurement: authored-set
+parity for conveyed measurements, a height ladder or shoulder set omitted or approved whole,
+a pattern's pitch beside every member's location reported, a toleranced reference reported,
+`tests/ownership_rules.rs`):
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 46 | 56 | 33 | 25 |
+| `adr.yaml` | 45 | 57 | 33 | 25 |
 | `lint.yaml` | 43 | 109 | 0 | 13 |
-| `issues.yaml` | 101 | 62 | 6 | 21 |
-| **All** | **190** | **227** | **39** | **59** |
+| `issues.yaml` | 100 | 63 | 6 | 21 |
+| **All** | **188** | **229** | **39** | **59** |
 
 The assessment rated each of the 353 rules then pending; 20 rules pending today were not rated.
 Rules it found done but with no test to name, or with a real remainder, stay pending with a

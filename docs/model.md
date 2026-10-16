@@ -753,6 +753,15 @@ and slot length for a floor interval, a slot's width and location for a shoulder
 controlling dimension; a pinned reference kept after its chain was edited has `reference: true`
 and no `determined_by`. A flush boss height is credited from
 the same stated envelope interval, without reading the omission.
+An authored set decides what is drawn, not where the geometry states a fact (stream K6,
+ISSUE-1154-a): an item the set leaves out that the automatic plan would cover by an owner the
+set keeps is `covered` by that owner, with the automatic basis, rather than `not_authored`, and
+the owner carries the same claims; an owner the set leaves out takes nothing. A boss height
+closed by a stated ladder rung and the overall height (a boss standing on a face level) is the
+chain's reference member, determined by the rung and the overall height. Lint reports a
+bracketed label that prints a tolerance or a fit (`toleranced_reference`: a reference dimension
+is only for a redundant, untoleranced one) and a linear or grid pattern's pitch printed beside
+every member's own location along that axis (`over_dimensioned_pattern`, ADR4-U1).
 
 The Plan also carries `status` (`clear` or `needs_attention`) and `completeness`:
 `claimed_faces`, `faces` and `unplanned_features`. Face claims are the distinct valid
@@ -1204,7 +1213,13 @@ discriminator from what it states, as the height ladder's rungs are told apart b
 
 The spec chooses the source (ADR4-5): `"dimension_source": "auto"` (the default: the defaults
 less `dimensions/<id>/omit`) or `"authored"` (exactly the IDs listed in `dimensions`, a complete
-set). Omitted items are listed in the Plan's `omitted` with their basis. In an edit path, the
+set). Omitted items are listed in the Plan's `omitted` with their basis. A correlated set, the
+height ladder's rungs or the ladder's shoulders along one axis, is approved or omitted whole
+(stream K6, ARCH0015-2): each member keeps its own ID, and the spec's decision on any member is
+the set's. With `auto`, omitting one member omits the others too (`omitted_by_user`, the basis
+naming the set); with `authored`, listing one member draws the others. Either way an `info`
+problem `correlated_set_whole` names the members the decision spread to (with `auto`, its fix
+removes the omission). A turned profile's chain is not such a set. In an edit path, the
 `/` inside a dimension's ID is written `~1`, as in a JSON pointer:
 `{"op": "set", "path": "dimensions/d:envelope~1width.length/omit", "value": true}`.
 

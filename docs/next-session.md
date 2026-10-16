@@ -7759,3 +7759,46 @@ known sandbox socket-bind failures; all remaining integration binaries pass.
   pending: each needs new Analysis data (native pocket/section-recess reading; ordered planar
   outer profiles), outside this stream's dimension-selection and lint scope; both notes say what
   remains.
+
+## K6: one owner per measurement, no over-dimensioning (#43 item 2, 2026-10-16, unattended; overturnable)
+
+- **What:** `src/dims/redundancy.rs::authored_parity`: an authored set decides what is drawn,
+  not where the geometry states a fact; an item it leaves out that the defaults cover by an owner
+  it keeps is `covered` by that owner (same basis, same claims on the owner) instead of
+  `not_authored` (ADR1-8, ISSUE-1154-a). `src/dims/mod.rs::correlated_sets`: the height ladder,
+  and the ladder's shoulders per axis, are approved or omitted whole (ARCH0015-2; info problem
+  `correlated_set_whole`, fix removes the omission). `redundancy::consolidate`: a boss height
+  closed by a stated ladder rung and the overall height becomes the reference (boss_circle's
+  `(3)`). Lint: `over_dimensioned_pattern` (`src/lint/hole_patterns.rs`, a pattern's pitch beside
+  every member's location on that axis, ADR4-U1) and `toleranced_reference`
+  (`src/lint/redundancy.rs::references`). Tests: `tests/ownership_rules.rs` (6, all fail on the
+  base); `tests/dims_steps.rs::a_rungs_id_names_its_height_not_its_rank` and
+  `tests/trust_rules.rs::every_planned_dimension_can_be_addressed` updated to the whole-set rule.
+- **Rules:** ported ISSUE-1154-a, ARCH0015-2. Pending with updated notes: ADR1-8 (families
+  `lint::redundancy::span` does not read), ADR4-U1 (angular sets, compound counts),
+  ISSUE-1505-a, ISSUE-1505-b (no detail views), ISSUE-883-a (maintainer question).
+- **Judgement calls:** (1) Per-member IDs are kept (ADR4-6, wire compatible); the decision on any
+  member spreads to its set: `auto` omit one → all omitted (`omitted_by_user`, basis names the
+  set); `authored` list one → all drawn. "Approved whole" was chosen for authored sets because it
+  keeps information and matches draftwright, where listing `step_height.length` meant the ladder.
+  (2) A turned profile's chain is not a correlated set (omitting one link is ordinary drafting,
+  and #33's baseline restores a band when a rung is omitted). (3) The editor's restore on a
+  spread member (`omit: false` on it) does not restore the set while another member stays
+  omitted; the info problem's fix does. (4) The rung-closure rule applies to boss heights only:
+  letting rungs close any interval broke 10047's and FTC-09's designed slot references, so it was
+  narrowed rather than reworked. (5) A tried hole-schedule change (carrying a PMI-sized pattern's
+  pitches in the schedule) made editor_pmi's sheet worse (schedule lost, 1:1 → 1:2) and was
+  reverted; editor_pmi keeps its pitch beside the schedule and lint now reports it
+  (`over_dimensioned_pattern` ×2), with its pre-existing `duplicate_measurement` findings on
+  schedule rows against callouts and PMI basics (a hole-table matter, not chased).
+- **Output:** base and head plans compared for the 55 guard inputs' defaults and the 340 saved
+  guard specs that author a set or omit a ladder member: 76 of 395 change. Defaults: only
+  boss_circle (boss height drawn `(3)`, A4 1:2 as before; looked at). 12 boss_circle specs (the
+  same `(3)`; one authored set moves A3 1:1 → A4 1:2, the default's own choice, as the bracketed
+  label costs A4 1:1 two hard findings). 3 authored sets now record a conveyed item as covered
+  (cgb245, two_grids ×2; two_grids gets 3 fewer `feature_not_dimensioned`). 60 ladder cases
+  (cgb245, 10127, FTC-06, sm-hanger, 10007): the set omitted or approved whole; cgb245 with one
+  rung omitted loses its cramped ten-rung ladder (looked at). Every quality part's default plan
+  is byte-identical.
+  The single-sheet guard is opt-in and its fixtures are no longer maintained, so no approvals
+  were recorded.
