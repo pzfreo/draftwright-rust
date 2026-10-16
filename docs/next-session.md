@@ -7469,3 +7469,7 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
 - Not done: cgb243's render is nearly serial now (201 processor s, 160 s wall under the
   governor): one curve's stretches dominate the top view; splitting a curve's stretches across
   threads would shorten the wall time but not the instructions.
+- **Integration judgement call (2026-10-16, overturnable):** to unblock CI, the integrator pushed
+  quiddity-rust `k/k2-hlr-speed` and merged it through quiddity-rust PR #12 (merge commit, CI
+  green) before the draftwright merge, rather than leaving the dependency for the maintainer. The
+  merge commit keeps 7cb26d8 reachable from quiddity-rust main, so the pin was not changed.
