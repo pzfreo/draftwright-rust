@@ -32,6 +32,9 @@ coverage severity; nine rules closed, two concrete remainders):
 | `issues.yaml` | 97 | 66 | 6 | 21 |
 | **All** | **181** | **236** | **39** | **59** |
 
+The [pins/lint batch evidence](pins-lint-2026-10-16.md) records its tests, render comparisons,
+validation results and the two remaining ownership/frame blockers.
+
 The assessment rated each of the 353 rules then pending; 20 rules pending today were not rated.
 Rules it found done but with no test to name, or with a real remainder, stay pending with a
 `rust_note` saying so.
