@@ -3047,14 +3047,25 @@ fn plan_with_presentation(
             Vec::new(),
         ));
     }
-    for (name, detail) in crate::detail::requests(analysis, spec, pick.scale) {
+    for (name, mut detail) in crate::detail::requests(analysis, spec, pick.scale) {
         let source = views.iter().find(|v| v.id == detail.source_view);
+        if detail.authored && source.is_none() {
+            return Err(invalid(
+                format!(
+                    "Authored detail {name}: source view {} does not exist in the plan for {}.",
+                    detail.source_view,
+                    spec.views[&name].detail.as_ref().unwrap().around_ids()
+                ),
+                &[],
+            ));
+        }
         let area = g
             .derived
             .iter()
             .find(|(id, _)| *id == name)
             .map(|(_, b)| *b);
         if let (Some(source), Some(area)) = (source, area) {
+            detail.source_cut = source.cut.clone();
             views.push(PlannedView {
                 sheet: 1,
                 scale_note: None,
@@ -3066,10 +3077,7 @@ fn plan_with_presentation(
                 scale: detail.scale,
                 area,
                 default: !detail.authored,
-                basis: format!(
-                    "{}: enlarged orthographic crop of {}",
-                    detail.kind, detail.source_view
-                ),
+                basis: crate::detail::basis(analysis, spec, &name, &detail),
                 state: ItemState::Shown,
                 line_work: Vec::new(),
                 cut: None,
@@ -4306,8 +4314,14 @@ pub struct GeometryLayer {
     pub views: Vec<(String, ViewGeometry)>,
 }
 
+fn projection_cut(v: &PlannedView) -> Option<&Cut> {
+    v.cut
+        .as_ref()
+        .or_else(|| v.detail.as_ref().and_then(|d| d.source_cut.as_ref()))
+}
+
 fn projection_key(v: &PlannedView) -> Vec<u64> {
-    let cut = v.cut.as_ref();
+    let cut = projection_cut(v);
     bits(&[
         &v.direction,
         &v.up,
@@ -4402,7 +4416,7 @@ impl Projections {
                 None => geometry.undrawn += 1,
             }
         }
-        if v.cut.is_some() {
+        if projection_cut(v).is_some() {
             geometry.hidden.clear();
         } else {
             geometry.hidden = crate::linework::hidden(&geometry.visible, geometry.hidden);
@@ -4415,7 +4429,7 @@ impl Projections {
     }
 
     fn view(&mut self, part: &Part, v: &PlannedView) -> Result<Vec<Projected>, Unresolved> {
-        let cut = v.cut.as_ref();
+        let cut = projection_cut(v);
         // Crops share their source camera's HLR; only the placed/trimmed geometry key
         // includes crop bounds. A second enlarged region needs no new kernel projection.
         let key = bits(&[

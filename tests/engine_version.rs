@@ -144,6 +144,8 @@ fn tools_explain_their_operations_without_source_and_fit_schema_budget() {
     // and controls on faces, #43) added about 400 bytes the same way: 41,444. K1b's
     // sheet/default_finish (#43) added about 530 bytes the same way: 41,972.
     // Authored gears add 32 bytes to each of twelve Spec-carrying schemas: 42,356.
-    assert!(schema_bytes < 42500, "schemas: {schema_bytes} bytes");
+    // Typed authored details (around string/list, from, exact scale) add 5,376 bytes
+    // across twelve standalone Spec schemas: 47,732 total. Keep measured headroom small.
+    assert!(schema_bytes < 48000, "schemas: {schema_bytes} bytes");
     eprintln!("schema bytes per session: {schema_bytes}");
 }

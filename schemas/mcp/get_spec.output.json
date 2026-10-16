@@ -126,7 +126,58 @@
               "additionalProperties": false
             },
             "views": {
-              "$ref": "#/$defs/A"
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "detail": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "properties": {
+                      "around": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "minItems": 1
+                          }
+                        ]
+                      },
+                      "from": {
+                        "enum": [
+                          null,
+                          "front",
+                          "plan",
+                          "side",
+                          "section_aa",
+                          "section_bb",
+                          "section_cc",
+                          "section_dd",
+                          "section_ee",
+                          "section_ff",
+                          "section_gg",
+                          "section_hh"
+                        ]
+                      },
+                      "scale_factor": {
+                        "type": "number",
+                        "exclusiveMinimum": 1
+                      }
+                    },
+                    "required": [
+                      "around"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
             },
             "dimensions": {
               "$ref": "#/$defs/A"

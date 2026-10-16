@@ -8,6 +8,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Added
 
+- Authored detail `from` selects an existing principal or section parent; `around` accepts
+  a feature/face ID or a nonempty list whose crops are united. Missing members and
+  degenerate projections in an explicit parent are refused. Mixed natural sources choose
+  the view with most visible members and explain the choice in the basis. Saved strings
+  remain compatible. Typed MCP schemas measure 47,732 bytes (48,000-byte budget).
+
 - Enlarged orthographic detail views for crowded turned chains and heads, thin terminal
   flanges, prismatic height ladders and authored feature crops. Details participate in sheet
   planning, carry stable view IDs and their own scale, and draw parent circles, letters,

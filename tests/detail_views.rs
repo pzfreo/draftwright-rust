@@ -347,3 +347,254 @@ fn detail_measurements_keep_one_owner_in_automatic_and_authored_sets() {
         }
     }
 }
+
+fn fixture(name: &str) -> (haecceity::Part, Analysis) {
+    model::analyse_native(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("tests/fixtures/parts/{name}.step")),
+    )
+    .unwrap()
+}
+
+fn authored(around: serde_json::Value, from: Option<&str>) -> Spec {
+    let mut detail = json!({"around":around,"scale_factor":2});
+    if let Some(source) = from {
+        detail["from"] = json!(source);
+    }
+    serde_json::from_value(json!({"sheet":{"size":"A2","scale":"1:2"},"views":{"front":{},"plan":{},"side":{},"detail_c":{"detail":detail}}})).unwrap()
+}
+
+fn detail_view(p: &model::Plan) -> &model::PlannedView {
+    p.views.iter().find(|v| v.id == "v:detail_c").unwrap()
+}
+
+#[test]
+fn authored_from_uses_the_parent_camera_projection_and_marker() {
+    let (part, a) = fixture("mounting_plate");
+    let font = draftwright::text::Font::open(
+        &Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("fonts")
+            .join(draftwright::dims::FONT),
+    )
+    .unwrap();
+    for source in ["plan", "side"] {
+        let p = model::plan(&a, &authored(json!("f:hole:1"), Some(source))).unwrap();
+        let v = detail_view(&p);
+        let parent = p
+            .views
+            .iter()
+            .find(|v| v.id == format!("v:{source}"))
+            .unwrap();
+        assert_eq!(v.direction, parent.direction);
+        assert_eq!(v.up, parent.up);
+        let d = v.detail.as_ref().unwrap();
+        assert_eq!(d.source_view, parent.id);
+        let drawing = model::render(&part, &a, &p, &font).unwrap();
+        let marker = drawing
+            .sheet
+            .items
+            .iter()
+            .find(|i| i.name == "detail_marker_C")
+            .unwrap();
+        let camera = haecceity::hlr::View::new(parent.direction, parent.up).unwrap();
+        let centre = camera.map(std::array::from_fn(|k| {
+            (d.marked_bounds[0][k] + d.marked_bounds[1][k]) / 2.0
+        }));
+        let whole = camera.map(std::array::from_fn(|k| {
+            (a.envelope[0][k] + a.envelope[1][k]) / 2.0
+        }));
+        let expected: [f64; 2] =
+            std::array::from_fn(|k| parent.at[k] + parent.scale * (centre[k] - whole[k]));
+        // Every surviving arc lies on the circle about the selected parent's crop.
+        let radii: Vec<_> = marker
+            .lines
+            .iter()
+            .flatten()
+            .map(|p| (p[0] - expected[0]).hypot(p[1] - expected[1]))
+            .collect();
+        assert!(!radii.is_empty());
+        assert!(radii.iter().all(|r| (r - radii[0]).abs() < 1e-5));
+    }
+}
+
+#[test]
+fn edge_on_members_and_missing_source_views_are_refused_by_name() {
+    let (_, a) = fixture("mounting_plate");
+    for around in [json!("top"), json!(["f:hole:1", "top"])] {
+        let error = model::plan(&a, &authored(around, Some("front"))).unwrap_err();
+        assert!(
+            error.message.contains("top")
+                && error.message.contains("front")
+                && error.message.contains("degenerate"),
+            "{}",
+            error.message
+        );
+    }
+    for source in ["iso", "section_aa", "missing"] {
+        let e = model::plan(&a, &authored(json!("f:hole:1"), Some(source))).unwrap_err();
+        assert!(
+            e.message.contains(source) && e.message.contains("f:hole:1"),
+            "{}",
+            e.message
+        );
+    }
+    let mut s = authored(json!("f:hole:1"), Some("plan"));
+    s.views.get_mut("plan").unwrap().omit = true;
+    let e = model::plan(&a, &s).unwrap_err();
+    assert!(e.message.contains("v:plan") && e.message.contains("f:hole:1"));
+}
+
+#[test]
+fn list_crop_is_the_union_of_the_existing_member_crops() {
+    let (_, a) = fixture("turned");
+    let ids: Vec<_> = a
+        .features
+        .iter()
+        .filter(|f| f.kind == "turned_step")
+        .map(|f| f.id.clone())
+        .collect();
+    assert!(ids.len() >= 2);
+    let first = model::plan(&a, &authored(json!(ids[0]), None)).unwrap();
+    let second = model::plan(&a, &authored(json!(ids[1]), None)).unwrap();
+    let both = model::plan(&a, &authored(json!(&ids[..2]), None)).unwrap();
+    let bounds = |p: &model::Plan| detail_view(p).detail.as_ref().unwrap().bounds;
+    let (x, y, u) = (bounds(&first), bounds(&second), bounds(&both));
+    for k in 0..3 {
+        assert_eq!(u[0][k], x[0][k].min(y[0][k]));
+        assert_eq!(u[1][k], x[1][k].max(y[1][k]));
+    }
+    assert_ne!(u, x);
+    assert_ne!(u, y);
+}
+
+#[test]
+fn mixed_face_feature_lists_choose_the_most_visible_view_and_record_it() {
+    let (_, a) = fixture("mounting_plate");
+    let s = authored(json!(["f:hole:1", "top", "bottom", "front"]), None);
+    let p = model::plan(&a, &s).unwrap();
+    let v = detail_view(&p);
+    assert_eq!(v.detail.as_ref().unwrap().source_view, "v:plan");
+    assert!(
+        v.basis.contains("natural source views differ") && v.basis.contains("3/4"),
+        "{}",
+        v.basis
+    );
+    // Member order cannot change the winner.
+    let p = model::plan(
+        &a,
+        &authored(json!(["front", "bottom", "top", "f:hole:1"]), None),
+    )
+    .unwrap();
+    assert_eq!(
+        detail_view(&p).detail.as_ref().unwrap().source_view,
+        "v:plan"
+    );
+}
+
+#[test]
+fn every_list_member_must_exist_and_empty_lists_are_refused() {
+    let (_, a) = fixture("turned");
+    for id in ["f:turned_step:999", "face:99999", "unknown"] {
+        let e = model::plan(&a, &authored(json!(["f:turned_step:1", id]), None)).unwrap_err();
+        assert!(e.message.contains(id), "{}", e.message);
+    }
+    assert!(
+        model::plan(&a, &authored(json!([]), None))
+            .unwrap_err()
+            .message
+            .contains("at least one")
+    );
+}
+
+#[test]
+fn saved_string_and_list_specs_round_trip_through_json_and_a_drawing() {
+    let (part, a) = fixture("mounting_plate");
+    let font = draftwright::text::Font::open(
+        &Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("fonts")
+            .join(draftwright::dims::FONT),
+    )
+    .unwrap();
+    let top = a
+        .face_attachments
+        .iter()
+        .position(|f| f.surface.as_deref() == Some("plane") && f.axis == Some(2))
+        .unwrap();
+    for around in [
+        json!("f:hole:1"),
+        json!(["f:hole:1", format!("face:{top}")]),
+    ] {
+        let mut s = authored(around.clone(), Some("plan"));
+        s.binding = Some(a.binding.clone());
+        let saved = serde_json::to_value(&s).unwrap();
+        assert_eq!(saved["views"]["detail_c"]["detail"]["around"], around);
+        let read: Spec = serde_json::from_value(saved).unwrap();
+        assert_eq!(s, read);
+        let p = model::plan(&a, &read).unwrap();
+        let drawing = model::render(&part, &a, &p, &font).unwrap();
+        let svg = drawing.svg();
+        assert_eq!(model::embedded_spec(svg.as_bytes()).unwrap().unwrap(), s);
+    }
+}
+
+#[test]
+fn a_groove_and_its_neighboring_shoulder_keep_both_model_crops() {
+    let (_, a) = fixture("k5/groove-compound");
+    let groove = "f:groove:1";
+    let shoulder = "f:turned_step:3";
+    let p = model::plan(&a, &authored(json!([groove, shoulder]), Some("front"))).unwrap();
+    let union = detail_view(&p).detail.as_ref().unwrap();
+    for id in [groove, shoulder] {
+        let member = model::plan(&a, &authored(json!(id), Some("front"))).unwrap();
+        let b = detail_view(&member).detail.as_ref().unwrap().bounds;
+        assert!((0..3).all(|k| union.bounds[0][k] <= b[0][k] && union.bounds[1][k] >= b[1][k]));
+    }
+}
+
+#[test]
+fn section_parent_reuses_the_section_projection_without_duplicating_furniture() {
+    let Some(a) = string_post() else { return };
+    let dir = corpus::dir().unwrap();
+    let (part, _) = model::analyse_native(&dir.join("gramel/string_post.step")).unwrap();
+    let p = model::plan(&a, &authored(json!("f:turned_step:3"), Some("section_aa"))).unwrap();
+    let v = detail_view(&p);
+    let parent = p.views.iter().find(|v| v.id == "v:section_aa").unwrap();
+    assert!(parent.cut.is_some());
+    assert!(v.cut.is_none());
+    assert_eq!(v.detail.as_ref().unwrap().source_cut, parent.cut);
+    let mut projections = model::Projections::default();
+    let geometry = model::render_geometry(&part, &a, &p, &mut projections).unwrap();
+    assert!(
+        geometry
+            .views
+            .iter()
+            .find(|(id, _)| id == &v.id)
+            .unwrap()
+            .1
+            .bbox
+            .is_some()
+    );
+    // The detail must share the parent's cut HLR, rather than introducing an uncut camera.
+    assert_eq!(
+        projections.stats().projections,
+        p.views.iter().filter(|v| v.detail.is_none()).count()
+    );
+    // Page-local rendering may no longer carry the parent section in its view list.
+    let mut isolated = p.clone();
+    isolated.views.retain(|view| view.id == v.id);
+    let isolated_geometry =
+        model::render_geometry(&part, &a, &isolated, &mut model::Projections::default()).unwrap();
+    let original = geometry.views.iter().find(|(id, _)| id == &v.id).unwrap();
+    assert_eq!(
+        serde_json::to_value(original).unwrap(),
+        serde_json::to_value(&isolated_geometry.views[0]).unwrap()
+    );
+    // An explicitly cut projection is the independent rendering oracle.
+    isolated.views[0].cut = parent.cut.clone();
+    isolated.views[0].detail.as_mut().unwrap().source_cut = None;
+    let explicit =
+        model::render_geometry(&part, &a, &isolated, &mut model::Projections::default()).unwrap();
+    assert_eq!(
+        serde_json::to_value(&isolated_geometry.views[0]).unwrap(),
+        serde_json::to_value(&explicit.views[0]).unwrap()
+    );
+}

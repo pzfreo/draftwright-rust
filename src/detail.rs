@@ -16,10 +16,33 @@ pub const NAMES: [&str; 8] = [
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DetailSpec {
-    /// Semantic feature ID, as used by dimensions and the editor.
-    pub around: String,
+    /// Semantic feature or face IDs; the string form remains stable on saving.
+    pub around: Around,
+    /// Principal or section view ID, without the `v:` prefix.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
     #[serde(default = "two")]
     pub scale_factor: f64,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Around {
+    One(String),
+    Many(Vec<String>),
+}
+impl Around {
+    fn members(&self) -> &[String] {
+        match self {
+            Self::One(id) => std::slice::from_ref(id),
+            Self::Many(ids) => ids,
+        }
+    }
+}
+
+impl DetailSpec {
+    pub(crate) fn around_ids(&self) -> String {
+        self.around.members().join(", ")
+    }
 }
 fn two() -> f64 {
     2.0
@@ -30,6 +53,9 @@ pub struct Detail {
     pub label: String,
     pub axis: usize,
     pub source_view: String,
+    /// The source section's projection plane, without duplicating its furniture.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_cut: Option<crate::model::Cut>,
     pub kind: String,
     /// Part-frame crop, in model mm; complete dimensional witnesses must survive.
     pub bounds: [[f64; 3]; 2],
@@ -54,15 +80,191 @@ pub(crate) fn check(analysis: &Analysis, spec: &Spec) -> Result<(), Invalid> {
                     choices: vec![],
                 });
             }
-            if !analysis.features.iter().any(|f| f.id == d.around) {
-                return Err(Invalid {
-                    message: format!("Detail {name} names unknown feature {}.", d.around),
-                    choices: analysis.features.iter().map(|f| f.id.clone()).collect(),
-                });
+            let members = members(analysis, name, d)?;
+            if let Some(source) = &d.from {
+                if !matches!(source.as_str(), "front" | "plan" | "side")
+                    && !(source.starts_with("section_")
+                        && source == &format!("section_{0}{0}", section_label(spec).to_lowercase()))
+                {
+                    return Err(Invalid {
+                        message: format!(
+                            "Detail {name}: source view {source:?} does not exist in the plan for {}.",
+                            d.around.members().join(", ")
+                        ),
+                        choices: vec![
+                            "front".into(),
+                            "plan".into(),
+                            "side".into(),
+                            "section_aa".into(),
+                        ],
+                    });
+                }
+                if !source_available(analysis, spec, source) {
+                    return Err(Invalid {
+                        message: format!(
+                            "Detail {name}: source view v:{source} does not exist in the plan for {}.",
+                            d.around_ids()
+                        ),
+                        choices: vec![],
+                    });
+                }
+                for (id, crop) in d.around.members().iter().zip(&members) {
+                    if !visible(crop.bounds, source) {
+                        return Err(Invalid {
+                            message: format!(
+                                "Detail {name}: feature or face {id:?} is not visible in view {source:?}: its crop projects to a degenerate region."
+                            ),
+                            choices: vec![],
+                        });
+                    }
+                }
             }
         }
     }
     Ok(())
+}
+
+struct MemberCrop {
+    bounds: [[f64; 3]; 2],
+    source: &'static str,
+    primary: usize,
+    dimensions: Vec<String>,
+}
+
+fn union(a: [[f64; 3]; 2], b: [[f64; 3]; 2]) -> [[f64; 3]; 2] {
+    [
+        std::array::from_fn(|k| a[0][k].min(b[0][k])),
+        std::array::from_fn(|k| a[1][k].max(b[1][k])),
+    ]
+}
+
+fn axes(source: &str) -> [usize; 2] {
+    match source {
+        "plan" => [0, 1],
+        "side" => [1, 2],
+        _ => [0, 2],
+    }
+}
+
+fn visible(bounds: [[f64; 3]; 2], source: &str) -> bool {
+    axes(source)
+        .iter()
+        .all(|&k| (bounds[1][k] - bounds[0][k]).is_finite() && bounds[1][k] - bounds[0][k] > 1e-6)
+}
+
+fn source_available(a: &Analysis, spec: &Spec, source: &str) -> bool {
+    if spec.views.get(source).is_some_and(|v| v.omit) {
+        return false;
+    }
+    let demand = crate::demand::read(a);
+    let reduction = crate::demand::turned_views(&demand).filter(|(kept, dropped, _)| {
+        !spec.views.contains_key(*dropped)
+            && !spec.views.get(kept[0]).is_some_and(|v| v.omit)
+            && !crate::pmi_lowering::views(a).contains(dropped)
+    });
+    if reduction.is_some_and(|r| r.1 == source) {
+        return false;
+    }
+    if source.starts_with("section_") {
+        return demand.section.is_some()
+            && !spec
+                .views
+                .get(crate::model::SECTION)
+                .is_some_and(|v| v.omit)
+            && source_available(a, spec, "plan")
+            && (source_available(a, spec, "front") || source_available(a, spec, "side"));
+    }
+    true
+}
+
+fn members(a: &Analysis, name: &str, auth: &DetailSpec) -> Result<Vec<MemberCrop>, Invalid> {
+    if auth.around.members().is_empty() {
+        return Err(Invalid {
+            message: format!("Detail {name} needs at least one feature or face in around."),
+            choices: vec![],
+        });
+    }
+    auth.around.members().iter().map(|id| {
+        if let Some(f) = a.features.iter().find(|f| &f.id == id) {
+            return Ok(feature_crop(a, f));
+        }
+        let faces = crate::spec_gdt::named_faces(a, id).map_err(|_| Invalid {
+            message: format!("Detail {name} names unknown feature or face {id:?}."),
+            choices: a.features.iter().map(|f| f.id.clone()).chain(["face:<n>".into(), "top".into(), "bottom".into(), "left".into(), "right".into(), "front".into(), "back".into()]).collect(),
+        })?;
+        let mut bounds = None;
+        for face in faces {
+            let b = a.face_attachments[face].bounds.ok_or_else(|| Invalid {
+                message: format!("Detail {name}: face {id:?} has no model-space crop; analyse the part again."), choices: vec![],
+            })?;
+            let b = [[b[0], b[1], b[2]], [b[3], b[4], b[5]]];
+            bounds = Some(bounds.map_or(b, |previous| union(previous, b)));
+        }
+        let bounds = bounds.expect("named faces is nonempty");
+        let source = ["front", "plan", "side"].into_iter().find(|source| visible(bounds, source)).ok_or_else(|| Invalid {
+            message: format!("Detail {name}: face {id:?} has no non-degenerate crop."), choices: vec![],
+        })?;
+        Ok(MemberCrop { bounds, source, primary: axes(source)[0], dimensions: vec![] })
+    }).collect()
+}
+
+fn feature_crop(a: &Analysis, f: &crate::bridge::Feature) -> MemberCrop {
+    let mut bounds = a.envelope;
+    let mut ids = Vec::new();
+    let source;
+    let primary;
+    if let Some(b) = (f.kind == "turned_step")
+        .then(|| crate::lint::turned::band(&holes::frame(a), f).ok())
+        .flatten()
+    {
+        source = axis_view(b.axis);
+        primary = b.axis;
+        let context = 1.0_f64.max((b.hi - b.lo) / 2.0);
+        bounds[0][b.axis] = (b.lo - context).max(a.envelope[0][b.axis]);
+        bounds[1][b.axis] = (b.hi + context).min(a.envelope[1][b.axis]);
+        ids.push(dimension(&f.id, "step.length"));
+        ids.push(dimension(&f.id, "step.diameter"));
+    } else {
+        let origin = crate::dims::feature_origin(a, &f.id)
+            .unwrap_or_else(|| [0, 1, 2].map(|k| (bounds[0][k] + bounds[1][k]) / 2.0));
+        let axis = f.fingerprint.axis.and_then(holes::principal).unwrap_or(1);
+        source = ["side", "front", "plan"][axis];
+        primary = (0..3).find(|k| *k != axis).unwrap();
+        let half = f.fingerprint.sizes.values().copied().fold(4.0, f64::max) * 0.75;
+        for k in 0..3 {
+            if k != axis {
+                bounds[0][k] = (origin[k] - half).max(bounds[0][k]);
+                bounds[1][k] = (origin[k] + half).min(bounds[1][k]);
+            }
+        }
+    }
+
+    MemberCrop {
+        bounds,
+        source,
+        primary,
+        dimensions: ids,
+    }
+}
+
+pub(crate) fn basis(a: &Analysis, spec: &Spec, name: &str, d: &Detail) -> String {
+    let mut basis = format!(
+        "{}: enlarged orthographic crop of {}",
+        d.kind, d.source_view
+    );
+    if let Some(auth) = spec.views.get(name).and_then(|v| v.detail.as_ref())
+        && auth.from.is_none()
+        && let Ok(crops) = members(a, name, auth)
+        && crops.iter().any(|c| c.source != crops[0].source)
+    {
+        let source = d.source_view.trim_start_matches("v:");
+        let count = crops.iter().filter(|c| visible(c.bounds, source)).count();
+        basis += &format!(
+            "; natural source views differ: chose {source}, where {count}/{} members are visible (ties: front, plan, side, section)",
+            crops.len()
+        );
+    }
+    basis
 }
 
 fn selected_scale(sheet: f64, needed: f64, head: bool) -> f64 {
@@ -107,41 +309,45 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
         if view.omit {
             continue;
         }
-        let Some(f) = a.features.iter().find(|f| f.id == auth.around) else {
-            continue;
-        };
-        let mut bounds = a.envelope;
+        let crops = members(a, name, auth).expect("checked detail members");
+        let mut bounds = crops[0].bounds;
         let mut ids = Vec::new();
-        let source;
-        let primary;
-        if let Some((_, b)) = bands.iter().find(|(f, _)| f.id == auth.around) {
-            source = axis_view(b.axis);
-            primary = b.axis;
-            let context = 1.0_f64.max((b.hi - b.lo) / 2.0);
-            bounds[0][b.axis] = (b.lo - context).max(a.envelope[0][b.axis]);
-            bounds[1][b.axis] = (b.hi + context).min(a.envelope[1][b.axis]);
-            ids.push(dimension(&f.id, "step.length"));
-            ids.push(dimension(&f.id, "step.diameter"));
+        for crop in &crops {
+            bounds = union(bounds, crop.bounds);
+            ids.extend(crop.dimensions.iter().cloned());
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        ids.retain(|id| seen.insert(id.clone()));
+        let primary = crops[0].primary;
+        let source = if let Some(source) = &auth.from {
+            source.clone()
+        } else if crops.iter().all(|c| c.source == crops[0].source) {
+            crops[0].source.into()
         } else {
-            let origin = crate::dims::feature_origin(a, &f.id)
-                .unwrap_or_else(|| [0, 1, 2].map(|k| (bounds[0][k] + bounds[1][k]) / 2.0));
-            let axis = f.fingerprint.axis.and_then(holes::principal).unwrap_or(1);
-            source = ["side", "front", "plan"][axis];
-            primary = (0..3).find(|k| *k != axis).unwrap();
-            let half = f.fingerprint.sizes.values().copied().fold(4.0, f64::max) * 0.75;
-            for k in 0..3 {
-                if k != axis {
-                    bounds[0][k] = (origin[k] - half).max(bounds[0][k]);
-                    bounds[1][k] = (origin[k] + half).min(bounds[1][k]);
+            // Deterministic ties: front, plan, side, then the section.
+            let section = format!("section_{0}{0}", section_label(spec).to_lowercase());
+            let mut best = ("front", 0);
+            for candidate in ["front", "plan", "side", &section] {
+                if !source_available(a, spec, candidate) {
+                    continue;
+                }
+                let count = crops
+                    .iter()
+                    .filter(|c| visible(c.bounds, candidate))
+                    .count();
+                if count > best.1 {
+                    best = (candidate, count);
                 }
             }
-        }
+            best.0.to_string()
+        };
         out.push((
             name.clone(),
             Detail {
                 label: name.trim_start_matches("detail_").to_uppercase(),
                 axis: primary,
                 source_view: format!("v:{source}"),
+                source_cut: None,
                 kind: "authored-feature".into(),
                 marked_bounds: bounds,
                 bounds,
@@ -245,7 +451,7 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
                     spec.views
                         .values()
                         .filter_map(|v| v.detail.as_ref())
-                        .any(|d| d.around == bands[*i].0.id)
+                        .any(|d| d.around.members().contains(&bands[*i].0.id))
                 }) {
                     continue;
                 }
@@ -316,6 +522,7 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
                     label: String::new(),
                     axis,
                     source_view: format!("v:{source}"),
+                    source_cut: None,
                     kind: if axis == 1 {
                         "y-turned-chain"
                     } else {
@@ -386,6 +593,7 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
                     label: String::new(),
                     axis: 2,
                     source_view: "v:front".into(),
+                    source_cut: None,
                     kind: "prismatic-steps".into(),
                     marked_bounds: {
                         let mut marked = bounds;

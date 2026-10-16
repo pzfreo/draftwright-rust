@@ -177,11 +177,39 @@ An authored detail is a view entry, for example:
 {"views":{"detail_c":{"detail":{"around":"f:turned_step:3","scale_factor":5}}}}
 ```
 
-`scale_factor` is an exact multiple of sheet scale (default 2, greater than 1). The semantic
-feature determines the source camera and crop; authored geometric details survive with no
-annotations. Omitting the view removes the detail. A missing feature, source view, or space
-for its exact scale is an error. An automatic iso that fits stays at sheet scale when a
-defining detail claims space; an explicitly authored iso scale remains exact.
+`scale_factor` is an exact multiple of sheet scale (default 2, greater than 1). Without
+`from`, a single feature keeps its existing source camera, crop and context margins.
+`around` also accepts a nonempty list of feature IDs and/or face IDs, using the same face
+names as `faces/<face>` (`face:<n>`, `top`, `bottom`, `left`, `right`, `front`, `back`).
+Its crop is the union of the members' model-space crops, retaining each feature's existing
+context margins. Face crops use the faces' attachment bounds. The Spec contains intent
+only: no crop coordinates are authored.
+
+```json
+{"views":{"detail_c":{"detail":{"from":"side","around":["f:groove:1","f:turned_step:2"],"scale_factor":3}}}}
+```
+
+Optional `from` selects an existing principal or section view ID without the `v:` prefix,
+for example `front`, `plan`, `side` or `section_aa`. The detail uses that parent's camera,
+projected crop and section plane, and the parent carries its marker. Every named member
+must exist. Each member's crop must project to a non-degenerate region in an explicit
+`from` view; an edge-on planar face is refused, even if other members would give the union
+area. Visibility here means non-degenerate crop projection, rather than an occlusion test.
+An omitted, automatically dropped or absent source view is refused; explicitly retain a
+principal view with e.g. `"side":{}` if needed.
+
+When a list's natural source views differ and `from` is absent, choose the available view
+where the most members' crops have non-degenerate projections. Ties prefer front, plan,
+side, then section. The detail's basis records the chosen view and visible member count.
+A shared natural source retains existing behavior. Single-string and list forms survive
+saving and reopening unchanged.
+
+Authored crops survive with no annotations. Omitting the view removes the detail. Missing
+members, source views, or space for the exact scale are errors. An automatic iso that fits
+stays at sheet scale when a defining detail claims space; an explicitly authored iso scale
+remains exact. The typed MCP detail schemas total 47,732 compact UTF-8 bytes per session
+(previously 42,356); the measured budget is 48,000 bytes. See the
+[authored-detail verification](authored-detail-verification.md) for regressions and inspected PNGs.
 
 A whole connected multi-step turned profile uses one inspection end by default. PMI datums
 and PMI baseline lengths retain precedence. Otherwise the larger flat end supplies the
