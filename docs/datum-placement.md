@@ -1,12 +1,13 @@
 # Datum placement validation
 
-Base: `3836b296` (the branch's starting main). Evidence is under
-`target/datum-placement/`; the base and verified executables were copied before collection
+Review-fix base: `de99c79b7fc61e5affc5b19e9d0c6c887201ff43` (PR #56's approved head).
+The original placement survey below compares against `3836b296` (the branch's starting main).
+Evidence is under `target/datum-placement/`; the base and verified executables were copied before collection
 so an in-progress build cannot change the binary halfway through a survey.
 
 Automatic datums try compact tiers before outer dimension tiers. Cylinder alternatives are
 points proved on the trimmed face's opposite silhouette; planar alternatives carry an actual
-face extension, with a 1 mm outline gap and an overrun beyond the triangle. Shared obstacle
+face extension, with a 1 mm face gap and an overrun beyond the triangle. Shared obstacle
 grading counts crossings and collinear travel for datum leaders, frames, labels and finishes.
 The original complete arrangement remains a candidate. A rearrangement must introduce no new
 annotation contact (code and unordered subject pair); datum-only improvements are tried when
@@ -98,6 +99,113 @@ datums. `assembly_pin_pmi` has no lowerable datum attachment: its datum faces oc
 assembly placements, and datum B's reference faces are not coaxial. The reader's existing
 refusal is unchanged; no attachment is invented for an ambiguous assembly reference.
 
+## Review fixes: search cost and safe planar extensions
+
+The seed is returned immediately when nothing is placed. With no datums, the datum-only pass
+is skipped when none of the extra dimension arrow shafts crosses a seed label: adding those
+shafts cannot change the first-best clearance choice. Clear automatic datums still retain
+their compact-tier choices.
+
+Crossing grading also stops when a candidate cannot beat the current best: a worse clearance
+needs no crossing count; at equal clearance, reaching the best count already loses the tie.
+Only losing candidates stop early. Every saved best retains its exact crossing count, and
+the original candidate order and tie preference remain intact.
+
+Both extra searches stop as soon as a chosen leader creates an annotation crossing absent
+from the seed's `(code, unordered subjects)` set against a fixed dimension or an already placed
+item on the current sheet. Later placements cannot remove that crossing, so the complete
+arrangement would necessarily be rejected. Surviving searches retain the full contact guard.
+
+A planar extension is offered at an end only if the projected face reaches within 1 mm of the
+view outline at that end, measured in page mm. The extension still starts 1 mm beyond the
+face. The new unit regression first verifies that the spindle's full-width face offers
+extensions, then insets both ends by 2 mm and requires no extensions; restoring only the right
+end offers extensions on that side alone.
+
+The review-base and optimized binaries are saved as `review-base-draftwright` and
+`selected-draftwright`. Reproduce the review survey with:
+
+```sh
+python3 -I tools/survey_datum_placement.py target/datum-placement/review-base-draftwright \
+  target/datum-placement/review-base --corpus /Users/paul/repos/quiddity/tests/corpus
+python3 -I tools/survey_datum_placement.py target/datum-placement/selected-draftwright \
+  target/datum-placement/bounded-survey --corpus /Users/paul/repos/quiddity/tests/corpus \
+  --compare target/datum-placement/base
+```
+
+Against review base `de99c79b`, all 31 survey records are identical: **1547 → 1547 crossings**
+and **40 → 40 overlaps**, with no per-part increase. The 28 unchanged Plan JSON files are
+byte-identical. Three files differ only in explanations of rejected sheet candidates:
+`hw_every_kind` and `nist_stc_06_asme1_ap242-e3` change `sheet.basis`;
+`nist_stc_10_asme1_ap242-e2` changes `sheet.basis` and the existing no-valid-sheet problem's
+message. A guard-only build reproduces all three differences exactly
+(`guard-only-comparison.json`): forbidding unsafe extensions changes those trial layouts'
+counts, but no selected geometry, sheet size/scale, annotation, or finding inventory changes.
+The final survey still passes against original base `3836b296`.
+Evidence: `target/datum-placement/bounded-survey/plan-diffs.json`.
+
+Cost baseline: `53aa9f3f655c1d1ca0eabc89bfa84437332ae160` (the PR's current main base).
+"Before" is approved head `de99c79b`; "after" includes both review fixes. Each table entry
+measures one complete `plan STEP` invocation, including native reading/analysis and JSON
+output, using the same input file and release configuration.
+
+The commands use `/usr/bin/time -l`. Its native resource report is blocked here by
+`sysctl kern.clockrate: Operation not permitted`, so a measurement-only dylib reads Darwin's
+own-process `rusage_info_v4.ri_instructions` at initialization and termination instead (the
+same permitted API used by `tests/multi_sheet_latency.rs`). This excludes dynamic-loader
+startup before the initializer; the counter overhead is constant and negligible at the
+reported precision. No QoS override is used. Raw counters and validated Plan JSON are
+collected even though the time wrapper exits 1 after the planner succeeds.
+
+Evidence: `target/datum-placement/review-full-instructions.json` and
+`instructions-full-*.time`; the counter source is `self-instructions.c` in that directory.
+For a saved executable and an inventory path, the measurement command is:
+
+```sh
+clang -O2 -dynamiclib target/datum-placement/self-instructions.c \
+  -o /private/tmp/draftwright-self-instructions.dylib
+/usr/bin/time -l /usr/bin/env \
+  DYLD_INSERT_LIBRARIES=/private/tmp/draftwright-self-instructions.dylib \
+  DW_MEASURE_INSTRUCTIONS=1 BINARY plan INPUT.step
+```
+
+| Part | Main (billion instructions) | Before | After | Before/main → after/main |
+| --- | ---: | ---: | ---: | ---: |
+| nist_stc_10 | 133.3 | 328.0 | 139.3 | ×2.46 → ×1.05 |
+| nist_stc_09 | 161.9 | 214.4 | 165.3 | ×1.32 → ×1.02 |
+| nist_ftc_10 | 1,000.0 | 1,234.4 | 1,007.5 | ×1.23 → ×1.01 |
+| nist_ctc_02 | 224.5 | 262.1 | 228.1 | ×1.17 → ×1.02 |
+| hw_every_kind | 30.8 | 34.5 | 16.7 | ×1.12 → ×0.54 |
+
+STC-10 recovers **96.9%** of the added instructions and finishes within **4.5%**
+of main. All five review cases use fewer instructions than the approved head.
+
+The final review checks use `CARGO_BUILD_JOBS=6 RUST_TEST_THREADS=6` and
+`DRAFTWRIGHT_LATENCY_GATE=1`, with `CARGO_TARGET_DIR` set to the isolated directory recorded
+in `target/datum-placement/validation-root.txt`. Build/test files and logs stay outside the
+watched worktree. The fmt, Clippy and full required-corpus test commands run sequentially;
+`--no-fail-fast` keeps all tests running if a wall-time gate fails. No test body, threshold,
+byte fixture or application policy is changed. Evidence is linked as `review-fmt-selected.log`,
+`review-clippy-selected.log` and `review-tests-selected.log` under `target/datum-placement/`.
+
+Review-check results:
+
+- `cargo fmt --check`: passed.
+- `cargo clippy --all-targets --release -- -D warnings`: passed.
+- Required-corpus `cargo test --release --no-fail-fast`: **1,005 passed, 1 failed, 0 ignored**
+  across 103 test/doc-test binaries. The new guard regression and all four existing datum
+  placement regressions passed.
+- The remaining failure is the existing `r5_multi_sheet_latency` wall-time gate: MCP p90
+  **173.602 ms**, against **150 ms**, in the complete selected-source run. Isolated retries,
+  an idle interval, filesystem flushing and alternate temporary-cache locations did not
+  resolve the intermittent stalls. The unchanged approved head `de99c79b` also fails the
+  same gate (**441.456 ms**; `review-approved-latency.log`). Its median MCP instruction count
+  is 2.034 billion, versus 2.032 billion in the selected-source run. The fixture has no GD&T.
+  The earlier NIST session timing failure passed in this final full run.
+
+**The requested all-checks-passing bar is not met in this environment.** The 150 ms gate
+remains enabled, and no test or application policy was weakened to hide the failure.
+
 ## Renders
 
 All are PNG at 150 dpi; both revisions were rendered and visually inspected.
@@ -109,7 +217,7 @@ All are PNG at 150 dpi; both revisions were rendered and visually inspected.
 | NIST STC-06 AP242 e3 | [PNG](../target/datum-placement/base/nist_stc_06_asme1_ap242-e3.png) | [PNG](../target/datum-placement/verified/nist_stc_06_asme1_ap242-e3.png) |
 | NIST STC-09 AP242 e4 | [PNG](../target/datum-placement/base/nist_stc_09_asme1_ap242-e4.png) | [PNG](../target/datum-placement/verified/nist_stc_09_asme1_ap242-e4.png) |
 
-## Checks
+## Original placement checks
 
 The four regressions in `tests/datum_placement.rs` all failed against the base implementation
 (`target/datum-placement/regressions-base.log`), then passed with the change: the spindle's

@@ -52,7 +52,7 @@
 //! `tests/pmi_lowering.rs`); a label's text is drawn as the file states it, a character the font
 //! lacks as its missing-glyph box (as draftwright's FreeType draws it).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -631,7 +631,7 @@ fn step(shape: Shape, side: &str, size: P2) -> f64 {
 
 /// An attachment site, its outward side, and an optional planar face extension.
 type Site<'a> = (P2, &'a str, Option<[P2; 2]>);
-/// Clearance class, followed by the number of line crossings (no saturating counter).
+/// Clearance class, followed by line crossings; winning candidates have exact counts.
 type Grade = (u8, usize);
 type Choice<'a> = (Grade, &'a str, Candidate, P2, usize);
 
@@ -738,6 +738,10 @@ fn plane_extensions<'a>(analysis: &Analysis, item: &'a Lowered, frame: &Frame) -
     }
     let mut sites = Vec::new();
     for (end, sign) in [(0, -1.0), (1, 1.0)] {
+        // Starting 1 mm past the face must also clear the part's projected envelope.
+        if (bounds[end] - outline[k + 2 * end]).abs() > 1.0 {
+            continue;
+        }
         for n in 0..TIERS {
             let mut at = tip;
             at[k] = outline[k + 2 * end] + sign * (CLEAR + TRIANGLE / 2.0 + n as f64 * (H + CLEAR));
@@ -768,24 +772,35 @@ impl Obstacles<'_> {
     /// of it through a label or another view; 3 off every label and frame only; 4 neither.
     /// Add the crossing count as the second component: (0, 0) alone is clear, and fewer
     /// crossings win among candidates with otherwise equal clearances.
-    fn grade(&self, c: &Candidate) -> Grade {
+    fn grade(&self, c: &Candidate, best: Option<Grade>) -> Grade {
+        let clearance = self.clearance_grade(c);
+        // Clearance precedes crossings. A worse clearance, or a crossing count that
+        // already ties the best at the same clearance, cannot replace that candidate.
+        // Only losing candidates stop early; every saved best has its exact count.
+        if best.is_some_and(|b| clearance > b.0) {
+            return (clearance, 0);
+        }
+        let limit = best.filter(|b| b.0 == clearance).map(|b| b.1);
+        if limit == Some(0) {
+            return (clearance, 0);
+        }
         let triangle: Vec<_> = c
             .fills
             .iter()
             .flat_map(|f| (0..f.len()).map(|i| [f[i], f[(i + 1) % f.len()]]))
             .collect();
-        let crossings = c
-            .lines
-            .iter()
-            .chain(&triangle)
-            .map(|s| {
-                self.lines
-                    .iter()
-                    .filter(|t| super::leaders::lines_meet(*s, **t))
-                    .count()
-            })
-            .sum();
-        (self.clearance_grade(c), crossings)
+        let mut crossings = 0;
+        for s in c.lines.iter().chain(&triangle) {
+            for t in &self.lines {
+                if super::leaders::lines_meet(*s, *t) {
+                    crossings += 1;
+                    if limit.is_some_and(|n| crossings >= n) {
+                        return (clearance, crossings);
+                    }
+                }
+            }
+        }
+        (clearance, crossings)
     }
 
     fn clearance_grade(&self, c: &Candidate) -> u8 {
@@ -942,7 +957,9 @@ pub(crate) fn plan_anchored(
         canonical,
         cache,
         Search::Seed,
-    );
+        None,
+    )
+    .expect("the seed search is never pruned");
     let contacts = |problems: &[Problem]| {
         problems
             .iter()
@@ -955,9 +972,37 @@ pub(crate) fn plan_anchored(
             .collect::<std::collections::BTreeSet<_>>()
     };
     let before = contacts(&seed.1);
+    // Without datums, only the added dimension arrow shafts can change the datum-only
+    // pass's clearance grading. If every seed label clears them, the same first-best
+    // choice survives at each step; the pass would reproduce the seed.
+    let datum_search_can_change = seed.0.iter().any(|g| g.kind == "datum_feature")
+        || dims.iter().filter_map(|d| d.placed.as_ref()).any(|d| {
+            d.arrows.iter().any(|a| {
+                seed.0
+                    .iter()
+                    .filter_map(|g| g.placed.as_ref())
+                    .any(|g| crosses(*a, g.label_box))
+            })
+        });
+    if seed.0.iter().all(|g| g.placed.is_none()) {
+        return seed;
+    }
     for search in [Search::All, Search::Datums] {
-        let compact = plan_search(analysis, spec, sheet, views, dims, canonical, cache, search);
-        if contacts(&compact.1).is_subset(&before) {
+        if search == Search::Datums && !datum_search_can_change {
+            continue;
+        }
+        if let Some(compact) = plan_search(
+            analysis,
+            spec,
+            sheet,
+            views,
+            dims,
+            canonical,
+            cache,
+            search,
+            Some(&before),
+        ) && contacts(&compact.1).is_subset(&before)
+        {
             return compact;
         }
     }
@@ -981,12 +1026,13 @@ fn plan_search(
     canonical: Option<&crate::model::Plan>,
     cache: &super::footprints::Cache,
     search: Search,
-) -> (Vec<PlannedGdt>, Vec<Problem>) {
+    allowed: Option<&BTreeSet<(String, Vec<String>)>>,
+) -> Option<(Vec<PlannedGdt>, Vec<Problem>)> {
     let compact = search != Search::Seed;
     let shown = |name: &str| views.iter().any(|v| v.id == format!("v:{name}"));
     let (mut items, mut problems) = crate::pmi_lowering::lower(analysis, &shown);
     if items.is_empty() {
-        return (Vec::new(), problems);
+        return Some((Vec::new(), problems));
     }
     let frames: BTreeMap<&str, Frame> = views
         .iter()
@@ -998,6 +1044,12 @@ fn plan_search(
         })
         .collect();
     let page = Page::new(analysis, sheet, views);
+    let on_sheet = |view: &str| {
+        views
+            .iter()
+            .find(|v| v.id == view)
+            .map_or(sheet.number == 1, |v| v.sheet == sheet.number)
+    };
     for item in &mut items {
         if let Some(p) = spec
             .annotations
@@ -1337,7 +1389,7 @@ fn plan_search(
                         let g = if intent.is_some_and(|p| p.pinned) {
                             (0, 0)
                         } else if search == Search::All || (compact && datum) {
-                            obstacles.grade(&c)
+                            obstacles.grade(&c, best.as_ref().map(|b| b.0))
                         } else {
                             (obstacles.clearance_grade(&c), 0)
                         };
@@ -1403,6 +1455,37 @@ fn plan_search(
             letters: laid.letters.iter().map(moved).collect(),
             runs: laid.runs.iter().map(moved).collect(),
         });
+        // This contact cannot be undone by placing later items. Stop a search that the
+        // complete-arrangement guard would reject, before searching the remaining items.
+        if let Some(allowed) = allowed.filter(|_| on_sheet(&planned.view)) {
+            let p = planned.placed.as_ref().expect("just placed");
+            for (id, lines, arrows) in dims
+                .iter()
+                .filter(|d| on_sheet(&d.view))
+                .filter_map(|d| d.placed.as_ref().map(|p| (&d.id, &p.lines, &p.arrows)))
+                .chain(
+                    out.iter()
+                        .filter(|g: &&PlannedGdt| on_sheet(&g.view))
+                        .filter_map(|g| g.placed.as_ref().map(|p| (&g.id, &p.lines, &p.arrows))),
+                )
+            {
+                if *id == planned.id {
+                    continue;
+                }
+                let mut pair = vec![planned.id.clone(), id.clone()];
+                pair.sort_unstable();
+                if !allowed.contains(&("annotation_leader_crossing".into(), pair))
+                    && p.lines.iter().any(|s| {
+                        lines
+                            .iter()
+                            .chain(arrows)
+                            .any(|t| super::leaders::lines_meet(*s, *t))
+                    })
+                {
+                    return None;
+                }
+            }
+        }
         out.push(planned);
     }
     out.sort_by(|a, b| a.id.cmp(&b.id));
@@ -1415,7 +1498,7 @@ fn plan_search(
             .into_iter()
             .filter(|p| p.subjects.iter().any(|s| s.starts_with("pmi:"))),
     );
-    (out, problems)
+    Some((out, problems))
 }
 
 /// A placed item as the dimensions' collision checks see it: a callout whose leader is its
@@ -1738,4 +1821,37 @@ pub fn placement_options(
             ))
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn planar_extensions_require_the_face_to_reach_the_outline() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/samples/cnc-review-spindle.step.gz");
+        let (_, mut analysis) = crate::model::analyse_native(&path).unwrap();
+        let (items, _) = crate::pmi_lowering::lower(&analysis, &|_| true);
+        let item = items
+            .iter()
+            .find(|i| matches!(&i.glyph, Glyph::Datum { letter, .. } if letter == "A"))
+            .unwrap();
+        let frame = Frame::looking(&analysis, [0.0, -1.0, 0.0], [0.0, 0.0, 1.0], [0.0; 2], 1.0);
+        assert!(!plane_extensions(&analysis, item, &frame).is_empty());
+        // Inset both ends of this edge-on face while keeping the view outline fixed.
+        for face in &item.faces {
+            let bounds = analysis.face_attachments[*face].bounds.as_mut().unwrap();
+            bounds[0] = analysis.envelope[0][0] + 2.0;
+            bounds[3] = analysis.envelope[1][0] - 2.0;
+        }
+        assert!(plane_extensions(&analysis, item, &frame).is_empty());
+        // The guard is directional: reaching only the right outline offers only that end.
+        for face in &item.faces {
+            analysis.face_attachments[*face].bounds.as_mut().unwrap()[3] = analysis.envelope[1][0];
+        }
+        let sites = plane_extensions(&analysis, item, &frame);
+        assert!(!sites.is_empty());
+        assert!(sites.iter().all(|s| s.0[0] > frame.outline()[2]));
+    }
 }
