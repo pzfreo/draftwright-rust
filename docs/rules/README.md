@@ -21,14 +21,16 @@ angle against rays and datum symbol against surface, `src/lint/fidelity.rs`), st
 by the router and lint, `src/lint/leaders.rs` and `src/material.rs`) and stream K5
 (2026-10-16: dimensioning completeness: a chain per turned body on its own silhouette, raised
 pads, oriented slot callouts, any end-to-end span carrying an extent, exact grouped lengths,
-`tests/completeness_rules.rs`):
+`tests/completeness_rules.rs`) and stream pins/lint (2026-10-16: five regression pins,
+side-constrained tapped-hole callouts, occurrence dispositions, recognition provenance and GA
+coverage severity; nine rules closed, two concrete remainders):
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 44 | 58 | 33 | 25 |
+| `adr.yaml` | 42 | 60 | 33 | 25 |
 | `lint.yaml` | 42 | 110 | 0 | 13 |
-| `issues.yaml` | 101 | 62 | 6 | 21 |
-| **All** | **187** | **230** | **39** | **59** |
+| `issues.yaml` | 97 | 66 | 6 | 21 |
+| **All** | **181** | **236** | **39** | **59** |
 
 The assessment rated each of the 353 rules then pending; 20 rules pending today were not rated.
 Rules it found done but with no test to name, or with a real remainder, stay pending with a

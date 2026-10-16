@@ -504,8 +504,9 @@
     adr: "ADR 2 Unguarded; archive 0018 §7"
     issues: []
     tests: []
-  status: pending
-  rust_note: "Done in substance (rules assessment of 2026-10-11): text is a fixed 3 mm in paper space (layout::FONT_SIZE, dims, section::FONT_SIZE) and nothing shrinks it to fit. Left pending because no test guards it."
+  status: ported
+  rust_test: "tests/rule_pins.rs::fixed_paper_typography_survives_scale_and_sheet_fit"
+  rust_note: "Already true, now pinned on GRM-04, the tuner and opposed holes across automatic recovery and explicit scales, including fitted isometrics. Drawing annotations remain 3 mm in paper space. Title-field labels deliberately remain their existing fixed 1.5 mm style; the guard checks that style too, rather than changing it to 3 mm. No font is reduced by fitting."
   port_note: "Keep: style is a Spec input in paper units; add a guard test (none exists in Python)."
 
 # ---------------------------------------------------------------------------
@@ -1384,8 +1385,9 @@
     adr: "archive 0009 Amendment 6, note 2026-07-18"
     issues: [346, 636]
     tests: []
-  status: pending
-  rust_note: "Done in substance (rules assessment of 2026-10-11): dims::placement::lanes orders each strip sizes nearest, then locations by distance, the overall extent outermost. Left pending because no test asserts the order."
+  status: ported
+  rust_test: "src/dims/placement.rs::tests::shared_corridor_orders_sizes_then_locations_then_overall"
+  rust_note: "Already true, now pinned: a plate corridor with scrambled input order, a size longer than a near location, three datum distances and an overall extent must have lanes size, near, middle, far, overall. Category precedes length; locations alone sort by datum distance."
   port_note: "Keep: ordering key in the planner's corridor solve."
 
 - id: ARCH0009-6
@@ -1955,8 +1957,9 @@
     issues: [1357]
     tests: ["test_issue_1357_framed_activation.py", "test_issue_1357_pmi_frame.py"]
   status: pending
+  rust_test: "tests/rule_pins.rs::rigid_motion_preserves_intrinsic_native_feature_sizes"
   port_note: "Keep as target: rigid-motion invariance test over Analysis/Plan once quiddity-rust exposes framed preparation."
-  rust_note: "Not ported here: quiddity-rust checks its recognisers under rigid motion, but no test plans a moved part and compares the Analysis's features and the plan's views; the port does not use framed recognition."
+  rust_note: "Partial pin only: the Python #1357 general-motion fixture pair preserves the native hole intrinsic sizes. Investigation disproved the triage assumption for views: after Pos(123,-47,91)*Rot(17,31,23), raw Analysis/Plan uses the 91.843601 x 91.173354 x 68.912286 caller-axis envelope instead of physical 80 x 55 x 20. analyse_native calls correspondence::recognise, not recognise_placed, and the bridge rejects local-only principal-axis fields. Full invariance requires a cross-cutting canonical working Part shared by Analysis, projection, stock extents and PMI/frame correlation; it also crosses the separately owned datum/GD&T placement boundary. More than a regression pin or a local fix; leave to the framed-analysis/PMI stream, without pretending to normalise only feature vectors."
 
 - id: ARCH0020-2
   statement: "Each turned body gets its own step chain anchored to its own silhouette: equal lengths on parallel shafts keep separate marks, and if no conflict-free lane exists a chain is dropped with a required-outcome diagnostic rather than drawn over a sibling."

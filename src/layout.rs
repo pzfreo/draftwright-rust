@@ -191,7 +191,22 @@ pub struct Strips {
     pub side_step_y: bool,
 }
 
+/// One authored callout column or row, measured in paper mm before view packing.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CalloutBand {
+    pub view: &'static str,
+    pub side: &'static str,
+    pub depth: f64,
+}
+
 impl Strips {
+    pub fn reserve_callouts(&mut self, bands: &[CalloutBand]) {
+        for b in bands {
+            let band = self.band(b.view, b.side);
+            *band = band.max(b.depth);
+        }
+    }
+
     /// The bands of a part with no features to dimension: the overall height to the right of the
     /// front and the base corridor on the left (draftwright's estimate with no steps).
     pub fn without_features() -> Self {

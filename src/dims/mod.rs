@@ -855,6 +855,64 @@ fn route(
     (chosen, end_on)
 }
 
+/// Paper-space room for unpinned, side-only callouts. Keep the same labels as the solver,
+/// including threads and authored tolerances, and reserve the column before packing views.
+pub(crate) fn callout_bands(
+    analysis: &Analysis,
+    spec: &Spec,
+) -> Result<Vec<crate::layout::CalloutBand>, Invalid> {
+    if !spec.dimensions.values().any(|d| {
+        d.place
+            .as_ref()
+            .and_then(crate::placement_intent::side_hint)
+            .is_some()
+    }) {
+        return Ok(Vec::new());
+    }
+    let (wants, ..) = wants(analysis);
+    let mut kept: Vec<_> = wants
+        .into_iter()
+        .map(|w| (w, false, None, Vec::new()))
+        .collect();
+    tolerance::apply(analysis, spec, &mut kept, &[], &mut Vec::new())?;
+    Ok(kept
+        .iter()
+        .filter_map(|(w, ..)| {
+            if !matches!(w.shape, Shape::Callout { .. }) {
+                return None;
+            }
+            let entry = spec.dimensions.get(&w.id)?;
+            if entry.omit {
+                return None;
+            }
+            let place = entry.place.as_ref()?;
+            let side = crate::placement_intent::side_hint(place)?;
+            let view = place
+                .view
+                .as_deref()
+                .or(entry.view.as_deref())
+                .unwrap_or(w.views[0]);
+            let view = *NAMES.iter().find(|n| **n == view)?;
+            if spec.views.get(view).is_some_and(|v| v.omit) {
+                return None;
+            }
+            use crate::placement_intent::Side;
+            let ink = label_ink(&w.terms, font());
+            let (side, depth) = match side {
+                Side::Left => ("left", ink.max[0] - ink.min[0] + SHOULDER),
+                Side::Right => ("right", ink.max[0] - ink.min[0] + SHOULDER),
+                Side::Above => ("above", TEXT + LIFT),
+                Side::Below => ("below", TEXT + LIFT),
+            };
+            Some(crate::layout::CalloutBand {
+                view,
+                side,
+                depth: FIRST + depth + 2.0,
+            })
+        })
+        .collect())
+}
+
 /// The lanes the defaults' dimensions take beside the principal *views* (name, direction towards
 /// the viewer, up) before they are placed: what the layout reserves for them
 /// ([`crate::layout::Strips::reserve`]). Every item the part would have counts, whatever the
@@ -1485,6 +1543,7 @@ pub(crate) fn plan_inventory(
     let mut leader_problems = if obstacles.is_empty() {
         leaders::place(
             analysis,
+            spec,
             cache,
             views,
             &frames,
@@ -1497,6 +1556,7 @@ pub(crate) fn plan_inventory(
     } else {
         leaders::place_with_obstacles(
             analysis,
+            spec,
             cache,
             views,
             &frames,
@@ -1511,6 +1571,7 @@ pub(crate) fn plan_inventory(
     if prior != chosen {
         leader_problems.extend(leaders::place_with_obstacles(
             analysis,
+            spec,
             cache,
             views,
             &frames,

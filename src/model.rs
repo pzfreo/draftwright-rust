@@ -2299,6 +2299,7 @@ fn plan_with_presentation(
     }
     let mut demand = crate::demand::read(analysis);
     demand.gdt_beyond_lanes = gdt_beyond_lanes;
+    demand.callout_bands = crate::dims::callout_bands(analysis, spec)?;
     // A turned part drops the view that repeats its profile, unless the spec asks for it, or
     // omits the profile view it keeps (front): the dropped view is then the only profile left;
     // or a PMI item is drawn in it (draftwright's `annotation_view_required`).
