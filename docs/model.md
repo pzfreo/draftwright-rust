@@ -393,6 +393,17 @@ text height (3 mm) from its own dimension line is `dimension_text_stray` (error)
 lint reports the same two codes from the drawn ink. A fix that leaves either is therefore a new
 problem in the edit's delta, not a resolved one.
 
+Structural lint (`review`'s `structural`) also checks that each label says what its ink draws
+(stream K7, `lint::fidelity`): a linear dimension's value against the span between its extension
+lines divided by its view's scale (`label_vs_measured`: warning past 0.5%, error from 5%, a label
+correctly rounded at its printed places excepted; an `INCH` label in millimetres; `N× v` per
+member, as the port draws counted dimensions), with the correctly rounded ones noted once per
+sheet (`nominal_rounded`, info); an angle's degrees against its drawn rays, its arc and extension
+lines, and its rays along visible edges of the view (`angular_label_vs_geometry`,
+`angular_geometry_mismatch`, `angular_support_mismatch`, errors); and a PMI datum symbol more
+than max(24 mm, 2.5 × its frame) from its surface (`datum_leader_remote`, warning). These are
+findings, not plan problems: no wire format changes.
+
 Placement problems provide `edit` operations addressing `place`. Resetting an annotation's
 `place` to `{}` releases it to automatic placement; removing a view's `place` restores automatic
 packing. Suggestions for free annotations choose another strip or label position and must be

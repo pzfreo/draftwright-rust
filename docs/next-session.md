@@ -7344,3 +7344,31 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   holes' box (between the holes), as the PMI path places every multi-face frame (unchanged
   here); a draftsman would rather hang it on the hole callout. Both leaders cross a dimension
   line (reported `annotation_leader_crossing`). Flatness on `top` draws ⏥ 0.05 above the side view.
+
+## K7: lint's self-checks on its own output (#43 item 2, 2026-10-16, unattended; overturnable)
+
+- **What:** `src/lint/fidelity.rs`, run last by `lint::structural::check` (so `review`'s
+  `structural` list and `tools/quality.py`'s review read it): `label_vs_measured`,
+  `nominal_rounded`, `angular_label_vs_geometry`, `angular_geometry_mismatch`,
+  `angular_support_mismatch`, `datum_leader_remote`. Drawing-only, from each item's ink, its
+  annotation's text and its view's recorded transform (`Sheet::frames`); no new record, no wire
+  or drawn-output change. Tests: `tests/lint_fidelity.rs` (7, each failing on the base).
+- **Results:** on the 30 quality parts, no `label_vs_measured` or angular finding (391 linear
+  dimensions checked); `nominal_rounded` (info) on 25. On the PMI fixtures, ctc01's `60 ±0.5`
+  passes all three angular checks; `datum_leader_remote` warns on 18 of the 24 PMI fixtures (e.g. the
+  thumbwheel's datum A 222 mm from its surface, ctc01's C 60.5 mm, the editor spindle's B
+  37.5 mm). These are real: datum symbols are set in a strip beside the view rather than near
+  their surface. Left visible, not fixed here (a placement change, outside K7's lint scope).
+- **Judgement calls:** (1) `N× v` is read per member (`v`): every counted linear dimension the
+  port draws spans one member, unlike draftwright's untagged span reading; a span drawn across all
+  N would now be reported loudly. (2) An `INCH` PMI label is compared in millimetres at its own
+  printed places (before this, all inch labels on stc06/stc09/ftc07 read as 96% wrong).
+  (3) Precision floor is the port's one decimal place (`dims::fmt`). (4) Angular supports are
+  judged against the drawn view's straight visible edges, not the registry's roster; a quantity
+  mark on an angle is refused outright (the port draws none). (5) Datum symbols are recognised by
+  the PMI name prefix `pmi:datum.`; K1's Spec-authored datums are lowered into the same records
+  and named the same way (`pmi:<identity>`), so they are judged too. (6) The new codes are kept out of `tests/lint_structural.rs`'s comparison with
+  draftwright's captured reads (no frames there) and listed in `known_structural.json` for the
+  corpus drawings (7 × `nominal_rounded`).
+- **Not done:** `interior_label_on_narrow_material` (needs a material field the drawing does not
+  record) and ISSUE-1349-a (needs a Spec display-precision setting) stay pending with notes.
