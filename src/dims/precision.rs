@@ -84,6 +84,9 @@ pub(super) fn labels<'a>(
         message,
         choices: Vec::new(),
     };
+    if spec.precision.values().any(|p| *p > 15) {
+        return Err(bad("precision must be an integer from 0 to 15".into()));
+    }
     for w in wants {
         // ISO thread designations replace the numeric diameter. Their lengths and table
         // references are different quantities, even when they happen to equal that diameter.

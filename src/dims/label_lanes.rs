@@ -264,7 +264,12 @@ pub(crate) fn settle_inventory(
             continue;
         }
         let Some(p) = &d.placed else { continue };
-        if p.arrows.len() != 2 || p.lines.len() < 3 {
+        // These alternatives slide one page coordinate. An oblique span must retain
+        // its perpendicular witnesses and a straight dimension line.
+        if p.arrows.len() != 2
+            || p.lines.len() < 3
+            || !(p.rotation == 0.0 || p.rotation.abs() == 90.0)
+        {
             continue;
         }
         let view = d.view.strip_prefix("v:").unwrap_or(&d.view);

@@ -684,7 +684,7 @@ pub(super) fn fall_through(
     views: &[PlannedView],
 ) {
     let page = Page::new(analysis, sheet, views);
-    let linear = |i: usize| matches!(items[i].shape, Shape::Linear { .. });
+    let linear = |i: usize| matches!(items[i].shape, Shape::Linear { .. } | Shape::Aligned { .. });
     let mut strips: BTreeMap<(&str, Side), Vec<usize>> = BTreeMap::new();
     // Callouts hold no lanes: their leaders are placed around the dimensions afterwards.
     for i in 0..items.len() {
@@ -800,7 +800,7 @@ fn share_held(
     // Each held lane's items' extents along it.
     let mut taken: BTreeMap<(&str, Side, usize), Vec<[f64; 2]>> = BTreeMap::new();
     for j in 0..items.len() {
-        if let (Some(view), Some(side), None, Shape::Linear { .. }) =
+        if let (Some(view), Some(side), None, Shape::Linear { .. } | Shape::Aligned { .. }) =
             (views_of[j], sides[j], owner[j], &items[j].shape)
             && lanes[j] < *held.get(&(view, side)).unwrap_or(&0)
             && !stranded.contains(&j)
@@ -1521,6 +1521,10 @@ fn settle_where(
 /// made as they are tried: a line far longer than the sheet (a part drawn at a scale too large
 /// for it) has more places than memory holds.
 fn slides(p: &Placed, drawable: [f64; 4]) -> Box<dyn Iterator<Item = Placed> + '_> {
+    // This solver slides x or y alone; oblique geometry is placed in its own frame.
+    if !(p.rotation == 0.0 || p.rotation.abs() == 90.0) {
+        return Box::new(std::iter::empty());
+    }
     // Along the line: x for a horizontal dimension, y for a vertical one.
     let k = usize::from(p.rotation != 0.0);
     let Some(&line) = p.lines.get(2) else {
@@ -1817,7 +1821,98 @@ impl<'a> Page<'a> {
     }
 }
 
-/// What the simple placement collides with: each a problem on the dimension's ID.
+/// An aligned dimension's projected witnesses and display, before page scale and view position.
+/// Layout measures its real rotated ink at each scale instead of estimating an axis-aligned lane.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AlignedDemand {
+    view: &'static str,
+    a: P2,
+    b: P2,
+    outline: [f64; 4],
+    terms: Vec<String>,
+    side: Side,
+    lane: usize,
+}
+
+impl AlignedDemand {
+    pub(super) fn new(
+        frame: &Frame,
+        w: &Want,
+        view: &'static str,
+        side: Side,
+        lane: usize,
+    ) -> Self {
+        let Shape::Aligned { a, b } = w.shape else {
+            unreachable!("only an aligned dimension has aligned demand")
+        };
+        Self {
+            view,
+            a: frame.page(a),
+            b: frame.page(b),
+            outline: frame.outline(),
+            terms: w.terms.clone(),
+            side,
+            lane,
+        }
+    }
+
+    pub(crate) fn reserve(&self, strips: &mut crate::layout::Strips, scale: f64) {
+        let outline = self.outline.map(|v| v * scale);
+        let Some(p) = place_aligned_page(
+            self.a.map(|v| v * scale),
+            self.b.map(|v| v * scale),
+            outline,
+            &self.terms,
+            self.side,
+            self.lane,
+        ) else {
+            return;
+        };
+        let bounds = ink_points(&p).fold(
+            [
+                f64::INFINITY,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+                f64::NEG_INFINITY,
+            ],
+            |b, p| {
+                [
+                    b[0].min(p[0]),
+                    b[1].min(p[1]),
+                    b[2].max(p[0]),
+                    b[3].max(p[1]),
+                ]
+            },
+        );
+        let [left, below, right, above] = [
+            outline[0] - bounds[0],
+            outline[1] - bounds[1],
+            bounds[2] - outline[2],
+            bounds[3] - outline[3],
+        ]
+        .map(|v| if v > 0.0 { v + GAP } else { 0.0 });
+        if self.view == "side" {
+            strips.sv_left = strips.sv_left.max(left);
+            strips.sv_right = strips.sv_right.max(right);
+            strips.sv_top = strips.sv_top.max(above);
+            strips.sv_bottom = strips.sv_bottom.max(below);
+            // Front and side share the same projection row.
+            strips.fv_top = strips.fv_top.max(above);
+            strips.fv_bottom = strips.fv_bottom.max(below);
+        } else {
+            strips.left = strips.left.max(left);
+            strips.right = strips.right.max(right);
+            if self.view == "plan" {
+                strips.pv_authored_top = strips.pv_authored_top.max(above);
+                strips.pv_bottom = strips.pv_bottom.max(below);
+            } else {
+                strips.fv_top = strips.fv_top.max(above);
+                strips.fv_bottom = strips.fv_bottom.max(below);
+            }
+        }
+    }
+}
+
 /// Aligned ISO 129 dimension: perpendicular witnesses, exact projected station span.
 fn place_aligned(
     frame: &Frame,
@@ -1827,7 +1922,24 @@ fn place_aligned(
     side: Side,
     lane: usize,
 ) -> Option<Placed> {
-    let (mut a, mut b) = (frame.page(a), frame.page(b));
+    place_aligned_page(
+        frame.page(a),
+        frame.page(b),
+        frame.outline(),
+        terms,
+        side,
+        lane,
+    )
+}
+
+fn place_aligned_page(
+    mut a: P2,
+    mut b: P2,
+    o: [f64; 4],
+    terms: &[String],
+    side: Side,
+    lane: usize,
+) -> Option<Placed> {
     if b[0] < a[0] || (b[0] == a[0] && b[1] < a[1]) {
         std::mem::swap(&mut a, &mut b);
     }
@@ -1847,7 +1959,6 @@ fn place_aligned(
         n = n.map(|x| -x);
     }
     let dot = |p: P2| p[0] * n[0] + p[1] * n[1];
-    let o = frame.outline();
     let outer = [[o[0], o[1]], [o[0], o[3]], [o[2], o[1]], [o[2], o[3]]]
         .map(dot)
         .into_iter()
@@ -1862,24 +1973,54 @@ fn place_aligned(
         [move_to(a, dot(a) + GAP), move_to(a, height + OVERSHOOT)],
         [move_to(b, dot(b) + GAP), move_to(b, height + OVERSHOOT)],
     ];
-    let (arrows, start) = if span >= width + 2.0 * ARROW + 2.0 {
+    let arrows = if span >= width + 2.0 * ARROW + 2.0 {
         lines.push([pa, pb]);
-        (
-            vec![arrow(pa, along(pa, 1.0)), arrow(pb, along(pb, -1.0))],
-            0.5 * (span - width) - ink.min[0],
-        )
+        vec![arrow(pa, along(pa, 1.0)), arrow(pb, along(pb, -1.0))]
     } else {
         lines.push([along(pa, -ARROW - 2.0), along(pb, ARROW + 2.0)]);
-        (
-            vec![arrow(pa, along(pa, -1.0)), arrow(pb, along(pb, 1.0))],
-            span + ARROW + 3.0 - ink.min[0],
-        )
+        vec![arrow(pa, along(pa, -1.0)), arrow(pb, along(pb, 1.0))]
     };
+    // Python's Dimension keeps the label centred independently of outside arrows.
+    let start = 0.5 * (span - width) - ink.min[0];
     let label_at = [
         pa[0] + start * u[0] - LIFT * u[1],
         pa[1] + start * u[1] + LIFT * u[0],
     ];
     let rotation = u[1].atan2(u[0]).to_degrees();
+    // Long centred text can reach across a witness. Clip that witness around the
+    // text in the dimension's own frame, as Python's above-line Dimension does.
+    let normal = [-u[1], u[0]];
+    let text = [
+        start + ink.min[0] - GAP,
+        start + ink.max[0] + GAP,
+        LIFT + ink.min[1] - GAP,
+        LIFT + ink.max[1] + GAP,
+    ];
+    let mut continuations = Vec::new();
+    for (i, t) in [0.0, span].into_iter().enumerate() {
+        if t < text[0] || t > text[1] {
+            continue;
+        }
+        let line = lines[i];
+        let coordinate = |p: P2| (p[0] - pa[0]) * normal[0] + (p[1] - pa[1]) * normal[1];
+        let (a, b) = (coordinate(line[0]), coordinate(line[1]));
+        let mut cut = [(text[2] - a) / (b - a), (text[3] - a) / (b - a)];
+        cut.sort_by(f64::total_cmp);
+        let (lo, hi) = (cut[0].max(0.0), cut[1].min(1.0));
+        if lo >= hi {
+            continue;
+        }
+        let at = |t: f64| [0, 1].map(|k| line[0][k] + t * (line[1][k] - line[0][k]));
+        if lo > 1e-9 {
+            lines[i] = [line[0], at(lo)];
+            if hi < 1.0 - 1e-9 {
+                continuations.push([at(hi), line[1]]);
+            }
+        } else {
+            lines[i] = [at(hi), line[1]];
+        }
+    }
+    lines.extend(continuations);
     Some(Placed {
         lines,
         arrows,

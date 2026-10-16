@@ -2336,7 +2336,8 @@ fn plan_with_presentation(
         .filter(|(name, ..)| shown(name))
         .copied()
         .collect();
-    demand.lanes = crate::dims::lanes_excluding(analysis, &shown_views, &excluded);
+    let (lanes, aligned) = crate::dims::lanes_excluding(analysis, &shown_views, &excluded, spec)?;
+    demand.lanes = lanes;
     if !(principals.front || principals.plan || principals.side) {
         return Err(invalid(
             "Every principal view is omitted; a sheet needs front, plan or side.",
@@ -2442,6 +2443,7 @@ fn plan_with_presentation(
         principals,
         shown("iso"),
     );
+    request.aligned = aligned;
     request.automatic_pair = automatic_pair;
     request.candidate_arrangement = candidate_arrangement;
     request.first_angle = first_angle;

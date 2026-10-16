@@ -1260,34 +1260,90 @@ fn oblique_pmi_draws_its_exact_projected_station_span() {
         g.view = None;
         g.stations = stations.to_vec();
         g.reasons.clear();
-        let plan = model::plan(&a, &Spec::default()).unwrap();
         let id = match &a.pmi {
             Some(Reading::Read(r)) => r.identities().ids[&source].clone(),
             _ => unreachable!(),
         };
-        let d = plan
-            .dimensions
-            .iter()
-            .find(|d| d.measurements.iter().any(|m| m.feature == id))
-            .unwrap();
-        assert_eq!(d.view, view);
-        assert_eq!(d.label, "20 ±0.2");
-        let p = d.placed.as_ref().unwrap();
-        let scale = plan.views.iter().find(|v| v.id == view).unwrap().scale;
-        let tips = [p.arrows[0][0], p.arrows[1][0]];
-        assert!(
-            ((tips[1][0] - tips[0][0]).hypot(tips[1][1] - tips[0][1]) / scale - 20.0).abs() < 1e-6
-        );
-        assert!((tips[1][0] - tips[0][0]).abs() > 1e-6 && (tips[1][1] - tips[0][1]).abs() > 1e-6);
-        let font =
-            draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT))
-                .unwrap();
-        let drawing = model::render(&part, &a, &plan, &font).unwrap();
-        assert!(
-            !draftwright::lint::structural::check(&drawing)
+        for places in [None, Some(3)] {
+            let mut spec = Spec::default();
+            if let Some(places) = places {
+                spec.precision.insert(format!("d:{id}/linear"), places);
+            }
+            let plan = model::plan(&a, &spec).unwrap();
+            let d = plan
+                .dimensions
                 .iter()
-                .any(|i| i.code == "label_vs_measured"
-                    && i.annotation.as_deref() == Some(d.id.as_str()))
-        );
+                .find(|d| d.measurements.iter().any(|m| m.feature == id))
+                .unwrap();
+            assert_eq!(d.view, view);
+            assert_eq!(
+                d.label,
+                if places.is_some() {
+                    "20.000 ±0.2"
+                } else {
+                    "20 ±0.2"
+                }
+            );
+            let p = d.placed.as_ref().unwrap();
+            let margin = draftwright::layout::MARGIN;
+            assert!(
+                p.label_box[0] >= margin
+                    && p.label_box[1] >= margin
+                    && p.label_box[2] <= plan.sheet.page[0] - margin
+                    && p.label_box[3] <= plan.sheet.page[1] - margin,
+                "{view}: aligned label must remain inside the drawing border: {:?}",
+                p.label_box
+            );
+            let footprint_issues: Vec<_> = plan
+                .problems
+                .iter()
+                .filter(|p| {
+                    matches!(
+                        p.code.as_str(),
+                        "annotation_off_sheet" | "annotation_outside_area"
+                    ) && p.subjects.contains(&d.id)
+                })
+                .collect();
+            assert!(
+                footprint_issues.is_empty(),
+                "{view}: aligned ink must fit its reserved area: {:?}",
+                footprint_issues
+            );
+            let scale = plan.views.iter().find(|v| v.id == view).unwrap().scale;
+            let tips = [p.arrows[0][0], p.arrows[1][0]];
+            let delta = [tips[1][0] - tips[0][0], tips[1][1] - tips[0][1]];
+            for q in p.lines[2] {
+                assert!(
+                    ((q[0] - tips[0][0]) * delta[1] - (q[1] - tips[0][1]) * delta[0]).abs() < 1e-6,
+                    "{view}: the dimension line must remain collinear with its arrow tips"
+                );
+            }
+            assert!(
+                ((tips[1][0] - tips[0][0]).hypot(tips[1][1] - tips[0][1]) / scale - 20.0).abs()
+                    < 1e-6
+            );
+            assert!(
+                (tips[1][0] - tips[0][0]).abs() > 1e-6 && (tips[1][1] - tips[0][1]).abs() > 1e-6
+            );
+            let font =
+                draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT))
+                    .unwrap();
+            let ink = draftwright::dims::label_ink(&d.terms, &font);
+            let span = delta[0].hypot(delta[1]);
+            let along = ((p.label_at[0] - tips[0][0]) * delta[0]
+                + (p.label_at[1] - tips[0][1]) * delta[1])
+                / span;
+            assert!(
+                (along + 0.5 * (ink.min[0] + ink.max[0]) - 0.5 * span).abs() < 1e-6,
+                "{view}: Python's aligned dimension centres text even with outside arrows"
+            );
+            let drawing = model::render(&part, &a, &plan, &font).unwrap();
+            assert!(
+                !draftwright::lint::structural::check(&drawing)
+                    .iter()
+                    .any(|i| i.code == "label_vs_measured"
+                        && i.annotation.as_deref() == Some(d.id.as_str()))
+            );
+        }
     }
 }

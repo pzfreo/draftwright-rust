@@ -95,8 +95,8 @@ use crate::model::{Analysis, DimensionSource, Invalid, PlannedSheet, PlannedView
 use crate::output::{Annotation, Claim, Curve, HAlign, Item, TextRun, VAlign};
 use crate::text::{Font, Segment};
 pub use leaders::clear_routes;
-pub use placement::LabelRows;
 pub use placement::label_rows;
+pub use placement::{AlignedDemand, LabelRows};
 use placement::{Frame, across, moved, to_page};
 pub use placement::{LabelInk, label_ink};
 pub(crate) use tolerance::{check as check_tolerances, choices as fit_choices};
@@ -721,17 +721,21 @@ fn route(
 /// merged boss heights were what kept the front's lowest lanes inside it (counted without them,
 /// ink 11 to 13 and 9 to 11; `docs/quality-2026-10-09.md`, "After merged-away lanes").
 pub fn lanes(analysis: &Analysis, views: &[(&str, P3, P3)]) -> crate::layout::Lanes {
-    lanes_excluding(analysis, views, &BTreeSet::new())
+    lanes_excluding(analysis, views, &BTreeSet::new(), &Spec::default())
+        .expect("default display policy cannot conflict")
+        .0
 }
 
 pub(crate) fn lanes_excluding(
     analysis: &Analysis,
     views: &[(&str, P3, P3)],
     excluded: &BTreeSet<String>,
-) -> crate::layout::Lanes {
-    let key = serde_json::to_vec(&(views, excluded)).expect("lane inputs serialize");
+    spec: &Spec,
+) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
+    let key =
+        serde_json::to_vec(&(views, excluded, &spec.precision)).expect("lane inputs serialize");
     crate::planning::memo(analysis, "lanes", key, || {
-        lanes_uncached(analysis, views, excluded)
+        lanes_uncached(analysis, views, excluded, spec)
     })
 }
 
@@ -739,7 +743,8 @@ fn lanes_uncached(
     analysis: &Analysis,
     views: &[(&str, P3, P3)],
     excluded: &BTreeSet<String>,
-) -> crate::layout::Lanes {
+    spec: &Spec,
+) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
     let (mut wants, ..) = wants(analysis);
     wants.retain(|w| !excluded.contains(&w.id));
     let frames: BTreeMap<&str, Frame> = views
@@ -870,7 +875,24 @@ fn lanes_uncached(
             _ => {}
         }
     }
-    bands
+    let mut aligned = Vec::new();
+    for (i, w) in wants.iter().enumerate() {
+        if !matches!(w.shape, Shape::Aligned { .. }) || owner[i].is_some() {
+            continue;
+        }
+        if let (Some(view), Some(side)) = (chosen[i], sides[i]) {
+            let mut display = w.clone();
+            precision::labels(spec, std::iter::once(&mut display))?;
+            aligned.push(AlignedDemand::new(
+                &frames[view],
+                &display,
+                view,
+                side,
+                lane[i],
+            ));
+        }
+    }
+    Ok((bands, aligned))
 }
 
 /// The planned dimensions under *spec*, placed around *views* on *sheet*, with what the spec
