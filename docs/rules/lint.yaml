@@ -401,8 +401,9 @@
     module: "linting/hole_coverage.py"
     issues: [1378]
     tests: [tests/test_issue_1378_diameter_leader_targets.py]
-  status: pending
-  rust_note: "Not ported: lint would need each callout's leader tip and its view's projection from the part to the page, which the Drawing does not record (output::DrawnView keeps a view's visible box and edges, Drawn a callout's lines and elbow, not the projection), and the edges of the hole's defining faces, which the Analysis does not carry (it keeps face indices only). Recording the view projection in the Drawing (src/output.rs, model::render) is outside the lint module. On Python's captured sheets the code appears once (ctc04's hc_plan3)."
+  status: ported
+  rust_test: "tests/leader_rules.rs::a_diameter_tip_touches_the_rim_of_the_hole_it_names"
+  rust_note: "Stream K4, src/lint/leaders.rs (run by lint::lint): the tip is the first point of the drawn callout's leader (Drawn::lines), projected targets come from the Analysis's hole records (bridge::holes::Hole: opening, depth, recess and countersink diameters) and double-D records, through the view's recorded transform (Sheet::frames); tolerance 0.002 mm as draftwright. The defining edges are the occurrence's rim circles rather than the BRep's edges (the Analysis keeps face indices only); seen end-on, where the port calls a hole out, they coincide. A view without a recorded transform (a captured Python sheet) is not judged."
   port_note: "Keep: check leader tips against projected feature edges."
 
 - id: LINT-code-diameter_leader_target_unverifiable
@@ -413,8 +414,9 @@
     module: "linting/hole_coverage.py"
     issues: [1378]
     tests: [tests/test_issue_1378_diameter_leader_targets.py]
-  status: pending
-  rust_note: "Not ported, with LINT-code-diameter_leader_target_mismatch: the Drawing records no view projection or leader tip for lint to check. On Python's captured sheets it appears for connector109's and spool132's rotational bore leaders (same-run ownership unavailable)."
+  status: ported
+  rust_test: "tests/leader_rules.rs::a_diameter_tip_touches_the_rim_of_the_hole_it_names"
+  rust_note: "Stream K4, src/lint/leaders.rs: a callout claiming bore.diameter in a view with a recorded transform, none of whose named holes has a readable boundary there (a hole record without axis, location or diameter; a double-D not seen end-on), is a warning with its reason. Recognition is always same-run in the port, and claims name their occurrence, so draftwright's ownership reasons do not arise."
   port_note: "Keep."
 
 # ---------------------------------------------------------------------------------------
@@ -806,8 +808,9 @@
     module: "linting/blend_coverage.py"
     issues: [1479]
     tests: [tests/test_issue_1479_radius_leader_targets.py]
-  status: pending
-  rust_note: "Not ported, for the reason LINT-code-diameter_leader_target_mismatch gives: lint would need the radius callout's leader tip, its view's projection and the blend's trimmed profile arc, and the Drawing records no projection (src/lint/blends.rs judges the radii only)."
+  status: ported
+  rust_test: "tests/leader_rules.rs::a_radius_tip_lands_on_the_trimmed_profile_arc"
+  rust_note: "Stream K4, src/lint/leaders.rs: a straight blend's (path.direction) callout tip, in a view seeing its arc end-on, must lie within 0.002 mm of the circle of its radius about its rolling axis and within the trimmed arc's sector, read from Analysis::blend_sites (sampled at a quarter, half and three quarters of the face's parameter range, so the arc runs half their spread beyond them; a lone point gives a quarter turn either way, an overturnable judgement). Circular-path blends are not checked, as in draftwright. Not judged: a fillet callout carrying the blends' claims."
   port_note: "Keep."
 
 - id: LINT-code-radius_leader_target_unverifiable
@@ -818,8 +821,9 @@
     module: "linting/blend_coverage.py"
     issues: [1479]
     tests: [tests/test_issue_1479_radius_leader_targets.py]
-  status: pending
-  rust_note: "Not ported, for the reason LINT-code-diameter_leader_target_mismatch gives: lint would need the radius callout's leader tip, its view's projection and the blend's trimmed profile arc, and the Drawing records no projection (src/lint/blends.rs judges the radii only)."
+  status: ported
+  rust_test: "tests/leader_rules.rs::a_radius_tip_lands_on_the_trimmed_profile_arc"
+  rust_note: "Stream K4, src/lint/leaders.rs: a straight blend whose path, radius or proven trimmed points cannot be read, or whose callout is in a view that does not show its arc end-on, is a warning with its reason."
   port_note: "Keep."
 
 # ---------------------------------------------------------------------------------------
@@ -1801,7 +1805,9 @@
     module: "linting/structural.py"
     issues: [796, 798]
     tests: [tests/test_issue_798_silhouette_lint.py, tests/test_diameter_leaders.py]
-  status: pending
+  status: ported
+  rust_test: "tests/leader_rules.rs::a_shaft_cutting_back_into_the_material_is_reported_with_its_depth"
+  rust_note: "Stream K4, src/lint/leaders.rs (run by lint::lint): each drawn callout's shaft against its own view's material (material::solids through the view's recorded transform), measured by material::reentry; info, with draftwright's message and the depth. A view without a recorded transform is not judged."
   port_note: "Keep."
 
 - id: LINT-code-leader_shaft_unverified

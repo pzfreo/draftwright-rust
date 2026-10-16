@@ -17,6 +17,7 @@ pub mod items;
 pub mod layout;
 pub mod linework;
 pub mod lint;
+pub mod material;
 pub mod model;
 pub mod notes;
 pub mod output;

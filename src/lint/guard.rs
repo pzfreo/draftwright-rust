@@ -8,7 +8,9 @@
 //!   `spec`, `embedded_spec`, …), which also covers the drawing's embedded spec (`drawing.spec`);
 //! - any `crate::` path other than the Analysis (`crate::model::Analysis`), the bridge's
 //!   features (`crate::bridge`), the Analysis's PMI reading (`crate::pmi`) and its lowering
-//!   (`crate::pmi_lowering`, a function of the Analysis alone), and the rendered drawing
+//!   (`crate::pmi_lowering`, a function of the Analysis alone), the material re-entry predicate
+//!   it shares with the leader router (`crate::material`, a function of the Analysis's solids
+//!   and a page projection alone, so the guard reads that file too), and the rendered drawing
 //!   (`crate::output`).
 
 use std::path::Path;
@@ -32,11 +34,12 @@ const FORBIDDEN: [&str; 14] = [
 ];
 
 /// The `crate::` paths lint may use.
-const ALLOWED: [&str; 5] = [
+const ALLOWED: [&str; 6] = [
     "crate::model::Analysis",
     "crate::bridge",
     "crate::pmi",
     "crate::pmi_lowering",
+    "crate::material",
     "crate::output",
 ];
 
@@ -178,6 +181,8 @@ fn module_violations() -> Vec<(String, Vec<String>)> {
         declared.len() >= 8,
         "the guard reads lint's rule modules: {declared:?}"
     );
+    // `crate::material` is allowed to lint, so it is held to lint's rule as well.
+    files.push(dir.parent().unwrap().join("material.rs"));
     files
         .into_iter()
         .filter(|p| p.file_name().unwrap() != "guard.rs")
@@ -221,6 +226,7 @@ mod tests {
             "use crate::model::Analysis;",
             "use crate::output::{Claim, Drawing};",
             "use crate::bridge::Feature;",
+            "let m = crate::material::solids(a, f);",
             "// the Plan and the Spec are not read\nlet x = 1;",
             "/* Plan */ let s = \"the spec, in a message\";",
             "let v = r#\"plan\"#;",

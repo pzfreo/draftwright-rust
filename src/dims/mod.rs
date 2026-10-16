@@ -2024,6 +2024,28 @@ pub fn feature_origin(analysis: &Analysis, id: &str) -> Option<P3> {
     })
 }
 
+/// How far callout *d*'s leader shaft cuts back into its view's material after leaving it at
+/// its tip, page mm: [`crate::material::reentry`] on the router's own material for the view
+/// (ADR2-8), zero for none or for a view the router does not place in.
+pub(crate) fn leader_reentry(
+    analysis: &Analysis,
+    views: &[PlannedView],
+    d: &PlannedDimension,
+) -> f64 {
+    let (Some(v), Some(shaft)) = (
+        views
+            .iter()
+            .find(|v| v.id == d.view && NAMES.contains(&v.id.strip_prefix("v:").unwrap_or(&v.id))),
+        d.placed.as_ref().and_then(|p| p.lines.first()),
+    ) else {
+        return 0.0;
+    };
+    crate::material::reentry(
+        footprints::Cache::default().get(analysis, v).solids(),
+        *shaft,
+    )
+}
+
 /// Geometry-backed placement choices for the editor, including omitted dimensions.
 pub fn placement_options(analysis: &Analysis, views: &[PlannedView]) -> BTreeMap<String, Value> {
     let (mut wants, ..) = wants(analysis);
