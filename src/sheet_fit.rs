@@ -779,7 +779,54 @@ pub(crate) fn reserve_linear_corridors(
     {
         return;
     }
-    let previously_checked = crate::dims::recheck_cached(analysis, plan, cache);
+    // Placement has already checked this settled ink. Keep its collision
+    // identities for replacement instead of repeating the same geometric check
+    // before the carrier move. Unplaced-item reasons and the router's own-body
+    // material re-entry findings are not replaced by foreign-view collision checks.
+    let placed: std::collections::BTreeMap<_, _> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.placed.is_some())
+        .map(|d| (d.id.as_str(), d.view.as_str()))
+        .chain(
+            plan.gdt
+                .iter()
+                .filter(|g| g.placed.is_some())
+                .map(|g| (g.id.as_str(), g.view.as_str())),
+        )
+        .collect();
+    let previously_checked: std::collections::BTreeSet<_> = plan
+        .problems
+        .iter()
+        .filter(|p| {
+            let Some(owner) = p.subjects.first().and_then(|id| placed.get(id.as_str())) else {
+                return false;
+            };
+            match p.code.as_str() {
+                "annotation_outside_area"
+                | "dimension_text_stray"
+                | "annotation_off_sheet"
+                | "annotation_over_title_block" => true,
+                "annotation_over_view" => p
+                    .subjects
+                    .get(1)
+                    .is_some_and(|id| plan.views.iter().any(|v| v.id == *id)),
+                "annotation_line_over_view" => p
+                    .subjects
+                    .get(1)
+                    .is_some_and(|id| id != *owner && plan.views.iter().any(|v| v.id == *id)),
+                "dimension_line_shared"
+                | "annotation_overlap"
+                | "annotation_ink_overlap"
+                | "annotation_leader_crossing" => {
+                    p.subjects.iter().all(|id| placed.contains_key(id.as_str()))
+                }
+                "leader_through_feature" | "extension_through_feature" => p.id.contains(":line:"),
+                _ => false,
+            }
+        })
+        .map(|p| p.id.clone())
+        .collect();
     let mut shifts = vec![[0.0; 2]; plan.views.len()];
     let index = |id: &str| plan.views.iter().position(|v| v.id == id);
     let free = !crate::placement_intent::has_pins(&plan.spec)
@@ -1081,8 +1128,8 @@ pub(crate) fn reserve_linear_corridors(
     let checked = crate::dims::recheck_cached(analysis, plan, cache);
     let ids: std::collections::BTreeSet<_> = checked
         .iter()
-        .chain(&previously_checked)
         .map(|p| p.id.clone())
+        .chain(previously_checked)
         .collect();
     // Material re-entry diagnostics share a code with foreign-view collisions,
     // but have their own identities and must survive a rigid carrier move.
