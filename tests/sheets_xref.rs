@@ -161,3 +161,127 @@ fn missing_or_wrong_printed_reference_is_a_structural_error() {
         );
     }
 }
+
+/// Check addresses against the geometry on the rendered destination pages, including a
+/// section whose caption crosses into the next zone. Copying the planned address is insufficient.
+#[test]
+fn small_part_remote_zones_match_drawn_view_and_cutting_letter() {
+    let root = PathBuf::from(std::env::var("DRAFTWRIGHT_CORPUS").unwrap());
+    for name in ["10224", "10255"] {
+        let (part, analysis) =
+            model::analyse_native(&root.join(format!("mfcadpp/{name}.step"))).unwrap();
+        let spec = serde_json::from_value(json!({"sheet":{"size":"A3","scale":"2:1"},"sheets":{"max":2},"views":{"iso":{"sheet":2},"section_aa":{"sheet":2}}})).unwrap();
+        let p = model::plan_recovered(&analysis, &spec).unwrap();
+        let font = draftwright::text::Font::new(api::MONO.to_vec()).unwrap();
+        let drawings = model::render_sheets(&part, &analysis, &p, &font).unwrap();
+        assert_eq!(drawings.len(), 2);
+        let centre = |b: [f64; 4]| [(b[0] + b[2]) / 2., (b[1] + b[3]) / 2.];
+        let section = drawings[1]
+            .sheet
+            .views
+            .iter()
+            .find(|v| v.name == "v:section_aa")
+            .unwrap();
+        let letter = drawings[0]
+            .sheet
+            .items
+            .iter()
+            .find(|i| i.name == "section_a_left")
+            .unwrap();
+        let expected = [
+            sheets::zone(drawings[1].page, centre(section.bbox)),
+            sheets::zone(drawings[0].page, centre(letter.label.unwrap())),
+        ];
+        for (i, drawing) in drawings.iter().enumerate() {
+            let r = &drawing.sheet.references[0];
+            assert_eq!(
+                r.zone,
+                expected[i],
+                "{name}: wrong destination on sheet {}",
+                i + 1
+            );
+            assert!(
+                drawing.text[r.run]
+                    .text
+                    .ends_with(&format!("ZONE {}", expected[i]))
+            );
+        }
+        assert!(
+            !draftwright::lint::structural::check_sheets(&drawings)
+                .iter()
+                .any(|i| i.code == "cross_reference_missing")
+        );
+        // A caption crossing a grid boundary does not move the view it describes.
+        let mut changed = drawings.clone();
+        let caption = changed[1]
+            .sheet
+            .items
+            .iter_mut()
+            .find(|i| i.name == "section_caption")
+            .unwrap();
+        caption.ink[1] -= 50.;
+        caption.ink[3] -= 50.;
+        caption.label = Some(caption.ink);
+        assert_ne!(
+            expected[0],
+            sheets::zone(
+                changed[1].page,
+                centre(
+                    changed[1]
+                        .sheet
+                        .items
+                        .iter()
+                        .find(|i| i.name == "section_caption")
+                        .unwrap()
+                        .ink
+                )
+            )
+        );
+        assert!(
+            !draftwright::lint::structural::check_sheets(&changed)
+                .iter()
+                .any(|i| i.code == "cross_reference_missing")
+        );
+        // Moving the target ink without updating its reference must be detected, both ways.
+        for page in 0..2 {
+            let mut changed = drawings.clone();
+            if page == 1 {
+                let view = changed[page]
+                    .sheet
+                    .views
+                    .iter_mut()
+                    .find(|v| v.name == "v:section_aa")
+                    .unwrap();
+                view.bbox[1] -= 60.;
+                view.bbox[3] -= 60.;
+            } else {
+                let letter = changed[page]
+                    .sheet
+                    .items
+                    .iter_mut()
+                    .find(|i| i.name == "section_a_left")
+                    .unwrap();
+                let b = letter.label.as_mut().unwrap();
+                b[1] -= 60.;
+                b[3] -= 60.;
+            }
+            assert!(
+                draftwright::lint::structural::check_sheets(&changed)
+                    .iter()
+                    .any(|i| i.code == "cross_reference_missing"
+                        && i.annotation.as_deref()
+                            == Some(if page == 1 {
+                                "v:section_aa/cut/xref"
+                            } else {
+                                "v:section_aa/xref"
+                            }))
+            );
+        }
+        // The auxiliary page uses its width and leaves comfortable frame clearance.
+        let views = &drawings[1].sheet.views;
+        for v in views {
+            assert!(v.bbox[0] > 20. && v.bbox[1] > 20. && v.bbox[2] < 400. && v.bbox[3] < 277.);
+        }
+        assert!((centre(views[0].bbox)[0] - centre(views[1].bbox)[0]).abs() > 150.);
+    }
+}
