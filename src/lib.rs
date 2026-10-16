@@ -13,6 +13,7 @@ pub mod completeness;
 pub mod cosmetic;
 pub mod demand;
 pub mod dims;
+pub mod evaluation;
 pub mod hole_table;
 pub mod items;
 pub mod layout;

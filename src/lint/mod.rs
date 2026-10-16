@@ -73,6 +73,7 @@ pub mod prismatic;
 pub mod profiled_bores;
 pub mod profiles;
 pub mod redundancy;
+pub mod schedule_evidence;
 pub mod section_recesses;
 pub mod slots;
 pub mod steps;
@@ -168,17 +169,19 @@ pub fn marks(drawing: &Drawing) -> Vec<Mark> {
     drawing
         .annotations
         .iter()
-        .map(|a| Mark {
-            name: a.name.clone(),
-            view: a.view.clone(),
-            text: a
-                .runs
-                .iter()
-                .filter_map(|&i| drawing.text.get(i))
-                .map(|r| r.text.as_str())
-                .collect::<Vec<_>>()
-                .join(" "),
-            claims: a.claims.clone(),
+        .map(|a| {
+            let text = schedule_evidence::text(drawing, a);
+            let claims = if schedule_evidence::verified(a, &text) {
+                a.claims.clone()
+            } else {
+                Vec::new()
+            };
+            Mark {
+                name: a.name.clone(),
+                view: a.view.clone(),
+                text,
+                claims,
+            }
         })
         .collect()
 }
@@ -210,6 +213,13 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
         if let Some(text) = proof {
             mark.text = text;
         } else {
+            mark.claims.clear();
+        }
+    }
+    // Withdraw a damaged scheduled size cell as a unit, including its THRU/count riders.
+    // The requirement inventory remains in the Analysis and still reports the missing ink.
+    for mark in &mut marks {
+        if !holes::verified_schedule_size(analysis, mark) {
             mark.claims.clear();
         }
     }
@@ -331,6 +341,8 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
         })
         .chain(relief_issues)
         .collect();
+    issues.extend(schedule_evidence::check(drawing));
+    issues.extend(pmi_coverage::manufacturing_references(analysis, drawing));
     issues.extend(coverage::drawn_centre_marks(analysis, drawing));
     // Stream K4: each callout's tip against the edge it names, and its shaft against the
     // material (`leaders`).

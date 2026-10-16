@@ -1089,3 +1089,86 @@ fn plan_provenance_binds_the_complete_recognition_input() {
             .is_none()
     );
 }
+
+/// Python's span channel disambiguates correlated rungs; Rust uses occurrence-specific IDs.
+#[test]
+fn lint_issue_serialization_preserves_every_inspection_channel() {
+    use draftwright::lint::{LintIssue, Requirement, Severity, Stage};
+    let issue = LintIssue {
+        id: "l:example:f:hole:2/location.length.x".into(),
+        sheet: Some(2),
+        code: "example".into(),
+        severity: Severity::Warning,
+        message: "The X cell is absent".into(),
+        at: Some([12.0, 34.0]),
+        view: Some("v:plan".into()),
+        subjects: vec!["f:hole:2".into()],
+        requirements: vec![Requirement {
+            feature: "f:hole:2".into(),
+            parameter: "location.length.x".into(),
+        }],
+        measurements: vec!["f:hole:2/location.length.x".into()],
+        sources: vec!["dimension:#42".into()],
+        stage: Some(Stage::Placement),
+        annotation: Some("hole_schedule_plan/A2/x".into()),
+        related: vec!["hole_schedule_plan/A1/x".into()],
+        evidence: Some("empty cell".into()),
+        fix: Some("Restore the X coordinate cell.".into()),
+    };
+    assert_eq!(
+        serde_json::to_value(issue).unwrap(),
+        json!({
+            "id":"l:example:f:hole:2/location.length.x", "sheet":2, "code":"example", "severity":"warning",
+            "message":"The X cell is absent", "at":[12.0,34.0], "view":"v:plan", "subjects":["f:hole:2"],
+            "requirements":[{"feature":"f:hole:2","parameter":"location.length.x"}],
+            "measurements":["f:hole:2/location.length.x"], "sources":["dimension:#42"], "stage":"placement",
+            "annotation":"hole_schedule_plan/A2/x", "related":["hole_schedule_plan/A1/x"],
+            "evidence":"empty cell", "fix":"Restore the X coordinate cell."
+        })
+    );
+}
+
+#[test]
+fn an_explicit_cramped_scale_keeps_every_requirement_or_reports_its_loss() {
+    let (part, analysis) = analysed_with("plate", &recognition("plate"));
+    let baseline = model::plan(&analysis, &Spec::default()).unwrap();
+    let spec: Spec = serde_json::from_value(
+        json!({"sheet":{"size":"A4", "scale":"10:1"}, "hole_table":"never"}),
+    )
+    .unwrap();
+    let cramped = model::plan_escalated(&analysis, &spec).unwrap();
+    assert_eq!(cramped.sheet.scale, "10:1");
+    assert!(cramped.problems.iter().any(|p| p.code == "views_do_not_fit"
+        || p.code == "page_fit_uncertain"
+        || p.code == "layout_infeasible"));
+    let expected: BTreeSet<_> = baseline
+        .dimensions
+        .iter()
+        .map(|d| &d.id)
+        .chain(baseline.omitted.iter().map(|o| &o.id))
+        .collect();
+    let accounted: BTreeSet<_> = cramped
+        .dimensions
+        .iter()
+        .map(|d| &d.id)
+        .chain(cramped.omitted.iter().map(|o| &o.id))
+        .collect();
+    assert!(
+        expected.is_subset(&accounted),
+        "lost: {:?}",
+        expected.difference(&accounted).collect::<Vec<_>>()
+    );
+    let drawing = model::render(&part, &analysis, &cramped, &font()).unwrap();
+    for d in &cramped.dimensions {
+        assert!(
+            drawing.annotations.iter().any(|a| a.name == d.id)
+                || drawing
+                    .problems
+                    .iter()
+                    .chain(&cramped.problems)
+                    .any(|p| p.subjects.contains(&d.id)),
+            "{} disappeared",
+            d.id
+        );
+    }
+}

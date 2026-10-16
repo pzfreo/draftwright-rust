@@ -615,7 +615,7 @@
       - "tests/test_issue_1086_declared_gears.py::test_external_spur_gear_ir_rejects_incomplete_or_invalid_requirements"
     corpus_parts: []
   status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: no gear declaration and no gear data table (ARCH0015-3)."
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: no gear declaration and no gear data table (ARCH0015-3). The bridge retains raw repeating_radial_profiles evidence, but Spec has no external-spur-gear declaration, validated normative gear requirement record, source-bound gear-table item, or gear/geometry correspondence auditor. These four layers must be implemented together so a detected repetition never invents normative gear data; that is a cross-cutting subsystem exceeding a day, not an ordinary descriptive-table addition."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream gears"
 
 - id: ISSUE-1086-b
@@ -631,7 +631,7 @@
       - "tests/test_issue_1086_declared_gears.py::test_normative_parameter_mutation_cannot_leave_a_stale_table_clean"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported: no gear declarations, gear data tables or repeating-profile semantics."
+  rust_note: "Not ported: no gear declarations, gear data tables or repeating-profile semantics. The bridge retains raw repeating_radial_profiles evidence, but Spec has no external-spur-gear declaration, validated normative gear requirement record, source-bound gear-table item, or gear/geometry correspondence auditor. These four layers must be implemented together so a detected repetition never invents normative gear data; that is a cross-cutting subsystem exceeding a day, not an ordinary descriptive-table addition."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream gears"
 
 - id: ISSUE-1116-a
@@ -830,7 +830,7 @@
       - "tests/test_issue_1143_hole_completeness.py::test_unattached_external_countersink_false_positive_is_not_a_hole_requirement"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported: lint counts a countersink only on its hole's record (csink); a CounterSink record not joined to a hole, such as the second seat of a two-sided bore, is not counted (LINT-hole_coverage-second_countersink_unverifiable)."
+  rust_note: "Not ported: lint counts a countersink only on its hole's record (csink); a CounterSink record not joined to a hole, such as the second seat of a two-sided bore, is not counted (LINT-hole_coverage-second_countersink_unverifiable). A separate unjoined CounterSink (including the second seat of a two-sided bore) needs its own counted unverifiable requirement without an invented member. This is physical occurrence/measurement ownership, owned by the dimension-ownership/recognition-ledger stream; no countersink ownership or datum placement is changed here."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream holes-and-threads"
 
 - id: ISSUE-1144-a
@@ -845,10 +845,10 @@
       - "tests/test_issue_1144_transactional_hole_table.py::test_automatic_transaction_rejects_a_real_required_shaft_crossing"
       - "tests/test_issue_1144_transactional_hole_table.py::test_real_constrained_a4_failure_keeps_valid_fallback_coverage"
     corpus_parts: []
-  status: pending
+  status: ported
   port_note: "triage 2026-10-16: PORT, value low, size M, stream tables"
-  rust_test: tests/hole_tables.rs::a_table_without_every_balloon_is_withdrawn_whole
-  rust_note: "Partly ported (src/hole_table.rs): the table is committed only when every row's balloon (one per hole, owning that hole) is placed with its leader clear of labels, other views and the title block; otherwise it is withdrawn whole, every replaced callout and location restored (table_dropped, balloon_dropped), as draftwright does on NIST CTC-02. The plan is built afresh, so there is nothing to roll back. Not ported: crossings of a leader with another item's lines."
+  rust_test: "tests/hole_tables.rs::retained_leader_crossings_roll_back_the_whole_table_and_restore_fallbacks; tests/hole_tables.rs::an_escalated_table_is_whole_on_the_sheet_with_a_balloon_per_row; tests/hole_tables.rs::a_table_without_every_balloon_is_withdrawn_whole"
+  rust_note: "The alternative table commits only with exactly one correctly-owned balloon for every row. Its rings and shafts now clear retained feature leaders by actual segments; crossing, collinear overlap and T contact are unsafe, while an endpoint shared alone is harmless. Failure withdraws the entire table/balloon inventory, restores every surviving fallback dimension unchanged and retains both table_dropped and balloon_dropped evidence. The Plan is evaluated afresh, so no mutable registry transaction is needed."
 
 - id: ISSUE-1144-b
   statement: "An automatic hole table cannot resolve a dropped decorated or thread callout and preserves authored through-wording; a user-requested hole table is additive and keeps every balloon."
@@ -863,7 +863,7 @@
     corpus_parts: []
   status: pending
   rust_test: tests/planned_hole_tables.rs::semantic_pmi_callouts_remain_source_carrying_beside_the_schedule
-  rust_note: "Partly ported (src/hole_table.rs::rows): an automatic table replaces only plain callouts (no counterbore, spotface or countersink, no authored tolerance or fit) and clears only the drops of items it replaces; THRU is printed as the callout prints it. Not ported: threads (not dimensioned), authored through-wording, the public hole-table verb. Stage H1: semantic PMI and authored fits keep their native callouts beside a schedule, and recess/depth/thread wording is drawn in the size cell (table_recess_and_depth_symbols_are_drawn_inside_the_size_cell). The 'user-requested table is additive and keeps every balloon' part is not separately tested."
+  rust_note: "Partly ported (src/hole_table.rs::rows): an automatic table replaces only plain callouts (no counterbore, spotface or countersink, no authored tolerance or fit) and clears only the drops of items it replaces; THRU is printed as the callout prints it. Not ported: threads (not dimensioned), authored through-wording, the public hole-table verb. Stage H1: semantic PMI and authored fits keep their native callouts beside a schedule, and recess/depth/thread wording is drawn in the size cell (table_recess_and_depth_symbols_are_drawn_inside_the_size_cell). The 'user-requested table is additive and keeps every balloon' part is not separately tested. Pending: Python public additive add_hole_table semantics and arbitrary authored through-wording have no Rust Spec equivalent (hole_table=always selects a replacement representation). Implementing an additive table intent needs a new Spec/Plan contract and shared ownership reconciliation; the dimension-ownership stream owns that reconciliation, so no second owner is introduced here."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream tables"
 
 - id: ISSUE-1144-c
@@ -1238,10 +1238,9 @@
       - "tests/test_issue_1202_observed_drawing_consumer.py::test_an_annotation_that_draws_nothing_is_not_credited"
       - "tests/test_issue_1202_observed_drawing_consumer.py::test_a_build_failure_scores_every_hole_unknown_and_says_so"
     corpus_parts: ["nist_ctc_03_asme1_ap203", "nist_ctc_04_asme1_ap203"]
-  status: translated
-  rust_rule: "Lint judges only rendered ink (tests/issue_trust.rs::the_part_owns_the_hole_requirements_and_only_the_drawn_ink_earns_them); table rows are claiming annotations (src/hole_table.rs); tools/quality.py records a failed plan or render as an error, not a score."
-  rust_test: "tests/issue_trust.rs::the_part_owns_the_hole_requirements_and_only_the_drawn_ink_earns_them"
-  rust_note: "Lint judges only rendered ink (tests/issue_trust.rs::the_part_owns_the_hole_requirements_and_only_the_drawn_ink_earns_them); table rows are claiming annotations (src/hole_table.rs); tools/quality.py records a failed plan or render as an error, not a score."
+  status: ported
+  rust_test: "tests/planned_hole_tables.rs::drawing_consumer_observes_real_ink_and_reports_failed_builds_unknown"
+  rust_note: "evaluation::drawing_consumer reads actual rendered annotations/runs across sheets and independently recognised hole IDs, never a capability declaration. It credits bore callouts or approved/verified schedule size cells only when their own explicit diameter term states the physical bore size; a quantity-only label is unsupported. Empty, removed and contradicted annotations are unsupported; a failed build makes every hole unknown and preserves its build_error. Review exposes this report, so corpus consumers can inspect the actual build. Rust joins by retained feature ID rather than Python proximity correspondence."
   port_note: "Keep: evaluation harness reads the plan/render output, not declared capabilities."
 
 - id: ISSUE-1204-a
@@ -1325,7 +1324,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/issue_drafting.rs::every_authored_tolerance_reaches_the_label_that_claims_it"
-  rust_note: "Partial: on the five fixtures and thirteen sampled parts (ctc04 among them), every dimension the default plan has or leaves out, each given its own band, prints its band exactly once and no other's (or the plan reports tolerance_withheld); an undrawn one is reported (view_plan_incomplete) and one left out is reported (tolerance_not_shown); on plate each band is drawn in exactly one text run. Not ported: a callout's other terms (counterbore and countersink sizes, a bore's depth) have no dimension ID and cannot be toleranced, where draftwright's kind-keyed sweep tolerances them too; a hole table's cells (src/hole_table.rs) print a callout's tolerance term after the diameter, untested: no corpus part keeps a table."
+  rust_note: "Partial: on the five fixtures and thirteen sampled parts (ctc04 among them), every dimension the default plan has or leaves out, each given its own band, prints its band exactly once and no other's (or the plan reports tolerance_withheld); an undrawn one is reported (view_plan_incomplete) and one left out is reported (tolerance_not_shown); on plate each band is drawn in exactly one text run. Not ported: a callout's other terms (counterbore and countersink sizes, a bore's depth) have no dimension ID and cannot be toleranced, where draftwright's kind-keyed sweep tolerances them too; a hole table's cells (src/hole_table.rs) print a callout's tolerance term after the diameter, untested: no corpus part keeps a table. Pending: independent addressable depth, counterbore, spotface and countersink parameter tolerances; those compound terms still have no public dimension ID on which to author a band. Adding those IDs and reconciling their measurement owner belongs to the dimension-ownership stream, not this table batch."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream holes-and-threads"
 
 - id: ISSUE-1215-d
@@ -1369,8 +1368,8 @@
       - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_only_an_absence_code_counts_as_reporting_an_absence"
     corpus_parts: []
   status: ported
-  rust_test: "tests/planned_hole_tables.rs::an_omitted_hole_location_is_not_silently_reintroduced_by_a_table"
-  rust_note: "Hole-table rows come only from planned callouts and locations (src/hole_table.rs), never from a recognised value substituted for an authored omission. tests/planned_hole_tables.rs::an_omitted_hole_location_is_not_silently_reintroduced_by_a_table checks that the omitted hole has no schedule row and retains OmittedByUser state."
+  rust_test: "tests/planned_hole_tables.rs::an_omitted_hole_size_has_no_schedule_row_or_claim; tests/planned_hole_tables.rs::an_omitted_hole_location_is_not_silently_reintroduced_by_a_table"
+  rust_note: "Already true, now tested: both an explicitly omitted size callout and an omitted location keep the physical hole out of the schedule. The omitted-by-user state remains in Plan, no rendered size claim appears for it and the missing physical requirement is still reported. Rows are selected from planned measurements, never reconstructed from recognised geometry."
   port_note: "Keep: renderers never format from Analysis; only from Plan."
 
 - id: ISSUE-1216-a
@@ -1419,7 +1418,7 @@
     corpus_parts: ["GRM-03"]
   status: pending
   rust_test: "tests/issue_trust.rs::a_claim_is_credited_only_when_its_text_states_the_value"
-  rust_note: "Partly ported. Hole coverage reads a claiming callout term by term (src/lint/holes.rs::Callout): each size is credited only when the term that states it (the number after ⌀, after ↧, in its recess or countersink segment) rounds from the part's value at its printed precision; a repeat count, a grid's (r×c), a bolt circle's diameter, a tolerance or another size of the same value confirms nothing ('6× ⌀8 THRU' and '4× ⌀8 THRU (6×2)' no longer confirm ⌀6 on plate.step; draftwright's test_a_repeat_count_cannot_confirm_a_diameter). Stricter than draftwright's evidence.py, which strips only the leading count (rust-correct: the rule asks for every number of a compound callout). Not ported: the families sharing lint::parameters still accept any number in the label (holes::states); locations and pitches are not verified against spans; there are no hole tables."
+  rust_note: "Partly ported. Hole coverage reads a claiming callout term by term (src/lint/holes.rs::Callout): each size is credited only when the term that states it (the number after ⌀, after ↧, in its recess or countersink segment) rounds from the part's value at its printed precision; a repeat count, a grid's (r×c), a bolt circle's diameter, a tolerance or another size of the same value confirms nothing ('6× ⌀8 THRU' and '4× ⌀8 THRU (6×2)' no longer confirm ⌀6 on plate.step; draftwright's test_a_repeat_count_cannot_confirm_a_diameter). Stricter than draftwright's evidence.py, which strips only the leading count (rust-correct: the rule asks for every number of a compound callout). Not ported: the families sharing lint::parameters still accept any number in the label (holes::states); locations and pitches are not verified against spans; there are no hole tables. Pending: every ordinary annotation family, non-schedule locations from their own spans and pitches; parameters::coverage still accepts any matching numeric term. A universal post-render mark verifier is a cross-cutting change (more than a day); span/measurement ownership is assigned to the dimension-ownership stream."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream lint-and-reporting"
 
 - id: ISSUE-1217-b
@@ -2898,9 +2897,9 @@
       - "tests/test_issue_1543_schedule_requirements.py::test_bolt_circle_cell_cannot_cover_a_physical_bore_of_the_same_diameter"
       - "tests/test_issue_1543_schedule_requirements.py::test_removing_schedule_retains_v5_intent_and_the_requirement_denominator"
     corpus_parts: ["part.step", "bolt-circle.step", "profile.step", "triangle.step"]
-  status: pending
-  rust_test: "tests/issue_regressions.rs::prose_and_descriptive_tables_cannot_silence_coverage"
-  rust_note: "Partly ported: a descriptive table cannot credit what it prints. A spec table (t:<k>, src/tables.rs) printing a hole's whole callout, drawn and searchable, changes no lint finding on draftwright's counterbored block with the callout left out: tables are not annotations and carry no claims, so lint credits no cell. Not ported: feature schedules and their verified cells (spec tables are descriptive only), so the clauses about verified schedule-cell ink and a bolt-circle cell have nothing to judge."
+  status: ported
+  rust_test: "tests/planned_hole_tables.rs::damaged_size_cells_lose_size_through_and_quantity_evidence; tests/planned_hole_tables.rs::schedule_cell_evidence_checks_approved_tolerance_precision_and_through_wording; tests/tables.rs::a_numeric_descriptive_table_cannot_replace_physical_measurements"
+  rust_note: "Only cells whose actual runs and feature/parameter bindings match their independent compiler approvals expose claims. A bad, empty, removed or unapproved hole-size cell loses bore/THRU/quantity evidence, without borrowing a valid size from another member; coordinates lose only their own axis. Changing its role to bolt_circle.diameter cannot credit a bore. Descriptive tables carry no measurement claims even when they print a complete missing callout. Analysis retains the denominator independently of the removed schedule. Supported hole and radius-centre schedules use this seam; the general feature-schedule authoring API is separately pending under ISSUE-1543-a."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream tables"
 
 - id: ISSUE-1544-a

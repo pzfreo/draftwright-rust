@@ -13,15 +13,17 @@ pzfreo/draftwright at `586628b96db6779454d499c7d92d37f1aa8f1df9`.
 
 Status after the maintainer-approved triage of 2026-10-16, including the earlier Stage G/H
 and K1b/K4/K5/K7 integrations, merged with PR #56 (datum placement) and PR #57
-(K6, one owner per measurement), PR #61 (datum follow-up), and the pins/lint batch
-(nine rules ported with tests). Counts are computed from the YAML entries:
+(K6, one owner per measurement), PR #61 (datum follow-up), the pins/lint batch
+(nine rules ported with tests), and PR #64 (table-rule ports). The table-rule batch adds
+verified schedule and manufacturing evidence, transactional hole-table guards and
+drawing-consumer checks. Counts are computed from the merged YAML entries:
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
 | `adr.yaml` | 10 | 62 | 62 | 26 |
-| `lint.yaml` | 18 | 113 | 15 | 19 |
-| `issues.yaml` | 42 | 70 | 52 | 26 |
-| **All** | **70** | **245** | **129** | **71** |
+| `lint.yaml` | 17 | 114 | 15 | 19 |
+| `issues.yaml` | 40 | 73 | 51 | 26 |
+| **All** | **67** | **249** | **128** | **71** |
 
 The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
 The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE
@@ -34,6 +36,8 @@ approved reason.
 PR #57 now supplies the K6 evidence that was unavailable at triage: ARCH0015-2 and
 ISSUE-1154-a are ported, and ADR1-8, ADR4-U1 and ISSUE-1505-b gain evidence for their
 implemented portions. ISSUE-1505-a retains K6's updated assessment and remains pending.
+The table-rule batch keeps six verified ported entries, promoting four beyond main's triage:
+LINT-code-manufacturing_reference_unresolved, ISSUE-1144-a, ISSUE-1202-a and ISSUE-1543-c.
 The approved triage is otherwise retained, including ISSUE-883-a's translation. Test
 citations name files and tests found in the merged checkout.
 
