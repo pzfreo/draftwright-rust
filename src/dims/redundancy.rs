@@ -51,6 +51,41 @@ pub(super) fn consolidate(
         return references;
     }
     let mut gone = std::collections::BTreeSet::new();
+    // #33: on a turned profile dimensioned as a baseline from its datum, a band's own length is
+    // conveyed by the rung that locates its far shoulder (its `step_position.length`, or the
+    // overall length for the last band); the rungs before it locate its near one. Unless the spec
+    // tolerances that length, or omits the rung, it is not drawn again.
+    for i in 0..kept.len() {
+        let Some(band) = kept[i]
+            .0
+            .id
+            .strip_prefix("d:")
+            .and_then(|s| s.strip_suffix("/step.length"))
+        else {
+            continue;
+        };
+        if !given[i].is_empty() {
+            continue;
+        }
+        let rung = (0..kept.len()).find(|&j| {
+            j != i
+                && kept[j]
+                    .0
+                    .measurements
+                    .iter()
+                    .any(|m| m.feature == band && m.parameter == "step_position.length")
+        });
+        if let Some(j) = rung {
+            cover(
+                i,
+                j,
+                kept,
+                omitted,
+                "a baseline from the profile's datum locates both shoulders of its band",
+            );
+            gone.insert(i);
+        }
+    }
     // A functional outside diameter or A/F statement owns an equal overall span only
     // when its actual support planes reach both ends of that axis.
     for i in 0..kept.len() {
@@ -107,7 +142,15 @@ pub(super) fn consolidate(
     for i in order {
         let s = interval(a, &kept[i].0).unwrap();
         if let Some(route) = path(&edges, s) {
-            if !given[i].is_empty() {
+            // A dimension the spec tolerances, or one that states the part's PMI, is controlling,
+            // never reference (#33: reference is for redundant, untoleranced dimensions only).
+            if !given[i].is_empty()
+                || kept[i]
+                    .0
+                    .measurements
+                    .iter()
+                    .any(|m| m.feature.starts_with("pmi:"))
+            {
                 edges.push((s, i));
                 continue;
             }

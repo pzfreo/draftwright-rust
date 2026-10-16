@@ -13,7 +13,8 @@
 //!   length is `hi − lo`); the diameter is placed too when the part's overall diameter
 //!   (`envelope`/`od.diameter`, which Python's `rotational` OD stands for) is claimed and stated,
 //!   and the band is the unique largest of its profile and the only band of its axis line and
-//!   diameter;
+//!   diameter; a length is placed too when a baseline from an end of its profile locates both
+//!   its shoulders (`step_position.length` claims, #33);
 //! - **unverifiable**: an annotation claims it but its text does not state the value, the record
 //!   cannot be read, or groove ownership is ambiguous (then every band is unverifiable, as in
 //!   Python, since ownership changes the count);
@@ -265,6 +266,12 @@ pub fn outcomes(analysis: &Analysis, marks: &[Mark]) -> Vec<Outcome> {
         };
         for (parameter, value) in [("step.length", b.hi - b.lo), ("step.diameter", b.diameter)] {
             let (mut state, mut mark) = judged(marks, &f.id, parameter, value);
+            if parameter == "step.length"
+                && state == State::Missing
+                && let Some(m) = from_baseline(&read, marks, f, b)
+            {
+                (state, mark) = (State::Placed, Some(m));
+            }
             if parameter == "step.diameter" && state == State::Missing && overall(&read, f, b) {
                 let (s, m) = judged(marks, "envelope", "od.diameter", b.diameter);
                 if s == State::Placed {
@@ -282,6 +289,64 @@ pub fn outcomes(analysis: &Analysis, marks: &[Mark]) -> Vec<Outcome> {
         }
     }
     out
+}
+
+/// The mark that locates band *b*'s far shoulder from an end of its profile, when a baseline from
+/// that end determines the band's length (#33): a mark claims the band's `step_position.length`
+/// and states the far shoulder's distance from the end, and the near shoulder is the end itself
+/// or is located from it the same way, or by the length of the band at the end. Lint reads only
+/// the printed claims and the Analysis's bands.
+fn from_baseline<'a>(
+    read: &[(&Feature, Result<Band, String>)],
+    marks: &'a [Mark],
+    f: &Feature,
+    b: &Band,
+) -> Option<&'a Mark> {
+    let profile = f.parameters.get("profile");
+    let near = |x: f64, y: f64| (x - y).abs() <= 1e-3;
+    let same: Vec<(&Feature, &Band)> = read
+        .iter()
+        .filter(|(g, _)| g.parameters.get("profile") == profile)
+        .filter_map(|(g, c)| c.as_ref().ok().map(|c| (*g, c)))
+        .filter(|(_, c)| c.axis == b.axis && (0..3).all(|j| j == c.axis || near(c.on[j], b.on[j])))
+        .collect();
+    let lo = same.iter().map(|(_, c)| c.lo).fold(f64::INFINITY, f64::min);
+    let hi = same
+        .iter()
+        .map(|(_, c)| c.hi)
+        .fold(f64::NEG_INFINITY, f64::max);
+    // The mark stating band *c*'s far shoulder from *end*.
+    let position = |c: &Feature, distance: f64| {
+        marks.iter().find(|m| {
+            m.claims
+                .iter()
+                .any(|k| k.feature == c.id && k.parameter == "step_position.length")
+                && holes::states(&m.text, distance)
+        })
+    };
+    [lo, hi].into_iter().find_map(|end| {
+        let (near_end, far_end) = if near(end, lo) {
+            (b.lo, b.hi)
+        } else {
+            (b.hi, b.lo)
+        };
+        let m = position(f, (far_end - end).abs())?;
+        let located = near(near_end, end)
+            || same.iter().any(|(g, c)| {
+                let (cn, cf) = if near(end, lo) {
+                    (c.lo, c.hi)
+                } else {
+                    (c.hi, c.lo)
+                };
+                near(cf, near_end)
+                    && if near(cn, end) {
+                        judged(marks, &g.id, "step.length", c.hi - c.lo).0 == State::Placed
+                    } else {
+                        position(g, (cf - end).abs()).is_some()
+                    }
+            });
+        located.then_some(m)
+    })
 }
 
 /// Whether band *b* of step *f* is the one the part's overall diameter can stand for: the unique

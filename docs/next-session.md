@@ -7310,6 +7310,54 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   and offset placements are never re-spaced, only reported; (4) the editor may pin the sheet: if
   so the spindle needs a bigger sheet, a smaller scale, or the datum B symbol moved instead.
 
+## J4: dimension a turned profile from its datum (#33; 2026-10-15, unattended; overturnable)
+
+- **Finding first**: the review spindle's STEP (`tests/fixtures/samples/cnc-review-spindle.step.gz`,
+  byte-identical to the editor's export) carries **no** PMI lengths for the heights. Its semantic
+  PMI is datum A (bottom end face), datum B (⌀15), the basic 23 to the cross hole, the ⌀4 H7,
+  ⌀15 g6, two ⌖ and ISO 2768-m. The CSV's rows 9-12 ("12/34/42/52 from datum A", ±0.2/±0.3)
+  are the editor's `general` rows (`src/specify/characteristics.ts`: "what the general tolerance
+  covers"), i.e. ISO 2768-m limits Specify lists from the datums, not PMI. 42 is the M5 tapping
+  hole's flat floor (52 − 10), which the hole callout's depth already states.
+- **Change** (`src/dims/turned.rs` `datum_end`, `baseline`): on a part turned whole, a profile
+  running end to end is a baseline from one end instead of a chain when the PMI measures it from
+  that end: (a) a planar PMI datum feature on that end face (beyond draftwright), else (b) PMI
+  lengths from that end to the profile's shoulders, as draftwright's `_authored_step_baseline`
+  reads them (an end needs one length longer than a single band; more targets wins; a tie leaves
+  the chain). The band at the datum keeps `step.length`; each further shoulder is
+  `d:f:turned_step:<n>/step_position.length` from the datum; the overall length is the last rung
+  (it also claims the last band's position). A PMI length across the same span replaces its rung
+  through the existing `share_pmi`. Wire format: one new item-ID/parameter name, additive.
+- **Reference guard** (`src/dims/redundancy.rs`): a chain member that states the part's PMI (a
+  `pmi:` claim) is never made reference, like one the spec tolerances.
+- **Lint** (`src/lint/turned.rs` `from_baseline`): a band's length counts as placed when printed
+  `step_position.length` claims (or the datum band's length) locate both its shoulders from one
+  end; otherwise the baseline would read as `axial_length_missing`.
+- **Spindle, by eye** (before/after at 2400 px): 22, 18, (12) → 12, 34, 52 stacked from A at the
+  bottom face, shortest innermost; no brackets. The ⌀15 g6 callout moved below the view and its
+  leader runs down the ⌀15 silhouette (the known J3 leader issue); B's leader crosses 34 and 52
+  where it crossed 22 and 52. Placement problem counts unchanged (5 crossings, 3 outside-area,
+  1 through-feature).
+- **No guard sheet changed**: plans of all 33 `parts/` and `pmi/step/` fixtures byte-identical
+  before/after (incl. every NIST part with datum-referenced PMI and the turned spool / thumbwheel /
+  bolt / string-post fixtures, whose datums are not on an end face of a full profile). Single-sheet
+  guard 28/28, no approvals; quality over 30 parts identical to the CI baseline in every cell.
+- **Judgement calls (overturnable)**:
+  - The trigger includes a datum feature alone (no PMI length): the spindle has no others. A
+    drawing that names an end face datum A is dimensioned from A.
+  - The general-tolerance limits (±0.2/±0.3) are **not** printed on the baseline rungs: the title
+    block's ISO 2768-m states them, and printing them would make general limits read as specific
+    ones. The acceptance's "with their tolerances" therefore holds only where the PMI states them
+    (tested with PMI lengths injected into the spindle's Analysis).
+  - **42 is not drawn** from A on the real fixture: it is the tapped hole's floor, not a turned
+    shoulder; the callout depth states it. A PMI 42 ±0.3 would be drawn (tested).
+- **IDs kept** (`redundancy::consolidate`, `dims::lanes_uncached`): every band's `step.length`
+  is still planned, so a saved spec naming one (the editor's embedded project places
+  `d:f:turned_step:2/step.length`) still plans; dropping it made such a spec invalid ("There is
+  no dimension …"). Each is `omitted`, `covered` by the rung locating its band, unless the spec
+  tolerances it or omits that rung; it reserves no lane of its own, so the sheet's scale is as
+  before (counting it took the spindle from 1:1 A4 to 2:1 A3).
+
 ## K1: datums and GD&T controls authored in the Spec (#43 item 1) (2026-10-15, unattended; overturnable)
 
 - **What**: `features/<id>/datum`, `features/<id>/controls`, `faces/<face>/datum`,
