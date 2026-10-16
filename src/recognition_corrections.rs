@@ -97,6 +97,9 @@ fn invalid(path: &str, reason: impl std::fmt::Display) -> Invalid {
     }
 }
 
+fn has_fields(f: &FeatureSpec) -> bool {
+    f != &FeatureSpec::default()
+}
 fn authored(f: &FeatureSpec) -> bool {
     f.suppress || f.split || f.reclassify.is_some() || f.pattern.is_some()
 }
@@ -362,11 +365,7 @@ pub fn bind(a: &Analysis, s: Spec) -> Result<Spec, Invalid> {
     let mut ids: BTreeSet<_> = s
         .features
         .iter()
-        .filter(|(id, f)| {
-            (authored(f) || f.anchor.is_some())
-                && f.pattern.is_none()
-                && !id.starts_with("f:declared:")
-        })
+        .filter(|(id, f)| has_fields(f) && f.pattern.is_none() && !id.starts_with("f:declared:"))
         .map(|(id, _)| id.clone())
         .collect();
     ids.extend(
@@ -375,6 +374,18 @@ pub fn bind(a: &Analysis, s: Spec) -> Result<Spec, Invalid> {
             .filter_map(|f| f.pattern.as_ref())
             .flat_map(|p| p.members.clone())
             .filter(|id| !id.starts_with("f:declared:")),
+    );
+    ids.extend(
+        s.dimensions
+            .keys()
+            .chain(s.precision.keys())
+            .filter_map(|id| {
+                let (feature, _) = id.strip_prefix("d:")?.rsplit_once('/')?;
+                (feature.starts_with("f:")
+                    && !feature.starts_with("f:declared:")
+                    && s.features.get(feature).is_none_or(|f| f.pattern.is_none()))
+                .then(|| feature.to_string())
+            }),
     );
     let mut renamed = BTreeMap::new();
     for id in ids {
@@ -411,7 +422,10 @@ pub fn bind(a: &Analysis, s: Spec) -> Result<Spec, Invalid> {
         if !out.faces.is_empty()
             || !out.gears.is_empty()
             || !out.annotations.is_empty()
-            || out.features.keys().any(|id| !known(id))
+            || out
+                .features
+                .iter()
+                .any(|(id, f)| has_fields(f) && !known(id))
             || out.dimensions.keys().any(|id| !measurement(id))
             || out.precision.keys().any(|id| !measurement(id))
         {
@@ -767,6 +781,174 @@ fn derive(a: &Analysis, id: &str, kind: Kind, faces: Vec<usize>) -> Result<Featu
     }
 }
 
+// The four walls alone also describe a closed void. Prove a mouth on an outward
+// carrying plane, using the existing exact profiles or the recorded planar edge graph.
+fn rectangular_mouth(
+    a: &Analysis,
+    k: usize,
+    t: f64,
+    lo: [f64; 3],
+    hi: [f64; 3],
+    sign: f64,
+) -> bool {
+    let u = (k + 1) % 3;
+    let v = (k + 2) % 3;
+    if a.face_attachments.iter().any(|f| {
+        f.surface.as_deref() == Some("plane")
+            && f.axis == Some(k)
+            && f.support.first().is_some_and(|z| (*z - t).abs() < TOL)
+            && f.normal.is_some_and(|n| n[k] * sign < -0.99)
+            && f.bounds.is_some_and(|b| {
+                [u, v].iter().all(|&j| {
+                    b[j] >= lo[j] - TOL && b[j + 3] <= hi[j] + TOL && b[j + 3] - b[j] > TOL
+                })
+            })
+    }) {
+        return false;
+    }
+    for source in &a.principal_profiles {
+        let end = if sign > 0. {
+            source.bounds[1][k]
+        } else {
+            source.bounds[0][k]
+        };
+        if (t - end).abs() > TOL
+            || (0..3)
+                .any(|j| lo[j] < source.bounds[0][j] - TOL || hi[j] > source.bounds[1][j] + TOL)
+        {
+            continue;
+        }
+        for face in source
+            .faces
+            .iter()
+            .filter(|f| f.axis == k && (f.at - t).abs() < TOL)
+        {
+            for wire in &face.inner {
+                if wire
+                    .edges
+                    .iter()
+                    .any(|e| e.kind != crate::lint::profiles::Kind::Line)
+                {
+                    continue;
+                }
+                let segments: Vec<_> = wire.edges.iter().map(|e| [e.start, e.end]).collect();
+                let paths: Vec<_> = segments.iter().map(|s| s.as_slice()).collect();
+                if rectangle_boundary(&paths, k, t, lo, hi, TOL) {
+                    return true;
+                }
+            }
+        }
+    }
+    // Local stock planes (below a higher boss, for example) are not principal profiles.
+    // With one solid, match the recorded plane to exactly one attachment by support and box.
+    let Some(ink) = a.edge_ink.as_ref().filter(|_| a.solid_count == Some(1)) else {
+        return false;
+    };
+    let tol = 1e-3 + TOL; // EdgeInk's recorded coordinate grid; measurements still use exact faces.
+    for plane in &ink.planes {
+        if holes::principal(plane.normal) != Some(k) {
+            continue;
+        }
+        let paths: Vec<_> = plane
+            .edges
+            .iter()
+            .filter_map(|&i| ink.edges.get(i).map(Vec::as_slice))
+            .collect();
+        let mut b = [f64::INFINITY; 6];
+        b[3..].fill(f64::NEG_INFINITY);
+        for path in &paths {
+            for p in *path {
+                for j in 0..3 {
+                    b[j] = b[j].min(p[j]);
+                    b[j + 3] = b[j + 3].max(p[j]);
+                }
+            }
+        }
+        if (b[k] - t).abs() > tol || (b[k + 3] - t).abs() > tol {
+            continue;
+        }
+        let matches: Vec<_> = a
+            .face_attachments
+            .iter()
+            .filter(|f| {
+                f.surface.as_deref() == Some("plane")
+                    && f.axis == Some(k)
+                    && f.bounds
+                        .is_some_and(|bounds| (0..6).all(|j| (bounds[j] - b[j]).abs() <= tol))
+            })
+            .collect();
+        if matches.len() != 1 {
+            continue;
+        }
+        let face = matches[0];
+        if !face.support.first().is_some_and(|z| (*z - t).abs() < TOL)
+            || !face.normal.is_some_and(|n| n[k] * sign > 0.99)
+        {
+            continue;
+        }
+        if ![u, v]
+            .iter()
+            .any(|&j| b[j] < lo[j] - tol || b[j + 3] > hi[j] + tol)
+        {
+            continue;
+        }
+        if rectangle_boundary(&paths, k, t, lo, hi, tol) {
+            return true;
+        }
+    }
+    false
+}
+fn rectangle_boundary(
+    paths: &[&[[f64; 3]]],
+    k: usize,
+    t: f64,
+    lo: [f64; 3],
+    hi: [f64; 3],
+    tol: f64,
+) -> bool {
+    let u = (k + 1) % 3;
+    let v = (k + 2) % 3;
+    for (fixed, along) in [(u, v), (v, u)] {
+        for side in [lo[fixed], hi[fixed]] {
+            let mut spans = Vec::new();
+            for path in paths {
+                if path.len() < 2
+                    || !path
+                        .iter()
+                        .all(|p| (p[k] - t).abs() <= tol && (p[fixed] - side).abs() <= tol)
+                {
+                    continue;
+                }
+                let min = path
+                    .iter()
+                    .map(|p| p[along])
+                    .fold(f64::INFINITY, f64::min)
+                    .max(lo[along]);
+                let max = path
+                    .iter()
+                    .map(|p| p[along])
+                    .fold(f64::NEG_INFINITY, f64::max)
+                    .min(hi[along]);
+                if max >= min {
+                    spans.push([min, max]);
+                }
+            }
+            spans.sort_by(|a, b| a[0].total_cmp(&b[0]));
+            let mut end = lo[along];
+            for span in spans {
+                if span[0] > end + tol {
+                    break;
+                }
+                end = end.max(span[1]);
+            }
+            if end < hi[along] - tol {
+                return false;
+            }
+        }
+    }
+    true
+}
+
 /// Four inward-facing rectangular walls, with one optional planar floor. Bounding boxes
 /// alone do not define a pocket: the signed support planes and their common spans must agree.
 fn rectangular(a: &Analysis, id: &str, kind: Kind, faces: Vec<usize>) -> Result<Feature, Invalid> {
@@ -869,6 +1051,22 @@ fn rectangular(a: &Analysis, id: &str, kind: Kind, faces: Vec<usize>) -> Result<
     if kind == Kind::Slot && capped {
         return Err(fail(
             "the slot planner requires a through opening; these faces have a pocket floor",
+        ));
+    }
+    let open = if opens_high { hi[k] } else { lo[k] };
+    if kind == Kind::Pocket
+        && !rectangular_mouth(a, k, open, lo, hi, if opens_high { 1. } else { -1. })
+    {
+        return Err(fail(
+            "the selected walls do not prove an open planar pocket mouth; a capped void or an unproved/curved mouth cannot be declared as a rectangular pocket",
+        ));
+    }
+    if kind == Kind::Slot
+        && (!rectangular_mouth(a, k, lo[k], lo, hi, -1.)
+            || !rectangular_mouth(a, k, hi[k], lo, hi, 1.))
+    {
+        return Err(fail(
+            "the selected walls do not prove two open planar ends; a blind pocket or closed void cannot be declared as a through slot",
         ));
     }
     let low = local_point(a, lo);
@@ -1070,6 +1268,61 @@ fn pattern(
     Ok(result)
 }
 
+fn same_family(kind: Kind, other: &str) -> bool {
+    match kind {
+        Kind::Hole => other == "hole",
+        Kind::Boss | Kind::TurnedStep => matches!(other, "boss" | "turned_step"),
+        Kind::Slot | Kind::Pocket => matches!(other, "slot" | "section_recess"),
+    }
+}
+
+// Recognition can gain the declared feature in a later release. Its complete defining scope
+// then yields to the author's stable identity; an extra free-end cap is the same scope too.
+fn equivalent_scope(a: &Analysis, declared: &Feature, existing: &Feature, kind: Kind) -> bool {
+    if existing.id.starts_with("f:declared:") || !same_family(kind, &existing.kind) {
+        return false;
+    }
+    let Some(k) = declared.fingerprint.axis.and_then(holes::principal) else {
+        return false;
+    };
+    let mut lo = [f64::INFINITY; 3];
+    let mut hi = [f64::NEG_INFINITY; 3];
+    for &i in &declared.faces {
+        let b = a.face_attachments[i].bounds.unwrap();
+        for j in 0..3 {
+            lo[j] = lo[j].min(b[j]);
+            hi[j] = hi[j].max(b[j + 3]);
+        }
+    }
+    existing
+        .faces
+        .iter()
+        .filter(|i| !declared.faces.contains(i))
+        .all(|&i| {
+            a.face_attachments.get(i).is_some_and(|f| {
+                f.surface.as_deref() == Some("plane")
+                    && f.axis == Some(k)
+                    && f.bounds.is_some_and(|b| {
+                        ((b[k] - lo[k]).abs() < TOL || (b[k] - hi[k]).abs() < TOL)
+                            && (0..3).all(|j| b[j] >= lo[j] - TOL && b[j + 3] <= hi[j] + TOL)
+                    })
+            })
+        })
+}
+fn authored_reference(s: &Spec, id: &str) -> bool {
+    s.features.get(id).is_some_and(has_fields)
+        || s.features
+            .values()
+            .filter_map(|f| f.pattern.as_ref())
+            .any(|p| p.members.iter().any(|m| m == id))
+        || s.dimensions.keys().chain(s.precision.keys()).any(|key| {
+            key.strip_prefix("d:")
+                .and_then(|v| v.rsplit_once('/'))
+                .is_some_and(|(feature, _)| feature == id)
+        })
+        || s.gears.iter().any(|g| g.on == id)
+}
+
 /// A correction's explicit provenance, including corrections producing no annotation.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -1238,25 +1491,81 @@ pub fn effective<'a>(a: &'a Analysis, s: &Spec) -> Result<Cow<'a, Analysis>, Inv
             });
         }
     }
+    let mut declaration_aliases = BTreeMap::new();
     for d in &s.feature_declarations {
         if out.features.iter().any(|f| f.id == d.id) {
             return Err(invalid(&d.id, "declaration id already exists"));
         }
         let faces = resolve_faces(a, &d.faces, &format!("feature_declarations/{}", d.id))?;
-        let same_family = |kind: &str| match d.kind {
-            Kind::Hole => kind == "hole",
-            Kind::Boss | Kind::TurnedStep => matches!(kind, "boss" | "turned_step"),
-            Kind::Slot | Kind::Pocket => matches!(kind, "slot" | "section_recess"),
-        };
-        if out.features.iter().any(|f| {
-            f.faces == faces || (same_family(&f.kind) && f.faces.iter().any(|i| faces.contains(i)))
-        }) {
-            return Err(invalid(
-                &d.id,
-                "these faces already have a feature; reclassify it, or suppress it explicitly before declaring a replacement",
-            ));
+        let mut declared = derive(a, &d.id, d.kind, faces)?;
+        let overlaps: Vec<_> = out
+            .features
+            .iter()
+            .filter(|f| {
+                f.faces == declared.faces
+                    || (same_family(d.kind, &f.kind)
+                        && f.faces.iter().any(|i| declared.faces.contains(i)))
+            })
+            .collect();
+        for existing in overlaps {
+            if !equivalent_scope(a, &declared, existing, d.kind)
+                || authored_reference(s, &existing.id)
+            {
+                return Err(invalid(
+                    &d.id,
+                    format!(
+                        "these faces already have a feature with incompatible scope or authored references ({}); move its requirements/references to {}, or suppress it explicitly before declaring a replacement",
+                        existing.id, d.id
+                    ),
+                ));
+            }
+            if declared.fingerprint.pattern.is_none() {
+                declared.fingerprint.pattern = existing.fingerprint.pattern.clone();
+            }
+            declaration_aliases.insert(existing.id.clone(), d.id.clone());
         }
-        out.features.push(derive(a, &d.id, d.kind, faces)?);
+        out.features
+            .retain(|f| !declaration_aliases.contains_key(&f.id));
+        out.features.push(declared);
+    }
+    if !declaration_aliases.is_empty() {
+        if let Some(r) = &mut out.recognition {
+            for p in &mut r.patterns {
+                for member in &mut p.members {
+                    if let Some(id) = declaration_aliases.get(member) {
+                        *member = id.clone();
+                    }
+                }
+            }
+        }
+        for f in &mut out.features {
+            if f.kind == "slot_pattern"
+                && let Some(slots) = f.parameters.get_mut("slots").and_then(Value::as_array_mut)
+            {
+                for slot in slots {
+                    if let Some(id) = slot.as_str().and_then(|id| declaration_aliases.get(id)) {
+                        *slot = json!(id);
+                    }
+                }
+            }
+        }
+        let slot_ids: BTreeSet<_> = out
+            .features
+            .iter()
+            .filter(|f| f.kind == "slot")
+            .map(|f| f.id.clone())
+            .collect();
+        out.features.retain(|f| {
+            f.kind != "slot_pattern"
+                || f.parameters
+                    .get("slots")
+                    .and_then(Value::as_array)
+                    .is_some_and(|slots| {
+                        slots
+                            .iter()
+                            .all(|s| s.as_str().is_some_and(|id| slot_ids.contains(id)))
+                    })
+        });
     }
     for (id, f) in &s.features {
         if let Some(p) = &f.pattern {
@@ -1296,7 +1605,7 @@ pub fn effective<'a>(a: &'a Analysis, s: &Spec) -> Result<Cow<'a, Analysis>, Inv
         family: MARKER.into(),
         subtype: signature,
         faces: vec![],
-        parameters: object(json!({"targets":targets})),
+        parameters: object(json!({"targets":targets,"declaration_aliases":declaration_aliases})),
     });
     Ok(Cow::Owned(out))
 }
@@ -1321,7 +1630,28 @@ pub(crate) fn report(a: &Analysis, p: &mut Plan) {
         changes.push(Applied{id:id.clone(),from_spec:vec![format!("features/{id}/{action}")],basis:format!("authored recognition correction: {action} {id}; remaining output is checked against the corrected inventory")});
     }
     for d in &p.spec.feature_declarations {
-        changes.push(Applied{id:d.id.clone(),from_spec:vec![format!("feature_declarations/{}",d.id)],basis:"authored feature; kind chosen by the author, parameters measured from the named faces".into()});
+        let mut basis =
+            "authored feature; kind chosen by the author, parameters measured from the named faces"
+                .to_string();
+        let replaced: Vec<_> = marker(a)
+            .and_then(|m| m.parameters.get("declaration_aliases"))
+            .and_then(Value::as_object)
+            .into_iter()
+            .flat_map(|m| m.iter())
+            .filter(|(_, v)| v.as_str() == Some(d.id.as_str()))
+            .map(|(id, _)| id.as_str())
+            .collect();
+        if !replaced.is_empty() {
+            basis += &format!(
+                "; retains the declared identity over equivalent recognition: {}",
+                replaced.join(", ")
+            );
+        }
+        changes.push(Applied {
+            id: d.id.clone(),
+            from_spec: vec![format!("feature_declarations/{}", d.id)],
+            basis,
+        });
     }
     for d in &mut p.dimensions {
         for c in &changes {

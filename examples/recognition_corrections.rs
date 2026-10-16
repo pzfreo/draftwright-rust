@@ -1,6 +1,6 @@
 //! Reproducible before/after review sheets for issue #76 item 2.
-//! The missed-bore and boss examples simulate a recognition omission/interpretation;
-//! the STEP geometry is never changed. `cargo run --release --example recognition_corrections`.
+//! The pocket is a real native omission; the boss shows an authored interpretation.
+//! The STEP geometry is never changed. `cargo run --release --example recognition_corrections`.
 use draftwright::{
     api,
     model::{self, Analysis, Spec},
@@ -58,30 +58,26 @@ fn main() {
         &spec(json!({"features":{&pattern.id:{"split":true}}})),
         &out,
     );
-    let mut missed = a.clone();
-    let hole = missed
-        .features
+    let (part, a) =
+        model::analyse_native(&root.join("tests/fixtures/recognition/issues/pocket_z.step"))
+            .unwrap();
+    let faces: Vec<_> = a
+        .face_attachments
         .iter()
-        .find(|f| f.kind == "hole")
-        .unwrap()
-        .clone();
-    let faces: Vec<_> = hole
-        .faces
-        .iter()
-        .map(|&i| face_fingerprint(&a, i).unwrap())
+        .enumerate()
+        .filter(|(i, f)| f.surface.as_deref() == Some("plane") && !a.stock_faces.contains(i))
+        .map(|(i, _)| face_fingerprint(&a, i).unwrap())
         .collect();
-    missed.features.retain(|f| f.id != hole.id);
-    missed.recognition.as_mut().unwrap().patterns.clear();
     pair(
-        "missed-bore",
+        "missed-pocket",
         &part,
-        &missed,
+        &a,
         &spec(
-            json!({"feature_declarations":[{"id":"f:declared:pilot","kind":"hole","faces":faces}]}),
+            json!({"feature_declarations":[{"id":"f:declared:recess","kind":"pocket","faces":faces}]}),
         ),
         &out,
     );
-    let (part, mut a) =
+    let (part, a) =
         model::analyse_native(&root.join("tests/fixtures/parts/boss_circle.step")).unwrap();
     let boss = a
         .features
@@ -89,8 +85,6 @@ fn main() {
         .find(|f| f.kind == "boss")
         .unwrap()
         .clone();
-    a.features
-        .retain(|f| f.id == boss.id || f.faces != boss.faces);
     pair(
         "boss-band",
         &part,

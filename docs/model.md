@@ -252,7 +252,10 @@ boss ↔ turned step and slot ↔ pocket, when defining faces prove the target g
 interpretations need complete, coaxial, equal-radius principal cylinders with contiguous axial
 spans; opening evidence distinguishes a bore from an external band. Rectangular interpretations
 need four inward-facing planar walls with matching rectangular spans. A pocket also needs
-its capped planar floor; a through-slot interpretation refuses that floor. Rust's existing
+its capped planar floor and a proved open planar mouth; a through slot needs two proved
+open ends. Exact principal profiles or the existing planar edge graph on a single solid
+prove the opening, including local stock planes below a higher boss. An omitted cap cannot
+turn a closed void or a blind pocket into an open slot. Curved/unproved mouths are refused. Rust's existing
 `section_recess` feature is the pocket representation. Unsupported, partial, oblique or
 ambiguous geometry is refused with its reason; the correction never invents dimensions.
 Derived fingerprints retain their principal axes, so existing view-demand rules apply. A named
@@ -265,9 +268,13 @@ requirements. Choose only one of `reclassify`, `suppress`, `split` and `pattern`
 Declarations use the same five kinds and geometry checks. `id` is a unique authored
 `f:declared:<name>`; the list carries no numerical parameters. For a bore, name the cylindrical
 wall and its planar blind floor when present; without a floor the cylinder must reach both
-stock planes to prove throughness. An existing feature on those exact faces, or in the same physical family sharing a defining
-face, must be
-reclassified or explicitly suppressed before declaring its replacement. The declaration then
+stock planes to prove throughness. Equivalent automatic recognition yields to the declared ID, including when a later
+recogniser learns the previously missed feature. Automatic hole/slot pattern links follow
+that identity, so a physical occurrence is never counted twice. Extra planar end caps may
+belong to the same proven scope. A different/incomplete scope, another authored declaration,
+or authored requirements/references still naming the retired automatic owner is refused;
+move those references to the declared ID, or suppress/reclassify the conflicting reading
+explicitly. The declaration then
 accepts ordinary `features/<declared-id>` requirements and `dimensions/d:<declared-id>/…` edits.
 
 `recognition_corrections::face_fingerprint(analysis, face_index)` supplies each face name;
@@ -331,8 +338,8 @@ validated by the common Rust model, as with other feature requirements.
 
 Reproduce three before/after PNG, SVG, Plan, Spec and lint pairs with
 `cargo run --release --example recognition_corrections` in
-`target/recognition-corrections/renders/`. The missed-bore and boss examples explicitly simulate
-recognition mistakes while keeping their STEP geometry intact.
+`target/recognition-corrections/renders/`. These use unchanged STEP geometry: split a native
+grid, declare a real native pocket omission, and reinterpret a boss as a turned band.
 
 #### Projection method and a pinned sheet's fit
 

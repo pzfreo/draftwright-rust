@@ -639,12 +639,33 @@ fn a_missed_boss_uses_its_named_negative_end_and_the_same_height_planner() {
     let s = spec(
         json!({"feature_declarations":[{"id":"f:declared:lower_boss","kind":"boss","faces":faces}]}),
     );
+    let owned = corrections::effective(&recognised, &s).unwrap();
+    assert_eq!(
+        owned.features.iter().filter(|f| f.kind == "boss").count(),
+        1
+    );
     assert!(
-        corrections::effective(&recognised, &s)
+        owned
+            .features
+            .iter()
+            .any(|f| f.id == "f:declared:lower_boss")
+    );
+    let mut conflict = s.clone();
+    conflict.features.insert(
+        "f:boss:1".into(),
+        serde_json::from_value(json!({"fit":"g6"})).unwrap(),
+    );
+    assert!(
+        corrections::effective(&recognised, &conflict)
             .unwrap_err()
             .message
             .contains("already have a feature")
     );
+    let mut duplicate = s.clone();
+    let mut second = duplicate.feature_declarations[0].clone();
+    second.id = "f:declared:duplicate".into();
+    duplicate.feature_declarations.push(second);
+    assert!(corrections::effective(&a, &duplicate).is_err());
     let effective = corrections::effective(&a, &s).unwrap();
     let f = effective
         .features
@@ -727,4 +748,189 @@ fn saved_corrections_rebind_members_fits_and_measurement_policies_when_ranks_cha
             && d.from_spec
                 .contains(&format!("features/{}/reclassify", renamed[&outside]))
     }));
+}
+
+#[test]
+fn saved_declared_identity_survives_the_recogniser_learning_the_feature() {
+    let (part, native) = plate();
+    let hole = native
+        .features
+        .iter()
+        .find(|f| f.kind == "hole")
+        .unwrap()
+        .clone();
+    let faces: Vec<_> = hole
+        .faces
+        .iter()
+        .map(|&i| face_fingerprint(&native, i).unwrap())
+        .collect();
+    let mut missed = native.clone();
+    missed.features.retain(|f| f.id != hole.id);
+    missed.recognition.as_mut().unwrap().patterns.clear();
+    let s = spec(
+        json!({"feature_declarations":[{"id":"f:declared:pilot","kind":"hole","faces":faces}]}),
+    );
+    let first = model::plan_recovered(&missed, &s).unwrap();
+    let p = model::plan_recovered(&native, &saved(&first.spec)).unwrap();
+    let effective = corrections::effective(&native, &p.spec).unwrap();
+    assert_eq!(
+        effective
+            .features
+            .iter()
+            .filter(|f| f.kind == "hole")
+            .count(),
+        native.features.iter().filter(|f| f.kind == "hole").count()
+    );
+    assert!(
+        effective
+            .features
+            .iter()
+            .any(|f| f.id == "f:declared:pilot")
+    );
+    assert!(effective.features.iter().all(|f| f.id != hole.id));
+    assert!(
+        effective
+            .recognition
+            .as_ref()
+            .unwrap()
+            .patterns
+            .iter()
+            .any(|g| g.members.contains(&"f:declared:pilot".into()))
+    );
+    assert!(
+        p.recognition_corrections
+            .iter()
+            .any(|c| c.id == "f:declared:pilot" && c.basis.contains(&hole.id))
+    );
+    assert!(
+        p.dimensions
+            .iter()
+            .flat_map(|d| &d.measurements)
+            .all(|m| m.feature != hole.id)
+    );
+    let drawing = model::render(&part, &native, &p, &font()).unwrap();
+    assert!(
+        !lint::lint(&effective, &drawing)
+            .iter()
+            .any(|i| i.code == "hole_pattern_requirement_missing")
+    );
+    assert_eq!(
+        serde_json::to_value(&p).unwrap(),
+        serde_json::to_value(model::plan_recovered(&native, &saved(&p.spec)).unwrap()).unwrap()
+    );
+}
+
+#[test]
+fn omitting_a_void_or_pocket_cap_cannot_turn_it_into_an_open_recess() {
+    let (_, a) = model::analyse_native_bytes(
+        "closed-void.step",
+        include_bytes!("fixtures/recognition_corrections/closed_void.step.gz"),
+    )
+    .unwrap();
+    for kind in ["pocket", "slot"] {
+        let faces: Vec<_> = a
+            .face_attachments
+            .iter()
+            .enumerate()
+            .filter(|(_, f)| {
+                f.surface.as_deref() == Some("plane")
+                    && f.bounds.is_some_and(|b| {
+                        b[0] >= -5. - 1e-5
+                            && b[3] <= 5. + 1e-5
+                            && b[1] >= -4. - 1e-5
+                            && b[4] <= 4. + 1e-5
+                            && b[2] >= -3. - 1e-5
+                            && b[5] <= 3. + 1e-5
+                    })
+                    && (f.axis != Some(2)
+                        || (kind == "pocket"
+                            && f.support.first().is_some_and(|z| (*z + 3.).abs() < 1e-5)))
+            })
+            .map(|(i, _)| face_fingerprint(&a, i).unwrap())
+            .collect();
+        assert_eq!(faces.len(), if kind == "pocket" { 5 } else { 4 });
+        let s = spec(
+            json!({"feature_declarations":[{"id":"f:declared:false_opening","kind":kind,"faces":faces}]}),
+        );
+        let e = model::plan_recovered(&a, &s).unwrap_err();
+        assert!(
+            e.message.contains("open") && e.message.contains("remove"),
+            "{}",
+            e.message
+        );
+    }
+}
+
+#[test]
+fn a_local_planar_pocket_mouth_below_a_higher_boss_is_proved_by_the_edge_graph() {
+    let (_, a) = model::analyse_native_bytes(
+        "local-pocket.step",
+        include_bytes!("fixtures/recognition_corrections/local_pocket.step.gz"),
+    )
+    .unwrap();
+    let faces: Vec<_> = a
+        .face_attachments
+        .iter()
+        .enumerate()
+        .filter(|(_, f)| {
+            f.surface.as_deref() == Some("plane")
+                && f.bounds.is_some_and(|b| {
+                    b[0] >= 4. - 1e-5
+                        && b[3] <= 16. + 1e-5
+                        && b[1] >= -5. - 1e-5
+                        && b[4] <= 5. + 1e-5
+                        && b[2] >= -1e-5
+                        && b[5] <= 6. + 1e-5
+                })
+        })
+        .map(|(i, _)| face_fingerprint(&a, i).unwrap())
+        .collect();
+    assert_eq!(faces.len(), 5);
+    let s = spec(
+        json!({"feature_declarations":[{"id":"f:declared:local","kind":"pocket","faces":faces}]}),
+    );
+    let effective = corrections::effective(&a, &s).unwrap();
+    let f = effective
+        .features
+        .iter()
+        .find(|f| f.id == "f:declared:local")
+        .unwrap();
+    let draftwright::lint::section_recesses::Grammar::Pocket(p) =
+        draftwright::lint::section_recesses::grammar(f).unwrap()
+    else {
+        panic!("pocket");
+    };
+    assert_eq!((p.width, p.length, p.depth), (10., 12., 6.));
+}
+
+#[test]
+fn removing_a_group_field_restores_defaults_while_another_correction_remains() {
+    let (_, a) = plate();
+    let s = spec(
+        json!({"features":{"f:hole:4":{"suppress":true},"f:hole_pattern:pair":{"pattern":{"arrangement":"linear","members":["f:hole:1","f:hole:2"]}}}}),
+    );
+    let p = model::plan_recovered(&a, &s).unwrap();
+    let removed = model::edit(
+        &p.spec,
+        &json!([{"op":"remove","path":"features/f:hole_pattern:pair/pattern"}]),
+    )
+    .unwrap();
+    let restored = model::plan_recovered(&a, &removed).unwrap();
+    let effective = corrections::effective(&a, &restored.spec).unwrap();
+    assert!(
+        effective
+            .recognition
+            .as_ref()
+            .unwrap()
+            .patterns
+            .iter()
+            .any(|p| p.id == a.recognition.as_ref().unwrap().patterns[0].id)
+    );
+    assert!(
+        restored
+            .recognition_corrections
+            .iter()
+            .all(|c| c.id != "f:hole_pattern:pair")
+    );
+    assert!(restored.spec.features["f:hole:4"].suppress);
 }
