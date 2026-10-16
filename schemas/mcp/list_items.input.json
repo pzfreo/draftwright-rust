@@ -25,11 +25,11 @@
             "null"
           ],
           "properties": {
-            "max": {
-              "$ref": "#/$defs/D"
-            },
             "smallest_scale": {
-              "$ref": "#/$defs/C"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "keep_together": {
               "type": "array",
@@ -40,41 +40,36 @@
                 }
               }
             },
-            "hole_table": {
-              "$ref": "#/$defs/D"
-            },
             "gdt_on_sheet_1": {
               "type": "boolean"
             }
           },
-          "additionalProperties": false
+          "additionalProperties": false,
+          "patternProperties": {
+            "^(max|hole_table)$": {
+              "enum": [
+                null,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+              ]
+            }
+          }
         },
         "sheet": {
           "type": "object",
           "properties": {
-            "size": {
-              "$ref": "#/$defs/C"
-            },
-            "scale": {
-              "$ref": "#/$defs/C"
-            },
             "title": {
               "type": "object",
               "additionalProperties": {
                 "type": "string"
               }
-            },
-            "fit_limits": {
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
-            "fit_deviations": {
-              "type": [
-                "boolean",
-                "null"
-              ]
             },
             "projection": {
               "enum": [
@@ -90,22 +85,21 @@
               ]
             }
           },
-          "additionalProperties": false
-        },
-        "views": {
-          "$ref": "#/$defs/A"
-        },
-        "dimensions": {
-          "$ref": "#/$defs/A"
-        },
-        "annotations": {
-          "$ref": "#/$defs/A"
-        },
-        "features": {
-          "$ref": "#/$defs/A"
-        },
-        "faces": {
-          "$ref": "#/$defs/A"
+          "additionalProperties": false,
+          "patternProperties": {
+            "^(size|scale)$": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "^(fit_limits|fit_deviations)$": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          }
         },
         "dimension_source": {
           "enum": [
@@ -119,18 +113,23 @@
             "always",
             "never"
           ]
-        },
-        "notes": {
-          "$ref": "#/$defs/B"
-        },
-        "tables": {
-          "$ref": "#/$defs/B"
-        },
-        "gears": {
-          "$ref": "#/$defs/B"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(views|dimensions|annotations|features|faces)$": {
+          "additionalProperties": {
+            "type": "object"
+          },
+          "type": "object"
+        },
+        "^(notes|tables|gears)$": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        }
+      }
     },
     "spec_version": {
       "type": "string"
@@ -154,13 +153,18 @@
       "type": "object",
       "properties": {
         "sheet": {
-          "$ref": "#/$defs/D"
-        },
-        "view": {
-          "$ref": "#/$defs/C"
-        },
-        "kind": {
-          "$ref": "#/$defs/C"
+          "enum": [
+            null,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+          ]
         },
         "state": {
           "anyOf": [
@@ -221,9 +225,6 @@
             }
           ]
         },
-        "feature": {
-          "$ref": "#/$defs/C"
-        },
         "region": {
           "type": [
             "array",
@@ -235,9 +236,6 @@
           "minItems": 4,
           "maxItems": 4
         },
-        "near": {
-          "$ref": "#/$defs/C"
-        },
         "radius": {
           "type": [
             "number",
@@ -246,45 +244,19 @@
           "minimum": 0
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(view|kind|feature|near)$": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
     }
   },
   "required": [
     "part_ref"
   ],
-  "additionalProperties": false,
-  "$defs": {
-    "A": {
-      "additionalProperties": {
-        "type": "object"
-      },
-      "type": "object"
-    },
-    "B": {
-      "items": {
-        "type": "object"
-      },
-      "type": "array"
-    },
-    "C": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "D": {
-      "enum": [
-        null,
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9
-      ]
-    }
-  }
+  "additionalProperties": false
 }

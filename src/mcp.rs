@@ -158,12 +158,32 @@ pub fn validate(schema: &Value, value: &Value) -> Result<(), String> {
                 }
             }
             for (key, val) in o {
+                // Generated schemas group equal shapes with anchored, literal name choices.
+                let patterns: Vec<_> = s["patternProperties"]
+                    .as_object()
+                    .into_iter()
+                    .flatten()
+                    .filter(|(pattern, _)| {
+                        pattern
+                            .strip_prefix("^(")
+                            .and_then(|p| p.strip_suffix(")$"))
+                            .is_some_and(|names| names.split('|').any(|name| name == key))
+                    })
+                    .map(|(_, shape)| shape)
+                    .collect();
                 if let Some(p) = s["properties"].get(key) {
                     visit(root, p, val, &format!("{path}/{key}"))?;
-                } else if s["additionalProperties"] == false {
+                }
+                for p in &patterns {
+                    visit(root, p, val, &format!("{path}/{key}"))?;
+                }
+                if s["properties"].get(key).is_some() || !patterns.is_empty() {
+                    continue;
+                }
+                if s["additionalProperties"] == false {
                     return Err(format!(
-                        "{path}: {key:?} is unknown; accepted fields: {}",
-                        s["properties"]
+                        "{path}: {key:?} is unknown; accepted fields: {}; grouped fields: {}",
+                        s["properties"], s["patternProperties"]
                     ));
                 } else if s["additionalProperties"].is_object() {
                     visit(

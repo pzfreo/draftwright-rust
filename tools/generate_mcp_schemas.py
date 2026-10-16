@@ -116,6 +116,32 @@ def share_repeated(schema):
         schema = best[1]
     return schema
 
+def group_properties(schema, top=True):
+    """Use anchored name alternatives for equal property shapes, only when smaller.
+
+    This preserves object types, required fields and additionalProperties checks.
+    """
+    from collections import defaultdict
+    if isinstance(schema, list): return [group_properties(v, False) for v in schema]
+    if not isinstance(schema, dict): return schema
+    schema = {k: group_properties(v, False) for k, v in schema.items()}
+    props = schema.get('properties', {})
+    groups = defaultdict(list)
+    for name, value in props.items():
+        if (not top or name not in schema.get('required', [])) and re.fullmatch(r'[A-Za-z0-9_]+', name):
+            groups[json.dumps(value, sort_keys=True, separators=(',', ':'))].append(name)
+    for shape, names in groups.items():
+        if len(names) < 2: continue
+        pattern = '^(' + '|'.join(names) + ')$'
+        before = len(json.dumps(schema, separators=(',', ':')))
+        trial = {**schema, 'properties': {k:v for k,v in props.items() if k not in names},
+                 'patternProperties': {**schema.get('patternProperties', {}), pattern: json.loads(shape)}}
+        if not trial['properties']: del trial['properties']
+        if len(json.dumps(trial, separators=(',', ':'))) < before:
+            schema = trial
+            props = schema.get('properties', {})
+    return schema
+
 def short_names(schema):
     names = {'state':'t','spec':'s','op':'op','item':'i','compact':'c',
              'problem':'p','error':'e','stub':'u','problem_small':'r'}
@@ -155,6 +181,6 @@ for tool,(inp,out) in tools.items():
         for branch in schema.get('anyOf', []):
             if branch.get('type') == schema.get('type'):
                 branch.pop('type', None)
-        schema = short_names(share_repeated(inline_single_use(schema, keep)))
+        schema = short_names(share_repeated(group_properties(inline_single_use(schema, keep))))
         if not schema['$defs']: del schema['$defs']
         Path(f'schemas/mcp/{tool}.{kind}.json').write_text(json.dumps(schema,indent=2)+'\n')
