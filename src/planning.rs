@@ -1,5 +1,6 @@
 //! Preparation shared by sheet-search candidates during one immutable planning call.
-//! Sessions may retain bounded preparation for identical Analysis/Spec inputs across calls.
+//! Sessions may retain bounded preparation for the same Analysis across calls; each memo key
+//! still describes all additional inputs, including the Spec for planned candidates.
 
 use sha2::{Digest, Sha256};
 use std::any::Any;
@@ -7,7 +8,7 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, VecDeque};
 use std::rc::Rc;
 
-use crate::model::{Analysis, Spec};
+use crate::model::Analysis;
 
 type Values = BTreeMap<(&'static str, Vec<u8>), Box<dyn Any>>;
 
@@ -29,12 +30,13 @@ thread_local! {
 }
 
 /// Preview and commit often have identical inputs. Keep their pure preparation bounded and
-/// bound to the entire Analysis and Spec, including recognition and placement pins. Every
-/// invocation still runs the recovered planner; its candidate memo can reuse proven results.
-pub(crate) fn with_retained<T>(analysis: &Analysis, spec: &Spec, run: impl FnOnce() -> T) -> T {
+/// bound to the entire Analysis, including recognition. Spec-dependent candidates already
+/// key on the complete Spec; Analysis-only preparation can also survive a title edit. Every
+/// invocation still runs the recovered planner. Oversized scopes are cleared on re-entry,
+/// bounding retention by 256 entries plus the existing single-call planning budget.
+pub(crate) fn with_retained<T>(analysis: &Analysis, run: impl FnOnce() -> T) -> T {
     let key: [u8; 32] =
-        Sha256::digest(serde_json::to_vec(&(analysis, spec)).expect("planning inputs serialize"))
-            .into();
+        Sha256::digest(serde_json::to_vec(analysis).expect("analysis serializes")).into();
     let values = RETAINED.with(|retained| {
         let mut retained = retained.borrow_mut();
         let values = retained
@@ -43,6 +45,9 @@ pub(crate) fn with_retained<T>(analysis: &Analysis, spec: &Spec, run: impl FnOnc
             .and_then(|i| retained.remove(i))
             .map(|(_, values)| values)
             .unwrap_or_else(|| Rc::new(RefCell::new(BTreeMap::new())));
+        if values.borrow().len() > 256 {
+            values.borrow_mut().clear();
+        }
         retained.push_front((key, values.clone()));
         retained.truncate(4);
         values
@@ -84,7 +89,7 @@ pub(crate) fn with<T>(analysis: &Analysis, run: impl FnOnce() -> T) -> T {
 
 /// The address is used only while `with` borrows that Analysis, never across calls.
 /// Keys describe every additional input. Ordinary scopes end with the call; session scopes
-/// retain only entries bound to their complete Analysis/Spec digest.
+/// retain only entries bound to the complete Analysis, with all other inputs in each key.
 pub(crate) fn memo<T: Clone + 'static>(
     analysis: &Analysis,
     name: &'static str,
@@ -155,6 +160,7 @@ pub(crate) fn enabled(analysis: &Analysis) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::Spec;
 
     fn analysis() -> Analysis {
         serde_json::from_value(serde_json::json!({
@@ -170,9 +176,14 @@ mod tests {
         let mut a = analysis();
         let mut s = Spec::default();
         let preparations = std::cell::Cell::new(0);
+        let pure_preparations = std::cell::Cell::new(0);
         let read = |a: &Analysis, s: &Spec| {
-            with_retained(a, s, || {
-                memo(a, "retained-test", Vec::new(), || {
+            with_retained(a, || {
+                memo(a, "retained-pure", Vec::new(), || {
+                    pure_preparations.set(pure_preparations.get() + 1);
+                    a.envelope
+                });
+                memo(a, "retained-test", serde_json::to_vec(s).unwrap(), || {
                     preparations.set(preparations.get() + 1);
                     (a.envelope, s.sheet.scale.clone())
                 })
@@ -191,6 +202,11 @@ mod tests {
         assert_eq!(preparations.get(), 3);
         assert_eq!(read(&a, &s), (a.envelope, s.sheet.scale.clone()));
         assert_eq!(preparations.get(), 3);
+        assert_eq!(
+            pure_preparations.get(),
+            2,
+            "title/scale edits reuse only Analysis-dependent preparation"
+        );
         assert!(!enabled(&a));
     }
 
