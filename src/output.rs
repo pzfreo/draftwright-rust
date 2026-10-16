@@ -445,7 +445,7 @@ pub struct DrawnField {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DrawnReference {
     pub name: String,
-    /// Name of the target's actual caption or cutting-plane letter.
+    /// Name of the target view or cutting-plane letter.
     pub target: String,
     pub prefix: String,
     pub sheet: u32,

@@ -40,7 +40,7 @@
               ]
             },
             "smallest_scale": {
-              "$ref": "#/$defs/B"
+              "$ref": "#/$defs/C"
             },
             "keep_together": {
               "type": "array",
@@ -75,10 +75,10 @@
           "type": "object",
           "properties": {
             "size": {
-              "$ref": "#/$defs/B"
+              "$ref": "#/$defs/C"
             },
             "scale": {
-              "$ref": "#/$defs/B"
+              "$ref": "#/$defs/C"
             },
             "title": {
               "type": "object",
@@ -143,16 +143,13 @@
           ]
         },
         "notes": {
-          "type": "array",
-          "items": {
-            "type": "object"
-          }
+          "$ref": "#/$defs/B"
         },
         "tables": {
-          "type": "array",
-          "items": {
-            "type": "object"
-          }
+          "$ref": "#/$defs/B"
+        },
+        "gears": {
+          "$ref": "#/$defs/B"
         }
       },
       "additionalProperties": false
@@ -179,7 +176,7 @@
       "type": "object",
       "properties": {
         "code": {
-          "$ref": "#/$defs/B"
+          "$ref": "#/$defs/C"
         },
         "severity": {
           "enum": [
@@ -190,10 +187,10 @@
           ]
         },
         "subject": {
-          "$ref": "#/$defs/B"
+          "$ref": "#/$defs/C"
         },
         "feature": {
-          "$ref": "#/$defs/B"
+          "$ref": "#/$defs/C"
         }
       },
       "additionalProperties": false
@@ -211,6 +208,12 @@
       "type": "object"
     },
     "B": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "C": {
       "type": [
         "string",
         "null"

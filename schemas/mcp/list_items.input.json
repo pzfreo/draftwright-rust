@@ -26,10 +26,10 @@
           ],
           "properties": {
             "max": {
-              "$ref": "#/$defs/C"
+              "$ref": "#/$defs/D"
             },
             "smallest_scale": {
-              "$ref": "#/$defs/B"
+              "$ref": "#/$defs/C"
             },
             "keep_together": {
               "type": "array",
@@ -41,7 +41,7 @@
               }
             },
             "hole_table": {
-              "$ref": "#/$defs/C"
+              "$ref": "#/$defs/D"
             },
             "gdt_on_sheet_1": {
               "type": "boolean"
@@ -53,10 +53,10 @@
           "type": "object",
           "properties": {
             "size": {
-              "$ref": "#/$defs/B"
+              "$ref": "#/$defs/C"
             },
             "scale": {
-              "$ref": "#/$defs/B"
+              "$ref": "#/$defs/C"
             },
             "title": {
               "type": "object",
@@ -121,16 +121,13 @@
           ]
         },
         "notes": {
-          "type": "array",
-          "items": {
-            "type": "object"
-          }
+          "$ref": "#/$defs/B"
         },
         "tables": {
-          "type": "array",
-          "items": {
-            "type": "object"
-          }
+          "$ref": "#/$defs/B"
+        },
+        "gears": {
+          "$ref": "#/$defs/B"
         }
       },
       "additionalProperties": false
@@ -157,13 +154,13 @@
       "type": "object",
       "properties": {
         "sheet": {
-          "$ref": "#/$defs/C"
+          "$ref": "#/$defs/D"
         },
         "view": {
-          "$ref": "#/$defs/B"
+          "$ref": "#/$defs/C"
         },
         "kind": {
-          "$ref": "#/$defs/B"
+          "$ref": "#/$defs/C"
         },
         "state": {
           "anyOf": [
@@ -225,7 +222,7 @@
           ]
         },
         "feature": {
-          "$ref": "#/$defs/B"
+          "$ref": "#/$defs/C"
         },
         "region": {
           "type": [
@@ -239,7 +236,7 @@
           "maxItems": 4
         },
         "near": {
-          "$ref": "#/$defs/B"
+          "$ref": "#/$defs/C"
         },
         "radius": {
           "type": [
@@ -264,12 +261,18 @@
       "type": "object"
     },
     "B": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "C": {
       "type": [
         "string",
         "null"
       ]
     },
-    "C": {
+    "D": {
       "enum": [
         null,
         1,

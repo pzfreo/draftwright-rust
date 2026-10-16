@@ -10,6 +10,7 @@
 //! title block. Features, dimensions and annotations join the same documents as they are ported.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
 
 use haecceity::Part;
@@ -246,6 +247,9 @@ pub struct Spec {
     /// ([`crate::tables`]).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tables: Vec<TableSpec>,
+    /// Authored external spur gear requirements, never inferred from geometry.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub gears: Vec<crate::gears::GearSpec>,
 }
 
 /// The two sources of dimension intent (ADR4-5).
@@ -335,6 +339,7 @@ impl Default for Spec {
             annotations: BTreeMap::new(),
             notes: Vec::new(),
             tables: Vec::new(),
+            gears: Vec::new(),
         }
     }
 }
@@ -398,6 +403,14 @@ pub struct ViewSpec {
 pub struct Plan {
     pub schema: String,
     pub binding: Binding,
+    /// Digest of the complete Analysis, including the supplied recognition, that determined
+    /// this plan. Absent only in older saved plans. The Spec is embedded separately.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub analysis_sha256: Option<String>,
+    /// Per-occurrence policy for recognised evidence without a dimension owner. Informational;
+    /// unsupported manufacturing requirements retain their independent warnings.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub feature_dispositions: Vec<crate::dims::FeatureDisposition>,
     #[serde(default)]
     pub status: crate::completeness::Status,
     #[serde(default)]
@@ -686,6 +699,7 @@ pub fn step_bytes(bytes: &[u8]) -> Result<std::borrow::Cow<'_, [u8]>, String> {
 }
 
 /// The STEP text of the file at *path* ([`step_bytes`]: gzip is decompressed).
+#[cfg(not(target_arch = "wasm32"))]
 pub fn read_step_file(path: &Path) -> Result<Vec<u8>, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     step_bytes(&bytes)
@@ -694,16 +708,19 @@ pub fn read_step_file(path: &Path) -> Result<Vec<u8>, String> {
 }
 
 /// Reads the STEP file at *path*: the part, and its analysis, without features.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse(path: &Path) -> Result<(Part, Analysis), Unanalysed> {
     analyse_with(path, None)
 }
 
 /// The distinct parts of the STEP file *bytes* (named *path*, for messages), in haecceity's
 /// order: what [`analyse_step_part`]'s *part* indexes.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn parts(path: &Path, bytes: &[u8]) -> Result<Vec<FilePart>, Unanalysed> {
     let bytes = step_bytes(bytes)
         .map_err(|e| unanalysed(false, format!("cannot read {}: {e}", path.display())))?;
-    let defs = haecceity::step::read_part_definitions(&bytes).map_err(|e| step_refused(path, e))?;
+    let defs = haecceity::step::read_part_definitions(&bytes)
+        .map_err(|e| step_refused(&path.display().to_string(), e))?;
     Ok(file_parts(&defs))
 }
 
@@ -731,17 +748,15 @@ pub fn part_list(parts: &[FilePart]) -> String {
 
 /// Why *path* could not be read as STEP: a file that does not parse is not STEP; one that parses
 /// but holds what the kernel does not model (or lost on reading) is the kernel's failure.
-fn step_refused(path: &Path, e: haecceity::step::StepError) -> Unanalysed {
+fn step_refused(name: &str, e: haecceity::step::StepError) -> Unanalysed {
     let failed = !matches!(e, haecceity::step::StepError::Parse(_));
-    unanalysed(
-        failed,
-        format!("cannot read {} as STEP: {e}", path.display()),
-    )
+    unanalysed(failed, format!("cannot read {} as STEP: {e}", name))
 }
 
 /// Reads the STEP file at *path*, with its features from *recognition*: Python quiddity's JSON
 /// for the same file, written by `tools/recognise.py` ([`crate::bridge`]). Refused when the
 /// kernel did not resolve a face or edge the isometric draws.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_with(
     path: &Path,
     recognition: Option<&Path>,
@@ -751,6 +766,7 @@ pub fn analyse_with(
 
 /// [`analyse_with`], reading one part of an assembly alone when *part* is given
 /// ([`analyse_step_part`]).
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_with_part(
     path: &Path,
     recognition: Option<&Path>,
@@ -782,6 +798,7 @@ pub fn analyse_with_part(
 /// Reads *bytes*, the STEP file named *path* (which is not read: the name is for the part and
 /// for messages), as [`analyse_with`] reads a file, without features: for callers that have the
 /// file's bytes and no file system, such as a browser.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unanalysed> {
     analyse_step_part(path, bytes, None)
 }
@@ -792,16 +809,12 @@ pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unana
 /// part and its index. Part 0 of a file of one part is the whole file, read as with none. With none, the whole file is read as one part, as it always was; an
 /// assembly's parts are then listed in `parts` and the plan warns that they are drawn together.
 /// Refused, naming the parts, when there is no part *k*.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_step_part(
     path: &Path,
     bytes: &[u8],
     chosen: Option<usize>,
 ) -> Result<(Part, Analysis), Unanalysed> {
-    let bytes = &*step_bytes(bytes)
-        .map_err(|e| unanalysed(false, format!("cannot read {}: {e}", path.display())))?;
-    // The file's part definitions are read in both cases (the PMI reading needs them too, and
-    // is given these rather than reading them again). A gzipped file's name is its STEP name
-    // with `.gz` after it, so `part.step.gz` and `part.stp.gz` are named as `part.step` is.
     let stem = || {
         let plain = path
             .extension()
@@ -815,35 +828,76 @@ pub fn analyse_step_part(
             s.to_string_lossy().trim_end_matches(".step").to_string()
         })
     };
+    analyse_step_input(&path.display().to_string(), stem(), bytes, chosen)
+}
+
+/// Analyse in-memory STEP (or gzip) bytes with Rust feature recognition. `name` is only a
+/// display name, never a filesystem path. Browser callers need no filesystem or clock.
+pub fn analyse_native_bytes(name: &str, bytes: &[u8]) -> Result<(Part, Analysis), Unanalysed> {
+    let file = name.rsplit('/').next().unwrap_or(name);
+    let plain = if file
+        .get(file.len().saturating_sub(3)..)
+        .is_some_and(|s| s.eq_ignore_ascii_case(".gz"))
+    {
+        &file[..file.len() - 3]
+    } else {
+        file
+    };
+    let stem = plain
+        .rsplit_once('.')
+        .filter(|(stem, _)| !stem.is_empty())
+        .map_or(plain, |(stem, _)| stem)
+        .trim_end_matches(".step");
+    let (part, mut analysis) = analyse_step_input(name, stem.into(), bytes, None)?;
+    recognise_native(&part, &mut analysis).map_err(|e| {
+        unanalysed(
+            true,
+            format!("Rust quiddity's recognition of {name} was refused: {e}"),
+        )
+    })?;
+    Ok((part, analysis))
+}
+
+fn analyse_step_input(
+    name: &str,
+    stem: String,
+    bytes: &[u8],
+    chosen: Option<usize>,
+) -> Result<(Part, Analysis), Unanalysed> {
+    let bytes =
+        &*step_bytes(bytes).map_err(|e| unanalysed(false, format!("cannot read {}: {e}", name)))?;
+    // The file's part definitions are read in both cases (the PMI reading needs them too, and
+    // is given these rather than reading them again). A gzipped file's name is its STEP name
+    // with `.gz` after it, so `part.step.gz` and `part.stp.gz` are named as `part.step` is.
     let mut chosen = chosen;
-    let (part, defs, name) = match chosen {
+    let (part, defs, part_name) = match chosen {
         None => (
-            haecceity::read_step(bytes).map_err(|e| step_refused(path, e))?,
+            haecceity::read_step(bytes).map_err(|e| step_refused(name, e))?,
             haecceity::step::read_part_definitions(bytes)
                 .map_err(|e| format!("cannot read the parts: {e}")),
-            stem(),
+            stem.clone(),
         ),
         Some(k) => {
-            let file = haecceity::step::StepFile::read(bytes).map_err(|e| step_refused(path, e))?;
+            let file = haecceity::step::StepFile::read(bytes).map_err(|e| step_refused(name, e))?;
             if k == 0 && file.parts.len() == 1 {
                 // Part 0 of a file of one part is the whole file: drawn, titled (by the file's
                 // stem, not the product's name) and bound exactly as without a part chosen.
                 chosen = None;
-                let part = haecceity::read_step(bytes).map_err(|e| step_refused(path, e))?;
-                (part, Ok(file.parts), stem())
+                let part = haecceity::read_step(bytes).map_err(|e| step_refused(name, e))?;
+                (part, Ok(file.parts), stem.clone())
             } else {
                 if k >= file.parts.len() {
                     return Err(unanalysed(
                         false,
                         format!(
                             "{} has {} part(s) ({}); there is no part {k}",
-                            path.display(),
+                            name,
                             file.parts.len(),
                             part_list(&file_parts(&file.parts))
                         ),
                     ));
                 }
-                let part = file.part(k).map_err(|e| step_refused(path, e))?;
+                let part = file.part(k).map_err(|e| step_refused(name, e))?;
                 let name = file.parts[k].name.clone();
                 (part, Ok(file.parts), name)
             }
@@ -858,7 +912,7 @@ pub fn analyse_step_part(
                 .iter()
                 .map(|x| format!("{x:02x}"))
                 .collect(),
-            part: name,
+            part: part_name,
             face_count: part.faces.len(),
             loader: LOADER.into(),
             part_index: chosen,
@@ -919,7 +973,7 @@ pub fn analyse_step_part(
                 true,
                 format!(
                     "cannot draw {}: the kernel did not resolve its {e} on reading",
-                    path.display()
+                    name
                 ),
             )
         })?
@@ -942,11 +996,13 @@ pub fn analyse_step_part(
 }
 
 /// [`analyse_step`], with its features from Rust quiddity's recognition, as [`analyse_native`].
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_native_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unanalysed> {
     analyse_native_step_part(path, bytes, None)
 }
 
 /// [`analyse_native_step`] of one part of the file when *part* is given ([`analyse_step_part`]).
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_native_step_part(
     path: &Path,
     bytes: &[u8],
@@ -985,11 +1041,13 @@ pub const NOT_IN_NATIVE_DOCUMENT: [&str; 1] = ["section_recesses"];
 /// quiddity's recognition document ([`crate::bridge::native`]) in place of Python quiddity's JSON.
 /// Refused, as the kernel's failure, when the native reader refuses the document; never read as
 /// a part without features.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_native(path: &Path) -> Result<(Part, Analysis), Unanalysed> {
     analyse_native_part(path, None)
 }
 
 /// [`analyse_native`] of one part of the file when *part* is given ([`analyse_step_part`]).
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_native_part(
     path: &Path,
     part: Option<usize>,
@@ -1034,11 +1092,10 @@ pub fn recognise_document(
     // As the bridge orders them: by kind, then faces (each kind's IDs are ranked so already).
     features.sort_by(|a, b| (&a.kind, &a.faces).cmp(&(&b.kind, &b.faces)));
     let mut counts = BTreeMap::<&str, usize>::new();
-    for r in doc
-        .records
-        .iter()
-        .filter(|r| !native::READ.contains(&r.family.as_str()))
-    {
+    for r in doc.records.iter().filter(|r| {
+        !native::READ.contains(&r.family.as_str())
+            && !native::EVIDENCE_READ.contains(&r.family.as_str())
+    }) {
         *counts.entry(r.family.as_str()).or_default() += 1;
     }
     let mut unrecognised: Vec<Unrecognised> = NOT_IN_NATIVE_DOCUMENT
@@ -1057,7 +1114,7 @@ pub fn recognise_document(
     analysis.recognition = Some(Recognition {
         recogniser: read.recogniser,
         frame: native::IDENTITY,
-        evidence: Vec::new(),
+        evidence: read.evidence,
         refusals: Vec::new(),
         patterns: read.patterns,
     });
@@ -1155,7 +1212,7 @@ pub(crate) fn findings(plan: &Plan) -> layout::Findings {
 
 /// A plan's annotations over a view not their own: a label on a view's box or a line across
 /// another view (`annotation_over_view`, `annotation_line_over_view`), at warning or error.
-fn over_views(plan: &Plan) -> usize {
+pub(crate) fn over_views(plan: &Plan) -> usize {
     plan.problems
         .iter()
         .filter(|p| {
@@ -1281,6 +1338,37 @@ fn carried(plan: &Plan) -> BTreeSet<(String, String)> {
         }
     }
     out
+}
+
+pub(crate) fn carries_required(required: &Plan, candidate: &Plan) -> bool {
+    carried(required).is_subset(&carried(candidate))
+}
+
+/// Check actual bounds independently on each sheet; coincident coordinates on different
+/// pages are expected. Keep the single-sheet gate identical.
+pub(crate) fn drawn_sheets_fit(analysis: &Analysis, plan: &Plan) -> bool {
+    std::iter::once(&plan.sheet)
+        .chain(&plan.sheets)
+        .all(|sheet| {
+            let mut local = plan.clone();
+            local.sheet = sheet.clone();
+            local.views.retain(|v| v.sheet == sheet.number);
+            let carries = |id: &str| local.views.iter().any(|v| v.id == id);
+            local.dimensions.retain(|d| carries(&d.view));
+            local.gdt.retain(|g| carries(&g.view));
+            local.balloons.retain(|b| carries(&b.view));
+            local.tables.retain(|t| t.sheet == sheet.number);
+            local.hole_table = local.hole_table.filter(|t| t.sheet == sheet.number);
+            local.hole_tables.retain(|t| t.sheet == sheet.number);
+            if sheet.number > 1 {
+                local.notes.clear();
+                local.notes_block = None;
+                local.radius_notes_block = None;
+                local.radius_table = None;
+                local.requirements.clear();
+            }
+            drawn_items_fit(analysis, &local)
+        })
 }
 
 fn drawn_items_fit(analysis: &Analysis, p: &Plan) -> bool {
@@ -1430,8 +1518,9 @@ const LARGE_SHEET: usize = 2;
 /// Whether the part's views fit A3 at 1:1 (maintainer, 2026-10-15): drawn full size, each with
 /// one dimension row ([`layout::DIM_PAD`]) on either side, the row of views (the front with the
 /// side and any sections beside it) is no wider than A3's usable paper and the column (the plan
-/// above the front) no taller. Such a part never takes A2 or larger by default.
-fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
+/// above the front) no taller. Such a part exhausts single- and multi-sheet A4/A3 plans
+/// before the automatic search admits A2 or larger.
+pub(crate) fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
     let (_, w, h) = layout::PAGES[LARGE_SHEET - 1];
     let size = |v: &PlannedView| {
         let view = View::new(v.direction, v.up).expect("planned view");
@@ -1526,9 +1615,7 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
     let mut smallest = None;
     let mut smallest_iso: Option<f64> = None;
     let mut recipes = BTreeMap::new();
-    // The large sheets stay closed to a small part only while it has a valid drawing below
-    // them; with none, the search goes on to A2 and up as before (judgement, 2026-10-16: redrawn
-    // smaller, such a drawing would lose items off the sheet).
+    // Exhaust practical single sheets, then R5 allocation, before admitting large paper.
     let mut rule = true;
     let mut first_sheet = 0;
     loop {
@@ -1723,6 +1810,21 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
         }
         if cut && candidates.is_empty() {
             tried.pop();
+            // Already allocated content is assembled by the caller. Its completed document
+            // gets the same fallback in sheets::allocate_counted, rather than nesting moves.
+            let assigned = spec.views.values().any(|v| v.sheet.is_some_and(|n| n > 1))
+                || spec.tables.iter().any(|t| t.sheet.is_some_and(|n| n > 1))
+                || spec
+                    .sheets
+                    .as_ref()
+                    .and_then(|s| s.hole_table)
+                    .is_some_and(|n| n > 1);
+            if !assigned
+                && let Some(plan) =
+                    crate::sheets::small_fallback(analysis, spec, &first, &mut tried)
+            {
+                return Ok(plan);
+            }
             rule = false;
             seed_kept = seed_clean;
             first_sheet = LARGE_SHEET;
@@ -2104,6 +2206,7 @@ fn plan_with_presentation(
     title_block::check(&spec.sheet.title)?;
     crate::notes::check(&spec.notes)?;
     crate::tables::check(&spec.tables)?;
+    crate::gears::check(&spec.gears)?;
     let mut problems = Vec::new();
     // The spec the plan follows: across a revision, without the entries that cannot be trusted.
     let canonical = if crate::placement_intent::has_pins(spec) {
@@ -2296,6 +2399,7 @@ fn plan_with_presentation(
     }
     let mut demand = crate::demand::read(analysis);
     demand.gdt_beyond_lanes = gdt_beyond_lanes;
+    demand.callout_bands = crate::dims::callout_bands(analysis, spec)?;
     // A turned part drops the view that repeats its profile, unless the spec asks for it, or
     // omits the profile view it keeps (front): the dropped view is then the only profile left;
     // or a PMI item is drawn in it (draftwright's `annotation_view_required`).
@@ -2494,6 +2598,9 @@ fn plan_with_presentation(
     );
     request.iso_scale_factor = spec.iso_scale_factor;
     request.required_tables = crate::tables::sizes(&spec.tables);
+    request
+        .required_tables
+        .extend(crate::tables::sizes(&crate::gears::tables(analysis)));
     if let Some(p) = presentation {
         request.required_tables.extend(p.sizes());
     }
@@ -3250,6 +3357,27 @@ fn plan_with_presentation(
     problems.extend(more);
     tables.extend(schedule);
     ink.extend(tables.iter().filter_map(crate::tables::proxy));
+    let (mut gear_tables, more) = crate::tables::plan(
+        &crate::gears::tables(analysis),
+        analysis,
+        &sheet,
+        &views,
+        &ink,
+        notes_block.as_ref().map(|b| b.cells),
+    );
+    problems.extend(more);
+    for (i, table) in gear_tables.iter_mut().enumerate() {
+        table.basis = format!(
+            "authored: gears/{i}, metric external spur gear requirements; ISO 21771-1/-2, ISO 53, ISO 54 and ISO 1328-1; placed as a standards data table"
+        );
+    }
+    tables.extend(gear_tables);
+    ink.extend(
+        tables
+            .iter()
+            .filter(|t| t.id.starts_with("gear_data_"))
+            .filter_map(crate::tables::proxy),
+    );
     let exceptions_unstated =
         crate::dims::blends::exceptions_unstated(analysis, &dimensions, &radius_notes);
     if exceptions_unstated {
@@ -3440,6 +3568,18 @@ fn plan_with_presentation(
     let mut plan = Plan {
         schema: PLAN_SCHEMA.into(),
         binding: analysis.binding.clone(),
+        analysis_sha256: Some(crate::planning::memo(
+            analysis,
+            "analysis_sha256",
+            Vec::new(),
+            || {
+                Sha256::digest(serde_json::to_vec(analysis).expect("analysis serializes"))
+                    .iter()
+                    .map(|b| format!("{b:02x}"))
+                    .collect()
+            },
+        )),
+        feature_dispositions: crate::dims::feature_dispositions(analysis),
         status: crate::completeness::Status::NeedsAttention,
         completeness: crate::completeness::Completeness::default(),
         sheet,
@@ -3704,6 +3844,7 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
     title_block::check(&spec.sheet.title)?;
     crate::notes::check(&spec.notes)?;
     crate::tables::check(&spec.tables)?;
+    crate::gears::check(&spec.gears)?;
     Ok(spec)
 }
 
@@ -4385,7 +4526,7 @@ fn render_annotations_with_cuts(
                     cut.xref.as_ref().filter(|_| f.chain.is_some()),
                     format!("SECTION {}–{},", cut.label, cut.label),
                     format!("{}/cut/xref", v.id),
-                    "section_caption".into(),
+                    v.id.clone(),
                 ),
             ] {
                 if let Some(r) = reference {
@@ -4792,6 +4933,7 @@ fn render_annotations_with_cuts(
         }
         let mut manufacturing_runs: BTreeMap<String, Vec<usize>> = BTreeMap::new();
         let mut manufacturing_header = Vec::new();
+        let mut gear_runs = Vec::new();
         let mut tag = None;
         for (r, (row, positions)) in table.rows.iter().zip(&p.cells_at).enumerate() {
             if table.id == crate::pmi_lowering::SCHEDULE_ID && r > 0 && !row[0].is_empty() {
@@ -4802,6 +4944,9 @@ fn render_annotations_with_cuts(
                 let run = (cell.trim(), crate::dims::FONT, crate::tables::TEXT);
                 let laid = font.text(&crate::tables::ink(cell), crate::tables::TEXT);
                 let index = label(laid, *at, dims, Some(run));
+                if table.id.starts_with("gear_data_") {
+                    gear_runs.extend(index);
+                }
                 if table.id == crate::pmi_lowering::SCHEDULE_ID && r == 0 {
                     manufacturing_header.extend(index);
                 }
@@ -4812,6 +4957,17 @@ fn render_annotations_with_cuts(
                         .extend(index);
                 }
             }
+        }
+        if let Some(owner) = table.id.strip_prefix("gear_data_") {
+            annotations.push(Annotation {
+                name: table.id.clone(),
+                runs: gear_runs,
+                claims: vec![Claim {
+                    feature: format!("gear:{owner}"),
+                    parameter: "gear.requirement".into(),
+                }],
+                ..Default::default()
+            });
         }
         if !manufacturing_header.is_empty() {
             annotations.push(Annotation {

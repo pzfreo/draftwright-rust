@@ -240,7 +240,11 @@ message names it (`…; A4 at 1:1 fits.`).
 
 #### Sheet allocation (R5, Stage I)
 
-`sheets.max` allows 1–9 sheets; absent means one. `sheets.smallest_scale` is an ISO
+`sheets.max` allows 1–9 sheets. An explicit count is binding. With no count,
+the normal search starts with one sheet; a small part with no valid complete A4/A3
+single-sheet drawing tries R5 allocation on A4/A3 before A2 or larger (up to the
+existing nine-sheet bound). Named paper keeps the original default of one.
+See the [R5 small-part amendment](adr/R5-multi-sheet.md#small-part-overflow-amendment-2026-10-16). `sheets.smallest_scale` is an ISO
 5455 scale floor, `keep_together` is a list of groups of view names (also allowing
 `hole_table`), `hole_table` assigns a rescue hole table if escalation actually makes
 one, and `gdt_on_sheet_1` records that requirement. A hole-table assignment does not
@@ -257,7 +261,27 @@ an explicit sheet assignment remains possible for an auxiliary group. A stated
 scale or lower the floor. List-index edits are supported only for
 `tables/<index>/sheet`, with `set` and `remove`.
 
-Without sheet controls the existing planner path and serialized bytes are unchanged.
+The [2026-10-16 audit](second-sheet-audit.csv) lists all 68 small A2+ cases found
+among 2,150 native default/spec cases over 190 corpus and fixture STEP inputs
+(baseline `53aa9f3f`, origin/main at the start of the change). All 63 source hashes
+in the captured single-sheet spec fixture are covered. Three selections
+improved: 10224 and 10255 use one A3 sheet at 2:1 after measured section
+correction; GRM-03's fixed 10:1 spec fits one A3. The
+[follow-up review](second-sheet-review.md) records the original candidate failures,
+auxiliary-page composition and references checked against drawn target positions.
+The 44 named large-paper requests stay as authored. Every other small
+large-paper case records both failed practical-paper allocations. The report's
+required-drop count includes unreadably crowded location dimensions. When no
+allocation prefix is clean, the reported best step may be the original one-sheet
+step; each audit's `audit.json` retains every paper/scale and moved-prefix trial.
+All 742 cases whose full-size views need larger paper retain their size, scale
+and count.
+
+Run `cargo run --release --example sheet_policy_audit -- CORPUS OUT` against each
+revision, then `python3 -I tools/compare_sheet_policy.py BEFORE/audit.json
+AFTER/audit.json OUT` to reproduce the case table and the unchanged-large-part gate.
+
+Without sheet controls a valid single A4/A3 drawing keeps the existing planner path.
 A floor alone enters the existing recovery. With `sheets.max > 1`, each allocation
 prefix uses the existing finished-sheet recovery with the floor, including table
 recovery. There are at most four prefixes; H6's exhaustive selection supersedes
@@ -328,6 +352,11 @@ also take `offset` (below):
 | `along` | A fraction 0–1, or `start`, `middle`, `end`, `outside` (1.25). A linear label is centred at that fraction of its witness span; at `outside` it sits just past the line's far end, the dimension line run on to it, as a span too short for its label has it (#32: 1.25 of a long span stranded the text). Leadered labels use that fraction of the view's extent along the strip, keeping their original feature attachment. |
 | `offset` | Callouts only: `[dx, dy]`, each within ±1000 paper mm (y up), the bend's offset from the callout's automatic leader tip. Requires `pinned: true` and excludes `side`, `lane` and `along`. |
 | `pinned` | Defaults to false. True fixes the resolved geometry before automatic layout; without side, lane or along it keeps the canonical automatic ink (its lines and arrows; a label whose own text changes, such as a new tolerance, is re-set from its current text, centred where the old one was, or for a callout from the end of its shoulder); a free item can be adjusted around obstacles. |
+
+An unpinned callout with only `side` (and optionally `view`) keeps participating in the
+shared leader solve. Its candidates stay on that side, its printed label reserves paper space
+before view packing, and the solver chooses a station clear of other ink. Supplying `lane`,
+`along` or a pin continues to prescribe a station.
 
 A pinned callout above or below a view puts its text on the side its leader runs to:
 an elbow left of the tip carries text to the left, and a vertical leader defaults to the
@@ -448,6 +477,22 @@ reviewed by re-planning. Exports embed these entries, so extracting the Spec and
 reproduces the same geometry (`tests/placement_intent.rs`, SVG, DXF, PDF and PNG).
 
 ### Plan: what the sheet will say
+
+`analysis_sha256` identifies the complete effective Analysis used for planning, including its
+recognition records and recogniser, beside the STEP `binding` and embedded `spec`. It is a
+SHA-256 digest of the deterministic JSON serialization, not merely the source-file hash;
+changing `--features` therefore changes the run's provenance even for the same STEP and Spec.
+Older saved plans read with no digest.
+
+`feature_dispositions` reports each recognised occurrence without a dimension owner. Its
+`subject` is a feature ID, or `recognition:evidence:<index>` / `recognition:refusal:<index>` in
+the Analysis's same-run record arrays. Each informational entry has a closed `disposition`
+(`unsupported`, `deferred`, `evidence_only`) and `reason_code`. The dimension planners and their
+undrafted capability table supply the policy: a countersink is hole-callout evidence, while
+unreviewed freeform, sheet-metal and similar grammars are deferred. Evidence-only step levels,
+risers and repeating profiles keep their own reasons. These records do not remove completeness
+or unsupported-feature warnings, and an authored omission is not an ownerless disposition.
+
 
 `plan(analysis, spec)` produces it. The plan is the preview, and renderers draw only from it.
 
@@ -875,6 +920,60 @@ and draws them as draftwright draws its document notes (`render_document_notes`)
   the text layer keeps `⌀` where draftwright's has `ø` (rust-correct, as for callouts). The
   per-feature `note` is drawn as a leadered label since K1b ("Finish, threads, knurls and
   notes authored in the Spec", below); hole tables are not ported here.
+
+### External spur gears
+
+`gears` is an ordered list of authored manufacturing requirements (ISO 21771-1:2024,
+ISO 21771-2:2025, ISO 53:1998, ISO 54:1996 and ISO 1328-1:2013):
+
+```json
+{"gears": [{
+  "on": "f:boss:1",
+  "frame": {"origin": [0, 0, 0], "axis": "z"},
+  "tooth_count": 13, "module": 1.25, "pressure_angle": 20,
+  "profile_shift": 0, "face_width": 10,
+  "tooth_thickness": 1.9634954084936207,
+  "tooth_thickness_tolerance": [-0.03, 0.01],
+  "flank_tolerance_class": 7
+}]}
+```
+
+Every field is required. `on` anchors ownership to a cylindrical `boss`,
+`cylindrical_boss` or `turned_step` feature, a `face:<n>`, or a named stock face
+(`top`, `bottom`, `left`, `right`, `front`, `back`). Use a face anchor for a toothed
+wheel. `frame` explicitly authors the gear centre and principal axis in the part's
+coordinates, in mm; axis letters accept either case. The axial span is the centre
+coordinate on that axis ± half the face width. Anchors on another revision are
+refused until reattached.
+
+Validation follows Python's `ExternalSpurGearFeature`: finite origin; integer tooth
+count 5–1000; positive finite module, face width and tooth thickness; module
+0.5–70 mm; width 4–1200 mm; reference diameter `module × tooth_count` 5–15000 mm;
+finite pressure angle strictly between 0 and 90 degrees; finite profile shift;
+two finite tooth-thickness deviations, lower ≤ upper, retaining a strictly positive
+lower thickness limit; integer flank tolerance class 1–11. Booleans are refused
+as numeric values. Deviations are lower then upper, in mm.
+
+A declaration creates `gear_data_1`, `gear_data_2`, … table items. Each prints the
+header and Python's nine fixed ISO rows with exact authored float formatting,
+units, and signed deviations. These tables reserve space through the sheet rules
+and are placed towards the top right as late furniture, clear of dimensions,
+notes, captions and earlier tables. They carry rendered provenance to `gear:1`,
+`gear:2`, …; they are never recognised from geometry. Edit the whole `gears` list
+with `set`, or append a declaration with `add` on `gears`; the MCP Spec schemas
+expose the same list, like `notes` and `tables`.
+
+Lint reads declarations lowered into the Analysis's independent requirement
+inventory and the actual rendered table text, without reading the embedded Spec.
+It reports missing, ambiguous or stale tables. Full-wire repeating-profile evidence
+from native or Python recognition is matched by centre and axial span (1e-6 mm),
+then audited for axis and repeat count. Missing, displaced or ambiguous evidence
+is `gear_correspondence_unverifiable`; an undeclared repeating profile is
+`gear_semantics_missing`. Arc counts alone never prove correspondence. A smooth
+blank can carry a declaration and table but remains unverifiable, as in Python.
+Python imposes no derived tip-diameter or face-width agreement with a blank;
+the port adds no such refusal. `tests/gears.rs` covers the blank, real wheel,
+validation, export and all reconciliation outcomes.
 
 ### Tables
 

@@ -1412,6 +1412,9 @@ pub(super) fn intent(
     if !p.pinned && p.side.is_none() && p.lane.is_none() && p.along.is_none() {
         return None;
     }
+    if matches!(w.shape, Shape::Callout { .. }) && crate::placement_intent::side_hint(p).is_some() {
+        return None;
+    }
     let side = match p.side {
         Some(crate::placement_intent::Side::Above) => Side::Above,
         Some(crate::placement_intent::Side::Below) => Side::Below,
@@ -2128,7 +2131,20 @@ pub(crate) fn collisions_cached(
                     "annotation_overlap",
                     "warning",
                     vec![a.id.clone(), b.id.clone()],
-                    format!("The labels of {} and {} overlap.", named(a), named(b)),
+                    if pa.lines.iter().any(|s| crosses(*s, pb.label_box))
+                        || pb.lines.iter().any(|s| crosses(*s, pa.label_box))
+                        || (a.kind == "callout" && ink_through(pa, pb.label_box))
+                        || (b.kind == "callout" && ink_through(pb, pa.label_box))
+                    {
+                        format!(
+                            "The labels of {} and {} overlap; line-work also crosses a label, \
+                             so separating the text is not enough: move what is drawn, not just the text.",
+                            named(a),
+                            named(b)
+                        )
+                    } else {
+                        format!("The labels of {} and {} overlap.", named(a), named(b))
+                    },
                 );
             }
         }
@@ -2142,7 +2158,11 @@ pub(crate) fn collisions_cached(
             // (ISSUE-367-a), as `dims::leaders` places it; a contact only the flare makes is
             // worded as such. Linear dimension flares are the same filled ink.
             let through = pa.lines.iter().any(|s| crosses(*s, pb.label_box));
-            if through || ink_through(pa, pb.label_box) {
+            // ISSUE-1332-a: an overlapping pair already has one finding above, including
+            // the line-work remedy when needed. Do not charge that neighbourhood twice.
+            if !boxes_overlap(pa.label_box, pb.label_box)
+                && (through || ink_through(pa, pb.label_box))
+            {
                 problem(
                     "annotation_ink_overlap",
                     "warning",
@@ -2187,6 +2207,53 @@ pub(crate) fn collisions_cached(
 
 #[cfg(test)]
 mod tests {
+    /// ARCH0009-5: deliberately scramble input order and make the size longer than a
+    /// location: category precedes distance; datum locations alone nest by distance.
+    #[test]
+    fn shared_corridor_orders_sizes_then_locations_then_overall() {
+        let a: Analysis = serde_json::from_value(serde_json::json!({
+            "schema": crate::model::ANALYSIS_SCHEMA,
+            "binding": {"source_sha256":"", "part":"plate", "face_count":0, "loader":"test"},
+            "envelope":[[0,0,0],[100,60,10]], "iso_bounds":[0,0,100,60]
+        }))
+        .unwrap();
+        let frames = BTreeMap::from([(
+            "front",
+            Frame::looking(&a, [0., -1., 0.], [0., 0., 1.], [0., 0.], 1.),
+        )]);
+        let want = |id: &str, span: f64, order| Want {
+            id: id.into(),
+            views: vec!["front"],
+            value: span,
+            terms: vec![span.to_string()],
+            measurements: vec![],
+            basis: String::new(),
+            turning: None,
+            shape: Shape::Linear {
+                a: [0., 0., 0.],
+                b: [span, 0., 0.],
+                axis: 0,
+                a_edge: false,
+                b_edge: false,
+                order,
+            },
+        };
+        let items = [
+            want("overall", 100., 2),
+            want("far", 70., 1),
+            want("size", 40., 0),
+            want("near", 20., 1),
+            want("middle", 50., 1),
+        ];
+        let (sides, lane) = lanes(
+            &frames,
+            items.iter().map(|w| (w, Some("front"))),
+            &[None; 5],
+        );
+        assert!(sides.iter().all(|s| *s == Some(Side::Below)));
+        assert_eq!(lane, [4, 3, 0, 1, 2]);
+    }
+
     #[test]
     fn front_left_lanes_do_not_reserve_the_plan_band() {
         let front = Some("front");
@@ -2405,5 +2472,87 @@ mod tests {
             "{}",
             overlap.message
         );
+    }
+
+    /// ISSUE-1332-a: the exact overlapping/crossing neighbourhood from Python's
+    /// test_issue_1332_overlap_remedy.py, in either inventory order. Moving text alone cannot
+    /// clear the line-work; an ordinary overlap keeps the ordinary message.
+    #[test]
+    fn an_overlapping_pair_has_one_diagnostic_with_a_consistent_remedy() {
+        use serde_json::json;
+        let analysis: Analysis = serde_json::from_value(json!({
+            "schema": "draftwright.analysis/5",
+            "binding": {"source_sha256": "", "part": "", "face_count": 0, "loader": ""},
+            "envelope": [[0., 0., 0.], [1., 1., 1.]], "iso_bounds": [0., 0., 0., 0.]
+        }))
+        .unwrap();
+        let sheet: PlannedSheet = serde_json::from_value(json!({
+            "size": "A4", "page": [297., 210.], "scale": "1:1", "scale_factor": 1.,
+            "arrangement": "columns", "title_block": [200., 10., 287., 40.],
+            "default": true, "basis": "", "state": {"kind": "shown"}, "title": {}
+        }))
+        .unwrap();
+        let item = |id: &str, label_box: [f64; 4], lines: Vec<[P2; 2]>| PlannedDimension {
+            id: id.into(),
+            kind: "linear".into(),
+            view: "v:plan".into(),
+            value: 1.,
+            label: id.into(),
+            terms: vec![id.into()],
+            measurements: vec![],
+            default: true,
+            from_spec: vec![],
+            basis: String::new(),
+            state: crate::items::State::Shown,
+            reference: false,
+            determined_by: vec![],
+            region: None,
+            placed: Some(Placed {
+                lines,
+                arrows: vec![],
+                label_at: [label_box[0], label_box[1]],
+                rotation: 0.,
+                label_box,
+            }),
+        };
+        for crossing in [false, true] {
+            let a = item(
+                "d:a",
+                [10., 10., 20., 12.2],
+                vec![[
+                    [0., if crossing { 11. } else { 40. }],
+                    [40., if crossing { 11. } else { 40. }],
+                ]],
+            );
+            let b = item(
+                "d:b",
+                [12., 10.5, 22., 12.7],
+                vec![[[30., 30.], [31., 30.]]],
+            );
+            for items in [vec![a.clone(), b.clone()], vec![b.clone(), a.clone()]] {
+                let found: Vec<_> = collisions(&analysis, &items, &sheet, &[])
+                    .into_iter()
+                    .filter(|p| {
+                        matches!(
+                            p.code.as_str(),
+                            "annotation_overlap" | "annotation_ink_overlap"
+                        )
+                    })
+                    .collect();
+                assert_eq!(found.len(), 1, "{found:?}");
+                assert_eq!(found[0].code, "annotation_overlap");
+                assert_eq!(found[0].message.contains("move what is drawn"), crossing);
+                assert_eq!(
+                    found[0]
+                        .message
+                        .contains("separating the text is not enough"),
+                    crossing
+                );
+                assert!(
+                    found[0].fix.is_empty(),
+                    "no unsupported edit is offered as a remedy"
+                );
+            }
+        }
     }
 }

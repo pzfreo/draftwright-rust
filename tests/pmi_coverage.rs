@@ -641,3 +641,46 @@ fn bare(drawing: &Drawing) -> Drawing {
     });
     out
 }
+
+/// LINT-code-pmi_source_text_mismatch, text-run half: a wrapped source note is checked from
+/// the finished drawing, and changing just its printed text keeps its provenance but loses truth.
+#[test]
+fn a_source_edge_note_must_keep_every_word_when_wrapped() {
+    let (file, bytes) = fixture("spool_fits");
+    let (part, mut a, _) = drawn(&file, &bytes);
+    let Some(Reading::Read(report)) = &mut a.pmi else {
+        panic!("PMI is read")
+    };
+    let edge = report
+        .records
+        .iter_mut()
+        .find(|r| r.kind == "edge_condition")
+        .unwrap();
+    edge.label = "Break sharp edges and remove all burrs around external corners 0.2 max".into();
+    let source = edge.source_id.clone();
+    let id = report.identities().id(&source).unwrap().to_string();
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let font =
+        draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
+    let mut drawing = model::render(&part, &a, &plan, &font).unwrap();
+    let annotation = drawing.annotations.iter().find(|n| n.name == id).unwrap();
+    assert!(annotation.runs.len() >= 2, "exercise a wrapped note");
+    let runs = annotation.runs.clone();
+    let mismatch = |drawing: &Drawing| {
+        coverage(&a, drawing)
+            .into_iter()
+            .filter(|i| i.code == "pmi_source_text_mismatch" && i.sources.contains(&source))
+            .collect::<Vec<_>>()
+    };
+    assert!(mismatch(&drawing).is_empty());
+    let last = *runs.last().unwrap();
+    assert!(drawing.text[last].text.contains("0.2 max"));
+    drawing.text[last].text = drawing.text[last].text.replace("0.2 max", "");
+    assert_eq!(mismatch(&drawing).len(), 1);
+    drawing.annotations.retain(|n| n.name != id);
+    assert!(
+        coverage(&a, &drawing)
+            .iter()
+            .any(|i| i.code == "pmi_not_rendered" && i.sources.contains(&source))
+    );
+}

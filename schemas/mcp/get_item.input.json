@@ -152,16 +152,13 @@
           ]
         },
         "notes": {
-          "type": "array",
-          "items": {
-            "type": "object"
-          }
+          "$ref": "#/$defs/B"
         },
         "tables": {
-          "type": "array",
-          "items": {
-            "type": "object"
-          }
+          "$ref": "#/$defs/B"
+        },
+        "gears": {
+          "$ref": "#/$defs/B"
         }
       },
       "additionalProperties": false
@@ -190,6 +187,12 @@
         "type": "object"
       },
       "type": "object"
+    },
+    "B": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
     }
   }
 }

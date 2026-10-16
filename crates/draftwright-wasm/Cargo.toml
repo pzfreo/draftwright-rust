@@ -1,0 +1,18 @@
+[package]
+name = "draftwright-wasm"
+version = "0.1.0-alpha.3"
+edition = "2024"
+license = "AGPL-3.0-only"
+description = "Draftwright's live drawing session for browsers."
+repository = "https://github.com/pzfreo/draftwright-rust"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+draftwright = { path = "../.." }
+serde_json = { version = "1.0.151", features = ["float_roundtrip"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+console_error_panic_hook = "0.1"
