@@ -95,7 +95,7 @@
       - "tests/test_issue_563_placement_intent.py::test_plan_right_corridor_does_not_force_feasible_a4_scale_reduction"
     corpus_parts: []
   status: ported
-  rust_note: "Maintainer approval 2026-10-16 applied: composition reserves every source linear corridor, including below front and above/left of plan, and all authored principal strips at their requested or respaced lanes. Composition measures the complete settled linear ink, including reflow, labels and outside-arrow corner reach, from the full inventory. Established witness and leader routes are transported with their owning view block; the isometric is fitted against the resulting footprints. Preferred-scale reductions are permitted to keep corridors inside their reserved area and on the sheet; no part-specific exceptions."
+  rust_note: "Maintainer approval 2026-10-16 applied: composition reserves every source linear corridor, including below front and above/left of plan, and all authored principal strips at their requested or respaced lanes. Composition measures the complete settled linear ink, including reflow, labels and outside-arrow corner reach, from the full inventory. Established witness and leader routes are transported with their owning view block; the isometric is fitted against the resulting footprints. Preferred-scale reductions are permitted to keep corridors inside their reserved area and on the sheet. An explicitly named sheet/scale retains its projection origins and section-mark frame while reserving the complete ink; automatic candidates may repack free blocks. No part-specific exceptions."
   rust_test: "tests/views_layout_rules.rs::every_source_and_explicit_linear_corridor_is_reserved; tests/views_layout_rules.rs::explicit_dimensions_that_reflow_keep_their_reserved_corridors; tests/views_layout_rules.rs::reserved_location_corridors_choose_witnesses_clear_of_foreign_holes"
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream views-and-layout"
 
@@ -3047,7 +3047,7 @@
     corpus_parts: ["issue_1595_whistle_key_frame.step"]
   status: ported
   rust_test: "tests/views_layout_rules.rs::internal_stations_require_three_details_of_two_kinds"
-  rust_note: "Python internal_section_rows is ported through the shared section-recess grammars: Z hex pockets, Y circular seats and X blind-hole physical members qualify rows within 0.5 mm, at least three details of two kinds. Qualifying bore rows have priority; otherwise the densest internal row wins, nearest the part centre then lowest Y on a tie. The original whistle-frame fixture chooses Y=-7.9 and retains a hatched section and required slot dimensions through direct and recovered planning; one-kind or only two-detail rows do not qualify."
+  rust_note: "Python internal_section_rows is ported for recognized Analysis features through the shared section-recess grammars (the original fixture uses the supported recognition bridge): Z hex pockets, Y circular seats and X blind-hole physical members qualify rows within 0.5 mm, at least three details of two kinds. Qualifying bore rows have priority; otherwise the densest internal row wins, nearest the part centre then lowest Y on a tie. The original whistle-frame fixture chooses Y=-7.9 and retains a hatched section and required slot dimensions through direct and recovered planning; one-kind or only two-detail rows do not qualify."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream views-and-layout"
 
 - id: ISSUE-1612-a

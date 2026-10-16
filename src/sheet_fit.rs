@@ -713,92 +713,6 @@ pub(crate) fn choose(
     Some((chosen, smallest))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    fn candidate(scale: f64, width: f64, fill: f64) -> (f64, f64, f64) {
-        (scale, width, fill)
-    }
-    fn c(sheet: usize, scale: f64, fill: f64) -> Candidate {
-        x(sheet, scale, fill, 0)
-    }
-    fn x(sheet: usize, scale: f64, fill: f64, extra_crossings: usize) -> Candidate {
-        Candidate {
-            sheet,
-            scale,
-            width: crate::layout::PAGES[sheet].1,
-            fill,
-            extra_crossings,
-        }
-    }
-    #[test]
-    fn band_prefers_scale_then_smaller_paper_otherwise_fullest() {
-        let best = candidate(2.0, 297.0, 0.60);
-        assert!(rank(best, candidate(1.0, 297.0, 0.85)).is_lt());
-        assert!(rank(best, candidate(2.0, 420.0, 0.80)).is_lt());
-        assert!(rank(best, candidate(5.0, 420.0, 0.90)).is_lt());
-        assert!(rank(candidate(1.0, 297.0, 0.59), candidate(2.0, 420.0, 0.40)).is_lt());
-    }
-    #[test]
-    fn neighbour_requires_enlargement_and_two_steps_are_forbidden() {
-        assert!(allowed((0, 1.0), 0, 0.5));
-        assert!(!allowed((0, 1.0), 1, 1.0));
-        assert!(allowed((0, 1.0), 1, 2.0));
-        assert!(!allowed((0, 1.0), 2, 5.0));
-    }
-    /// 10060 as measured: A4 1:1 17.0% and A3 2:1 14.9%, both valid and below the band.
-    #[test]
-    fn below_the_band_the_fullest_valid_pair_wins_on_less_paper() {
-        let set = [c(0, 1.0, 0.170), c(1, 2.0, 0.149)];
-        assert_eq!(choose(&set, false, true), Some((Some(0), (0, 1.0))));
-    }
-    #[test]
-    fn only_the_smallest_fits_largest_scale_and_one_enlarged_step_compete() {
-        // A4 1:1 fits. A4 1:2, A3 1:1 and every A2 pair are not allowed, however full.
-        let set = [
-            c(0, 1.0, 0.30),
-            c(0, 0.5, 0.31),
-            c(1, 1.0, 0.70),
-            c(1, 2.0, 0.40),
-            c(2, 5.0, 0.75),
-        ];
-        assert_eq!(choose(&set, false, true), Some((Some(3), (0, 1.0))));
-        // In the band, the larger scale wins, then the smaller sheet.
-        let set = [c(0, 1.0, 0.65), c(1, 2.0, 0.62)];
-        assert_eq!(choose(&set, false, true).unwrap().0, Some(1));
-        let set = [c(0, 2.0, 0.65), c(1, 2.0, 0.70)];
-        assert_eq!(choose(&set, false, true).unwrap().0, Some(0));
-    }
-    /// assembly_plate_pin as measured: a valid A3 1:2 adding two crossings still defines the
-    /// smallest fit, so A1 is never reached; A2 1:1, its allowed enlargement, is chosen.
-    /// spool_fits: every allowed pair adds crossings, so the valid first estimate is kept.
-    #[test]
-    fn a_material_veto_never_moves_the_smallest_fit() {
-        let set = [
-            x(1, 0.5, 0.194, 2),
-            x(2, 1.0, 0.245, 0),
-            x(2, 0.5, 0.096, 1),
-            x(3, 2.0, 0.251, 0),
-        ];
-        assert_eq!(choose(&set, false, true), Some((Some(1), (1, 0.5))));
-        // An invalid first estimate's crossing count vetoes nothing.
-        assert_eq!(choose(&set, false, false), Some((Some(1), (1, 0.5))));
-        let spool = [
-            x(0, 0.2, 0.226, 4),
-            x(1, 0.5, 0.311, 2),
-            x(2, 1.0, 0.475, 0),
-        ];
-        assert_eq!(choose(&spool, false, true), Some((None, (0, 0.2))));
-        assert_eq!(choose(&spool, false, false), Some((Some(1), (0, 0.2))));
-    }
-    #[test]
-    fn a_named_sheet_chooses_its_scale_by_fill() {
-        let set = [c(2, 1.0, 0.30), c(2, 0.5, 0.12)];
-        assert_eq!(choose(&set, true, true).unwrap().0, Some(0));
-        assert_eq!(choose(&[], true, true), None);
-    }
-}
-
 /// Final compose-then-pack pass for settled linear ink (ISSUE-563-b). Use the
 /// complete placement inventory so omitting a dimension does not change a pin's
 /// frame. Moving a view block transports its already settled routes unchanged.
@@ -806,6 +720,7 @@ pub(crate) fn reserve_linear_corridors(
     analysis: &Analysis,
     plan: &mut Plan,
     inventory: &[crate::dims::PlannedDimension],
+    automatic_pair: bool,
 ) {
     let old: Vec<_> = plan.views.iter().map(|v| (v.at, v.area, v.scale)).collect();
     for d in inventory
@@ -833,7 +748,11 @@ pub(crate) fn reserve_linear_corridors(
     let index = |id: &str| plan.views.iter().position(|v| v.id == id);
     let free = !crate::placement_intent::has_pins(&plan.spec)
         && !plan.spec.views.values().any(|v| v.place.is_some())
-        && plan.gdt.is_empty();
+        && plan.gdt.is_empty()
+        // A named sheet and scale retain their established projection frame,
+        // including section marks. Reserve the full ink without silently moving
+        // that frame; automatic sheet candidates may compose their free blocks.
+        && (automatic_pair || plan.spec.sheet.size.is_none() || plan.spec.sheet.scale.is_none());
     if free {
         let first = plan.spec.sheet.projection.as_deref() == Some("first");
         let column: Vec<usize> = plan
@@ -913,10 +832,10 @@ pub(crate) fn reserve_linear_corridors(
     }
     for (i, v) in plan.views.iter_mut().enumerate() {
         let delta = shifts[i];
-        for k in 0..2 {
-            v.at[k] += delta[k];
-            v.area[k] += delta[k];
-            v.area[k + 2] += delta[k];
+        for (k, offset) in delta.into_iter().enumerate() {
+            v.at[k] += offset;
+            v.area[k] += offset;
+            v.area[k + 2] += offset;
         }
         crate::centrelines::shift(v, delta);
     }
@@ -970,14 +889,14 @@ pub(crate) fn reserve_linear_corridors(
         };
         let delta = deltas.get(&d.view).copied().unwrap_or([0.0; 2]);
         for q in p.lines.iter_mut().chain(&mut p.arrows).flatten() {
-            for k in 0..2 {
-                q[k] += delta[k];
+            for (k, offset) in delta.into_iter().enumerate() {
+                q[k] += offset;
             }
         }
-        for k in 0..2 {
-            p.label_at[k] += delta[k];
-            p.label_box[k] += delta[k];
-            p.label_box[k + 2] += delta[k];
+        for (k, offset) in delta.into_iter().enumerate() {
+            p.label_at[k] += offset;
+            p.label_box[k] += offset;
+            p.label_box[k + 2] += offset;
         }
     }
     for g in &mut plan.gdt {
@@ -986,10 +905,10 @@ pub(crate) fn reserve_linear_corridors(
             continue;
         }
         if let Some(q) = &mut g.placed {
-            for k in 0..2 {
-                q.tip[k] += delta[k];
-                q.label_box[k] += delta[k];
-                q.label_box[k + 2] += delta[k];
+            for (k, offset) in delta.into_iter().enumerate() {
+                q.tip[k] += offset;
+                q.label_box[k] += offset;
+                q.label_box[k + 2] += offset;
             }
             for pt in q
                 .lines
@@ -998,13 +917,13 @@ pub(crate) fn reserve_linear_corridors(
                 .chain(&mut q.strokes)
                 .flatten()
             {
-                for k in 0..2 {
-                    pt[k] += delta[k];
+                for (k, offset) in delta.into_iter().enumerate() {
+                    pt[k] += offset;
                 }
             }
             for pt in q.fills.iter_mut().flatten() {
-                for k in 0..2 {
-                    pt[k] += delta[k];
+                for (k, offset) in delta.into_iter().enumerate() {
+                    pt[k] += offset;
                 }
             }
             for arc in &mut q.arcs {
@@ -1012,8 +931,8 @@ pub(crate) fn reserve_linear_corridors(
                 arc[1] += delta[1];
             }
             for text in q.letters.iter_mut().chain(&mut q.runs) {
-                for k in 0..2 {
-                    text.at[k] += delta[k];
+                for (k, offset) in delta.into_iter().enumerate() {
+                    text.at[k] += offset;
                 }
             }
         }
@@ -1107,4 +1026,90 @@ pub(crate) fn reserve_linear_corridors(
         .collect();
     plan.problems.retain(|p| !codes.contains(&p.code));
     plan.problems.extend(checked);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn candidate(scale: f64, width: f64, fill: f64) -> (f64, f64, f64) {
+        (scale, width, fill)
+    }
+    fn c(sheet: usize, scale: f64, fill: f64) -> Candidate {
+        x(sheet, scale, fill, 0)
+    }
+    fn x(sheet: usize, scale: f64, fill: f64, extra_crossings: usize) -> Candidate {
+        Candidate {
+            sheet,
+            scale,
+            width: crate::layout::PAGES[sheet].1,
+            fill,
+            extra_crossings,
+        }
+    }
+    #[test]
+    fn band_prefers_scale_then_smaller_paper_otherwise_fullest() {
+        let best = candidate(2.0, 297.0, 0.60);
+        assert!(rank(best, candidate(1.0, 297.0, 0.85)).is_lt());
+        assert!(rank(best, candidate(2.0, 420.0, 0.80)).is_lt());
+        assert!(rank(best, candidate(5.0, 420.0, 0.90)).is_lt());
+        assert!(rank(candidate(1.0, 297.0, 0.59), candidate(2.0, 420.0, 0.40)).is_lt());
+    }
+    #[test]
+    fn neighbour_requires_enlargement_and_two_steps_are_forbidden() {
+        assert!(allowed((0, 1.0), 0, 0.5));
+        assert!(!allowed((0, 1.0), 1, 1.0));
+        assert!(allowed((0, 1.0), 1, 2.0));
+        assert!(!allowed((0, 1.0), 2, 5.0));
+    }
+    /// 10060 as measured: A4 1:1 17.0% and A3 2:1 14.9%, both valid and below the band.
+    #[test]
+    fn below_the_band_the_fullest_valid_pair_wins_on_less_paper() {
+        let set = [c(0, 1.0, 0.170), c(1, 2.0, 0.149)];
+        assert_eq!(choose(&set, false, true), Some((Some(0), (0, 1.0))));
+    }
+    #[test]
+    fn only_the_smallest_fits_largest_scale_and_one_enlarged_step_compete() {
+        // A4 1:1 fits. A4 1:2, A3 1:1 and every A2 pair are not allowed, however full.
+        let set = [
+            c(0, 1.0, 0.30),
+            c(0, 0.5, 0.31),
+            c(1, 1.0, 0.70),
+            c(1, 2.0, 0.40),
+            c(2, 5.0, 0.75),
+        ];
+        assert_eq!(choose(&set, false, true), Some((Some(3), (0, 1.0))));
+        // In the band, the larger scale wins, then the smaller sheet.
+        let set = [c(0, 1.0, 0.65), c(1, 2.0, 0.62)];
+        assert_eq!(choose(&set, false, true).unwrap().0, Some(1));
+        let set = [c(0, 2.0, 0.65), c(1, 2.0, 0.70)];
+        assert_eq!(choose(&set, false, true).unwrap().0, Some(0));
+    }
+    /// assembly_plate_pin as measured: a valid A3 1:2 adding two crossings still defines the
+    /// smallest fit, so A1 is never reached; A2 1:1, its allowed enlargement, is chosen.
+    /// spool_fits: every allowed pair adds crossings, so the valid first estimate is kept.
+    #[test]
+    fn a_material_veto_never_moves_the_smallest_fit() {
+        let set = [
+            x(1, 0.5, 0.194, 2),
+            x(2, 1.0, 0.245, 0),
+            x(2, 0.5, 0.096, 1),
+            x(3, 2.0, 0.251, 0),
+        ];
+        assert_eq!(choose(&set, false, true), Some((Some(1), (1, 0.5))));
+        // An invalid first estimate's crossing count vetoes nothing.
+        assert_eq!(choose(&set, false, false), Some((Some(1), (1, 0.5))));
+        let spool = [
+            x(0, 0.2, 0.226, 4),
+            x(1, 0.5, 0.311, 2),
+            x(2, 1.0, 0.475, 0),
+        ];
+        assert_eq!(choose(&spool, false, true), Some((None, (0, 0.2))));
+        assert_eq!(choose(&spool, false, false), Some((Some(1), (0, 0.2))));
+    }
+    #[test]
+    fn a_named_sheet_chooses_its_scale_by_fill() {
+        let set = [c(2, 1.0, 0.30), c(2, 0.5, 0.12)];
+        assert_eq!(choose(&set, true, true).unwrap().0, Some(0));
+        assert_eq!(choose(&[], true, true), None);
+    }
 }
