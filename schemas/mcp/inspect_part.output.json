@@ -3,15 +3,6 @@
   "anyOf": [
     {
       "properties": {
-        "part_ref": {
-          "type": "string"
-        },
-        "part": {
-          "type": "string"
-        },
-        "face_count": {
-          "$ref": "#/$defs/A"
-        },
         "status": {
           "enum": [
             "clear",
@@ -20,23 +11,19 @@
         },
         "completeness": {
           "type": "object",
-          "properties": {
-            "claimed_faces": {
-              "$ref": "#/$defs/A"
-            },
-            "faces": {
-              "$ref": "#/$defs/A"
-            },
-            "unplanned_features": {
-              "$ref": "#/$defs/A"
-            }
-          },
+          "properties": {},
           "required": [
             "claimed_faces",
             "faces",
             "unplanned_features"
           ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "patternProperties": {
+            "^(claimed_faces|faces|unplanned_features)$": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
         },
         "envelope": {
           "type": "array",
@@ -61,7 +48,7 @@
               "type": "string"
             },
             "page": {
-              "$ref": "#/$defs/B"
+              "$ref": "#/$defs/A"
             }
           },
           "required": [
@@ -109,7 +96,7 @@
                 "type": "string"
               },
               "page": {
-                "$ref": "#/$defs/B"
+                "$ref": "#/$defs/A"
               }
             },
             "required": [
@@ -122,19 +109,7 @@
           }
         },
         "views": {
-          "$ref": "#/$defs/C"
-        },
-        "items": {
-          "$ref": "#/$defs/A"
-        },
-        "problems": {
-          "$ref": "#/$defs/A"
-        },
-        "spec_version": {
-          "type": "string"
-        },
-        "plan_ref": {
-          "type": "string"
+          "$ref": "#/$defs/B"
         },
         "key_items": {
           "type": "array",
@@ -168,17 +143,8 @@
                   {
                     "type": "object",
                     "properties": {
-                      "id": {
-                        "type": "string"
-                      },
-                      "code": {
-                        "type": "string"
-                      },
-                      "severity": {
-                        "type": "string"
-                      },
                       "subjects": {
-                        "$ref": "#/$defs/C"
+                        "$ref": "#/$defs/B"
                       },
                       "fix": {
                         "type": "array",
@@ -231,7 +197,12 @@
                       "severity",
                       "subjects"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "patternProperties": {
+                      "^(id|code|severity)$": {
+                        "type": "string"
+                      }
+                    }
                   },
                   {
                     "type": "object",
@@ -256,7 +227,8 @@
               }
             },
             "total": {
-              "$ref": "#/$defs/A"
+              "type": "integer",
+              "minimum": 0
             },
             "next_cursor": {
               "type": [
@@ -287,7 +259,16 @@
         "problems",
         "spec_version"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(part_ref|part|spec_version|plan_ref)$": {
+          "type": "string"
+        },
+        "^(face_count|items|problems)$": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      }
     },
     {
       "properties": {
@@ -304,7 +285,7 @@
               "type": "string"
             },
             "choices": {
-              "$ref": "#/$defs/C"
+              "$ref": "#/$defs/B"
             }
           },
           "required": [
@@ -322,10 +303,6 @@
   ],
   "$defs": {
     "A": {
-      "minimum": 0,
-      "type": "integer"
-    },
-    "B": {
       "items": {
         "type": "number"
       },
@@ -333,7 +310,7 @@
       "minItems": 2,
       "type": "array"
     },
-    "C": {
+    "B": {
       "items": {
         "type": "string"
       },

@@ -77,6 +77,15 @@ for (const part of ['prismatic', 'polygonal']) {
       assert.ok(JSON.parse(engine.fragments()));
       invalid(() => engine.undo());
       invalid(() => engine.redo());
+      // Exercise recognition correction, bound face anchors, delta replay and history on
+      // the existing planar fixtures; exports and comparison tolerances stay unchanged.
+      const corrected = snapshot.analysis.features.find(feature => feature.faces.length > 0);
+      assert.ok(corrected);
+      replay.steps.push(
+        { edit: 'suppress recognition', action: 'fragments', ops: [{ op: 'set', path: `features/${corrected.id}/suppress`, value: true }] },
+        { edit: 'undo recognition', action: 'undo' },
+        { edit: 'redo recognition', action: 'redo' },
+      );
       const actual = [documents(engine, 'open')];
       for (const step of replay.steps) {
         const ops = JSON.stringify(step.ops ?? []);

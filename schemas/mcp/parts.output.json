@@ -7,26 +7,7 @@
           "type": "array",
           "items": {
             "type": "object",
-            "properties": {
-              "part": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "name": {
-                "type": "string"
-              },
-              "product_id": {
-                "type": "string"
-              },
-              "faces": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "instances": {
-                "type": "integer",
-                "minimum": 0
-              }
-            },
+            "properties": {},
             "required": [
               "part",
               "name",
@@ -34,7 +15,16 @@
               "faces",
               "instances"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(part|faces|instances)$": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "^(name|product_id)$": {
+                "type": "string"
+              }
+            }
           }
         }
       },

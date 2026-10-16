@@ -64,6 +64,15 @@ pub struct Op {
 }
 
 impl Op {
+    /// Append an authored declaration, note or table through the common Spec editor.
+    pub fn add(path: impl Into<String>, value: serde_json::Value) -> Op {
+        Op {
+            op: "add".into(),
+            path: path.into(),
+            value: Some(value),
+        }
+    }
+
     pub fn remove(path: impl Into<String>) -> Op {
         Op {
             op: "remove".into(),

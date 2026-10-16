@@ -1082,6 +1082,8 @@ fn settable(
 ) -> BTreeMap<String, Value> {
     use serde_json::json;
     let mut fields = BTreeMap::new();
+    let merged = crate::recognition_corrections::effective(session.analysis(), session.spec()).ok();
+    let analysis = merged.as_deref().unwrap_or(session.analysis());
     let id = &item.item.id;
     let base = match item.item.kind.as_str() {
         "dimension" => format!("dimensions/{}", items::key(id)),
@@ -1200,15 +1202,51 @@ fn settable(
             fields.insert(format!("{base}/tolerance"), json!({"forms":["±T","+U -L"]}));
         }
     }
-    // A fit qualifies a feature, including each member of a consolidated hole mark.
-    let mut fits: BTreeMap<Vec<String>, Vec<String>> = BTreeMap::new();
+    // Recognition edits travel through the same transactional preview/apply and history.
+    if id == "sheet" {
+        fields.insert("features/f:hole_pattern:<name>/pattern".into(), json!({"fields":["arrangement", "members"], "forms":["{arrangement: linear|grid|bolt_circle, members: [hole id,…]}"]}));
+        fields.insert("feature_declarations".into(), json!({
+            "forms":["add {id: f:declared:<name>, kind: hole|boss|turned_step|slot|pocket, faces: [fingerprint,…]}"],
+            "fields": (0..analysis.face_attachments.len())
+                .filter_map(|i| crate::recognition_corrections::face_fingerprint(analysis, i).ok())
+                .collect::<Vec<_>>()
+        }));
+    }
     for feature in &item.features {
+        let base = format!("features/{}", items::key(feature));
         if let Some(f) = session
             .analysis()
             .features
             .iter()
             .find(|f| &f.id == feature)
         {
+            fields.insert(format!("{base}/suppress"), choices(json!([false, true])));
+            let kinds = match f.kind.as_str() {
+                "boss" | "turned_step" => vec!["boss", "turned_step"],
+                "slot" | "section_recess" => vec!["slot", "pocket"],
+                _ => Vec::new(),
+            };
+            if !kinds.is_empty() {
+                fields.insert(format!("{base}/reclassify"), choices(json!(kinds)));
+            }
+            if f.kind == "slot_pattern" {
+                fields.insert(format!("{base}/split"), choices(json!([false, true])));
+            }
+        }
+        if session
+            .analysis()
+            .recognition
+            .iter()
+            .flat_map(|r| &r.patterns)
+            .any(|p| &p.id == feature)
+        {
+            fields.insert(format!("{base}/split"), choices(json!([false, true])));
+        }
+    }
+    // A fit qualifies a feature, including each member of a consolidated hole mark.
+    let mut fits: BTreeMap<Vec<String>, Vec<String>> = BTreeMap::new();
+    for feature in &item.features {
+        if let Some(f) = analysis.features.iter().find(|f| &f.id == feature) {
             let classes = crate::dims::fit_choices(
                 &f.kind,
                 f.parameters
@@ -1232,8 +1270,7 @@ fn settable(
     }
     // A datum letter and feature control frames qualify a feature or hole pattern
     // ([`crate::spec_gdt`]); a face takes them at faces/<side or face:n>/….
-    let patterns = session
-        .analysis()
+    let patterns = analysis
         .recognition
         .as_ref()
         .map_or(&[][..], |r| r.patterns.as_slice());
@@ -1246,7 +1283,7 @@ fn settable(
         .and_then(|s| s.rsplit_once('/'))
         .map(|(f, _)| f.to_string());
     if let Some(feature) = &named {
-        let known = session.analysis().features.iter().any(|f| &f.id == feature)
+        let known = analysis.features.iter().any(|f| &f.id == feature)
             || patterns.iter().any(|p| &p.id == feature);
         if known {
             let base = format!("features/{}", items::key(feature));
@@ -1261,8 +1298,7 @@ fn settable(
             // diameter; a knurl on a turned diameter ([`crate::spec_notes`]).
             fields.insert(format!("{base}/finish"), json!({"fields":["ra","removal"]}));
             fields.insert(format!("{base}/note"), json!({"forms":["text"]}));
-            let kind = session
-                .analysis()
+            let kind = analysis
                 .features
                 .iter()
                 .find(|f| &f.id == feature)

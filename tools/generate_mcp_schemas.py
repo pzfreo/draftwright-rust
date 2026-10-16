@@ -26,7 +26,7 @@ problem=obj({'id':S,'code':S,'severity':S,'message':S,'subjects':arr(S),'refs':a
 rectangle=arr(N,minItems=4,maxItems=4)
 filter_=obj({'sheet':nullable(SHEET),'view':nullable(S),'kind':nullable(S),'state':nullable(ref('state')),'feature':nullable(S),'region':nullable(rectangle),'near':nullable(S),'radius':nullable({'type':'number','minimum':0})})
 problem_filter=obj({'code':nullable(S),'severity':nullable({'enum':['info','warning','error']}),'subject':nullable(S),'feature':nullable(S)})
-spec=obj({'schema':{'enum':['draftwright.spec/1','draftwright.spec/2']},'binding':nullable({'type':'object'}),'sheets':nullable(obj({'max':nullable(SHEET),'smallest_scale':nullable(S),'keep_together':arr(arr(S)),'hole_table':nullable(SHEET),'gdt_on_sheet_1':B})),'sheet':obj({'size':nullable(S),'scale':nullable(S),'title':{'type':'object','additionalProperties':S},'fit_limits':nullable({'type':'boolean'}),'fit_deviations':nullable({'type':'boolean'}),'projection':nullable({'enum':['first','third']}),'default_finish':nullable({'type':'object'})}),'views':{'type':'object','additionalProperties':{'type':'object'}},'dimensions':{'type':'object','additionalProperties':{'type':'object'}},'annotations':{'type':'object','additionalProperties':{'type':'object'}},'features':{'type':'object','additionalProperties':{'type':'object'}},'faces':{'type':'object','additionalProperties':{'type':'object'}},'dimension_source':{'enum':['auto','authored']},'hole_table':{'enum':['auto','always','never']},'notes':arr({'type':'object'}),'tables':arr({'type':'object'}),'gears':arr({'type':'object'})})
+spec=obj({'schema':{'enum':['draftwright.spec/1','draftwright.spec/2']},'binding':nullable({'type':'object'}),'sheets':nullable(obj({'max':nullable(SHEET),'smallest_scale':nullable(S),'keep_together':arr(arr(S)),'hole_table':nullable(SHEET),'gdt_on_sheet_1':B})),'sheet':obj({'size':nullable(S),'scale':nullable(S),'title':{'type':'object','additionalProperties':S},'fit_limits':nullable({'type':'boolean'}),'fit_deviations':nullable({'type':'boolean'}),'projection':nullable({'enum':['first','third']}),'default_finish':nullable({'type':'object'})}),'views':{'type':'object','additionalProperties':{'type':'object'}},'dimensions':{'type':'object','additionalProperties':{'type':'object'}},'annotations':{'type':'object','additionalProperties':{'type':'object'}},'features':{'type':'object','additionalProperties':{'type':'object'}},'faces':{'type':'object','additionalProperties':{'type':'object'}},'dimension_source':{'enum':['auto','authored']},'hole_table':{'enum':['auto','always','never']},'notes':arr({'type':'object'}),'tables':arr({'type':'object'}),'gears':arr({'type':'object'}),'feature_declarations':arr(obj({'id':S,'kind':S,'faces':arr(S)},['id','kind','faces']))})
 defs={'state':state,'spec':spec,'op':op,'item':item,'compact':compact,'problem':problem,'error':obj({'code':{'enum':['invalid','failed']},'message':S,'choices':arr(S)},['code','message'])}
 stub=obj({'id':nullable(S),'detail_ref':S},['id','detail_ref'])
 problem_small=obj({'id':S,'code':S,'severity':S,'subjects':arr(S),'fix':arr(ref('op'))},['id','code','severity','subjects'])
@@ -116,6 +116,30 @@ def share_repeated(schema):
         schema = best[1]
     return schema
 
+def group_properties(schema):
+    """Factor identical property shapes with literal-name alternatives, preserving validation.
+
+    These are ordinary JSON Schema regexes; our small MCP validator supports the emitted
+    anchored literal-name vocabulary. This saves wire bytes without loosening a constraint.
+    """
+    from collections import defaultdict
+    from copy import deepcopy
+    def encoded(v): return json.dumps(v, sort_keys=True, separators=(',', ':'))
+    if isinstance(schema, list): return [group_properties(v) for v in schema]
+    if not isinstance(schema, dict): return schema
+    schema = {k: group_properties(v) for k, v in schema.items()}
+    if 'properties' not in schema: return schema
+    groups = defaultdict(list)
+    for key, shape in schema['properties'].items():
+        if re.fullmatch(r'[a-zA-Z_][a-zA-Z_0-9]*', key): groups[encoded(shape)].append(key)
+    for shape, keys in groups.items():
+        if len(keys) < 2: continue
+        trial = deepcopy(schema)
+        for key in keys: del trial['properties'][key]
+        trial.setdefault('patternProperties', {})['^(' + '|'.join(keys) + ')$'] = json.loads(shape)
+        if len(encoded(trial)) < len(encoded(schema)): schema = trial
+    return schema
+
 def short_names(schema):
     names = {'state':'t','spec':'s','op':'op','item':'i','compact':'c',
              'problem':'p','error':'e','stub':'u','problem_small':'r'}
@@ -155,6 +179,6 @@ for tool,(inp,out) in tools.items():
         for branch in schema.get('anyOf', []):
             if branch.get('type') == schema.get('type'):
                 branch.pop('type', None)
-        schema = short_names(share_repeated(inline_single_use(schema, keep)))
+        schema = short_names(share_repeated(group_properties(inline_single_use(schema, keep))))
         if not schema['$defs']: del schema['$defs']
         Path(f'schemas/mcp/{tool}.{kind}.json').write_text(json.dumps(schema,indent=2)+'\n')

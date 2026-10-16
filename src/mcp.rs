@@ -45,7 +45,7 @@ fn description(tool: &str) -> &'static str {
             "List drawing problems by code, severity, subject item ID or feature ID (all its dimensions/annotations) for part_ref plus spec or spec_version. Follow next_cursor for all problems. Default rows include corrective Spec ops; detail=true adds explanations. Use filter.feature for one query covering a whole feature."
         }
         "item_options" => {
-            "Get every settable Spec path with choices, ranges and tolerance forms, compatible view anchors, scales and relative placements for an item id in part_ref plus spec or spec_version. IDs accept sheet:<n>/<id>. Views offer move_to_sheet at views/<name>/sheet with choices and keep_together/relative_to consequences. Linear dimensions accept only sides parallel to their span. Fits use features/<feature-id>/fit, not dimension tolerance; classes are valid for the feature kind and diameter. Datums and GD&T frames use features/<feature-id>/datum (a letter) and features/<feature-id>/controls (a list of {characteristic, tolerance, datums?, diameter?, modifier?}); finish {ra, removal?}, thread {designation, length?}, knurl {pattern, pitch} and note (text) sit beside them, and sheet/default_finish on the sheet. Descriptors with paths share choices across all those paths. Combine place subfields into one place object when setting a view relation. Options are candidates; preview_ops checks their effects."
+            "Get every settable Spec path with choices, ranges and tolerance forms, compatible view anchors, scales and relative placements for an item id in part_ref plus spec or spec_version. IDs accept sheet:<n>/<id>. Views offer move_to_sheet at views/<name>/sheet with choices and keep_together/relative_to consequences. Linear dimensions accept only sides parallel to their span. Fits use features/<feature-id>/fit, not dimension tolerance; classes are valid for the feature kind and diameter. Datums and GD&T frames use features/<feature-id>/datum (a letter) and features/<feature-id>/controls (a list of {characteristic, tolerance, datums?, diameter?, modifier?}); finish {ra, removal?}, thread {designation, length?}, knurl {pattern, pitch} and note (text) sit beside them, and sheet/default_finish on the sheet. Descriptors with paths share choices across all those paths. Combine place subfields into one place object when setting a view relation. Recognition corrections use features/<id>/reclassify, suppress, split or pattern {arrangement, members}; add {id, kind, faces} to feature_declarations. Sheet options list face fingerprints for declarations. Options are candidates; preview_ops checks their effects."
         }
         "preview_ops" => {
             "Try up to 32 Spec ops without saving or changing the drawing head. Supply part_ref and spec or spec_version. Ops are set/add {path,value} or remove {path}, with RFC6901 escaping (~1 for a slash inside an ID). Returns paged change/problem events and lossless delta_ref."
@@ -159,6 +159,18 @@ pub fn validate(schema: &Value, value: &Value) -> Result<(), String> {
             }
             for (key, val) in o {
                 if let Some(p) = s["properties"].get(key) {
+                    visit(root, p, val, &format!("{path}/{key}"))?;
+                } else if let Some(p) = s["patternProperties"].as_object().and_then(|patterns| {
+                    patterns.iter().find_map(|(pattern, shape)| {
+                        // The generator emits anchored alternatives of literal field names only.
+                        pattern
+                            .strip_prefix("^(")?
+                            .strip_suffix(")$")?
+                            .split('|')
+                            .any(|name| name == key)
+                            .then_some(shape)
+                    })
+                }) {
                     visit(root, p, val, &format!("{path}/{key}"))?;
                 } else if s["additionalProperties"] == false {
                     return Err(format!(

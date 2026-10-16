@@ -4,6 +4,17 @@ All notable changes to draftwright-rust are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- Recognition corrections in the Spec (#76 item 2): reclassify supported cylindrical and
+  rectangular features, group holes as a linear/grid/bolt-circle pattern, split recognised
+  patterns, suppress spurious recognitions, and declare missed features from face fingerprints.
+  Geometry supplies every size; saved face anchors and authored IDs survive re-analysis.
+  Corrections share ordinary dimensions, schedules and independent lint, with `from_spec`
+  provenance, transactional editor operations and MCP schemas inside the existing byte budget.
+
 ## 0.1.0-alpha.4 (2026-10-16)
 
 ### Added
