@@ -87,7 +87,7 @@ mod corpus;
 mod sheet_rule;
 
 #[test]
-fn grm03_keeps_a4_with_an_enlarged_head_without_losing_measurements() {
+fn grm03_prefers_larger_principals_without_losing_measurements() {
     let Some(dir) = corpus::dir() else {
         return;
     };
@@ -95,22 +95,11 @@ fn grm03_keeps_a4_with_an_enlarged_head_without_losing_measurements() {
         .unwrap()
         .1;
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
-    let fill = serde_json::to_value(&p).unwrap()["sheet"]["fill"]
-        .as_f64()
-        .unwrap();
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A4", "2:1")
+        ("A3", "10:1")
     );
-    assert!(
-        fill > 0.0 && fill < 0.60,
-        "the detail supplies the fine scale: {fill}"
-    );
-    assert!(
-        p.views
-            .iter()
-            .any(|v| v.detail.is_some() && v.scale == 10.0)
-    );
+    assert!(p.views.iter().all(|v| v.detail.is_none()));
     assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
     sheet_rule::assert_rule("grm03", &p);
     assert!(!p.problems.iter().any(|p| matches!(
@@ -365,19 +354,11 @@ fn toleranced_string_post_is_complete_on_a4_without_hard_layout_findings() {
     let plan = model::plan_recovered(&a, &spec).unwrap();
     assert_eq!(
         (plan.sheet.size.as_str(), plan.sheet.scale.as_str()),
-        ("A4", "2:1"),
+        ("A4", "5:1"),
         "{}",
         plan.sheet.basis
     );
-    // The merged detail planner supplies the former fine main scale in head B.
-    // Keep an exact scale assertion and prove that the enlarged geometry is present.
-    let head = plan
-        .views
-        .iter()
-        .find(|v| v.id == "v:detail_b")
-        .expect("head B");
-    assert_eq!(head.scale, 10.0);
-    assert_eq!(head.detail.as_ref().unwrap().kind, "turned-head");
+    assert!(plan.views.iter().all(|v| v.detail.is_none()));
     let hard = [
         "annotation_off_sheet",
         "annotation_over_title_block",

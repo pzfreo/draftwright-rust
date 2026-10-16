@@ -15,11 +15,49 @@ fn string_post() -> Option<Analysis> {
 }
 
 #[test]
-fn string_post_uses_a4_with_an_enlarged_head_and_sheet_scale_iso() {
+fn string_post_prefers_complete_larger_principals_without_a_detail() {
     let Some(a) = string_post() else { return };
     let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
-    assert_eq!(plan.sheet.size, "A4");
-    assert_eq!(plan.sheet.scale, "2:1");
+    assert_eq!(
+        (plan.sheet.size.as_str(), plan.sheet.scale.as_str()),
+        ("A4", "5:1")
+    );
+    assert!(plan.views.iter().all(|v| v.detail.is_none()));
+    assert!(plan.dimensions.iter().any(|d| d.view == "v:front"
+        && d.id == "d:f:turned_step:3/step.length"
+        && d.placed.is_some()));
+    let dir = corpus::dir().unwrap();
+    let (part, _) = model::analyse_native(&dir.join("gramel/string_post.step")).unwrap();
+    let font = draftwright::text::Font::open(
+        &Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("fonts")
+            .join(draftwright::dims::FONT),
+    )
+    .unwrap();
+    let drawing = model::render(&part, &a, &plan, &font).unwrap();
+    assert!(drawing.text.iter().all(|t| !t.text.starts_with("DETAIL ")));
+    assert!(
+        drawing
+            .sheet
+            .items
+            .iter()
+            .all(|i| !i.name.starts_with("detail_marker_"))
+    );
+    assert!(
+        draftwright::lint::structural::check(&drawing)
+            .iter()
+            .all(|i| !matches!(
+                i.code.as_str(),
+                "derived_view_identifier_reused" | "detail_caption_clearance"
+            ))
+    );
+}
+
+#[test]
+fn a_constrained_main_scale_keeps_the_complete_head_crop_and_sheet_scale_iso() {
+    let Some(a) = string_post() else { return };
+    let fixed: Spec = serde_json::from_value(json!({"sheet":{"size":"A4","scale":"2:1"}})).unwrap();
+    let plan = model::plan_recovered(&a, &fixed).unwrap();
     let v = plan
         .views
         .iter()
@@ -163,11 +201,14 @@ fn a_plain_part_has_no_stray_detail() {
     );
     let Some(a) = string_post() else { return };
     assert!(
-        model::plan_recovered(&a, &Spec::default())
-            .unwrap()
-            .views
-            .iter()
-            .any(|v| v.detail.is_some())
+        model::plan(
+            &a,
+            &serde_json::from_value(json!({"sheet":{"size":"A4","scale":"2:1"}})).unwrap()
+        )
+        .unwrap()
+        .views
+        .iter()
+        .any(|v| v.detail.is_some())
     );
 }
 
@@ -179,7 +220,7 @@ fn saved_chain_ids_and_tolerances_still_resolve() {
     assert!(
         p.dimensions
             .iter()
-            .any(|d| d.id == "d:f:turned_step:3/step.length" && d.view.starts_with("v:detail_"))
+            .any(|d| d.id == "d:f:turned_step:3/step.length" && d.view == "v:front")
     );
     for (id, tol) in [
         ("d:f:turned_step:1/step.length", "±0.05"),
@@ -204,13 +245,9 @@ fn the_saved_string_post_spec_keeps_every_tolerance_without_crossed_text() {
     let p = model::plan_recovered(&a, &spec).unwrap();
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A4", "2:1")
+        ("A4", "5:1")
     );
-    assert!(
-        p.views
-            .iter()
-            .any(|v| v.detail.is_some() && v.scale == 10.0)
-    );
+    assert!(p.views.iter().all(|v| v.detail.is_none()));
     for (id, spec) in &spec.dimensions {
         let tol = spec.tolerance.as_ref().unwrap();
         assert!(
@@ -292,7 +329,8 @@ fn detail_measurements_keep_one_owner_in_automatic_and_authored_sets() {
     use draftwright::model::{DimensionSource, DimensionSpec};
     use std::collections::BTreeMap;
     let Some(a) = string_post() else { return };
-    let automatic = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let fixed: Spec = serde_json::from_value(json!({"sheet":{"size":"A4","scale":"2:1"}})).unwrap();
+    let automatic = model::plan_recovered(&a, &fixed).unwrap();
     let authored = Spec {
         dimension_source: DimensionSource::Authored,
         dimensions: automatic
@@ -300,9 +338,10 @@ fn detail_measurements_keep_one_owner_in_automatic_and_authored_sets() {
             .iter()
             .map(|d| (d.id.clone(), DimensionSpec::default()))
             .collect(),
+        sheet: fixed.sheet.clone(),
         ..Spec::default()
     };
-    for spec in [Spec::default(), authored] {
+    for spec in [fixed, authored] {
         let plan = model::plan_recovered(&a, &spec).unwrap();
         assert!(plan.views.iter().any(|v| v.detail.is_some()));
         let mut owners = BTreeMap::new();

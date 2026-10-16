@@ -81,10 +81,16 @@ pub fn ink(analysis: &Analysis, m: &Manufacturing, v: &PlannedView) -> Vec<Curve
             v.at[0] + size[0] * v.scale / 2.0,
             v.at[1] + size[1] * v.scale / 2.0,
         ];
+        let mut boundary = crate::detail::Boundary::default();
         out = out
             .into_iter()
-            .flat_map(|c| crate::detail::clip(c, rect))
+            .flat_map(|c| {
+                let clipped = crate::detail::clip(c.clone(), rect);
+                boundary.add(&c, &clipped, rect);
+                clipped
+            })
             .collect();
+        out.extend(boundary.ink(rect));
     }
     out
 }

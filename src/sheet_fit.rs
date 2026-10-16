@@ -128,7 +128,7 @@ pub(crate) fn furniture_bounds(
             out.push(text_box(
                 &crate::detail::caption(d),
                 crate::section::FONT_SIZE,
-                crate::detail::caption_at(v),
+                crate::detail::caption_at(v, None),
             ));
             if let Some(source) = views.iter().find(|s| s.id == d.source_view) {
                 let (_, at) = crate::detail::marker(analysis, d, source, views, sheet.page, &[]);
@@ -327,7 +327,7 @@ fn correct_sections(analysis: &Analysis, plan: &mut Plan) {
         if let Some(detail) = &v.detail {
             let laid = crate::dims::font()
                 .text(&crate::detail::caption(detail), crate::section::FONT_SIZE);
-            let at = crate::detail::caption_at(v);
+            let at = crate::detail::caption_at(v, None);
             include(&mut groups[i], [at[0] + laid.min[0], at[1] + laid.min[1]]);
             include(&mut groups[i], [at[0] + laid.max[0], at[1] + laid.max[1]]);
             if let Some(j) = plan.views.iter().position(|p| p.id == detail.source_view) {

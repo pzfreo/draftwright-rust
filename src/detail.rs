@@ -570,25 +570,12 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
                 .fold(f64::INFINITY, f64::min);
             let needed = crate::layout::MIN_STEP_SEP / min;
             if needed.is_finite() && needed <= sheet * 10.0 {
-                let scale = needed.max(sheet * 1.2 + 1e-6);
+                let scale = selected_scale(sheet, needed, false);
                 let mut bounds = a.envelope;
                 let pad = 0.08 * (levels.last().unwrap() - levels[0]) + 1.0;
                 bounds[1][2] = (levels.last().unwrap() + pad).min(bounds[1][2]);
-                // Keep the base datum and every physical support of recovered rungs.
-                let supports: Vec<_> = wants
-                    .iter()
-                    .filter(|w| ids.contains(&w.0))
-                    .map(|w| w.2[0])
-                    .collect();
-                if !supports.is_empty() {
-                    let margin = 1.0_f64.max(3.0 / scale);
-                    bounds[0][0] = (supports.iter().copied().fold(f64::INFINITY, f64::min)
-                        - margin)
-                        .max(bounds[0][0]);
-                    bounds[1][0] = (supports.iter().copied().fold(f64::NEG_INFINITY, f64::max)
-                        + margin)
-                        .min(bounds[1][0]);
-                }
+                // Keep the whole feature silhouette. A support-centred strip can show
+                // unrelated edge fragments instead of the step being dimensioned.
                 add(Detail {
                     label: String::new(),
                     axis: 2,
@@ -700,16 +687,23 @@ pub(crate) fn caption(d: &Detail) -> String {
         }
     )
 }
-pub(crate) fn caption_at(v: &PlannedView) -> [f64; 2] {
-    [(v.area[0] + v.area[2]) / 2.0, v.area[1] + 3.0]
+/// Match Python's real projected-ink anchor: centred, eight paper mm below ink.
+/// Before projection, reserve the same row below the crop's geometric footprint.
+pub(crate) fn caption_at(v: &PlannedView, ink: Option<Rect>) -> [f64; 2] {
+    let b = ink.unwrap_or_else(|| {
+        let [w, h] = size(v.detail.as_ref().expect("detail caption"));
+        [
+            v.at[0] - w / 2.0,
+            v.at[1] - h / 2.0,
+            v.at[0] + w / 2.0,
+            v.at[1] + h / 2.0,
+        ]
+    });
+    [(b[0] + b[2]) / 2.0, b[1] - 8.0]
 }
 pub(crate) fn crop_extent(a: &Analysis, v: &PlannedView) -> ([f64; 2], [f64; 2]) {
-    let mut cropped = a.clone();
-    if let Some(d) = &v.detail {
-        cropped.envelope = d.bounds;
-    }
-    crate::model::extent(
-        &cropped,
+    crate::model::envelope_extent(
+        v.detail.as_ref().map_or(a.envelope, |d| d.bounds),
         &haecceity::hlr::View::new(v.direction, v.up).expect("planned view"),
     )
 }
@@ -717,6 +711,31 @@ pub(crate) fn crop_extent(a: &Analysis, v: &PlannedView) -> ([f64; 2], [f64; 2])
 /// Clip exact curves recursively by their conservative bounding boxes. Fully contained
 /// intervals retain their exact representation; only boundary intervals are subdivided.
 pub(crate) fn clip(curve: crate::output::Curve, rect: Rect) -> Vec<crate::output::Curve> {
+    // Lines have an exact intersection; avoid dozens of tiny recursive intervals at a cut.
+    if let crate::output::Curve::Line(a, b) = curve {
+        let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
+        for k in 0..2 {
+            let delta = b[k] - a[k];
+            if delta.abs() < 1e-12 {
+                if a[k] < rect[k] || a[k] > rect[k + 2] {
+                    return Vec::new();
+                }
+            } else {
+                let p = (rect[k] - a[k]) / delta;
+                let q = (rect[k + 2] - a[k]) / delta;
+                lo = lo.max(p.min(q));
+                hi = hi.min(p.max(q));
+            }
+        }
+        return if hi > lo {
+            vec![crate::output::Curve::Line(
+                [0, 1].map(|k| a[k] + lo * (b[k] - a[k])),
+                [0, 1].map(|k| a[k] + hi * (b[k] - a[k])),
+            )]
+        } else {
+            Vec::new()
+        };
+    }
     fn visit(c: crate::output::Curve, r: Rect, depth: u8, out: &mut Vec<crate::output::Curve>) {
         let b = c.bbox();
         if b[2] < r[0] - 1e-8 || b[0] > r[2] + 1e-8 || b[3] < r[1] - 1e-8 || b[1] > r[3] + 1e-8 {
@@ -738,6 +757,85 @@ pub(crate) fn clip(curve: crate::output::Curve, rect: Rect) -> Vec<crate::output
     out
 }
 
+/// A rectangular crop is an interrupted view, not a manufactured closing edge.
+/// ISO 128 thin zigzag break lines join every cut endpoint on each affected side.
+/// The parent circle identifies the region; the break line states where material continues.
+#[derive(Default)]
+pub(crate) struct Boundary {
+    contacts: [Vec<f64>; 4],
+}
+impl Boundary {
+    pub(crate) fn add(
+        &mut self,
+        original: &crate::output::Curve,
+        clipped: &[crate::output::Curve],
+        r: Rect,
+    ) {
+        let b = original.bbox();
+        for (side, axis, edge, cut) in [
+            (0, 0, r[0], b[0] < r[0] - 1e-7),
+            (1, 1, r[1], b[1] < r[1] - 1e-7),
+            (2, 0, r[2], b[2] > r[2] + 1e-7),
+            (3, 1, r[3], b[3] > r[3] + 1e-7),
+        ] {
+            if cut {
+                for c in clipped {
+                    for p in [c.at(0.0), c.at(1.0)] {
+                        if (p[axis] - edge).abs() < 1e-6 {
+                            self.contacts[side].push(p[1 - axis]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    pub(crate) fn ink(mut self, r: Rect) -> Vec<crate::output::Curve> {
+        use crate::output::Curve;
+        let mut out = Vec::new();
+        for (side, points) in self.contacts.iter_mut().enumerate() {
+            if points.is_empty() {
+                continue;
+            }
+            points.sort_by(f64::total_cmp);
+            points.dedup_by(|a, b| (*a - *b).abs() < 1e-5);
+            let axis = side % 2;
+            let edge = r[side];
+            let inward = if side < 2 { 1.0 } else { -1.0 };
+            let lo = (points[0] - 1.0).max(r[1 - axis]);
+            let hi = (points[points.len() - 1] + 1.0).min(r[3 - axis]);
+            let map = |t: f64, offset: f64| {
+                if axis == 0 {
+                    [edge + inward * offset, t]
+                } else {
+                    [t, edge + inward * offset]
+                }
+            };
+            let mut stops = vec![lo];
+            stops.extend(points.iter().copied());
+            stops.push(hi);
+            stops.dedup_by(|a, b| (*a - *b).abs() < 1e-5);
+            for pair in stops.windows(2) {
+                let [a, b] = [pair[0], pair[1]];
+                let mid = (a + b) / 2.0;
+                let tooth = ((b - a) / 4.0).min(0.6);
+                let line = [
+                    map(a, 0.0),
+                    map(mid - tooth, 0.0),
+                    map(mid, tooth),
+                    map(mid + tooth, 0.0),
+                    map(b, 0.0),
+                ];
+                out.extend(
+                    line.windows(2)
+                        .filter(|p| p[0] != p[1])
+                        .map(|p| Curve::Line(p[0], p[1])),
+                );
+            }
+        }
+        out
+    }
+}
+
 pub(crate) fn marker(
     a: &Analysis,
     d: &Detail,
@@ -747,9 +845,7 @@ pub(crate) fn marker(
     avoid: &[Rect],
 ) -> (crate::output::Curve, [f64; 2]) {
     let view = haecceity::hlr::View::new(source.direction, source.up).expect("source view");
-    let mut cropped = a.clone();
-    cropped.envelope = d.marked_bounds;
-    let (size, centre) = crate::model::extent(&cropped, &view);
+    let (size, centre) = crate::model::envelope_extent(d.marked_bounds, &view);
     let parent = crate::model::extent(a, &view).1;
     let at = [0, 1].map(|k| source.at[k] + source.scale * (centre[k] - parent[k]));
     let radius = source.scale * size[0].hypot(size[1]) / 2.0 + 1.0;
@@ -860,6 +956,39 @@ pub(crate) fn marker_ink(
 mod tests {
     use super::*;
     use crate::output::Curve;
+
+    #[test]
+    fn every_cut_endpoint_meets_a_thin_break_and_whole_curves_need_none() {
+        let r = [-1.0, -1.0, 1.0, 1.0];
+        let curves = [
+            Curve::Line([-2.0, -0.5], [2.0, -0.5]),
+            Curve::Line([-2.0, 0.5], [2.0, 0.5]),
+        ];
+        let mut boundary = Boundary::default();
+        for c in &curves {
+            boundary.add(c, &clip(c.clone(), r), r);
+        }
+        let ink = boundary.ink(r);
+        assert!(!ink.is_empty());
+        for x in [-1.0, 1.0] {
+            for y in [-0.5, 0.5] {
+                assert!(ink.iter().any(|c| {
+                    [c.at(0.0), c.at(1.0)]
+                        .iter()
+                        .any(|p| (p[0] - x).abs() < 1e-6 && (p[1] - y).abs() < 1e-6)
+                }));
+            }
+        }
+        // A zigzag has depth, so it cannot be mistaken for a manufactured closing edge.
+        assert!(
+            ink.iter()
+                .any(|c| (c.at(0.0)[0] - c.at(1.0)[0]).abs() > 0.1)
+        );
+        let c = Curve::Line([-0.5, 0.0], [0.5, 0.0]);
+        let mut boundary = Boundary::default();
+        boundary.add(&c, &clip(c.clone(), r), r);
+        assert!(boundary.ink(r).is_empty());
+    }
 
     #[test]
     fn a_crop_keeps_exact_curves_and_removes_external_geometry() {

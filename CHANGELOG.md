@@ -12,7 +12,7 @@ All notable changes to draftwright-rust are recorded here, in the style of
   a feature/face ID or a nonempty list whose crops are united. Missing members and
   degenerate projections in an explicit parent are refused. Mixed natural sources choose
   the view with most visible members and explain the choice in the basis. Saved strings
-  remain compatible. Typed MCP schemas measure 47,732 bytes (48,000-byte budget).
+  remain compatible. Typed MCP schemas measure 46,868 bytes (strict budget below 46,869).
 
 - Enlarged orthographic detail views for crowded turned chains and heads, thin terminal
   flanges, prismatic height ladders and authored feature crops. Details participate in sheet
@@ -29,9 +29,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- Optional detail requests no longer veto valid ordinary drawings or cap principal scale.
+  Cropped edges meet thin zigzag break lines; captions follow real projected ink. Prismatic
+  details keep the feature silhouette and use preferred enlargement scales. Extent queries
+  map only the envelope, once per projected view, and large-paper omissions precede planning.
 - Multi-step turned profiles use one inspection end by default, preserving PMI datum
   precedence and saved chain IDs. Cross-hole axial locations use the same end; baseline
-  lanes run shortest nearest the part. Small head-detail drawings retain their smallest sheet.
+  lanes run shortest nearest the part. Valid complete larger principal views take precedence
+  over optional details under the practical-paper sheet rules.
 - Visible edges take precedence over hidden edges in the isometric as well as principal
   views, including when a detail changes the isometric scale.
 

@@ -1133,7 +1133,11 @@ pub fn recognise_document(
 
 /// The box (width, height) and centre of the part's envelope seen in *view*, mm at 1:1.
 pub(crate) fn extent(analysis: &Analysis, view: &View) -> ([f64; 2], [f64; 2]) {
-    let [lo, hi] = analysis.envelope;
+    envelope_extent(analysis.envelope, view)
+}
+
+pub(crate) fn envelope_extent(envelope: [[f64; 3]; 2], view: &View) -> ([f64; 2], [f64; 2]) {
+    let [lo, hi] = envelope;
     let (mut min, mut max) = ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]);
     for i in 0..8 {
         let corner = [0, 1, 2].map(|k| if i >> k & 1 == 0 { lo[k] } else { hi[k] });
@@ -1358,6 +1362,23 @@ fn carried(plan: &Plan) -> BTreeSet<(String, String)> {
         )
         .map(|m| (m.feature.clone(), m.parameter.clone()))
         .collect();
+    // The compiler can replace a local interval with its proven baseline stations.
+    // Keep that physical coverage across detail-free and detail-bearing candidates;
+    // a covered ledger entry counts only while its controlling owner is actually drawn.
+    for omitted in &plan.omitted {
+        if let ItemState::Covered { by } = &omitted.state
+            && plan
+                .dimensions
+                .iter()
+                .any(|d| d.id == *by && d.placed.is_some())
+            && let Some((feature, parameter)) = omitted
+                .id
+                .strip_prefix("d:")
+                .and_then(|id| id.rsplit_once('/'))
+        {
+            out.insert((feature.into(), parameter.into()));
+        }
+    }
     for r in plan.radius_table.iter().flat_map(|t| &t.rows) {
         if let Some(kind) = r
             .feature
@@ -1564,7 +1585,60 @@ pub(crate) fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
     row <= w - 2.0 * layout::MARGIN && column <= h - 2.0 * layout::MARGIN
 }
 
-fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result<Plan, Invalid> {
+fn recover_uncached(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
+    if spec.sheet.scale.is_some() || crate::placement_intent::has_pins(spec) {
+        return recover_candidates(analysis, spec, first);
+    }
+    // Optional details are a last resort for unreadable features or smaller paper.
+    // Search the complete ordinary drawing first, including the small-sheet allocation.
+    let has_optional = first
+        .views
+        .iter()
+        .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
+        || layout::SCALES.into_iter().any(|scale| {
+            crate::detail::requests(analysis, spec, scale)
+                .iter()
+                .any(|(_, d)| !d.authored)
+        });
+    if has_optional {
+        let mut plain = spec.clone();
+        for name in crate::detail::NAMES {
+            if !plain.views.get(name).is_some_and(|v| v.detail.is_some()) {
+                plain.views.entry(name.into()).or_default().omit = true;
+            }
+        }
+        let seed = plan_escalated(analysis, &plain)?;
+        let mut ordinary = recover_candidates(analysis, &plain, seed)?;
+        let complete = findings(&ordinary).clean()
+            && undrawn_gdt(&ordinary) == 0
+            && drawn_sheets_fit(analysis, &ordinary)
+            && carried(&first).is_subset(&carried(&ordinary));
+        let small_paper = ordinary.sheet.size == "A4" || ordinary.sheet.size == "A3";
+        if complete
+            && (small_paper
+                || spec.sheet.size.is_some()
+                || !fits_a3_at_full_size(analysis, &ordinary))
+        {
+            ordinary.spec = spec.clone();
+            return Ok(ordinary);
+        }
+        let detailed = recover_candidates(analysis, spec, first)?;
+        // A complete ordinary large-part drawing still wins unless a detail saves paper.
+        let paper = |p: &Plan| {
+            layout::PAGES
+                .iter()
+                .position(|(name, ..)| *name == p.sheet.size)
+        };
+        if complete && paper(&ordinary) <= paper(&detailed) {
+            ordinary.spec = spec.clone();
+            return Ok(ordinary);
+        }
+        return Ok(detailed);
+    }
+    recover_candidates(analysis, spec, first)
+}
+
+fn recover_candidates(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result<Plan, Invalid> {
     use crate::sheet_fit::FILL_BAND;
     let min_legible_scale = crate::sheets::floor(spec).map_or_else(
         || crate::sheet_fit::min_legible_scale(analysis),
@@ -1638,8 +1712,6 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
     let mut candidates = Vec::new();
     let mut smallest = None;
     let mut smallest_iso: Option<f64> = None;
-    let mut smallest_head = false;
-    let mut smallest_ink = 0;
     let mut recipes = BTreeMap::new();
     // Exhaust practical single sheets, then R5 allocation, before admitting large paper.
     let mut rule = true;
@@ -1691,6 +1763,19 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                 let mut named = spec.clone();
                 named.sheet.size = Some((*name).into());
                 named.sheet.scale = Some(scale_name(scale));
+                // Decide omissions before the expensive candidate/arrangement planning.
+                if layout::PAGES
+                    .iter()
+                    .position(|(n, ..)| *n == first.sheet.size)
+                    .is_some_and(|parent| i > parent)
+                    && crate::sheets::floor(spec).is_none()
+                {
+                    for (name, detail) in crate::detail::requests(analysis, &named, scale) {
+                        if !detail.authored {
+                            named.views.entry(name).or_default().omit = true;
+                        }
+                    }
+                }
                 let mut p =
                     if first.sheet.size == *name && first.sheet.scale_factor == scale && seed_clean
                     {
@@ -1708,30 +1793,6 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                             Err(e) => return Err(e),
                         }
                     };
-                // An optional enlargement must not be the reason to spend more paper than
-                // the initial parent drawing. Larger detail-free candidates remain available.
-                if p.views
-                    .iter()
-                    .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
-                    && layout::PAGES
-                        .iter()
-                        .position(|(n, ..)| *n == first.sheet.size)
-                        .is_some_and(|parent| i > parent)
-                    && crate::sheets::floor(spec).is_none()
-                {
-                    for view in p
-                        .views
-                        .iter()
-                        .filter(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
-                    {
-                        named
-                            .views
-                            .entry(view.id.trim_start_matches("v:").into())
-                            .or_default()
-                            .omit = true;
-                    }
-                    p = plan_escalated_with(analysis, &named, true, None)?;
-                }
                 // A failed seed must not restrict the complete drawing to its first arrangement.
                 // Try the other established arrangement, with no new leader-routing strategy.
                 if !seed_clean {
@@ -1798,17 +1859,6 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                         p = packed;
                     }
                 }
-                // A defining enlargement already supplies the fine scale. Keep a complete
-                // detail drawing on its smallest sheet instead of growing the main views for fill.
-                if smallest_head
-                    && !p.views.iter().any(|v| v.detail.is_some())
-                    && smallest.is_some_and(|(fit, _)| i > fit)
-                {
-                    continue;
-                }
-                if smallest_head && smallest_ink == 0 && smallest.is_some_and(|(fit, _)| i > fit) {
-                    continue;
-                }
                 // Enlargement is for the dimensioned views. On the smallest fit's larger neighbour
                 // the orientation view keeps the smallest fit's paper scale, rather than spending the
                 // extra sheet on decorative growth.
@@ -1849,8 +1899,7 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                 // not veto the small-sheet candidates that F1 would otherwise accept.
                 // An invalid seed's refused crop cannot block a complete ordinary drawing;
                 // main's material-crossing gate already protects valid first estimates.
-                let detail_context = p.views.iter().any(|v| v.detail.is_some())
-                    || (seed_clean && first.views.iter().any(|v| v.detail.is_some()));
+                let detail_context = p.views.iter().any(|v| v.detail.is_some());
                 let quality_veto = crate::sheets::floor(spec).is_none()
                     && detail_context
                     && (ink_findings(&p) > ink_findings(&first)
@@ -1877,11 +1926,6 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                 }
                 if smallest.is_none() {
                     smallest = Some((i, scale));
-                    smallest_head = p
-                        .views
-                        .iter()
-                        .any(|v| v.detail.as_ref().is_some_and(|d| d.kind == "turned-head"));
-                    smallest_ink = ink_findings(&p);
                     smallest_iso = p.views.iter().find(|v| v.id == "v:iso").map(|v| v.scale);
                 }
                 candidates.push((
@@ -1919,42 +1963,6 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
             continue;
         }
         break;
-    }
-    // Measured section fitting can make a larger, detail-free scale newly valid on the
-    // same paper. A complete head crop already supplies that fine scale: do not discard
-    // its readable local witnesses merely to increase the principal views' fill.
-    let head_fit = candidates
-        .iter()
-        .filter(|(_, p)| {
-            p.views.iter().any(|v| {
-                v.detail
-                    .as_ref()
-                    .is_some_and(|d| !d.authored && d.kind == "turned-head")
-            })
-        })
-        .map(|(c, _)| (c.sheet, c.scale))
-        .min_by(|a, b| a.0.cmp(&b.0).then_with(|| b.1.total_cmp(&a.1)));
-    if let Some((sheet, scale)) = head_fit {
-        candidates.retain(|(c, p)| {
-            let keep = c.sheet < sheet
-                || (c.sheet == sheet && c.scale <= scale)
-                || p.views.iter().any(|v| {
-                    v.detail
-                        .as_ref()
-                        .is_some_and(|d| !d.authored && d.kind == "turned-head")
-                });
-            if !keep {
-                let prefix = format!("{} {} fill ", layout::PAGES[c.sheet].0, scale_name(c.scale));
-                if let Some(record) = tried.iter_mut().find(|r| r.starts_with(&prefix)) {
-                    *record = record.replacen(
-                        "(valid and complete",
-                        "(larger principals would discard the fitted head detail; valid and complete",
-                        1,
-                    );
-                }
-            }
-            keep
-        });
     }
     let keys: Vec<_> = candidates.iter().map(|(c, _)| *c).collect();
     let Some((choice, (i, s))) =
@@ -4304,6 +4312,8 @@ pub struct ProjectionStats {
 pub struct ViewGeometry {
     pub visible: Vec<Item>,
     pub hidden: Vec<Item>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub breaks: Vec<Curve>,
     pub bbox: Option<[f64; 4]>,
     pub undrawn: usize,
 }
@@ -4361,7 +4371,7 @@ impl Projections {
         analysis: &Analysis,
         v: &PlannedView,
     ) -> Result<ViewGeometry, Unresolved> {
-        let centre = crate::detail::crop_extent(analysis, v).1;
+        let (size, centre) = crate::detail::crop_extent(analysis, v);
         let key = projection_key(v);
         let placement = bits(&[&[v.scale, f64::from(v.id == "v:iso")], &centre, &v.at]);
         if let Some((previous, geometry)) = self.geometry.get(&key)
@@ -4372,9 +4382,17 @@ impl Projections {
         let mut geometry = ViewGeometry {
             visible: Vec::new(),
             hidden: Vec::new(),
+            breaks: Vec::new(),
             bbox: None,
             undrawn: 0,
         };
+        let rect = [
+            v.at[0] - size[0] * v.scale / 2.0,
+            v.at[1] - size[1] * v.scale / 2.0,
+            v.at[0] + size[0] * v.scale / 2.0,
+            v.at[1] + size[1] * v.scale / 2.0,
+        ];
+        let mut boundary = crate::detail::Boundary::default();
         let place = |q: [f64; 2]| {
             [
                 v.at[0] + v.scale * (q[0] - centre[0]),
@@ -4401,14 +4419,9 @@ impl Projections {
                         &mut geometry.hidden
                     };
                     if v.detail.is_some() {
-                        let (size, _) = crate::detail::crop_extent(analysis, v);
-                        let rect = [
-                            v.at[0] - size[0] * v.scale / 2.0,
-                            v.at[1] - size[1] * v.scale / 2.0,
-                            v.at[0] + size[0] * v.scale / 2.0,
-                            v.at[1] + size[1] * v.scale / 2.0,
-                        ];
-                        items.extend(crate::detail::clip(curve, rect).into_iter().map(Item::Edge));
+                        let clipped = crate::detail::clip(curve.clone(), rect);
+                        boundary.add(&curve, &clipped, rect);
+                        items.extend(clipped.into_iter().map(Item::Edge));
                     } else {
                         items.push(Item::Edge(curve));
                     }
@@ -4421,6 +4434,7 @@ impl Projections {
         } else {
             geometry.hidden = crate::linework::hidden(&geometry.visible, geometry.hidden);
         }
+        geometry.breaks = boundary.ink(rect);
         self.stats.bounds += 1;
         geometry.bbox = items_bbox(&geometry.visible);
         self.geometry.insert(key, (placement, geometry.clone()));
@@ -4890,12 +4904,23 @@ fn render_annotations_with_cuts(
                 .into_iter()
                 .map(Item::Edge),
         );
+        thin.extend(geometry.breaks.into_iter().map(Item::Edge));
         layers[0].items.extend(geometry.visible);
         layers[1].items.extend(geometry.hidden);
     }
     for v in &plan.views {
         let Some(d) = &v.detail else { continue };
-        captions.push((crate::detail::caption(d), crate::detail::caption_at(v)));
+        captions.push((
+            crate::detail::caption(d),
+            crate::detail::caption_at(
+                v,
+                sheet
+                    .views
+                    .iter()
+                    .find(|drawn| drawn.name == v.id)
+                    .map(|drawn| drawn.bbox),
+            ),
+        ));
         caption_names.push(format!("detail_caption_{}", d.label));
         if let Some(source) = plan.views.iter().find(|s| s.id == d.source_view) {
             let labels: Vec<_> = plan

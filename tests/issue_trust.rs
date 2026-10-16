@@ -572,7 +572,14 @@ fn every_number_on_the_sheet_carries_a_claim() {
                     (scale - v.scale).abs() <= 0.001 * v.scale,
                     "{name}: detail scale must state its actual view scale"
                 );
-                assert_eq!(run.at, [(v.area[0] + v.area[2]) / 2.0, v.area[1] + 3.0]);
+                let ink = drawing
+                    .sheet
+                    .views
+                    .iter()
+                    .find(|drawn| drawn.name == v.id)
+                    .expect("detail has real projected ink")
+                    .bbox;
+                assert_eq!(run.at, [(ink[0] + ink[2]) / 2.0, ink[1] - 8.0]);
                 continue;
             }
             let [x, y] = run.at;
