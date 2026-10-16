@@ -356,6 +356,16 @@ pub struct Annotation {
     /// Its label's runs, as indices into [`Drawing::text`].
     pub runs: Vec<usize>,
     pub claims: Vec<Claim>,
+    /// The compiler-bound identities belonging to the approved cell. These remain separate
+    /// from its live claims so a changed owner or parameter loses proof. Manufacturing
+    /// rows retain source provenance here without adding a second physical measurement owner.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub approved_claims: Vec<Claim>,
+    /// Display-complete compiler approval for a measurement schedule cell. Kept apart from
+    /// its actual text runs so damaged content cannot certify itself. This is evidence only;
+    /// the physical requirement inventory still comes independently from Analysis.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approved_text: Option<String>,
     /// Model-space datum of a coordinate schedule cell, resolved by the Plan.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub coordinate_origin: Option<[f64; 3]>,
@@ -432,7 +442,7 @@ pub struct DrawnField {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DrawnReference {
     pub name: String,
-    /// Name of the target's actual caption or cutting-plane letter.
+    /// Name of the target view or cutting-plane letter.
     pub target: String,
     pub prefix: String,
     pub sheet: u32,

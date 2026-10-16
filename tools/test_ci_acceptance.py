@@ -70,11 +70,11 @@ class Acceptance(unittest.TestCase):
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertIn('incomplete' if not error else 'render failed', result.stderr)
 
-    def test_survey_requires_all_63_parts_and_zero_repeated_spans(self):
+    def test_survey_requires_all_65_parts_and_zero_repeated_spans(self):
         names = [Path(p).stem for p in (ROOT / 'tools/repeated_span_parts.txt').read_text().splitlines()]
         names += [Path(p.name[:-3]).stem for p in (ROOT / 'tests/fixtures/pmi/step').glob('*.gz')]
         result = {name: {'repeated_span': 0} for name in names}
-        self.assertEqual(len(result), 63)
+        self.assertEqual(len(result), 65)
         self.assertEqual(self.check('survey', result).returncode, 0)
         for bad in (dict(list(result.items())[1:]), {**result, names[0]: {'repeated_span': 1}},
                     {**result, names[0]: {'error': 'render failed'}}):
@@ -210,11 +210,11 @@ class Acceptance(unittest.TestCase):
         spec.loader.exec_module(plan_time)
         names = self.runner().survey_names()
         parts = {p: {'instructions': 100, 'seconds': 1} for p in names}
-        budget = {'format': plan_time.FORMAT, 'instructions': {'darwin-arm64': 6300}}
+        budget = {'format': plan_time.FORMAT, 'instructions': {'darwin-arm64': 6500}}
         self.assertTrue(plan_time.verdict(parts, budget, 'darwin-arm64')['passed'])
         slower = {p: {'instructions': 116, 'seconds': 1} for p in names}
         self.assertFalse(plan_time.verdict(slower, budget, 'darwin-arm64')['passed'])
-        lowered = {**budget, 'instructions': {'darwin-arm64': 6300 * .7}}
+        lowered = {**budget, 'instructions': {'darwin-arm64': 6500 * .7}}
         self.assertFalse(plan_time.verdict(parts, lowered, 'darwin-arm64')['passed'])
         # No figure for the platform, or no counter: report only, never fail.
         for key, rows in (('linux-x86_64', parts),
@@ -344,7 +344,7 @@ class Acceptance(unittest.TestCase):
         with self.assertRaises(ValueError):
             instructions.assess({'a': {'base': 100, 'head': 0}})
 
-    def test_survey_shards_partition_the_63_parts(self):
+    def test_survey_shards_partition_the_65_parts(self):
         runner = self.runner()
         names = runner.survey_names()
         slices = [runner.survey.in_shard(names, k, 4) for k in range(1, 5)]
@@ -388,7 +388,7 @@ class Acceptance(unittest.TestCase):
                     patch.object(survey.quality, 'table'):
                 self.assertEqual(survey.main(), 1)
             results = json.loads((Path(tmp) / 'baseline.json').read_text())
-            self.assertEqual(len(results), 63)
+            self.assertEqual(len(results), 65)
             self.assertTrue(all('timed out' in row['error'] for row in results.values()))
 
     def test_failed_subprocess_reports_exit_before_missing_results(self):

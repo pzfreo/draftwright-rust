@@ -240,7 +240,11 @@ message names it (`…; A4 at 1:1 fits.`).
 
 #### Sheet allocation (R5, Stage I)
 
-`sheets.max` allows 1–9 sheets; absent means one. `sheets.smallest_scale` is an ISO
+`sheets.max` allows 1–9 sheets. An explicit count is binding. With no count,
+the normal search starts with one sheet; a small part with no valid complete A4/A3
+single-sheet drawing tries R5 allocation on A4/A3 before A2 or larger (up to the
+existing nine-sheet bound). Named paper keeps the original default of one.
+See the [R5 small-part amendment](adr/R5-multi-sheet.md#small-part-overflow-amendment-2026-10-16). `sheets.smallest_scale` is an ISO
 5455 scale floor, `keep_together` is a list of groups of view names (also allowing
 `hole_table`), `hole_table` assigns a rescue hole table if escalation actually makes
 one, and `gdt_on_sheet_1` records that requirement. A hole-table assignment does not
@@ -257,7 +261,27 @@ an explicit sheet assignment remains possible for an auxiliary group. A stated
 scale or lower the floor. List-index edits are supported only for
 `tables/<index>/sheet`, with `set` and `remove`.
 
-Without sheet controls the existing planner path and serialized bytes are unchanged.
+The [2026-10-16 audit](second-sheet-audit.csv) lists all 68 small A2+ cases found
+among 2,150 native default/spec cases over 190 corpus and fixture STEP inputs
+(baseline `53aa9f3f`, origin/main at the start of the change). All 63 source hashes
+in the captured single-sheet spec fixture are covered. Three selections
+improved: 10224 and 10255 use one A3 sheet at 2:1 after measured section
+correction; GRM-03's fixed 10:1 spec fits one A3. The
+[follow-up review](second-sheet-review.md) records the original candidate failures,
+auxiliary-page composition and references checked against drawn target positions.
+The 44 named large-paper requests stay as authored. Every other small
+large-paper case records both failed practical-paper allocations. The report's
+required-drop count includes unreadably crowded location dimensions. When no
+allocation prefix is clean, the reported best step may be the original one-sheet
+step; each audit's `audit.json` retains every paper/scale and moved-prefix trial.
+All 742 cases whose full-size views need larger paper retain their size, scale
+and count.
+
+Run `cargo run --release --example sheet_policy_audit -- CORPUS OUT` against each
+revision, then `python3 -I tools/compare_sheet_policy.py BEFORE/audit.json
+AFTER/audit.json OUT` to reproduce the case table and the unchanged-large-part gate.
+
+Without sheet controls a valid single A4/A3 drawing keeps the existing planner path.
 A floor alone enters the existing recovery. With `sheets.max > 1`, each allocation
 prefix uses the existing finished-sheet recovery with the floor, including table
 recovery. There are at most four prefixes; H6's exhaustive selection supersedes
@@ -328,6 +352,11 @@ also take `offset` (below):
 | `along` | A fraction 0–1, or `start`, `middle`, `end`, `outside` (1.25). A linear label is centred at that fraction of its witness span; at `outside` it sits just past the line's far end, the dimension line run on to it, as a span too short for its label has it (#32: 1.25 of a long span stranded the text). Leadered labels use that fraction of the view's extent along the strip, keeping their original feature attachment. |
 | `offset` | Callouts only: `[dx, dy]`, each within ±1000 paper mm (y up), the bend's offset from the callout's automatic leader tip. Requires `pinned: true` and excludes `side`, `lane` and `along`. |
 | `pinned` | Defaults to false. True fixes the resolved geometry before automatic layout; without side, lane or along it keeps the canonical automatic ink (its lines and arrows; a label whose own text changes, such as a new tolerance, is re-set from its current text, centred where the old one was, or for a callout from the end of its shoulder); a free item can be adjusted around obstacles. |
+
+An unpinned callout with only `side` (and optionally `view`) keeps participating in the
+shared leader solve. Its candidates stay on that side, its printed label reserves paper space
+before view packing, and the solver chooses a station clear of other ink. Supplying `lane`,
+`along` or a pin continues to prescribe a station.
 
 A pinned callout above or below a view puts its text on the side its leader runs to:
 an elbow left of the tip carries text to the left, and a vertical leader defaults to the
@@ -448,6 +477,22 @@ reviewed by re-planning. Exports embed these entries, so extracting the Spec and
 reproduces the same geometry (`tests/placement_intent.rs`, SVG, DXF, PDF and PNG).
 
 ### Plan: what the sheet will say
+
+`analysis_sha256` identifies the complete effective Analysis used for planning, including its
+recognition records and recogniser, beside the STEP `binding` and embedded `spec`. It is a
+SHA-256 digest of the deterministic JSON serialization, not merely the source-file hash;
+changing `--features` therefore changes the run's provenance even for the same STEP and Spec.
+Older saved plans read with no digest.
+
+`feature_dispositions` reports each recognised occurrence without a dimension owner. Its
+`subject` is a feature ID, or `recognition:evidence:<index>` / `recognition:refusal:<index>` in
+the Analysis's same-run record arrays. Each informational entry has a closed `disposition`
+(`unsupported`, `deferred`, `evidence_only`) and `reason_code`. The dimension planners and their
+undrafted capability table supply the policy: a countersink is hole-callout evidence, while
+unreviewed freeform, sheet-metal and similar grammars are deferred. Evidence-only step levels,
+risers and repeating profiles keep their own reasons. These records do not remove completeness
+or unsupported-feature warnings, and an authored omission is not an ownerless disposition.
+
 
 `plan(analysis, spec)` produces it. The plan is the preview, and renderers draw only from it.
 

@@ -56,9 +56,9 @@
     module: "linting/coverage.py"
     issues: [69]
     tests: [tests/test_lint_coverage.py]
-  status: pending
-  rust_test: "tests/completeness.rs::multi_solid_completeness_findings_are_info"
-  rust_note: "Partial: plan completeness and lint::uncovered select info for multiple solids and warning for a single part (src/completeness.rs, src/lint/mod.rs; tests/completeness.rs::multi_solid_completeness_findings_are_info). Family checks using explicit Severity::Warning, including holes, pads, pockets, channels, gussets, oriented slots, blind slots, profiled bores and parameters, do not all apply that switch."
+  status: ported
+  rust_test: "tests/completeness.rs::assembly_severity_reaches_all_feature_coverage_families"
+  rust_note: "The drawing-wide lint collector applies one solid_count > 1 policy to every feature-coverage family, including family modules that return Warning themselves. Evidence, codes and requirement IDs stay identical. Centre-mark and relief-note coverage use the same assembly decision. Structural, PMI and contradictory-measurement findings retain their independent severity; absent solid_count remains strict like a single solid."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream lint-and-reporting"
 
 - id: LINT-_coverage_common-exact_correspondence
@@ -107,8 +107,8 @@
     issues: [1543]
     tests: [tests/test_issue_1543_schedule_requirements.py, tests/test_issue_1543_feature_schedules.py]
   status: ported
-  rust_test: "tests/planned_hole_tables.rs::a_changed_coordinate_cannot_borrow_a_number_from_another_cell; tests/planned_hole_tables.rs::a_changed_entry_cell_is_reported_even_when_xy_is_correct"
-  rust_note: "Hole-schedule rows are recorded as annotations claiming what their cells print, and lint reads them as ink (src/hole_table.rs; src/lint/holes.rs). Pinned by tests/planned_hole_tables.rs::a_changed_coordinate_cannot_borrow_a_number_from_another_cell and ::a_changed_entry_cell_is_reported_even_when_xy_is_correct. Effectively ported; a size/depth-cell tamper test would complete it."
+  rust_test: "tests/planned_hole_tables.rs::schedule_cell_evidence_checks_approved_tolerance_precision_and_through_wording; tests/planned_hole_tables.rs::damaged_size_cells_lose_size_through_and_quantity_evidence; tests/planned_hole_tables.rs::a_schedule_coordinate_cannot_change_its_approved_axis_or_owner"
+  rust_note: "Each supported measurement schedule cell carries display-complete compiler-approved text separately from its actual rendered runs (output::Annotation::approved_text and approved_claims). The cell must retain its exact approved feature/parameter identities, so changing its axis or owner cannot borrow a numerically equal value. lint::schedule_evidence verifies that presentation before exposing claims; changed/missing/empty cells or lost approvals cannot earn evidence and produce claimed_value_absent warnings. Physical nominal values and roles are checked independently against Analysis, including every physical hole member and its own X/Y cell. Whitespace between wrapped runs is insignificant; approved precision and tolerance wording must survive verbatim. Radius-centre rows use the same approval seam. General authorable feature schedules remain pending under ISSUE-1543-a."
   port_note: "Keep: verify cell content before crediting schedule evidence."
 
 - id: LINT-issues-placement_drop_stage
@@ -452,7 +452,7 @@
     tests: [tests/test_lint_coverage.py, tests/test_diameter_leaders.py, tests/test_issue_1505_diameter_coverage.py]
   status: pending
   rust_test: tests/lint_coverage.rs::pythons_backstop_is_reproduced_on_its_recorded_input
-  rust_note: "Partly ported (src/lint/coverage.rs::feature_coverage, run by lint::check before boss heights, as draftwright orders it). Ported: the inventory (every readable hole's bore, counterbore and spotface diameter and every boss's, distinct; it equals draftwright's on all 11 compared parts), the 0.15 mm match, radius callouts not counting, a hole callout (a mark claiming a hole diameter) mentioning the diameters it prints before its bolt-circle clause and never read as free text, every other mark's ø/⌀ numbers. On draftwright's recorded input (tests/fixtures/lint_coverage/python.json.gz: 18 drawings, two with callouts taken off; ctc05's uncalled ø38.1, a stripped cgb245's ø10, a stripped m10127's ø8.4) the port's check gives exactly its findings. Nothing is excluded for a callout cap: the port drops no callout. Not ported: excluding a boss diameter that a blend of the same face owns (boss_blend_owner_pairs): it compares quiddity's defining faces, and the Analysis keeps only each feature's constituent faces (src/bridge.rs), which differ (grm04_drive_plate: boss [0, 3], blend [0]); structured-note and verified-cell authority (the port has neither); the assembly severity (always warning: the Analysis does not say whether the part is several bodies). Like draftwright, an uncalled hole is reported both here and by hole coverage (hole_requirement_missing); a misprinted callout leaves its diameter uncovered here too. Done in substance (rules assessment of 2026-10-11): the backstop works. Left pending for the boss-blend exclusion, which differs on grm04_drive_plate (boss faces [0, 3], blend [0]) and goes with face precedence (ISSUE-1450-a)."
+  rust_note: "Partly ported (src/lint/coverage.rs::feature_coverage, run by lint::check before boss heights, as draftwright orders it). Ported: the inventory (every readable hole's bore, counterbore and spotface diameter and every boss's, distinct; it equals draftwright's on all 11 compared parts), the 0.15 mm match, radius callouts not counting, a hole callout (a mark claiming a hole diameter) mentioning the diameters it prints before its bolt-circle clause and never read as free text, every other mark's ø/⌀ numbers. On draftwright's recorded input (tests/fixtures/lint_coverage/python.json.gz: 18 drawings, two with callouts taken off; ctc05's uncalled ø38.1, a stripped cgb245's ø10, a stripped m10127's ø8.4) the port's check gives exactly its findings. Nothing is excluded for a callout cap: the port drops no callout. Not ported: excluding a boss diameter that a blend of the same face owns (boss_blend_owner_pairs): it compares quiddity's defining faces, and the Analysis keeps only each feature's constituent faces (src/bridge.rs), which differ (grm04_drive_plate: boss [0, 3], blend [0]); structured-note and verified-cell authority (the port has neither); the assembly severity (always warning: the Analysis does not say whether the part is several bodies). Like draftwright, an uncalled hole is reported both here and by hole coverage (hole_requirement_missing); a misprinted callout leaves its diameter uncovered here too. Done in substance (rules assessment of 2026-10-11): the backstop works. Left pending for the boss-blend exclusion, which differs on grm04_drive_plate (boss faces [0, 3], blend [0]) and goes with face precedence (ISSUE-1450-a). The remaining GRM-04 false positive requires quiddity defining-face provenance: bridge::read currently preserves constituent faces (boss [0,3], blend [0]) while Python boss_blend_owner_pairs compares equal nonempty defining-face sets, the same circle/axis, unique pairing and an envelope-carried boss span."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream lint-and-reporting"
 
 - id: LINT-code-feature_count_mismatch
@@ -1437,9 +1437,8 @@
     issues: [1177]
     tests: [tests/test_canonical_angles.py, tests/test_issue_1177_angular_dimensions.py]
   status: pending
-  rust_note: "Partial: Analysis.outer_profiles now records quiddity's exact ordered outer supports and body/face/edge identity. Independent lint issues convex non-right corners on the foremost camera-facing profile, excludes exact chamfer/polygon definitions, and reports absent or corrupt degree ink. Automatic angular planning was implemented, rendered on three profiles, then withdrawn because the unchanged 30-part quality bar regressed: ink 0 to 17 on mfcadpp/10046, 1 to 98 on NIST FTC-08 (also two off-sheet items), and regressions on five other parts. Compact interior arcs and opposite-sector extensions suffice on simple profiles but not the tied, small and rounded profiles of dense parts. Completing this needs a cross-cutting arc/leader/layout solve with actual support bounds and reserved angular bands; it exceeds this stream's bounded rule port. The one-owner stream must also coordinate overlaps with existing paired-ramp angular statements; this stream does not change ownership. No special-case exclusions or relaxed metrics were retained. See target/coverage-quality-preview/baseline.json and target/rule-renders/angular-attempt/."
+  rust_note: "Not ported (assessed in stream K5): draftwright derives these requirements from quiddity's PlanarOuterProfileEvidence, every planar face's ordered outer profile (lines and arcs), choosing the foremost camera-facing profile per body and view and leaving out corners a chamfer or regular-polygon callout defines (profile_angles.py). The Analysis carries no ordered outer profiles (principal_profiles keeps only principal boundary faces' unordered straight edges and arcs), so neither the planner nor lint can name a corner. Porting needs that evidence recorded at analysis time (new Analysis data, outside this stream's dimension-selection and lint scope), then angular items through dims::angular's placement and a profile_angle ledger in lint; it would add angles to every corpus part with a non-right outer corner (on draftwright's issue_909 case study, 51.1° and 128.9°). Automatic angular planning was implemented, rendered on three profiles, then withdrawn because the unchanged 30-part quality bar regressed: ink 0 to 17 on mfcadpp/10046, 1 to 98 on NIST FTC-08 (also two off-sheet items), and regressions on five other parts. Compact interior arcs and opposite-sector extensions suffice on simple profiles but not the tied, small and rounded profiles of dense parts. Completing this needs a cross-cutting arc/leader/layout solve with actual support bounds and reserved angular bands; it exceeds this stream's bounded rule port. The one-owner stream must also coordinate overlaps with existing paired-ramp angular statements; this stream does not change ownership."
   port_note: "triage 2026-10-16: PORT, value medium, size L, stream dimensioning-coverage"
-  rust_test: "tests/coverage_holes.rs::outer_profile_angles_keep_corner_identity_and_require_live_degree_ink; tests/coverage_holes.rs::independent_outer_profile_evidence_retains_every_undrawn_corner_requirement"
 
 - id: LINT-code-angular_label_vs_geometry
   statement: "An angular dimension's stated degrees agree with the angle between its reference rays."
@@ -1510,7 +1509,7 @@
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
   status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: no gear declaration (Spec or PMI) and no gear data table; see ARCH0015-3."
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: no gear declaration (Spec or PMI) and no gear data table; see ARCH0015-3. The bridge retains raw repeating_radial_profiles evidence, but Spec has no external-spur-gear declaration, validated normative gear requirement record, source-bound gear-table item, or gear/geometry correspondence auditor. These four layers must be implemented together so a detected repetition never invents normative gear data; that is a cross-cutting subsystem exceeding a day, not an ordinary descriptive-table addition."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream gears"
 
 - id: LINT-code-gear_requirement_mismatch
@@ -1523,7 +1522,7 @@
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
   status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: there is no gear data table to compare with an authored gear requirement (ARCH0015-3)."
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: there is no gear data table to compare with an authored gear requirement (ARCH0015-3). The bridge retains raw repeating_radial_profiles evidence, but Spec has no external-spur-gear declaration, validated normative gear requirement record, source-bound gear-table item, or gear/geometry correspondence auditor. These four layers must be implemented together so a detected repetition never invents normative gear data; that is a cross-cutting subsystem exceeding a day, not an ordinary descriptive-table addition."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream gears"
 
 - id: LINT-code-gear_semantics_missing
@@ -1695,7 +1694,7 @@
     issues: [161, 1321, 1333]
     tests: [tests/test_lint_structural.py, tests/test_issue_1332_overlap_remedy.py]
   status: ported
-  rust_test: labels_overlap_by_more_than_half_a_millimetre_both_ways
+  rust_test: labels_overlap_beyond_roundoff_both_ways
   rust_note: "src/lint/structural.rs: each pair of things in drawing order (not a centreline) whose label boxes, or a label-less thing's whole ink (title block, notes block, a table, a section's hatch, arrowheads and wing stubs, each its own item as draftwright places them), share more than 0.5 mm both ways; a warning. Where the pair's line-work also runs through one of the labels (annotation_ink_overlap's measure) the message names it and how far, and the fix says to move what is drawn (overlapping_labels_name_the_line_work_that_also_crosses); draftwright's other remedy is API advice (label_offset_x), left out. The port draws no frame or zone grid. Agrees with what draftwright's lint read on its own sheets (structural_checks_on_what_draftwright_read_agree_with_what_it_found, tests/fixtures/sheet_lint) and with the captured sheets' labelled pairs (ctc04's one finding); none on the port's own drawings, as the placement problems (known_placement.json) report none."
   port_note: "Keep."
 
@@ -2065,9 +2064,10 @@
     module: "linting/pmi_coverage.py"
     issues: [1298]
     tests: [tests/test_issue_1298_manufacturing_requirements.py]
-  status: pending
+  status: ported
   port_note: "triage 2026-10-16: PORT, value low, size S, stream pmi"
-  rust_note: "Not ported: the check reads a thread or knurl leader's 'SEE MFG n' tag against the manufacturing requirements table. The reading now holds thread and knurl requirements with their fields, but the port draws neither the tagged leaders nor the table (pmi_lowering reports them 'read but not drawn')."
+  rust_note: "Manufacturing table rows retain compiler-owned source/aspect bindings in Plan, including Spec-authored overrides, then render provenance annotations preserving wrapped runs. These bindings do not add a second physical measurement owner. lint::pmi_coverage::manufacturing_references requires the complete REF / MANUFACTURING REQUIREMENT header, exactly one complete row, the correct MFG tag and source binding, and an actually drawn table for every source-bearing SEE MFG leader. Removing the table, truncating/emptying a row, changing its tag/source or duplicating it reports manufacturing_reference_unresolved as an error."
+  rust_test: "tests/pmi_thread_knurl.rs::manufacturing_references_require_complete_source_matched_ink; tests/pmi_thread_knurl.rs::authored_manufacturing_rows_keep_the_compilers_source_bindings"
 
 - id: LINT-code-step_material_mismatch
   statement: "When the STEP supplies the material, the title block states that material."
