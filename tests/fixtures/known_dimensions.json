@@ -1023,11 +1023,11 @@
     "part": "ctc01",
     "side": "rust",
     "family": "step_height",
-    "view": "detail_a",
+    "view": "front",
     "label": "50",
     "count": 1,
     "verdict": "equivalent",
-    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+    "reason": "The 2026-10-16 maintainer decision prefers a complete clean principal drawing to an optional crop. This same approved height is now drawn once in the front view, with its original requirement identity, support and value. The comparison continues to assert the exact view, label, identity and count; no tolerance is transferred."
   },
   {
     "part": "grm03",
@@ -1143,41 +1143,41 @@
     "part": "hanger",
     "side": "rust",
     "family": "step_height",
-    "view": "detail_a",
+    "view": "front",
     "label": "4",
     "count": 1,
     "verdict": "equivalent",
-    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+    "reason": "The 2026-10-16 maintainer decision prefers a complete clean principal drawing to an optional crop. This same approved height is now drawn once in the front view, with its original requirement identity, support and value. The comparison continues to assert the exact view, label, identity and count; no tolerance is transferred."
   },
   {
     "part": "m1000",
     "side": "rust",
     "family": "step_height",
-    "view": "detail_a",
+    "view": "front",
     "label": "10.9",
     "count": 1,
     "verdict": "equivalent",
-    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+    "reason": "The 2026-10-16 maintainer decision prefers a complete clean principal drawing to an optional crop. This same approved height is now drawn once in the front view, with its original requirement identity, support and value. The comparison continues to assert the exact view, label, identity and count; no tolerance is transferred."
   },
   {
     "part": "m1000",
     "side": "rust",
     "family": "step_height",
-    "view": "detail_a",
+    "view": "front",
     "label": "6.9",
     "count": 1,
     "verdict": "equivalent",
-    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+    "reason": "The 2026-10-16 maintainer decision prefers a complete clean principal drawing to an optional crop. This same approved height is now drawn once in the front view, with its original requirement identity, support and value. The comparison continues to assert the exact view, label, identity and count; no tolerance is transferred."
   },
   {
     "part": "m1000",
     "side": "rust",
     "family": "step_height",
-    "view": "detail_a",
+    "view": "front",
     "label": "8.9",
     "count": 1,
     "verdict": "equivalent",
-    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+    "reason": "The 2026-10-16 maintainer decision prefers a complete clean principal drawing to an optional crop. This same approved height is now drawn once in the front view, with its original requirement identity, support and value. The comparison continues to assert the exact view, label, identity and count; no tolerance is transferred."
   },
   {
     "part": "m10046",
@@ -1308,5 +1308,25 @@
     "count": 1,
     "verdict": "rust-correct",
     "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "hanger",
+    "side": "python",
+    "family": "step_height",
+    "view": "detail_a",
+    "label": "65",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same supported 65 mm height is placed on Python's detail A and Rust's front view. The clean ordinary A3 1:2 drawing takes precedence under the 2026-10-16 paper/detail decision; the physical quantity and its printed value remain unchanged."
+  },
+  {
+    "part": "hanger",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "65",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same supported 65 mm height is placed on Python's detail A and Rust's front view. The clean ordinary A3 1:2 drawing takes precedence under the 2026-10-16 paper/detail decision; the physical quantity and its printed value remain unchanged."
   }
 ]
