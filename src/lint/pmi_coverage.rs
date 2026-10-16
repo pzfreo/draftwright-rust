@@ -315,7 +315,9 @@ fn manufacturing_text(report: &Report, marks: &[Mark], ids: &Identities) -> Vec<
                     })
                     .collect();
                 // ISO 1302's parameter labels carry values in micrometres. An arbitrary
-                // number somewhere in a label cannot stand for the named parameter.
+                // number somewhere in a label cannot stand for the named parameter. Accept
+                // the exact source value or its declared three-significant-digit display,
+                // independently of the lowering formatter, never an interval of nearby values.
                 let mut printed = words.iter().copied();
                 let states = !parameters.is_empty()
                     && parameters.iter().all(|(name, expected)| {
@@ -325,7 +327,13 @@ fn manufacturing_text(report: &Report, marks: &[Mark], ids: &Identities) -> Vec<
                             && printed
                                 .next()
                                 .and_then(|word| word.parse::<f64>().ok())
-                                .is_some_and(|value| value.is_finite() && value == *expected)
+                                .is_some_and(|value| {
+                                    value.is_finite()
+                                        && (value == *expected
+                                            || format!("{expected:.2e}")
+                                                .parse::<f64>()
+                                                .is_ok_and(|display| value == display))
+                                })
                     });
                 states && printed.next().is_none()
             }
@@ -719,7 +727,15 @@ mod tests {
             assert_eq!(found[0].severity, Severity::Error);
             assert_eq!(found[0].annotation.as_deref(), Some(good[0].name.as_str()));
         }
-        for text in ["Ra 9.9", "Rz 0.8", "Ra 0.8 Ra 0.8", "Ra NaN", ""] {
+        for text in [
+            "Ra 9.9",
+            "Ra 0.8001",
+            "Ra 0.8000000000001",
+            "Rz 0.8",
+            "Ra 0.8 Ra 0.8",
+            "Ra NaN",
+            "",
+        ] {
             let found = mismatches(&marks(&good[0].text, text));
             assert_eq!(found.len(), 1, "{text}: {found:?}");
             assert_eq!(found[0].sources, ["surface_texture:#3"]);
@@ -745,5 +761,26 @@ mod tests {
             claims: vec![],
         };
         assert!(manufacturing_text(&multi, &[mark], &multi.identities()).is_empty());
+        // The existing surface-finish display contract is three significant digits. Neither
+        // unit conversion roundoff nor a correctly rounded value is a source mismatch.
+        for (mm, text) in [
+            (0.00012, "Ra 0.12"),
+            (0.001016, "Ra 1.02"),
+            (0.009999, "Ra 10"),
+            (0.00000000001234, "Ra 1.23e-8"),
+        ] {
+            let mut source = report.clone();
+            source.records[1].fields = vec![("Ra".into(), Field::Length(mm))];
+            let mark = Mark {
+                name: "pmi:surface_texture:#3".into(),
+                view: None,
+                text: text.into(),
+                claims: vec![],
+            };
+            assert!(
+                manufacturing_text(&source, &[mark], &source.identities()).is_empty(),
+                "{mm} mm must print as {text}"
+            );
+        }
     }
 }

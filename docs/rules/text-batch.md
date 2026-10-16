@@ -55,7 +55,10 @@ the sheet lint retains its existing consistent advice.
 
 Source-scoped edge notes now compare their own words, independently of the note formatter,
 allowing numbering and whitespace changes from wrapping. Face finishes compare each named
-parameter and its numeric value in micrometres against the source's structured fields.
+parameter and its numeric value in micrometres against the source's structured fields. The
+independent check accepts the exact source value or its declared three-significant-digit
+presentation, with no interval of nearby values. Valid `0.12` values survive unit conversion,
+and `1.016` correctly prints as `1.02`; corrupt nearby values such as `0.8001` for `0.8` fail.
 An unrelated annotation cannot rescue a corrupted source-bearing annotation. The source
 IDs stay intact during corruption tests. This is deliberately a partial port: the invisible
 searchable text runs do not independently prove that the filled glyph paths say the same
