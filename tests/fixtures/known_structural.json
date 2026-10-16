@@ -1,1 +1,51 @@
-[]
+[
+ {
+  "part": "cgb245",
+  "code": "nominal_rounded",
+  "count": 1,
+  "verdict": "rust-correct",
+  "reason": "Stream K7 nominal_rounded (info, once per sheet): every linear dimension here agrees with its drawn span (no label_vs_measured); some print the sheet's one decimal place where the model has more (the largest is named in the message). Ordinary within the general tolerance; the port's spec has no display precision to raise."
+ },
+ {
+  "part": "ftc06",
+  "code": "nominal_rounded",
+  "count": 1,
+  "verdict": "rust-correct",
+  "reason": "Stream K7 nominal_rounded (info, once per sheet): every linear dimension here agrees with its drawn span (no label_vs_measured); some print the sheet's one decimal place where the model has more (the largest is named in the message). Ordinary within the general tolerance; the port's spec has no display precision to raise."
+ },
+ {
+  "part": "hanger",
+  "code": "nominal_rounded",
+  "count": 1,
+  "verdict": "rust-correct",
+  "reason": "Stream K7 nominal_rounded (info, once per sheet): every linear dimension here agrees with its drawn span (no label_vs_measured); some print the sheet's one decimal place where the model has more (the largest is named in the message). Ordinary within the general tolerance; the port's spec has no display precision to raise."
+ },
+ {
+  "part": "m1000",
+  "code": "nominal_rounded",
+  "count": 1,
+  "verdict": "rust-correct",
+  "reason": "Stream K7 nominal_rounded (info, once per sheet): every linear dimension here agrees with its drawn span (no label_vs_measured); some print the sheet's one decimal place where the model has more (the largest is named in the message). Ordinary within the general tolerance; the port's spec has no display precision to raise."
+ },
+ {
+  "part": "m10046",
+  "code": "nominal_rounded",
+  "count": 1,
+  "verdict": "rust-correct",
+  "reason": "Stream K7 nominal_rounded (info, once per sheet): every linear dimension here agrees with its drawn span (no label_vs_measured); some print the sheet's one decimal place where the model has more (the largest is named in the message). Ordinary within the general tolerance; the port's spec has no display precision to raise."
+ },
+ {
+  "part": "m10127",
+  "code": "nominal_rounded",
+  "count": 1,
+  "verdict": "rust-correct",
+  "reason": "Stream K7 nominal_rounded (info, once per sheet): every linear dimension here agrees with its drawn span (no label_vs_measured); some print the sheet's one decimal place where the model has more (the largest is named in the message). Ordinary within the general tolerance; the port's spec has no display precision to raise."
+ },
+ {
+  "part": "string_post",
+  "code": "nominal_rounded",
+  "count": 1,
+  "verdict": "rust-correct",
+  "reason": "Stream K7 nominal_rounded (info, once per sheet): every linear dimension here agrees with its drawn span (no label_vs_measured); some print the sheet's one decimal place where the model has more (the largest is named in the message). Ordinary within the general tolerance; the port's spec has no display precision to raise."
+ }
+]
