@@ -494,3 +494,90 @@ fn the_session_offers_finish_thread_knurl_and_note_paths() {
     );
     assert!(options["settable"].get("features/f:hole:1/knurl").is_none());
 }
+
+#[test]
+fn structured_feature_notes_cover_only_explicit_roles_of_their_placed_owner() {
+    let (part, a) = plate();
+    let owner = a
+        .features
+        .iter()
+        .find(|f| f.kind == "hole")
+        .unwrap()
+        .id
+        .clone();
+    let make = |claims: bool| {
+        spec(json!({
+            "dimension_source":"authored",
+            "features":{&owner:{"note":"DIAMETER PER PROCESS SHEET", "note_satisfies":if claims {vec!["bore.diameter"]} else {vec![]}}}
+        }))
+    };
+    let draw = |s: &Spec| {
+        let plan = model::plan(&a, s).unwrap();
+        assert!(plan.dimensions.is_empty());
+        let merged = draftwright::spec_gdt::effective(&a, s)
+            .unwrap()
+            .into_owned();
+        let drawing = model::render(&part, &a, &plan, &font()).unwrap();
+        (merged, drawing)
+    };
+    let missing = |a: &Analysis, d: &draftwright::output::Drawing| {
+        draftwright::lint::lint(a, d)
+            .into_iter()
+            .filter(|i| {
+                i.code == "hole_requirement_missing"
+                    && i.requirements
+                        .iter()
+                        .any(|r| r.parameter == "bore.diameter")
+            })
+            .collect::<Vec<_>>()
+    };
+    let (merged, prose) = draw(&make(false));
+    let before = missing(&merged, &prose);
+    assert!(!before.is_empty());
+    let (merged, mut structured) = draw(&make(true));
+    let annotation = structured
+        .annotations
+        .iter()
+        .find(|a| !a.satisfies.is_empty())
+        .unwrap()
+        .clone();
+    assert!(annotation.claims.is_empty());
+    assert_eq!(annotation.satisfies.len(), 1);
+    // The plate has identical siblings. Its grouped missing requirement must remain until
+    // every physical identity has authority; one note must not close the group.
+    let after = missing(&merged, &structured);
+    assert!(!after.is_empty());
+    assert!(
+        after
+            .iter()
+            .all(|i| i.requirements.iter().any(|r| r.feature != owner))
+    );
+    structured.annotations.retain(|a| a.name != annotation.name);
+    assert_eq!(missing(&merged, &structured), before);
+
+    // With an explicit note for every physical hole, the diameter requirement closes,
+    // independently of through/count roles. Omitting the note's view grants no authority.
+    let mut all = make(true);
+    for f in a.features.iter().filter(|f| f.kind == "hole") {
+        all.features.insert(
+            f.id.clone(),
+            serde_json::from_value(
+                json!({"note":"SIZE PER PROCESS", "note_satisfies":["bore.diameter"]}),
+            )
+            .unwrap(),
+        );
+    }
+    let (merged, mut complete) = draw(&all);
+    assert!(missing(&merged, &complete).is_empty());
+    assert!(
+        draftwright::lint::lint(&merged, &complete)
+            .iter()
+            .any(|i| i.requirements.iter().any(|r| r.parameter == "bore.through"))
+    );
+    for a in &mut complete.annotations {
+        a.view = None;
+    }
+    assert!(!missing(&merged, &complete).is_empty());
+    let bad = spec(json!({"features":{&owner:{"note":"TEST", "note_satisfies":["made.up"]}}}));
+    assert!(model::plan(&a, &bad).is_err());
+}

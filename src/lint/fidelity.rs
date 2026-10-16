@@ -131,9 +131,23 @@ pub(super) fn check(drawing: &Drawing) -> Vec<LintIssue> {
                 };
                 if let Some(l) = linear_ink(&d.lines) {
                     let measured = l.span[1] - l.span[0];
-                    issues.extend(label_vs_measured(d, text, measured, scale, &mut rounded));
+                    issues.extend(label_vs_measured(
+                        d,
+                        text,
+                        measured,
+                        scale,
+                        drawing.sheet.precision.get(&d.name).copied(),
+                        &mut rounded,
+                    ));
                 } else if let Some(span) = aligned_span(&d.lines) {
-                    issues.extend(label_vs_measured(d, text, span, scale, &mut rounded));
+                    issues.extend(label_vs_measured(
+                        d,
+                        text,
+                        span,
+                        scale,
+                        drawing.sheet.precision.get(&d.name).copied(),
+                        &mut rounded,
+                    ));
                 } else if d.lines.len() >= 3 {
                     issues.extend(angular(drawing, d, text, *view));
                 }
@@ -154,7 +168,7 @@ pub(super) fn check(drawing: &Drawing) -> Vec<LintIssue> {
                 "{} dimension(s) print a nominal the model does not have, rounded to the sheet's \
                  precision; the largest is '{label}' for {value:.4} ({shift:.4} mm). Within a \
                  general tolerance this is ordinary. Where a fit depends on it, the dimension \
-                 needs more places, which the spec cannot yet ask for",
+                 needs more places (set precision for its measurement ID)",
                 rounded.len()
             ),
             None,
@@ -229,6 +243,7 @@ fn label_vs_measured(
     label: &str,
     page: f64,
     scale: f64,
+    precision: Option<u8>,
     rounded: &mut Vec<(f64, String, f64)>,
 ) -> Option<LintIssue> {
     if angular_label(label) {
@@ -248,7 +263,10 @@ fn label_vs_measured(
             digits.split_once('.').map_or(0, |(_, f)| f.len()) as i32,
         )
     } else {
-        (1.0, displayed_decimals(label) as i32)
+        (
+            1.0,
+            precision.map_or_else(|| displayed_decimals(label) as i32, i32::from),
+        )
     };
     let value = unit * label_value(label)?;
     let measured = page / scale;

@@ -75,6 +75,7 @@ mod pads;
 mod placement;
 mod plates;
 mod pmi_dimensions;
+pub mod precision;
 mod recesses;
 mod redundancy;
 mod slots;
@@ -956,6 +957,34 @@ pub(crate) fn plan_inventory(
     problems.extend(chosen_views(&mut wants, spec, &frames)?);
     plates::prefer_readable(analysis, &mut wants, &frames, Some(spec));
     let (mut chosen, mut end_on) = route(&mut wants, &frames, analysis);
+    // Display intent may not silently undo the established one-owner span grouping.
+    let display_owners = if spec.precision.is_empty() {
+        Vec::new()
+    } else {
+        placement::owners(analysis, &wants, &chosen)
+    };
+    precision::apply(spec, &mut wants)?;
+    for (i, owner) in display_owners.iter().enumerate() {
+        if let Some(j) = owner
+            && (precision::leading(spec, &wants[i]).is_some()
+                || precision::leading(spec, &wants[*j]).is_some())
+            && precision::leading(spec, &wants[i]).map_or_else(
+                || fmt(wants[i].value),
+                |p| precision::format(wants[i].value, p),
+            ) != precision::leading(spec, &wants[*j]).map_or_else(
+                || fmt(wants[*j].value),
+                |p| precision::format(wants[*j].value, p),
+            )
+        {
+            return Err(Invalid {
+                message: format!(
+                    "conflicting precision for coincident dimensions {} and {}; shared measurements require matching display precision",
+                    wants[i].id, wants[*j].id
+                ),
+                choices: vec![],
+            });
+        }
+    }
     let ids: BTreeSet<&str> = wants.iter().map(|w| w.id.as_str()).collect();
     // ARCH0016-5: each dimension is in exactly one view, under one ID. A duplicate is a planner
     // bug, checked in every build.
@@ -1041,6 +1070,7 @@ pub(crate) fn plan_inventory(
     bosses::consolidate(analysis, &mut kept, &mut omitted);
     pmi_dimensions::yield_to_spec(spec, &notes, &mut kept, &mut problems);
     pmi_dimensions::hide_fit_limits(spec, &notes, &mut kept);
+    precision::labels(spec, kept.iter_mut().map(|(w, ..)| w))?;
     let mut given = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems)?;
     holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
     plates::share(analysis, &mut kept, &mut given, &mut omitted);
@@ -2257,4 +2287,14 @@ mod tests {
         );
         assert_eq!(omitted[0].0, "d:f:boss:1/boss_height.length");
     }
+}
+
+/// Semantic roles available to a feature note, including compound callout terms.
+pub(crate) fn measurement_ids(analysis: &Analysis) -> BTreeSet<String> {
+    wants(analysis)
+        .0
+        .iter()
+        .flat_map(|w| &w.measurements)
+        .map(|m| want_id(&m.feature, &m.parameter))
+        .collect()
 }
