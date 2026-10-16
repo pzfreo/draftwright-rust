@@ -166,6 +166,51 @@ pub(crate) fn span(a: &Analysis, feature: &str, parameter: &str) -> Option<Span>
     None
 }
 
+/// Stream K6 (#33, #26): a dimension drawn in brackets is reference, for information only; one
+/// whose printed text carries a tolerance or a fit is a requirement drawn as reference.
+pub fn references(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
+    let mut issues = Vec::new();
+    for m in marks {
+        if m.text.starts_with('(') && m.text.ends_with(')') && toleranced(&m.text) {
+            let (feature, parameter) = m
+                .claims
+                .first()
+                .map_or(("", ""), |c| (c.feature.as_str(), c.parameter.as_str()));
+            let mut issue = super::uncovered(
+                a,
+                "toleranced_reference",
+                feature,
+                parameter,
+                format!(
+                    "{} is drawn as a reference dimension but carries a tolerance or fit; a reference dimension is for information only, so a toleranced one must be controlling.",
+                    m.text
+                ),
+            );
+            issue.id = format!("l:toleranced_reference:{}", m.name);
+            issue.annotation = Some(m.name.clone());
+            issue.fix = Some("Draw it as a controlling dimension, or remove its tolerance.".into());
+            issues.push(issue);
+        }
+    }
+    issues
+}
+
+/// Whether reference text *text* prints a tolerance: a `±` band, a `+0.1 -0.02` deviation pair
+/// or an ISO 286 class after its size (`H7`, `h6`, `js9`).
+fn toleranced(text: &str) -> bool {
+    text.contains('±')
+        || text
+            .split(|c: char| c.is_whitespace() || c == '(' || c == ')')
+            .any(|t| {
+                let digits = t.trim_start_matches(|c: char| c.is_ascii_alphabetic());
+                let letters = &t[..t.len() - digits.len()];
+                (t.starts_with('+') && t[1..].starts_with(|c: char| c.is_ascii_digit()))
+                    || (["H", "G", "F", "h", "g", "f", "js", "k", "n", "p"].contains(&letters)
+                        && !digits.is_empty()
+                        && digits.parse::<u32>().is_ok_and(|g| (5..=11).contains(&g)))
+            })
+}
+
 pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     if a.solid_count.is_some_and(|n| n > 1) {
         return Vec::new();

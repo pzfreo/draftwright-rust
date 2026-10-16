@@ -585,3 +585,75 @@ fn spec_tolerances_and_omissions_reach_the_step_items() {
             .any(|d| d.id == "d:envelope/height.length" && d.label == "70")
     );
 }
+
+/// ISSUE-1505-b (stream K6, a regression pin: it already holds on the base): a short shoulder
+/// never erases its neighbours' axial measurements. A 1 mm shoulder between a ø30 band 30 long
+/// and a ø16 band 39 long: each band's length keeps its own item (its own ID, claiming that band
+/// alone, printing its own value), every one drawn, and the neighbours' lengths print as they do
+/// with a 10 mm shoulder in its place.
+#[test]
+fn a_short_shoulder_never_erases_its_neighbours_lengths() {
+    let lengths = |plan: &Plan| -> Vec<(String, String, Vec<String>)> {
+        plan.dimensions
+            .iter()
+            .filter(|d| d.id.ends_with("/step.length"))
+            .map(|d| {
+                assert!(d.placed.is_some(), "{} is not drawn", d.id);
+                let claims = d
+                    .measurements
+                    .iter()
+                    .map(|m| format!("{} {}", m.feature, m.parameter))
+                    .collect();
+                (d.id.clone(), d.label.clone(), claims)
+            })
+            .collect()
+    };
+    let short = with_bands(&[
+        (q(0.0), q(30.0), 30.0),
+        (q(30.0), q(31.0), 24.0),
+        (q(31.0), q(70.0), 16.0),
+    ]);
+    let plan = model::plan(&short, &Spec::default()).unwrap();
+    let got = lengths(&plan);
+    let ids: Vec<&str> = got.iter().map(|(id, _, _)| id.as_str()).collect();
+    assert_eq!(
+        ids,
+        [
+            "d:f:turned_step:1/step.length",
+            "d:f:turned_step:2/step.length",
+            "d:f:turned_step:3/step.length",
+        ],
+        "{got:?}"
+    );
+    for (i, (id, label, claims)) in got.iter().enumerate() {
+        assert_eq!(
+            claims,
+            &[format!("f:turned_step:{} step.length", i + 1)],
+            "{id}"
+        );
+        let value = ["30", "1", "39"][i];
+        assert!(
+            label.trim_matches(['(', ')']) == value,
+            "{id} prints {label}, not {value}"
+        );
+    }
+    assert!(
+        ledger(&short, &plan).iter().all(|o| o.ends_with("Placed")),
+        "{:?}",
+        ledger(&short, &plan)
+    );
+
+    let long = with_bands(&[
+        (q(0.0), q(30.0), 30.0),
+        (q(30.0), q(40.0), 24.0),
+        (q(40.0), q(79.0), 16.0),
+    ]);
+    let wide = lengths(&model::plan(&long, &Spec::default()).unwrap());
+    for i in [0, 2] {
+        assert_eq!(
+            (&got[i].0, &got[i].1),
+            (&wide[i].0, &wide[i].1),
+            "a neighbour's length changes with the shoulder's"
+        );
+    }
+}

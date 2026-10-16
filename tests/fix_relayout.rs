@@ -23,7 +23,36 @@ fn session() -> Session {
         .unwrap();
     let (part, analysis) =
         model::analyse_native_step(std::path::Path::new("spindle.step"), &bytes).unwrap();
-    Session::new(part, analysis, model::Spec::default()).unwrap()
+    // Keep this repair regression's deliberately crossed starting condition. Automatic
+    // datums now fit inside the dimension lanes; an explicit hand placement beyond them
+    // must still expose the same two crossings and offer the same dimension-stack fixes.
+    let (items, _) = draftwright::pmi_lowering::lower(&analysis, &|_| true);
+    let b = items
+        .iter()
+        .find(|g| {
+            matches!(&g.glyph,
+        draftwright::pmi_lowering::Glyph::Datum { letter, .. } if letter == "B")
+        })
+        .unwrap();
+    let a = items
+        .iter()
+        .find(|g| {
+            matches!(&g.glyph,
+        draftwright::pmi_lowering::Glyph::Datum { letter, .. } if letter == "A")
+        })
+        .unwrap();
+    let spec = serde_json::from_value(serde_json::json!({
+        "annotations": {
+            b.id.clone(): { "place": { "view": "front", "side": "right", "lane": 0 } },
+            a.id.clone(): { "place": { "view": "front", "side": "below", "lane": 0 } }
+        },
+        "dimensions": {
+            "d:envelope/height.length": { "place": { "side": "right", "lane": 1 } },
+            "d:f:turned_step:2/step_position.length": { "place": { "side": "right", "lane": 0 } }
+        }
+    }))
+    .unwrap();
+    Session::new(part, analysis, spec).unwrap()
 }
 
 type Line = [[f64; 2]; 2];

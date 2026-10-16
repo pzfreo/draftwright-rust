@@ -138,6 +138,52 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                     .all(|&k| (b.on[k] - anchors[0][k]).abs() <= 1e-3)
             });
         let member_spacing = p.arrangement == "linear" || p.arrangement == "grid";
+        // Stream K6 (ADR4-U1): a pitch along an axis on which every member is also located
+        // states a separation the locations already fix: over-dimensioning that is neither
+        // identical nor coincident. Each such pitch is reported, naming its marks.
+        if member_spacing {
+            for (position, k) in [u, v].into_iter().enumerate() {
+                let along = if position == 0 { &cols } else { &rows };
+                if along.len() < 2 || !member_locations.iter().all(|axes| axes[position]) {
+                    continue;
+                }
+                let parameter = if p.arrangement == "grid" {
+                    format!("grid_pitch.length.{}", ["col", "row"][position])
+                } else if (position == 0) == (rows.len() == 1) {
+                    "pitch.length".to_string()
+                } else {
+                    continue;
+                };
+                let pitch = along[1] - along[0];
+                let Some(mark) = marks.iter().find(|m| {
+                    m.claims
+                        .iter()
+                        .any(|c| c.feature == p.id && c.parameter == parameter)
+                        && holes::states(&m.text, pitch)
+                }) else {
+                    continue;
+                };
+                let mut issue = super::uncovered(
+                    analysis,
+                    "over_dimensioned_pattern",
+                    &p.id,
+                    &parameter,
+                    format!(
+                        "{} states its pitch along {} and every member's {} location too; the locations fix the pitch, so one of them is redundant.",
+                        p.id,
+                        ["x", "y", "z"][k],
+                        ["x", "y", "z"][k]
+                    ),
+                );
+                issue.annotation = Some(mark.name.clone());
+                issue.related = p.members.clone();
+                issue.fix = Some(format!(
+                    "Omit {}/{parameter}, or locate the pattern once and keep its pitch.",
+                    p.id
+                ));
+                issues.push(issue);
+            }
+        }
         for (position, k) in [u, v].into_iter().enumerate() {
             if coaxial_circle {
                 continue;
