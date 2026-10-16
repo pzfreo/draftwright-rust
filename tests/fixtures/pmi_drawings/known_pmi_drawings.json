@@ -1036,13 +1036,13 @@
      "boxed": false,
      "kind": "dimension",
      "rides_on": "od.diameter",
-     "text": "2× ⌀130 g6 (-0.014/-0.039)",
+     "text": "2× ⌀130 g6",
      "view": "front"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "J3 (#30) shaft-fit port: this source declares its ISO 286 shaft class without numeric limits. Its external cylinders correlate uniquely to the recognised turned diameter, which prints the class with its limits from ISO 286 (draftwright's fits table), as the S5 symbolic-bore port prints a hole class; the part's overall diameter carries it where that is the size's owner. Python drops the class, which leaves a fitted journal to the general tolerance. tests/pmi_dimensions.rs a_shaft_fit_is_printed_on_its_turned_diameter_with_its_iso_286_limits covers the reading and owner."
+  "evidence": "J3 (#30) shaft-fit port: this source declares its ISO 286 shaft class without numeric limits. Its external cylinders correlate uniquely to the recognised turned diameter, which prints the class alone by default and optionally adds stacked deviations from ISO 286 (draftwright's fits table), as the S5 symbolic-bore port prints a hole class; the part's overall diameter carries it where that is the size's owner. Python drops the class, which leaves a fitted journal to the general tolerance. tests/pmi_dimensions.rs a_shaft_fit_prints_its_class_by_default_and_stacked_deviations_on_request covers the reading and owner. Maintainer decision 2026-10-16: the default drawing states the class alone; sheet/fit_deviations explicitly adds stacked upper/lower deviations."
  },
  {
   "file": "hw_spool_fits_intent.step",
@@ -1066,13 +1066,13 @@
      "boxed": false,
      "kind": "dimension",
      "rides_on": "od.diameter",
-     "text": "2× ⌀130 g6 (-0.014/-0.039)",
+     "text": "2× ⌀130 g6",
      "view": "front"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "J3 (#30) shaft-fit port: this source declares its ISO 286 shaft class without numeric limits. Its external cylinders correlate uniquely to the recognised turned diameter, which prints the class with its limits from ISO 286 (draftwright's fits table), as the S5 symbolic-bore port prints a hole class; the part's overall diameter carries it where that is the size's owner. Python drops the class, which leaves a fitted journal to the general tolerance. tests/pmi_dimensions.rs a_shaft_fit_is_printed_on_its_turned_diameter_with_its_iso_286_limits covers the reading and owner."
+  "evidence": "J3 (#30) shaft-fit port: this source declares its ISO 286 shaft class without numeric limits. Its external cylinders correlate uniquely to the recognised turned diameter, which prints the class alone by default and optionally adds stacked deviations from ISO 286 (draftwright's fits table), as the S5 symbolic-bore port prints a hole class; the part's overall diameter carries it where that is the size's owner. Python drops the class, which leaves a fitted journal to the general tolerance. tests/pmi_dimensions.rs a_shaft_fit_prints_its_class_by_default_and_stacked_deviations_on_request covers the reading and owner. Maintainer decision 2026-10-16: the default drawing states the class alone; sheet/fit_deviations explicitly adds stacked upper/lower deviations."
  },
  {
   "file": "hw_spool_fits_intent.step",
@@ -1096,13 +1096,13 @@
      "boxed": false,
      "kind": "dimension",
      "rides_on": "step.diameter",
-     "text": "⌀70 f7 (-0.030/-0.060) OD",
+     "text": "⌀70 f7 OD",
      "view": "front"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "J3 (#30) shaft-fit port: this source declares its ISO 286 shaft class without numeric limits. Its external cylinders correlate uniquely to the recognised turned diameter, which prints the class with its limits from ISO 286 (draftwright's fits table), as the S5 symbolic-bore port prints a hole class; the part's overall diameter carries it where that is the size's owner. Python drops the class, which leaves a fitted journal to the general tolerance. tests/pmi_dimensions.rs a_shaft_fit_is_printed_on_its_turned_diameter_with_its_iso_286_limits covers the reading and owner."
+  "evidence": "J3 (#30) shaft-fit port: this source declares its ISO 286 shaft class without numeric limits. Its external cylinders correlate uniquely to the recognised turned diameter, which prints the class alone by default and optionally adds stacked deviations from ISO 286 (draftwright's fits table), as the S5 symbolic-bore port prints a hole class; the part's overall diameter carries it where that is the size's owner. Python drops the class, which leaves a fitted journal to the general tolerance. tests/pmi_dimensions.rs a_shaft_fit_prints_its_class_by_default_and_stacked_deviations_on_request covers the reading and owner. Maintainer decision 2026-10-16: the default drawing states the class alone; sheet/fit_deviations explicitly adds stacked upper/lower deviations."
  },
  {
   "file": "hw_string_post_tapped_intent.step",
@@ -1178,13 +1178,13 @@
      "boxed": false,
      "kind": "dimension",
      "rides_on": "od.diameter",
-     "text": "⌀10 f7 (-0.013/-0.028)",
+     "text": "⌀10 f7",
      "view": "front"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "J3 (#30) shaft-fit port: this source declares its ISO 286 shaft class without numeric limits. Its external cylinders correlate uniquely to the recognised turned diameter, which prints the class with its limits from ISO 286 (draftwright's fits table), as the S5 symbolic-bore port prints a hole class; the part's overall diameter carries it where that is the size's owner. Python drops the class, which leaves a fitted journal to the general tolerance. tests/pmi_dimensions.rs a_shaft_fit_is_printed_on_its_turned_diameter_with_its_iso_286_limits covers the reading and owner."
+  "evidence": "J3 (#30) shaft-fit port: this source declares its ISO 286 shaft class without numeric limits. Its external cylinders correlate uniquely to the recognised turned diameter, which prints the class alone by default and optionally adds stacked deviations from ISO 286 (draftwright's fits table), as the S5 symbolic-bore port prints a hole class; the part's overall diameter carries it where that is the size's owner. Python drops the class, which leaves a fitted journal to the general tolerance. tests/pmi_dimensions.rs a_shaft_fit_prints_its_class_by_default_and_stacked_deviations_on_request covers the reading and owner. Maintainer decision 2026-10-16: the default drawing states the class alone; sheet/fit_deviations explicitly adds stacked upper/lower deviations."
  },
  {
   "file": "nist_ctc_01_asme1_ap242-e1.stp",
@@ -7998,13 +7998,13 @@
      "boxed": false,
      "kind": "dimension",
      "rides_on": "bore.diameter",
-     "text": "6× ⌀6.6 H11 (+0.090/0) THRU (2×3)",
+     "text": "6× ⌀6.6 H11 THRU (2×3)",
      "view": "plan"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "S5 native symbolic-bore port: this source declares its literal ISO 286 H7/H11 class without numeric limits. Proven internal cylinders correlate uniquely to the recognised bore owner; its native text now retains the class without computing unstated limits or duplicating the dimension. Python drops the class (and draws the 62 mm bore separately). The symbolic-fit regression and unchanged exact-one-outcome/NIST open-question tests verify the reading and owner."
+  "evidence": "S5 native symbolic-bore port: this source declares its literal ISO 286 H7/H11 class without numeric limits. Proven internal cylinders correlate uniquely to the recognised bore owner; its native text now retains the class without computing unstated limits or duplicating the dimension. Python drops the class (and draws the 62 mm bore separately). The symbolic-fit regression and unchanged exact-one-outcome/NIST open-question tests verify the reading and owner. Maintainer decision 2026-10-16: the default drawing states the class alone; sheet/fit_deviations explicitly adds stacked upper/lower deviations."
  },
  {
   "file": "hw_assembly_plate_pin_intent.step",
@@ -8070,13 +8070,13 @@
      "boxed": false,
      "kind": "dimension",
      "rides_on": "bore.diameter",
-     "text": "⌀62 H7 (+0.030/0) THRU ⌴SF ⌀70 ↧ 10",
+     "text": "⌀62 H7 THRU ⌴SF ⌀70 ↧ 10",
      "view": "plan"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "S5 native symbolic-bore port: this source declares its literal ISO 286 H7/H11 class without numeric limits. Proven internal cylinders correlate uniquely to the recognised bore owner; its native text now retains the class without computing unstated limits or duplicating the dimension. Python drops the class (and draws the 62 mm bore separately). The symbolic-fit regression and unchanged exact-one-outcome/NIST open-question tests verify the reading and owner."
+  "evidence": "S5 native symbolic-bore port: this source declares its literal ISO 286 H7/H11 class without numeric limits. Proven internal cylinders correlate uniquely to the recognised bore owner; its native text now retains the class without computing unstated limits or duplicating the dimension. Python drops the class (and draws the 62 mm bore separately). The symbolic-fit regression and unchanged exact-one-outcome/NIST open-question tests verify the reading and owner. Maintainer decision 2026-10-16: the default drawing states the class alone; sheet/fit_deviations explicitly adds stacked upper/lower deviations."
  },
  {
   "file": "hw_spool_fits_intent.step",
@@ -8100,13 +8100,13 @@
      "boxed": false,
      "kind": "dimension",
      "rides_on": "bore.diameter",
-     "text": "6× ⌀10 H11 (+0.090/0) THRU EQ SP ON ⌀90 BC",
+     "text": "6× ⌀10 H11 THRU EQ SP ON ⌀90 BC",
      "view": "plan"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "S5 native symbolic-bore port: this source declares its literal ISO 286 H7/H11 class without numeric limits. Proven internal cylinders correlate uniquely to the recognised bore owner; its native text now retains the class without computing unstated limits or duplicating the dimension. Python drops the class (and draws the 62 mm bore separately). The symbolic-fit regression and unchanged exact-one-outcome/NIST open-question tests verify the reading and owner."
+  "evidence": "S5 native symbolic-bore port: this source declares its literal ISO 286 H7/H11 class without numeric limits. Proven internal cylinders correlate uniquely to the recognised bore owner; its native text now retains the class without computing unstated limits or duplicating the dimension. Python drops the class (and draws the 62 mm bore separately). The symbolic-fit regression and unchanged exact-one-outcome/NIST open-question tests verify the reading and owner. Maintainer decision 2026-10-16: the default drawing states the class alone; sheet/fit_deviations explicitly adds stacked upper/lower deviations."
  },
  {
   "file": "hw_string_post_tapped_intent.step",
@@ -8130,13 +8130,13 @@
      "boxed": false,
      "kind": "dimension",
      "rides_on": "bore.diameter",
-     "text": "⌀1.7 H11 (+0.060/0) ↧ 5.4",
+     "text": "⌀1.7 H11 ↧ 5.4",
      "view": "front"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "S5 native symbolic-bore port: this source declares its literal ISO 286 H7/H11 class without numeric limits. Proven internal cylinders correlate uniquely to the recognised bore owner; its native text now retains the class without computing unstated limits or duplicating the dimension. Python drops the class (and draws the 62 mm bore separately). The symbolic-fit regression and unchanged exact-one-outcome/NIST open-question tests verify the reading and owner."
+  "evidence": "S5 native symbolic-bore port: this source declares its literal ISO 286 H7/H11 class without numeric limits. Proven internal cylinders correlate uniquely to the recognised bore owner; its native text now retains the class without computing unstated limits or duplicating the dimension. Python drops the class (and draws the 62 mm bore separately). The symbolic-fit regression and unchanged exact-one-outcome/NIST open-question tests verify the reading and owner. Maintainer decision 2026-10-16: the default drawing states the class alone; sheet/fit_deviations explicitly adds stacked upper/lower deviations."
  },
  {
   "file": "hw_string_post_tapped_intent.step",

@@ -2,7 +2,6 @@
   "type": "object",
   "anyOf": [
     {
-      "type": "object",
       "properties": {
         "items": {
           "type": "array",
@@ -45,7 +44,6 @@
                   "state": {
                     "anyOf": [
                       {
-                        "type": "object",
                         "properties": {
                           "kind": {
                             "enum": [
@@ -61,7 +59,6 @@
                         "additionalProperties": false
                       },
                       {
-                        "type": "object",
                         "properties": {
                           "kind": {
                             "const": "covered"
@@ -77,7 +74,6 @@
                         "additionalProperties": false
                       },
                       {
-                        "type": "object",
                         "properties": {
                           "kind": {
                             "const": "not_drawable"
@@ -92,7 +88,8 @@
                         ],
                         "additionalProperties": false
                       }
-                    ]
+                    ],
+                    "type": "object"
                   }
                 },
                 "required": [
@@ -195,7 +192,6 @@
       "additionalProperties": false
     },
     {
-      "type": "object",
       "properties": {
         "error": {
           "type": "object",

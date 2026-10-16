@@ -19,14 +19,14 @@ def nullable(s):
     return {'anyOf':[s, {'type':'null'}]}
 state={'anyOf':[obj({'kind':{'enum':['shown','omitted_by_user','not_authored']}},['kind']), obj({'kind':{'const':'covered'},'by':S},['kind','by']),obj({'kind':{'const':'not_drawable'},'reason_code':S},['kind','reason_code'])]}
 op={'anyOf':[obj({'op':{'enum':['set','add']},'path':S,'value':{}},['op','path','value']),obj({'op':{'const':'remove'},'path':S},['op','path'])]}
-place=obj({'view':{'enum':['front','plan','side']},'side':{'enum':['above','below','left','right']},'lane':{'type':'integer','minimum':0,'maximum':1000},'along':{'anyOf':[{'enum':['start','middle','end','outside']},{'type':'number','minimum':0,'maximum':1}]},'offset':arr(N,minItems=2,maxItems=2),'pinned':B})
+place=obj({'view':{'enum':['front','plan','side',*[f'detail_{c}' for c in 'abcdefgh']]},'side':{'enum':['above','below','left','right']},'lane':{'type':'integer','minimum':0,'maximum':1000},'along':{'anyOf':[{'enum':['start','middle','end','outside']},{'type':'number','minimum':0,'maximum':1}]},'offset':arr(N,minItems=2,maxItems=2),'pinned':B})
 compact=obj({'sheet':SHEET,'id':S,'kind':S,'label':nullable(S),'view':nullable(S),'state':ref('state')},['id','kind','label','view','state'])
 item=obj({'item':{'type':'object'},'value':nullable(N),'dimension_kind':nullable(S),'placement':nullable({'type':'object'}),'anchors':arr(S),'features':arr(S),'basis':S,'operations':arr(S)},['item','value','dimension_kind','placement','anchors','features','basis','operations'])
 problem=obj({'id':S,'code':S,'severity':S,'message':S,'subjects':arr(S),'refs':arr(S),'fix':arr(ref('op'))},['id','code','severity','message','subjects'])
 rectangle=arr(N,minItems=4,maxItems=4)
 filter_=obj({'sheet':nullable(SHEET),'view':nullable(S),'kind':nullable(S),'state':nullable(ref('state')),'feature':nullable(S),'region':nullable(rectangle),'near':nullable(S),'radius':nullable({'type':'number','minimum':0})})
 problem_filter=obj({'code':nullable(S),'severity':nullable({'enum':['info','warning','error']}),'subject':nullable(S),'feature':nullable(S)})
-spec=obj({'schema':{'enum':['draftwright.spec/1','draftwright.spec/2']},'binding':nullable({'type':'object'}),'sheets':nullable(obj({'max':nullable(SHEET),'smallest_scale':nullable(S),'keep_together':arr(arr(S)),'hole_table':nullable(SHEET),'gdt_on_sheet_1':B})),'sheet':obj({'size':nullable(S),'scale':nullable(S),'title':{'type':'object','additionalProperties':S},'fit_limits':nullable({'type':'boolean'}),'projection':nullable({'enum':['first','third']}),'default_finish':nullable({'type':'object'})}),'views':{'type':'object','additionalProperties':{'type':'object'}},'dimensions':{'type':'object','additionalProperties':{'type':'object'}},'annotations':{'type':'object','additionalProperties':{'type':'object'}},'features':{'type':'object','additionalProperties':{'type':'object'}},'faces':{'type':'object','additionalProperties':{'type':'object'}},'dimension_source':{'enum':['auto','authored']},'hole_table':{'enum':['auto','always','never']},'notes':arr({'type':'object'}),'tables':arr({'type':'object'})})
+spec=obj({'schema':{'enum':['draftwright.spec/1','draftwright.spec/2']},'binding':nullable({'type':'object'}),'sheets':nullable(obj({'max':nullable(SHEET),'smallest_scale':nullable(S),'keep_together':arr(arr(S)),'hole_table':nullable(SHEET),'gdt_on_sheet_1':B})),'sheet':obj({'size':nullable(S),'scale':nullable(S),'title':{'type':'object','additionalProperties':S},'fit_limits':nullable({'type':'boolean'}),'fit_deviations':nullable({'type':'boolean'}),'projection':nullable({'enum':['first','third']}),'default_finish':nullable({'type':'object'})}),'views':{'type':'object','additionalProperties':{'type':'object'}},'dimensions':{'type':'object','additionalProperties':{'type':'object'}},'annotations':{'type':'object','additionalProperties':{'type':'object'}},'features':{'type':'object','additionalProperties':{'type':'object'}},'faces':{'type':'object','additionalProperties':{'type':'object'}},'dimension_source':{'enum':['auto','authored']},'hole_table':{'enum':['auto','always','never']},'notes':arr({'type':'object'}),'tables':arr({'type':'object'}),'gears':arr({'type':'object'})})
 defs={'state':state,'spec':spec,'op':op,'item':item,'compact':compact,'problem':problem,'error':obj({'code':{'enum':['invalid','failed']},'message':S,'choices':arr(S)},['code','message'])}
 stub=obj({'id':nullable(S),'detail_ref':S},['id','detail_ref'])
 problem_small=obj({'id':S,'code':S,'severity':S,'subjects':arr(S),'fix':arr(ref('op'))},['id','code','severity','subjects'])
@@ -116,6 +116,22 @@ def share_repeated(schema):
         schema = best[1]
     return schema
 
+def common_branch_types(schema):
+    """Hoist a type shared by every anyOf branch; accepted values stay identical."""
+    if isinstance(schema, dict):
+        schema = {k: common_branch_types(v) for k, v in schema.items()}
+        branches = schema.get('anyOf', [])
+        if branches and all(isinstance(b, dict) for b in branches):
+            shared = branches[0].get('type')
+            if (shared is not None and all(b.get('type') == shared for b in branches)
+                    and schema.get('type', shared) == shared):
+                schema['type'] = shared
+                for branch in branches:
+                    del branch['type']
+        return schema
+    if isinstance(schema, list): return [common_branch_types(v) for v in schema]
+    return schema
+
 def short_names(schema):
     names = {'state':'t','spec':'s','op':'op','item':'i','compact':'c',
              'problem':'p','error':'e','stub':'u','problem_small':'r'}
@@ -150,6 +166,12 @@ for tool,(inp,out) in tools.items():
         # MCP defaults to 2020-12; local refs need no repeated canonical $id URL.
         schema={**schema,'$defs':used}
         keep = ('op',) if kind == 'input' and tool in ('apply_ops', 'preview_ops') else ()
+        # An anyOf branch inherits its parent's type. Keep the existing session byte
+        # budget as sheet vocabulary grows, without changing any accepted value.
+        for branch in schema.get('anyOf', []):
+            if branch.get('type') == schema.get('type'):
+                branch.pop('type', None)
+        schema = common_branch_types(schema)
         schema = short_names(share_repeated(inline_single_use(schema, keep)))
         if not schema['$defs']: del schema['$defs']
         Path(f'schemas/mcp/{tool}.{kind}.json').write_text(json.dumps(schema,indent=2)+'\n')

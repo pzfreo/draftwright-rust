@@ -138,7 +138,7 @@ fn options_explain_sheet_and_bare_view_keys() {
         );
     }
     let sheet = call(&cache, "item_options", query(&summary, "sheet"));
-    for field in ["size", "scale", "title", "fit_limits"] {
+    for field in ["size", "scale", "title", "fit_limits", "fit_deviations"] {
         assert!(sheet["settable"].get(format!("sheet/{field}")).is_some());
     }
     assert!(
@@ -393,4 +393,46 @@ fn compact_nullable_schema_types_keep_validation_strict() {
         mcp::validate(&schema, &Value::Null).unwrap();
         assert!(mcp::validate(&schema, &refused).is_err());
     }
+}
+
+#[test]
+fn shared_schema_types_preserve_state_alternatives_and_detail_placements() {
+    let schema = mcp::schema("list_items", false).unwrap();
+    for state in [
+        Value::Null,
+        json!({"kind":"shown"}),
+        json!({"kind":"covered", "by":"d:owner"}),
+        json!({"kind":"not_drawable", "reason_code":"unsupported"}),
+    ] {
+        mcp::validate(
+            &schema,
+            &json!({"part_ref":"part", "filter":{"state":state}}),
+        )
+        .unwrap();
+    }
+    for state in [
+        json!("shown"),
+        json!([]),
+        json!({}),
+        json!({"kind":"covered"}),
+        json!({"kind":"not_drawable"}),
+        json!({"kind":"shown", "extra":true}),
+    ] {
+        assert!(
+            mcp::validate(
+                &schema,
+                &json!({"part_ref":"part", "filter":{"state":state}})
+            )
+            .is_err()
+        );
+    }
+    let schema = mcp::schema("item_options", true).unwrap();
+    let mut options = json!({"id":"dimension", "operations":[], "placements":[],
+        "view_anchors":[], "scales":[], "settable":{}});
+    for view in ["front", "side", "detail_a", "detail_h"] {
+        options["placements"] = json!([{"view":view, "side":"above"}]);
+        mcp::validate(&schema, &options).unwrap();
+    }
+    options["placements"] = json!([{"view":"detail_i", "side":"above"}]);
+    assert!(mcp::validate(&schema, &options).is_err());
 }

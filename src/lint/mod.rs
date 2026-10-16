@@ -56,6 +56,7 @@ pub mod envelope;
 pub mod fidelity;
 pub mod fillets;
 pub mod flats;
+pub mod gears;
 pub mod grooves;
 pub mod gussets;
 pub mod hole_patterns;
@@ -70,6 +71,7 @@ pub mod pmi_coverage;
 pub mod pockets;
 pub mod polygonal;
 pub mod prismatic;
+pub mod profile_angles;
 pub mod profiled_bores;
 pub mod profiles;
 pub mod redundancy;
@@ -341,6 +343,7 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
         })
         .chain(relief_issues)
         .collect();
+    issues.extend(gears::check(analysis, drawing));
     issues.extend(schedule_evidence::check(drawing));
     issues.extend(pmi_coverage::manufacturing_references(analysis, drawing));
     issues.extend(coverage::drawn_centre_marks(analysis, drawing));
@@ -409,6 +412,7 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(channels::circular_coverage(analysis, marks));
     issues.extend(angled_steps::coverage(analysis, marks));
     issues.extend(profiles::coverage(analysis));
+    issues.extend(profile_angles::coverage(analysis, marks));
     issues.extend(profiled_bores::coverage(analysis, marks));
     issues.extend(flats::coverage(analysis, marks));
     issues.extend(grooves::coverage(analysis, marks));

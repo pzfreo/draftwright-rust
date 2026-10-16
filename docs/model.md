@@ -230,7 +230,7 @@ The design also includes `views/sections` and feature `anchor`
 `"anchor": {"…": "fingerprint"}`). These fields are not yet read; a feature's `note` is read
 since K1b (below).
 
-- **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_limits`, `projection`, `default_finish`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`),
+- **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`),
   `iso_scale_factor`, `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `place`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`),
   `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
@@ -782,10 +782,15 @@ basis, placed, reference?, determined_by?}`:
   - `features/<id>/fit` is an ISO 286 class from draftwright's table (`fits.py`): on a hole an
     upper-case hole class (H, G, F), on a cylindrical boss a lower-case shaft class (h, g, f, js,
     k, n, p), grades 5 to 11, for a nominal size up to 250 mm. It is printed after the diameter
-    of the callout that states the feature's size, as the class and its limits from the table
-    (`2× ⌀6.3 H7 (+0.012/0) ↧ 12.7`, `ø44.5 h6 (0/-0.016)`); `sheet/fit_limits: false` prints
-    the class alone, as draftwright does (`2× ⌀6.3 H7 ↧ 12.7`). A PMI hole class stated without
-    limits is printed the same way. A fit on any other feature, on a hole pattern (set it on its holes), on a feature the
+    of the callout that states the feature's size. The default is the class alone
+    (`2× ⌀6.3 H7 ↧ 12.7`, `ø44.5 h6`), including classes imported from AP242 PMI.
+    `sheet/fit_deviations: true` adds ISO 286 deviations stacked upper above lower after
+    the class, at 70% text height (ISO 129-1). Signs and upper/lower order are retained;
+    zero prints `0`. Plan labels and searchable text encode that stack with a newline,
+    for example `ø10 g6 -0.005\n-0.014`. This applies to turned diameters, hole fits,
+    spec fits, editor previews and MCP output. Explicit ± and band tolerances are unchanged.
+    The legacy `sheet/fit_limits` spelling remains accepted; `fit_deviations` takes precedence
+    when both are set. A fit on any other feature, on a hole pattern (set it on its holes), on a feature the
     part does not have, of the wrong case (`"h7" reads as "H7"`) or outside the table is
     refused; so is a size given both a tolerance and a fit.
   - The item lists what the spec gave it in `from_spec` (`tolerance`, `fit`) and is not a
@@ -957,6 +962,60 @@ and draws them as draftwright draws its document notes (`render_document_notes`)
   the text layer keeps `⌀` where draftwright's has `ø` (rust-correct, as for callouts). The
   per-feature `note` is drawn as a leadered label since K1b ("Finish, threads, knurls and
   notes authored in the Spec", below); hole tables are not ported here.
+
+### External spur gears
+
+`gears` is an ordered list of authored manufacturing requirements (ISO 21771-1:2024,
+ISO 21771-2:2025, ISO 53:1998, ISO 54:1996 and ISO 1328-1:2013):
+
+```json
+{"gears": [{
+  "on": "f:boss:1",
+  "frame": {"origin": [0, 0, 0], "axis": "z"},
+  "tooth_count": 13, "module": 1.25, "pressure_angle": 20,
+  "profile_shift": 0, "face_width": 10,
+  "tooth_thickness": 1.9634954084936207,
+  "tooth_thickness_tolerance": [-0.03, 0.01],
+  "flank_tolerance_class": 7
+}]}
+```
+
+Every field is required. `on` anchors ownership to a cylindrical `boss`,
+`cylindrical_boss` or `turned_step` feature, a `face:<n>`, or a named stock face
+(`top`, `bottom`, `left`, `right`, `front`, `back`). Use a face anchor for a toothed
+wheel. `frame` explicitly authors the gear centre and principal axis in the part's
+coordinates, in mm; axis letters accept either case. The axial span is the centre
+coordinate on that axis ± half the face width. Anchors on another revision are
+refused until reattached.
+
+Validation follows Python's `ExternalSpurGearFeature`: finite origin; integer tooth
+count 5–1000; positive finite module, face width and tooth thickness; module
+0.5–70 mm; width 4–1200 mm; reference diameter `module × tooth_count` 5–15000 mm;
+finite pressure angle strictly between 0 and 90 degrees; finite profile shift;
+two finite tooth-thickness deviations, lower ≤ upper, retaining a strictly positive
+lower thickness limit; integer flank tolerance class 1–11. Booleans are refused
+as numeric values. Deviations are lower then upper, in mm.
+
+A declaration creates `gear_data_1`, `gear_data_2`, … table items. Each prints the
+header and Python's nine fixed ISO rows with exact authored float formatting,
+units, and signed deviations. These tables reserve space through the sheet rules
+and are placed towards the top right as late furniture, clear of dimensions,
+notes, captions and earlier tables. They carry rendered provenance to `gear:1`,
+`gear:2`, …; they are never recognised from geometry. Edit the whole `gears` list
+with `set`, or append a declaration with `add` on `gears`; the MCP Spec schemas
+expose the same list, like `notes` and `tables`.
+
+Lint reads declarations lowered into the Analysis's independent requirement
+inventory and the actual rendered table text, without reading the embedded Spec.
+It reports missing, ambiguous or stale tables. Full-wire repeating-profile evidence
+from native or Python recognition is matched by centre and axial span (1e-6 mm),
+then audited for axis and repeat count. Missing, displaced or ambiguous evidence
+is `gear_correspondence_unverifiable`; an undeclared repeating profile is
+`gear_semantics_missing`. Arc counts alone never prove correspondence. A smooth
+blank can carry a declaration and table but remains unverifiable, as in Python.
+Python imposes no derived tip-diameter or face-width agreement with a blank;
+the port adds no such refusal. `tests/gears.rs` covers the blank, real wheel,
+validation, export and all reconciliation outcomes.
 
 ### Tables
 

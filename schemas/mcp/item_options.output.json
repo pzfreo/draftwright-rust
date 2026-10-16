@@ -2,7 +2,6 @@
   "type": "object",
   "anyOf": [
     {
-      "type": "object",
       "properties": {
         "id": {
           "type": "string"
@@ -119,7 +118,6 @@
       "additionalProperties": false
     },
     {
-      "type": "object",
       "properties": {
         "error": {
           "type": "object",

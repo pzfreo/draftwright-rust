@@ -40,10 +40,11 @@
 //! Python's `pmi_present_but_ignored` is not-applicable: the port has no switch that ignores a
 //! part's PMI. Its other codes wait on the drawing or on a decision: of the manufacturing notes,
 //! finish symbols and requirement table that `pmi_source_text_mismatch`, `pmi_source_site_mismatch`
-//! check, the port draws the drawing-wide notes, the default finish and the threads and knurls
-//! (on their callouts or in their table), not a face's finish. Manufacturing references are
-//! checked against complete source-matched rendered rows by [`manufacturing_references`];
-//! the remaining source-text/site checks are pending. The title block's material
+//! check, the port draws drawing-wide notes, default and face finishes, and thread/knurl
+//! callouts or table rows. Edge-note and face-finish text runs are checked independently of
+//! their formatter. Manufacturing references are checked against complete source-matched
+//! rendered rows by [`manufacturing_references`]. Filled glyph-path and source-site checks
+//! remain pending. The title block's material
 //! and general tolerance against the file (`step_material_mismatch` and `_disagreement`,
 //! `step_general_tolerance_*`) turn on whether the caller authored the field, which only the Spec
 //! says.
@@ -256,6 +257,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             out.push(i);
         }
     }
+    out.extend(manufacturing_text(report, marks, &ids));
     out.extend(materials(report));
     let known: BTreeSet<&str> = report
         .records
@@ -273,6 +275,90 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                  contain — the provenance is fabricated, not merely unmatched"
             ),
         ));
+    }
+    out
+}
+
+/// Source-scoped manufacturing text, read from the source itself, independently of the
+/// lowering/row formatter. Whitespace may change when notes wrap; words and parameters may not.
+/// This checks the text runs. The independent audit of the filled glyph paths remains pending.
+fn manufacturing_text(report: &Report, marks: &[Mark], ids: &Identities) -> Vec<LintIssue> {
+    let mut out = Vec::new();
+    for m in marks {
+        let Some(source) = m.name.strip_prefix("pmi:") else {
+            continue;
+        };
+        let source = ids.source(&m.name).unwrap_or(source);
+        let Some(r) = report
+            .records
+            .iter()
+            .find(|r| r.source_id == source && r.category == Category::ManufacturingRequirement)
+        else {
+            continue;
+        };
+        let words: Vec<&str> = m.text.split_whitespace().collect();
+        let states = match r.kind.as_str() {
+            "edge_condition" => {
+                // The general notes block numbers each note's first row. Its annotation owns
+                // only that note's runs, including every wrapped continuation row.
+                let note = match words.first().and_then(|s| s.parse::<usize>().ok()) {
+                    Some(n) if n > 0 => &words[1..],
+                    _ => &words[..],
+                };
+                !note.is_empty() && note == r.label.split_whitespace().collect::<Vec<_>>()
+            }
+            "surface_finish" => {
+                let parameters: Vec<_> = r
+                    .fields
+                    .iter()
+                    .filter_map(|(name, field)| match field {
+                        crate::pmi::Field::Length(mm) => Some((name.as_str(), mm * 1000.0)),
+                        _ => None,
+                    })
+                    .collect();
+                // ISO 1302's parameter labels carry values in micrometres. An arbitrary
+                // number somewhere in a label cannot stand for the named parameter. Accept
+                // the exact source value or its declared three-significant-digit display,
+                // independently of the lowering formatter, never an interval of nearby values.
+                let mut printed = words.iter().copied();
+                let states = !parameters.is_empty()
+                    && parameters.iter().all(|(name, expected)| {
+                        name.split_whitespace()
+                            .all(|word| printed.next() == Some(word))
+                            && expected.is_finite()
+                            && printed
+                                .next()
+                                .and_then(|word| word.parse::<f64>().ok())
+                                .is_some_and(|value| {
+                                    value.is_finite()
+                                        && (value == *expected
+                                            || format!("{expected:.2e}")
+                                                .parse::<f64>()
+                                                .is_ok_and(|display| value == display))
+                                })
+                    });
+                states && printed.next().is_none()
+            }
+            _ => continue,
+        };
+        if !states {
+            let mut i = sourced(
+                "pmi_source_text_mismatch",
+                source,
+                Severity::Error,
+                format!(
+                    "{} does not state AP242 {} {} as {:?}",
+                    m.name,
+                    r.kind.replace('_', " "),
+                    source,
+                    r.label
+                ),
+            );
+            i.id = format!("l:pmi_source_text_mismatch:{}", m.name);
+            i.annotation = Some(m.name.clone());
+            i.view = m.view.clone();
+            out.push(i);
+        }
     }
     out
 }
@@ -672,5 +758,126 @@ mod tests {
         // Within the display's rounding of the 13th significant digit.
         let r = frame(0.1 + 0.2, &[], &[]);
         assert_eq!(mismatch(&r, "⏥ 0.3"), None);
+    }
+
+    /// LINT-code-pmi_source_text_mismatch: source-scoped notes compare their own words, never
+    /// the shared note formatter; a finish compares its parameter and value, not just a number.
+    #[test]
+    fn manufacturing_source_text_is_checked_independently_of_its_identity() {
+        use crate::pmi::Field;
+        use serde_json::json;
+        let mut edge = frame(0., &[], &[]);
+        edge.source_id = "manufacturing_requirement:#2".into();
+        edge.category = Category::ManufacturingRequirement;
+        edge.kind = "edge_condition".into();
+        edge.label = "Break sharp edges and remove burrs 0.2 max".into();
+        let mut finish = edge.clone();
+        finish.source_id = "surface_texture:#3".into();
+        finish.kind = "surface_finish".into();
+        finish.label = "Ra 0.8 µm".into();
+        finish.fields = vec![("Ra".into(), Field::Length(0.0008))];
+        let report: Report = serde_json::from_value(json!({
+            "schema": "draftwright.pmi/1", "parts": ["plate"], "sources": [],
+            "records": [edge, finish], "accounting": {"semantic": 0, "consumed": 0, "reported": 0, "presentation": 0, "validation": 0}, "materials": []
+        }))
+        .unwrap();
+        let mut a: Analysis = serde_json::from_value(json!({
+            "schema": "draftwright.analysis/5",
+            "binding": {"source_sha256": "", "part": "", "face_count": 0, "loader": ""},
+            "envelope": [[0., 0., 0.], [1., 1., 1.]], "iso_bounds": [0., 0., 0., 0.]
+        }))
+        .unwrap();
+        let ids = report.identities();
+        let marks = |edge: &str, finish: &str| {
+            vec![
+                Mark {
+                    name: ids.id("manufacturing_requirement:#2").unwrap().into(),
+                    view: None,
+                    text: edge.into(),
+                    claims: vec![],
+                },
+                Mark {
+                    name: ids.id("surface_texture:#3").unwrap().into(),
+                    view: None,
+                    text: finish.into(),
+                    claims: vec![],
+                },
+            ]
+        };
+        a.pmi = Some(Reading::Read(report.clone()));
+        let mismatches = |marks: &[Mark]| {
+            coverage(&a, marks)
+                .into_iter()
+                .filter(|i| i.code == "pmi_source_text_mismatch")
+                .collect::<Vec<_>>()
+        };
+        let good = marks("1  Break sharp edges and remove\nburrs  0.2 max", "Ra 0.80");
+        assert!(mismatches(&good).is_empty());
+        for text in [
+            "1 Break sharp edges and remove burrs",
+            "1 Deburr all edges",
+            "1 Break sharp edges and remove burrs 0.2 max EXCEPT HOLES",
+        ] {
+            let found = mismatches(&marks(text, "Ra 0.8"));
+            assert_eq!(found.len(), 1, "{text}: {found:?}");
+            assert_eq!(found[0].sources, ["manufacturing_requirement:#2"]);
+            assert_eq!(found[0].severity, Severity::Error);
+            assert_eq!(found[0].annotation.as_deref(), Some(good[0].name.as_str()));
+        }
+        for text in [
+            "Ra 9.9",
+            "Ra 0.8001",
+            "Ra 0.8000000000001",
+            "Rz 0.8",
+            "Ra 0.8 Ra 0.8",
+            "Ra NaN",
+            "",
+        ] {
+            let found = mismatches(&marks(&good[0].text, text));
+            assert_eq!(found.len(), 1, "{text}: {found:?}");
+            assert_eq!(found[0].sources, ["surface_texture:#3"]);
+        }
+        // Text on an unrelated annotation cannot rescue either source's own corrupted text.
+        let mut wrong = marks("1 Deburr", "Ra 9.9");
+        wrong.push(Mark {
+            name: "n:1".into(),
+            view: None,
+            text: format!("{} Ra 0.8", report.records[0].label),
+            claims: vec![],
+        });
+        assert_eq!(mismatches(&wrong).len(), 2);
+        // Structured AP242 textures may also name a multi-word length parameter.
+        let mut multi = report.clone();
+        multi.records[1]
+            .fields
+            .push(("sampling length".into(), Field::Length(0.25)));
+        let mark = Mark {
+            name: "pmi:surface_texture:#3".into(),
+            view: None,
+            text: "Ra 0.80 sampling length 250".into(),
+            claims: vec![],
+        };
+        assert!(manufacturing_text(&multi, &[mark], &multi.identities()).is_empty());
+        // The existing surface-finish display contract is three significant digits. Neither
+        // unit conversion roundoff nor a correctly rounded value is a source mismatch.
+        for (mm, text) in [
+            (0.00012, "Ra 0.12"),
+            (0.001016, "Ra 1.02"),
+            (0.009999, "Ra 10"),
+            (0.00000000001234, "Ra 1.23e-8"),
+        ] {
+            let mut source = report.clone();
+            source.records[1].fields = vec![("Ra".into(), Field::Length(mm))];
+            let mark = Mark {
+                name: "pmi:surface_texture:#3".into(),
+                view: None,
+                text: text.into(),
+                claims: vec![],
+            };
+            assert!(
+                manufacturing_text(&source, &[mark], &source.identities()).is_empty(),
+                "{mm} mm must print as {text}"
+            );
+        }
     }
 }

@@ -116,7 +116,7 @@ pub fn label_ink(terms: &[String], font: &Font) -> LabelInk {
     };
     let mut x = 0.0;
     let mut tokens: Vec<(Option<char>, String)> = Vec::new();
-    for t in terms {
+    let plain = |t: &str, tokens: &mut Vec<(Option<char>, String)>| {
         let mut chars = t.chars();
         match chars.next() {
             _ if t == SPOTFACE => tokens.push((Some('⌴'), "SF".into())),
@@ -127,8 +127,30 @@ pub fn label_ink(terms: &[String], font: &Font) -> LabelInk {
                     tokens.push((None, rest));
                 }
             }
-            _ => tokens.push((None, t.clone())),
+            _ => tokens.push((None, t.into())),
         }
+    };
+    for t in terms {
+        // The newline encodes upper/lower values. Reference labels may wrap the whole
+        // callout into one term, so split immediately around the numeric pair.
+        if let Some((above, below)) = t.split_once('\n') {
+            let (prefix, upper) = above.rsplit_once(' ').unwrap_or(("", above));
+            let end = below
+                .find(|c: char| !c.is_ascii_digit() && !matches!(c, '+' | '-' | '.'))
+                .unwrap_or(below.len());
+            let (lower, suffix) = below.split_at(end);
+            if upper.parse::<f64>().is_ok() && lower.parse::<f64>().is_ok() {
+                if !prefix.is_empty() {
+                    plain(prefix, &mut tokens);
+                }
+                tokens.push((Some('≔'), format!("{upper}\n{lower}")));
+                if !suffix.trim().is_empty() {
+                    plain(suffix.trim(), &mut tokens);
+                }
+                continue;
+            }
+        }
+        plain(t, &mut tokens);
     }
     for (i, (symbol, text)) in tokens.iter().enumerate() {
         if i > 0 {
@@ -152,6 +174,28 @@ pub fn label_ink(terms: &[String], font: &Font) -> LabelInk {
             );
         };
         match symbol {
+            Some('≔') => {
+                let (upper, lower) = text.split_once('\n').expect("deviation stack");
+                let size = 0.7 * h;
+                let mut width: f64 = 0.0;
+                for (value, rise) in [(upper, 0.55 * CAP), (lower, -0.45 * CAP)] {
+                    let laid = font.baseline(value, size);
+                    grow(
+                        &mut ink,
+                        [x + laid.min[0], rise + laid.min[1]],
+                        [x + laid.max[0], rise + laid.max[1]],
+                    );
+                    let shift = |p: P2| [x + p[0], rise + p[1]];
+                    ink.glyphs.push(
+                        laid.contours
+                            .into_iter()
+                            .map(|c| c.into_iter().map(|s| moved(&s, &shift)).collect())
+                            .collect(),
+                    );
+                    width = width.max(font.advance(value, size));
+                }
+                x += width;
+            }
             Some('⌀') => {
                 let at = x + 0.5 * (h - font.advance("ø", h));
                 glyphs("ø", at, &mut ink);
@@ -866,6 +910,202 @@ fn share_held(
         lanes[i] = lane;
         taken.entry((view, side, lane)).or_default().push(e);
     }
+}
+
+/// Body-local turned chains use the corridor next to their own silhouette, including a
+/// middle body. Try both sides before keeping and reporting a constrained chain (Policy B).
+pub(super) fn body_chains(
+    analysis: &Analysis,
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    carrying: &[Option<&str>],
+    fixed: &[bool],
+    placed: &mut [Option<Placed>],
+    page: &Page,
+) -> Vec<Problem> {
+    let fr = crate::bridge::holes::frame(analysis);
+    let bands: Vec<_> = analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "turned_step")
+        .filter_map(|f| {
+            crate::lint::turned::band(&fr, f)
+                .ok()
+                .map(|b| (f.id.as_str(), b))
+        })
+        .collect();
+    let same = |a: &crate::lint::turned::Band, b: &crate::lint::turned::Band| {
+        a.axis == b.axis && (0..3).all(|k| k == a.axis || (a.on[k] - b.on[k]).abs() <= 1e-3)
+    };
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+    for (i, w) in items.iter().enumerate() {
+        if w.measurements.is_empty() || !w.measurements.iter().all(|m| m.parameter == "step.length")
+        {
+            continue;
+        }
+        let Some((_, b)) = bands
+            .iter()
+            .find(|(id, _)| *id == w.measurements[0].feature)
+        else {
+            continue;
+        };
+        if !bands.iter().any(|(_, c)| c.axis == b.axis && !same(b, c)) {
+            continue;
+        }
+        if let Some(group) = groups.iter_mut().find(|g| {
+            let feature = &items[g[0]].measurements[0].feature;
+            bands
+                .iter()
+                .find(|(id, _)| *id == feature)
+                .is_some_and(|(_, c)| same(b, c))
+        }) {
+            group.push(i);
+        } else {
+            groups.push(vec![i]);
+        }
+    }
+    let mut problems = Vec::new();
+    for group in groups {
+        let first = group[0];
+        let Some(view) = carrying[first] else {
+            continue;
+        };
+        let f = &frames[view];
+        let (_, b) = bands
+            .iter()
+            .find(|(id, _)| *id == items[first].measurements[0].feature)
+            .expect("read band");
+        let k = b.axis;
+        let Some(horizontal) = across(f, k) else {
+            continue;
+        };
+        let j = (0..3)
+            .find(|&j| j != k && across(f, j) == Some(!horizontal))
+            .expect("a profile view");
+        let others: Vec<_> = bands
+            .iter()
+            .filter(|(_, c)| c.axis == k && !same(b, c))
+            .collect();
+        if others
+            .iter()
+            .any(|(_, c)| (c.on[j] - b.on[j]).abs() <= 1e-3 && b.lo <= c.hi && c.lo <= b.hi)
+        {
+            let alternate = super::envelope::profile_views(k)
+                .into_iter()
+                .find(|v| *v != view)
+                .unwrap_or(view);
+            // With both longitudinal views present, another body's chain can be carried
+            // by the other view. A restoration fix is meaningful only for an absent view.
+            if frames.contains_key(alternate) {
+                continue;
+            }
+            problems.push(Problem{id:format!("p:turned_profile_superimposed:{}",items[first].id),code:"turned_profile_superimposed".into(),severity:"warning".into(),
+                message:format!("The turned profile on axis {} at {:?} is superimposed on another profile in the {view} view. Restore the {alternate} view to separate its chain.", ["X","Y","Z"][k],b.on),
+                subjects:group.iter().map(|&i|items[i].id.clone()).collect(),
+                fix:vec![crate::items::Op::set(format!("views/{alternate}/omit"),serde_json::json!(false))],..Default::default()});
+            continue;
+        }
+        // Preserve authored pins; every unconstrained body chain is a whole assignment.
+        if group.iter().any(|&i| fixed[i]) {
+            continue;
+        }
+        let radius = bands
+            .iter()
+            .filter(|(_, c)| same(b, c))
+            .map(|(_, c)| c.diameter / 2.)
+            .fold(0.0f64, f64::max);
+        let centre = f.page(b.on);
+        let cross_axis = usize::from(horizontal);
+        let screen_scale = {
+            let mut p = b.on;
+            p[j] += 1.;
+            f.page(p)[cross_axis] - centre[cross_axis]
+        };
+        let radial = radius * f.s;
+        let preferred = if centre[cross_axis] - f.outline[cross_axis]
+            <= f.outline[cross_axis + 2] - centre[cross_axis]
+        {
+            -1.
+        } else {
+            1.
+        };
+        let mut best = None;
+        let mut assigned = false;
+        for sign in [preferred, -preferred] {
+            let boundary = others
+                .iter()
+                .filter_map(|(_, c)| {
+                    let q = f.page(c.on)[cross_axis];
+                    ((q - centre[cross_axis]) * sign > 0.)
+                        .then_some(q - sign * c.diameter * 0.5 * f.s)
+                })
+                .min_by(|a, b| {
+                    ((a - centre[cross_axis]) * sign).total_cmp(&((b - centre[cross_axis]) * sign))
+                });
+            let side = match (horizontal, sign < 0.) {
+                (true, true) => Side::Below,
+                (true, false) => Side::Above,
+                (false, true) => Side::Left,
+                (false, false) => Side::Right,
+            };
+            let mut candidates = Vec::new();
+            let mut clear = true;
+            for (lane, &i) in group.iter().enumerate() {
+                let mut w = items[i].clone();
+                if let Shape::Linear {
+                    a,
+                    b: tip,
+                    a_edge,
+                    b_edge,
+                    ..
+                } = &mut w.shape
+                {
+                    // Keep the physical shoulder radius selected by own_body; reflect it about
+                    // the axis when the chain falls through to the other side.
+                    a[j] = b.on[j] + sign * screen_scale.signum() * (a[j] - b.on[j]).abs();
+                    tip[j] = b.on[j] + sign * screen_scale.signum() * (tip[j] - b.on[j]).abs();
+                    *a_edge = false;
+                    *b_edge = false;
+                }
+                let line = centre[cross_axis] + sign * (radial + FIRST + lane as f64 * LANE);
+                let Some(p) = place_linear_at(f, &w.shape, &w.terms, side, (line, sign)) else {
+                    clear = false;
+                    continue;
+                };
+                let bounds = p.label_box;
+                let toward = if sign < 0. {
+                    bounds[cross_axis]
+                } else {
+                    bounds[cross_axis + 2]
+                };
+                if boundary.is_some_and(|edge| (edge - toward) * sign < 1.)
+                    || !page.fits_interior(&p, view)
+                {
+                    clear = false;
+                }
+                candidates.push((i, p));
+            }
+            if best.is_none() {
+                best = Some(candidates.clone());
+            }
+            if clear {
+                best = Some(candidates);
+                assigned = true;
+                break;
+            }
+        }
+        if !assigned {
+            problems.push(Problem{id:format!("p:turned_chain_no_clear_lane:{}",items[first].id),code:"turned_chain_no_clear_lane".into(),severity:"warning".into(),
+                message:"Neither side of this body's silhouette has room for its complete step chain; the chain is retained and its contacts are reported.".into(),
+                subjects:group.iter().map(|&i|items[i].id.clone()).collect(),..Default::default()});
+        }
+        if let Some(candidates) = best {
+            for (i, p) in candidates {
+                placed[i] = Some(p);
+            }
+        }
+    }
+    problems
 }
 
 /// Places *w* in lane *lane* of strip *side* of its view; none for a callout.
@@ -2107,7 +2347,20 @@ pub(crate) fn collisions_cached(
                     "annotation_overlap",
                     "warning",
                     vec![a.id.clone(), b.id.clone()],
-                    format!("The labels of {} and {} overlap.", named(a), named(b)),
+                    if pa.lines.iter().any(|s| crosses(*s, pb.label_box))
+                        || pb.lines.iter().any(|s| crosses(*s, pa.label_box))
+                        || (a.kind == "callout" && ink_through(pa, pb.label_box))
+                        || (b.kind == "callout" && ink_through(pb, pa.label_box))
+                    {
+                        format!(
+                            "The labels of {} and {} overlap; line-work also crosses a label, \
+                             so separating the text is not enough: move what is drawn, not just the text.",
+                            named(a),
+                            named(b)
+                        )
+                    } else {
+                        format!("The labels of {} and {} overlap.", named(a), named(b))
+                    },
                 );
             }
         }
@@ -2119,10 +2372,13 @@ pub(crate) fn collisions_cached(
             }
             // A callout's leader is judged by its rendered ink, its arrowhead's flare included
             // (ISSUE-367-a), as `dims::leaders` places it; a contact only the flare makes is
-            // worded as such. Other items keep the centreline test their placement (`settle`)
-            // uses.
+            // worded as such. Linear dimension flares are the same filled ink.
             let through = pa.lines.iter().any(|s| crosses(*s, pb.label_box));
-            if through || (a.kind == "callout" && ink_through(pa, pb.label_box)) {
+            // ISSUE-1332-a: an overlapping pair already has one finding above, including
+            // the line-work remedy when needed. Do not charge that neighbourhood twice.
+            if !boxes_overlap(pa.label_box, pb.label_box)
+                && (through || ink_through(pa, pb.label_box))
+            {
                 problem(
                     "annotation_ink_overlap",
                     "warning",
@@ -2432,5 +2688,87 @@ mod tests {
             "{}",
             overlap.message
         );
+    }
+
+    /// ISSUE-1332-a: the exact overlapping/crossing neighbourhood from Python's
+    /// test_issue_1332_overlap_remedy.py, in either inventory order. Moving text alone cannot
+    /// clear the line-work; an ordinary overlap keeps the ordinary message.
+    #[test]
+    fn an_overlapping_pair_has_one_diagnostic_with_a_consistent_remedy() {
+        use serde_json::json;
+        let analysis: Analysis = serde_json::from_value(json!({
+            "schema": "draftwright.analysis/5",
+            "binding": {"source_sha256": "", "part": "", "face_count": 0, "loader": ""},
+            "envelope": [[0., 0., 0.], [1., 1., 1.]], "iso_bounds": [0., 0., 0., 0.]
+        }))
+        .unwrap();
+        let sheet: PlannedSheet = serde_json::from_value(json!({
+            "size": "A4", "page": [297., 210.], "scale": "1:1", "scale_factor": 1.,
+            "arrangement": "columns", "title_block": [200., 10., 287., 40.],
+            "default": true, "basis": "", "state": {"kind": "shown"}, "title": {}
+        }))
+        .unwrap();
+        let item = |id: &str, label_box: [f64; 4], lines: Vec<[P2; 2]>| PlannedDimension {
+            id: id.into(),
+            kind: "linear".into(),
+            view: "v:plan".into(),
+            value: 1.,
+            label: id.into(),
+            terms: vec![id.into()],
+            measurements: vec![],
+            default: true,
+            from_spec: vec![],
+            basis: String::new(),
+            state: crate::items::State::Shown,
+            reference: false,
+            determined_by: vec![],
+            region: None,
+            placed: Some(Placed {
+                lines,
+                arrows: vec![],
+                label_at: [label_box[0], label_box[1]],
+                rotation: 0.,
+                label_box,
+            }),
+        };
+        for crossing in [false, true] {
+            let a = item(
+                "d:a",
+                [10., 10., 20., 12.2],
+                vec![[
+                    [0., if crossing { 11. } else { 40. }],
+                    [40., if crossing { 11. } else { 40. }],
+                ]],
+            );
+            let b = item(
+                "d:b",
+                [12., 10.5, 22., 12.7],
+                vec![[[30., 30.], [31., 30.]]],
+            );
+            for items in [vec![a.clone(), b.clone()], vec![b.clone(), a.clone()]] {
+                let found: Vec<_> = collisions(&analysis, &items, &sheet, &[])
+                    .into_iter()
+                    .filter(|p| {
+                        matches!(
+                            p.code.as_str(),
+                            "annotation_overlap" | "annotation_ink_overlap"
+                        )
+                    })
+                    .collect();
+                assert_eq!(found.len(), 1, "{found:?}");
+                assert_eq!(found[0].code, "annotation_overlap");
+                assert_eq!(found[0].message.contains("move what is drawn"), crossing);
+                assert_eq!(
+                    found[0]
+                        .message
+                        .contains("separating the text is not enough"),
+                    crossing
+                );
+                assert!(
+                    found[0].fix.is_empty(),
+                    "no unsupported edit is offered as a remedy"
+                );
+            }
+        }
     }
 }

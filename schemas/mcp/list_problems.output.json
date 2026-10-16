@@ -2,7 +2,6 @@
   "type": "object",
   "anyOf": [
     {
-      "type": "object",
       "properties": {
         "items": {
           "type": "array",
@@ -111,7 +110,6 @@
       "additionalProperties": false
     },
     {
-      "type": "object",
       "properties": {
         "error": {
           "type": "object",
@@ -146,7 +144,6 @@
     "op": {
       "anyOf": [
         {
-          "type": "object",
           "properties": {
             "op": {
               "enum": [
@@ -167,7 +164,6 @@
           "additionalProperties": false
         },
         {
-          "type": "object",
           "properties": {
             "op": {
               "const": "remove"
@@ -182,7 +178,8 @@
           ],
           "additionalProperties": false
         }
-      ]
+      ],
+      "type": "object"
     },
     "A": {
       "items": {

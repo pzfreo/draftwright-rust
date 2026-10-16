@@ -20,8 +20,9 @@
 //! not yet read here, so draftwright's section recesses come through the bridge as before
 //! (reading them is the G7b reader stream). The other families draftwright neither draws
 //! nor lints (oriented chamfers, circular face patterns, thin-wall bodies, interior voids,
-//! sheet-metal bodies, repeating radial profiles, freeform surfaces) are known and not read
-//! either.
+//! sheet-metal bodies, freeform surfaces) are known and not read
+//! either. Repeating radial profiles are read only as full-wire correspondence evidence;
+//! they never populate a normative gear feature.
 //!
 //! The document is read fail-closed (ADR3-4): one schema version ([`SCHEMA_VERSION`]), the STEP
 //! file's coordinates, the part's face count, and only the families and record types that schema
@@ -83,7 +84,8 @@ pub const IDENTITY: [[f64; 3]; 4] = [[0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0],
 
 /// Every family of [`SCHEMA_VERSION`] and the record types its records can have, as
 /// `quiddity::recognition::RECORD_TYPES` lists them for that schema (`tests/native.rs` checks the
-/// two agree). The families in [`READ`] are read here; the rest are known and left to the bridge.
+/// two agree). [`READ`] supplies features and [`EVIDENCE_READ`] geometry-only records;
+/// the rest are known and left to the bridge.
 pub const FAMILIES: &[(&str, &[&str])] = &[
     ("fillets", &["Fillet"]),
     ("chamfers", &["Chamfer"]),
@@ -180,6 +182,9 @@ pub const READ: [&str; 26] = [
     "pads",
 ];
 
+/// Geometry-only records consumed by independent lint, never feature declarations.
+pub const EVIDENCE_READ: [&str; 1] = ["repeating_radial_profiles"];
+
 /// What a field of a record must be.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Field {
@@ -228,6 +233,15 @@ pub enum Field {
 /// so a change to it does not refuse a read that would not use it. `a.b` is field `b` of object
 /// field `a`, checked when `a` is not null (`a` is listed first).
 pub const FIELDS: &[(&str, &[(&str, Field)])] = &[
+    (
+        "RepeatingRadialProfile",
+        &[
+            ("axis", Field::Letter),
+            ("centre", Field::Point),
+            ("span", Field::Pair),
+            ("repeat_count", Field::Count),
+        ],
+    ),
     (
         "Fillet",
         &[
@@ -509,6 +523,8 @@ pub struct Native {
     /// The other families' features, by kind and then ID; their parameters are in the part's
     /// frame ([`IDENTITY`]).
     pub features: Vec<Feature>,
+    /// Full-wire geometry evidence; never authored gear requirements.
+    pub evidence: Vec<super::Record>,
 }
 
 /// Runs Rust quiddity's recognition on *part* and reads the families of [`READ`].
@@ -545,6 +561,7 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
     let mut patterns = Vec::new();
     let mut others = Vec::new();
     let mut oriented_patterns = Vec::new();
+    let mut evidence = Vec::new();
     for r in &doc.records {
         let known = FAMILIES
             .iter()
@@ -568,7 +585,8 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
             ));
         }
         let taken = matches!(r.family.as_str(), "holes" | "hole_patterns")
-            || READ.contains(&r.family.as_str());
+            || READ.contains(&r.family.as_str())
+            || EVIDENCE_READ.contains(&r.family.as_str());
         if taken && !r.local.is_empty() {
             return Err(format!(
                 "{} leaves {} in the part's own frame, not the file's",
@@ -580,6 +598,15 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
             "holes" => holes.push(r),
             "hole_patterns" => patterns.push(r),
             "oriented_slot_patterns" => oriented_patterns.push(r),
+            f if EVIDENCE_READ.contains(&f) => {
+                check(&r.parameters, &r.record_type).map_err(|e| format!("{}{e}", r.id))?;
+                evidence.push(super::Record {
+                    family: r.family.clone(),
+                    subtype: r.record_type.clone(),
+                    faces: r.faces.clone(),
+                    parameters: r.parameters.clone(),
+                });
+            }
             f if READ.contains(&f) => others.push(r),
             _ => {}
         }
@@ -675,6 +702,7 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
         holes: features,
         patterns,
         features: others,
+        evidence,
     })
 }
 

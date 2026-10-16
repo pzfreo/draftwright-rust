@@ -51,15 +51,13 @@
 //!   collides or whose ladder is illegibly crowded; the port places those and reports them
 //!   (rust-correct for now: the collisions are another stream's, and an illegible ladder is read
 //!   by the recovery from the placed plan).
-//! - The balloons are placed more simply: no halo is reserved by the layout (draftwright's
-//!   `_est_plan_halo`; the port's layout reserves none); each hole goes out of the side of the view
-//!   nearest it that has a band, its band's members spread in order near their holes (draftwright
-//!   assigns bands by min-cost max-flow with a perimeter preference); a ring that then overlaps
-//!   another or a leader that crosses a label, another view, the title block, a table or another
-//!   leader is tried again on every band, half a strip step at a time either way of its hole, the
-//!   nearest clear place taken (draftwright's guarded inventory searches its own way). Retained
-//!   feature leaders are checked by their actual segments, including overlaps and T contacts;
-//!   an endpoint shared by two shafts alone is harmless, as in Python's final transaction gate.
+//! - No balloon halo is reserved by the layout. Band assignment uses min-cost max-flow,
+//!   preserving cardinality and certifying row keys before minimising distance. Members spread
+//!   in geometric order. A blocked ring or leader is retried on every band; candidates also
+//!   reject dimension and extension line crossings. Routing failure reports balloon_dropped
+//!   and withdraws the whole automatic table, as before.
+//!   Retained feature leaders also reject overlaps and T contacts; a shared endpoint alone
+//!   is harmless.
 //! - The rows come from the plan's callouts: a hole whose callout the spec omits has no row
 //!   (draftwright tabulates every z hole of its model, with blank cells) (undetermined).
 
@@ -1221,6 +1219,97 @@ fn spread(naturals: &[f64], gap: f64, lo: f64, hi: f64) -> Vec<f64> {
 /// Each wanted balloon placed beside the plan view, or none: draftwright's bands left, right,
 /// above and below the view, each just beyond the deepest annotation placed there, the members
 /// spread along them at the strip spacing and kept off what is placed (the module's doc).
+/// Maximum-cardinality, minimum-cost assignment to capacitated bands. Residual reverse
+/// edges let a later constrained member displace an earlier flexible one (Python ADR0014).
+fn assign_bands(
+    costs: &[Vec<Option<f64>>],
+    capacities: &[usize],
+    preference: f64,
+) -> Vec<Option<usize>> {
+    #[derive(Clone)]
+    struct Edge {
+        to: usize,
+        rev: usize,
+        cap: usize,
+        cost: f64,
+    }
+    fn add(g: &mut [Vec<Edge>], a: usize, b: usize, cap: usize, cost: f64) {
+        let (ar, br) = (g[a].len(), g[b].len());
+        g[a].push(Edge {
+            to: b,
+            rev: br,
+            cap,
+            cost,
+        });
+        g[b].push(Edge {
+            to: a,
+            rev: ar,
+            cap: 0,
+            cost: -cost,
+        });
+    }
+    let bands = 1 + costs.len();
+    let sink = bands + capacities.len();
+    let mut graph = vec![Vec::<Edge>::new(); sink + 1];
+    for (i, row) in costs.iter().enumerate() {
+        add(&mut graph, 0, i + 1, 1, 0.);
+        for (k, cost) in row.iter().enumerate() {
+            if let Some(c) = cost {
+                add(&mut graph, i + 1, bands + k, 1, *c);
+            }
+        }
+    }
+    for (k, &capacity) in capacities.iter().enumerate() {
+        if capacity > 0 && preference > 0. {
+            add(&mut graph, bands + k, sink, 1, -preference);
+            add(&mut graph, bands + k, sink, capacity - 1, 0.);
+        } else {
+            add(&mut graph, bands + k, sink, capacity, 0.);
+        }
+    }
+    loop {
+        let mut dist = vec![f64::INFINITY; sink + 1];
+        let mut prev = vec![None; sink + 1];
+        let mut queue = std::collections::VecDeque::from([0]);
+        let mut queued = vec![false; sink + 1];
+        dist[0] = 0.;
+        queued[0] = true;
+        while let Some(a) = queue.pop_front() {
+            queued[a] = false;
+            for (j, e) in graph[a].iter().enumerate().filter(|(_, e)| e.cap > 0) {
+                let d = dist[a] + e.cost;
+                if d < dist[e.to] - 1e-9 {
+                    dist[e.to] = d;
+                    prev[e.to] = Some((a, j));
+                    if !queued[e.to] {
+                        queue.push_back(e.to);
+                        queued[e.to] = true;
+                    }
+                }
+            }
+        }
+        if prev[sink].is_none() {
+            break;
+        }
+        let mut b = sink;
+        while b != 0 {
+            let (a, j) = prev[b].expect("augmenting path");
+            let rev = graph[a][j].rev;
+            graph[a][j].cap -= 1;
+            graph[b][rev].cap += 1;
+            b = a;
+        }
+    }
+    (0..costs.len())
+        .map(|i| {
+            graph[i + 1]
+                .iter()
+                .find(|e| e.to >= bands && e.to < sink && e.cap == 0)
+                .map(|e| e.to - bands)
+        })
+        .collect()
+}
+
 fn place_balloons(
     wanted: &[Wanted],
     frame: &Frame,
@@ -1389,30 +1478,56 @@ fn place_balloons(
                             .iter()
                             .chain(&retained)
                             .any(|m| unsafe_contact(l, *m))
+                        && !ink
+                            .iter()
+                            .filter_map(|d| d.placed.as_ref())
+                            .flat_map(|p| p.lines.iter())
+                            .any(|m| segments_cross(l, *m))
                 })
         };
-    // First, draftwright's strips: each member goes out of the side of the view nearest it that
-    // has a band, the members of a band in order along it, spread at the strip spacing near their
-    // holes, so their leaders keep their order.
+    // Assign capacitated bands jointly, then spread members in geometric order along each
+    // free stretch. Remote bands stay empty when a nearer band has capacity.
     let usable: Vec<usize> = (0..bands.len())
         .filter(|&k| !bands[k].free.is_empty())
         .collect();
-    let side = |w: &Wanted| {
-        let edge = [
-            w.hole[0] - pl,
-            pr - w.hole[0],
-            pt - w.hole[1],
-            w.hole[1] - pb,
-        ];
-        usable
-            .iter()
-            .copied()
-            .min_by(|&a, &b| edge[a].total_cmp(&edge[b]).then(a.cmp(&b)))
-    };
+    let capacities: Vec<_> = bands
+        .iter()
+        .map(|b| {
+            b.free
+                .iter()
+                .map(|s| ((s[1] - s[0]) / gap).floor() as usize + 1)
+                .sum()
+        })
+        .collect();
+    let max_cost = bands
+        .iter()
+        .flat_map(|b| {
+            wanted
+                .iter()
+                .map(move |w| (w.hole[1 - b.axis] - b.line).abs())
+        })
+        .fold(0.0f64, f64::max);
+    let preference = if perimeter { extent } else { 0. };
+    let optional_penalty = (max_cost + preference + 1.) * (wanted.len() + 1) as f64;
+    let costs: Vec<Vec<Option<f64>>> = wanted
+        .iter()
+        .map(|w| {
+            bands
+                .iter()
+                .map(|b| {
+                    (!b.free.is_empty()).then_some(
+                        (w.hole[1 - b.axis] - b.line).abs()
+                            + if w.certifying { 0. } else { optional_penalty },
+                    )
+                })
+                .collect()
+        })
+        .collect();
+    let assignment = assign_bands(&costs, &capacities, preference);
     let mut planned: Vec<Option<(usize, f64)>> = vec![None; wanted.len()];
     for (k, b) in bands.iter().enumerate() {
         let mut members: Vec<usize> = (0..wanted.len())
-            .filter(|&i| side(&wanted[i]) == Some(k))
+            .filter(|&i| assignment[i] == Some(k))
             .collect();
         let axis = b.axis;
         members.sort_by(|&x, &y| {
@@ -1421,19 +1536,10 @@ fn place_balloons(
                 .then(x.cmp(&y))
         });
         let mut by_stretch: Vec<Vec<usize>> = vec![Vec::new(); b.free.len()];
-        let (mut s, mut prev) = (0usize, f64::NEG_INFINITY);
-        for &i in &members {
-            let natural = wanted[i].hole[axis];
-            while s < b.free.len() {
-                let at = natural.max(prev + gap).max(b.free[s][0]);
-                if at <= b.free[s][1] + 1e-9 {
-                    by_stretch[s].push(i);
-                    prev = at;
-                    break;
-                }
-                s += 1;
-                prev = f64::NEG_INFINITY;
-            }
+        let mut members = members.into_iter();
+        for (stretch, ids) in b.free.iter().zip(&mut by_stretch) {
+            let capacity = ((stretch[1] - stretch[0]) / gap).floor() as usize + 1;
+            ids.extend(members.by_ref().take(capacity));
         }
         for (stretch, ids) in b.free.iter().zip(&by_stretch) {
             let naturals: Vec<f64> = ids.iter().map(|&i| wanted[i].hole[axis]).collect();
@@ -1552,6 +1658,25 @@ fn segments_cross(a: [[f64; 2]; 2], b: [[f64; 2]; 2]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn balloon_band_assignment_maximises_cardinality_before_leader_length() {
+        // Greedy nearest puts the flexible first hole on the only band the second can use.
+        let costs = vec![vec![Some(1.), Some(3.)], vec![Some(2.), None]];
+        assert_eq!(assign_bands(&costs, &[1, 1], 0.), vec![Some(1), Some(0)]);
+        // The bounded perimeter preference cannot justify a remote band.
+        let costs = vec![vec![Some(1.), Some(100.)], vec![Some(2.), Some(100.)]];
+        assert_eq!(assign_bands(&costs, &[2, 2], 25.), vec![Some(0), Some(0)]);
+        assert_eq!(
+            assign_bands(&costs, &[1, 0], 25.).iter().flatten().count(),
+            1
+        );
+        // Python's bounded perimeter preference can justify a nearby band, not a remote one.
+        let nearby = vec![vec![Some(1.), Some(20.)]; 3];
+        let assigned = assign_bands(&nearby, &[3, 3], 25.);
+        assert_eq!(assigned.iter().filter(|&&b| b == Some(0)).count(), 2);
+        assert_eq!(assigned.iter().filter(|&&b| b == Some(1)).count(), 1);
+    }
 
     #[test]
     fn retained_shafts_reject_crossings_overlaps_and_t_contacts() {
@@ -1728,12 +1853,18 @@ fn entry_cell(analysis: &Analysis, out: [f64; 3], at: [f64; 3], direction: [f64;
 
 /// Size cells use the callout's drawn symbols, which the bundled text font does not contain.
 pub(crate) fn size_ink(cell: &str, font: &crate::text::Font) -> crate::dims::LabelInk {
-    let terms: Vec<_> = cell.split_whitespace().map(String::from).collect();
+    let terms: Vec<_> = cell
+        .split(' ')
+        .filter(|t| !t.is_empty())
+        .map(String::from)
+        .collect();
     crate::dims::label_ink(&terms, font)
 }
 
 fn schedule_widths(cells: &[Vec<String>]) -> Vec<f64> {
     let mut widths = tables::widths(cells);
+    // Measure size cells with their actual symbols and stacks, not a flat font string.
+    widths[1] = tables::widths(&cells[..cells.len().min(2)])[1];
     for row in cells.iter().skip(2) {
         let ink = size_ink(&row[1], crate::dims::font());
         widths[1] = widths[1].max(ink.max[0] - ink.min[0] + 2.0 * tables::PAD);

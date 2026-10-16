@@ -27,7 +27,7 @@
 //!
 //! Dimensions on supplemental (invisible) geometry stay refused. A stated ISO 286 hole class
 //! without limits is printed only on a uniquely matched recognised bore owner, as the class and
-//! its limits from draftwright's table (`⌀10 H7 (+0.015/0)`); one outside the table is refused.
+//! optional stacked deviations from draftwright's table; one outside the table is refused.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -1057,7 +1057,7 @@ fn leader(
 }
 
 /// Drops the limits a PMI fit put beside its class when the spec hides fit limits
-/// (`sheet/fit_limits: false`).
+/// (`sheet/fit_deviations`, off by default).
 pub(super) fn hide_fit_limits(
     spec: &Spec,
     notes: &BTreeMap<String, Note>,
@@ -1342,11 +1342,11 @@ mod tests {
             turning: None,
         };
         for (code, value, upper, lower, printed) in [
-            ("g6", 15.0, -0.006, -0.017, "g6 (-0.006/-0.017)"),
-            ("h7", 20.0, 0.0, -0.021, "h7 (0/-0.021)"),
-            ("f7", 25.0, -0.020, -0.041, "f7 (-0.020/-0.041)"),
-            ("k6", 30.0, 0.015, 0.002, "k6 (+0.015/+0.002)"),
-            ("js6", 10.0, 0.0045, -0.0045, "js6 (+0.0045/-0.0045)"),
+            ("g6", 15.0, -0.006, -0.017, "g6 -0.006\n-0.017"),
+            ("h7", 20.0, 0.0, -0.021, "h7 0\n-0.021"),
+            ("f7", 25.0, -0.020, -0.041, "f7 -0.020\n-0.041"),
+            ("k6", 30.0, 0.015, 0.002, "k6 +0.015\n+0.002"),
+            ("js6", 10.0, 0.0045, -0.0045, "js6 +0.0045\n-0.0045"),
         ] {
             let q = requirement(&record(code, value), value).expect(code);
             assert!(

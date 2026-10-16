@@ -17,14 +17,19 @@ and K1b/K4/K5/K7 integrations, merged with PR #56 (datum placement) and PR #57
 (nine rules ported with tests), and PR #64 (table-rule ports). The table-rule batch adds
 verified schedule and manufacturing evidence, transactional hole-table guards and
 drawing-consumer checks. The detail-view integration additionally ports ISSUE-443-a,
-ISSUE-1216-b and LINT-code-detail_caption_clearance with executable tests. Counts are computed from the merged YAML entries:
+ISSUE-1216-b and LINT-code-detail_caption_clearance with executable tests. The coverage/holes
+stream adds nine ported rules (body-local corridors, prismatic shoulders, countersink seats,
+compound double-D callouts, pattern counts and balloon assignment). Automatic profile-angle
+placement remains pending after failing the unchanged drawing-quality bar. The rules-text
+merge retains its completed ports and appends blockers only to entries still pending
+([merge report](text-main-merge-2026-10-16.md)). Counts are computed from the merged YAML entries:
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 10 | 62 | 62 | 26 |
-| `lint.yaml` | 16 | 115 | 15 | 19 |
-| `issues.yaml` | 39 | 75 | 50 | 26 |
-| **All** | **65** | **252** | **127** | **71** |
+| `adr.yaml` | 7 | 66 | 61 | 26 |
+| `lint.yaml` | 9 | 123 | 14 | 19 |
+| `issues.yaml` | 31 | 83 | 50 | 26 |
+| **All** | **47** | **272** | **125** | **71** |
 
 The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
 The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE
@@ -42,9 +47,15 @@ LINT-code-manufacturing_reference_unresolved, ISSUE-1144-a, ISSUE-1202-a and ISS
 The approved triage is otherwise retained, including ISSUE-883-a's translation. Test
 citations name files and tests found in the merged checkout.
 
+The gear batch ports all eight selected gear rules and promotes the earlier
+`gear_semantics_missing` translation to its exact Python diagnostic. Evidence is in
+`tests/gears.rs`, including the real 13-tooth wheel and a smooth declared blank.
+
 The [pins/lint batch evidence](pins-lint-2026-10-16.md) records its regression pins and
 implementation checks. The [main merge report](pins-lint-main-merge-2026-10-16.md) lists
 retained batch statuses, main's catalogue decisions and merged validation results.
+The [coverage/holes merge report](coverage-holes-main-merge-2026-10-16.md) records its nine
+retained ports, main's remaining decisions, final counts and validation results.
 
 ## An entry
 

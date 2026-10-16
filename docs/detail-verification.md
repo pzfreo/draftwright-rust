@@ -1,5 +1,111 @@
 # Detail views and turned inspection baseline — verification, 2026-10-16
 
+## Merge onto main `0af1323e` (PRs #67–#72), 2026-10-16
+
+This section supersedes earlier verification below. The merge parents are `2348ce47`
+and `0af1323e`. Both prior merge commits (`7b39ab9e`, `2348ce47`) and incoming changes
+were read before resolution, including the coverage/holes ports and `9bd23cf1`'s
+fit-label reservations, linear anchor frame and post-GD&T settlement. Work proceeded
+unattended, retaining class-only fits by default and the exact saved 14-tolerance spec.
+
+### Resolutions
+
+* `CHANGELOG.md` retains the detail/inspection entries and incoming WASM package entries
+  under Unreleased, with one Added section followed by Fixed.
+* `src/model.rs` retains optional-detail refusal at fallback pairs and rebuilds the whole
+  geometry with empty scaled details when an optional crop is refused. That effective
+  empty reservation also feeds the anchor calculation, so no phantom detail strips return.
+  For surviving details, the anchored request uses the same scaled-detail reservations;
+  principal and iso anchors are applied to the detail-aware geometry, and the section's
+  reserved boxes receive the section translation. Full printed ink still reserves its
+  blocks. Main's body-local turned corridors and post-GD&T fit settlement remain intact.
+  The detail marker initializes the new rendered arrowhead field to an empty vector.
+* `docs/rules/README.md` combines both streams' evidence and removes the duplicated stale
+  tables. Counts recomputed from every YAML `status`: **47 pending, 272 ported, 125
+  translated, 71 retired** (ADR 7/66/61/26; lint 9/123/14/19; issues 31/83/50/26).
+* The first release run exposed the combined MCP schema size (42,552 bytes against the
+  unchanged 42,500-byte cap). The generator now hoists a type shared by every `anyOf`
+  branch, preserving exactly the same accepted values; generated schemas total 42,296
+  bytes. It also explicitly carries detail_a–detail_h in placement choices, matching the
+  branch's already checked-in schema. A new strictness regression checks valid/null states,
+  missing fields, wrong types and detail placement names. The size assertion stays intact.
+* The quality baseline, instruction budget, acceptance tools, independent sheet-rule
+  checker and R5 latency gate match incoming main byte for byte. No test or threshold
+  is weakened and no baseline is re-recorded. `target/detail-main-72/gate-integrity.json`
+  records hashes; native stateless tests keep the branch's pre-existing cache regressions.
+
+### Checks
+
+Commands source `$HOME/.cargo/env` and use `CARGO_BUILD_JOBS=4 RUST_TEST_THREADS=4`.
+Native tests require `DRAFTWRIGHT_CORPUS=/Users/paul/repos/quiddity/tests/corpus` and
+`DRAFTWRIGHT_CORPUS_REQUIRED=1`. All evidence in this section is under
+`target/detail-main-72/`.
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| `cargo fmt --all --check` | Pass | `fmt-final.log` |
+| `cargo clippy --workspace --all-targets --release -- -D warnings` | Pass | `clippy-final.log` |
+| Required-corpus `cargo test --release --no-fail-fast` | **1,117 pass, one wall-clock latency failure**, zero ignored, 112 targets; earlier complete run **1,118 pass** | `tests-final.log`, `test-summary-final.json` |
+| `tools/quality.py`, exact 30-part manifest, then `tools/ci_acceptance.py --check-results quality --baseline tools/ci-quality-baseline.json` | **All 300 cells pass; nothing worse** | `quality-command.json`, `quality-final.log`, `quality-acceptance-final.log`, `quality/baseline.json` |
+| `python3 -I tools/check_leader_routes.py target/detail-main-72/quality` | **119 callouts / 30 parts pass**; 14 unchanged pre-existing long runs | `leader-routes-final.log` |
+| `python3 -I tools/check_plan_time.py --out target/detail-main-72/plan-time.json` | **Pass: 3,079,008,034,594 instructions**, below **3,165,755,533,285**; Darwin arm64, 65 parts, 767.1 s wall time under load | `plan-time.json`, `plan-time-final.log` |
+| `python3 -I tools/test_ci_acceptance.py` with corpus enabled | **24 pass**, none skipped | `ci-acceptance-tests.log` |
+| `wasm-pack build crates/draftwright-wasm --target web --profile wasm-release --locked` | Pass, including `wasm-opt` | `wasm-build-final.log`, `crates/draftwright-wasm/pkg/` |
+| `node --test tools/wasm-parity.test.mjs` | **3 pass**; both replay sessions match native plan/spec/SVG bytes | `wasm-parity.log` |
+
+The first complete no-fail-fast run passed **1,118 tests, zero failed or ignored, across
+112 targets**, including both R5 and NIST latency gates (`tests-diagnostic.log`,
+`test-summary-complete.json`). It includes the final schema strictness regression and
+passes the source fingerprint check. The latency gate environment override was unset.
+
+The initial exact `cargo test --release` stopped at the schema byte-cap regression described
+above (`tests.log`). The focused engine/schema rerun passes all 13 tests (`schema-tests.log`);
+no size limit was changed. The initial WASM invocation compiled successfully but could not
+lock the tool cache outside the sandbox (`wasm-build.log`). The successful rerun sets
+`WASM_PACK_CACHE` to `target/detail-main-72/wasm-pack-cache/`, using copies of the already
+installed wasm-bindgen/wasm-opt binaries. No optimization or build step was disabled.
+
+Quality totals against main: ink **52 → 49**, material intersections **73 → 69**,
+hidden-on-visible **2,231 → 0**, repeated labels **7 → 6**; the other gated totals remain
+zero. The 30 final Plan JSONs and 30 SVGs are byte-identical to the first accepted run
+(`quality-artifact-parity.json`). All six final PNGs are byte-identical to the images opened
+for inspection (`final-png-parity.json`). `binary-final.json` identifies the final native
+binary. The first 65-part instruction run also passed (3,077,329,051,669 instructions,
+227.9 s wall time); its evidence is retained as `plan-time-before-schema-fix.json`.
+
+The final repeated full run exits 101 solely for the unchanged R5 multi-sheet MCP wall-clock
+gate: **p90 936.833 ms versus 150 ms** (max 980.860 ms). Its direct edit p90 is 29.148 ms;
+MCP median retired instructions are 982,938,627, with one plan per edit and max wire size
+1,132 bytes. The NIST session wall-clock gate passes. The earlier complete run passes both
+latency gates. The failure is reported under load as requested: no timing threshold, test,
+acceptance rule or baseline was changed. `r5-latency-final.log` and `latency-results.json`
+retain the exact result. All non-timing tests pass.
+
+### Requested drawings
+
+All six PNGs were opened and visually inspected. SVG, Plan JSON and review JSON sit beside
+each PNG in `target/detail-main-72/renders/`. `visual-inspection.json` records hashes and
+observations; `fit-clearance.json` checks both default fit labels against every foreign
+linear stroke and arrowhead with a 2 mm pad.
+
+| Case | Outcome | PNG under `target/detail-main-72/renders/` |
+| --- | --- | --- |
+| string_post default | One A4 **2:1**, detail **B 10:1**; readable 1 mm flange and 2× R0.2, common high-end inspection baseline | [string_post.png](../target/detail-main-72/renders/string_post.png) |
+| Saved 14-tolerance string_post spec | One A4 **2:1**, B **10:1**; all 14 tolerances printed, local lengths opposite the baseline | [string_post_spec.png](../target/detail-main-72/renders/string_post_spec.png) |
+| CNC-review spindle | One A4 **1:1**; A's short bottom-face extension and B's right-side datum sit inside the dimension furniture; zero planner datum conflicts | [spindle.png](../target/detail-main-72/renders/spindle.png) |
+| turned.step | One A3 **2:1**; 40 and 70 share the low end, shortest nearest the body | [turned.png](../target/detail-main-72/renders/turned.png) |
+| mfcadpp 10224 | One A3 **2:1**; section A–A fits beside the front/side row, with ordinate stacks inside the border | [10224.png](../target/detail-main-72/renders/10224.png) |
+| Maintainer's turned spindle | One A3 **2:1**; **ø10 g6** and **ø15 h6**, class only, both clear of foreign dimension lines/arrows by the 2 mm check | [turned_spindle_fits.png](../target/detail-main-72/renders/turned_spindle_fits.png) |
+
+These are not claims that every drawing is globally finding-free. String_post and 10224
+retain nominal-rounding review warnings. The saved spec has four reservation overruns;
+10224 retains its unsupported angled-step and material-crossing reports. The CNC spindle
+has one frame leader through a feature and two reservation overruns. Its structural review
+retains the two datum stem/box boundary-contact `leader_line_through_text` reports documented
+in the prior verification; the letters and stems are visibly clear. Neither spindle has a
+planner annotation-leader crossing now, and the maintainer's spindle has no structural
+findings. No report was suppressed to obtain the requested results.
+
 ## Merge onto main `717def3e` (PRs #56–#65), 2026-10-16
 
 This section supersedes all earlier verification below. The incoming commits were read with

@@ -2,13 +2,11 @@
   "type": "object",
   "anyOf": [
     {
-      "type": "object",
       "properties": {
         "spec_version": {
           "type": "string"
         },
         "delta": {
-          "type": "object",
           "properties": {
             "events": {
               "type": "object",
@@ -65,7 +63,6 @@
                                   "state": {
                                     "anyOf": [
                                       {
-                                        "type": "object",
                                         "properties": {
                                           "kind": {
                                             "enum": [
@@ -81,7 +78,6 @@
                                         "additionalProperties": false
                                       },
                                       {
-                                        "type": "object",
                                         "properties": {
                                           "kind": {
                                             "const": "covered"
@@ -97,7 +93,6 @@
                                         "additionalProperties": false
                                       },
                                       {
-                                        "type": "object",
                                         "properties": {
                                           "kind": {
                                             "const": "not_drawable"
@@ -112,7 +107,8 @@
                                         ],
                                         "additionalProperties": false
                                       }
-                                    ]
+                                    ],
+                                    "type": "object"
                                   }
                                 },
                                 "required": [
@@ -333,7 +329,6 @@
       "additionalProperties": false
     },
     {
-      "type": "object",
       "properties": {
         "error": {
           "type": "object",
@@ -387,7 +382,6 @@
     "op": {
       "anyOf": [
         {
-          "type": "object",
           "properties": {
             "op": {
               "enum": [
@@ -408,7 +402,6 @@
           "additionalProperties": false
         },
         {
-          "type": "object",
           "properties": {
             "op": {
               "const": "remove"
@@ -423,7 +416,8 @@
           ],
           "additionalProperties": false
         }
-      ]
+      ],
+      "type": "object"
     },
     "A": {
       "items": {

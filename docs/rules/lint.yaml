@@ -261,7 +261,7 @@
     issues: [1143, 1061]
     tests: [tests/test_issue_1370_double_d_completeness_evidence.py]
   status: pending
-  rust_note: "Done in substance (rules assessment of 2026-10-11): the double-D across-flats size is checked as LINT-profiled_bore_coverage-double_d, and the Analysis carries no thread depth to require. Left pending because no test checks a thread depth requirement."
+  rust_note: "Done in substance (rules assessment of 2026-10-11): the double-D across-flats size is checked as LINT-profiled_bore_coverage-double_d, and the Analysis carries no thread depth to require. Left pending because no test checks a thread depth requirement. Rules-text blocker (2026-10-16): Spec-authored thread length is carried as a manufacturing aspect and prints MIN FULL THREAD (tests/spec_notes.rs), but lint::holes has no independent addressable thread-depth requirement; native Hole has no tap-depth field."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream holes-and-threads"
 
 - id: LINT-hole_coverage-grouping_count
@@ -391,9 +391,10 @@
     module: "linting/hole_coverage.py"
     issues: [1229]
     tests: [tests/test_issue_1370_countersink_completeness_evidence.py]
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported. Lint counts a countersink only on its hole's record (src/lint/holes.rs, the csink term of the hole's callout); a CounterSink record joined to no hole, such as the second seat of a two-sided bore, is neither counted nor reported unverifiable (also ISSUE-1143-e)."
+  status: ported
+  rust_note: "The independent standalone CounterSink inventory is reconciled one-to-one with complete attached csink records. Every unconsumed seat reports both countersink.diameter and countersink.angle as hole_requirement_unverifiable on the seat itself, without guessing a hole or recounting its bore. This includes the opposite-face seat of a physical two-sided bore."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream holes-and-threads"
+  rust_test: "tests/coverage_holes.rs::a_second_countersink_seat_is_unverifiable_without_recounting_the_bore; tests/coverage_holes.rs::a_real_two_face_bore_reports_only_its_unattributed_seat"
 
 - id: LINT-code-hole_requirement_state
   statement: "Uncovered hole requirements are reported per requirement as hole_requirement_missing, hole_requirement_suppressed or hole_requirement_unverifiable, naming quantity, diameter, THRU or blind depth and axis."
@@ -519,9 +520,10 @@
     module: "linting/coverage.py"
     issues: [885]
     tests: [tests/test_issue_885_prismatic_coverage.py, tests/test_declared_recognition_gate.py]
-  status: pending
-  rust_note: "Not ported. Python compares two of its own stages: the pocket records and riser shoulders quiddity recognised (project_step_shoulders over the risers, two or more stations) against the features draftwright's conversion made of them (pocket IR, step_level shoulders, channel walls, X/Y through-step bends), and reports what the conversion dropped. The port has no conversion between the Analysis and the drawing: lint reads quiddity's features in the Analysis, and the height ladder's shoulders are projected from the same risers by the plan (dims::levels), which lint may not read, so the denominator Python checks against does not exist on the lint side. A pocket record lint cannot read in the part's frame is the pocket ledger's unverifiable (lint::pockets). Open question for the maintainer: should the port's lint instead check that each projected riser shoulder is stated on the drawing (a drawing check, not Python's stage check)?"
+  status: ported
+  rust_note: "Lint independently projects Analysis.risers onto recognised body levels and checks each defining shoulder station against truthful step-position ink. A lone transition, exact channel walls and X/Y through-step bends retain Python's exemptions; those features have their own ink ledgers. Every section_recess pocket remains checked by lint::pockets. This is a drawing coverage check in the Rust Analysis model, not Python's conversion-stage comparison."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream dimensioning-coverage"
+  rust_test: "tests/coverage_holes.rs::every_prismatic_shoulder_station_needs_its_own_truthful_drawing_evidence; tests/lint_coverage.rs::prismatic_and_profile_findings_on_draftwrights_test_parts_are_known"
 
 - id: LINT-code-pad_footprint_not_defined
   statement: "Every rectangular raised pad has its footprint length and width, its height above the attachment face, and its in-plane location dimensioned."
@@ -1084,7 +1086,7 @@
     issues: [1372]
     tests: [tests/test_pocket_pattern_completeness_evidence.py]
   status: pending
-  rust_note: "Not ported (re-assessed in stream K5): blocked on the Analysis, which carries no pocket pattern on either path. On the default (native) path Rust quiddity's document has pocket_patterns (PocketGrid, PocketArray) and their pockets, but src/bridge/native.rs reads neither pockets nor section recesses yet (the G7b reader stream), so on draftwright's pocket-pattern-grid.step and pocket-pattern-linear.step the plan reports features_not_recognised for pockets and pocket_patterns and draws none; the Python bridge drops section_recess_patterns (DERIVED_NOT_READ). Reading them is new Analysis data, outside this stream's scope (dimension selection and coverage lints) and owned by the recess reader work; the planner and lint follow once the Analysis has them."
+  rust_note: "Not ported (re-assessed in stream K5): blocked on the Analysis, which carries no pocket pattern on either path. On the default (native) path Rust quiddity's document has pocket_patterns (PocketGrid, PocketArray) and their pockets, but src/bridge/native.rs reads neither pockets nor section recesses yet (the G7b reader stream), so on draftwright's pocket-pattern-grid.step and pocket-pattern-linear.step the plan reports features_not_recognised for pockets and pocket_patterns and draws none; the Python bridge drops section_recess_patterns (DERIVED_NOT_READ). Reading them is new Analysis data, outside this stream's scope (dimension selection and coverage lints) and owned by the recess reader work; the planner and lint follow once the Analysis has them. Rules-text blocker (2026-10-16): No pocket-pattern member/quantity/pitch/location contract reaches Analysis."
   port_note: "triage 2026-10-16: PORT, value medium, size L, stream recess-reader"
 
 - id: LINT-code-pocket_pattern_requirement_state
@@ -1096,7 +1098,7 @@
     issues: [1372]
     tests: [tests/test_pocket_pattern_completeness_evidence.py, tests/test_issue_1485_rounded_pockets.py]
   status: pending
-  rust_note: "Not ported: see LINT-pocket_pattern_coverage-requirements (no pocket pattern reaches the Analysis; stream K5 re-assessment)."
+  rust_note: "Not ported: see LINT-pocket_pattern_coverage-requirements (no pocket pattern reaches the Analysis; stream K5 re-assessment). Rules-text blocker (2026-10-16): The existing per-pocket Mark ledger cannot supply pattern cardinality or author suppression provenance."
   port_note: "triage 2026-10-16: PORT, value medium, size S, stream recess-reader"
 
 - id: LINT-section_recess_coverage-hex_pocket
@@ -1435,7 +1437,7 @@
     issues: [1177]
     tests: [tests/test_canonical_angles.py, tests/test_issue_1177_angular_dimensions.py]
   status: pending
-  rust_note: "Not ported (assessed in stream K5): draftwright derives these requirements from quiddity's PlanarOuterProfileEvidence, every planar face's ordered outer profile (lines and arcs), choosing the foremost camera-facing profile per body and view and leaving out corners a chamfer or regular-polygon callout defines (profile_angles.py). The Analysis carries no ordered outer profiles (principal_profiles keeps only principal boundary faces' unordered straight edges and arcs), so neither the planner nor lint can name a corner. Porting needs that evidence recorded at analysis time (new Analysis data, outside this stream's dimension-selection and lint scope), then angular items through dims::angular's placement and a profile_angle ledger in lint; it would add angles to every corpus part with a non-right outer corner (on draftwright's issue_909 case study, 51.1° and 128.9°)."
+  rust_note: "Not ported (assessed in stream K5): draftwright derives these requirements from quiddity's PlanarOuterProfileEvidence, every planar face's ordered outer profile (lines and arcs), choosing the foremost camera-facing profile per body and view and leaving out corners a chamfer or regular-polygon callout defines (profile_angles.py). The Analysis carries no ordered outer profiles (principal_profiles keeps only principal boundary faces' unordered straight edges and arcs), so neither the planner nor lint can name a corner. Porting needs that evidence recorded at analysis time (new Analysis data, outside this stream's dimension-selection and lint scope), then angular items through dims::angular's placement and a profile_angle ledger in lint; it would add angles to every corpus part with a non-right outer corner (on draftwright's issue_909 case study, 51.1° and 128.9°). Automatic angular planning was implemented, rendered on three profiles, then withdrawn because the unchanged 30-part quality bar regressed: ink 0 to 17 on mfcadpp/10046, 1 to 98 on NIST FTC-08 (also two off-sheet items), and regressions on five other parts. Compact interior arcs and opposite-sector extensions suffice on simple profiles but not the tied, small and rounded profiles of dense parts. Completing this needs a cross-cutting arc/leader/layout solve with actual support bounds and reserved angular bands; it exceeds this stream's bounded rule port. The one-owner stream must also coordinate overlaps with existing paired-ramp angular statements; this stream does not change ownership."
   port_note: "triage 2026-10-16: PORT, value medium, size L, stream dimensioning-coverage"
 
 - id: LINT-code-angular_label_vs_geometry
@@ -1506,8 +1508,9 @@
     module: "linting/gear_coverage.py"
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: no gear declaration (Spec or PMI) and no gear data table; see ARCH0015-3. The bridge retains raw repeating_radial_profiles evidence, but Spec has no external-spur-gear declaration, validated normative gear requirement record, source-bound gear-table item, or gear/geometry correspondence auditor. These four layers must be implemented together so a detected repetition never invents normative gear data; that is a cross-cutting subsystem exceeding a day, not an ordinary descriptive-table addition."
+  status: ported
+  rust_test: "tests/gears.rs::missing_and_duplicate_gear_tables_fail_coverage"
+  rust_note: "Exactly one drawn provenance-bound table per declared gear; missing or duplicate annotations report Python gear_requirement_missing/ambiguous."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream gears"
 
 - id: LINT-code-gear_requirement_mismatch
@@ -1519,8 +1522,9 @@
     module: "linting/gear_coverage.py"
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: there is no gear data table to compare with an authored gear requirement (ARCH0015-3). The bridge retains raw repeating_radial_profiles evidence, but Spec has no external-spur-gear declaration, validated normative gear requirement record, source-bound gear-table item, or gear/geometry correspondence auditor. These four layers must be implemented together so a detected repetition never invents normative gear data; that is a cross-cutting subsystem exceeding a day, not an ordinary descriptive-table addition."
+  status: ported
+  rust_test: "tests/gears.rs::stale_or_damaged_gear_table_is_a_requirement_mismatch"
+  rust_note: "Independent oracle compares every actual rendered cell, including standards, units and signed deviations, with current authored requirements."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream gears"
 
 - id: LINT-code-gear_semantics_missing
@@ -1531,10 +1535,9 @@
     module: "linting/gear_coverage.py"
     issues: [1086, 1058]
     tests: [tests/test_issue_1086_declared_gears.py, tests/test_issue_1058_wheel_profile.py]
-  status: translated
-  rust_test: "tests/lint_coverage.rs"
-  rust_rule: "src/lint/profiles.rs reports the unsupported outer boundary with n evenly spaced arcs ('for a gear, its tooth data'), compared with Python in tests/lint_coverage.rs (radial_count)."
-  rust_note: "src/lint/profiles.rs reports the unsupported outer boundary with n evenly spaced arcs ('for a gear, its tooth data'), compared with Python in tests/lint_coverage.rs (radial_count). A gear declaration in the Spec and its data table are covered by the tables batch (LINT-gear_coverage-data_table, ISSUE-1086-a/b)."
+  status: ported
+  rust_test: "tests/gears.rs::repeating_profile_never_invents_gear_semantics"
+  rust_note: "Full-wire repeating profiles without declarations report gear_semantics_missing, distinct from the existing unsupported-boundary coverage warning."
   port_note: "Keep."
 
 - id: LINT-code-gear_axis_mismatch
@@ -1546,8 +1549,9 @@
     module: "linting/gear_coverage.py"
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: no declared gear axis to compare with the repeating profile's (ARCH0015-3)."
+  status: ported
+  rust_test: "tests/gears.rs::declared_gear_axis_mismatch_uses_correspondence_before_axis"
+  rust_note: "Centre/span correspondence precedes the axis audit; assembly findings are informational."
   port_note: "triage 2026-10-16: PORT, value low, size L, stream gears"
 
 - id: LINT-code-gear_repeat_count_mismatch
@@ -1559,8 +1563,9 @@
     module: "linting/gear_coverage.py"
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py, tests/test_issue_1176_quality_fidelity.py]
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: no declared tooth count to compare with the profile's repeat count (ARCH0015-3)."
+  status: ported
+  rust_test: "tests/gears.rs::declared_gear_repeat_count_must_match_full_wire_evidence; tests/gears.rs::real_wheel_full_wire_evidence_reconciles_authored_gear"
+  rust_note: "Compares authored tooth count with full-wire repeat evidence, including the real Python 13-tooth wheel fixture."
   port_note: "triage 2026-10-16: PORT, value low, size L, stream gears"
 
 - id: LINT-code-gear_correspondence_unverifiable
@@ -1571,8 +1576,9 @@
     module: "linting/gear_coverage.py"
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: with no gear declaration there is no correspondence to verify (ARCH0015-3)."
+  status: ported
+  rust_test: "tests/gears.rs::gear_correspondence_fails_closed_when_absent_ambiguous_or_displaced"
+  rust_note: "Missing, ambiguous or displaced full-wire profiles remain unverifiable. Radial arc counts are insufficient."
   port_note: "triage 2026-10-16: PORT, value low, size L, stream gears"
 
 # ---------------------------------------------------------------------------------------
@@ -1830,7 +1836,7 @@
     tests: [tests/test_interior_label_placement.py]
   status: pending
   rust_test: empty_space_without_projected_material_is_refused
-  rust_note: "H7 revives this rule. Planning requires whole-label material containment with 0.5 paper mm boundary clearance. The full connected-band narrow-material lint and curved material fields remain unported; known_interior.json records the conservative restriction. Stream K7 left it out of src/lint/fidelity.rs: the drawing records each view's edges, not which side of them is material, so the lint has no material field to probe."
+  rust_note: "H7 revives this rule. Planning requires whole-label material containment with 0.5 paper mm boundary clearance. The full connected-band narrow-material lint and curved material fields remain unported; known_interior.json records the conservative restriction. Stream K7 left it out of src/lint/fidelity.rs: the drawing records each view's edges, not which side of them is material, so the lint has no material field to probe. Rules-text blocker (2026-10-16): Drawing carries view edges and projected ink, but no signed filled-material/connected-band field for an independent lint probe."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream dimensioning-coverage"
 
 - id: LINT-code-leader_crosses_silhouette
@@ -2010,7 +2016,7 @@
     tests: [tests/test_pmi_manufacturing_finish.py]
   status: pending
   port_note: "triage 2026-10-16: PORT, value medium, size S, stream pmi"
-  rust_note: "Not ported: the check reads a source-scoped general note (an edge condition) or a face-finish symbol and compares its ink with the requirement. The reading holds edge conditions and surface finishes (`pmi::read`, manufacturing requirements), and the port now draws a document-wide edge condition as a general note `pmi:<source>` and the default finish as a symbol beside the title block (`pmi_lowering::sheet_requirements`), but no face-finish symbol; the note's ink against its requirement is not checked yet."
+  rust_note: "Not ported: the check reads a source-scoped general note (an edge condition) or a face-finish symbol and compares its ink with the requirement. The reading holds edge conditions and surface finishes (`pmi::read`, manufacturing requirements), and the port now draws a document-wide edge condition as a general note `pmi:<source>` and the default finish as a symbol beside the title block (`pmi_lowering::sheet_requirements`), but no face-finish symbol; the note's ink against its requirement is not checked yet. Rules-text blocker (2026-10-16): Drawing text runs are invisible searchable text and have no per-annotation ownership of the filled glyph paths; independently auditing those paths requires an output evidence/binding redesign beyond a day."
 
 - id: LINT-code-pmi_source_site_mismatch
   statement: "A source-scoped annotation is anchored at the face or edge its AP242 source references, and a STEP entity claim carries a resolvable source id."

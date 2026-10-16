@@ -14,6 +14,13 @@ All notable changes to draftwright-rust are recorded here, in the style of
   captions and relocated dimensions. A fitting iso keeps sheet scale beside a detail.
   Verification and Python differences: [detail views](docs/detail-verification.md).
 
+- Browser `draftwright-wasm` workspace crate, moving the editor's live-session wrapper here
+  (#66). JSON-string operations and errors, SVG/PDF bytes, bundled fonts and panic hook;
+  byte-based analysis and native-only adapter gates keep the browser independent of files.
+- Dedicated `wasm-release` profile, Node/native session parity CI, and a published-release
+  workflow attaching the web package and SHA-256 checksum. See `docs/wasm.md` for builds,
+  package sizes and switching the editor to a pinned release asset.
+
 ### Fixed
 
 - Multi-step turned profiles use one inspection end by default, preserving PMI datum
