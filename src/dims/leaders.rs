@@ -286,6 +286,7 @@ impl Candidate {
 struct Fixed {
     segments: Vec<(usize, [P2; 2])>,
     labels: Vec<(usize, [f64; 4])>,
+    extensions: Vec<(usize, [P2; 2])>,
     /// The arrowheads' outlines as `dims::render` draws them ([`head`]), which must stay out of
     /// the label: a flare can reach into it beside a shaft that does not.
     heads: Vec<(usize, [P2; 2])>,
@@ -304,6 +305,11 @@ impl Fixed {
             .flat_map(|(i, p)| p.lines.iter().chain(&p.arrows).map(move |s| (i, *s)))
             .collect();
         let labels: Vec<(usize, [f64; 4])> = on.clone().map(|(i, p)| (i, p.label_box)).collect();
+        let extensions = on
+            .clone()
+            .filter(|(_, p)| p.arrows.len() == 2 && p.lines.len() >= 3)
+            .flat_map(|(i, p)| p.lines[..2].iter().map(move |s| (i, *s)))
+            .collect();
         let heads: Vec<(usize, [P2; 2])> = on
             .flat_map(|(i, p)| p.arrows.iter().flat_map(move |a| head(*a).map(|e| (i, e))))
             .collect();
@@ -324,6 +330,7 @@ impl Fixed {
         Fixed {
             segments,
             labels,
+            extensions,
             heads,
             grid,
             furniture: BTreeMap::new(),
@@ -450,7 +457,7 @@ impl Grid {
 }
 
 /// The three edges of the arrowhead on *arrow* (tip, tail), as `dims::render` draws it.
-fn head(arrow: [P2; 2]) -> [[P2; 2]; 3] {
+pub(super) fn head(arrow: [P2; 2]) -> [[P2; 2]; 3] {
     let [tip, tail] = arrow;
     let n = [tail[1] - tip[1], tip[0] - tail[0]];
     let k = super::ARROW_HALF / n[0].hypot(n[1]).max(1e-12);
@@ -476,6 +483,7 @@ struct Job<'a> {
     /// For such a callout, its view's model line-work ([`view_ink`]): a route across it is
     /// what an angle off the silhouette may not buy ([`Candidate::astray`]).
     model: Option<&'a [[P2; 2]]>,
+    corridors: bool,
     /// Once [`inventory`] steers the callout off its silhouette: the most model lines and
     /// features an angled route may cross, the grazing route's ([`astray`]).
     steer: std::cell::Cell<Option<(usize, usize)>>,
@@ -592,6 +600,7 @@ pub(super) fn place_with_obstacles(
         .map(|v| (v.id.trim_start_matches("v:"), cache.get(analysis, v)))
         .collect();
     // The model line-work of each view with a turned step's diameter callout to place.
+    let recess_context = analysis.features.iter().any(|f| f.kind == "section_recess");
     let models: BTreeMap<&str, Vec<[P2; 2]>> = analysis
         .edge_ink
         .as_ref()
@@ -610,7 +619,6 @@ pub(super) fn place_with_obstacles(
                 .collect()
         })
         .unwrap_or_default();
-    let recess_context = analysis.features.iter().any(|f| f.kind == "section_recess");
     let mut jobs: Vec<(usize, Job)> = Vec::new();
     for (i, w) in items.iter().enumerate() {
         let (Shape::Callout { sites }, Some(view)) = (&w.shape, views_of[i]) else {
@@ -636,6 +644,10 @@ pub(super) fn place_with_obstacles(
                 sites: page_sites(f, sites),
                 silhouette: grazing(f, w),
                 model: models.get(view).map(Vec::as_slice),
+                corridors: w
+                    .measurements
+                    .iter()
+                    .any(|m| m.feature.starts_with("f:section_recess:")),
                 steer: std::cell::Cell::new(None),
                 ink_min: ink.min,
                 ink_max: ink.max,
@@ -785,15 +797,18 @@ pub(super) fn place_with_obstacles(
                         .map(|(j, &n)| conflict(c, &inventories[j][n]))
                         .sum::<u32>()
             };
-            let ceiling =
-                local(&inventories[k][choice[k]]) + floor - defects(&inventories, &choice);
+            let ceiling = local(&inventories[k][choice[k]])
+                .saturating_add(floor)
+                .saturating_sub(defects(&inventories, &choice));
             choice[k] = inventories[k]
                 .iter()
                 .enumerate()
                 .filter(|(_, c)| local(c) <= ceiling)
                 .min_by_key(|(n, c)| (c.score() + i64::from(local(c) - ordinary(c)) * CROSSING, *n))
                 .map(|(n, _)| n)
-                .expect("the prior route meets its own floor");
+                // A remeasured incumbent can exceed the legacy floor after a new
+                // corridor is installed. Keep it until a safe improvement exists.
+                .unwrap_or(choice[k]);
         }
         if choice == before {
             break;
@@ -904,6 +919,25 @@ pub(super) fn refine(
         .filter(|(_, p)| p.arrows.len() == 2 && p.lines.len() >= 3)
         .flat_map(|(j, p)| p.lines[..2].iter().map(move |s| (j, *s)))
         .collect();
+    // Runs beside newly recognised edges need the same bounded repair as extension
+    // contacts. Gather each projection once, then test only routes that need repair.
+    let repair_models: BTreeMap<_, _> =
+        if analysis.features.iter().any(|f| f.kind == "section_recess") {
+            views
+                .iter()
+                .map(|v| (v.id.trim_start_matches("v:"), view_ink(analysis, ink, v).0))
+                .collect()
+        } else {
+            BTreeMap::new()
+        };
+    let extension_ink: Vec<_> = extensions.iter().map(|(_, e)| *e).collect();
+    let bad_run = |p: &Placed, view: &str| {
+        repair_models.get(view).is_some_and(|model| {
+            p.lines
+                .iter()
+                .any(|s| runs_beside(*s, model) || runs_beside(*s, &extension_ink))
+        })
+    };
     // Only a free callout already in contact is refined; most sheets have none, and then the
     // view ink below is never gathered.
     let todo: Vec<usize> = (0..items.len())
@@ -914,9 +948,10 @@ pub(super) fn refine(
                     .dimensions
                     .get(&items[i].id)
                     .is_some_and(|d| d.place.is_some())
-                && placed[i]
-                    .as_ref()
-                    .is_some_and(|p| extension_contacts(&extensions, &p.lines, p.label_box).0 > 0)
+                && placed[i].as_ref().is_some_and(|p| {
+                    extension_contacts(&extensions, &p.lines, p.label_box).0 > 0
+                        || bad_run(p, views_of[i].unwrap())
+                })
         })
         .collect();
     if todo.is_empty() {
@@ -966,6 +1001,7 @@ pub(super) fn refine(
         let frame = &frames[view];
         let page_sites = page_sites(frame, sites);
         let old_length = length(&old.lines);
+        let repair_run = bad_run(&old, view);
         let label = label_ink(&w.terms, font());
         // Every candidate lies within this box: a leader no longer than the old one by 2 mm
         // from an elbow in the row, then its shoulder and padded label.
@@ -1020,7 +1056,7 @@ pub(super) fn refine(
                     }
                     let (_, lb) = label_geometry(q, e, right, label.min, label.max);
                     let now = extension_contacts(&extensions, &lines, lb);
-                    if now.0 >= before.0 || now.1 > before.1 {
+                    if now.0 > before.0 || (!repair_run && now.0 == before.0) || now.1 > before.1 {
                         continue;
                     }
                     let moved = (q[0] - elbow[0]).hypot(q[1] - elbow[1])
@@ -1148,6 +1184,7 @@ pub(super) fn refine(
             sites: page_sites.clone(),
             silhouette: grazing(frame, w),
             model: None,
+            corridors: analysis.features.iter().any(|f| f.kind == "section_recess"),
             steer: std::cell::Cell::new(None),
             ink_min: label.min,
             ink_max: label.max,
@@ -1330,7 +1367,7 @@ fn grow(b: [f64; 4], d: f64) -> [f64; 4] {
 /// A callout's contacts with the extension lines of linear dimensions (decision (iii)):
 /// the dimensions whose extension line the leader or the padded label touches, and of those,
 /// the ones the padded label touches.
-fn extension_contacts(
+pub(super) fn extension_contacts(
     extensions: &[(usize, [P2; 2])],
     lines: &[[P2; 2]],
     label: [f64; 4],
@@ -1377,7 +1414,7 @@ fn runs_beside(s: [P2; 2], ink: &[[P2; 2]]) -> bool {
     false
 }
 
-fn touches_box(s: [P2; 2], b: [f64; 4]) -> bool {
+pub(super) fn touches_box(s: [P2; 2], b: [f64; 4]) -> bool {
     let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
     for k in 0..2 {
         let d = s[1][k] - s[0][k];
@@ -2219,6 +2256,17 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
         v.dedup();
     }
     let crossings = (crossed.len() + text.len()) as u32;
+    if job.corridors {
+        // The same finite 1 mm extension corridor used by the route acceptance
+        // check participates in the initial solve, before a route becomes fixed.
+        hard += extension_contacts(&fixed.extensions, &segs, lb).0 as u32;
+        if job
+            .model
+            .is_some_and(|model| segs.iter().any(|s| runs_beside(*s, model)))
+        {
+            hard += 1;
+        }
+    }
     c.hard += hard;
     c.crossings = crossings;
     c.furniture = furniture.len() as u32;
@@ -2301,6 +2349,7 @@ pub fn clear_routes(
         sites: page_sites(f, sites),
         silhouette: grazing(f, w),
         model: None,
+        corridors: false,
         steer: std::cell::Cell::new(None),
         ink_min: ink.min,
         ink_max: ink.max,

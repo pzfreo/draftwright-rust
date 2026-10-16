@@ -27,3 +27,36 @@ Every non-NIST row requires correction, including intersections with newly
 recognised footprints. Dense NIST increases may only be accepted for extra
 information after hard findings and existing-item regressions are removed.
 No baseline cell has been re-recorded.
+
+## Placement changes
+
+Equal channel widths share explicitly counted carriers. Each original width claim
+and covered item ID remains in the plan; omitting a carrier promotes a remaining
+channel. The bridge regression now checks all seven independent width claims as
+well as the exact counted labels.
+
+The lane budget now includes recess linear items and measured callout text on both
+sides of each carrying view. The choice is to give the annotations real paper,
+including a larger sheet where needed. A pocket callout can leave sideways near
+its pocket instead of crossing an existing slot merely because its text did not
+fit in the old margin. Existing slot datum legs may share their own length's lane
+when their full ink is disjoint and their measured ends meet.
+
+Linear corridor alternatives consider recess footprints and settled callouts,
+with existing callouts placed before recess callouts. Text remains adjacent to
+its own arrow or within its span. Covered dimensions inherit their carrier's
+settled lane. Final label settlement protects the full 1 mm leader/extension
+corridor, the padded label and the arrowhead, rather than only intersecting
+strokes. A second bounded route check uses the final witnesses and GD&T obstacles.
+
+GD&T reservation uses the consolidated linear inventory on recess drawings.
+Outside-band GD&T participates in recovery. A bounded automatic scale reduction
+is retained only if it improves the GD&T and keeps the carried measurements and
+placed frames without increasing hard layout findings or dropped items. Its
+basis identifies an automatic choice rather than attributing it to the user.
+Eligible view blocks may be packed using their measured annotation bounds while
+retaining their witness and leader geometry within each block.
+
+No recognition record is hidden, and no acceptance threshold, route fixture or
+quality baseline is relaxed. The final check results and remaining findings are
+recorded below after verification.

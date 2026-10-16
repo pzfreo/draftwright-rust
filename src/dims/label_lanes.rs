@@ -90,6 +90,37 @@ fn contacts(p: &Placed, q: &PlannedDimension) -> u8 {
     {
         hits |= 1 << 3;
     }
+    if q.kind == "callout" && p.arrows.len() == 2 && p.lines.len() >= 3 {
+        let extensions: Vec<_> = p.lines[..2].iter().map(|e| (0, *e)).collect();
+        let (leader, text) =
+            super::leaders::extension_contacts(&extensions, &qp.lines, qp.label_box);
+        if leader > 0 {
+            hits |= 1 << 5;
+        }
+        if text > 0 {
+            hits |= 1 << 6;
+        }
+        if qp
+            .arrows
+            .iter()
+            .flat_map(|a| super::leaders::head(*a))
+            .any(|s| {
+                p.lines[..2].iter().any(|[a, b]| {
+                    super::leaders::touches_box(
+                        s,
+                        [
+                            a[0].min(b[0]) - 0.2,
+                            a[1].min(b[1]) - 0.2,
+                            a[0].max(b[0]) + 0.2,
+                            a[1].max(b[1]) + 0.2,
+                        ],
+                    )
+                })
+            })
+        {
+            hits |= 1 << 7;
+        }
+    }
     hits
 }
 
@@ -360,6 +391,46 @@ mod tests {
             "state": {"kind": "shown"}, "placed": p
         }))
         .unwrap()
+    }
+
+    #[test]
+    fn a_linear_move_preserves_the_full_leader_extension_corridor() {
+        let p = Placed {
+            lines: vec![
+                [[20.0, 10.0], [20.0, 32.0]],
+                [[40.0, 10.0], [40.0, 32.0]],
+                [[20.0, 30.0], [40.0, 30.0]],
+            ],
+            arrows: vec![[[20.0, 30.0], [22.7, 30.0]], [[40.0, 30.0], [37.3, 30.0]]],
+            label_at: [25.0, 31.0],
+            label_box: [25.0, 31.0, 35.0, 33.0],
+            rotation: 0.0,
+        };
+        let q = dimension(
+            "d:leader",
+            "callout",
+            1.0,
+            Placed {
+                lines: vec![
+                    [[20.75, 11.0], [23.75, 25.0]],
+                    [[23.75, 25.0], [26.75, 25.0]],
+                ],
+                arrows: vec![],
+                label_at: [28.0, 24.0],
+                label_box: [28.0, 24.0, 34.0, 27.0],
+                rotation: 0.0,
+            },
+        );
+        let near = contacts(&p, &q);
+        assert_eq!(near & (1 << 3), 0, "the strokes themselves do not cross");
+        assert_ne!(
+            near & (1 << 5),
+            0,
+            "a 0.75 mm gap is inside the reserved corridor"
+        );
+        let mut clear = p.clone();
+        clear.lines[0] = [[18.0, 10.0], [18.0, 32.0]];
+        assert_eq!(contacts(&clear, &q) & (1 << 5), 0);
     }
 
     #[test]

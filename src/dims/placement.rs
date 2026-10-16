@@ -556,7 +556,11 @@ pub(super) fn lanes<'a>(
 
 /// Gives each item merged away its survivor's lane number and a parallel strip.
 /// Equal walls on different projected axes keep their own strip orientation.
-fn share_lanes(owner: &[Option<usize>], sides: &mut [Option<Side>], lanes: &mut [usize]) {
+pub(super) fn share_lanes(
+    owner: &[Option<usize>],
+    sides: &mut [Option<Side>],
+    lanes: &mut [usize],
+) {
     for (i, s) in owner.iter().enumerate() {
         if let Some(s) = *s {
             if let (Some(a), Some(b)) = (sides[i], sides[s])
@@ -761,6 +765,71 @@ pub(super) fn fall_through(
     share_held(
         frames, items, views_of, owner, sides, lanes, &held, &stranded, &fits,
     );
+    // A slot's datum leg and its own length read as one end-to-end chain when
+    // their complete ink is disjoint. Prefer that compact lane even when extra
+    // recess information has changed which strips overflow.
+    for i in 0..items.len() {
+        let Some(feature) = items[i].id.strip_suffix("/location_slot.length") else {
+            continue;
+        };
+        if owner[i].is_some() {
+            continue;
+        }
+        let length = format!("{feature}/slot_length.length");
+        let Some(mut j) = items.iter().position(|w| w.id == length) else {
+            continue;
+        };
+        if let Some(survivor) = owner[j] {
+            j = survivor;
+        }
+        let (Some(view), Some(side)) = (views_of[j], sides[j]) else {
+            continue;
+        };
+        if views_of[i] != Some(view) {
+            continue;
+        }
+        let (Some(p), Some(q)) = (
+            place(&frames[view], &items[i], side, lanes[j]),
+            place(&frames[view], &items[j], side, lanes[j]),
+        ) else {
+            continue;
+        };
+        if !page.fits(&p, view) {
+            continue;
+        }
+        let k = usize::from(matches!(side, Side::Left | Side::Right));
+        let ends = |p: &Placed| {
+            let (a, b) = (p.arrows[0][0][k], p.arrows[1][0][k]);
+            (a.min(b), a.max(b))
+        };
+        let ((a, b), (c, d)) = (ends(&p), ends(&q));
+        if (b - c).abs().min((d - a).abs()) > 1e-6 {
+            continue;
+        }
+        let span = |p: &Placed| {
+            ink_points(p).fold([f64::INFINITY, f64::NEG_INFINITY], |e, p| {
+                [e[0].min(p[k]), e[1].max(p[k])]
+            })
+        };
+        let e = span(&p);
+        let clear = (0..items.len())
+            .filter(|&t| {
+                t != i
+                    && owner[t].is_none()
+                    && views_of[t] == Some(view)
+                    && sides[t] == Some(side)
+                    && lanes[t] == lanes[j]
+            })
+            .filter_map(|t| place(&frames[view], &items[t], side, lanes[t]))
+            .all(|q| {
+                let f = span(&q);
+                e[1] <= f[0] + 1e-6 || f[1] <= e[0] + 1e-6
+            });
+        if clear {
+            sides[i] = Some(side);
+            lanes[i] = lanes[j];
+        }
+    }
     share_lanes(owner, sides, lanes);
 }
 
@@ -859,7 +928,28 @@ fn share_held(
 /// Places *w* in lane *lane* of strip *side* of its view; none for a callout.
 pub(super) fn place(frame: &Frame, w: &Want, side: Side, lane: usize) -> Option<Placed> {
     match &w.shape {
-        Shape::Linear { .. } => place_linear(frame, &w.shape, &w.terms, side, lane),
+        Shape::Linear { .. } => {
+            let mut p = place_linear(frame, &w.shape, &w.terms, side, lane)?;
+            if w.measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:section_recess:"))
+            {
+                let k = usize::from(p.rotation != 0.0);
+                let hi = p
+                    .arrows
+                    .iter()
+                    .map(|a| a[0][k])
+                    .fold(f64::NEG_INFINITY, f64::max);
+                if p.label_box[k] > hi {
+                    // Outside text belongs immediately beside its own arrow, before
+                    // another dimension's witness can intervene.
+                    p.label_at[k] -= 2.0;
+                    p.label_box[k] -= 2.0;
+                    p.label_box[k + 2] -= 2.0;
+                }
+            }
+            Some(p)
+        }
         // A callout's leader is placed with the others' ([`super::leaders`]), an angle about its
         // vertex ([`super::angular`]).
         Shape::Callout { .. } | Shape::Angular { .. } => None,
@@ -1135,11 +1225,29 @@ pub(super) fn clear_linear(
             || a.lines.iter().any(|l| crosses(*l, b.label_box))
             || b.lines.iter().any(|l| crosses(*l, a.label_box))
             || (a.arrows.len() == 2
+                && a.lines.len() >= 3
+                && b.arrows.len() < 2
+                && super::leaders::extension_contacts(
+                    &a.lines[..2].iter().map(|e| (0, *e)).collect::<Vec<_>>(),
+                    &b.lines,
+                    b.label_box,
+                )
+                .0 > 0)
+            || (a.arrows.len() == 2
                 && b.arrows.len() == 2
                 && shared_dimension_line(&a.lines, &b.lines))
     };
     let mut models = BTreeMap::new();
-    for i in 0..items.len() {
+    let recess = |i: usize| {
+        items[i]
+            .measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:section_recess:"))
+    };
+    let recess_context = (0..items.len()).any(recess);
+    let mut order: Vec<_> = (0..items.len()).collect();
+    order.sort_by_key(|&i| !recess(i));
+    for i in order {
         if !matches!(items[i].shape, Shape::Linear { .. }) {
             continue;
         }
@@ -1153,9 +1261,7 @@ pub(super) fn clear_linear(
             .filter_map(|(_, p)| p.as_ref())
             .chain(obstacles.iter().filter_map(|d| d.placed.as_ref()))
             .collect();
-        if !others.iter().any(|q| conflict(p, q)) {
-            continue;
-        }
+        let label_conflict = others.iter().any(|q| conflict(p, q));
         let Some(v) = views.iter().find(|v| v.id.strip_prefix("v:") == Some(view)) else {
             continue;
         };
@@ -1184,25 +1290,63 @@ pub(super) fn clear_linear(
                             .count()
                             + boxes.iter().filter(|b| crosses(*line, **b)).count()
                     });
-                    features + geometry
+                    if recess_context {
+                        (features, geometry)
+                    } else {
+                        (0, features + geometry)
+                    }
                 })
-                .sum::<usize>()
+                .fold((0usize, 0usize), |a, b| (a.0 + b.0, a.1 + b.1))
         };
         let before = crossings(p);
+        let recess_corridor = items[i]
+            .measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:section_recess:"))
+            || p.lines.iter().take(2).any(|line| {
+                footprint
+                    .crossed_extension(*line, &items[i].measurements)
+                    .iter()
+                    .any(|id| id.starts_with("f:section_recess:"))
+            });
+        if (recess_context && !recess_corridor)
+            || (!label_conflict && (!recess_corridor || before == (0, 0)))
+        {
+            continue;
+        }
         // Prefer the least obstructed of the opposite strip's first eight lanes.
         // Keeping a reported label conflict is better than adding body crossings.
-        let found = (0..8)
-            .filter_map(|lane| {
-                let c = place(&frames[view], &items[i], opposite(side), lane)?;
+        let choices: Vec<_> = if recess_context {
+            [side, opposite(side)]
+                .into_iter()
+                .flat_map(|side| (0..16).map(move |lane| (side, lane)))
+                .collect()
+        } else {
+            (0..8).map(|lane| (opposite(side), lane)).collect()
+        };
+        let found = choices
+            .into_iter()
+            .filter_map(|(target, lane)| {
+                let c = place(&frames[view], &items[i], target, lane)?;
                 if !page.fits(&c, view) || others.iter().any(|q| conflict(&c, q)) {
                     return None;
                 }
+                if recess_context
+                    && (super::label_lanes::off_span(&c, others.iter().copied())
+                        || others.iter().any(|q| {
+                            super::label_lanes::off_span(q, std::iter::once(&c))
+                                && !super::label_lanes::off_span(q, std::iter::once(p))
+                        }))
+                {
+                    return None;
+                }
                 let hits = crossings(&c);
-                (hits <= before).then_some((hits, lane, c))
+                (hits <= before && (label_conflict || hits < before))
+                    .then_some((hits, target, lane, c))
             })
-            .min_by_key(|(hits, lane, _)| (*hits, *lane));
-        if let Some((_, lane, c)) = found {
-            sides[i] = Some(opposite(side));
+            .min_by_key(|(hits, target, lane, _)| (*hits, *target != side, *lane));
+        if let Some((_, target, lane, c)) = found {
+            sides[i] = Some(target);
             lanes[i] = lane;
             placed[i] = Some(c);
         }

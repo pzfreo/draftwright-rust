@@ -768,13 +768,18 @@ fn lanes_uncached(
         .iter()
         .any(|w| w.id.ends_with("/step_position.length"));
     let conveyed = |w: &Want| baseline && w.id.ends_with("/step.length");
-    let owner = if wants.iter().any(plate) || baseline {
+    let shared_bands = wants.iter().any(|w| {
+        w.measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:section_recess:"))
+    }) && !gdt::demand(analysis, &|v| frames.contains_key(v)).is_empty();
+    let owner = if wants.iter().any(plate) || baseline || shared_bands {
         let merged = placement::owners(analysis, &wants, &chosen);
         wants
             .iter()
             .enumerate()
             .map(|(i, w)| {
-                if plate(w) || conveyed(w) {
+                if shared_bands || plate(w) || conveyed(w) {
                     merged[i]
                 } else {
                     None
@@ -798,7 +803,10 @@ fn lanes_uncached(
             .zip(sides.iter().copied())
             .zip(lane.iter().copied())
             .enumerate()
-            .filter(|(i, _)| owner[*i].is_none())
+            .filter(|(i, _)| {
+                owner[*i].is_none()
+                    && (!shared_bands || matches!(wants[*i].shape, Shape::Linear { .. }))
+            })
             .map(|(_, item)| item),
     );
     let front_linear = wants
@@ -866,6 +874,28 @@ fn lanes_uncached(
             (Some("plan"), Some(placement::Side::Above)) => bands.plate_plan_above = plan_linear,
             _ => {}
         }
+    }
+    bands.recess_lanes = wants.iter().any(|w| {
+        w.measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:section_recess:"))
+    });
+    for (i, w) in wants.iter().enumerate() {
+        if matches!(w.shape, Shape::Callout { .. })
+            && w.measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:section_recess:"))
+            && let Some(view) = chosen[i]
+            && let Some(k) = NAMES.iter().position(|v| *v == view)
+        {
+            let ink = label_ink(&w.terms, font());
+            bands.recess_callouts[k] =
+                bands.recess_callouts[k].max(FIRST + SHOULDER + ink.max[0] - ink.min[0] + 2.0);
+        }
+    }
+    if shared_bands {
+        bands.plate_front_below = bands.plate_front_below.max(front_linear);
+        bands.plate_plan_above = bands.plate_plan_above.max(plan_linear);
     }
     bands
 }
@@ -1365,7 +1395,11 @@ pub(crate) fn plan_inventory(
     placement::settle_fixed(&mut placed, &fixed, obstacles, analysis, sheet, views);
     // Edited text can outgrow the canonical lanes. Keep the canonical layout stable
     // for pins and omission edits; their avoidance pass above owns that geometry.
-    if (spec.dimensions.values().any(|d| d.tolerance.is_some())
+    if (all.iter().any(|w| {
+        w.measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:section_recess:"))
+    }) || spec.dimensions.values().any(|d| d.tolerance.is_some())
         || spec.features.values().any(|f| f.fit.is_some()))
         && intended.iter().all(Option::is_none)
     {
@@ -1383,12 +1417,23 @@ pub(crate) fn plan_inventory(
             &page,
         );
     }
+    let shared_owner: Vec<_> = owner
+        .iter()
+        .zip(&alone)
+        .map(|(owner, alone)| if *alone { None } else { *owner })
+        .collect();
+    placement::share_lanes(&shared_owner, &mut sides, &mut lane);
     angular::place(&frames, &all, &chosen, &mut placed, &page);
     // Radius exceptions are placed around the existing drawing ink. Their addition must not
     // reroute unrelated approved callouts into clutter.
     let mut prior = chosen.clone();
     for (i, w) in all.iter().enumerate() {
-        if w.measurements.iter().any(|m| m.parameter == "blend.radius") {
+        if w.measurements.iter().any(|m| m.parameter == "blend.radius")
+            || matches!(w.shape, Shape::Callout { .. })
+                && w.measurements
+                    .iter()
+                    .any(|m| m.feature.starts_with("f:section_recess:"))
+        {
             prior[i] = None;
         }
     }
@@ -2323,6 +2368,117 @@ pub fn placement_options(analysis: &Analysis, views: &[PlannedView]) -> BTreeMap
 /// cylinders, or a shaft class on proven external ones (#30).
 pub(crate) fn symbolic_bore(r: &crate::pmi::Record) -> bool {
     pmi_dimensions::symbolic_bore(r)
+}
+
+/// Recheck free leaders after the linear labels and GD&T have settled together.
+/// The full inventory keeps omission edits local; frames remain fixed obstacles.
+pub(crate) fn refine_inventory(
+    analysis: &Analysis,
+    spec: &Spec,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    inventory: &mut [PlannedDimension],
+    obstacles: &[PlannedDimension],
+    cache: &footprints::Cache,
+) -> BTreeMap<String, Vec<Problem>> {
+    if !analysis.features.iter().any(|f| f.kind == "section_recess") {
+        return BTreeMap::new();
+    }
+    let (raw, ..) = wants(analysis);
+    let frames: BTreeMap<_, _> = views
+        .iter()
+        .filter_map(|v| {
+            let name = v.id.strip_prefix("v:")?;
+            NAMES
+                .contains(&name)
+                .then(|| (name, Frame::new(analysis, v)))
+        })
+        .collect();
+    let mut items = Vec::new();
+    let mut indices = Vec::new();
+    let mut chosen = Vec::new();
+    let mut placed = Vec::new();
+    for (i, d) in inventory.iter().enumerate() {
+        let Some(w) = raw.iter().find(|w| w.id == d.id) else {
+            continue;
+        };
+        let mut w = w.clone();
+        w.terms = d.terms.clone();
+        w.measurements = d.measurements.clone();
+        let name = d.view.trim_start_matches("v:");
+        let view = NAMES
+            .iter()
+            .copied()
+            .find(|v| *v == name && frames.contains_key(v));
+        items.push(w);
+        indices.push(i);
+        chosen.push(view);
+        placed.push(d.placed.clone());
+    }
+    let page = placement::Page::new(analysis, sheet, views);
+    let mut sides = Vec::new();
+    let mut lanes = Vec::new();
+    for ((i, view), p) in indices.iter().zip(&chosen).zip(&placed) {
+        let side = view.and_then(|v| {
+            let p = p.as_ref()?;
+            if inventory[*i].region == Some(CandidateRegion::Interior)
+                || p.arrows.len() != 2
+                || spec
+                    .dimensions
+                    .get(&inventory[*i].id)
+                    .is_some_and(|d| d.place.is_some())
+            {
+                return None;
+            }
+            let o = frames[v].outline();
+            Some(if p.rotation == 0.0 {
+                if p.arrows[0][0][1] < o[1] {
+                    placement::Side::Below
+                } else {
+                    placement::Side::Above
+                }
+            } else if p.arrows[0][0][0] < o[0] {
+                placement::Side::Left
+            } else {
+                placement::Side::Right
+            })
+        });
+        sides.push(side);
+        lanes.push(0);
+    }
+    // New linear items get a final chance around the settled leaders and GD&T.
+    // Every candidate clears that fixed ink and cannot add a feature crossing.
+    placement::clear_linear(
+        analysis,
+        cache,
+        views,
+        &frames,
+        &items,
+        &chosen,
+        &mut sides,
+        &mut lanes,
+        &mut placed,
+        obstacles,
+        &page,
+    );
+    let proofs = interior::proofs(analysis, views);
+    let reports = leaders::refine(
+        analysis,
+        spec,
+        cache,
+        views,
+        &frames,
+        &items,
+        &chosen,
+        &mut placed,
+        &page,
+        obstacles,
+        &proofs,
+    );
+    for (i, p) in indices.into_iter().zip(placed) {
+        inventory[i].placed = p;
+    }
+    reports
 }
 
 /// Rejudge settled paper geometry after moving complete view blocks to another sheet.

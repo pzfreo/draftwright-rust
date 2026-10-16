@@ -255,8 +255,12 @@ fn ftc06_channels_state_their_widths_in_the_view_along_them() {
             ("channel_width.length", "side", "2× 3.1"),
         ])
     );
-    let claims: Vec<_> = plan.dimensions.iter().flat_map(|d| &d.measurements)
-        .filter(|m| m.parameter == "channel_width.length").collect();
+    let claims: Vec<_> = plan
+        .dimensions
+        .iter()
+        .flat_map(|d| &d.measurements)
+        .filter(|m| m.parameter == "channel_width.length")
+        .collect();
     assert_eq!(claims.len(), 7, "counting must retain every physical width");
     let owners: std::collections::BTreeSet<_> = claims.iter().map(|m| &m.feature).collect();
     assert_eq!(owners.len(), 7, "one independent width claim per channel");

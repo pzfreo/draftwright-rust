@@ -222,6 +222,10 @@ impl Strips {
 /// the plan and the side.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Lanes {
+    /// A recess callout's measured text and leader room beside each principal view.
+    pub recess_callouts: [f64; 3],
+    /// Linear recess items use the same full lane budget as their peers.
+    pub recess_lanes: bool,
     pub front_below: usize,
     pub front_right: usize,
     pub plate_front_left: usize,
@@ -285,6 +289,16 @@ impl Strips {
     /// deeper band below the side alone would hang below the row.
     pub fn reserve(&mut self, lanes: &Lanes) {
         let widen = |band: &mut f64, n: usize| *band = band.max(lane_band(n));
+        let column = lanes.recess_callouts[0].max(lanes.recess_callouts[1]);
+        self.left = self.left.max(column);
+        self.right = self.right.max(column);
+        self.sv_left = self.sv_left.max(lanes.recess_callouts[2]);
+        self.sv_right = self.sv_right.max(lanes.recess_callouts[2]);
+        if lanes.recess_lanes {
+            widen(&mut self.left, lanes.plan_left);
+            widen(&mut self.fv_bottom, lanes.front_below);
+            self.pv_authored_top = self.pv_authored_top.max(lane_band(lanes.plan_above));
+        }
         widen(&mut self.right, lanes.front_right);
         widen(&mut self.left, lanes.plate_front_left);
         // Short thickness spans use outside arrows and text. Reserve their ink

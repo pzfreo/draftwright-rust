@@ -639,23 +639,49 @@ fn native_equal_channel_widths_keep_all_claims_and_promote_an_omitted_carrier() 
     let (_, a) = model::analyse_native(&root.join("nist/nist_ftc_06_asme1_rd.stp")).unwrap();
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
     let widths = |p: &model::Plan| {
-        p.dimensions.iter().flat_map(|d| &d.measurements)
+        p.dimensions
+            .iter()
+            .flat_map(|d| &d.measurements)
             .filter(|m| m.parameter == "channel_width.length")
-            .map(|m| (m.feature.clone(), m.value)).collect::<Vec<_>>()
+            .map(|m| (m.feature.clone(), m.value))
+            .collect::<Vec<_>>()
     };
     let mut claims = widths(&p);
     claims.sort_by(|a, b| a.0.cmp(&b.0));
     assert_eq!(claims.len(), 4);
-    let ds: Vec<_> = p.dimensions.iter()
-        .filter(|d| d.measurements.iter().any(|m| m.parameter == "channel_width.length"))
+    let ds: Vec<_> = p
+        .dimensions
+        .iter()
+        .filter(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.parameter == "channel_width.length")
+        })
         .collect();
     assert_eq!(ds.len(), 2);
-    assert!(ds.iter().all(|d| d.label.starts_with("2× ") && d.placed.is_some()));
+    assert!(
+        ds.iter()
+            .all(|d| d.label.starts_with("2× ") && d.placed.is_some())
+    );
     let carrier = ds[0];
-    let other = carrier.measurements.iter().find(|m| m.feature != carrier.measurements[0].feature).unwrap();
+    let other = carrier
+        .measurements
+        .iter()
+        .find(|m| m.feature != carrier.measurements[0].feature)
+        .unwrap();
     let mut spec = Spec::default();
-    spec.dimensions.insert(carrier.id.clone(), model::DimensionSpec { omit: true, ..Default::default() });
+    spec.dimensions.insert(
+        carrier.id.clone(),
+        model::DimensionSpec {
+            omit: true,
+            ..Default::default()
+        },
+    );
     let edited = model::plan_recovered(&a, &spec).unwrap();
     assert!(widths(&edited).iter().any(|m| m.0 == other.feature));
-    assert!(edited.dimensions.iter().any(|d| d.measurements.iter().any(|m| m.feature == other.feature) && d.placed.is_some()));
+    assert!(
+        edited.dimensions.iter().any(
+            |d| d.measurements.iter().any(|m| m.feature == other.feature) && d.placed.is_some()
+        )
+    );
 }

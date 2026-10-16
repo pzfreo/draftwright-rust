@@ -1990,12 +1990,12 @@ fn plan_escalated_uncached(
     automatic_pair: bool,
     candidate_arrangement: Option<layout::Arrangement>,
 ) -> Result<Plan, Invalid> {
-    let escalated = |beyond_lanes: bool| {
+    let escalated = |spec: &Spec, beyond_lanes: bool, internal: bool| {
         plan_with(
             analysis,
             spec,
             beyond_lanes,
-            automatic_pair,
+            automatic_pair || internal,
             candidate_arrangement,
         )
         .and_then(|mut p| {
@@ -2012,7 +2012,7 @@ fn plan_escalated_uncached(
                     analysis,
                     spec,
                     beyond_lanes,
-                    automatic_pair,
+                    automatic_pair || internal,
                     candidate_arrangement,
                     Some(&selection),
                 )?;
@@ -2024,6 +2024,12 @@ fn plan_escalated_uncached(
             }
             p.table_outcome = crate::hole_table::escalate(analysis, &mut p,
                 spec.sheets.as_ref().and_then(|s| s.hole_table).filter(|n| *n > 1));
+            if p.dimensions.iter().any(|d| d.measurements.iter().any(|m| m.feature.starts_with("f:section_recess:")))
+                && p.problems.iter().any(|q| q.code == "annotation_outside_area")
+                && let Some(packed) = crate::sheet_fit::pack_gdt(analysis, &p, &p)
+            {
+                p = packed;
+            }
             crate::completeness::report(analysis, &mut p);
             p.sheet.fill = crate::sheet_fit::fill(analysis, &p);
             if let Some((basis, _)) = p.sheet.basis.rsplit_once("; drawn-item fill ") {
@@ -2032,24 +2038,67 @@ fn plan_escalated_uncached(
             Ok(p)
         })
     };
-    let first = escalated(false)?;
+    let first = escalated(spec, false, false)?;
     let misplaced = gdt_misplaced(&first);
     if misplaced == (0, 0) {
         return Ok(first);
     }
-    let mut again = escalated(true)?;
-    if gdt_misplaced(&again) >= misplaced {
-        return Ok(first);
+    let again = escalated(spec, true, false)?;
+    let mut best = if gdt_misplaced(&again) < misplaced {
+        again
+    } else {
+        first.clone()
+    };
+    // New annotation ink can consume a frame's old corridor. Compare a bounded
+    // reduction on the same paper before keeping a frame over a view or beyond
+    // its band. Every measurement and placed GD&T item must survive the trial.
+    if spec.sheet.scale.is_none() && analysis.features.iter().any(|f| f.kind == "section_recess") {
+        let required = carried(&best);
+        for _ in 0..2 {
+            let Some(scale) = layout::SCALES
+                .iter()
+                .copied()
+                .find(|s| *s < best.sheet.scale_factor && *s >= crate::sheet_fit::ABSOLUTE_FLOOR)
+            else {
+                break;
+            };
+            let mut trial_spec = spec.clone();
+            trial_spec.sheet.size = Some(best.sheet.size.clone());
+            trial_spec.sheet.scale = Some(scale_name(scale));
+            let mut trial = escalated(&trial_spec, true, true)?;
+            trial.spec = spec.clone();
+            trial.sheet.default = spec.sheet.size.is_none();
+            trial.sheet.basis = format!(
+                "automatic reduction on {} to {} to keep the GD&T in its corridors; drawn-item fill {:.1}%",
+                trial.sheet.size,
+                trial.sheet.scale,
+                trial.sheet.fill * 100.0
+            );
+            if gdt_misplaced(&trial) >= gdt_misplaced(&best)
+                || findings(&trial).hard > findings(&best).hard
+                || drops(&trial) > drops(&best)
+                || undrawn_gdt(&trial) > undrawn_gdt(&best)
+                || !required.is_subset(&carried(&trial))
+            {
+                break;
+            }
+            best = trial;
+            if gdt_misplaced(&best) == (0, 0) {
+                break;
+            }
+        }
     }
-    again.sheet.basis += &format!(
-        "; the GD&T's room reserved beyond every dimension lane of its strips, as reserved within \
-         draftwright's estimate, on {} at {}, {} of its items had no place on the sheet \
-         off the other views",
-        first.sheet.size,
-        first.sheet.scale,
-        misplaced.0 + misplaced.1
-    );
-    Ok(again)
+    if gdt_misplaced(&best) < misplaced {
+        best.sheet.basis += &format!(
+            "; the GD&T's room reserved beyond every dimension lane of its strips, as reserved within \
+             draftwright's estimate, on {} at {}, {} of its items had no place on the sheet \
+             off the other views",
+            first.sheet.size,
+            first.sheet.scale,
+            misplaced.0 + misplaced.1
+        );
+    }
+    Ok(best)
 }
 
 /// A plan's feature control frames, datum feature symbols and PMI labels off the sheet or over
@@ -2066,7 +2115,9 @@ fn gdt_misplaced(plan: &Plan) -> (usize, usize) {
             "annotation_off_sheet" | "annotation_over_view" | "annotation_line_over_view" => {
                 found.0 += 1
             }
-            "annotation_ink_overlap" | "annotation_overlap" => found.1 += 1,
+            "annotation_ink_overlap" | "annotation_overlap" | "annotation_outside_area" => {
+                found.1 += 1
+            }
             _ => {}
         }
     }
@@ -3113,6 +3164,22 @@ fn plan_with_presentation(
         &mut inventory,
         &settle_fixed,
     );
+    let refined = crate::dims::refine_inventory(
+        analysis,
+        &label_spec,
+        &sheet,
+        &views,
+        &mut inventory,
+        &settle_fixed,
+        &footprint_cache,
+    );
+    problems.retain(|p| {
+        !matches!(
+            p.code.as_str(),
+            "annotation_line_over_view" | "annotation_leader_long"
+        ) || !p.subjects.iter().any(|id| refined.contains_key(id))
+    });
+    problems.extend(refined.into_values().flatten());
     for d in &mut dimensions {
         if let Some(settled) = inventory.iter().find(|settled| settled.id == d.id) {
             d.placed = settled.placed.clone();

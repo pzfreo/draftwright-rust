@@ -549,12 +549,11 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
     );
 }
 
-/// Pack already settled GD&T view blocks onto a smaller page without re-routing witnesses or
-/// leaders. The template is built at the same scale on A0; only owned paper geometry moves.
+/// Pack settled annotated view blocks without re-routing their witnesses or leaders. The template is built at the same scale on A0; only owned paper geometry moves.
 /// Page-anchored blocks and authored view relations stay with the existing planner.
 pub(crate) fn pack_gdt(analysis: &Analysis, template: &Plan, recipient: &Plan) -> Option<Plan> {
     if template.spec.iso_scale_factor.is_some()
-        || template.gdt.is_empty()
+        || template.spec.sheet.projection.as_deref() == Some("first")
         || template.hole_table.is_some()
         || !template.balloons.is_empty()
         || !template.notes.is_empty()
