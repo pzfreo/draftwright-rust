@@ -6,6 +6,18 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Added
+
+- Gzipped STEP input (maintainer decision 2026-10-15): every command (`analyse`, `plan`,
+  `render`, `review`, `parts`), serve and MCP request, cached registration and library entry
+  point that reads a STEP file or its bytes (`api`, `model::analyse_step`, `model::parts`,
+  `pmi::read`, `pmi::Reader::attach`, `Session::open`, `stateless::Cache::register`) accepts
+  gzip, told by its magic bytes (`1f 8b`), not the file name, and decompressed in memory
+  (`model::step_bytes`, `model::read_step_file`). The binding's `source_sha256` and the cache
+  key are of the decompressed bytes, so a `.step` and its `.step.gz` bind, cache and draw
+  identically (a `.step.gz` is titled by its stem without `.gz`). A gzip that does not
+  decompress is refused as invalid input, saying so.
+
 ### Fixed
 
 - `--part 0` (`"part": 0`) of a file of one part is the whole file: drawn byte for byte as without

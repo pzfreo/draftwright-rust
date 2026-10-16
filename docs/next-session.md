@@ -7412,3 +7412,119 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
 - **Spindle sheet, by eye**: the 23 is boxed in the side view and the hole's callout moved above
   the view; its leader now crosses the ⌖ frame's leader (reported `annotation_leader_crossing`),
   where before it ran up through the base into the hole from below. Cosmetic; not chased.
+
+## J2: applying proposed leader fixes re-spaces the dimension stack (draftwright-rust #32, 2026-10-15, unattended; overturnable)
+
+- **Problem:** on the editor's spindle (`tests/fixtures/samples/spindle-pmi.step.gz`, the
+  reviewer's PMI) the two `annotation_leader_crossing` fixes for datum B both set
+  `{"side":"left","lane":0,"along":"outside"}`; applied together, 52 and 22 shared one line at
+  x 20 and the 52's text sat 13 mm past its line (1.25 of its span), while the problem count fell.
+- **Changes:** `dims::placement::respace` (called from `dims::plan` after the intents): an
+  unpinned explicit side/lane on a linear dimension whose line would share an offset line over an
+  overlapping span with another linear dimension (automatic at its lane, or explicit) moves out
+  lane by lane, nearest page-fitting lane first, shorter spans inside; no collision, no change.
+  `along: "outside"` on a linear dimension now sets the label just past the far end with the line
+  run on (as a short span does). New problems `dimension_line_shared` and `dimension_text_stray`
+  (both `error`, re-judged after settle in `model.rs`) and the same two structural lint codes.
+  The proposed fix ops are unchanged (wire format untouched).
+- **Result on the spindle:** both fixes applied: crossings gone, 22 at lane 0 and 52 at lane 1 on
+  the left, each label on its own line, no new warning/error problem or lint error. The extra
+  left lane does not fit A4 1:1 (52's label 0.13 mm past the drawable edge), so the automatic
+  sheet choice recovers to A3 1:1 (`layout_replanned`, info). With the sheet pinned at A4 1:1 the
+  plan instead reports `annotation_off_sheet` for 52: an honest overrun, not met for that case.
+- **Guard:** default output byte-identical (all default cases). 118 saved-spec cases change
+  (stream `j2-fix-relayout` in `known_single_sheet_approved.json`; 9 of them update entries of
+  earlier streams in place): 89 plan-only (new `dimension_line_shared` on pinned pairs that
+  really share a line), 29 move an explicitly laned dimension off a shared line (looked at:
+  ctc01 slot:2 635 no longer printed over 120; 10127 hole:2 21.4 no longer merged into "2144.7",
+  now against the side view with `annotation_over_view` reported). Linux PNGs and 22 removed stale
+  Linux overrides need CI's `record_single_sheet`.
+- **Judgement calls:** (1) the new codes are `error` but not in `model::HARD_LAYOUT`, so they
+  never drive sheet/scale recovery (a sheet change cannot fix them); (2) "one line" is offsets
+  within 0.5 mm with spans overlapping by more than 0.5 mm (chained dimensions meeting at an
+  extension line are fine); "stray" is more than one text height (3 mm) from the line; (3) pinned
+  and offset placements are never re-spaced, only reported; (4) the editor may pin the sheet: if
+  so the spindle needs a bigger sheet, a smaller scale, or the datum B symbol moved instead.
+
+## J4: dimension a turned profile from its datum (#33; 2026-10-15, unattended; overturnable)
+
+- **Finding first**: the review spindle's STEP (`tests/fixtures/samples/cnc-review-spindle.step.gz`,
+  byte-identical to the editor's export) carries **no** PMI lengths for the heights. Its semantic
+  PMI is datum A (bottom end face), datum B (⌀15), the basic 23 to the cross hole, the ⌀4 H7,
+  ⌀15 g6, two ⌖ and ISO 2768-m. The CSV's rows 9-12 ("12/34/42/52 from datum A", ±0.2/±0.3)
+  are the editor's `general` rows (`src/specify/characteristics.ts`: "what the general tolerance
+  covers"), i.e. ISO 2768-m limits Specify lists from the datums, not PMI. 42 is the M5 tapping
+  hole's flat floor (52 − 10), which the hole callout's depth already states.
+- **Change** (`src/dims/turned.rs` `datum_end`, `baseline`): on a part turned whole, a profile
+  running end to end is a baseline from one end instead of a chain when the PMI measures it from
+  that end: (a) a planar PMI datum feature on that end face (beyond draftwright), else (b) PMI
+  lengths from that end to the profile's shoulders, as draftwright's `_authored_step_baseline`
+  reads them (an end needs one length longer than a single band; more targets wins; a tie leaves
+  the chain). The band at the datum keeps `step.length`; each further shoulder is
+  `d:f:turned_step:<n>/step_position.length` from the datum; the overall length is the last rung
+  (it also claims the last band's position). A PMI length across the same span replaces its rung
+  through the existing `share_pmi`. Wire format: one new item-ID/parameter name, additive.
+- **Reference guard** (`src/dims/redundancy.rs`): a chain member that states the part's PMI (a
+  `pmi:` claim) is never made reference, like one the spec tolerances.
+- **Lint** (`src/lint/turned.rs` `from_baseline`): a band's length counts as placed when printed
+  `step_position.length` claims (or the datum band's length) locate both its shoulders from one
+  end; otherwise the baseline would read as `axial_length_missing`.
+- **Spindle, by eye** (before/after at 2400 px): 22, 18, (12) → 12, 34, 52 stacked from A at the
+  bottom face, shortest innermost; no brackets. The ⌀15 g6 callout moved below the view and its
+  leader runs down the ⌀15 silhouette (the known J3 leader issue); B's leader crosses 34 and 52
+  where it crossed 22 and 52. Placement problem counts unchanged (5 crossings, 3 outside-area,
+  1 through-feature).
+- **No guard sheet changed**: plans of all 33 `parts/` and `pmi/step/` fixtures byte-identical
+  before/after (incl. every NIST part with datum-referenced PMI and the turned spool / thumbwheel /
+  bolt / string-post fixtures, whose datums are not on an end face of a full profile). Single-sheet
+  guard 28/28, no approvals; quality over 30 parts identical to the CI baseline in every cell.
+- **Judgement calls (overturnable)**:
+  - The trigger includes a datum feature alone (no PMI length): the spindle has no others. A
+    drawing that names an end face datum A is dimensioned from A.
+  - The general-tolerance limits (±0.2/±0.3) are **not** printed on the baseline rungs: the title
+    block's ISO 2768-m states them, and printing them would make general limits read as specific
+    ones. The acceptance's "with their tolerances" therefore holds only where the PMI states them
+    (tested with PMI lengths injected into the spindle's Analysis).
+  - **42 is not drawn** from A on the real fixture: it is the tapped hole's floor, not a turned
+    shoulder; the callout depth states it. A PMI 42 ±0.3 would be drawn (tested).
+- **IDs kept** (`redundancy::consolidate`, `dims::lanes_uncached`): every band's `step.length`
+  is still planned, so a saved spec naming one (the editor's embedded project places
+  `d:f:turned_step:2/step.length`) still plans; dropping it made such a spec invalid ("There is
+  no dimension …"). Each is `omitted`, `covered` by the rung locating its band, unless the spec
+  tolerances it or omits that rung; it reserves no lane of its own, so the sheet's scale is as
+  before (counting it took the spindle from 1:1 A4 to 2:1 A3).
+
+## K1: datums and GD&T controls authored in the Spec (#43 item 1) (2026-10-15, unattended; overturnable)
+
+- **What**: `features/<id>/datum`, `features/<id>/controls`, `faces/<face>/datum`,
+  `faces/<face>/controls` (`src/spec_gdt.rs`, docs/model.md "Datums and controls authored in
+  the Spec"). Each is lowered into the same `pmi::Record` an AP242 datum or tolerance is read
+  into and merged into the Analysis's PMI reading (`spec_gdt::effective`, at the plan entry
+  points and in `api::review` before lint, which reads no spec: ADR1-9), so lowering, placement, band
+  reservation, drawing and lint are unchanged. The Spec wins over the file's PMI
+  (`spec_overrides_pmi`, warning); an undeclared datum letter is `datum_undeclared` (warning).
+- **Attachment without a part**: `plan` has only the Analysis, so the Analysis now carries
+  `face_attachments` (per face: box, surface, principal axis/support, proven sites, normal,
+  exact cylinder axis). `pmi::datum_geometry` and `tolerance_geometry` were refactored to read
+  the same per-face record, so the file's PMI and the Spec's attach by one code path (PMI
+  fixtures unchanged). Cost: analyse +0.13% instructions on nist_ctc_01, +0.4% on plate; the
+  Analysis JSON about +1%. Default plans byte-identical (ftc_06, ctc_01, plate compared; guard).
+- **Judgement calls (overturnable)**:
+  - `face_attachments` was added to `draftwright.analysis/7` as an optional field rather than
+    bumping to /8 (wire compatibility: add fields, don't rename). An older Analysis refuses
+    Spec GD&T with "analyse again".
+  - Faces are named by box side (`bottom` = -z, `top`, `left` = -x, `right`, `front` = -y,
+    `back`) or `face:<n>`; a side takes every outward planar face lying on that side of the box.
+  - On a feature with cylinders the datum or control applies to its cylinders only (its axis),
+    else to all its faces; a hole pattern's control applies to all its holes' cylinders.
+  - Conflict = a datum of the same letter, or a tolerance of the same characteristic on the same
+    face set. Severity warning (deliberate intent, not a defect).
+  - A ⌀ zone is accepted on straightness, angularity, perpendicularity, parallelism, position
+    and concentricity (draftwright offers it on position and concentricity only); modifier `P`
+    is refused, as the drawing does not draw a projected zone for AP242 PMI either.
+  - Datum letters: one to three capitals; lower case is refused with the capital as the choice.
+- **By eye** (plate.step, A4 2:1): datum A's triangle on the front view's bottom edge, letter
+  below; the ⌖ ⌀0.1 A frame above the plan view. The frame's leader lands at the centre of the
+  holes' box (between the holes), as the PMI path places every multi-face frame (unchanged
+  here); a draftsman would rather hang it on the hole callout. Both leaders cross a dimension
+  line (reported `annotation_leader_crossing`). Flatness on `top` draws ⏥ 0.05 above the side view.

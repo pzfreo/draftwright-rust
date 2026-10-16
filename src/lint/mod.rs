@@ -182,6 +182,9 @@ pub fn marks(drawing: &Drawing) -> Vec<Mark> {
 }
 
 /// Every ported rule's findings on *drawing*, a drawing of the part *analysis* describes.
+/// Lint reads no spec (ADR1-9): when the drawing's spec authors datums or controls, the caller
+/// passes the Analysis with them merged into its PMI reading ([`crate::spec_gdt::effective`]), as
+/// [`crate::api::review`] does.
 pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
     let mut marks = marks(drawing);
     let sites: std::collections::BTreeMap<_, _> = crate::bridge::holes::read(analysis)

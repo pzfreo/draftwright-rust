@@ -1453,3 +1453,66 @@ fn fixed_ink_review_distinguishes_shared_strokes_from_transverse_crossings() {
         );
     }
 }
+
+/// A vertical linear dimension from y *lo* to *hi*, its extension lines from the view's left edge
+/// (x 40) out to its dimension line at x *at*, its label *label*.
+fn vertical(name: &str, at: f64, lo: f64, hi: f64, label: [f64; 4]) -> Drawn {
+    Drawn {
+        lines: vec![
+            [[40.0, lo], [at - 2.0, lo]],
+            [[40.0, hi], [at - 2.0, hi]],
+            [[at, lo], [at, hi]],
+        ],
+        ..item(name, Kind::Dimension, [at - 3.0, lo, 40.0, hi], Some(label))
+    }
+}
+
+/// #32: two linear dimensions on one dimension line over overlapping spans are an error, at
+/// half a millimetre apart or less; chained dimensions meeting at an extension line, or one a
+/// lane further out, are not. A label more than a text height (3 mm) from its own line is an
+/// error, one beside it (1 mm off, as the layout sets it) is not.
+#[test]
+fn shared_dimension_lines_and_stray_text_are_errors() {
+    let beside = |lo: f64, hi: f64, at: f64| {
+        [
+            at - 3.2,
+            0.5 * (lo + hi) - 2.0,
+            at - 1.0,
+            0.5 * (lo + hi) + 2.0,
+        ]
+    };
+    let found = |items: Vec<Drawn>| {
+        structural::check(&sheet(&[], items))
+            .into_iter()
+            .filter(|i| i.code.starts_with("dimension_"))
+            .map(|i| (i.code, i.severity))
+            .collect::<Vec<_>>()
+    };
+    let shared = vec![
+        vertical("d:22", 20.0, 90.0, 112.0, beside(90.0, 112.0, 20.0)),
+        vertical("d:52", 20.4, 78.0, 130.0, beside(78.0, 130.0, 20.4)),
+    ];
+    assert_eq!(
+        found(shared),
+        vec![("dimension_line_shared".to_string(), Severity::Error)]
+    );
+    for (b_at, b_lo, b_hi) in [
+        (20.0, 112.0, 130.0),
+        (13.0, 78.0, 130.0),
+        (20.6, 78.0, 130.0),
+    ] {
+        let apart = vec![
+            vertical("d:22", 20.0, 90.0, 112.0, beside(90.0, 112.0, 20.0)),
+            vertical("d:b", b_at, b_lo, b_hi, beside(b_lo, b_hi, b_at)),
+        ];
+        assert_eq!(found(apart), vec![], "{b_at} {b_lo}..{b_hi}");
+    }
+    // The label 3.5 mm past the line's far end (and 1 mm across); then 2.5 mm past it, 2.7 mm off.
+    let stray = vertical("d:52", 20.0, 78.0, 130.0, [16.8, 133.5, 19.0, 137.5]);
+    assert_eq!(
+        found(vec![stray]),
+        vec![("dimension_text_stray".to_string(), Severity::Error)]
+    );
+    let near = vertical("d:52", 20.0, 78.0, 130.0, [16.8, 132.5, 19.0, 136.5]);
+    assert_eq!(found(vec![near]), vec![]);
+}

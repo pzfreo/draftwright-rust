@@ -29,9 +29,14 @@
 //!   their mean length are one `N× L` (`_draw_step_chain`'s collapse) when each prints as `L`
 //!   (draftwright collapses them whatever they print, so its `3× 23.3` can stand for a 23 and a
 //!   23.7); along y, each contiguous run of three or more equal lengths is one `N× L` instead
-//!   (`_render_y_profile`). draftwright
-//!   gives a turned step a datum-to-shoulder baseline ladder only from authored PMI
-//!   (`add_authored_step_positions`), which the port does not read, so its steps are a chain.
+//!   (`_render_y_profile`).
+//! - **A baseline from the datum** replaces the chain of a profile that runs end to end of a part
+//!   turned whole when the part's PMI measures it from one end (#33; [`datum_end`]): a planar
+//!   datum feature on that end face (beyond draftwright), or PMI lengths from that end to its
+//!   shoulders (draftwright's `add_authored_step_positions`). The band at the datum keeps its
+//!   length, each further shoulder is located from the datum (`step_position.length` of the band
+//!   it ends), and the overall length is the last rung, so no member is reference. A PMI length
+//!   across the same span takes its rung's place (`share_pmi`).
 //! - **The overall length** of a part turned whole is stated only when its profile's chain (its
 //!   bands' and grooves' spans, adjoining) does not run end to end along the axis: a surviving
 //!   chain conveys it (`_step_chain_covers_extent`; ISSUE-955-a's "a surviving chain does not
@@ -43,7 +48,7 @@
 //! moving of a second parallel profile to the other profile view when both would share a line.
 //! Every item is planned, and placement reports what collides.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::Value;
 
@@ -568,6 +573,23 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             && (p[0].1.lo - lo[k]).abs() <= 1e-3
             && (p[p.len() - 1].1.hi - hi[k]).abs() <= 1e-3
             && p.windows(2).all(|w| (w[0].1.hi - w[1].1.lo).abs() <= 1e-3);
+        // #33: a profile the PMI measures from one end is a baseline from that end, so the sheet
+        // and the inspection list agree; the overall length is its last rung.
+        if full
+            && p.len() >= 2
+            && let Some((high, from)) = datum_end(cx.analysis, p)
+        {
+            let (shoulders, last) = baseline(p, high, &from);
+            out.extend(shoulders);
+            let overall = want_id("envelope", &format!("{}.length", super::envelope::NAMES[k]));
+            if let Some(w) = out.iter_mut().find(|w| w.id == overall) {
+                w.measurements.push(last);
+                w.basis = format!(
+                    "the overall length along the turning axis, the last rung of the profile's baseline from {from}"
+                );
+            }
+            continue;
+        }
         if full {
             // Keep individual links so exactly one, rather than an entire counted
             // chain, can become reference beside the controlling overall length.
@@ -579,6 +601,191 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         }
     }
     (out, problems)
+}
+
+/// The end of turned profile *p* (its bands in order along their axis, adjoining from end to end
+/// of the part) that the part's PMI measures it from, `true` for the high end, and what names it
+/// (`datum A (datum:#847)`), or none when the PMI names neither end or both alike (#33):
+///
+/// - **a datum feature** on the end: a planar datum whose outward normal runs along the axis and
+///   whose every site lies on that end face (beyond draftwright, which takes no datum's say-so);
+/// - else **its PMI lengths** along the axis from one end to a shoulder of the profile, as
+///   draftwright's `_authored_step_baseline` reads them: the end most of them run from, when at
+///   least one of them is more than a single band's own length (a band's length alone establishes
+///   no scheme). Equal support at both ends leaves the chain.
+fn datum_end(analysis: &Analysis, p: &[&Banded]) -> Option<(bool, String)> {
+    let Some(crate::pmi::Reading::Read(report)) = &analysis.pmi else {
+        return None;
+    };
+    let k = p[0].1.axis;
+    let on = p[0].1.on;
+    let (lo, hi) = (p[0].1.lo, p[p.len() - 1].1.hi);
+    let radius = p.iter().map(|(_, b)| b.diameter).fold(0.0, f64::max) / 2.0;
+    let near = |a: f64, b: f64| (a - b).abs() <= 0.01;
+    let on_body = |q: &P3| {
+        (0..3)
+            .filter(|&j| j != k)
+            .map(|j| (q[j] - on[j]).powi(2))
+            .sum::<f64>()
+            .sqrt()
+            <= radius + 0.01
+    };
+    let usable = |r: &&crate::pmi::Record| {
+        r.blockers.is_empty() && r.geometry.as_ref().is_some_and(|g| g.reasons.is_empty())
+    };
+    // Datum features on an end face.
+    let mut datums: Vec<(bool, String)> = Vec::new();
+    for r in report
+        .records
+        .iter()
+        .filter(|r| r.category == crate::pmi::Category::Datum)
+        .filter(usable)
+    {
+        let g = r.geometry.as_ref().expect("usable");
+        let Some(n) = g.normal else { continue };
+        if g.surface.as_deref() != Some("plane")
+            || g.sites.is_empty()
+            || (0..3).any(|j| j != k && n[j].abs() > 1e-6)
+        {
+            continue;
+        }
+        let high = n[k] > 0.0;
+        let end = if high { hi } else { lo };
+        if g.sites.iter().all(|s| near(s[k], end) && on_body(s)) {
+            datums.push((high, format!("datum {} ({})", r.label, r.source_id)));
+        }
+    }
+    match datums
+        .iter()
+        .map(|(h, _)| *h)
+        .collect::<BTreeSet<bool>>()
+        .len()
+    {
+        1 => return datums.into_iter().next(),
+        2 => return None,
+        _ => {}
+    }
+    // PMI lengths from an end to a shoulder.
+    let shoulders: Vec<f64> = p.iter().flat_map(|(_, b)| [b.lo, b.hi]).collect();
+    let mut targets: [BTreeSet<i64>; 2] = [BTreeSet::new(), BTreeSet::new()];
+    let mut established = [false; 2];
+    let mut sources: [Vec<&str>; 2] = [Vec::new(), Vec::new()];
+    for r in report
+        .records
+        .iter()
+        .filter(|r| {
+            r.category == crate::pmi::Category::Dimension
+                && matches!(r.kind.as_str(), "linear" | "thickness")
+        })
+        .filter(usable)
+    {
+        let g = r.geometry.as_ref().expect("usable");
+        if g.axis.as_deref() != Some(["X", "Y", "Z"][k])
+            || g.stations.len() != 2
+            || !g.stations.iter().all(on_body)
+        {
+            continue;
+        }
+        let (s0, s1) = (g.stations[0][k], g.stations[1][k]);
+        for (base, target) in [(s0, s1), (s1, s0)] {
+            let Some(end) = [lo, hi].iter().position(|e| near(base, *e)) else {
+                continue;
+            };
+            if near(base, target) || !shoulders.iter().any(|s| near(*s, target)) {
+                continue;
+            }
+            targets[end].insert((target * 1e3).round() as i64);
+            sources[end].push(&r.source_id);
+            let (a, b) = (base.min(target), base.max(target));
+            if !p.iter().any(|(_, c)| near(c.lo, a) && near(c.hi, b)) {
+                established[end] = true;
+            }
+        }
+    }
+    let end = match (established, targets[0].len().cmp(&targets[1].len())) {
+        ([false, false], _) => return None,
+        ([true, false], _) => 0,
+        ([false, true], _) => 1,
+        (_, std::cmp::Ordering::Greater) => 0,
+        (_, std::cmp::Ordering::Less) => 1,
+        (_, std::cmp::Ordering::Equal) => return None,
+    };
+    sources[end].dedup();
+    Some((
+        end == 1,
+        format!(
+            "the {} end, which the part's AP242 lengths ({}) run from",
+            if end == 1 { "high" } else { "low" },
+            sources[end].join(", ")
+        ),
+    ))
+}
+
+/// Profile *p*'s shoulders located from its datum end (the high end when *high*), named *from*:
+/// the band at the datum keeps its own length (`step.length`, which is its shoulder's distance from
+/// the datum), each further shoulder but the far end is `step_position.length` of the band it
+/// ends, from the datum (the other bands' lengths are planned too, for consolidation to cover),
+/// and the far end's claim (the last band's position), which the overall
+/// length states, is returned for it to carry. The shortest is innermost (placement's lane
+/// order), so the rungs stack from the datum.
+fn baseline(p: &[&Banded], high: bool, from: &str) -> (Vec<Want>, Measurement) {
+    let k = p[0].1.axis;
+    let mut ordered: Vec<&Banded> = p.to_vec();
+    if high {
+        ordered.reverse();
+    }
+    let datum = if high { p[p.len() - 1].1.hi } else { p[0].1.lo };
+    let far = |b: &Band| if high { b.lo } else { b.hi };
+    let mut out = Vec::new();
+    let first = ordered[0];
+    out.push(length(
+        first.0,
+        &[first],
+        vec![fmt(first.1.hi - first.1.lo)],
+        format!(
+            "a turned step's length along {}, its shoulder's distance from {from}: the first rung of the profile's baseline, in a view that shows the profile",
+            AXES[k]
+        ),
+    ));
+    // The other bands' own lengths stay planned, so a spec that names one still reads; the plan
+    // shows each as conveyed by the rung that locates its band (`redundancy::consolidate`).
+    for b in &ordered[1..] {
+        out.extend(chain(std::slice::from_ref(b)));
+    }
+    for (f, b) in &ordered[1..ordered.len() - 1] {
+        let value = (far(b) - datum).abs();
+        out.push(Want {
+            id: want_id(&f.id, "step_position.length"),
+            views: profile_views(k),
+            value,
+            terms: vec![fmt(value)],
+            measurements: vec![Measurement {
+                feature: f.id.clone(),
+                parameter: "step_position.length".into(),
+                value,
+            }],
+            basis: format!(
+                "a turned step's far shoulder along {}, located from {from}: one rung of the profile's baseline, in a view that shows the profile",
+                AXES[k]
+            ),
+            shape: Shape::Linear {
+                a: corner(k, datum, b.on),
+                b: corner(k, far(b), b.on),
+                axis: k,
+                a_edge: true,
+                b_edge: true,
+                order: 1,
+            },
+            turning: None,
+        });
+    }
+    let (f, b) = ordered[ordered.len() - 1];
+    let last = Measurement {
+        feature: f.id.clone(),
+        parameter: "step_position.length".into(),
+        value: (far(b) - datum).abs(),
+    };
+    (out, last)
 }
 
 /// The overall diameter and, unless the step chain conveys it, the overall length of part *t*,

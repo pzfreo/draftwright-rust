@@ -149,6 +149,12 @@ pub struct Analysis {
     /// symbols ([`crate::pmi_lowering`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pmi: Option<crate::pmi::Reading>,
+    /// Each face's attachment, by face index ([`crate::pmi::face_attachments`]): where a datum
+    /// or geometric tolerance the Spec authors on it attaches, as an AP242 record on the same
+    /// faces would ([`crate::spec_gdt`]). Added to version 7 as an optional field; an Analysis
+    /// without it refuses Spec-authored GD&T (analyse again).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub face_attachments: Vec<crate::pmi::FaceAttachment>,
     /// The file's distinct parts, when it holds more than one (an assembly): absent for a file
     /// of one part. With no part chosen (`binding.part_index` absent) they are drawn together
     /// as one, and the plan warns (`assembly_drawn_whole`).
@@ -225,6 +231,11 @@ pub struct Spec {
     /// Per feature, by its ID (`f:<kind>:<n>`).
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub features: BTreeMap<String, FeatureSpec>,
+    /// Datums and feature control frames on faces, by the side of the part's box the face is
+    /// on (`bottom`, `top`, `left`, `right`, `front`, `back`) or its index (`face:<n>`)
+    /// ([`crate::spec_gdt`]).
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub faces: BTreeMap<String, crate::spec_gdt::FaceSpec>,
     /// General notes, in the order they are numbered ([`crate::notes`]).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<NoteSpec>,
@@ -279,6 +290,14 @@ pub struct FeatureSpec {
     /// printed after the diameter of the callout that states it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fit: Option<String>,
+    /// A datum letter on the feature (ISO 5459's symbol, draftwright's `Sheet.datum`): on its
+    /// cylinders' common axis when it has cylinders, else on its faces ([`crate::spec_gdt`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub datum: Option<String>,
+    /// Feature control frames on the feature (ISO 1101, draftwright's `Sheet.control`), drawn
+    /// as an AP242 tolerance on the same faces is ([`crate::spec_gdt`]).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub controls: Vec<crate::spec_gdt::ControlSpec>,
 }
 
 impl Default for Spec {
@@ -293,6 +312,7 @@ impl Default for Spec {
             hole_table: crate::hole_table::Setting::Auto,
             dimensions: BTreeMap::new(),
             features: BTreeMap::new(),
+            faces: BTreeMap::new(),
             annotations: BTreeMap::new(),
             notes: Vec::new(),
             tables: Vec::new(),
@@ -621,6 +641,27 @@ fn unanalysed(failed: bool, message: String) -> Unanalysed {
     Unanalysed { failed, message }
 }
 
+/// The STEP text of *bytes*: decompressed in memory when they are gzip (they begin with its
+/// magic bytes `1f 8b`, whatever the file is called), else as given. Every hash or binding of a
+/// STEP file is of these bytes, so a `.step` and its `.step.gz` bind identically.
+pub fn step_bytes(bytes: &[u8]) -> Result<std::borrow::Cow<'_, [u8]>, String> {
+    if !bytes.starts_with(&[0x1f, 0x8b]) {
+        return Ok(std::borrow::Cow::Borrowed(bytes));
+    }
+    let mut text = Vec::new();
+    std::io::Read::read_to_end(&mut flate2::read::MultiGzDecoder::new(bytes), &mut text)
+        .map_err(|e| format!("it is gzip but cannot be decompressed: {e}"))?;
+    Ok(std::borrow::Cow::Owned(text))
+}
+
+/// The STEP text of the file at *path* ([`step_bytes`]: gzip is decompressed).
+pub fn read_step_file(path: &Path) -> Result<Vec<u8>, String> {
+    let bytes = std::fs::read(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    step_bytes(&bytes)
+        .map(std::borrow::Cow::into_owned)
+        .map_err(|e| format!("cannot read {}: {e}", path.display()))
+}
+
 /// Reads the STEP file at *path*: the part, and its analysis, without features.
 pub fn analyse(path: &Path) -> Result<(Part, Analysis), Unanalysed> {
     analyse_with(path, None)
@@ -629,7 +670,9 @@ pub fn analyse(path: &Path) -> Result<(Part, Analysis), Unanalysed> {
 /// The distinct parts of the STEP file *bytes* (named *path*, for messages), in haecceity's
 /// order: what [`analyse_step_part`]'s *part* indexes.
 pub fn parts(path: &Path, bytes: &[u8]) -> Result<Vec<FilePart>, Unanalysed> {
-    let defs = haecceity::step::read_part_definitions(bytes).map_err(|e| step_refused(path, e))?;
+    let bytes = step_bytes(bytes)
+        .map_err(|e| unanalysed(false, format!("cannot read {}: {e}", path.display())))?;
+    let defs = haecceity::step::read_part_definitions(&bytes).map_err(|e| step_refused(path, e))?;
     Ok(file_parts(&defs))
 }
 
@@ -682,8 +725,7 @@ pub fn analyse_with_part(
     recognition: Option<&Path>,
     part: Option<usize>,
 ) -> Result<(Part, Analysis), Unanalysed> {
-    let bytes = std::fs::read(path)
-        .map_err(|e| unanalysed(false, format!("cannot read {}: {e}", path.display())))?;
+    let bytes = read_step_file(path).map_err(|e| unanalysed(false, e))?;
     let (part, mut analysis) = analyse_step_part(path, &bytes, part)?;
     if let Some(r) = recognition {
         let json = std::fs::read_to_string(r)
@@ -724,9 +766,20 @@ pub fn analyse_step_part(
     bytes: &[u8],
     chosen: Option<usize>,
 ) -> Result<(Part, Analysis), Unanalysed> {
+    let bytes = &*step_bytes(bytes)
+        .map_err(|e| unanalysed(false, format!("cannot read {}: {e}", path.display())))?;
     // The file's part definitions are read in both cases (the PMI reading needs them too, and
-    // is given these rather than reading them again).
+    // is given these rather than reading them again). A gzipped file's name is its STEP name
+    // with `.gz` after it, so `part.step.gz` and `part.stp.gz` are named as `part.step` is.
     let stem = || {
+        let plain = path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("gz"));
+        let path = if plain {
+            Path::new(path.file_stem().unwrap_or_default())
+        } else {
+            path
+        };
         path.file_stem().map_or(String::new(), |s| {
             s.to_string_lossy().trim_end_matches(".step").to_string()
         })
@@ -814,6 +867,7 @@ pub fn analyse_step_part(
             defs.as_deref().map_err(String::as_str),
             chosen,
         ),
+        face_attachments: crate::pmi::face_attachments(&part),
         parts: match &defs {
             Ok(defs) if defs.len() > 1 => file_parts(defs),
             _ => Vec::new(),
@@ -1240,6 +1294,10 @@ pub(crate) fn undrawn_gdt(p: &Plan) -> usize {
 /// Find the smallest fit and its largest scale; only its immediate larger sheet, with an
 /// enlargement, may compete. Pins keep their canonical sheet; explicit choices override.
 pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
+    // The Spec's datums and controls merged into the PMI reading, once, so every later use of the
+    // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).
+    let merged = crate::spec_gdt::effective(analysis, spec)?;
+    let analysis = merged.as_ref();
     use std::collections::VecDeque;
     use std::sync::{Mutex, OnceLock};
     // Preview and commit often plan identical intent. Keep a small process-local memo whose
@@ -1726,6 +1784,10 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
 /// caller (the library's [`crate::api`], so the command line, the JSON-lines service and MCP)
 /// is given. A plan that cannot be made is refused as [`plan`] refuses it.
 pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    // The Spec's datums and controls merged into the PMI reading, once, so every later use of the
+    // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).
+    let merged = crate::spec_gdt::effective(analysis, spec)?;
+    let analysis = merged.as_ref();
     crate::planning::with(analysis, || crate::sheets::allocate(analysis, spec))
 }
 
@@ -1797,6 +1859,10 @@ fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan,
 /// the dimensions, which on most parts keeps a larger scale, but where the dimensions run on
 /// past it an item can find no place (nist_stc_09 e4 at 1:1: 13 frames across the plan).
 pub fn plan_escalated(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    // The Spec's datums and controls merged into the PMI reading, once, so every later use of the
+    // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).
+    let merged = crate::spec_gdt::effective(analysis, spec)?;
+    let analysis = merged.as_ref();
     plan_escalated_with(analysis, spec, false, None)
 }
 
@@ -1964,6 +2030,8 @@ fn plan_with_presentation(
         ));
     }
     let spec = &migrate(spec, analysis)?;
+    let merged = crate::spec_gdt::effective(analysis, spec)?;
+    let analysis = merged.as_ref();
     crate::sheets::validate(spec)?;
     crate::dims::check_views(spec)?;
     crate::placement_intent::check(spec)?;
@@ -2033,6 +2101,7 @@ fn plan_with_presentation(
             .filter(|id| id.starts_with("d:f:") || id.starts_with("d:pmi:"))
             .map(|id| ("dimensions", id))
             .chain(spec.features.keys().map(|id| ("features", id)))
+            .chain(spec.faces.keys().map(|id| ("faces", id)))
             .chain(spec.annotations.keys().map(|id| ("annotations", id)))
             .collect();
         inactive = inactive_entries
@@ -2044,6 +2113,7 @@ fn plan_with_presentation(
             .retain(|id, _| !id.starts_with("d:f:") && !id.starts_with("d:pmi:"));
         effective.annotations.clear();
         effective.features.clear();
+        effective.faces.clear();
         problems.push(Problem {
             id: "p:rebind:part".into(),
             code: "spec_from_other_revision".into(),
@@ -2932,6 +3002,9 @@ fn plan_with_presentation(
                 | "annotation_leader_crossing"
                 | "leader_through_feature"
                 | "extension_through_feature"
+                // #32: judged again on the settled ink below, as the collisions are.
+                | "dimension_line_shared"
+                | "dimension_text_stray"
         ) || !p
             .subjects
             .iter()
@@ -3463,6 +3536,7 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
         .map_err(|e| invalid(format!("The edited spec is not valid: {e}."), &[]))?;
     crate::sheets::validate(&spec)?;
     crate::dims::check_tolerances(&spec)?;
+    crate::spec_gdt::check(&spec)?;
     crate::dims::check_views(&spec)?;
     crate::placement_intent::check(&spec)?;
     title_block::check(&spec.sheet.title)?;
