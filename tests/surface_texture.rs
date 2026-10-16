@@ -22,9 +22,11 @@ fn analysed(stem: &str) -> (Part, Analysis) {
     flate2::read::GzDecoder::new(std::fs::File::open(gz).unwrap())
         .read_to_end(&mut bytes)
         .unwrap();
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let call = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join("surface_texture")
-        .join(format!("{}-{stem}", std::process::id()));
+        .join(format!("{}-{call}-{stem}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join(format!("{stem}.step"));
     std::fs::write(&path, bytes).unwrap();
