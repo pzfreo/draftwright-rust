@@ -1368,6 +1368,9 @@ pub(super) fn intent(
     if !p.pinned && p.side.is_none() && p.lane.is_none() && p.along.is_none() {
         return None;
     }
+    if matches!(w.shape, Shape::Callout { .. }) && crate::placement_intent::side_hint(p).is_some() {
+        return None;
+    }
     let side = match p.side {
         Some(crate::placement_intent::Side::Above) => Side::Above,
         Some(crate::placement_intent::Side::Below) => Side::Below,
@@ -2144,6 +2147,53 @@ pub(crate) fn collisions_cached(
 
 #[cfg(test)]
 mod tests {
+    /// ARCH0009-5: deliberately scramble input order and make the size longer than a
+    /// location: category precedes distance; datum locations alone nest by distance.
+    #[test]
+    fn shared_corridor_orders_sizes_then_locations_then_overall() {
+        let a: Analysis = serde_json::from_value(serde_json::json!({
+            "schema": crate::model::ANALYSIS_SCHEMA,
+            "binding": {"source_sha256":"", "part":"plate", "face_count":0, "loader":"test"},
+            "envelope":[[0,0,0],[100,60,10]], "iso_bounds":[0,0,100,60]
+        }))
+        .unwrap();
+        let frames = BTreeMap::from([(
+            "front",
+            Frame::looking(&a, [0., -1., 0.], [0., 0., 1.], [0., 0.], 1.),
+        )]);
+        let want = |id: &str, span: f64, order| Want {
+            id: id.into(),
+            views: vec!["front"],
+            value: span,
+            terms: vec![span.to_string()],
+            measurements: vec![],
+            basis: String::new(),
+            turning: None,
+            shape: Shape::Linear {
+                a: [0., 0., 0.],
+                b: [span, 0., 0.],
+                axis: 0,
+                a_edge: false,
+                b_edge: false,
+                order,
+            },
+        };
+        let items = [
+            want("overall", 100., 2),
+            want("far", 70., 1),
+            want("size", 40., 0),
+            want("near", 20., 1),
+            want("middle", 50., 1),
+        ];
+        let (sides, lane) = lanes(
+            &frames,
+            items.iter().map(|w| (w, Some("front"))),
+            &[None; 5],
+        );
+        assert!(sides.iter().all(|s| *s == Some(Side::Below)));
+        assert_eq!(lane, [4, 3, 0, 1, 2]);
+    }
+
     #[test]
     fn front_left_lanes_do_not_reserve_the_plan_band() {
         let front = Some("front");

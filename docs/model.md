@@ -353,6 +353,11 @@ also take `offset` (below):
 | `offset` | Callouts only: `[dx, dy]`, each within ±1000 paper mm (y up), the bend's offset from the callout's automatic leader tip. Requires `pinned: true` and excludes `side`, `lane` and `along`. |
 | `pinned` | Defaults to false. True fixes the resolved geometry before automatic layout; without side, lane or along it keeps the canonical automatic ink (its lines and arrows; a label whose own text changes, such as a new tolerance, is re-set from its current text, centred where the old one was, or for a callout from the end of its shoulder); a free item can be adjusted around obstacles. |
 
+An unpinned callout with only `side` (and optionally `view`) keeps participating in the
+shared leader solve. Its candidates stay on that side, its printed label reserves paper space
+before view packing, and the solver chooses a station clear of other ink. Supplying `lane`,
+`along` or a pin continues to prescribe a station.
+
 A pinned callout above or below a view puts its text on the side its leader runs to:
 an elbow left of the tip carries text to the left, and a vertical leader defaults to the
 right. Left/right columns keep their stated side. A pinned callout's bend and label are
@@ -472,6 +477,22 @@ reviewed by re-planning. Exports embed these entries, so extracting the Spec and
 reproduces the same geometry (`tests/placement_intent.rs`, SVG, DXF, PDF and PNG).
 
 ### Plan: what the sheet will say
+
+`analysis_sha256` identifies the complete effective Analysis used for planning, including its
+recognition records and recogniser, beside the STEP `binding` and embedded `spec`. It is a
+SHA-256 digest of the deterministic JSON serialization, not merely the source-file hash;
+changing `--features` therefore changes the run's provenance even for the same STEP and Spec.
+Older saved plans read with no digest.
+
+`feature_dispositions` reports each recognised occurrence without a dimension owner. Its
+`subject` is a feature ID, or `recognition:evidence:<index>` / `recognition:refusal:<index>` in
+the Analysis's same-run record arrays. Each informational entry has a closed `disposition`
+(`unsupported`, `deferred`, `evidence_only`) and `reason_code`. The dimension planners and their
+undrafted capability table supply the policy: a countersink is hole-callout evidence, while
+unreviewed freeform, sheet-metal and similar grammars are deferred. Evidence-only step levels,
+risers and repeating profiles keep their own reasons. These records do not remove completeness
+or unsupported-feature warnings, and an authored omission is not an ownerless disposition.
+
 
 `plan(analysis, spec)` produces it. The plan is the preview, and renderers draw only from it.
 
