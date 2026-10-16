@@ -198,6 +198,9 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let mut coincident: Vec<(usize, P3, Sites)> = Vec::new(); // callout index, station
     let reads: Vec<&holes::Hole> = holes.iter().map(|h| &h.read).collect();
     let bosses = holes::bosses(analysis);
+    // The part's threads and knurls on their owners: a hole's, or a pattern's when the Spec
+    // authors one on it ([`crate::spec_notes`]).
+    let manufacturing = crate::pmi_lowering::manufacturing(analysis);
     for p in patterns {
         let members = match holes::established_with(p, &reads, &bosses) {
             Ok(members) => members,
@@ -320,6 +323,23 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             .iter()
             .flat_map(|&m| holes[m].measurements())
             .collect();
+        // A thread the Spec authors on the pattern leads its pattern suffix, as draftwright's
+        // `hole_callout_spec` folds a pattern member's thread (`4× ⌀6 THRU M6 (2×2)`).
+        let (thread, _) = manufacturing.terms(&p.id);
+        terms.extend(thread);
+        let mut threaded = String::new();
+        for o in manufacturing.on(&p.id) {
+            measurements.push(Measurement {
+                feature: o.id.clone(),
+                parameter: o.aspect.into(),
+                value: first.diameter,
+            });
+            threaded = format!(
+                "; it carries {} thread ({}), printed after its holes' size",
+                manufacturing.author(&p.id),
+                o.source
+            );
+        }
         terms.extend(suffix);
         if let Some(d) = bcd {
             measurements.push(Measurement {
@@ -345,7 +365,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             terms,
             measurements,
             turning: None,
-            basis: format!("{why}; called out where it is seen end-on"),
+            basis: format!("{why}; called out where it is seen end-on{threaded}"),
             shape: Shape::Callout { sites },
         });
     }
@@ -386,7 +406,6 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     // The holes left: identical ones grouped and counted (ARCH0008-2). A hole that carries an
     // AP242 thread keeps a callout of its own (draftwright: identical threads on distinct owners
     // keep two annotations, ISSUE-1298-a).
-    let manufacturing = crate::pmi_lowering::manufacturing(analysis);
     // (requirement, the threaded hole's own ID), members.
     type Group<'a> = ((Vec<i64>, Option<&'a str>), Vec<usize>);
     let mut groups: Vec<Group> = Vec::new();
@@ -432,7 +451,8 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 });
             }
             threaded = format!(
-                "; it carries the part's AP242 thread ({}), {}, as draftwright gives a thread to the hole whose bore its cylinder is (lower_ap242_manufacturing_requirements)",
+                "; it carries {} thread ({}), {}, as draftwright gives a thread to the hole whose bore its cylinder is (lower_ap242_manufacturing_requirements)",
+                manufacturing.author(&first.feature.id),
                 on.iter()
                     .map(|o| o.source.as_str())
                     .collect::<Vec<_>>()

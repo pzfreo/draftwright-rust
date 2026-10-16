@@ -1250,6 +1250,28 @@ fn settable(
                     "fields": ["characteristic", "tolerance", "datums", "diameter", "modifier"],
                 }),
             );
+            // A finish and a note on any feature; a thread on a hole, hole pattern or turned
+            // diameter; a knurl on a turned diameter ([`crate::spec_notes`]).
+            fields.insert(format!("{base}/finish"), json!({"fields":["ra","removal"]}));
+            fields.insert(format!("{base}/note"), json!({"forms":["text"]}));
+            let kind = session
+                .analysis()
+                .features
+                .iter()
+                .find(|f| &f.id == feature)
+                .map_or("hole_pattern", |f| f.kind.as_str());
+            if matches!(kind, "hole" | "hole_pattern" | "turned_step" | "boss") {
+                fields.insert(
+                    format!("{base}/thread"),
+                    json!({"fields":["designation","length"]}),
+                );
+            }
+            if matches!(kind, "turned_step" | "boss") {
+                fields.insert(
+                    format!("{base}/knurl"),
+                    json!({"fields":["pattern","pitch"],"choices":["straight","diamond"]}),
+                );
+            }
         }
     }
     if item.item.kind == "sheet" {
@@ -1269,6 +1291,10 @@ fn settable(
         fields.insert(
             "sheet/projection".into(),
             choices(json!(model::PROJECTIONS)),
+        );
+        fields.insert(
+            "sheet/default_finish".into(),
+            json!({"fields":["ra","removal"]}),
         );
     }
     fields

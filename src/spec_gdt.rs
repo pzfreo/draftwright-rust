@@ -112,6 +112,12 @@ pub struct FaceSpec {
     /// Feature control frames on the face.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub controls: Vec<ControlSpec>,
+    /// An ISO 1302 surface texture on the face ([`crate::spec_notes`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub finish: Option<crate::spec_notes::FinishSpec>,
+    /// A note on a leader to the face ([`crate::spec_notes`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
 }
 
 /// Whether *spec* authors any datum or control.
@@ -238,12 +244,13 @@ pub(crate) fn check(spec: &Spec) -> Result<(), Invalid> {
             }
         }
     }
-    Ok(())
+    // And every finish, thread, knurl and note ([`crate::spec_notes`]).
+    crate::spec_notes::check(spec)
 }
 
 /// The faces a datum or control on feature or pattern *id* applies to: its cylinders, when it has
 /// any, else all its faces; or why there is none.
-fn feature_faces(analysis: &Analysis, id: &str) -> Result<Vec<usize>, Invalid> {
+pub(crate) fn feature_faces(analysis: &Analysis, id: &str) -> Result<Vec<usize>, Invalid> {
     let patterns = analysis
         .recognition
         .as_ref()
@@ -285,7 +292,7 @@ fn feature_faces(analysis: &Analysis, id: &str) -> Result<Vec<usize>, Invalid> {
 
 /// The faces face key *key* names: a side of the part's box (its planar faces lying on that side,
 /// facing out), or `face:<n>`.
-fn named_faces(analysis: &Analysis, key: &str) -> Result<Vec<usize>, Invalid> {
+pub(crate) fn named_faces(analysis: &Analysis, key: &str) -> Result<Vec<usize>, Invalid> {
     let forms = || {
         SIDES
             .iter()
@@ -361,7 +368,7 @@ fn bbox(analysis: &Analysis, faces: &[usize]) -> Option<[f64; 6]> {
 
 /// A record of *category* on *faces*, as the AP242 reading makes one, its attachment measured
 /// from the faces' attachments.
-fn record(
+pub(crate) fn record(
     analysis: &Analysis,
     part: usize,
     source_id: String,
@@ -432,7 +439,9 @@ pub fn effective<'a>(analysis: &'a Analysis, spec: &Spec) -> Result<Cow<'a, Anal
         .binding
         .as_ref()
         .is_some_and(|b| b.source_sha256 != analysis.binding.source_sha256);
-    if !authors(spec) || merged || other_revision {
+    // The finishes, threads, knurls and notes the Spec authors ride the same merge
+    // ([`crate::spec_notes`]).
+    if !(authors(spec) || crate::spec_notes::authors(spec)) || merged || other_revision {
         return Ok(Cow::Borrowed(analysis));
     }
     check(spec)?;
@@ -575,6 +584,7 @@ pub fn effective<'a>(analysis: &'a Analysis, spec: &Spec) -> Result<Cow<'a, Anal
             records.push(r);
         }
     }
+    records.extend(crate::spec_notes::records(analysis, spec, part)?);
     // Where the file states the same, the Spec wins: a datum of the same letter, a tolerance of
     // the same characteristic on the same faces.
     let overrides = |pmi: &Record| -> Option<&Record> {
@@ -585,7 +595,8 @@ pub fn effective<'a>(analysis: &'a Analysis, spec: &Spec) -> Result<Cow<'a, Anal
                     && s.kind == pmi.kind
                     && s.faces == pmi.faces
             }
-            _ => false,
+            // A finish, default finish, thread or knurl ([`crate::spec_notes::overrides`]).
+            _ => crate::spec_notes::overrides(s, pmi),
         })
     };
     let mut dropped = BTreeSet::new();
@@ -663,7 +674,7 @@ pub fn effective<'a>(analysis: &'a Analysis, spec: &Spec) -> Result<Cow<'a, Anal
 type Entry<'a> = (String, Vec<usize>, &'a Option<String>, &'a Vec<ControlSpec>);
 
 /// The attachments of *r*'s faces, in its order.
-fn attachments(analysis: &Analysis, r: &Record) -> Vec<FaceAttachment> {
+pub(crate) fn attachments(analysis: &Analysis, r: &Record) -> Vec<FaceAttachment> {
     r.faces
         .iter()
         .map(|&f| analysis.face_attachments[f].clone())

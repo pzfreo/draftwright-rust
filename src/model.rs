@@ -298,6 +298,21 @@ pub struct FeatureSpec {
     /// as an AP242 tolerance on the same faces is ([`crate::spec_gdt`]).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub controls: Vec<crate::spec_gdt::ControlSpec>,
+    /// An ISO 1302 surface texture on the feature (draftwright's `finish`), on its cylinders when
+    /// it has cylinders, else on its faces ([`crate::spec_notes`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub finish: Option<crate::spec_notes::FinishSpec>,
+    /// An ISO metric thread on a hole, hole pattern or turned step (draftwright's `thread`),
+    /// printed after its callout's size ([`crate::spec_notes`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thread: Option<crate::spec_notes::ThreadSpec>,
+    /// A knurl on a turned step (draftwright's `knurl`), printed after its diameter
+    /// ([`crate::spec_notes`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub knurl: Option<crate::spec_notes::KnurlSpec>,
+    /// A note on a leader to the feature (draftwright's `note`) ([`crate::spec_notes`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
 }
 
 impl Default for Spec {
@@ -343,6 +358,10 @@ pub struct SheetSpec {
         deserialize_with = "projection_method"
     )]
     pub projection: Option<String>,
+    /// The part's default surface texture (draftwright's `default_surface_finish`), its ISO 1302
+    /// symbol beside the title block, as an AP242 one on the part is drawn ([`crate::spec_notes`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_finish: Option<crate::spec_notes::FinishSpec>,
 }
 
 fn projection_method<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {

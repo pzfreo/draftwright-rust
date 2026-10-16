@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 KEYS = ['off_sheet', 'repeated_label', 'repeated_measure', 'views_overlap',
         'view_on_title_block', 'ink', 'repeated_span', 'line_through_feature',
         'hidden_on_visible', 'section_hidden']
-JOBS = ('quality-pins', 'repeated-spans', 'mcp', 'plan-time')
+JOBS = ('quality-pins', 'repeated-spans', 'mcp', 'plan-time', 'render-tail')
 PIN_CELLS = tuple(f'{seed}-{pins}' for seed in (1, 2, 3) for pins in (1, 3, 8))
 CORPUS_REV = '6d544e060cd0eeb4442d2196e5df757b5a15ea55'
 spec = importlib.util.spec_from_file_location('quality', ROOT / 'tools/quality.py')
@@ -206,6 +206,9 @@ class Run:
         elif job == 'plan-time':
             self.step('plan-time', [*py, ROOT / 'tools/check_plan_time.py',
                       '--binary', binary, '--corpus', args.corpus, '--out', out / 'plan-time.json'])
+        elif job == 'render-tail':
+            self.step('render-tail', [*py, ROOT / 'tools/check_render_tail.py',
+                      '--binary', binary, '--corpus', args.corpus, '--out', out / 'render-tail.json'])
         else:
             self.step('python-quality-tests', [*py, ROOT / 'tools/test_quality.py'])
             self.step('acceptance-tests', [*py, ROOT / 'tools/test_ci_acceptance.py'])

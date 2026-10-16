@@ -30,6 +30,7 @@ pub mod session;
 pub mod sheet_fit;
 pub mod sheets;
 pub mod spec_gdt;
+pub mod spec_notes;
 pub use session::Session;
 pub mod tables;
 pub mod text;

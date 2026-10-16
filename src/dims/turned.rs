@@ -400,8 +400,17 @@ fn carries(manufacturing: &Manufacturing, members: &[&Banded]) -> String {
     if sources.is_empty() {
         return String::new();
     }
+    // The spec's, when the Spec authors one ([`crate::spec_notes`]).
+    let author = if sources
+        .iter()
+        .any(|s| s.starts_with(crate::spec_gdt::SOURCE_PREFIX))
+    {
+        "the spec's"
+    } else {
+        "the part's AP242"
+    };
     format!(
-        "; it carries the part's AP242 thread or knurl ({}), {}, as draftwright gives one to the turned step whose cylinder it names (lower_ap242_manufacturing_requirements)",
+        "; it carries {author} thread or knurl ({}), {}, as draftwright gives one to the turned step whose cylinder it names (lower_ap242_manufacturing_requirements)",
         sources.join(", "),
         if manufacturing.tags.is_empty() {
             "printed after its diameter"

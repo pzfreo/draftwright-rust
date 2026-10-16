@@ -53,6 +53,7 @@ pub mod channels;
 pub mod circular_blind_steps;
 pub mod coverage;
 pub mod envelope;
+pub mod fidelity;
 pub mod fillets;
 pub mod flats;
 pub mod grooves;

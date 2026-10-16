@@ -1419,7 +1419,9 @@
     module: "linting/angular.py"
     issues: [1177]
     tests: [tests/test_angular_rendering.py, tests/test_angle_patterns.py]
-  status: pending
+  status: ported
+  rust_test: "tests/lint_fidelity.rs::an_angle_states_the_degrees_between_its_rays"
+  rust_note: "Stream K7, src/lint/fidelity.rs: the rays are read from the ink (the two extension lines, from where their carriers meet), never from the plan's angle; the leading nominal (after any quantity mark) must agree within half its last printed place. The port's angles are PMI records printed without a degree sign (60 ±0.5), which the drawing's angular ink, not its text, identifies, as draftwright's implicit_degree_label does."
   port_note: "Keep."
 
 - id: LINT-code-angular_geometry_mismatch
@@ -1431,7 +1433,9 @@
     module: "linting/angular.py"
     issues: [1177]
     tests: [tests/test_angular_rendering.py, tests/test_canonical_angles.py]
-  status: pending
+  status: ported
+  rust_test: "tests/lint_fidelity.rs::an_angle_draws_an_arc_about_its_vertex_with_extension_lines_past_it"
+  rust_note: "Stream K7, src/lint/fidelity.rs: an angular dimension (a non-callout dimension whose ink is not linear) must have a vertex (non-parallel extension lines, a proper sector), arc chords about it at one radius (0.01 mm), none outside the sector, on both halves, the arc reaching each ray at its radius (draftwright's tip vertex), and each extension line along its ray past the arc. The port draws arcs as chords, so a chord's two ends stand for draftwright's circular edge."
   port_note: "Keep."
 
 - id: LINT-code-angular_support_mismatch
@@ -1443,7 +1447,9 @@
     module: "linting/angular.py"
     issues: [1177]
     tests: [tests/test_angular_rendering.py, tests/test_canonical_angles.py]
-  status: pending
+  status: ported
+  rust_test: "tests/lint_fidelity.rs::an_angles_rays_are_the_corners_physical_edges"
+  rust_note: "Stream K7, src/lint/fidelity.rs, the drawn half: each ray must lie along a straight visible edge of its view (within 0.01 mm, on the ray's side of the vertex), the edges an angle's planar faces project to in the view that shows it true. draftwright compares the drawn witnesses with its registry's support roster; lint here reads only the drawing. A quantity mark on an angle is refused (one drawn corner cannot prove n): the port draws no counted angles (its angles are single PMI records), so detected and authored group proofs are not-applicable."
   port_note: "Keep."
 
 - id: LINT-code-angular_support_unverifiable
@@ -1603,8 +1609,9 @@
     module: "linting/structural.py"
     issues: [1600, 1153, 1209, 1216]
     tests: [tests/test_lint_structural.py, tests/test_issue_1006_measurement_comparison.py]
-  status: pending
-  rust_note: "Not ported (src/lint/structural.rs leaves it out): the rendered drawing does not record what the rule measures. It needs, for each linear dimension, its measured path (draftwright's measured_length: the page distance between the two points it dimensions) and that annotation's scale; output::Drawing records each dimension's ink and label boxes (Drawing::sheet) and its text and claims (Drawing::annotations), and the plan's dims::Placed has only lines, arrowheads and the label box. Reading the path off the arrowheads would be a guess about how each kind is drawn."
+  status: ported
+  rust_test: "tests/lint_fidelity.rs::a_linear_label_states_its_drawn_span_divided_by_the_view_scale"
+  rust_note: "Stream K7, src/lint/fidelity.rs (run by structural::check, so review's structural list and tools/quality.py's review read it): the measured path is read from the ink alone, the span between a linear dimension's two extension lines (output::linear_ink), divided by its view's recorded scale (Sheet::frames); thresholds, severities and the correct-rounding exemption as draftwright, with the port's one-place sheet precision (dims::fmt) as the floor. Differences: every N× v the port draws spans one member (a pattern's first pitch, one rise, one of equal features), so N× v reads v where draftwright needs a producer tag; an INCH PMI label is compared in millimetres at its own printed places. Passes on the port's drawings of the 30 quality parts, the lint_structural corpus and the PMI fixtures (tests/lint_fidelity.rs::the_ports_own_pmi_drawing_says_what_it_draws catches a moved extension line on nist_ctc_01)."
   port_note: "Keep."
 
 - id: LINT-code-nominal_rounded
@@ -1616,7 +1623,9 @@
     module: "linting/structural.py"
     issues: [1600, 1610]
     tests: [tests/test_issue_1349_precision_display.py]
-  status: pending
+  status: ported
+  rust_test: "tests/lint_fidelity.rs::a_correctly_rounded_label_is_noted_once_per_sheet"
+  rust_note: "Stream K7, src/lint/fidelity.rs: once per sheet, info, from the same reading as label_vs_measured (shift floor 0.0005 mm, largest named). The port's spec has no display precision, so the message says the dimension needs more places, which the spec cannot yet ask for, in place of draftwright's .format(decimals=…) advice. Recorded on the corpus drawings in tests/fixtures/known_structural.json (7 parts, rust-correct)."
   port_note: "Keep."
 
 - id: LINT-code-scale_not_stated
@@ -1780,7 +1789,7 @@
     tests: [tests/test_interior_label_placement.py]
   status: pending
   rust_test: empty_space_without_projected_material_is_refused
-  rust_note: "H7 revives this rule. Planning requires whole-label material containment with 0.5 paper mm boundary clearance. The full connected-band narrow-material lint and curved material fields remain unported; known_interior.json records the conservative restriction."
+  rust_note: "H7 revives this rule. Planning requires whole-label material containment with 0.5 paper mm boundary clearance. The full connected-band narrow-material lint and curved material fields remain unported; known_interior.json records the conservative restriction. Stream K7 left it out of src/lint/fidelity.rs: the drawing records each view's edges, not which side of them is material, so the lint has no material field to probe."
   port_note: "Keep."
 
 - id: LINT-code-leader_crosses_silhouette
@@ -1816,7 +1825,9 @@
     module: "linting/structural.py"
     issues: [2181]
     tests: [tests/test_gdt_placement.py]
-  status: pending
+  status: ported
+  rust_test: "tests/lint_fidelity.rs::a_datum_symbol_sits_close_to_its_surface"
+  rust_note: "Stream K7, src/lint/fidelity.rs: a PMI datum symbol (pmi:datum.…) whose shaft, from the triangle's base (the symbol's ink furthest from its frame along the shaft) to the frame, exceeds max(24 mm, 2.5 × the frame's larger side): warning. Real findings, left visible: nist_ctc_01's datum C at 60.5 mm (tests/lint_fidelity.rs::the_ports_own_pmi_drawing_says_what_it_draws), the thumbwheel's A at 222 mm, the editor spindle's B at 37.5 mm and others on the PMI fixtures (strip placement of datum symbols, not chased here). None of the 30 quality parts carries a datum."
   port_note: "Keep."
 
 - id: LINT-code-detail_caption_clearance
