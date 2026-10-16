@@ -1000,7 +1000,7 @@ fn drawing_consumer_observes_real_ink_and_reports_failed_builds_unknown() {
             (18, 0, 0)
         );
         assert!(observed.holes.iter().all(|h| !h.carriers.is_empty()));
-        for damage in ["empty", "wrong", "missing"] {
+        for damage in ["empty", "wrong", "missing", "quantity"] {
             let mut drawing = original.clone();
             if damage == "missing" {
                 drawing
@@ -1015,10 +1015,10 @@ fn drawing_consumer_observes_real_ink_and_reports_failed_builds_unknown() {
                     .copied()
                     .collect();
                 for run in runs {
-                    drawing.text[run].text = if damage == "empty" {
-                        ""
-                    } else {
-                        "18× ⌀9999 THRU"
+                    drawing.text[run].text = match damage {
+                        "empty" => "",
+                        "quantity" => "5×",
+                        _ => "18× ⌀9999 THRU",
                     }
                     .into();
                 }

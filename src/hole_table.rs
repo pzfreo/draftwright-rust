@@ -910,6 +910,7 @@ fn place_rows(
                     format!("{ID}/{}", k + 1)
                 },
                 rows: b.clone(),
+                row_claims: Vec::new(),
                 default: true,
                 basis: format!("block {} of {ncols} of the hole table", k + 1),
                 state: crate::items::State::Shown,
@@ -2189,6 +2190,7 @@ pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selectio
             sheet: 1,
             id: t.id.clone(),
             rows: cells,
+            row_claims: Vec::new(),
             default: t.default,
             basis: t.basis.clone(),
             state: crate::items::State::Shown,

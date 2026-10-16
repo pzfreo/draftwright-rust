@@ -537,7 +537,11 @@ impl Callout {
 /// Whether the rendered bore term, excluding quantities, tolerances and pitch circles,
 /// states this diameter at the precision actually printed.
 pub fn states_bore(text: &str, diameter: f64) -> bool {
-    Callout::read(text).states("bore.diameter", diameter, false)
+    // A lone loose number may be a quantity, location or depth. Bore observations require
+    // the explicit diameter term; the scalar fallback is for independent depth dimensions.
+    Callout::read(text)
+        .term("bore.diameter", false)
+        .is_some_and(|(number, decimals)| rounds(number, decimals, diameter))
 }
 
 /// A scheduled size cell is one physical hole's complete callout. Its physical riders

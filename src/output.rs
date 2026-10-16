@@ -356,8 +356,9 @@ pub struct Annotation {
     /// Its label's runs, as indices into [`Drawing::text`].
     pub runs: Vec<usize>,
     pub claims: Vec<Claim>,
-    /// The compiler-bound measurement identities belonging to the approved cell. These
-    /// remain separate from its live claims so a changed owner or parameter loses proof.
+    /// The compiler-bound identities belonging to the approved cell. These remain separate
+    /// from its live claims so a changed owner or parameter loses proof. Manufacturing
+    /// rows retain source provenance here without adding a second physical measurement owner.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub approved_claims: Vec<Claim>,
     /// Display-complete compiler approval for a measurement schedule cell. Kept apart from

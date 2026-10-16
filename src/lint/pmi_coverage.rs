@@ -474,6 +474,12 @@ pub fn manufacturing_references(analysis: &Analysis, drawing: &Drawing) -> Vec<L
         .iter()
         .any(|i| i.name == "manufacturing_requirements" && i.kind == Kind::Table);
     let normal = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
+    let headers: Vec<_> = marks
+        .iter()
+        .filter(|m| m.name == "manufacturing_requirements_header")
+        .collect();
+    let header_complete =
+        headers.len() == 1 && normal(&headers[0].text) == "REF MANUFACTURING REQUIREMENT";
     let mut issues = Vec::new();
     for leader in marks
         .iter()
@@ -509,18 +515,24 @@ pub fn manufacturing_references(analysis: &Analysis, drawing: &Drawing) -> Vec<L
             }
             let tag = format!("MFG {number}");
             let name = format!("manufacturing_requirements/{tag}");
-            let rows: Vec<_> = marks.iter().filter(|m| m.name == name).collect();
+            let rows: Vec<_> = drawing
+                .annotations
+                .iter()
+                .filter(|m| m.name == name)
+                .collect();
             let complete = table_present
+                && header_complete
                 && rows.len() == 1
                 && owned.iter().any(|o| {
                     manufacturing
                         .tags
                         .iter()
                         .any(|(source, t)| source == &o.source && t == &tag)
-                        && rows[0].claims.len() == 1
-                        && rows[0].claims[0].feature == o.id
-                        && rows[0].claims[0].parameter == o.aspect
-                        && normal(&rows[0].text) == normal(&format!("{tag} {}", o.text))
+                        && rows[0].approved_claims.len() == 1
+                        && rows[0].approved_claims[0].feature == o.id
+                        && rows[0].approved_claims[0].parameter == o.aspect
+                        && normal(&super::schedule_evidence::text(drawing, rows[0]))
+                            == normal(&format!("{tag} {}", o.text))
                 });
             if complete {
                 continue;

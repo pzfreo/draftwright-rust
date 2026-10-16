@@ -4695,6 +4695,7 @@ fn render_annotations_with_cuts(
             dims.push(Item::Edge(Curve::Line(a, b)));
         }
         let mut manufacturing_runs: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+        let mut manufacturing_header = Vec::new();
         let mut tag = None;
         for (r, (row, positions)) in table.rows.iter().zip(&p.cells_at).enumerate() {
             if table.id == crate::pmi_lowering::SCHEDULE_ID && r > 0 && !row[0].is_empty() {
@@ -4705,6 +4706,9 @@ fn render_annotations_with_cuts(
                 let run = (cell.trim(), crate::dims::FONT, crate::tables::TEXT);
                 let laid = font.text(&crate::tables::ink(cell), crate::tables::TEXT);
                 let index = label(laid, *at, dims, Some(run));
+                if table.id == crate::pmi_lowering::SCHEDULE_ID && r == 0 {
+                    manufacturing_header.extend(index);
+                }
                 if let Some(tag) = &tag {
                     manufacturing_runs
                         .entry(tag.clone())
@@ -4713,23 +4717,24 @@ fn render_annotations_with_cuts(
                 }
             }
         }
+        if !manufacturing_header.is_empty() {
+            annotations.push(Annotation {
+                name: "manufacturing_requirements_header".into(),
+                runs: manufacturing_header,
+                ..Default::default()
+            });
+        }
         if !manufacturing_runs.is_empty() {
-            let manufacturing = crate::pmi_lowering::manufacturing(analysis);
-            for (source, tag) in &manufacturing.tags {
-                if let Some(owned) = manufacturing.owned.iter().find(|o| &o.source == source)
-                    && let Some(runs) = manufacturing_runs.remove(tag)
-                {
+            for binding in &table.row_claims {
+                if let Some(runs) = manufacturing_runs.remove(&binding.tag) {
                     annotations.push(Annotation {
-                        name: format!("{}/{tag}", table.id),
-                        approved_claims: Vec::new(),
+                        name: format!("{}/{}", table.id, binding.tag),
+                        approved_claims: binding.claims.clone(),
                         approved_text: None,
                         coordinate_origin: None,
                         view: None,
                         runs,
-                        claims: vec![Claim {
-                            feature: owned.id.clone(),
-                            parameter: owned.aspect.into(),
-                        }],
+                        claims: Vec::new(),
                         satisfies: Vec::new(),
                     });
                 }
