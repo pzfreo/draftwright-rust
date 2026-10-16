@@ -40,8 +40,8 @@ For this quiddity commit, the exact development-to-merge change for **both**
 dependencies is:
 
 ```toml
-haecceity = { git = "https://github.com/pzfreo/quiddity-rust", rev = "1b171f4d678966945193047f871988295a2667c1" }
-quiddity = { git = "https://github.com/pzfreo/quiddity-rust", rev = "1b171f4d678966945193047f871988295a2667c1" }
+haecceity = { git = "https://github.com/pzfreo/quiddity-rust", rev = "2709a331a7c0e3d80734768834ff12e36caf92f5" }
+quiddity = { git = "https://github.com/pzfreo/quiddity-rust", rev = "2709a331a7c0e3d80734768834ff12e36caf92f5" }
 ```
 
 Alternatively pin both to the release tag containing that commit. Remove the

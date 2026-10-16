@@ -3,7 +3,10 @@
 Implementation source: `aab5f8a8113283c75e8e9f3028eef4468d2e52a7`. Quiddity source:
 `1b171f4d678966945193047f871988295a2667c1`, document
 `quiddity-rust/recognition/3`. The dependency pins remain `v0.1.0-alpha.4`;
-verification used the uncommitted local Cargo path override.
+verification used the uncommitted local Cargo path override. The final quiddity
+HEAD is `2709a331a7c0e3d80734768834ff12e36caf92f5`; it only formats the K3 test
+and contains the same recognition implementation. The merge pin in
+[native-recesses.md](native-recesses.md) includes that formatting commit.
 
 This branch is not merge-ready while its layout and quality regressions remain.
 The five requested pending rules have native implementations and regression tests;
