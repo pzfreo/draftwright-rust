@@ -1365,12 +1365,23 @@ pub(crate) fn plan_inventory(
             &page,
         );
     }
+    let body_fixed: Vec<bool> = all
+        .iter()
+        .enumerate()
+        .map(|(i, w)| {
+            fixed[i]
+                || spec
+                    .dimensions
+                    .get(&w.id)
+                    .is_some_and(|entry| entry.place.is_some())
+        })
+        .collect();
     problems.extend(placement::body_chains(
         analysis,
         &frames,
         &all,
         &chosen,
-        &fixed,
+        &body_fixed,
         &mut placed,
         &page,
     ));

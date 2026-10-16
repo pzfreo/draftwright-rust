@@ -519,3 +519,24 @@ fn a_present_longitudinal_view_is_never_offered_as_a_restoration_fix() {
         "both longitudinal views are already available"
     );
 }
+
+#[test]
+fn a_body_local_corridor_preserves_an_authored_unpinned_lane() {
+    let a = shafts(&[-80., 0., 80.]);
+    let x = |lane| {
+        let spec: Spec = serde_json::from_value(json!({"dimensions":{
+            "d:f:turned_step:1/step.length":{"place":{"side":"left","lane":lane}}
+        }}))
+        .unwrap();
+        model::plan(&a, &spec)
+            .unwrap()
+            .dimensions
+            .into_iter()
+            .find(|d| d.id == "d:f:turned_step:1/step.length")
+            .unwrap()
+            .placed
+            .unwrap()
+            .arrows[0][0][0]
+    };
+    assert!((x(0) - x(1) - draftwright::dims::LANE).abs() < 1e-6);
+}
