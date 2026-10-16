@@ -189,12 +189,10 @@ impl Cache {
         features: Option<&Path>,
         part: Option<usize>,
     ) -> Result<String, Error> {
-        let bytes = fs::read(step).map_err(|e| {
-            Error::invalid(format!(
-                "cannot read {}: {e}; provide an existing STEP path",
-                step.display()
-            ))
-        })?;
+        // Gzip is decompressed: the key and the cached source.step are the STEP text's, so a
+        // `.step` and its `.step.gz` are one registration.
+        let bytes = crate::model::read_step_file(step)
+            .map_err(|e| Error::invalid(format!("{e}; provide an existing STEP path")))?;
         if let Some(k) = part {
             let parts = crate::model::parts(step, &bytes)?;
             if k >= parts.len() {
