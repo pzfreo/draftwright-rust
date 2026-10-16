@@ -21,7 +21,7 @@ use crate::model;
 /// The drawing's font (IBM Plex Mono), bundled.
 pub const MONO: &[u8] = include_bytes!("../fonts/IBMPlexMono-Regular.ttf");
 
-/// The formats [`render`] writes. DXF export is disabled until it is fixed; [`Drawing::dxf`]
+/// The formats [`render`] writes. DXF export is disabled until it is fixed; [`crate::output::Drawing::dxf`]
 /// itself is kept, and a DXF drawing's embedded spec is still read.
 pub const FORMATS: [&str; 3] = ["svg", "pdf", "png"];
 
