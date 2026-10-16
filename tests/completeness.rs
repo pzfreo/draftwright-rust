@@ -484,3 +484,63 @@ fn ownerless_occurrences_have_closed_policy_reasons() {
     bad["reason_code"] = json!("unreviewed_excuse");
     assert!(serde_json::from_value::<FeatureDisposition>(bad).is_err());
 }
+
+#[test]
+fn hole_pattern_interval_and_group_counts_must_match_physical_members() {
+    let mut a = grid();
+    // Two columns, two rows: each pitch has exactly one interval.
+    for bad in ["2× 10", "9× 10"] {
+        let issues = lint::check(
+            &a,
+            &[mark("f:hole_pattern:1", "grid_pitch.length.col", bad)],
+        );
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.code.starts_with("hole_pattern_requirement_")
+                    && i.requirements
+                        .iter()
+                        .any(|r| r.parameter == "grid_pitch.length.col")),
+            "{bad}"
+        );
+    }
+    // Add a third column. A bare pitch cannot certify two intervals.
+    for (n, y) in [(5, 10), (6, 20)] {
+        a.features.push(serde_json::from_value(feature("hole", n,
+            json!({"axis":[0,0,1],"location":[30,y,10],"diameter":4,"depth":10,"bottom":"through"}))).unwrap());
+        a.recognition.as_mut().unwrap().patterns[0]
+            .members
+            .push(format!("f:hole:{n}"));
+    }
+    for text in ["10", "3× 10", "2× 11", "2× 10"] {
+        let issues = lint::check(
+            &a,
+            &[mark("f:hole_pattern:1", "grid_pitch.length.col", text)],
+        );
+        let gap = issues.iter().any(|i| {
+            i.code.starts_with("hole_pattern_requirement_")
+                && i.requirements
+                    .iter()
+                    .any(|r| r.parameter == "grid_pitch.length.col")
+        });
+        assert_eq!(gap, text != "2× 10", "{text}");
+    }
+    let mut counted = mark("f:hole:1", "bore.diameter", "6× ⌀4 THRU (2×3)");
+    counted.claims = (1..=6)
+        .map(|n| Claim {
+            feature: format!("f:hole:{n}"),
+            parameter: "bore.diameter".into(),
+        })
+        .collect();
+    assert!(!lint::check(&a, &[counted.clone()]).iter().any(|i| {
+        i.requirements
+            .iter()
+            .any(|r| r.parameter == "grouping.count")
+    }));
+    counted.text = "5× ⌀4 THRU (2×3)".into();
+    assert!(lint::check(&a, &[counted]).iter().any(|i| {
+        i.requirements
+            .iter()
+            .any(|r| r.parameter == "grouping.count")
+    }));
+}

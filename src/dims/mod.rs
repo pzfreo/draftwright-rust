@@ -7,6 +7,7 @@
 //! - **whole-part polygonal stock**: its size across flats and its length, in place of the extents;
 //! - **hole callouts**: draftwright's compound grammar (`4× ⌀10 THRU ⌴ ⌀16 ↧ 5 (2×2)`), with
 //!   identical holes grouped and counted, and quiddity's hole patterns called out as patterns;
+//! - **double-D bores**: one compound major-diameter and across-flats callout;
 //! - **hole locations** from the part's box, in the view that looks along each hole, and the
 //!   pitches that locate a pattern's members;
 //! - **through slots**: width, length, an obround's end radius, and location along the slot;
@@ -75,6 +76,7 @@ mod pads;
 mod placement;
 mod plates;
 mod pmi_dimensions;
+mod profiled_bores;
 mod recesses;
 mod redundancy;
 mod slots;
@@ -493,7 +495,7 @@ struct Planner {
 }
 
 /// The planners, in the order their items are planned.
-const PLANNERS: [Planner; 16] = [
+const PLANNERS: [Planner; 17] = [
     turned::PLANNER,
     envelope::PLANNER,
     stock::PLANNER,
@@ -510,6 +512,7 @@ const PLANNERS: [Planner; 16] = [
     plates::PLANNER,
     pads::PLANNER,
     oriented_slots::PLANNER,
+    profiled_bores::PLANNER,
 ];
 
 /// Everything the defaults would dimension, with the problems met on the way, and what the part's
@@ -1587,6 +1590,26 @@ pub(crate) fn plan_inventory(
             &page,
         );
     }
+    let body_fixed: Vec<bool> = all
+        .iter()
+        .enumerate()
+        .map(|(i, w)| {
+            fixed[i]
+                || spec
+                    .dimensions
+                    .get(&w.id)
+                    .is_some_and(|entry| entry.place.is_some())
+        })
+        .collect();
+    problems.extend(placement::body_chains(
+        analysis,
+        &frames,
+        &all,
+        &chosen,
+        &body_fixed,
+        &mut placed,
+        &page,
+    ));
     angular::place(&frames, &all, &chosen, &mut placed, &page);
     // Radius exceptions are placed around the existing drawing ink. Their addition must not
     // reroute unrelated approved callouts into clutter.

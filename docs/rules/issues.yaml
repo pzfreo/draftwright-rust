@@ -534,9 +534,10 @@
       - "tests/test_issue_1058_wheel_profile.py::test_blind_double_d_recesses_are_not_certified_as_through_bores"
       - "tests/test_issue_1058_wheel_profile.py::test_across_flats_cannot_survive_without_the_compound_callout_head"
     corpus_parts: ["issue_1058_wheel_rh.step"]
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported for the drawing. Double-D bores are read (src/bridge/native.rs) and linted (LINT-profiled_bore_coverage-double_d: one annotation must claim and print both the diameter and the across-flats), but no planner dimensions them: dims::PLANNERS has none for double_d_bore, so each is a dimensions_not_ported problem and the port's own drawing then carries profiled_bore_not_dimensioned."
+  status: ported
+  rust_note: "The double_d_bore planner emits one compound major-diameter and across-flats callout, in the view along the bore, with its leader on a circular arc for any in-plane flat direction. It uses the explicit through fact; a blind record states its depth, never THRU. Native blind profile fixtures remain unsupported section recesses as in Python, never inferred through bores. Lint requires both roles on the same live callout."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream holes-and-threads"
+  rust_test: "tests/coverage_holes.rs::double_d_planner_states_both_roles_in_any_flat_direction_and_never_invents_thru; tests/coverage_holes.rs::independent_double_d_fixtures_are_owned_once_and_blind_profiles_stay_blind"
 
 - id: ISSUE-1058-b
   statement: "Double-D coverage is per physical bore: a diameter-only callout does not cover the profile requirement, a dropped counted callout records every occurrence, and one record cannot cover two coincident assembly occurrences."
@@ -2044,9 +2045,9 @@
       - "tests/test_issue_1357_plural_turned_profiles.py::test_authored_front_only_view_drops_a_superimposed_profile_instead_of_overlapping"
       - "tests/test_issue_1357_plural_turned_profiles.py::test_mixed_axis_profiles_remain_local_instead_of_inventing_one_orientation"
     corpus_parts: []
-  status: pending
-  rust_test: "tests/completeness_rules.rs::a_bodys_chain_goes_in_the_view_that_separates_it"
-  rust_note: "Stream K5: each body's chain goes in the first profile view that separates its axis line from every other's (front for shafts side by side along x, side for shafts one behind the other) with its witnesses on its own silhouette (each_turned_body_has_its_own_chain_on_its_own_silhouette); lint judges each band's claims by feature, so one profile cannot supply another's coverage. Not ported: a spec that omits the separating view (the planners do not see the spec's views, so the chain falls back to the other view, superimposed, where draftwright drops it and reports)."
+  status: ported
+  rust_test: "tests/coverage_holes.rs::an_omitted_separating_view_reports_superimposed_profiles_with_a_restoring_fix; tests/completeness_rules.rs::a_bodys_chain_goes_in_the_view_that_separates_it"
+  rust_note: "Each turned body retains its own measurement claims and chain in a separating view. When authored views leave profiles superimposed, Policy B keeps their chains and reports turned_profile_superimposed on their IDs, naming the axis line and giving an executable fix restoring the separating view (views/<view>/omit=false)."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream dimensioning-coverage"
 
 - id: ISSUE-1357-d
@@ -2111,9 +2112,10 @@
       - "tests/test_issue_1370_countersink_completeness_evidence.py::test_missing_or_corrupt_countersink_angle_unit_loses_drawing_credit"
       - "tests/test_issue_1370_countersink_completeness_evidence.py::test_deleting_provider_seats_cannot_shrink_the_independent_denominator"
     corpus_parts: ["countersink-single.step", "countersink-mixed-pair.step", "countersink-deburr.step", "countersink-external-cone.step", "countersink-topology-a.step"]
-  status: pending
-  rust_note: "Not ported: lint checks a countersink's diameter and angle on its hole's callout, but there is no independent countersink corpus, no second seat of a two-sided bore, and no unit check."
+  status: ported
+  rust_note: "Committed independent Python countersink fixtures cover single/mixed seats, topology order, deburrs and an external-cone negative. Standalone seats are consumed only once by complete attached records; an unattributed second seat keeps both unverifiable requirements and no extra bore. Role-swapped sizes and missing/corrupt degree units lose ink credit. Analysis is the immutable recognition boundary; no provider-to-IR conversion can shrink its ledger."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream holes-and-threads"
+  rust_test: "tests/coverage_holes.rs::independent_countersink_fixtures_keep_each_seat_and_reject_misleading_ink; tests/coverage_holes.rs::a_real_two_face_bore_reports_only_its_unattributed_seat"
 
 - id: ISSUE-1370-b
   statement: "Double-D completeness crosses declaration and drawing seams: a double-D is owned once and never recounted as a round hole, its flat direction is an unoriented line, and removed, role-swapped or unit-less across-flats ink loses credit."
@@ -2127,9 +2129,9 @@
       - "tests/test_issue_1370_double_d_completeness_evidence.py::test_missing_or_corrupt_across_flats_unit_loses_drawing_credit"
       - "tests/test_issue_1370_double_d_completeness_evidence.py::test_deleting_provider_records_cannot_shrink_the_independent_denominator"
     corpus_parts: ["double-d-single-z.step", "double-d-blind.step", "double-d-opposed-blind.step", "double-d-round-bore.step", "double-d-coaxial-compound.step"]
-  status: pending
-  rust_test: "src/lint/profiled_bores.rs::tests::a_double_d_bore_is_called_out_with_its_diameter_and_across_flats"
-  rust_note: "Partial: double-D lint requires the diameter and across-flats together and accounts for each claimed physical bore (src/lint/profiled_bores.rs::tests::a_double_d_bore_is_called_out_with_its_diameter_and_across_flats). No planner in src/dims/mod.rs::PLANNERS claims double_d_bore, so the sheet still has no compound double-D callout and reports dimensions_not_ported. Compound planning and the remaining seam/mutation scenarios are still to port."
+  status: ported
+  rust_test: "tests/coverage_holes.rs::double_d_ink_requires_one_live_callout_with_truthful_roles_and_units; tests/coverage_holes.rs::independent_double_d_fixtures_are_owned_once_and_blind_profiles_stay_blind"
+  rust_note: "The compound planner supplies both double-D requirements once. Independent single/rolled/Y-axis fixtures establish that native recognition does not recount a profiled bore as a round hole; blind and round-bore negatives remain distinct. Flat directions and their negatives dimension identically. Removing the live callout, swapping diameter/A-F roles, omitting DOUBLE-D or THRU, or corrupting the A/F unit loses credit; numbers in unrelated roles cannot certify a profile."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream holes-and-threads"
 
 - id: ISSUE-1370-c
@@ -2143,9 +2145,9 @@
       - "tests/test_issue_1370_hole_pattern_completeness_evidence.py::test_wrong_placed_grid_interval_count_loses_drawing_credit"
       - "tests/test_issue_1370_hole_pattern_completeness_evidence.py::test_deleting_provider_patterns_cannot_shrink_the_independent_denominator"
     corpus_parts: ["pattern-topology-a.step"]
-  status: pending
-  rust_test: "tests/completeness.rs::hole_pattern_pitch_needs_truthful_printed_evidence"
-  rust_note: "Partial: src/lint/hole_patterns.rs checks printed pitch values and src/lint/holes.rs does not recount pattern members (tests/completeness.rs::hole_pattern_pitch_needs_truthful_printed_evidence). Printed interval counts and the pattern's group count are not independently checked; those remain to port."
+  status: ported
+  rust_test: "tests/completeness.rs::hole_pattern_interval_and_group_counts_must_match_physical_members; tests/completeness.rs::hole_pattern_pitch_needs_truthful_printed_evidence"
+  rust_note: "Pitch coverage checks the printed repetition against the number of physical member intervals along each lattice axis, including the member-anchor alternative. A bare pitch states exactly one interval. Hole coverage already checks group quantity against all claimed physical members without recounting pattern members; the new mutation test pins both group and interval counts independently of printed provenance."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream holes-and-threads"
 
 - id: ISSUE-1371-a

@@ -391,9 +391,10 @@
     module: "linting/hole_coverage.py"
     issues: [1229]
     tests: [tests/test_issue_1370_countersink_completeness_evidence.py]
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported. Lint counts a countersink only on its hole's record (src/lint/holes.rs, the csink term of the hole's callout); a CounterSink record joined to no hole, such as the second seat of a two-sided bore, is neither counted nor reported unverifiable (also ISSUE-1143-e)."
+  status: ported
+  rust_note: "The independent standalone CounterSink inventory is reconciled one-to-one with complete attached csink records. Every unconsumed seat reports both countersink.diameter and countersink.angle as hole_requirement_unverifiable on the seat itself, without guessing a hole or recounting its bore. This includes the opposite-face seat of a physical two-sided bore."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream holes-and-threads"
+  rust_test: "tests/coverage_holes.rs::a_second_countersink_seat_is_unverifiable_without_recounting_the_bore; tests/coverage_holes.rs::a_real_two_face_bore_reports_only_its_unattributed_seat"
 
 - id: LINT-code-hole_requirement_state
   statement: "Uncovered hole requirements are reported per requirement as hole_requirement_missing, hole_requirement_suppressed or hole_requirement_unverifiable, naming quantity, diameter, THRU or blind depth and axis."
@@ -519,9 +520,10 @@
     module: "linting/coverage.py"
     issues: [885]
     tests: [tests/test_issue_885_prismatic_coverage.py, tests/test_declared_recognition_gate.py]
-  status: pending
-  rust_note: "Not ported. Python compares two of its own stages: the pocket records and riser shoulders quiddity recognised (project_step_shoulders over the risers, two or more stations) against the features draftwright's conversion made of them (pocket IR, step_level shoulders, channel walls, X/Y through-step bends), and reports what the conversion dropped. The port has no conversion between the Analysis and the drawing: lint reads quiddity's features in the Analysis, and the height ladder's shoulders are projected from the same risers by the plan (dims::levels), which lint may not read, so the denominator Python checks against does not exist on the lint side. A pocket record lint cannot read in the part's frame is the pocket ledger's unverifiable (lint::pockets). Open question for the maintainer: should the port's lint instead check that each projected riser shoulder is stated on the drawing (a drawing check, not Python's stage check)?"
+  status: ported
+  rust_note: "Lint independently projects Analysis.risers onto recognised body levels and checks each defining shoulder station against truthful step-position ink. A lone transition, exact channel walls and X/Y through-step bends retain Python's exemptions; those features have their own ink ledgers. Every section_recess pocket remains checked by lint::pockets. This is a drawing coverage check in the Rust Analysis model, not Python's conversion-stage comparison."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream dimensioning-coverage"
+  rust_test: "tests/coverage_holes.rs::every_prismatic_shoulder_station_needs_its_own_truthful_drawing_evidence; tests/lint_coverage.rs::prismatic_and_profile_findings_on_draftwrights_test_parts_are_known"
 
 - id: LINT-code-pad_footprint_not_defined
   statement: "Every rectangular raised pad has its footprint length and width, its height above the attachment face, and its in-plane location dimensioned."
@@ -1435,7 +1437,7 @@
     issues: [1177]
     tests: [tests/test_canonical_angles.py, tests/test_issue_1177_angular_dimensions.py]
   status: pending
-  rust_note: "Not ported (assessed in stream K5): draftwright derives these requirements from quiddity's PlanarOuterProfileEvidence, every planar face's ordered outer profile (lines and arcs), choosing the foremost camera-facing profile per body and view and leaving out corners a chamfer or regular-polygon callout defines (profile_angles.py). The Analysis carries no ordered outer profiles (principal_profiles keeps only principal boundary faces' unordered straight edges and arcs), so neither the planner nor lint can name a corner. Porting needs that evidence recorded at analysis time (new Analysis data, outside this stream's dimension-selection and lint scope), then angular items through dims::angular's placement and a profile_angle ledger in lint; it would add angles to every corpus part with a non-right outer corner (on draftwright's issue_909 case study, 51.1° and 128.9°)."
+  rust_note: "Not ported (assessed in stream K5): draftwright derives these requirements from quiddity's PlanarOuterProfileEvidence, every planar face's ordered outer profile (lines and arcs), choosing the foremost camera-facing profile per body and view and leaving out corners a chamfer or regular-polygon callout defines (profile_angles.py). The Analysis carries no ordered outer profiles (principal_profiles keeps only principal boundary faces' unordered straight edges and arcs), so neither the planner nor lint can name a corner. Porting needs that evidence recorded at analysis time (new Analysis data, outside this stream's dimension-selection and lint scope), then angular items through dims::angular's placement and a profile_angle ledger in lint; it would add angles to every corpus part with a non-right outer corner (on draftwright's issue_909 case study, 51.1° and 128.9°). Automatic angular planning was implemented, rendered on three profiles, then withdrawn because the unchanged 30-part quality bar regressed: ink 0 to 17 on mfcadpp/10046, 1 to 98 on NIST FTC-08 (also two off-sheet items), and regressions on five other parts. Compact interior arcs and opposite-sector extensions suffice on simple profiles but not the tied, small and rounded profiles of dense parts. Completing this needs a cross-cutting arc/leader/layout solve with actual support bounds and reserved angular bands; it exceeds this stream's bounded rule port. The one-owner stream must also coordinate overlaps with existing paired-ramp angular statements; this stream does not change ownership."
   port_note: "triage 2026-10-16: PORT, value medium, size L, stream dimensioning-coverage"
 
 - id: LINT-code-angular_label_vs_geometry

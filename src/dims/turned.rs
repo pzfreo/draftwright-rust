@@ -645,10 +645,9 @@ fn shown_across(k: usize, view: &str) -> usize {
 /// does: distinct parallel lines differ across one of them), and its witnesses start at its own
 /// silhouette (the outer corner of each shoulder) on the side of the view its body is nearer, so
 /// a chain never stands on a sibling's outline (`dims::placement::lanes` puts such a chain in
-/// that side's strip). A part with one profile per axis keeps its witnesses on the view's
-/// outline, as before. Not ported: a spec that omits the separating view leaves the chain to
-/// fall back to the other (where draftwright drops it with a diagnostic): the planners do not see
-/// the spec's views.
+/// that side's strip). Placement then checks both body-local corridors, including middle
+/// bodies, and reports a superimposed profile with a view-restoration fix when the spec omits
+/// its separating view. Policy B retains and reports a chain with no clear corridor.
 fn own_body(chain: &mut [Want], p: &[&Banded], profiles: &[Vec<&Banded>], analysis: &Analysis) {
     let b0 = &p[0].1;
     let k = b0.axis;
