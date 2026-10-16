@@ -1842,7 +1842,7 @@
     corpus_parts: []
   status: ported
   rust_test: "tests/precision.rs::requested_precision_reaches_extents_chains_ladders_and_locations"
-  rust_note: "Spec.precision is a map from semantic measurement IDs to decimal places. It formats each nominal from its original numeric value before placement, including compound callout roles, chains, ladders and locations; the same terms are measured and drawn, preserving tolerance digits, symbolic thread/reference text and numeric provenance. Compound terms, reservations, close diameters, and zero-place lint are additionally pinned in tests/precision.rs. Existing shared dimension owners are retained: conflicting text policies on a shared term or coincident span are refused as Python's shared_location_text does, without changing ownership."
+  rust_note: "Spec.precision is a map from semantic measurement IDs to decimal places. It formats each nominal from its original numeric value before placement, including compound callout roles, chains, ladders and locations; the same terms are measured and drawn, preserving tolerance digits, symbolic thread/reference text and numeric provenance. Compound terms, reservations, close diameters, zero-place lint, and hole-schedule cells and their rendered ink are additionally pinned in tests/precision.rs (requested_precision_survives_hole_schedule_cells_and_their_ink covers native coordinates and counterbore depths). Existing shared dimension owners are retained: conflicting text policies on a shared term or coincident span are refused as Python's shared_location_text does, without changing ownership."
   port_note: "Keep: spec precision by measurement ID -> plan label text; scenario test."
 
 - id: ISSUE-1349-b

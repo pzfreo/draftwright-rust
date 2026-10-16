@@ -232,3 +232,105 @@ fn coincident_measurements_require_matching_explicit_precision() {
     let err = model::plan(&a, &spec).unwrap_err();
     assert!(err.message.contains("conflicting precision"), "{err:?}");
 }
+
+#[test]
+fn requested_precision_survives_hole_schedule_cells_and_their_ink() {
+    for file in [
+        "parts/scattered_holes.step",
+        "recognition/issues/counterbored_block.step",
+    ] {
+        let (part, analysis) =
+            model::analyse_native(&root().join("tests/fixtures").join(file)).unwrap();
+        let seed = model::plan_escalated(
+            &analysis,
+            &Spec {
+                hole_table: draftwright::hole_table::Setting::Never,
+                ..Spec::default()
+            },
+        )
+        .unwrap();
+        let base_spec = Spec {
+            hole_table: draftwright::hole_table::Setting::Always,
+            ..Spec::default()
+        };
+        let before = model::plan_escalated(&analysis, &base_spec).unwrap();
+        for places in [0, 3] {
+            let mut spec = base_spec.clone();
+            for d in &seed.dimensions {
+                spec.precision.insert(d.id.clone(), places);
+                for m in &d.measurements {
+                    spec.precision
+                        .insert(format!("d:{}/{}", m.feature, m.parameter), places);
+                }
+            }
+            for d in &seed.omitted {
+                spec.precision.insert(d.id.clone(), places);
+            }
+            let plan = model::plan_escalated(&analysis, &spec).unwrap();
+            assert!(!plan.hole_tables.is_empty(), "{file}");
+            let font =
+                draftwright::text::Font::open(&root().join("fonts").join(dims::FONT)).unwrap();
+            let drawing = model::render(&part, &analysis, &plan, &font).unwrap();
+            let mut located = 0;
+            for table in &plan.hole_tables {
+                for row in &table.rows {
+                    let old = before
+                        .hole_tables
+                        .iter()
+                        .flat_map(|t| &t.rows)
+                        .find(|r| r.feature == row.feature)
+                        .unwrap();
+                    assert_eq!(row.measurements, old.measurements, "{file}");
+                    let prefix = format!("{}/{}", table.id, row.tag);
+                    let text = drawing
+                        .annotations
+                        .iter()
+                        .filter(|a| {
+                            a.name == prefix
+                                || a.name
+                                    .strip_prefix(&prefix)
+                                    .is_some_and(|s| s.starts_with('/'))
+                        })
+                        .flat_map(|a| a.runs.iter())
+                        .map(|&i| drawing.text[i].text.as_str())
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    assert!(!text.is_empty(), "{file}: row must be rendered");
+                    for (role, cell) in [("location.length.x", 2), ("location.length.y", 3)] {
+                        let Some(m) = row.measurements.iter().find(|m| m.parameter == role) else {
+                            continue;
+                        };
+                        if !spec
+                            .precision
+                            .contains_key(&format!("d:{}/{}", m.feature, role))
+                        {
+                            continue;
+                        }
+                        let expected = dims::precision::format(m.value, places);
+                        assert_eq!(row.cells[cell], expected, "{file}: {role}");
+                        assert!(text.contains(&expected), "{file}: {text}");
+                        located += 1;
+                    }
+                    if let Some(m) = row
+                        .measurements
+                        .iter()
+                        .find(|m| m.parameter == "counterbore.depth")
+                    {
+                        let expected = format!("↧ {}", dims::precision::format(m.value, places));
+                        assert!(row.cells[1].contains(&expected), "{file}: {:?}", row.cells);
+                    }
+                }
+            }
+            assert!(located >= 2, "{file}: native coordinate policies exercised");
+            assert!(
+                !draftwright::lint::lint(&analysis, &drawing)
+                    .iter()
+                    .any(|i| matches!(
+                        i.code.as_str(),
+                        "hole_requirement_missing" | "feature_not_located" | "label_vs_measured"
+                    )),
+                "{file}: precision may not create false coverage or fidelity findings"
+            );
+        }
+    }
+}
