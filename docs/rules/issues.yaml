@@ -335,7 +335,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/completeness_rules.rs::each_raised_pad_states_its_footprint_height_and_location"
-  rust_note: "Stream K5 (src/dims/pads.rs): each raised pad is dimensioned on its own, footprint width and length between its own edges, its height as a HIGH callout, and its centre located from the part's corner in both directions across it (a direction on the datum left out, location_on_datum), in the view that looks down on it; equal pads at distinct sites keep their own items (draftwright's pad-compound-equal.step, pad-z-positive.step, pad-x-positive.step: every requirement drawn and lint finds none missing). Rust quiddity reads draftwright's pad-full-span-ledge-negative.step as through steps and pad-nested-staircase-negative.step with no pad, so neither is a pad. Not ported: side-opening pockets' two in-plane locations (the native path reads no pockets yet: pocket-side.step reports features_not_recognised)."
+  rust_note: "Rules-text audit, 2026-10-16: Pending, owners: G7b recess-reader and dimension-ownership streams. Each pad already states its own footprint/local height and two locations (src/dims/pads.rs; tests/completeness_rules.rs). Native READ still omits pockets/section recesses, so the Python side-opening-pocket case has no two-location drawing on the native path. The remaining pocket requirement selection and pad-vs-step exclusions belong to the protected measurement ownership stream after the reader supplies the evidence."
   port_note: "Keep: scenario tests on synthetic prismatic parts -> plan dimensions every pad footprint and pocket location."
 
 - id: ISSUE-885-b
@@ -350,7 +350,7 @@
       - "tests/test_issue_885_prismatic_coverage.py::test_datum_starting_blind_slot_does_not_retain_the_superseded_pocket_callout"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported: pads are not dimensioned (dimensions_not_ported). Pockets are (src/dims/recesses.rs), and lint checks pad and pocket coverage, sizes and locations by feature ID (src/lint/pads.rs, src/lint/pockets.rs), but none of the four scenarios (a pad size credited from an aligned sibling, an unrelated endpoint locating a pocket, omitted furniture's coverage gaps and score, a blind slot superseding a pocket callout) has a test. Lint keys coverage by feature ID, never by coincident value (tests/issue_trust.rs::a_callout_certifies_only_the_holes_it_claims shows it for holes)."
+  rust_note: "Rules-text audit, 2026-10-16: Pending, owner: dimension-ownership stream, with the G7b recess-reader prerequisite for the native pocket cases. Pad and pocket lints use exact feature/parameter claims rather than equal values (src/lint/pads.rs, pockets.rs, prismatic.rs), and pads are now drawn; the earlier note saying they are not was stale. Python's complete sparse-recognition scenario also requires removal locality, the completeness score and blind-slot/pocket supersession. Those change/prove the protected requirement ownership and denominator; no claim of full parity is made from the generic claim matcher."
   port_note: "Keep: coverage problems keyed by requirement identity, not by coincident values."
 
 - id: ISSUE-909-a
@@ -413,8 +413,8 @@
       - "tests/test_issue_917_open_channel.py::test_wrong_channel_identity_cannot_clear_the_physical_transition_warning"
     corpus_parts: []
   status: pending
-  rust_test: "tests/issue_regressions.rs::an_open_channel_is_one_feature_with_one_width"
-  rust_note: "Partial: on draftwright's base-and-walls channel (walls 12.5 and 12.5, and 10 and 15, pierced by a counterbored hole and a cross hole) the plan states one channel width, 25, the overall width and depth (50, 50) and draftwright's two hole callouts; a pocket bounded on all sides is a pocket (20 × 30 × 8 DEEP), and a centred rebate is left to the height ladder (shoulders 20 and 40, as draftwright), its recess reported. Not ported: the independent wall thickness (draftwright's 12.5, or 10 with the opposite wall derived) and the base's 12, because plate thickness is not dimensioned (each plate is reported dimensions_not_ported; the plate-thickness scoping in docs/next-session.md); lint reports that gap on the port's own drawing, its one finding being channel_requirement_missing for the wall's plate thickness.length (12.5, or 10), where draftwright states it and its lint finds nothing of the channel."
+  rust_test: "tests/issue_regressions.rs::an_open_channel_is_one_feature_with_one_width; tests/plate_coverage.rs::opposite_channel_wall_needs_every_printed_dependency_and_a_full_span"
+  rust_note: "Rules-text audit, 2026-10-16: Pending, owners: G7b recess-reader and dimension-ownership streams. The old plate blocker is obsolete: src/dims/plates.rs now draws thicknesses and consolidates derived intervals, and tests/issue_regressions.rs checks the legacy channel's independent lower wall and base and loss of their claims. Native READ still does not take the channel's section recess; the native two-channel compound also loses an occurrence in upstream recognition (ISSUE-958-a). Completing/validating the non-redundant physical channel chain on that path requires the protected ownership work after G7b."
   port_note: "Keep: scenario test on synthetic channel parts -> plan has one channel chain without redundant wall dimension."
 
 - id: ISSUE-924-a
@@ -477,6 +477,8 @@
     corpus_parts: []
   status: pending
   port_note: "Keep: multi-body synthetic scenarios -> no cross-body features in Analysis/Plan."
+  rust_note: "Rules-text audit, 2026-10-16: Pending: the new exact Python #958 fixture probes reject false cross-solid slot/pad/pocket/channel evidence and preserve both real slots, pads and pockets. Upstream quiddity-rust at pinned 7cb26d8 recognises only ONE channel in two-channels.step, which contains the two disjoint channels from the Python test; expected two. The channel preservation/order portion therefore cannot be marked ported. examples/recognition_document.rs retains a direct native-document reproduction, including families native READ omits. Fixing per-body recognition is owned by quiddity; G7b must then read the surviving recesses. No recognition or measurement ownership was changed here."
+  rust_test: "tests/rules_text.rs::separate_solids_do_not_invent_features_and_preserve_real_slots_pads_and_pockets"
 
 - id: ISSUE-1000-a
   statement: "Declaring the whole-part envelope on a sheet that already has a detected envelope reuses that feature rather than duplicating it or creating phantom suppressions; explicitly distinct envelope objects stay distinct."
@@ -1479,7 +1481,7 @@
       - "tests/test_issue_1246_prismatic_pocket_disposition.py::test_a_four_sided_survivor_is_unsupported_not_misclassified_as_non_rectangular"
     corpus_parts: []
   status: pending
-  rust_note: "Not ported: lint has no prismatic pocket coverage (LINT-code-prismatic_pocket_requirement_unsupported). A recognised pocket the planners do not claim is a dimensions_not_ported problem at info severity, where draftwright's lint raises a specific warning and an unsupported completeness outcome."
+  rust_note: "Rules-text audit, 2026-10-16: Pending, owner: G7b recess-reader, followed by the completeness/ownership stream. Native READ omits prismatic_pockets and section_recesses. The legacy bridge can carry prismatic_pocket, but lint has no prismatic_pocket_requirement_unsupported outcome and dims::unsupported only handles angled_step. Completeness now upgrades undimensioned features to warnings for a single solid, so the previous info-only note was stale; that generic report still does not establish the required specific unsupported pocket outcome or independent unrelated-profile accounting."
   port_note: "Keep."
 
 - id: ISSUE-1247-a
@@ -1636,8 +1638,8 @@
       - "tests/test_issue_1298_manufacturing_requirements.py::test_exact_grm03_renders_complete_source_owned_manufacturing_drawing_once"
     corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw_ap242_pmi.step"]
   status: pending
-  rust_test: "tests/pmi_thread_knurl.rs::several_long_requirements_refer_to_the_manufacturing_requirements_table"
-  rust_note: "Partly: thread and knurl requirements are read with their structured fields and faces (`src/pmi.rs`) and given, as `lower_ap242_manufacturing_requirements` does, to the one hole or turned step their cylinder proves, words and structured fields reconciled and the text checked against the cylinder (`pmi_lowering::manufacturing`); the owner's callout prints the suffix (string_post_tapped: `⌀1.6 ↧ 4 M2 x 0.4-6H RH; 2.5 MIN FULL THREAD`), or `SEE MFG n` with the manufacturing requirements table when two or more are owned and one suffix exceeds 52 characters (thumbwheel_thread_knurl: `⌀1.6 ↧ 3.8 SEE MFG 1`, `ø6 SEE MFG 2`, `ø5 SEE MFG 3`), each owner on a callout of its own; no owner, several, or a text that disagrees with its cylinder is a `pmi_not_lowered` error with draftwright's reason (`tests/pmi_thread_knurl.rs`). Not ported: a requirement a boss owns is refused (the boss callout prints none yet), and a table with no place on the sheet is a `table_not_placed` error where draftwright falls back to the full suffixes."
+  rust_test: "tests/pmi_thread_knurl.rs::a_single_thread_prints_its_suffix_on_its_holes_callout; tests/pmi_thread_knurl.rs::several_long_requirements_refer_to_the_manufacturing_requirements_table"
+  rust_note: "Rules-text audit, 2026-10-16: Pending, owner: dimension-ownership stream. Existing pmi_lowering::manufacturing binds typed thread/knurl aspects to a unique hole or turned step and prints their suffix/table reference once (tests/pmi_thread_knurl.rs). Boss-owned requirements are still refused and a full table has no complete-suffix fallback. Adding boss attachment changes protected measurement ownership; the fallback also needs a source-preserving table/callout transaction across layout, beyond a local label edit."
   port_note: "Keep: scenario GRM-03 AP242 -> plan thread/knurl callouts with PMI provenance."
 
 - id: ISSUE-1298-b
@@ -1757,9 +1759,9 @@
       - "tests/test_issue_1332_overlap_remedy.py::test_one_pair_reports_one_code"
       - "tests/test_issue_1332_overlap_remedy.py::test_the_suggestion_never_contradicts_the_message"
     corpus_parts: []
-  status: pending
-  rust_test: "tests/lint_structural.rs::overlapping_labels_name_the_line_work_that_also_crosses"
-  rust_note: "Partial: the sheet lint upholds it (src/lint/structural.rs::annotation_pairs, since d-lint-structural-2): a pair of overlapping labels whose line-work also crosses one of them gives one annotation_overlap, no annotation_ink_overlap, its message says separating the text is not enough and its fix is to move what is drawn; an ordinary overlap keeps the move-the-label fix. Not ported: placement's own problems (src/dims/placement.rs::collisions) still raise annotation_overlap and annotation_ink_overlap independently for one pair and carry no fix; no captured part has such a pair since d-placement's settle."
+  status: ported
+  rust_test: "src/dims/placement.rs::tests::an_overlapping_pair_has_one_diagnostic_with_a_consistent_remedy; tests/lint_structural.rs::overlapping_labels_name_the_line_work_that_also_crosses"
+  rust_note: "Rules-text batch, 2026-10-16: planner collisions now report one annotation_overlap for an overlapping pair, including a move-what-is-drawn remedy when its line-work or callout arrowhead crosses either label. The duplicate annotation_ink_overlap is suppressed for that pair only; crossings between disjoint labels retain their diagnostic. Both inventory orders and the ordinary-overlap control are tested. The sheet lint already supplies consistent advice; planner problems offer no unsupported typed repair. The new test failed on the original code (two overlap codes for one pair) and passes with this change. No annotation ink or placement algorithm is changed."
   port_note: "Keep if remedies are ported: problem remedy consistent with problem kind."
 
 - id: ISSUE-1333-a
@@ -2014,7 +2016,7 @@
     corpus_parts: []
   status: pending
   rust_test: tests/spec_notes.rs::m10_and_a_knurl_on_the_spindle_print_after_their_diameters
-  rust_note: "Partly ported (stream K1b, src/spec_notes.rs): a Spec-authored thread's length (features/<id>/thread/length) prints in its callout as the minimum full thread (⌀4.2 ↧ 9.2 M5x0.8-6H; 8 MIN FULL THREAD), and one deeper than its blind hole is reported, not drawn (pmi_not_lowered). Not ported: the tap depth as an addressable dimension ID of its own, and the refusal of a thread depth whose callout head is omitted (an omitted callout leaves the thread undrawn; no test checks what is reported then). A bore fit never leaks onto the counterbore: fits are keyed to the bore diameter's dimension (src/dims/tolerance.rs)."
+  rust_note: "Rules-text audit, 2026-10-16: Pending, owner: dimension-ownership stream. A Spec thread length prints MIN FULL THREAD and an excessive length is refused; bore fit keys already isolate it from a counterbore (src/dims/tolerance.rs, tests/spec_notes.rs). Tap depth is still a manufacturing aspect rather than an independently addressable dimension, with no complete callout-head/dependent validation and coverage contract. Those are protected requirement identities, not a text-formatting change."
   port_note: "Keep."
 
 - id: ISSUE-1369-a
@@ -2287,7 +2289,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/completeness_rules.rs::an_oriented_slot_is_called_out_once_with_both_requirements_on_its_rim"
-  rust_note: "Stream K5: a free-direction slot is dimensioned by one callout carrying both requirements, its arrow on the physical rotated rim (the record's section boundary projected into the view along its run; checked within 0.001 mm on mfcadpp_holdout/467, whose section is turned about 27°). Not ported: a rigid-motion test (no rotated copy of a fixture), and pattern members are counted into one callout rather than left to a pattern (the Analysis records no oriented slot pattern membership; #1430)."
+  rust_note: "Rules-text audit, 2026-10-16: Pending, owner: dimension-ownership stream. One rim-anchored callout already carries both free-slot sizes (tests/completeness_rules.rs). Native check_oriented_slot_patterns validates members but discards the pattern record, so the planner groups equal slots rather than deferring pattern members as Python does (#1430). Keeping per-occurrence pattern disposition and adding rigid-motion invariance through that contract is protected ownership work; the present rim test does not prove that full contract."
   port_note: "Keep: scenario on rotated-slot STEP."
 
 - id: ISSUE-1432-b
@@ -2305,7 +2307,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/bridge.rs::a_slot_pattern_that_does_not_resolve_to_its_slots_is_refused"
-  rust_note: "Partial, for slot patterns (since d-bridge-slot-patterns): the bridge refuses a document whose slot pattern does not resolve to one slot record per member or whose members' pattern_sibling links disagree, and dims::slots reports a pattern whose slots do not stand as quiddity says and dimensions them singly (tests/dims_slots.rs). Not ported: oriented slots are not dimensioned; lint reports a slot pattern unverifiable rather than crediting it. A slot whose sizes cannot be read is reported (feature_not_dimensioned in the plan, unverifiable in lint)."
+  rust_note: "Rules-text audit, 2026-10-16: Pending, owner: dimension-ownership stream. The earlier note saying oriented slots are not dimensioned is obsolete: dims::oriented_slots draws one callout and lint::oriented_slots judges each claimed size. However lint's wanted() validates sizes separately, not the full serialized passage/frame/provider witness as one physical occurrence; severing that correspondence can still leave numeric claims credited. A shared source-validation contract plus occurrence/provenance ledger is needed before both values can reliably fail closed. Rust types remove Python subclass spoofing only, not malformed JSON or provenance loss."
   port_note: "Keep the coverage rules; Python duck-typing/subclass-spoofing tests retire under Rust types."
 
 - id: ISSUE-1432-c
@@ -2499,8 +2501,8 @@
       - "tests/test_issue_1485_curved_pockets.py::test_repeated_curved_pockets_keep_one_group_and_every_original_occurrence"
     corpus_parts: []
   status: pending
-  rust_test: "tests/issue_regressions.rs::a_cylindrical_mouth_states_its_greatest_depth"
-  rust_note: "Partial: on draftwright's pocket cut into a cylinder (centred, offset, turned over, moved and turned to stand along z), the callout claims pocket_max_depth.length, never pocket_depth.length, prints MAX DEEP and states draftwright's depth (12, or √364 − 8) to 0.001 mm (src/dims/recesses.rs, through lint::section_recesses::grammar); five broken records (a floor through the mouth, a mouth off its centroid intersection, an unknown end surface, two cylindrical ends, a mouth opening towards its floor) are refused with draftwright's reasons and not dimensioned, the recess reported (dimensions_not_ported, whose message is out of date). A planar reading cannot certify it: a drawn callout claiming a uniform pocket_depth.length (DEEP in place of MAX DEEP) leaves pocket_max_depth.length reported by lint::pockets and credits nothing (tests/issue_regressions.rs::a_planar_reading_cannot_certify_a_curved_pocket; draftwright substitutes a planar declared feature and finds the five requirements unverifiable, the port having no declared features: equivalent in what it guards). Not ported: repeated curved pockets as one N× group (quiddity's section_recess_patterns are not read). Difference: the centred depth prints 12.0 where draftwright prints 12, because the document rounds the floor's run interval to 0.001 mm and gives the mouth's axis to the micrometre (12.000483; rust-wrong in what is printed, from the input)."
+  rust_test: "tests/issue_regressions.rs::a_planar_reading_cannot_certify_a_curved_pocket"
+  rust_note: "Rules-text audit, 2026-10-16: Pending, owners: G7b recess-reader and dimension-ownership streams. Legacy section-recess grammar validates the cylindrical mouth/floor and MAX DEEP claims, including a planar substitution failing credit (tests/issue_regressions.rs). Native READ still omits section_recesses/pocket patterns, and no original-occurrence grouping for repeated curved pockets reaches Analysis. Grouping and its requirement denominator are protected ownership work. The pre-existing published-coordinate rounding difference (12.000483 -> 12.0) is retained as an upstream evidence precision limitation, not silently re-rounded here."
   port_note: "Keep."
 
 - id: ISSUE-1485-b
@@ -2530,6 +2532,7 @@
     corpus_parts: ["tuner_jig_blind_obround_pockets.step"]
   status: pending
   port_note: "Keep: scenario tuner STEP."
+  rust_note: "Rules-text audit, 2026-10-16: Pending, owners: G7b recess-reader and dimension-ownership streams. Python's tuner test needs five original pocket occurrences, a seven-requirement pitch/location scheme and twenty separately retained corner-radius requirements after removing one counted radius callout. Native READ takes neither pocket patterns nor section recesses; no pattern location/individual-corner ownership contract reaches Analysis. Implementing equal/mixed-corner geometry and the shared blend/corner denominator is protected ownership work, not safely replaceable by one radius inferred from a label."
 
 - id: ISSUE-1505-a
   statement: "Equal-valued diameters on different physical features (a bore and an external shoulder or boss) keep separate measurement coverage; a global OD is reused only for one undecorated band on the same axis."
@@ -2542,7 +2545,7 @@
     corpus_parts: []
   status: pending
   rust_test: "tests/issue_drafting.rs::equal_diameters_on_different_features_are_stated_apart"
-  rust_note: "Partial: on every part no dimension states both a hole's bore and an outside diameter (a boss's or the part's overall), and lint's turned-step ledger (src/lint/turned.rs::overall) lets the overall diameter stand for a band's only when it is the unique largest of its profile and alone on its axis line with its diameter (turned fixture, and the same with two largest bands, where it stands for neither). The plan's overall diameter claims the one band of its size (or two separate flanges, `2× ø`, as draftwright's _share_unique_outer_diameter), every other band has its own diameter callout, and a band along z whose diameter prints as a coaxial bore's reads `OD` (src/dims/turned.rs). Not ported: the tolerance and decoration clauses (a toleranced overall diameter still stands for its band)."
+  rust_note: "Rules-text audit, 2026-10-16: Pending, owner: dimension-ownership stream. Separate bore/external claims and unique same-axis OD reuse already exist (src/dims/turned.rs, src/lint/turned.rs), but decoration/tolerance exclusions are incomplete: a decorated overall OD can still certify a band. Changing which physical measurement the global OD owns or may satisfy is explicitly protected ownership work in this batch."
   port_note: "Keep."
 
 - id: ISSUE-1505-b
@@ -2989,7 +2992,7 @@
       - "tests/test_issue_1613_circular_channel.py::test_axis_locations_share_coaxial_ink_and_keep_each_physical_owner"
     corpus_parts: ["issue_1595_whistle_key_frame.step", "whistle_frame_reference.step"]
   status: pending
-  rust_note: "Partial: on draftwright's whistle frame three section recesses read as circular seats along y (⌀14.3 to 0.0003 mm, 6 long, a 62.89° arc), and the plan states six requirements for each and nothing twice: one callout 3× ø14.3 × 6 LONG × 62.9° ARC (draftwright's label) claiming each seat's diameter, run and sweep, and five locations carrying nine claims (one x and one z, 11.1, shared by the coaxial seats, and a y each), as draftwright's sheet (src/dims/recesses.rs). Not ported: declared seats and the refusal of a declared wrong radius or arc midpoint (not applicable: no declarations, R4 decision 3; the same question as ISSUE-676-c); the seats' axis marks. Difference: the shared x location prints 15.6, draftwright's 15.7: the axis lies 15.65 from the box, which the document's 0.001 mm rounding in quiddity's working frame gives as 15.6495 (rust-wrong in what is printed, from the input). Stage G6 adds the circular-seat axis furniture only; the seat's arc-shape recognition is unchanged."
+  rust_note: "Rules-text audit, 2026-10-16: Pending, owner: dimension-ownership stream (axis furniture: G6). Legacy grammar and planner retain circular-seat arcs and six measurements per seat, with shared coaxial location claims (tests/issue_regressions.rs); Rust has no declared-feature API for Python's declaration-rejection cases. The remaining requirement-identity/coaxial-sharing verification and coordinate-rounding discrepancy are protected ownership work; axis/datum furniture is owned by G6. Native READ also waits on G7b for section recesses. This mixed drafting rule is not retired merely because the declaration mechanism is absent."
   rust_test: "tests/issue_regressions.rs::a_circular_seat_keeps_its_arc_and_six_requirements"
   port_note: "Keep."
 

@@ -468,8 +468,8 @@
     issues: []
     tests: ["test_feature_leader_candidate_regions.py", "test_interior_label_placement.py"]
   status: pending
-  rust_test: failed_exterior_corridors_retry_the_whole_linear_dimension_inside
-  rust_note: "H7 revives this rule by maintainer direction. Bounded interior callouts and whole-linear retries prove all projected and settled ink clear. Analysis supplies projection evidence; Spec carries no coordinates. Global joint interior/exterior assignment is not ported."
+  rust_test: "tests/interior_placement.rs::failed_exterior_corridors_retry_the_whole_linear_dimension_inside"
+  rust_note: "Rules-text audit, 2026-10-16: Pending: the bounded interior path carries CandidateRegion and tests whole-label clearance and whole-linear exterior exhaustion (src/dims/interior.rs; tests/interior_placement.rs). Python test_feature_leader_candidate_regions.py and test_interior_label_placement.py also require one joint interior/exterior assignment across feature families, retained failed candidate identity and policy-specific resource floors. Rust calls a bounded interior pass around the exterior router rather than carrying both inventories through one assignment. Unifying the candidate/search/commit model is a cross-cutting placement redesign beyond a day; this batch does not claim the conservative H7 subset as the full rule."
   port_note: "Keep: planner rule for interior placement; Plan entry records interior region as basis."
 
 - id: ADR2-18
@@ -606,7 +606,7 @@
     tests: ["test_occurrence_recognition_ownership.py", "test_pattern_ownership.py", "test_nested_recognition_ownership.py", "test_channel_ownership.py", "test_turned_step_ownership.py", "test_through_step_ownership.py", "test_boss_ownership.py", "test_plate_ownership.py"]
   status: pending
   port_note: "Keep: analyse records, per recognised occurrence, its disposition and owning feature id at conversion time; Analysis carries the ledger."
-  rust_note: "Not ported: the bridge gives every quiddity record one home (feature, evidence or refusal) and refuses one it has none for, but the Analysis carries no per-occurrence disposition or owning feature, so an occurrence the plan then does not use (a record type draftwright leaves undimensioned) is not accounted for as such. Stage G1: the Plan counts unplanned features, but still no per-occurrence disposition."
+  rust_note: "Rules-text audit, 2026-10-16: Pending, owner: dimension-ownership stream. Python binds each original occurrence to its exact final owner at conversion, including nested and absorbed records. Rust native::read checks record schemas and pattern links, but Analysis has no occurrence disposition/owner ledger. Adding the ledger and propagating splits/absorption through every family is the protected ownership redesign; stable feature IDs or equal parameters are not a substitute."
 
 - id: ADR3-8
   statement: "Ownerless policy is explicit per occurrence and comes from one source: families not drawn carry unsupported, deferred or evidence_only with a closed reason code."
@@ -1298,10 +1298,11 @@
     adr: "archive 0008 Amendment 1; 0013 §7"
     issues: [560]
     tests: []
-  status: pending
-  rust_test: "tests/dims_spotface.rs::spool132s_spotface_is_drawn_and_searchable"
+  status: translated
+  rust_test: "tests/rules_text.rs::callout_symbols_are_geometry_and_claims_are_semantic_roles; tests/output.rs::callout_symbols_are_searchable_in_the_pdf_and_the_svg"
+  rust_rule: "Recognition records and Spec requests retain semantic roles; PlannedDimension carries the display recipe. dims::label_ink draws depth, counterbore and countersink symbols as strokes; the searchable text layer retains their Unicode characters. Diameter uses the bundled font's supported ø outline."
   port_note: "Translate: Analysis/Spec carry roles; the Plan carries display text (see ARCH0019-1); renderers draw symbol glyphs as geometry."
-  rust_note: "In part: the Analysis and Spec carry measurement roles (a dimension claims feature and parameter; the plan carries each label's text, made in src/dims/, never on the recognition records), and the callout symbols the bundled fonts lack (⌀ ↧ ⌴ ⌵, and since d-spotface ASME Y14.5-2018's spotface, the counterbore's box with the font's own S and F inside) are drawn as ink by dims::label_ink, their characters kept in the PDF's and SVG's invisible text so they are searched and copied (tests/output.rs::callout_symbols_are_searchable_in_the_pdf_and_the_svg, tests/dims_spotface.rs). Pending, not translated: whether the symbols should instead be real glyphs in the embedded font is an open maintainer question (docs/next-session.md, d-spotface)."
+  rust_note: "Rules-text batch, 2026-10-16: retain Python's geometry symbols, the faithful-to-Python choice authorised for unsettled details in this batch. The existing searchable Unicode layer is kept. The new test pins stroke counts and finite ink bounds separately from measurement-role claims; there is no rendering change."
 
 - id: ARCH0008-2
   statement: "Repeated identical features are counted, not deduplicated: equal definitions are grouped into one callout carrying an n× count."
@@ -1364,6 +1365,7 @@
     tests: ["test_prismatic_central_hole_callout_not_lifted"]
   status: pending
   port_note: "Keep: planner rule keyed on part classification from Analysis."
+  rust_note: "Rules-text audit, 2026-10-16: Pending: src/dims/leaders.rs::inventory ranks routes around all four sides and radial escapes; it has no part-classification constraint that holds a prismatic central-hole label on its centre row while displacing a turned coaxial label. Python tests/test_layout_generalisation.py pins both with their round-view centre furniture. Faithful support requires a classification-aware preferred-row contract through candidate generation, centreline keep-outs, interior recovery and joint assignment, with corpus-wide layout verification; this is a cross-cutting placement change beyond a day, not a safe single row-offset patch."
 
 - id: ARCH0009-4
   statement: "Callout text must not sit on a centre-line or on a location dimension's extension line; where the keep-out band is wider than the strip, the callout sits at the strip edge farthest from the line rather than being dropped."
@@ -1374,6 +1376,7 @@
     tests: []
   status: pending
   port_note: "Keep: keep-out intervals in the strip carve, available to every annotation family (Python only exposed it to hole callouts)."
+  rust_note: "Rules-text audit, 2026-10-16: Pending: the current router scores fixed centre strokes and dimension ink and preserves infeasible labels, with extension-line pads in refinement, but does not carve source-owned keep-out intervals from every annotation family's strip. In particular its least-blocked fallback does not prove Python's farthest-strip-edge choice when a keep-out consumes the strip. A shared interval model across linear, callout and semantic annotation solvers is a cross-cutting placement redesign beyond a day; changing GD&T placement is also owned by the GD&T-placement stream and excluded from this batch."
 
 - id: ARCH0009-5
   statement: "Within a shared corridor, feature size dimensions sit nearest the view and datum location dimensions nest outward in ascending datum distance as one monotonic run; the overall dimension is outermost."
@@ -1640,6 +1643,7 @@
     tests: []
   status: pending
   port_note: "Keep: Plan callout entries list member dimension ids plus feature riders; Spec validation enforces head dependency."
+  rust_note: "Rules-text audit, 2026-10-16: Pending, owner: dimension-ownership stream. Rust compound callouts list Measurement roles and riders remain feature/PMI data (src/dims/holes.rs, src/spec_notes.rs), but the Spec has no full member-dimension head/dependent validation contract for independently authored counterbore, countersink, bolt-circle and thread-depth members. Implementing those identities/dependencies changes the protected one-owner-per-measurement model."
 
 - id: ARCH0016-4
   statement: "Drawing furniture (centre-lines, centre marks, section arrows, hatching, the NTS caption) prints no value, is sized off the geometry it marks, stays automatic, and is not individually addressable dimensional intent."
@@ -1734,7 +1738,7 @@
     tests: []
   status: pending
   port_note: "Keep: requirement cardinality rules in the completeness ledger."
-  rust_note: "Not ported: there is no requirement ledger. Lint's hole coverage judges a recognised pattern's members together, but the counting rules (derived values, nested countersinks, slot parameters) are not a ledger."
+  rust_note: "Rules-text audit, 2026-10-16: Pending, owner: dimension-ownership stream. src/completeness.rs counts claimed faces and unplanned features, not independent manufacturing requirements. Existing per-family ledgers do not establish one denominator across derived values, pattern members and nested countersinks. The occurrence/requirement ledger and its cardinality are protected ownership work."
 
 - id: ARCH0017-3
   statement: "Recognition loss cannot self-certify: completeness benchmarks use an independently authored denominator, so removing a recognised inventory shows up as missing outcomes."

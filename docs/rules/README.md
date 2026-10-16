@@ -21,14 +21,16 @@ angle against rays and datum symbol against surface, `src/lint/fidelity.rs`), st
 by the router and lint, `src/lint/leaders.rs` and `src/material.rs`) and stream K5
 (2026-10-16: dimensioning completeness: a chain per turned body on its own silhouette, raised
 pads, oriented slot callouts, any end-to-end span carrying an extent, exact grouped lengths,
-`tests/completeness_rules.rs`):
+`tests/completeness_rules.rs`) and the rules-text batch (2026-10-16; Python machinery
+translated to typed Rust drawing facts and edits, planner overlap diagnostics, partial PMI
+text checks and cross-solid evidence probes; [batch audit](text-batch.md)):
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 46 | 56 | 33 | 25 |
-| `lint.yaml` | 43 | 109 | 0 | 13 |
-| `issues.yaml` | 101 | 62 | 6 | 21 |
-| **All** | **190** | **227** | **39** | **59** |
+| `adr.yaml` | 45 | 56 | 34 | 25 |
+| `lint.yaml` | 40 | 109 | 2 | 14 |
+| `issues.yaml` | 100 | 63 | 6 | 21 |
+| **All** | **185** | **228** | **42** | **60** |
 
 The assessment rated each of the 353 rules then pending; 20 rules pending today were not rated.
 Rules it found done but with no test to name, or with a real remainder, stay pending with a

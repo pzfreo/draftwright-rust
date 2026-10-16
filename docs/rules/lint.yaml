@@ -246,7 +246,7 @@
     issues: [1143, 1061]
     tests: [tests/test_issue_1370_double_d_completeness_evidence.py]
   status: pending
-  rust_note: "Done in substance (rules assessment of 2026-10-11): the double-D across-flats size is checked as LINT-profiled_bore_coverage-double_d, and the Analysis carries no thread depth to require. Left pending because no test checks a thread depth requirement."
+  rust_note: "Rules-text audit, 2026-10-16: Pending, owner: dimension-ownership stream. Double-D across-flats coverage is present in lint::profiled_bores. Spec-authored thread length is carried as a manufacturing aspect and prints MIN FULL THREAD (tests/spec_notes.rs), but lint::holes has no independent addressable thread-depth requirement; native Hole has no tap-depth field. Adding that parameter, head dependency and requirement denominator is protected ownership work, not grounds to retire a drafting requirement."
   port_note: "Keep: derive requirements from the feature's parameter list."
 
 - id: LINT-hole_coverage-grouping_count
@@ -603,7 +603,9 @@
   source:
     module: "linting/coverage.py"
     issues: [1176]
-  status: pending
+  status: retired
+  why: "The Rust Spec cannot declare replacement geometric features. Analysis is the geometry-derived feature inventory; there is no declared-vs-recognised feature truth-check denominator and no Python EXAMINABLE_DECLARED_KINDS roster to reproduce. This does not retire source/ink fidelity checks or feature coverage."
+  rust_note: "Rules-text batch, 2026-10-16: inspected Python linting/coverage.py's EXAMINABLE_DECLARED_KINDS and declaration reconciliation against src/model.rs::Spec and src/lint/coverage.rs. No declaration API exists in this Rust architecture."
   port_note: "Adapt: needed only by the fidelity component."
 
 # ---------------------------------------------------------------------------------------
@@ -1063,7 +1065,7 @@
     issues: [1372]
     tests: [tests/test_pocket_pattern_completeness_evidence.py]
   status: pending
-  rust_note: "Not ported (re-assessed in stream K5): blocked on the Analysis, which carries no pocket pattern on either path. On the default (native) path Rust quiddity's document has pocket_patterns (PocketGrid, PocketArray) and their pockets, but src/bridge/native.rs reads neither pockets nor section recesses yet (the G7b reader stream), so on draftwright's pocket-pattern-grid.step and pocket-pattern-linear.step the plan reports features_not_recognised for pockets and pocket_patterns and draws none; the Python bridge drops section_recess_patterns (DERIVED_NOT_READ). Reading them is new Analysis data, outside this stream's scope (dimension selection and coverage lints) and owned by the recess reader work; the planner and lint follow once the Analysis has them."
+  rust_note: "Rules-text audit, 2026-10-16: Pending, owners: G7b recess-reader and dimension-ownership streams. Native READ omits pockets, pocket_patterns and section_recesses; the legacy bridge also drops section_recess_patterns. No pocket-pattern member/quantity/pitch/location contract reaches Analysis. Reading and binding the original occurrences precedes the pattern ledger and planner; this batch does not manufacture a pattern from equal pocket values."
   port_note: "Keep."
 
 - id: LINT-code-pocket_pattern_requirement_state
@@ -1075,7 +1077,7 @@
     issues: [1372]
     tests: [tests/test_pocket_pattern_completeness_evidence.py, tests/test_issue_1485_rounded_pockets.py]
   status: pending
-  rust_note: "Not ported: see LINT-pocket_pattern_coverage-requirements (no pocket pattern reaches the Analysis; stream K5 re-assessment)."
+  rust_note: "Rules-text audit, 2026-10-16: Pending, owners: G7b recess-reader and dimension-ownership streams. There is no pocket-pattern feature/requirement inventory in Analysis (see LINT-pocket_pattern_coverage-requirements), so missing/suppressed/unverifiable cannot be judged honestly. The existing per-pocket Mark ledger cannot supply pattern cardinality or author suppression provenance."
   port_note: "Keep."
 
 - id: LINT-section_recess_coverage-hex_pocket
@@ -1795,8 +1797,8 @@
     module: "linting/structural.py"
     tests: [tests/test_interior_label_placement.py]
   status: pending
-  rust_test: empty_space_without_projected_material_is_refused
-  rust_note: "H7 revives this rule. Planning requires whole-label material containment with 0.5 paper mm boundary clearance. The full connected-band narrow-material lint and curved material fields remain unported; known_interior.json records the conservative restriction. Stream K7 left it out of src/lint/fidelity.rs: the drawing records each view's edges, not which side of them is material, so the lint has no material field to probe."
+  rust_test: "tests/interior_placement.rs::projected_linework_refuses_interior_labels"
+  rust_note: "Rules-text audit, 2026-10-16: Pending: H7 proves conservative planar whole-label containment with 0.5 paper-mm clearance (src/dims/interior.rs). Python tests include disconnected material bands and curved boundaries. Drawing carries view edges and projected ink, but no signed filled-material/connected-band field for an independent lint probe. Adding that geometric evidence to output and lint is a cross-cutting material-field change beyond a day; checking only a bounding box would weaken the rule."
   port_note: "Keep."
 
 - id: LINT-code-leader_crosses_silhouette
@@ -1885,7 +1887,10 @@
     module: "linting/structural.py"
     issues: [143, 161, 602, 701, 711]
     tests: [tests/test_lint_box_cache.py]
-  status: pending
+  status: translated
+  rust_rule: "output::Drawn and Kind provide typed annotation facts; Drawn.label, ink, lines and elbow and DrawnView.edges are computed once by rendering and reused by lint::structural. No Python attribute probes or repeated OCC bounding-box computation occurs."
+  rust_test: "tests/lint_structural.rs::structural_checks_on_what_draftwright_read_agree_with_what_it_found"
+  rust_note: "Rules-text batch, 2026-10-16: Python test_lint_box_cache.py protects repeated dynamic bounding-box/edge queries. Rust owns these boxes and edge arrays as drawing data and dispatches through Kind; the captured-input parity test covers the resulting checks."
   port_note: "Drop: replace with typed annotation enums in Rust."
 
 # ---------------------------------------------------------------------------------------
@@ -1972,7 +1977,8 @@
     tests: [tests/test_pmi_manufacturing_finish.py]
   status: pending
   port_note: "Keep if PMI is ported."
-  rust_note: "Not ported: the check reads a source-scoped general note (an edge condition) or a face-finish symbol and compares its ink with the requirement. The reading holds edge conditions and surface finishes (`pmi::read`, manufacturing requirements), and the port now draws a document-wide edge condition as a general note `pmi:<source>` and the default finish as a symbol beside the title block (`pmi_lowering::sheet_requirements`), but no face-finish symbol; the note's ink against its requirement is not checked yet."
+  rust_note: "Rules-text audit, 2026-10-16: Partly ported in rules-text: lint::pmi_coverage now independently compares each source-scoped edge note's wrapped text runs with the source words, and each face-finish parameter name and value with its source fields in micrometres. Missing/extra words, wrong names/values, fabricated rescue text and unchanged source IDs are tested, including actual rendered wrapped notes and face finishes. Pending: Python also checks that the finished filled glyph ink states those words/values. Drawing text runs are invisible searchable text and have no per-annotation ownership of the filled glyph paths; independently auditing those paths requires an output evidence/binding redesign beyond a day. No source-site or GD&T placement change was made."
+  rust_test: "src/lint/pmi_coverage.rs::tests::manufacturing_source_text_is_checked_independently_of_its_identity; tests/pmi_coverage.rs::a_source_edge_note_must_keep_every_word_when_wrapped; tests/surface_texture.rs::a_face_finish_text_cannot_disagree_with_its_source"
 
 - id: LINT-code-pmi_source_site_mismatch
   statement: "A source-scoped annotation is anchored at the face or edge its AP242 source references, and a STEP entity claim carries a resolvable source id."
@@ -2211,5 +2217,8 @@
     module: "linting/suggest.py"
     issues: [29]
     tests: [tests/test_lint_suggestions.py]
-  status: pending
+  status: translated
+  rust_rule: "LintIssue.fix carries optional diagnostic advice; model::Problem.fix carries typed items::Op edits consumed by model::edit. The Rust public API has no Python dwg object or executable Python snippet surface."
+  rust_test: "tests/items.rs::a_problems_fix_resolves_it; tests/lint_structural.rs::overlapping_labels_name_the_line_work_that_also_crosses"
+  rust_note: "Rules-text batch, 2026-10-16: inspected Python suggest.py and test_lint_suggestions.py. Preserve actionable, non-contradictory advice and executable typed edits where the repair is known; do not emit Python code for APIs absent from Rust."
   port_note: "Drop or adapt to the Rust scripting surface."

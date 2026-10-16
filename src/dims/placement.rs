@@ -2044,7 +2044,20 @@ pub(crate) fn collisions_cached(
                     "annotation_overlap",
                     "warning",
                     vec![a.id.clone(), b.id.clone()],
-                    format!("The labels of {} and {} overlap.", named(a), named(b)),
+                    if pa.lines.iter().any(|s| crosses(*s, pb.label_box))
+                        || pb.lines.iter().any(|s| crosses(*s, pa.label_box))
+                        || (a.kind == "callout" && ink_through(pa, pb.label_box))
+                        || (b.kind == "callout" && ink_through(pb, pa.label_box))
+                    {
+                        format!(
+                            "The labels of {} and {} overlap; line-work also crosses a label, \
+                             so separating the text is not enough: move what is drawn, not just the text.",
+                            named(a),
+                            named(b)
+                        )
+                    } else {
+                        format!("The labels of {} and {} overlap.", named(a), named(b))
+                    },
                 );
             }
         }
@@ -2059,7 +2072,11 @@ pub(crate) fn collisions_cached(
             // worded as such. Other items keep the centreline test their placement (`settle`)
             // uses.
             let through = pa.lines.iter().any(|s| crosses(*s, pb.label_box));
-            if through || (a.kind == "callout" && ink_through(pa, pb.label_box)) {
+            // ISSUE-1332-a: an overlapping pair already has one finding above, including
+            // the line-work remedy when needed. Do not charge that neighbourhood twice.
+            if !boxes_overlap(pa.label_box, pb.label_box)
+                && (through || (a.kind == "callout" && ink_through(pa, pb.label_box)))
+            {
                 problem(
                     "annotation_ink_overlap",
                     "warning",
@@ -2322,5 +2339,87 @@ mod tests {
             "{}",
             overlap.message
         );
+    }
+
+    /// ISSUE-1332-a: the exact overlapping/crossing neighbourhood from Python's
+    /// test_issue_1332_overlap_remedy.py, in either inventory order. Moving text alone cannot
+    /// clear the line-work; an ordinary overlap keeps the ordinary message.
+    #[test]
+    fn an_overlapping_pair_has_one_diagnostic_with_a_consistent_remedy() {
+        use serde_json::json;
+        let analysis: Analysis = serde_json::from_value(json!({
+            "schema": "draftwright.analysis/5",
+            "binding": {"source_sha256": "", "part": "", "face_count": 0, "loader": ""},
+            "envelope": [[0., 0., 0.], [1., 1., 1.]], "iso_bounds": [0., 0., 0., 0.]
+        }))
+        .unwrap();
+        let sheet: PlannedSheet = serde_json::from_value(json!({
+            "size": "A4", "page": [297., 210.], "scale": "1:1", "scale_factor": 1.,
+            "arrangement": "columns", "title_block": [200., 10., 287., 40.],
+            "default": true, "basis": "", "state": {"kind": "shown"}, "title": {}
+        }))
+        .unwrap();
+        let item = |id: &str, label_box: [f64; 4], lines: Vec<[P2; 2]>| PlannedDimension {
+            id: id.into(),
+            kind: "linear".into(),
+            view: "v:plan".into(),
+            value: 1.,
+            label: id.into(),
+            terms: vec![id.into()],
+            measurements: vec![],
+            default: true,
+            from_spec: vec![],
+            basis: String::new(),
+            state: crate::items::State::Shown,
+            reference: false,
+            determined_by: vec![],
+            region: None,
+            placed: Some(Placed {
+                lines,
+                arrows: vec![],
+                label_at: [label_box[0], label_box[1]],
+                rotation: 0.,
+                label_box,
+            }),
+        };
+        for crossing in [false, true] {
+            let a = item(
+                "d:a",
+                [10., 10., 20., 12.2],
+                vec![[
+                    [0., if crossing { 11. } else { 40. }],
+                    [40., if crossing { 11. } else { 40. }],
+                ]],
+            );
+            let b = item(
+                "d:b",
+                [12., 10.5, 22., 12.7],
+                vec![[[30., 30.], [31., 30.]]],
+            );
+            for items in [vec![a.clone(), b.clone()], vec![b.clone(), a.clone()]] {
+                let found: Vec<_> = collisions(&analysis, &items, &sheet, &[])
+                    .into_iter()
+                    .filter(|p| {
+                        matches!(
+                            p.code.as_str(),
+                            "annotation_overlap" | "annotation_ink_overlap"
+                        )
+                    })
+                    .collect();
+                assert_eq!(found.len(), 1, "{found:?}");
+                assert_eq!(found[0].code, "annotation_overlap");
+                assert_eq!(found[0].message.contains("move what is drawn"), crossing);
+                assert_eq!(
+                    found[0]
+                        .message
+                        .contains("separating the text is not enough"),
+                    crossing
+                );
+                assert!(
+                    found[0].fix.is_empty(),
+                    "no unsupported edit is offered as a remedy"
+                );
+            }
+        }
     }
 }
