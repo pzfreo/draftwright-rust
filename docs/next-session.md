@@ -7212,7 +7212,7 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   (b) When nothing on A4 or A3 is valid, the search goes on to A2 and up as before. Forcing A3
   then put 16–18 annotations off the sheet on nist_ftc_10 and stc_10, and dropped notes or
   location dimensions elsewhere. That is lost information, worse than a large sheet.
-- **Census.** 255 unpinned single-sheet cases are A2 or larger on main cbbfb800. The rule changes
+- **Census.** 255 unpinned single-sheet cases are A2 or larger on main cbbfb800 (unchanged at 5febcc0f: the same case diff). The rule changes
   one: string_post spec 1c29f39d, A2 10:1 → A3 2:1 (fill 17% → 7%, one more leader through a
   feature). That is what the rule asks; the part is 15 mm long, and it reads smaller than at
   10:1. The other 254 do not fit A3 at 1:1 with a dimension row (NIST ftc_06 ×101, cgb245 ×71,
@@ -7226,7 +7226,7 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   `pmi_thread_knurl::a_threaded_diameter_keeps_its_designation_and_a_plain_one_its_fit`.
 - **J3 merge.** known_pmi_coverage.json is main's list without the two thread entries F1
   projects.
-- **Single-sheet.** Re-baselined on the merged tree, then Linux recorded by CI. Against main's
+- **Single-sheet.** Re-baselined on the merged tree (main 5febcc0f; J4, K1 and gz input in), then Linux recorded by CI. Against main's
   own macOS output, 151 cases differ: 117 plan-only (the sheet basis lists the closed large
   sheets, or an unchosen candidate's fill), 34 drawn (GRM-03 ×13, ctc_05 ×4, turned ×2,
   plate_pin ×5, string_post, F1's thread/knurl parts ×8). Main's committed fixture itself
