@@ -21,6 +21,16 @@ fn even(values: &[f64]) -> bool {
             .all(|w| ((w[1] - w[0]) - (values[1] - values[0])).abs() <= TOL)
 }
 
+/// A repeated pitch prints the number of physical intervals, never the member count.
+fn pitch_states(text: &str, pitch: f64, intervals: usize) -> bool {
+    match text.split_once('×') {
+        Some((count, nominal)) => {
+            count.trim().parse::<usize>() == Ok(intervals) && holes::states(nominal, pitch)
+        }
+        None => intervals == 1 && holes::states(text, pitch),
+    }
+}
+
 /// Exact pattern claims or truthful physical-member ordinates prove location and spacing.
 pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let read: Vec<_> = geometry::read(analysis)
@@ -95,6 +105,20 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 requirements.push((format!("grid_pitch.length.{name}"), None));
             }
         }
+        let spacing_stated = |parameter: &str, text: &str, value: f64| {
+            let intervals = match parameter {
+                "grid_pitch.length.col" => Some(cols.len().saturating_sub(1)),
+                "grid_pitch.length.row" => Some(rows.len().saturating_sub(1)),
+                "pitch.length" if rows.len() == 1 => Some(cols.len().saturating_sub(1)),
+                "pitch.length" if cols.len() == 1 => Some(rows.len().saturating_sub(1)),
+                "pitch.length" => Some(centres.len().saturating_sub(1)),
+                _ => None,
+            };
+            intervals.map_or_else(
+                || holes::states(text, value),
+                |n| pitch_states(text, value, n),
+            )
+        };
         let member_locations: Vec<_> = members
             .iter()
             .map(|&i| {
@@ -118,7 +142,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                         m.claims
                             .iter()
                             .any(|c| c.feature == p.id && c.parameter == *parameter)
-                            && holes::states(&m.text, d)
+                            && spacing_stated(parameter, &m.text, d)
                     })
                 })
             });
@@ -249,7 +273,11 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                         .any(|c| c.feature == p.id && c.parameter == parameter)
                 })
                 .collect();
-            if value.is_some_and(|d| claiming.iter().any(|m| holes::states(&m.text, d))) {
+            if value.is_some_and(|d| {
+                claiming
+                    .iter()
+                    .any(|m| spacing_stated(&parameter, &m.text, d))
+            }) {
                 continue;
             }
             let code = if value.is_none() || !claiming.is_empty() {
