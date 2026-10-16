@@ -1117,6 +1117,9 @@ pub(super) fn avoid_fixed(
 /// keeps canonical and authored placements; every candidate clears the full inventory.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn clear_linear(
+    analysis: &Analysis,
+    cache: &super::footprints::Cache,
+    views: &[PlannedView],
     frames: &BTreeMap<&str, Frame>,
     items: &[Want],
     chosen: &[Option<&str>],
@@ -1134,6 +1137,7 @@ pub(super) fn clear_linear(
                 && b.arrows.len() == 2
                 && shared_dimension_line(&a.lines, &b.lines))
     };
+    let mut models = BTreeMap::new();
     for i in 0..items.len() {
         if !matches!(items[i].shape, Shape::Linear { .. }) {
             continue;
@@ -1151,13 +1155,52 @@ pub(super) fn clear_linear(
         if !others.iter().any(|q| conflict(p, q)) {
             continue;
         }
-        // The opposite strip's first eight lanes are a bounded search of spare paper,
-        // not permission to grow the existing tower beyond the sheet.
-        let found = (0..8).find_map(|lane| {
-            let c = place(&frames[view], &items[i], opposite(side), lane)?;
-            (page.fits(&c, view) && others.iter().all(|q| !conflict(&c, q))).then_some((lane, c))
+        let Some(v) = views.iter().find(|v| v.id.strip_prefix("v:") == Some(view)) else {
+            continue;
+        };
+        let footprint = cache.get(analysis, v);
+        // The Analysis projects a conservative superset of visible edges, including
+        // cylinder silhouettes. Own-view ink is not a Page::fits obstacle: witnesses
+        // normally start there, but must not traverse the body to reach another strip.
+        let model = models.entry(view).or_insert_with(|| {
+            analysis
+                .edge_ink
+                .as_ref()
+                .map(|ink| super::leaders::view_ink(analysis, ink, v))
         });
-        if let Some((lane, c)) = found {
+        let crossings = |c: &Placed| {
+            c.lines
+                .iter()
+                .take(2)
+                .map(|line| {
+                    let features = footprint
+                        .crossed_extension(*line, &items[i].measurements)
+                        .len();
+                    let geometry = model.as_ref().map_or(0, |(edges, boxes)| {
+                        edges
+                            .iter()
+                            .filter(|edge| super::leaders::segments_cross(*line, **edge))
+                            .count()
+                            + boxes.iter().filter(|b| crosses(*line, **b)).count()
+                    });
+                    features + geometry
+                })
+                .sum::<usize>()
+        };
+        let before = crossings(p);
+        // Prefer the least obstructed of the opposite strip's first eight lanes.
+        // Keeping a reported label conflict is better than adding body crossings.
+        let found = (0..8)
+            .filter_map(|lane| {
+                let c = place(&frames[view], &items[i], opposite(side), lane)?;
+                if !page.fits(&c, view) || others.iter().any(|q| conflict(&c, q)) {
+                    return None;
+                }
+                let hits = crossings(&c);
+                (hits <= before).then_some((hits, lane, c))
+            })
+            .min_by_key(|(hits, lane, _)| (*hits, *lane));
+        if let Some((_, lane, c)) = found {
             sides[i] = Some(opposite(side));
             lanes[i] = lane;
             placed[i] = Some(c);

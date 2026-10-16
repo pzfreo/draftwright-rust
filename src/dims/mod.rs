@@ -1331,6 +1331,9 @@ pub(crate) fn plan_inventory(
         && intended.iter().all(Option::is_none)
     {
         placement::clear_linear(
+            analysis,
+            cache,
+            views,
             &frames,
             &all,
             &chosen,
