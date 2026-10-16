@@ -39,12 +39,18 @@ def counted(command):
         reply = subprocess.run(command, capture_output=True, check=True, timeout=3600)
         return None, reply.stdout
     library = ctypes.CDLL('/usr/lib/libproc.dylib', use_errno=True)
+    # rusage_info_v4: 16-byte UUID, then uint64 fields; ri_instructions is word 31.
+    usage = (ctypes.c_uint64 * 37)()
     with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as error:
         child = subprocess.Popen(command, stdout=output, stderr=error)
         try:
-            os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOWAIT)
-            # rusage_info_v4: 16-byte UUID, then uint64 fields; ri_instructions is word 31.
-            usage = (ctypes.c_uint64 * 37)()
+            # Darwin's waitid also reports a child stopped (a load governor's SIGSTOP pauses
+            # long runs), which read the count of a run cut short; wait for its exit itself.
+            while True:
+                info = os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOWAIT | os.WNOHANG)
+                if info and info.si_code in (os.CLD_EXITED, os.CLD_KILLED, os.CLD_DUMPED):
+                    break
+                time.sleep(0.05)
             result = library.proc_pid_rusage(child.pid, 4, ctypes.byref(usage))
         finally:
             status = child.wait()

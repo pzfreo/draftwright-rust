@@ -5,9 +5,12 @@ import os
 import importlib.util
 import re
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -223,6 +226,78 @@ class Acceptance(unittest.TestCase):
         recorded = json.loads((ROOT / 'tools/plan-time-budget.json').read_text())
         self.assertEqual(recorded['format'], plan_time.FORMAT)
         self.assertIn('darwin-arm64', recorded['instructions'])
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'retired instructions are read on Darwin')
+    def test_instruction_count_is_the_whole_run_of_a_paused_child(self):
+        spec = importlib.util.spec_from_file_location('plan_time', ROOT / 'tools/check_plan_time.py')
+        plan_time = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(plan_time)
+        # A marker in the command line finds the child; the work is long enough to pause.
+        marker = f'paused-{os.getpid()}'
+        command = [sys.executable, '-I', '-c', f's = 0\nfor i in range(40_000_000): s += i  # {marker}']
+        whole, _ = plan_time.counted(command)
+        found = {}
+        counting = threading.Thread(target=lambda: found.update(paused=plan_time.counted(command)[0]))
+        counting.start()
+        pid = None
+        while pid is None and counting.is_alive():
+            listed = subprocess.run(['pgrep', '-f', marker], capture_output=True, text=True).stdout.split()
+            pid = int(listed[-1]) if listed else None
+        # As a load governor does: the child paused and continued while it runs.
+        for _ in range(3):
+            time.sleep(0.2)
+            os.kill(pid, signal.SIGSTOP)
+            time.sleep(0.2)
+            os.kill(pid, signal.SIGCONT)
+        counting.join()
+        self.assertGreater(found['paused'], 0.9 * whole)
+
+    def test_ci_runs_render_tail_budget_with_release_binary(self):
+        runner = self.runner()
+        self.assertIn('render-tail', runner.JOBS)
+        run = runner.Run(SimpleNamespace(binary=Path('binary'), corpus=Path('corpus')), Path('out'))
+        with patch.object(run, 'step') as step:
+            run.execute('render-tail')
+        command = step.call_args.args[1]
+        self.assertIn(ROOT / 'tools/check_render_tail.py', command)
+        self.assertEqual(command[command.index('--binary') + 1], Path('binary'))
+        self.assertEqual(command[command.index('--corpus') + 1], Path('corpus'))
+        self.assertNotIn('--record', command)
+        workflow = (ROOT / '.github/workflows/ci.yml').read_text()
+        self.assertIn('job: render-tail, label: render-tail', workflow)
+
+    def test_render_tail_gates_each_part_on_instructions_or_processor_time(self):
+        spec = importlib.util.spec_from_file_location('render_tail', ROOT / 'tools/check_render_tail.py')
+        tail = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(tail)
+        names = sorted(tail.PARTS)
+        self.assertEqual(names, ['cgb243', 'threaded_connector_109'])
+        budget = {'format': tail.FORMAT, 'instructions': {'darwin-arm64': dict.fromkeys(names, 1000)},
+                  'cpu_seconds_ceiling': dict.fromkeys(names, 100)}
+
+        def rows(instructions, cpu):
+            return {p: {'instructions': instructions, 'cpu_seconds': cpu, 'seconds': 1} for p in names}
+
+        self.assertTrue(tail.verdict(rows(1100, 999), budget, 'darwin-arm64')['passed'])
+        # One part past its figure fails, whatever the other does.
+        slower = rows(1000, 1)
+        slower['cgb243']['instructions'] = 1151
+        report = tail.verdict(slower, budget, 'darwin-arm64')
+        self.assertFalse(report['passed'])
+        self.assertIn('cgb243', report['failures'][0])
+        # No counter or no figure: each part is held to its processor-time ceiling instead.
+        for key, measured in (('linux-x86_64', rows(10**9, 99)), ('darwin-arm64', rows(None, 99))):
+            report = tail.verdict(measured, budget, key)
+            self.assertEqual((report['gated_on'], report['passed']), ('cpu_seconds', True))
+        hot = rows(None, 99)
+        hot['threaded_connector_109']['cpu_seconds'] = 101
+        self.assertFalse(tail.verdict(hot, budget, 'linux-x86_64')['passed'])
+        with self.assertRaises(ValueError):
+            tail.verdict({'cgb243': rows(1, 1)['cgb243']}, budget, 'darwin-arm64')
+        recorded = json.loads((ROOT / 'tools/render-tail-budget.json').read_text())
+        self.assertEqual(recorded['format'], tail.FORMAT)
+        self.assertEqual(sorted(recorded['instructions']['darwin-arm64']), names)
+        self.assertEqual(sorted(recorded['cpu_seconds_ceiling']), names)
 
     def test_require_go_rejects_partial_or_unrelated_jobs(self):
         for options in (['--job', 'mcp'], ['--job', 'quality-pins', '--pin-cell', '1-1']):
