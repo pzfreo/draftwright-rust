@@ -103,6 +103,27 @@ fn a_constrained_main_scale_keeps_the_complete_head_crop_and_sheet_scale_iso() {
     );
 }
 
+#[test]
+fn an_omitted_detail_seed_cannot_leak_into_an_ordinary_candidate() {
+    let Some(a) = string_post() else { return };
+    let seed = model::plan_escalated(&a, &Spec::default()).unwrap();
+    assert!(seed.views.iter().any(|v| v.detail.is_some()));
+    let spec: Spec = serde_json::from_value(json!({"views":{"detail_b":{"omit":true}}})).unwrap();
+    let p = model::recover(&a, &spec, seed).unwrap();
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        ("A4", "5:1")
+    );
+    assert!(p.views.iter().all(|v| v.detail.is_none()));
+    assert!(
+        p.dimensions
+            .iter()
+            .any(|d| d.id == "d:f:turned_step:3/step.length"
+                && d.view == "v:front"
+                && d.placed.is_some())
+    );
+}
+
 fn crosses(line: [[f64; 2]; 2], b: [f64; 4]) -> bool {
     let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
     for k in 0..2 {

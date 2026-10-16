@@ -1587,32 +1587,39 @@ pub(crate) fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
 
 fn recover_uncached(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
     if spec.sheet.scale.is_some() || crate::placement_intent::has_pins(spec) {
-        return recover_candidates(analysis, spec, first);
+        return recover_candidates(analysis, spec, first, true, false);
     }
     // Optional details are a last resort for unreadable features or smaller paper.
     // Search the complete ordinary drawing first, including the small-sheet allocation.
+    let minimum = crate::sheets::floor(spec)
+        .unwrap_or(0.0)
+        .max(crate::sheet_fit::min_legible_scale(analysis));
     let has_optional = first
         .views
         .iter()
         .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
-        || layout::SCALES.into_iter().any(|scale| {
-            crate::detail::requests(analysis, spec, scale)
-                .iter()
-                .any(|(_, d)| !d.authored)
-        });
+        || layout::SCALES
+            .into_iter()
+            .filter(|s| *s >= minimum)
+            .any(|scale| {
+                crate::detail::requests(analysis, spec, scale)
+                    .iter()
+                    .any(|(_, d)| !d.authored)
+            });
     if has_optional {
-        let mut plain = spec.clone();
-        for name in crate::detail::NAMES {
-            if !plain.views.get(name).is_some_and(|v| v.detail.is_some()) {
-                plain.views.entry(name.into()).or_default().omit = true;
-            }
-        }
-        let seed = plan_escalated(analysis, &plain)?;
-        let mut ordinary = recover_candidates(analysis, &plain, seed)?;
-        let complete = findings(&ordinary).clean()
+        // Both passes use the same Spec. Omit only the requests present at a candidate's
+        // scale, so pairs with no optional crop share their expensive planning memo.
+        // The original seed supplies requirements; suppressed geometry is never reused.
+        let required = carried(&first);
+        let mut ordinary = recover_candidates(analysis, spec, first.clone(), false, false)?;
+        let complete = !ordinary
+            .views
+            .iter()
+            .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
+            && findings(&ordinary).clean()
             && undrawn_gdt(&ordinary) == 0
             && drawn_sheets_fit(analysis, &ordinary)
-            && carried(&first).is_subset(&carried(&ordinary));
+            && required.is_subset(&carried(&ordinary));
         let small_paper = ordinary.sheet.size == "A4" || ordinary.sheet.size == "A3";
         if complete
             && (small_paper
@@ -1622,23 +1629,34 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Pla
             ordinary.spec = spec.clone();
             return Ok(ordinary);
         }
-        let detailed = recover_candidates(analysis, spec, first)?;
-        // A complete ordinary large-part drawing still wins unless a detail saves paper.
+        let detailed = recover_candidates(analysis, spec, first, true, true)?;
+        let detailed_complete = findings(&detailed).clean()
+            && undrawn_gdt(&detailed) == 0
+            && drawn_sheets_fit(analysis, &detailed)
+            && required.is_subset(&carried(&detailed));
+        // A refused detail search may return the invalid seed. A complete ordinary
+        // drawing always wins over that fallback, irrespective of paper size.
         let paper = |p: &Plan| {
             layout::PAGES
                 .iter()
                 .position(|(name, ..)| *name == p.sheet.size)
         };
-        if complete && paper(&ordinary) <= paper(&detailed) {
+        if complete && (!detailed_complete || paper(&ordinary) <= paper(&detailed)) {
             ordinary.spec = spec.clone();
             return Ok(ordinary);
         }
         return Ok(detailed);
     }
-    recover_candidates(analysis, spec, first)
+    recover_candidates(analysis, spec, first, true, false)
 }
 
-fn recover_candidates(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result<Plan, Invalid> {
+fn recover_candidates(
+    analysis: &Analysis,
+    spec: &Spec,
+    mut first: Plan,
+    allow_automatic: bool,
+    require_automatic: bool,
+) -> Result<Plan, Invalid> {
     use crate::sheet_fit::FILL_BAND;
     let min_legible_scale = crate::sheets::floor(spec).map_or_else(
         || crate::sheet_fit::min_legible_scale(analysis),
@@ -1690,6 +1708,14 @@ fn recover_candidates(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Resu
     if !first.hole_tables.is_empty() {
         return recover_tables(analysis, spec, first);
     }
+    let suppressed_detail = first.views.iter().any(|v| {
+        v.detail.as_ref().is_some_and(|d| !d.authored)
+            && (!allow_automatic
+                || spec
+                    .views
+                    .get(v.id.trim_start_matches("v:"))
+                    .is_some_and(|v| v.omit))
+    });
     let seed_clean =
         findings(&first).clean() && undrawn_gdt(&first) == 0 && drawn_items_fit(analysis, &first);
     // A2 and larger only for a part whose views do not fit A3 at 1:1; asked at most once, and
@@ -1706,7 +1732,8 @@ fn recover_candidates(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Resu
         .position(|(n, _, _)| *n == first.sheet.size)
         .is_some_and(|i| i >= LARGE_SHEET);
     // A large first estimate of a small part is no sheet to keep: it vetoes nothing.
-    let mut seed_kept = seed_clean && !(first_large && is_small(&mut small_part)?);
+    let mut seed_kept =
+        seed_clean && !suppressed_detail && !(first_large && is_small(&mut small_part)?);
     let required = carried(&first);
     let mut tried = Vec::new();
     let mut candidates = Vec::new();
@@ -1764,11 +1791,12 @@ fn recover_candidates(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Resu
                 named.sheet.size = Some((*name).into());
                 named.sheet.scale = Some(scale_name(scale));
                 // Decide omissions before the expensive candidate/arrangement planning.
-                if layout::PAGES
-                    .iter()
-                    .position(|(n, ..)| *n == first.sheet.size)
-                    .is_some_and(|parent| i > parent)
-                    && crate::sheets::floor(spec).is_none()
+                if !allow_automatic
+                    || (layout::PAGES
+                        .iter()
+                        .position(|(n, ..)| *n == first.sheet.size)
+                        .is_some_and(|parent| i > parent)
+                        && crate::sheets::floor(spec).is_none())
                 {
                     for (name, detail) in crate::detail::requests(analysis, &named, scale) {
                         if !detail.authored {
@@ -1776,23 +1804,31 @@ fn recover_candidates(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Resu
                         }
                     }
                 }
-                let mut p =
-                    if first.sheet.size == *name && first.sheet.scale_factor == scale && seed_clean
-                    {
-                        first.clone()
-                    } else {
-                        match plan_escalated_with(analysis, &named, true, None) {
-                            Ok(p) => p,
-                            Err(e)
-                                if spec.iso_scale_factor.is_some()
-                                    && e.message == INFEASIBLE_ISO_SCALE =>
-                            {
-                                tried.push(format!("{name} {} ({})", scale_name(scale), e.message));
-                                continue;
-                            }
-                            Err(e) => return Err(e),
+                let mut p = if first.sheet.size == *name
+                    && first.sheet.scale_factor == scale
+                    && seed_clean
+                    && !suppressed_detail
+                    && (!require_automatic
+                        || first
+                            .views
+                            .iter()
+                            .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored)))
+                {
+                    first.clone()
+                } else {
+                    match plan_escalated_with(analysis, &named, true, None, require_automatic) {
+                        Ok(p) => p,
+                        Err(e) if require_automatic && e.message == NO_AUTOMATIC_DETAIL => continue,
+                        Err(e)
+                            if spec.iso_scale_factor.is_some()
+                                && e.message == INFEASIBLE_ISO_SCALE =>
+                        {
+                            tried.push(format!("{name} {} ({})", scale_name(scale), e.message));
+                            continue;
                         }
-                    };
+                        Err(e) => return Err(e),
+                    }
+                };
                 // A failed seed must not restrict the complete drawing to its first arrangement.
                 // Try the other established arrangement, with no new leader-routing strategy.
                 if !seed_clean {
@@ -1814,28 +1850,36 @@ fn recover_candidates(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Resu
                         if p.sheet.arrangement == arrangement.name() {
                             continue;
                         }
-                        let alternative =
-                            match plan_escalated_with(analysis, &named, true, Some(arrangement)) {
-                                Ok(p) => p,
-                                Err(e)
-                                    if spec.iso_scale_factor.is_some()
-                                        && e.message == INFEASIBLE_ISO_SCALE =>
-                                {
-                                    continue;
-                                }
-                                Err(e) => return Err(e),
-                            };
+                        let alternative = match plan_escalated_with(
+                            analysis,
+                            &named,
+                            true,
+                            Some(arrangement),
+                            require_automatic,
+                        ) {
+                            Ok(p) => p,
+                            Err(e) if require_automatic && e.message == NO_AUTOMATIC_DETAIL => {
+                                continue;
+                            }
+                            Err(e)
+                                if spec.iso_scale_factor.is_some()
+                                    && e.message == INFEASIBLE_ISO_SCALE =>
+                            {
+                                continue;
+                            }
+                            Err(e) => return Err(e),
+                        };
                         if quality(&alternative) < quality(&p) {
                             p = alternative;
                         }
                     }
                 }
                 if !p.gdt.is_empty() {
-                    let recipe = recipes.entry(scale.to_bits()).or_insert_with(|| {
-                        let mut roomy = spec.clone();
-                        roomy.sheet.size = Some("A0".into());
-                        roomy.sheet.scale = Some(scale_name(scale));
-                        plan_escalated_with(analysis, &roomy, true, None)
+                    let mut roomy = named.clone();
+                    roomy.sheet.size = Some("A0".into());
+                    let recipe_key = serde_json::to_vec(&roomy).expect("recipe Spec serializes");
+                    let recipe = recipes.entry(recipe_key).or_insert_with(|| {
+                        plan_escalated_with(analysis, &roomy, true, None, false)
                             .ok()
                             .filter(|q| findings(q).clean())
                     });
@@ -1951,9 +1995,21 @@ fn recover_candidates(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Resu
                     .as_ref()
                     .and_then(|s| s.hole_table)
                     .is_some_and(|n| n > 1);
+            let mut fallback_spec = spec.clone();
+            if !allow_automatic {
+                for name in crate::detail::NAMES {
+                    if !fallback_spec
+                        .views
+                        .get(name)
+                        .is_some_and(|v| v.detail.is_some())
+                    {
+                        fallback_spec.views.entry(name.into()).or_default().omit = true;
+                    }
+                }
+            }
             if !assigned
                 && let Some(plan) =
-                    crate::sheets::small_fallback(analysis, spec, &first, &mut tried)
+                    crate::sheets::small_fallback(analysis, &fallback_spec, &first, &mut tried)
             {
                 return Ok(plan);
             }
@@ -1978,7 +2034,7 @@ fn recover_candidates(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Resu
             let mut named = spec.clone();
             named.sheet.size = Some(first.sheet.size.clone());
             named.sheet.scale = Some(scale_name(floor));
-            first = plan_escalated_with(analysis, &named, true, None)?;
+            first = plan_escalated_with(analysis, &named, true, None, false)?;
             first.sheet.default = true;
             first.spec = spec.clone();
             first.sheet.basis = format!(
@@ -2103,8 +2159,15 @@ fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan,
         at.sheet.size = Some(baseline.sheet.size.clone());
         at.sheet.scale = Some(scale_name(baseline.sheet.scale_factor));
     }
-    let mut scheduled =
-        plan_with_presentation(analysis, &at, false, replanned, None, Some(&selection))?;
+    let mut scheduled = plan_with_presentation(
+        analysis,
+        &at,
+        false,
+        replanned,
+        None,
+        Some(&selection),
+        false,
+    )?;
     if replanned {
         scheduled.spec = spec.clone();
         scheduled.sheet.default = true;
@@ -2152,16 +2215,20 @@ pub fn plan_escalated(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
     // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).
     let merged = crate::spec_gdt::effective(analysis, spec)?;
     let analysis = merged.as_ref();
-    let mut plan = plan_escalated_with(analysis, spec, false, None)?;
+    let mut plan = plan_escalated_with(analysis, spec, false, None, false)?;
     crate::iso_caption::refresh(analysis, &mut plan);
     Ok(plan)
 }
+
+// Internal preflight refusal; only the optional-detail search requests this mode.
+const NO_AUTOMATIC_DETAIL: &str = "no automatic detail survived this candidate";
 
 fn plan_escalated_with(
     analysis: &Analysis,
     spec: &Spec,
     automatic_pair: bool,
     candidate_arrangement: Option<layout::Arrangement>,
+    require_automatic: bool,
 ) -> Result<Plan, Invalid> {
     let analysis_key: [u8; 32] =
         crate::planning::memo(analysis, "analysis_digest", Vec::new(), || {
@@ -2172,6 +2239,7 @@ fn plan_escalated_with(
         spec,
         automatic_pair,
         candidate_arrangement.map(|a| a.name()),
+        require_automatic,
     ))
     .expect("candidate inputs serialize");
     crate::planning::memo(analysis, "candidate", key.clone(), || {
@@ -2184,7 +2252,13 @@ fn plan_escalated_with(
         if let Some(plan) = MEMO.get(&digest) {
             return plan;
         }
-        let plan = plan_escalated_uncached(analysis, spec, automatic_pair, candidate_arrangement);
+        let plan = plan_escalated_uncached(
+            analysis,
+            spec,
+            automatic_pair,
+            candidate_arrangement,
+            require_automatic,
+        );
         MEMO.insert(digest, plan.clone());
         plan
     })
@@ -2195,6 +2269,7 @@ fn plan_escalated_uncached(
     spec: &Spec,
     automatic_pair: bool,
     candidate_arrangement: Option<layout::Arrangement>,
+    require_automatic: bool,
 ) -> Result<Plan, Invalid> {
     let escalated = |beyond_lanes: bool| {
         plan_with(
@@ -2203,6 +2278,7 @@ fn plan_escalated_uncached(
             beyond_lanes,
             automatic_pair,
             candidate_arrangement,
+            require_automatic,
         )
         .and_then(|mut p| {
             let selection = crate::hole_table::select(analysis, &p);
@@ -2221,6 +2297,7 @@ fn plan_escalated_uncached(
                     automatic_pair,
                     candidate_arrangement,
                     Some(&selection),
+                    require_automatic,
                 )?;
                 if crate::hole_table::install(analysis, &mut scheduled, &selection) {
                     p = scheduled;
@@ -2238,7 +2315,10 @@ fn plan_escalated_uncached(
             Ok(p)
         })
     };
-    let first = escalated(false)?;
+    let first = match escalated(false) {
+        Err(e) if require_automatic && e.message == NO_AUTOMATIC_DETAIL => return escalated(true),
+        result => result?,
+    };
     let misplaced = gdt_misplaced(&first);
     if misplaced == (0, 0) {
         return Ok(first);
@@ -2291,7 +2371,7 @@ fn gdt_misplaced(plan: &Plan) -> (usize, usize) {
 /// drawing's findings. That recovery is [`recover`], applied by [`plan_recovered`], never here:
 /// its tries are plans made by this function (ISSUE-1299-a).
 pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
-    plan_with(analysis, spec, false, false, None)
+    plan_with(analysis, spec, false, false, None, false)
 }
 
 /// [`plan`], the GD&T's room reserved beyond every dimension lane of its strips when
@@ -2302,6 +2382,7 @@ fn plan_with(
     gdt_beyond_lanes: bool,
     automatic_pair: bool,
     candidate_arrangement: Option<layout::Arrangement>,
+    require_automatic: bool,
 ) -> Result<Plan, Invalid> {
     plan_with_presentation(
         analysis,
@@ -2310,6 +2391,7 @@ fn plan_with(
         automatic_pair,
         candidate_arrangement,
         None,
+        require_automatic,
     )
 }
 
@@ -2320,6 +2402,7 @@ fn plan_with_presentation(
     automatic_pair: bool,
     candidate_arrangement: Option<layout::Arrangement>,
     presentation: Option<&crate::hole_table::Selection>,
+    require_automatic: bool,
 ) -> Result<Plan, Invalid> {
     let excluded = presentation
         .map(|p| &p.replaced)
@@ -3102,6 +3185,13 @@ fn plan_with_presentation(
             problems.push(Problem {id:format!("p:detail_unplaceable:v:{name}"),code:"detail_unplaceable".into(),severity:"warning".into(),message:format!("{} detail has no reserved room or source view; its dimensions remain on the parent.",detail.kind),refs:vec![format!("v:{name}")],..Default::default()});
         }
     }
+    if require_automatic
+        && !views
+            .iter()
+            .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
+    {
+        return Err(invalid(NO_AUTOMATIC_DETAIL, &[]));
+    }
     let mut title = spec.sheet.title.clone();
     title
         .entry("title".into())
@@ -3245,6 +3335,14 @@ fn plan_with_presentation(
         plan.sheet.arrangement = arrangement;
         for (view, basis) in plan.views.iter_mut().zip(view_bases) {
             view.basis = basis;
+        }
+        if require_automatic
+            && !plan
+                .views
+                .iter()
+                .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
+        {
+            return Err(invalid(NO_AUTOMATIC_DETAIL, &[]));
         }
         return Ok(plan);
     }
@@ -3404,8 +3502,17 @@ fn plan_with_presentation(
             automatic_pair,
             candidate_arrangement,
             presentation,
+            false,
         )?;
         p.spec = given.clone();
+        if require_automatic
+            && !p
+                .views
+                .iter()
+                .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
+        {
+            return Err(invalid(NO_AUTOMATIC_DETAIL, &[]));
+        }
         return Ok(p);
     }
     for view in &mut views {
@@ -3978,6 +4085,7 @@ fn plan_with_presentation(
             automatic_pair,
             candidate_arrangement,
             presentation,
+            false,
         )?;
         retain_short_leaders(analysis, &mut plan, &bare);
         let old = (
@@ -4002,6 +4110,14 @@ fn plan_with_presentation(
                 refs: automatic_details.iter().map(|n| format!("v:{n}")).collect(), ..Default::default() });
             plan = bare;
         }
+    }
+    if require_automatic
+        && !plan
+            .views
+            .iter()
+            .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
+    {
+        return Err(invalid(NO_AUTOMATIC_DETAIL, &[]));
     }
     plan.sheet.fill = crate::sheet_fit::fill(analysis, &plan);
     if let Some((basis, _)) = plan.sheet.basis.rsplit_once("; drawn-item fill ") {
