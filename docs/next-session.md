@@ -7847,3 +7847,39 @@ known sandbox socket-bind failures; all remaining integration binaries pass.
   mode a rung left out while its siblings are listed is drawn where it was. Every item outside
   the set is still checked as fixed. If the maintainer chooses per-rung omission instead, revert
   (b) with that change.
+
+## K8: rules catalogue re-assessed after the F, J and K merges (#43 item 2, 2026-10-16, unattended; overturnable)
+
+Every rule pending in `docs/rules/` at f5df9e0d (188, 52 with no note) was judged against the code
+and tests: 8 ported, 7 translated, 13 retired, 160 left pending, each with a note saying what
+remains (stale notes about blends, pads, oriented slots, schedules, centre marks, tolerances,
+threads, face-finish symbols and the multi-solid severity brought up to date). New
+`tests/rules_catalogue.rs` checks the catalogue (every status backed, every cited test existing,
+the README tables equal to the files) and proves three rules already met (ADR2-U1, ARCH0009-5,
+ISSUE-917-a). Two cited tests had been renamed and are repointed (ARCH0009-2, ISSUE-1146-b).
+Judgement calls, each overturnable:
+- **Translated, not ported, where the port's design differs on purpose:** ADR2-D5 (nothing is
+  dropped for capacity, so no ranked selection), the two lint-outcome rules (suppressed and
+  dropped are the plan's to report, since lint reads no Spec or Plan), LINT-suggest-fix_snippets
+  (fix in words and Problem.fix), ISSUE-367-b (value-keyed render cache), ISSUE-1229-b (lint's
+  guard), ARCH0016-9 (planners state part-space spans, placement chooses strip and lane).
+- **Retired as Python machinery or score plumbing:** ARCH0016-8, six LINT machinery rules, the
+  quality register (LINT-quality-unscored_and_stage_routed, ISSUE-1176-b), ISSUE-1308-b (no OCC
+  path), ISSUE-1312-a (a performance detail), ISSUE-1532-a (no section authoring). The quality
+  component rules (ADR5-5, LINT-quality-four_components, -fidelity_codes, -legibility_codes) stay
+  pending, since a score is still an open design question.
+- **Ported on the bridge path while the default path cannot reach them:** ISSUE-1245-a,
+  ISSUE-1246-a and ISSUE-917-a hold for section recesses, which the native reader does not read
+  yet (features_not_recognised on 1000, 10046 and FTC-06 among others; the G7b reader stream).
+  ARCH0015-1's recess grammars are noted the same way. If the maintainer prefers "ported" to
+  mean "on the default path", these four go back to pending.
+- **Recognition lessons** (ISSUE-958-a, ISSUE-1073-a, ISSUE-676-a, ISSUE-1555-a) stay pending
+  with owner quiddity in their notes; no test was written in draftwright for them.
+- **Integration note (k/int-k8-rules-reassess, 2026-10-16):** main gained the maintainer-approved
+  triage of all pending rules (#58) after this stream was written, so on merge every catalogue
+  status, port_note, rust_test and the README tables are main's; the status counts and
+  judgement calls above describe the stream's branch, not main. The only catalogue content kept
+  from K8 is the `rust_note` of the 15 PORT rules the triage left with none (ARCH0004-3,
+  ARCH0015-3, six gear and leader lint rules, the second-countersink lint rule, ISSUE-958-a,
+  -1058-a, -1086-a, -1353-b, -1485-c, -1604-a), which `every_rule_says_what_backs_its_status`
+  requires. `tests/rules_catalogue.rs` passes on the merged tree unchanged.
