@@ -14,7 +14,8 @@ def snapshot(directory, key):
     p = json.loads((directory / (key + '.plan.json')).read_text())
     if 'sheet' not in p:
         return None
-    pmi = {r['id'] for field in ('gdt', 'dimensions', 'requirements')
+    pmi = {r['id']: {k: r[k] for k in ('label', 'cells', 'value', 'measurements') if k in r}
+           for field in ('gdt', 'dimensions', 'requirements')
            for r in p.get(field, []) if r.get('placed') is not None
            and (field == 'gdt' or r['id'].startswith(('pmi:', 'd:pmi:'))
                 or 'AP242' in r.get('basis', ''))}
@@ -31,7 +32,7 @@ def main():
     new = json.loads((args.after / 'summary.json').read_text())
     assert old.keys() == new.keys(), 'content manifests differ'
     report = {'parts': 0, 'changes': [], 'details': [], 'new_errors': [], 'lost_pmi': [],
-              'small_to_large': [], 'refusals': []}
+              'small_to_large': [], 'refusals': [], 'changed_pmi': []}
     for key, row in new.items():
         name = row['name']
         a, b = snapshot(args.before, key), snapshot(args.after, key)
@@ -51,8 +52,11 @@ def main():
         added = errors(q) - errors(p)
         if added:
             report['new_errors'].append({'part': name, 'errors': [list(k) for k in added.elements()]})
-        if pm - qm:
-            report['lost_pmi'].append({'part': name, 'ids': sorted(pm-qm)})
+        if pm.keys() - qm.keys():
+            report['lost_pmi'].append({'part': name, 'ids': sorted(pm.keys()-qm.keys())})
+        changed = [k for k in pm.keys() & qm.keys() if pm[k] != qm[k]]
+        if changed:
+            report['changed_pmi'].append({'part': name, 'ids': sorted(changed)})
         if p['sheet']['size'] in ('A4', 'A3') and q['sheet']['size'] in ('A2', 'A1', 'A0'):
             report['small_to_large'].append({'part': name, 'before': pair(p), 'after': pair(q)})
     args.out.mkdir(parents=True, exist_ok=True)
@@ -62,6 +66,7 @@ def main():
     print(json.dumps({k: len(v) if isinstance(v, list) else v for k, v in report.items()}, indent=2))
     assert not report['new_errors'], report['new_errors']
     assert not report['lost_pmi'], report['lost_pmi']
+    assert not report['changed_pmi'], report['changed_pmi']
     assert not report['small_to_large'], report['small_to_large']
     assert all(r['before'] is not None and r['after'] is not None for r in report['refusals'])
 

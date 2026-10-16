@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 import gzip
 import hashlib
 import json
+import shutil
 from pathlib import Path
 import subprocess
 
@@ -19,6 +20,12 @@ def main():
     ap.add_argument('--out', type=Path, required=True)
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
+    # Every child uses one immutable executable, even if another verification builds the CLI.
+    binary = args.out / 'draftwright'
+    shutil.copy2(args.binary, binary)
+    (args.out / 'binary.json').write_text(json.dumps({
+        'sha256': hashlib.sha256(binary.read_bytes()).hexdigest(),
+        'source': str(args.binary.resolve())}, indent=2) + '\n')
     inputs = {}
     for root, prefix in [(args.corpus, 'corpus'), (Path('tests/fixtures'), 'fixtures')]:
         for p in sorted(root.rglob('*')):
@@ -37,7 +44,7 @@ def main():
     (args.out / 'manifest.json').write_text(json.dumps(inputs, indent=2) + '\n')
     def run(item):
         key, source = item
-        reply = subprocess.run([str(args.binary.resolve()), 'plan', source['path']], capture_output=True, timeout=3600)
+        reply = subprocess.run([str(binary.resolve()), 'plan', source['path']], capture_output=True, timeout=3600)
         (args.out / (key + '.plan.json')).write_bytes(reply.stdout)
         if reply.returncode:
             row = {**source, 'refused': reply.stderr.decode() + reply.stdout.decode()}
