@@ -416,6 +416,7 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(turned::coverage(analysis, marks));
     issues.extend(hole_patterns::coverage(analysis, marks));
     issues.extend(redundancy::coverage(analysis, marks));
+    issues.extend(redundancy::references(analysis, marks));
     issues
 }
 
