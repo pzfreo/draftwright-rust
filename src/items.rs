@@ -19,7 +19,8 @@ pub enum State {
     /// Drawn on the sheet.
     #[default]
     Shown,
-    /// Left out by the spec (`dimensions/<id>/omit`).
+    /// Left out by the spec (`dimensions/<id>/omit`), or with a member of its correlated set
+    /// that the spec omits (ARCH0015-2: the problem `correlated_set_whole` names it).
     OmittedByUser,
     /// Left out of an authored set (`dimension_source: authored`) by not being listed.
     NotAuthored,
