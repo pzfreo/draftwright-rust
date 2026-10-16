@@ -39,3 +39,5 @@ nist/nist_ftc_08_asme1_rc.stp
 nist/nist_ftc_09_asme1_rd.stp
 nist/nist_ftc_10_asme1_rb.stp
 ttt_inputs/sm-hanger.step
+mfcadpp/10190.step
+mfcadpp/10224.step
