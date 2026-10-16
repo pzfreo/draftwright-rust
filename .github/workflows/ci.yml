@@ -187,6 +187,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0 # Compare API/changelog with the PR base or previous main push.
+      - run: python3 -m unittest discover -s tools -p 'test_wasm_safeguards.py'
+      - name: Compare released quiddity pins (warning only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/check_quiddity_pin.py
       - run: rustup toolchain install && rustup target add wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
@@ -198,6 +206,10 @@ jobs:
         with:
           node-version: '22'
       - run: wasm-pack build crates/draftwright-wasm --target web --profile wasm-release --locked
+      - name: Check reviewed WASM API
+        env:
+          API_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+        run: python3 tools/check_wasm_api.py --base-ref "$API_BASE_REF"
       - run: cargo build --locked --release --example wasm_reference
       - run: node --test tools/wasm-parity.test.mjs
       - run: python3 tools/wasm_size.py crates/draftwright-wasm/pkg/draftwright_wasm_bg.wasm

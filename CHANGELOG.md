@@ -6,6 +6,11 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### WASM API
+
+- Establish the reviewed TypeScript API snapshot and changelog gate, a measured WASM size
+  ceiling, and warning-only cross-package quiddity pin checks in CI and release notes.
+
 ### Added
 
 - Browser `draftwright-wasm` workspace crate, moving the editor's live-session wrapper here
