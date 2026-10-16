@@ -21,16 +21,19 @@ angle against rays and datum symbol against surface, `src/lint/fidelity.rs`), st
 by the router and lint, `src/lint/leaders.rs` and `src/material.rs`) and stream K5
 (2026-10-16: dimensioning completeness: a chain per turned body on its own silhouette, raised
 pads, oriented slot callouts, any end-to-end span carrying an extent, exact grouped lengths,
-`tests/completeness_rules.rs`):
+`tests/completeness_rules.rs`) and the table-rule stream (2026-10-16: verified schedule-cell
+approvals, source-matched manufacturing references, transactional balloon guards and observed
+drawing-consumer coverage; `tests/planned_hole_tables.rs`, `tests/pmi_thread_knurl.rs`):
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
 | `adr.yaml` | 46 | 56 | 33 | 25 |
-| `lint.yaml` | 43 | 109 | 0 | 13 |
-| `issues.yaml` | 101 | 62 | 6 | 21 |
-| **All** | **190** | **227** | **39** | **59** |
+| `lint.yaml` | 39 | 111 | 2 | 13 |
+| `issues.yaml` | 96 | 66 | 6 | 22 |
+| **All** | **181** | **233** | **41** | **60** |
 
-The assessment rated each of the 353 rules then pending; 20 rules pending today were not rated.
+The 2026-10-11 assessment rated each of the 353 rules then pending. Later stream assessments
+are recorded in the entries' `rust_note` fields.
 Rules it found done but with no test to name, or with a real remainder, stay pending with a
 `rust_note` saying so.
 

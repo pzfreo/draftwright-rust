@@ -217,7 +217,7 @@
     issues: [121]
     tests: []
   status: pending
-  rust_note: "The block and packing arithmetic is ported and checked by layout_calls_match_draftwright; model::plan reserves the bands the bridged features need (src/demand.rs, checked against draftwright's by bands_match_draftwright_or_are_known, differences in tests/fixtures/known_bands.json), but not the hole-callout band, authored/scheme bands or angular footprints, and has no measured repack yet. Without the repack, layout::geometry keeps what draftwright's repack gives in its place: the isometric clear of the full blocks (bands included), a section block's left band no wider than its gap to the side's band, neighbouring blocks abutting exactly, and the row lifted off the title block when a band would lie on it (else the layout does not fit; the lift never widens the row's right limit past the title block, so it never makes a layout fit that draftwright refuses). The isometric rule applies to the estimate only (a repack packs around the measured blocks, as draftwright's); the title-block lift applies on the repack path too (known_layout.json, m1000 call 6); tests/views.rs::corpus_views_and_their_bands_keep_apart_and_off_the_title_block, the departures from draftwright's estimate in tests/fixtures/known_layout.json. Stage H6 adds a measured correction of the estimate (sheet_fit::correct_estimate) and glyph sizing; a general annotation repacker is not ported."
+  rust_note: "Table-stream assessment 2026-10-16: demand bands, measured sheet-fit correction, auxiliary table reservations and plan-time hole schedules are implemented. A general compose/measure/repack of authored annotations, angular footprints and PMI/scheme bands is still absent. Completing it requires a cross-cutting annotation-aware packing redesign (more than a day); leave with the layout/repack stream, without changing its placement here."
   rust_test: bands_match_draftwright_or_are_known
   port_note: "Keep: the planner sizes each view block including its annotations before choosing page/scale."
 
@@ -278,6 +278,8 @@
     issues: [1146]
     tests: ["test_issue_1146_scale_completeness.py"]
   status: pending
+  rust_note: "An explicitly cramped A4/10:1 plan keeps every baseline dimension or omission, preserves the requested scale and reports infeasibility; every undrawn dimension has an addressed problem. Pending: the catalogue detail requires default/strict/permissive scale policies and structured requested/effective-scale attempts and blocker identities. Rust currently treats an explicit scale as an authored constraint. Adding those policies changes recovery and the public Spec/Plan contract across surfaces, beyond the table stream."
+  rust_test: "tests/trust_rules.rs::an_explicit_cramped_scale_keeps_every_requirement_or_reports_its_loss"
   port_note: "Keep: Spec scale policy {default, strict, permissive}; the Plan records requested/effective scale, attempts and blocker ids."
 
 - id: ADR2-3
@@ -1350,9 +1352,9 @@
     issues: [351, 352, 306, 54]
     tests: []
   status: pending
-  rust_note: "Partly ported (src/hole_table.rs, model::plan_escalated): a hole callout or location placed off the sheet is dropped, reported with draftwright's code (callout_dropped, location_ref_dropped; off_axis_location_dropped at info), and a callout or plan-view location drop escalates to the pattern balloon or the hole table with balloons under draftwright's gates (at least 16 holes outside a pattern), the table transactional; unresolved drops are required losses the layout recovery (model::recover) tries a scale or sheet for; the Plan item's basis records a table's replacement. Not ported: detail views; drops for collisions or illegible ladders (the port places and reports those); the Escalation remedies list. Stage H1 adds the table rung before any drop (tests/planned_hole_tables.rs::crowding_selects_a_schedule_before_any_item_is_dropped). Detail views (the next rung) are Stage J in ADR R5 and are not ported."
+  rust_note: "Plan-time schedules precede drops; rescue tables now reject retained feature-leader intersections (including overlaps and T contacts), commit whole with one owned balloon per row, or restore all surviving fallback callouts and report table_dropped/balloon_dropped. Pending: a fixed remedy ledger and escalation of collision/illegibility losses through the detail-view rung. Detail views belong to the detail-view stream; this batch does not change them."
   port_note: "Keep: escalation is a planner stage; each Plan entry records which remedy was applied as its basis."
-  rust_test: tests/hole_tables.rs::dropped_hole_items_are_reported_and_escalate_as_draftwrights_do
+  rust_test: "tests/planned_hole_tables.rs::crowding_selects_a_schedule_before_any_item_is_dropped; tests/hole_tables.rs::retained_leader_crossings_roll_back_the_whole_table_and_restore_fallbacks"
 
 - id: ARCH0009-3
   statement: "A central hole's callout on a prismatic part stays on the view-centre row; on a turned part a coaxial bore's callout is pushed off the centre-line instead."
@@ -1591,6 +1593,7 @@
     issues: [1086, 1087]
     tests: []
   status: pending
+  rust_note: "The bridge retains raw repeating_radial_profiles evidence, but Spec has no external-spur-gear declaration, validated normative gear requirement record, source-bound gear-table item, or gear/geometry correspondence auditor. These four layers must be implemented together so a detected repetition never invents normative gear data; that is a cross-cutting subsystem exceeding a day, not an ordinary descriptive-table addition."
   port_note: "Keep: gear data only from Spec; Analysis evidence used for critique."
 
 - id: ARCH0015-4
@@ -1930,7 +1933,7 @@
   status: pending
   port_note: "Keep (adopt): the Plan is naturally the expected-mark table; outcomes are per mark id."
   rust_test: tests/dimension_rules.rs::nothing_approved_vanishes_when_its_view_is_omitted
-  rust_note: "In part: every plan item is placed, or unplaced with a problem naming it (view_plan_incomplete). Not ported: a mandatory flag, a per-mark identity apart from the dimension ID, and a dropped mandatory mark failing the drawing."
+  rust_note: "Dimensions and tables have explicit states and undrawn planned dimensions are reported; this batch also preserves failed balloon diagnostics and removes unverified cell claims. Pending: mandatory/optional intent, an expected per-mark identity for all annotation families, one reconciliation seam and drawing failure on mandatory loss. This changes planning, rendering and API failure semantics across all mark families (more than a day); it is owned by the expected-mark/reconciliation stream."
 
 - id: ARCH0019-5
   statement: "The plan is compiled once per build under one recorded formatting policy, and consumers verify against that same plan."

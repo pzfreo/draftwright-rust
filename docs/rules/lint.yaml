@@ -100,7 +100,9 @@
     module: "linting/schedule_evidence.py, linting/evidence.py"
     issues: [1543]
     tests: [tests/test_issue_1543_schedule_requirements.py, tests/test_issue_1543_feature_schedules.py]
-  status: pending
+  status: ported
+  rust_note: "Each supported measurement schedule cell carries display-complete compiler-approved text separately from its actual rendered runs (output::Annotation::approved_text and approved_claims). The cell must retain its exact approved feature/parameter identities, so changing its axis or owner cannot borrow a numerically equal value. lint::schedule_evidence verifies that presentation before exposing claims; changed/missing/empty cells or lost approvals cannot earn evidence and produce claimed_value_absent warnings. Physical nominal values and roles are checked independently against Analysis, including every physical hole member and its own X/Y cell. Whitespace between wrapped runs is insignificant; approved precision and tolerance wording must survive verbatim. Radius-centre rows use the same approval seam. General authorable feature schedules remain pending under ISSUE-1543-a."
+  rust_test: "tests/planned_hole_tables.rs::schedule_cell_evidence_checks_approved_tolerance_precision_and_through_wording; tests/planned_hole_tables.rs::damaged_size_cells_lose_size_through_and_quantity_evidence; tests/planned_hole_tables.rs::a_schedule_coordinate_cannot_change_its_approved_axis_or_owner"
   port_note: "Keep: verify cell content before crediting schedule evidence."
 
 - id: LINT-issues-placement_drop_stage
@@ -120,9 +122,10 @@
   source:
     module: "linting/issues.py"
     issues: [29, 623, 1018, 1127, 1711]
-  status: pending
-  rust_test: review_finds_the_plates_holes_stated_by_its_own_callout
-  rust_note: "lint::LintIssue: id, code, severity, message, at (page), view, subjects, requirements (hole_requirement_ids), measurements, sources, stage, annotation, related, evidence (evidence_reason), fix (suggestion, in words). Pending: measurement spans are not carried (the port's measurement IDs are per feature and parameter; whether spans are needed is undetermined), and the rust_test checks code, requirement, subjects and fix only, not the schema's other fields."
+  status: translated
+  rust_test: "tests/trust_rules.rs::lint_issue_serialization_preserves_every_inspection_channel"
+  rust_note: "The test pins every serialized inspection channel, including page, stage, measurements, external sources, annotation, view, evidence, related annotations and fix. Python measurement_spans disambiguates repeated rungs sharing one correlated DimensionId; Rust levels discriminate each rung in its parameter and turned steps retain per-feature measurements (src/dims/levels.rs and turned.rs). Their occurrence-specific identities replace that parallel span channel; no span is inferred from a message."
+  rust_rule: "Use lint::LintIssue with explicit typed channels and occurrence-specific measurement/requirement identities; correlated Python measurement spans are represented by the individual Rust measurement IDs."
   port_note: "Adapt: define a Rust LintIssue struct with the same stable fields."
 
 - id: LINT-issues-pair_aggregation_ledger
@@ -594,7 +597,10 @@
   source:
     module: "linting/coverage.py"
     issues: [138, 351, 647, 720]
-  status: pending
+  status: translated
+  rust_note: "There is no mutable annotation-pass CoverageState. Plan dimensions carry member measurement IDs and explicit shown/covered/omitted/not-drawable states; table selection records the exact replaced set and evaluates an alternative before committing. Rendered annotations carry physical feature/parameter claims, checked against their actual runs. An omitted callout cannot be resurrected by recognition."
+  rust_rule: "Derive coverage and table eligibility from explicit Plan states/member measurements and verified rendered claims, rather than a pass-local side channel."
+  rust_test: "tests/hole_tables.rs::retained_leader_crossings_roll_back_the_whole_table_and_restore_fallbacks; tests/planned_hole_tables.rs::an_omitted_hole_size_has_no_schedule_row_or_claim"
   port_note: "Drop: side channel; derive from the plan/registry in Rust."
 
 - id: LINT-coverage-examinable_declared_kinds
@@ -1486,6 +1492,7 @@
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
   status: pending
+  rust_note: "The bridge retains raw repeating_radial_profiles evidence, but Spec has no external-spur-gear declaration, validated normative gear requirement record, source-bound gear-table item, or gear/geometry correspondence auditor. These four layers must be implemented together so a detected repetition never invents normative gear data; that is a cross-cutting subsystem exceeding a day, not an ordinary descriptive-table addition."
   port_note: "Keep."
 
 - id: LINT-code-gear_requirement_mismatch
@@ -1498,6 +1505,7 @@
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
   status: pending
+  rust_note: "The bridge retains raw repeating_radial_profiles evidence, but Spec has no external-spur-gear declaration, validated normative gear requirement record, source-bound gear-table item, or gear/geometry correspondence auditor. These four layers must be implemented together so a detected repetition never invents normative gear data; that is a cross-cutting subsystem exceeding a day, not an ordinary descriptive-table addition."
   port_note: "Keep."
 
 - id: LINT-code-gear_semantics_missing
@@ -1561,6 +1569,8 @@
     issues: [1217, 1206, 1218]
     tests: [tests/test_issue_1217_claimed_representations.py, tests/test_issue_1219_location_claims_its_own_axis.py]
   status: pending
+  rust_note: "Ported for supported measurement schedule cells: actual text is verified against a separately retained compiler approval and unconfirmed claims warn with claimed_value_absent and lose physical credit. Existing hole coverage checks compound terms and precision. Pending: a compiler-approval verifier for every ordinary annotation family; parameters::coverage still accepts any matching numeric term and non-schedule locations/pitches lack their own span verifier. That cross-family reconciliation is more than a day; location-span identity is owned by the dimension-ownership stream."
+  rust_test: "tests/planned_hole_tables.rs::schedule_cell_evidence_checks_approved_tolerance_precision_and_through_wording"
   port_note: "Keep: verify rendered text against the compiled plan."
 
 - id: LINT-code-claimed_measurement_not_compiled
@@ -2023,9 +2033,10 @@
     module: "linting/pmi_coverage.py"
     issues: [1298]
     tests: [tests/test_issue_1298_manufacturing_requirements.py]
-  status: pending
+  status: ported
+  rust_test: "tests/pmi_thread_knurl.rs::manufacturing_references_require_complete_source_matched_ink; tests/pmi_thread_knurl.rs::authored_manufacturing_rows_keep_the_compilers_source_bindings"
   port_note: "Keep if manufacturing requirement tables are ported."
-  rust_note: "Not ported: the check reads a thread or knurl leader's 'SEE MFG n' tag against the manufacturing requirements table. The reading now holds thread and knurl requirements with their fields, but the port draws neither the tagged leaders nor the table (pmi_lowering reports them 'read but not drawn')."
+  rust_note: "Manufacturing table rows retain compiler-owned source/aspect bindings in Plan, including Spec-authored overrides, then render provenance annotations preserving wrapped runs. These bindings do not add a second physical measurement owner. lint::pmi_coverage::manufacturing_references requires the complete REF / MANUFACTURING REQUIREMENT header, exactly one complete row, the correct MFG tag and source binding, and an actually drawn table for every source-bearing SEE MFG leader. Removing the table, truncating/emptying a row, changing its tag/source or duplicating it reports manufacturing_reference_unresolved as an error."
 
 - id: LINT-code-step_material_mismatch
   statement: "When the STEP supplies the material, the title block states that material."
@@ -2127,7 +2138,7 @@
     issues: [1127, 1176]
     tests: [tests/test_quality_components.py, tests/test_issue_1176_quality_fidelity.py]
   status: pending
-  rust_note: "Partial (Stage G1): raw completeness counts (claimed faces, faces, unplanned features) are reported in the Plan and as quality.py columns, never composed into one score; no audited completeness, fidelity, legibility or restraint component."
+  rust_note: "Raw completeness and independent quality.py metrics remain separate; this batch adds observed drawing_consumer supported/unsupported/unknown counts, including unknown build failure. The four audited components are still absent. Honest completeness requires a shared per-family physical outcome denominator, restraint requires classification of every mark and fidelity/legibility require audited issue routing and availability. Retrofitting those inventories/reporting across all families exceeds a day; no aggregate score or invented denominator was added."
   port_note: "Keep the separation; decide scoring later."
 
 - id: LINT-quality-fidelity_codes
