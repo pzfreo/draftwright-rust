@@ -3468,7 +3468,9 @@ fn plan_with_presentation(
         problems,
         spec,
     };
-    crate::sheet_fit::reserve_linear_corridors(analysis, &mut plan, &inventory, automatic_pair);
+    if complete_views {
+        crate::sheet_fit::reserve_linear_corridors(analysis, &mut plan, &inventory, automatic_pair);
+    }
     crate::placement_intent::finish(&mut plan, analysis);
     let [width, height] = plan.sheet.page;
     for v in &plan.views {
