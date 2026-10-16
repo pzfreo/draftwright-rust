@@ -2183,6 +2183,8 @@ pub fn render(
             v_align: VAlign::Baseline,
         });
         annotations.push(Annotation {
+            approved_claims: Vec::new(),
+            approved_text: None,
             coordinate_origin: None,
             satisfies: Vec::new(),
             name: d.id.clone(),

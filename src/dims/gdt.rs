@@ -1681,6 +1681,8 @@ pub fn render(
         });
     }
     Some(Annotation {
+        approved_claims: Vec::new(),
+        approved_text: None,
         coordinate_origin: None,
         satisfies: Vec::new(),
         name: g.id.clone(),

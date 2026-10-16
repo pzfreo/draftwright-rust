@@ -107,8 +107,8 @@
     issues: [1543]
     tests: [tests/test_issue_1543_schedule_requirements.py, tests/test_issue_1543_feature_schedules.py]
   status: ported
-  rust_test: "tests/planned_hole_tables.rs::a_changed_coordinate_cannot_borrow_a_number_from_another_cell; tests/planned_hole_tables.rs::a_changed_entry_cell_is_reported_even_when_xy_is_correct"
-  rust_note: "Hole-schedule rows are recorded as annotations claiming what their cells print, and lint reads them as ink (src/hole_table.rs; src/lint/holes.rs). Pinned by tests/planned_hole_tables.rs::a_changed_coordinate_cannot_borrow_a_number_from_another_cell and ::a_changed_entry_cell_is_reported_even_when_xy_is_correct. Effectively ported; a size/depth-cell tamper test would complete it."
+  rust_test: "tests/planned_hole_tables.rs::schedule_cell_evidence_checks_approved_tolerance_precision_and_through_wording; tests/planned_hole_tables.rs::damaged_size_cells_lose_size_through_and_quantity_evidence; tests/planned_hole_tables.rs::a_schedule_coordinate_cannot_change_its_approved_axis_or_owner"
+  rust_note: "Each supported measurement schedule cell carries display-complete compiler-approved text separately from its actual rendered runs (output::Annotation::approved_text and approved_claims). The cell must retain its exact approved feature/parameter identities, so changing its axis or owner cannot borrow a numerically equal value. lint::schedule_evidence verifies that presentation before exposing claims; changed/missing/empty cells or lost approvals cannot earn evidence and produce claimed_value_absent warnings. Physical nominal values and roles are checked independently against Analysis, including every physical hole member and its own X/Y cell. Whitespace between wrapped runs is insignificant; approved precision and tolerance wording must survive verbatim. Radius-centre rows use the same approval seam. General authorable feature schedules remain pending under ISSUE-1543-a."
   port_note: "Keep: verify cell content before crediting schedule evidence."
 
 - id: LINT-issues-placement_drop_stage
@@ -1507,7 +1507,7 @@
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
   status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: no gear declaration (Spec or PMI) and no gear data table; see ARCH0015-3."
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: no gear declaration (Spec or PMI) and no gear data table; see ARCH0015-3. The bridge retains raw repeating_radial_profiles evidence, but Spec has no external-spur-gear declaration, validated normative gear requirement record, source-bound gear-table item, or gear/geometry correspondence auditor. These four layers must be implemented together so a detected repetition never invents normative gear data; that is a cross-cutting subsystem exceeding a day, not an ordinary descriptive-table addition."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream gears"
 
 - id: LINT-code-gear_requirement_mismatch
@@ -1520,7 +1520,7 @@
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
   status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: there is no gear data table to compare with an authored gear requirement (ARCH0015-3)."
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: there is no gear data table to compare with an authored gear requirement (ARCH0015-3). The bridge retains raw repeating_radial_profiles evidence, but Spec has no external-spur-gear declaration, validated normative gear requirement record, source-bound gear-table item, or gear/geometry correspondence auditor. These four layers must be implemented together so a detected repetition never invents normative gear data; that is a cross-cutting subsystem exceeding a day, not an ordinary descriptive-table addition."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream gears"
 
 - id: LINT-code-gear_semantics_missing
@@ -2062,9 +2062,10 @@
     module: "linting/pmi_coverage.py"
     issues: [1298]
     tests: [tests/test_issue_1298_manufacturing_requirements.py]
-  status: pending
+  status: ported
   port_note: "triage 2026-10-16: PORT, value low, size S, stream pmi"
-  rust_note: "Not ported: the check reads a thread or knurl leader's 'SEE MFG n' tag against the manufacturing requirements table. The reading now holds thread and knurl requirements with their fields, but the port draws neither the tagged leaders nor the table (pmi_lowering reports them 'read but not drawn')."
+  rust_note: "Manufacturing table rows retain compiler-owned source/aspect bindings in Plan, including Spec-authored overrides, then render provenance annotations preserving wrapped runs. These bindings do not add a second physical measurement owner. lint::pmi_coverage::manufacturing_references requires the complete REF / MANUFACTURING REQUIREMENT header, exactly one complete row, the correct MFG tag and source binding, and an actually drawn table for every source-bearing SEE MFG leader. Removing the table, truncating/emptying a row, changing its tag/source or duplicating it reports manufacturing_reference_unresolved as an error."
+  rust_test: "tests/pmi_thread_knurl.rs::manufacturing_references_require_complete_source_matched_ink; tests/pmi_thread_knurl.rs::authored_manufacturing_rows_keep_the_compilers_source_bindings"
 
 - id: LINT-code-step_material_mismatch
   statement: "When the STEP supplies the material, the title block states that material."
