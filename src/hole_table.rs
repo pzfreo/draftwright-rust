@@ -1728,12 +1728,18 @@ fn entry_cell(analysis: &Analysis, out: [f64; 3], at: [f64; 3], direction: [f64;
 
 /// Size cells use the callout's drawn symbols, which the bundled text font does not contain.
 pub(crate) fn size_ink(cell: &str, font: &crate::text::Font) -> crate::dims::LabelInk {
-    let terms: Vec<_> = cell.split_whitespace().map(String::from).collect();
+    let terms: Vec<_> = cell
+        .split(' ')
+        .filter(|t| !t.is_empty())
+        .map(String::from)
+        .collect();
     crate::dims::label_ink(&terms, font)
 }
 
 fn schedule_widths(cells: &[Vec<String>]) -> Vec<f64> {
     let mut widths = tables::widths(cells);
+    // Measure size cells with their actual symbols and stacks, not a flat font string.
+    widths[1] = tables::widths(&cells[..cells.len().min(2)])[1];
     for row in cells.iter().skip(2) {
         let ink = size_ink(&row[1], crate::dims::font());
         widths[1] = widths[1].max(ink.max[0] - ink.min[0] + 2.0 * tables::PAD);

@@ -494,7 +494,12 @@ fn crossable(d: &Drawn) -> Option<[f64; 4]> {
 fn crossings<'a>(a: &'a Drawn, b: &'a Drawn) -> Vec<(&'a Drawn, &'a Drawn, f64)> {
     let mut found: Vec<(&Drawn, &Drawn, f64)> = [(a, b), (b, a)]
         .into_iter()
-        .filter_map(|(x, y)| Some((x, y, crossing(&x.lines, crossable(y)?))))
+        .filter_map(|(x, y)| {
+            let b = crossable(y)?;
+            let length = crossing(&x.lines, b);
+            let head = crossing(&x.heads, b);
+            Some((x, y, length.max(head)))
+        })
         // Required NTS furniture must not hide even a shallow retained ink clash.
         .filter(|c| {
             c.2 >= if c.1.name == NTS_CAPTION_ID {
@@ -502,6 +507,8 @@ fn crossings<'a>(a: &'a Drawn, b: &'a Drawn) -> Vec<(&'a Drawn, &'a Drawn, f64)>
             } else {
                 MIN_CROSSING
             }
+            // A flare is filled ink: report even a shallow contact, retaining its real size.
+            || crossable(c.1).is_some_and(|b| crossing(&c.0.heads, b) > BOUNDS_ROUNDOFF)
         })
         .collect();
     found.sort_by(|p, q| q.2.total_cmp(&p.2));

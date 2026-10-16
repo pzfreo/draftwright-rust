@@ -68,6 +68,7 @@ pub(crate) mod interior;
 mod label_lanes;
 mod leaders;
 pub(crate) use label_lanes::settle_inventory;
+pub(crate) use leaders::settle_after_furniture;
 pub(crate) use placement::collisions_cached as label_collisions;
 pub(crate) mod levels;
 mod oriented_slots;
@@ -718,17 +719,18 @@ fn route(
 /// merged boss heights were what kept the front's lowest lanes inside it (counted without them,
 /// ink 11 to 13 and 9 to 11; `docs/quality-2026-10-09.md`, "After merged-away lanes").
 pub fn lanes(analysis: &Analysis, views: &[(&str, P3, P3)]) -> crate::layout::Lanes {
-    lanes_excluding(analysis, views, &BTreeSet::new())
+    lanes_excluding(analysis, views, &BTreeSet::new(), &Spec::default())
 }
 
 pub(crate) fn lanes_excluding(
     analysis: &Analysis,
     views: &[(&str, P3, P3)],
     excluded: &BTreeSet<String>,
+    spec: &Spec,
 ) -> crate::layout::Lanes {
-    let key = serde_json::to_vec(&(views, excluded)).expect("lane inputs serialize");
+    let key = serde_json::to_vec(&(views, excluded, spec)).expect("lane inputs serialize");
     crate::planning::memo(analysis, "lanes", key, || {
-        lanes_uncached(analysis, views, excluded)
+        lanes_uncached(analysis, views, excluded, spec)
     })
 }
 
@@ -736,8 +738,9 @@ fn lanes_uncached(
     analysis: &Analysis,
     views: &[(&str, P3, P3)],
     excluded: &BTreeSet<String>,
+    spec: &Spec,
 ) -> crate::layout::Lanes {
-    let (mut wants, ..) = wants(analysis);
+    let (mut wants, mut problems, notes) = wants(analysis);
     wants.retain(|w| !excluded.contains(&w.id));
     let frames: BTreeMap<&str, Frame> = views
         .iter()
@@ -791,6 +794,30 @@ fn lanes_uncached(
     {
         plates::default_terms(analysis, &mut wants, &chosen);
     }
+    // Resolve the printed terms before measuring reservation, using placement's lowering order.
+    let mut kept: Vec<_> = wants
+        .iter()
+        .cloned()
+        .zip(chosen.iter().copied())
+        .map(|(w, view)| (w, true, view, Vec::new()))
+        .collect();
+    let mut omitted = Vec::new();
+    plates::consolidate(analysis, &mut kept, &mut omitted);
+    bosses::consolidate(analysis, &mut kept, &mut omitted);
+    pmi_dimensions::yield_to_spec(spec, &notes, &mut kept, &mut problems);
+    pmi_dimensions::hide_fit_limits(spec, &notes, &mut kept);
+    if let Ok(mut given) = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems) {
+        holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
+        plates::share(analysis, &mut kept, &mut given, &mut omitted);
+        share_statements(&mut kept, &mut given, &mut omitted, true);
+        share_pmi(&mut kept, &mut given, &mut omitted);
+        redundancy::consolidate(analysis, &mut kept, &mut given, &mut omitted);
+    }
+    for w in &mut wants {
+        if let Some((printed, ..)) = kept.iter().find(|(p, ..)| p.id == w.id) {
+            w.terms.clone_from(&printed.terms);
+        }
+    }
     let (sides, lane) = placement::lanes(&frames, wants.iter().zip(chosen.iter().copied()), &owner);
     let mut bands = placement::band_lanes(
         chosen
@@ -834,7 +861,18 @@ fn lanes_uncached(
     {
         bands.plate_front_below = bands.plate_front_below.max(front_linear);
     }
+    // A turned diameter can leave either side of the profile. Keep its full alternate shelf
+    // available to the ordinary side/row/tier search, including tall fit deviations.
     for (i, w) in wants.iter().enumerate() {
+        if chosen[i] == Some("front")
+            && matches!(w.shape, Shape::Callout { .. })
+            && w.measurements
+                .iter()
+                .any(|m| m.parameter == "step.diameter")
+        {
+            let ink = label_ink(&w.terms, font());
+            bands.callout_front_left = bands.callout_front_left.max(leaders::shelf_width(&ink));
+        }
         if owner[i].is_some()
             || !w
                 .measurements

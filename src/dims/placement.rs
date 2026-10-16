@@ -103,7 +103,7 @@ pub fn label_ink(terms: &[String], font: &Font) -> LabelInk {
     };
     let mut x = 0.0;
     let mut tokens: Vec<(Option<char>, String)> = Vec::new();
-    for t in terms {
+    let plain = |t: &str, tokens: &mut Vec<(Option<char>, String)>| {
         let mut chars = t.chars();
         match chars.next() {
             _ if t == SPOTFACE => tokens.push((Some('⌴'), "SF".into())),
@@ -114,8 +114,30 @@ pub fn label_ink(terms: &[String], font: &Font) -> LabelInk {
                     tokens.push((None, rest));
                 }
             }
-            _ => tokens.push((None, t.clone())),
+            _ => tokens.push((None, t.into())),
         }
+    };
+    for t in terms {
+        // The newline encodes upper/lower values. Reference labels may wrap the whole
+        // callout into one term, so split immediately around the numeric pair.
+        if let Some((above, below)) = t.split_once('\n') {
+            let (prefix, upper) = above.rsplit_once(' ').unwrap_or(("", above));
+            let end = below
+                .find(|c: char| !c.is_ascii_digit() && !matches!(c, '+' | '-' | '.'))
+                .unwrap_or(below.len());
+            let (lower, suffix) = below.split_at(end);
+            if upper.parse::<f64>().is_ok() && lower.parse::<f64>().is_ok() {
+                if !prefix.is_empty() {
+                    plain(prefix, &mut tokens);
+                }
+                tokens.push((Some('≔'), format!("{upper}\n{lower}")));
+                if !suffix.trim().is_empty() {
+                    plain(suffix.trim(), &mut tokens);
+                }
+                continue;
+            }
+        }
+        plain(t, &mut tokens);
     }
     for (i, (symbol, text)) in tokens.iter().enumerate() {
         if i > 0 {
@@ -139,6 +161,28 @@ pub fn label_ink(terms: &[String], font: &Font) -> LabelInk {
             );
         };
         match symbol {
+            Some('≔') => {
+                let (upper, lower) = text.split_once('\n').expect("deviation stack");
+                let size = 0.7 * h;
+                let mut width: f64 = 0.0;
+                for (value, rise) in [(upper, 0.55 * CAP), (lower, -0.45 * CAP)] {
+                    let laid = font.baseline(value, size);
+                    grow(
+                        &mut ink,
+                        [x + laid.min[0], rise + laid.min[1]],
+                        [x + laid.max[0], rise + laid.max[1]],
+                    );
+                    let shift = |p: P2| [x + p[0], rise + p[1]];
+                    ink.glyphs.push(
+                        laid.contours
+                            .into_iter()
+                            .map(|c| c.into_iter().map(|s| moved(&s, &shift)).collect())
+                            .collect(),
+                    );
+                    width = width.max(font.advance(value, size));
+                }
+                x += width;
+            }
             Some('⌀') => {
                 let at = x + 0.5 * (h - font.advance("ø", h));
                 glyphs("ø", at, &mut ink);
@@ -2096,10 +2140,9 @@ pub(crate) fn collisions_cached(
             }
             // A callout's leader is judged by its rendered ink, its arrowhead's flare included
             // (ISSUE-367-a), as `dims::leaders` places it; a contact only the flare makes is
-            // worded as such. Other items keep the centreline test their placement (`settle`)
-            // uses.
+            // worded as such. Linear dimension flares are the same filled ink.
             let through = pa.lines.iter().any(|s| crosses(*s, pb.label_box));
-            if through || (a.kind == "callout" && ink_through(pa, pb.label_box)) {
+            if through || ink_through(pa, pb.label_box) {
                 problem(
                     "annotation_ink_overlap",
                     "warning",

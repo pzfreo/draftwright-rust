@@ -190,7 +190,7 @@ The design also includes `views/sections` and feature `anchor`
 `"anchor": {"…": "fingerprint"}`). These fields are not yet read; a feature's `note` is read
 since K1b (below).
 
-- **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_limits`, `projection`, `default_finish`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`),
+- **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`),
   `iso_scale_factor`, `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `place`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`),
   `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
@@ -695,10 +695,15 @@ basis, placed, reference?, determined_by?}`:
   - `features/<id>/fit` is an ISO 286 class from draftwright's table (`fits.py`): on a hole an
     upper-case hole class (H, G, F), on a cylindrical boss a lower-case shaft class (h, g, f, js,
     k, n, p), grades 5 to 11, for a nominal size up to 250 mm. It is printed after the diameter
-    of the callout that states the feature's size, as the class and its limits from the table
-    (`2× ⌀6.3 H7 (+0.012/0) ↧ 12.7`, `ø44.5 h6 (0/-0.016)`); `sheet/fit_limits: false` prints
-    the class alone, as draftwright does (`2× ⌀6.3 H7 ↧ 12.7`). A PMI hole class stated without
-    limits is printed the same way. A fit on any other feature, on a hole pattern (set it on its holes), on a feature the
+    of the callout that states the feature's size. The default is the class alone
+    (`2× ⌀6.3 H7 ↧ 12.7`, `ø44.5 h6`), including classes imported from AP242 PMI.
+    `sheet/fit_deviations: true` adds ISO 286 deviations stacked upper above lower after
+    the class, at 70% text height (ISO 129-1). Signs and upper/lower order are retained;
+    zero prints `0`. Plan labels and searchable text encode that stack with a newline,
+    for example `ø10 g6 -0.005\n-0.014`. This applies to turned diameters, hole fits,
+    spec fits, editor previews and MCP output. Explicit ± and band tolerances are unchanged.
+    The legacy `sheet/fit_limits` spelling remains accepted; `fit_deviations` takes precedence
+    when both are set. A fit on any other feature, on a hole pattern (set it on its holes), on a feature the
     part does not have, of the wrong case (`"h7" reads as "H7"`) or outside the table is
     refused; so is a size given both a tolerance and a fit.
   - The item lists what the spec gave it in `from_spec` (`tolerance`, `fit`) and is not a

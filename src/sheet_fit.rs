@@ -278,11 +278,35 @@ pub fn fill(analysis: &Analysis, plan: &Plan) -> f64 {
         / ((w - 2.0 * MARGIN) * (h - 2.0 * MARGIN) - (tb[2] - tb[0]) * (tb[3] - tb[1]))
 }
 
-/// Bounded measured correction for a free orthographic row with no page-anchored annotations.
+/// Bounded measured correction: trim only empty off-paper reservation, then adjust a free row.
 /// A failed estimate can leave an orientation view cramped below an otherwise clear row.
 /// Lift the entire row together (preserving projection alignment and every dimension), then
 /// fit the orientation view against the measured blocks, once. Never move pinned content.
 pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
+    // Wider label shelves can push an unused edge of the final section's generic band
+    // past the border. The complete rendered footprints prove whether it is empty paper;
+    // never trim an estimate through any model, label, arrow or piece of furniture.
+    if plan.problems.iter().any(|p| p.code == "page_fit_uncertain")
+        && !crate::placement_intent::has_pins(&plan.spec)
+        && plan.gdt.is_empty()
+    {
+        let [w, h] = plan.sheet.page;
+        let inside =
+            |b: &Rect| b[0] >= MARGIN && b[1] >= MARGIN && b[2] <= w - MARGIN && b[3] <= h - MARGIN;
+        if footprints(analysis, plan).iter().all(inside) {
+            for v in plan.views.iter_mut().filter(|v| v.cut.is_some()) {
+                let b = [
+                    v.area[0].max(MARGIN),
+                    v.area[1].max(MARGIN),
+                    v.area[2].min(w - MARGIN),
+                    v.area[3].min(h - MARGIN),
+                ];
+                if b[0] < b[2] && b[1] < b[3] {
+                    v.area = b;
+                }
+            }
+        }
+    }
     if !plan.problems.iter().any(|p| p.code == "page_fit_uncertain")
         || crate::placement_intent::has_pins(&plan.spec)
         || plan.spec.iso_scale_factor.is_some()
@@ -455,7 +479,8 @@ pub(crate) fn pack_gdt(analysis: &Analysis, template: &Plan, recipient: &Plan) -
         .filter(|(_, v)| matches!(v.id.as_str(), "v:front" | "v:side"))
         .map(|(i, _)| groups[i][1])
         .fold(groups[root][1], f64::min);
-    let common = [MARGIN + 1.0 - left, MARGIN + 1.0 - row_bottom];
+    // Packing settled blocks retains the same readable paper to the border as a shelf.
+    let common = [MARGIN + 2.0 - left, MARGIN + 2.0 - row_bottom];
     for i in &column {
         shifts[*i] = common;
     }

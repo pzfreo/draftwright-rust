@@ -10,8 +10,7 @@
 //! - **A fit** is set on a hole or a cylindrical boss (`features/<id>/fit`): an ISO 286 class
 //!   from draftwright's table (`fits.py`: holes H, G, F; shafts h, g, f, js, k, n, p; grades 5 to
 //!   11; nominal sizes up to 250 mm). It is printed after the diameter of the callout that states
-//!   the feature's size, as the class and its limits (`⌀8.1 H7 (+0.015/0) THRU`), or the class
-//!   alone when the sheet hides fit limits (`sheet/fit_limits: false`, draftwright's form).
+//!   the feature's size, as the class alone (`⌀8.1 H7 THRU`) by default; `sheet/fit_deviations: true` adds stacked deviations.
 //!
 //! A band is withheld, and the plan says so, when the sheet cannot state it truthfully:
 //! - **a band of nothing** (ARCH0019-2): with the authored digits kept, only a band whose every
@@ -193,20 +192,19 @@ pub(super) fn deviations(code: &str, nominal: f64) -> Option<(f64, f64)> {
     Some((f64::from(lo) / 1000.0, f64::from(hi) / 1000.0))
 }
 
-/// A class with its limits, as the sheet prints it when they are shown: `H7 (+0.015/0)`.
+/// A class with its stacked deviations, encoded upper then lower with a newline.
 pub(super) fn with_limits(code: &str, (lower, upper): (f64, f64)) -> String {
     format!("{code} {}", limits_term((lower, upper)))
 }
 
-/// The limits alone: `(+0.015/0)`.
+/// The stacked deviations alone, encoded upper then lower with a newline.
 pub(super) fn limits_term((lower, upper): (f64, f64)) -> String {
-    format!("({}/{})", deviation(upper), deviation(lower))
+    format!("{}\n{}", deviation(upper), deviation(lower))
 }
 
-/// Whether the sheet shows a fit's limits beside its class (`sheet/fit_limits`, shown unless the
-/// spec says false).
+/// Whether the sheet requests stacked fit deviations (off by default).
 pub(super) fn limits_shown(spec: &Spec) -> bool {
-    spec.sheet.fit_limits != Some(false)
+    spec.sheet.fit_deviations.or(spec.sheet.fit_limits) == Some(true)
 }
 
 /// A limit deviation as a fit prints it (draftwright's `fits._fmt_dev`): signed, to the µm

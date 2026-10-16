@@ -2,7 +2,6 @@
   "type": "object",
   "anyOf": [
     {
-      "type": "object",
       "properties": {
         "spec_version": {
           "type": "string"
@@ -104,6 +103,12 @@
                     "null"
                   ]
                 },
+                "fit_deviations": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
                 "projection": {
                   "enum": [
                     null,
@@ -171,7 +176,6 @@
       "additionalProperties": false
     },
     {
-      "type": "object",
       "properties": {
         "error": {
           "type": "object",

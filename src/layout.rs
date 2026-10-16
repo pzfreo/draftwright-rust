@@ -222,6 +222,8 @@ impl Strips {
 /// the plan and the side.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Lanes {
+    /// Full text width plus shoulder for an alternate front callout shelf.
+    pub callout_front_left: f64,
     pub front_below: usize,
     pub front_right: usize,
     pub plate_front_left: usize,
@@ -286,6 +288,7 @@ impl Strips {
     pub fn reserve(&mut self, lanes: &Lanes) {
         let widen = |band: &mut f64, n: usize| *band = band.max(lane_band(n));
         widen(&mut self.right, lanes.front_right);
+        self.left = self.left.max(lanes.callout_front_left);
         widen(&mut self.left, lanes.plate_front_left);
         // Short thickness spans use outside arrows and text. Reserve their ink
         // past the adjacent corner as well as the carrying strip's lanes.

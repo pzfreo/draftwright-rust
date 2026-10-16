@@ -350,10 +350,13 @@ pub struct SheetSpec {
     pub scale: Option<String>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub title: BTreeMap<String, String>,
-    /// Whether a fit prints its ISO 286 limits beside its class (`⌀10 H7 (+0.015/0)`): shown
-    /// unless false, which prints the class alone (`⌀10 H7`).
+    /// Legacy spelling of `fit_deviations`; explicit values remain supported.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fit_limits: Option<bool>,
+    /// Show stacked ISO 286 deviations after the class; off by default.
+    /// Takes precedence over the legacy `fit_limits` setting.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fit_deviations: Option<bool>,
     /// ISO 5456-2's projection method, `first` or `third` (angle): where the plan and side sit
     /// about the front, and the symbol beside the title block. Third angle unless set. Any
     /// other value is refused when the spec is read, before the part is (ISSUE-1514-a).
@@ -2108,6 +2111,8 @@ fn plan_with_presentation(
         base.sheet.size = spec.sheet.size.clone();
         base.sheet.scale = spec.sheet.scale.clone();
         base.sheet.projection = spec.sheet.projection.clone();
+        base.sheet.fit_deviations = spec.sheet.fit_deviations;
+        base.sheet.fit_limits = spec.sheet.fit_limits;
         base.hole_table = spec.hole_table;
         base.iso_scale_factor = spec.iso_scale_factor;
         Some(plan_recovered(analysis, &base)?)
@@ -2314,7 +2319,24 @@ fn plan_with_presentation(
         .filter(|(name, ..)| shown(name))
         .copied()
         .collect();
-    demand.lanes = crate::dims::lanes_excluding(analysis, &shown_views, &excluded);
+    demand.lanes = crate::dims::lanes_excluding(analysis, &shown_views, &excluded, spec);
+    // Full printed extents reserve ink, but an authored linear tolerance must not recenter
+    // every projection and its unrelated dimensions (ARCH0003-2). Keep the established
+    // linear anchor bands separately; the placed blocks below still use the full extents.
+    let linear_anchor_lanes = if spec.dimensions.values().any(|d| d.tolerance.is_some()) {
+        let mut nominal = spec.clone();
+        for d in nominal.dimensions.values_mut() {
+            d.tolerance = None;
+        }
+        let before = crate::dims::lanes_excluding(analysis, &shown_views, &excluded, &nominal);
+        let mut anchors = demand.lanes;
+        anchors.plate_front_top = before.plate_front_top;
+        anchors.plate_side_top = before.plate_side_top;
+        (anchors != demand.lanes).then_some(anchors)
+    } else {
+        None
+    };
+
     if !(principals.front || principals.plan || principals.side) {
         return Err(invalid(
             "Every principal view is omitted; a sheet needs front, plan or side.",
@@ -2557,7 +2579,7 @@ fn plan_with_presentation(
         (None, Some(_), Some(_)) => "as the spec asks".into(),
     };
 
-    let g = layout::geometry(
+    let mut g = layout::geometry(
         &request,
         &Scaled::default(),
         pick.scale,
@@ -2566,6 +2588,39 @@ fn plan_with_presentation(
         pick.arrangement,
         None,
     );
+    if let Some(lanes) = linear_anchor_lanes {
+        let anchors = crate::demand::Demand {
+            lanes,
+            ..demand.clone()
+        };
+        let (_, strips, _) =
+            crate::demand::size(&anchors, &request, Some(pick.scale), Some(pick.page), lo[2]);
+        let anchored_request = Request {
+            strips,
+            ..request.clone()
+        };
+        let frame = layout::geometry(
+            &anchored_request,
+            &Scaled::default(),
+            pick.scale,
+            pick.page,
+            pick.tb_w,
+            pick.arrangement,
+            None,
+        );
+        let shift = [
+            frame.section[0] - g.section[0],
+            frame.section[1] - g.section[1],
+        ];
+        for b in &mut g.section_boxes {
+            for k in 0..2 {
+                b[k] += shift[k];
+                b[k + 2] += shift[k];
+            }
+        }
+        (g.front, g.plan, g.side, g.section) = (frame.front, frame.plan, frame.side, frame.section);
+        (g.iso, g.iso_centre) = (frame.iso, frame.iso_centre);
+    }
     let ib = analysis.iso_bounds.map(|b| b * pick.scale);
     let iso_factor = spec
         .iso_scale_factor
@@ -3066,6 +3121,15 @@ fn plan_with_presentation(
         &mut inventory,
         &settle_fixed,
     );
+    let rerouted = crate::dims::settle_after_furniture(
+        analysis,
+        &label_spec,
+        &sheet,
+        &views,
+        &mut inventory,
+        &settle_fixed,
+        &footprint_cache,
+    );
     for d in &mut dimensions {
         if let Some(settled) = inventory.iter().find(|settled| settled.id == d.id) {
             d.placed = settled.placed.clone();
@@ -3077,6 +3141,11 @@ fn plan_with_presentation(
         .map(|d| d.id.as_str())
         .collect();
     problems.retain(|p| {
+        if p.code == "annotation_leader_long"
+            && p.subjects.iter().any(|id| rerouted.contains_key(id))
+        {
+            return false;
+        }
         !matches!(
             p.code.as_str(),
             "annotation_outside_area"
@@ -3097,6 +3166,7 @@ fn plan_with_presentation(
             .iter()
             .any(|id| settled_ids.contains(id.as_str()))
     });
+    problems.extend(rerouted.into_values().flatten());
     let mut ink = dimensions.clone();
     ink.extend(reserved);
     problems.extend(crate::dims::label_collisions(
@@ -3871,6 +3941,25 @@ pub fn render_item(item: AnnotationItem<'_>) -> RenderedItem {
         AnnotationItem::Dimension(d) => d.region == Some(crate::dims::CandidateRegion::Interior),
         AnnotationItem::Gdt(_) => false,
     };
+    let heads = match &item {
+        AnnotationItem::Dimension(d) => d
+            .placed
+            .as_ref()
+            .map(|p| {
+                p.arrows
+                    .iter()
+                    .flat_map(|&[tip, tail]| {
+                        let n = [tail[1] - tip[1], tip[0] - tail[0]];
+                        let k = (crate::dims::ARROW / 6.0) / n[0].hypot(n[1]).max(1e-12);
+                        let a = [tail[0] + k * n[0], tail[1] + k * n[1]];
+                        let b = [tail[0] - k * n[0], tail[1] - k * n[1]];
+                        [[tip, a], [a, b], [b, tip]]
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
+        AnnotationItem::Gdt(_) => Vec::new(),
+    };
     let (kind, label, lines, elbow) = match item {
         AnnotationItem::Dimension(d) => {
             out.annotations =
@@ -3899,6 +3988,7 @@ pub fn render_item(item: AnnotationItem<'_>) -> RenderedItem {
     };
     if let (Some(a), Some(ink)) = (out.annotations.first(), items_bbox(&out.items)) {
         out.drawn.push(Drawn {
+            heads,
             name: a.name.clone(),
             kind,
             ink,
@@ -4176,6 +4266,7 @@ fn render_annotations_with_cuts(
             let ink: Vec<_> = w.curves.iter().cloned().map(Item::Edge).collect();
             if let Some(ink_box) = items_bbox(&ink) {
                 sheet.items.push(Drawn {
+                    heads: Vec::new(),
                     name: w.id.clone(),
                     kind: Kind::Centreline,
                     ink: ink_box,
@@ -4230,6 +4321,7 @@ fn render_annotations_with_cuts(
             let mut piece = |name: String, kind: Kind, ink: &[Item], lines: Vec<[[f64; 2]; 2]>| {
                 if let Some(ink) = items_bbox(ink) {
                     sheet.items.push(Drawn {
+                        heads: Vec::new(),
                         name,
                         kind,
                         ink,
@@ -4414,6 +4506,7 @@ fn render_annotations_with_cuts(
     // A text-only thing as drawn: the box of its ink *items*, which is also its label.
     let labelled = |name: &str, kind: Kind, items: &[Item]| {
         items_bbox(items).map(|b| Drawn {
+            heads: Vec::new(),
             name: name.into(),
             kind,
             ink: b,
@@ -4560,6 +4653,7 @@ fn render_annotations_with_cuts(
         _ => None,
     }));
     sheet.items.push(Drawn {
+        heads: Vec::new(),
         name: "title_block".into(),
         kind: Kind::TitleBlock,
         ink,
@@ -4634,6 +4728,7 @@ fn render_annotations_with_cuts(
         }
         if let Some(ink) = items_bbox(&dims[notes_from..]) {
             sheet.items.push(Drawn {
+                heads: Vec::new(),
                 name: if i == 0 {
                     "general_notes"
                 } else {
@@ -4677,6 +4772,7 @@ fn render_annotations_with_cuts(
         stated.entry(r.id.clone()).or_default().extend(at);
         if let Some(ink) = items_bbox(&dims[from..]) {
             sheet.items.push(Drawn {
+                heads: Vec::new(),
                 name: r.id.clone(),
                 kind: Kind::Gdt,
                 ink,
@@ -4742,6 +4838,7 @@ fn render_annotations_with_cuts(
         }
         if let Some(ink) = items_bbox(&dims[table_from..]) {
             sheet.items.push(Drawn {
+                heads: Vec::new(),
                 name: table.id.clone(),
                 kind: Kind::Table,
                 ink,
@@ -4798,6 +4895,7 @@ fn render_annotations_with_cuts(
         }
         if let Some(ink) = items_bbox(&dims[start..]) {
             sheet.items.push(Drawn {
+                heads: Vec::new(),
                 name: t.table.id.clone(),
                 kind: Kind::Table,
                 ink,
@@ -4888,6 +4986,7 @@ fn render_annotations_with_cuts(
         }
         if let Some(ink) = items_bbox(&dims[table_from..]) {
             sheet.items.push(Drawn {
+                heads: Vec::new(),
                 name: t.id.clone(),
                 kind: Kind::Table,
                 ink,
@@ -5042,6 +5141,7 @@ fn render_annotations_with_cuts(
         }
         if let Some(ink) = items_bbox(&dims[from..]) {
             sheet.items.push(Drawn {
+                heads: Vec::new(),
                 name: b.id.clone(),
                 kind: if b.id.starts_with("hole_schedule_") {
                     Kind::Dimension
@@ -5130,6 +5230,7 @@ fn render_annotations_with_cuts(
         let ink: Vec<Item> = symbol.curves.iter().cloned().map(Item::Edge).collect();
         if let Some(bbox) = items_bbox(&ink) {
             sheet.items.push(Drawn {
+                heads: Vec::new(),
                 name: "projection_symbol".into(),
                 kind: Kind::ProjectionSymbol,
                 ink: bbox,
