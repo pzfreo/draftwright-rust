@@ -2137,9 +2137,12 @@ fn recovered() -> &'static [(String, Plan)] {
     })
 }
 
-/// The (feature, parameter) of every hole and turned-step measurement a placed dimension states.
-fn hole_and_shoulder_outcomes(plan: &Plan) -> BTreeSet<(&str, &str)> {
-    plan.dimensions
+/// Hole/shoulder quantities stated directly or independently proven by printed baselines.
+/// The linter checks actual band geometry and both printed shoulder stations; a Covered
+/// ledger entry alone is insufficient, and unplaced annotations supply no evidence.
+fn hole_and_shoulder_outcomes(analysis: &Analysis, plan: &Plan) -> BTreeSet<(String, String)> {
+    let mut outcomes: BTreeSet<_> = plan
+        .dimensions
         .iter()
         .filter(|d| d.placed.is_some())
         .flat_map(|d| &d.measurements)
@@ -2150,8 +2153,25 @@ fn hole_and_shoulder_outcomes(plan: &Plan) -> BTreeSet<(&str, &str)> {
                 .chain(&t.covered)
         }))
         .filter(|m| m.feature.starts_with("f:hole") || m.feature.starts_with("f:turned_step:"))
-        .map(|m| (m.feature.as_str(), m.parameter.as_str()))
-        .collect()
+        .map(|m| (m.feature.clone(), m.parameter.clone()))
+        .collect();
+    let live: BTreeSet<_> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.placed.is_some())
+        .map(|d| d.id.as_str())
+        .collect();
+    let printed: Vec<_> = marks(plan)
+        .into_iter()
+        .filter(|m| live.contains(m.name.as_str()))
+        .collect();
+    outcomes.extend(
+        lint::turned::outcomes(analysis, &printed)
+            .into_iter()
+            .filter(|o| o.state == lint::turned::State::Placed)
+            .map(|o| (o.feature, o.parameter)),
+    );
+    outcomes
 }
 
 /// H6 replaces the old recovery order (ISSUE-1338-a's same-page-first ladder) with the
@@ -2174,12 +2194,12 @@ fn sheet_selection_is_bounded_and_keeps_every_outcome() {
         .iter()
         .map(|(n, a, _)| (n.clone(), model::plan_recovered(a, &style).unwrap()))
         .collect();
-    for ((name, _, first), (_, after)) in initial.iter().zip(&recovered) {
-        let kept = hole_and_shoulder_outcomes(after);
+    for ((name, analysis, first), (_, after)) in initial.iter().zip(&recovered) {
+        let kept = hole_and_shoulder_outcomes(analysis, after);
         assert!(
-            hole_and_shoulder_outcomes(first).is_subset(&kept),
+            hole_and_shoulder_outcomes(analysis, first).is_subset(&kept),
             "{name}: {:?}",
-            hole_and_shoulder_outcomes(first).difference(&kept)
+            hole_and_shoulder_outcomes(analysis, first).difference(&kept)
         );
         if after.sheet.basis.starts_with("smallest fit ") {
             sheet_rule::assert_follows(
