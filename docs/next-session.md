@@ -7718,3 +7718,44 @@ known sandbox socket-bind failures; all remaining integration binaries pass.
   report it with the same depth (fails on the base). Judgement call (8): lint's material is not
   cropped to the drawn view: the port draws no cropped (detail) views, so every view shows each
   solid whole; when one exists, the crop belongs in `material::solids`'s caller for both.
+
+## K5: Python dimensioning-completeness rules (#43 item 2, 2026-10-16, unattended; overturnable)
+
+- **What:** `src/dims/turned.rs::own_body` + `src/dims/placement.rs::body_strip`: on a part of
+  several turned bodies along one axis, each body's chain goes in the profile view that separates
+  its axis line and its witnesses start at its own silhouette (outer corner of each shoulder), in
+  the strip on the side its body is nearer (ARCH0020-2, ISSUE-1357-b/c). `src/dims/grooves.rs::owner`:
+  a groove naming none of several turned profiles is refused (ADR3-12). `src/dims/pads.rs`: raised
+  pads' footprint, `N HIGH` height callout and location (ISSUE-885-a, ISSUE-909-a).
+  `src/dims/oriented_slots.rs`: `ORIENTED SLOT W WIDE × L LONG` led to the rim
+  (LINT-oriented_slot_coverage, ISSUE-1432-a). `src/lint/envelope.rs`: any claim whose physical
+  span (`redundancy::span`) is the whole axis carries the extent (LINT-envelope_coverage,
+  ISSUE-1560-a). `src/lint/turned.rs::grouped`: a grouped length is credited only when it prints
+  exactly its count and its bands adjoin with none skipped (ISSUE-1374-c). Tests:
+  `tests/completeness_rules.rs` (7) and `lint::envelope::tests::any_measurement_spanning_the_box_states_the_extent`,
+  on draftwright's own evaluation fixtures copied to `tests/fixtures/parts/k5/`.
+- **Rules:** ported ADR3-12, ISSUE-1357-b, ISSUE-1374-c, ISSUE-1560-a, ISSUE-909-a,
+  LINT-code-axial_length_missing, LINT-envelope_coverage, LINT-code-boss_height_missing (already
+  met by the H5 flush-hub credit; re-assessed, no code), LINT-oriented_slot_coverage. Pending with
+  notes: ARCH0020-2, ISSUE-1357-c, ISSUE-1432-a, ISSUE-885-a, both pocket-pattern rules,
+  LINT-angular-profile_angle.
+- **Output:** single-sheet guard byte-identical (no guard case has pads, oriented slots or plural
+  turned bodies); quality parts: every cell equal to the base run and none worse than
+  `tools/ci-quality-baseline.json`; lint findings on the 30 parts unchanged (76). Off the quality
+  set: missing/undefined pad and oriented-slot findings go from 6/6/11/6/2 to 0 on mfcadpp_holdout
+  205, 238, mfcadpp 10092, 10255 and mfcadpp_holdout 467, sheets unchanged in size; 10255 (A1 5:1)
+  gains two `extension_through_feature` warnings from the new pad location 10.2 (crowding of new
+  information on a dense part).
+- **Judgement calls:** (1) Pad height is a `HIGH` callout as draftwright draws it, even where the
+  face-level ladder also implies it (issue 909: 26 and 33 beside 7 HIGH); draftwright keeps both.
+  (2) A z pad's two locations stay in the plan view (draftwright puts y in the side), as decided
+  for pockets and holes on 2026-10-08. (3) Oriented slot pattern members (the Analysis has no
+  membership) are stated by one counted callout rather than left undrawn as draftwright does
+  (#1430); this states every size and leaves lint nothing missing. (4) The per-body chain rule
+  only applies with two or more distinct axis lines on one axis, so single-body parts keep their
+  witnesses on the outline (no guard change). (5) The superimposed-view warning draftwright gives
+  is not reachable without the spec's views (distinct parallel axis lines always separate in one
+  of the two profile views), so none was added. (6) Pocket patterns and outer-profile angles stay
+  pending: each needs new Analysis data (native pocket/section-recess reading; ordered planar
+  outer profiles), outside this stream's dimension-selection and lint scope; both notes say what
+  remains.

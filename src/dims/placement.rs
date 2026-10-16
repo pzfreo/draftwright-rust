@@ -413,6 +413,26 @@ fn plate_strip(frame: &Frame, view: &str, shape: &Shape, horizontal: bool) -> Si
     }
 }
 
+/// The strip of a turned step length anchored on its own body's silhouette (both witnesses off
+/// the outline: [`super::turned`]'s chains on a part of several turned bodies, ARCH0020-2): the
+/// side of the view its witnesses leave the body on, so they never cross a sibling body. None for
+/// any other item.
+fn body_strip(frame: &Frame, w: &Want, horizontal: bool) -> Option<Side> {
+    match &w.shape {
+        Shape::Linear {
+            a,
+            a_edge: false,
+            b_edge: false,
+            ..
+        } if !w.measurements.is_empty()
+            && w.measurements.iter().all(|m| m.parameter == "step.length") =>
+        {
+            Some(silhouette_gap(frame, *a, horizontal).0)
+        }
+        _ => None,
+    }
+}
+
 /// For each item, the item whose lane it shares, when the defaults merge it away: one span, one
 /// dimension (ARCH0009-6; [`super::bosses::consolidate`], [`super::holes::consolidate`],
 /// [`super::share`]) leaves one dimension on a span that several items measure, so the others
@@ -498,6 +518,8 @@ pub(super) fn lanes<'a>(
                         .any(|m| m.parameter == "thickness.length")
                     {
                         plate_strip(f, view, &w.shape, horizontal)
+                    } else if let Some(side) = body_strip(f, w, horizontal) {
+                        side
                     } else {
                         strip(view, horizontal)
                     },

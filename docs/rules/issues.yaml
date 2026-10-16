@@ -334,6 +334,8 @@
       - "tests/test_issue_885_prismatic_coverage.py::test_side_opening_pocket_gets_two_in_plane_location_dimensions"
     corpus_parts: []
   status: pending
+  rust_test: "tests/completeness_rules.rs::each_raised_pad_states_its_footprint_height_and_location"
+  rust_note: "Stream K5 (src/dims/pads.rs): each raised pad is dimensioned on its own, footprint width and length between its own edges, its height as a HIGH callout, and its centre located from the part's corner in both directions across it (a direction on the datum left out, location_on_datum), in the view that looks down on it; equal pads at distinct sites keep their own items (draftwright's pad-compound-equal.step, pad-z-positive.step, pad-x-positive.step: every requirement drawn and lint finds none missing). Rust quiddity reads draftwright's pad-full-span-ledge-negative.step as through steps and pad-nested-staircase-negative.step with no pad, so neither is a pad. Not ported: side-opening pockets' two in-plane locations (the native path reads no pockets yet: pocket-side.step reports features_not_recognised)."
   port_note: "Keep: scenario tests on synthetic prismatic parts -> plan dimensions every pad footprint and pocket location."
 
 - id: ISSUE-885-b
@@ -362,7 +364,9 @@
       - "tests/test_issue_909_sloped_profile.py::test_case_study_pad_reaches_the_drawing_with_complete_owned_footprint"
       - "tests/test_issue_909_sloped_profile.py::test_removing_a_required_pad_dimension_reports_the_real_requirement"
     corpus_parts: ["issue_909_basic_part_design_017_body.step"]
-  status: pending
+  status: ported
+  rust_test: "tests/completeness_rules.rs::the_sloped_profile_pad_reaches_the_drawing_and_an_omission_is_reported"
+  rust_note: "Stream K5: on draftwright's issue_909 case study the raised pad reaches the drawing with its footprint (16.7 wide, 31 long), located 26.5 along x, as draftwright's sheet states it, and its height 7 HIGH (src/dims/pads.rs); omitting its width makes lint report pad_requirement_missing naming pad_width.length. Rust quiddity finds the pad under the touching lower ledges. Difference: draftwright's sheet reaches A3 through a detail view and re-planning; the port's is A3 2:1 without one (no detail views)."
   port_note: "Keep: scenario test case-study STEP -> pad footprint in plan; spec omission -> named missing-requirement problem."
 
 - id: ISSUE-915-a
@@ -1958,9 +1962,9 @@
       - "tests/test_issue_1357_framed_boundary.py::test_raw_production_compiles_plural_compounds_without_selecting_or_merging"
       - "tests/test_issue_1357_framed_boundary.py::test_every_typed_frame_refusal_propagates_without_a_raw_fallback"
     corpus_parts: []
-  status: pending
-  rust_test: "tests/issue_drafting.rs::eccentric_cylinders_are_not_one_turned_profile"
-  rust_note: "Partial: with the turned fixture's smaller band moved 2 mm off the other's axis line, the plan stops reading the part as turned whole (three extents, no overall diameter) and states each band's diameter and length on its own, none merged or chosen (src/dims/turned.rs::turned requires one axis line). Not ported: several bodies in one compound (no fixture has one)."
+  status: ported
+  rust_test: "tests/completeness_rules.rs::each_turned_body_has_its_own_chain_on_its_own_silhouette"
+  rust_note: "Eccentric cylinders are not one turned profile (tests/issue_drafting.rs::eccentric_cylinders_are_not_one_turned_profile). Stream K5: on draftwright's turned-step-compound.step (two shafts, Rust quiddity's recognition) every band of both profiles is planned and drawn, its length and diameter claimed by its own band, none merged or chosen."
   port_note: "Keep: Analysis exposes a list of turned profiles."
 
 - id: ISSUE-1357-c
@@ -1976,6 +1980,8 @@
       - "tests/test_issue_1357_plural_turned_profiles.py::test_mixed_axis_profiles_remain_local_instead_of_inventing_one_orientation"
     corpus_parts: []
   status: pending
+  rust_test: "tests/completeness_rules.rs::a_bodys_chain_goes_in_the_view_that_separates_it"
+  rust_note: "Stream K5: each body's chain goes in the first profile view that separates its axis line from every other's (front for shafts side by side along x, side for shafts one behind the other) with its witnesses on its own silhouette (each_turned_body_has_its_own_chain_on_its_own_silhouette); lint judges each band's claims by feature, so one profile cannot supply another's coverage. Not ported: a spec that omits the separating view (the planners do not see the spec's views, so the chain falls back to the other view, superimposed, where draftwright drops it and reports)."
   port_note: "Keep: scenario tests on multi-shaft compounds."
 
 - id: ISSUE-1357-d
@@ -2168,9 +2174,9 @@
       - "tests/test_issue_1374_turned_step_completeness_evidence.py::test_unique_groove_floor_band_is_not_a_second_turned_step_fact"
       - "tests/test_issue_1374_turned_step_completeness_evidence.py::test_global_od_cannot_multiply_across_disjoint_coaxial_profiles"
     corpus_parts: ["turned-step-axis-x.step", "turned-step-axis-z.step", "turned-step-compound.step", "turned-step-repeated-lengths.step", "turned-step-through-bore.step", "turned-step-translated-blind-bore.step", "groove-lone-y.step"]
-  status: pending
-  rust_test: "tests/issue_drafting.rs::each_turned_band_carries_its_diameter_and_length"
-  rust_note: "Partial: on every part lint's turned-step ledger has exactly step.length and step.diameter for each band it reads, and none for a band a groove owns (checked to occur on a sampled part with grooves); the default plan states both for each such band and neither for a groove's band, the overall diameter claiming the band it is (the same test, on every part whose plan has turned steps), and a grouped length N× L claims every band it stands for (src/dims/turned.rs; tests/dims_turned.rs::repeated_lengths_and_twin_flanges_are_stated_once). Not ported: lint's check of a grouped label's exact count and that it skips no equal neighbour (lint credits each band's claim by its printed value)."
+  status: ported
+  rust_test: "tests/completeness_rules.rs::a_grouped_length_states_exactly_its_adjoining_members"
+  rust_note: "Two requirements per band, none for a groove's band, and the overall diameter claiming the band it is: tests/issue_drafting.rs::each_turned_band_carries_its_diameter_and_length. Stream K5: lint's turned-step ledger credits a grouped length (a mark claiming several bands' step.length) only when its label is exactly the count of the bands it claims and one length, and its bands lie on one profile's axis line with no other band of theirs between them (src/lint/turned.rs::grouped): on draftwright's turned-step-repeated-lengths.step, 3× 10 places all three, 2× 10 and 3× 999 NOTE 10 none (unverifiable), and 2× 10 on the outer two neither (the middle missing), as Python's tests require."
   port_note: "Keep: scenario tests per corpus part."
 
 - id: ISSUE-1374-d
@@ -2280,6 +2286,8 @@
       - "tests/test_issue_1432_adoption.py::test_arbitrary_three_axis_motion_preserves_physical_requirements"
     corpus_parts: []
   status: pending
+  rust_test: "tests/completeness_rules.rs::an_oriented_slot_is_called_out_once_with_both_requirements_on_its_rim"
+  rust_note: "Stream K5: a free-direction slot is dimensioned by one callout carrying both requirements, its arrow on the physical rotated rim (the record's section boundary projected into the view along its run; checked within 0.001 mm on mfcadpp_holdout/467, whose section is turned about 27°). Not ported: a rigid-motion test (no rotated copy of a fixture), and pattern members are counted into one callout rather than left to a pattern (the Analysis records no oriented slot pattern membership; #1430)."
   port_note: "Keep: scenario on rotated-slot STEP."
 
 - id: ISSUE-1432-b
@@ -2848,9 +2856,9 @@
       - "tests/test_issue_1560_envelope_axes.py::test_each_removed_envelope_axis_remains_in_the_physical_denominator"
       - "tests/test_issue_1560_envelope_axes.py::test_complete_authored_set_can_intentionally_omit_body_extents"
     corpus_parts: []
-  status: pending
+  status: ported
   rust_test: "tests/issue_drafting.rs::the_parts_extents_never_leave_the_drawing_silently"
-  rust_note: "Partial: on every part each non-zero axis of the box has an outcome in lint's envelope ledger, placed by the default plan's extents; on plate an omitted extent is listed in the plan's omitted with its basis and stays in the ledger, missing, and an empty authored set leaves all three in the ledger, missing. Not ported: a local turned profile or overlapping steps standing for an axis (no part here has one), and draftwright's other carriers of an end-to-end span (src/lint/envelope.rs module note)."
+  rust_note: "Each non-zero axis of the box has an outcome in lint's envelope ledger and stays in its denominator; an omitted extent is listed in the plan's omitted with its basis and stays in the ledger, missing; an empty authored set leaves all three missing. A local turned profile cannot hide a longer body axis (a diameter counts only when centred across the axis's whole interval) and overlapping steps do not chain (src/lint/envelope.rs::tests::a_turned_parts_extents_are_its_chain_and_its_diameter). Stream K5: any other measurement whose span runs end to end carries the axis (src/lint/envelope.rs::tests::any_measurement_spanning_the_box_states_the_extent)."
   port_note: "Keep."
 
 - id: ISSUE-1563-a

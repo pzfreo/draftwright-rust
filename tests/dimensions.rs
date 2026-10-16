@@ -7,7 +7,8 @@
 //! diameters, sizes across flats and heights (`boss`), fillet and chamfer callouts, through-step
 //! legs (`through_step`), circular blind step and paired-ramp callouts, the height ladder's
 //! heights and shoulder positions (`step_height`, `step_position`), turned steps' diameters and
-//! lengths (`turned_step`), and section recesses
+//! lengths (`turned_step`), raised pads' footprints and heights (`pad`; their locations are
+//! `location.<axis>`), and section recesses
 //! (`recess`: pocket, hexagonal pocket and circular seat callouts and open channel widths; their
 //! locations are `location.<axis>`, a z pocket's axis read from which of its two compiled values
 //! draftwright's label prints). Each of draftwright's annotations that states one of them is
@@ -119,7 +120,11 @@ fn python_family(parameter: &str, kind: &str) -> Option<String> {
         | "seat_run.length"
         | "seat_sweep.angle"
         | "channel_width.length" => Some("recess".into()),
-        p if p.starts_with("seat_location.") || p.starts_with("location_pocket.") => {
+        "pad_width.length" | "pad_length.length" | "pad_height.length" => Some("pad".into()),
+        p if p.starts_with("seat_location.")
+            || p.starts_with("location_pocket.")
+            || p.starts_with("location_pad.") =>
+        {
             Some(format!("location.{}", p.rsplit('.').next().unwrap_or("")))
         }
         p if p.starts_with("grid_pitch.") => Some("pitch".into()),
@@ -173,6 +178,8 @@ fn rust_family(d: &PlannedDimension) -> String {
         "location.slot".into()
     } else if parameter.starts_with("slot_") {
         "slot".into()
+    } else if parameter.starts_with("pad_") {
+        "pad".into()
     } else if parameter.starts_with("boss") || parameter.starts_with("polygon_") {
         "boss".into()
     } else if parameter.starts_with("groove.") || parameter == "flat.length" {
