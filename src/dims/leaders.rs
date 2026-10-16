@@ -610,6 +610,7 @@ pub(super) fn place_with_obstacles(
                 .collect()
         })
         .unwrap_or_default();
+    let recess_context = analysis.features.iter().any(|f| f.kind == "section_recess");
     let mut jobs: Vec<(usize, Job)> = Vec::new();
     for (i, w) in items.iter().enumerate() {
         let (Shape::Callout { sites }, Some(view)) = (&w.shape, views_of[i]) else {
@@ -699,11 +700,13 @@ pub(super) fn place_with_obstacles(
                 let radial = rim_tip(site, b.elbow);
                 let u = [radial[0] - site.0[0], radial[1] - site.0[1]];
                 for turn in ROTATIONS {
-                    // A radius leader must remain radial when other feature ink moves it.
-                    if items[jobs[k].0]
-                        .measurements
-                        .iter()
-                        .any(|m| m.parameter == "slot_end_radius.radius")
+                    // New recess footprints can move a radius leader; keep those retries
+                    // radial while preserving the canonical routes on unaffected drawings.
+                    if recess_context
+                        && items[jobs[k].0]
+                            .measurements
+                            .iter()
+                            .any(|m| m.parameter == "slot_end_radius.radius")
                     {
                         continue;
                     }
@@ -2837,6 +2840,45 @@ mod tests {
             assert!((r[0].hypot(r[1]) - 6.0).abs() < 1e-9);
             let l = [elbow[0] - t[0], elbow[1] - t[1]];
             assert!((r[0] * l[1] - r[1] * l[0]).abs() < 1e-9 && r[0] * l[0] + r[1] * l[1] > 0.0);
+        }
+    }
+
+    #[test]
+    fn a_part_without_recesses_keeps_its_published_radius_route() {
+        let corpus = std::env::var_os("DRAFTWRIGHT_CORPUS")
+            .map(std::path::PathBuf::from)
+            .or_else(|| {
+                std::env::var_os("HOME")
+                    .map(|h| std::path::PathBuf::from(h).join("repos/quiddity/tests/corpus"))
+            });
+        let Some(corpus) = corpus.filter(|p| p.is_dir()) else {
+            assert_ne!(
+                std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").as_deref(),
+                Ok("1")
+            );
+            return;
+        };
+        let a = crate::model::analyse_native(&corpus.join("cadgenbench_inputs/cgb245.step"))
+            .unwrap()
+            .1;
+        assert!(a.features.iter().all(|f| f.kind != "section_recess"));
+        let plan = crate::model::plan_recovered(&a, &crate::model::Spec::default()).unwrap();
+        let id = "d:f:slot:1/slot_end_radius.radius";
+        let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
+        let p = d.placed.as_ref().unwrap();
+        let v = plan.views.iter().find(|v| v.id == d.view).unwrap();
+        let baseline: serde_json::Value =
+            serde_json::from_str(include_str!("../../tests/fixtures/leader_routes.json")).unwrap();
+        let route = &baseline["parts"]["cgb245"][id]["route"];
+        let points: Vec<_> = p.lines.iter().flatten().collect();
+        assert_eq!(points.len(), route.as_array().unwrap().len());
+        for (i, point) in points.iter().enumerate() {
+            for (k, coordinate) in point.iter().enumerate() {
+                assert!(
+                    (coordinate - v.at[k] - route[i][k].as_f64().unwrap()).abs() < 1e-6,
+                    "{id}: route changed at {i}/{k}"
+                );
+            }
         }
     }
 

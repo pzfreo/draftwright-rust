@@ -453,15 +453,19 @@ fn conflict(a: &Placed, b: &Placed) -> bool {
         })
 }
 
-fn callouts(frame: &Frame, w: &Want, old: &Placed, proof: &Proof, v: &PlannedView) -> Vec<Placed> {
+fn callouts(
+    frame: &Frame,
+    w: &Want,
+    old: &Placed,
+    proof: &Proof,
+    v: &PlannedView,
+    recess_context: bool,
+) -> Vec<Placed> {
     let Shape::Callout { sites } = &w.shape else {
         return Vec::new();
     };
     let radial = w.measurements.iter().any(|m| {
-        matches!(
-            m.parameter.as_str(),
-            "bore.diameter" | "slot_end_radius.radius"
-        )
+        m.parameter == "bore.diameter" || recess_context && m.parameter == "slot_end_radius.radius"
     });
     let ink = label_ink(&w.terms, font());
     let ray = old
@@ -581,6 +585,9 @@ pub(super) fn place(
     cache: &super::footprints::Cache,
 ) -> BTreeSet<String> {
     let mut moved = BTreeSet::new();
+    // Extra recess footprints can force radius retries. Retain the established routes on
+    // drawings whose feature inventory is unaffected by this reader change.
+    let recess_context = analysis.features.iter().any(|f| f.kind == "section_recess");
     let proofs = proofs(analysis, views);
     // Centre-line furniture (G6) is not annotation ink: interior text keeps clear of its
     // strokes, and a callout's shaft does not run beside another feature's stroke, but
@@ -635,7 +642,7 @@ pub(super) fn place(
         let f = cache.get(analysis, v);
         let candidates =
             match &items[i].shape {
-                Shape::Callout { .. } => callouts(frame, &items[i], old, proof, v),
+                Shape::Callout { .. } => callouts(frame, &items[i], old, proof, v, recess_context),
                 Shape::Linear { .. }
                     if !page.fits(old, name)
                         || old.lines.iter().take(2).any(|s| {
@@ -957,7 +964,7 @@ mod tests {
         };
         let mut old = dimension();
         old.lines = vec![[[0., -5.], [0., -12.]], [[0., -12.], [3., -12.]]];
-        let candidates = callouts(&frame, &w, &old, &proof, &v);
+        let candidates = callouts(&frame, &w, &old, &proof, &v, false);
         assert!(!candidates.is_empty());
         for p in candidates {
             assert!(p.lines[0][0][1] >= 0.0);
