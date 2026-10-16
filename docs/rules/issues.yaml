@@ -94,9 +94,9 @@
       - "tests/test_issue_563_placement_intent.py::test_unhinted_source_linear_dimensions_reserve_their_render_routes_issue_2192"
       - "tests/test_issue_563_placement_intent.py::test_plan_right_corridor_does_not_force_feasible_a4_scale_reduction"
     corpus_parts: []
-  status: pending
-  rust_note: "Partial: the side view's bands and the band right of the front and the plan (between them and the side) are reserved from the lanes their dimensions take (layout::Strips::reserve, Demand::lanes), so that ink never runs past them over the next view (stream d-quality-lanes). Not ported: the bands below the front and above and left of the plan are still draftwright's estimates, so their lanes can run past them (annotation_outside_area, and off the sheet); reserving them too forces scale reductions on cgb245, ctc01 and ftc08 against draftwright's choices, because the port's lane counts include callouts and every rung (docs/quality-2026-10-09.md, a maintainer question in docs/next-session.md); explicitly placed dimensions (the spec places none). Stage H6 keeps the existing lane reservations; no new corridor reservation work."
-  rust_test: "tests/placement.rs::placed_ink_lies_in_its_views_area_or_is_reported"
+  status: ported
+  rust_note: "Maintainer approval 2026-10-16 applied: composition reserves every source linear corridor, including below front and above/left of plan, and all authored principal strips at their requested or respaced lanes. Source linear lanes determine the front/plan bands without counting independent callout rows as phantom linear tiers. Preferred-scale reductions are permitted to keep corridors inside their reserved area and on the sheet; no part-specific exceptions."
+  rust_test: "tests/views_layout_rules.rs::every_source_and_explicit_linear_corridor_is_reserved; tests/views_layout_rules.rs::explicit_dimensions_that_reflow_keep_their_reserved_corridors"
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream views-and-layout"
 
 - id: ISSUE-563-c
@@ -1608,9 +1608,9 @@
       - "tests/test_issue_1262_automatic_turned_views.py::test_an_explicit_scale_still_selects_the_smallest_complete_view_set"
       - "tests/test_issue_1262_automatic_turned_views.py::test_grm03_callout_keeps_external_text_clearance_from_the_end_view"
     corpus_parts: ["grm03_thumbwheel_drive_screw_ap242_pmi.step"]
-  status: pending
-  rust_test: a_turned_part_leaves_out_the_view_that_repeats_its_profile
-  rust_note: "The reduction is ported: src/demand.rs::turned_views keeps the profile and end views and says why in their basis (also its unit test a_turned_part_drops_the_repeated_view_unless_a_feature_needs_it). The veto is narrower than draftwright's: only a hole that needs the dropped view end-on vetoes it, while draftwright vetoes on any planned annotation or finished-sheet loss. The port now plans dimensions and lints holes, but the veto does not consult either yet."
+  status: ported
+  rust_test: "tests/views_layout_rules.rs::a_radial_flat_or_cross_slot_vetoes_turning_view_reduction; tests/sections.rs::a_turned_part_leaves_out_the_view_that_repeats_its_profile"
+  rust_note: "The automatic reduced set is vetoed before composition when any wanted dimension that the full set can carry has no carrier in the kept set, including radial flats and cross slots, requested dimension views and PMI. A needed section also retains its cutting-plane carrier. Omitted requirements are excluded. Plain turned parts still keep profile, end and iso, with an explicit scale too."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream views-and-layout"
 
 - id: ISSUE-1276-a
@@ -2762,9 +2762,9 @@
       - "tests/test_issue_1530_section_provenance.py::test_an_internal_gap_or_tangent_cut_has_an_honest_outcome"
       - "tests/test_issue_1530_section_provenance.py::test_preexisting_coplanar_boundaries_are_not_new_cut_faces"
     corpus_parts: []
-  status: pending
-  rust_test: "tests/issue_drafting.rs::a_sections_ink_describes_its_cut"
-  rust_note: "Partial: on the parts with a section (ftc06, string_post) the cutting plane lies inside the part's extent along its normal and is marked on a planned view, and the drawing captions it SECTION A-A and letters both ends of the plane. Not ported: an authored cut (the spec cannot place one, so a cut outside the part cannot be asked for); the tangent, gap and coplanar-boundary cases have no fixture here (src/model.rs::section_furniture keeps hatch only where material lies behind the cut)."
+  status: ported
+  rust_test: "tests/views_layout_rules.rs::section_hatch_excludes_coplanar_boundaries_and_retained_material; tests/views_layout_rules.rs::gap_tangent_and_outside_sections_are_reported_without_false_cut_ink; tests/issue_drafting.rs::a_sections_ink_describes_its_cut"
+  rust_note: "Hatching already clips to material on both sides of the actual plane; new attached, detached, adjacent, notch and bored multi-region fixtures pin it. Rendering now refuses section geometry, hatch and furniture when the cut is outside the open extent or no material crosses it (gap/tangent/coplanar-only), reporting section_dropped on the otherwise drawable sheet. The check uses geometric boundary samples and the solid classifier independently of paper hatch spacing. Rust has no authored cut-plane Spec verb; the renderer checks public Plan cuts without introducing that API."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream views-and-layout"
 
 - id: ISSUE-1531-a
@@ -3045,8 +3045,9 @@
       - "tests/test_issue_1604_internal_section.py::test_station_needs_multiple_unlike_internal_details"
       - "tests/test_issue_1604_internal_section.py::test_original_frame_section_and_required_slots_survive_script_replay"
     corpus_parts: ["issue_1595_whistle_key_frame.step"]
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported. Section A-A is planned only through the densest row of Z-axis holes whose profile no standard view shows (src/demand.rs::section); a station with several unlike internal details does not earn a section (src/demand.rs says sections on internal-detail rows are not ported)."
+  status: ported
+  rust_test: "tests/views_layout_rules.rs::internal_stations_require_three_details_of_two_kinds"
+  rust_note: "Python internal_section_rows is ported through the shared section-recess grammars: Z hex pockets, Y circular seats and X blind-hole physical members qualify rows within 0.5 mm, at least three details of two kinds. Qualifying bore rows have priority; otherwise the densest internal row wins, nearest the part centre then lowest Y on a tie. The original whistle-frame fixture chooses Y=-7.9 and retains a hatched section and required slot dimensions through direct and recovered planning; one-kind or only two-detail rows do not qualify."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream views-and-layout"
 
 - id: ISSUE-1612-a

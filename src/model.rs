@@ -2297,7 +2297,11 @@ fn plan_with_presentation(
     let omitted = |name: &str| spec.views.get(name).is_some_and(|v| v.omit);
     let pmi_views = crate::pmi_lowering::views(analysis);
     let reduction = crate::demand::turned_views(&demand).filter(|(kept, dropped, _)| {
-        !spec.views.contains_key(*dropped) && !omitted(kept[0]) && !pmi_views.contains(dropped)
+        !spec.views.contains_key(*dropped)
+            && !omitted(kept[0])
+            && !pmi_views.contains(dropped)
+            && !(demand.section.is_some() && *dropped == "plan")
+            && crate::dims::reduction_preserves_requirements(analysis, spec, kept, &excluded)
     });
     let shown = |name: &str| match spec.views.get(name) {
         Some(v) => !v.omit,
@@ -2315,6 +2319,7 @@ fn plan_with_presentation(
         .copied()
         .collect();
     demand.lanes = crate::dims::lanes_excluding(analysis, &shown_views, &excluded);
+    crate::dims::reserve_linear_intent(analysis, spec, &shown_views, &excluded, &mut demand.lanes)?;
     if !(principals.front || principals.plan || principals.side) {
         return Err(invalid(
             "Every principal view is omitted; a sheet needs front, plan or side.",
@@ -2352,6 +2357,29 @@ fn plan_with_presentation(
         ),
         None => None,
     };
+    // ARCH0004-3: the geometry floor is unconditional for an explicit scale.
+    if let Some(scale) = scale {
+        let smallest = (0..3)
+            .map(|k| analysis.envelope[1][k] - analysis.envelope[0][k])
+            .fold(f64::INFINITY, f64::min);
+        if smallest <= 0.0 {
+            return Err(invalid(
+                "drawing geometry degenerates: the part has no three-dimensional extent",
+                &[],
+            ));
+        }
+        if smallest * scale < 0.1 {
+            return Err(invalid(
+                format!(
+                    "scale {} projects the smallest part dimension to {:.3} mm; drawing geometry degenerates below 0.1 mm. Use scale ≥ {:.3} or omit the scale for automatic selection.",
+                    scale_name(scale),
+                    smallest * scale,
+                    0.1 / smallest
+                ),
+                &[],
+            ));
+        }
+    }
     // ISO 5456-2's two methods: third angle (draftwright's) unless the spec says first.
     let first_angle = match spec.sheet.projection.as_deref() {
         None | Some("third") => false,
@@ -2492,6 +2520,23 @@ fn plan_with_presentation(
         let (p, s, _) = crate::demand::size(&demand, &bare, scale, page, lo[2]);
         if p.fallback.is_none() {
             (request, pick, strips) = (bare, p, s);
+        }
+    }
+    if spec.sheet.scale.is_some() {
+        let smallest = request.size.into_iter().fold(f64::INFINITY, f64::min);
+        if smallest * pick.scale < 10.0 {
+            let (auto, _, _) = crate::demand::size(&demand, &request, None, page, lo[2]);
+            if auto.fallback.is_none() && smallest * auto.scale >= 10.0 {
+                problems.push(Problem {
+                    id: "p:legibility_floor_breached:sheet".into(),
+                    code: "legibility_floor_breached".into(),
+                    severity: "warning".into(),
+                    message: format!("scale {} projects the smallest part dimension to {:.1} mm, below the 10 mm legibility floor; annotations may crowd. Honouring the requested scale; use scale ≥ {} or omit the scale for automatic selection.", scale_name(pick.scale), smallest * pick.scale, 10.0 / smallest),
+                    subjects: vec!["sheet".into()],
+                    fix: vec![crate::items::Op::remove("sheet/scale")],
+                    ..Default::default()
+                });
+            }
         }
     }
     request.strips = strips;
@@ -2679,7 +2724,8 @@ fn plan_with_presentation(
             area: *area,
             default: !spec.views.contains_key(SECTION),
             basis: format!(
-                "draftwright's section rule: a z-axis hole with a counterbore, spotface or bottom shows its profile in no standard view; the plane y = {} cuts the densest row of them ({} on it), seen from the front and placed right of the side view",
+                "draftwright's section rule: {}; the plane y = {} cuts the densest row ({} physical details on it), seen from the front and placed right of the side view",
+                if cut.internal_detail { "at least three unlike internal details need a readable section" } else { "a z-axis hole with a counterbore, spotface or bottom shows its profile in no standard view" },
                 fmt_ratio(cut.cut_y),
                 cut.holes
             ),
@@ -4113,6 +4159,38 @@ fn render_annotations_with_cuts(
     items: &BTreeMap<String, RenderedItem>,
     remote_sections: &[&PlannedView],
 ) -> Result<Drawing, Unresolved> {
+    // A tangent/gap plane has retained geometry, but no new cut face. Refuse
+    // that section's ink and report it, rather than captioning the retained half
+    // as a manufactured section (ISSUE-1530-a). The rest of the sheet still draws.
+    let mut rejected_sections = BTreeMap::new();
+    for v in plan.views.iter().chain(remote_sections.iter().copied()) {
+        let Some(cut) = &v.cut else {
+            continue;
+        };
+        let Some(plane) = Plane::new(cut.origin, cut.normal) else {
+            continue;
+        };
+        let [lo, hi] = analysis.envelope;
+        let limits = [
+            (0..3)
+                .map(|k| plane.normal[k] * if plane.normal[k] >= 0.0 { lo[k] } else { hi[k] })
+                .sum::<f64>(),
+            (0..3)
+                .map(|k| plane.normal[k] * if plane.normal[k] >= 0.0 { hi[k] } else { lo[k] })
+                .sum::<f64>(),
+        ];
+        let at = (0..3).map(|k| plane.normal[k] * cut.origin[k]).sum::<f64>();
+        let reason = if at <= limits[0] || at >= limits[1] {
+            Some("the plane is not strictly inside the part's open extent")
+        } else if !cut_crosses_material(part, &plane, &projections.cut(part, cut, &plane)?) {
+            Some("cut_no_intersection: no material crosses the cutting plane")
+        } else {
+            None
+        };
+        if let Some(reason) = reason {
+            rejected_sections.insert(v.id.clone(), reason);
+        }
+    }
     // Section furniture (hatch, cutting plane), and its text: what, where.
     let mut furniture: Vec<Item> = Vec::new();
     let mut captions: Vec<(String, [f64; 2])> = Vec::new();
@@ -4145,6 +4223,9 @@ fn render_annotations_with_cuts(
     );
     for (v, (name, geometry)) in plan.views.iter().zip(geometry.views) {
         assert_eq!(v.id, name, "geometry follows plan view order");
+        if rejected_sections.contains_key(&v.id) {
+            continue;
+        }
         if geometry.undrawn > 0 {
             undrawn.insert(v.id.clone(), geometry.undrawn);
         }
@@ -4210,6 +4291,9 @@ fn render_annotations_with_cuts(
         });
     }
     for v in plan.views.iter().chain(remote_sections.iter().copied()) {
+        if rejected_sections.contains_key(&v.id) {
+            continue;
+        }
         let plane = v.cut.as_ref().and_then(|c| Plane::new(c.origin, c.normal));
         if let (Some(plane), Some(cut)) = (&plane, &v.cut) {
             let remote = v.sheet != plan.sheet.number;
@@ -4312,6 +4396,9 @@ fn render_annotations_with_cuts(
     }
     for v in &plan.views {
         if let Some(note) = &v.scale_note {
+            if rejected_sections.contains_key(&v.id) {
+                continue;
+            }
             let view = View::new(v.direction, v.up).expect("a planned view");
             let half_h = 0.5 * extent(analysis, &view).0[1] * v.scale;
             let gap = if v.cut.is_some() { 17.0 } else { 7.0 };
@@ -5099,7 +5186,17 @@ fn render_annotations_with_cuts(
         text,
         annotations,
         sheet,
-        problems: crate::output::undrawn(&undrawn),
+        problems: crate::output::undrawn(&undrawn)
+            .into_iter()
+            .chain(rejected_sections.into_iter().map(|(id, reason)| Problem {
+                id: format!("p:section_dropped:{id}"),
+                code: "section_dropped".into(),
+                severity: "warning".into(),
+                message: format!("Section {id} is refused: {reason}."),
+                subjects: vec![id],
+                ..Default::default()
+            }))
+            .collect(),
         spec: Some(embeddable(&plan.spec)),
     })
 }
@@ -5183,6 +5280,34 @@ struct Furniture {
     /// The cutting plane's chain line, end to end, when it is drawn.
     chain: Option<[[f64; 2]; 2]>,
     text: Vec<(String, [f64; 2])>,
+}
+
+/// Prove a new section region from boundary samples on both sides of the
+/// plane. Coplanar exposed faces are material on only one side. This test is
+/// independent of hatch spacing, so even a small valid cut remains a section.
+fn cut_crosses_material(part: &Part, plane: &Plane, loops: &[Vec<[f64; 3]>]) -> bool {
+    let classifier = Classifier::new(part);
+    let n = plane.normal;
+    loops.iter().flat_map(|l| l.windows(2)).any(|edge| {
+        let [a, b] = [edge[0], edge[1]];
+        let direction = [0, 1, 2].map(|k| b[k] - a[k]);
+        let length = direction.iter().map(|v| v * v).sum::<f64>().sqrt();
+        if length <= 1e-9 {
+            return false;
+        }
+        let inward = [
+            n[1] * direction[2] - n[2] * direction[1],
+            n[2] * direction[0] - n[0] * direction[2],
+            n[0] * direction[1] - n[1] * direction[0],
+        ];
+        [-1.0, 1.0].into_iter().any(|side| {
+            let point = [0, 1, 2].map(|k| (a[k] + b[k]) * 0.5 + side * inward[k] / length * 1e-4);
+            [-1.0, 1.0].into_iter().all(|normal_side| {
+                classifier.classify([0, 1, 2].map(|k| point[k] + normal_side * n[k] * 1e-5))
+                    == State::In
+            })
+        })
+    })
 }
 
 /// Section view *v*'s furniture: its cut face hatched, its caption, and the cutting-plane line

@@ -259,34 +259,16 @@ pub fn lane_band(lanes: usize) -> f64 {
 }
 
 impl Strips {
-    /// Reserves the bands between neighbouring views for the port's own dimension lanes (review
-    /// M3): each is at least [`lane_band`] of the lanes stacked in it, so no ladder runs past its
-    /// band across the next view.
-    ///
-    /// - The side's bands: draftwright reserves them only for its own side-view schemes (axial
-    ///   boss heights, seat offsets, through-step legs), none of which the port plans, so without
-    ///   this the side had no band at all.
-    /// - The band right of the front and the plan (their column's one right band, `geometry`, as
-    ///   in draftwright), between them and the side: the front's height ladder ran on past
-    ///   draftwright's estimate across the side view (ftc09, ftc10, cgb245; drawing quality,
-    ///   2026-10-09). Its lanes hold linear dimensions alone, as callouts never stack right.
-    ///
-    /// The bands that face open paper stay draftwright's estimates: below the front (beyond the
-    /// side's lanes, which it shares), above and left of the plan. Reserving the port's lanes
-    /// there too moves most sheet and scale choices away from draftwright's
-    /// (`docs/quality-2026-10-09.md`, "After the three quality merges and lane reservation":
-    /// cgb245 from 1:2 to 1:5, ftc08 from 1:2 to 1:5, ctc01 to 1:10), because the port's lanes
-    /// count callouts, which take no lane, and every rung, and stack outward 7 mm apart where
-    /// draftwright's solver runs on to the sheet's margin; so it waits for the maintainer, and
-    /// their ink past their bands is reported (`annotation_outside_area`).
-    ///
-    /// The front and the side share a row whose height is set from the front's lower band
-    /// (`geometry`, as in draftwright), so the front's lower band is also at least the side's: a
-    /// deeper band below the side alone would hang below the row.
+    /// Reserve all source and explicitly placed linear corridors, even where
+    /// they face open paper. The composed area must hold the outer lane's ink;
+    /// smaller preferred scales are allowed when the full drawing needs them
+    /// (ISSUE-563-b, maintainer approval 2026-10-16). Callout-only virtual lanes
+    /// do not enlarge the front/plan linear bands.
+    /// The aligned front/side row also reserves the deeper of its lower bands.
     pub fn reserve(&mut self, lanes: &Lanes) {
         let widen = |band: &mut f64, n: usize| *band = band.max(lane_band(n));
         widen(&mut self.right, lanes.front_right);
-        widen(&mut self.left, lanes.plate_front_left);
+        widen(&mut self.left, lanes.plate_front_left.max(lanes.plan_left));
         // Short thickness spans use outside arrows and text. Reserve their ink
         // past the adjacent corner as well as the carrying strip's lanes.
         self.fv_top = self.fv_top.max(lanes.plate_front_top);

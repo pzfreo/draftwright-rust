@@ -13,14 +13,17 @@ pzfreo/draftwright at `586628b96db6779454d499c7d92d37f1aa8f1df9`.
 
 Status after the maintainer-approved triage of 2026-10-16, including the earlier Stage G/H
 and K1b/K4/K5/K7 integrations, merged with PR #56 (datum placement) and PR #57
-(K6, one owner per measurement). Counts are computed from the YAML entries:
+(K6, one owner per measurement). The views-and-layout batch ports ARCH0004-3, ARCH0018-1, ISSUE-563-b, ISSUE-1262-a,
+ISSUE-1530-a and ISSUE-1604-a; ISSUE-563-b includes the maintainer's 2026-10-16 approval
+to reserve every linear corridor even when a smaller scale results. Counts are computed
+from the YAML entries:
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 14 | 58 | 62 | 26 |
+| `adr.yaml` | 12 | 60 | 62 | 26 |
 | `lint.yaml` | 19 | 112 | 15 | 19 |
-| `issues.yaml` | 46 | 66 | 52 | 26 |
-| **All** | **79** | **236** | **129** | **71** |
+| `issues.yaml` | 42 | 70 | 52 | 26 |
+| **All** | **73** | **242** | **129** | **71** |
 
 The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
 The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE

@@ -1285,8 +1285,9 @@
     adr: "archive 0004 'The geometry legibility floor'"
     issues: [489]
     tests: []
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): partial. The automatic search never draws below the legibility floor it reads from the part's smallest opening (src/sheet_fit.rs::min_legible_scale; tests/sheet_fill.rs::automatic_overflow_never_uses_an_illegible_scale), and when no legible complete candidate exists the drawing is kept with a warning naming that floor (layout_recovery_exhausted; tests/sheet_fill.rs::unavailable_legible_scale_is_a_warning). Not ported: a warning when an explicitly pinned scale is below the 10 mm view-legibility floor (a pinned scale is drawn as asked with no legibility finding), and the 0.1 mm render floor as a hard rejection."
+  status: ported
+  rust_test: "tests/views_layout_rules.rs::explicit_scales_warn_below_legibility_and_refuse_degenerate_geometry"
+  rust_note: "Explicit scales preserve Python's two floors: refuse a smallest part extent below 0.1 paper mm (or a degenerate extent), and warn legibility_floor_breached below 10 paper mm only when automatic geometric composition offers a legible fit. The requested scale is honoured. This advisory is independent of Rust's automatic opening-based scale floor."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream views-and-layout"
 
 - id: ARCH0004-4
@@ -1837,9 +1838,9 @@
     adr: "archive 0018 §4; ADR 2 Open"
     issues: []
     tests: []
-  status: pending
-  rust_test: "tests/sheet_projection.rs::first_angle_swaps_the_views_and_the_symbol"
-  rust_note: "Partial: first- and third-angle planning and projection symbols follow Spec sheet/projection (src/layout.rs::Request::first_angle; tests/sheet_projection.rs::first_angle_swaps_the_views_and_the_symbol). Remaining: authored view relations are validated for anchors and cycles in src/placement_intent.rs, but a relation that contradicts the projection convention is not refused or warned about."
+  status: ported
+  rust_test: "tests/views_layout_rules.rs::principal_relations_cannot_contradict_the_projection; tests/views_layout_rules.rs::indirect_principal_relations_report_projection_infeasibility; tests/views_layout_rules.rs::contradictory_principal_pins_stay_fixed_and_report_infeasibility; tests/sheet_projection.rs::first_angle_swaps_the_views_and_the_symbol"
+  rust_note: "First/third angle fixes principal side and projection-origin alignment. Unpinned contradictory front/plan or front/side relations and non-middle alignment are refused; conflicting pins stay fixed and report projection_relation_infeasible as an error; diagonal plan/side constraints must instead relate to front. Moving front carries its free projection partners. Indirect constraints or pin obstacles that make the arrangement unconventional report projection_relation_infeasible as an error; the constraint is never silently relaxed. Sections and orientation views retain their freedom."
   port_note: "triage 2026-10-16: PORT, value medium, size S, stream views-and-layout"
 
 - id: ARCH0018-2

@@ -210,6 +210,38 @@ pub(crate) fn check(s: &Spec) -> Result<(), Invalid> {
                         .collect(),
                 ));
             }
+            // Principal projection origins are aligned, with a convention-fixed side.
+            // Sections and orientation views retain their drafting freedom.
+            let first = s.sheet.projection.as_deref() == Some("first");
+            let expected = match (name.as_str(), p.relative_to.as_str(), first) {
+                ("plan", "front", false) | ("front", "plan", true) => Some(Side::Above),
+                ("plan", "front", true) | ("front", "plan", false) => Some(Side::Below),
+                ("side", "front", false) | ("front", "side", true) => Some(Side::Right),
+                ("side", "front", true) | ("front", "side", false) => Some(Side::Left),
+                _ => None,
+            };
+            if !p.pinned
+                && matches!(
+                    (name.as_str(), p.relative_to.as_str()),
+                    ("side", "plan") | ("plan", "side")
+                )
+            {
+                return Err(error("The plan and side are diagonal projection partners; relate each to front to keep projection origins aligned.".into(), vec!["front".into()]));
+            }
+            if let Some(side) = expected
+                && !p.pinned
+                && (p.side != side || p.align != Slot::Middle)
+            {
+                return Err(error(
+                    format!(
+                        "The {name} view relation contradicts {}-angle projection: place it {} of {}, with aligned projection origins (align middle).",
+                        if first { "first" } else { "third" },
+                        side.name(),
+                        p.relative_to
+                    ),
+                    vec![side.name().into()],
+                ));
+            }
             let mut seen = BTreeSet::new();
             let mut at = name.as_str();
             while let Some(p) = s.views.get(at).and_then(|v| v.place.as_ref()) {
@@ -308,10 +340,18 @@ pub(crate) fn views(
             let a = views[i].area;
             let horizontal = matches!(p.side, Side::Left | Side::Right);
             let k = usize::from(horizontal);
-            let offset = match p.align {
-                Slot::Start => b[k] - a[k],
-                Slot::Middle => 0.5 * (b[k] + b[k + 2] - a[k] - a[k + 2]),
-                Slot::End | Slot::Outside => b[k + 2] - a[k + 2],
+            let principal_pair = matches!(
+                (name.as_str(), p.relative_to.as_str()),
+                ("front", "plan" | "side") | ("plan" | "side", "front")
+            );
+            let offset = if principal_pair && p.align == Slot::Middle {
+                anchor.at[k] - views[i].at[k]
+            } else {
+                match p.align {
+                    Slot::Start => b[k] - a[k],
+                    Slot::Middle => 0.5 * (b[k] + b[k + 2] - a[k] - a[k + 2]),
+                    Slot::End | Slot::Outside => b[k + 2] - a[k + 2],
+                }
             };
             let out = match p.side {
                 Side::Above => b[3] + p.gap - a[1],
@@ -319,6 +359,7 @@ pub(crate) fn views(
                 Side::Right => b[2] + p.gap - a[0],
                 Side::Left => b[0] - p.gap - a[2],
             };
+            let previous = views[i].at;
             shift(
                 &mut views[i],
                 if horizontal {
@@ -327,6 +368,38 @@ pub(crate) fn views(
                     [offset, out]
                 },
             );
+            if name == "front" {
+                let delta = [0, 1].map(|k| views[i].at[k] - previous[k]);
+                for partner in views
+                    .iter_mut()
+                    .filter(|v| matches!(v.id.as_str(), "v:plan" | "v:side"))
+                {
+                    let is_plan = partner.id == "v:plan";
+                    let key = partner.id.trim_start_matches("v:");
+                    let pinned = s.views.get(key).is_some_and(|v| v.place.is_some())
+                        || canonical.is_some_and(|p| {
+                            s.dimensions
+                                .iter()
+                                .filter_map(|(id, d)| {
+                                    d.place.as_ref().filter(|place| place.pinned).map(|_| id)
+                                })
+                                .chain(s.annotations.iter().filter_map(|(id, d)| {
+                                    d.place.as_ref().filter(|place| place.pinned).map(|_| id)
+                                }))
+                                .any(|id| carrier(p, id).as_deref() == Some(partner.id.as_str()))
+                        });
+                    if !pinned {
+                        shift(
+                            partner,
+                            if is_plan {
+                                [delta[0], 0.0]
+                            } else {
+                                [0.0, delta[1]]
+                            },
+                        );
+                    }
+                }
+            }
             // The isometric's area is a reserved region, not a dimensioned projection frame.
             // Resolve its ink inside that region before fixing it, as the automatic fitter does.
             if name == "iso"
@@ -540,6 +613,39 @@ pub(crate) fn views(
             }
         }
         occupied.push(v.area);
+    }
+    if let Some(front) = views.iter().find(|v| v.id == "v:front") {
+        let first = s.sheet.projection.as_deref() == Some("first");
+        for v in views
+            .iter()
+            .filter(|v| matches!(v.id.as_str(), "v:plan" | "v:side"))
+        {
+            let align_axis = usize::from(v.id == "v:side");
+            let outward_axis = 1 - align_axis;
+            let outward =
+                (v.at[outward_axis] - front.at[outward_axis]) * if first { -1.0 } else { 1.0 };
+            if (v.at[align_axis] - front.at[align_axis]).abs() > 1e-6 || outward <= 0.0 {
+                let mut finding = problem(
+                    &v.id,
+                    "projection_relation_infeasible",
+                    format!(
+                        "The authored layout is infeasible in {}-angle projection: {} must keep its conventional side and projection-origin alignment with front.",
+                        if first { "first" } else { "third" },
+                        crate::wording::view(&v.id)
+                    ),
+                    &format!("views/{}/place", v.id.trim_start_matches("v:")),
+                );
+                if s.views
+                    .get(v.id.trim_start_matches("v:"))
+                    .is_none_or(|v| v.place.is_none())
+                {
+                    finding.fix.clear();
+                }
+                finding.severity = "error".into();
+                finding.refs = vec!["sheet/projection".into()];
+                problems.push(finding);
+            }
+        }
     }
     for v in views.iter().filter(|v| fixed.contains(&v.id)) {
         let a = v.area;

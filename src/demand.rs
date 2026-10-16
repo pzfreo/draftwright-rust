@@ -18,7 +18,7 @@
 //! Not ported here: the hole-callout band (it is measured from the callout labels, which come with
 //! the hole callouts), authored dimensions, pads, seat offsets, through-step legs and angular
 //! reservations, the IR's ownership rules (a boss absorbed by a groove still counts here), the
-//! rotational-OD fallback for a turning axis, and sections on internal-detail rows.
+//! rotational-OD fallback for a turning axis, and authored section planes.
 
 use serde_json::Value;
 
@@ -52,8 +52,10 @@ pub struct Hole {
 pub struct Section {
     /// The plane y = `cut_y` (part frame), seen from the front.
     pub cut_y: f64,
-    /// The holes on that row whose profile it shows.
+    /// The holes on that row whose profile it shows (or the internal physical details).
     pub holes: usize,
+    /// Several unlike internal details, rather than a qualifying bore row.
+    pub internal_detail: bool,
 }
 
 /// What the sheet must make room for.
@@ -234,7 +236,8 @@ fn read_uncached(analysis: &Analysis) -> Demand {
         })
         .cloned()
         .collect();
-    d.section = section(&keyed, centre[1]);
+    d.section =
+        section(&keyed, centre[1]).or_else(|| internal_section(analysis, &d.holes, centre[1]));
     d.gdt = [
         crate::dims::gdt::demand(analysis, &|_| true),
         crate::dims::gdt::demand(analysis, &|v| v != "side"),
@@ -275,7 +278,61 @@ fn section(holes: &[Hole], centre_y: f64) -> Option<Section> {
                 .then((b.1 - centre_y).abs().total_cmp(&(a.1 - centre_y).abs()))
                 .then(b.1.total_cmp(&a.1))
         })
-        .map(|(holes, cut_y)| Section { cut_y, holes })
+        .map(|(holes, cut_y)| Section {
+            cut_y,
+            holes,
+            internal_detail: false,
+        })
+}
+
+/// Python's internal_section_rows: physical members, at least three of two kinds,
+/// along a Y-normal station; the bore-row rule has priority.
+fn internal_section(analysis: &Analysis, holes: &[Hole], centre_y: f64) -> Option<Section> {
+    let mut sites = Vec::new();
+    for hex in crate::lint::pockets::hexes(analysis) {
+        if let Ok((2, at)) = hex.placed {
+            sites.push((at[1], "hex_pocket"));
+        }
+    }
+    for (_, seat) in crate::lint::channels::seats(analysis) {
+        if let Ok(seat) = seat
+            && seat.run_axis == 1
+        {
+            sites.push((seat.centre[1], "circular_channel"));
+        }
+    }
+    sites.extend(
+        holes
+            .iter()
+            .filter(|h| h.axis == Some(0) && !h.through)
+            .map(|h| (h.at[1], "transverse_blind_hole")),
+    );
+    let mut rows: Vec<f64> = sites
+        .iter()
+        .map(|(y, _)| (y * 10.0).round() / 10.0)
+        .collect();
+    rows.sort_by(f64::total_cmp);
+    rows.dedup();
+    rows.into_iter()
+        .filter_map(|cut_y| {
+            let kinds: Vec<_> = sites
+                .iter()
+                .filter(|(y, _)| (y - cut_y).abs() <= 0.5)
+                .map(|(_, kind)| *kind)
+                .collect();
+            (kinds.len() >= 3 && kinds.iter().any(|k| *k != kinds[0]))
+                .then_some((kinds.len(), cut_y))
+        })
+        .max_by(|a, b| {
+            a.0.cmp(&b.0)
+                .then((b.1 - centre_y).abs().total_cmp(&(a.1 - centre_y).abs()))
+                .then(b.1.total_cmp(&a.1))
+        })
+        .map(|(holes, cut_y)| Section {
+            cut_y,
+            holes,
+            internal_detail: true,
+        })
 }
 
 /// The principal views a turned part keeps (draftwright's `_automatic_turned_principals`): the
