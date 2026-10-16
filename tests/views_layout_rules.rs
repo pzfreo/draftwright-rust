@@ -418,7 +418,13 @@ fn gap_tangent_and_outside_sections_are_reported_without_false_cut_ink() {
     let (part, a) =
         model::analyse(&root().join("tests/fixtures/views_layout/section_gap.step")).unwrap();
     for y in [-9.0, -8.0, -4.0, 0.0, 4.0, 8.0, 9.0] {
-        let p = section_plan(&a, y);
+        let mut p = section_plan(&a, y);
+        // A required measurement carried by a refused section cannot leave
+        // floating dimension ink after that section's geometry is withdrawn.
+        let mut carried = p.dimensions.remove(0);
+        carried.view = "v:section_aa".into();
+        let carried_id = carried.id.clone();
+        p.dimensions.push(carried);
         let d = model::render(
             &part,
             &a,
@@ -433,6 +439,10 @@ fn gap_tangent_and_outside_sections_are_reported_without_false_cut_ink() {
         assert!(
             !d.sheet.views.iter().any(|v| v.name == "v:section_aa"),
             "y={y}"
+        );
+        assert!(
+            !d.sheet.items.iter().any(|i| i.name == carried_id),
+            "y={y}: a refused section still states {carried_id}"
         );
         assert!(
             d.problems.iter().any(|p| p.code == "section_dropped"

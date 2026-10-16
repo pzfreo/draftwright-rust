@@ -4428,6 +4428,9 @@ fn render_annotations_with_cuts(
     // is measured.
     let mut annotations = Vec::new();
     for d in &plan.dimensions {
+        if rejected_sections.contains_key(&d.view) {
+            continue;
+        }
         items
             .get(&d.id)
             .cloned()

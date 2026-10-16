@@ -2764,7 +2764,7 @@
     corpus_parts: []
   status: ported
   rust_test: "tests/views_layout_rules.rs::section_hatch_excludes_coplanar_boundaries_and_retained_material; tests/views_layout_rules.rs::gap_tangent_and_outside_sections_are_reported_without_false_cut_ink; tests/issue_drafting.rs::a_sections_ink_describes_its_cut"
-  rust_note: "Hatching already clips to material on both sides of the actual plane; new attached, detached, adjacent, notch and bored multi-region fixtures pin it. Rendering now refuses section geometry, hatch and furniture when the cut is outside the open extent or no material crosses it (gap/tangent/coplanar-only), reporting section_dropped on the otherwise drawable sheet. The check uses geometric boundary samples and the solid classifier independently of paper hatch spacing. Rust has no authored cut-plane Spec verb; the renderer checks public Plan cuts without introducing that API."
+  rust_note: "Hatching already clips to material on both sides of the actual plane; new attached, detached, adjacent, notch and bored multi-region fixtures pin it. Rendering now refuses section geometry, attached dimensions, hatch and furniture when the cut is outside the open extent or no material crosses it (gap/tangent/coplanar-only), reporting section_dropped on the otherwise drawable sheet. The check uses geometric boundary samples and the solid classifier independently of paper hatch spacing. Rust has no authored cut-plane Spec verb; the renderer checks public Plan cuts without introducing that API."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream views-and-layout"
 
 - id: ISSUE-1531-a
