@@ -368,6 +368,18 @@ impl Default for Spec {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct SheetSpec {
+    /// Line-work intent; absent keeps the view's automatic convention.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hidden: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub centre_marks: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub centre_lines: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thread_depiction: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub knurl_depiction: Option<bool>,
+
     /// `A4` … `A0`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub size: Option<String>,
@@ -411,6 +423,18 @@ fn projection_method<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<St
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct ViewSpec {
+    /// Line-work intent; absent keeps the view's automatic convention.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hidden: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub centre_marks: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub centre_lines: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thread_depiction: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub knurl_depiction: Option<bool>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sheet: Option<u32>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
@@ -581,6 +605,11 @@ pub struct PlannedView {
     /// Automatic chain-line furniture, in paper coordinates; never Spec-addressable.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub line_work: Vec<crate::centrelines::LineWork>,
+    /// Effective authored line-work settings (view before sheet); absent preserves defaults.
+    #[serde(default, skip_serializing_if = "crate::linework::Settings::is_empty")]
+    pub line_style: crate::linework::Settings,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub from_spec: Vec<String>,
     /// A section view's cutting plane.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cut: Option<Cut>,
@@ -2418,7 +2447,14 @@ fn plan_with_presentation(
             let mut names = VIEWS.map(|v| v.0).to_vec();
             names.push(SECTION);
             return Err(invalid(
-                format!("There is no view called {name:?}."),
+                if name.starts_with("v:") {
+                    // The MCP's bounded correction recognises this established diagnostic.
+                    format!("There is no view called {name:?}.")
+                } else {
+                    format!(
+                        "There is no view called {name:?}; replace views/{name} with a listed view name, or remove it."
+                    )
+                },
                 &names,
             ));
         }
@@ -2856,6 +2892,7 @@ fn plan_with_presentation(
                 state: ItemState::Shown,
                 cut: None,
                 line_work: Vec::new(),
+                line_style: Default::default(), from_spec: Vec::new(),
             }
         })
         .collect();
@@ -2876,6 +2913,7 @@ fn plan_with_presentation(
             ),
             state: ItemState::Shown,
             line_work: Vec::new(),
+            line_style: Default::default(), from_spec: Vec::new(),
             cut: Some(Cut {
                 xref: None,
                 label: "A".into(),
@@ -3034,6 +3072,7 @@ fn plan_with_presentation(
         for (view, basis) in plan.views.iter_mut().zip(view_bases) {
             view.basis = basis;
         }
+        crate::linework::configure(spec, &mut plan.views);
         return Ok(plan);
     }
     let footprint_cache = crate::dims::footprints::Cache::default();
@@ -3963,7 +4002,15 @@ impl Projections {
         let view = View::new(v.direction, v.up).expect("a planned view");
         let centre = extent(analysis, &view).1;
         let key = projection_key(v);
-        let placement = bits(&[&[v.scale, f64::from(v.id == "v:iso")], &centre, &v.at]);
+        let placement = bits(&[
+            &[
+                v.scale,
+                f64::from(v.id == "v:iso"),
+                f64::from(v.line_style.hidden != Some(false)),
+            ],
+            &centre,
+            &v.at,
+        ]);
         if let Some((previous, geometry)) = self.geometry.get(&key)
             && *previous == placement
         {
@@ -4002,10 +4049,13 @@ impl Projections {
                     };
                     items.push(Item::Edge(curve));
                 }
-                None => geometry.undrawn += 1,
+                None if piece.visible || v.line_style.hidden != Some(false) => {
+                    geometry.undrawn += 1
+                }
+                None => {}
             }
         }
-        if v.cut.is_some() {
+        if v.cut.is_some() || v.line_style.hidden == Some(false) {
             geometry.hidden.clear();
         } else if v.id != "v:iso" {
             geometry.hidden = crate::linework::hidden(&geometry.visible, geometry.hidden);

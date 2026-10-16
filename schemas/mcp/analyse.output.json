@@ -8,32 +8,22 @@
         },
         "binding": {
           "type": "object",
-          "properties": {
-            "source_sha256": {
-              "type": "string"
-            },
-            "part": {
-              "type": "string"
-            },
-            "face_count": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "loader": {
-              "type": "string"
-            },
-            "part_index": {
-              "type": "integer",
-              "minimum": 0
-            }
-          },
           "required": [
             "source_sha256",
             "part",
             "face_count",
             "loader"
           ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "patternProperties": {
+            "^(source_sha256|part|loader)$": {
+              "type": "string"
+            },
+            "^(face_count|part_index)$": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
         },
         "envelope": {
           "type": "array",

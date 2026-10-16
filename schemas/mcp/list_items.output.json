@@ -29,18 +29,6 @@
                   "kind": {
                     "type": "string"
                   },
-                  "label": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "view": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
                   "state": {
                     "anyOf": [
                       {
@@ -101,7 +89,15 @@
                   "view",
                   "state"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "patternProperties": {
+                  "^(label|view)$": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
               },
               {
                 "type": "object",
@@ -127,17 +123,8 @@
                       "null"
                     ]
                   },
-                  "anchors": {
-                    "$ref": "#/$defs/A"
-                  },
-                  "features": {
-                    "$ref": "#/$defs/A"
-                  },
                   "basis": {
                     "type": "string"
-                  },
-                  "operations": {
-                    "$ref": "#/$defs/A"
                   }
                 },
                 "required": [
@@ -150,7 +137,15 @@
                   "basis",
                   "operations"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "patternProperties": {
+                  "^(anchors|features|operations)$": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                }
               },
               {
                 "type": "object",
@@ -208,7 +203,10 @@
               "type": "string"
             },
             "choices": {
-              "$ref": "#/$defs/A"
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           },
           "required": [
@@ -223,13 +221,5 @@
       ],
       "additionalProperties": false
     }
-  ],
-  "$defs": {
-    "A": {
-      "items": {
-        "type": "string"
-      },
-      "type": "array"
-    }
-  }
+  ]
 }
