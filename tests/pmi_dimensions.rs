@@ -474,6 +474,10 @@ fn every_dimension_is_drawn_or_reported_never_both() {
             .filter(|r| r.category == Category::Dimension && r.kind != "common_label")
         {
             let stated = stating(&plan, &a, r);
+            // #33: what states the part's PMI is controlling, never a reference dimension.
+            if let Some(d) = stated {
+                assert!(!d.reference, "{file}: {} is drawn as reference", d.id);
+            }
             let reported = plan
                 .problems
                 .iter()
@@ -797,6 +801,176 @@ fn a_basic_location_of_a_turned_parts_cross_hole_is_boxed() {
     let boxed = model::render(&part, &a, &plan, &font).unwrap();
     let unboxed = model::render(&part, &a, &bare, &font).unwrap();
     assert!(boxed.svg().len() > unboxed.svg().len(), "the box adds ink");
+}
+
+/// The drawn marks of *plan*, as lint reads them back from the sheet.
+fn marks(plan: &Plan) -> Vec<draftwright::lint::Mark> {
+    plan.dimensions
+        .iter()
+        .filter(|d| d.placed.is_some())
+        .map(|d| draftwright::lint::Mark {
+            name: d.id.clone(),
+            view: Some(d.view.clone()),
+            text: d.label.clone(),
+            claims: d
+                .measurements
+                .iter()
+                .map(|m| draftwright::output::Claim {
+                    feature: m.feature.clone(),
+                    parameter: m.parameter.clone(),
+                })
+                .collect(),
+        })
+        .collect()
+}
+
+/// The drawn labels of *plan*'s dimensions along z in the front view (the spindle's axis).
+fn front_z_labels(plan: &Plan) -> Vec<String> {
+    plan.dimensions
+        .iter()
+        .filter(|d| d.placed.is_some() && d.view == "v:front" && d.kind == "linear")
+        .map(|d| d.label.clone())
+        .collect()
+}
+
+/// #33: the editor's spindle names its bottom end face datum A, and its inspection list measures
+/// the shoulders from A. Its step lengths were a chain (22, 18) with the 12 as reference `(12)`;
+/// they are now a baseline from A: 12, 34 and the overall 52, none in brackets, and lint finds
+/// every band's length determined.
+#[test]
+fn a_turned_profile_is_dimensioned_from_its_datum_end() {
+    let raw =
+        std::fs::read(root().join("tests/fixtures/samples/cnc-review-spindle.step.gz")).unwrap();
+    let (_, a) = analysed("cnc-review-spindle.step", &gunzip(&raw));
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let labels = front_z_labels(&plan);
+    for want in ["12", "34", "52"] {
+        let d = plan
+            .dimensions
+            .iter()
+            .find(|d| d.placed.is_some() && d.view == "v:front" && d.label == want)
+            .unwrap_or_else(|| panic!("{want} is not drawn: {labels:?}"));
+        assert!(d.basis.contains("datum A"), "{}: {}", d.id, d.basis);
+        assert!(!d.reference, "{}", d.id);
+    }
+    for gone in ["22", "18", "(12)"] {
+        assert!(!labels.iter().any(|l| l == gone), "{gone}: {labels:?}");
+    }
+    assert!(
+        !plan
+            .dimensions
+            .iter()
+            .any(|d| d.reference || d.label.starts_with('(')),
+        "{labels:?}"
+    );
+    let issues = draftwright::lint::check(&a, &marks(&plan));
+    assert!(
+        !issues.iter().any(|i| matches!(
+            i.code.as_str(),
+            "axial_length_missing"
+                | "turned_step_requirement_missing"
+                | "turned_step_requirement_unverifiable"
+                | "closed_dimension_chain"
+                | "duplicate_measurement"
+        )),
+        "{issues:?}"
+    );
+    // The band lengths the baseline conveys keep their IDs: the editor's saved spec, which places
+    // the ⌀15 band's length, still plans, and the plan says what conveys it.
+    let spec: Spec = serde_json::from_value(json!({
+        "schema": "draftwright.spec/2",
+        "dimensions": {"d:f:turned_step:2/step.length": {"place": {
+            "along": "outside", "lane": 0, "side": "left", "view": "front"}}}
+    }))
+    .unwrap();
+    let placed = model::plan(&a, &spec).unwrap();
+    assert_eq!(front_z_labels(&placed), labels);
+    let covered = plan
+        .omitted
+        .iter()
+        .find(|o| o.id == "d:f:turned_step:2/step.length")
+        .unwrap();
+    assert!(
+        covered
+            .basis
+            .contains("d:f:turned_step:2/step_position.length"),
+        "{}",
+        covered.basis
+    );
+}
+
+/// #33, the case the issue describes: the PMI states the spindle's heights from datum A (12 ±0.2,
+/// 34 ±0.3, 52 ±0.3 to its shoulders and end, 42 ±0.3 to the tapped hole's floor). They are drawn
+/// as they are stated, from A, every one controlling, and no chain restates the steps between
+/// them. With datum A taken away the lengths alone establish the baseline (draftwright's
+/// `_authored_step_baseline`).
+#[test]
+fn pmi_heights_from_a_datum_are_drawn_as_a_baseline_not_a_chain() {
+    let raw =
+        std::fs::read(root().join("tests/fixtures/samples/cnc-review-spindle.step.gz")).unwrap();
+    let (_, base) = analysed("cnc-review-spindle.step", &gunzip(&raw));
+    let template = records(&base)
+        .iter()
+        .find(|r| r.category == Category::Dimension && r.kind == "linear")
+        .unwrap()
+        .clone();
+    for keep_datum in [true, false] {
+        let mut a = base.clone();
+        let Some(Reading::Read(report)) = &mut a.pmi else {
+            unreachable!()
+        };
+        if !keep_datum {
+            report.records.retain(|r| r.category != Category::Datum);
+        }
+        for (n, (to, tol)) in [(12.0, 0.2), (34.0, 0.3), (42.0, 0.3), (52.0, 0.3)]
+            .into_iter()
+            .enumerate()
+        {
+            let mut r = template.clone();
+            let id = 9001 + n as u64;
+            r.source_id = format!("dimension:#{id}");
+            r.part21_id = id;
+            r.instances = vec![id];
+            r.value = Some(to);
+            r.upper_tol = Some(tol);
+            r.lower_tol = Some(-tol);
+            r.basic = false;
+            r.label = format!("{to} ±{tol}");
+            // Faces of their own, so each record has an identity of its own.
+            r.faces = vec![10, 100 + n];
+            r.face_groups = vec![vec![10], vec![100 + n]];
+            r.ref_bbox = Some([-2.0, -2.0, 0.0, 2.0, 2.0, to]);
+            let g = r.geometry.as_mut().unwrap();
+            g.reasons.clear();
+            g.view = None;
+            g.axis = Some("Z".into());
+            g.stations = vec![[0.0, 0.0, 0.0], [0.0, 0.0, to]];
+            report.records.push(r);
+        }
+        let plan = model::plan(&a, &Spec::default()).unwrap();
+        let labels = front_z_labels(&plan);
+        for want in ["12 ±0.2", "34 ±0.3", "42 ±0.3", "52 ±0.3"] {
+            let d = plan
+                .dimensions
+                .iter()
+                .find(|d| d.placed.is_some() && d.label == want)
+                .unwrap_or_else(|| panic!("datum {keep_datum}: {want} not drawn: {labels:?}"));
+            assert!(!d.reference, "{}", d.id);
+        }
+        for gone in ["22", "18", "(12)", "12", "34", "52"] {
+            assert!(
+                !labels.iter().any(|l| l == gone),
+                "datum {keep_datum}: {gone}: {labels:?}"
+            );
+        }
+        assert!(
+            !plan
+                .dimensions
+                .iter()
+                .any(|d| d.reference || d.label.starts_with('(')),
+            "datum {keep_datum}: {labels:?}"
+        );
+    }
 }
 
 #[test]

@@ -3,7 +3,8 @@
 //! Ø15, datums A and B, position on the Ø4 cross hole, heights from A) has datum B's leader
 //! crossing the 52 and 22 heights, and a fix proposed for each. Both applied, as the editor
 //! applies them (Session `apply`, committed), used to put 52 and 22 on one offset line with the
-//! 52's text stranded at the sheet's top left, while the problem count dropped.
+//! 52's text stranded at the sheet's top left, while the problem count dropped. Since #33 the
+//! heights are a baseline from datum A, so the leader crosses 52 and the 34-from-A rung instead.
 //!
 //! The checks here read the plan's ink independently of the engine's own lint helpers.
 
@@ -68,7 +69,10 @@ fn applying_both_proposed_fixes_keeps_the_stack_apart_and_text_on_its_lines() {
     let (moved, ops) = b_crossings(&s);
     assert_eq!(
         moved,
-        ["d:envelope/height.length", "d:f:turned_step:2/step.length"],
+        [
+            "d:envelope/height.length",
+            "d:f:turned_step:2/step_position.length"
+        ],
         "the review sample's two crossings"
     );
     assert_eq!(ops.len(), 2);

@@ -583,6 +583,17 @@ basis, placed, reference?, determined_by?}`:
   its view is omitted). A part turned whole states `od.diameter` (printed `ø…`) and its length along
   the axis instead, in either profile view; the diameter is drawn across whichever radial axis
   that view shows. A view that looks along a dimension never carries it.
+- **Turned step lengths** are a chain of `d:f:turned_step:<n>/step.length`, except on a part
+  turned whole whose PMI measures the profile from one end (#33): a planar datum feature on that
+  end face, or PMI lengths from it to the profile's shoulders. The profile is then a baseline from
+  that end: the band at the datum keeps its `step.length`, each further shoulder is
+  `d:f:turned_step:<n>/step_position.length` (the distance from the datum to the shoulder that
+  ends band `n`), and the overall length is the last rung (it also claims the last band's
+  `step_position.length`), so no rung is reference. The other bands' `step.length` items stay
+  in the inventory (a spec may name them) and are `covered` by the rung locating their band,
+  unless the spec tolerances them or omits that rung. A PMI length across the same span takes its
+  rung's place. Lint counts a band's length as placed when a baseline locates both its
+  shoulders.
 - **Hole callouts** in draftwright's grammar (`4× ⌀10 THRU ⌴ ⌀16 ↧ 5 (2×2)`), in the view that
   looks along the hole. Identical holes drilled the same way are grouped and counted; quiddity's
   hole patterns (kept by the bridge in `recognition.patterns` as `f:hole_pattern:<n>`) are called
@@ -663,7 +674,8 @@ One measurement has one owner (`src/dims/redundancy.rs`). Matching physical
 support-plane intervals share a surviving statement and a typed `covered` omission;
 a functional outside diameter or A/F can own an equal overall interval. Equal values
 alone prove nothing. A stated overall length keeps one otherwise redundant chain
-member as a parenthesized reference dimension. Independent drawing lint reports
+member as a parenthesized reference dimension; a member the spec tolerances, or one that states
+the part's PMI, is never the one (#33). Independent drawing lint reports
 `duplicate_measurement` and `closed_dimension_chain` from printed claims and Analysis
 stations, excluding parenthesized references. Point ordinates, height-ladder datums
 and counted/compound statements retain their existing ownership contracts. Reference
