@@ -1448,6 +1448,11 @@ fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
     row <= w - 2.0 * layout::MARGIN && column <= h - 2.0 * layout::MARGIN
 }
 
+pub(crate) fn dimension_text_edited(spec: &Spec) -> bool {
+    spec.dimensions.values().any(|d| d.tolerance.is_some())
+        || spec.features.values().any(|f| f.fit.is_some())
+}
+
 fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result<Plan, Invalid> {
     use crate::sheet_fit::FILL_BAND;
     let min_legible_scale = crate::sheets::floor(spec).map_or_else(
@@ -1455,7 +1460,10 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
         |floor| floor.max(crate::sheet_fit::min_legible_scale(analysis)),
     );
     first.sheet.fill = crate::sheet_fit::fill(analysis, &first);
-    if spec.sheet.scale.is_some() || crate::placement_intent::has_pins(spec) {
+    if spec.sheet.scale.is_some()
+        || crate::placement_intent::has_pins(spec)
+        || dimension_text_edited(spec)
+    {
         // A pinned sheet and scale are judged as the automatic search judges its candidates
         // (#13): the packed estimate's doubt is withdrawn when the finished drawing's items and
         // views all fit the sheet, so the pair the engine would choose itself raises nothing.
@@ -2122,6 +2130,17 @@ fn plan_with_presentation(
         base.sheet.projection = spec.sheet.projection.clone();
         base.hole_table = spec.hole_table;
         base.iso_scale_factor = spec.iso_scale_factor;
+        Some(plan_recovered(analysis, &base)?)
+    } else if complete_views && dimension_text_edited(spec) {
+        // Tolerance/fit edits change annotation ink, not the part projections.
+        // Reuse the complete unedited frame while reserving the edited ink too.
+        let mut base = spec.clone();
+        for d in base.dimensions.values_mut() {
+            d.tolerance = None;
+        }
+        for f in base.features.values_mut() {
+            f.fit = None;
+        }
         Some(plan_recovered(analysis, &base)?)
     } else {
         None
@@ -2824,7 +2843,11 @@ fn plan_with_presentation(
         sheet.scale_factor = base.sheet.scale_factor;
         sheet.title_block = base.sheet.title_block;
         sheet.basis = base.sheet.basis.clone()
-            + "; anchor frames and sheet choice kept fixed for placement pins";
+            + if dimension_text_edited(spec) {
+                "; view frames and sheet choice retained for annotation text edits"
+            } else {
+                "; anchor frames and sheet choice kept fixed for placement pins"
+            };
         sheet.title_cells = title_block::cells(sheet.title_block, &sheet.title, &sheet.size);
         sheet.projection_symbol = Some(title_block::projection(sheet.title_block, first_angle));
     }

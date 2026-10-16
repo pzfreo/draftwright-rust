@@ -285,6 +285,7 @@ pub fn fill(analysis: &Analysis, plan: &Plan) -> f64 {
 pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
     if !plan.problems.iter().any(|p| p.code == "page_fit_uncertain")
         || crate::placement_intent::has_pins(&plan.spec)
+        || crate::model::dimension_text_edited(&plan.spec)
         || plan.spec.iso_scale_factor.is_some()
         || plan.spec.views.contains_key("iso")
         || !plan.gdt.is_empty()
@@ -748,6 +749,7 @@ pub(crate) fn reserve_linear_corridors(
     let mut shifts = vec![[0.0; 2]; plan.views.len()];
     let index = |id: &str| plan.views.iter().position(|v| v.id == id);
     let free = !crate::placement_intent::has_pins(&plan.spec)
+        && !crate::model::dimension_text_edited(&plan.spec)
         && !plan.spec.views.values().any(|v| v.place.is_some())
         // A named sheet and scale retain their established projection frame,
         // including section marks. Reserve the full ink without silently moving
