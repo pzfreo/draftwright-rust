@@ -16,14 +16,16 @@ and K1b/K4/K5/K7 integrations, merged with PR #56 (datum placement) and PR #57
 (K6, one owner per measurement), PR #61 (datum follow-up), the pins/lint batch
 (nine rules ported with tests), and PR #64 (table-rule ports). The table-rule batch adds
 verified schedule and manufacturing evidence, transactional hole-table guards and
-drawing-consumer checks. Counts are computed from the merged YAML entries:
+drawing-consumer checks. The rules-text merge retains two completed ports and appends
+blockers only to entries still pending ([merge report](text-main-merge-2026-10-16.md)).
+Counts are computed from the merged YAML entries:
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 9 | 63 | 62 | 26 |
+| `adr.yaml` | 9 | 64 | 61 | 26 |
 | `lint.yaml` | 12 | 120 | 14 | 19 |
-| `issues.yaml` | 38 | 75 | 51 | 26 |
-| **All** | **59** | **258** | **127** | **71** |
+| `issues.yaml` | 37 | 76 | 51 | 26 |
+| **All** | **58** | **260** | **126** | **71** |
 
 The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
 The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE

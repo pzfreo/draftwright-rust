@@ -1391,10 +1391,9 @@
     adr: "archive 0009 Amendments 4-5"
     issues: [318, 381]
     tests: ["test_prismatic_central_hole_callout_not_lifted"]
-  status: translated
-  rust_test: "tests/centrelines.rs::callouts_do_not_borrow_hole_centre_strokes"
-  rust_note: "Turned half: coaxial bore callouts kept off the axis by the leader router (src/dims/leaders.rs centrelines::runs_beside/leader_conflict; src/dims/holes.rs skips holes on the turning axis) and checked by lint label_centerline_overlap/leader_centerline_overlap (tests/centrelines.rs::callouts_do_not_borrow_hole_centre_strokes). Prismatic 'view-centre row, not lifted >3 mm' is a hint to Python's strip-row packer, which Rust does not have."
-  rust_rule: "Turned half: coaxial bore callouts kept off the axis by the leader router (src/dims/leaders.rs centrelines::runs_beside/leader_conflict; src/dims/holes.rs skips holes on the turning axis) and checked by lint label_centerline_overlap/leader_centerline_overlap (tests/centrelines.rs::callouts_do_not_borrow_hole_centre_strokes)."
+  status: ported
+  rust_test: "tests/rules_text.rs::prismatic_central_bores_keep_their_row_and_turned_bores_clear_axis_ink; src/dims/interior.rs::tests::a_blocked_centre_row_keeps_safe_interior_alternatives"
+  rust_note: "Rules-text audit, 2026-10-16: Ported in src/dims/interior.rs: a central prismatic bore prefers horizontal rim-normal interior alternatives with its text midpoint within one font height of the view centre. Preference is ranked after all clearance checks; when the centre row is blocked, other safe interior alternatives remain eligible. The existing 64-alternative budget, material/ink/feature/furniture clearance, authored placement and no-drop fallback remain. Turning-profile records or an analytic surface of revolution spanning the transverse envelope exclude the prismatic hint; this also covers plain cylinders that publish no turned_step. Existing centreline/extension clearance pushes round-view coaxial text off-axis. The regression uses Python's through-hole block, axial cylinder and stepped-shaft shapes, two additional block proportions, actual rendered ink crossings and centre-row bounds. Anchoring remains a spacing hint rather than drop immunity; the blocked-row regression fails with a hard row filter and passes with post-clearance ranking."
   port_note: "Keep: planner rule keyed on part classification from Analysis."
 
 - id: ARCH0009-4
