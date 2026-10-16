@@ -1,10 +1,11 @@
-"""Exact #958 solids from Python draftwright tests/test_issue_958_cross_solid_recognition.py.
+"""Python #958 cross-solid and ARCH0009-3 central-bore regression shapes.
 
 Regenerate with draftwright's venv. Fixtures are below parts/ so the opt-in byte guard's
 parts/*.step roster does not change. No drawing or recognition expectations are recorded.
 """
 from pathlib import Path
-from build123d import Box, Compound, Pos, export_step
+from build123d import (Align, Box, BuildPart, Compound, Cylinder, Hole, Pos, Rotation,
+                      export_step)
 
 out = Path(__file__).parent
 base = Box(80, 60, 10)
@@ -25,5 +26,21 @@ cases = {
     "two-channels": Compound(children=[channel, Pos(0, 0, 60) * channel]),
     "two-channels-reversed": Compound(children=[Pos(0, 0, 60) * channel, channel]),
 }
+# ARCH0009-3: Python tests/test_layout_generalisation.py plus two block proportions.
+with BuildPart() as drilled:
+    Cylinder(6, 20)
+    Hole(0.8, depth=8)
+b = Align.MIN
+cases.update({
+    "central-prismatic": Box(80, 60, 20) - Cylinder(4, 20),
+    "central-prismatic-wide": Box(100, 70, 15) - Cylinder(6, 15),
+    "central-prismatic-square": Box(60, 60, 10) - Cylinder(3, 10),
+    "coaxial-cylinder-x": Rotation(0, 90, 0) * drilled.part,
+    "coaxial-step-x": Rotation(0, 90, 0) * (
+        Cylinder(6, 12, align=(Align.CENTER, Align.CENTER, b))
+        + Pos(0, 0, 12) * Cylinder(4, 12, align=(Align.CENTER, Align.CENTER, b))
+        - Cylinder(0.8, 8, align=(Align.CENTER, Align.CENTER, b))
+    ),
+})
 for name, part in cases.items():
     export_step(part, out / f"{name}.step")

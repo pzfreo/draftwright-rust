@@ -7,7 +7,7 @@ checkout is newer (`8ad716b6`); deleted or changed source/tests were read with
 `git show` at the catalogue revision. The YAML notes give the detailed remainder
 and owner for each pending entry.
 
-Batch outcomes: **1 ported, 3 translated, 1 retired, 24 pending**. The symbol test
+Batch outcomes: **2 ported, 3 translated, 1 retired, 23 pending**. The symbol test
 pins an existing behavior under its translated rule. Pending includes the partial
 PMI text implementation and the passing portions of the cross-solid probes; neither
 is counted as a fully ported rule.
@@ -17,7 +17,7 @@ is counted as a fully ported rule.
 | ADR2-17 | pending | One joint interior/exterior candidate assignment and resource-floor/commit identity need a placement redesign; bounded H7 tests remain. |
 | ADR3-7 | pending | Protected dimension-ownership stream: per-occurrence conversion ledger, absorption and remapping. |
 | ARCH0008-1 | translated | `tests/rules_text.rs::callout_symbols_are_geometry_and_claims_are_semantic_roles`; semantic Analysis/Spec roles, display text in Plan, symbol strokes and searchable Unicode text. |
-| ARCH0009-3 | pending | Classification-aware centre-row/centreline constraints through global routing and interior recovery. |
+| ARCH0009-3 | ported | `tests/rules_text.rs::prismatic_central_bores_keep_their_row_and_turned_bores_clear_axis_ink` (three blocks and two round/turned controls). |
 | ARCH0009-4 | pending | Shared strip keep-out intervals and a proved farthest-edge fallback; GD&T placement belongs to its own stream. |
 | ARCH0016-3 | pending | Protected dimension-ownership stream: compound heads, independently addressable dependents and validation. |
 | ARCH0017-2 | pending | Protected dimension-ownership stream: independent manufacturing requirement cardinality. |
@@ -59,8 +59,15 @@ parameter and its numeric value in micrometres against the source's structured f
 An unrelated annotation cannot rescue a corrupted source-bearing annotation. The source
 IDs stay intact during corruption tests. This is deliberately a partial port: the invisible
 searchable text runs do not independently prove that the filled glyph paths say the same
-thing. No placement, datum, GD&T, detail-view or measurement-ownership implementation was
-changed.
+thing. Datum, GD&T, detail-view and measurement-ownership implementations were unchanged.
+
+A central bore in prismatic stock now gets horizontal rim-normal interior candidates whose
+label midpoint stays within the 3 mm font height of the view centre. Candidate generation
+retains the 64-alternative bound and all existing material, feature, furniture and peer-ink
+checks. The row is a spacing hint: an impossible interior placement retains its exterior
+fallback. Turning profiles and analytic round stock are excluded, including plain cylinders
+without native `turned_step` records. Their coaxial labels still clear the centre axis. The
+new geometry regression failed before this change with a 10.266 mm row displacement.
 
 The new tests are:
 
@@ -68,6 +75,7 @@ The new tests are:
 - `src/lint/pmi_coverage.rs::tests::manufacturing_source_text_is_checked_independently_of_its_identity`
 - `tests/pmi_coverage.rs::a_source_edge_note_must_keep_every_word_when_wrapped`
 - `tests/surface_texture.rs::a_face_finish_text_cannot_disagree_with_its_source`
+- `tests/rules_text.rs::prismatic_central_bores_keep_their_row_and_turned_bores_clear_axis_ink`
 - `tests/rules_text.rs::callout_symbols_are_geometry_and_claims_are_semantic_roles`
 - `tests/rules_text.rs::separate_solids_do_not_invent_features_and_preserve_real_slots_pads_and_pockets`
 

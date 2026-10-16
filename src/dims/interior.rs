@@ -453,7 +453,14 @@ fn conflict(a: &Placed, b: &Placed) -> bool {
         })
 }
 
-fn callouts(frame: &Frame, w: &Want, old: &Placed, proof: &Proof, v: &PlannedView) -> Vec<Placed> {
+fn callouts(
+    frame: &Frame,
+    w: &Want,
+    old: &Placed,
+    proof: &Proof,
+    v: &PlannedView,
+    prismatic: bool,
+) -> Vec<Placed> {
     let Shape::Callout { sites } = &w.shape else {
         return Vec::new();
     };
@@ -461,6 +468,16 @@ fn callouts(frame: &Frame, w: &Want, old: &Placed, proof: &Proof, v: &PlannedVie
         .measurements
         .iter()
         .any(|m| m.parameter == "bore.diameter");
+    // ARCH0009-3: the prismatic centre-row hint is independent of the exterior leader's
+    // angle. A turned bore instead retains its centre-line keep-out policy. The geometric
+    // tolerance is in model mm, including the bridge document's publication precision.
+    let centre_row = prismatic
+        && radial
+        && !sites.is_empty()
+        && sites.iter().all(|(centre, _)| {
+            let p = frame.page(*centre);
+            (p[0] - v.at[0]).hypot(p[1] - v.at[1]) <= 1e-3 * frame.scale()
+        });
     let ink = label_ink(&w.terms, font());
     let ray = old
         .lines
@@ -487,8 +504,16 @@ fn callouts(frame: &Frame, w: &Want, old: &Placed, proof: &Proof, v: &PlannedVie
         }
     }
     let mut out = Vec::new();
+    let mut rotations = [0.0_f64, 45.0, -45.0, 90.0, -90.0, 135.0, -135.0, 180.0];
+    if centre_row {
+        // Replace two rays, rather than enlarging the search: horizontal rim-normal leaders
+        // can keep the label on the centre row even when the exterior winner was oblique.
+        let angle = u[1].atan2(u[0]).to_degrees();
+        rotations[0] = -angle;
+        rotations[1] = 180.0 - angle;
+    }
     // Share Python's 64 alternatives round-robin over anchors; grouping cannot multiply work.
-    for (rotation, lane) in [0.0_f64, 45.0, -45.0, 90.0, -90.0, 135.0, -135.0, 180.0]
+    for (rotation, lane) in rotations
         .into_iter()
         .flat_map(|a| (1..=8).map(move |n| (a, n)))
     {
@@ -553,6 +578,11 @@ fn callouts(frame: &Frame, w: &Want, old: &Placed, proof: &Proof, v: &PlannedVie
                 rotation: 0.0,
                 label_box: label_box(&ink, label_at, 0.0),
             };
+            if centre_row
+                && (0.5 * (p.label_box[1] + p.label_box[3]) - v.at[1]).abs() >= super::TEXT
+            {
+                continue;
+            }
             if proof.annotation_clear(v, &p, true) {
                 out.push(p);
             }
@@ -579,6 +609,24 @@ pub(super) fn place(
     cache: &super::footprints::Cache,
 ) -> BTreeSet<String> {
     let mut moved = BTreeSet::new();
+    // Python excludes both a rotational envelope and a stepped turning profile. A plain
+    // cylinder need not publish a turned_step record, so use the scanned analytic faces too:
+    // an exterior surface of revolution spans the envelope in both transverse directions.
+    let round_stock = analysis.features.iter().any(|f| f.kind == "turned_step")
+        || analysis.principal_profiles.iter().any(|s| {
+            s.curved_faces.iter().any(|f| {
+                f.axis
+                    .and_then(crate::bridge::holes::principal)
+                    .is_some_and(|axis| {
+                        (0..3).filter(|&k| k != axis).all(|k| {
+                            (0..2).all(|end| {
+                                (f.bounds[end][k] - analysis.envelope[end][k]).abs() <= 1e-3
+                            })
+                        })
+                    })
+            })
+        });
+    let prismatic = !round_stock;
     let proofs = proofs(analysis, views);
     // Centre-line furniture (G6) is not annotation ink: interior text keeps clear of its
     // strokes, and a callout's shaft does not run beside another feature's stroke, but
@@ -633,7 +681,7 @@ pub(super) fn place(
         let f = cache.get(analysis, v);
         let candidates =
             match &items[i].shape {
-                Shape::Callout { .. } => callouts(frame, &items[i], old, proof, v),
+                Shape::Callout { .. } => callouts(frame, &items[i], old, proof, v, prismatic),
                 Shape::Linear { .. }
                     if !page.fits(old, name)
                         || old.lines.iter().take(2).any(|s| {
@@ -955,7 +1003,7 @@ mod tests {
         };
         let mut old = dimension();
         old.lines = vec![[[0., -5.], [0., -12.]], [[0., -12.], [3., -12.]]];
-        let candidates = callouts(&frame, &w, &old, &proof, &v);
+        let candidates = callouts(&frame, &w, &old, &proof, &v, false);
         assert!(!candidates.is_empty());
         for p in candidates {
             assert!(p.lines[0][0][1] >= 0.0);

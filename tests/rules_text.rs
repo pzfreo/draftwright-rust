@@ -105,3 +105,76 @@ fn separate_solids_do_not_invent_features_and_preserve_real_slots_pads_and_pocke
     // quiddity 7cb26d8 reports one channel. examples/recognition_document.rs and the two
     // channel fixtures retain a reproduction; ISSUE-958-a stays pending in the catalogue.
 }
+
+/// ARCH0009-3: Python's central through-hole block and two coaxial-bore scope locks from
+/// test_layout_generalisation.py. Shape variants keep the row rule independent of one part.
+#[test]
+fn prismatic_central_bores_keep_their_row_and_turned_bores_clear_axis_ink() {
+    let font = Font::open(
+        &Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("fonts")
+            .join(dims::FONT),
+    )
+    .unwrap();
+    for (name, turned) in [
+        ("central-prismatic", false),
+        ("central-prismatic-wide", false),
+        ("central-prismatic-square", false),
+        ("coaxial-cylinder-x", true),
+        ("coaxial-step-x", true),
+    ] {
+        let (part, a) = model::analyse_native(&fixture(name)).unwrap();
+        let mut spec = model::Spec::default();
+        if turned {
+            spec.sheet.scale = Some("2:1".into());
+        }
+        let plan = model::plan_recovered(&a, &spec).unwrap();
+        let callouts: Vec<_> = plan
+            .dimensions
+            .iter()
+            .filter(|d| {
+                d.kind == "callout"
+                    && d.measurements
+                        .iter()
+                        .any(|m| m.parameter == "bore.diameter")
+            })
+            .collect();
+        assert_eq!(callouts.len(), 1, "{name}");
+        let callout = callouts[0];
+        let placed = callout.placed.as_ref().expect("the bore is drawn");
+        let view = plan.views.iter().find(|v| v.id == callout.view).unwrap();
+        assert_eq!(view.id, if turned { "v:side" } else { "v:plan" });
+        let offset = 0.5 * (placed.label_box[1] + placed.label_box[3]) - view.at[1];
+        if !turned {
+            assert!(
+                offset.abs() < dims::TEXT,
+                "{name}: centre-row offset {offset} mm"
+            );
+        }
+        if turned {
+            assert!(offset.abs() >= dims::TEXT, "{name}: coaxial text on axis");
+        }
+        let drawing = model::render(&part, &a, &plan, &font).unwrap();
+        let [x0, y0, x1, y1] = placed.label_box;
+        let crossings: Vec<_> = drawing
+            .sheet
+            .items
+            .iter()
+            .filter(|d| d.name != callout.id)
+            .flat_map(|d| d.lines.iter().map(move |line| (&d.name, line)))
+            .filter(|(_, [a, b])| {
+                let row = 0.5 * (a[1] + b[1]);
+                (a[1] - b[1]).abs() < 0.05
+                    && (a[0] - b[0]).abs() > 1.0
+                    && y0 + 0.3 < row
+                    && row < y1 - 0.3
+                    && a[0].max(b[0]) > x0 + 0.3
+                    && a[0].min(b[0]) < x1 - 0.3
+            })
+            .collect();
+        assert!(
+            crossings.is_empty(),
+            "{name}: horizontal ink through bore text: {crossings:?}"
+        );
+    }
+}

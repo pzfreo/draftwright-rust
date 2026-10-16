@@ -1363,9 +1363,10 @@
     adr: "archive 0009 Amendments 4-5"
     issues: [318, 381]
     tests: ["test_prismatic_central_hole_callout_not_lifted"]
-  status: pending
+  status: ported
   port_note: "Keep: planner rule keyed on part classification from Analysis."
-  rust_note: "Rules-text audit, 2026-10-16: Pending: src/dims/leaders.rs::inventory ranks routes around all four sides and radial escapes; it has no part-classification constraint that holds a prismatic central-hole label on its centre row while displacing a turned coaxial label. Python tests/test_layout_generalisation.py pins both with their round-view centre furniture. Faithful support requires a classification-aware preferred-row contract through candidate generation, centreline keep-outs, interior recovery and joint assignment, with corpus-wide layout verification; this is a cross-cutting placement change beyond a day, not a safe single row-offset patch."
+  rust_test: tests/rules_text.rs::prismatic_central_bores_keep_their_row_and_turned_bores_clear_axis_ink
+  rust_note: "Rules-text audit, 2026-10-16: Ported in src/dims/interior.rs: a central prismatic bore gets horizontal rim-normal interior alternatives with its text midpoint within one font height of the view centre. The existing 64-alternative budget, material/ink/feature/furniture clearance, authored placement and no-drop fallback remain. Turning-profile records or an analytic surface of revolution spanning the transverse envelope exclude the prismatic hint; this also covers plain cylinders that publish no turned_step. Existing centreline/extension clearance pushes round-view coaxial text off-axis. The regression uses Python's through-hole block, axial cylinder and stepped-shaft shapes, two additional block proportions, actual rendered ink crossings and centre-row bounds. Anchoring remains a spacing hint rather than drop immunity."
 
 - id: ARCH0009-4
   statement: "Callout text must not sit on a centre-line or on a location dimension's extension line; where the keep-out band is wider than the strip, the callout sits at the strip edge farthest from the line rather than being dropped."
