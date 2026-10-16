@@ -74,12 +74,18 @@ fn compound_terms_keep_their_own_precision_and_tolerances() {
     hole.parameters.insert("depth".into(), json!(4.75));
     hole.parameters
         .insert("cbore".into(), json!({"diameter":8.75,"depth":1.875}));
+    hole.parameters.insert(
+        "csink".into(),
+        json!({"major_diameter":10.25,"included_angle":82.5}),
+    );
     let mut spec = Spec::default();
     for (role, places) in [
         ("bore.diameter", 2),
         ("bore.depth", 2),
         ("counterbore.diameter", 2),
         ("counterbore.depth", 3),
+        ("countersink.diameter", 2),
+        ("countersink.angle", 2),
     ] {
         spec.precision.insert(format!("d:{id}/{role}"), places);
     }
@@ -99,6 +105,7 @@ fn compound_terms_keep_their_own_precision_and_tolerances() {
         .unwrap();
     assert!(d.label.contains("⌀6.25 ±0.0005 ↧ 4.75"), "{}", d.label);
     assert!(d.label.contains("⌴ ⌀8.75 ↧ 1.875"), "{}", d.label);
+    assert!(d.label.contains("⌵ ⌀10.25 × 82.50°"), "{}", d.label);
     let ink = dims::label_ink(
         &d.terms,
         &draftwright::text::Font::open(&root().join("fonts").join(dims::FONT)).unwrap(),

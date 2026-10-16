@@ -552,6 +552,14 @@ fn structured_feature_notes_cover_only_explicit_roles_of_their_placed_owner() {
             .iter()
             .all(|i| i.requirements.iter().any(|r| r.feature != owner))
     );
+    assert!(
+        after
+            .iter()
+            .flat_map(|i| &i.requirements)
+            .all(|r| r.feature != owner)
+    );
+    structured.annotations.push(annotation.clone());
+    assert_eq!(missing(&merged, &structured), after);
     structured.annotations.retain(|a| a.name != annotation.name);
     assert_eq!(missing(&merged, &structured), before);
 

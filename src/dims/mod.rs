@@ -2174,6 +2174,16 @@ pub(crate) fn recheck(analysis: &Analysis, plan: &crate::model::Plan) -> Vec<Pro
         .collect()
 }
 
+/// Semantic roles available to a feature note, including compound callout terms.
+pub(crate) fn measurement_ids(analysis: &Analysis) -> BTreeSet<String> {
+    wants(analysis)
+        .0
+        .iter()
+        .flat_map(|w| &w.measurements)
+        .map(|m| want_id(&m.feature, &m.parameter))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2287,14 +2297,4 @@ mod tests {
         );
         assert_eq!(omitted[0].0, "d:f:boss:1/boss_height.length");
     }
-}
-
-/// Semantic roles available to a feature note, including compound callout terms.
-pub(crate) fn measurement_ids(analysis: &Analysis) -> BTreeSet<String> {
-    wants(analysis)
-        .0
-        .iter()
-        .flat_map(|w| &w.measurements)
-        .map(|m| want_id(&m.feature, &m.parameter))
-        .collect()
 }

@@ -156,16 +156,6 @@ pub(super) fn labels<'a>(
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn precision_boundaries_and_negative_zero_are_stable() {
-        assert_eq!(super::format(1.25, 0), "1");
-        assert_eq!(super::format(1.0, 15), "1.000000000000000");
-        assert_eq!(super::format(-0.0001, 2), "0.00");
-    }
-}
-
 /// A scalar dimension's leading display policy, including its grouped measurement identity.
 pub(super) fn leading(spec: &Spec, w: &Want) -> Option<u8> {
     spec.precision.get(&w.id).copied().or_else(|| {
@@ -179,4 +169,14 @@ pub(super) fn leading(spec: &Spec, w: &Want) -> Option<u8> {
                     .copied()
             })
     })
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn precision_boundaries_and_negative_zero_are_stable() {
+        assert_eq!(super::format(1.25, 0), "1");
+        assert_eq!(super::format(1.0, 15), "1.000000000000000");
+        assert_eq!(super::format(-0.0001, 2), "0.00");
+    }
 }

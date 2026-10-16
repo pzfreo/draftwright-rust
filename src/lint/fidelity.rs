@@ -549,26 +549,6 @@ fn datum_leader(d: &Drawn) -> Option<LintIssue> {
     })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn labels_read_as_draftwright_reads_them_with_the_ports_counted_dimensions() {
-        assert_eq!(label_value("12.5"), Some(12.5));
-        assert_eq!(label_value("⌀8.5"), Some(8.5));
-        assert_eq!(label_value("7.5 ±0.1"), Some(7.5));
-        assert_eq!(label_value("(25)"), Some(25.0));
-        assert_eq!(label_value("4× ⌀8.5 THRU"), Some(8.5));
-        assert_eq!(label_value("3× 20"), Some(20.0));
-        assert_eq!(label_value("M10"), Some(10.0));
-        assert_eq!(label_value("THRU"), None);
-        assert_eq!(displayed_decimals("40"), 1);
-        assert_eq!(displayed_decimals("4.45"), 2);
-        assert_eq!(displayed_decimals("12 ±0.05"), 1);
-    }
-}
-
 /// Recognise perpendicular extension lines and a parallel dimension line at any rotation.
 fn aligned_span(lines: &[[P; 2]]) -> Option<f64> {
     let [a, b, d] = lines else { return None };
@@ -587,4 +567,24 @@ fn aligned_span(lines: &[[P; 2]]) -> Option<f64> {
     }
     let span = (project(b[0]) - project(a[0])).abs();
     (span > 1e-9).then_some(span)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn labels_read_as_draftwright_reads_them_with_the_ports_counted_dimensions() {
+        assert_eq!(label_value("12.5"), Some(12.5));
+        assert_eq!(label_value("⌀8.5"), Some(8.5));
+        assert_eq!(label_value("7.5 ±0.1"), Some(7.5));
+        assert_eq!(label_value("(25)"), Some(25.0));
+        assert_eq!(label_value("4× ⌀8.5 THRU"), Some(8.5));
+        assert_eq!(label_value("3× 20"), Some(20.0));
+        assert_eq!(label_value("M10"), Some(10.0));
+        assert_eq!(label_value("THRU"), None);
+        assert_eq!(displayed_decimals("40"), 1);
+        assert_eq!(displayed_decimals("4.45"), 2);
+        assert_eq!(displayed_decimals("12 ±0.05"), 1);
+    }
 }

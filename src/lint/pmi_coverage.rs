@@ -462,124 +462,6 @@ fn mismatch(r: &Record, text: &str) -> Option<String> {
     ))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn frame(value: f64, modifiers: &[&str], datums: &[&str]) -> Record {
-        let mut r: Record = serde_json::from_value(serde_json::json!({
-            "source_id": "geometric_tolerance:#1", "category": "geometric_tolerance",
-            "kind": "position", "part": 0, "part21_id": 1, "label": "", "dominant_axis": "Z",
-            "datum_refs": [], "gtol_modifiers": [], "basic": false, "faces": [], "face_ids": [],
-            "face_groups": [], "edges": [], "instances": [], "blockers": [],
-        }))
-        .unwrap();
-        r.value = Some(value);
-        r.gtol_modifiers = modifiers.iter().map(|s| s.to_string()).collect();
-        r.datum_refs = datums.iter().map(|s| s.to_string()).collect();
-        r
-    }
-
-    #[test]
-    fn a_dimension_lowers_when_its_kind_and_faces_are_drawn() {
-        let mut r = frame(30.0, &[], &[]);
-        r.category = Category::Dimension;
-        r.kind = "linear".into();
-        r.geometry = Some(crate::pmi::Geometry {
-            axis: Some("X".into()),
-            ..Default::default()
-        });
-        assert_eq!(dimension(&r), Ok(()));
-        let mut oblique = r.clone();
-        oblique.geometry.as_mut().unwrap().axis = None;
-        assert!(dimension(&oblique).is_err());
-        let mut unproven = r.clone();
-        unproven.geometry.as_mut().unwrap().reasons =
-            vec!["linear reference groups occupy the same station".into()];
-        assert_eq!(
-            dimension(&unproven),
-            Err("linear reference groups occupy the same station".into())
-        );
-        let mut blocked = r.clone();
-        blocked.blockers = vec!["the dimension modifier Reference is not carried".into()];
-        assert!(dimension(&blocked).unwrap_err().contains("Reference"));
-        let mut label = r.clone();
-        label.kind = "common_label".into();
-        assert!(dimension(&label).unwrap_err().contains("common label"));
-        // An angle lowers where a view shows it true, as the plan draws it.
-        let mut angle = r.clone();
-        angle.kind = "angular".into();
-        assert!(dimension(&angle).unwrap_err().contains("not derived"));
-        // The sides as the Analysis carries them (the lint names no planner type, ADR1-9).
-        let sides = |second: [f64; 3]| {
-            serde_json::from_value(serde_json::json!({
-                "vertex": [0.0, 0.0, 0.0], "first": [1.0, 0.0, 0.0], "second": second,
-            }))
-            .unwrap()
-        };
-        angle.geometry.as_mut().unwrap().angle = Some(sides([0.5, 0.866, 0.0]));
-        assert_eq!(dimension(&angle), Ok(()));
-        angle.geometry.as_mut().unwrap().angle = Some(sides([0.5, 0.6, 0.6]));
-        assert!(
-            dimension(&angle)
-                .unwrap_err()
-                .contains("oblique to every view")
-        );
-    }
-
-    #[test]
-    fn one_material_of_the_drawing_is_its_title_blocks() {
-        let mut report: Report = serde_json::from_value(serde_json::json!({
-            "schema": "draftwright.pmi/1", "parts": ["plate"], "sources": [], "records": [],
-            "accounting": {"semantic": 0, "consumed": 0, "reported": 0, "presentation": 0,
-                "validation": 0},
-            "materials": [{"source_id": "material:#9", "part": 0, "designation": "AlMg3"}],
-        }))
-        .unwrap();
-        assert!(materials(&report).is_empty());
-        // A material stating no designation is reported, not taken as no material.
-        let mut unnamed = report.clone();
-        unnamed.materials[0].designation.clear();
-        let found = materials(&unnamed);
-        assert_eq!(found.len(), 1, "{found:#?}");
-        assert_eq!(found[0].code, "step_material_unavailable");
-        assert!(found[0].message.contains("designation is empty"));
-        // One part's material, of two parts drawn: not the drawing's.
-        report.parts.push("pin".into());
-        let found = materials(&report);
-        assert_eq!(found.len(), 1, "{found:#?}");
-        assert_eq!(
-            (found[0].code.as_str(), found[0].severity),
-            ("step_material_unavailable", Severity::Warning)
-        );
-        assert_eq!(found[0].sources, ["material:#9"]);
-        // Each part's own: none can be the title block's.
-        let mut steel = report.materials[0].clone();
-        steel.source_id = "material:#12".into();
-        steel.part = 1;
-        report.materials.push(steel);
-        let found = materials(&report);
-        assert_eq!(found.len(), 1, "{found:#?}");
-        assert_eq!(found[0].code, "step_material_ambiguous");
-        assert_eq!(found[0].sources, ["material:#9", "material:#12"]);
-    }
-
-    #[test]
-    fn a_frame_states_its_magnitude_zone_and_datums() {
-        let r = frame(0.05, &["diameter_zone"], &["A", "B", "A"]);
-        assert_eq!(mismatch(&r, "⌖ ⌀0.05Ⓜ A B"), None);
-        assert!(mismatch(&r, "⌖ ⌀0.06Ⓜ A B").is_some());
-        assert!(mismatch(&r, "⌖ 0.05Ⓜ A B").is_some());
-        assert!(mismatch(&r, "⌖ S⌀0.05 A B").is_some());
-        assert!(mismatch(&r, "⌖ ⌀0.05 A").is_some());
-        assert!(mismatch(&r, "⌖ ⌀0.05 A B 7").is_some());
-        assert!(mismatch(&r, "⌖ A B").unwrap().contains("no numeric value"));
-        // Within the display's rounding of the 13th significant digit.
-        let r = frame(0.1 + 0.2, &[], &[]);
-        assert_eq!(mismatch(&r, "⏥ 0.3"), None);
-    }
-}
-
 /// Source sites are checked against the finished leader and the source faces, never the Plan.
 /// A planar finish may slide along its face's edge line; a cylinder uses either silhouette.
 pub(super) fn source_sites(
@@ -721,4 +603,126 @@ pub(super) fn source_sites(
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn frame(value: f64, modifiers: &[&str], datums: &[&str]) -> Record {
+        let mut r: Record = serde_json::from_value(serde_json::json!({
+            "source_id": "geometric_tolerance:#1", "category": "geometric_tolerance",
+            "kind": "position", "part": 0, "part21_id": 1, "label": "", "dominant_axis": "Z",
+            "datum_refs": [], "gtol_modifiers": [], "basic": false, "faces": [], "face_ids": [],
+            "face_groups": [], "edges": [], "instances": [], "blockers": [],
+        }))
+        .unwrap();
+        r.value = Some(value);
+        r.gtol_modifiers = modifiers.iter().map(|s| s.to_string()).collect();
+        r.datum_refs = datums.iter().map(|s| s.to_string()).collect();
+        r
+    }
+
+    #[test]
+    fn a_dimension_lowers_when_its_kind_and_faces_are_drawn() {
+        let mut r = frame(30.0, &[], &[]);
+        r.category = Category::Dimension;
+        r.kind = "linear".into();
+        r.geometry = Some(crate::pmi::Geometry {
+            axis: Some("X".into()),
+            ..Default::default()
+        });
+        assert_eq!(dimension(&r), Ok(()));
+        let mut oblique = r.clone();
+        oblique.geometry.as_mut().unwrap().axis = None;
+        assert!(
+            dimension(&oblique)
+                .unwrap_err()
+                .contains("principal projection plane")
+        );
+        let mut unproven = r.clone();
+        unproven.geometry.as_mut().unwrap().reasons =
+            vec!["linear reference groups occupy the same station".into()];
+        assert_eq!(
+            dimension(&unproven),
+            Err("linear reference groups occupy the same station".into())
+        );
+        let mut blocked = r.clone();
+        blocked.blockers = vec!["the dimension modifier Reference is not carried".into()];
+        assert!(dimension(&blocked).unwrap_err().contains("Reference"));
+        let mut label = r.clone();
+        label.kind = "common_label".into();
+        assert!(dimension(&label).unwrap_err().contains("common label"));
+        // An angle lowers where a view shows it true, as the plan draws it.
+        let mut angle = r.clone();
+        angle.kind = "angular".into();
+        assert!(dimension(&angle).unwrap_err().contains("not derived"));
+        // The sides as the Analysis carries them (the lint names no planner type, ADR1-9).
+        let sides = |second: [f64; 3]| {
+            serde_json::from_value(serde_json::json!({
+                "vertex": [0.0, 0.0, 0.0], "first": [1.0, 0.0, 0.0], "second": second,
+            }))
+            .unwrap()
+        };
+        angle.geometry.as_mut().unwrap().angle = Some(sides([0.5, 0.866, 0.0]));
+        assert_eq!(dimension(&angle), Ok(()));
+        angle.geometry.as_mut().unwrap().angle = Some(sides([0.5, 0.6, 0.6]));
+        assert!(
+            dimension(&angle)
+                .unwrap_err()
+                .contains("oblique to every view")
+        );
+    }
+
+    #[test]
+    fn one_material_of_the_drawing_is_its_title_blocks() {
+        let mut report: Report = serde_json::from_value(serde_json::json!({
+            "schema": "draftwright.pmi/1", "parts": ["plate"], "sources": [], "records": [],
+            "accounting": {"semantic": 0, "consumed": 0, "reported": 0, "presentation": 0,
+                "validation": 0},
+            "materials": [{"source_id": "material:#9", "part": 0, "designation": "AlMg3"}],
+        }))
+        .unwrap();
+        assert!(materials(&report).is_empty());
+        // A material stating no designation is reported, not taken as no material.
+        let mut unnamed = report.clone();
+        unnamed.materials[0].designation.clear();
+        let found = materials(&unnamed);
+        assert_eq!(found.len(), 1, "{found:#?}");
+        assert_eq!(found[0].code, "step_material_unavailable");
+        assert!(found[0].message.contains("designation is empty"));
+        // One part's material, of two parts drawn: not the drawing's.
+        report.parts.push("pin".into());
+        let found = materials(&report);
+        assert_eq!(found.len(), 1, "{found:#?}");
+        assert_eq!(
+            (found[0].code.as_str(), found[0].severity),
+            ("step_material_unavailable", Severity::Warning)
+        );
+        assert_eq!(found[0].sources, ["material:#9"]);
+        // Each part's own: none can be the title block's.
+        let mut steel = report.materials[0].clone();
+        steel.source_id = "material:#12".into();
+        steel.part = 1;
+        report.materials.push(steel);
+        let found = materials(&report);
+        assert_eq!(found.len(), 1, "{found:#?}");
+        assert_eq!(found[0].code, "step_material_ambiguous");
+        assert_eq!(found[0].sources, ["material:#9", "material:#12"]);
+    }
+
+    #[test]
+    fn a_frame_states_its_magnitude_zone_and_datums() {
+        let r = frame(0.05, &["diameter_zone"], &["A", "B", "A"]);
+        assert_eq!(mismatch(&r, "⌖ ⌀0.05Ⓜ A B"), None);
+        assert!(mismatch(&r, "⌖ ⌀0.06Ⓜ A B").is_some());
+        assert!(mismatch(&r, "⌖ 0.05Ⓜ A B").is_some());
+        assert!(mismatch(&r, "⌖ S⌀0.05 A B").is_some());
+        assert!(mismatch(&r, "⌖ ⌀0.05 A").is_some());
+        assert!(mismatch(&r, "⌖ ⌀0.05 A B 7").is_some());
+        assert!(mismatch(&r, "⌖ A B").unwrap().contains("no numeric value"));
+        // Within the display's rounding of the 13th significant digit.
+        let r = frame(0.1 + 0.2, &[], &[]);
+        assert_eq!(mismatch(&r, "⏥ 0.3"), None);
+    }
 }
