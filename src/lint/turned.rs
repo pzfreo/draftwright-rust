@@ -272,6 +272,14 @@ pub fn outcomes(analysis: &Analysis, marks: &[Mark]) -> Vec<Outcome> {
             {
                 (state, mark) = (State::Placed, Some(m));
             }
+            let mut evidence = None;
+            if parameter == "step.length"
+                && state == State::Placed
+                && let Some(m) = mark
+                && let Err(why) = grouped(&read, m)
+            {
+                (state, evidence) = (State::Unverifiable, Some(why));
+            }
             if parameter == "step.diameter" && state == State::Missing && overall(&read, f, b) {
                 let (s, m) = judged(marks, "envelope", "od.diameter", b.diameter);
                 if s == State::Placed {
@@ -283,12 +291,80 @@ pub fn outcomes(analysis: &Analysis, marks: &[Mark]) -> Vec<Outcome> {
                 parameter: parameter.into(),
                 state,
                 annotation: mark.map(|m| m.name.clone()),
-                evidence: (state == State::Unverifiable)
-                    .then(|| format!("{:?} does not state {}", mark.unwrap().text, fmt(value))),
+                evidence: evidence.or_else(|| {
+                    (state == State::Unverifiable)
+                        .then(|| format!("{:?} does not state {}", mark.unwrap().text, fmt(value)))
+                }),
             });
         }
     }
     out
+}
+
+/// Whether mark *m*, when it states several bands' lengths at once (`3× 10`), states exactly its
+/// members (ISSUE-1374-c, Python's `test_grouped_length_label_requires_exact_count_and_value` and
+/// `test_grouped_length_cannot_skip_an_equal_adjacent_member`): its label is the count of the
+/// bands it claims and one length, nothing else (`3× 999 NOTE 10` and `2× 10` for three bands
+/// state none of them), and its bands lie on one axis line with no other band of theirs between
+/// them, so a grouped label never skips an equal neighbour. A mark of one band passes.
+fn grouped(read: &[(&Feature, Result<Band, String>)], m: &Mark) -> Result<(), String> {
+    let claimed: Vec<&str> = m
+        .claims
+        .iter()
+        .filter(|c| c.parameter == "step.length")
+        .map(|c| c.feature.as_str())
+        .collect();
+    if claimed.len() < 2 {
+        return Ok(());
+    }
+    let n = claimed.len();
+    let exact = m
+        .text
+        .trim()
+        .strip_prefix(&format!("{n}×"))
+        .is_some_and(|rest| !rest.trim().is_empty() && !rest.chars().any(char::is_alphabetic));
+    if !exact {
+        return Err(format!(
+            "{:?} states the lengths of {n} bands, but not as exactly {n}× one length",
+            m.text
+        ));
+    }
+    let members: Vec<(&Feature, &Band)> = read
+        .iter()
+        .filter(|(f, _)| claimed.contains(&f.id.as_str()))
+        .filter_map(|(f, b)| Some((*f, b.as_ref().ok()?)))
+        .collect();
+    let (f0, b0) = members[0];
+    let line = |f: &Feature, b: &Band| {
+        b.axis == b0.axis
+            && f.parameters.get("profile") == f0.parameters.get("profile")
+            && (0..3).all(|j| j == b0.axis || (b.on[j] - b0.on[j]).abs() <= 1e-3)
+    };
+    if members.len() != n || !members.iter().all(|(f, b)| line(f, b)) {
+        return Err(format!(
+            "{:?} claims bands that are not of one turned profile",
+            m.text
+        ));
+    }
+    let lo = members
+        .iter()
+        .map(|(_, b)| b.lo)
+        .fold(f64::INFINITY, f64::min);
+    let hi = members
+        .iter()
+        .map(|(_, b)| b.hi)
+        .fold(f64::NEG_INFINITY, f64::max);
+    if let Some((skipped, _)) = read.iter().find(|(f, b)| {
+        !claimed.contains(&f.id.as_str())
+            && b.as_ref()
+                .is_ok_and(|b| line(f, b) && b.lo >= lo - 1e-3 && b.hi <= hi + 1e-3)
+    }) {
+        return Err(format!(
+            "{:?} skips {}, a band between the ones it claims",
+            m.text, skipped.id
+        ));
+    }
+    Ok(())
 }
 
 /// The mark that locates band *b*'s far shoulder from an end of its profile, when a baseline from

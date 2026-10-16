@@ -642,6 +642,21 @@ basis, placed, reference?, determined_by?}`:
   unless the spec tolerances them or omits that rung. A PMI length across the same span takes its
   rung's place. Lint counts a band's length as placed when a baseline locates both its
   shoulders.
+  On a part of several turned bodies along one axis (stream K5, ARCH0020-2), each body's
+  chain goes in the profile view that separates its axis line from the others' and its witnesses
+  start at its own silhouette, on the side of the view it is nearer; a groove whose record names
+  none of the part's turned profiles is refused (`feature_not_dimensioned`, ADR3-12). Lint
+  credits a grouped length (`3× 10`) only when it prints exactly the count of the adjoining bands
+  it claims.
+- **Raised pads** (`src/dims/pads.rs`, stream K5): `d:f:pad:<n>/pad_width.length` and
+  `pad_length.length` between the pad's own edges, `pad_height.length` as a callout `5 HIGH`, and
+  `location_pad.location.x|y` (a pad along z) or `location_pad.<axis>` from the part's corner to
+  its centre, all in the view that looks down on it; a direction on the datum is an info
+  `location_on_datum`.
+- **Free-direction slots** (`src/dims/oriented_slots.rs`, stream K5): one callout
+  `d:f:oriented_slot:<n>/oriented_slot_width.length`, `ORIENTED SLOT 2 WIDE × 4.5 LONG`, claiming
+  width and length, in the view along the slot's dominant run axis, its leader to the slot's rim;
+  equal slots in one view share a counted callout.
 - **Hole callouts** in draftwright's grammar (`4× ⌀10 THRU ⌴ ⌀16 ↧ 5 (2×2)`), in the view that
   looks along the hole. Identical holes drilled the same way are grouped and counted; quiddity's
   hole patterns (kept by the bridge in `recognition.patterns` as `f:hole_pattern:<n>`) are called
@@ -707,7 +722,7 @@ stating a thickness or letting lint read the Spec. Outcomes use
 `plate_requirement_missing`, `_suppressed` and `_unverifiable`.
 
 Each family is a planner module in `src/dims/` (`envelope`, `turned`, `holes`, `slots`, `bosses`,
-`edges`), listed in `dims::PLANNERS` with the feature kinds it dimensions. Every other recognised
+`edges`, `pads`, `oriented_slots`, …), listed in `dims::PLANNERS` with the feature kinds it dimensions. Every other recognised
 feature gets one warning problem, `dimensions_not_ported`, on its
 ID: draftwright dimensions those kinds and the port does not yet, so this is a gap in the port,
 not in the part. Record types draftwright itself leaves undimensioned (freeform surfaces,

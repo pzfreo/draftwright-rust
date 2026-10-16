@@ -830,6 +830,46 @@
     "reason": "The overall width is stated once either way; draftwright puts it in the plan view, the port in the front view, its first choice for x."
   },
   {
+    "part": "plates_pads_levels_and_slanted_steps",
+    "side": "python",
+    "family": "location.x",
+    "view": "plan",
+    "label": "90",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The raised pad's centre lies 90.00007 mm from the part's left face in Python quiddity 0.3.9's record (its RaisedPad bounds carry 6.8e-5 mm of frame noise), and the port prints that value as draftwright's _fmt does (one decimal for anything not whole above 1e-6 mm), so 90.0; draftwright's sheet prints 90. One location along x, the same requirement (stream K5; Rust quiddity's own record gives exactly 90 and prints 90)."
+  },
+  {
+    "part": "plates_pads_levels_and_slanted_steps",
+    "side": "rust",
+    "family": "location.x",
+    "view": "plan",
+    "label": "90.0",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The raised pad's centre lies 90.00007 mm from the part's left face in Python quiddity 0.3.9's record (its RaisedPad bounds carry 6.8e-5 mm of frame noise), and the port prints that value as draftwright's _fmt does (one decimal for anything not whole above 1e-6 mm), so 90.0; draftwright's sheet prints 90. One location along x, the same requirement (stream K5; Rust quiddity's own record gives exactly 90 and prints 90)."
+  },
+  {
+    "part": "plates_pads_levels_and_slanted_steps",
+    "side": "python",
+    "family": "location.y",
+    "view": "side",
+    "label": "35",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The raised pad's location along y (35) is stated once either way; draftwright draws a z pad's y location in the side view, the port keeps both of its locations in the view that looks down on it, as for pockets, holes and slot patterns (ADR1-6, the maintainer's decision of 2026-10-08; stream K5)."
+  },
+  {
+    "part": "plates_pads_levels_and_slanted_steps",
+    "side": "rust",
+    "family": "location.y",
+    "view": "plan",
+    "label": "35",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The raised pad's location along y (35) is stated once either way; draftwright draws a z pad's y location in the side view, the port keeps both of its locations in the view that looks down on it, as for pockets, holes and slot patterns (ADR1-6, the maintainer's decision of 2026-10-08; stream K5)."
+  },
+  {
     "part": "stepped_block",
     "side": "python",
     "family": "envelope",
