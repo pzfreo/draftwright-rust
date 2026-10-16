@@ -37,6 +37,24 @@ paper, scale, placement and sheet-count controls remain binding; in particular,
 `sheets.max = 1` prohibits this automatic overflow. Unspecified sheet counts retain
 the original single-sheet path whenever it produces a valid practical-paper drawing.
 
+### Settled sections and auxiliary-page composition
+
+A second sheet is allowed only after a complete single-sheet layout really fails.
+For unpinned section layouts without page-anchored annotations, recovery measures
+view ink, owned dimensions, centrelines, cutting-plane letters and section captions.
+It replaces conservative bands with these complete measured blocks, moves a free
+section into available space when necessary, and fits the orientation view around
+them. It accepts the correction only when the complete drawing passes the existing
+bounds, title-block and disjoint-view checks. Already fitting layouts stay intact.
+
+Auxiliary pages first try evenly spaced, centred cells above the title block, with
+extra frame clearance. Dense or table-constrained pages retain wrapping packing.
+Reduced isometrics use the same `ISO VIEW (NTS)` caption as sheet 1, rather than an
+independent scale claim. Section references address the section view's centre;
+the reciprocal reference addresses the actual cutting-plane letter. Each uses its
+destination page's grid. Structural lint verifies the view or letter actually drawn,
+so a caption in an adjacent zone cannot validate an incorrect address.
+
 ## The agreed policy (maintainer's decision, 2026-10-11, verbatim)
 
 > # Sheet allocation policy (agreed by the maintainer, 2026-10-11)

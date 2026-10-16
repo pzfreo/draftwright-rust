@@ -174,7 +174,13 @@ pub fn check_sheets(drawings: &[Drawing]) -> Vec<LintIssue> {
                     .checked_sub(1)
                     .and_then(|n| drawings.get(n as usize));
                 let zone = target.and_then(|d| {
-                    let at = d.sheet.items.iter().find(|i| i.name == r.target)?.label?;
+                    let at = d
+                        .sheet
+                        .views
+                        .iter()
+                        .find(|v| v.name == r.target)
+                        .map(|v| v.bbox)
+                        .or_else(|| d.sheet.items.iter().find(|i| i.name == r.target)?.label)?;
                     drawn_zone(d, [(at[0] + at[2]) / 2., (at[1] + at[3]) / 2.])
                 });
                 if zone.as_ref() != Some(&r.zone)

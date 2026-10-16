@@ -421,8 +421,8 @@ fn section_correction_preserves_the_gdt_string_posts_readable_scale() {
     )));
 }
 
-/// A second small sheet must be tried before enlargement onto impractical paper.
-fn assert_small_overflow(name: &str) {
+/// Conservative section bands must not force a second sheet when the settled ink fits.
+fn assert_small_single_sheet(name: &str) {
     let Some(dir) = corpus::dir() else { return };
     let a = model::analyse_native(&dir.join(format!("mfcadpp/{name}.step")))
         .unwrap()
@@ -433,23 +433,30 @@ fn assert_small_overflow(name: &str) {
         "{name}: {}",
         p.sheet.basis
     );
-    assert!(!p.sheets.is_empty(), "{name}: overflow needs another sheet");
+    assert!(p.sheets.is_empty(), "{name}: {}", p.sheet.basis);
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        ("A3", "2:1")
+    );
     assert!(
         p.views
             .iter()
             .filter(|v| ["v:front", "v:plan", "v:side"].contains(&v.id.as_str()))
             .all(|v| v.sheet == 1)
     );
-    assert!(p.views.iter().any(|v| v.sheet > 1));
-    for v in &p.views {
-        if v.sheet > 1
-            && let Some(cut) = &v.cut
-        {
-            assert!(
-                v.xref.is_some() && cut.xref.is_some(),
-                "{name}: section needs both addresses"
-            );
-        }
+    assert!(p.views.iter().all(|v| v.sheet == 1));
+    for (i, v) in p.views.iter().enumerate() {
+        let [x0, y0, x1, y1] = v.area;
+        assert!(
+            x0 >= 10. && y0 >= 10. && x1 <= 410. && y1 <= 287.,
+            "{name}: {} {:?}",
+            v.id,
+            v.area
+        );
+        assert!(p.views[i + 1..].iter().all(|w| !(v.area[0] < w.area[2]
+            && v.area[2] > w.area[0]
+            && v.area[1] < w.area[3]
+            && v.area[3] > w.area[1])));
     }
     assert!(
         !p.problems.iter().any(|q| [
@@ -470,13 +477,13 @@ fn assert_small_overflow(name: &str) {
 }
 
 #[test]
-fn small_10224_uses_multiple_small_sheets() {
-    assert_small_overflow("10224");
+fn small_10224_fits_one_a3_sheet() {
+    assert_small_single_sheet("10224");
 }
 
 #[test]
-fn small_10255_uses_multiple_small_sheets() {
-    assert_small_overflow("10255");
+fn small_10255_fits_one_a3_sheet() {
+    assert_small_single_sheet("10255");
 }
 
 /// This 279 mm principal projection already needs large paper at full size.
@@ -505,7 +512,7 @@ fn overflow_honours_named_paper_and_sheet_count() {
         .1;
     for (intent, size, count) in [
         (json!({"sheet":{"size":"A2"}}), "A2", 1),
-        (json!({"sheets":{"max":1}}), "A1", 1),
+        (json!({"sheets":{"max":1}}), "A3", 1),
     ] {
         let spec: Spec = serde_json::from_value(intent).unwrap();
         let p = model::plan_recovered(&a, &spec).unwrap();
@@ -520,7 +527,7 @@ fn overflow_honours_named_paper_and_sheet_count() {
         "{}",
         p.sheet.basis
     );
-    assert_eq!(p.sheets.len(), 1);
+    assert!(p.sheets.is_empty());
     assert_eq!(p.spec.sheets, spec.sheets);
 }
 

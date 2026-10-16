@@ -265,8 +265,11 @@ The [2026-10-16 audit](second-sheet-audit.csv) lists all 68 small A2+ cases foun
 among 2,150 native default/spec cases over 190 corpus and fixture STEP inputs
 (baseline `53aa9f3f`, origin/main at the start of the change). All 63 source hashes
 in the captured single-sheet spec fixture are covered. Three selections
-improved: 10224 and 10255 use two A3 sheets at 2:1; GRM-03's fixed 10:1 spec fits
-one A3. The 44 named large-paper requests stay as authored. Every other small
+improved: 10224 and 10255 use one A3 sheet at 2:1 after measured section
+correction; GRM-03's fixed 10:1 spec fits one A3. The
+[follow-up review](second-sheet-review.md) records the original candidate failures,
+auxiliary-page composition and references checked against drawn target positions.
+The 44 named large-paper requests stay as authored. Every other small
 large-paper case records both failed practical-paper allocations. The report's
 required-drop count includes unreadably crowded location dimensions. When no
 allocation prefix is clean, the reported best step may be the original one-sheet

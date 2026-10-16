@@ -671,7 +671,8 @@ fn auxiliary(
     let mut planned = PlannedView {
         id: format!("v:{name}"),
         sheet,
-        scale_note: (scale != parent_scale).then(|| format!("SCALE {}", model::scale_name(scale))),
+        scale_note: (name != "iso" && scale != parent_scale)
+            .then(|| format!("SCALE {}", model::scale_name(scale))),
         xref: None,
         direction,
         up,
@@ -707,6 +708,8 @@ fn auxiliary(
     // zone address on the supported paper grid; I2 draws it at this same caption centre.
     let text = if planned.cut.is_some() {
         "FROM SHEET 1, ZONE R24"
+    } else if name == "iso" && scale != parent_scale {
+        model::NTS_CAPTION
     } else {
         planned.scale_note.as_deref().unwrap_or("")
     };
@@ -1178,6 +1181,16 @@ fn cross_references(analysis: &Analysis, plan: &mut Plan) {
                 v.at[0],
                 v.at[1] - model::extent(analysis, &projection).0[1] * v.scale / 2. - 7.,
             ];
+            let page = |number| {
+                std::iter::once(&plan.sheet)
+                    .chain(&plan.sheets)
+                    .find(|s| s.number == number)
+                    .expect("reference sheet")
+                    .page
+            };
+            // A caption may lie in the next zone below the view. Address the view itself.
+            let destination = zone(page(v.sheet), v.at);
+            let source = zone(page(parent.sheet), letters[0]);
             let from = reference_position(
                 analysis,
                 plan,
@@ -1187,7 +1200,7 @@ fn cross_references(analysis: &Analysis, plan: &mut Plan) {
                     cut.label,
                     cut.label,
                     v.sheet,
-                    zone(plan.sheet.page, caption)
+                    destination.clone()
                 ),
                 &letters.map(|p| [p[0], p[1] + 5.]),
             );
@@ -1195,23 +1208,19 @@ fn cross_references(analysis: &Analysis, plan: &mut Plan) {
                 analysis,
                 plan,
                 v.sheet,
-                &format!(
-                    "FROM SHEET {}, ZONE {}",
-                    parent.sheet,
-                    zone(plan.sheet.page, letters[0])
-                ),
+                &format!("FROM SHEET {}, ZONE {}", parent.sheet, source.clone()),
                 &[[caption[0], caption[1] - 5.]],
             );
             Some((
                 v.id.clone(),
                 CrossRef {
                     sheet: parent.sheet,
-                    zone: zone(plan.sheet.page, letters[0]),
+                    zone: source.clone(),
                     at,
                 },
                 CrossRef {
                     sheet: v.sheet,
-                    zone: zone(plan.sheet.page, caption),
+                    zone: destination.clone(),
                     at: from,
                 },
             ))

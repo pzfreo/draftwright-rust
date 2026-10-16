@@ -4338,7 +4338,7 @@ fn render_annotations_with_cuts(
                     cut.xref.as_ref().filter(|_| f.chain.is_some()),
                     format!("SECTION {}–{},", cut.label, cut.label),
                     format!("{}/cut/xref", v.id),
-                    "section_caption".into(),
+                    v.id.clone(),
                 ),
             ] {
                 if let Some(r) = reference {
