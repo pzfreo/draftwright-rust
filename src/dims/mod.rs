@@ -1366,8 +1366,7 @@ pub(crate) fn plan_inventory(
     // Edited text can outgrow the canonical lanes. Keep the canonical layout stable
     // for pins and omission edits; their avoidance pass above owns that geometry.
     if (spec.dimensions.values().any(|d| d.tolerance.is_some())
-        || spec.features.values().any(|f| f.fit.is_some())
-        || analysis.features.iter().any(|f| f.kind == "section_recess"))
+        || spec.features.values().any(|f| f.fit.is_some()))
         && intended.iter().all(Option::is_none)
     {
         placement::clear_linear(

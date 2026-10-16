@@ -1884,11 +1884,7 @@ pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
     // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).
     let merged = crate::spec_gdt::effective(analysis, spec)?;
     let analysis = merged.as_ref();
-    crate::planning::with(analysis, || {
-        let mut plan = crate::sheets::allocate(analysis, spec)?;
-        crate::sheet_fit::reserve_recess_ink(analysis, &mut plan);
-        Ok(plan)
-    })
+    crate::planning::with(analysis, || crate::sheets::allocate(analysis, spec))
 }
 
 fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
