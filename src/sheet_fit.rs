@@ -744,11 +744,11 @@ pub(crate) fn reserve_linear_corridors(
     {
         return;
     }
+    let previously_checked = crate::dims::recheck(analysis, plan);
     let mut shifts = vec![[0.0; 2]; plan.views.len()];
     let index = |id: &str| plan.views.iter().position(|v| v.id == id);
     let free = !crate::placement_intent::has_pins(&plan.spec)
         && !plan.spec.views.values().any(|v| v.place.is_some())
-        && plan.gdt.is_empty()
         // A named sheet and scale retain their established projection frame,
         // including section marks. Reserve the full ink without silently moving
         // that frame; automatic sheet candidates may compose their free blocks.
@@ -1021,6 +1021,7 @@ pub(crate) fn reserve_linear_corridors(
     let checked = crate::dims::recheck(analysis, plan);
     let codes: std::collections::BTreeSet<_> = checked
         .iter()
+        .chain(&previously_checked)
         .map(|p| p.code.clone())
         .chain(["annotation_outside_area".into()])
         .collect();
