@@ -728,6 +728,12 @@ pub(crate) fn reserve_linear_corridors(
     let compact = (!plan.gdt.is_empty()
         || plan.spec.dimensions.values().any(|d| d.tolerance.is_some())
         || plan.spec.features.values().any(|f| f.fit.is_some()))
+        && !plan.problems.iter().any(|p| {
+            p.code == "annotation_outside_area"
+                && p.subjects
+                    .iter()
+                    .any(|id| plan.gdt.iter().any(|g| g.id == *id))
+        })
         && !crate::placement_intent::has_pins(&plan.spec)
         && !crate::model::dimension_text_edited(&plan.spec)
         && !plan.spec.views.values().any(|v| v.place.is_some())

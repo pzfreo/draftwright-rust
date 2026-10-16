@@ -1744,7 +1744,8 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                 // Reserving real corridors may reveal that the seed loses ink off paper.
                 // If no complete drawing exists, retain all its measurements on a physically
                 // fitting sheet with fewer hard findings, still reporting every missing item.
-                if !drawn_items_fit(analysis, &first)
+                if first.gdt.is_empty()
+                    && !drawn_items_fit(analysis, &first)
                     && actual_fit
                     && carried(&first).is_subset(&carried(&p))
                     && undrawn_gdt(&p) <= undrawn_gdt(&first)
