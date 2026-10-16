@@ -135,34 +135,21 @@
                 ],
                 "properties": {
                   "around": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        },
-                        "minItems": 1
-                      }
-                    ]
+                    "type": [
+                      "string",
+                      "array"
+                    ],
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
                   },
                   "from": {
-                    "enum": [
-                      null,
-                      "front",
-                      "plan",
-                      "side",
-                      "section_aa",
-                      "section_bb",
-                      "section_cc",
-                      "section_dd",
-                      "section_ee",
-                      "section_ff",
-                      "section_gg",
-                      "section_hh"
-                    ]
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^(front|plan|side|section_([a-h])\\2)(?![\\s\\S])"
                   },
                   "scale_factor": {
                     "type": "number",
