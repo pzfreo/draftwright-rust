@@ -363,7 +363,7 @@
       "views_overlap": 0
     },
     "string_post": {
-      "hidden_on_visible": 26,
+      "hidden_on_visible": 25,
       "ink": 1,
       "line_through_feature": 0,
       "off_sheet": 0,
@@ -375,7 +375,7 @@
       "views_overlap": 0
     }
   },
-  "source": "docs/status-2026-10-10.md: Stage H second pass (h-chains merged; h-extlines backed out)",
-  "source_commit": "d3c1fec3",
-  "verified_binary_sha256": "2d5d127be8f628d9a700e1214cbf8ad60eb63f60585657994b8242ffe784fdc6"
+  "source": "docs/rules/text-batch.md: rules-text audit; 30-part non-regression and measured improvements",
+  "source_commit": "12f264ee31149049d6f4ff5253a50f490e2b05b4",
+  "verified_binary_sha256": "035e27a2d10fa807dddc02d4dbe2070af120cf592b7511b0cfa49637ebca8c89"
 }
