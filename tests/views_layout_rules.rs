@@ -118,8 +118,16 @@ fn principal_relations_cannot_contradict_the_projection() {
                 asked(good, "start"),
                 asked(if view == "plan" { "left" } else { "above" }, "middle"),
             ] {
-                let e = model::plan(&a, &s).unwrap_err();
-                assert!(e.message.contains("projection"), "{e}");
+                let rejected = model::plan(&a, &s).unwrap();
+                assert!(
+                    rejected
+                        .problems
+                        .iter()
+                        .any(|e| e.code == "projection_relation_infeasible"
+                            && e.severity == "error"
+                            && e.message.contains("projection"))
+                );
+                assert_eq!(rejected.spec.views, s.views);
             }
         }
     }
@@ -513,9 +521,10 @@ fn indirect_principal_relations_report_projection_infeasibility() {
     let s = spec(json!({"views":{"side":{"place":{"relative_to":"plan","side":"right"}}}}));
     assert!(
         model::plan(&a, &s)
-            .unwrap_err()
-            .message
-            .contains("projection")
+            .unwrap()
+            .problems
+            .iter()
+            .any(|e| e.code == "projection_relation_infeasible" && e.severity == "error")
     );
 }
 

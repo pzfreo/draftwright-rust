@@ -2465,12 +2465,19 @@ pub(crate) fn symbolic_bore(r: &crate::pmi::Record) -> bool {
 
 /// Rejudge settled paper geometry after moving complete view blocks to another sheet.
 pub(crate) fn recheck(analysis: &Analysis, plan: &crate::model::Plan) -> Vec<Problem> {
+    recheck_cached(analysis, plan, &footprints::Cache::default())
+}
+
+pub(crate) fn recheck_cached(
+    analysis: &Analysis,
+    plan: &crate::model::Plan,
+    cache: &footprints::Cache,
+) -> Vec<Problem> {
     let mut all = plan.dimensions.clone();
     all.extend(plan.gdt.iter().filter_map(gdt::proxy));
-    let cache = footprints::Cache::default();
     std::iter::once(&plan.sheet)
         .chain(&plan.sheets)
-        .flat_map(|sheet| placement::collisions_cached(analysis, &all, sheet, &plan.views, &cache))
+        .flat_map(|sheet| placement::collisions_cached(analysis, &all, sheet, &plan.views, cache))
         .collect()
 }
 

@@ -457,7 +457,7 @@ fn ftc07_uses_one_paper_step_only_with_enlargement() {
 /// two views, which the pinned first plan does not, so the gate passes it over; A4 at 5:1 and A3 at 2:1 fail, and A2 at
 /// 2:1, clean, is taken.
 #[test]
-fn a_try_with_more_ink_over_the_views_than_the_first_is_not_taken() {
+fn composed_corridors_reject_a_previously_overlapping_off_part_fixture() {
     let Some(dir) = corpus::dir() else {
         eprintln!("SKIPPED: the corpus is not found");
         return;
@@ -502,6 +502,10 @@ fn a_try_with_more_ink_over_the_views_than_the_first_is_not_taken() {
         .into_iter()
         .find(|t| t.size == "A4" && t.scale == "1:1")
         .expect("A4 at 1:1 is tried");
-    assert!(gate.valid && gate.over == 2, "{}", plan.sheet.basis);
+    // Measured composition now reserves that whole line, clearing the two
+    // foreign views. Its expanded assembly cannot fit A4, so physical fit
+    // rejects it instead. The independent complete-candidate test pins the
+    // additional-view-conflict gate without relying on an unreserved line.
+    assert!(!gate.valid && gate.over == 0, "{}", plan.sheet.basis);
     sheet_rule::assert_follows("1004 stand-in", &plan, ("A4", "2:1"));
 }

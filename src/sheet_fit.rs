@@ -722,8 +722,40 @@ pub(crate) fn reserve_linear_corridors(
     plan: &mut Plan,
     inventory: &[crate::dims::PlannedDimension],
     automatic_pair: bool,
+    cache: &crate::dims::footprints::Cache,
 ) {
     let old: Vec<_> = plan.views.iter().map(|v| (v.at, v.area, v.scale)).collect();
+    let compact = (!plan.gdt.is_empty()
+        || plan.spec.dimensions.values().any(|d| d.tolerance.is_some())
+        || plan.spec.features.values().any(|f| f.fit.is_some()))
+        && !crate::placement_intent::has_pins(&plan.spec)
+        && !crate::model::dimension_text_edited(&plan.spec)
+        && !plan.spec.views.values().any(|v| v.place.is_some())
+        && (automatic_pair || plan.spec.sheet.size.is_none() || plan.spec.sheet.scale.is_none());
+    if compact {
+        // Settled control frames and edited labels use their real ink, as pack_gdt does.
+        // Estimated empty lanes are not additional physical drafting demands.
+        for v in plan.views.iter_mut().filter(|v| v.id != "v:iso") {
+            let frame = haecceity::hlr::View::new(v.direction, v.up).expect("planned view");
+            let size = crate::model::extent(analysis, &frame).0;
+            v.area = [
+                v.at[0] - v.scale * size[0] / 2.0,
+                v.at[1] - v.scale * size[1] / 2.0,
+                v.at[0] + v.scale * size[0] / 2.0,
+                v.at[1] + v.scale * size[1] / 2.0,
+            ];
+        }
+        let mut owned = plan.dimensions.clone();
+        owned.extend(plan.gdt.iter().filter_map(crate::dims::gdt::proxy));
+        for d in owned.iter().filter(|d| d.placed.is_some()) {
+            if let Some(b) = crate::dims::ink_box(d)
+                && let Some(v) = plan.views.iter_mut().find(|v| v.id == d.view)
+            {
+                include(&mut v.area, [b[0], b[1]]);
+                include(&mut v.area, [b[2], b[3]]);
+            }
+        }
+    }
     for d in inventory
         .iter()
         .chain(&plan.dimensions)
@@ -745,7 +777,7 @@ pub(crate) fn reserve_linear_corridors(
     {
         return;
     }
-    let previously_checked = crate::dims::recheck(analysis, plan);
+    let previously_checked = crate::dims::recheck_cached(analysis, plan, cache);
     let mut shifts = vec![[0.0; 2]; plan.views.len()];
     let index = |id: &str| plan.views.iter().position(|v| v.id == id);
     let free = !crate::placement_intent::has_pins(&plan.spec)
@@ -829,6 +861,30 @@ pub(crate) fn reserve_linear_corridors(
         for &i in &group {
             for k in 0..2 {
                 shifts[i][k] += lift[k];
+            }
+        }
+        // A whole projection assembly can clear page furniture by a rigid lift.
+        // Its settled dimensions and control frames keep their relative positions.
+        let title = plan.sheet.title_block;
+        let raise = group
+            .iter()
+            .filter_map(|&i| {
+                let a = plan.views[i].area;
+                let d = shifts[i];
+                (a[0] + d[0] < title[2]
+                    && title[0] < a[2] + d[0]
+                    && a[1] + d[1] < title[3]
+                    && title[1] < a[3] + d[1])
+                    .then_some(title[3] + 1.0 - a[1] - d[1])
+            })
+            .fold(0.0, f64::max);
+        if raise > 0.0
+            && group.iter().all(|&i| {
+                plan.views[i].area[3] + shifts[i][1] + raise <= plan.sheet.page[1] - MARGIN
+            })
+        {
+            for &i in &group {
+                shifts[i][1] += raise;
             }
         }
     }
@@ -1020,14 +1076,16 @@ pub(crate) fn reserve_linear_corridors(
     if too_large && !plan.problems.iter().any(|p| p.code == "page_fit_uncertain") {
         plan.problems.push(crate::model::Problem {id:"p:page_fit_uncertain:linear_corridors".into(),code:"page_fit_uncertain".into(),severity:"warning".into(),message:"The composed linear corridors do not fit the drawing area; choose a larger sheet or a smaller scale.".into(),subjects:vec!["sheet".into()],..Default::default()});
     }
-    let checked = crate::dims::recheck(analysis, plan);
-    let codes: std::collections::BTreeSet<_> = checked
+    let checked = crate::dims::recheck_cached(analysis, plan, cache);
+    let ids: std::collections::BTreeSet<_> = checked
         .iter()
         .chain(&previously_checked)
-        .map(|p| p.code.clone())
-        .chain(["annotation_outside_area".into()])
+        .map(|p| p.id.clone())
         .collect();
-    plan.problems.retain(|p| !codes.contains(&p.code));
+    // Material re-entry diagnostics share a code with foreign-view collisions,
+    // but have their own identities and must survive a rigid carrier move.
+    plan.problems
+        .retain(|p| p.code != "annotation_outside_area" && !ids.contains(&p.id));
     plan.problems.extend(checked);
 }
 

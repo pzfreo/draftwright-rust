@@ -210,38 +210,6 @@ pub(crate) fn check(s: &Spec) -> Result<(), Invalid> {
                         .collect(),
                 ));
             }
-            // Principal projection origins are aligned, with a convention-fixed side.
-            // Sections and orientation views retain their drafting freedom.
-            let first = s.sheet.projection.as_deref() == Some("first");
-            let expected = match (name.as_str(), p.relative_to.as_str(), first) {
-                ("plan", "front", false) | ("front", "plan", true) => Some(Side::Above),
-                ("plan", "front", true) | ("front", "plan", false) => Some(Side::Below),
-                ("side", "front", false) | ("front", "side", true) => Some(Side::Right),
-                ("side", "front", true) | ("front", "side", false) => Some(Side::Left),
-                _ => None,
-            };
-            if !p.pinned
-                && matches!(
-                    (name.as_str(), p.relative_to.as_str()),
-                    ("side", "plan") | ("plan", "side")
-                )
-            {
-                return Err(error("The plan and side are diagonal projection partners; relate each to front to keep projection origins aligned.".into(), vec!["front".into()]));
-            }
-            if let Some(side) = expected
-                && !p.pinned
-                && (p.side != side || p.align != Slot::Middle)
-            {
-                return Err(error(
-                    format!(
-                        "The {name} view relation contradicts {}-angle projection: place it {} of {}, with aligned projection origins (align middle).",
-                        if first { "first" } else { "third" },
-                        side.name(),
-                        p.relative_to
-                    ),
-                    vec![side.name().into()],
-                ));
-            }
             let mut seen = BTreeSet::new();
             let mut at = name.as_str();
             while let Some(p) = s.views.get(at).and_then(|v| v.place.as_ref()) {
@@ -258,6 +226,21 @@ pub(crate) fn check(s: &Spec) -> Result<(), Invalid> {
         }
     }
     Ok(())
+}
+
+fn unconventional(s: &Spec, name: &str, p: &ViewPlace) -> bool {
+    let first = s.sheet.projection.as_deref() == Some("first");
+    let expected = match (name, p.relative_to.as_str(), first) {
+        ("plan", "front", false) | ("front", "plan", true) => Some(Side::Above),
+        ("plan", "front", true) | ("front", "plan", false) => Some(Side::Below),
+        ("side", "front", false) | ("front", "side", true) => Some(Side::Right),
+        ("side", "front", true) | ("front", "side", false) => Some(Side::Left),
+        _ => None,
+    };
+    matches!(
+        (name, p.relative_to.as_str()),
+        ("side", "plan") | ("plan", "side")
+    ) || expected.is_some_and(|side| p.side != side || p.align != Slot::Middle)
 }
 
 fn overlap(a: [f64; 4], b: [f64; 4]) -> bool {
@@ -303,6 +286,31 @@ pub(crate) fn views(
     problems: &mut Vec<Problem>,
 ) {
     let page = sheet.page;
+    for (name, requested) in &s.views {
+        if let Some(p) = &requested.place
+            && views.iter().any(|v| v.id == format!("v:{name}"))
+            && unconventional(s, name, p)
+        {
+            let mut finding = problem(
+                &format!("v:{name}"),
+                "projection_relation_infeasible",
+                format!(
+                    "The authored {name} relation is infeasible in {}-angle projection; principal views must keep their conventional side and aligned projection origins.",
+                    if s.sheet.projection.as_deref() == Some("first") {
+                        "first"
+                    } else {
+                        "third"
+                    }
+                ),
+                &format!("views/{name}/place"),
+            );
+            finding.severity = "error".into();
+            finding.refs = vec!["sheet/projection".into()];
+            if !problems.iter().any(|q| q.id == finding.id) {
+                problems.push(finding);
+            }
+        }
+    }
     if let Some(c) = canonical {
         for v in views.iter_mut() {
             if let Some(base) = c.views.iter().find(|b| b.id == v.id) {
@@ -591,6 +599,20 @@ pub(crate) fn views(
         }
     }
     let margin = crate::layout::MARGIN;
+    // A constrained principal arrangement may consume the orientation budget.
+    // Prefer the sheet scale whenever it fits; keep the existing five-percent
+    // snapping rule and honour an authored isometric scale exactly.
+    if s.iso_scale_factor.is_none()
+        && !s.views.contains_key("iso")
+        && s.views.iter().any(|(name, v)| {
+            ["front", "plan", "side"].contains(&name.as_str())
+                && v.place.as_ref().is_some_and(|p| p.pinned)
+        })
+        && let Some(iso) = views.iter_mut().find(|v| v.id == "v:iso")
+        && iso.scale > sheet.scale_factor
+    {
+        iso.scale = sheet.scale_factor;
+    }
     let mut occupied: Vec<[f64; 4]> = views
         .iter()
         .filter(|v| fixed.contains(&v.id))
@@ -703,7 +725,9 @@ pub(crate) fn views(
                 }
                 finding.severity = "error".into();
                 finding.refs = vec!["sheet/projection".into()];
-                problems.push(finding);
+                if !problems.iter().any(|q| q.id == finding.id) {
+                    problems.push(finding);
+                }
             }
         }
     }

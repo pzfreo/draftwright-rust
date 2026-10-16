@@ -1287,7 +1287,7 @@
     tests: []
   status: ported
   rust_test: "tests/views_layout_rules.rs::explicit_scales_warn_below_legibility_and_refuse_degenerate_geometry"
-  rust_note: "Explicit scales preserve Python's two floors: refuse a smallest part extent below 0.1 paper mm (or a degenerate extent), and warn legibility_floor_breached below 10 paper mm only when automatic geometric composition offers a legible fit. The requested scale is honoured. This advisory is independent of Rust's automatic opening-based scale floor."
+  rust_note: "Complete drawing planning preserves Python's two explicit-scale floors (the raw single-pass estimate remains diagnostic): refuse a smallest part extent below 0.1 paper mm (or a degenerate extent), and warn legibility_floor_breached below 10 paper mm only when automatic geometric composition offers a legible fit. The requested scale is honoured. This advisory is independent of Rust's automatic opening-based scale floor."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream views-and-layout"
 
 - id: ARCH0004-4
@@ -1840,7 +1840,7 @@
     tests: []
   status: ported
   rust_test: "tests/views_layout_rules.rs::principal_relations_cannot_contradict_the_projection; tests/views_layout_rules.rs::indirect_principal_relations_report_projection_infeasibility; tests/views_layout_rules.rs::contradictory_principal_pins_stay_fixed_and_report_infeasibility; tests/sheet_projection.rs::first_angle_swaps_the_views_and_the_symbol"
-  rust_note: "First/third angle fixes principal side and projection-origin alignment. Unpinned contradictory front/plan or front/side relations and non-middle alignment are refused; conflicting pins stay fixed and report projection_relation_infeasible as an error; diagonal plan/side constraints must instead relate to front. Moving front carries its free projection partners. Indirect constraints or pin obstacles that make the arrangement unconventional report projection_relation_infeasible as an error; the constraint is never silently relaxed. Sections and orientation views retain their freedom."
+  rust_note: "First/third angle fixes principal side and projection-origin alignment. Contradictory front/plan or front/side relations, non-middle alignment, conflicting pins, and diagonal plan/side relations retain the authored intent and report projection_relation_infeasible as an error, preventing a falsely feasible drawing. Diagnostic plans remain inspectable in the editor. Moving front carries its free projection partners. Indirect constraints or pin obstacles that make the arrangement unconventional report projection_relation_infeasible as an error; the constraint is never silently relaxed. Sections and orientation views retain their freedom."
   port_note: "triage 2026-10-16: PORT, value medium, size S, stream views-and-layout"
 
 - id: ARCH0018-2

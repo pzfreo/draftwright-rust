@@ -1449,8 +1449,43 @@ fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
 }
 
 pub(crate) fn dimension_text_edited(spec: &Spec) -> bool {
-    spec.dimensions.values().any(|d| d.tolerance.is_some())
-        || spec.features.values().any(|f| f.fit.is_some())
+    spec.sheet.scale.is_none()
+        && spec
+            .dimensions
+            .values()
+            .filter(|d| d.tolerance.is_some())
+            .count()
+            + spec.features.values().filter(|f| f.fit.is_some()).count()
+            == 1
+}
+
+fn complete_candidate(findings: layout::Findings, extra_view_conflicts: usize) -> bool {
+    findings.clean() && extra_view_conflicts == 0
+}
+
+#[cfg(test)]
+mod complete_candidate_tests {
+    #[test]
+    fn complete_sheet_never_accepts_additional_ink_over_foreign_views() {
+        use super::*;
+        let clear = layout::Findings::default();
+        assert!(complete_candidate(clear, 0));
+        assert!(!complete_candidate(clear, 1));
+        assert!(!complete_candidate(
+            layout::Findings {
+                hard: 1,
+                dropped: 0
+            },
+            0
+        ));
+        assert!(!complete_candidate(
+            layout::Findings {
+                hard: 0,
+                dropped: 1
+            },
+            0
+        ));
+    }
 }
 
 fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result<Plan, Invalid> {
@@ -1528,6 +1563,7 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
     let required = carried(&first);
     let mut tried = Vec::new();
     let mut candidates = Vec::new();
+    let mut fitting_incomplete: Option<(usize, usize, usize, Plan)> = None;
     let mut smallest = None;
     let mut smallest_iso: Option<f64> = None;
     let mut recipes = BTreeMap::new();
@@ -1705,9 +1741,27 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                     ink_findings(&p),
                     p.sheet.arrangement
                 ));
+                // Reserving real corridors may reveal that the seed loses ink off paper.
+                // If no complete drawing exists, retain all its measurements on a physically
+                // fitting sheet with fewer hard findings, still reporting every missing item.
+                if !drawn_items_fit(analysis, &first)
+                    && actual_fit
+                    && carried(&first).is_subset(&carried(&p))
+                    && undrawn_gdt(&p) <= undrawn_gdt(&first)
+                    && over == 0
+                    && f.hard == 0
+                {
+                    let rank = (f.hard, f.dropped, i);
+                    if fitting_incomplete
+                        .as_ref()
+                        .is_none_or(|(h, d, j, _)| rank < (*h, *d, *j))
+                    {
+                        fitting_incomplete = Some((f.hard, f.dropped, i, p.clone()));
+                    }
+                }
                 // Valid and complete: no hard finding, nothing dropped or undrawn, and no more
                 // annotations over another view than the seed (the port's own gate).
-                if !f.clean() || over > 0 {
+                if !complete_candidate(f, over) {
                     continue;
                 }
                 if smallest.is_none() {
@@ -1739,6 +1793,15 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
     let Some((choice, (i, s))) =
         crate::sheet_fit::choose(&keys, spec.sheet.size.is_some(), seed_kept)
     else {
+        if let Some((_, _, _, mut fitting)) = fitting_incomplete {
+            fitting.spec = spec.clone();
+            fitting.sheet.default = true;
+            fitting.sheet.basis += &format!(
+                "; no valid complete smallest fit; retained all seed measurements on fitting paper with fewer hard findings; candidates: {}",
+                tried.join("; ")
+            );
+            return Ok(fitting);
+        }
         // No valid complete pair: keep the initial drawing and its findings, on its own paper.
         // Only a seed below the absolute floor (1:10, the smallest scale the automatic choice
         // ever offers) is redrawn at that floor; a seed between it and the feature floor is
@@ -1798,8 +1861,10 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
         "first estimate {} at {} ({})",
         first.sheet.size,
         first.sheet.scale,
-        if seed_clean {
+        if seed_kept {
             "valid and complete"
+        } else if seed_clean {
+            "valid and complete but excluded by the large-sheet rule"
         } else {
             "not valid and complete"
         }
@@ -2130,7 +2195,11 @@ fn plan_with_presentation(
         base.sheet.projection = spec.sheet.projection.clone();
         base.hole_table = spec.hole_table;
         base.iso_scale_factor = spec.iso_scale_factor;
-        Some(plan_recovered(analysis, &base)?)
+        Some(if complete_views {
+            plan_recovered(analysis, &base)?
+        } else {
+            plan(analysis, &base)?
+        })
     } else if complete_views && dimension_text_edited(spec) {
         // Tolerance/fit edits change annotation ink, not the part projections.
         // Reuse the complete unedited frame while reserving the edited ink too.
@@ -2393,7 +2462,9 @@ fn plan_with_presentation(
         None => None,
     };
     // ARCH0004-3: the geometry floor is unconditional for an explicit scale.
-    if let Some(scale) = scale {
+    if let Some(scale) =
+        scale.filter(|_| complete_views && given.sheet.scale.is_some() && !automatic_pair)
+    {
         let smallest = (0..3)
             .map(|k| analysis.envelope[1][k] - analysis.envelope[0][k])
             .fold(f64::INFINITY, f64::min);
@@ -2557,7 +2628,7 @@ fn plan_with_presentation(
             (request, pick, strips) = (bare, p, s);
         }
     }
-    if spec.sheet.scale.is_some() {
+    if complete_views && given.sheet.scale.is_some() && !automatic_pair {
         let smallest = request.size.into_iter().fold(f64::INFINITY, f64::min);
         if smallest * pick.scale < 10.0 {
             let (auto, _, _) = crate::demand::size(&demand, &request, None, page, lo[2]);
@@ -3125,6 +3196,15 @@ fn plan_with_presentation(
             });
             let settled = natural.iter().find(|b| b.id == d.id);
             if original.is_some()
+                && !spec
+                    .dimensions
+                    .get(&d.id)
+                    .is_some_and(|e| e.tolerance.is_some())
+                && !d.measurements.iter().any(|m| {
+                    spec.features
+                        .get(&m.feature)
+                        .is_some_and(|f| f.fit.is_some())
+                })
                 && let (Some(_), Some(c)) =
                     (d.placed.as_ref(), settled.and_then(|d| d.placed.as_ref()))
             {
@@ -3492,7 +3572,13 @@ fn plan_with_presentation(
         spec,
     };
     if complete_views {
-        crate::sheet_fit::reserve_linear_corridors(analysis, &mut plan, &inventory, automatic_pair);
+        crate::sheet_fit::reserve_linear_corridors(
+            analysis,
+            &mut plan,
+            &inventory,
+            automatic_pair,
+            &footprint_cache,
+        );
     }
     crate::placement_intent::finish(&mut plan, analysis);
     let [width, height] = plan.sheet.page;
