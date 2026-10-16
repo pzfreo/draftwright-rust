@@ -23,10 +23,10 @@ failing the unchanged drawing-quality bar. Counts are computed from the merged Y
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 7 | 65 | 62 | 26 |
+| `adr.yaml` | 7 | 66 | 61 | 26 |
 | `lint.yaml` | 10 | 122 | 14 | 19 |
-| `issues.yaml` | 33 | 80 | 51 | 26 |
-| **All** | **50** | **267** | **127** | **71** |
+| `issues.yaml` | 32 | 81 | 51 | 26 |
+| **All** | **49** | **269** | **126** | **71** |
 
 drawing-consumer checks. The rules-text merge retains two completed ports and appends
 blockers only to entries still pending ([merge report](text-main-merge-2026-10-16.md)).
@@ -34,10 +34,10 @@ Counts are computed from the merged YAML entries:
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 9 | 64 | 61 | 26 |
-| `lint.yaml` | 12 | 120 | 14 | 19 |
-| `issues.yaml` | 37 | 76 | 51 | 26 |
-| **All** | **58** | **260** | **126** | **71** |
+| `adr.yaml` | 7 | 66 | 61 | 26 |
+| `lint.yaml` | 10 | 122 | 14 | 19 |
+| `issues.yaml` | 32 | 81 | 51 | 26 |
+| **All** | **49** | **269** | **126** | **71** |
 
 The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
 The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE
