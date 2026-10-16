@@ -8,7 +8,6 @@
         },
         "binding": {
           "type": "object",
-          "properties": {},
           "required": [
             "source_sha256",
             "part",
@@ -17,10 +16,10 @@
           ],
           "additionalProperties": false,
           "patternProperties": {
-            "^(source_sha256|part|loader)$": {
+            "^(source_sha256|part|loader)$(?!\\s)": {
               "type": "string"
             },
-            "^(face_count|part_index)$": {
+            "^(face_count|part_index)$(?!\\s)": {
               "minimum": 0,
               "type": "integer"
             }

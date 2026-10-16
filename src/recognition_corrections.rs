@@ -508,13 +508,12 @@ fn cylindrical(a: &Analysis, id: &str, kind: Kind, faces: Vec<usize>) -> Result<
                         "named faces do not prove a complete circular cylinder; name the complete bore/band faces",
                     ));
                 }
-                if let Some((k0, on0, r0)) = cylinder {
-                    if k0 != k
+                if let Some((k0, on0, r0)) = cylinder
+                    && (k0 != k
                         || (r0 - radius).abs() > TOL
-                        || [u, v].iter().any(|&j| (on0[j] - on[j]).abs() > TOL)
-                    {
-                        return Err(fail("named cylinders are not coaxial and equal-radius"));
-                    }
+                        || [u, v].iter().any(|&j| (on0[j] - on[j]).abs() > TOL))
+                {
+                    return Err(fail("named cylinders are not coaxial and equal-radius"));
                 }
                 cylinder = Some((k, on, radius));
                 lo = lo.min(b[k]);

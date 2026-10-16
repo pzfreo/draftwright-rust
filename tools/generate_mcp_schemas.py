@@ -128,6 +128,13 @@ def group_properties(schema):
     if isinstance(schema, list): return [group_properties(v) for v in schema]
     if not isinstance(schema, dict): return schema
     schema = {k: group_properties(v) for k, v in schema.items()}
+    branches = schema.get('anyOf', [])
+    if branches and all(isinstance(b, dict) and b.get('type') == branches[0].get('type')
+                        for b in branches) and isinstance(branches[0].get('type'), str):
+        kind = branches[0]['type']
+        if schema.get('type', kind) == kind:
+            schema['type'] = kind
+            for branch in branches: del branch['type']
     if 'properties' not in schema: return schema
     groups = defaultdict(list)
     for key, shape in schema['properties'].items():
@@ -136,8 +143,9 @@ def group_properties(schema):
         if len(keys) < 2: continue
         trial = deepcopy(schema)
         for key in keys: del trial['properties'][key]
-        trial.setdefault('patternProperties', {})['^(' + '|'.join(keys) + ')$'] = json.loads(shape)
+        trial.setdefault('patternProperties', {})['^(' + '|'.join(keys) + ')$(?!\\s)'] = json.loads(shape)
         if len(encoded(trial)) < len(encoded(schema)): schema = trial
+    if schema.get('properties') == {}: del schema['properties']
     return schema
 
 def short_names(schema):
@@ -179,6 +187,6 @@ for tool,(inp,out) in tools.items():
         for branch in schema.get('anyOf', []):
             if branch.get('type') == schema.get('type'):
                 branch.pop('type', None)
-        schema = short_names(share_repeated(group_properties(inline_single_use(schema, keep))))
+        schema = short_names(inline_single_use(share_repeated(group_properties(inline_single_use(schema, keep))), keep))
         if not schema['$defs']: del schema['$defs']
         Path(f'schemas/mcp/{tool}.{kind}.json').write_text(json.dumps(schema,indent=2)+'\n')

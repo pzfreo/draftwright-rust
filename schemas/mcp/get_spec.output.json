@@ -45,7 +45,7 @@
               },
               "additionalProperties": false,
               "patternProperties": {
-                "^(max|hole_table)$": {
+                "^(max|hole_table)$(?!\\s)": {
                   "enum": [
                     null,
                     1,
@@ -64,11 +64,35 @@
             "sheet": {
               "type": "object",
               "properties": {
+                "size": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "scale": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
                 "title": {
                   "type": "object",
                   "additionalProperties": {
                     "type": "string"
                   }
+                },
+                "fit_limits": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "fit_deviations": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
                 },
                 "projection": {
                   "enum": [
@@ -84,21 +108,7 @@
                   ]
                 }
               },
-              "additionalProperties": false,
-              "patternProperties": {
-                "^(size|scale)$": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "^(fit_limits|fit_deviations)$": {
-                  "type": [
-                    "boolean",
-                    "null"
-                  ]
-                }
-              }
+              "additionalProperties": false
             },
             "dimension_source": {
               "enum": [
@@ -139,13 +149,13 @@
           },
           "additionalProperties": false,
           "patternProperties": {
-            "^(views|dimensions|annotations|features|faces)$": {
+            "^(views|dimensions|annotations|features|faces)$(?!\\s)": {
               "additionalProperties": {
                 "type": "object"
               },
               "type": "object"
             },
-            "^(notes|tables|gears)$": {
+            "^(notes|tables|gears)$(?!\\s)": {
               "items": {
                 "type": "object"
               },

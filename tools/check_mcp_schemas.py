@@ -30,6 +30,7 @@ with tempfile.TemporaryDirectory(prefix='s7-schema-') as cache:
             Draft202012Validator.check_schema(published)
             validators[tool['name'], direction] = Draft202012Validator(published)
     nullable = validators['inspect_part', 'input']
+    assert not nullable.is_valid({'part_ref': 'part', 'part_ref\n': 'bad'}), 'literal property names stay strict at a final newline'
     for sheet in [{'size': None, 'fit_limits': None}, {'size': 'A4', 'fit_limits': True}]:
         nullable.validate({'part_ref': 'part', 'spec': {'sheet': sheet}})
     for sheet in [{'size': 42}, {'fit_limits': 'yes'}]:

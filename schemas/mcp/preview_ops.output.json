@@ -43,10 +43,21 @@
                               "kind": {
                                 "type": "string"
                               },
+                              "label": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "view": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
                               "state": {
                                 "anyOf": [
                                   {
-                                    "type": "object",
                                     "properties": {
                                       "kind": {
                                         "enum": [
@@ -62,7 +73,6 @@
                                     "additionalProperties": false
                                   },
                                   {
-                                    "type": "object",
                                     "properties": {
                                       "kind": {
                                         "const": "covered"
@@ -78,7 +88,6 @@
                                     "additionalProperties": false
                                   },
                                   {
-                                    "type": "object",
                                     "properties": {
                                       "kind": {
                                         "const": "not_drawable"
@@ -93,7 +102,8 @@
                                     ],
                                     "additionalProperties": false
                                   }
-                                ]
+                                ],
+                                "type": "object"
                               }
                             },
                             "required": [
@@ -103,15 +113,7 @@
                               "view",
                               "state"
                             ],
-                            "additionalProperties": false,
-                            "patternProperties": {
-                              "^(label|view)$": {
-                                "type": [
-                                  "string",
-                                  "null"
-                                ]
-                              }
-                            }
+                            "additionalProperties": false
                           },
                           {
                             "type": "object",
@@ -153,7 +155,7 @@
                             ],
                             "additionalProperties": false,
                             "patternProperties": {
-                              "^(anchors|features|operations)$": {
+                              "^(anchors|features|operations)$(?!\\s)": {
                                 "$ref": "#/$defs/A"
                               }
                             }
@@ -213,10 +215,10 @@
                             ],
                             "additionalProperties": false,
                             "patternProperties": {
-                              "^(id|code|severity|message)$": {
+                              "^(id|code|severity|message)$(?!\\s)": {
                                 "type": "string"
                               },
-                              "^(subjects|refs)$": {
+                              "^(subjects|refs)$(?!\\s)": {
                                 "$ref": "#/$defs/A"
                               }
                             }
@@ -239,7 +241,7 @@
                             ],
                             "additionalProperties": false,
                             "patternProperties": {
-                              "^(id|code|severity)$": {
+                              "^(id|code|severity)$(?!\\s)": {
                                 "type": "string"
                               }
                             }
@@ -347,47 +349,6 @@
       ],
       "additionalProperties": false
     },
-    "op": {
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "op": {
-              "enum": [
-                "set",
-                "add"
-              ]
-            },
-            "path": {
-              "type": "string"
-            },
-            "value": {}
-          },
-          "required": [
-            "op",
-            "path",
-            "value"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "op": {
-              "const": "remove"
-            },
-            "path": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "op",
-            "path"
-          ],
-          "additionalProperties": false
-        }
-      ]
-    },
     "A": {
       "items": {
         "type": "string"
@@ -396,7 +357,44 @@
     },
     "B": {
       "items": {
-        "$ref": "#/$defs/op"
+        "anyOf": [
+          {
+            "properties": {
+              "op": {
+                "enum": [
+                  "set",
+                  "add"
+                ]
+              },
+              "path": {
+                "type": "string"
+              },
+              "value": {}
+            },
+            "required": [
+              "op",
+              "path",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "properties": {
+              "op": {
+                "const": "remove"
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "op",
+              "path"
+            ],
+            "additionalProperties": false
+          }
+        ],
+        "type": "object"
       },
       "type": "array"
     }

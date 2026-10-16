@@ -567,6 +567,9 @@ fn a_bolt_circle_derives_its_pcd_and_lint_still_requires_its_position() {
 #[test]
 fn published_mcp_schema_and_common_model_accept_corrections_and_refuse_bad_shapes() {
     let input = draftwright::mcp::schema("inspect_part", false).unwrap();
+    assert!(
+        draftwright::mcp::validate(&input, &json!({"part_ref":"part","part_ref\n":"bad"})).is_err()
+    );
     let s = json!({"feature_declarations":[{"id":"f:declared:bore","kind":"hole","faces":["face:sha256:0000000000000000000000000000000000000000000000000000000000000000"]}]});
     assert!(draftwright::mcp::validate(&input, &json!({"part_ref":"part","spec":s})).is_ok());
     for bad in [

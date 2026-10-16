@@ -165,7 +165,7 @@ pub fn validate(schema: &Value, value: &Value) -> Result<(), String> {
                         // The generator emits anchored alternatives of literal field names only.
                         pattern
                             .strip_prefix("^(")?
-                            .strip_suffix(")$")?
+                            .strip_suffix(")$(?!\\s)")?
                             .split('|')
                             .any(|name| name == key)
                             .then_some(shape)

@@ -7,7 +7,6 @@
           "type": "array",
           "items": {
             "type": "object",
-            "properties": {},
             "required": [
               "part",
               "name",
@@ -17,11 +16,11 @@
             ],
             "additionalProperties": false,
             "patternProperties": {
-              "^(part|faces|instances)$": {
+              "^(part|faces|instances)$(?!\\s)": {
                 "minimum": 0,
                 "type": "integer"
               },
-              "^(name|product_id)$": {
+              "^(name|product_id)$(?!\\s)": {
                 "type": "string"
               }
             }

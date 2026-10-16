@@ -8,7 +8,6 @@
           "items": {
             "anyOf": [
               {
-                "type": "object",
                 "properties": {
                   "fix": {
                     "$ref": "#/$defs/B"
@@ -23,16 +22,15 @@
                 ],
                 "additionalProperties": false,
                 "patternProperties": {
-                  "^(id|code|severity|message)$": {
+                  "^(id|code|severity|message)$(?!\\s)": {
                     "type": "string"
                   },
-                  "^(subjects|refs)$": {
+                  "^(subjects|refs)$(?!\\s)": {
                     "$ref": "#/$defs/A"
                   }
                 }
               },
               {
-                "type": "object",
                 "properties": {
                   "subjects": {
                     "$ref": "#/$defs/A"
@@ -49,13 +47,12 @@
                 ],
                 "additionalProperties": false,
                 "patternProperties": {
-                  "^(id|code|severity)$": {
+                  "^(id|code|severity)$(?!\\s)": {
                     "type": "string"
                   }
                 }
               },
               {
-                "type": "object",
                 "properties": {
                   "id": {
                     "type": [
@@ -73,7 +70,8 @@
                 ],
                 "additionalProperties": false
               }
-            ]
+            ],
+            "type": "object"
           }
         },
         "total": {
@@ -127,47 +125,6 @@
     }
   ],
   "$defs": {
-    "op": {
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "op": {
-              "enum": [
-                "set",
-                "add"
-              ]
-            },
-            "path": {
-              "type": "string"
-            },
-            "value": {}
-          },
-          "required": [
-            "op",
-            "path",
-            "value"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "op": {
-              "const": "remove"
-            },
-            "path": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "op",
-            "path"
-          ],
-          "additionalProperties": false
-        }
-      ]
-    },
     "A": {
       "items": {
         "type": "string"
@@ -176,7 +133,44 @@
     },
     "B": {
       "items": {
-        "$ref": "#/$defs/op"
+        "anyOf": [
+          {
+            "properties": {
+              "op": {
+                "enum": [
+                  "set",
+                  "add"
+                ]
+              },
+              "path": {
+                "type": "string"
+              },
+              "value": {}
+            },
+            "required": [
+              "op",
+              "path",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "properties": {
+              "op": {
+                "const": "remove"
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "op",
+              "path"
+            ],
+            "additionalProperties": false
+          }
+        ],
+        "type": "object"
       },
       "type": "array"
     }

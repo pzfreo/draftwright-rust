@@ -6,7 +6,6 @@
         "item": {
           "anyOf": [
             {
-              "type": "object",
               "properties": {
                 "item": {
                   "type": "object"
@@ -45,13 +44,12 @@
               ],
               "additionalProperties": false,
               "patternProperties": {
-                "^(anchors|features|operations)$": {
+                "^(anchors|features|operations)$(?!\\s)": {
                   "$ref": "#/$defs/A"
                 }
               }
             },
             {
-              "type": "object",
               "properties": {
                 "sheet": {
                   "enum": [
@@ -69,7 +67,6 @@
                 "state": {
                   "anyOf": [
                     {
-                      "type": "object",
                       "properties": {
                         "kind": {
                           "enum": [
@@ -85,7 +82,6 @@
                       "additionalProperties": false
                     },
                     {
-                      "type": "object",
                       "properties": {
                         "kind": {
                           "const": "covered"
@@ -101,7 +97,6 @@
                       "additionalProperties": false
                     },
                     {
-                      "type": "object",
                       "properties": {
                         "kind": {
                           "const": "not_drawable"
@@ -116,7 +111,8 @@
                       ],
                       "additionalProperties": false
                     }
-                  ]
+                  ],
+                  "type": "object"
                 },
                 "value": {
                   "type": [
@@ -140,10 +136,10 @@
               ],
               "additionalProperties": false,
               "patternProperties": {
-                "^(id|kind|basis)$": {
+                "^(id|kind|basis)$(?!\\s)": {
                   "type": "string"
                 },
-                "^(label|view)$": {
+                "^(label|view)$(?!\\s)": {
                   "type": [
                     "string",
                     "null"
@@ -151,7 +147,8 @@
                 }
               }
             }
-          ]
+          ],
+          "type": "object"
         }
       },
       "required": [

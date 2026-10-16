@@ -76,7 +76,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(forms|fields|paths|consequences)$": {
+              "^(forms|fields|paths|consequences)$(?!\\s)": {
                 "$ref": "#/$defs/B"
               }
             }
@@ -93,7 +93,7 @@
       ],
       "additionalProperties": false,
       "patternProperties": {
-        "^(operations|view_anchors|scales)$": {
+        "^(operations|view_anchors|scales)$(?!\\s)": {
           "$ref": "#/$defs/B"
         }
       }
