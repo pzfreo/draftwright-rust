@@ -15,9 +15,10 @@ use crate::output::Drawing;
 use crate::placement_intent::{Along, Place, Slot};
 use crate::text::Font;
 
-const COLLECTIONS: [&str; 11] = [
+const COLLECTIONS: [&str; 12] = [
     "sheets",
     "views",
+    "captions",
     "dimensions",
     "omitted",
     "gdt",
@@ -661,6 +662,7 @@ impl Session {
             d.text = item.text.clone();
             out.insert(id.clone(), d.svg());
         }
+        // Planned captions participate in the furniture collection diff, including removal.
         let furniture_changed = delta.is_none_or(|d| {
             d.plan.fields.keys().any(|k| k != "spec")
                 || (!self.plan().sheets.is_empty() && d.plan.collections.contains_key("views"))
@@ -1455,6 +1457,11 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                     .map(|f| f.id.clone())
                     .collect();
                 a.operations = ["omit", "place", "pin"].map(String::from).into();
+            }
+            if let Some(c) = plan.captions.iter().find(|c| &c.id == id) {
+                a.basis = c.basis.clone();
+                a.placement = Some(Placement::Box(c.ink));
+                a.anchors = vec![c.view.clone()];
             }
             if let Some(n) = plan.notes.iter().find(|n| &n.id == id) {
                 a.basis = n.basis.clone();

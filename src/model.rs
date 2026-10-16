@@ -210,6 +210,9 @@ pub struct Spec {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub binding: Option<Binding>,
     pub sheet: SheetSpec,
+    /// Authored isometric scale relative to the sheet scale; never automatically refitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub iso_scale_factor: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sheets: Option<crate::sheets::SheetsSpec>,
     /// Per standard view (`front`, `plan`, `side`, `iso`).
@@ -321,6 +324,7 @@ impl Default for Spec {
             schema: SPEC_SCHEMA.into(),
             binding: None,
             sheet: SheetSpec::default(),
+            iso_scale_factor: None,
             sheets: None,
             views: BTreeMap::new(),
             dimension_source: DimensionSource::Auto,
@@ -404,6 +408,9 @@ pub struct Plan {
     #[serde(skip)]
     pub(crate) table_restore: Option<Box<Plan>>,
     pub views: Vec<PlannedView>,
+    /// Required late sheet furniture, reserved before the notes and tables.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub captions: Vec<crate::iso_caption::PlannedCaption>,
     /// Dimensions and callouts, each with its ID, value, label, default flag and basis.
     #[serde(default)]
     pub dimensions: Vec<PlannedDimension>,
@@ -592,6 +599,8 @@ impl std::fmt::Display for Invalid {
         Ok(())
     }
 }
+
+const INFEASIBLE_ISO_SCALE: &str = "The authored iso scale is infeasible in its composed view zone; the requested scale was not reduced.";
 
 fn invalid(message: impl Into<String>, choices: &[&str]) -> Invalid {
     Invalid {
@@ -1324,7 +1333,9 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
     type Memo = VecDeque<([u8; 32], Plan)>;
     static MEMO: OnceLock<Mutex<Memo>> = OnceLock::new();
     if spec.sheet.scale.is_some() || crate::placement_intent::has_pins(spec) {
-        return recover_uncached(analysis, spec, first);
+        let mut plan = recover_uncached(analysis, spec, first)?;
+        crate::iso_caption::refresh(analysis, &mut plan);
+        return Ok(plan);
     }
     let bytes = serde_json::to_vec(&(analysis, spec, &first)).expect("plan inputs serialize");
     let key: [u8; 32] = Sha256::digest(&bytes).into();
@@ -1337,7 +1348,8 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
     {
         return Ok(plan.clone());
     }
-    let plan = crate::planning::with(analysis, || recover_uncached(analysis, spec, first))?;
+    let mut plan = crate::planning::with(analysis, || recover_uncached(analysis, spec, first))?;
+    crate::iso_caption::refresh(analysis, &mut plan);
     let mut cached = memo.lock().expect("sheet memo lock");
     cached.retain(|(k, _)| *k != key);
     if cached.len() == 16 {
@@ -1505,7 +1517,17 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                 if first.sheet.size == *name && first.sheet.scale_factor == scale && seed_clean {
                     first.clone()
                 } else {
-                    plan_escalated_with(analysis, &named, true, None)?
+                    match plan_escalated_with(analysis, &named, true, None) {
+                        Ok(p) => p,
+                        Err(e)
+                            if spec.iso_scale_factor.is_some()
+                                && e.message == INFEASIBLE_ISO_SCALE =>
+                        {
+                            tried.push(format!("{name} {} ({})", scale_name(scale), e.message));
+                            continue;
+                        }
+                        Err(e) => return Err(e),
+                    }
                 };
             // A failed seed must not restrict the complete drawing to its first arrangement.
             // Try the other established arrangement, with no new leader-routing strategy.
@@ -1529,7 +1551,16 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                         continue;
                     }
                     let alternative =
-                        plan_escalated_with(analysis, &named, true, Some(arrangement))?;
+                        match plan_escalated_with(analysis, &named, true, Some(arrangement)) {
+                            Ok(p) => p,
+                            Err(e)
+                                if spec.iso_scale_factor.is_some()
+                                    && e.message == INFEASIBLE_ISO_SCALE =>
+                            {
+                                continue;
+                            }
+                            Err(e) => return Err(e),
+                        };
                     if quality(&alternative) < quality(&p) {
                         p = alternative;
                     }
@@ -1567,7 +1598,8 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
             // Enlargement is for the dimensioned views. On the smallest fit's larger neighbour
             // the orientation view keeps the smallest fit's paper scale, rather than spending the
             // extra sheet on decorative growth.
-            if !spec.views.contains_key("iso")
+            if spec.iso_scale_factor.is_none()
+                && !spec.views.contains_key("iso")
                 && let Some((fit, Some(cap))) = smallest.map(|(j, _)| (j, smallest_iso))
                 && i > fit
                 && let Some(iso) = p.views.iter_mut().find(|v| v.id == "v:iso")
@@ -1585,6 +1617,7 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                     "; the smallest fit's orientation scale kept while dimensioned views enlarge";
             }
             crate::sheet_fit::correct_estimate(analysis, &mut p);
+            crate::iso_caption::refresh(analysis, &mut p);
             // An estimate's iso budget can refuse a sheet whose finished drawing fits.
             // Only discharge that estimate when all actual item bounds and reserved views fit.
             let actual_fit = drawn_items_fit(analysis, &p);
@@ -1816,7 +1849,9 @@ pub fn plan_escalated(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
     // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).
     let merged = crate::spec_gdt::effective(analysis, spec)?;
     let analysis = merged.as_ref();
-    plan_escalated_with(analysis, spec, false, None)
+    let mut plan = plan_escalated_with(analysis, spec, false, None)?;
+    crate::iso_caption::refresh(analysis, &mut plan);
+    Ok(plan)
 }
 
 fn plan_escalated_with(
@@ -1983,6 +2018,15 @@ fn plan_with_presentation(
         ));
     }
     let spec = &migrate(spec, analysis)?;
+    if spec
+        .iso_scale_factor
+        .is_some_and(|s| !s.is_finite() || s <= 0.0)
+    {
+        return Err(invalid(
+            "iso_scale_factor must be finite and positive.",
+            &[],
+        ));
+    }
     let merged = crate::spec_gdt::effective(analysis, spec)?;
     let analysis = merged.as_ref();
     crate::sheets::validate(spec)?;
@@ -1999,6 +2043,7 @@ fn plan_with_presentation(
         base.sheet.scale = spec.sheet.scale.clone();
         base.sheet.projection = spec.sheet.projection.clone();
         base.hole_table = spec.hole_table;
+        base.iso_scale_factor = spec.iso_scale_factor;
         Some(plan_recovered(analysis, &base)?)
     } else {
         None
@@ -2356,6 +2401,7 @@ fn plan_with_presentation(
             .cloned()
             .collect::<Vec<_>>(),
     );
+    request.iso_scale_factor = spec.iso_scale_factor;
     request.required_tables = crate::tables::sizes(&spec.tables);
     if let Some(p) = presentation {
         request.required_tables.extend(p.sizes());
@@ -2452,7 +2498,26 @@ fn plan_with_presentation(
         None,
     );
     let ib = analysis.iso_bounds.map(|b| b * pick.scale);
-    let iso_factor = layout::iso_factor(g.iso, g.iso_centre, ib);
+    let iso_factor = spec
+        .iso_scale_factor
+        .unwrap_or_else(|| layout::iso_factor(g.iso, g.iso_centre, ib));
+    if shown("iso") && spec.iso_scale_factor.is_some() && analysis.iso_bounds != [0.0; 4] {
+        let b = [
+            g.iso_centre[0] + ib[0] * iso_factor,
+            g.iso_centre[1] + ib[1] * iso_factor,
+            g.iso_centre[0] + ib[2] * iso_factor,
+            g.iso_centre[1] + ib[3] * iso_factor,
+        ];
+        if g.iso[2] > g.iso[0]
+            && g.iso[3] > g.iso[1]
+            && (b[0] < g.iso[0] - 1e-6
+                || b[1] < g.iso[1] - 1e-6
+                || b[2] > g.iso[2] + 1e-6
+                || b[3] > g.iso[3] + 1e-6)
+        {
+            return Err(invalid(INFEASIBLE_ISO_SCALE, &[]));
+        }
+    }
     if shown("iso") && analysis.iso_bounds == [0.0; 4] {
         problems.push(Problem {
             id: "p:iso_projection_empty:v:iso".into(),
@@ -3021,6 +3086,9 @@ fn plan_with_presentation(
         ));
         ink.extend(crate::dims::gdt::finish_proxy(r));
     }
+    // Python builder.py:976: reserve the constrained iso caption before free late furniture.
+    let captions = crate::iso_caption::plan(analysis, &sheet, &views, &ink);
+    ink.extend(captions.iter().map(crate::iso_caption::proxy));
     // The manufacturing requirements table goes before the notes, which keep clear of it.
     let (schedule, more) = crate::tables::manufacturing(analysis, &sheet, &views, &ink);
     problems.extend(more);
@@ -3240,6 +3308,7 @@ fn plan_with_presentation(
         table_outcome: crate::hole_table::TableOutcome::None,
         table_restore: None,
         views,
+        captions,
         callout_widths: {
             let mut widths: BTreeMap<String, f64> = BTreeMap::new();
             for d in canonical.as_ref().map_or(&inventory, |p| &p.dimensions) {
@@ -3309,6 +3378,7 @@ fn plan_with_presentation(
         let mut seen = BTreeSet::new();
         p.subjects.retain(|s| seen.insert(s.clone()));
     }
+    crate::iso_caption::refresh(analysis, &mut plan);
     crate::completeness::report(analysis, &mut plan);
     plan.sheet.fill = crate::sheet_fit::fill(analysis, &plan);
     plan.sheet.basis += &format!("; drawn-item fill {:.1}%", plan.sheet.fill * 100.0);
@@ -4850,6 +4920,23 @@ fn render_annotations_with_cuts(
     sheet
         .items
         .extend(labelled("scale_note", Kind::ScaleNote, &dims[from..]));
+    for caption in plan
+        .captions
+        .iter()
+        .filter(|c| c.sheet == plan.sheet.number)
+    {
+        let from = dims.len();
+        let run = (caption.text.as_str(), crate::dims::FONT, caption.height);
+        label(
+            font.text(&caption.text, caption.height),
+            caption.at,
+            dims,
+            Some(run),
+        );
+        sheet
+            .items
+            .extend(labelled(&caption.id, Kind::Caption, &dims[from..]));
+    }
     // Each drawing-wide PMI requirement by the runs that state it, for lint and the PMI checks.
     annotations.extend(stated.into_iter().map(|(name, runs)| Annotation {
         coordinate_origin: None,
@@ -4930,6 +5017,76 @@ fn render_annotations_with_cuts(
         problems: crate::output::undrawn(&undrawn),
         spec: Some(embeddable(&plan.spec)),
     })
+}
+
+/// The caption draftwright prints under an isometric drawn off the sheet's scale, and the name
+/// of the drawn item (draftwright's `note_iso_nts`).
+pub const NTS_CAPTION: &str = "ISO VIEW (NTS)";
+pub use crate::output::NTS_CAPTION_ID;
+
+/// Where the NTS caption of *size* is centred, for an isometric whose drawn box is *iso* and
+/// whose projection centre is at x = *centre_x* (draftwright's `place_iso_nts_note`): two font
+/// heights below the iso; failing that, further below; beside it, left then right; and only
+/// last above it. The first whose box, with the text padding round it, clears every obstacle
+/// and stays inside the drawable area wins. Retry without extra text clearance, then slide
+/// candidates vertically clear of obstacle edges before retaining required content at the
+/// natural position; structural lint reports any unavoidable clash.
+pub fn nts_caption_at(
+    page: [f64; 2],
+    iso: [f64; 4],
+    centre_x: f64,
+    size: [f64; 2],
+    obstacles: &[[f64; 4]],
+) -> [f64; 2] {
+    let font = crate::section::FONT_SIZE;
+    let [w, h] = size;
+    let natural = [centre_x, (iso[1] - 2.0 * font).max(MARGIN + font)];
+    let candidates = [
+        natural,
+        [centre_x, (iso[1] - 3.0 * font - h).max(MARGIN + font)],
+        [iso[0] - font - w / 2.0, natural[1]],
+        [iso[2] + font + w / 2.0, natural[1]],
+        [centre_x, (iso[3] + 2.0 * font).min(page[1] - MARGIN - font)],
+    ];
+    let clear = |c: [f64; 2], pad: f64| {
+        let b = [
+            c[0] - w / 2.0,
+            c[1] - h / 2.0,
+            c[0] + w / 2.0,
+            c[1] + h / 2.0,
+        ];
+        if b[0] < MARGIN || b[1] < MARGIN || b[2] > page[0] - MARGIN || b[3] > page[1] - MARGIN {
+            return false;
+        }
+        let k = [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad];
+        !obstacles
+            .iter()
+            .any(|o| k[0] < o[2] && k[2] > o[0] && k[1] < o[3] && k[3] > o[1])
+    };
+    // Dimension strokes already have their own obstacle padding. Do not let stacking
+    // that pad with text clearance force the caption back onto real ink.
+    [crate::tables::PAD, 0.0]
+        .into_iter()
+        .find_map(|pad| candidates.into_iter().find(|c| clear(*c, pad)))
+        .or_else(|| {
+            // A short extension line can still cross a sideways candidate's baseline.
+            // Slide along the same five columns to the nearest obstacle edge before
+            // retaining a clash. Existing clear candidates always take precedence.
+            candidates.into_iter().find_map(|c| {
+                let mut ys: Vec<_> = obstacles
+                    .iter()
+                    .flat_map(|o| [o[1] - h / 2.0 - 1e-6, o[3] + h / 2.0 + 1e-6])
+                    .collect();
+                ys.sort_by(|a, b| {
+                    (a - c[1])
+                        .abs()
+                        .total_cmp(&(b - c[1]).abs())
+                        .then(a.total_cmp(b))
+                });
+                ys.into_iter().map(|y| [c[0], y]).find(|c| clear(*c, 0.0))
+            })
+        })
+        .unwrap_or(natural)
 }
 
 /// A section view's furniture: ink (the hatch's first lines, then the cutting plane's), and

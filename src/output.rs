@@ -16,6 +16,9 @@ use serde::{Deserialize, Serialize};
 
 pub type P = [f64; 2];
 
+/// Stable rendered item name for the isometric's required scale disclaimer.
+pub const NTS_CAPTION_ID: &str = "note_iso_nts";
+
 /// A curve as the exporters draw it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Curve {

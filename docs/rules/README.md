@@ -20,10 +20,10 @@ angle against rays and datum symbol against surface, `src/lint/fidelity.rs`) and
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 49 | 53 | 33 | 25 |
+| `adr.yaml` | 48 | 54 | 33 | 25 |
 | `lint.yaml` | 52 | 100 | 0 | 13 |
 | `issues.yaml` | 109 | 54 | 6 | 21 |
-| **All** | **210** | **207** | **39** | **59** |
+| **All** | **209** | **208** | **39** | **59** |
 
 The assessment rated each of the 353 rules then pending; 20 rules pending today were not rated.
 Rules it found done but with no test to name, or with a real remainder, stay pending with a

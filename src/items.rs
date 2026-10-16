@@ -93,7 +93,7 @@ pub struct Item {
     pub(crate) explicit_sheet: bool,
     pub id: String,
     /// `sheet`, `view`, `dimension`, `control_frame`, `datum_feature`, `label`, `requirement`,
-    /// `note`, `table`, `hole_table` or `balloon`.
+    /// `note`, `caption`, `table`, `hole_table` or `balloon`.
     pub kind: String,
     /// The view that carries it, where it has one.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -208,6 +208,17 @@ pub fn items(plan: &Plan) -> Vec<Item> {
     for r in plan.requirements.iter().filter(|r| r.carrier != "notes") {
         let label = Some(r.text.clone());
         out.push(item(&r.id, "requirement", None, &r.state, label));
+    }
+    for c in &plan.captions {
+        let mut i = item(
+            &c.id,
+            "caption",
+            Some(&c.view),
+            &c.state,
+            Some(c.text.clone()),
+        );
+        i.sheet = c.sheet;
+        out.push(i);
     }
     for n in &plan.notes {
         let label = Some(n.rows.join("\n"));
