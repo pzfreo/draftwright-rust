@@ -598,12 +598,12 @@ impl Footprints {
             .map(|f| f.id.clone())
             .collect()
     }
-    /// Travel to an exit is a length tie-break, never a crossing or a containment warning.
     /// The view's material: each solid's box on the page ([`crate::material::solids`]).
     pub(super) fn solids(&self) -> &[[f64; 4]] {
         &self.solids
     }
 
+    /// Travel to an exit is a length tie-break, never a crossing or a containment warning.
     pub(super) fn inside_length(&self, shaft: [P2; 2]) -> f64 {
         let len = (shaft[1][0] - shaft[0][0]).hypot(shaft[1][1] - shaft[0][1]);
         self.solids

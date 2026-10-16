@@ -11,8 +11,9 @@
 //! - ADR2-8, ISSUE-798-b/d, LINT-code-leader_crosses_silhouette: a shaft cutting back into the
 //!   material after leaving it at its tip is reported with its measured depth; leaving its own
 //!   body is not, and a second body is. The router prices the same predicate
-//!   (`draftwright::material::reentry`): on the port's own drawings the plan's report of a leader
-//!   cutting back across its view and lint's finding name the same callouts.
+//!   (`draftwright::material::reentry`), and the plan's report of a leader cutting back across
+//!   its view and lint's finding name the same callouts with the same depth: on a pin's leader
+//!   pinned to cut across the plate-and-pin assembly, and on the port's own drawings.
 //!
 //! The automatic drawings of the fixture parts (and string_post's blend) are linted too: every
 //! hole and blend callout the planner places passes, so ISSUE-1378-a and ISSUE-1479-a are met
@@ -21,9 +22,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
+use draftwright::items::{Op, key};
 use draftwright::lint::{self, LintIssue, Severity};
 use draftwright::model::{self, Analysis, Spec};
 use draftwright::output::{Annotation, Claim, Drawing, Drawn, DrawnFrame, DrawnView, Kind, Sheet};
+use draftwright::{Session, api};
 use serde_json::{Value, json};
 
 type P = [f64; 2];
@@ -426,7 +429,9 @@ fn claims(d: &Drawing, parameter: &str) -> usize {
 /// ISSUE-1378-a and ISSUE-1479-a met by the planner, and the router and lint agreeing
 /// (ISSUE-798-d): on the port's automatic drawings no hole or blend callout's tip misses its
 /// target, and the callouts the plan reports cutting back across their view are exactly those
-/// lint reports crossing the silhouette.
+/// lint reports crossing the silhouette (none on these drawings: the router finds every leader
+/// a route that does not cut back; `the_plan_and_lint_agree_on_a_leader_cutting_back_into_the_
+/// material` is the case where both report one).
 #[test]
 fn the_ports_own_callouts_touch_their_targets() {
     let (mut holes, mut blends) = (0, 0);
@@ -457,4 +462,70 @@ fn the_ports_own_callouts_touch_their_targets() {
     if std::env::var("DRAFTWRIGHT_CORPUS").is_ok() {
         assert!(blends >= 1, "{blends} blend callouts checked");
     }
+}
+
+/// ISSUE-798-d on a leader that does cut back into the material: the plate-and-pin assembly's
+/// pin callout pinned with its bend out past the plate's edge, so its shaft leaves the pin and
+/// crosses the plate. The plan (the router's measure, reported for a pinned leader it did not
+/// route) and lint name the same callout with the same depth; pinned the other way, clear of
+/// the plate, neither reports it.
+#[test]
+fn the_plan_and_lint_agree_on_a_leader_cutting_back_into_the_material() {
+    use std::io::Read as _;
+    const ID: &str = "d:f:turned_step:1/step.diameter";
+    let mut bytes = Vec::new();
+    flate2::read::GzDecoder::new(
+        std::fs::File::open(fixture("pmi/step/assembly_plate_pin.step.gz")).unwrap(),
+    )
+    .read_to_end(&mut bytes)
+    .unwrap();
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("leader_rules");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("assembly_plate_pin.step");
+    std::fs::write(&path, bytes).unwrap();
+    let reports = |offset: [f64; 2]| -> (Vec<model::Problem>, Vec<LintIssue>) {
+        let mut s = Session::open(&path, api::Features::Native, Spec::default()).unwrap();
+        s.apply(
+            &[Op::set(
+                format!("dimensions/{}/place", key(ID)),
+                json!({"offset": offset, "pinned": true}),
+            )],
+            true,
+        )
+        .unwrap();
+        let planned = s
+            .plan()
+            .problems
+            .iter()
+            .filter(|p| p.code == "annotation_line_over_view")
+            .filter(|p| p.subjects.first().map(String::as_str) == Some(ID))
+            .cloned()
+            .collect();
+        let linted = lint::lint(s.analysis(), s.drawing())
+            .into_iter()
+            .filter(|i| i.code == "leader_crosses_silhouette")
+            .collect();
+        (planned, linted)
+    };
+    let depth = |text: &str, before: &str| -> String {
+        let at = text.find(before).unwrap_or_else(|| panic!("{text}")) + before.len();
+        text[at..].split(' ').next().unwrap().to_string()
+    };
+    let (planned, linted) = reports([15.0, 0.0]);
+    assert_eq!(planned.len(), 1, "{planned:#?}");
+    assert_eq!(linted.len(), 1, "{linted:#?}");
+    assert_eq!(linted[0].annotation.as_deref(), Some(ID));
+    let (p, l) = (
+        depth(&planned[0].message, "cutting "),
+        depth(&linted[0].message, "cuts "),
+    );
+    assert_eq!(p, l, "{} / {}", planned[0].message, linted[0].message);
+    assert!(p.parse::<f64>().unwrap() > 1.0, "{p}");
+    // The pin is the author's: the fix offered is to release it.
+    assert_eq!(planned[0].fix.len(), 1, "{:?}", planned[0].fix);
+    let (planned, linted) = reports([-15.0, 0.0]);
+    assert!(
+        planned.is_empty() && linted.is_empty(),
+        "{planned:#?} {linted:#?}"
+    );
 }

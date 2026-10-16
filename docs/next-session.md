@@ -7558,3 +7558,14 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   gives a quarter turn each way. (6) A fillet leader carrying equal blends' claims
   (`dims::blends::consolidate`) is not radius-checked (its target is the fillet). (7) A view
   without a recorded transform (captured Python sheets) is not judged, as K7.
+- **Fix round (review):** `crate::material` is added to the lint guard's allowed paths (a
+  function of the Analysis's solids and a page projection alone) and `src/material.rs` is read by
+  the guard too. The router/lint agreement test was vacuous (no automatic drawing re-enters), and
+  a real gap showed up behind it: a pinned callout is not routed, so a pinned leader cutting back
+  into the material reached lint but not the plan. `placement_intent::finish` now reports it as
+  `annotation_line_over_view` by the router's own measure (`dims::leader_reentry`), with the
+  unpinning fix; `tests/leader_rules.rs::the_plan_and_lint_agree_on_a_leader_cutting_back_into_
+  the_material` pins the plate-and-pin assembly's ø10 callout across the plate and checks both
+  report it with the same depth (fails on the base). Judgement call (8): lint's material is not
+  cropped to the drawn view: the port draws no cropped (detail) views, so every view shows each
+  solid whole; when one exists, the crop belongs in `material::solids`'s caller for both.

@@ -614,6 +614,33 @@ pub(crate) fn finish(plan: &mut Plan, analysis: &Analysis) {
                 .map(|(id, _)| (id.clone(), format!("annotations/{}/place", key(id)))),
         )
         .collect();
+    // A pinned callout is not routed, so the router's report of a leader cutting back into its
+    // view's material (`dims::leaders`, ADR2-8) is made here, by the same measure lint's
+    // `leader_crosses_silhouette` uses (ISSUE-798-d). Before the loop below, which gives it the
+    // unpinning fix; once only, as this runs again after a hole table is chosen.
+    for d in plan
+        .dimensions
+        .iter()
+        .filter(|d| d.kind == "callout" && pins.contains_key(&d.id))
+    {
+        let cut = crate::dims::leader_reentry(analysis, &plan.views, d);
+        let subjects = vec![d.id.clone(), d.view.clone()];
+        let id = format!("p:annotation_line_over_view:{}", subjects.join("|"));
+        if cut > 0.0 && !plan.problems.iter().any(|p| p.id == id) {
+            plan.problems.push(Problem {
+                id,
+                code: "annotation_line_over_view".into(),
+                severity: "warning".into(),
+                message: format!(
+                    "The pinned leader of {} runs back across its own view, {}, cutting {cut:.1} mm of it. Its bend and label are kept at the prescribed position.",
+                    crate::wording::item(&d.id, &d.kind, &d.label),
+                    crate::wording::view(&d.view)
+                ),
+                subjects,
+                ..Default::default()
+            });
+        }
+    }
     for p in &mut plan.problems {
         if p.code == "leader_through_feature"
             && let Some(id) = p.subjects.first().filter(|id| {

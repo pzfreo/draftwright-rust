@@ -15,6 +15,8 @@
 //! Unlike draftwright's, a shaft whose tip is already clear of the material is charged for its
 //! first traversal too: the router's tips lie on the part, and one that does not is cutting in.
 
+use crate::model::Analysis;
+
 /// A page point, mm.
 pub type P = [f64; 2];
 
@@ -23,7 +25,7 @@ pub type P = [f64; 2];
 pub const FLOOR: f64 = 0.05;
 
 /// The material of *analysis* on the page, as *page* projects the part's frame: each solid's box.
-pub fn solids(analysis: &crate::model::Analysis, page: impl Fn([f64; 3]) -> P) -> Vec<[f64; 4]> {
+pub fn solids(analysis: &Analysis, page: impl Fn([f64; 3]) -> P) -> Vec<[f64; 4]> {
     let corners = |b: [[f64; 3]; 2]| (0..8).map(move |i| [0, 1, 2].map(|k| b[(i >> k) & 1][k]));
     let project = |b: [[f64; 3]; 2]| {
         corners(b).map(&page).fold(

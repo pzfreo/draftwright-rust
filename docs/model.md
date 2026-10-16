@@ -417,7 +417,10 @@ back into the part's material after leaving it at its tip (`leader_crosses_silho
 with the depth cut). The material is each solid's projected box (`material::solids`) and the
 measure `material::reentry`, the same predicate the leader router prices: a candidate that
 re-enters is a hard blocker, its depth added to its length, and a chosen one is reported as
-`annotation_line_over_view` with the depth in its message. A callout's `annotation_ink_overlap`
+`annotation_line_over_view` with the depth in its message; a pinned callout's leader, which the
+router does not route, is reported the same way ("The pinned leader of … runs back across its own
+view, …, cutting … mm of it. Its bend and label are kept at the prescribed position.", with the
+unpinning fix). A callout's `annotation_ink_overlap`
 reads its leader's rendered ink, its arrowhead's flare included; a contact only the flare makes
 is worded "The arrowhead of … reaches into the label of …".
 These add findings and problem wording only: no wire format changes.
