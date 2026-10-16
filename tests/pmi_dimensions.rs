@@ -628,7 +628,7 @@ fn a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins() {
         (c, edited.problems)
     };
     let (c, problems) = fitted(&holes);
-    assert_eq!(c.label, "6× ⌀10 H7 (+0.015/0) THRU EQ SP ON ø90 BC");
+    assert_eq!(c.label, "6× ⌀10 H7 THRU EQ SP ON ø90 BC");
     assert!(problems.iter().any(|p| p.code == "pmi_not_lowered"
         && p.refs.contains(&source)
         && p.message.contains("its own fit")
@@ -1046,10 +1046,10 @@ fn an_external_diameter_annotates_the_turned_size_with_its_signs() {
 }
 
 #[test]
-fn a_shaft_fit_is_printed_on_its_turned_diameter_with_its_iso_286_limits() {
+fn a_shaft_fit_prints_its_class_by_default_and_stacked_deviations_on_request() {
     // #30: the editor's spindle states its ø15 journal as LIMITS_AND_FITS('g','shaft','6')
-    // with no limits; the turned step prints the class and its ISO 286-2 limits, as a hole fit
-    // prints on its bore's callout (`ø 4 H7 (+0.012/0) THRU` on the same part).
+    // with no limits; both the turned step and hole print their classes by default, and
+    // their computed ISO 286-2 deviations when explicitly enabled.
     let bytes = gunzip(
         &std::fs::read(root().join("tests/fixtures/samples/spindle_shaft_fit.step.gz")).unwrap(),
     );
@@ -1065,7 +1065,7 @@ fn a_shaft_fit_is_printed_on_its_turned_diameter_with_its_iso_286_limits() {
         .iter()
         .find(|d| d.label.starts_with("ø15"))
         .unwrap();
-    assert_eq!(d.label, "ø15 g6 (-0.006/-0.017)");
+    assert_eq!(d.label, "ø15 g6");
     assert!(d.placed.is_some());
     assert!(d.basis.contains("lower_ap242_external_diameter_tolerances"));
     assert!(
@@ -1076,16 +1076,23 @@ fn a_shaft_fit_is_printed_on_its_turned_diameter_with_its_iso_286_limits() {
         "the g6 fit is drawn, not refused"
     );
     assert!(
-        plan.dimensions
-            .iter()
-            .any(|d| d.label.contains("H7 (+0.012/0)")),
+        plan.dimensions.iter().any(|d| d.label.contains("H7 THRU")),
         "the hole fit still prints"
     );
-    // `sheet/fit_limits: false` drops the limits and keeps the class, as for a hole fit.
+    // The opt-in retains the computed upper/lower deviations on both shaft and hole fits.
     let mut quiet = Spec::default();
-    quiet.sheet.fit_limits = Some(false);
+    quiet.sheet.fit_deviations = Some(true);
     let plan = model::plan(&a, &quiet).unwrap();
-    assert!(plan.dimensions.iter().any(|d| d.label == "ø15 g6"));
+    assert!(
+        plan.dimensions
+            .iter()
+            .any(|d| d.label == "ø15 g6 -0.006\n-0.017")
+    );
+    assert!(
+        plan.dimensions
+            .iter()
+            .any(|d| d.label.contains("H7 +0.012\n0"))
+    );
 }
 
 #[test]

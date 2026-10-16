@@ -2,13 +2,11 @@
   "type": "object",
   "anyOf": [
     {
-      "type": "object",
       "properties": {
         "spec_version": {
           "type": "string"
         },
         "delta": {
-          "type": "object",
           "properties": {
             "events": {
               "type": "object",
@@ -333,7 +331,6 @@
       "additionalProperties": false
     },
     {
-      "type": "object",
       "properties": {
         "error": {
           "type": "object",

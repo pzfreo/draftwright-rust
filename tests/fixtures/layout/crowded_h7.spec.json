@@ -1,0 +1,151 @@
+{
+  "features": {
+    "f:hole:1": {
+      "fit": "H7"
+    },
+    "f:hole:10": {
+      "fit": "H7"
+    },
+    "f:hole:11": {
+      "fit": "H7"
+    },
+    "f:hole:12": {
+      "fit": "H7"
+    },
+    "f:hole:13": {
+      "fit": "H7"
+    },
+    "f:hole:14": {
+      "fit": "H7"
+    },
+    "f:hole:15": {
+      "fit": "H7"
+    },
+    "f:hole:16": {
+      "fit": "H7"
+    },
+    "f:hole:17": {
+      "fit": "H7"
+    },
+    "f:hole:18": {
+      "fit": "H7"
+    },
+    "f:hole:19": {
+      "fit": "H7"
+    },
+    "f:hole:2": {
+      "fit": "H7"
+    },
+    "f:hole:20": {
+      "fit": "H7"
+    },
+    "f:hole:21": {
+      "fit": "H7"
+    },
+    "f:hole:22": {
+      "fit": "H7"
+    },
+    "f:hole:23": {
+      "fit": "H7"
+    },
+    "f:hole:24": {
+      "fit": "H7"
+    },
+    "f:hole:25": {
+      "fit": "H7"
+    },
+    "f:hole:26": {
+      "fit": "H7"
+    },
+    "f:hole:27": {
+      "fit": "H7"
+    },
+    "f:hole:28": {
+      "fit": "H7"
+    },
+    "f:hole:29": {
+      "fit": "H7"
+    },
+    "f:hole:3": {
+      "fit": "H7"
+    },
+    "f:hole:30": {
+      "fit": "H7"
+    },
+    "f:hole:31": {
+      "fit": "H7"
+    },
+    "f:hole:36": {
+      "fit": "H7"
+    },
+    "f:hole:37": {
+      "fit": "H7"
+    },
+    "f:hole:38": {
+      "fit": "H7"
+    },
+    "f:hole:39": {
+      "fit": "H7"
+    },
+    "f:hole:4": {
+      "fit": "H7"
+    },
+    "f:hole:40": {
+      "fit": "H7"
+    },
+    "f:hole:41": {
+      "fit": "H7"
+    },
+    "f:hole:42": {
+      "fit": "H7"
+    },
+    "f:hole:43": {
+      "fit": "H7"
+    },
+    "f:hole:44": {
+      "fit": "H7"
+    },
+    "f:hole:45": {
+      "fit": "H7"
+    },
+    "f:hole:46": {
+      "fit": "H7"
+    },
+    "f:hole:47": {
+      "fit": "H7"
+    },
+    "f:hole:5": {
+      "fit": "H7"
+    },
+    "f:hole:50": {
+      "fit": "H7"
+    },
+    "f:hole:51": {
+      "fit": "H7"
+    },
+    "f:hole:52": {
+      "fit": "H7"
+    },
+    "f:hole:53": {
+      "fit": "H7"
+    },
+    "f:hole:56": {
+      "fit": "H7"
+    },
+    "f:hole:6": {
+      "fit": "H7"
+    },
+    "f:hole:7": {
+      "fit": "H7"
+    },
+    "f:hole:8": {
+      "fit": "H7"
+    },
+    "f:hole:9": {
+      "fit": "H7"
+    }
+  },
+  "sheet": {
+    "fit_deviations": true
+  }
+}

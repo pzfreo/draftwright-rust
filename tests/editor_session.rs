@@ -216,7 +216,7 @@ fn symbolic_bore_fits_are_printed_with_their_iso_286_limits() {
                 .any(|d| d.placed.is_some() && d.label.contains(fit))
         );
     }
-    // The class and its limits from ISO 286 (draftwright's `fits` table), never the class alone.
+    // The default drawing states the class alone (maintainer decision, 2026-10-16).
     let labels: Vec<String> = s
         .plan()
         .dimensions
@@ -226,12 +226,12 @@ fn symbolic_bore_fits_are_printed_with_their_iso_286_limits() {
     for fit in ["H7", "H11"] {
         let label = labels.iter().find(|l| l.contains(fit)).unwrap();
         assert!(
-            label.contains(&format!("{fit} (+0.")) && label.contains("/0)"),
-            "{label:?} states {fit} with its limits"
+            !label.contains("(+") && !label.contains('\n'),
+            "{label:?} states {fit} without deviations by default"
         );
     }
     let mut hidden = model::Spec::default();
-    hidden.sheet.fit_limits = Some(false);
+    hidden.sheet.fit_deviations = Some(true);
     let (part, analysis) = model::analyse_native_step(
         std::path::Path::new("editor_pmi.step"),
         include_bytes!("fixtures/parts/editor_pmi.step"),
@@ -247,8 +247,8 @@ fn symbolic_bore_fits_are_printed_with_their_iso_286_limits() {
             .find(|l| l.contains(fit))
             .unwrap();
         assert!(
-            !label.contains("(+"),
-            "{label:?} states {fit} alone when the sheet hides fit limits"
+            label.contains("+0.") && label.contains("\n0"),
+            "{label:?} states {fit} with stacked deviations when requested"
         );
     }
     let raw = std::str::from_utf8(include_bytes!("fixtures/parts/editor_pmi.step"))
