@@ -1,6 +1,6 @@
 [package]
 name = "draftwright"
-version = "0.1.0-alpha.3"
+version = "0.1.0-alpha.4"
 edition = "2024"
 license = "AGPL-3.0-only"
 description = "Automated technical drawings from STEP B-rep: a Rust port of draftwright."
