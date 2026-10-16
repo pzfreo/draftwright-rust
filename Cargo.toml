@@ -1,6 +1,6 @@
 [package]
 name = "draftwright"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 edition = "2024"
 license = "AGPL-3.0-only"
 description = "Automated technical drawings from STEP B-rep: a Rust port of draftwright."
@@ -9,10 +9,12 @@ description = "Automated technical drawings from STEP B-rep: a Rust port of draf
 chrono = { version = "0.4", default-features = false }
 dxf = { version = "0.6.2", features = ["serialize"] }
 flate2 = "1.1.10"
-haecceity = { git = "https://github.com/pzfreo/quiddity-rust", rev = "7cb26d850b85d0618186f0ea0d4ee808560ead2f" }
+# quiddity-rust 0.1.0-alpha.4 release commit (tag pending).
+haecceity = { git = "https://github.com/pzfreo/quiddity-rust", rev = "f5ddb726783f2e9384a55164eb7e36a1ec9a6f7c" }
 pdf-writer = "0.15"
 png = "0.18.1"
-quiddity = { git = "https://github.com/pzfreo/quiddity-rust", rev = "7cb26d850b85d0618186f0ea0d4ee808560ead2f" }
+# Same alpha.4 release commit as haecceity.
+quiddity = { git = "https://github.com/pzfreo/quiddity-rust", rev = "f5ddb726783f2e9384a55164eb7e36a1ec9a6f7c" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.151", features = ["float_roundtrip"] }
 sha2 = "0.11.0"

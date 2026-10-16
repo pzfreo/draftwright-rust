@@ -1,5 +1,22 @@
 # Next session: handoff (2026-10-08)
 
+## Release 0.1.0-alpha.3 (2026-10-16)
+
+Version, README and CHANGELOG are prepared for alpha 3. haecceity and quiddity are pinned
+by rev to quiddity-rust's `0.1.0-alpha.4` release commit
+`f5ddb726783f2e9384a55164eb7e36a1ec9a6f7c` (tag pending), replacing `7cb26d85`.
+The changelog retains the existing entries and covers the merged PRs since alpha 2.
+The single-sheet byte guard remains opt-in (`DRAFTWRIGHT_SINGLE_SHEET=1`); its fixtures
+are not re-baselined for this release. No source/API compatibility fixes were needed.
+
+Formatting and strict all-target release Clippy pass. The required-corpus release run,
+continued through the remaining targets after timing failures, covers all 100 integration
+targets plus library/binary tests: **1011 passed, 2 failed, 0 ignored**; doc tests pass (0 tests).
+Both failures are wall-clock gates against 150 ms, each rerun once without changing the gate:
+`multi_sheet_latency::r5_multi_sheet_latency` MCP p90 151.481 ms, then 223.220 ms;
+`session::nist_benchmark_deltas` p90 159.276 ms, then 166.240 ms. These timing failures
+remain visible; no drawing or test fixtures were changed. Logs: `/private/tmp/draftwright-alpha3-*.log`.
+
 This is written for a fresh session continuing the port with parallel workflows ("ultracode").
 Read it first, then the documents it points to: `docs/review-2026-10-08.md` (the latest review,
 its improvement plan and the maintainer questions) and `docs/plan.md`'s "Next steps
