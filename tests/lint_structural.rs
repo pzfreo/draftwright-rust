@@ -903,8 +903,10 @@ fn structural_findings_on_the_ports_own_drawings_are_known() {
                         issue.code.as_str(),
                         "leader_centerline_overlap" | "label_section_furniture_overlap"
                     ),
-                "{}",
-                issue.code
+                "{name}: {} {} [{}]",
+                issue.code,
+                issue.message,
+                issue.id
             );
             if std::env::var_os("LINT_REPORT").is_some() {
                 eprintln!("{name}: {} {} [{}]", issue.code, issue.message, issue.id);
