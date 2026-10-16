@@ -341,6 +341,22 @@ fn on_the_quality_parts_too() {
             .filter(|d| matches!(d.state, State::NotDrawable { .. }))
             .count();
     }
+    // Complete automatic composition can now retain all of these items.
+    // Force an overcrowded sheet to keep the loss-state/reporting checks real.
+    let forced: Spec = serde_json::from_value(json!({
+        "sheet": {"size": "A4", "scale": "10:1"}, "hole_table": "never"
+    }))
+    .unwrap();
+    for file in list.lines().filter(|l| !l.trim().is_empty()) {
+        let a = model::analyse_native(&dir.join(file)).unwrap().1;
+        let p = model::plan_recovered(&a, &forced).unwrap();
+        consistent(file, &p, &a, &forced);
+        dropped += p
+            .dimensions
+            .iter()
+            .filter(|d| matches!(d.state, State::NotDrawable { .. }))
+            .count();
+    }
     assert!(dropped > 0, "no item was dropped");
 }
 
