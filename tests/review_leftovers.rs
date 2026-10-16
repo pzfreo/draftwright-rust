@@ -50,3 +50,38 @@ fn adjacent_labels_have_readable_separation() {
         "labels run together: {a:?}, {b:?}, gap {gap}"
     );
 }
+
+#[test]
+fn hanger_keeps_its_hole_callout_or_reports_it_by_name() {
+    let Some(dir) = corpus::dir() else { return };
+    let (_, analysis) = model::analyse_native(&dir.join("ttt_inputs/sm-hanger.step")).unwrap();
+    let spec = saved_spec(&analysis, "85c2add8");
+    let plan = model::plan_recovered(&analysis, &spec).unwrap();
+    let hole = plan
+        .omitted
+        .iter()
+        .find(|d| d.label == "2× ⌀10 THRU")
+        .expect("the authored set keeps its omitted callout in the ledger");
+    assert_eq!(hole.state, draftwright::items::State::NotAuthored);
+    let problem = plan
+        .problems
+        .iter()
+        .find(|p| p.subjects == [hole.id.clone()] && p.code == "dimension_not_authored")
+        .expect("a located hole must still report its missing size callout");
+    assert!(problem.message.contains(&hole.label), "{}", problem.message);
+    assert!(problem.message.contains("authored"));
+    let restored = model::edit(&spec, &serde_json::to_value(&problem.fix).unwrap()).unwrap();
+    let after = model::plan_recovered(&analysis, &restored).unwrap();
+    assert!(
+        after
+            .dimensions
+            .iter()
+            .any(|d| d.id == hole.id && d.label == hole.label && d.placed.is_some())
+    );
+    assert!(
+        !after
+            .problems
+            .iter()
+            .any(|p| p.code == "dimension_not_authored" && p.subjects.contains(&hole.id))
+    );
+}
