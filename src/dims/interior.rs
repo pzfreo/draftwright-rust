@@ -453,7 +453,30 @@ fn conflict(a: &Placed, b: &Placed) -> bool {
         })
 }
 
-fn callouts(frame: &Frame, w: &Want, old: &Placed, proof: &Proof, v: &PlannedView) -> Vec<Placed> {
+/// A spacing preference, applied only after material and settled-ink clearance.
+fn prefers_centre_row(frame: &Frame, w: &Want, v: &PlannedView, prismatic: bool) -> bool {
+    let Shape::Callout { sites } = &w.shape else {
+        return false;
+    };
+    prismatic
+        && w.measurements
+            .iter()
+            .any(|m| m.parameter == "bore.diameter")
+        && !sites.is_empty()
+        && sites.iter().all(|(centre, _)| {
+            let p = frame.page(*centre);
+            (p[0] - v.at[0]).hypot(p[1] - v.at[1]) <= 1e-3 * frame.scale()
+        })
+}
+
+fn callouts(
+    frame: &Frame,
+    w: &Want,
+    old: &Placed,
+    proof: &Proof,
+    v: &PlannedView,
+    centre_row: bool,
+) -> Vec<Placed> {
     let Shape::Callout { sites } = &w.shape else {
         return Vec::new();
     };
@@ -487,8 +510,26 @@ fn callouts(frame: &Frame, w: &Want, old: &Placed, proof: &Proof, v: &PlannedVie
         }
     }
     let mut out = Vec::new();
+    let mut rotations = [0.0_f64, 45.0, -45.0, 90.0, -90.0, 135.0, -135.0, 180.0];
+    if centre_row {
+        // Snap the two rays nearest horizontal; preserve the other six directions within
+        // the same eight-ray budget, including safe alternatives when the row is blocked.
+        let horizontal = |i: usize| {
+            let (s, c) = rotations[i].to_radians().sin_cos();
+            u[0] * c - u[1] * s
+        };
+        let right = (0..rotations.len())
+            .max_by(|&a, &b| horizontal(a).total_cmp(&horizontal(b)))
+            .unwrap();
+        let left = (0..rotations.len())
+            .min_by(|&a, &b| horizontal(a).total_cmp(&horizontal(b)))
+            .unwrap();
+        let angle = u[1].atan2(u[0]).to_degrees();
+        rotations[right] = -angle;
+        rotations[left] = 180.0 - angle;
+    }
     // Share Python's 64 alternatives round-robin over anchors; grouping cannot multiply work.
-    for (rotation, lane) in [0.0_f64, 45.0, -45.0, 90.0, -90.0, 135.0, -135.0, 180.0]
+    for (rotation, lane) in rotations
         .into_iter()
         .flat_map(|a| (1..=8).map(move |n| (a, n)))
     {
@@ -579,6 +620,24 @@ pub(super) fn place(
     cache: &super::footprints::Cache,
 ) -> BTreeSet<String> {
     let mut moved = BTreeSet::new();
+    // Python excludes both a rotational envelope and a stepped turning profile. A plain
+    // cylinder need not publish a turned_step record, so use the scanned analytic faces too:
+    // an exterior surface of revolution spans the envelope in both transverse directions.
+    let round_stock = analysis.features.iter().any(|f| f.kind == "turned_step")
+        || analysis.principal_profiles.iter().any(|s| {
+            s.curved_faces.iter().any(|f| {
+                f.axis
+                    .and_then(crate::bridge::holes::principal)
+                    .is_some_and(|axis| {
+                        (0..3).filter(|&k| k != axis).all(|k| {
+                            (0..2).all(|end| {
+                                (f.bounds[end][k] - analysis.envelope[end][k]).abs() <= 1e-3
+                            })
+                        })
+                    })
+            })
+        });
+    let prismatic = !round_stock;
     let proofs = proofs(analysis, views);
     // Centre-line furniture (G6) is not annotation ink: interior text keeps clear of its
     // strokes, and a callout's shaft does not run beside another feature's stroke, but
@@ -631,9 +690,10 @@ pub(super) fn place(
         };
         let frame = &frames[name];
         let f = cache.get(analysis, v);
+        let centre_row = prefers_centre_row(frame, &items[i], v, prismatic);
         let candidates =
             match &items[i].shape {
-                Shape::Callout { .. } => callouts(frame, &items[i], old, proof, v),
+                Shape::Callout { .. } => callouts(frame, &items[i], old, proof, v, centre_row),
                 Shape::Linear { .. }
                     if !page.fits(old, name)
                         || old.lines.iter().take(2).any(|s| {
@@ -701,7 +761,15 @@ pub(super) fn place(
                         .map(|[a, b]| (a[0] - b[0]).hypot(a[1] - b[1]))
                         .sum::<f64>()
                 };
-                length(a).total_cmp(&length(b))
+                // ARCH0009-3 is a hint, never a reason to lose a proven interior route.
+                // Rank the preferred row after all clearance checks, before route length.
+                let outside_row = |p: &Placed| {
+                    centre_row
+                        && (0.5 * (p.label_box[1] + p.label_box[3]) - v.at[1]).abs() >= super::TEXT
+                };
+                outside_row(a)
+                    .cmp(&outside_row(b))
+                    .then_with(|| length(a).total_cmp(&length(b)))
             });
         if let Some(p) = candidate {
             placed[i] = Some(p);
@@ -932,6 +1000,62 @@ mod tests {
     }
 
     #[test]
+    fn a_blocked_centre_row_keeps_safe_interior_alternatives() {
+        let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/parts/mounting_plate.step");
+        let mut a = crate::model::analyse_native(&file).unwrap().1;
+        a.envelope = [[-50., -50., -1.], [50., 50., 1.]];
+        let v = view();
+        let frame = Frame::new(&a, &v);
+        let circle: Vec<P2> = (0..=64)
+            .map(|i| {
+                let t = std::f64::consts::TAU * i as f64 / 64.0;
+                [5. * t.cos(), 5. * t.sin()]
+            })
+            .collect();
+        let drawing_ink = ink(vec![
+            circle,
+            vec![[5., 0.], [49., 0.]],
+            vec![[-49., 0.], [-5., 0.]],
+        ]);
+        let proof = proof(&drawing_ink);
+        let w = Want {
+            id: "d:test/bore.diameter".into(),
+            views: vec!["plan"],
+            value: 10.,
+            terms: vec!["⌀10 THRU".into()],
+            measurements: vec![super::super::Measurement {
+                feature: "test".into(),
+                parameter: "bore.diameter".into(),
+                value: 10.,
+            }],
+            basis: "test".into(),
+            turning: None,
+            shape: Shape::Callout {
+                sites: vec![([0., 0., 0.], 5.)],
+            },
+        };
+        let mut old = dimension();
+        old.lines = vec![[[0., 5.], [0., 12.]], [[0., 12.], [3., 12.]]];
+        let candidates = callouts(&frame, &w, &old, &proof, &v, true);
+        assert!(
+            !candidates.is_empty(),
+            "a preferred row is not a hard constraint"
+        );
+        assert!(candidates.len() <= 64);
+        assert!(
+            candidates
+                .iter()
+                .any(|p| { p.lines[0][0][0].abs() < 1e-6 && (p.lines[0][0][1] - 5.).abs() < 1e-6 }),
+            "the clear upward route must remain available"
+        );
+        for p in candidates {
+            assert!(proof.annotation_clear(&v, &p, true));
+            assert!(0.5 * (p.label_box[1] + p.label_box[3]).abs() >= super::super::TEXT);
+        }
+    }
+
+    #[test]
     fn radius_candidates_use_physical_arc_anchors_and_never_the_missing_semicircle() {
         let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/parts/mounting_plate.step");
@@ -955,7 +1079,7 @@ mod tests {
         };
         let mut old = dimension();
         old.lines = vec![[[0., -5.], [0., -12.]], [[0., -12.], [3., -12.]]];
-        let candidates = callouts(&frame, &w, &old, &proof, &v);
+        let candidates = callouts(&frame, &w, &old, &proof, &v, false);
         assert!(!candidates.is_empty());
         for p in candidates {
             assert!(p.lines[0][0][1] >= 0.0);

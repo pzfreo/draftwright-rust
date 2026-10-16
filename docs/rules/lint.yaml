@@ -261,7 +261,7 @@
     issues: [1143, 1061]
     tests: [tests/test_issue_1370_double_d_completeness_evidence.py]
   status: pending
-  rust_note: "Done in substance (rules assessment of 2026-10-11): the double-D across-flats size is checked as LINT-profiled_bore_coverage-double_d, and the Analysis carries no thread depth to require. Left pending because no test checks a thread depth requirement."
+  rust_note: "Done in substance (rules assessment of 2026-10-11): the double-D across-flats size is checked as LINT-profiled_bore_coverage-double_d, and the Analysis carries no thread depth to require. Left pending because no test checks a thread depth requirement. Rules-text blocker (2026-10-16): Spec-authored thread length is carried as a manufacturing aspect and prints MIN FULL THREAD (tests/spec_notes.rs), but lint::holes has no independent addressable thread-depth requirement; native Hole has no tap-depth field."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream holes-and-threads"
 
 - id: LINT-hole_coverage-grouping_count
@@ -1086,7 +1086,7 @@
     issues: [1372]
     tests: [tests/test_pocket_pattern_completeness_evidence.py]
   status: pending
-  rust_note: "Not ported (re-assessed in stream K5): blocked on the Analysis, which carries no pocket pattern on either path. On the default (native) path Rust quiddity's document has pocket_patterns (PocketGrid, PocketArray) and their pockets, but src/bridge/native.rs reads neither pockets nor section recesses yet (the G7b reader stream), so on draftwright's pocket-pattern-grid.step and pocket-pattern-linear.step the plan reports features_not_recognised for pockets and pocket_patterns and draws none; the Python bridge drops section_recess_patterns (DERIVED_NOT_READ). Reading them is new Analysis data, outside this stream's scope (dimension selection and coverage lints) and owned by the recess reader work; the planner and lint follow once the Analysis has them."
+  rust_note: "Not ported (re-assessed in stream K5): blocked on the Analysis, which carries no pocket pattern on either path. On the default (native) path Rust quiddity's document has pocket_patterns (PocketGrid, PocketArray) and their pockets, but src/bridge/native.rs reads neither pockets nor section recesses yet (the G7b reader stream), so on draftwright's pocket-pattern-grid.step and pocket-pattern-linear.step the plan reports features_not_recognised for pockets and pocket_patterns and draws none; the Python bridge drops section_recess_patterns (DERIVED_NOT_READ). Reading them is new Analysis data, outside this stream's scope (dimension selection and coverage lints) and owned by the recess reader work; the planner and lint follow once the Analysis has them. Rules-text blocker (2026-10-16): No pocket-pattern member/quantity/pitch/location contract reaches Analysis."
   port_note: "triage 2026-10-16: PORT, value medium, size L, stream recess-reader"
 
 - id: LINT-code-pocket_pattern_requirement_state
@@ -1098,7 +1098,7 @@
     issues: [1372]
     tests: [tests/test_pocket_pattern_completeness_evidence.py, tests/test_issue_1485_rounded_pockets.py]
   status: pending
-  rust_note: "Not ported: see LINT-pocket_pattern_coverage-requirements (no pocket pattern reaches the Analysis; stream K5 re-assessment)."
+  rust_note: "Not ported: see LINT-pocket_pattern_coverage-requirements (no pocket pattern reaches the Analysis; stream K5 re-assessment). Rules-text blocker (2026-10-16): The existing per-pocket Mark ledger cannot supply pattern cardinality or author suppression provenance."
   port_note: "triage 2026-10-16: PORT, value medium, size S, stream recess-reader"
 
 - id: LINT-section_recess_coverage-hex_pocket
@@ -1836,7 +1836,7 @@
     tests: [tests/test_interior_label_placement.py]
   status: pending
   rust_test: empty_space_without_projected_material_is_refused
-  rust_note: "H7 revives this rule. Planning requires whole-label material containment with 0.5 paper mm boundary clearance. The full connected-band narrow-material lint and curved material fields remain unported; known_interior.json records the conservative restriction. Stream K7 left it out of src/lint/fidelity.rs: the drawing records each view's edges, not which side of them is material, so the lint has no material field to probe."
+  rust_note: "H7 revives this rule. Planning requires whole-label material containment with 0.5 paper mm boundary clearance. The full connected-band narrow-material lint and curved material fields remain unported; known_interior.json records the conservative restriction. Stream K7 left it out of src/lint/fidelity.rs: the drawing records each view's edges, not which side of them is material, so the lint has no material field to probe. Rules-text blocker (2026-10-16): Drawing carries view edges and projected ink, but no signed filled-material/connected-band field for an independent lint probe."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream dimensioning-coverage"
 
 - id: LINT-code-leader_crosses_silhouette
@@ -2016,7 +2016,7 @@
     tests: [tests/test_pmi_manufacturing_finish.py]
   status: pending
   port_note: "triage 2026-10-16: PORT, value medium, size S, stream pmi"
-  rust_note: "Not ported: the check reads a source-scoped general note (an edge condition) or a face-finish symbol and compares its ink with the requirement. The reading holds edge conditions and surface finishes (`pmi::read`, manufacturing requirements), and the port now draws a document-wide edge condition as a general note `pmi:<source>` and the default finish as a symbol beside the title block (`pmi_lowering::sheet_requirements`), but no face-finish symbol; the note's ink against its requirement is not checked yet."
+  rust_note: "Not ported: the check reads a source-scoped general note (an edge condition) or a face-finish symbol and compares its ink with the requirement. The reading holds edge conditions and surface finishes (`pmi::read`, manufacturing requirements), and the port now draws a document-wide edge condition as a general note `pmi:<source>` and the default finish as a symbol beside the title block (`pmi_lowering::sheet_requirements`), but no face-finish symbol; the note's ink against its requirement is not checked yet. Rules-text blocker (2026-10-16): Drawing text runs are invisible searchable text and have no per-annotation ownership of the filled glyph paths; independently auditing those paths requires an output evidence/binding redesign beyond a day."
 
 - id: LINT-code-pmi_source_site_mismatch
   statement: "A source-scoped annotation is anchored at the face or edge its AP242 source references, and a STEP entity claim carries a resolvable source id."
