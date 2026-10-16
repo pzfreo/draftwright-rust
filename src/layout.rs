@@ -1638,6 +1638,12 @@ pub fn crowded_locations(ordinates: &[f64], scale: f64) -> usize {
 /// `_fit_iso_view` with no annotation obstacles), given the projected iso's box relative to the
 /// view's centre at the sheet scale. One when it is left at sheet scale.
 pub fn iso_factor(rect: Rect, centre: [f64; 2], bounds: Rect) -> f64 {
+    iso_factor_with_detail(rect, centre, bounds, false)
+}
+
+/// Python `_fit_iso_view`: a fitting sheet-scale iso stays at that scale when a detail
+/// claims space. An overflowing iso must still shrink.
+pub fn iso_factor_with_detail(rect: Rect, centre: [f64; 2], bounds: Rect, has_detail: bool) -> f64 {
     let ratios: Vec<f64> = [
         (-bounds[0], centre[0] - rect[0]),
         (bounds[2], rect[2] - centre[0]),
@@ -1650,6 +1656,9 @@ pub fn iso_factor(rect: Rect, centre: [f64; 2], bounds: Rect) -> f64 {
     .collect();
     let needed = ratios.iter().copied().fold(f64::INFINITY, f64::min);
     let needed = if needed.is_finite() { needed } else { 1.0 };
+    if has_detail && needed >= 1.0 {
+        return 1.0;
+    }
     let factor = if needed >= 1.0 {
         // Grow to 90 % of the rectangle, keeping the orientation view subordinate.
         ((needed * 0.90 * 10000.0).floor() / 10000.0).clamp(1.0, ISO_MAX_GROW)
@@ -1661,6 +1670,16 @@ pub fn iso_factor(rect: Rect, centre: [f64; 2], bounds: Rect) -> f64 {
         1.0
     } else {
         factor
+    }
+}
+
+/// Preserve Python `_fit_iso_view`'s strict 5 % no-op band in measured refits too.
+/// The band applies to both shrink and grow factors; a tiny overflow is kept and reported.
+pub fn keep_sheet_scale(scale: f64, sheet: f64) -> f64 {
+    if (scale / sheet - 1.0).abs() < 0.05 {
+        sheet
+    } else {
+        scale
     }
 }
 

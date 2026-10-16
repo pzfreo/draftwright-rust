@@ -734,7 +734,7 @@ fn an_unestablished_hole_bottom_is_reported() {
 }
 
 /// R1 invariant 2 (ADR4-4) and ARCH0019-1: the renderer draws the plan's own label text and
-/// composes none; every dimension run it writes is a plan item's terms, joined by spaces.
+/// composes none; dimension runs use planned terms, and furniture uses planned caption text.
 #[test]
 fn renderers_draw_only_from_the_plan() {
     let (part, a) = analysed_with("plate", &recognition("plate"));
@@ -753,13 +753,28 @@ fn renderers_draw_only_from_the_plan() {
             .map(|r| r.text.clone())
             .collect()
     };
-    let labels: Vec<String> = plan.dimensions.iter().map(|d| d.terms.join(" ")).collect();
+    let labels: Vec<String> = plan
+        .dimensions
+        .iter()
+        .map(|d| d.terms.join(" "))
+        .chain(plan.captions.iter().map(|c| c.text.clone()))
+        .collect();
     let before = runs(&plan);
     assert!(!before.is_empty());
+    assert_eq!(
+        plan.captions.len(),
+        1,
+        "the fixture must exercise planned furniture"
+    );
+    for caption in &plan.captions {
+        assert_eq!(before.iter().filter(|r| **r == caption.text).count(), 1);
+    }
     for r in &before {
         assert!(labels.contains(r), "{r:?} is not in the plan");
     }
-    // Change the plan's text: the drawing follows it, with no number of its own.
+    // Change both kinds of plan text: the drawing follows them, with no text of its own.
+    let old_caption = plan.captions[0].text.clone();
+    plan.captions[0].text = "CAPTION-FROM-PLAN".into();
     let d = plan
         .dimensions
         .iter_mut()
@@ -769,6 +784,8 @@ fn renderers_draw_only_from_the_plan() {
     let after = runs(&plan);
     assert!(after.contains(&"WIDTH-FROM-PLAN".to_string()));
     assert!(!after.contains(&"60".to_string()));
+    assert!(after.contains(&"CAPTION-FROM-PLAN".to_string()));
+    assert!(!after.contains(&old_caption));
 }
 
 /// R1 invariant 7: the same documents give the same plan.

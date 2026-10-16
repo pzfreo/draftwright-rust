@@ -191,7 +191,7 @@ The design also includes `views/sections` and feature `anchor`
 since K1b (below).
 
 - **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_limits`, `projection`, `default_finish`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`),
-  `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `place`, and the earlier `view`
+  `iso_scale_factor`, `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `place`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`),
   `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
   knurls and notes authored in the Spec", below), `notes` and `tables`.
@@ -199,6 +199,22 @@ since K1b (below).
 - **The spec stores intent, never geometry.** A fit, lane, side or fractional label position is
   resolved against the part and its anchors on every plan. Measured values and resolved paper
   coordinates occur only in the Analysis and Plan.
+
+`iso_scale_factor` is an optional finite positive multiplier of the sheet scale, kept exactly
+through automatic fitting and recovery. An infeasible authored iso scale is refused rather
+than reduced. Without an override the orientation view fills its available space, retaining
+the sheet scale within Python's strict 5% no-op band. A fitting sheet-scale iso stays at that
+scale when a detail claims space; detail-view generation itself is not yet ported.
+
+When the drawn iso differs from its sheet scale, `Plan.captions` carries `note_iso_nts`,
+text `ISO VIEW (NTS)` at 3 mm, with its view, sheet, resolved position and ink bounds. It is
+an automatic read-only `caption` item, reserved before late notes and tables. It tries
+Python's positions below, further below, left, right and above the iso, keeping 2 mm clear
+of settled view and annotation ink and the title block. If every position is blocked, it
+retries without the extra text clearance, then slides the candidates vertically to clear
+obstacle edges. Only an entirely blocked search retains Python's natural-position fallback;
+structural lint reports even shallow caption contacts with labels, lines and view edges.
+A sheet-scale or omitted iso carries no NTS caption. This furniture does not change the sheet-choice ladder or fill.
 
 #### Projection method and a pinned sheet's fit
 

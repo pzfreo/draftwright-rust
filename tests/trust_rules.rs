@@ -863,6 +863,7 @@ fn labels_are_measured_with_the_font_they_are_drawn_with() {
     let font = font();
     let plan = model::plan(&analysis, &Spec::default()).unwrap();
     let mut checked = 0;
+    let mut captions_checked = 0;
     for d in &plan.dimensions {
         if d.placed.is_none() || d.terms.iter().any(|t| t.contains(['⌴', '↧', '⌵'])) {
             continue;
@@ -877,6 +878,33 @@ fn labels_are_measured_with_the_font_they_are_drawn_with() {
         let one = model::plan(&analysis, &alone).unwrap();
         let mine = one.dimensions[0].placed.as_ref().unwrap();
         let drawing = model::render(&part, &analysis, &one, &font).unwrap();
+        // Automatic furniture remains on an otherwise isolated dimension's sheet. Verify
+        // its own font measurement before separating its glyphs from the dimension's.
+        let caption_boxes: Vec<_> = one
+            .captions
+            .iter()
+            .map(|caption| {
+                let drawn: Vec<_> = drawing
+                    .sheet
+                    .items
+                    .iter()
+                    .filter(|d| d.name == caption.id)
+                    .collect();
+                assert_eq!(drawn.len(), 1, "{} is drawn once", caption.id);
+                assert_eq!(drawn[0].kind, draftwright::output::Kind::Caption);
+                for k in 0..4 {
+                    assert!(
+                        (drawn[0].ink[k] - caption.ink[k]).abs() < 1e-3,
+                        "{}: drawn {:?}, measured {:?}",
+                        caption.id,
+                        drawn[0].ink,
+                        caption.ink
+                    );
+                }
+                captions_checked += 1;
+                drawn[0].ink
+            })
+            .collect();
         let [tx0, ty0, tx1, ty1] = one.sheet.title_block;
         let tips: Vec<[f64; 2]> = mine.arrows.iter().map(|a| a[0]).collect();
         let glyphs = drawing.layers[2].items.iter().filter(|i| match i {
@@ -887,8 +915,14 @@ fn labels_are_measured_with_the_font_they_are_drawn_with() {
                     _ => return false,
                 };
                 let in_title = (tx0..=tx1).contains(&first[0]) && (ty0..=ty1).contains(&first[1]);
+                let in_caption = caption_boxes.iter().any(|b| {
+                    first[0] >= b[0] - 1e-8
+                        && first[0] <= b[2] + 1e-8
+                        && first[1] >= b[1] - 1e-8
+                        && first[1] <= b[3] + 1e-8
+                });
                 // An arrowhead is a triangle from a tip.
-                !in_title && !tips.contains(&first)
+                !in_title && !in_caption && !tips.contains(&first)
             }
             _ => false,
         });
@@ -904,6 +938,10 @@ fn labels_are_measured_with_the_font_they_are_drawn_with() {
         checked += 1;
     }
     assert!(checked >= 3, "{checked} labels checked");
+    assert!(
+        captions_checked > 0,
+        "the fixture must exercise caption measurements"
+    );
 }
 
 /// ARCH0014-7: per-part counts of placed dimensions are one-way regression floors. A change may
