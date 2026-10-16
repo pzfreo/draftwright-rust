@@ -14,9 +14,11 @@ Use the pinned Rust toolchain, Node 22 or later, and wasm-pack 0.15.0:
 rustup target add wasm32-unknown-unknown
 cargo install wasm-pack --version 0.15.0 --locked
 wasm-pack build crates/draftwright-wasm --target web --profile wasm-release --locked
+python3 tools/check_wasm_api.py
 cargo build --locked --release --example wasm_reference
 node --test tools/wasm-parity.test.mjs
 python3 tools/wasm_size.py crates/draftwright-wasm/pkg/draftwright_wasm_bg.wasm
+python3 tools/check_quiddity_pin.py
 ```
 
 The generated, ignored directory is `crates/draftwright-wasm/pkg/`: JS glue,
@@ -132,16 +134,78 @@ claim byte identity for every curved model. No comparison tolerance or hash excl
 for committed states. Native output is unchanged.
 The CI WASM job runs for pull requests and main pushes; the release job repeats parity.
 
-Measured locally with Rust 1.99 and wasm-pack 0.15.0, web target, `wasm-release` and
+Measured locally on 2026-10-16 with Rust 1.99 and wasm-pack 0.15.0, web target, `wasm-release` and
 wasm-pack's default wasm-opt pass:
 
 | `.wasm` | Bytes | Decimal MB |
 | --- | ---: | ---: |
-| Raw | 13,364,147 | 13.364 |
-| gzip level 9 | 4,389,751 | 4.390 |
-| Brotli quality 11 | 2,903,809 | 2.904 |
+| Raw | 13,602,172 | 13.602 |
+| gzip level 9 | 4,486,165 | 4.486 |
+| Brotli quality 11, lgwin 22 | 2,992,302 | 2.992 |
 
 The size script prints raw and gzip level 9 sizes, plus Brotli quality 11 when the Python
 module or `brotli` CLI is installed. These are sizes of the `.wasm` alone; the release tarball also contains glue and
 declarations. Compression is a transfer/deployment choice and does not alter the WASM file.
 The editor's previous build was approximately 15 MB raw / 4 MB Brotli (decimal MB).
+
+## Reviewed API snapshot
+
+`crates/draftwright-wasm/api.d.ts` is the reviewed copy of wasm-pack's generated
+`pkg/draftwright_wasm.d.ts`. The normalizer removes comments (including generator/version
+noise), sorts top-level declarations and class/interface members, and retains signatures,
+parameter names, literal types and nested types. Generated JS and binaries remain ignored.
+After building, run:
+
+```sh
+python3 tools/check_wasm_api.py
+# When intentionally changing the API:
+python3 tools/check_wasm_api.py --update
+```
+
+Review and commit the snapshot diff, and add a new note line (normally a bullet) under
+`### WASM API` in `CHANGELOG.md`'s `## Unreleased` section in the same change. CI compares against the PR base
+commit or the commit before a main push (`--base-ref`); local checks default to `HEAD`.
+API drift fails unless that comparison also adds a WASM API note line. Updating the snapshot
+alone cannot bypass the changelog requirement, and an existing note cannot approve a later
+change. A documented mismatch is allowed as approved by the maintainer, but the check still
+prints the diff and the snapshot update command. Normally commit the refreshed snapshot.
+Run the safeguard tests with `python3 -m unittest discover -s tools -p 'test_wasm_safeguards.py'`.
+
+## Size budget
+
+`tools/wasm-size-budget.json` records the baseline raw, gzip level 9 and Brotli quality 11
+(lgwin 22 for both the Python module and CLI)
+sizes measured on the web target with the `wasm-release` profile and wasm-pack's default
+wasm-opt pass. Its `ceiling_bytes` is about 15% above the raw baseline, rounded up to the
+next 100,000 bytes. `tools/wasm_size.py` enforces that raw-byte ceiling in CI and release
+builds; equality passes. It prints actual transfer sizes and remaining headroom on every
+run. The initial ceiling is **15,700,000 bytes**, leaving **2,097,828 bytes** of headroom
+(15.42% above the measured baseline). Brotli reporting requires the Python `brotli` module
+or the `brotli` CLI; enforcement
+has no optional dependencies. Gzip/Brotli sizes are recorded for deployment planning and
+are not separate gates. A budget increase requires a deliberate reviewed JSON edit; the
+check never raises its own ceiling.
+
+## Matching geometry kernels
+
+Draftwright and Specify embed independent copies of quiddity-rust. STEP files pass between
+them in the editor, so different kernel commits may change face numbering. Run:
+
+```sh
+python3 tools/check_quiddity_pin.py
+```
+
+The script reads both `haecceity` and `quiddity` tag/rev pins from this `Cargo.toml` and
+fetches `pzfreo/specify-core-rust`'s manifest at its most recently published GitHub release,
+including prereleases. It compares resolved commits so a tag and its full commit rev match,
+prints the original pins, and checks that both dependencies agree within each package.
+It uses `gh api` when installed (including its existing login), otherwise the GitHub REST
+API without authentication. `GITHUB_TOKEN` is used when set (`GH_TOKEN` also works).
+
+CI runs the comparison on main pushes. The release job runs it before asset upload with
+`--release "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY"`. A mismatch emits a GitHub Actions
+`::warning::` and appends a `Kernel note:` line describing both packages' pins to the release
+body via `gh release edit`, preserving other notes and replacing its own line on retries.
+It never fails the release: one package necessarily releases first after a kernel bump.
+Fetch, parsing and release-note-edit errors are warnings as well. Running locally without
+`--release` only reads GitHub; it does not edit any release.
