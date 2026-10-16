@@ -1393,7 +1393,8 @@ fingerprints with complete keys from the Analysis):
   sorted-key JSON containing the exact analytic record and sorted face-boundary endpoint
   signatures, with numbers rounded to 1e-6 mm. Plane normals and cylinder axes have their
   first nonzero component positive; their origins are the nearest point to the model origin
-  on the plane/axis. Edge ends and surface sites are sorted; face traversal indices are absent.
+  on the plane/axis. Edge ends and boundary surface sites are sorted; a boundaryless sphere
+  uses its six cardinal sites in x−, x+, y−, y+, z−, z+ order. Face traversal indices are absent.
   Fingerprints therefore survive face/edge/vertex enumeration and edge reversal. They identify
   unchanged geometry, not a guessed successor after a resize or rigid move. Coincident
   topological entities remain a multi-record ambiguity and are refused. A future fingerprint

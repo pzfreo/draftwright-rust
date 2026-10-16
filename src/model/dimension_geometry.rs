@@ -94,11 +94,20 @@ pub(super) fn evidence(part: &Part) -> BTreeMap<String, Vec<Reference>> {
             );
             sites.extend(ends);
             if !matches!(edge.curve, Curve::Line { .. }) {
+                // Sample in a canonical direction too: reversed traversal of a circle
+                // otherwise visits equivalent parameters with different last-bit sines.
+                let sense = if edge.is_closed() {
+                    true
+                } else if ends[0] == edge.start {
+                    edge.same_sense
+                } else {
+                    !edge.same_sense
+                };
                 let (a, b) = haecceity::sampling::edge_interval(
                     &edge.curve,
-                    edge.start,
-                    edge.end,
-                    edge.same_sense,
+                    ends[0],
+                    ends[1],
+                    sense,
                     edge.is_closed(),
                 );
                 sites.extend((1..16).map(|j| edge.curve.value(a + (b - a) * j as f64 / 16.0)));
@@ -427,8 +436,17 @@ mod tests {
         let before = super::evidence(&p);
         p.faces.reverse();
         let n = p.edges.len();
+        let faces = p.faces.len();
+        for solid in &mut p.solids {
+            for face in &mut solid.faces {
+                *face = faces - 1 - *face;
+            }
+        }
         p.edges.reverse();
         for f in &mut p.faces {
+            for (edge, _) in &mut f.pcurves {
+                *edge = n - 1 - *edge;
+            }
             for l in &mut f.loops {
                 for (e, sense) in &mut l.edges {
                     *e = n - 1 - *e;
@@ -440,7 +458,10 @@ mod tests {
             std::mem::swap(&mut e.start, &mut e.end);
             e.vertices = (e.vertices.1, e.vertices.0);
             e.same_sense = !e.same_sense;
+            e.samples.reverse();
         }
-        assert_eq!(before, super::evidence(&p));
+        // Part is immutable after its first query; rebuilding also discards all topology caches.
+        let reordered = haecceity::Part::new(p.faces, p.edges, p.solids);
+        assert_eq!(before, super::evidence(&reordered));
     }
 }
