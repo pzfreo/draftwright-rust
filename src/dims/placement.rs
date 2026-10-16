@@ -526,6 +526,13 @@ pub(super) fn lanes<'a>(
                     (*order, key((b[*axis] - a[*axis]).abs())),
                 )
             }
+            Shape::Aligned { a, b } => {
+                let (a, b) = (f.page(*a), f.page(*b));
+                (
+                    strip(view, (b[0] - a[0]).abs() >= (b[1] - a[1]).abs()),
+                    (1, key((b[0] - a[0]).hypot(b[1] - a[1]))),
+                )
+            }
             Shape::Callout { sites } => {
                 let side = callout_strip(view);
                 let (tip, _) = callout_tip(f, sites, side == Side::Above);
@@ -859,6 +866,7 @@ fn share_held(
 pub(super) fn place(frame: &Frame, w: &Want, side: Side, lane: usize) -> Option<Placed> {
     match &w.shape {
         Shape::Linear { .. } => place_linear(frame, &w.shape, &w.terms, side, lane),
+        Shape::Aligned { a, b } => place_aligned(frame, *a, *b, &w.terms, side, lane),
         // A callout's leader is placed with the others' ([`super::leaders`]), an angle about its
         // vertex ([`super::angular`]).
         Shape::Callout { .. } | Shape::Angular { .. } => None,
@@ -1337,6 +1345,7 @@ pub(super) fn intent(
     };
     let lane = p.lane.unwrap_or(lane);
     let mut placed = match &w.shape {
+        Shape::Aligned { a, b } => place_aligned(frame, *a, *b, &w.terms, side, lane)?,
         Shape::Linear { axis, .. } => {
             let horizontal = across(frame, *axis)?;
             if horizontal != matches!(side, Side::Above | Side::Below) {
@@ -2323,4 +2332,75 @@ mod tests {
             overlap.message
         );
     }
+}
+
+/// Aligned ISO 129 dimension: perpendicular witnesses, exact projected station span.
+fn place_aligned(
+    frame: &Frame,
+    a: P3,
+    b: P3,
+    terms: &[String],
+    side: Side,
+    lane: usize,
+) -> Option<Placed> {
+    let (mut a, mut b) = (frame.page(a), frame.page(b));
+    if b[0] < a[0] || (b[0] == a[0] && b[1] < a[1]) {
+        std::mem::swap(&mut a, &mut b);
+    }
+    let span = (b[0] - a[0]).hypot(b[1] - a[1]);
+    if span <= 1e-9 {
+        return None;
+    }
+    let u = [(b[0] - a[0]) / span, (b[1] - a[1]) / span];
+    let mut n = [-u[1], u[0]];
+    let outward = match side {
+        Side::Above => [0.0, 1.0],
+        Side::Below => [0.0, -1.0],
+        Side::Left => [-1.0, 0.0],
+        Side::Right => [1.0, 0.0],
+    };
+    if n[0] * outward[0] + n[1] * outward[1] < 0.0 {
+        n = n.map(|x| -x);
+    }
+    let dot = |p: P2| p[0] * n[0] + p[1] * n[1];
+    let o = frame.outline();
+    let outer = [[o[0], o[1]], [o[0], o[3]], [o[2], o[1]], [o[2], o[3]]]
+        .map(dot)
+        .into_iter()
+        .fold(f64::NEG_INFINITY, f64::max);
+    let height = outer + FIRST + lane as f64 * LANE;
+    let move_to = |p: P2, h: f64| [0, 1].map(|k| p[k] + (h - dot(p)) * n[k]);
+    let (pa, pb) = (move_to(a, height), move_to(b, height));
+    let ink = label_ink(terms, font());
+    let width = ink.max[0] - ink.min[0];
+    let along = |p: P2, s: f64| [0, 1].map(|k| p[k] + s * u[k]);
+    let mut lines = vec![
+        [move_to(a, dot(a) + GAP), move_to(a, height + OVERSHOOT)],
+        [move_to(b, dot(b) + GAP), move_to(b, height + OVERSHOOT)],
+    ];
+    let (arrows, start) = if span >= width + 2.0 * ARROW + 2.0 {
+        lines.push([pa, pb]);
+        (
+            vec![arrow(pa, along(pa, 1.0)), arrow(pb, along(pb, -1.0))],
+            0.5 * (span - width) - ink.min[0],
+        )
+    } else {
+        lines.push([along(pa, -ARROW - 2.0), along(pb, ARROW + 2.0)]);
+        (
+            vec![arrow(pa, along(pa, -1.0)), arrow(pb, along(pb, 1.0))],
+            span + ARROW + 3.0 - ink.min[0],
+        )
+    };
+    let label_at = [
+        pa[0] + start * u[0] - LIFT * u[1],
+        pa[1] + start * u[1] + LIFT * u[0],
+    ];
+    let rotation = u[1].atan2(u[0]).to_degrees();
+    Some(Placed {
+        lines,
+        arrows,
+        label_at,
+        rotation,
+        label_box: label_box(&ink, label_at, rotation),
+    })
 }

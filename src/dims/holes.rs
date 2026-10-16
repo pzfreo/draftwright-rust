@@ -763,7 +763,7 @@ fn merge(
             b[axis],
             w.terms.join(" "),
         )),
-        Shape::Callout { .. } | Shape::Angular { .. } => None,
+        Shape::Callout { .. } | Shape::Angular { .. } | Shape::Aligned { .. } => None,
     };
     let same = |s: &Span, t: &Span| {
         s.0 == t.0

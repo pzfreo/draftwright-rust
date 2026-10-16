@@ -174,3 +174,38 @@ fn material_removal_is_drawn_on_the_symbol() {
         assert_eq!((p.strokes.len(), p.arcs.len()), (strokes, arcs), "{term}");
     }
 }
+
+#[test]
+fn a_finish_leader_must_stay_on_its_source_face() {
+    let (part, a) = analysed("plate_face_ra0_8");
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let font =
+        draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
+    let mut drawing = model::render(&part, &a, &plan, &font).unwrap();
+    let name = plan
+        .gdt
+        .iter()
+        .find(|g| g.kind == "surface_finish")
+        .unwrap()
+        .id
+        .clone();
+    let findings = |d: &draftwright::output::Drawing| {
+        draftwright::lint::lint(&a, d)
+            .into_iter()
+            .filter(|i| i.code == "pmi_source_site_mismatch")
+            .collect::<Vec<_>>()
+    };
+    assert!(findings(&drawing).is_empty(), "{:?}", findings(&drawing));
+    let item = drawing
+        .sheet
+        .items
+        .iter_mut()
+        .find(|i| i.name == name)
+        .unwrap();
+    item.lines[0][0][1] += 8.0;
+    let found = findings(&drawing);
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].annotation.as_deref(), Some(name.as_str()));
+    assert_eq!(found[0].severity, draftwright::lint::Severity::Error);
+    assert_eq!(found[0].sources.len(), 1);
+}

@@ -1008,9 +1008,13 @@ fn what_the_faces_do_not_prove_is_reported_not_guessed() {
             .push("linear reference groups occupy the same station".into())
     });
     assert_eq!(reason(&plan).0, "pmi_not_lowered");
-    let plan = edit(&|r| r.geometry.as_mut().unwrap().axis = None);
-    assert_eq!(reason(&plan).0, "pmi_dimensions_not_ported");
-    assert!(reason(&plan).1.contains("oblique"));
+    let plan = edit(&|r| {
+        let g = r.geometry.as_mut().unwrap();
+        g.axis = None;
+        g.stations = vec![[0.0, 0.0, 0.0], [12.0, 13.0, 14.0]];
+    });
+    assert_eq!(reason(&plan).0, "pmi_not_lowered");
+    assert!(reason(&plan).1.contains("principal projection plane"));
     let plan = edit(&|r| r.geometry = None);
     assert!(reason(&plan).1.contains("analyse the part again"));
     let plan = edit(&|r| r.kind = "angular".into());
@@ -1227,4 +1231,63 @@ fn an_inch_pmi_span_covers_the_default_extent_despite_geometric_roundoff() {
             .iter()
             .any(|d| d.label == "12.00 ±0.01 INCH")
     );
+}
+
+#[test]
+fn oblique_pmi_draws_its_exact_projected_station_span() {
+    let (part, a, _) = planned("nist_stc_10_asme1_ap242-e2");
+    for (stations, view) in [
+        ([[0.0, 0.0, 0.0], [12.0, 0.0, 16.0]], "v:front"),
+        ([[0.0, 0.0, 0.0], [12.0, 16.0, 0.0]], "v:plan"),
+        ([[0.0, 10.0, 5.0], [0.001, -2.0, 21.0]], "v:side"),
+    ] {
+        let mut a = a.clone();
+        let Some(Reading::Read(report)) = &mut a.pmi else {
+            unreachable!()
+        };
+        let record = report
+            .records
+            .iter_mut()
+            .find(|r| {
+                r.category == Category::Dimension && r.kind == "linear" && r.blockers.is_empty()
+            })
+            .unwrap();
+        let source = record.source_id.clone();
+        record.value = Some(20.0);
+        record.label = "20 ±0.2".into();
+        let g = record.geometry.as_mut().unwrap();
+        g.axis = None;
+        g.view = None;
+        g.stations = stations.to_vec();
+        g.reasons.clear();
+        let plan = model::plan(&a, &Spec::default()).unwrap();
+        let id = match &a.pmi {
+            Some(Reading::Read(r)) => r.identities().ids[&source].clone(),
+            _ => unreachable!(),
+        };
+        let d = plan
+            .dimensions
+            .iter()
+            .find(|d| d.measurements.iter().any(|m| m.feature == id))
+            .unwrap();
+        assert_eq!(d.view, view);
+        assert_eq!(d.label, "20 ±0.2");
+        let p = d.placed.as_ref().unwrap();
+        let scale = plan.views.iter().find(|v| v.id == view).unwrap().scale;
+        let tips = [p.arrows[0][0], p.arrows[1][0]];
+        assert!(
+            ((tips[1][0] - tips[0][0]).hypot(tips[1][1] - tips[0][1]) / scale - 20.0).abs() < 1e-6
+        );
+        assert!((tips[1][0] - tips[0][0]).abs() > 1e-6 && (tips[1][1] - tips[0][1]).abs() > 1e-6);
+        let font =
+            draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT))
+                .unwrap();
+        let drawing = model::render(&part, &a, &plan, &font).unwrap();
+        assert!(
+            !draftwright::lint::structural::check(&drawing)
+                .iter()
+                .any(|i| i.code == "label_vs_measured"
+                    && i.annotation.as_deref() == Some(d.id.as_str()))
+        );
+    }
 }

@@ -132,6 +132,8 @@ pub(super) fn check(drawing: &Drawing) -> Vec<LintIssue> {
                 if let Some(l) = linear_ink(&d.lines) {
                     let measured = l.span[1] - l.span[0];
                     issues.extend(label_vs_measured(d, text, measured, scale, &mut rounded));
+                } else if let Some(span) = aligned_span(&d.lines) {
+                    issues.extend(label_vs_measured(d, text, span, scale, &mut rounded));
                 } else if d.lines.len() >= 3 {
                     issues.extend(angular(drawing, d, text, *view));
                 }
@@ -547,4 +549,24 @@ mod tests {
         assert_eq!(displayed_decimals("4.45"), 2);
         assert_eq!(displayed_decimals("12 ±0.05"), 1);
     }
+}
+
+/// Recognise perpendicular extension lines and a parallel dimension line at any rotation.
+fn aligned_span(lines: &[[P; 2]]) -> Option<f64> {
+    let [a, b, d] = lines else { return None };
+    let delta = [d[1][0] - d[0][0], d[1][1] - d[0][1]];
+    let length = delta[0].hypot(delta[1]);
+    if length < 1e-9 {
+        return None;
+    }
+    let u = delta.map(|x| x / length);
+    let project = |p: P| p[0] * u[0] + p[1] * u[1];
+    if [a, b]
+        .iter()
+        .any(|e| (project(e[1]) - project(e[0])).abs() > 1e-6)
+    {
+        return None;
+    }
+    let span = (project(b[0]) - project(a[0])).abs();
+    (span > 1e-9).then_some(span)
 }

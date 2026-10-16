@@ -302,10 +302,12 @@ fn dimension(r: &Record) -> Result<(), String> {
     }
     match (r.kind.as_str(), &g.axis) {
         ("linear" | "thickness" | "diameter" | "radius", Some(_)) => Ok(()),
-        ("linear" | "thickness", None) => Err(
-            "its stations are oblique to the views' axes; the port draws a length along x, y or z"
-                .into(),
-        ),
+        ("linear" | "thickness", None) => {
+            match g.stations.as_slice() {
+                [a,b] if crate::pmi_lowering::projection_view([0,1,2].map(|k| b[k]-a[k])).is_some() => Ok(()),
+                _ => Err("its stations have no proven span in a principal projection plane".into()),
+            }
+        },
         ("diameter" | "radius", None) => Err(
             "its axis is not along x, y or z; the port draws a diameter or radius seen end-on"
                 .into(),
@@ -490,7 +492,7 @@ mod tests {
         assert_eq!(dimension(&r), Ok(()));
         let mut oblique = r.clone();
         oblique.geometry.as_mut().unwrap().axis = None;
-        assert!(dimension(&oblique).unwrap_err().contains("oblique"));
+        assert!(dimension(&oblique).is_err());
         let mut unproven = r.clone();
         unproven.geometry.as_mut().unwrap().reasons =
             vec!["linear reference groups occupy the same station".into()];
@@ -576,4 +578,147 @@ mod tests {
         let r = frame(0.1 + 0.2, &[], &[]);
         assert_eq!(mismatch(&r, "⏥ 0.3"), None);
     }
+}
+
+/// Source sites are checked against the finished leader and the source faces, never the Plan.
+/// A planar finish may slide along its face's edge line; a cylinder uses either silhouette.
+pub(super) fn source_sites(
+    analysis: &Analysis,
+    drawing: &crate::output::Drawing,
+) -> Vec<LintIssue> {
+    use crate::output::Kind;
+    let Some(Reading::Read(report)) = &analysis.pmi else {
+        return vec![];
+    };
+    let ids = report.identities();
+    let mut out = Vec::new();
+    for a in &drawing.annotations {
+        let Some(source) = ids.source(&a.name) else {
+            continue;
+        };
+        let Some(r) = report.records.iter().find(|r| r.source_id == source) else {
+            continue;
+        };
+        let ink = drawing.sheet.items.iter().find(|i| i.name == a.name);
+        let text = a
+            .runs
+            .iter()
+            .filter_map(|&i| drawing.text.get(i))
+            .map(|r| r.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let finish_carrier =
+            a.view.is_some() && ink.is_some_and(|i| i.kind == Kind::Gdt) && text.starts_with("Ra ");
+        let valid = if r.kind == "surface_finish" || finish_carrier {
+            r.kind == "surface_finish"
+                && finish_carrier
+                && (|| {
+                    let tip = ink?.lines.first()?.first()?;
+                    let frame = drawing
+                        .sheet
+                        .frames
+                        .get(a.view.as_deref()?.trim_start_matches("v:"))?;
+                    let view = haecceity::hlr::View::new(frame.direction, frame.up)?;
+                    let [lo, hi] = analysis.envelope;
+                    let centre = view.map([0, 1, 2].map(|k| 0.5 * (lo[k] + hi[k])));
+                    let page = |p| {
+                        let q = view.map(p);
+                        [0, 1].map(|k| frame.at[k] + frame.scale * (q[k] - centre[k]))
+                    };
+                    Some(
+                        r.faces
+                            .iter()
+                            .filter_map(|&f| analysis.face_attachments.get(f))
+                            .any(|f| {
+                                let (Some(b), Some(axis)) = (f.bounds, f.axis) else {
+                                    return false;
+                                };
+                                // The source surface must be seen edge-on, as its carrier promises.
+                                let end_on = view.toward[axis].abs() > 1.0 - 1e-6;
+                                let mut bounds = [
+                                    f64::INFINITY,
+                                    f64::INFINITY,
+                                    f64::NEG_INFINITY,
+                                    f64::NEG_INFINITY,
+                                ];
+                                for mask in 0..8 {
+                                    let q =
+                                        page([0, 1, 2].map(|k| {
+                                            b[k + if mask & (1 << k) == 0 { 0 } else { 3 }]
+                                        }));
+                                    for k in 0..2 {
+                                        bounds[k] = bounds[k].min(q[k]);
+                                        bounds[k + 2] = bounds[k + 2].max(q[k]);
+                                    }
+                                }
+                                let inside = (0..2).all(|k| {
+                                    bounds[k] - 0.05 <= tip[k] && tip[k] <= bounds[k + 2] + 0.05
+                                });
+                                match f.surface.as_deref() {
+                                    Some("plane") => {
+                                        !end_on
+                                            && inside
+                                            && (0..2).any(|k| {
+                                                bounds[k + 2] - bounds[k] <= 0.05
+                                                    && (tip[k] - bounds[k]).abs() <= 0.05
+                                            })
+                                    }
+                                    Some("cylinder") => {
+                                        let direction =
+                                            view.map([0, 1, 2].map(|k| f64::from(k == axis)));
+                                        let across = if direction[0].abs() > direction[1].abs() {
+                                            1
+                                        } else {
+                                            0
+                                        };
+                                        !end_on
+                                            && inside
+                                            && [bounds[across], bounds[across + 2]]
+                                                .iter()
+                                                .any(|v| (tip[across] - v).abs() <= 0.05)
+                                    }
+                                    _ => false,
+                                }
+                            }),
+                    )
+                })()
+                .unwrap_or(false)
+        } else if a.view.is_none()
+            && drawing.sheet.items.iter().any(|i| {
+                i.kind == Kind::Notes
+                    && i.name == "general_notes"
+                    && a.runs
+                        .iter()
+                        .filter_map(|&j| drawing.text.get(j))
+                        .any(|run| {
+                            (0..2).all(|k| {
+                                i.ink[k] - 0.05 <= run.at[k] && run.at[k] <= i.ink[k + 2] + 0.05
+                            })
+                        })
+            })
+        {
+            matches!(
+                r.kind.as_str(),
+                "edge_condition" | "datum_scheme" | "model_representation"
+            )
+        } else {
+            true
+        };
+        if !valid {
+            let mut finding = sourced(
+                "pmi_source_site_mismatch",
+                source,
+                Severity::Error,
+                format!(
+                    "{} is not anchored to its referenced AP242 {} source {source}",
+                    a.name, r.kind
+                ),
+            );
+            finding.id = format!("l:pmi_source_site_mismatch:{}", a.name);
+            finding.annotation = Some(a.name.clone());
+            finding.view = a.view.clone();
+            out.push(finding);
+        }
+    }
+    out
 }

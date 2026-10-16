@@ -811,8 +811,25 @@ fn outcome(ids: &Identities, r: &Record, wants: &[Want], turned: Option<&Turned>
         }
         "linear" | "thickness" => {
             let Some(k) = k else {
-                return Outcome::Refused(not_ported(
-                    "its stations are oblique to the views' axes; the port draws a dimension along x, y or z only",
+                let [a, b] = g.stations.as_slice() else {
+                    return Outcome::Refused(not_lowered("a length needs two proven stations"));
+                };
+                let delta = [0, 1, 2].map(|k| b[k] - a[k]);
+                let Some(view) = crate::pmi_lowering::projection_view(delta) else {
+                    return Outcome::Refused(not_lowered(
+                        "its stations do not lie in a principal projection plane",
+                    ));
+                };
+                return Outcome::Standalone(own(
+                    ids,
+                    r,
+                    value,
+                    vec![view],
+                    Shape::Aligned { a: *a, b: *b },
+                    format!(
+                        "source-authored: AP242 {} between its two proven stations, exact aligned span in the {view} view",
+                        r.source_id
+                    ),
                 ));
             };
             if !r.basic

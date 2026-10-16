@@ -135,7 +135,7 @@ fn carries(w: &Want, v: &str) -> bool {
                     || w.turning
                         .is_some_and(|t| (0..3).any(|j| j != t && j != *axis && toward[j] == 0.0))
             }
-            Shape::Callout { .. } | Shape::Angular { .. } => true,
+            Shape::Callout { .. } | Shape::Angular { .. } | Shape::Aligned { .. } => true,
         }
 }
 
@@ -406,6 +406,8 @@ enum Shape {
         /// Its lane order: sizes 0, locations 1, overall extents 2.
         order: u8,
     },
+    /// An exact span between two proven stations in a principal projection plane.
+    Aligned { a: P3, b: P3 },
     /// A leader to one of these circles (centre, radius), world mm.
     Callout { sites: Vec<(P3, f64)> },
     /// An angle between two sides, drawn about its vertex ([`angular`]).
@@ -1452,7 +1454,7 @@ pub(crate) fn plan_inventory(
                 region,
                 id: w.id.clone(),
                 kind: match w.shape {
-                    Shape::Linear { .. } => "linear",
+                    Shape::Linear { .. } | Shape::Aligned { .. } => "linear",
                     Shape::Callout { .. } => "callout",
                     Shape::Angular { .. } => "angular",
                 }
@@ -1562,7 +1564,7 @@ pub(crate) fn plan_inventory(
             region,
             id: w.id,
             kind: match w.shape {
-                Shape::Linear { .. } => "linear",
+                Shape::Linear { .. } | Shape::Aligned { .. } => "linear",
                 Shape::Callout { .. } => "callout",
                 Shape::Angular { .. } => "angular",
             }
@@ -1723,7 +1725,7 @@ fn share_statements(
                 w.value,
                 pmi_dimensions::basic(&w.measurements),
             )),
-            Shape::Callout { .. } | Shape::Angular { .. } => None,
+            Shape::Callout { .. } | Shape::Angular { .. } | Shape::Aligned { .. } => None,
         }
     };
     let same = |s: &Span, t: &Span| {
@@ -1843,7 +1845,7 @@ fn share_pmi(
                 a[axis].min(b[axis]),
                 a[axis].max(b[axis]),
             )),
-            Shape::Callout { .. } | Shape::Angular { .. } => None,
+            Shape::Callout { .. } | Shape::Angular { .. } | Shape::Aligned { .. } => None,
         };
     let mut gone = BTreeSet::new();
     let order: Vec<usize> = {
@@ -2109,7 +2111,9 @@ pub fn placement_options(analysis: &Analysis, views: &[PlannedView]) -> BTreeMap
                                 vec!["left", "right"]
                             }
                         }
-                        Shape::Callout { .. } => vec!["above", "below", "left", "right"],
+                        Shape::Callout { .. } | Shape::Aligned { .. } => {
+                            vec!["above", "below", "left", "right"]
+                        }
                         Shape::Angular { .. } => return None,
                     };
                     Some(serde_json::json!({"view": name, "sides": sides}))

@@ -331,6 +331,7 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
     // Stream K4: each callout's tip against the edge it names, and its shaft against the
     // material (`leaders`).
     issues.extend(leaders::check(analysis, drawing));
+    issues.extend(pmi_coverage::source_sites(analysis, drawing));
     issues
 }
 
