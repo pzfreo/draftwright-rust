@@ -350,31 +350,6 @@ impl Proof {
         )
     }
 
-    /// An angular arc may attach at both support lines. Only its tips have attachment
-    /// clearance; all other arc ink and its label must lie in proved blank model space.
-    pub(super) fn angular_clear(&self, v: &PlannedView, p: &Placed) -> bool {
-        self.blank(v, p.label_box)
-            && p.arrows.iter().all(|a| self.touches(v, a[0]))
-            && p.lines.iter().all(|s| {
-                let d = [s[1][0] - s[0][0], s[1][1] - s[0][1]];
-                let length = d[0].hypot(d[1]);
-                let trim = |end: usize| {
-                    if self.touches(v, s[end]) {
-                        (0.6 / length.max(1e-9)).min(0.49)
-                    } else {
-                        0.
-                    }
-                };
-                let (a, b) = (trim(0), trim(1));
-                let clipped = [
-                    [s[0][0] + a * d[0], s[0][1] + a * d[1]],
-                    [s[1][0] - b * d[0], s[1][1] - b * d[1]],
-                ];
-                self.segment_clear(v, clipped, false)
-            })
-            && p.arrows.iter().all(|a| self.arrow_clear(v, *a, true))
-    }
-
     pub(super) fn annotation_clear(&self, v: &PlannedView, p: &Placed, callout: bool) -> bool {
         self.blank(v, p.label_box)
             && (!callout || self.touches(v, p.lines[0][0]))

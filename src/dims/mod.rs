@@ -8,7 +8,6 @@
 //! - **hole callouts**: draftwright's compound grammar (`4× ⌀10 THRU ⌴ ⌀16 ↧ 5 (2×2)`), with
 //!   identical holes grouped and counted, and quiddity's hole patterns called out as patterns;
 //! - **double-D bores**: one compound major-diameter and across-flats callout;
-//! - **outer-profile angles**: each non-right convex corner on the foremost facing profile;
 //! - **hole locations** from the part's box, in the view that looks along each hole, and the
 //!   pitches that locate a pattern's members;
 //! - **through slots**: width, length, an obround's end radius, and location along the slot;
@@ -77,7 +76,6 @@ mod pads;
 mod placement;
 mod plates;
 mod pmi_dimensions;
-mod profile_angles;
 mod profiled_bores;
 mod recesses;
 mod redundancy;
@@ -497,7 +495,7 @@ struct Planner {
 }
 
 /// The planners, in the order their items are planned.
-const PLANNERS: [Planner; 18] = [
+const PLANNERS: [Planner; 17] = [
     turned::PLANNER,
     envelope::PLANNER,
     stock::PLANNER,
@@ -515,7 +513,6 @@ const PLANNERS: [Planner; 18] = [
     pads::PLANNER,
     oriented_slots::PLANNER,
     profiled_bores::PLANNER,
-    profile_angles::PLANNER,
 ];
 
 /// Everything the defaults would dimension, with the problems met on the way, and what the part's
@@ -1377,7 +1374,7 @@ pub(crate) fn plan_inventory(
         &mut placed,
         &page,
     ));
-    angular::place(analysis, views, &frames, &all, &chosen, &mut placed, &page);
+    angular::place(&frames, &all, &chosen, &mut placed, &page);
     // Radius exceptions are placed around the existing drawing ink. Their addition must not
     // reroute unrelated approved callouts into clutter.
     let mut prior = chosen.clone();

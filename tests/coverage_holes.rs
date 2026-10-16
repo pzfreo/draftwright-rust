@@ -272,7 +272,18 @@ fn outer_profile_angles_keep_corner_identity_and_require_live_degree_ink() {
     a.outer_profiles.push(back);
     let requirements = draftwright::lint::profile_angles::requirements(&a);
     assert_eq!(requirements.len(), 2);
-    let good = marks(&a);
+    let good: Vec<_> = requirements
+        .iter()
+        .map(|c| Mark {
+            name: c.feature.clone(),
+            view: Some("v:plan".into()),
+            text: format!("{}°", draftwright::dims::fmt(c.degrees())),
+            claims: vec![Claim {
+                feature: c.feature.clone(),
+                parameter: "profile_angle.angle".into(),
+            }],
+        })
+        .collect();
     let gaps = |ms: &[Mark]| {
         lint::check(&a, ms)
             .into_iter()
@@ -462,7 +473,7 @@ fn a_real_two_face_bore_reports_only_its_unattributed_seat() {
 }
 
 #[test]
-fn real_outer_profiles_state_each_provider_issued_corner_angle() {
+fn independent_outer_profile_evidence_retains_every_undrawn_corner_requirement() {
     for (name, count) in [
         ("profile-trapezoid.step", 2),
         ("profile-triangle.step", 3),
@@ -477,20 +488,13 @@ fn real_outer_profiles_state_each_provider_issued_corner_angle() {
             count,
             "{name}"
         );
-        let p = model::plan(&a, &Spec::default()).unwrap();
+        let missing = lint::check(&a, &marks(&a))
+            .into_iter()
+            .filter(|i| i.code == "angular_requirement_missing")
+            .count();
         assert_eq!(
-            p.dimensions
-                .iter()
-                .filter(|d| d.kind == "angular" && d.placed.is_some())
-                .count(),
-            count,
-            "{name}"
-        );
-        assert!(
-            !lint::check(&a, &marks(&a))
-                .iter()
-                .any(|i| i.code.starts_with("angular_requirement_")),
-            "{name}"
+            missing, count,
+            "{name}: automatic arcs remain pending, not silently credited"
         );
     }
 }
