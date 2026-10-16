@@ -395,6 +395,14 @@ pub struct ViewSpec {
 pub struct Plan {
     pub schema: String,
     pub binding: Binding,
+    /// Digest of the complete Analysis, including the supplied recognition, that determined
+    /// this plan. Absent only in older saved plans. The Spec is embedded separately.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub analysis_sha256: Option<String>,
+    /// Per-occurrence policy for recognised evidence without a dimension owner. Informational;
+    /// unsupported manufacturing requirements retain their independent warnings.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub feature_dispositions: Vec<crate::dims::FeatureDisposition>,
     #[serde(default)]
     pub status: crate::completeness::Status,
     #[serde(default)]
@@ -3370,6 +3378,18 @@ fn plan_with_presentation(
     let mut plan = Plan {
         schema: PLAN_SCHEMA.into(),
         binding: analysis.binding.clone(),
+        analysis_sha256: Some(crate::planning::memo(
+            analysis,
+            "analysis_sha256",
+            Vec::new(),
+            || {
+                Sha256::digest(serde_json::to_vec(analysis).expect("analysis serializes"))
+                    .iter()
+                    .map(|b| format!("{b:02x}"))
+                    .collect()
+            },
+        )),
+        feature_dispositions: crate::dims::feature_dispositions(analysis),
         status: crate::completeness::Status::NeedsAttention,
         completeness: crate::completeness::Completeness::default(),
         sheet,

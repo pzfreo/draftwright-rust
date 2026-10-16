@@ -616,9 +616,10 @@
     adr: "ADR 3 invariant 8; archive 0017 Amendment 14"
     issues: [1245]
     tests: ["test_recognition_policy_dispositions.py", "test_issue_1245_passage_disposition.py", "test_issue_1246_prismatic_pocket_disposition.py", "test_issue_1247_angled_step_disposition.py"]
-  status: pending
+  status: ported
+  rust_test: "tests/completeness.rs::ownerless_occurrences_have_closed_policy_reasons"
   port_note: "Keep: one capability table in draftwright-rust drives both conversion and the per-occurrence disposition in Analysis."
-  rust_note: "Not ported: no capability table gives each family not drawn a disposition (unsupported, deferred, evidence_only) with a closed reason; the bridge's record-type table (bridge::home) and the planners' kinds (dims::PLANNERS) are two lists. Whether records draftwright leaves undimensioned are reported by the plan or by lint is an open maintainer question (docs/next-session.md, d-dims-split); an angled step is reported by both, as unsupported (maintainer decision 2026-10-09, ISSUE-1247-a)."
+  rust_note: "Plan.feature_dispositions records each undrafted occurrence with informational severity, one of unsupported/deferred/evidence_only and a closed reason enum. The same UNDRAFTED capability table drives completeness exemption and reporting; PLANNERS and actual planned measurements distinguish a supported recess from a remaining port gap. Recognition evidence and refusals retain per-record dispositions too. Countersinks are hole-callout evidence, not a second dimension owner; unsupported-step warnings remain independently visible."
 
 - id: ADR3-9
   statement: "Recognition is geometry-only; PMI lowering may change which feature owns a record but never what was recognised."
@@ -1147,9 +1148,10 @@
     adr: "ADR 5 invariant 16"
     issues: []
     tests: ["test_issue_1460_step_inspection.py"]
-  status: pending
+  status: ported
+  rust_test: "tests/trust_rules.rs::plan_provenance_binds_the_complete_recognition_input"
   port_note: "Keep: Analysis/Plan headers carry source hash, producer version and all options."
-  rust_note: "Not upheld for the Plan: the Analysis records its source hash, its loader (producer and version) and the recognition it took in full, but the Plan records only the analysis's binding and the spec, so two plans of one STEP file under one spec, made with different --features JSON, agree on source, producer and options yet differ. Owed: the Plan names the recognition it was planned from; the field is a document-schema choice, asked in docs/next-session.md."
+  rust_note: "Plan.analysis_sha256 binds the full deterministic effective Analysis JSON, including its recogniser, frame, features, evidence and PMI, beside the STEP binding and embedded Spec. Same STEP and Spec with different supplied recognition now have different provenance. The optional field preserves reading of legacy plans; no digest is invented for those."
 
 - id: ADR5-17
   statement: "An evidence document states what it cannot say: unclaimed geometry is not a missed feature, and what recognition rejected is reported as unavailable rather than as nothing."

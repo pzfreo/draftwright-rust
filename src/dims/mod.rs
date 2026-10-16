@@ -565,23 +565,171 @@ fn wants_uncached(
     (out, problems, notes)
 }
 
+/// The consumer policy for an occurrence with no dimension owner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Disposition {
+    Unsupported,
+    Deferred,
+    EvidenceOnly,
+}
+
+/// Closed reasons for recognised occurrences that have no dimension planner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DispositionReason {
+    ConsumerSemanticsUnsupported,
+    ConsumerSemanticsDeferred,
+    HoleCalloutEvidence,
+    DimensionsNotPorted,
+    StepLevelProjectionEvidence,
+    RiserProjectionEvidence,
+    GeometryOnlyCritique,
+    HoleRecognitionEvidence,
+    RecognitionRefused,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FeatureDisposition {
+    pub subject: String,
+    pub disposition: Disposition,
+    pub reason_code: DispositionReason,
+    pub severity: String,
+}
+
 /// quiddity record types (`Fingerprint::subtype`) draftwright gives no dimensions of their own
 /// (`model/detect.py`'s `_ORCHESTRATED_RECORDS` and `_UNCONSUMED_RECORDS`): a countersink rides on
 /// its hole's callout, and the others have no reviewed drafting grammar there (#1365, #1430,
 /// #1557). Leaving them undimensioned is no gap in the port, so they are not reported as one. An
 /// angled step (#1247) has no grammar either, but is reported as unsupported ([`unsupported`]).
-pub(crate) const UNDRAFTED: [&str; 10] = [
-    "CircularFacePattern",
-    "CounterSink",
-    "FreeformSurface",
-    "InteriorVoid",
-    "ObliqueThroughStep",
-    "OrientedChamfer",
-    "OrientedSlotArray",
-    "OrientedSlotGrid",
-    "SheetMetalBody",
-    "ThinWallBody",
+const UNDRAFTED: &[(&str, Disposition, DispositionReason)] = &[
+    (
+        "CircularFacePattern",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "CounterSink",
+        Disposition::EvidenceOnly,
+        DispositionReason::HoleCalloutEvidence,
+    ),
+    (
+        "FreeformSurface",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "InteriorVoid",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "ObliqueThroughStep",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "OrientedChamfer",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "OrientedSlotArray",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "OrientedSlotGrid",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "SheetMetalBody",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "ThinWallBody",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
 ];
+
+pub(crate) fn undrafted(f: &crate::bridge::Feature) -> bool {
+    UNDRAFTED
+        .iter()
+        .any(|(subtype, ..)| *subtype == f.fingerprint.subtype)
+}
+
+/// The capability tables drive both the undrafted exemption and its occurrence report. A
+/// planner can consume a kind it does not claim (section recesses); retain that actual proof.
+/// Authored omissions are still planned capabilities, never ownerless policy.
+pub(crate) fn feature_dispositions(analysis: &Analysis) -> Vec<FeatureDisposition> {
+    let (wants, ..) = wants(analysis);
+    let stated: BTreeSet<_> = wants
+        .iter()
+        .flat_map(|w| &w.measurements)
+        .map(|m| m.feature.as_str())
+        .collect();
+    let mut out = Vec::new();
+    let mut add = |subject: String, disposition, reason_code| {
+        out.push(FeatureDisposition {
+            subject,
+            disposition,
+            reason_code,
+            severity: "info".into(),
+        })
+    };
+    for f in &analysis.features {
+        if let Some((_, disposition, reason)) = UNDRAFTED
+            .iter()
+            .find(|(subtype, ..)| *subtype == f.fingerprint.subtype)
+        {
+            add(f.id.clone(), *disposition, *reason);
+        } else if !stated.contains(f.id.as_str())
+            && !PLANNERS.iter().any(|p| p.kinds.contains(&f.kind.as_str()))
+        {
+            let (disposition, reason) = if f.kind == "angled_step" {
+                (
+                    Disposition::Unsupported,
+                    DispositionReason::ConsumerSemanticsUnsupported,
+                )
+            } else {
+                (
+                    Disposition::Deferred,
+                    DispositionReason::DimensionsNotPorted,
+                )
+            };
+            add(f.id.clone(), disposition, reason);
+        }
+    }
+    if let Some(r) = &analysis.recognition {
+        for (i, record) in r.evidence.iter().enumerate() {
+            let reason = match record.subtype.as_str() {
+                "FaceLevel" => DispositionReason::StepLevelProjectionEvidence,
+                "RiserEvidence" => DispositionReason::RiserProjectionEvidence,
+                "RepeatingRadialProfile" => DispositionReason::GeometryOnlyCritique,
+                // The bridge admits only these four evidence types (bridge::RECORDS).
+                "HoleSpec" => DispositionReason::HoleRecognitionEvidence,
+                _ => continue,
+            };
+            add(
+                format!("recognition:evidence:{i}"),
+                Disposition::EvidenceOnly,
+                reason,
+            );
+        }
+        for (i, _) in r.refusals.iter().enumerate() {
+            add(
+                format!("recognition:refusal:{i}"),
+                Disposition::Unsupported,
+                DispositionReason::RecognitionRefused,
+            );
+        }
+    }
+    out
+}
 
 /// One problem per recognised feature of a kind no planner claims, in the Analysis's feature
 /// order. This reports a gap in the port, not in the part: draftwright converts these records to
@@ -595,7 +743,7 @@ fn not_ported(analysis: &Analysis) -> Vec<Problem> {
         .features
         .iter()
         .filter(|f| !PLANNERS.iter().any(|p| p.kinds.contains(&f.kind.as_str())))
-        .filter(|f| !UNDRAFTED.contains(&f.fingerprint.subtype.as_str()))
+        .filter(|f| !undrafted(f))
         .map(|f| {
             unsupported(f).unwrap_or_else(|| Problem {
                 id: format!("p:dimensions_not_ported:{}", f.id),

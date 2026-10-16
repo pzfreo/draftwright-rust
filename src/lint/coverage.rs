@@ -36,8 +36,8 @@
 //!
 //! Python reports one location finding per code for the sheet, with the number of holes; the
 //! port does too, with Python's message, naming the holes as its subjects (and, for a location,
-//! each axis not located as a requirement). The severity is a warning: Python's is info on a
-//! part of several solids, which the Analysis does not record. Double-D bores are located and
+//! each axis not located as a requirement). The drawing-wide collector makes missing-feature
+//! coverage informational on a part of several solids. Double-D bores are located and
 //! centre-marked as holes are (Python's `profiled_bores`, [`sites`]). General authored
 //! diameter-note authority is not ported. A boss whose defining face and circle belong to a
 //! uniquely proven blend is excluded from the diameter inventory ([`super::bosses::boss_owner`]);
@@ -733,7 +733,11 @@ pub fn drawn_centre_marks(analysis: &Analysis, drawing: &crate::output::Drawing)
             marks: drawing.sheet.centre_marks.clone(),
             witnesses: BTreeMap::new(),
         },
-        Severity::Warning,
+        if analysis.solid_count.is_some_and(|n| n > 1) {
+            Severity::Info
+        } else {
+            Severity::Warning
+        },
     )
     .into_iter()
     .filter(|i| i.code == "feature_no_centermark")

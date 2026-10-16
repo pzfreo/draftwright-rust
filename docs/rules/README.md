@@ -25,10 +25,10 @@ pads, oriented slot callouts, any end-to-end span carrying an extent, exact grou
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 46 | 56 | 33 | 25 |
-| `lint.yaml` | 43 | 109 | 0 | 13 |
+| `adr.yaml` | 44 | 58 | 33 | 25 |
+| `lint.yaml` | 42 | 110 | 0 | 13 |
 | `issues.yaml` | 101 | 62 | 6 | 21 |
-| **All** | **190** | **227** | **39** | **59** |
+| **All** | **187** | **230** | **39** | **59** |
 
 The assessment rated each of the 353 rules then pending; 20 rules pending today were not rated.
 Rules it found done but with no test to name, or with a real remainder, stay pending with a

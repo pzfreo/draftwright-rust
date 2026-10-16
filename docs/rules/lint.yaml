@@ -52,7 +52,9 @@
     module: "linting/coverage.py"
     issues: [69]
     tests: [tests/test_lint_coverage.py]
-  status: pending
+  status: ported
+  rust_note: "The drawing-wide lint collector applies one solid_count > 1 policy to every feature-coverage family, including family modules that return Warning themselves. Evidence, codes and requirement IDs stay identical. Centre-mark and relief-note coverage use the same assembly decision. Structural, PMI and contradictory-measurement findings retain their independent severity; absent solid_count remains strict like a single solid."
+  rust_test: "tests/completeness.rs::assembly_severity_reaches_all_feature_coverage_families"
   port_note: "Keep: severity switch keyed on drawing kind (part vs assembly)."
 
 - id: LINT-_coverage_common-exact_correspondence
