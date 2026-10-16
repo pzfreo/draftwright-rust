@@ -363,7 +363,7 @@
       "views_overlap": 0
     },
     "string_post": {
-      "hidden_on_visible": 26,
+      "hidden_on_visible": 25,
       "ink": 1,
       "line_through_feature": 0,
       "off_sheet": 0,
@@ -375,7 +375,7 @@
       "views_overlap": 0
     }
   },
-  "source": "docs/status-2026-10-10.md: Stage H second pass (h-chains merged; h-extlines backed out)",
-  "source_commit": "d3c1fec3",
-  "verified_binary_sha256": "2d5d127be8f628d9a700e1214cbf8ad60eb63f60585657994b8242ffe784fdc6"
+  "source": "docs/rules/verification-pmi-precision-2026-10-16.md: 30-part run; records the existing K5 string_post hidden_on_visible improvement",
+  "source_commit": "a12205aed09624c92ba2d24be316b842e21ee51e",
+  "verified_binary_sha256": "9f843ea65f77cd52f9863c37354a420d33572db5057cd773f312f1aa8d0fb3df"
 }
