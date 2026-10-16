@@ -280,7 +280,11 @@ message names it (`…; A4 at 1:1 fits.`).
 
 #### Sheet allocation (R5, Stage I)
 
-`sheets.max` allows 1–9 sheets; absent means one. `sheets.smallest_scale` is an ISO
+`sheets.max` allows 1–9 sheets. An explicit count is binding. With no count,
+the normal search starts with one sheet; a small part with no valid complete A4/A3
+single-sheet drawing tries R5 allocation on A4/A3 before A2 or larger (up to the
+existing nine-sheet bound). Named paper keeps the original default of one.
+See the [R5 small-part amendment](adr/R5-multi-sheet.md#small-part-overflow-amendment-2026-10-16). `sheets.smallest_scale` is an ISO
 5455 scale floor, `keep_together` is a list of groups of view names (also allowing
 `hole_table`), `hole_table` assigns a rescue hole table if escalation actually makes
 one, and `gdt_on_sheet_1` records that requirement. A hole-table assignment does not
@@ -297,7 +301,27 @@ an explicit sheet assignment remains possible for an auxiliary group. A stated
 scale or lower the floor. List-index edits are supported only for
 `tables/<index>/sheet`, with `set` and `remove`.
 
-Without sheet controls the existing planner path and serialized bytes are unchanged.
+The [2026-10-16 audit](second-sheet-audit.csv) lists all 68 small A2+ cases found
+among 2,150 native default/spec cases over 190 corpus and fixture STEP inputs
+(baseline `53aa9f3f`, origin/main at the start of the change). All 63 source hashes
+in the captured single-sheet spec fixture are covered. Three selections
+improved: 10224 and 10255 use one A3 sheet at 2:1 after measured section
+correction; GRM-03's fixed 10:1 spec fits one A3. The
+[follow-up review](second-sheet-review.md) records the original candidate failures,
+auxiliary-page composition and references checked against drawn target positions.
+The 44 named large-paper requests stay as authored. Every other small
+large-paper case records both failed practical-paper allocations. The report's
+required-drop count includes unreadably crowded location dimensions. When no
+allocation prefix is clean, the reported best step may be the original one-sheet
+step; each audit's `audit.json` retains every paper/scale and moved-prefix trial.
+All 742 cases whose full-size views need larger paper retain their size, scale
+and count.
+
+Run `cargo run --release --example sheet_policy_audit -- CORPUS OUT` against each
+revision, then `python3 -I tools/compare_sheet_policy.py BEFORE/audit.json
+AFTER/audit.json OUT` to reproduce the case table and the unchanged-large-part gate.
+
+Without sheet controls a valid single A4/A3 drawing keeps the existing planner path.
 A floor alone enters the existing recovery. With `sheets.max > 1`, each allocation
 prefix uses the existing finished-sheet recovery with the floor, including table
 recovery. There are at most four prefixes; H6's exhaustive selection supersedes
@@ -368,6 +392,11 @@ also take `offset` (below):
 | `along` | A fraction 0–1, or `start`, `middle`, `end`, `outside` (1.25). A linear label is centred at that fraction of its witness span; at `outside` it sits just past the line's far end, the dimension line run on to it, as a span too short for its label has it (#32: 1.25 of a long span stranded the text). Leadered labels use that fraction of the view's extent along the strip, keeping their original feature attachment. |
 | `offset` | Callouts only: `[dx, dy]`, each within ±1000 paper mm (y up), the bend's offset from the callout's automatic leader tip. Requires `pinned: true` and excludes `side`, `lane` and `along`. |
 | `pinned` | Defaults to false. True fixes the resolved geometry before automatic layout; without side, lane or along it keeps the canonical automatic ink (its lines and arrows; a label whose own text changes, such as a new tolerance, is re-set from its current text, centred where the old one was, or for a callout from the end of its shoulder); a free item can be adjusted around obstacles. |
+
+An unpinned callout with only `side` (and optionally `view`) keeps participating in the
+shared leader solve. Its candidates stay on that side, its printed label reserves paper space
+before view packing, and the solver chooses a station clear of other ink. Supplying `lane`,
+`along` or a pin continues to prescribe a station.
 
 A pinned callout above or below a view puts its text on the side its leader runs to:
 an elbow left of the tip carries text to the left, and a vertical leader defaults to the
@@ -488,6 +517,22 @@ reviewed by re-planning. Exports embed these entries, so extracting the Spec and
 reproduces the same geometry (`tests/placement_intent.rs`, SVG, DXF, PDF and PNG).
 
 ### Plan: what the sheet will say
+
+`analysis_sha256` identifies the complete effective Analysis used for planning, including its
+recognition records and recogniser, beside the STEP `binding` and embedded `spec`. It is a
+SHA-256 digest of the deterministic JSON serialization, not merely the source-file hash;
+changing `--features` therefore changes the run's provenance even for the same STEP and Spec.
+Older saved plans read with no digest.
+
+`feature_dispositions` reports each recognised occurrence without a dimension owner. Its
+`subject` is a feature ID, or `recognition:evidence:<index>` / `recognition:refusal:<index>` in
+the Analysis's same-run record arrays. Each informational entry has a closed `disposition`
+(`unsupported`, `deferred`, `evidence_only`) and `reason_code`. The dimension planners and their
+undrafted capability table supply the policy: a countersink is hole-callout evidence, while
+unreviewed freeform, sheet-metal and similar grammars are deferred. Evidence-only step levels,
+risers and repeating profiles keep their own reasons. These records do not remove completeness
+or unsupported-feature warnings, and an authored omission is not an ownerless disposition.
+
 
 `plan(analysis, spec)` produces it. The plan is the preview, and renderers draw only from it.
 
@@ -795,6 +840,15 @@ and slot length for a floor interval, a slot's width and location for a shoulder
 controlling dimension; a pinned reference kept after its chain was edited has `reference: true`
 and no `determined_by`. A flush boss height is credited from
 the same stated envelope interval, without reading the omission.
+An authored set decides what is drawn, not where the geometry states a fact (stream K6,
+ISSUE-1154-a): an item the set leaves out that the automatic plan would cover by an owner the
+set keeps is `covered` by that owner, with the automatic basis, rather than `not_authored`, and
+the owner carries the same claims; an owner the set leaves out takes nothing. A boss height
+closed by a stated ladder rung and the overall height (a boss standing on a face level) is the
+chain's reference member, determined by the rung and the overall height. Lint reports a
+bracketed label that prints a tolerance or a fit (`toleranced_reference`: a reference dimension
+is only for a redundant, untoleranced one) and a linear or grid pattern's pitch printed beside
+every member's own location along that axis (`over_dimensioned_pattern`, ADR4-U1).
 
 The Plan also carries `status` (`clear` or `needs_attention`) and `completeness`:
 `claimed_faces`, `faces` and `unplanned_features`. Face claims are the distinct valid
@@ -978,7 +1032,9 @@ modifiers?, default, basis, placed}` (`surface_finish` added by F2, draftwright-
 - **A datum feature symbol** for each datum whose faces are all planes, or all cylinders, on one
   principal plane or axis: in the view that sees it edge-on (x and z: front; y: side; a y-normal
   plane goes to the plan when the side view is not drawn), on the side its outward normal points
-  to (a cylinder's: its site's), from a proven site on its first face. Drawn as ISO 5459 draws it:
+  to, from a proven site on its face. A cylinder may use either silhouette proved against
+  the trimmed face; a plane may use a drawn extension of its edge-on face beyond either end
+  of the view outline, with the triangle standing on that extension. Drawn as ISO 5459 draws it:
   the filled triangle on the surface, a line along the normal, the letter in a square frame.
 - **A surface texture symbol** (`surface_finish`) for each face's AP242 surface texture (ISO
   10303-1110, which draftwright does not read): attached as a datum's symbol is (its faces all
@@ -987,12 +1043,23 @@ modifiers?, default, basis, placed}` (`surface_finish` added by F2, draftwright-
   standing on its leader's shelf, the leader's arrowhead on the edge line, the material removal
   condition's bar or circle, and its parameters under the bar, one per cell and line (`Ra 0.8`,
   µm). A face no principal view shows edge-on (a cone, a tilted plane) is `pmi_not_lowered`; one
-  whose view is not drawn is `pmi_not_drawn`. It keeps its strip, as a datum does.
-- **Placement**: in its strip beyond every dimension of its view there, nearest tier first,
-  clear of the sheet's edge, the views, the title block, other labels and leaders; a frame with
-  no clear tier tries draftwright's other strips, a datum keeps its side; one with no clear place
-  keeps its first tier and its collisions are reported as the dimensions' are. Notes and tables
-  keep clear of the frames.
+  whose view is not drawn is `pmi_not_drawn`. It keeps its outward strip.
+- **Placement**: automatic datums first try inside tiers between their face and the first
+  dimension lane, with normal triangle, shaft, frame and lane clearances. All inside sites
+  are searched before the existing tiers beyond the dimensions. Cylinder alternatives use
+  either proven silhouette; planar alternatives draw an extension outside either end of the
+  view, with a 1 mm outline gap and overrun past the triangle. Sites nearest the original win
+  equal grades. Frames and labels also retry the other strips. Every glyph's obstacle grade
+  includes the count of crossings with dimension and extension lines, arrow shafts and other
+  leaders, using the collision reporter's predicate (including collinear travel). Grade zero
+  requires zero crossings; equal clearance classes prefer fewer crossings. The original
+  complete arrangement remains a candidate. A replacement cannot introduce an annotation
+  contact with a new unordered pair of subjects (reporting direction does not affect the
+  comparison), so a greedy move cannot crowd later frames into overlaps. If the full
+  rearrangement fails this guard, datum changes are tried alone. Unavoidable
+  collisions stay visible and are reported. Notes and tables keep clear of the frames.
+  Explicit coordinates retain their strip/tier behavior; pins keep their resolved geometry.
+  An empty `place: {}` reset restores automatic placement, including inside datum tiers.
 - **Render**: strokes for the frame, the symbols and rings, the font's glyphs for letters and
   numbers (`⌀` drawn as a ring and a stroke, `S⌀` as `Sø`), and one invisible text run per
   compartment (`⌖`, `⌀0.05Ⓜ`, `A`), so the PDF and SVG text layers can be searched; lint reads
@@ -1006,7 +1073,9 @@ modifiers?, default, basis, placed}` (`surface_finish` added by F2, draftwright-
   with `pmi="annotate"`; the port draws it whenever the part has some.
 
 Compared item by item with draftwright on 14 AP242 files (`tests/pmi_lowering.rs`,
-`tests/fixtures/known_pmi_lowering.json`).
+`tests/fixtures/known_pmi_lowering.json`). Datum placement's
+[base/head survey and render evidence](datum-placement.md) records the corpus/fixture
+crossing and overlap counts and the spindle's inside-lane and face-extension placements.
 
 ### Datums and controls authored in the Spec
 
@@ -1246,7 +1315,16 @@ discriminator from what it states, as the height ladder's rungs are told apart b
 
 The spec chooses the source (ADR4-5): `"dimension_source": "auto"` (the default: the defaults
 less `dimensions/<id>/omit`) or `"authored"` (exactly the IDs listed in `dimensions`, a complete
-set). Omitted items are listed in the Plan's `omitted` with their basis. In an edit path, the
+set). Omitted items are listed in the Plan's `omitted` with their basis. A correlated set, the
+height ladder's rungs or the ladder's shoulders along one axis, is approved or omitted whole
+(stream K6, ARCH0015-2): each member keeps its own ID, and the spec's decision on any member is
+the set's. With `auto`, omitting one member omits the others too (`omitted_by_user`, the basis
+naming the set); with `authored`, listing one member draws the others. Either way an `info`
+problem `correlated_set_whole` names the members the decision spread to (with `auto`, its fix
+removes the omission). An omission never overrides a member the spec decides itself (any entry
+on it: a tolerance, a view, a place, `omit: false`): that set is drawn as the spec states it,
+half omitted, with a `correlated_set_conflict` warning naming the omitted and the decided members,
+its fix removing the omission. A turned profile's chain is not such a set. In an edit path, the
 `/` inside a dimension's ID is written `~1`, as in a JSON pointer:
 `{"op": "set", "path": "dimensions/d:envelope~1width.length/omit", "value": true}`.
 

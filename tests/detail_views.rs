@@ -284,3 +284,66 @@ fn omitting_an_automatic_detail_does_not_rename_it() {
             .any(|d| d.id == "d:f:turned_step:3/step.length" && d.view == "v:front")
     );
 }
+
+/// K6 ownership survives moving a requirement to a crop, including authored sets and
+/// tolerances on saved IDs. Rendering must not credit the parent a second time.
+#[test]
+fn detail_measurements_keep_one_owner_in_automatic_and_authored_sets() {
+    use draftwright::model::{DimensionSource, DimensionSpec};
+    use std::collections::BTreeMap;
+    let Some(a) = string_post() else { return };
+    let automatic = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let authored = Spec {
+        dimension_source: DimensionSource::Authored,
+        dimensions: automatic
+            .dimensions
+            .iter()
+            .map(|d| (d.id.clone(), DimensionSpec::default()))
+            .collect(),
+        ..Spec::default()
+    };
+    for spec in [Spec::default(), authored] {
+        let plan = model::plan_recovered(&a, &spec).unwrap();
+        assert!(plan.views.iter().any(|v| v.detail.is_some()));
+        let mut owners = BTreeMap::new();
+        for d in plan
+            .dimensions
+            .iter()
+            .filter(|d| d.placed.is_some() && !d.reference)
+        {
+            for m in &d.measurements {
+                assert!(
+                    owners
+                        .insert((m.feature.clone(), m.parameter.clone()), d.id.clone())
+                        .is_none(),
+                    "measurement {m:?} repeated by {}",
+                    d.id
+                );
+            }
+        }
+        for d in automatic
+            .dimensions
+            .iter()
+            .filter(|d| d.view.starts_with("v:detail_"))
+        {
+            let moved = plan
+                .dimensions
+                .iter()
+                .find(|p| p.id == d.id)
+                .expect("same owner ID");
+            assert_eq!(moved.view, d.view);
+            assert_eq!(moved.measurements, d.measurements);
+        }
+        for omitted in &plan.omitted {
+            if let draftwright::items::State::Covered { by } = &omitted.state {
+                assert!(
+                    plan.dimensions
+                        .iter()
+                        .any(|d| d.id == *by && d.placed.is_some()),
+                    "{}: {by}",
+                    omitted.id
+                );
+            }
+        }
+    }
+}

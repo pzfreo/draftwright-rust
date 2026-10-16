@@ -598,23 +598,171 @@ fn wants_uncached(
     (out, problems, notes)
 }
 
+/// The consumer policy for an occurrence with no dimension owner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Disposition {
+    Unsupported,
+    Deferred,
+    EvidenceOnly,
+}
+
+/// Closed reasons for recognised occurrences that have no dimension planner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DispositionReason {
+    ConsumerSemanticsUnsupported,
+    ConsumerSemanticsDeferred,
+    HoleCalloutEvidence,
+    DimensionsNotPorted,
+    StepLevelProjectionEvidence,
+    RiserProjectionEvidence,
+    GeometryOnlyCritique,
+    HoleRecognitionEvidence,
+    RecognitionRefused,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FeatureDisposition {
+    pub subject: String,
+    pub disposition: Disposition,
+    pub reason_code: DispositionReason,
+    pub severity: String,
+}
+
 /// quiddity record types (`Fingerprint::subtype`) draftwright gives no dimensions of their own
 /// (`model/detect.py`'s `_ORCHESTRATED_RECORDS` and `_UNCONSUMED_RECORDS`): a countersink rides on
 /// its hole's callout, and the others have no reviewed drafting grammar there (#1365, #1430,
 /// #1557). Leaving them undimensioned is no gap in the port, so they are not reported as one. An
 /// angled step (#1247) has no grammar either, but is reported as unsupported ([`unsupported`]).
-pub(crate) const UNDRAFTED: [&str; 10] = [
-    "CircularFacePattern",
-    "CounterSink",
-    "FreeformSurface",
-    "InteriorVoid",
-    "ObliqueThroughStep",
-    "OrientedChamfer",
-    "OrientedSlotArray",
-    "OrientedSlotGrid",
-    "SheetMetalBody",
-    "ThinWallBody",
+const UNDRAFTED: &[(&str, Disposition, DispositionReason)] = &[
+    (
+        "CircularFacePattern",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "CounterSink",
+        Disposition::EvidenceOnly,
+        DispositionReason::HoleCalloutEvidence,
+    ),
+    (
+        "FreeformSurface",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "InteriorVoid",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "ObliqueThroughStep",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "OrientedChamfer",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "OrientedSlotArray",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "OrientedSlotGrid",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "SheetMetalBody",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "ThinWallBody",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
 ];
+
+pub(crate) fn undrafted(f: &crate::bridge::Feature) -> bool {
+    UNDRAFTED
+        .iter()
+        .any(|(subtype, ..)| *subtype == f.fingerprint.subtype)
+}
+
+/// The capability tables drive both the undrafted exemption and its occurrence report. A
+/// planner can consume a kind it does not claim (section recesses); retain that actual proof.
+/// Authored omissions are still planned capabilities, never ownerless policy.
+pub(crate) fn feature_dispositions(analysis: &Analysis) -> Vec<FeatureDisposition> {
+    let (wants, ..) = wants(analysis);
+    let stated: BTreeSet<_> = wants
+        .iter()
+        .flat_map(|w| &w.measurements)
+        .map(|m| m.feature.as_str())
+        .collect();
+    let mut out = Vec::new();
+    let mut add = |subject: String, disposition, reason_code| {
+        out.push(FeatureDisposition {
+            subject,
+            disposition,
+            reason_code,
+            severity: "info".into(),
+        })
+    };
+    for f in &analysis.features {
+        if let Some((_, disposition, reason)) = UNDRAFTED
+            .iter()
+            .find(|(subtype, ..)| *subtype == f.fingerprint.subtype)
+        {
+            add(f.id.clone(), *disposition, *reason);
+        } else if !stated.contains(f.id.as_str())
+            && !PLANNERS.iter().any(|p| p.kinds.contains(&f.kind.as_str()))
+        {
+            let (disposition, reason) = if f.kind == "angled_step" {
+                (
+                    Disposition::Unsupported,
+                    DispositionReason::ConsumerSemanticsUnsupported,
+                )
+            } else {
+                (
+                    Disposition::Deferred,
+                    DispositionReason::DimensionsNotPorted,
+                )
+            };
+            add(f.id.clone(), disposition, reason);
+        }
+    }
+    if let Some(r) = &analysis.recognition {
+        for (i, record) in r.evidence.iter().enumerate() {
+            let reason = match record.subtype.as_str() {
+                "FaceLevel" => DispositionReason::StepLevelProjectionEvidence,
+                "RiserEvidence" => DispositionReason::RiserProjectionEvidence,
+                "RepeatingRadialProfile" => DispositionReason::GeometryOnlyCritique,
+                // The bridge admits only these four evidence types (bridge::RECORDS).
+                "HoleSpec" => DispositionReason::HoleRecognitionEvidence,
+                _ => continue,
+            };
+            add(
+                format!("recognition:evidence:{i}"),
+                Disposition::EvidenceOnly,
+                reason,
+            );
+        }
+        for (i, _) in r.refusals.iter().enumerate() {
+            add(
+                format!("recognition:refusal:{i}"),
+                Disposition::Unsupported,
+                DispositionReason::RecognitionRefused,
+            );
+        }
+    }
+    out
+}
 
 /// One problem per recognised feature of a kind no planner claims, in the Analysis's feature
 /// order. This reports a gap in the port, not in the part: draftwright converts these records to
@@ -628,7 +776,7 @@ fn not_ported(analysis: &Analysis) -> Vec<Problem> {
         .features
         .iter()
         .filter(|f| !PLANNERS.iter().any(|p| p.kinds.contains(&f.kind.as_str())))
-        .filter(|f| !UNDRAFTED.contains(&f.fingerprint.subtype.as_str()))
+        .filter(|f| !undrafted(f))
         .map(|f| {
             unsupported(f).unwrap_or_else(|| Problem {
                 id: format!("p:dimensions_not_ported:{}", f.id),
@@ -832,6 +980,64 @@ fn route(
         end_on.push(along);
     }
     (chosen, end_on)
+}
+
+/// Paper-space room for unpinned, side-only callouts. Keep the same labels as the solver,
+/// including threads and authored tolerances, and reserve the column before packing views.
+pub(crate) fn callout_bands(
+    analysis: &Analysis,
+    spec: &Spec,
+) -> Result<Vec<crate::layout::CalloutBand>, Invalid> {
+    if !spec.dimensions.values().any(|d| {
+        d.place
+            .as_ref()
+            .and_then(crate::placement_intent::side_hint)
+            .is_some()
+    }) {
+        return Ok(Vec::new());
+    }
+    let (wants, ..) = wants(analysis);
+    let mut kept: Vec<_> = wants
+        .into_iter()
+        .map(|w| (w, false, None, Vec::new()))
+        .collect();
+    tolerance::apply(analysis, spec, &mut kept, &[], &mut Vec::new())?;
+    Ok(kept
+        .iter()
+        .filter_map(|(w, ..)| {
+            if !matches!(w.shape, Shape::Callout { .. }) {
+                return None;
+            }
+            let entry = spec.dimensions.get(&w.id)?;
+            if entry.omit {
+                return None;
+            }
+            let place = entry.place.as_ref()?;
+            let side = crate::placement_intent::side_hint(place)?;
+            let view = place
+                .view
+                .as_deref()
+                .or(entry.view.as_deref())
+                .unwrap_or(w.views[0]);
+            let view = *NAMES.iter().find(|n| **n == view)?;
+            if spec.views.get(view).is_some_and(|v| v.omit) {
+                return None;
+            }
+            use crate::placement_intent::Side;
+            let ink = label_ink(&w.terms, font());
+            let (side, depth) = match side {
+                Side::Left => ("left", ink.max[0] - ink.min[0] + SHOULDER),
+                Side::Right => ("right", ink.max[0] - ink.min[0] + SHOULDER),
+                Side::Above => ("above", TEXT + LIFT),
+                Side::Below => ("below", TEXT + LIFT),
+            };
+            Some(crate::layout::CalloutBand {
+                view,
+                side,
+                depth: FIRST + depth + 2.0,
+            })
+        })
+        .collect())
 }
 
 /// The lanes the defaults' dimensions take beside the principal *views* (name, direction towards
@@ -1210,8 +1416,59 @@ fn plan_inventory_uncached(
     let owner = placement::owners(analysis, &all, &chosen);
     let mut omitted = Vec::new();
     let mut kept = Vec::new();
+    // The default consolidation of every item, independent of the spec: what an omission or an
+    // authored set is measured against (lanes, reference ink, authored-set parity).
+    let default_plan = (spec.dimension_source == DimensionSource::Authored
+        || spec.dimensions.values().any(|d| d.omit))
+    .then(|| {
+        let mut defaults: Vec<_> = all
+            .iter()
+            .cloned()
+            .zip(chosen.iter().copied())
+            .map(|(w, view)| (w, true, view, Vec::new()))
+            .collect();
+        let mut unused = Vec::new();
+        plates::consolidate(analysis, &mut defaults, &mut unused);
+        bosses::consolidate(analysis, &mut defaults, &mut unused);
+        let mut nominal = vec![Vec::new(); defaults.len()];
+        holes::consolidate(analysis, &mut defaults, &mut nominal, &mut unused);
+        plates::share(analysis, &mut defaults, &mut nominal, &mut unused);
+        share_statements(&mut defaults, &mut nominal, &mut unused, true);
+        share_pmi(&mut defaults, &mut nominal, &mut unused);
+        redundancy::consolidate(analysis, &mut defaults, &mut nominal, &mut unused);
+        (defaults, unused)
+    });
+    // A rung the defaults hand to an item outside its set (a height the overall extent conveys)
+    // is not the set's to approve: an authored set that leaves that owner out leaves it out too.
+    let conveyed: BTreeSet<&str> = default_plan
+        .as_ref()
+        .map(|(_, unused)| {
+            unused
+                .iter()
+                .filter(|u| {
+                    matches!(&u.state, State::Covered { by }
+                        if correlated_set(by) != correlated_set(&u.id))
+                })
+                .map(|u| u.id.as_str())
+                .collect()
+        })
+        .unwrap_or_default();
+    let (with_set, set_problems) = correlated_sets(spec, &wants, &conveyed);
+    problems.extend(set_problems);
     for ((w, view), along) in wants.into_iter().zip(chosen.iter().copied()).zip(end_on) {
         let entry = spec.dimensions.get(&w.id);
+        if let Some(basis) = with_set.get(&w.id) {
+            match spec.dimension_source {
+                DimensionSource::Auto => omitted.push(Omitted {
+                    label: w.terms.join(" "),
+                    id: w.id,
+                    basis: basis.clone(),
+                    state: State::OmittedByUser,
+                }),
+                DimensionSource::Authored => kept.push((w, true, view, along)),
+            }
+            continue;
+        }
         match spec.dimension_source {
             DimensionSource::Auto if entry.is_some_and(|e| e.omit) => omitted.push(Omitted {
                 label: w.terms.join(" "),
@@ -1219,13 +1476,29 @@ fn plan_inventory_uncached(
                 basis: "authored: the spec omits it".into(),
                 state: State::OmittedByUser,
             }),
-            DimensionSource::Authored if entry.is_none() => omitted.push(Omitted {
-                label: w.terms.join(" "),
-                id: w.id,
-                basis: "authored: not in the spec's complete set (dimension_source authored)"
-                    .into(),
-                state: State::NotAuthored,
-            }),
+            DimensionSource::Authored if entry.is_none() => {
+                // An authored set still keeps the automatic inventory. Surface every
+                // unstated item by name, even when another measurement locates its feature.
+                problems.push(Problem {
+                    id: format!("p:dimension_not_authored:{}", w.id),
+                    code: "dimension_not_authored".into(),
+                    severity: "warning".into(),
+                    message: format!(
+                        "{} is not drawn: the authored dimension set does not list it. Add it to the set to draw it.",
+                        crate::wording::capital(&wording_of(&w))
+                    ),
+                    subjects: vec![w.id.clone()],
+                    fix: vec![Op::set(format!("dimensions/{}", crate::items::key(&w.id)), serde_json::json!({}))],
+                    ..Default::default()
+                });
+                omitted.push(Omitted {
+                    label: w.terms.join(" "),
+                    id: w.id,
+                    basis: "authored: not in the spec's complete set (dimension_source authored)"
+                        .into(),
+                    state: State::NotAuthored,
+                });
+            }
             _ => kept.push((w, entry.is_none(), view, along)),
         }
     }
@@ -1247,31 +1520,13 @@ fn plan_inventory_uncached(
     // included); one the spec omits keeps its default label and its place, so it leaves a gap.
     // An item the defaults merge away (a height the overall extent conveys among them) takes no
     // lane: it shares its survivor's.
-    let labels: BTreeMap<&str, &[String]> = kept
-        .iter()
-        .map(|(w, ..)| (w.id.as_str(), w.terms.as_slice()))
-        .collect();
     // Omission changes a reference back to a controlling dimension, but not its
     // witness lane or text centre. Reserve the default reference's ink during layout.
     let mut reference_terms = BTreeMap::new();
-    if spec.dimension_source == DimensionSource::Authored
-        || spec.dimensions.values().any(|d| d.omit)
-    {
-        let mut defaults: Vec<_> = all
-            .iter()
-            .cloned()
-            .zip(chosen.iter().copied())
-            .map(|(w, view)| (w, true, view, Vec::new()))
-            .collect();
-        let mut unused = Vec::new();
-        plates::consolidate(analysis, &mut defaults, &mut unused);
-        bosses::consolidate(analysis, &mut defaults, &mut unused);
-        let mut nominal = vec![Vec::new(); defaults.len()];
-        holes::consolidate(analysis, &mut defaults, &mut nominal, &mut unused);
-        plates::share(analysis, &mut defaults, &mut nominal, &mut unused);
-        share_statements(&mut defaults, &mut nominal, &mut unused, true);
-        share_pmi(&mut defaults, &mut nominal, &mut unused);
-        redundancy::consolidate(analysis, &mut defaults, &mut nominal, &mut unused);
+    if let Some((defaults, unused)) = default_plan {
+        if spec.dimension_source == DimensionSource::Authored {
+            redundancy::authored_parity(&all, &defaults, &unused, &mut kept, &mut omitted);
+        }
         reference_terms.extend(defaults.into_iter().filter_map(|(w, ..)| {
             w.terms
                 .first()
@@ -1279,6 +1534,10 @@ fn plan_inventory_uncached(
                 .then_some((w.id, w.terms))
         }));
     }
+    let labels: BTreeMap<&str, &[String]> = kept
+        .iter()
+        .map(|(w, ..)| (w.id.as_str(), w.terms.as_slice()))
+        .collect();
     let all: Vec<Want> = all
         .into_iter()
         .map(|mut w| {
@@ -1557,6 +1816,9 @@ fn plan_inventory_uncached(
         && intended.iter().all(Option::is_none)
     {
         placement::clear_linear(
+            analysis,
+            cache,
+            views,
             &frames,
             &all,
             &chosen,
@@ -1579,6 +1841,7 @@ fn plan_inventory_uncached(
     let mut leader_problems = if obstacles.is_empty() {
         leaders::place(
             analysis,
+            spec,
             cache,
             views,
             &frames,
@@ -1591,6 +1854,7 @@ fn plan_inventory_uncached(
     } else {
         leaders::place_with_obstacles(
             analysis,
+            spec,
             cache,
             views,
             &frames,
@@ -1605,6 +1869,7 @@ fn plan_inventory_uncached(
     if prior != chosen {
         leader_problems.extend(leaders::place_with_obstacles(
             analysis,
+            spec,
             cache,
             views,
             &frames,
@@ -1938,6 +2203,132 @@ fn share(
     share_statements(kept, given, omitted, false);
 }
 
+/// The correlated set a dimension belongs to (ARCH0015-2): the height ladder's rungs (its counted
+/// rise among them), or the ladder's shoulders along one axis. None for any other dimension: a
+/// turned profile's chain is not one, since omitting one link of a chain is ordinary drafting
+/// and its baseline already restores a band's length when a rung is omitted (#33).
+fn correlated_set(id: &str) -> Option<&str> {
+    const HEIGHTS: &str = "d:step_level/step_height.length";
+    if id.starts_with(HEIGHTS) {
+        return Some(HEIGHTS);
+    }
+    let rest = id.strip_prefix("d:step_level/step_position.length.")?;
+    let axis = rest.get(..1).filter(|a| ["x", "y", "z"].contains(a))?;
+    Some(&id[..id.len() - rest.len() + axis.len()])
+}
+
+/// Stream K6 (ARCH0015-2): a correlated set (the step-height ladder, the shoulders along an
+/// axis) is approved or omitted whole, never half a staircase. Each member keeps its own ID
+/// (ADR4-6), so the spec's decision on any member applies to the set: with the automatic source,
+/// omitting one member omits the others too; with an authored set, listing one member approves
+/// the others. An omission never overrides a member the spec decides itself (any entry on it):
+/// that set is left as the spec states it, with a `correlated_set_conflict` warning. Returns, by
+/// ID, each member the decision spreads to with its basis, and an `info` problem per set saying so.
+/// With an authored set, a member in *conveyed* (one the defaults hand to an item outside its
+/// set) is not approved by the set: it stays with its owner, conveyed or not authored as main's
+/// authored-set parity decides.
+fn correlated_sets(
+    spec: &Spec,
+    wants: &[Want],
+    conveyed: &BTreeSet<&str>,
+) -> (BTreeMap<String, String>, Vec<Problem>) {
+    let mut sets: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    let auto = spec.dimension_source == DimensionSource::Auto;
+    for w in wants {
+        if !auto && conveyed.contains(w.id.as_str()) {
+            continue;
+        }
+        if let Some(set) = correlated_set(&w.id) {
+            sets.entry(set).or_default().push(&w.id);
+        }
+    }
+    let mut spread = BTreeMap::new();
+    let mut problems = Vec::new();
+    for (set, members) in sets {
+        let decided: Vec<&str> = members
+            .iter()
+            .copied()
+            .filter(|id| spec.dimensions.get(*id).is_some_and(|e| !auto || e.omit))
+            .collect();
+        let rest: Vec<&str> = members
+            .iter()
+            .copied()
+            .filter(|id| !decided.contains(id))
+            .collect();
+        if decided.is_empty() || rest.is_empty() {
+            continue;
+        }
+        let what = if set.contains("step_height") {
+            "the height ladder".to_string()
+        } else {
+            format!("the ladder's shoulders along {}", &set[set.len() - 1..])
+        };
+        let named = decided.join(", ");
+        let restore: Vec<Op> = decided
+            .iter()
+            .map(|id| Op::remove(format!("dimensions/{}/omit", crate::items::key(id))))
+            .collect();
+        // A member the spec decides itself (a tolerance, a view, a place, `omit: false`) keeps
+        // that decision: the omission is not spread over it, and the conflict is reported, its
+        // fix restoring the set (the author's requirement on the member must reach the sheet).
+        let own: Vec<&str> = if auto {
+            rest.iter()
+                .copied()
+                .filter(|id| spec.dimensions.contains_key(*id))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        if !own.is_empty() {
+            let kept = own.join(", ");
+            problems.push(Problem {
+                id: format!("p:correlated_set_conflict:{set}"),
+                code: "correlated_set_conflict".into(),
+                severity: "warning".into(),
+                message: format!(
+                    "The spec omits {named} of {what} but states {kept} itself, so half the set is drawn: a correlated set is approved or omitted whole. Remove the omission to draw the set, or omit every member."
+                ),
+                subjects: decided.iter().chain(&own).map(|s| s.to_string()).collect(),
+                fix: restore,
+                ..Default::default()
+            });
+            continue;
+        }
+        let (basis, message, fix) = if auto {
+            (
+                format!(
+                    "authored: omitted with {what}, which the spec omits ({named}): a correlated set is omitted whole"
+                ),
+                format!(
+                    "Omitting {named} omits all of {what}: a correlated set is approved or omitted whole, never half a staircase. Remove the omission to restore the set."
+                ),
+                restore,
+            )
+        } else {
+            (
+                String::new(),
+                format!(
+                    "Listing {named} approves all of {what}: a correlated set is approved or omitted whole, never half a staircase."
+                ),
+                Vec::new(),
+            )
+        };
+        for id in &rest {
+            spread.insert(id.to_string(), basis.clone());
+        }
+        problems.push(Problem {
+            id: format!("p:correlated_set_whole:{set}"),
+            code: "correlated_set_whole".into(),
+            severity: "info".into(),
+            message,
+            subjects: rest.iter().map(|s| s.to_string()).collect(),
+            fix,
+            ..Default::default()
+        });
+    }
+    (spread, problems)
+}
+
 /// One span, one dimension (ARCH0009-6): kept items stating the same [`SHARED`] size or
 /// datum distance across the same span (the same view and axis, raw ends within 1e-6 mm,
 /// and the same label and basic status, so different stated sizes or bands never collapse).
@@ -2259,6 +2650,8 @@ pub fn render(
             v_align: VAlign::Baseline,
         });
         annotations.push(Annotation {
+            approved_claims: Vec::new(),
+            approved_text: None,
             coordinate_origin: None,
             satisfies: Vec::new(),
             name: d.id.clone(),

@@ -411,7 +411,8 @@ fn an_unreadable_step_is_reported() {
 
 /// ADR4-6: a rung's ID names its height, never its rank, so losing a level renames no other
 /// rung, and an ID naming a level that is gone is refused rather than taken for another. A rung
-/// is omitted by its ID; the others stay (half a ladder, which ARCH0015-2 forbids: pending).
+/// is omitted by its ID, and with it the rest of its ladder (ARCH0015-2: never half a staircase;
+/// `tests/ownership_rules.rs`).
 #[test]
 fn a_rungs_id_names_its_height_not_its_rank() {
     let mut a = fixture("plates_pads_levels_and_slanted_steps");
@@ -420,15 +421,13 @@ fn a_rungs_id_names_its_height_not_its_rank() {
     }))
     .unwrap();
     let plan = model::plan(&a, &spec).unwrap();
-    assert_eq!(
-        items(&plan, &LADDER),
-        strs(&[("step_height.length.h32", "front", "32")])
-    );
-    assert!(
-        plan.omitted
-            .iter()
-            .any(|o| o.id == "d:step_level/step_height.length.h16")
-    );
+    assert_eq!(items(&plan, &LADDER), strs(&[]));
+    for id in [
+        "d:step_level/step_height.length.h16",
+        "d:step_level/step_height.length.h32",
+    ] {
+        assert!(plan.omitted.iter().any(|o| o.id == id), "{id}");
+    }
 
     // Without the lower level the upper rung keeps its ID; omitting the lost one is refused.
     let base = a.envelope[0][2];

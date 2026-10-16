@@ -397,6 +397,14 @@ pub struct ViewSpec {
 pub struct Plan {
     pub schema: String,
     pub binding: Binding,
+    /// Digest of the complete Analysis, including the supplied recognition, that determined
+    /// this plan. Absent only in older saved plans. The Spec is embedded separately.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub analysis_sha256: Option<String>,
+    /// Per-occurrence policy for recognised evidence without a dimension owner. Informational;
+    /// unsupported manufacturing requirements retain their independent warnings.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub feature_dispositions: Vec<crate::dims::FeatureDisposition>,
     #[serde(default)]
     pub status: crate::completeness::Status,
     #[serde(default)]
@@ -1156,7 +1164,7 @@ pub(crate) fn findings(plan: &Plan) -> layout::Findings {
 
 /// A plan's annotations over a view not their own: a label on a view's box or a line across
 /// another view (`annotation_over_view`, `annotation_line_over_view`), at warning or error.
-fn over_views(plan: &Plan) -> usize {
+pub(crate) fn over_views(plan: &Plan) -> usize {
     plan.problems
         .iter()
         .filter(|p| {
@@ -1306,6 +1314,37 @@ fn carried(plan: &Plan) -> BTreeSet<(String, String)> {
     out
 }
 
+pub(crate) fn carries_required(required: &Plan, candidate: &Plan) -> bool {
+    carried(required).is_subset(&carried(candidate))
+}
+
+/// Check actual bounds independently on each sheet; coincident coordinates on different
+/// pages are expected. Keep the single-sheet gate identical.
+pub(crate) fn drawn_sheets_fit(analysis: &Analysis, plan: &Plan) -> bool {
+    std::iter::once(&plan.sheet)
+        .chain(&plan.sheets)
+        .all(|sheet| {
+            let mut local = plan.clone();
+            local.sheet = sheet.clone();
+            local.views.retain(|v| v.sheet == sheet.number);
+            let carries = |id: &str| local.views.iter().any(|v| v.id == id);
+            local.dimensions.retain(|d| carries(&d.view));
+            local.gdt.retain(|g| carries(&g.view));
+            local.balloons.retain(|b| carries(&b.view));
+            local.tables.retain(|t| t.sheet == sheet.number);
+            local.hole_table = local.hole_table.filter(|t| t.sheet == sheet.number);
+            local.hole_tables.retain(|t| t.sheet == sheet.number);
+            if sheet.number > 1 {
+                local.notes.clear();
+                local.notes_block = None;
+                local.radius_notes_block = None;
+                local.radius_table = None;
+                local.requirements.clear();
+            }
+            drawn_items_fit(analysis, &local)
+        })
+}
+
 fn drawn_items_fit(analysis: &Analysis, p: &Plan) -> bool {
     let inside = |b: [f64; 4]| {
         b[0] >= layout::MARGIN - 1e-6
@@ -1443,8 +1482,9 @@ const LARGE_SHEET: usize = 2;
 /// Whether the part's views fit A3 at 1:1 (maintainer, 2026-10-15): drawn full size, each with
 /// one dimension row ([`layout::DIM_PAD`]) on either side, the row of views (the front with the
 /// side and any sections beside it) is no wider than A3's usable paper and the column (the plan
-/// above the front) no taller. Such a part never takes A2 or larger by default.
-fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
+/// above the front) no taller. Such a part exhausts single- and multi-sheet A4/A3 plans
+/// before the automatic search admits A2 or larger.
+pub(crate) fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
     let (_, w, h) = layout::PAGES[LARGE_SHEET - 1];
     let size = |v: &PlannedView| {
         let view = View::new(v.direction, v.up).expect("planned view");
@@ -1545,9 +1585,7 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
     let mut smallest_head = false;
     let mut smallest_ink = 0;
     let mut recipes = BTreeMap::new();
-    // The large sheets stay closed to a small part only while it has a valid drawing below
-    // them; with none, the search goes on to A2 and up as before (judgement, 2026-10-16: redrawn
-    // smaller, such a drawing would lose items off the sheet).
+    // Exhaust practical single sheets, then R5 allocation, before admitting large paper.
     let mut rule = true;
     let mut first_sheet = 0;
     loop {
@@ -1625,7 +1663,18 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                         .is_some_and(|parent| i > parent)
                     && crate::sheets::floor(spec).is_none()
                 {
-                    continue;
+                    for view in p
+                        .views
+                        .iter()
+                        .filter(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
+                    {
+                        named
+                            .views
+                            .entry(view.id.trim_start_matches("v:").into())
+                            .or_default()
+                            .omit = true;
+                    }
+                    p = plan_escalated_with(analysis, &named, true, None)?;
                 }
                 // A failed seed must not restrict the complete drawing to its first arrangement.
                 // Try the other established arrangement, with no new leader-routing strategy.
@@ -1742,9 +1791,10 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                 p.sheet.fill = crate::sheet_fit::fill(analysis, &p);
                 // A declined optional crop leaves an ordinary drawing. Its refusal must
                 // not veto the small-sheet candidates that F1 would otherwise accept.
-                let detail_context = [&p, &first]
-                    .iter()
-                    .any(|p| p.views.iter().any(|v| v.detail.is_some()));
+                // An invalid seed's refused crop cannot block a complete ordinary drawing;
+                // main's material-crossing gate already protects valid first estimates.
+                let detail_context = p.views.iter().any(|v| v.detail.is_some())
+                    || (seed_clean && first.views.iter().any(|v| v.detail.is_some()));
                 let quality_veto = crate::sheets::floor(spec).is_none()
                     && detail_context
                     && (ink_findings(&p) > ink_findings(&first)
@@ -1792,12 +1842,63 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
         }
         if cut && candidates.is_empty() {
             tried.pop();
+            // Already allocated content is assembled by the caller. Its completed document
+            // gets the same fallback in sheets::allocate_counted, rather than nesting moves.
+            let assigned = spec.views.values().any(|v| v.sheet.is_some_and(|n| n > 1))
+                || spec.tables.iter().any(|t| t.sheet.is_some_and(|n| n > 1))
+                || spec
+                    .sheets
+                    .as_ref()
+                    .and_then(|s| s.hole_table)
+                    .is_some_and(|n| n > 1);
+            if !assigned
+                && let Some(plan) =
+                    crate::sheets::small_fallback(analysis, spec, &first, &mut tried)
+            {
+                return Ok(plan);
+            }
             rule = false;
             seed_kept = seed_clean;
             first_sheet = LARGE_SHEET;
             continue;
         }
         break;
+    }
+    // Measured section fitting can make a larger, detail-free scale newly valid on the
+    // same paper. A complete head crop already supplies that fine scale: do not discard
+    // its readable local witnesses merely to increase the principal views' fill.
+    let head_fit = candidates
+        .iter()
+        .filter(|(_, p)| {
+            p.views.iter().any(|v| {
+                v.detail
+                    .as_ref()
+                    .is_some_and(|d| !d.authored && d.kind == "turned-head")
+            })
+        })
+        .map(|(c, _)| (c.sheet, c.scale))
+        .min_by(|a, b| a.0.cmp(&b.0).then_with(|| b.1.total_cmp(&a.1)));
+    if let Some((sheet, scale)) = head_fit {
+        candidates.retain(|(c, p)| {
+            let keep = c.sheet < sheet
+                || (c.sheet == sheet && c.scale <= scale)
+                || p.views.iter().any(|v| {
+                    v.detail
+                        .as_ref()
+                        .is_some_and(|d| !d.authored && d.kind == "turned-head")
+                });
+            if !keep {
+                let prefix = format!("{} {} fill ", layout::PAGES[c.sheet].0, scale_name(c.scale));
+                if let Some(record) = tried.iter_mut().find(|r| r.starts_with(&prefix)) {
+                    *record = record.replacen(
+                        "(valid and complete",
+                        "(larger principals would discard the fitted head detail; valid and complete",
+                        1,
+                    );
+                }
+            }
+            keep
+        });
     }
     let keys: Vec<_> = candidates.iter().map(|(c, _)| *c).collect();
     let Some((choice, (i, s))) =
@@ -2383,6 +2484,7 @@ fn plan_with_presentation(
     }
     let mut demand = crate::demand::read(analysis);
     demand.gdt_beyond_lanes = gdt_beyond_lanes;
+    demand.callout_bands = crate::dims::callout_bands(analysis, spec)?;
     // A turned part drops the view that repeats its profile, unless the spec asks for it, or
     // omits the profile view it keeps (front): the dropped view is then the only profile left;
     // or a PMI item is drawn in it (draftwright's `annotation_view_required`).
@@ -3145,9 +3247,12 @@ fn plan_with_presentation(
             v.detail.as_ref().is_some_and(|d| !d.authored)
                 && spec.dimension_source != DimensionSource::Authored
                 && !v.detail.as_ref().is_some_and(|d| {
-                    d.dimensions
-                        .iter()
-                        .any(|id| spec.dimensions.get(id).is_some_and(|s| s.omit))
+                    d.dimensions.iter().any(|id| {
+                        spec.dimensions.get(id).is_some_and(|s| s.omit)
+                            || omitted.iter().any(|o| {
+                                o.id == *id && o.state == crate::items::State::OmittedByUser
+                            })
+                    })
                 })
                 && !dimensions
                     .iter()
@@ -3586,6 +3691,18 @@ fn plan_with_presentation(
     let mut plan = Plan {
         schema: PLAN_SCHEMA.into(),
         binding: analysis.binding.clone(),
+        analysis_sha256: Some(crate::planning::memo(
+            analysis,
+            "analysis_sha256",
+            Vec::new(),
+            || {
+                Sha256::digest(serde_json::to_vec(analysis).expect("analysis serializes"))
+                    .iter()
+                    .map(|b| format!("{b:02x}"))
+                    .collect()
+            },
+        )),
+        feature_dispositions: crate::dims::feature_dispositions(analysis),
         status: crate::completeness::Status::NeedsAttention,
         completeness: crate::completeness::Completeness::default(),
         sheet,
@@ -4749,7 +4866,7 @@ fn render_annotations_with_cuts(
                     cut.xref.as_ref().filter(|_| f.chain.is_some()),
                     format!("SECTION {}–{},", cut.label, cut.label),
                     format!("{}/cut/xref", v.id),
-                    "section_caption".into(),
+                    v.id.clone(),
                 ),
             ] {
                 if let Some(r) = reference {
@@ -5070,6 +5187,8 @@ fn render_annotations_with_cuts(
             }
             if !n.measurements.is_empty() || n.id == crate::dims::blends::RELIEF_NOTE {
                 annotations.push(Annotation {
+                    approved_claims: Vec::new(),
+                    approved_text: None,
                     coordinate_origin: None,
                     claims: Vec::new(),
                     name: n.id.clone(),
@@ -5148,10 +5267,51 @@ fn render_annotations_with_cuts(
         for [a, b] in crate::tables::ruling(p.cells, &p.columns) {
             dims.push(Item::Edge(Curve::Line(a, b)));
         }
-        for (cell, at) in crate::tables::texts(table) {
-            let run = (cell.trim(), crate::dims::FONT, crate::tables::TEXT);
-            let laid = font.text(&crate::tables::ink(cell), crate::tables::TEXT);
-            label(laid, at, dims, Some(run));
+        let mut manufacturing_runs: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+        let mut manufacturing_header = Vec::new();
+        let mut tag = None;
+        for (r, (row, positions)) in table.rows.iter().zip(&p.cells_at).enumerate() {
+            if table.id == crate::pmi_lowering::SCHEDULE_ID && r > 0 && !row[0].is_empty() {
+                tag = Some(row[0].clone());
+            }
+            for (cell, at) in row.iter().zip(positions) {
+                let Some(at) = at else { continue };
+                let run = (cell.trim(), crate::dims::FONT, crate::tables::TEXT);
+                let laid = font.text(&crate::tables::ink(cell), crate::tables::TEXT);
+                let index = label(laid, *at, dims, Some(run));
+                if table.id == crate::pmi_lowering::SCHEDULE_ID && r == 0 {
+                    manufacturing_header.extend(index);
+                }
+                if let Some(tag) = &tag {
+                    manufacturing_runs
+                        .entry(tag.clone())
+                        .or_default()
+                        .extend(index);
+                }
+            }
+        }
+        if !manufacturing_header.is_empty() {
+            annotations.push(Annotation {
+                name: "manufacturing_requirements_header".into(),
+                runs: manufacturing_header,
+                ..Default::default()
+            });
+        }
+        if !manufacturing_runs.is_empty() {
+            for binding in &table.row_claims {
+                if let Some(runs) = manufacturing_runs.remove(&binding.tag) {
+                    annotations.push(Annotation {
+                        name: format!("{}/{}", table.id, binding.tag),
+                        approved_claims: binding.claims.clone(),
+                        approved_text: None,
+                        coordinate_origin: None,
+                        view: None,
+                        runs,
+                        claims: Vec::new(),
+                        satisfies: Vec::new(),
+                    });
+                }
+            }
         }
         if let Some(ink) = items_bbox(&dims[table_from..]) {
             sheet.items.push(Drawn {
@@ -5189,6 +5349,14 @@ fn render_annotations_with_cuts(
                 && let Some(radius) = t.rows.get(i - 1)
             {
                 annotations.push(Annotation {
+                    approved_claims: Vec::new(),
+                    approved_text: Some(
+                        row.iter()
+                            .filter(|c| !c.is_empty())
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                    ),
                     coordinate_origin: None,
                     name: format!("{}/{}", t.table.id, radius.feature),
                     view: Some(radius.view.clone()),
@@ -5306,6 +5474,16 @@ fn render_annotations_with_cuts(
             if t.view.is_none() {
                 annotations.push(Annotation {
                     satisfies: Vec::new(),
+                    approved_claims: Vec::new(),
+                    approved_text: Some(
+                        row.cells
+                            .iter()
+                            .skip(1)
+                            .filter(|c| !c.is_empty())
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                    ),
                     coordinate_origin: None,
                     name: format!("{}/{}", t.id, row.tag),
                     view: Some("v:plan".into()),
@@ -5326,6 +5504,8 @@ fn render_annotations_with_cuts(
                     if c == 4 {
                         annotations.push(Annotation {
                             satisfies: Vec::new(),
+                            approved_claims: Vec::new(),
+                            approved_text: Some(row.cells[c].clone()),
                             coordinate_origin: None,
                             name: format!("{}/{}/entry", t.id, row.tag),
                             view: t.view.clone(),
@@ -5371,6 +5551,8 @@ fn render_annotations_with_cuts(
                         .collect();
                     annotations.push(Annotation {
                         satisfies: Vec::new(),
+                        approved_claims: Vec::new(),
+                        approved_text: Some(row.cells[c].clone()),
                         coordinate_origin: if c > 1 { t.origin } else { None },
                         name: format!("{}/{}/{}", t.id, row.tag, ["tag", "size", "x", "y"][c]),
                         view: t.view.clone(),
@@ -5480,6 +5662,8 @@ fn render_annotations_with_cuts(
     }
     // Each drawing-wide PMI requirement by the runs that state it, for lint and the PMI checks.
     annotations.extend(stated.into_iter().map(|(name, runs)| Annotation {
+        approved_claims: Vec::new(),
+        approved_text: None,
         coordinate_origin: None,
         satisfies: Vec::new(),
         name,
@@ -5501,6 +5685,8 @@ fn render_annotations_with_cuts(
             .filter_map(|o| {
                 let (feature, parameter) = o.id.strip_prefix("d:")?.split_once('/')?;
                 Some(Annotation {
+                    approved_claims: Vec::new(),
+                    approved_text: None,
                     coordinate_origin: None,
                     name: format!("suppressed:{}", o.id),
                     view: None,
@@ -5541,6 +5727,14 @@ fn render_annotations_with_cuts(
             style,
             items: ink,
         });
+    }
+    // The cell annotations were bound above from the compiler's row measurements. Retain
+    // those identities separately from the live claims, just as approved text is retained
+    // separately from rendered runs; downstream mutations must preserve both contracts.
+    for annotation in &mut annotations {
+        if annotation.approved_text.is_some() {
+            annotation.approved_claims = annotation.claims.clone();
+        }
     }
     Ok(Drawing {
         page: plan.sheet.page,

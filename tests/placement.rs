@@ -280,6 +280,19 @@ fn ids(plan: &Plan) -> Vec<&str> {
     plan.dimensions.iter().map(|d| d.id.as_str()).collect()
 }
 
+/// The correlated set (ARCH0015-2) a dimension belongs to: the step-height ladder, or the
+/// ladder's shoulders along one axis, as `dims::correlated_set` reads its ID.
+fn ladder_set(id: &str) -> Option<&str> {
+    const HEIGHTS: &str = "d:step_level/step_height.length";
+    if id.starts_with(HEIGHTS) {
+        return Some(HEIGHTS);
+    }
+    let rest = id.strip_prefix("d:step_level/step_position.length.")?;
+    rest.get(..1)
+        .filter(|a| ["x", "y", "z"].contains(a))
+        .map(|_| &id[..id.len() - rest.len() + 1])
+}
+
 /// The placed items by ID.
 fn placed(plan: &Plan) -> BTreeMap<&str, &PlannedDimension> {
     plan.dimensions
@@ -367,6 +380,48 @@ fn omitting_one_dimension_moves_no_other() {
                 let plan = model::plan(analysis, &spec).unwrap();
                 eprintln!("checking locality: {name}, {gone}, {how}");
                 let mut promoted = promoted.clone();
+                // A correlated set (ARCH0015-2) is approved or omitted whole: in this test it is
+                // one item. Omitting a rung omits the rest of its ladder (each named by a
+                // correlated_set_whole problem); leaving one out of an authored set that lists
+                // the others draws it as before. Every item outside the set stays fixed.
+                let siblings: Vec<&str> = every
+                    .iter()
+                    .copied()
+                    .filter(|i| {
+                        i != gone && ladder_set(gone).is_some_and(|s| ladder_set(i) == Some(s))
+                    })
+                    .collect();
+                let whole = |id: &str| {
+                    plan.problems.iter().any(|p| {
+                        p.code == "correlated_set_whole" && p.subjects.iter().any(|s| s == id)
+                    })
+                };
+                let rest: Vec<&str> = if siblings.is_empty() {
+                    rest.clone()
+                } else if how == "omitted" {
+                    for s in &siblings {
+                        assert!(
+                            plan.omitted.iter().any(|o| o.id == *s
+                                && o.state == draftwright::items::State::OmittedByUser)
+                                && whole(s),
+                            "{name}: {gone} {how}: {s} is neither drawn nor omitted with its set"
+                        );
+                    }
+                    // What an omitted sibling conveyed comes back, as for the item omitted.
+                    for s in &siblings {
+                        promoted.extend(conveyed_by(s));
+                    }
+                    rest.iter()
+                        .copied()
+                        .filter(|i| !siblings.contains(i))
+                        .collect()
+                } else {
+                    assert!(
+                        whole(gone),
+                        "{name}: {gone} {how}: its set does not approve it"
+                    );
+                    every.clone()
+                };
                 // A blanket radius default depends on its exceptions. Withdrawing it
                 // restores the fillet leaders it conveyed; all unrelated ink stays fixed.
                 for o in &full.omitted {
@@ -500,7 +555,19 @@ fn omitting_one_dimension_moves_no_other() {
                             let [a, b] = p.lines[2];
                             if a[0] == b[0] { a[0] } else { a[1] }
                         };
-                        if let (true, Some(survivor)) = (d.kind == "linear", all.get(gone)) {
+                        // Its survivor: the item it was conveyed by (the omitted one, or with a
+                        // correlated set, the sibling omitted with it).
+                        let by = full
+                            .omitted
+                            .iter()
+                            .find(|o| o.id == d.id)
+                            .and_then(|o| {
+                                conveyed_owners(&o.basis)
+                                    .into_iter()
+                                    .find(|b| b == gone || siblings.contains(b))
+                            })
+                            .unwrap_or(gone);
+                        if let (true, Some(survivor)) = (d.kind == "linear", all.get(by)) {
                             // An underside derived from a slab and the overall is not a
                             // coincident span. Restore its own front datum-to-level span;
                             // the existing checks still hold every unrelated item fixed.

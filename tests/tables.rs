@@ -567,3 +567,41 @@ fn tables_match_draftwrights_on_corpus_parts() {
     }
     assert!(sheets_compared > 0);
 }
+
+/// Descriptive numbers are searchable ink, but never measurement evidence.
+#[test]
+fn a_numeric_descriptive_table_cannot_replace_physical_measurements() {
+    let (part, analysis) = plate();
+    let baseline = model::plan(analysis, &Spec::default()).unwrap();
+    let hole = baseline
+        .dimensions
+        .iter()
+        .find(|d| {
+            d.kind == "callout"
+                && d.measurements
+                    .iter()
+                    .any(|m| m.parameter == "bore.diameter")
+        })
+        .unwrap();
+    let omitted = spec(json!({"hole_table":"never", "dimensions":{ &hole.id: {"omit":true} }}));
+    let plan = model::plan(analysis, &omitted).unwrap();
+    let drawing = model::render(part, analysis, &plan, &font()).unwrap();
+    let before = draftwright::lint::lint(analysis, &drawing);
+    assert!(before.iter().any(|i| i.code == "hole_requirement_missing"));
+    let mut described = omitted.clone();
+    described.tables = vec![serde_json::from_value(json!({"id":"t:1", "rows":[["BORE", "PCD", "POCKET"], [hole.label, hole.value, 999.0]]})).unwrap()];
+    let p = model::plan(analysis, &described).unwrap();
+    assert!(p.tables[0].placed.is_some());
+    let d = model::render(part, analysis, &p, &font()).unwrap();
+    assert!(d.text.iter().any(|r| r.text == hole.label));
+    assert!(!d.annotations.iter().any(|a| a.name == "t:1"));
+    let after = draftwright::lint::lint(analysis, &d);
+    // Placement may change; the physical hole requirement findings must be identical.
+    let physical = |issues: Vec<draftwright::lint::LintIssue>| {
+        issues
+            .into_iter()
+            .filter(|i| i.code.starts_with("hole_requirement_"))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(physical(before), physical(after));
+}

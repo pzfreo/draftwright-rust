@@ -464,6 +464,7 @@ fn head(arrow: [P2; 2]) -> [[P2; 2]; 3] {
 /// One callout's job: its view's outline, its sites on the page (centre, radius), its label's ink
 /// box about its baseline origin, and how far past each edge the strip's dimensions reach.
 struct Job<'a> {
+    side: Option<crate::placement_intent::Side>,
     view: &'a str,
     footprints: &'a Footprints,
     outline: [f64; 4],
@@ -506,6 +507,7 @@ fn side_index(side: Side) -> usize {
 #[allow(clippy::too_many_arguments)]
 pub(super) fn place(
     analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
     cache: &super::footprints::Cache,
     views: &[crate::model::PlannedView],
     frames: &BTreeMap<&str, Frame>,
@@ -517,6 +519,7 @@ pub(super) fn place(
 ) -> Vec<Problem> {
     place_with_obstacles(
         analysis,
+        spec,
         cache,
         views,
         frames,
@@ -532,6 +535,7 @@ pub(super) fn place(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn place_with_obstacles(
     analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
     cache: &super::footprints::Cache,
     views: &[crate::model::PlannedView],
     frames: &BTreeMap<&str, Frame>,
@@ -628,6 +632,11 @@ pub(super) fn place_with_obstacles(
         jobs.push((
             i,
             Job {
+                side: spec
+                    .dimensions
+                    .get(&w.id)
+                    .and_then(|d| d.place.as_ref())
+                    .and_then(crate::placement_intent::side_hint),
                 view,
                 footprints: &footprints[view],
                 outline: f.outline(),
@@ -1039,7 +1048,12 @@ pub(super) fn refine(
                         continue;
                     }
                     let (_, lb) = label_geometry(q, e, right, label.min, label.max);
-                    let now = extension_contacts(&extensions, &lines, lb);
+                    let maximum = (before.0.saturating_sub(usize::from(!old_run)), before.1);
+                    let Some(now) =
+                        extension_contacts_bounded(&extensions, &lines, lb, Some(maximum))
+                    else {
+                        continue;
+                    };
                     if now.0 > before.0 || now.1 > before.1 || (now.0 == before.0 && !old_run) {
                         continue;
                     }
@@ -1106,14 +1120,12 @@ pub(super) fn refine(
         let crossed = |lines: &[[P2; 2]], e: [P2; 2]| lines.iter().any(|s| segments_cross(*s, e));
         // The text and the elbow keep off the outline: a label or an elbow within the label
         // pad of a model line reads as butting the part.
-        let on_model = |q: P2, lb: [f64; 4]| {
-            let pad = grow(lb, LABEL_PAD);
-            let at = grow([q[0], q[1], q[0], q[1]], LABEL_PAD);
-            (
-                near_model.iter().filter(|s| touches_box(**s, pad)).count(),
-                near_model.iter().any(|s| touches_box(*s, at)),
-            )
-        };
+        let model_grid = Grid::new([
+            near_model.iter().map(|s| segment_bounds(*s)).collect(),
+            Vec::new(),
+            Vec::new(),
+        ]);
+        let on_model = |q: P2, lb: [f64; 4]| model_contacts(&near_model, &model_grid, q, lb);
         let (old_text_model, old_elbow_model) = on_model(elbow, old.label_box);
         // The arrowhead keeps out of the extension lines it was clear of: a flare over the
         // start of one reads as a contact whatever the shaft does.
@@ -1180,6 +1192,7 @@ pub(super) fn refine(
         });
         let candidates: Vec<_> = ranked.into_iter().map(|(_, _, c)| c).collect();
         let job = Job {
+            side: None,
             view,
             footprints: &footprints[view],
             outline: frame.outline(),
@@ -1273,7 +1286,7 @@ type ViewInk = (Vec<[P2; 2]>, Vec<[f64; 4]>);
 
 /// A view's model line-work on the page (edges and square-on cylinder silhouettes), and the
 /// boxes whose ink is not known as lines (the isometric view, section views, other curved faces).
-fn view_ink(
+pub(super) fn view_ink(
     analysis: &crate::model::Analysis,
     ink: &crate::model::projected_ink::EdgeInk,
     v: &crate::model::PlannedView,
@@ -1380,6 +1393,17 @@ fn extension_contacts(
     lines: &[[P2; 2]],
     label: [f64; 4],
 ) -> (usize, usize) {
+    extension_contacts_bounded(extensions, lines, label, None).expect("an unbounded count")
+}
+
+/// Contacts only accumulate. Stop a candidate once it cannot pass the existing gates;
+/// every surviving candidate retains its exact unique-owner counts for the stable ranking.
+fn extension_contacts_bounded(
+    extensions: &[(usize, [P2; 2])],
+    lines: &[[P2; 2]],
+    label: [f64; 4],
+    maximum: Option<(usize, usize)>,
+) -> Option<(usize, usize)> {
     let pad = grow(label, LABEL_PAD);
     let mut pairs = std::collections::BTreeSet::new();
     let mut text = std::collections::BTreeSet::new();
@@ -1400,8 +1424,36 @@ fn extension_contacts(
         if on_text || lines.iter().any(|s| touches_box(*s, b)) {
             pairs.insert(*j);
         }
+        if maximum.is_some_and(|(p, t)| pairs.len() > p || text.len() > t) {
+            return None;
+        }
     }
-    (pairs.len(), text.len())
+    Some((pairs.len(), text.len()))
+}
+
+/// Bounds for broad-phase lookup. Non-finite geometry must remain an always-tested item.
+fn segment_bounds(s: [P2; 2]) -> [f64; 4] {
+    if s.iter().flatten().any(|v| !v.is_finite()) {
+        return [f64::NAN; 4];
+    }
+    [
+        s[0][0].min(s[1][0]),
+        s[0][1].min(s[1][1]),
+        s[0][0].max(s[1][0]),
+        s[0][1].max(s[1][1]),
+    ]
+}
+
+/// The grid changes only the candidate set: preserve the exact per-stroke predicate,
+/// duplicate-stroke counts, inclusive boundaries and non-finite fallback of the full scan.
+fn model_contacts(model: &[[P2; 2]], grid: &Grid, q: P2, label: [f64; 4]) -> (usize, bool) {
+    let pad = grow(label, LABEL_PAD);
+    let at = grow([q[0], q[1], q[0], q[1]], LABEL_PAD);
+    let mut text = 0;
+    grid.near(0, pad, |i| text += usize::from(touches_box(model[i], pad)));
+    let mut elbow = false;
+    grid.near(0, at, |i| elbow |= !elbow && touches_box(model[i], at));
+    (text, elbow)
 }
 
 /// Whether a leader segment runs within 0.3 mm of the given line-work for over 2 mm.
@@ -1443,6 +1495,15 @@ fn buried(s: [P2; 2], b: [f64; 4]) -> f64 {
 }
 
 fn touches_box(s: [P2; 2], b: [f64; 4]) -> bool {
+    // Wholly outside one side cannot meet the finite box. Keep endpoint contacts and
+    // run the unchanged clipping calculation for every broad-phase survivor.
+    if (s[0][0] < b[0] && s[1][0] < b[0])
+        || (s[0][0] > b[2] && s[1][0] > b[2])
+        || (s[0][1] < b[1] && s[1][1] < b[1])
+        || (s[0][1] > b[3] && s[1][1] > b[3])
+    {
+        return false;
+    }
     let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
     for k in 0..2 {
         let d = s[1][k] - s[0][k];
@@ -1846,6 +1907,15 @@ fn inventory(job: &Job, fixed: &Fixed, page: &Page, semantic_pmi: bool) -> Inven
                 raw.push((rim_tip(site, elbow), elbow, None));
             }
         }
+    }
+    if let Some(side) = job.side {
+        use crate::placement_intent::Side;
+        raw.retain(|(_, elbow, _)| match side {
+            Side::Left => elbow[0] < o[0],
+            Side::Right => elbow[0] > o[2],
+            Side::Above => elbow[1] > o[3],
+            Side::Below => elbow[1] < o[1],
+        });
     }
     let mut measured: Vec<Candidate> = Vec::new();
     for (tip, elbow, side) in raw {
@@ -2359,6 +2429,7 @@ pub fn clear_routes(
     let ink = label_ink(&d.terms, font());
     let footprints = Footprints::new(analysis, f, view);
     let job = Job {
+        side: None,
         view,
         footprints: &footprints,
         outline: f.outline(),
@@ -2892,6 +2963,81 @@ impl Search {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn refinement_grid_keeps_duplicate_strokes_and_boundary_contacts() {
+        use super::*;
+        let mut lines = vec![
+            [[0.0, 0.0], [10.0, 0.0]],
+            [[0.0, 0.0], [10.0, 0.0]],
+            [[4.0, -20.0], [4.0, 20.0]],
+            [[f64::NAN, -2.0], [3.0, 4.0]],
+        ];
+        let mut seed = 82;
+        for _ in 0..128 {
+            lines.push(std::array::from_fn(|_| {
+                std::array::from_fn(|_| 100.0 * lcg(&mut seed) - 50.0)
+            }));
+        }
+        let grid = Grid::new([
+            lines.iter().map(|s| segment_bounds(*s)).collect(),
+            Vec::new(),
+            Vec::new(),
+        ]);
+        let mut queries = vec![
+            ([0.0, 0.0], [2.0, 1.0, 4.0, 2.0]),
+            ([10.0, 0.0], [10.0, 0.0, 10.0, 0.0]),
+            ([200.0, -200.0], [199.0, -201.0, 201.0, -199.0]),
+            ([f64::NAN, 0.0], [f64::NAN, 0.0, 5.0, 5.0]),
+        ];
+        for _ in 0..100 {
+            let q = std::array::from_fn(|_| 200.0 * lcg(&mut seed) - 100.0);
+            queries.push((q, [q[0], q[1], q[0] + 5.0, q[1] + 5.0]));
+        }
+        for (q, label) in queries {
+            let pad = grow(label, LABEL_PAD);
+            let at = grow([q[0], q[1], q[0], q[1]], LABEL_PAD);
+            let exhaustive = (
+                lines.iter().filter(|s| touches_box(**s, pad)).count(),
+                lines.iter().any(|s| touches_box(*s, at)),
+            );
+            assert_eq!(
+                model_contacts(&lines, &grid, q, label),
+                exhaustive,
+                "{q:?} {label:?}"
+            );
+        }
+    }
+    #[test]
+    fn contact_limits_preserve_unique_owners_and_boundary_touches() {
+        use super::*;
+        let extensions = [
+            (7, [[0.0, -2.0], [0.0, 2.0]]),
+            (3, [[4.0, -2.0], [4.0, 2.0]]),
+            (7, [[0.0, -2.0], [0.0, 2.0]]),
+        ];
+        let lines = [[[-2.0, 0.0], [6.0, 0.0]]];
+        // Owner 3 touches the padded text's boundary; repeated owner 7 counts once.
+        let label = [2.0, -0.5, 3.0, 0.5];
+        assert_eq!(extension_contacts(&extensions, &lines, label), (2, 1));
+        assert_eq!(
+            extension_contacts_bounded(&extensions, &lines, label, Some((2, 1))),
+            Some((2, 1))
+        );
+        assert_eq!(
+            extension_contacts_bounded(&extensions, &lines, label, Some((1, 1))),
+            None
+        );
+        assert_eq!(
+            extension_contacts_bounded(&extensions, &lines, label, Some((2, 0))),
+            None
+        );
+        assert!(touches_box([[2.0, 2.0], [3.0, 3.0]], [0.0, 0.0, 2.0, 2.0]));
+        assert!(touches_box([[3.0, 3.0], [2.0, 2.0]], [0.0, 0.0, 2.0, 2.0]));
+        assert!(!touches_box(
+            [[2.0 + 1e-10, 2.0], [3.0, 3.0]],
+            [0.0, 0.0, 2.0, 2.0]
+        ));
+    }
     use super::*;
 
     /// The tip lies on the rim, radial towards the elbow (`holes._rim_tip`): the leader points at

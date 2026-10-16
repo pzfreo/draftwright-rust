@@ -1,5 +1,150 @@
 # Detail views and turned inspection baseline — verification, 2026-10-16
 
+## Merge onto main `717def3e` (PRs #56–#65), 2026-10-16
+
+This section supersedes all earlier verification below. The incoming commits were read with
+`git log 53aa9f3f..origin/main` after fetching origin; the merge parents are `7b39ab9e` and
+`717def3e`. Work proceeded unattended, retaining main's approved triage and existing gates.
+
+### Conflict resolutions and integration decisions
+
+* `CHANGELOG.md`: kept both the detail/inspection-baseline entries and main's release,
+  datum-placement and review-fix history. Detail changes sit under Unreleased, preserving
+  the published alpha.3 history. Main's alpha.3 dependency pins are retained.
+* `src/demand.rs`: retained the inspection baseline's left/top reserves and main's authored
+  callout-band reservation, applied together.
+* `src/planning.rs`: retained main's bounded Analysis preparation across session edits and
+  the branch's exact process memos. Both cache invalidation and clone/drop-outside-lock tests
+  remain. Both sets of `tests/pmi_thread_knurl.rs` tests remain: crop/transform correctness and
+  complete compiler-bound manufacturing-row evidence.
+* `src/sheet_fit.rs`: kept main's measured section correction before multi-sheet allocation.
+  Cropped view bounds use the crop extent; detail captions and parent marker ink contribute
+  to their owned measured blocks. Sections can move into the remaining space while principal
+  projections and details stay fixed. The whole-row lift remains disabled for details so it
+  cannot invalidate crop/source marker relationships. Main's 10224/10255 single-A3 tests remain.
+* `src/model.rs` and `src/sheets.rs`: retained the automatic merge's detail-aware principal
+  filters and quality gates, #63's single-sheet measured fit, then A4/A3 multi-sheet search,
+  and only then eligibility for larger paper. Required measurement and per-sheet ink gates
+  remain. The first runtime run found a real integration regression: measured fitting made a
+  detail-free A4 5:1 candidate valid, so fill preference displaced string_post's A4 2:1 with
+  head B 10:1. Accepted head-detail candidates now cap detail-free enlargement on the same or
+  larger paper. The candidate trace explicitly records that eligibility decision; the independent
+  sheet-rule oracle remains unchanged. The measured fitter itself stays available, including
+  for the 10224 case.
+* `src/dims/gdt.rs`: main's inside-lane datum placement, crossing grades, bounded searches and
+  planar-face extension guard survive unchanged apart from initializing the new detail field.
+  The inspection baseline, K6 correlated sets and covered ownership all remain. A new detail
+  ownership regression checks unique claims and stable moved owner IDs in automatic and
+  authored sets, including live owners for covered omissions. Main's short-shoulder regression
+  is reconciled with the common baseline: default short/long variants must have live, unique
+  baseline owners and complete physical coverage; explicitly toleranced bands must still
+  print all three original IDs, claims and nominal lengths. The longer synthetic profile's
+  envelope follows its extended far end. No coverage assertion or lint threshold is removed.
+* Catalogue conflicts: main's statuses and table/pins/lint evidence are authoritative, except
+  the branch's tested ports `ISSUE-443-a`, `ISSUE-1216-b` and
+  `LINT-code-detail_caption_clearance`. Partial detail rules stay pending, translated rules
+  stay translated, and stale detail limitations/test names are updated. Counts: 65 pending,
+  252 ported, 127 translated, 71 retired. README counts are recomputed from the YAML.
+
+The corpus-required diagnostic suite completed all 108 targets: 1,066 passed and seven
+integration checks failed, with both latency gates passing. Every failure has a focused
+passing rerun. In addition to the head-priority correction above:
+
+* Whole correlated-ladder omissions retain the detail's reservations, as direct omissions
+  already did; `placement::omitting_one_dimension_moves_no_other` again keeps every unrelated
+  view and dimension fixed.
+* The reference-to-controlling K6 regression uses the boss-circle fixture's real closed chain,
+  since the turned fixture now intentionally has a nonredundant baseline. All positive and
+  negative tolerance/fit lint assertions remain.
+* Multi-sheet attempt records keep their results without nesting an entire candidate report.
+  The independent sheet-rule parser is unchanged. Its over-view regression still rejects the
+  crossing trial and verifies the actual bounds of each accepted A4/A3 page under #63.
+* On larger paper, optional crops are omitted consistently across all arrangement trials,
+  allowing the original parent-only fallback instead of skipping a valid paper/scale pair.
+* A refused optional crop on an invalid seed does not veto a complete ordinary drawing.
+  Actual detail candidates and valid starting drawings keep the annotation, crossing and
+  leader-quality checks; main's required measurements, bounds and material-crossing gates
+  remain. This restores 10255's measured single-A3 fit and 10190's A1 fallback.
+
+### Plan-cost integration
+
+The first complete merged suite passed 1,073 tests across 108 targets, including both
+wall-clock latency gates. All 300 quality cells passed against main's unchanged baseline.
+The initial macOS 65-part instruction check nevertheless exceeded the unchanged budget:
+3,397,991,206,198 instructions against a 3,165,755,533,285 limit.
+
+Leader refinement now rejects segments wholly outside a contact box before clipping,
+stops counting a candidate when its unique-owner contact counts already exceed its existing
+acceptance limits, and uses the existing conservative grid for nearby model strokes before
+the same exact label/elbow contact tests. Surviving candidates retain exact counts and stable
+ranking. The grid preserves duplicate strokes, inclusive boundary contacts and the existing
+non-finite fallback. Two new unit regressions compare indexed results with exhaustive scans
+and check unique-owner bounds and corner contacts. No score, threshold, survey member or
+recorded baseline changes. Temporary profiling instrumentation is removed.
+
+The profiled STC10 plan is byte-identical before/after these optimizations (SHA-256
+`ae5843974695f7376c17c4a0f8d9c42efd7eccebb2ffe96a8333be4ac4ed5e6e`),
+using 191,974,486,429 instructions instead of 239,890,736,263 (20.0% fewer).
+
+### Final checks and drawings
+
+The final source passed formatting, strict Clippy and the complete required-corpus release
+suite: **1,075 passed, zero failed, zero ignored, across 108 targets**. Both the R5 and NIST
+wall-clock latency gates passed without changing them. Commands ran one at a time with
+`CARGO_BUILD_JOBS=4 RUST_TEST_THREADS=4`, after sourcing `$HOME/.cargo/env`.
+
+| Check | Final outcome | Evidence under `target/detail-main-merge/` |
+| --- | --- | --- |
+| `cargo fmt --check` | Pass | `fmt-final.log` |
+| `cargo clippy --all-targets --release -- -D warnings` | Pass | `clippy-final.log` |
+| `DRAFTWRIGHT_CORPUS=/Users/paul/repos/quiddity/tests/corpus DRAFTWRIGHT_CORPUS_REQUIRED=1 cargo test --release --no-fail-fast` | 1,075 pass; includes all six catalogue checks | `tests-final.log`, `test-summary-final.json` |
+| `tools/quality.py` over the exact 30-part manifest, then `tools/ci_acceptance.py --check-results quality` against `tools/ci-quality-baseline.json` | All 300 cells pass; nothing worse | `quality-final.log`, `quality-acceptance-final.log`, `quality/baseline.json` |
+| `python3 -I tools/check_leader_routes.py target/detail-main-merge/quality` | 119 callouts on 30 parts pass; 14 unchanged pre-existing long runs | `leader-routes-final.log`, `leader-routes-final.json` |
+| `DRAFTWRIGHT_CORPUS=/Users/paul/repos/quiddity/tests/corpus python3 -I tools/check_plan_time.py --out target/detail-main-merge/plan-time-grid.json` | Darwin arm64: **3,038,967,217,470 instructions**, below **3,165,755,533,285** limit; 65 parts, 201.4 s wall time | `plan-time-grid.json`, `plan-time-grid.log` |
+| `DRAFTWRIGHT_CORPUS=/Users/paul/repos/quiddity/tests/corpus python3 -I tools/test_ci_acceptance.py` | All 24 pass, zero skipped | `ci-acceptance-tests-final.log` |
+
+Quality totals improve from main's baseline: ink 52 → 49, material intersections 73 → 69,
+hidden-on-visible 2,231 → 0 and repeated labels 7 → 6. All other gated totals stay zero.
+The instruction count is 1.104 times the recorded figure, inside its unchanged 1.15 limit.
+The accepted native binary SHA-256 is
+`c5235fb93e21c4e280193ec08126a3f78d4e0914175ac20c6006c8da307ebbe7`;
+it is unchanged after the final full-suite build. All **30 Plan JSONs and 30 SVGs are
+byte-identical** to the validated pre-optimization outputs (`quality-perf-parity.json`).
+The budget, quality baseline, acceptance tools and independent sheet-rule oracle match
+`origin/main` byte for byte (`gate-integrity.json`). No baseline was re-recorded.
+The acceptance unit log's `survey: FAIL` line is its intentional bad-evidence test; the
+suite exits successfully. Its initial run skipped the full-survey error test without the
+corpus environment; the final run above executes all 24.
+
+All five PNGs below were opened at native resolution and inspected for witness support,
+common origins, label clearance, section/detail identification, scales and sheet boundaries.
+SVGs, Plan JSON and complete review JSON accompany them. `visual-inspection.json` records
+PNG hashes and observations; `verification-assertions.json` records the requested criteria.
+
+| Case | Verified result and draftsman's inspection | PNG |
+| --- | --- | --- |
+| string_post default | One A4 2:1 with B 10:1. Heights 3.8, 6.5, 7.6 and 14.8 share the high flat end. The 1 mm flange and 2× R0.2 are readable in B; source marker and captions stay clear. | [string_post.png](../target/detail-main-merge/renders/string_post.png) |
+| Saved 14-tolerance string_post spec | One A4 2:1 with B 10:1. Original quantities retain all 14 tolerances; local band lengths sit opposite the baseline, with clear witnesses and no off-sheet labels. | [string_post_spec.png](../target/detail-main-merge/renders/string_post_spec.png) |
+| CNC-review spindle | One A4 1:1. B is inside the right dimension lanes; A uses a short left extension of the bottom face. Both datums have **zero planner crossings or overlaps**, with clear letters and stems in the PNG. | [spindle.png](../target/detail-main-merge/renders/spindle.png) |
+| turned.step | One A3 2:1. The 40 and 70 dimensions share the large low end, shortest nearest the part; no redundant 30 reference remains. | [turned.png](../target/detail-main-merge/renders/turned.png) |
+| mfcadpp 10224 | Still **one A3**, at 2:1. Measured section A–A fits beside the principal row; captions, ordinate stacks and hole leaders fit inside the border. | [10224.png](../target/detail-main-merge/renders/10224.png) |
+
+The spindle is not a globally finding-free drawing. As documented on main in
+`docs/datum-placement.md`, non-datum GD&T findings remain: two reciprocal reports of the
+ø4 bore leader crossing the position frame, one frame leader through a recognized feature,
+and three reservation overruns. CLI structural review also reports `leader_line_through_text`
+for A and B: their stem endpoints lie exactly on the datum-box boundary (A at y=71.82;
+B at x=66.00), while the letters are visibly clear inside their boxes. These boundary-contact
+reports remain in the review JSON; no lint rule or threshold was changed. The local render
+helper initially asserted zero crossings for *all* spindle annotations, which was broader
+than the requested datum check; its saved criterion now explicitly separates zero datum
+crossings from the remaining reports. Nominal-rounding warnings remain visible on
+string_post and 10224; turned's structural review is empty.
+
+All evidence for this integration is under `target/detail-main-merge/`. The historical
+`target/detail-merge/` evidence below belongs to the previous merge.
+
+
 ## Merge onto main `53aa9f3f`
 
 This verification supersedes the earlier implementation's check and delivery status below.

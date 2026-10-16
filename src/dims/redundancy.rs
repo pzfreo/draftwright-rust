@@ -138,10 +138,37 @@ pub(super) fn consolidate(
             )
             .then(kept[i].0.id.cmp(&kept[j].0.id))
     });
+    // Stream K6 (ADR4-U1): a boss standing on a face level closes a chain with that level's
+    // ladder rung and the overall height, all measured from the part's base (boss_circle: the 9
+    // overall, the 6 rung to the plate's top and the 3 boss height above it). For a boss height
+    // only, the rungs join the walk as controlling edges, a baseline from the datum, so the boss
+    // height it closes becomes the reference. Every other interval keeps its walk without them
+    // (slot floors and walls, and a rung a feature states exactly, have their own passes below).
+    let rungs: Vec<(Span, usize)> = (0..kept.len())
+        .filter(|i| !gone.contains(i) && kept[*i].0.id.starts_with("d:step_level/"))
+        .filter_map(|i| {
+            kept[i]
+                .0
+                .measurements
+                .iter()
+                .filter(|m| m.feature == "step_level")
+                .find_map(|m| crate::lint::redundancy::level_span(a, &m.parameter))
+                .map(|s| (s, i))
+        })
+        .collect();
     let mut edges = Vec::new();
     for i in order {
         let s = interval(a, &kept[i].0).unwrap();
-        if let Some(route) = path(&edges, s) {
+        let measurements = &kept[i].0.measurements;
+        let boss = !measurements.is_empty()
+            && measurements
+                .iter()
+                .all(|m| m.parameter == "boss_height.length");
+        let found = path(&edges, s).or_else(|| {
+            let with: Vec<_> = edges.iter().chain(&rungs).copied().collect();
+            path(&with, s).filter(|route| boss && route.len() > 1)
+        });
+        if let Some(route) = found {
             // A dimension the spec tolerances, or one that states the part's PMI, is controlling,
             // never reference (#33: reference is for redundant, untoleranced dimensions only).
             if !given[i].is_empty()
@@ -255,6 +282,18 @@ pub(super) fn consolidate(
                 "the feature interval states the same support planes as this ladder datum",
             );
             gone.insert(i);
+            // A reference the rung helped determine is determined by its new owner instead.
+            let (from, to) = (kept[i].0.id.clone(), kept[j].0.id.clone());
+            for (id, by) in references.iter_mut() {
+                if by.contains(&from) {
+                    by.iter_mut()
+                        .filter(|x| **x == from)
+                        .for_each(|x| x.clone_from(&to));
+                    if let Some(w) = kept.iter_mut().find(|k| &k.0.id == id) {
+                        w.0.basis = w.0.basis.replace(&from, &to);
+                    }
+                }
+            }
         } else if a.features.iter().filter(|f| f.kind == "slot").any(|f| {
             crate::lint::redundancy::span(a, &f.id, "location_slot.length")
                 .is_some_and(|p| p.same(s))
@@ -358,6 +397,62 @@ fn shoulders_on_slot_walls(
                 "; reference: the slot's stated width and location determine this shoulder on its wall ({carriers})"
             );
         }
+    }
+}
+
+/// Stream K6 (ADR1-8, ISSUE-1154-a, draftwright's authored-set parity, epic #964): an authored
+/// set decides which dimensions are drawn, not where the geometry states a fact. An item left out
+/// of the set that the defaults would have handed to an owner the set keeps (*defaults* and
+/// *unused*: the default consolidation of every item, *all*) is recorded as conveyed by that
+/// owner, as in the automatic plan, and the owner carries the claims the default owner took from
+/// it. So the set an automatic plan draws, authored back, plans the same omissions and claims.
+/// An owner the set leaves out, or one printing other than its default text, takes nothing: the
+/// item stays `not_authored`.
+pub(super) fn authored_parity(
+    all: &[Want],
+    defaults: &[Kept],
+    unused: &[Omitted],
+    kept: &mut [Kept],
+    omitted: &mut [Omitted],
+) {
+    for o in omitted.iter_mut().filter(|o| o.state == State::NotAuthored) {
+        let Some(u) = unused.iter().find(|u| u.id == o.id) else {
+            continue;
+        };
+        let State::Covered { by } = &u.state else {
+            continue;
+        };
+        let Some(owner) = kept.iter_mut().find(|k| &k.0.id == by) else {
+            continue;
+        };
+        let Some(own) = all.iter().find(|w| w.id == o.id) else {
+            continue;
+        };
+        // Only where the owner prints what it would by default: a count or shared size the
+        // defaults gave it (`2× ⌀6`) cannot be claimed by a label that does not print it.
+        let Some(default) = defaults.iter().find(|d| &d.0.id == by) else {
+            continue;
+        };
+        if default.0.terms != owner.0.terms {
+            continue;
+        }
+        let taken = default.0.measurements.iter().filter(|m| {
+            own.measurements
+                .iter()
+                .any(|c| c.feature == m.feature && c.parameter == m.parameter)
+        });
+        for m in taken {
+            if !owner
+                .0
+                .measurements
+                .iter()
+                .any(|c| c.feature == m.feature && c.parameter == m.parameter)
+            {
+                owner.0.measurements.push(m.clone());
+            }
+        }
+        o.basis.clone_from(&u.basis);
+        o.state = u.state.clone();
     }
 }
 

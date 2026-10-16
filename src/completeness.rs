@@ -187,9 +187,7 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
         .features
         .iter()
         .filter(|f| {
-            if stated.contains(f.id.as_str())
-                || crate::dims::UNDRAFTED.contains(&f.fingerprint.subtype.as_str())
-            {
+            if stated.contains(f.id.as_str()) || crate::dims::undrafted(f) {
                 return false;
             }
             if f.kind == "boss"

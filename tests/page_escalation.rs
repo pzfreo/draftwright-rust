@@ -503,5 +503,39 @@ fn a_try_with_more_ink_over_the_views_than_the_first_is_not_taken() {
         .find(|t| t.size == "A4" && t.scale == "1:1")
         .expect("A4 at 1:1 is tried");
     assert!(gate.valid && gate.over == 2, "{}", plan.sheet.basis);
-    sheet_rule::assert_follows("1004 stand-in", &plan, ("A4", "2:1"));
+    if plan.sheets.is_empty() {
+        sheet_rule::assert_follows("1004 stand-in", &plan, ("A4", "2:1"));
+    } else {
+        // #63 tries practical multi-sheet paper before A2. The rejected 1:1 trial
+        // above still crosses two views; every accepted page must keep actual ink inside.
+        assert!(plan.sheet.basis.starts_with("small part: practical-paper"));
+        for sheet in std::iter::once(&plan.sheet).chain(&plan.sheets) {
+            assert!(matches!(sheet.size.as_str(), "A4" | "A3"));
+            let inside = |q: [f64; 2]| {
+                assert!(
+                    q[0] >= 10. - 1e-6
+                        && q[1] >= 10. - 1e-6
+                        && q[0] <= sheet.page[0] - 10. + 1e-6
+                        && q[1] <= sheet.page[1] - 10. + 1e-6,
+                    "{q:?} on {sheet:?}"
+                );
+            };
+            for v in plan.views.iter().filter(|v| v.sheet == sheet.number) {
+                inside([v.area[0], v.area[1]]);
+                inside([v.area[2], v.area[3]]);
+                for p in plan
+                    .dimensions
+                    .iter()
+                    .filter(|d| d.view == v.id)
+                    .filter_map(|d| d.placed.as_ref())
+                {
+                    inside([p.label_box[0], p.label_box[1]]);
+                    inside([p.label_box[2], p.label_box[3]]);
+                    for q in p.lines.iter().chain(&p.arrows).flatten() {
+                        inside(*q);
+                    }
+                }
+            }
+        }
+    }
 }

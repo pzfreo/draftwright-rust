@@ -1,5 +1,6 @@
 //! R5's allocation: recover paper first, then move cumulative groups of auxiliary content.
 
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
@@ -311,13 +312,19 @@ fn working(analysis: &Analysis, spec: &Spec, moved: &BTreeMap<String, u32>) -> S
     copy
 }
 
+thread_local! {
+    // Monotonic per-thread count lets an outer allocation include its nested small-paper tries.
+    static RUNS: Cell<usize> = const { Cell::new(0) };
+}
+
 fn run(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    RUNS.with(|runs| runs.set(runs.get() + 1));
     crate::planning::with(analysis, || {
         model::recover(analysis, spec, model::plan_escalated(analysis, spec)?)
     })
 }
 
-/// Specs without sheet controls take precisely the pre-R5 planner path.
+/// Single-sheet recovery may invoke the small-part overflow allocation before large paper.
 pub(crate) fn allocate(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     allocate_counted(analysis, spec, &mut 0)
 }
@@ -328,17 +335,44 @@ pub(crate) fn allocate_counted(
     spec: &Spec,
     steps: &mut usize,
 ) -> Result<Plan, Invalid> {
-    let mut plan = allocate_inner(analysis, spec, steps)?;
-    crate::iso_caption::refresh(analysis, &mut plan);
-    Ok(plan)
+    let before = RUNS.with(Cell::get);
+    let result = (|| {
+        let mut plan = allocate_inner(analysis, spec, None)?;
+        // Finish forced allocations and table presentation before checking paths that
+        // bypassed ordinary recovery (fixed scale, pins, or a rebuilt hole schedule).
+        if spec.sheet.size.is_none()
+            && spec.sheets.as_ref().and_then(|s| s.max) != Some(1)
+            && ["A2", "A1", "A0"].contains(&plan.sheet.size.as_str())
+            && model::fits_a3_at_full_size(analysis, &plan)
+            && (spec.sheet.scale.is_some()
+                || crate::placement_intent::has_pins(spec)
+                || !plan.hole_tables.is_empty()
+                || assignments(spec).values().any(|n| *n > 1)
+                || spec.tables.iter().any(|t| t.sheet.is_some_and(|n| n > 1)))
+        {
+            let mut tried = Vec::new();
+            if let Some(small) = small_fallback(analysis, spec, &plan, &mut tried) {
+                plan = small;
+            } else if !tried.is_empty() {
+                plan.sheet.basis += &format!("; {}", tried.join("; "));
+            }
+        }
+        crate::iso_caption::refresh(analysis, &mut plan);
+        Ok(plan)
+    })();
+    *steps += RUNS.with(Cell::get) - before;
+    result
 }
 
-fn allocate_inner(analysis: &Analysis, spec: &Spec, steps: &mut usize) -> Result<Plan, Invalid> {
+fn allocate_inner(
+    analysis: &Analysis,
+    spec: &Spec,
+    required: Option<&Plan>,
+) -> Result<Plan, Invalid> {
     if spec.sheets.is_none()
         && spec.views.values().all(|v| v.sheet.is_none())
         && spec.tables.iter().all(|t| t.sheet.is_none())
     {
-        *steps += 1;
         return run(analysis, spec);
     }
     let migrated = model::migrate(spec, analysis)?;
@@ -358,8 +392,10 @@ fn allocate_inner(analysis: &Analysis, spec: &Spec, steps: &mut usize) -> Result
             }
         }
     }
-    *steps += 1;
     let mut first = run(analysis, &working(analysis, spec, &moved))?;
+    if !first.sheets.is_empty() && moved.is_empty() {
+        return Ok(first);
+    }
     let long = first.table_outcome == hole_table::TableOutcome::NoPlace;
     let possible = candidates(analysis, spec, long);
     let mut tried = Vec::new();
@@ -386,7 +422,6 @@ fn allocate_inner(analysis: &Analysis, spec: &Spec, steps: &mut usize) -> Result
             if moved.contains_key("hole_table") {
                 copy.sheets.as_mut().unwrap().hole_table = Some(2);
             }
-            *steps += 1;
             first = run(analysis, &copy)?;
         }
         let mut p = first.clone();
@@ -396,7 +431,13 @@ fn allocate_inner(analysis: &Analysis, spec: &Spec, steps: &mut usize) -> Result
             continue;
         }
         previous = p.clone();
-        let (f, dropped) = score(analysis, spec, &p);
+        let (mut f, dropped) = score(analysis, spec, &p);
+        // A practical-paper rescue must pass the whole-document gate before an early
+        // clean prefix can stop the search. Later prefixes may restore a seed measurement
+        // or relieve a page whose packed estimate passed but whose actual ink did not.
+        if required.is_some_and(|seed| !small_content_fits(analysis, seed, &p)) {
+            f.hard += 1;
+        }
         let hard = f.hard;
         tried.push(format!(
             "step {step}: {} hard findings, {dropped} required drops, scale {}, moved {}",
@@ -464,6 +505,87 @@ fn allocate_inner(analysis: &Analysis, spec: &Spec, steps: &mut usize) -> Result
     p.table_restore = None;
     p.status = crate::completeness::status(&p.problems);
     Ok(p)
+}
+
+/// Relieve a small part on practical paper before opening the large-sheet ladder.
+/// Named paper prevents re-entry into this fallback; allocation uses R5's normal prefixes,
+/// keep-together groups, packing and cross-references. Working controls never become intent.
+pub(crate) fn small_fallback(
+    analysis: &Analysis,
+    spec: &Spec,
+    required: &Plan,
+    tried: &mut Vec<String>,
+) -> Option<Plan> {
+    if spec.sheet.size.is_some() {
+        return None;
+    }
+    if spec.sheets.as_ref().and_then(|s| s.max) == Some(1) {
+        tried.push("small-sheet allocation blocked by explicit sheets.max = 1".into());
+        return None;
+    }
+    for (name, _, _) in layout::PAGES.iter().take(2) {
+        let mut working = spec.clone();
+        working.sheet.size = Some((*name).into());
+        working.sheets.get_or_insert_with(Default::default).max =
+            Some(spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9));
+        let mut p = match allocate_inner(analysis, &working, Some(required)) {
+            Ok(plan) => plan,
+            Err(error) => {
+                tried.push(format!("{name} multi-sheet: invalid ({})", error.message));
+                continue;
+            }
+        };
+        crate::iso_caption::refresh(analysis, &mut p);
+        let (mut f, dropped) = score(analysis, &working, &p);
+        f.hard = f.hard.max(model::findings(&p).hard);
+        let complete = model::carries_required(required, &p);
+        let fits = model::drawn_sheets_fit(analysis, &p);
+        let over = model::over_views(&p) > model::over_views(required);
+        let clean = f.hard == 0 && dropped == 0 && small_content_fits(analysis, required, &p);
+        let blockers: BTreeSet<_> = p
+            .problems
+            .iter()
+            .filter(|q| blocks_small_plan(q))
+            .map(|q| q.code.as_str())
+            .collect();
+        tried.push(format!(
+            "{name} multi-sheet: {} sheets at {}, {} hard findings, {dropped} required drops, required measurements retained {complete}, drawn bounds fit {fits}, additional view conflicts {over}, blocking problems [{}]",
+            1 + p.sheets.len(), p.sheet.scale, f.hard, blockers.into_iter().collect::<Vec<_>>().join(", ")
+        ));
+        if clean {
+            let binding = p.spec.binding.clone();
+            p.spec = spec.clone();
+            p.spec.schema = model::SPEC_SCHEMA.into();
+            p.spec.binding = binding;
+            p.sheet.default = true;
+            for sheet in &mut p.sheets {
+                sheet.default = true;
+            }
+            p.sheet.basis = format!(
+                "small part: practical-paper R5 allocation before A2 and larger; {}",
+                tried.join("; ")
+            );
+            return Some(p);
+        }
+    }
+    None
+}
+
+/// The supplement search uses the recovery's actual-ink and measurement-retention gates.
+fn small_content_fits(analysis: &Analysis, required: &Plan, plan: &Plan) -> bool {
+    model::findings(plan).clean()
+        && model::carries_required(required, plan)
+        && model::drawn_sheets_fit(analysis, plan)
+        && model::over_views(plan) <= model::over_views(required)
+        && !plan.problems.iter().any(blocks_small_plan)
+}
+
+fn blocks_small_plan(problem: &Problem) -> bool {
+    problem.severity == "error"
+        || matches!(
+            problem.code.as_str(),
+            "cross_reference_missing" | "sheet_below_smallest_scale"
+        )
 }
 
 fn score(analysis: &Analysis, spec: &Spec, plan: &Plan) -> (layout::Findings, usize) {
@@ -550,7 +672,8 @@ fn auxiliary(
         detail: None,
         id: format!("v:{name}"),
         sheet,
-        scale_note: (scale != parent_scale).then(|| format!("SCALE {}", model::scale_name(scale))),
+        scale_note: (name != "iso" && scale != parent_scale)
+            .then(|| format!("SCALE {}", model::scale_name(scale))),
         xref: None,
         direction,
         up,
@@ -586,6 +709,8 @@ fn auxiliary(
     // zone address on the supported paper grid; I2 draws it at this same caption centre.
     let text = if planned.cut.is_some() {
         "FROM SHEET 1, ZONE R24"
+    } else if name == "iso" && scale != parent_scale {
+        model::NTS_CAPTION
     } else {
         planned.scale_note.as_deref().unwrap_or("")
     };
@@ -1057,6 +1182,16 @@ fn cross_references(analysis: &Analysis, plan: &mut Plan) {
                 v.at[0],
                 v.at[1] - model::extent(analysis, &projection).0[1] * v.scale / 2. - 7.,
             ];
+            let page = |number| {
+                std::iter::once(&plan.sheet)
+                    .chain(&plan.sheets)
+                    .find(|s| s.number == number)
+                    .expect("reference sheet")
+                    .page
+            };
+            // A caption may lie in the next zone below the view. Address the view itself.
+            let destination = zone(page(v.sheet), v.at);
+            let source = zone(page(parent.sheet), letters[0]);
             let from = reference_position(
                 analysis,
                 plan,
@@ -1066,7 +1201,7 @@ fn cross_references(analysis: &Analysis, plan: &mut Plan) {
                     cut.label,
                     cut.label,
                     v.sheet,
-                    zone(plan.sheet.page, caption)
+                    destination.clone()
                 ),
                 &letters.map(|p| [p[0], p[1] + 5.]),
             );
@@ -1074,23 +1209,19 @@ fn cross_references(analysis: &Analysis, plan: &mut Plan) {
                 analysis,
                 plan,
                 v.sheet,
-                &format!(
-                    "FROM SHEET {}, ZONE {}",
-                    parent.sheet,
-                    zone(plan.sheet.page, letters[0])
-                ),
+                &format!("FROM SHEET {}, ZONE {}", parent.sheet, source.clone()),
                 &[[caption[0], caption[1] - 5.]],
             );
             Some((
                 v.id.clone(),
                 CrossRef {
                     sheet: parent.sheet,
-                    zone: zone(plan.sheet.page, letters[0]),
+                    zone: source.clone(),
                     at,
                 },
                 CrossRef {
                     sheet: v.sheet,
-                    zone: zone(plan.sheet.page, caption),
+                    zone: destination.clone(),
                     at: from,
                 },
             ))

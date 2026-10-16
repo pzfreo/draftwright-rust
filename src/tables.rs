@@ -207,6 +207,9 @@ pub struct PlannedTable {
     pub id: String,
     /// Its cells as text, row 0 the header.
     pub rows: Vec<Vec<String>>,
+    /// Compiler-owned provenance for tagged manufacturing rows, including wrapped continuations.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub row_claims: Vec<RowClaims>,
     pub default: bool,
     pub basis: String,
     /// What became of it: shown, or why not ([`crate::items::State`]).
@@ -214,6 +217,13 @@ pub struct PlannedTable {
     /// Where it is drawn; absent when it has no place, and a problem says so.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub placed: Option<PlacedTable>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RowClaims {
+    pub tag: String,
+    pub claims: Vec<crate::output::Claim>,
 }
 
 /// A table's place, mm on the page.
@@ -327,11 +337,15 @@ pub fn check(tables: &[TableSpec]) -> Result<(), Invalid> {
 /// Each column's width, as `_table_metrics` measures it: its widest cell's ink and the padding
 /// each side, at least 2.5 text heights.
 pub(crate) fn widths(rows: &[Vec<String>]) -> Vec<f64> {
+    // Repeated cells have identical ink at the table's fixed font and text height. Keep
+    // the exact measurement locally; long repeated requirements otherwise lay out every
+    // glyph again for each row on every sheet/scale candidate.
+    let mut spans = std::collections::BTreeMap::new();
     (0..rows[0].len())
         .map(|c| {
             let ink = rows
                 .iter()
-                .filter_map(|r| span(&r[c]))
+                .filter_map(|r| *spans.entry(r[c].as_str()).or_insert_with(|| span(&r[c])))
                 .map(|s| s[1] - s[0])
                 .fold(0.0, f64::max);
             (ink + 2.0 * PAD).max(2.5 * TEXT)
@@ -400,6 +414,7 @@ pub fn plan(
                 sheet: sheet.number,
                 id: t.id.clone(),
                 rows,
+                row_claims: Vec::new(),
                 default: false,
                 basis: format!(
                     "authored: the spec's table {} (tables/{i}), towards the sheet's {prefer} corner as draftwright places a declared table",
@@ -520,9 +535,23 @@ pub fn manufacturing(
         sheet: 1,
         id: id.into(),
         rows,
+        row_claims: m
+            .tags
+            .iter()
+            .filter_map(|(source, tag)| {
+                let owned = m.owned.iter().find(|o| &o.source == source)?;
+                Some(RowClaims {
+                    tag: tag.clone(),
+                    claims: vec![crate::output::Claim {
+                        feature: owned.id.clone(),
+                        parameter: owned.aspect.into(),
+                    }],
+                })
+            })
+            .collect(),
         default: true,
         basis: format!(
-            "source-authored: the part's AP242 thread and knurl requirements ({}): with two or more and one too long for its callout, each callout refers to its row (SEE MFG n) and this table states them, towards the sheet's top right, as draftwright's manufacturing schedule",
+            "source-authored: the part's effective thread and knurl requirements ({}): with two or more and one too long for its callout, each callout refers to its row (SEE MFG n) and this table states them, towards the sheet's top right, as draftwright's manufacturing schedule",
             m.tags
                 .iter()
                 .map(|(s, _)| s.as_str())
