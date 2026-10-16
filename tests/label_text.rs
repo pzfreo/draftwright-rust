@@ -690,3 +690,77 @@ fn large_mcp_options_keep_all_structured_and_resource_details_within_the_wire_bu
         "the complete large option map exercised resource-backed text"
     );
 }
+
+#[test]
+fn inactive_saved_wording_never_becomes_live_lint_evidence_on_a_reused_id() {
+    let (part, a) = analysed("plate");
+    let base = model::plan(&a, &Spec::default()).unwrap();
+    let old = base
+        .dimensions
+        .iter()
+        .find(|d| d.id.starts_with("d:f:") && d.kind == "callout" && d.placed.is_some())
+        .unwrap();
+    let mut spec: Spec =
+        serde_json::from_value(json!({"dimensions":{&old.id:{"text":{"suffix":"AFTER PLATING"}}}}))
+            .unwrap();
+    let mut binding = a.binding.clone();
+    binding.source_sha256 = "0".repeat(64);
+    spec.binding = Some(binding);
+    let saved: Spec = serde_json::from_str(&serde_json::to_string(&spec).unwrap()).unwrap();
+    let plan = model::plan(&a, &saved).unwrap();
+    let d = plan.dimensions.iter().find(|d| d.id == old.id).unwrap();
+    assert_eq!(d.label, old.label);
+    assert!(!d.from_spec.iter().any(|field| field == "text"));
+    assert!(
+        plan.spec.dimensions[&old.id].text.is_some(),
+        "quarantine preserves saved intent"
+    );
+    assert!(
+        plan.problems
+            .iter()
+            .any(|p| p.code == "spec_from_other_revision")
+    );
+    let drawing = model::render(&part, &a, &plan, &font()).unwrap();
+    assert!(!drawing.sheet.label_text.contains_key(&old.id));
+    let original = model::render(&part, &a, &base, &font()).unwrap();
+    assert_eq!(
+        draftwright::lint::marks(&drawing),
+        draftwright::lint::marks(&original)
+    );
+}
+
+#[test]
+fn style_only_counted_references_keep_live_per_unit_value_checks() {
+    let (part, a) = analysed("two_grids");
+    let base = model::plan(&a, &Spec::default()).unwrap();
+    let old = base
+        .dimensions
+        .iter()
+        .find(|d| d.kind == "linear" && d.label.starts_with("2× ") && d.placed.is_some())
+        .unwrap();
+    let spec: Spec =
+        serde_json::from_value(json!({"dimensions":{&old.id:{"style":"reference"}}})).unwrap();
+    let p = model::plan(&a, &spec).unwrap();
+    let d = p.dimensions.iter().find(|d| d.id == old.id).unwrap();
+    assert_eq!(d.label, format!("({})", old.label));
+    assert_eq!(d.value, old.value);
+    let drawing = model::render(&part, &a, &p, &font()).unwrap();
+    assert!(
+        !draftwright::lint::structural::check(&drawing)
+            .iter()
+            .any(|i| i.code == "label_vs_measured" && i.annotation.as_deref() == Some(&d.id))
+    );
+    let mut damaged = drawing.clone();
+    let run = damaged
+        .annotations
+        .iter()
+        .find(|a| a.name == d.id)
+        .unwrap()
+        .runs[0];
+    damaged.text[run].text = "REF".into();
+    assert!(
+        draftwright::lint::structural::check(&damaged)
+            .iter()
+            .any(|i| i.code == "label_vs_measured" && i.annotation.as_deref() == Some(&d.id))
+    );
+}

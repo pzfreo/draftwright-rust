@@ -200,7 +200,11 @@ pub(crate) fn note_body<'a>(
 
 /// Compile wording evidence independently of the live searchable runs.
 pub(crate) fn capture(plan: &crate::model::Plan, sheet: &mut crate::output::Sheet) {
-    if !plan.spec.dimensions.values().any(|d| d.text.is_some())
+    if !plan
+        .spec
+        .dimensions
+        .values()
+        .any(|d| d.text.is_some() || d.style.is_some())
         && !plan.spec.annotations.values().any(|a| a.text.is_some())
     {
         return;
@@ -208,13 +212,28 @@ pub(crate) fn capture(plan: &crate::model::Plan, sheet: &mut crate::output::Shee
     for (id, entry) in &plan.spec.dimensions {
         if let Some(text) = &entry.text
             && let Some(d) = plan.dimensions.iter().find(|d| &d.id == id)
+            && d.from_spec.iter().any(|field| field == "text")
         {
             sheet
                 .label_text
                 .insert(id.clone(), text.wording(d.reference));
         }
     }
-    for note in &plan.notes {
+    for d in plan
+        .dimensions
+        .iter()
+        .filter(|d| d.from_spec.iter().any(|field| field.starts_with("style.")))
+    {
+        sheet
+            .label_text
+            .entry(d.id.clone())
+            .or_insert_with(|| Text::default().wording(d.reference));
+    }
+    for note in plan
+        .notes
+        .iter()
+        .filter(|note| note.from_spec.iter().any(|field| field == "text"))
+    {
         if let Some(text) = plan
             .spec
             .annotations
