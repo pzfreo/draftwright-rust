@@ -249,6 +249,9 @@ pub struct Spec {
     /// ([`crate::tables`]).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tables: Vec<TableSpec>,
+    /// Authored external spur gear requirements, never inferred from geometry.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub gears: Vec<crate::gears::GearSpec>,
 }
 
 /// The two sources of dimension intent (ADR4-5).
@@ -338,6 +341,7 @@ impl Default for Spec {
             annotations: BTreeMap::new(),
             notes: Vec::new(),
             tables: Vec::new(),
+            gears: Vec::new(),
         }
     }
 }
@@ -1043,11 +1047,10 @@ pub fn recognise_document(
     // As the bridge orders them: by kind, then faces (each kind's IDs are ranked so already).
     features.sort_by(|a, b| (&a.kind, &a.faces).cmp(&(&b.kind, &b.faces)));
     let mut counts = BTreeMap::<&str, usize>::new();
-    for r in doc
-        .records
-        .iter()
-        .filter(|r| !native::READ.contains(&r.family.as_str()))
-    {
+    for r in doc.records.iter().filter(|r| {
+        !native::READ.contains(&r.family.as_str())
+            && !native::EVIDENCE_READ.contains(&r.family.as_str())
+    }) {
         *counts.entry(r.family.as_str()).or_default() += 1;
     }
     let mut unrecognised: Vec<Unrecognised> = NOT_IN_NATIVE_DOCUMENT
@@ -1066,7 +1069,7 @@ pub fn recognise_document(
     analysis.recognition = Some(Recognition {
         recogniser: read.recogniser,
         frame: native::IDENTITY,
-        evidence: Vec::new(),
+        evidence: read.evidence,
         refusals: Vec::new(),
         patterns: read.patterns,
     });
@@ -2158,6 +2161,7 @@ fn plan_with_presentation(
     title_block::check(&spec.sheet.title)?;
     crate::notes::check(&spec.notes)?;
     crate::tables::check(&spec.tables)?;
+    crate::gears::check(&spec.gears)?;
     let mut problems = Vec::new();
     // The spec the plan follows: across a revision, without the entries that cannot be trusted.
     let canonical = if crate::placement_intent::has_pins(spec) {
@@ -2530,6 +2534,9 @@ fn plan_with_presentation(
     );
     request.iso_scale_factor = spec.iso_scale_factor;
     request.required_tables = crate::tables::sizes(&spec.tables);
+    request
+        .required_tables
+        .extend(crate::tables::sizes(&crate::gears::tables(analysis)));
     if let Some(p) = presentation {
         request.required_tables.extend(p.sizes());
     }
@@ -3238,6 +3245,27 @@ fn plan_with_presentation(
     problems.extend(more);
     tables.extend(schedule);
     ink.extend(tables.iter().filter_map(crate::tables::proxy));
+    let (mut gear_tables, more) = crate::tables::plan(
+        &crate::gears::tables(analysis),
+        analysis,
+        &sheet,
+        &views,
+        &ink,
+        notes_block.as_ref().map(|b| b.cells),
+    );
+    problems.extend(more);
+    for (i, table) in gear_tables.iter_mut().enumerate() {
+        table.basis = format!(
+            "authored: gears/{i}, metric external spur gear requirements; ISO 21771-1/-2, ISO 53, ISO 54 and ISO 1328-1; placed as a standards data table"
+        );
+    }
+    tables.extend(gear_tables);
+    ink.extend(
+        tables
+            .iter()
+            .filter(|t| t.id.starts_with("gear_data_"))
+            .filter_map(crate::tables::proxy),
+    );
     let exceptions_unstated =
         crate::dims::blends::exceptions_unstated(analysis, &dimensions, &radius_notes);
     if exceptions_unstated {
@@ -3704,6 +3732,7 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
     title_block::check(&spec.sheet.title)?;
     crate::notes::check(&spec.notes)?;
     crate::tables::check(&spec.tables)?;
+    crate::gears::check(&spec.gears)?;
     Ok(spec)
 }
 
@@ -4766,6 +4795,7 @@ fn render_annotations_with_cuts(
         }
         let mut manufacturing_runs: BTreeMap<String, Vec<usize>> = BTreeMap::new();
         let mut manufacturing_header = Vec::new();
+        let mut gear_runs = Vec::new();
         let mut tag = None;
         for (r, (row, positions)) in table.rows.iter().zip(&p.cells_at).enumerate() {
             if table.id == crate::pmi_lowering::SCHEDULE_ID && r > 0 && !row[0].is_empty() {
@@ -4776,6 +4806,9 @@ fn render_annotations_with_cuts(
                 let run = (cell.trim(), crate::dims::FONT, crate::tables::TEXT);
                 let laid = font.text(&crate::tables::ink(cell), crate::tables::TEXT);
                 let index = label(laid, *at, dims, Some(run));
+                if table.id.starts_with("gear_data_") {
+                    gear_runs.extend(index);
+                }
                 if table.id == crate::pmi_lowering::SCHEDULE_ID && r == 0 {
                     manufacturing_header.extend(index);
                 }
@@ -4786,6 +4819,17 @@ fn render_annotations_with_cuts(
                         .extend(index);
                 }
             }
+        }
+        if let Some(owner) = table.id.strip_prefix("gear_data_") {
+            annotations.push(Annotation {
+                name: table.id.clone(),
+                runs: gear_runs,
+                claims: vec![Claim {
+                    feature: format!("gear:{owner}"),
+                    parameter: "gear.requirement".into(),
+                }],
+                ..Default::default()
+            });
         }
         if !manufacturing_header.is_empty() {
             annotations.push(Annotation {

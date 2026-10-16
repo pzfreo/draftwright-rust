@@ -1508,8 +1508,9 @@
     module: "linting/gear_coverage.py"
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: no gear declaration (Spec or PMI) and no gear data table; see ARCH0015-3. The bridge retains raw repeating_radial_profiles evidence, but Spec has no external-spur-gear declaration, validated normative gear requirement record, source-bound gear-table item, or gear/geometry correspondence auditor. These four layers must be implemented together so a detected repetition never invents normative gear data; that is a cross-cutting subsystem exceeding a day, not an ordinary descriptive-table addition."
+  status: ported
+  rust_test: "tests/gears.rs::missing_and_duplicate_gear_tables_fail_coverage"
+  rust_note: "Exactly one drawn provenance-bound table per declared gear; missing or duplicate annotations report Python gear_requirement_missing/ambiguous."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream gears"
 
 - id: LINT-code-gear_requirement_mismatch
@@ -1521,8 +1522,9 @@
     module: "linting/gear_coverage.py"
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: there is no gear data table to compare with an authored gear requirement (ARCH0015-3). The bridge retains raw repeating_radial_profiles evidence, but Spec has no external-spur-gear declaration, validated normative gear requirement record, source-bound gear-table item, or gear/geometry correspondence auditor. These four layers must be implemented together so a detected repetition never invents normative gear data; that is a cross-cutting subsystem exceeding a day, not an ordinary descriptive-table addition."
+  status: ported
+  rust_test: "tests/gears.rs::stale_or_damaged_gear_table_is_a_requirement_mismatch"
+  rust_note: "Independent oracle compares every actual rendered cell, including standards, units and signed deviations, with current authored requirements."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream gears"
 
 - id: LINT-code-gear_semantics_missing
@@ -1533,10 +1535,9 @@
     module: "linting/gear_coverage.py"
     issues: [1086, 1058]
     tests: [tests/test_issue_1086_declared_gears.py, tests/test_issue_1058_wheel_profile.py]
-  status: translated
-  rust_test: "tests/lint_coverage.rs"
-  rust_rule: "src/lint/profiles.rs reports the unsupported outer boundary with n evenly spaced arcs ('for a gear, its tooth data'), compared with Python in tests/lint_coverage.rs (radial_count)."
-  rust_note: "src/lint/profiles.rs reports the unsupported outer boundary with n evenly spaced arcs ('for a gear, its tooth data'), compared with Python in tests/lint_coverage.rs (radial_count). A gear declaration in the Spec and its data table are covered by the tables batch (LINT-gear_coverage-data_table, ISSUE-1086-a/b)."
+  status: ported
+  rust_test: "tests/gears.rs::repeating_profile_never_invents_gear_semantics"
+  rust_note: "Full-wire repeating profiles without declarations report gear_semantics_missing, distinct from the existing unsupported-boundary coverage warning."
   port_note: "Keep."
 
 - id: LINT-code-gear_axis_mismatch
@@ -1548,8 +1549,9 @@
     module: "linting/gear_coverage.py"
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: no declared gear axis to compare with the repeating profile's (ARCH0015-3)."
+  status: ported
+  rust_test: "tests/gears.rs::declared_gear_axis_mismatch_uses_correspondence_before_axis"
+  rust_note: "Centre/span correspondence precedes the axis audit; assembly findings are informational."
   port_note: "triage 2026-10-16: PORT, value low, size L, stream gears"
 
 - id: LINT-code-gear_repeat_count_mismatch
@@ -1561,8 +1563,9 @@
     module: "linting/gear_coverage.py"
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py, tests/test_issue_1176_quality_fidelity.py]
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: no declared tooth count to compare with the profile's repeat count (ARCH0015-3)."
+  status: ported
+  rust_test: "tests/gears.rs::declared_gear_repeat_count_must_match_full_wire_evidence; tests/gears.rs::real_wheel_full_wire_evidence_reconciles_authored_gear"
+  rust_note: "Compares authored tooth count with full-wire repeat evidence, including the real Python 13-tooth wheel fixture."
   port_note: "triage 2026-10-16: PORT, value low, size L, stream gears"
 
 - id: LINT-code-gear_correspondence_unverifiable
@@ -1573,8 +1576,9 @@
     module: "linting/gear_coverage.py"
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: with no gear declaration there is no correspondence to verify (ARCH0015-3)."
+  status: ported
+  rust_test: "tests/gears.rs::gear_correspondence_fails_closed_when_absent_ambiguous_or_displaced"
+  rust_note: "Missing, ambiguous or displaced full-wire profiles remain unverifiable. Radial arc counts are insufficient."
   port_note: "triage 2026-10-16: PORT, value low, size L, stream gears"
 
 # ---------------------------------------------------------------------------------------

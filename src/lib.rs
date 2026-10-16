@@ -14,6 +14,7 @@ pub mod cosmetic;
 pub mod demand;
 pub mod dims;
 pub mod evaluation;
+pub mod gears;
 pub mod hole_table;
 pub mod items;
 pub mod layout;

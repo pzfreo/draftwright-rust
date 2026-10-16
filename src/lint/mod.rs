@@ -56,6 +56,7 @@ pub mod envelope;
 pub mod fidelity;
 pub mod fillets;
 pub mod flats;
+pub mod gears;
 pub mod grooves;
 pub mod gussets;
 pub mod hole_patterns;
@@ -342,6 +343,7 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
         })
         .chain(relief_issues)
         .collect();
+    issues.extend(gears::check(analysis, drawing));
     issues.extend(schedule_evidence::check(drawing));
     issues.extend(pmi_coverage::manufacturing_references(analysis, drawing));
     issues.extend(coverage::drawn_centre_marks(analysis, drawing));
