@@ -1093,6 +1093,59 @@ pub(super) fn avoid_fixed(
     }
 }
 
+/// A label that cannot slide clear of a witness may have a clear lane across its view.
+/// Try that corridor before leaders settle around the edited linear ink. The caller
+/// keeps canonical and authored placements; every candidate clears the full inventory.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn clear_linear(
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    chosen: &[Option<&str>],
+    sides: &mut [Option<Side>],
+    lanes: &mut [usize],
+    placed: &mut [Option<Placed>],
+    obstacles: &[PlannedDimension],
+    page: &Page,
+) {
+    let conflict = |a: &Placed, b: &Placed| {
+        boxes_overlap(a.label_box, b.label_box)
+            || a.lines.iter().any(|l| crosses(*l, b.label_box))
+            || b.lines.iter().any(|l| crosses(*l, a.label_box))
+            || (a.arrows.len() == 2
+                && b.arrows.len() == 2
+                && shared_dimension_line(&a.lines, &b.lines))
+    };
+    for i in 0..items.len() {
+        if !matches!(items[i].shape, Shape::Linear { .. }) {
+            continue;
+        }
+        let (Some(p), Some(view), Some(side)) = (&placed[i], chosen[i], sides[i]) else {
+            continue;
+        };
+        let others: Vec<_> = placed
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| *j != i)
+            .filter_map(|(_, p)| p.as_ref())
+            .chain(obstacles.iter().filter_map(|d| d.placed.as_ref()))
+            .collect();
+        if !others.iter().any(|q| conflict(p, q)) {
+            continue;
+        }
+        // The opposite strip's first eight lanes are a bounded search of spare paper,
+        // not permission to grow the existing tower beyond the sheet.
+        let found = (0..8).find_map(|lane| {
+            let c = place(&frames[view], &items[i], opposite(side), lane)?;
+            (page.fits(&c, view) && others.iter().all(|q| !conflict(&c, q))).then_some((lane, c))
+        });
+        if let Some((lane, c)) = found {
+            sides[i] = Some(opposite(side));
+            lanes[i] = lane;
+            placed[i] = Some(c);
+        }
+    }
+}
+
 // Linear placements store their dimension line after the two extension lines.
 // Dimensions sharing a datum must stay on separate lines when moving around a pin.
 fn dimension_lines_overlap(p: &Placed, q: &Placed) -> bool {

@@ -1,5 +1,7 @@
 //! R5 allocation and the pre-Stage-I single-sheet byte contract.
 
+#[path = "common/overflow.rs"]
+mod overflow;
 #[path = "common/single_sheet.rs"]
 mod single_sheet;
 
@@ -564,11 +566,12 @@ fn r5_moving_the_table_does_not_create_balloon_room() {
 #[test]
 fn r5_a_further_sheet_before_a_smaller_scale_uses_cumulative_prefixes() {
     let a = analysed("gramel/string_post.step");
-    let base = spec(json!({"sheet":{"size":"A4"},"hole_table":"never"}));
+    let base =
+        spec(json!({"sheet":{"size":"A4"},"hole_table":"never","tables":overflow::tables()}));
     let before = model::plan_recovered(&a, &base).unwrap();
     assert_eq!(before.sheet.scale, "2:1");
     let s = spec(
-        json!({"sheet":{"size":"A4"},"sheets":{"max":2,"smallest_scale":"5:1"},"hole_table":"never"}),
+        json!({"sheet":{"size":"A4"},"sheets":{"max":2,"smallest_scale":"5:1"},"hole_table":"never","tables":overflow::tables()}),
     );
     let p = model::plan_recovered(&a, &s).unwrap();
     assert_eq!(p.sheet.scale, "5:1");
@@ -583,17 +586,20 @@ fn r5_a_further_sheet_before_a_smaller_scale_uses_cumulative_prefixes() {
         assert!(p.sheet.basis.contains(step));
     }
     assert!(p.sheet.basis.contains("moved iso, section_aa"));
+    assert!(p.tables.iter().any(|t| t.id == "t:1" && t.placed.is_some()));
     assert!(!p.problems.iter().any(|p| {
         [
             "sheet_below_smallest_scale",
+            "table_not_placed",
             "annotation_off_sheet",
             "views_overlap",
             "view_on_title_block",
         ]
         .contains(&p.code.as_str())
     }));
-    let single =
-        spec(json!({"sheet":{"size":"A4"},"sheets":{"smallest_scale":"5:1"},"hole_table":"never"}));
+    let single = spec(
+        json!({"sheet":{"size":"A4"},"sheets":{"smallest_scale":"5:1"},"hole_table":"never","tables":overflow::tables()}),
+    );
     let p = model::plan_recovered(&a, &single).unwrap();
     let floor = p
         .problems
@@ -607,7 +613,9 @@ fn r5_a_further_sheet_before_a_smaller_scale_uses_cumulative_prefixes() {
 #[test]
 fn r5_paper_runs_before_a_further_sheet() {
     let a = analysed("gramel/string_post.step");
-    let s = spec(json!({"sheets":{"max":2,"smallest_scale":"5:1"},"hole_table":"never"}));
+    let s = spec(
+        json!({"sheets":{"max":2,"smallest_scale":"5:1"},"hole_table":"never","tables":overflow::tables()}),
+    );
     let p = model::plan_recovered(&a, &s).unwrap();
     assert!(p.sheet.scale_factor >= 5.);
     assert_ne!(p.sheet.size, "A4");

@@ -7610,6 +7610,19 @@ Issues #24, #25 and #26 (raised by the editor session). Base d95f5709.
   green) before the draftwright merge, rather than leaving the dependency for the maintainer. The
   merge commit keeps 7cb26d8 reachable from quiddity-rust main, so the pin was not changed.
 
+## A4 string-post layout correction (2026-10-16)
+
+The fourteen-tolerance string post now fits one A4 sheet at 5:1 with no hard
+findings and 35.1% fill. A free section can lift independently when the aligned
+row would leave the page; GD&T corridors retain their row. Edited linear text
+can try spare opposite-side lanes before callouts settle. Hard checks, fill
+targets and the A2 rule are unchanged. See [the diagnosis and visual review](string-post-a4-layout.md).
+
+Main's macOS single-sheet expectations were re-recorded: 171 of 1,876 cases
+change (127 plan-only, 44 rendered, including existing F1 changes). Linux is
+pending CI. Quality and leader routes pass. The release suite has only the seven
+known sandbox socket-bind failures; all remaining integration binaries pass.
+
 ## K1b: finish, threads, knurls and notes authored in the Spec (#43 item 1) (2026-10-16, unattended; overturnable)
 
 - **What**: `features/<id>/finish|thread|knurl|note`, `faces/<face>/finish|note`,
