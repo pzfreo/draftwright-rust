@@ -20,7 +20,11 @@
 //! - **planar steps**: a through step's two legs, a circular blind step's `R × DEEP` and a
 //!   paired-ramp step's `2× θ° × RUN` callouts, in the view along the step's run;
 //! - **the height ladder** of a prismatic part: its face levels' heights from its base, in the
-//!   front view, and its shoulders' positions along x and y.
+//!   front view, and its shoulders' positions along x and y;
+//! - **raised pads**: footprint, `HIGH` height callout and location, in the view down on each
+//!   ([`pads`]);
+//! - **free-direction slots**: one `ORIENTED SLOT W WIDE × L LONG` callout led to the rim
+//!   ([`oriented_slots`]).
 //!
 //! Each is a [`PlannedDimension`] with a stable ID, `d:<feature>/<parameter>`, the view that
 //! carries it, its value,
@@ -66,6 +70,8 @@ mod leaders;
 pub(crate) use label_lanes::settle_inventory;
 pub(crate) use placement::collisions_cached as label_collisions;
 pub(crate) mod levels;
+mod oriented_slots;
+mod pads;
 mod placement;
 mod plates;
 mod pmi_dimensions;
@@ -487,7 +493,7 @@ struct Planner {
 }
 
 /// The planners, in the order their items are planned.
-const PLANNERS: [Planner; 14] = [
+const PLANNERS: [Planner; 16] = [
     turned::PLANNER,
     envelope::PLANNER,
     stock::PLANNER,
@@ -502,6 +508,8 @@ const PLANNERS: [Planner; 14] = [
     levels::PLANNER,
     recesses::PLANNER,
     plates::PLANNER,
+    pads::PLANNER,
+    oriented_slots::PLANNER,
 ];
 
 /// Everything the defaults would dimension, with the problems met on the way, and what the part's

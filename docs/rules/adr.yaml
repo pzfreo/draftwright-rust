@@ -665,9 +665,10 @@
     adr: "ADR 3 invariant 12; archive 0020 §5"
     issues: [354]
     tests: ["test_issue_1357_plural_turned_profiles.py"]
-  status: pending
+  status: ported
+  rust_test: "tests/completeness_rules.rs::a_groove_names_one_turned_profile_or_is_refused"
+  rust_note: "Stream K5: every turned profile (the bands of one axis line and one recorded profile) is planned on its own, its chain and diameters (src/dims/turned.rs); a part turned whole needs one axis line (turned::turned), so no first profile is chosen and no disjoint bodies merge (tests/completeness_rules.rs::each_turned_body_has_its_own_chain_on_its_own_silhouette, on draftwright's turned-step-compound.step). On a part of several turned profiles a groove whose record names none of them is refused, feature_not_dimensioned, 'no one owner' (src/dims/grooves.rs::owner; checked on groove-compound.step with one groove's profile removed)."
   port_note: "Keep: Analysis carries every turned body; planner handles them independently."
-  rust_note: "Not ported: grooves are called out from their own records (src/dims/grooves.rs) without checking that their turned profile names one owner, and no planner reads plural turned profiles."
 
 - id: ADR3-13
   statement: "A second consumer of one recognition run costs no second run: the evidence projector never recognises, imports geometry or reads the filesystem."
@@ -1964,8 +1965,8 @@
     issues: [354]
     tests: ["test_issue_1357_plural_turned_profiles.py"]
   status: pending
-  rust_test: tests/issue_drafting.rs::eccentric_cylinders_are_not_one_turned_profile
-  rust_note: "Partial: each turned profile (the bands of one axis line and one recorded profile) has its own chain, one item per band, so equal lengths on parallel shafts keep separate items (src/dims/turned.rs). Not ported: witnesses on the body's own silhouette (they run from the view's outline), and moving a profile that would share a lane to the other profile view, or dropping its chain with a diagnostic; no fixture has two parallel bodies."
+  rust_test: "tests/completeness_rules.rs::each_turned_body_has_its_own_chain_on_its_own_silhouette"
+  rust_note: "Stream K5 (src/dims/turned.rs::own_body, src/dims/placement.rs::body_strip): on a part of several turned bodies along one axis each body's chain is its own (one item per band, so equal lengths on parallel shafts keep separate marks), drawn in the profile view that separates its axis line, its witnesses starting at its own silhouette (the outer corner of each shoulder) on the side of the view its body is nearer, in that side's strip, so it never stands on a sibling's outline (draftwright's turned-step-compound.step: before, the left shaft's chain stood beside the right shaft with witnesses from the view's outline). Not ported: a body between two others (its nearer side still has a sibling between it and the strip), a strip that overflows to the other side (fall_through), and draftwright's drop with a required-outcome diagnostic when no conflict-free lane exists (the port draws and reports collisions instead, R1)."
   port_note: "Keep: planner per-body chain placement; Plan problem on drop."
 
 - id: ARCH0020-3
