@@ -17,6 +17,8 @@ fn root() -> PathBuf {
 
 /// The fixture *stem*'s part and Analysis, read from a scratch file of its own.
 fn analysed(stem: &str) -> (Part, Analysis) {
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let instance = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let gz = root().join(format!("tests/fixtures/surface_texture/{stem}.step.gz"));
     let mut bytes = Vec::new();
     flate2::read::GzDecoder::new(std::fs::File::open(gz).unwrap())
@@ -24,7 +26,7 @@ fn analysed(stem: &str) -> (Part, Analysis) {
         .unwrap();
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join("surface_texture")
-        .join(format!("{}-{stem}", std::process::id()));
+        .join(format!("{}-{stem}-{instance}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join(format!("{stem}.step"));
     std::fs::write(&path, bytes).unwrap();
