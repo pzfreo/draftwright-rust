@@ -141,9 +141,10 @@ pub(crate) fn check(s: &Spec) -> Result<(), Invalid> {
     {
         if let Some(v) = &p.view
             && !["front", "plan", "side"].contains(&v.as_str())
+            && !crate::detail::NAMES.contains(&v.as_str())
         {
             return Err(error(
-                format!("The placement view of {id} must be a principal view."),
+                format!("The placement view of {id} must be a principal or detail view."),
                 ["front", "plan", "side"].map(String::from).to_vec(),
             ));
         }
@@ -199,7 +200,9 @@ pub(crate) fn check(s: &Spec) -> Result<(), Invalid> {
                 ));
             }
             if p.relative_to == *name
-                || !["front", "plan", "side", "iso", "section_aa"].contains(&p.relative_to.as_str())
+                || (!["front", "plan", "side", "iso", "section_aa"]
+                    .contains(&p.relative_to.as_str())
+                    && !crate::detail::NAMES.contains(&p.relative_to.as_str()))
             {
                 return Err(error(
                     format!("The placement anchor of {name} is not another view."),

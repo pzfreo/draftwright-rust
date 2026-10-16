@@ -8642,5 +8642,65 @@
   },
   "verdict": "rust-correct",
   "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): the port draws this record's span once, on the PMI dimension that states the same span with the same label, which claims this record; draftwright draws each record standalone, so the sheet repeated it."
+ },
+ {
+  "file": "hw_thumbwheel_notes_add.step",
+  "record": "manufacturing_requirement:#722",
+  "port": "manufacturing_requirement:#722",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "⌀6 SEE MFG 2",
+     "view": "front"
+    }
+   ]
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "⌀6 SEE MFG 2",
+     "view": "detail_a"
+    }
+   ]
+  },
+  "verdict": "equivalent",
+  "evidence": "The same diameter and SEE MFG 2 requirement now ride on the enlarged head detail. Feature identity, measured value and manufacturing note are retained; the detail owns this dimension exactly once. Python keeps it on the front view."
+ },
+ {
+  "file": "thumbwheel_thread_knurl.step",
+  "record": "manufacturing_requirement:#722",
+  "port": "manufacturing_requirement:#722",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "⌀6 SEE MFG 2",
+     "view": "front"
+    }
+   ]
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "⌀6 SEE MFG 2",
+     "view": "detail_a"
+    }
+   ]
+  },
+  "verdict": "equivalent",
+  "evidence": "The same diameter and SEE MFG 2 requirement now ride on the enlarged head detail. Feature identity, measured value and manufacturing note are retained; the detail owns this dimension exactly once. Python keeps it on the front view."
  }
 ]

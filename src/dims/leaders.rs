@@ -846,9 +846,7 @@ pub(super) fn refine(
                     .dimensions
                     .get(&items[i].id)
                     .is_some_and(|d| d.place.is_some())
-                && placed[i]
-                    .as_ref()
-                    .is_some_and(|p| extension_contacts(&extensions, &p.lines, p.label_box).0 > 0)
+                && placed[i].is_some()
         })
         .collect();
     if todo.is_empty() {
@@ -992,20 +990,52 @@ pub(super) fn refine(
             .copied()
             .collect();
         let before = extension_contacts(&extensions, &old.lines, old.label_box);
+        let probe = grow([elbow[0], elbow[1], elbow[0], elbow[1]], span);
+        let mut probe_ink = Vec::new();
+        let mut probe_uncertain = Vec::new();
+        for (k, v) in views.iter().enumerate() {
+            if boxes_meet(view_reach[k], probe) {
+                let (m, u) = gathered[k].get_or_init(|| view_ink(v));
+                probe_ink.extend(m.iter().copied());
+                probe_uncertain.extend(u.iter().copied());
+            }
+        }
+        probe_ink.extend(extensions.iter().map(|(_, s)| *s));
+        let old_run = old.lines.iter().any(|s| runs_beside(*s, &probe_ink))
+            || (w
+                .measurements
+                .iter()
+                .any(|m| m.parameter == "chamfer.length")
+                && probe_uncertain
+                    .iter()
+                    .any(|b| old.lines.iter().any(|s| buried(*s, *b) > 2.0)));
+        if before.0 == 0 && !old_run {
+            continue;
+        }
         // Every station of the local row, shoulder-only changes first, kept only while it is
         // no longer than the old route by 2 mm and lowers the contacts without the text gaining
         // one: text on an extension line is worse than a leader across it.
         let mut candidates = Vec::new();
-        let reach = ROW as i32;
+        let reach = (if old_run { 3.0 * ROW } else { ROW }) as i32;
         let shifts = std::iter::once([0, 0]).chain((-reach..=reach).flat_map(|x| {
             (-reach..=reach)
                 .filter(move |y| x != 0 || *y != 0)
                 .map(move |y| [x, y])
         }));
         let shelf = (end[0] - elbow[0]).abs();
-        for shift in shifts {
-            let q = [0, 1].map(|k| elbow[k] + f64::from(shift[k]) * STEP);
-            let t = if shift == [0, 0] {
+        let mut elbows: Vec<P2> = shifts
+            .map(|shift| [0, 1].map(|k| elbow[k] + f64::from(shift[k]) * STEP))
+            .collect();
+        if super::turned::axial_datum(analysis).is_some_and(|(k, _)| k == 2) {
+            // A new inspection baseline can occupy the old diameter column. The opposite
+            // silhouette is the same diameter; try its mirrored column under every existing
+            // length, feature, arrowhead and text-clearance gate.
+            let outline = frame.outline();
+            let mirror = outline[0] + outline[2] - elbow[0];
+            elbows.extend((-reach..=reach).map(|dy| [mirror, elbow[1] + f64::from(dy) * STEP]));
+        }
+        for q in elbows {
+            let t = if q == elbow {
                 tip
             } else {
                 let site = nearest(&page_sites, q);
@@ -1014,7 +1044,8 @@ pub(super) fn refine(
                 }
                 rim_tip(site, q)
             };
-            if (q[0] - t[0]).hypot(q[1] - t[1]) < MIN_LEADER {
+            let shaft = (q[0] - t[0]).hypot(q[1] - t[1]);
+            if shaft < MIN_LEADER || shaft + shelf > old_length + 2.0 + 1e-5 {
                 continue;
             }
             for right in [right, !right] {
@@ -1031,7 +1062,7 @@ pub(super) fn refine(
                     }
                     let (_, lb) = label_geometry(q, e, right, label.min, label.max);
                     let now = extension_contacts(&extensions, &lines, lb);
-                    if now.0 >= before.0 || now.1 > before.1 {
+                    if now.0 > before.0 || now.1 > before.1 || (now.0 == before.0 && !old_run) {
                         continue;
                     }
                     let moved = (q[0] - elbow[0]).hypot(q[1] - elbow[1])
@@ -1132,7 +1163,7 @@ pub(super) fn refine(
                 lines
                     .iter()
                     .enumerate()
-                    .any(|(i, s)| touches_box(*s, *b) && *s != old.lines[i])
+                    .any(|(i, s)| buried(*s, *b) > buried(old.lines[i], *b) + 1e-6)
             }) && !lines.iter().any(|s| runs_beside(*s, &near_lines))
                 && !near_model
                     .iter()
@@ -1150,7 +1181,26 @@ pub(super) fn refine(
             continue;
         }
         // Fewest contacts first, then the least movement: the nearest acceptable route wins.
-        candidates.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
+        // Clearance checks are geometric work: compute their ranking once per candidate,
+        // rather than once per comparison. Keep the same stable ordering and exact score.
+        let mut ranked: Vec<_> = candidates
+            .into_iter()
+            .map(|c| {
+                let score = if old_run {
+                    length(&[[c.2, c.3], [c.3, c.4]])
+                } else {
+                    c.1
+                };
+                (head_on(c.2, c.3), score, c)
+            })
+            .collect();
+        ranked.sort_by(|a, b| {
+            a.2.0
+                .cmp(&b.2.0)
+                .then(a.0.cmp(&b.0))
+                .then(a.1.total_cmp(&b.1))
+        });
+        let candidates: Vec<_> = ranked.into_iter().map(|(_, _, c)| c).collect();
         let job = Job {
             view,
             footprints: &footprints[view],
@@ -1198,23 +1248,29 @@ pub(super) fn refine(
                     .filter(|proof| proof.annotation_clear(v, &old, true))
                     .map(|proof| (v, proof))
             });
-        let acceptable = |c: &Candidate| {
-            if c.hard > prior.hard
-                || c.crossings > prior.crossings
-                || c.feature_crossings > prior.feature_crossings
-                || c.outside > prior.outside
-                || c.text > prior.text
-                || c.furniture > prior.furniture
-                || c.beside > prior.beside
-            {
-                return None;
-            }
-            let p = c.placed();
-            if interior.is_some_and(|(v, proof)| !proof.annotation_clear(v, &p, true)) {
-                return None;
-            }
-            Some(p)
-        };
+        let acceptable =
+            |c: &Candidate| {
+                if c.hard > prior.hard
+                    || c.crossings > prior.crossings
+                    || c.feature_crossings > prior.feature_crossings
+                    || c.outside > prior.outside
+                    || c.text > prior.text
+                    || c.furniture > prior.furniture
+                    || c.beside > prior.beside
+                {
+                    return None;
+                }
+                let p = c.placed();
+                if fixed.labels.iter().any(|(_, b)| {
+                    boxes_overlap(p.label_box, *b) && !boxes_overlap(old.label_box, *b)
+                }) {
+                    return None;
+                }
+                if interior.is_some_and(|(v, proof)| !proof.annotation_clear(v, &p, true)) {
+                    return None;
+                }
+                Some(p)
+            };
         // Measuring a station against the placed ink is the expensive tier, so it runs last.
         let chosen = candidates.iter().find_map(|&(_, _, t, q, e, right, _)| {
             acceptable(&measure_at(&job, t, q, e, right, &fixed, page)?)
@@ -1296,6 +1352,26 @@ fn runs_beside(s: [P2; 2], ink: &[[P2; 2]]) -> bool {
         }
     }
     false
+}
+
+/// Length inside a conservative curved-face box; an attached route may leave it,
+/// while a refinement cannot increase its unverified travel through that box.
+fn buried(s: [P2; 2], b: [f64; 4]) -> f64 {
+    let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
+    for k in 0..2 {
+        let d = s[1][k] - s[0][k];
+        if d.abs() < 1e-12 {
+            if s[0][k] < b[k] || s[0][k] > b[k + 2] {
+                return 0.0;
+            }
+        } else {
+            let p = (b[k] - s[0][k]) / d;
+            let q = (b[k + 2] - s[0][k]) / d;
+            lo = lo.max(p.min(q));
+            hi = hi.min(p.max(q));
+        }
+    }
+    (hi - lo).max(0.0) * (s[1][0] - s[0][0]).hypot(s[1][1] - s[0][1])
 }
 
 fn touches_box(s: [P2; 2], b: [f64; 4]) -> bool {
@@ -2116,11 +2192,11 @@ pub fn clear_routes(
         .iter()
         .filter_map(|v| {
             let name = v.id.strip_prefix("v:")?;
-            super::NAMES
-                .contains(&name)
+            (super::NAMES.contains(&name) || crate::detail::NAMES.contains(&name))
                 .then(|| (name, Frame::new(analysis, v)))
         })
         .collect();
+    super::detail_routes(analysis, &mut wants, views);
     super::route(&mut wants, &frames, analysis);
     let w = wants.iter().find(|w| w.id == id)?;
     let Shape::Callout { sites } = &w.shape else {
@@ -2789,7 +2865,7 @@ mod tests {
             .flat_map(|(j, p)| p.lines[..2].iter().map(move |s| (j, *s)))
             .collect();
         for (id, contacts) in [
-            ("d:f:turned_step:1/step.diameter", (1, 0)),
+            ("d:f:turned_step:1/step.diameter", (0, 0)),
             ("d:f:turned_step:2/step.diameter", (0, 0)),
         ] {
             let callout = plan

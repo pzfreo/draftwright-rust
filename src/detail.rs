@@ -1,0 +1,654 @@
+//! Enlarged orthographic regions, planned as late furniture before the isometric.
+//! Python: _core.DetailRequest, analysis._automatic_*_detail_footprints and
+//! annotations.sections._resolve_details. The Rust kernel has no solid Booleans: the
+//! detail clips the source projection, retaining exact curve intervals rather than
+//! manufacturing a cut face. Bounds and recovered dimension IDs remain in the plan.
+use serde::{Deserialize, Serialize};
+
+use crate::bridge::holes;
+use crate::layout::{Rect, Scaled};
+use crate::model::{Analysis, Invalid, PlannedView, Spec};
+
+pub const NAMES: [&str; 8] = [
+    "detail_a", "detail_b", "detail_c", "detail_d", "detail_e", "detail_f", "detail_g", "detail_h",
+];
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DetailSpec {
+    /// Semantic feature ID, as used by dimensions and the editor.
+    pub around: String,
+    #[serde(default = "two")]
+    pub scale_factor: f64,
+}
+fn two() -> f64 {
+    2.0
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Detail {
+    pub label: String,
+    pub axis: usize,
+    pub source_view: String,
+    pub kind: String,
+    /// Part-frame crop, in model mm; complete dimensional witnesses must survive.
+    pub bounds: [[f64; 3]; 2],
+    pub marked_bounds: [[f64; 3]; 2],
+    pub dimensions: Vec<String>,
+    pub scale: f64,
+    pub authored: bool,
+    pub partial_profile: bool,
+}
+
+pub(crate) fn check(analysis: &Analysis, spec: &Spec) -> Result<(), Invalid> {
+    for (name, view) in &spec.views {
+        if let Some(d) = &view.detail {
+            if !NAMES.contains(&name.as_str())
+                || !d.scale_factor.is_finite()
+                || d.scale_factor <= 1.0
+            {
+                return Err(Invalid {
+                    message: format!(
+                        "Detail {name} needs an identifier detail_a–detail_h and a scale_factor greater than one."
+                    ),
+                    choices: vec![],
+                });
+            }
+            if !analysis.features.iter().any(|f| f.id == d.around) {
+                return Err(Invalid {
+                    message: format!("Detail {name} names unknown feature {}.", d.around),
+                    choices: analysis.features.iter().map(|f| f.id.clone()).collect(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn selected_scale(sheet: f64, needed: f64, head: bool) -> f64 {
+    if head && (10.0..=15.0).contains(&needed) && sheet <= 5.0 {
+        return 10.0;
+    }
+    [2.0, 5.0, 10.0]
+        .into_iter()
+        .map(|f| sheet * f)
+        .find(|s| *s >= needed)
+        .unwrap_or(sheet * 10.0)
+}
+
+fn axis_view(axis: usize) -> &'static str {
+    if axis == 1 { "side" } else { "front" }
+}
+fn dimension(feature: &str, parameter: &str) -> String {
+    format!("d:{feature}/{parameter}")
+}
+
+pub(crate) fn requests(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Detail)> {
+    // Sheet convergence asks for the same scale repeatedly. Keep this immutable
+    // preparation in the planning scope, shared with its recovery candidates.
+    let key = serde_json::to_vec(&(spec, sheet.to_bits())).expect("detail inputs serialize");
+    crate::planning::memo(a, "detail_requests", key, || {
+        requests_uncached(a, spec, sheet)
+    })
+}
+
+fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Detail)> {
+    let frame = holes::frame(a);
+    let mut bands: Vec<_> = a
+        .features
+        .iter()
+        .filter(|f| f.kind == "turned_step")
+        .filter_map(|f| crate::lint::turned::band(&frame, f).ok().map(|b| (f, b)))
+        .collect();
+    bands.sort_by(|a, b| a.1.axis.cmp(&b.1.axis).then(a.1.lo.total_cmp(&b.1.lo)));
+    let mut out = Vec::new();
+    for (name, view) in &spec.views {
+        let Some(auth) = &view.detail else { continue };
+        if view.omit {
+            continue;
+        }
+        let Some(f) = a.features.iter().find(|f| f.id == auth.around) else {
+            continue;
+        };
+        let mut bounds = a.envelope;
+        let mut ids = Vec::new();
+        let source;
+        let primary;
+        if let Some((_, b)) = bands.iter().find(|(f, _)| f.id == auth.around) {
+            source = axis_view(b.axis);
+            primary = b.axis;
+            let context = 1.0_f64.max((b.hi - b.lo) / 2.0);
+            bounds[0][b.axis] = (b.lo - context).max(a.envelope[0][b.axis]);
+            bounds[1][b.axis] = (b.hi + context).min(a.envelope[1][b.axis]);
+            ids.push(dimension(&f.id, "step.length"));
+            ids.push(dimension(&f.id, "step.diameter"));
+        } else {
+            let origin = crate::dims::feature_origin(a, &f.id)
+                .unwrap_or_else(|| [0, 1, 2].map(|k| (bounds[0][k] + bounds[1][k]) / 2.0));
+            let axis = f.fingerprint.axis.and_then(holes::principal).unwrap_or(1);
+            source = ["side", "front", "plan"][axis];
+            primary = (0..3).find(|k| *k != axis).unwrap();
+            let half = f.fingerprint.sizes.values().copied().fold(4.0, f64::max) * 0.75;
+            for k in 0..3 {
+                if k != axis {
+                    bounds[0][k] = (origin[k] - half).max(bounds[0][k]);
+                    bounds[1][k] = (origin[k] + half).min(bounds[1][k]);
+                }
+            }
+        }
+        out.push((
+            name.clone(),
+            Detail {
+                label: name.trim_start_matches("detail_").to_uppercase(),
+                axis: primary,
+                source_view: format!("v:{source}"),
+                kind: "authored-feature".into(),
+                marked_bounds: bounds,
+                bounds,
+                dimensions: ids,
+                scale: sheet * auth.scale_factor,
+                authored: true,
+                partial_profile: false,
+            },
+        ));
+    }
+    let available = |source: &str| !spec.views.get(source).is_some_and(|v| v.omit);
+    let section_letter = (crate::demand::read(a).section.is_some()
+        || spec.views.contains_key(crate::model::SECTION))
+        && !spec
+            .views
+            .get(crate::model::SECTION)
+            .is_some_and(|v| v.omit && v.sheet.is_none_or(|n| n <= 1));
+    let mut allocated: std::collections::BTreeSet<String> = spec
+        .views
+        .iter()
+        .filter(|(_, v)| v.detail.is_some())
+        .map(|(name, _)| name.clone())
+        .collect();
+    if section_letter {
+        allocated.insert(format!("detail_{}", section_label(spec).to_lowercase()));
+    }
+    let mut add = |mut d: Detail| {
+        let Some(name) = NAMES.iter().find(|n| !allocated.contains(**n)) else {
+            return;
+        };
+        allocated.insert(name.to_string());
+        if spec.views.get(*name).is_some_and(|v| v.omit) {
+            return;
+        }
+        d.label = name.trim_start_matches("detail_").to_uppercase();
+        out.push((name.to_string(), d));
+    };
+    // One physical connected profile at a time. Repeated equal pitches of three or more
+    // stay counted on the parent, as Python's axial chain compiler does.
+    let connected = bands.len() >= 2
+        && bands.windows(2).all(|w| {
+            w[0].1.axis == w[1].1.axis
+                && (w[0].1.hi - w[1].1.lo).abs() < 1e-3
+                && w[0].0.parameters.get("profile") == w[1].0.parameters.get("profile")
+                && (0..3).all(|k| k == w[0].1.axis || (w[0].1.on[k] - w[1].1.on[k]).abs() < 1e-3)
+        });
+    if connected {
+        let axis = bands[0].1.axis;
+        let source = axis_view(axis);
+        let repeated = bands.windows(3).any(|w| {
+            (w[0].1.hi - w[0].1.lo - (w[1].1.hi - w[1].1.lo)).abs() < 1e-3
+                && (w[0].1.hi - w[0].1.lo - (w[2].1.hi - w[2].1.lo)).abs() < 1e-3
+        });
+        if available(source) && !repeated {
+            let mut runs: Vec<Vec<usize>> = Vec::new();
+            if axis == 1 {
+                let short = bands.iter().any(|(_, b)| {
+                    (b.hi - b.lo) * sheet
+                        < crate::dims::font()
+                            .advance(&crate::dims::fmt(b.hi - b.lo), crate::dims::TEXT)
+                            + 2.0 * crate::dims::ARROW
+                            + 2.0
+                });
+                if short {
+                    runs.push((0..bands.len()).collect());
+                }
+            } else {
+                for (i, (_, b)) in bands.iter().enumerate() {
+                    if (b.hi - b.lo) * sheet < 2.0 * crate::dims::ARROW {
+                        if let Some(r) = runs
+                            .last_mut()
+                            .filter(|r| r.last() == Some(&i.saturating_sub(1)))
+                        {
+                            r.push(i);
+                        } else {
+                            runs.push(vec![i]);
+                        }
+                    }
+                }
+                // Vertical heads: an isolated thin terminal flange also warrants a detail.
+                runs.retain(|r| {
+                    r.len() >= 2 || axis == 2 && (r[0] == 0 || r[0] == bands.len() - 1)
+                });
+            }
+            for run in runs {
+                if run.iter().any(|i| {
+                    spec.views
+                        .values()
+                        .filter_map(|v| v.detail.as_ref())
+                        .any(|d| d.around == bands[*i].0.id)
+                }) {
+                    continue;
+                }
+                let min = run
+                    .iter()
+                    .map(|&i| bands[i].1.hi - bands[i].1.lo)
+                    .fold(f64::INFINITY, f64::min);
+                let needed = if axis == 1 {
+                    run.iter()
+                        .map(|&i| {
+                            (crate::dims::font().advance(
+                                &crate::dims::fmt(bands[i].1.hi - bands[i].1.lo),
+                                crate::dims::TEXT,
+                            ) + 2.0 * crate::dims::ARROW
+                                + 2.0)
+                                / (bands[i].1.hi - bands[i].1.lo)
+                        })
+                        .fold(0.0, f64::max)
+                } else {
+                    crate::layout::MIN_STEP_SEP / min
+                };
+                let scale = selected_scale(sheet, needed, axis != 1);
+                if needed > sheet * 10.0 {
+                    continue;
+                }
+                let mut bounds = a.envelope;
+                let lo = bands[run[0]].1.lo;
+                let hi = bands[*run.last().unwrap()].1.hi;
+                bounds[0][axis] = lo;
+                bounds[1][axis] = hi;
+                let marked_bounds = bounds;
+                // A little adjoining shaft gives the reader the shoulder's context.
+                if axis == 2 {
+                    bounds[0][axis] = (lo - 1.0).max(a.envelope[0][axis]);
+                    bounds[1][axis] = (hi + 1.0).min(a.envelope[1][axis]);
+                }
+                if axis == 0 {
+                    // Python's supported secondary crop keeps every controlled outer rim,
+                    // with 2 paper mm of context (at least 0.1 model mm).
+                    let context = 0.1_f64.max(2.0 / needed);
+                    let rims: Vec<_> = run
+                        .iter()
+                        .map(|&i| bands[i].1.on[2] + bands[i].1.diameter / 2.0)
+                        .collect();
+                    bounds[0][2] = (rims.iter().copied().fold(f64::INFINITY, f64::min) - context)
+                        .max(a.envelope[0][2]);
+                    bounds[1][2] = (rims.iter().copied().fold(f64::NEG_INFINITY, f64::max)
+                        + context)
+                        .min(a.envelope[1][2]);
+                }
+                if axis == 1 {
+                    let z = bands[0].1.on[2];
+                    let half =
+                        0.1_f64.max(((a.envelope[1][2] - a.envelope[0][2]) / 4.0).min(6.0 / scale));
+                    bounds[0][2] = z - half;
+                    bounds[1][2] = z + half;
+                }
+                let ids = run
+                    .iter()
+                    .flat_map(|&i| {
+                        [
+                            dimension(&bands[i].0.id, "step.length"),
+                            dimension(&bands[i].0.id, "step.diameter"),
+                        ]
+                    })
+                    .collect();
+                add(Detail {
+                    label: String::new(),
+                    axis,
+                    source_view: format!("v:{source}"),
+                    kind: if axis == 1 {
+                        "y-turned-chain"
+                    } else {
+                        "turned-head"
+                    }
+                    .into(),
+                    bounds,
+                    marked_bounds: if axis == 0 || axis == 1 {
+                        bounds
+                    } else {
+                        marked_bounds
+                    },
+                    dimensions: ids,
+                    scale,
+                    authored: false,
+                    partial_profile: false,
+                });
+            }
+        }
+    } else if bands.is_empty() && available("front") && !a.level_supports.is_empty() {
+        // Recover only approved height rungs rejected by the parent spacing gate.
+        let mut levels = a.levels.clone();
+        levels.sort_by(f64::total_cmp);
+        let legible = crate::layout::legible_steps(&levels, a.envelope[0][2], sheet);
+        let omitted: Vec<_> = levels
+            .iter()
+            .filter(|z| !legible.contains(z))
+            .copied()
+            .collect();
+        let wants = crate::dims::detail_levels(a);
+        let ids: Vec<_> = wants
+            .iter()
+            .filter(|w| {
+                w.0.contains("/step_height.length.")
+                    && omitted
+                        .iter()
+                        .any(|z| (w.1 - (*z - a.envelope[0][2])).abs() < 1e-3)
+            })
+            .map(|w| w.0.clone())
+            .collect();
+        if levels.len() >= 2 && !ids.is_empty() {
+            let min = levels
+                .windows(2)
+                .map(|w| w[1] - w[0])
+                .fold(f64::INFINITY, f64::min);
+            let needed = crate::layout::MIN_STEP_SEP / min;
+            if needed.is_finite() && needed <= sheet * 10.0 {
+                let scale = needed.max(sheet * 1.2 + 1e-6);
+                let mut bounds = a.envelope;
+                let pad = 0.08 * (levels.last().unwrap() - levels[0]) + 1.0;
+                bounds[1][2] = (levels.last().unwrap() + pad).min(bounds[1][2]);
+                // Keep the base datum and every physical support of recovered rungs.
+                let supports: Vec<_> = wants
+                    .iter()
+                    .filter(|w| ids.contains(&w.0))
+                    .map(|w| w.2[0])
+                    .collect();
+                if !supports.is_empty() {
+                    let margin = 1.0_f64.max(3.0 / scale);
+                    bounds[0][0] = (supports.iter().copied().fold(f64::INFINITY, f64::min)
+                        - margin)
+                        .max(bounds[0][0]);
+                    bounds[1][0] = (supports.iter().copied().fold(f64::NEG_INFINITY, f64::max)
+                        + margin)
+                        .min(bounds[1][0]);
+                }
+                add(Detail {
+                    label: String::new(),
+                    axis: 2,
+                    source_view: "v:front".into(),
+                    kind: "prismatic-steps".into(),
+                    marked_bounds: {
+                        let mut marked = bounds;
+                        marked[0][2] = (levels[0] - pad).max(marked[0][2]);
+                        marked
+                    },
+                    bounds,
+                    dimensions: ids,
+                    scale,
+                    authored: false,
+                    partial_profile: false,
+                });
+            }
+        }
+    }
+    for (_, d) in &mut out {
+        d.partial_profile = (0..3).any(|k| {
+            k != d.axis
+                && (d.bounds[0][k] > a.envelope[0][k] + 1e-6
+                    || d.bounds[1][k] < a.envelope[1][k] - 1e-6)
+        });
+    }
+    out
+}
+
+pub(crate) fn size(d: &Detail) -> [f64; 2] {
+    let axes = if d.source_view == "v:side" {
+        [1, 2]
+    } else if d.source_view == "v:plan" {
+        [0, 1]
+    } else {
+        [0, 2]
+    };
+    axes.map(|k| (d.bounds[1][k] - d.bounds[0][k]) * d.scale)
+}
+fn pads(d: &Detail) -> [f64; 4] {
+    if d.kind == "prismatic-steps" {
+        [0.0, 42.0, 14.0, 6.0]
+    } else if d.kind == "y-turned-chain" {
+        [
+            12.0,
+            42.0,
+            14.0 + 7.0
+                * d.dimensions
+                    .iter()
+                    .filter(|id| id.ends_with("/step.length"))
+                    .count() as f64,
+            12.0,
+        ]
+    } else {
+        [12.0, 42.0, 28.0, 12.0]
+    }
+}
+pub(crate) fn at(d: &Detail, area: Rect) -> [f64; 2] {
+    let [w, h] = size(d);
+    let [left, _, bottom, _] = pads(d);
+    [area[0] + left + w / 2.0, area[1] + bottom + h / 2.0]
+}
+pub(crate) fn scaled(a: &Analysis, spec: &Spec, sheet: f64) -> Scaled {
+    Scaled {
+        derived: requests(a, spec, sheet)
+            .iter()
+            .map(|(id, d)| {
+                let [w, h] = size(d);
+                let [left, right, bottom, top] = pads(d);
+                (id.clone(), (w + left + right).max(65.0), h + bottom + top)
+            })
+            .collect(),
+        ..Scaled::default()
+    }
+}
+pub(crate) fn section_label(spec: &Spec) -> String {
+    if spec.views.contains_key(crate::model::SECTION) {
+        return "A".into();
+    }
+    NAMES
+        .iter()
+        .find(|n| {
+            !spec
+                .views
+                .get(**n)
+                .is_some_and(|v| !v.omit && v.detail.is_some())
+        })
+        .unwrap_or(&"detail_a")
+        .trim_start_matches("detail_")
+        .to_uppercase()
+}
+pub(crate) fn caption(d: &Detail) -> String {
+    format!(
+        "DETAIL {} ({}){}",
+        d.label,
+        crate::model::scale_name(d.scale),
+        if d.partial_profile {
+            " — PARTIAL PROFILE"
+        } else {
+            ""
+        }
+    )
+}
+pub(crate) fn caption_at(v: &PlannedView) -> [f64; 2] {
+    [(v.area[0] + v.area[2]) / 2.0, v.area[1] + 3.0]
+}
+pub(crate) fn crop_extent(a: &Analysis, v: &PlannedView) -> ([f64; 2], [f64; 2]) {
+    let mut cropped = a.clone();
+    if let Some(d) = &v.detail {
+        cropped.envelope = d.bounds;
+    }
+    crate::model::extent(
+        &cropped,
+        &haecceity::hlr::View::new(v.direction, v.up).expect("planned view"),
+    )
+}
+
+/// Clip exact curves recursively by their conservative bounding boxes. Fully contained
+/// intervals retain their exact representation; only boundary intervals are subdivided.
+pub(crate) fn clip(curve: crate::output::Curve, rect: Rect) -> Vec<crate::output::Curve> {
+    fn visit(c: crate::output::Curve, r: Rect, depth: u8, out: &mut Vec<crate::output::Curve>) {
+        let b = c.bbox();
+        if b[2] < r[0] - 1e-8 || b[0] > r[2] + 1e-8 || b[3] < r[1] - 1e-8 || b[1] > r[3] + 1e-8 {
+            return;
+        }
+        if b[0] >= r[0] - 1e-8 && b[1] >= r[1] - 1e-8 && b[2] <= r[2] + 1e-8 && b[3] <= r[3] + 1e-8
+        {
+            out.push(c);
+            return;
+        }
+        if depth == 32 || (b[2] - b[0]).max(b[3] - b[1]) < 1e-7 {
+            return;
+        }
+        visit(c.trim(0.0, 0.5), r, depth + 1, out);
+        visit(c.trim(0.5, 1.0), r, depth + 1, out);
+    }
+    let mut out = Vec::new();
+    visit(curve, rect, 0, &mut out);
+    out
+}
+
+pub(crate) fn marker(
+    a: &Analysis,
+    d: &Detail,
+    source: &PlannedView,
+    views: &[PlannedView],
+    page: [f64; 2],
+    avoid: &[Rect],
+) -> (crate::output::Curve, [f64; 2]) {
+    let view = haecceity::hlr::View::new(source.direction, source.up).expect("source view");
+    let mut cropped = a.clone();
+    cropped.envelope = d.marked_bounds;
+    let (size, centre) = crate::model::extent(&cropped, &view);
+    let parent = crate::model::extent(a, &view).1;
+    let at = [0, 1].map(|k| source.at[k] + source.scale * (centre[k] - parent[k]));
+    let radius = source.scale * size[0].hypot(size[1]) / 2.0 + 1.0;
+    let glyph = crate::dims::font().text(&d.label, crate::section::FONT_SIZE);
+    let mut obstacles: Vec<_> = views
+        .iter()
+        .map(|v| {
+            if v.id == "v:iso" {
+                let b = a.iso_bounds;
+                [
+                    v.at[0] + v.scale * b[0],
+                    v.at[1] + v.scale * b[1],
+                    v.at[0] + v.scale * b[2],
+                    v.at[1] + v.scale * b[3],
+                ]
+            } else {
+                let (size, _) = crop_extent(a, v);
+                [
+                    v.at[0] - v.scale * size[0] / 2.0,
+                    v.at[1] - v.scale * size[1] / 2.0,
+                    v.at[0] + v.scale * size[0] / 2.0,
+                    v.at[1] + v.scale * size[1] / 2.0,
+                ]
+            }
+        })
+        .collect();
+    obstacles.extend_from_slice(avoid);
+    let preferred = [at[0] - radius - 2.0, at[1] + radius + 2.0];
+    let positions = std::iter::once(preferred).chain(
+        [4.0, 8.0, 12.0, 20.0, 28.0].into_iter().flat_map(|gap| {
+            (0..8).map(move |i| {
+                let theta = (3.0 - i as f64) * std::f64::consts::FRAC_PI_4;
+                [
+                    at[0] + (radius + gap) * theta.cos(),
+                    at[1] + (radius + gap) * theta.sin(),
+                ]
+            })
+        }),
+    );
+    let label_at = positions
+        .into_iter()
+        .find(|p| {
+            let b = [
+                p[0] + glyph.min[0] - 1.0,
+                p[1] + glyph.min[1] - 1.0,
+                p[0] + glyph.max[0] + 1.0,
+                p[1] + glyph.max[1] + 1.0,
+            ];
+            b[0] >= crate::layout::MARGIN
+                && b[1] >= crate::layout::MARGIN
+                && b[2] <= page[0] - crate::layout::MARGIN
+                && b[3] <= page[1] - crate::layout::MARGIN
+                && obstacles
+                    .iter()
+                    .all(|o| b[2] <= o[0] || b[0] >= o[2] || b[3] <= o[1] || b[1] >= o[3])
+        })
+        .unwrap_or(preferred);
+    (
+        crate::output::Curve::Conic {
+            centre: at,
+            radii: [radius; 2],
+            x_axis: [1.0, 0.0],
+            y_axis: [0.0, 1.0],
+            t0: 0.0,
+            t1: std::f64::consts::TAU,
+        },
+        label_at,
+    )
+}
+
+/// Detail boundaries are late furniture: interrupt the circle behind annotation text,
+/// retaining exact arcs and a small readable gap. Dimensions keep their settled ink.
+pub(crate) fn marker_ink(
+    circle: crate::output::Curve,
+    labels: &[Rect],
+) -> Vec<crate::output::Curve> {
+    fn subtract(c: crate::output::Curve, r: Rect, depth: u8, out: &mut Vec<crate::output::Curve>) {
+        let b = c.bbox();
+        if b[2] < r[0] || b[0] > r[2] || b[3] < r[1] || b[1] > r[3] {
+            out.push(c);
+            return;
+        }
+        if b[0] >= r[0] && b[1] >= r[1] && b[2] <= r[2] && b[3] <= r[3] {
+            return;
+        }
+        if depth == 32 || (b[2] - b[0]).max(b[3] - b[1]) < 1e-7 {
+            return;
+        }
+        subtract(c.trim(0.0, 0.5), r, depth + 1, out);
+        subtract(c.trim(0.5, 1.0), r, depth + 1, out);
+    }
+    let mut arcs = vec![circle];
+    for b in labels {
+        let r = [b[0] - 1.0, b[1] - 1.0, b[2] + 1.0, b[3] + 1.0];
+        arcs = arcs
+            .into_iter()
+            .flat_map(|c| {
+                let mut out = Vec::new();
+                subtract(c, r, 0, &mut out);
+                out
+            })
+            .collect();
+    }
+    arcs
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::output::Curve;
+
+    #[test]
+    fn a_crop_keeps_exact_curves_and_removes_external_geometry() {
+        let c = Curve::Conic {
+            centre: [0.0, 0.0],
+            radii: [2.0, 2.0],
+            x_axis: [1.0, 0.0],
+            y_axis: [0.0, 1.0],
+            t0: 0.0,
+            t1: std::f64::consts::TAU,
+        };
+        let pieces = clip(c, [-1.0, -3.0, 1.0, 3.0]);
+        assert!(!pieces.is_empty());
+        for p in pieces {
+            assert!(matches!(p, Curve::Conic { .. }));
+            let b = p.bbox();
+            assert!(b[0] >= -1.0 - 1e-7 && b[2] <= 1.0 + 1e-7);
+        }
+        assert!(clip(Curve::Line([3.0, 0.0], [4.0, 0.0]), [-1.0, -1.0, 1.0, 1.0]).is_empty());
+    }
+}

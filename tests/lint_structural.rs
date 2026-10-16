@@ -1570,3 +1570,21 @@ fn nts_caption_contacts_with_labels_lines_and_views_are_reported() {
         "{found:?}"
     );
 }
+
+#[test]
+fn detail_captions_keep_half_a_text_height_clear_across_view_groups() {
+    let b = [40.0, 40.0, 70.0, 42.0];
+    let caption = item("detail_caption_B", Kind::Caption, b, Some(b));
+    for (gap, expected) in [(0.99, true), (1.0, false)] {
+        let other = label(
+            "other_scale_dimension",
+            [70.0 + gap, 40.0, 80.0 + gap, 42.0],
+        );
+        let found = structural::check(&sheet(&[], vec![caption.clone(), other]));
+        assert_eq!(
+            found.iter().any(|i| i.code == "detail_caption_clearance"),
+            expected,
+            "gap {gap}: {found:?}"
+        );
+    }
+}

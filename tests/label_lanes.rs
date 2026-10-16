@@ -89,7 +89,7 @@ fn a_moved_label_keeps_clear_of_strokes_it_never_touched() {
         return;
     };
     assert_eq!(
-        strokes_near(&p, "d:f:turned_step:1/step.length"),
+        strokes_near(&p, "d:f:turned_step:1/step_position.length"),
         Vec::<String>::new()
     );
 }
@@ -100,7 +100,7 @@ fn short_native_dimensions_keep_their_text_on_their_span() {
         ("mfcadpp/1000.step", vec!["6.9", "8.9", "10.9"]),
         ("mfcadpp/10020.step", vec!["4.5", "1.2"]),
         ("mfcadpp/10007.step", vec!["14.0"]),
-        ("gramel/string_post.step", vec!["1.1"]),
+        ("gramel/string_post.step", vec!["3.8", "6.5", "7.6"]),
     ] {
         let Some(p) = plan(name) else {
             eprintln!("SKIPPED: the corpus is not found");

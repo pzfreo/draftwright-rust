@@ -479,7 +479,11 @@ fn dimension_ids_are_derived_and_a_bare_role_is_refused() {
                 d.id
             );
             assert!(
-                ["v:front", "v:plan", "v:side"].contains(&d.view.as_str()),
+                ["v:front", "v:plan", "v:side"].contains(&d.view.as_str())
+                    || plan
+                        .views
+                        .iter()
+                        .any(|v| v.id == d.view && v.detail.is_some()),
                 "{name}: {} in {}",
                 d.id,
                 d.view

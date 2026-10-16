@@ -123,6 +123,19 @@ pub(crate) fn furniture_bounds(
             out.push(b);
         }
     }
+    for v in views {
+        if let Some(d) = &v.detail {
+            out.push(text_box(
+                &crate::detail::caption(d),
+                crate::section::FONT_SIZE,
+                crate::detail::caption_at(v),
+            ));
+            if let Some(source) = views.iter().find(|s| s.id == d.source_view) {
+                let (_, at) = crate::detail::marker(analysis, d, source, views, sheet.page, &[]);
+                out.push(text_box(&d.label, crate::section::FONT_SIZE, at));
+            }
+        }
+    }
     for v in views
         .iter()
         .filter(|v| v.sheet == sheet.number && v.cut.is_some())
@@ -176,8 +189,7 @@ pub fn footprints(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
                 v.at[1] + v.scale * b[3],
             ]
         } else {
-            let view = haecceity::hlr::View::new(v.direction, v.up).expect("planned view");
-            let (size, _) = crate::model::extent(analysis, &view);
+            let (size, _) = crate::detail::crop_extent(analysis, v);
             [
                 v.at[0] - v.scale * size[0] / 2.0,
                 v.at[1] - v.scale * size[1] / 2.0,
@@ -293,7 +305,10 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
         || !plan.notes.is_empty()
         || !plan.tables.is_empty()
         || plan.requirements.iter().any(|r| r.placed.is_some())
-        || plan.views.iter().any(|v| v.cut.is_some())
+        || plan
+            .views
+            .iter()
+            .any(|v| v.cut.is_some() || v.detail.is_some())
         || plan
             .dimensions
             .iter()
@@ -582,6 +597,7 @@ pub(crate) fn pack_gdt(analysis: &Analysis, template: &Plan, recipient: &Plan) -
         }
     }
     let sheet_scale = p.sheet.scale_factor;
+    let has_detail = p.views.iter().any(|v| v.detail.is_some());
     if let Some(iso) = p.views.iter_mut().find(|v| v.id == "v:iso") {
         boxes.push(tb);
         for b in &mut boxes {
@@ -601,7 +617,12 @@ pub(crate) fn pack_gdt(analysis: &Analysis, template: &Plan, recipient: &Plan) -
             size,
         );
         let fit = ((rect[2] - rect[0]) / size[0]).min((rect[3] - rect[1]) / size[1]);
-        let scale = crate::layout::keep_sheet_scale(iso.scale.min(0.9 * fit), sheet_scale);
+        let desired = if has_detail {
+            iso.scale.min(sheet_scale)
+        } else {
+            iso.scale
+        };
+        let scale = crate::layout::keep_sheet_scale(desired.min(0.9 * fit), sheet_scale);
         if scale <= 0.0 {
             return None;
         }

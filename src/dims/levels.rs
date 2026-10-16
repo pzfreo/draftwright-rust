@@ -25,10 +25,9 @@
 //!   renames no other rung (ADR4-6). draftwright addresses each set as one (`step_height.length`,
 //!   `step_position.length`; ARCH0015-2, not ported).
 //!
-//! Not ported: draftwright's legibility gate (`_classify_steps`, which withholds a rung shorter
-//! than its arrows and drops one too close to the last at the sheet's scale): it is a placement
-//! decision, and the planners do not see the scale. Every rung is planned, and placement reports
-//! what collides.
+//! The source spacing gate is applied at candidate scale by [`crate::detail`]: approved rungs
+//! too short for their arrows or too near the last readable rung move into a prismatic detail.
+//! Every rung remains planned; a refused detail leaves its requirements on the source view.
 //!
 //! Through steps ([`super::steps`]) share the ownership stage: a step running along z is always
 //! dimensioned as one; one running along x or y only when the levels, shoulders, plates and the

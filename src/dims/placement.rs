@@ -27,13 +27,25 @@ pub(super) struct Frame {
     at: P2,
     s: f64,
     centre: P2,
+    inspection: Option<(usize, f64)>,
     /// The projected envelope's box on the page.
     outline: [f64; 4],
 }
 
 impl Frame {
     pub(super) fn new(analysis: &Analysis, v: &PlannedView) -> Frame {
-        Frame::looking(analysis, v.direction, v.up, v.at, v.scale)
+        let mut f = Frame::looking(analysis, v.direction, v.up, v.at, v.scale);
+        if v.detail.is_some() {
+            let (size, centre) = crate::detail::crop_extent(analysis, v);
+            f.centre = centre;
+            f.outline = [
+                v.at[0] - size[0] * v.scale / 2.0,
+                v.at[1] - size[1] * v.scale / 2.0,
+                v.at[0] + size[0] * v.scale / 2.0,
+                v.at[1] + size[1] * v.scale / 2.0,
+            ];
+        }
+        f
     }
 
     /// The view looking along *direction* with *up*, the part's box centred at *at*, at scale *s*.
@@ -45,6 +57,7 @@ impl Frame {
             at,
             s,
             centre,
+            inspection: super::turned::axial_datum(analysis),
             outline: [
                 at[0] - 0.5 * s * size[0],
                 at[1] - 0.5 * s * size[1],
@@ -926,6 +939,13 @@ fn place_linear_at(
         arrows.push(arrow(map(lo, t_line), map(lo + 1.0, t_line)));
         arrows.push(arrow(map(hi, t_line), map(hi - 1.0, t_line)));
         0.5 * (lo + hi) - 0.5 * w - ink.min[0]
+    } else if hi-lo>=w+2.0 && frame.inspection.is_some_and(|(k,datum)| matches!(shape,Shape::Linear {a,b,axis,..} if *axis==k && ((a[k]-datum).abs()<1e-6 || (b[k]-datum).abs()<1e-6))) {
+        // A baseline ordinate can keep its text within the measured span with outside arrows.
+        // This avoids putting a short ordinate's text above the datum in the next view's band.
+        lines.push([map(lo,t_line),map(hi,t_line)]);
+        arrows.push(arrow(map(lo,t_line),map(lo-1.0,t_line)));
+        arrows.push(arrow(map(hi,t_line),map(hi+1.0,t_line)));
+        0.5*(lo+hi)-0.5*w-ink.min[0]
     } else {
         // Too short for the label between the arrows: the arrows point in from outside, and the
         // label sits beyond the far end.

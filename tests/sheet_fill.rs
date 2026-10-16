@@ -87,7 +87,7 @@ mod corpus;
 mod sheet_rule;
 
 #[test]
-fn grm03_enlarges_into_the_fill_band_without_losing_measurements() {
+fn grm03_keeps_a4_with_an_enlarged_head_without_losing_measurements() {
     let Some(dir) = corpus::dir() else {
         return;
     };
@@ -100,9 +100,18 @@ fn grm03_enlarges_into_the_fill_band_without_losing_measurements() {
         .unwrap();
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A3", "10:1")
+        ("A4", "2:1")
     );
-    assert!((0.60..=0.85).contains(&fill), "{fill}");
+    assert!(
+        fill > 0.0 && fill < 0.60,
+        "the detail supplies the fine scale: {fill}"
+    );
+    assert!(
+        p.views
+            .iter()
+            .any(|v| v.detail.is_some() && v.scale == 10.0)
+    );
+    assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
     sheet_rule::assert_rule("grm03", &p);
     assert!(!p.problems.iter().any(|p| matches!(
         p.code.as_str(),

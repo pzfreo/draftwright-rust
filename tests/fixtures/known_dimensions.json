@@ -77,7 +77,7 @@
     "label": "156.4",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "draftwright does not locate the two ⌀7 holes at y = 72.25 in y; its own lint reports it (feature_not_located: 2 holes; location_ref_dropped: 2 Y location dims too closely spaced). LINT-hole_coverage-location: every hole is located in both directions."
+    "reason": "draftwright does not locate the two \u23007 holes at y = 72.25 in y; its own lint reports it (feature_not_located: 2 holes; location_ref_dropped: 2 Y location dims too closely spaced). LINT-hole_coverage-location: every hole is located in both directions."
   },
   {
     "part": "cgb245",
@@ -107,7 +107,7 @@
     "label": "54.5",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "draftwright does not locate the two ⌀5 holes at y = -29.72 in y; its own lint reports it (feature_not_located: 2 holes; location_ref_dropped: 2 Y location dims too closely spaced). LINT-hole_coverage-location: every hole is located in both directions."
+    "reason": "draftwright does not locate the two \u23005 holes at y = -29.72 in y; its own lint reports it (feature_not_located: 2 holes; location_ref_dropped: 2 Y location dims too closely spaced). LINT-hole_coverage-location: every hole is located in both directions."
   },
   {
     "part": "cgb245",
@@ -134,7 +134,7 @@
     "side": "python",
     "family": "callout",
     "view": "front",
-    "label": "ø94",
+    "label": "\u00f894",
     "count": 1,
     "verdict": "undetermined",
     "reason": "A bore coaxial with a turned part: draftwright calls it out as a turned diameter in the profile view; the port reads quiddity's hole record and gives it the hole callout where it is seen end-on. Both state the diameter; which convention suits a turned bore is a drafting choice not yet settled for the port."
@@ -144,7 +144,7 @@
     "side": "rust",
     "family": "callout",
     "view": "plan",
-    "label": "⌀94 THRU",
+    "label": "\u230094 THRU",
     "count": 1,
     "verdict": "undetermined",
     "reason": "A bore coaxial with a turned part: draftwright calls it out as a turned diameter in the profile view; the port reads quiddity's hole record and gives it the hole callout where it is seen end-on. Both state the diameter; which convention suits a turned bore is a drafting choice not yet settled for the port."
@@ -217,7 +217,7 @@
     "label": "43.8",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "The x location of the linear pattern's first member (4× ⌀7.1, pitch 72.4). draftwright drops it: its own lint reports location_ref_dropped (1 X location dim too closely spaced) and plan_incomplete. LINT-hole_coverage-pattern_location: a linear pattern is located by one physical member."
+    "reason": "The x location of the linear pattern's first member (4\u00d7 \u23007.1, pitch 72.4). draftwright drops it: its own lint reports location_ref_dropped (1 X location dim too closely spaced) and plan_incomplete. LINT-hole_coverage-pattern_location: a linear pattern is located by one physical member."
   },
   {
     "part": "ftc06",
@@ -267,27 +267,27 @@
     "label": "10",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "grm03 is turned whole about x: its size across the axis is a diameter, which the port prints ø10. draftwright prints it as a plain height '10' (dim_height, its value unsettled in the facts)."
+    "reason": "grm03 is turned whole about x: its size across the axis is a diameter, which the port prints \u00f810. draftwright prints it as a plain height '10' (dim_height, its value unsettled in the facts)."
   },
   {
     "part": "grm03",
     "side": "rust",
     "family": "envelope",
     "view": "front",
-    "label": "ø10",
+    "label": "\u00f810",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "grm03 is turned whole about x: its size across the axis is a diameter, which the port prints ø10. draftwright prints it as a plain height '10' (dim_height, its value unsettled in the facts)."
+    "reason": "grm03 is turned whole about x: its size across the axis is a diameter, which the port prints \u00f810. draftwright prints it as a plain height '10' (dim_height, its value unsettled in the facts)."
   },
   {
     "part": "grm03",
     "side": "python",
     "family": "turned_step",
     "view": "front",
-    "label": "ø10",
+    "label": "\u00f810",
     "count": 1,
     "verdict": "equivalent",
-    "reason": "The ø10 band's diameter (f:turned_step:2). grm03 is turned whole about x, so the port's overall diameter ø10 (envelope od.diameter) states it and claims its step.diameter, as draftwright's dim_od does for the one band of a part's largest diameter (_share_unique_outer_diameter); draftwright has no rotational feature for grm03, prints the size across the axis as a plain height '10', and so leads the band's ø10 on its own (m_dia_x1). Both sheets state the band's diameter once."
+    "reason": "The \u00f810 band's diameter (f:turned_step:2). grm03 is turned whole about x, so the port's overall diameter \u00f810 (envelope od.diameter) states it and claims its step.diameter, as draftwright's dim_od does for the one band of a part's largest diameter (_share_unique_outer_diameter); draftwright has no rotational feature for grm03, prints the size across the axis as a plain height '10', and so leads the band's \u00f810 on its own (m_dia_x1). Both sheets state the band's diameter once."
   },
   {
     "part": "m1000",
@@ -364,7 +364,7 @@
     "side": "python",
     "family": "callout",
     "view": "front",
-    "label": "ø62",
+    "label": "\u00f862",
     "count": 1,
     "verdict": "undetermined",
     "reason": "A bore coaxial with a turned part: draftwright calls it out as a turned diameter in the profile view; the port reads quiddity's hole record and gives it the hole callout where it is seen end-on. Both state the diameter; which convention suits a turned bore is a drafting choice not yet settled for the port."
@@ -374,10 +374,10 @@
     "side": "python",
     "family": "callout",
     "view": "front",
-    "label": "ø70 BORE",
+    "label": "\u00f870 BORE",
     "count": 1,
     "verdict": "undetermined",
-    "reason": "A bore coaxial with a turned part: draftwright calls it out as a turned diameter in the profile view; the port reads quiddity's hole record and gives it the hole callout where it is seen end-on. Both state the diameter; which convention suits a turned bore is a drafting choice not yet settled for the port. The port's callout also states the recess depth (↧ 10), which draftwright's two leaders do not."
+    "reason": "A bore coaxial with a turned part: draftwright calls it out as a turned diameter in the profile view; the port reads quiddity's hole record and gives it the hole callout where it is seen end-on. Both state the diameter; which convention suits a turned bore is a drafting choice not yet settled for the port. The port's callout also states the recess depth (\u21a7 10), which draftwright's two leaders do not."
   },
   {
     "part": "spool132",
@@ -387,7 +387,7 @@
     "label": "65",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "The bolt circles' centre lies on the turning axis, so its centre line locates it; the port does not dimension it (LINT-code-feature_not_located: holes on the part's turning axis need no locating dimension). draftwright measures 65 = half the ø130 from the box's edge."
+    "reason": "The bolt circles' centre lies on the turning axis, so its centre line locates it; the port does not dimension it (LINT-code-feature_not_located: holes on the part's turning axis need no locating dimension). draftwright measures 65 = half the \u00f8130 from the box's edge."
   },
   {
     "part": "spool132",
@@ -397,17 +397,17 @@
     "label": "65",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "The bolt circles' centre lies on the turning axis, so its centre line locates it; the port does not dimension it (LINT-code-feature_not_located: holes on the part's turning axis need no locating dimension). draftwright measures 65 = half the ø130 from the box's edge."
+    "reason": "The bolt circles' centre lies on the turning axis, so its centre line locates it; the port does not dimension it (LINT-code-feature_not_located: holes on the part's turning axis need no locating dimension). draftwright measures 65 = half the \u00f8130 from the box's edge."
   },
   {
     "part": "spool132",
     "side": "rust",
     "family": "callout",
     "view": "plan",
-    "label": "⌀62 THRU ⌴SF ⌀70 ↧ 10",
+    "label": "\u230062 THRU \u2334SF \u230070 \u21a7 10",
     "count": 1,
     "verdict": "undetermined",
-    "reason": "A bore coaxial with a turned part: draftwright calls it out as a turned diameter in the profile view; the port reads quiddity's hole record and gives it the hole callout where it is seen end-on. Both state the diameter; which convention suits a turned bore is a drafting choice not yet settled for the port. The port's callout also states the recess depth (↧ 10), which draftwright's two leaders do not, and marks the recess a spotface with ASME Y14.5-2018's spotface symbol (⌴SF, the counterbore symbol with SF inside; maintainer decision 2026-10-08), where draftwright's grammar prints a spotface with the counterbore's ⌴."
+    "reason": "A bore coaxial with a turned part: draftwright calls it out as a turned diameter in the profile view; the port reads quiddity's hole record and gives it the hole callout where it is seen end-on. Both state the diameter; which convention suits a turned bore is a drafting choice not yet settled for the port. The port's callout also states the recess depth (\u21a7 10), which draftwright's two leaders do not, and marks the recess a spotface with ASME Y14.5-2018's spotface symbol (\u2334SF, the counterbore symbol with SF inside; maintainer decision 2026-10-08), where draftwright's grammar prints a spotface with the counterbore's \u2334."
   },
   {
     "part": "string_post",
@@ -417,7 +417,7 @@
     "label": "3.8",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "The cross hole lies on the turning axis (x = 0, half the ø7.5 from the box's edge), so its centre line locates it across the axis; the port locates it only along the axis (11.1), as LINT-hole_coverage-turned_axis_location states."
+    "reason": "The cross hole lies on the turning axis (x = 0, half the \u00f87.5 from the box's edge), so its centre line locates it across the axis; the port locates it only along the axis (11.1), as LINT-hole_coverage-turned_axis_location states."
   },
   {
     "part": "ftc06",
@@ -427,7 +427,7 @@
     "label": "266.7",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "The port locates a boss as it does a hole: both coordinates of its axis from the part's box, in the view that looks down it (src/dims/bosses.rs). draftwright locates no boss: its boss ledger requires only the diameter and the height (LINT-boss_coverage-diameter_height), and its ftc06 sheet states neither coordinate of the two ø22.9 y-axis bosses (no hole runs down them, so no hole location stands in): nothing on it fixes where they stand. A feature whose position is not stated cannot be made; ISO 129-1 asks that each feature be fully defined."
+    "reason": "The port locates a boss as it does a hole: both coordinates of its axis from the part's box, in the view that looks down it (src/dims/bosses.rs). draftwright locates no boss: its boss ledger requires only the diameter and the height (LINT-boss_coverage-diameter_height), and its ftc06 sheet states neither coordinate of the two \u00f822.9 y-axis bosses (no hole runs down them, so no hole location stands in): nothing on it fixes where they stand. A feature whose position is not stated cannot be made; ISO 129-1 asks that each feature be fully defined."
   },
   {
     "part": "ftc06",
@@ -437,7 +437,7 @@
     "label": "38.1",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "The port locates a boss as it does a hole: both coordinates of its axis from the part's box, in the view that looks down it (src/dims/bosses.rs). draftwright locates no boss: its boss ledger requires only the diameter and the height (LINT-boss_coverage-diameter_height), and its ftc06 sheet states neither coordinate of the two ø22.9 y-axis bosses (no hole runs down them, so no hole location stands in): nothing on it fixes where they stand. A feature whose position is not stated cannot be made; ISO 129-1 asks that each feature be fully defined."
+    "reason": "The port locates a boss as it does a hole: both coordinates of its axis from the part's box, in the view that looks down it (src/dims/bosses.rs). draftwright locates no boss: its boss ledger requires only the diameter and the height (LINT-boss_coverage-diameter_height), and its ftc06 sheet states neither coordinate of the two \u00f822.9 y-axis bosses (no hole runs down them, so no hole location stands in): nothing on it fixes where they stand. A feature whose position is not stated cannot be made; ISO 129-1 asks that each feature be fully defined."
   },
   {
     "part": "ftc06",
@@ -447,7 +447,7 @@
     "label": "139.7",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "The port locates a boss as it does a hole: both coordinates of its axis from the part's box, in the view that looks down it (src/dims/bosses.rs). draftwright locates no boss: its boss ledger requires only the diameter and the height (LINT-boss_coverage-diameter_height), and its ftc06 sheet states neither coordinate of the two ø22.9 y-axis bosses (no hole runs down them, so no hole location stands in): nothing on it fixes where they stand. A feature whose position is not stated cannot be made; ISO 129-1 asks that each feature be fully defined. One dimension serves both, at the same height."
+    "reason": "The port locates a boss as it does a hole: both coordinates of its axis from the part's box, in the view that looks down it (src/dims/bosses.rs). draftwright locates no boss: its boss ledger requires only the diameter and the height (LINT-boss_coverage-diameter_height), and its ftc06 sheet states neither coordinate of the two \u00f822.9 y-axis bosses (no hole runs down them, so no hole location stands in): nothing on it fixes where they stand. A feature whose position is not stated cannot be made; ISO 129-1 asks that each feature be fully defined. One dimension serves both, at the same height."
   },
   {
     "part": "slot_array",
@@ -534,7 +534,7 @@
     "side": "rust",
     "family": "pitch",
     "view": "plan",
-    "label": "2× 40",
+    "label": "2\u00d7 40",
     "count": 1,
     "verdict": "rust-correct",
     "reason": "The grid's row pitch (quiddity's row_pitch 40, three rows along x). draftwright drops it: its own lint reports slot_dim_dropped ('slot pattern pitch 40 not placed (no clear room beside the plan)') and plan_incomplete, so its sheet leaves the rows' spacing unstated. A grid is spaced by both its pitches (draftwright's render_slot_patterns places both grid_pitch dimensions when there is room)."
@@ -640,66 +640,6 @@
     "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
   },
   {
-    "part": "ctc01",
-    "side": "rust",
-    "family": "step_height",
-    "view": "front",
-    "label": "50",
-    "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
-  },
-  {
-    "part": "hanger",
-    "side": "rust",
-    "family": "step_height",
-    "view": "front",
-    "label": "4",
-    "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
-  },
-  {
-    "part": "m1000",
-    "side": "rust",
-    "family": "step_height",
-    "view": "front",
-    "label": "6.9",
-    "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
-  },
-  {
-    "part": "m1000",
-    "side": "rust",
-    "family": "step_height",
-    "view": "front",
-    "label": "8.9",
-    "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
-  },
-  {
-    "part": "m1000",
-    "side": "rust",
-    "family": "step_height",
-    "view": "front",
-    "label": "10.9",
-    "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
-  },
-  {
-    "part": "m10046",
-    "side": "rust",
-    "family": "step_height",
-    "view": "front",
-    "label": "1.8",
-    "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
-  },
-  {
     "part": "ftc06",
     "side": "rust",
     "family": "step_height",
@@ -718,26 +658,6 @@
     "count": 1,
     "verdict": "undetermined",
     "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung and drops it because it lies too close above the last rung kept at the sheet's scale (1:5), asking for a detail view; its lint reports the detail unplaceable (detail_unplaceable, warning), so its sheet leaves the height unstated. The port plans and places every rung and reports what then collides."
-  },
-  {
-    "part": "hanger",
-    "side": "python",
-    "family": "step_height",
-    "view": "detail_a",
-    "label": "65",
-    "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate and on detail views (the port has none). The level 65 above the base lies 4 mm above the level 61 at 1:1, too close for draftwright's front-view ladder (_core._classify_steps), so draftwright states it in a detail view (detail_a, dim_detail_a_step0); the port states it in the front view. Same measurement, other view."
-  },
-  {
-    "part": "hanger",
-    "side": "rust",
-    "family": "step_height",
-    "view": "front",
-    "label": "65",
-    "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate and on detail views (the port has none). The level 65 above the base lies 4 mm above the level 61 at 1:1, too close for draftwright's front-view ladder (_core._classify_steps), so draftwright states it in a detail view (detail_a, dim_detail_a_step0); the port states it in the front view. Same measurement, other view."
   },
   {
     "part": "m10046",
@@ -857,17 +777,17 @@
     "label": "6",
     "count": 2,
     "verdict": "rust-correct",
-    "reason": "cgb245's two obround slots (f:slot:1, f:slot:2, 6 wide) lie across the same span in y (one witness span, 172.2 to 184.6 mm on the page in both): the port states their width once, counted, claiming both (src/dims/mod.rs::share), as draftwright's own shared slot width does (_slot_shared_width_key in annotations/_slots.py: 'Quantify one size statement for that span'; ftc08's sheet prints '2× 15.2' so). draftwright skips the rule here only because a plan-view width along y takes immediate placement, which 'does not share the corridor dedup' (_render_slot_dimensions): a placement mechanism, not a drafting rule, so its sheet states the one span twice. rust-correct: the same quantity once (ARCH0009-6; the maintainer's directive of 2026-10-09)."
+    "reason": "cgb245's two obround slots (f:slot:1, f:slot:2, 6 wide) lie across the same span in y (one witness span, 172.2 to 184.6 mm on the page in both): the port states their width once, counted, claiming both (src/dims/mod.rs::share), as draftwright's own shared slot width does (_slot_shared_width_key in annotations/_slots.py: 'Quantify one size statement for that span'; ftc08's sheet prints '2\u00d7 15.2' so). draftwright skips the rule here only because a plan-view width along y takes immediate placement, which 'does not share the corridor dedup' (_render_slot_dimensions): a placement mechanism, not a drafting rule, so its sheet states the one span twice. rust-correct: the same quantity once (ARCH0009-6; the maintainer's directive of 2026-10-09)."
   },
   {
     "part": "cgb245",
     "side": "rust",
     "family": "slot",
     "view": "plan",
-    "label": "2× 6",
+    "label": "2\u00d7 6",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "cgb245's two obround slots (f:slot:1, f:slot:2, 6 wide) lie across the same span in y (one witness span, 172.2 to 184.6 mm on the page in both): the port states their width once, counted, claiming both (src/dims/mod.rs::share), as draftwright's own shared slot width does (_slot_shared_width_key in annotations/_slots.py: 'Quantify one size statement for that span'; ftc08's sheet prints '2× 15.2' so). draftwright skips the rule here only because a plan-view width along y takes immediate placement, which 'does not share the corridor dedup' (_render_slot_dimensions): a placement mechanism, not a drafting rule, so its sheet states the one span twice. rust-correct: the same quantity once (ARCH0009-6; the maintainer's directive of 2026-10-09)."
+    "reason": "cgb245's two obround slots (f:slot:1, f:slot:2, 6 wide) lie across the same span in y (one witness span, 172.2 to 184.6 mm on the page in both): the port states their width once, counted, claiming both (src/dims/mod.rs::share), as draftwright's own shared slot width does (_slot_shared_width_key in annotations/_slots.py: 'Quantify one size statement for that span'; ftc08's sheet prints '2\u00d7 15.2' so). draftwright skips the rule here only because a plan-view width along y takes immediate placement, which 'does not share the corridor dedup' (_render_slot_dimensions): a placement mechanism, not a drafting rule, so its sheet states the one span twice. rust-correct: the same quantity once (ARCH0009-6; the maintainer's directive of 2026-10-09)."
   },
   {
     "part": "ftc06",
@@ -877,7 +797,7 @@
     "label": "38.1",
     "count": 4,
     "verdict": "rust-correct",
-    "reason": "ftc06's bosses that share a height share its span: the four ø44.5 bosses (f:boss:1-4) all stand from the base z = -247.65 to z = -209.55, the two ø31.8 (f:boss:5, 7) and the two ø22.9 (f:boss:6, 8) each to one face. The port states each set's height once, counted ('4× 38.1', '2× 12.1', '2× 16.3'), one dimension claiming every boss (src/dims/mod.rs::share), where draftwright's sheet draws the same span four times (m_bossheight_z4-z7) and twice two times (m_bossheight_y0-y3). rust-correct: ARCH0009-6 ('two features measuring the same span on one axis produce one dimension'), which draftwright implements for locations and slot widths only, and the maintainer's directive of 2026-10-09 (state each quantity once); lint still finds each boss's height claimed and printed."
+    "reason": "ftc06's bosses that share a height share its span: the four \u00f844.5 bosses (f:boss:1-4) all stand from the base z = -247.65 to z = -209.55, the two \u00f831.8 (f:boss:5, 7) and the two \u00f822.9 (f:boss:6, 8) each to one face. The port states each set's height once, counted ('4\u00d7 38.1', '2\u00d7 12.1', '2\u00d7 16.3'), one dimension claiming every boss (src/dims/mod.rs::share), where draftwright's sheet draws the same span four times (m_bossheight_z4-z7) and twice two times (m_bossheight_y0-y3). rust-correct: ARCH0009-6 ('two features measuring the same span on one axis produce one dimension'), which draftwright implements for locations and slot widths only, and the maintainer's directive of 2026-10-09 (state each quantity once); lint still finds each boss's height claimed and printed."
   },
   {
     "part": "ftc06",
@@ -887,7 +807,7 @@
     "label": "12.1",
     "count": 2,
     "verdict": "rust-correct",
-    "reason": "ftc06's bosses that share a height share its span: the four ø44.5 bosses (f:boss:1-4) all stand from the base z = -247.65 to z = -209.55, the two ø31.8 (f:boss:5, 7) and the two ø22.9 (f:boss:6, 8) each to one face. The port states each set's height once, counted ('4× 38.1', '2× 12.1', '2× 16.3'), one dimension claiming every boss (src/dims/mod.rs::share), where draftwright's sheet draws the same span four times (m_bossheight_z4-z7) and twice two times (m_bossheight_y0-y3). rust-correct: ARCH0009-6 ('two features measuring the same span on one axis produce one dimension'), which draftwright implements for locations and slot widths only, and the maintainer's directive of 2026-10-09 (state each quantity once); lint still finds each boss's height claimed and printed."
+    "reason": "ftc06's bosses that share a height share its span: the four \u00f844.5 bosses (f:boss:1-4) all stand from the base z = -247.65 to z = -209.55, the two \u00f831.8 (f:boss:5, 7) and the two \u00f822.9 (f:boss:6, 8) each to one face. The port states each set's height once, counted ('4\u00d7 38.1', '2\u00d7 12.1', '2\u00d7 16.3'), one dimension claiming every boss (src/dims/mod.rs::share), where draftwright's sheet draws the same span four times (m_bossheight_z4-z7) and twice two times (m_bossheight_y0-y3). rust-correct: ARCH0009-6 ('two features measuring the same span on one axis produce one dimension'), which draftwright implements for locations and slot widths only, and the maintainer's directive of 2026-10-09 (state each quantity once); lint still finds each boss's height claimed and printed."
   },
   {
     "part": "ftc06",
@@ -897,47 +817,47 @@
     "label": "16.3",
     "count": 2,
     "verdict": "rust-correct",
-    "reason": "ftc06's bosses that share a height share its span: the four ø44.5 bosses (f:boss:1-4) all stand from the base z = -247.65 to z = -209.55, the two ø31.8 (f:boss:5, 7) and the two ø22.9 (f:boss:6, 8) each to one face. The port states each set's height once, counted ('4× 38.1', '2× 12.1', '2× 16.3'), one dimension claiming every boss (src/dims/mod.rs::share), where draftwright's sheet draws the same span four times (m_bossheight_z4-z7) and twice two times (m_bossheight_y0-y3). rust-correct: ARCH0009-6 ('two features measuring the same span on one axis produce one dimension'), which draftwright implements for locations and slot widths only, and the maintainer's directive of 2026-10-09 (state each quantity once); lint still finds each boss's height claimed and printed."
+    "reason": "ftc06's bosses that share a height share its span: the four \u00f844.5 bosses (f:boss:1-4) all stand from the base z = -247.65 to z = -209.55, the two \u00f831.8 (f:boss:5, 7) and the two \u00f822.9 (f:boss:6, 8) each to one face. The port states each set's height once, counted ('4\u00d7 38.1', '2\u00d7 12.1', '2\u00d7 16.3'), one dimension claiming every boss (src/dims/mod.rs::share), where draftwright's sheet draws the same span four times (m_bossheight_z4-z7) and twice two times (m_bossheight_y0-y3). rust-correct: ARCH0009-6 ('two features measuring the same span on one axis produce one dimension'), which draftwright implements for locations and slot widths only, and the maintainer's directive of 2026-10-09 (state each quantity once); lint still finds each boss's height claimed and printed."
   },
   {
     "part": "ftc06",
     "side": "rust",
     "family": "boss",
     "view": "front",
-    "label": "4× 38.1",
+    "label": "4\u00d7 38.1",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "ftc06's bosses that share a height share its span: the four ø44.5 bosses (f:boss:1-4) all stand from the base z = -247.65 to z = -209.55, the two ø31.8 (f:boss:5, 7) and the two ø22.9 (f:boss:6, 8) each to one face. The port states each set's height once, counted ('4× 38.1', '2× 12.1', '2× 16.3'), one dimension claiming every boss (src/dims/mod.rs::share), where draftwright's sheet draws the same span four times (m_bossheight_z4-z7) and twice two times (m_bossheight_y0-y3). rust-correct: ARCH0009-6 ('two features measuring the same span on one axis produce one dimension'), which draftwright implements for locations and slot widths only, and the maintainer's directive of 2026-10-09 (state each quantity once); lint still finds each boss's height claimed and printed."
+    "reason": "ftc06's bosses that share a height share its span: the four \u00f844.5 bosses (f:boss:1-4) all stand from the base z = -247.65 to z = -209.55, the two \u00f831.8 (f:boss:5, 7) and the two \u00f822.9 (f:boss:6, 8) each to one face. The port states each set's height once, counted ('4\u00d7 38.1', '2\u00d7 12.1', '2\u00d7 16.3'), one dimension claiming every boss (src/dims/mod.rs::share), where draftwright's sheet draws the same span four times (m_bossheight_z4-z7) and twice two times (m_bossheight_y0-y3). rust-correct: ARCH0009-6 ('two features measuring the same span on one axis produce one dimension'), which draftwright implements for locations and slot widths only, and the maintainer's directive of 2026-10-09 (state each quantity once); lint still finds each boss's height claimed and printed."
   },
   {
     "part": "ftc06",
     "side": "rust",
     "family": "boss",
     "view": "side",
-    "label": "2× 12.1",
+    "label": "2\u00d7 12.1",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "ftc06's bosses that share a height share its span: the four ø44.5 bosses (f:boss:1-4) all stand from the base z = -247.65 to z = -209.55, the two ø31.8 (f:boss:5, 7) and the two ø22.9 (f:boss:6, 8) each to one face. The port states each set's height once, counted ('4× 38.1', '2× 12.1', '2× 16.3'), one dimension claiming every boss (src/dims/mod.rs::share), where draftwright's sheet draws the same span four times (m_bossheight_z4-z7) and twice two times (m_bossheight_y0-y3). rust-correct: ARCH0009-6 ('two features measuring the same span on one axis produce one dimension'), which draftwright implements for locations and slot widths only, and the maintainer's directive of 2026-10-09 (state each quantity once); lint still finds each boss's height claimed and printed."
+    "reason": "ftc06's bosses that share a height share its span: the four \u00f844.5 bosses (f:boss:1-4) all stand from the base z = -247.65 to z = -209.55, the two \u00f831.8 (f:boss:5, 7) and the two \u00f822.9 (f:boss:6, 8) each to one face. The port states each set's height once, counted ('4\u00d7 38.1', '2\u00d7 12.1', '2\u00d7 16.3'), one dimension claiming every boss (src/dims/mod.rs::share), where draftwright's sheet draws the same span four times (m_bossheight_z4-z7) and twice two times (m_bossheight_y0-y3). rust-correct: ARCH0009-6 ('two features measuring the same span on one axis produce one dimension'), which draftwright implements for locations and slot widths only, and the maintainer's directive of 2026-10-09 (state each quantity once); lint still finds each boss's height claimed and printed."
   },
   {
     "part": "ftc06",
     "side": "rust",
     "family": "boss",
     "view": "side",
-    "label": "2× 16.3",
+    "label": "2\u00d7 16.3",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "ftc06's bosses that share a height share its span: the four ø44.5 bosses (f:boss:1-4) all stand from the base z = -247.65 to z = -209.55, the two ø31.8 (f:boss:5, 7) and the two ø22.9 (f:boss:6, 8) each to one face. The port states each set's height once, counted ('4× 38.1', '2× 12.1', '2× 16.3'), one dimension claiming every boss (src/dims/mod.rs::share), where draftwright's sheet draws the same span four times (m_bossheight_z4-z7) and twice two times (m_bossheight_y0-y3). rust-correct: ARCH0009-6 ('two features measuring the same span on one axis produce one dimension'), which draftwright implements for locations and slot widths only, and the maintainer's directive of 2026-10-09 (state each quantity once); lint still finds each boss's height claimed and printed."
+    "reason": "ftc06's bosses that share a height share its span: the four \u00f844.5 bosses (f:boss:1-4) all stand from the base z = -247.65 to z = -209.55, the two \u00f831.8 (f:boss:5, 7) and the two \u00f822.9 (f:boss:6, 8) each to one face. The port states each set's height once, counted ('4\u00d7 38.1', '2\u00d7 12.1', '2\u00d7 16.3'), one dimension claiming every boss (src/dims/mod.rs::share), where draftwright's sheet draws the same span four times (m_bossheight_z4-z7) and twice two times (m_bossheight_y0-y3). rust-correct: ARCH0009-6 ('two features measuring the same span on one axis produce one dimension'), which draftwright implements for locations and slot widths only, and the maintainer's directive of 2026-10-09 (state each quantity once); lint still finds each boss's height claimed and printed."
   },
   {
     "part": "connector109",
     "side": "python",
     "family": "boss",
     "view": "front",
-    "label": "ø130.9",
+    "label": "\u00f8130.9",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "One span, one dimension (E3, ARCH0009-6): connector109's boss at z=139.42 has diameter 130.94, already stated by the overall diameter. The captured Python sheet repeats it as m_dia_z3 and dim_od (tests/fixtures/sheets/connector109.json.gz). The port's d:envelope/od.diameter now claims f:boss:4/boss.diameter and draws one ø130.9 across the same radial stations; the boss's length and the smaller diameters remain separate. Different bands stay separate, and omitting the overall diameter promotes the boss's own statement (no longer under test: its test left with connector109's removal from the survey)."
+    "reason": "One span, one dimension (E3, ARCH0009-6): connector109's boss at z=139.42 has diameter 130.94, already stated by the overall diameter. The captured Python sheet repeats it as m_dia_z3 and dim_od (tests/fixtures/sheets/connector109.json.gz). The port's d:envelope/od.diameter now claims f:boss:4/boss.diameter and draws one \u00f8130.9 across the same radial stations; the boss's length and the smaller diameters remain separate. Different bands stay separate, and omitting the overall diameter promotes the boss's own statement (no longer under test: its test left with connector109's removal from the survey)."
   },
   {
     "part": "ftc06",
@@ -947,7 +867,7 @@
     "label": "31.8",
     "count": 1,
     "verdict": "equivalent",
-    "reason": "Equivalent: Python renders the two orthogonal 31.75 mm slabs independently as 31.8 in front and side (_thin_profiles.register_plate_thickness). The port states 2× 31.8 on the side thickness dimension and claims both body-local plates. Native and captured recognition give equal thicknesses; a counted common size states both once, preserves the edge-on profile witness, and avoids duplicate labels. The exact two Python items and the one counted Rust item are checked by tests/dimensions.rs."
+    "reason": "Equivalent: Python renders the two orthogonal 31.75 mm slabs independently as 31.8 in front and side (_thin_profiles.register_plate_thickness). The port states 2\u00d7 31.8 on the side thickness dimension and claims both body-local plates. Native and captured recognition give equal thicknesses; a counted common size states both once, preserves the edge-on profile witness, and avoids duplicate labels. The exact two Python items and the one counted Rust item are checked by tests/dimensions.rs."
   },
   {
     "part": "ftc06",
@@ -957,17 +877,17 @@
     "label": "31.8",
     "count": 1,
     "verdict": "equivalent",
-    "reason": "Equivalent: Python renders the two orthogonal 31.75 mm slabs independently as 31.8 in front and side (_thin_profiles.register_plate_thickness). The port states 2× 31.8 on the side thickness dimension and claims both body-local plates. Native and captured recognition give equal thicknesses; a counted common size states both once, preserves the edge-on profile witness, and avoids duplicate labels. The exact two Python items and the one counted Rust item are checked by tests/dimensions.rs."
+    "reason": "Equivalent: Python renders the two orthogonal 31.75 mm slabs independently as 31.8 in front and side (_thin_profiles.register_plate_thickness). The port states 2\u00d7 31.8 on the side thickness dimension and claims both body-local plates. Native and captured recognition give equal thicknesses; a counted common size states both once, preserves the edge-on profile witness, and avoids duplicate labels. The exact two Python items and the one counted Rust item are checked by tests/dimensions.rs."
   },
   {
     "part": "ftc06",
     "side": "rust",
     "family": "plate",
     "view": "side",
-    "label": "2× 31.8",
+    "label": "2\u00d7 31.8",
     "count": 1,
     "verdict": "equivalent",
-    "reason": "Equivalent: Python renders the two orthogonal 31.75 mm slabs independently as 31.8 in front and side (_thin_profiles.register_plate_thickness). The port states 2× 31.8 on the side thickness dimension and claims both body-local plates. Native and captured recognition give equal thicknesses; a counted common size states both once, preserves the edge-on profile witness, and avoids duplicate labels. The exact two Python items and the one counted Rust item are checked by tests/dimensions.rs. G2 review fix: Analysis principal boundary straight edges prove both witness faces in the plan profile (m1000) or side profile (FTC-06); their original front placement used absent/hidden edges. Both witnesses now attach to those solid edges. Python origin/main _thin_profiles.register_plate_thickness uses the fixed axis map; the deliberate exposed-profile preference is rust-correct, with corpus view regressions and 2400 px sheet evidence."
+    "reason": "Equivalent: Python renders the two orthogonal 31.75 mm slabs independently as 31.8 in front and side (_thin_profiles.register_plate_thickness). The port states 2\u00d7 31.8 on the side thickness dimension and claims both body-local plates. Native and captured recognition give equal thicknesses; a counted common size states both once, preserves the edge-on profile witness, and avoids duplicate labels. The exact two Python items and the one counted Rust item are checked by tests/dimensions.rs. G2 review fix: Analysis principal boundary straight edges prove both witness faces in the plan profile (m1000) or side profile (FTC-06); their original front placement used absent/hidden edges. Both witnesses now attach to those solid edges. Python origin/main _thin_profiles.register_plate_thickness uses the fixed axis map; the deliberate exposed-profile preference is rust-correct, with corpus view regressions and 2400 px sheet evidence."
   },
   {
     "part": "m1000",
@@ -987,7 +907,7 @@
     "label": "215.9",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "The exposed top-flange thickness (the counted 2× 31.8 statement on the side profile) and overall height 247.7 already define the underside station 215.9. G2 review's top-slab ownership removes that rung to avoid the closed chain 215.9 + 31.8 = 247.7, retaining its stable item as Covered by the thickness with both dependencies named. Python origin/main _thin_profiles.register_plate_thickness and the captured sheet retain the fixed-map thickness plus that ladder rung. This is the same rule as 10038's redundant 7.2 underside, checked by the generic top-slab ownership/omission regression and the native/captured sheet audit."
+    "reason": "The exposed top-flange thickness (the counted 2\u00d7 31.8 statement on the side profile) and overall height 247.7 already define the underside station 215.9. G2 review's top-slab ownership removes that rung to avoid the closed chain 215.9 + 31.8 = 247.7, retaining its stable item as Covered by the thickness with both dependencies named. Python origin/main _thin_profiles.register_plate_thickness and the captured sheet retain the fixed-map thickness plus that ladder rung. This is the same rule as 10038's redundant 7.2 underside, checked by the generic top-slab ownership/omission regression and the native/captured sheet audit."
   },
   {
     "part": "ctc01",
@@ -1022,16 +942,6 @@
   {
     "part": "grm03",
     "side": "rust",
-    "family": "turned_step",
-    "view": "front",
-    "label": "(0.5)",
-    "count": 1,
-    "verdict": "rust-correct",
-    "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 0.5 + 2 + 3 + 18 = 23.5 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (0.5) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
-  },
-  {
-    "part": "grm03",
-    "side": "rust",
     "family": "envelope",
     "view": "front",
     "label": "23.5",
@@ -1052,42 +962,12 @@
   {
     "part": "grm05",
     "side": "rust",
-    "family": "turned_step",
-    "view": "front",
-    "label": "(5)",
-    "count": 1,
-    "verdict": "rust-correct",
-    "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 14 + 5 + 13 = 32 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (5) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
-  },
-  {
-    "part": "grm05",
-    "side": "rust",
     "family": "envelope",
     "view": "front",
     "label": "32",
     "count": 1,
     "verdict": "rust-correct",
     "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 14 + 5 + 13 = 32 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (5) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
-  },
-  {
-    "part": "string_post",
-    "side": "python",
-    "family": "turned_step",
-    "view": "front",
-    "label": "1",
-    "count": 1,
-    "verdict": "rust-correct",
-    "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 7.2 + 1.1 + 5.5 + 1 = 14.8 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (1) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
-  },
-  {
-    "part": "string_post",
-    "side": "rust",
-    "family": "turned_step",
-    "view": "front",
-    "label": "(1)",
-    "count": 1,
-    "verdict": "rust-correct",
-    "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 7.2 + 1.1 + 5.5 + 1 = 14.8 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (1) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
   },
   {
     "part": "string_post",
@@ -1098,5 +978,295 @@
     "count": 1,
     "verdict": "rust-correct",
     "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 7.2 + 1.1 + 5.5 + 1 = 14.8 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (1) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
+  },
+  {
+    "part": "ctc01",
+    "side": "rust",
+    "family": "step_height",
+    "view": "detail_a",
+    "label": "50",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+  },
+  {
+    "part": "grm03",
+    "side": "python",
+    "family": "turned_step",
+    "view": "front",
+    "label": "18",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "grm03",
+    "side": "python",
+    "family": "turned_step",
+    "view": "front",
+    "label": "2",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "grm03",
+    "side": "python",
+    "family": "turned_step",
+    "view": "front",
+    "label": "3",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "grm03",
+    "side": "python",
+    "family": "turned_step",
+    "view": "front",
+    "label": "\u00f86",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "grm03",
+    "side": "rust",
+    "family": "step_position",
+    "view": "front",
+    "label": "2.5",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "grm03",
+    "side": "rust",
+    "family": "step_position",
+    "view": "front",
+    "label": "5.5",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "grm03",
+    "side": "rust",
+    "family": "turned_step",
+    "view": "detail_a",
+    "label": "0.5",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "grm03",
+    "side": "rust",
+    "family": "turned_step",
+    "view": "detail_a",
+    "label": "2",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "grm03",
+    "side": "rust",
+    "family": "turned_step",
+    "view": "detail_a",
+    "label": "\u00f86",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "grm05",
+    "side": "python",
+    "family": "turned_step",
+    "view": "front",
+    "label": "13",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "grm05",
+    "side": "rust",
+    "family": "step_position",
+    "view": "front",
+    "label": "19",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "hanger",
+    "side": "rust",
+    "family": "step_height",
+    "view": "detail_a",
+    "label": "4",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+  },
+  {
+    "part": "m1000",
+    "side": "rust",
+    "family": "step_height",
+    "view": "detail_a",
+    "label": "10.9",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+  },
+  {
+    "part": "m1000",
+    "side": "rust",
+    "family": "step_height",
+    "view": "detail_a",
+    "label": "6.9",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+  },
+  {
+    "part": "m1000",
+    "side": "rust",
+    "family": "step_height",
+    "view": "detail_a",
+    "label": "8.9",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+  },
+  {
+    "part": "m10046",
+    "side": "rust",
+    "family": "step_height",
+    "view": "detail_a",
+    "label": "1.8",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+  },
+  {
+    "part": "m10127",
+    "side": "python",
+    "family": "step_height",
+    "view": "front",
+    "label": "32.4",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+  },
+  {
+    "part": "m10127",
+    "side": "rust",
+    "family": "step_height",
+    "view": "detail_a",
+    "label": "32.4",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+  },
+  {
+    "part": "spool132",
+    "side": "python",
+    "family": "turned_step",
+    "view": "front",
+    "label": "5",
+    "count": 2,
+    "verdict": "equivalent",
+    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+  },
+  {
+    "part": "spool132",
+    "side": "rust",
+    "family": "turned_step",
+    "view": "detail_a",
+    "label": "5",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+  },
+  {
+    "part": "spool132",
+    "side": "rust",
+    "family": "turned_step",
+    "view": "detail_b",
+    "label": "5",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+  },
+  {
+    "part": "string_post",
+    "side": "python",
+    "family": "location.z",
+    "view": "front",
+    "label": "11.1",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "string_post",
+    "side": "python",
+    "family": "turned_step",
+    "view": "front",
+    "label": "1.1",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "string_post",
+    "side": "python",
+    "family": "turned_step",
+    "view": "front",
+    "label": "5.5",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "string_post",
+    "side": "python",
+    "family": "turned_step",
+    "view": "front",
+    "label": "7.2",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "string_post",
+    "side": "rust",
+    "family": "location.z",
+    "view": "front",
+    "label": "3.8",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "string_post",
+    "side": "rust",
+    "family": "step_position",
+    "view": "front",
+    "label": "6.5",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "string_post",
+    "side": "rust",
+    "family": "step_position",
+    "view": "front",
+    "label": "7.6",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
   }
 ]

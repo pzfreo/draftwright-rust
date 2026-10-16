@@ -143,7 +143,13 @@ fn only_sheet_problems_have_the_sheet_as_subject() {
 /// the chain's other links; its controlling dimensions are not.
 #[test]
 fn the_spindles_bracketed_length_is_a_reference_with_what_determines_it() {
-    let plan = model::plan_recovered(&spindle(), &Spec::default()).unwrap();
+    // Independent profiles retain the reference/closure contract. Connected whole-part
+    // profiles now default to baseline ordinates and have no redundant reference link.
+    let mut a = spindle();
+    for f in a.features.iter_mut().filter(|f| f.kind == "turned_step") {
+        f.parameters["profile"]["body_key"] = json!([f.id]);
+    }
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
     let d = plan
         .dimensions
         .iter()

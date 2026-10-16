@@ -191,7 +191,7 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
     let [lo, hi] = a.envelope;
     for v in views.iter_mut() {
         v.line_work.clear();
-        if v.id == "v:iso" {
+        if v.id == "v:iso" || v.detail.is_some() {
             continue;
         }
         let view = View::new(v.direction, v.up).expect("planned view");

@@ -150,7 +150,7 @@ fn hole_callout(d: &PlannedDimension) -> bool {
 /// Where world point *p* lands on the page in view *v* (the centre of the part's box lands on
 /// `at`; the page's x is `up × direction`).
 fn page_of(v: &PlannedView, analysis: &Analysis, p: [f64; 3]) -> [f64; 2] {
-    let [lo, hi] = analysis.envelope;
+    let [lo, hi] = v.detail.as_ref().map_or(analysis.envelope, |d| d.bounds);
     let (t, u) = (v.direction, v.up);
     let right = [
         u[1] * t[2] - u[2] * t[1],
@@ -550,6 +550,25 @@ fn a_hole_callouts_tip_is_on_the_rim_of_a_hole_it_names() {
 }
 
 /// The features the plan states *parameter* of.
+fn marks(plan: &Plan) -> Vec<Mark> {
+    plan.dimensions
+        .iter()
+        .map(|d| Mark {
+            name: d.id.clone(),
+            view: Some(d.view.clone()),
+            text: d.label.clone(),
+            claims: d
+                .measurements
+                .iter()
+                .map(|m| draftwright::output::Claim {
+                    feature: m.feature.clone(),
+                    parameter: m.parameter.clone(),
+                })
+                .collect(),
+        })
+        .collect()
+}
+
 fn stated<'a>(plan: &'a Plan, parameter: &str) -> BTreeSet<&'a str> {
     plan.dimensions
         .iter()
@@ -683,7 +702,19 @@ fn equal_diameters_on_different_features_are_stated_apart() {
 #[test]
 fn a_rear_view_is_never_added_and_one_asked_for_is_refused() {
     for (name, analysis, plan) in planned() {
-        let names: BTreeSet<&str> = plan.views.iter().map(|v| v.id.as_str()).collect();
+        for v in plan.views.iter().filter(|v| v.detail.is_some()) {
+            assert!(
+                draftwright::detail::NAMES
+                    .iter()
+                    .any(|n| v.id == format!("v:{n}"))
+            );
+        }
+        let names: BTreeSet<&str> = plan
+            .views
+            .iter()
+            .filter(|v| v.detail.is_none())
+            .map(|v| v.id.as_str())
+            .collect();
         assert!(
             names.is_subset(&BTreeSet::from([
                 "v:front",
@@ -959,7 +990,17 @@ fn each_turned_band_carries_its_diameter_and_length() {
             if plan.dimensions.iter().any(|d| d.id.contains("/step.")) {
                 for parameter in ["step.diameter", "step.length"] {
                     assert!(
-                        stated(plan, parameter).contains(b.id.as_str()),
+                        if parameter == "step.length" {
+                            lint::turned::outcomes(analysis, &marks(plan))
+                                .iter()
+                                .any(|o| {
+                                    o.feature == b.id
+                                        && o.parameter == parameter
+                                        && o.state == lint::turned::State::Placed
+                                })
+                        } else {
+                            stated(plan, parameter).contains(b.id.as_str())
+                        },
                         "{name}: {} has no {parameter}",
                         b.id
                     );
@@ -1117,7 +1158,7 @@ fn eccentric_cylinders_are_not_one_turned_profile() {
             item("f:turned_step:1", "step.diameter", "ø30"),
             item("f:turned_step:1", "step.length", "40"),
             item("f:turned_step:2", "step.diameter", "ø16"),
-            item("f:turned_step:2", "step.length", "(30)"),
+            item("f:turned_step:2", "step_position.length", "70"),
         ]
     );
 
@@ -1868,15 +1909,21 @@ fn a_rungs_witnesses_stand_on_its_levels_support() {
     let (mut seen, mut off_box) = (0, 0);
     for (name, analysis, plan) in planned() {
         let [lo, hi] = analysis.envelope;
-        let front = plan.views.iter().find(|v| v.id == "v:front");
         for d in &plan.dimensions {
             if !d.id.starts_with("d:step_level/step_height.length.h") {
                 continue;
             }
-            let (Some(p), Some(v)) = (&d.placed, front) else {
+            let (Some(p), Some(v)) = (&d.placed, plan.views.iter().find(|v| v.id == d.view)) else {
                 continue;
             };
-            assert_eq!(d.view, "v:front", "{name}: {}", d.id);
+            assert!(
+                d.view == "v:front"
+                    || v.detail
+                        .as_ref()
+                        .is_some_and(|d| d.source_view == "v:front"),
+                "{name}: {}",
+                d.id
+            );
             seen += 1;
             let z = lo[2] + d.value;
             let key = |z: f64| (z * 1e3).round() as i64;
@@ -2035,7 +2082,14 @@ fn grm03_locates_every_turned_shoulder_and_keeps_the_isometric() {
         .filter(|d| d.id.ends_with("/step.length") && d.placed.is_some())
         .map(|d| d.label.as_str())
         .collect();
-    assert_eq!(ours, BTreeSet::from(["(0.5)", "2", "3", "18"]));
+    assert_eq!(ours, BTreeSet::from(["0.5", "2"]));
+    assert_eq!(
+        plan.dimensions
+            .iter()
+            .filter(|d| d.id.ends_with("/step_position.length"))
+            .count(),
+        2
+    );
     assert!(facts.views.iter().any(|v| v.name == "iso"));
     assert!(plan.views.iter().any(|v| v.id == "v:iso"));
     assert_eq!(

@@ -64,7 +64,7 @@ pub(super) fn consolidate(
         else {
             continue;
         };
-        if !given[i].is_empty() {
+        if !given[i].is_empty() || kept[i].2.is_some_and(|v| crate::detail::NAMES.contains(&v)) {
             continue;
         }
         let rung = (0..kept.len()).find(|&j| {

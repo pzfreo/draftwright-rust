@@ -160,8 +160,7 @@ fn grm05_states_its_step_diameters_and_lengths_as_draftwright_does() {
             ("d:f:turned_step:2/step.diameter", "ø6.2"),
             ("d:f:turned_step:3/step.diameter", "ø6"),
             ("d:f:turned_step:1/step.length", "14"),
-            ("d:f:turned_step:2/step.length", "(5)"),
-            ("d:f:turned_step:3/step.length", "13"),
+            ("d:f:turned_step:2/step_position.length", "19"),
         ])
     );
     let od = plan
@@ -214,9 +213,17 @@ fn turned_corpus_parts_state_their_steps_as_draftwright_does() {
             .filter(|d| {
                 d.measurements
                     .iter()
-                    .any(|m| m.parameter.starts_with("step."))
+                    .any(|m| m.parameter == "step.diameter")
             })
-            .map(|d| (d.view.trim_start_matches("v:").to_string(), d.label.clone()))
+            .map(|d| {
+                let source = plan
+                    .views
+                    .iter()
+                    .find(|v| v.id == d.view)
+                    .and_then(|v| v.detail.as_ref())
+                    .map_or(d.view.as_str(), |r| r.source_view.as_str());
+                (source.trim_start_matches("v:").to_string(), d.label.clone())
+            })
             .collect();
         rust.sort();
         let f = facts::load(name);
@@ -227,7 +234,7 @@ fn turned_corpus_parts_state_their_steps_as_draftwright_does() {
             .filter(|n| {
                 n.measurements
                     .iter()
-                    .any(|m| m.parameter == "step.diameter" || m.parameter == "step.length")
+                    .any(|m| m.parameter == "step.diameter")
             })
             .map(|n| {
                 (
@@ -239,15 +246,13 @@ fn turned_corpus_parts_state_their_steps_as_draftwright_does() {
         if name == "grm03" {
             python.retain(|(_, l)| l != "ø10");
         }
-        // Maintainer H5: the overall remains controlling; the shortest link is reference.
-        if matches!(name, "grm03" | "string_post") {
-            let shortest = if name == "grm03" { "0.5" } else { "1" };
-            for (_, label) in &mut python {
-                if label == shortest {
-                    *label = format!("({label})");
-                }
-            }
-        }
+        // Axial positions now follow the inspection datum; compare physical diameter
+        // statements with Python and prove every band length through lint's baseline ledger.
+        assert!(
+            ledger(&a, &plan).iter().all(|o| o.ends_with("Placed")),
+            "{name}: {:?}",
+            ledger(&a, &plan)
+        );
         python.sort();
         assert_eq!(rust, python, "{name}");
         let label = |id: &str| {
@@ -280,7 +285,7 @@ fn turned_corpus_parts_state_their_steps_as_draftwright_does() {
 /// size, and the chain (40 + 30) the overall 70, which is not stated again. With a band taken
 /// away the chain no longer runs end to end, so the overall length is stated.
 #[test]
-fn the_overall_is_stated_and_a_closed_chain_has_one_reference_member() {
+fn the_overall_finishes_the_default_baseline_and_a_partial_profile_keeps_its_length() {
     let plan = model::plan(&turned(), &Spec::default()).unwrap();
     assert_eq!(
         turned_items(&plan),
@@ -289,7 +294,6 @@ fn the_overall_is_stated_and_a_closed_chain_has_one_reference_member() {
             ("d:envelope/height.length", "70"),
             ("d:f:turned_step:2/step.diameter", "ø16"),
             ("d:f:turned_step:1/step.length", "40"),
-            ("d:f:turned_step:2/step.length", "(30)"),
         ])
     );
     let a = with_bands(&[(q(0.0), q(40.0), 30.0)]);
@@ -333,7 +337,12 @@ fn repeated_lengths_and_twin_flanges_are_stated_once() {
         .filter(|d| d.id.ends_with("/step.length"))
         .map(|d| d.label.clone())
         .collect();
-    assert_eq!(lengths, ["(23)", "23.3", "23.7"]);
+    assert_eq!(lengths, ["23"]);
+    assert!(
+        plan.dimensions
+            .iter()
+            .any(|d| d.id.ends_with("/step_position.length") && (d.value - 46.3).abs() < 1e-6)
+    );
     let a = with_bands(&[
         (q(0.0), q(23.34), 30.0),
         (q(23.34), q(46.66), 20.0),
@@ -347,8 +356,7 @@ fn repeated_lengths_and_twin_flanges_are_stated_once() {
             ("d:envelope/height.length", "70"),
             ("d:f:turned_step:2/step.diameter", "ø20"),
             ("d:f:turned_step:1/step.length", "23.3"),
-            ("d:f:turned_step:2/step.length", "(23.3)"),
-            ("d:f:turned_step:3/step.length", "23.3"),
+            ("d:f:turned_step:2/step_position.length", "46.7"),
         ])
     );
     let chain = plan
@@ -386,7 +394,6 @@ fn repeated_lengths_and_twin_flanges_are_stated_once() {
             ("d:envelope/height.length", "70"),
             ("d:f:turned_step:1/step.diameter", "2× ø30"),
             ("d:f:turned_step:1/step.length", "40"),
-            ("d:f:turned_step:2/step.length", "(30)"),
         ])
     );
 }
@@ -467,10 +474,9 @@ fn a_part_turned_about_y_reads_its_diameters_end_on() {
             ("d:f:turned_step:1/step.diameter", "ø20"),
             ("d:f:turned_step:2/step.diameter", "ø24"),
             ("d:f:turned_step:3/step.diameter", "ø20"),
-            ("d:f:turned_step:1/step.length", "10"),
-            ("d:f:turned_step:2/step.length", "10"),
-            ("d:f:turned_step:3/step.length", "(10)"),
             ("d:f:turned_step:4/step.length", "40"),
+            ("d:f:turned_step:3/step_position.length", "50"),
+            ("d:f:turned_step:2/step_position.length", "60"),
         ])
     );
 }

@@ -547,6 +547,7 @@ fn auxiliary(
     let size = [bounds[2] - bounds[0], bounds[3] - bounds[1]];
     let label = if section.is_some() { 19. } else { 7. };
     let mut planned = PlannedView {
+        detail: None,
         id: format!("v:{name}"),
         sheet,
         scale_note: (scale != parent_scale).then(|| format!("SCALE {}", model::scale_name(scale))),

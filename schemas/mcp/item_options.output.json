@@ -19,7 +19,15 @@
                 "enum": [
                   "front",
                   "plan",
-                  "side"
+                  "side",
+                  "detail_a",
+                  "detail_b",
+                  "detail_c",
+                  "detail_d",
+                  "detail_e",
+                  "detail_f",
+                  "detail_g",
+                  "detail_h"
                 ]
               },
               "side": {

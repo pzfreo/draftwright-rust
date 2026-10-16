@@ -328,8 +328,8 @@ fn both_dimension_sources_and_their_validation() {
 }
 
 /// A part turned whole states its diameter (with ø) and its length, not a width and depth that
-/// are both its diameter. Its step chain (40 and 30) runs end to end, so it states the length
-/// (ISSUE-955-a: a surviving chain does not release a redundant overall length).
+/// are both its diameter. Its connected profile uses one shoulder ordinate (40) and the
+/// overall (70) from the largest flat end, with no redundant reference link.
 #[test]
 fn a_turned_part_states_its_diameter_and_length() {
     let plan = planned("turned", &recognition("turned"), &Spec::default());
@@ -344,10 +344,12 @@ fn a_turned_part_states_its_diameter_and_length() {
         [
             ("d:envelope/od.diameter", "ø30"),
             ("d:envelope/height.length", "70"),
-            ("d:f:turned_step:1/step.length", "40"),
-            ("d:f:turned_step:2/step.length", "(30)")
+            ("d:f:turned_step:1/step.length", "40")
         ]
     );
+    assert!(plan.dimensions.iter().all(|d| !d.reference));
+    let shoulder = find(&plan, "d:f:turned_step:1/step.length");
+    assert_eq!(shoulder.measurements[0].value, 40.0);
 }
 
 /// When the preferred view is omitted, a turned part's diameter moves to the other profile view

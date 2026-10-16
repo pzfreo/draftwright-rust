@@ -501,9 +501,38 @@ fn tables_match_draftwrights_on_corpus_parts() {
                 (p.cells[1], pb[1])
             };
             if comparable {
+                let same_corner = (x - px).abs() < 1e-6 && (y - py_).abs() < 1e-6;
+                let origin = [
+                    if right {
+                        w - px - (p.cells[2] - p.cells[0])
+                    } else {
+                        px
+                    },
+                    if top {
+                        h - py_ - (p.cells[3] - p.cells[1])
+                    } else {
+                        py_
+                    },
+                ];
+                let original_corner = [
+                    origin[0],
+                    origin[1],
+                    origin[0] + p.cells[2] - p.cells[0],
+                    origin[1] + p.cells[3] - p.cells[1],
+                ];
                 assert!(
-                    (x - px).abs() < 1e-6 && (y - py_).abs() < 1e-6,
-                    "{name} {} {:?} {pb:?}",
+                    same_corner
+                        || (plan.views.iter().any(|v| v.detail.is_some())
+                            && plan.views.iter().any(|v| overlaps(
+                                original_corner,
+                                [
+                                    v.area[0] - 2.0,
+                                    v.area[1] - 2.0,
+                                    v.area[2] + 2.0,
+                                    v.area[3] + 2.0
+                                ]
+                            ))),
+                    "{name} {} {:?} {pb:?}: a detail must actually occupy the displaced corner",
                     t.id,
                     p.cells
                 );

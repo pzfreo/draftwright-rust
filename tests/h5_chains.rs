@@ -14,6 +14,16 @@ fn native(file: &str) -> Analysis {
         .unwrap()
         .1
 }
+// Independent authored profiles retain chain semantics; a connected whole profile now
+// defaults to a baseline. Keep the original reference/omission/pin invariants on this case.
+fn chain_profile(file: &str) -> Analysis {
+    let mut a = native(file);
+    a.features.retain(|f| f.kind != "plate");
+    for f in a.features.iter_mut().filter(|f| f.kind == "turned_step") {
+        f.parameters["profile"]["body_key"] = json!([f.id]);
+    }
+    a
+}
 fn marks(p: &Plan) -> Vec<Mark> {
     p.dimensions
         .iter()
@@ -34,7 +44,7 @@ fn marks(p: &Plan) -> Vec<Mark> {
         .collect()
 }
 #[test]
-fn grm03_has_an_overall_and_one_reference_link_without_plate_thickness() {
+fn grm03_has_an_overall_and_baseline_without_plate_thickness() {
     let a = native("gramel/GRM-03_thumbwheel_drive_screw.step");
     let p = model::plan(&a, &Spec::default()).unwrap();
     assert!(
@@ -47,13 +57,20 @@ fn grm03_has_an_overall_and_one_reference_link_without_plate_thickness() {
         .iter()
         .filter(|d| d.id.ends_with("/step.length"))
         .collect();
-    assert_eq!(links.len(), 4);
+    assert_eq!(links.len(), 2);
+    assert_eq!(
+        p.dimensions
+            .iter()
+            .filter(|d| d.id.ends_with("/step_position.length"))
+            .count(),
+        2
+    );
     assert_eq!(
         links
             .iter()
             .filter(|d| d.label.starts_with('(') && d.label.ends_with(')'))
             .count(),
-        1
+        0
     );
     assert!(!p.dimensions.iter().any(|d| d.id.contains("f:plate:")));
     assert!(
@@ -156,7 +173,7 @@ fn fully_dimensioned_box_is_clear() {
 }
 #[test]
 fn lint_detects_duplicate_claims_and_closed_turned_chains() {
-    let a = native("gramel/GRM-03_thumbwheel_drive_screw.step");
+    let a = chain_profile("gramel/GRM-03_thumbwheel_drive_screw.step");
     let p = model::plan(&a, &Spec::default()).unwrap();
     let mut ink = marks(&p);
     for m in &mut ink {
@@ -253,7 +270,7 @@ fn references_become_controlling_without_moving_other_ink() {
         ),
         ("gramel/string_post.step", "d:envelope/height.length"),
     ] {
-        let a = native(file);
+        let a = chain_profile(file);
         let full = model::plan(&a, &Spec::default()).unwrap();
         let reference = full
             .dimensions
@@ -266,7 +283,11 @@ fn references_become_controlling_without_moving_other_ink() {
         assert_eq!(
             reference.label,
             format!("({})", controlling.label),
-            "{file}"
+            "{file}: {:?}",
+            p.dimensions
+                .iter()
+                .map(|d| (&d.id, &d.label, &d.basis))
+                .collect::<Vec<_>>()
         );
         for now in &p.dimensions {
             let was = full.dimensions.iter().find(|d| d.id == now.id).unwrap();
@@ -277,7 +298,7 @@ fn references_become_controlling_without_moving_other_ink() {
 
 #[test]
 fn a_pinned_reference_keeps_its_ink_and_reports_a_broken_controlling_chain() {
-    let a = native("gramel/GRM-03_thumbwheel_drive_screw.step");
+    let a = chain_profile("gramel/GRM-03_thumbwheel_drive_screw.step");
     // A pin holds the ink of the drawing it was taken from: the recovered one (H6 moves GRM-03
     // to A3 10:1), as the pinned plan below is recovered too.
     let full = model::plan_recovered(&a, &Spec::default()).unwrap();
@@ -294,7 +315,15 @@ fn a_pinned_reference_keeps_its_ink_and_reports_a_broken_controlling_chain() {
         .problems
         .iter()
         .find(|p| p.code == "pinned_reference_chain_changed")
-        .unwrap();
+        .unwrap_or_else(|| {
+            panic!(
+                "{:?}",
+                p.dimensions
+                    .iter()
+                    .map(|d| (&d.id, &d.label, &d.basis))
+                    .collect::<Vec<_>>()
+            )
+        });
     assert_eq!(finding.severity, "warning");
     assert_eq!(
         finding.subjects.as_slice(),

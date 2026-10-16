@@ -263,7 +263,21 @@ fn golden_plates_pads_levels_ladder_leaves_the_base_plates_top_to_the_plate() {
     );
     let f = facts_of("plates_pads_levels_and_slanted_steps");
     assert_eq!(shown(&steps), python(&f, &["through_step"]));
-    assert_eq!(shown(&ladder), python(&f, &["step_level"]));
+    let mut labels: Vec<_> = shown(&ladder).into_iter().map(|(_, label)| label).collect();
+    labels.sort();
+    let mut expected: Vec<_> = python(&f, &["step_level"])
+        .into_iter()
+        .map(|(_, label)| label)
+        .collect();
+    expected.sort();
+    assert_eq!(labels, expected);
+    assert!(ladder.iter().all(|(_, view, _)| view == "front"
+        || plan.views.iter().any(|v| {
+            v.id == format!("v:{view}")
+                && v.detail
+                    .as_ref()
+                    .is_some_and(|d| d.source_view == "v:front")
+        })));
 }
 
 /// A block stepped along y: draftwright leaves the step's legs to its ladder (the level 10 above
@@ -454,7 +468,24 @@ fn m10127_through_step_and_ladder_match_draftwrights_sheet() {
     );
     assert_eq!(shown(&steps), python(&f, &["through_step"]));
     let ladder = items(&plan, &LADDER);
-    assert_eq!(shown(&ladder), python(&f, &["step_level"]));
+    let mut recovered = shown(&ladder);
+    for (view, _) in &mut recovered {
+        if let Some(d) = plan
+            .views
+            .iter()
+            .find(|v| v.id == format!("v:{view}"))
+            .and_then(|v| v.detail.as_ref())
+        {
+            *view = d.source_view.trim_start_matches("v:").into();
+        }
+    }
+    recovered.sort();
+    assert_eq!(recovered, python(&f, &["step_level"]));
+    assert!(plan.views.iter().any(|v| {
+        v.detail
+            .as_ref()
+            .is_some_and(|d| d.dimensions.iter().any(|id| id.contains("step_height")))
+    }));
 }
 
 /// nist_ftc_06: the shoulders between its levels, from Rust quiddity's risers in the part's frame,

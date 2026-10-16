@@ -105,7 +105,7 @@ fn view_boxes(plan: &Plan, analysis: &Analysis) -> Vec<(String, [f64; 4])> {
                 ]
             } else {
                 let view = draftwright::haecceity::hlr::View::new(v.direction, v.up).unwrap();
-                let [lo, hi] = analysis.envelope;
+                let [lo, hi] = v.detail.as_ref().map_or(analysis.envelope, |d| d.bounds);
                 let (mut min, mut max) = ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]);
                 for i in 0..8 {
                     let corner = [0, 1, 2].map(|k| if i >> k & 1 == 0 { lo[k] } else { hi[k] });

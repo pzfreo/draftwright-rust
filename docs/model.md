@@ -152,6 +152,46 @@ edited.
   families, family/record-type pairs (`bridge::RECORDS`) and derived collections it knows.
   Anything else is refused with the mismatch named, never read past.
 
+### Enlarged details and turned inspection dimensions
+
+Automatic details recover a crowded X head, a Y axial chain, or approved prismatic height
+rungs that fail the parent-view spacing gate. A thin terminal flange on a Z turned part also
+gets a head detail. Repeated pitches stay counted on the parent. Details reserve rectangles
+in the sheet search before the isometric is fitted. An automatic detail that cannot fit on
+the parent sheet is reported as `detail_unplaceable`; it cannot alone force a larger sheet.
+A complete turned-head drawing with a defining enlargement keeps its smallest sheet. Prismatic
+layouts may still use the normal fill search, provided it preserves clear leaders.
+
+Details are ordinary planned views with stable IDs `v:detail_a` through `v:detail_h`. Their
+optional `detail` record carries the source view, letter, kind, model-space crop and marker
+bounds, scale and recovered dimension IDs. The renderer clips exact projected curves to the
+crop, then uses the normal dimension renderer at the recorded view scale. It draws a circular
+parent marker, letter and `DETAIL B (10:1)` caption. The kernel currently has no solid Boolean
+crop: a crop does not introduce new cut-face edges. A Y chain or X head may show a supported
+strip of the profile. View-scale fidelity and pairwise lint still compare all annotations in
+one pass; detail captions also have their own text-clearance check.
+
+An authored detail is a view entry, for example:
+
+```json
+{"views":{"detail_c":{"detail":{"around":"f:turned_step:3","scale_factor":5}}}}
+```
+
+`scale_factor` is an exact multiple of sheet scale (default 2, greater than 1). The semantic
+feature determines the source camera and crop; authored geometric details survive with no
+annotations. Omitting the view removes the detail. A missing feature, source view, or space
+for its exact scale is an error. An automatic iso that fits stays at sheet scale when a
+defining detail claims space; an explicitly authored iso scale remains exact.
+
+A whole connected multi-step turned profile uses one inspection end by default. PMI datums
+and PMI baseline lengths retain precedence. Otherwise the larger flat end supplies the
+origin (end diameter is the available proxy for face size), with the low station breaking a
+tie. Shoulder positions, the overall length and
+cross-hole axial positions use that origin, shortest nearest the part. The old `step.length`
+IDs remain valid: J4's coverage records connect conveyed band lengths to their baseline
+positions. Explicitly toleranced band lengths remain independent controlling requirements;
+their tolerances are never silently transferred to a cumulative position.
+
 ### Spec: what the author decided
 
 The spec is the source of truth. It is small, edited, and stored beside the STEP file as
@@ -204,7 +244,7 @@ since K1b (below).
 through automatic fitting and recovery. An infeasible authored iso scale is refused rather
 than reduced. Without an override the orientation view fills its available space, retaining
 the sheet scale within Python's strict 5% no-op band. A fitting sheet-scale iso stays at that
-scale when a detail claims space; detail-view generation itself is not yet ported.
+scale when a detail claims space (see enlarged details above).
 
 When the drawn iso differs from its sheet scale, `Plan.captions` carries `note_iso_nts`,
 text `ISO VIEW (NTS)` at 3 mm, with its view, sheet, resolved position and ink bounds. It is
@@ -356,7 +396,7 @@ Existing angular PMI keeps its measured sector: `lane` increases the radius in p
 `placement_side_not_applicable`, with a fix removing that field; it cannot change the sector.
 
 Views use `{relative_to, side, gap?, align?, pinned?}`. `relative_to` names another view
-(`front`, `plan`, `side`, `iso`, `section_aa`); the page is never an anchor, so a view's place
+(`front`, `plan`, `side`, `iso`, `section_aa`, `detail_a`–`detail_h`); the page is never an anchor, so a view's place
 is always relative to another view (ADR R1 invariant 1), typically its projection partner.
 `gap` is the clear paper distance between view footprints (default 10 mm, 0–1000);
 `align` is `start`, `middle` (default) or `end` along the other axis (`outside` also aligns
@@ -612,10 +652,11 @@ basis, placed, reference?, determined_by?}`:
   its view is omitted). A part turned whole states `od.diameter` (printed `ø…`) and its length along
   the axis instead, in either profile view; the diameter is drawn across whichever radial axis
   that view shows. A view that looks along a dimension never carries it.
-- **Turned step lengths** are a chain of `d:f:turned_step:<n>/step.length`, except on a part
-  turned whole whose PMI measures the profile from one end (#33): a planar datum feature on that
-  end face, or PMI lengths from it to the profile's shoulders. The profile is then a baseline from
-  that end: the band at the datum keeps its `step.length`, each further shoulder is
+- **Turned step lengths** on a whole connected multi-step profile use a baseline from one
+  inspection end. A PMI planar datum or PMI shoulder lengths retain precedence (#33);
+  otherwise the larger end diameter selects the end, with the low station breaking a tie.
+  Independent profiles retain a chain of `d:f:turned_step:<n>/step.length`.
+  In a baseline the band at the datum keeps its `step.length`, each further shoulder is
   `d:f:turned_step:<n>/step_position.length` (the distance from the datum to the shoulder that
   ends band `n`), and the overall length is the last rung (it also claims the last band's
   `step_position.length`), so no rung is reference. The other bands' `step.length` items stay
@@ -633,7 +674,8 @@ basis, placed, reference?, determined_by?}`:
   hole with both a counterbore and a spotface states both (`⌴ ⌀11 ↧ 6.4 ⌴SF ⌀20 ↧ 1`, counterbore
   first), where draftwright prints only the counterbore and loses the spotface its own lint
   requires.
-- **Locations** (`location.length.<axis>`) from the part's box, in the hole's view, one
+- **Locations** (`location.length.<axis>`) from the part's box, or the same inspection end
+  for an axial location on a whole turned profile, in the hole's view, one
   dimension per distance; patterns by their centre (or a linear pattern by its first member), with
   their pitches (`grid_pitch.length.row|col`, `pitch.length`). A hole or bolt circle on a turned
   part's axis is not located across it.
@@ -1244,6 +1286,7 @@ reads it back from any of the three.
 | Dimension | `d:<feature>/<parameter>`; never the view, which is the item's `view` | the same file, whichever view carries it and whatever the sheet or scale; carried to revisions through its feature |
 | Sheet | `sheet` | always |
 | View | `v:<name>` | always |
+| Detail view | `v:detail_a`–`v:detail_h` | its allocated identifier, including authored omissions; automatic presence depends on scale and readable source requirements |
 | Note, table, section | `n:<k>`, `t:<k>`, `s:<letter>` | always (set in the spec) |
 | PMI frame, symbol, label, drawing-wide requirement, thread or knurl (and the feature of a PMI dimension's claim) | `pmi:<identity>`: the record's semantic identity, below; never its Part 21 instance (that is the item's `source`, e.g. `geometric_tolerance:#123`) | the same requirements on the same faces: the intent written again (new Part 21 numbers) keeps it |
 | Problem | `p:<code>:<subject>` | the same plan |

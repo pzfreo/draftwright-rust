@@ -8,6 +8,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Added
 
+- Enlarged orthographic detail views for crowded turned chains and heads, thin terminal
+  flanges, prismatic height ladders and authored feature crops. Details participate in sheet
+  planning, carry stable view IDs and their own scale, and draw parent circles, letters,
+  captions and relocated dimensions. A fitting iso keeps sheet scale beside a detail.
+  Verification and Python differences: [detail views](docs/detail-verification.md).
+
 - Gzipped STEP input (maintainer decision 2026-10-15): every command (`analyse`, `plan`,
   `render`, `review`, `parts`), serve and MCP request, cached registration and library entry
   point that reads a STEP file or its bytes (`api`, `model::analyse_step`, `model::parts`,
@@ -19,6 +25,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
   decompress is refused as invalid input, saying so.
 
 ### Fixed
+
+- Multi-step turned profiles use one inspection end by default, preserving PMI datum
+  precedence and saved chain IDs. Cross-hole axial locations use the same end; baseline
+  lanes run shortest nearest the part. Small head-detail drawings retain their smallest sheet.
+- Visible edges take precedence over hidden edges in the isometric as well as principal
+  views, including when a detail changes the isometric scale.
 
 - NTS captions retry with reduced clearance and nearby vertical positions before retaining
   a clash; structural lint reports shallow caption overlaps with text and line ink. Pinned
