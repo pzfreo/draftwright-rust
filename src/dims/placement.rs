@@ -855,6 +855,197 @@ fn share_held(
     }
 }
 
+/// Body-local turned chains use the corridor next to their own silhouette, including a
+/// middle body. Try both sides before keeping and reporting a constrained chain (Policy B).
+pub(super) fn body_chains(
+    analysis: &Analysis,
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    carrying: &[Option<&str>],
+    fixed: &[bool],
+    placed: &mut [Option<Placed>],
+    page: &Page,
+) -> Vec<Problem> {
+    let fr = crate::bridge::holes::frame(analysis);
+    let bands: Vec<_> = analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "turned_step")
+        .filter_map(|f| {
+            crate::lint::turned::band(&fr, f)
+                .ok()
+                .map(|b| (f.id.as_str(), b))
+        })
+        .collect();
+    let same = |a: &crate::lint::turned::Band, b: &crate::lint::turned::Band| {
+        a.axis == b.axis && (0..3).all(|k| k == a.axis || (a.on[k] - b.on[k]).abs() <= 1e-3)
+    };
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+    for (i, w) in items.iter().enumerate() {
+        if w.measurements.is_empty() || !w.measurements.iter().all(|m| m.parameter == "step.length")
+        {
+            continue;
+        }
+        let Some((_, b)) = bands
+            .iter()
+            .find(|(id, _)| *id == w.measurements[0].feature)
+        else {
+            continue;
+        };
+        if !bands.iter().any(|(_, c)| c.axis == b.axis && !same(b, c)) {
+            continue;
+        }
+        if let Some(group) = groups.iter_mut().find(|g| {
+            let feature = &items[g[0]].measurements[0].feature;
+            bands
+                .iter()
+                .find(|(id, _)| *id == feature)
+                .is_some_and(|(_, c)| same(b, c))
+        }) {
+            group.push(i);
+        } else {
+            groups.push(vec![i]);
+        }
+    }
+    let mut problems = Vec::new();
+    for group in groups {
+        let first = group[0];
+        let Some(view) = carrying[first] else {
+            continue;
+        };
+        let f = &frames[view];
+        let (_, b) = bands
+            .iter()
+            .find(|(id, _)| *id == items[first].measurements[0].feature)
+            .expect("read band");
+        let k = b.axis;
+        let Some(horizontal) = across(f, k) else {
+            continue;
+        };
+        let j = (0..3)
+            .find(|&j| j != k && across(f, j) == Some(!horizontal))
+            .expect("a profile view");
+        let others: Vec<_> = bands
+            .iter()
+            .filter(|(_, c)| c.axis == k && !same(b, c))
+            .collect();
+        if others
+            .iter()
+            .any(|(_, c)| (c.on[j] - b.on[j]).abs() <= 1e-3 && b.lo <= c.hi && c.lo <= b.hi)
+        {
+            let alternate = super::envelope::profile_views(k)
+                .into_iter()
+                .find(|v| *v != view)
+                .unwrap_or(view);
+            problems.push(Problem{id:format!("p:turned_profile_superimposed:{}",items[first].id),code:"turned_profile_superimposed".into(),severity:"warning".into(),
+                message:format!("The turned profile on axis {} at {:?} is superimposed on another profile in the {view} view. Restore the {alternate} view to separate its chain.", ["X","Y","Z"][k],b.on),
+                subjects:group.iter().map(|&i|items[i].id.clone()).collect(),
+                fix:vec![crate::items::Op::set(format!("views/{alternate}/omit"),serde_json::json!(false))],..Default::default()});
+            continue;
+        }
+        // Preserve authored pins; every unconstrained body chain is a whole assignment.
+        if group.iter().any(|&i| fixed[i]) {
+            continue;
+        }
+        let radius = bands
+            .iter()
+            .filter(|(_, c)| same(b, c))
+            .map(|(_, c)| c.diameter / 2.)
+            .fold(0.0f64, f64::max);
+        let centre = f.page(b.on);
+        let cross_axis = usize::from(horizontal);
+        let screen_scale = {
+            let mut p = b.on;
+            p[j] += 1.;
+            f.page(p)[cross_axis] - centre[cross_axis]
+        };
+        let radial = radius * f.s;
+        let preferred = if centre[cross_axis] - f.outline[cross_axis]
+            <= f.outline[cross_axis + 2] - centre[cross_axis]
+        {
+            -1.
+        } else {
+            1.
+        };
+        let mut best = None;
+        let mut assigned = false;
+        for sign in [preferred, -preferred] {
+            let boundary = others
+                .iter()
+                .filter_map(|(_, c)| {
+                    let q = f.page(c.on)[cross_axis];
+                    ((q - centre[cross_axis]) * sign > 0.)
+                        .then_some(q - sign * c.diameter * 0.5 * f.s)
+                })
+                .min_by(|a, b| {
+                    ((a - centre[cross_axis]) * sign).total_cmp(&((b - centre[cross_axis]) * sign))
+                });
+            let side = match (horizontal, sign < 0.) {
+                (true, true) => Side::Below,
+                (true, false) => Side::Above,
+                (false, true) => Side::Left,
+                (false, false) => Side::Right,
+            };
+            let mut candidates = Vec::new();
+            let mut clear = true;
+            for (lane, &i) in group.iter().enumerate() {
+                let mut w = items[i].clone();
+                if let Shape::Linear {
+                    a,
+                    b: tip,
+                    a_edge,
+                    b_edge,
+                    ..
+                } = &mut w.shape
+                {
+                    // Keep the physical shoulder radius selected by own_body; reflect it about
+                    // the axis when the chain falls through to the other side.
+                    a[j] = b.on[j] + sign * screen_scale.signum() * (a[j] - b.on[j]).abs();
+                    tip[j] = b.on[j] + sign * screen_scale.signum() * (tip[j] - b.on[j]).abs();
+                    *a_edge = false;
+                    *b_edge = false;
+                }
+                let line = centre[cross_axis] + sign * (radial + FIRST + lane as f64 * LANE);
+                let Some(p) = place_linear_at(f, &w.shape, &w.terms, side, (line, sign)) else {
+                    clear = false;
+                    continue;
+                };
+                let bounds = p.label_box;
+                let toward = if sign < 0. {
+                    bounds[cross_axis]
+                } else {
+                    bounds[cross_axis + 2]
+                };
+                if boundary.is_some_and(|edge| (edge - toward) * sign < 1.)
+                    || !page.fits_interior(&p, view)
+                {
+                    clear = false;
+                }
+                candidates.push((i, p));
+            }
+            if best.is_none() {
+                best = Some(candidates.clone());
+            }
+            if clear {
+                best = Some(candidates);
+                assigned = true;
+                break;
+            }
+        }
+        if !assigned {
+            problems.push(Problem{id:format!("p:turned_chain_no_clear_lane:{}",items[first].id),code:"turned_chain_no_clear_lane".into(),severity:"warning".into(),
+                message:"Neither side of this body's silhouette has room for its complete step chain; the chain is retained and its contacts are reported.".into(),
+                subjects:group.iter().map(|&i|items[i].id.clone()).collect(),..Default::default()});
+        }
+        if let Some(candidates) = best {
+            for (i, p) in candidates {
+                placed[i] = Some(p);
+            }
+        }
+    }
+    problems
+}
+
 /// Places *w* in lane *lane* of strip *side* of its view; none for a callout.
 pub(super) fn place(frame: &Frame, w: &Want, side: Side, lane: usize) -> Option<Placed> {
     match &w.shape {

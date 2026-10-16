@@ -136,6 +136,9 @@ pub struct Analysis {
     /// ([`crate::lint::profiles`]), read from the part as draftwright's lint reads it.
     #[serde(default)]
     pub principal_profiles: Vec<crate::lint::profiles::Source>,
+    /// Provider-issued ordered planar outer profiles, with exact body and support identities.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub outer_profiles: Vec<crate::lint::profile_angles::Source>,
     /// The families of features the recogniser did not give, so the part may have features of
     /// them that the Analysis lacks: empty for Python quiddity's recognition, which the bridge
     /// reads in full; for Rust quiddity's ([`analyse_native`]), the families its document has
@@ -888,6 +891,7 @@ pub fn analyse_step_part(
         level_supports,
         risers,
         principal_profiles: crate::lint::profiles::evidence(&part),
+        outer_profiles: crate::lint::profile_angles::evidence(&part),
         unrecognised: Vec::new(),
         pmi: crate::pmi::attach_with(
             bytes,

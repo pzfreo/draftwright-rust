@@ -400,12 +400,15 @@ pub(super) fn intent(
 /// the module's notes), clear of what *placed* already holds where it can be; *placed* takes
 /// its ink.
 pub(super) fn place(
+    analysis: &crate::model::Analysis,
+    views: &[crate::model::PlannedView],
     frames: &std::collections::BTreeMap<&str, Frame>,
     items: &[Want],
     views_of: &[Option<&'static str>],
     placed: &mut [Option<Placed>],
     page: &Page,
 ) {
+    let proofs = super::interior::proofs(analysis, views);
     for i in 0..items.len() {
         if placed[i].is_some() {
             continue;
@@ -452,12 +455,56 @@ pub(super) fn place(
                         && !c.lines.iter().any(|l| crosses(*l, q.label_box))
                 })
         };
-        let chosen = candidates
+        // For automatic profile angles, the existing black sides supply the witnesses.
+        // An interior arc needs no blue extension lines along those same black edges.
+        let interior = items[i]
+            .measurements
             .iter()
-            .find(|c| on_sheet(c) && furniture(c) && clear(c))
-            .or_else(|| candidates.iter().find(|c| furniture(c)))
-            .or_else(|| candidates.first())
-            .cloned();
+            .any(|m| m.parameter == "profile_angle.angle")
+            .then(|| views.iter().find(|v| v.id == own))
+            .flatten()
+            .and_then(|v| proofs.get(&v.id).map(|proof| (v, proof)))
+            .and_then(|(v, proof)| {
+                candidates.iter().find_map(|c| {
+                    let mut arc = c.clone();
+                    arc.lines.drain(..2);
+                    (page.fits_interior(&arc, view) && clear(&arc) && proof.angular_clear(v, &arc))
+                        .then_some(arc)
+                })
+            });
+        // The opposite sector is the same angle between the same extended supports. Its
+        // compact exterior arc is useful when a corner's material is too narrow for ink.
+        let external = items[i]
+            .measurements
+            .iter()
+            .any(|m| m.parameter == "profile_angle.angle")
+            .then(|| views.iter().find(|v| v.id == own))
+            .flatten()
+            .and_then(|v| proofs.get(&v.id).map(|proof| (v, proof)))
+            .and_then(|(v, proof)| {
+                let reflect = |p: P3| [0, 1, 2].map(|k| 2. * angle.vertex[k] - p[k]);
+                let reversed = Angle {
+                    vertex: angle.vertex,
+                    first: reflect(angle.first),
+                    second: reflect(angle.second),
+                };
+                let ink = Ink::new(&frames[view], &reversed, size)?;
+                (0..TRIES).find_map(|n| {
+                    let c = ink.placed(ink.minimum + n as f64 * STEP, terms)?;
+                    (page.fits_interior(&c, view)
+                        && clear(&c)
+                        && proof.annotation_clear(v, &c, false))
+                    .then_some(c)
+                })
+            });
+        let chosen = interior.or(external).or_else(|| {
+            candidates
+                .iter()
+                .find(|c| on_sheet(c) && furniture(c) && clear(c))
+                .or_else(|| candidates.iter().find(|c| furniture(c)))
+                .or_else(|| candidates.first())
+                .cloned()
+        });
         placed[i] = chosen;
     }
 }

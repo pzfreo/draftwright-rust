@@ -707,6 +707,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             });
         }
     }
+    issues.extend(unattached_countersinks(analysis));
     // A hole whose record cannot be read is reported, never left out of the count.
     for (f, read) in holes::read(analysis) {
         if let Err(why) = read {
@@ -734,6 +735,62 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 evidence: Some(why),
                 fix: None,
             });
+        }
+    }
+    issues
+}
+
+/// Consume each attached seat once. A standalone recognised seat cannot disappear merely
+/// because the hole record has only one countersink slot (Python issue 1229/1370).
+fn unattached_countersinks(analysis: &Analysis) -> Vec<LintIssue> {
+    let mut attached: Vec<&serde_json::Value> = analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "hole")
+        .filter_map(|f| f.parameters.get("csink").filter(|v| !v.is_null()))
+        .collect();
+    let same = |a: &serde_json::Value, b: &serde_json::Map<String, serde_json::Value>| {
+        [
+            "axis",
+            "location",
+            "major_diameter",
+            "drill_diameter",
+            "included_angle",
+            "depth",
+        ]
+        .iter()
+        .all(|k| a.get(*k) == b.get(*k))
+    };
+    let mut issues = Vec::new();
+    for f in analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "countersink" || f.fingerprint.subtype == "CounterSink")
+    {
+        if let Some(i) = attached.iter().position(|a| same(a, &f.parameters)) {
+            attached.remove(i);
+            continue;
+        }
+        for (parameter, field) in [
+            ("countersink.diameter", "major_diameter"),
+            ("countersink.angle", "included_angle"),
+        ] {
+            let mut finding = super::uncovered(
+                analysis,
+                "hole_requirement_unverifiable",
+                &f.id,
+                parameter,
+                format!(
+                    "Recognised countersink {} has no attributable hole callout: {parameter} remains unverifiable; the hole record carries only one seat.",
+                    f.id
+                ),
+            );
+            finding.evidence = f
+                .parameters
+                .get(field)
+                .map(|v| format!("Recognised {field}: {v}"));
+            finding.fix = Some("State this seat on its opening face, or supply recognition evidence attributing every seat to its bore.".into());
+            issues.push(finding);
         }
     }
     issues

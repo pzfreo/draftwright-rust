@@ -70,6 +70,7 @@ pub mod pmi_coverage;
 pub mod pockets;
 pub mod polygonal;
 pub mod prismatic;
+pub mod profile_angles;
 pub mod profiled_bores;
 pub mod profiles;
 pub mod redundancy;
@@ -393,6 +394,7 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(channels::circular_coverage(analysis, marks));
     issues.extend(angled_steps::coverage(analysis, marks));
     issues.extend(profiles::coverage(analysis));
+    issues.extend(profile_angles::coverage(analysis, marks));
     issues.extend(profiled_bores::coverage(analysis, marks));
     issues.extend(flats::coverage(analysis, marks));
     issues.extend(grooves::coverage(analysis, marks));
