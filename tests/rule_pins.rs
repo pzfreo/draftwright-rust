@@ -86,6 +86,35 @@ fn tuner_five_pockets_keep_their_sizes_and_locations_through_export() {
     for (got, expected) in centres.into_iter().zip([21.2, 48.4, 75.6, 102.8, 130.0]) {
         approx(got, expected);
     }
+    let blends: Vec<_> = a.features.iter().filter(|f| f.kind == "blend").collect();
+    assert_eq!(
+        blends.len(),
+        20,
+        "the twenty rounded corners are fixture facts too"
+    );
+    for blend in blends {
+        approx(blend.parameters["radius"].as_f64().unwrap(), 3.94);
+        let claims: Vec<_> = p
+            .notes
+            .iter()
+            .filter(|n| n.placed.is_some())
+            .flat_map(|n| &n.measurements)
+            .chain(
+                p.dimensions
+                    .iter()
+                    .filter(|d| d.placed.is_some())
+                    .flat_map(|d| &d.measurements),
+            )
+            .filter(|m| m.feature == blend.id && m.parameter == "blend.radius")
+            .collect();
+        assert_eq!(
+            claims.len(),
+            1,
+            "{} must have one stated corner radius",
+            blend.id
+        );
+        approx(claims[0].value, 3.94);
+    }
     let d = model::render_with(&part, &a, &p, &font(), &mut model::Projections::default()).unwrap();
     assert_eq!(
         d.text
@@ -93,6 +122,11 @@ fn tuner_five_pockets_keep_their_sizes_and_locations_through_export() {
             .filter(|r| r.text == "7.9 × 13.6 × 19 DEEP")
             .count(),
         5
+    );
+    assert!(
+        d.text
+            .iter()
+            .any(|r| r.text.contains("ALL UNSPECIFIED RADII R3.9"))
     );
     assert!(d.svg().contains("<svg"));
     assert!(d.dxf().len() > 100);

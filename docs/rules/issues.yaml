@@ -285,7 +285,7 @@
     corpus_parts: ["tuner_jig_blind_obround_pockets.step"]
   status: ported
   rust_test: "tests/rule_pins.rs::tuner_five_pockets_keep_their_sizes_and_locations_through_export"
-  rust_note: "Already true, now pinned with the exact Python STEP and captured recognition: five centres at y=21.2,48.4,75.6,102.8,130, x=-5, z=8.5; each pocket states 7.9 x 13.6 x 19 DEEP, its x datum offset 10 and hand-listed y offset. All measurements are placed and remain in SVG/DXF exports. Rust dimensions the five occurrences singly with a shared x dimension, rather than Python's pocket-pattern adapter; no ownership or grouping policy was changed."
+  rust_note: "Already true, now pinned with the exact Python STEP and captured recognition: five centres at y=21.2,48.4,75.6,102.8,130, x=-5, z=8.5; each pocket states 7.9 x 13.6 x 19 DEEP, its x datum offset 10 and hand-listed y offset. All measurements are placed and remain in SVG/DXF exports; twenty R3.94 corner occurrences each retain exactly one stated radius, carried by the R3.9 default note. Rust dimensions the five occurrences singly with a shared x dimension, rather than Python's pocket-pattern adapter; no ownership or grouping policy was changed."
   port_note: "Keep: scenario test tuner STEP -> plan contains the hand-listed five-pocket measurements."
 
 - id: ISSUE-883-a
