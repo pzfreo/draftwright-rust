@@ -913,7 +913,9 @@ pub(crate) fn plan_anchored(
             label: crate::items::frame_label(&cells),
             cells,
             modifiers,
-            default: !spec.annotations.contains_key(&item.id),
+            // A datum or control the Spec authors is never a default ([`crate::spec_gdt`]).
+            default: !spec.annotations.contains_key(&item.id)
+                && !item.source.starts_with(crate::spec_gdt::SOURCE_PREFIX),
             basis: item.basis.clone(),
             // Shown once placed; else its view is not drawn.
             state: State::not_drawable("pmi_not_drawn"),

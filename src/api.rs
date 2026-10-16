@@ -512,11 +512,15 @@ pub fn review_analysed(step: &Path, analysis: &Analysis, spec: &Spec) -> Result<
 fn reviewed(step: &Path, given: Given, spec: &Spec) -> Result<Review, Error> {
     let (analysis, plan, drawings) = drawn(step, given, spec)?;
     let drawing = &drawings[0];
+    // Lint judges the drawing against the requirements the plan drew from: the file's PMI with
+    // the spec's datums and controls merged in ([`crate::spec_gdt`]); the plan accepted them.
+    let merged = crate::spec_gdt::effective(&analysis, spec).ok();
+    let analysis = merged.as_deref().unwrap_or(&analysis);
     Ok(Review {
         svg: drawing.svg(),
         sheets: drawings.iter().skip(1).map(Drawing::svg).collect(),
         problems: plan.problems,
-        lint: lint::lint_sheets(&analysis, &drawings),
+        lint: lint::lint_sheets(analysis, &drawings),
         structural: lint::structural::check_sheets(&drawings),
     })
 }

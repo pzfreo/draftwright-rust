@@ -92,6 +92,9 @@
         "features": {
           "$ref": "#/$defs/A"
         },
+        "faces": {
+          "$ref": "#/$defs/A"
+        },
         "dimension_source": {
           "enum": [
             "auto",

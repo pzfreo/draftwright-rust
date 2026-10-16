@@ -149,6 +149,12 @@ pub struct Analysis {
     /// symbols ([`crate::pmi_lowering`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pmi: Option<crate::pmi::Reading>,
+    /// Each face's attachment, by face index ([`crate::pmi::face_attachments`]): where a datum
+    /// or geometric tolerance the Spec authors on it attaches, as an AP242 record on the same
+    /// faces would ([`crate::spec_gdt`]). Added to version 7 as an optional field; an Analysis
+    /// without it refuses Spec-authored GD&T (analyse again).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub face_attachments: Vec<crate::pmi::FaceAttachment>,
     /// The file's distinct parts, when it holds more than one (an assembly): absent for a file
     /// of one part. With no part chosen (`binding.part_index` absent) they are drawn together
     /// as one, and the plan warns (`assembly_drawn_whole`).
@@ -225,6 +231,11 @@ pub struct Spec {
     /// Per feature, by its ID (`f:<kind>:<n>`).
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub features: BTreeMap<String, FeatureSpec>,
+    /// Datums and feature control frames on faces, by the side of the part's box the face is
+    /// on (`bottom`, `top`, `left`, `right`, `front`, `back`) or its index (`face:<n>`)
+    /// ([`crate::spec_gdt`]).
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub faces: BTreeMap<String, crate::spec_gdt::FaceSpec>,
     /// General notes, in the order they are numbered ([`crate::notes`]).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<NoteSpec>,
@@ -279,6 +290,14 @@ pub struct FeatureSpec {
     /// printed after the diameter of the callout that states it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fit: Option<String>,
+    /// A datum letter on the feature (ISO 5459's symbol, draftwright's `Sheet.datum`): on its
+    /// cylinders' common axis when it has cylinders, else on its faces ([`crate::spec_gdt`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub datum: Option<String>,
+    /// Feature control frames on the feature (ISO 1101, draftwright's `Sheet.control`), drawn
+    /// as an AP242 tolerance on the same faces is ([`crate::spec_gdt`]).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub controls: Vec<crate::spec_gdt::ControlSpec>,
 }
 
 impl Default for Spec {
@@ -293,6 +312,7 @@ impl Default for Spec {
             hole_table: crate::hole_table::Setting::Auto,
             dimensions: BTreeMap::new(),
             features: BTreeMap::new(),
+            faces: BTreeMap::new(),
             annotations: BTreeMap::new(),
             notes: Vec::new(),
             tables: Vec::new(),
@@ -847,6 +867,7 @@ pub fn analyse_step_part(
             defs.as_deref().map_err(String::as_str),
             chosen,
         ),
+        face_attachments: crate::pmi::face_attachments(&part),
         parts: match &defs {
             Ok(defs) if defs.len() > 1 => file_parts(defs),
             _ => Vec::new(),
@@ -1273,6 +1294,10 @@ pub(crate) fn undrawn_gdt(p: &Plan) -> usize {
 /// Find the smallest fit and its largest scale; only its immediate larger sheet, with an
 /// enlargement, may compete. Pins keep their canonical sheet; explicit choices override.
 pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
+    // The Spec's datums and controls merged into the PMI reading, once, so every later use of the
+    // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).
+    let merged = crate::spec_gdt::effective(analysis, spec)?;
+    let analysis = merged.as_ref();
     use std::collections::VecDeque;
     use std::sync::{Mutex, OnceLock};
     // Preview and commit often plan identical intent. Keep a small process-local memo whose
@@ -1693,6 +1718,10 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
 /// caller (the library's [`crate::api`], so the command line, the JSON-lines service and MCP)
 /// is given. A plan that cannot be made is refused as [`plan`] refuses it.
 pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    // The Spec's datums and controls merged into the PMI reading, once, so every later use of the
+    // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).
+    let merged = crate::spec_gdt::effective(analysis, spec)?;
+    let analysis = merged.as_ref();
     crate::planning::with(analysis, || crate::sheets::allocate(analysis, spec))
 }
 
@@ -1764,6 +1793,10 @@ fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan,
 /// the dimensions, which on most parts keeps a larger scale, but where the dimensions run on
 /// past it an item can find no place (nist_stc_09 e4 at 1:1: 13 frames across the plan).
 pub fn plan_escalated(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    // The Spec's datums and controls merged into the PMI reading, once, so every later use of the
+    // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).
+    let merged = crate::spec_gdt::effective(analysis, spec)?;
+    let analysis = merged.as_ref();
     plan_escalated_with(analysis, spec, false, None)
 }
 
@@ -1931,6 +1964,8 @@ fn plan_with_presentation(
         ));
     }
     let spec = &migrate(spec, analysis)?;
+    let merged = crate::spec_gdt::effective(analysis, spec)?;
+    let analysis = merged.as_ref();
     crate::sheets::validate(spec)?;
     crate::dims::check_views(spec)?;
     crate::placement_intent::check(spec)?;
@@ -2000,6 +2035,7 @@ fn plan_with_presentation(
             .filter(|id| id.starts_with("d:f:") || id.starts_with("d:pmi:"))
             .map(|id| ("dimensions", id))
             .chain(spec.features.keys().map(|id| ("features", id)))
+            .chain(spec.faces.keys().map(|id| ("faces", id)))
             .chain(spec.annotations.keys().map(|id| ("annotations", id)))
             .collect();
         inactive = inactive_entries
@@ -2011,6 +2047,7 @@ fn plan_with_presentation(
             .retain(|id, _| !id.starts_with("d:f:") && !id.starts_with("d:pmi:"));
         effective.annotations.clear();
         effective.features.clear();
+        effective.faces.clear();
         problems.push(Problem {
             id: "p:rebind:part".into(),
             code: "spec_from_other_revision".into(),
@@ -3433,6 +3470,7 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
         .map_err(|e| invalid(format!("The edited spec is not valid: {e}."), &[]))?;
     crate::sheets::validate(&spec)?;
     crate::dims::check_tolerances(&spec)?;
+    crate::spec_gdt::check(&spec)?;
     crate::dims::check_views(&spec)?;
     crate::placement_intent::check(&spec)?;
     title_block::check(&spec.sheet.title)?;

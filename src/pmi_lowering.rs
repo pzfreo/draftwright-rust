@@ -160,6 +160,9 @@ pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>
         }
         Some(Reading::Read(r)) => r,
     };
+    // The Spec's datums and controls merged into the reading: what overriding met
+    // ([`crate::spec_gdt`]).
+    problems.extend(report.spec_problems.iter().cloned());
     for s in report
         .sources
         .iter()
@@ -923,7 +926,9 @@ fn control_frame(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
         alternatives: Vec::new(),
         faces: r.faces.clone(),
         basis: format!(
-            "source-authored: the AP242 {} tolerance {}, drawn where {} ({}) is seen end-on, in the {view} view's {side} strip (draftwright's face-on rule), its leader from the centre of its faces",
+            "{}: the {} {} tolerance {}, drawn where {} ({}) is seen end-on, in the {view} view's {side} strip (draftwright's face-on rule), its leader from the centre of its faces",
+            authored_by(r).0,
+            authored_by(r).1,
             r.kind.replace('_', " "),
             r.source_id,
             why,
@@ -953,7 +958,9 @@ fn datum(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
         alternatives: at.alternatives,
         faces: r.faces.clone(),
         basis: format!(
-            "source-authored: the AP242 datum {} ({}) on a {} along {}, drawn edge-on in the {} view on the {} side {}",
+            "{}: the {} datum {} ({}) on a {} along {}, drawn edge-on in the {} view on the {} side {}",
+            authored_by(r).0,
+            authored_by(r).1,
             r.label.trim(),
             r.source_id,
             at.surface,
@@ -963,6 +970,16 @@ fn datum(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
             at.how
         ),
     })
+}
+
+/// Who authored record *r*, for its basis: the STEP's AP242 PMI, or the Spec
+/// ([`crate::spec_gdt`], whose records' sources are `spec:<path>`).
+fn authored_by(r: &Record) -> (&'static str, &'static str) {
+    if r.source_id.starts_with(crate::spec_gdt::SOURCE_PREFIX) {
+        ("spec-authored", "spec's")
+    } else {
+        ("source-authored", "AP242")
+    }
 }
 
 /// Where a datum feature symbol, or a face's surface finish symbol, attaches.
