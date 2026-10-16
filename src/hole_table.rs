@@ -57,9 +57,9 @@
 //!   assigns bands by min-cost max-flow with a perimeter preference); a ring that then overlaps
 //!   another or a leader that crosses a label, another view, the title block, a table or another
 //!   leader is tried again on every band, half a strip step at a time either way of its hole, the
-//!   nearest clear place taken (draftwright's guarded inventory searches its own way). Leaders
-//!   crossing other items' lines are not checked (undetermined: on NIST CTC-02, the only corpus
-//!   part with a table attempt in both, both withdraw it for want of balloon room).
+//!   nearest clear place taken (draftwright's guarded inventory searches its own way). Retained
+//!   feature leaders are checked by their actual segments, including overlaps and T contacts;
+//!   an endpoint shared by two shafts alone is harmless, as in Python's final transaction gate.
 //! - The rows come from the plan's callouts: a hole whose callout the spec omits has no row
 //!   (draftwright tabulates every z hole of its model, with blank cells) (undetermined).
 
@@ -517,6 +517,7 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan, table_sheet: Option<u32>) 
                 .count()
                 == t.rows.len()
     });
+    let mut failed_rows = Vec::new();
     if !rows_landed {
         outcome = TableOutcome::Balloons;
         // The table without every row's balloon is withdrawn whole.
@@ -534,6 +535,13 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan, table_sheet: Option<u32>) 
             short.len(),
             short.join(", ")
         ));
+        failed_rows.extend(
+            specs
+                .iter()
+                .zip(&landed)
+                .filter(|(s, b)| s.certifying && b.is_none())
+                .map(|(s, _)| s.clone()),
+        );
         specs.retain(|s| !s.certifying);
         let fixed = fixed_obstacles(analysis, plan, &view, None);
         landed = place_balloons(&specs, &frame, plan, &attempt, &fixed, false);
@@ -563,6 +571,7 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan, table_sheet: Option<u32>) 
         .zip(&landed)
         .filter(|(_, b)| b.is_none())
         .map(|(s, _)| s)
+        .chain(&failed_rows)
         .collect();
     if !unplaced.is_empty() {
         let names: Vec<String> = unplaced.iter().map(|s| s.tag.clone()).collect();
@@ -901,6 +910,7 @@ fn place_rows(
                     format!("{ID}/{}", k + 1)
                 },
                 rows: b.clone(),
+                row_claims: Vec::new(),
                 default: true,
                 basis: format!("block {} of {ncols} of the hole table", k + 1),
                 state: crate::items::State::Shown,
@@ -963,6 +973,7 @@ fn fixed_obstacles(
 type Segment = [[f64; 2]; 2];
 
 /// A balloon wanted: its tag, what it marks, its hole on the page and the hole's radius there.
+#[derive(Clone)]
 struct Wanted {
     tag: String,
     features: Vec<String>,
@@ -1234,6 +1245,16 @@ fn place_balloons(
     let offset = extent - r;
     let mut ink: Vec<PlannedDimension> = dims.to_vec();
     ink.extend(plan.gdt.iter().filter_map(crate::dims::gdt::proxy));
+    // These feature leaders survive the replacement. Their actual segments, rather than
+    // their compound bounding rectangles, are required ink the optional balloons must clear.
+    let retained: Vec<Segment> = ink
+        .iter()
+        .filter(|d| {
+            d.view == "v:plan" && matches!(d.kind.as_str(), "callout" | "diameter" | "radius")
+        })
+        .filter_map(|d| d.placed.as_ref())
+        .flat_map(|p| p.lines.iter().copied())
+        .collect();
     let mut labels: Vec<Rect> = Vec::new();
     let mut occupants: Vec<Rect> = Vec::new();
     for p in ink.iter().filter_map(|d| d.placed.as_ref()) {
@@ -1357,13 +1378,17 @@ fn place_balloons(
                 )
             };
             !rings.iter().any(spaced)
+                && !retained.iter().any(|s| crosses(*s, ring))
                 && leader.is_none_or(|l| {
                     !labels
                         .iter()
                         .chain(fixed)
                         .chain(rings)
                         .any(|q| crosses(l, *q))
-                        && !leaders.iter().any(|m| segments_cross(l, *m))
+                        && !leaders
+                            .iter()
+                            .chain(&retained)
+                            .any(|m| unsafe_contact(l, *m))
                 })
         };
     // First, draftwright's strips: each member goes out of the side of the view nearest it that
@@ -1499,6 +1524,21 @@ fn place_balloons(
     out
 }
 
+/// A crossing, T contact or collinear overlap is unsafe; a shared endpoint alone is fine.
+fn unsafe_contact(a: Segment, b: Segment) -> bool {
+    if segments_cross(a, b) {
+        return true;
+    }
+    let interior = |p: [f64; 2], s: Segment| {
+        point_segment(p, s) < 1e-8
+            && (p[0] - s[0][0]).hypot(p[1] - s[0][1]) > 1e-8
+            && (p[0] - s[1][0]).hypot(p[1] - s[1][1]) > 1e-8
+    };
+    a.iter().any(|&p| interior(p, b))
+        || b.iter().any(|&p| interior(p, a))
+        || interior([(a[0][0] + a[1][0]) * 0.5, (a[0][1] + a[1][1]) * 0.5], b)
+}
+
 /// Whether segments *a* and *b* cross.
 fn segments_cross(a: [[f64; 2]; 2], b: [[f64; 2]; 2]) -> bool {
     let side = |p: [f64; 2], q: [f64; 2], r: [f64; 2]| {
@@ -1512,6 +1552,16 @@ fn segments_cross(a: [[f64; 2]; 2], b: [[f64; 2]; 2]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn retained_shafts_reject_crossings_overlaps_and_t_contacts() {
+        assert!(unsafe_contact([[0., 0.], [2., 2.]], [[0., 2.], [2., 0.]]));
+        assert!(unsafe_contact([[0., 0.], [3., 0.]], [[1., 0.], [4., 0.]]));
+        assert!(unsafe_contact([[0., 0.], [3., 0.]], [[1., -1.], [1., 0.]]));
+        assert!(unsafe_contact([[0., 0.], [3., 0.]], [[0., 0.], [3., 0.]]));
+        assert!(!unsafe_contact([[0., 0.], [1., 0.]], [[1., 0.], [2., 1.]]));
+        assert!(!unsafe_contact([[0., 0.], [1., 0.]], [[0., 1.], [1., 1.]]));
+    }
 
     #[test]
     fn tags_run_as_draftwrights() {
@@ -2140,6 +2190,7 @@ pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selectio
             sheet: 1,
             id: t.id.clone(),
             rows: cells,
+            row_claims: Vec::new(),
             default: t.default,
             basis: t.basis.clone(),
             state: crate::items::State::Shown,

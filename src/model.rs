@@ -4659,6 +4659,8 @@ fn render_annotations_with_cuts(
             }
             if !n.measurements.is_empty() || n.id == crate::dims::blends::RELIEF_NOTE {
                 annotations.push(Annotation {
+                    approved_claims: Vec::new(),
+                    approved_text: None,
                     coordinate_origin: None,
                     claims: Vec::new(),
                     name: n.id.clone(),
@@ -4737,10 +4739,51 @@ fn render_annotations_with_cuts(
         for [a, b] in crate::tables::ruling(p.cells, &p.columns) {
             dims.push(Item::Edge(Curve::Line(a, b)));
         }
-        for (cell, at) in crate::tables::texts(table) {
-            let run = (cell.trim(), crate::dims::FONT, crate::tables::TEXT);
-            let laid = font.text(&crate::tables::ink(cell), crate::tables::TEXT);
-            label(laid, at, dims, Some(run));
+        let mut manufacturing_runs: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+        let mut manufacturing_header = Vec::new();
+        let mut tag = None;
+        for (r, (row, positions)) in table.rows.iter().zip(&p.cells_at).enumerate() {
+            if table.id == crate::pmi_lowering::SCHEDULE_ID && r > 0 && !row[0].is_empty() {
+                tag = Some(row[0].clone());
+            }
+            for (cell, at) in row.iter().zip(positions) {
+                let Some(at) = at else { continue };
+                let run = (cell.trim(), crate::dims::FONT, crate::tables::TEXT);
+                let laid = font.text(&crate::tables::ink(cell), crate::tables::TEXT);
+                let index = label(laid, *at, dims, Some(run));
+                if table.id == crate::pmi_lowering::SCHEDULE_ID && r == 0 {
+                    manufacturing_header.extend(index);
+                }
+                if let Some(tag) = &tag {
+                    manufacturing_runs
+                        .entry(tag.clone())
+                        .or_default()
+                        .extend(index);
+                }
+            }
+        }
+        if !manufacturing_header.is_empty() {
+            annotations.push(Annotation {
+                name: "manufacturing_requirements_header".into(),
+                runs: manufacturing_header,
+                ..Default::default()
+            });
+        }
+        if !manufacturing_runs.is_empty() {
+            for binding in &table.row_claims {
+                if let Some(runs) = manufacturing_runs.remove(&binding.tag) {
+                    annotations.push(Annotation {
+                        name: format!("{}/{}", table.id, binding.tag),
+                        approved_claims: binding.claims.clone(),
+                        approved_text: None,
+                        coordinate_origin: None,
+                        view: None,
+                        runs,
+                        claims: Vec::new(),
+                        satisfies: Vec::new(),
+                    });
+                }
+            }
         }
         if let Some(ink) = items_bbox(&dims[table_from..]) {
             sheet.items.push(Drawn {
@@ -4778,6 +4821,14 @@ fn render_annotations_with_cuts(
                 && let Some(radius) = t.rows.get(i - 1)
             {
                 annotations.push(Annotation {
+                    approved_claims: Vec::new(),
+                    approved_text: Some(
+                        row.iter()
+                            .filter(|c| !c.is_empty())
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                    ),
                     coordinate_origin: None,
                     name: format!("{}/{}", t.table.id, radius.feature),
                     view: Some(radius.view.clone()),
@@ -4895,6 +4946,16 @@ fn render_annotations_with_cuts(
             if t.view.is_none() {
                 annotations.push(Annotation {
                     satisfies: Vec::new(),
+                    approved_claims: Vec::new(),
+                    approved_text: Some(
+                        row.cells
+                            .iter()
+                            .skip(1)
+                            .filter(|c| !c.is_empty())
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                    ),
                     coordinate_origin: None,
                     name: format!("{}/{}", t.id, row.tag),
                     view: Some("v:plan".into()),
@@ -4915,6 +4976,8 @@ fn render_annotations_with_cuts(
                     if c == 4 {
                         annotations.push(Annotation {
                             satisfies: Vec::new(),
+                            approved_claims: Vec::new(),
+                            approved_text: Some(row.cells[c].clone()),
                             coordinate_origin: None,
                             name: format!("{}/{}/entry", t.id, row.tag),
                             view: t.view.clone(),
@@ -4960,6 +5023,8 @@ fn render_annotations_with_cuts(
                         .collect();
                     annotations.push(Annotation {
                         satisfies: Vec::new(),
+                        approved_claims: Vec::new(),
+                        approved_text: Some(row.cells[c].clone()),
                         coordinate_origin: if c > 1 { t.origin } else { None },
                         name: format!("{}/{}/{}", t.id, row.tag, ["tag", "size", "x", "y"][c]),
                         view: t.view.clone(),
@@ -5069,6 +5134,8 @@ fn render_annotations_with_cuts(
     }
     // Each drawing-wide PMI requirement by the runs that state it, for lint and the PMI checks.
     annotations.extend(stated.into_iter().map(|(name, runs)| Annotation {
+        approved_claims: Vec::new(),
+        approved_text: None,
         coordinate_origin: None,
         satisfies: Vec::new(),
         name,
@@ -5090,6 +5157,8 @@ fn render_annotations_with_cuts(
             .filter_map(|o| {
                 let (feature, parameter) = o.id.strip_prefix("d:")?.split_once('/')?;
                 Some(Annotation {
+                    approved_claims: Vec::new(),
+                    approved_text: None,
                     coordinate_origin: None,
                     name: format!("suppressed:{}", o.id),
                     view: None,
@@ -5130,6 +5199,14 @@ fn render_annotations_with_cuts(
             style,
             items: ink,
         });
+    }
+    // The cell annotations were bound above from the compiler's row measurements. Retain
+    // those identities separately from the live claims, just as approved text is retained
+    // separately from rendered runs; downstream mutations must preserve both contracts.
+    for annotation in &mut annotations {
+        if annotation.approved_text.is_some() {
+            annotation.approved_claims = annotation.claims.clone();
+        }
     }
     Ok(Drawing {
         page: plan.sheet.page,

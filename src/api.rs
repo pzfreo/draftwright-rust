@@ -468,6 +468,8 @@ fn write_file(
 #[derive(Clone, Debug, Serialize)]
 pub struct Review {
     pub svg: String,
+    /// Physical holes whose bore sizes actually reached these rendered sheets.
+    pub drawing_consumer: crate::evaluation::DrawingConsumer,
     /// SVGs for sheets 2..m, in document order.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub sheets: Vec<String>,
@@ -518,6 +520,7 @@ fn reviewed(step: &Path, given: Given, spec: &Spec) -> Result<Review, Error> {
     let analysis = merged.as_deref().unwrap_or(&analysis);
     Ok(Review {
         svg: drawing.svg(),
+        drawing_consumer: crate::evaluation::drawing_consumer(analysis, Ok(&drawings)),
         sheets: drawings.iter().skip(1).map(Drawing::svg).collect(),
         problems: plan.problems,
         lint: lint::lint_sheets(analysis, &drawings),
