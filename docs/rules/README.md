@@ -24,18 +24,22 @@ pads, oriented slot callouts, any end-to-end span carrying an extent, exact grou
 `tests/completeness_rules.rs`) and stream K6 (2026-10-16: one owner per measurement: authored-set
 parity for conveyed measurements, a height ladder or shoulder set omitted or approved whole,
 a pattern's pitch beside every member's location reported, a toleranced reference reported,
-`tests/ownership_rules.rs`):
+`tests/ownership_rules.rs`) and stream K8 (2026-10-16: every pending rule re-assessed against the
+merges since 2026-10-12; 8 ported, 7 translated and 13 retired, stale notes brought up to date,
+and every pending rule now says what remains; `tests/rules_catalogue.rs` keeps the catalogue and
+this table consistent):
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 45 | 57 | 33 | 25 |
-| `lint.yaml` | 43 | 109 | 0 | 13 |
-| `issues.yaml` | 100 | 63 | 6 | 21 |
-| **All** | **188** | **229** | **39** | **59** |
+| `adr.yaml` | 39 | 60 | 35 | 26 |
+| `lint.yaml` | 31 | 110 | 3 | 21 |
+| `issues.yaml` | 90 | 67 | 8 | 25 |
+| **All** | **160** | **237** | **46** | **72** |
 
-The assessment rated each of the 353 rules then pending; 20 rules pending today were not rated.
-Rules it found done but with no test to name, or with a real remainder, stay pending with a
-`rust_note` saying so.
+The assessment of 2026-10-11 rated each of the 353 rules then pending; stream K8 rated the 188
+pending on 2026-10-16, 52 of which had no note. Rules found done but with no test to name, or with
+a real remainder, stay pending with a `rust_note` saying so; no pending rule is without one
+(`tests/rules_catalogue.rs::every_rule_says_what_backs_its_status`).
 
 ## An entry
 

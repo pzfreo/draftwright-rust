@@ -31,7 +31,9 @@
     module: "linting/_coverage_common.py, linting/_parameter_coverage.py"
     issues: [1018, 1351]
     tests: [tests/test_lint_coverage_common.py]
-  status: pending
+  status: translated
+  rust_rule: "Each recognised requirement a lint family reads resolves to exactly one outcome: placed (an annotation claims it and its text states the value at the printed precision), missing (nothing claims it) or unverifiable (a claim whose text does not state it, or an Analysis record that does not give the value); src/lint/parameters.rs and each family's ledger. A note satisfies a requirement only through an explicit satisfies claim (stage G3 radius notes). Suppressed and dropped are not lint outcomes: lint reads neither the Spec nor the Plan (ADR1-9), and the plan reports them itself (an omitted row with its state, a problem on the item's ID)."
+  rust_test: "src/lint/parameters.rs::tests::each_requirement_resolves_to_one_outcome; src/lint/chamfers.rs::tests::a_chamfer_without_its_sizes_is_unverifiable"
   port_note: "Keep: one shared outcome enum and resolver used by every family ledger."
 
 - id: LINT-_parameter_coverage-report_uncovered_only
@@ -41,7 +43,9 @@
   source:
     module: "linting/_parameter_coverage.py"
     tests: [tests/test_lint_coverage_common.py]
-  status: pending
+  status: translated
+  rust_rule: "Coverage lint emits <family>_requirement_<state> only for missing and unverifiable requirements; a placed or note-satisfied requirement gives nothing (src/lint/parameters.rs::coverage). A placement drop is reported once, by the plan, never again by lint, which does not see it."
+  rust_test: "src/lint/parameters.rs::tests::each_requirement_resolves_to_one_outcome"
   port_note: "Keep: emit '<family>_requirement_<state>' codes from the outcome ledger."
 
 - id: LINT-_coverage_common-assembly_severity
@@ -53,6 +57,8 @@
     issues: [69]
     tests: [tests/test_lint_coverage.py]
   status: pending
+  rust_test: "tests/completeness.rs::multi_solid_completeness_findings_are_info"
+  rust_note: "Stream K8 re-assessment (2026-10-16): partial. The Analysis records solid_count (src/model.rs), and on a part of several solids the plan's completeness findings (dimensions_not_ported, feature_not_dimensioned, unclaimed_geometry) and lint's bounded coverage findings (lint::uncovered: missing_principal_dimension, the hole-pattern, turned-band and redundancy findings) are info, else warnings (tests/completeness.rs::multi_solid_completeness_findings_are_info). Not ported: the switch for the family ledgers in src/lint/parameters.rs and the other *_requirement_* families, and the backstop findings of src/lint/coverage.rs (feature_not_dimensioned, feature_count_mismatch, feature_not_located), which stay warnings."
   port_note: "Keep: severity switch keyed on drawing kind (part vs assembly)."
 
 - id: LINT-_coverage_common-exact_correspondence
@@ -100,7 +106,9 @@
     module: "linting/schedule_evidence.py, linting/evidence.py"
     issues: [1543]
     tests: [tests/test_issue_1543_schedule_requirements.py, tests/test_issue_1543_feature_schedules.py]
-  status: pending
+  status: ported
+  rust_test: "tests/planned_hole_tables.rs::a_changed_coordinate_cannot_borrow_a_number_from_another_cell"
+  rust_note: "Stage H1: each hole-schedule cell is drawn as an annotation claiming only the measurement of its own row and column (hole_schedule_<n>/size, /x, /y, /entry), and lint credits it as it credits a callout, only when its text states that value: a changed X cell loses that hole's location (feature_not_located) without borrowing a number from another cell, and a changed entry cell is hole_table_entry_invalid (tests/planned_hole_tables.rs::a_changed_entry_cell_is_reported_even_when_xy_is_correct); size cells print the approved fit limits (approved_fit_limits_survive_in_each_size_cell). Stream K8 re-assessment (2026-10-16): ported for hole schedules, the only schedules the port draws."
   port_note: "Keep: verify cell content before crediting schedule evidence."
 
 - id: LINT-issues-placement_drop_stage
@@ -131,7 +139,8 @@
   source:
     module: "linting/issues.py"
     issues: [1147]
-  status: pending
+  status: retired
+  why: "Stream K8 re-assessment (2026-10-16): Python score machinery. Pair findings carry an opaque token so a score can group them; the port has no score (ADR5-5), and each pair finding already carries both items as subjects."
   port_note: "Adapt or drop: only needed if the Rust quality score aggregates pair findings."
 
 - id: LINT-_registry-requirement_carriers
@@ -139,7 +148,8 @@
   class: machinery
   source:
     module: "linting/_registry.py"
-  status: pending
+  status: retired
+  why: "Stream K8 re-assessment (2026-10-16): Python ledger machinery. The port's lint findings name the annotation and the related ones (LintIssue.annotation, related) for the findings that have a carrier; there is no outcome ledger to retain carriers for placed requirements (ARCH0017-1 keeps that open)."
   port_note: "Adapt: keep carrier provenance on outcomes for reports."
 
 - id: LINT-requirements-source_families
@@ -149,7 +159,8 @@
   source:
     module: "linting/requirements.py"
     tests: [tests/test_document_report.py]
-  status: pending
+  status: retired
+  why: "Stream K8 re-assessment (2026-10-16): Python's list of ledger families, machinery. Each family the port reads has its own coverage module (src/lint/*.rs: holes, hole patterns, chamfers, fillets, blends, bosses, channels and circular seats, circular blind steps, paired ramp steps, through and angled steps, turned steps, flats, grooves, gusset ribs, oriented slots, pads, plates, polygonal bosses and stock, pockets, blind slots, slots, profiled bores, section recesses), each tracked by its own LINT-*_coverage rule; outer-profile angles and pocket patterns stay open as LINT-angular-profile_angle_requirement and LINT-pocket_pattern_coverage-requirements."
   port_note: "Adapt: single collector of family ledgers shared by lint and reports."
 
 # ---------------------------------------------------------------------------------------
@@ -246,7 +257,7 @@
     issues: [1143, 1061]
     tests: [tests/test_issue_1370_double_d_completeness_evidence.py]
   status: pending
-  rust_note: "Done in substance (rules assessment of 2026-10-11): the double-D across-flats size is checked as LINT-profiled_bore_coverage-double_d, and the Analysis carries no thread depth to require. Left pending because no test checks a thread depth requirement."
+  rust_note: "Done in substance (rules assessment of 2026-10-11): the double-D across-flats size is checked as LINT-profiled_bore_coverage-double_d, and the Analysis carries no thread depth to require. Left pending because no test checks a thread depth requirement. Stream K8 re-assessment (2026-10-16): threads now reach the drawing from AP242 PMI and from the Spec (features/<id>/thread, stream K1b), the minimum full thread printed in the callout, but lint does not require a threaded hole's thread depth: hole coverage reads no thread term (src/lint/holes.rs says threads are not yet ported there)."
   port_note: "Keep: derive requirements from the feature's parameter list."
 
 - id: LINT-hole_coverage-grouping_count
@@ -273,8 +284,8 @@
     issues: [1143, 883]
     tests: [tests/test_issue_1369_hole_completeness_evidence.py, tests/test_issue_1219_location_claims_its_own_axis.py]
   status: pending
-  rust_test: tests/planned_hole_tables.rs::rows_and_tags_credit_hole_size_count_and_both_locations
-  rust_note: "Stage H1: schedule X/Y cells credit both in-plane locations per member, each cell only for its own axis (a_changed_coordinate_cannot_borrow_a_number_from_another_cell); the ladder route keeps its earlier checks. Left pending until the whole family ledger is reviewed."
+  rust_test: "tests/planned_hole_tables.rs::rows_and_tags_credit_hole_size_count_and_both_locations"
+  rust_note: "Stage H1: schedule X/Y cells credit both in-plane locations per member, each cell only for its own axis (a_changed_coordinate_cannot_borrow_a_number_from_another_cell); the ladder route keeps its earlier checks. Remaining (stream K8 re-assessment, 2026-10-16): hole coverage's own per-hole location requirements (location.location.<axis>, two per hole, src/lint/holes.rs counts none): a lone hole's location is reported only by the coverage backstop (feature_not_located) and only when it is off the part's centre, so leaving out a centred hole's location costs no finding (ISSUE-1143-a)."
   port_note: "Keep."
 
 - id: LINT-hole_coverage-turned_axis_location
@@ -376,6 +387,7 @@
     issues: [1229]
     tests: [tests/test_issue_1370_countersink_completeness_evidence.py]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported. Lint counts a countersink only on its hole's record (src/lint/holes.rs, the csink term of the hole's callout); a CounterSink record joined to no hole, such as the second seat of a two-sided bore, is neither counted nor reported unverifiable (also ISSUE-1143-e)."
   port_note: "Adapt: if the Rust hole record holds two countersinks, make this a normal requirement."
 
 - id: LINT-code-hole_requirement_state
@@ -433,8 +445,8 @@
     issues: [80, 92, 1351, 1450]
     tests: [tests/test_lint_coverage.py, tests/test_diameter_leaders.py, tests/test_issue_1505_diameter_coverage.py]
   status: pending
-  rust_test: tests/lint_coverage.rs::pythons_backstop_is_reproduced_on_its_recorded_input
-  rust_note: "Partly ported (src/lint/coverage.rs::feature_coverage, run by lint::check before boss heights, as draftwright orders it). Ported: the inventory (every readable hole's bore, counterbore and spotface diameter and every boss's, distinct; it equals draftwright's on all 11 compared parts), the 0.15 mm match, radius callouts not counting, a hole callout (a mark claiming a hole diameter) mentioning the diameters it prints before its bolt-circle clause and never read as free text, every other mark's ø/⌀ numbers. On draftwright's recorded input (tests/fixtures/lint_coverage/python.json.gz: 18 drawings, two with callouts taken off; ctc05's uncalled ø38.1, a stripped cgb245's ø10, a stripped m10127's ø8.4) the port's check gives exactly its findings. Nothing is excluded for a callout cap: the port drops no callout. Not ported: excluding a boss diameter that a blend of the same face owns (boss_blend_owner_pairs): it compares quiddity's defining faces, and the Analysis keeps only each feature's constituent faces (src/bridge.rs), which differ (grm04_drive_plate: boss [0, 3], blend [0]); structured-note and verified-cell authority (the port has neither); the assembly severity (always warning: the Analysis does not say whether the part is several bodies). Like draftwright, an uncalled hole is reported both here and by hole coverage (hole_requirement_missing); a misprinted callout leaves its diameter uncovered here too. Done in substance (rules assessment of 2026-10-11): the backstop works. Left pending for the boss-blend exclusion, which differs on grm04_drive_plate (boss faces [0, 3], blend [0]) and goes with face precedence (ISSUE-1450-a)."
+  rust_test: "tests/lint_coverage.rs::pythons_backstop_is_reproduced_on_its_recorded_input"
+  rust_note: "Partly ported (src/lint/coverage.rs::feature_coverage, run by lint::check before boss heights, as draftwright orders it). Ported: the inventory (every readable hole's bore, counterbore and spotface diameter and every boss's, distinct; it equals draftwright's on all 11 compared parts), the 0.15 mm match, radius callouts not counting, a hole callout (a mark claiming a hole diameter) mentioning the diameters it prints before its bolt-circle clause and never read as free text, every other mark's ø/⌀ numbers. On draftwright's recorded input (tests/fixtures/lint_coverage/python.json.gz: 18 drawings, two with callouts taken off; ctc05's uncalled ø38.1, a stripped cgb245's ø10, a stripped m10127's ø8.4) the port's check gives exactly its findings. Nothing is excluded for a callout cap: the port drops no callout. Not ported: excluding a boss diameter that a blend of the same face owns (boss_blend_owner_pairs): it compares quiddity's defining faces, and the Analysis keeps only each feature's constituent faces (src/bridge.rs), which differ (grm04_drive_plate: boss [0, 3], blend [0]); structured-note and verified-cell authority (the port has neither); the assembly severity (always a warning here, although the Analysis now records solid_count; LINT-_coverage_common-assembly_severity). Like draftwright, an uncalled hole is reported both here and by hole coverage (hole_requirement_missing); a misprinted callout leaves its diameter uncovered here too. Done in substance (rules assessment of 2026-10-11): the backstop works. Left pending for the boss-blend exclusion, which differs on grm04_drive_plate (boss faces [0, 3], blend [0]) and goes with face precedence (ISSUE-1450-a). Stream K8 re-assessment (2026-10-16): still pending for the boss-blend exclusion and the assembly severity."
   port_note: "Keep as a coarse backstop to the semantic ledgers."
 
 - id: LINT-code-feature_count_mismatch
@@ -594,7 +606,8 @@
   source:
     module: "linting/coverage.py"
     issues: [138, 351, 647, 720]
-  status: pending
+  status: retired
+  why: "Stream K8 re-assessment (2026-10-16): Python annotation-pass state shared between passes. The port's lint keeps no pass state: it reads the finished drawing's annotations and their claims, and the plan records which items a hole table replaced (each item's basis and state)."
   port_note: "Drop: side channel; derive from the plan/registry in Rust."
 
 - id: LINT-coverage-examinable_declared_kinds
@@ -603,7 +616,8 @@
   source:
     module: "linting/coverage.py"
     issues: [1176]
-  status: pending
+  status: retired
+  why: "Stream K8 re-assessment (2026-10-16): there are no declared features (R4 decision 3), so no declared kinds for a truth check to examine."
   port_note: "Adapt: needed only by the fidelity component."
 
 # ---------------------------------------------------------------------------------------
@@ -1486,6 +1500,7 @@
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: no gear declaration (Spec or PMI) and no gear data table; see ARCH0015-3."
   port_note: "Keep."
 
 - id: LINT-code-gear_requirement_mismatch
@@ -1498,6 +1513,7 @@
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: there is no gear data table to compare with an authored gear requirement (ARCH0015-3)."
   port_note: "Keep."
 
 - id: LINT-code-gear_semantics_missing
@@ -1522,6 +1538,7 @@
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: no declared gear axis to compare with the repeating profile's (ARCH0015-3)."
   port_note: "Keep."
 
 - id: LINT-code-gear_repeat_count_mismatch
@@ -1534,6 +1551,7 @@
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py, tests/test_issue_1176_quality_fidelity.py]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: no declared tooth count to compare with the profile's repeat count (ARCH0015-3)."
   port_note: "Keep."
 
 - id: LINT-code-gear_correspondence_unverifiable
@@ -1545,6 +1563,7 @@
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: with no gear declaration there is no correspondence to verify (ARCH0015-3)."
   port_note: "Keep."
 
 # ---------------------------------------------------------------------------------------
@@ -1561,6 +1580,8 @@
     issues: [1217, 1206, 1218]
     tests: [tests/test_issue_1217_claimed_representations.py, tests/test_issue_1219_location_claims_its_own_axis.py]
   status: pending
+  rust_test: "tests/issue_trust.rs::a_claim_is_credited_only_when_its_text_states_the_value"
+  rust_note: "Stream K8 re-assessment (2026-10-16): partial. Hole coverage reads a claiming callout term by term and credits a size only when the term that states it rounds from the part's value at its printed precision (src/lint/holes.rs::Callout; ISSUE-1217-a); schedule cells are credited cell by cell (LINT-schedule_evidence-verified_cells); stream K7's label_vs_measured judges each linear label against its drawn span at its view's scale (src/lint/fidelity.rs). Not ported: one claimed_value_absent finding for every annotation family; the families sharing lint::parameters accept any number in the label that rounds to the value (holes::states), and a claim whose value is absent becomes that family's unverifiable rather than this fidelity code."
   port_note: "Keep: verify rendered text against the compiled plan."
 
 - id: LINT-code-claimed_measurement_not_compiled
@@ -1573,6 +1594,7 @@
     issues: [1217]
     tests: [tests/test_issue_1217_claimed_representations.py]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported as a lint check: lint reads no Plan (ADR1-9), so it cannot tell a claim the plan approved from one it did not. The port cannot itself draw such a claim, since every annotation comes from a Plan item (tests/dimension_rules.rs::renderers_draw_only_from_the_plan); the check would matter only for a drawing edited outside the port (ADR5-6)."
   port_note: "Keep."
 
 - id: LINT-code-claimed_representation_no_expected_value
@@ -1823,6 +1845,7 @@
     issues: [798]
     tests: [tests/test_issue_798_silhouette_lint.py]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported. Lint judges a callout's shaft against the material (leader_crosses_silhouette, src/lint/leaders.rs) only when its view has a recorded transform; an annotation without one (a captured Python sheet) is skipped, not reported unverified. The port's own drawings always record the transform (Sheet::frames), so the case arises only for drawings it did not make."
   port_note: "Keep."
 
 - id: LINT-code-datum_leader_remote
@@ -1885,7 +1908,8 @@
     module: "linting/structural.py"
     issues: [143, 161, 602, 701, 711]
     tests: [tests/test_lint_box_cache.py]
-  status: pending
+  status: retired
+  why: "Stream K8 re-assessment (2026-10-16): Python dispatch and memoisation machinery. The port's structural lint reads typed sheet items (output::Kind) and needs no attribute dispatch."
   port_note: "Drop: replace with typed annotation enums in Rust."
 
 # ---------------------------------------------------------------------------------------
@@ -1971,8 +1995,8 @@
     module: "linting/pmi_coverage.py"
     tests: [tests/test_pmi_manufacturing_finish.py]
   status: pending
+  rust_note: "Not ported: the check compares a source-scoped general note's or face-finish symbol's ink with its AP242 requirement. The port now draws both: document-wide edge conditions as general notes (pmi:<source>) and the default finish beside the title block (pmi_lowering::sheet_requirements), and since stream F2 a face texture as an ISO 1302 symbol on its face's edge line (tests/surface_texture.rs::a_face_texture_is_a_symbol_on_its_edge_line). Stream K8 re-assessment (2026-10-16): still not ported: lint reads a face-finish symbol or note as a PMI annotation named for its source (src/lint/pmi_coverage.rs) but does not compare its printed text with the requirement."
   port_note: "Keep if PMI is ported."
-  rust_note: "Not ported: the check reads a source-scoped general note (an edge condition) or a face-finish symbol and compares its ink with the requirement. The reading holds edge conditions and surface finishes (`pmi::read`, manufacturing requirements), and the port now draws a document-wide edge condition as a general note `pmi:<source>` and the default finish as a symbol beside the title block (`pmi_lowering::sheet_requirements`), but no face-finish symbol; the note's ink against its requirement is not checked yet."
 
 - id: LINT-code-pmi_source_site_mismatch
   statement: "A source-scoped annotation is anchored at the face or edge its AP242 source references, and a STEP entity claim carries a resolvable source id."
@@ -1983,8 +2007,8 @@
     module: "linting/pmi_coverage.py"
     tests: [tests/test_pmi_manufacturing_finish.py]
   status: pending
+  rust_note: "Not ported: the check reads where a face-finish symbol is anchored and which source a general note claims. Stream K8 re-assessment (2026-10-16): face-finish symbols are drawn since stream F2 (a face texture's symbol sits on its face's edge line, attached as a datum symbol is; tests/surface_texture.rs::a_face_texture_is_a_symbol_on_its_edge_line), so there is now an anchored carrier to check, but lint does not yet compare the symbol's anchor with its source face."
   port_note: "Keep if PMI is ported."
-  rust_note: "Not ported: the check reads where a face-finish symbol is anchored and which source a general note claims. The reading holds the requirements and their faces; the port draws document-wide notes (`pmi:<source>`) and the default finish beside the title block, which have no face site, but no face-finish symbol, so there is no anchored carrier to check. Obsolete until face-finish symbols are drawn (rules assessment of 2026-10-11); kept pending to revive with them."
 
 - id: LINT-code-pmi_unreconciled
   statement: "Content claiming an AP242 origin with no source census available is reported as unverified, never as satisfied."
@@ -2024,8 +2048,8 @@
     issues: [1298]
     tests: [tests/test_issue_1298_manufacturing_requirements.py]
   status: pending
+  rust_note: "Not ported: the check reads a thread or knurl leader's 'SEE MFG n' tag against the manufacturing requirements table. The port now draws both carriers: two or more owned requirements with a long suffix print SEE MFG n on their owners' callouts beside the manufacturing requirements table (ISSUE-1298-a, tests/pmi_thread_knurl.rs::several_long_requirements_refer_to_the_manufacturing_requirements_table). Stream K8 re-assessment (2026-10-16): still not ported: lint does not check a SEE MFG n tag against its table row (header, row text equal to the aspect's callout text, the knurl maximum shown)."
   port_note: "Keep if manufacturing requirement tables are ported."
-  rust_note: "Not ported: the check reads a thread or knurl leader's 'SEE MFG n' tag against the manufacturing requirements table. The reading now holds thread and knurl requirements with their fields, but the port draws neither the tagged leaders nor the table (pmi_lowering reports them 'read but not drawn')."
 
 - id: LINT-code-step_material_mismatch
   statement: "When the STEP supplies the material, the title block states that material."
@@ -2112,6 +2136,7 @@
     module: "linting/pmi_coverage.py"
     issues: [623]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported as stated: there is no per-source stage inventory. The plan records each PMI record's outcome (drawn on an item, pmi_not_lowered, pmi_not_drawn, pmi_dimensions_not_ported) and lint's PMI coverage reports what lowered but has no annotation (src/lint/pmi_coverage.rs), each as findings rather than counts per stage."
   port_note: "Adapt if PMI reporting is ported."
 
 # ---------------------------------------------------------------------------------------
@@ -2139,6 +2164,7 @@
     issues: [1176]
     tests: [tests/test_issue_1176_quality_fidelity.py]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: there is no quality register classing codes as fidelity. The fidelity checks themselves are partly ported as lint findings (stream K7: label_vs_measured, angular_label_vs_geometry, angular_geometry_mismatch, angular_support_mismatch; stream K4: diameter and radius leader target mismatch; PMI coverage), and tools/quality.py reports raw counts per code, never one score (ADR5-5)."
   port_note: "Keep the classification as data."
 
 - id: LINT-quality-legibility_codes
@@ -2150,6 +2176,7 @@
     issues: [1127, 1147]
     tests: [tests/test_quality_components.py, tests/test_issue_1147_legibility_pair_aggregation.py]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported: there is no quality register classing codes as legibility. The layout codes exist as plan problems and structural lint findings (annotation_overlap, annotation_ink_overlap, annotation_off_sheet, view_overlap, page_fit_uncertain, scale_fallback_applied, datum_leader_remote, leader_crosses_silhouette …), and tools/quality.py counts several of them as columns."
   port_note: "Keep the classification as data."
 
 - id: LINT-quality-hard_layout_codes
@@ -2173,7 +2200,8 @@
     module: "linting/quality.py"
     issues: [1176]
     tests: [tests/test_issue_1176_quality_fidelity.py]
-  status: pending
+  status: retired
+  why: "Stream K8 re-assessment (2026-10-16): Python score-register machinery (every code in exactly one scoring register). The port has no score (ADR5-5); a register would follow one, under LINT-quality-four_components."
   port_note: "Adapt: an exhaustive Rust enum match makes this audit a compile-time check."
 
 - id: LINT-quality-recognised_inventory_registers
@@ -2200,7 +2228,8 @@
   source:
     module: "linting/orchestration.py"
     issues: [1928, 1216, 1204]
-  status: pending
+  status: retired
+  why: "Stream K8 re-assessment (2026-10-16): Python orchestration order. The port's lint::check runs its families in one fixed order over the finished drawing (src/lint/mod.rs) and appends no build-time issues, since lint reads no Plan; the order changes no finding's content."
   port_note: "Adapt: keep a single ordered lint pipeline."
 
 - id: LINT-suggest-fix_snippets
@@ -2211,5 +2240,7 @@
     module: "linting/suggest.py"
     issues: [29]
     tests: [tests/test_lint_suggestions.py]
-  status: pending
+  status: translated
+  rust_rule: "A lint finding may carry a fix in words (LintIssue.fix, e.g. 'State f:hole:3/location.length.x in a view that shows its true size or location.'), and a plan problem may carry fix operations, Spec edits an editor can apply (Problem.fix). There is no scripting API to paste into."
+  rust_test: "tests/sheet_projection.rs::a_pin_that_cannot_fit_carries_a_fix_that_fits"
   port_note: "Drop or adapt to the Rust scripting surface."

@@ -181,6 +181,8 @@
     issues: []
     tests: []
   status: pending
+  rust_test: "tests/sections.rs::a_turned_part_leaves_out_the_view_that_repeats_its_profile"
+  rust_note: "Stream K8 re-assessment (2026-10-16): partial. The plan decides the views; the Spec can only omit, add a section or place them. A turned part leaves out the view that repeats its profile unless a hole needs it end-on (src/demand.rs::turned_views, stating why in the kept views' basis), and section A-A is added only for a row of holes whose profile no standard view shows (src/demand.rs::section). Not ported: the general test that every selected principal view carries a measurement no other view can; apart from the turned reduction the default principal set (front, plan, side, isometric) is fixed, and a thin rotational plate keeps its edge-on plan view (ISSUE-1130-a)."
   port_note: "Keep: every Plan view carries the requirement ids that justify it as its basis."
 
 - id: ADR2-D2
@@ -229,7 +231,10 @@
     adr: "ADR 2 Decision; archive 0009, 0014"
     issues: []
     tests: []
-  status: pending
+  status: translated
+  rust_rule: "Every dimension is planned first as an item (dims::wants, one planner per family), then all of a view's items are placed together, strip by strip, by one deterministic lane assignment (src/dims/placement.rs::lanes: rank, then sub-rank, then index), and only then drawn, from the Plan alone. Nothing is dropped for capacity: an item that does not fit is drawn and reported (R1 invariant 3), so there is no arrival-order drop to rank."
+  rust_test: "tests/dimension_rules.rs::renderers_draw_only_from_the_plan; tests/dimension_rules.rs::dimension_planning_is_deterministic"
+  rust_note: "Stream K8 re-assessment (2026-10-16): translated: the collect-solve-emit order holds by construction; Python's ranked selection over capacity has no counterpart because the port draws and reports instead of dropping."
   port_note: "Keep: plan-stage placement collects all strip occupants then solves; drop order is by priority/key, recorded per entry."
 
 - id: ADR2-D6
@@ -278,6 +283,8 @@
     issues: [1146]
     tests: ["test_issue_1146_scale_completeness.py"]
   status: pending
+  rust_test: "tests/sheet_projection.rs::a_pin_that_cannot_fit_carries_a_fix_that_fits"
+  rust_note: "Stream K8 re-assessment (2026-10-16): partial, as ISSUE-1146-a. A pinned scale is kept as asked and what it cannot hold is reported, never silently lost: page_fit_uncertain when the finished drawing does not fit, carrying a fix to the nearest pair that does (stream F4), views_do_not_fit, annotation_off_sheet; the automatic search takes only valid complete candidates (src/sheet_fit.rs::choose). Not ported: a default policy that retries smaller ISO 5455 scales below an explicit request and takes the largest complete one, the strict and permissive policies, and stable blocker identities on the decision."
   port_note: "Keep: Spec scale policy {default, strict, permissive}; the Plan records requested/effective scale, attempts and blocker ids."
 
 - id: ADR2-3
@@ -504,8 +511,9 @@
     adr: "ADR 2 Unguarded; archive 0018 §7"
     issues: []
     tests: []
-  status: pending
-  rust_note: "Done in substance (rules assessment of 2026-10-11): text is a fixed 3 mm in paper space (layout::FONT_SIZE, dims, section::FONT_SIZE) and nothing shrinks it to fit. Left pending because no test guards it."
+  status: ported
+  rust_test: "tests/rules_catalogue.rs::annotation_text_keeps_its_size_however_crowded_the_sheet"
+  rust_note: "Text is a fixed 3 mm in paper space (dims::TEXT, layout's, section::FONT_SIZE, title_block::TEXT, tables::TEXT) and nothing shrinks it to fit. Stream K8 re-assessment (2026-10-16): the test renders scattered_holes on its automatic sheet and pinned one size smaller with no hole table, and every annotation run is drawn at dims::TEXT in both; where the crowded sheet cannot hold close locations they are left out and reported (location_ref_dropped), not shrunk. Not checked: an explicit style policy for another size (the Spec has none)."
   port_note: "Keep: style is a Spec input in paper units; add a guard test (none exists in Python)."
 
 # ---------------------------------------------------------------------------
@@ -1027,8 +1035,9 @@
     issues: [1217, 1215]
     tests: ["test_issue_1217_claimed_representations.py", "test_issue_1215_no_approved_tolerance_is_dropped.py"]
   status: pending
+  rust_test: "tests/issue_drafting.rs::every_authored_tolerance_reaches_the_label_that_claims_it"
+  rust_note: "Partly. The renderer side holds by construction: annotations are drawn only from Plan items and carry their provenance (tests/dimension_rules.rs::renderers_draw_only_from_the_plan), so the port never draws a claim the plan did not approve. Tolerances are now planned (dimensions/<id>/tolerance, PMI tolerances and ISO 286 fits) and each reaches the label that claims it verbatim (ISSUE-1215-c, ISSUE-1524-a), and stream K7's lint checks each linear label against its drawn span (label_vs_measured). Stream K8 re-assessment (2026-10-16): not ported: lint judging a claim against the plan item it names (claimed_measurement_not_compiled), since lint reads no Plan (ADR1-9); a drawing edited outside the port is judged only against the Analysis."
   port_note: "Keep: render output is checked against Plan text by id."
-  rust_note: "Not ported: lint judges the drawing against the Analysis (hole coverage), not a claim's text against the plan item it names, so claimed_measurement_not_compiled has no counterpart. The renderer side is checked (tests/dimension_rules.rs::renderers_draw_only_from_the_plan); no tolerances are planned yet."
 
 - id: ADR5-7
   statement: "An approved dimension that is not drawn is reported against its measurement, does not gate the build, and is retracted if a later pass draws it."
@@ -1187,8 +1196,9 @@
     issues: [29, 30]
     tests: []
   status: pending
+  rust_test: "tests/sheet_projection.rs::a_pin_that_cannot_fit_carries_a_fix_that_fits"
+  rust_note: "Partly. Plan problem codes name drafting outcomes and their messages speak drawing language, naming items by what they print (stream F3, src/wording.rs, tests/problem_wording.rs). A problem may carry a fix, the Spec edits that resolve it (Problem.fix: page_fit_uncertain's nearest fitting pair, a pinned callout's unpin, correlated_set_conflict's removal of the omission), and a lint finding carries a fix in words (LintIssue.fix). Stream K8 re-assessment (2026-10-16): not checked: that every code is expressible as a fix; many problems carry none."
   port_note: "Keep: Plan problem codes name drafting outcomes (feature_not_dimensioned, callout_dropped), not solver internals."
-  rust_note: "Not ported: plan problem codes name drafting outcomes (annotation_overlap, view_plan_incomplete, section_not_shown, dimensions_not_ported, …) and most messages say what to change, but problems carry no fix edit (docs/model.md's fix; R4 decision 5), so 'every finding is expressible as a domain fix' is not checked."
 
 - id: ARCH0002-2
   statement: "Deleting an authored dimension is not credited as an engineering-correct redundancy decision: it remains a visible suppressed requirement and scores as unplaced."
@@ -1263,6 +1273,8 @@
     issues: [489]
     tests: []
   status: pending
+  rust_test: "tests/sheet_fill.rs::unavailable_legible_scale_is_a_warning"
+  rust_note: "Stream K8 re-assessment (2026-10-16): partial. The automatic search never draws below the legibility floor it reads from the part's smallest opening (src/sheet_fit.rs::min_legible_scale; tests/sheet_fill.rs::automatic_overflow_never_uses_an_illegible_scale), and when no legible complete candidate exists the drawing is kept with a warning naming that floor (layout_recovery_exhausted; tests/sheet_fill.rs::unavailable_legible_scale_is_a_warning). Not ported: a warning when an explicitly pinned scale is below the 10 mm view-legibility floor (a pinned scale is drawn as asked with no legibility finding), and the 0.1 mm render floor as a hard rejection."
   port_note: "Keep: Plan warning for small views at an explicit scale; Spec validation error below the render floor."
 
 - id: ARCH0004-4
@@ -1350,9 +1362,9 @@
     issues: [351, 352, 306, 54]
     tests: []
   status: pending
+  rust_test: "tests/hole_tables.rs::ftc09_drops_and_reports_its_off_sheet_hole_items"
   rust_note: "Partly ported (src/hole_table.rs, model::plan_escalated): a hole callout or location placed off the sheet is dropped, reported with draftwright's code (callout_dropped, location_ref_dropped; off_axis_location_dropped at info), and a callout or plan-view location drop escalates to the pattern balloon or the hole table with balloons under draftwright's gates (at least 16 holes outside a pattern), the table transactional; unresolved drops are required losses the layout recovery (model::recover) tries a scale or sheet for; the Plan item's basis records a table's replacement. Not ported: detail views; drops for collisions or illegible ladders (the port places and reports those); the Escalation remedies list. Stage H1 adds the table rung before any drop (tests/planned_hole_tables.rs::crowding_selects_a_schedule_before_any_item_is_dropped). Detail views (the next rung) are Stage J in ADR R5 and are not ported."
   port_note: "Keep: escalation is a planner stage; each Plan entry records which remedy was applied as its basis."
-  rust_test: tests/hole_tables.rs::dropped_hole_items_are_reported_and_escalate_as_draftwrights_do
 
 - id: ARCH0009-3
   statement: "A central hole's callout on a prismatic part stays on the view-centre row; on a turned part a coaxial bore's callout is pushed off the centre-line instead."
@@ -1363,6 +1375,7 @@
     issues: [318, 381]
     tests: ["test_prismatic_central_hole_callout_not_lifted"]
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported. No callout is anchored to the view-centre row by part class: callouts take strip lanes ordered by their tips (src/dims/placement.rs::lanes) and leaders are routed by one shared assignment (src/dims/leaders.rs). The router keeps a leader from running along a centre line (crate::centrelines::runs_beside, stream G6), which keeps a coaxial bore's leader off a turned part's axis, but there is no prismatic centre-row anchor and no 3 mm lift limit."
   port_note: "Keep: planner rule keyed on part classification from Analysis."
 
 - id: ARCH0009-4
@@ -1373,6 +1386,8 @@
     issues: [305, 321, 381]
     tests: []
   status: pending
+  rust_test: "tests/centrelines.rs::leaders_do_not_run_beside_centre_lines"
+  rust_note: "Stream K8 re-assessment (2026-10-16): partial (stream G6 centre lines). A leader does not run along a centre line (tests/centrelines.rs::leaders_do_not_run_beside_centre_lines), an axis that runs under a label is trimmed short of it (a_label_across_an_axis_end_trims_the_overrun), and labels keep clear of the cutting-plane line (section_cutting_line_is_planned_and_labels_keep_clear). Not ported: a keep-out band for callout text around centre lines and location extension lines, and placing a callout at the strip edge farthest from the line when the band is wider than the strip."
   port_note: "Keep: keep-out intervals in the strip carve, available to every annotation family (Python only exposed it to hole callouts)."
 
 - id: ARCH0009-5
@@ -1382,8 +1397,9 @@
     adr: "archive 0009 Amendment 6, note 2026-07-18"
     issues: [346, 636]
     tests: []
-  status: pending
-  rust_note: "Done in substance (rules assessment of 2026-10-11): dims::placement::lanes orders each strip sizes nearest, then locations by distance, the overall extent outermost. Left pending because no test asserts the order."
+  status: ported
+  rust_test: "tests/rules_catalogue.rs::sizes_sit_nearest_then_locations_by_distance_then_the_overall"
+  rust_note: "src/dims/placement.rs::lanes orders each strip: sizes nearest (order 0), then locations by their distance from the datum (order 1, sub-ranked by span), the overall extent outermost (order 2). Stream K8 re-assessment (2026-10-16): the test reads the drawn dimension lines of plate and, with the corpus, NIST FTC-06 (its height ladder and plan strip) and mfcadpp 10000, and finds every strip in that order; a later re-spacing (J2's dims::placement::respace) moves only items that would share a line."
   port_note: "Keep: ordering key in the planner's corridor solve."
 
 - id: ARCH0009-6
@@ -1542,6 +1558,7 @@
     issues: []
     tests: []
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported as stated. Sections are planned before the dimensions (src/demand.rs, model::plan) and are never optional against a leader, so no section yields to one; the section view is an obstacle like any other view and its cutting-plane line is planned line work (PlannedView.line_work) that labels keep clear of (tests/centrelines.rs::section_cutting_line_is_planned_and_labels_keep_clear). The final cutting-plane ink check, the one bounded end-symbol repair and the yield are not ported."
   port_note: "Keep: requirement priority over optional views in the planner."
 
 - id: ARCH0014-7
@@ -1564,9 +1581,9 @@
     adr: "archive 0015 planner table; 0017 Amendments 6, 8, 10"
     issues: [724, 725, 726, 727, 728, 1382, 1392, 1421, 1433]
     tests: []
-  status: pending
-  rust_note: "Ported for chamfers (C{leg}, or {leg} × {angle}° when the legs differ or the angle is not 45°) and fillets (R{r}, n× R{r}; tests/dims_edges.rs::equal_fillets_share_one_counted_callout), src/dims/edges.rs; flats ({across} A/F, n× {across} A/F, src/dims/flats.rs) and grooves ({width} WIDE × ø{d}, src/dims/grooves.rs), matching draftwright's labels on connector109 and string_post (tests/dims_grooves_flats.rs::grooves_and_flats_match_draftwrights_sheets); circular blind steps (R{r} × {depth} DEEP) and paired ramps (2× {angle}° × {run} RUN), src/dims/steps.rs, matching draftwright's sheets of quiddity's golden parts (tests/dims_steps.rs::golden_circular_blind_step_is_one_radius_and_depth_callout, ::golden_paired_ramp_step_is_one_angle_and_run_callout). Pockets (W × L × D DEEP, MAX DEEP for a cylindrical mouth), with hexagonal pockets (HEX {af} A/F × {d} DEEP) and circular seats (ø{d} × {run} LONG × {sweep}° ARC), are ported in src/dims/recesses.rs (tests/dims_recesses.rs: labels equal to draftwright's sheets for m1000, m10046, m10127, and in tests/dims_slots.rs for m10047 and m10245). Not ported: blend and pad callouts (the blind slots' are in src/dims/slots.rs). Stage G3 adds the blend radius grammar (R / n× R leaders, ALL UNSPECIFIED RADII note; tests/dims_blends.rs::many_blends_are_stated_without_counted_radius_clutter). Other families keep their earlier status."
-  rust_test: tests/dims_edges.rs::chamfers_are_called_out_c_or_leg_and_angle
+  status: ported
+  rust_test: "tests/dims_edges.rs::chamfers_are_called_out_c_or_leg_and_angle; tests/dims_blends.rs::many_blends_are_stated_without_counted_radius_clutter; tests/dims_grooves_flats.rs::grooves_and_flats_match_draftwrights_sheets; tests/dims_steps.rs::golden_circular_blind_step_is_one_radius_and_depth_callout; tests/dims_steps.rs::golden_paired_ramp_step_is_one_angle_and_run_callout; tests/dims_recesses.rs::m1000_pocket_hex_pocket_and_seat_are_stated_as_draftwright_states_them; tests/dims_slots.rs::blind_slots_are_called_out_as_draftwright_reads_their_sections; tests/completeness_rules.rs::each_raised_pad_states_its_footprint_height_and_location"
+  rust_note: "Every grammar is ported: chamfers (C{leg}, or {leg} × {angle}°) and fillets (R{r}, n× R{r}) in src/dims/edges.rs; blends (R / n× R, with the ALL UNSPECIFIED RADII note, stage G3, src/dims/blends.rs); flats ({across} A/F, src/dims/flats.rs) and grooves ({width} WIDE × ø{d}, src/dims/grooves.rs); circular blind steps (R{r} × {depth} DEEP) and paired ramps (2× {angle}° × {run} RUN, src/dims/steps.rs); pockets (W × L × D DEEP, MAX DEEP for a cylindrical mouth), hexagonal pockets and circular seats (src/dims/recesses.rs); rectangular and round-bottom blind slots (OPEN SLOT W × L × D DEEP, ROUND-BOTTOM OPEN SLOT …, src/dims/slots.rs); raised pads (footprint and N HIGH, stream K5, src/dims/pads.rs). Labels agree with draftwright's sheets where the tests compare them. Stream K8 re-assessment (2026-10-16): ported now that pads (K5) close the list. The recess grammars (pockets, hexagonal pockets, seats, blind slots) apply to section recesses, which the default native path does not read yet (features_not_recognised; the G7b reader stream), so on that path they reach the sheet only through the bridge."
   port_note: "Keep: callout text templates in the Plan's display-text formatter."
 
 - id: ARCH0015-2
@@ -1591,6 +1608,7 @@
     issues: [1086, 1087]
     tests: []
   status: pending
+  rust_note: "Stream K8 re-assessment (2026-10-16): not ported. Neither the Spec nor the PMI path carries a gear declaration, and there is no gear data table. Rust quiddity's repeating_radial_profiles are known to the native reader and not read (src/bridge/native.rs); lint's repeating-profile warning (src/lint/profiles.rs) asks for the outer boundary to be defined by hand and never fills a gear record from the repeat, which keeps the rule's second half by construction."
   port_note: "Keep: gear data only from Spec; Analysis evidence used for critique."
 
 - id: ARCH0015-4
@@ -1639,6 +1657,8 @@
     issues: [920, 925]
     tests: []
   status: pending
+  rust_test: "tests/spec_notes.rs::m6_on_the_plate_hole_pattern_prints_on_its_callout"
+  rust_note: "Stream K8 re-assessment (2026-10-16): partial. A compound hole callout is one plan item claiming every measurement it prints (bore, counterbore, spotface or countersink sizes and depth; a pattern's count and grid), and riders live on the feature: a thread from PMI or the Spec (features/<id>/thread) prints on its owner's callout and no planner discards it (tests/spec_notes.rs::m6_on_the_plate_hole_pattern_prints_on_its_callout). Not ported: the dependents are not addressable apart from their head (only the callout's ID can be omitted or toleranced, ISSUE-1215-c), so 'approving a dependent without its head raises' cannot arise and omitting the callout declines the whole string."
   port_note: "Keep: Plan callout entries list member dimension ids plus feature riders; Spec validation enforces head dependency."
 
 - id: ARCH0016-4
@@ -1698,7 +1718,8 @@
     adr: "archive 0016 Amendment 1"
     issues: [921, 923, 925]
     tests: []
-  status: pending
+  status: retired
+  why: "Stream K8 re-assessment (2026-10-16): a rule about the Python compiler's code structure (a designated owner per fact, parallel inference paths deleted). The port's counterparts are structural and already recorded: one Analysis inventory (ADR1-3), one recognition adapter (ADR1-5), and one shared predicate where two stages ask the same question (src/material.rs for leader re-entry, stream K4). It is not a property of a drawing a test can check."
   port_note: "Keep as design principle: one function decides each planner fact (location eligibility, view routing, ownership)."
 
 - id: ARCH0016-9
@@ -1708,7 +1729,9 @@
     adr: "archive 0016 Amendment 1 'The shape'"
     issues: []
     tests: []
-  status: pending
+  status: translated
+  rust_rule: "A planner states each dimension's measurement (feature, parameter, value) and its endpoints in part space (dims::Shape::Linear's a and b, a callout's sites), with the views that can carry it, preferred first; the driver routes it to the first one drawn (an omitted view moves it, keeping its ID), and placement (src/dims/placement.rs) chooses strip, side and lane and reports what does not fit."
+  rust_test: "tests/dimension_rules.rs::nothing_approved_vanishes_when_its_view_is_omitted; tests/dimension_rules.rs::a_dimensions_chosen_view_names_why_it_is_not_shown"
   port_note: "Translate: Plan dimension entries carry part-space endpoints plus the chosen view/placement; renderers project only."
 
 - id: ARCH0017-1
@@ -1720,9 +1743,9 @@
     issues: [1018, 1011]
     tests: []
   status: pending
+  rust_test: "tests/dimension_rules.rs::features_with_no_ported_dimensions_are_reported"
+  rust_note: "In part: every recognised feature of a kind no dimension planner handles ends in a problem (dimensions_not_ported, a warning, or info on a part of several solids, since stage G1's completeness report) rather than leaving no trace, and lint's coverage families give their requirements placed, missing or unverifiable outcomes (LINT-_parameter_coverage-outcome_states). Stream K8 re-assessment (2026-10-16): not ported: the per-requirement outcome vocabulary (placed, satisfied by structured note, authored-suppressed, dropped, missing, unverifiable) as one ledger in a report; suppressed and dropped are the plan's to say (its omitted rows and problems), since lint reads no Spec or Plan."
   port_note: "Keep: completeness ledger outcome vocabulary in the report."
-  rust_test: tests/dimension_rules.rs::features_with_no_ported_dimensions_are_reported
-  rust_note: "In part: every recognised feature of a kind no dimension planner handles yet ends in an info problem (dimensions_not_ported) rather than leaving no trace, and lint's hole coverage gives hole requirements their outcomes. Not ported: the per-requirement outcome vocabulary (placed, satisfied by structured note, authored-suppressed, dropped, missing, unverifiable) as one ledger in the report."
 
 - id: ARCH0017-2
   statement: "Requirements are counted per independent manufacturing measurement: derived values are not counted again, pattern members share one requirement set, and a nested countersink shares its hole's requirement."
@@ -1791,8 +1814,8 @@
     issues: []
     tests: []
   status: pending
-  rust_test: projection_symbol_states_third_angle_and_clears_the_reserved_band
-  rust_note: "Partial (Stage G5): the title block draws the ISO third-angle projection symbol, the convention the native layout uses. Not ported: first-angle planning, a Spec projection input, and enforcing authored view relations."
+  rust_test: "tests/sheet_projection.rs::first_angle_swaps_the_views_and_the_symbol"
+  rust_note: "Partial. Stream F4 adds the Spec input sheet/projection (first | third, default third, byte-identical) and plans both: first angle swaps the principal views and the symbol (tests/sheet_projection.rs::first_angle_swaps_the_views_and_the_symbol); the title block draws the ISO 5456-2 symbol for the method used (stream J1). Stream K8 re-assessment (2026-10-16): not ported: an authored view relation that contradicts the convention is not refused. A plan view pinned to the right of the front (views/plan/place relative_to front, side right) is drawn there with no problem (tests/placement_intent.rs::views_and_pmi_have_relative_placement), and there is no explicit opt-out with labelling for an unconventional arrangement."
   port_note: "Keep: Spec projection_convention input; planner enforces arrangement; no Python guard yet."
 
 - id: ARCH0018-2
@@ -1854,6 +1877,8 @@
     issues: [1260]
     tests: []
   status: pending
+  rust_test: "tests/issue_drafting.rs::what_the_spec_asks_of_the_views_is_kept_or_reported"
+  rust_note: "Stream K8 re-assessment (2026-10-16): partial. The Spec addresses views by ID: a principal view can be omitted (views/<id>/omit, replanned before projection, ISSUE-1260-a) or placed, and section A-A is a derived view that needs its plan parent (section_not_shown when it is missing). Not ported: the dimension-style split into an authoring set, an augmenting addition and an explicit empty set; there is no list of views to author, so 'requesting neither raises' has nothing to apply to."
   port_note: "Translate: Spec view_source {auto, authored} with additions list; derived views (sections/details) as a separate list."
 
 - id: ARCH0018-7
@@ -1953,8 +1978,9 @@
     issues: [1357]
     tests: ["test_issue_1357_framed_activation.py", "test_issue_1357_pmi_frame.py"]
   status: pending
+  rust_test: "tests/dims_stock.rs::rigid_motion_moves_the_views_but_not_the_statements"
+  rust_note: "In part: the polygonal stock planner is checked under rigid motion (tests/dims_stock.rs::rigid_motion_moves_the_views_but_not_the_statements: a bar turned 17° about its axis and another moved off the origin keep their statements), and quiddity-rust checks its recognisers under rigid motion (its tests/invariance.rs). Stream K8 re-assessment (2026-10-16): not ported: a general test that moves any part rigidly and compares the Analysis's features and the plan's views; recognition runs in caller space (src/bridge/native.rs), so there is no framed route to opt into."
   port_note: "Keep as target: rigid-motion invariance test over Analysis/Plan once quiddity-rust exposes framed preparation."
-  rust_note: "Not ported here: quiddity-rust checks its recognisers under rigid motion, but no test plans a moved part and compares the Analysis's features and the plan's views; the port does not use framed recognition."
 
 - id: ARCH0020-2
   statement: "Each turned body gets its own step chain anchored to its own silhouette: equal lengths on parallel shafts keep separate marks, and if no conflict-free lane exists a chain is dropped with a required-outcome diagnostic rather than drawn over a sibling."
