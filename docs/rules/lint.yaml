@@ -1083,8 +1083,9 @@
     module: "linting/pocket_pattern_coverage.py"
     issues: [1372]
     tests: [tests/test_pocket_pattern_completeness_evidence.py]
-  status: pending
-  rust_note: "Not ported (re-assessed in stream K5): blocked on the Analysis, which carries no pocket pattern on either path. On the default (native) path Rust quiddity's document has pocket_patterns (PocketGrid, PocketArray) and their pockets, but src/bridge/native.rs reads neither pockets nor section recesses yet (the G7b reader stream), so on draftwright's pocket-pattern-grid.step and pocket-pattern-linear.step the plan reports features_not_recognised for pockets and pocket_patterns and draws none; the Python bridge drops section_recess_patterns (DERIVED_NOT_READ). Reading them is new Analysis data, outside this stream's scope (dimension selection and coverage lints) and owned by the recess reader work; the planner and lint follow once the Analysis has them."
+  status: ported
+  rust_test: "tests/native_recesses.rs::native_patterns_have_one_grouped_callout_pitches_and_absolute_location"
+  rust_note: "Native recognition/3 and the Python bridge retain unified pattern members as feature IDs. One pattern owns count, W/L/D (MAX DEEP under a cylinder), one/two pitches and two absolute centre locations. Members are not dimensioned or linted singly. Lattice and member specifications are verified before dimensions are credited. As Python, non-Z patterns have no location compiler owner and remain unverifiable; directions outside the part axes are explicitly unsupported."
   port_note: "triage 2026-10-16: PORT, value medium, size L, stream recess-reader"
 
 - id: LINT-code-pocket_pattern_requirement_state
@@ -1095,8 +1096,9 @@
     module: "linting/pocket_pattern_coverage.py"
     issues: [1372]
     tests: [tests/test_pocket_pattern_completeness_evidence.py, tests/test_issue_1485_rounded_pockets.py]
-  status: pending
-  rust_note: "Not ported: see LINT-pocket_pattern_coverage-requirements (no pocket pattern reaches the Analysis; stream K5 re-assessment)."
+  status: ported
+  rust_test: "tests/native_recesses.rs::pocket_pattern_requirement_states_are_checked_independently"
+  rust_note: "Independent drawing lint reports pocket_pattern_requirement_missing, _suppressed and _unverifiable. Authored omissions cross the drawing boundary as provenance without ink. Removing pitch also reopens member location findings."
   port_note: "triage 2026-10-16: PORT, value medium, size S, stream recess-reader"
 
 - id: LINT-section_recess_coverage-hex_pocket

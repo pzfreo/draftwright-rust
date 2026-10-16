@@ -973,10 +973,9 @@ pub fn recognise(part: &Part, analysis: &mut Analysis, json: &str) -> Result<(),
     Ok(())
 }
 
-/// The families draftwright reads from Python quiddity that Rust quiddity's recognition document
-/// does not carry: section recesses (pockets, channels, blind slots and circular recesses, as
-/// draftwright reads them).
-pub const NOT_IN_NATIVE_DOCUMENT: [&str; 1] = ["section_recesses"];
+/// Families absent from the native document. Recognition/3 carries all families this
+/// consumer requires; unsupported published families are reported per part instead.
+pub const NOT_IN_NATIVE_DOCUMENT: [&str; 0] = [];
 
 /// Reads the STEP file at *path*, as [`analyse_with`] reads it, with its features from Rust
 /// quiddity's recognition document ([`crate::bridge::native`]) in place of Python quiddity's JSON.
@@ -1034,7 +1033,7 @@ pub fn recognise_document(
     for r in doc
         .records
         .iter()
-        .filter(|r| !native::READ.contains(&r.family.as_str()))
+        .filter(|r| !native::represented(&r.family))
     {
         *counts.entry(r.family.as_str()).or_default() += 1;
     }
@@ -1054,8 +1053,8 @@ pub fn recognise_document(
     analysis.recognition = Some(Recognition {
         recogniser: read.recogniser,
         frame: native::IDENTITY,
-        evidence: Vec::new(),
-        refusals: Vec::new(),
+        evidence: read.evidence,
+        refusals: read.refusals,
         patterns: read.patterns,
     });
     analysis.blend_sites = crate::blends::evidence(part, &features);
@@ -1885,7 +1884,11 @@ pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
     // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).
     let merged = crate::spec_gdt::effective(analysis, spec)?;
     let analysis = merged.as_ref();
-    crate::planning::with(analysis, || crate::sheets::allocate(analysis, spec))
+    crate::planning::with(analysis, || {
+        let mut plan = crate::sheets::allocate(analysis, spec)?;
+        crate::sheet_fit::reserve_recess_ink(analysis, &mut plan);
+        Ok(plan)
+    })
 }
 
 fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
@@ -5148,7 +5151,7 @@ fn render_annotations_with_cuts(
         plan.omitted
             .iter()
             .filter(|o| {
-                o.id.ends_with("/thickness.length")
+                (o.id.ends_with("/thickness.length") || o.id.starts_with("d:f:pocket_pattern:"))
                     && matches!(
                         o.state,
                         crate::items::State::OmittedByUser | crate::items::State::NotAuthored

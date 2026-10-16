@@ -30,7 +30,7 @@ operations work on them (`docs/model.md`, ADR R1). Every command prints JSON.
 
 On the command line, `analyse`, `plan`, `render` and `review` take the part's features from
 Rust quiddity's recognition, run on the part (`src/bridge/native.rs`); the Analysis names it
-(`recognition.recogniser`, `quiddity-rust <version> (quiddity-rust/recognition/2)`).
+(`recognition.recogniser`, `quiddity-rust <version> (quiddity-rust/recognition/3)`).
 `--features` passes Python quiddity's recognition JSON instead, written once with
 `tools/recognise.py`; `--no-features` draws with none (no feature dimensions, sections or
 lint); `--analysis` reuses an Analysis that `analyse` printed for the same file:
@@ -74,7 +74,7 @@ yet been tried in a real client.
 ## What alpha 1 does
 
 - **Recognition.** Features come from Rust quiddity's recognition document
-  (`quiddity-rust/recognition/2`), read fail-closed: an unknown schema, family or record type is
+  (`quiddity-rust/recognition/3`), read fail-closed: an unknown schema, family or record type is
   refused with the reason, never guessed. The families read are listed in
   `src/bridge/native.rs` (`READ`). Families the document has but the reader does not take are
   named in the Analysis (`unrecognised`) and reported by the plan (`features_not_recognised`).
@@ -133,12 +133,14 @@ Problem with a code on the item's ID, in `plan`, `render` and `review`.
   (`pmi_not_lowered`). A record haecceity could read only in part (NIST CTC-02's
   composite_shape_aspect groups, for example) is reported, not drawn, where draftwright draws
   OpenCascade's reading.
-- **Families not read natively:** draftwright's section recesses (pockets, channels, blind
-  slots, passages, read as one section-recess feature) are not in Rust quiddity's recognition
-  document: it carries the pocket, channel, blind slot and passage records they are made from,
-  which the reader does not take. Some other families it has (oriented chamfers, …) are not read
-  either. Both are named in the Analysis and reported as `features_not_recognised`;
-  `--features` gives section recesses from Python quiddity.
+- **Native recesses:** unified pockets, channels, blind slots and passages now use the
+  same record grammars as the Python bridge. Source refusals, step levels and risers
+  are retained. Pocket patterns own grouped callouts, pitches and absolute locations;
+  rounded pockets retain their corner-radius measurements. Other published families
+  with no drawing grammar remain named in `features_not_recognised`.
+  See [the native recess contract](docs/native-recesses.md) for limitations and the
+  required upstream dependency release.
+
 - **Families read but not dimensioned:** a recognised feature that no planner claims (blends,
   for example) gets a `dimensions_not_ported` info problem. An angled step cannot be dimensioned
   (draftwright has no grammar for it) and gets an `angled_step_requirement_unsupported` warning.

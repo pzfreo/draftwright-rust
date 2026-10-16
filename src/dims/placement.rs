@@ -456,6 +456,7 @@ pub(super) fn owners(
     super::plates::consolidate(analysis, &mut kept, &mut omitted);
     super::bosses::consolidate(analysis, &mut kept, &mut omitted);
     super::holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
+    super::recesses::consolidate(&mut kept, &mut given, &mut omitted);
     super::plates::share(analysis, &mut kept, &mut given, &mut omitted);
     super::share(&mut kept, &mut given, &mut omitted);
     super::redundancy::consolidate(analysis, &mut kept, &mut given, &mut omitted);
@@ -1152,9 +1153,7 @@ pub(super) fn clear_linear(
             .filter_map(|(_, p)| p.as_ref())
             .chain(obstacles.iter().filter_map(|d| d.placed.as_ref()))
             .collect();
-        if !others.iter().any(|q| conflict(p, q)) {
-            continue;
-        }
+        let conflict_before = others.iter().any(|q| conflict(p, q));
         let Some(v) = views.iter().find(|v| v.id.strip_prefix("v:") == Some(view)) else {
             continue;
         };
@@ -1188,6 +1187,9 @@ pub(super) fn clear_linear(
                 .sum::<usize>()
         };
         let before = crossings(p);
+        if !conflict_before && before == 0 {
+            continue;
+        }
         // Prefer the least obstructed of the opposite strip's first eight lanes.
         // Keeping a reported label conflict is better than adding body crossings.
         let found = (0..8)
@@ -1197,7 +1199,7 @@ pub(super) fn clear_linear(
                     return None;
                 }
                 let hits = crossings(&c);
-                (hits <= before).then_some((hits, lane, c))
+                (hits < before || conflict_before && hits == before).then_some((hits, lane, c))
             })
             .min_by_key(|(hits, lane, _)| (*hits, *lane));
         if let Some((_, lane, c)) = found {

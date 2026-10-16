@@ -1599,8 +1599,8 @@
     issues: [724, 725, 726, 727, 728, 1382, 1392, 1421, 1433]
     tests: []
   status: ported
-  rust_note: "Compact approved-value callout grammars are implemented for chamfers and fillets (src/dims/edges.rs; tests/dims_edges.rs), flats and grooves (tests/dims_grooves_flats.rs), steps and ramps (tests/dims_steps.rs), pockets (tests/dims_recesses.rs), blends (tests/dims_blends.rs), blind slots including ROUND-BOTTOM OPEN SLOT (tests/dims_slots.rs), and raised pads with footprint, HIGH height and location (src/dims/pads.rs; tests/completeness_rules.rs::each_raised_pad_states_its_footprint_height_and_location)."
-  rust_test: "tests/completeness_rules.rs::each_raised_pad_states_its_footprint_height_and_location"
+  rust_note: "Compact approved-value callout grammars remain implemented by the existing planners. Recess pockets, curved MAX DEEP pockets, channels and blind slots now receive their records on the native default path as well as the bridge. tests/native_recesses.rs checks native recess grammar and ownership; the existing pad, edge, step, slot and blend tests remain in force."
+  rust_test: "tests/completeness_rules.rs::each_raised_pad_states_its_footprint_height_and_location; tests/native_recesses.rs::native_recess_grammars_and_unsupported_dispositions_are_preserved"
   port_note: "Keep: callout text templates in the Plan's display-text formatter."
 
 - id: ARCH0015-2

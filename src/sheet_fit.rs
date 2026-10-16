@@ -872,6 +872,74 @@ pub(crate) fn choose(
     Some((chosen, smallest))
 }
 
+/// Reserve actual settled recess annotation ink in free paper around its view. Estimates
+/// need not remain undersized after new feature families arrive. This moves no ink and never
+/// claims space occupied by another view, an annotation in it, the border or sheet furniture.
+pub(crate) fn reserve_recess_ink(analysis: &Analysis, plan: &mut Plan) {
+    if !analysis.features.iter().any(|f| f.kind == "section_recess") {
+        return;
+    }
+    let placed_count = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.placed.is_some())
+        .count();
+    let all = footprints(analysis, plan);
+    let mut protected = all[plan.views.len() + placed_count..].to_vec();
+    protected.push(plan.sheet.title_block);
+    let [width, height] = plan.sheet.page;
+    let mut changed = false;
+    for i in 0..plan.views.len() {
+        if plan.views[i].sheet != plan.sheet.number || plan.views[i].id == "v:iso" {
+            continue;
+        }
+        let id = plan.views[i].id.clone();
+        let mut area = plan.views[i].area;
+        for d in plan.dimensions.iter().filter(|d| d.view == id) {
+            let Some(p) = &d.placed else {
+                continue;
+            };
+            include(&mut area, [p.label_box[0] - 0.1, p.label_box[1] - 0.1]);
+            include(&mut area, [p.label_box[2] + 0.1, p.label_box[3] + 0.1]);
+            for q in p.lines.iter().flatten() {
+                include(&mut area, *q);
+            }
+            for arrow in &p.arrows {
+                include_arrow(&mut area, *arrow);
+            }
+        }
+        let blocked = area[0] < MARGIN
+            || area[1] < MARGIN
+            || area[2] > width - MARGIN
+            || area[3] > height - MARGIN
+            || plan.views.iter().enumerate().any(|(j, v)| {
+                j != i && v.sheet == plan.views[i].sheet && crate::sheets::overlap(area, v.area)
+            })
+            || protected.iter().any(|b| crate::sheets::overlap(area, *b));
+        if !blocked {
+            plan.views[i].area = area;
+            plan.views[i].basis +=
+                "; settled recess annotation bounds reserved in otherwise free paper";
+            changed = true;
+        }
+    }
+    if changed {
+        let mut ink = plan.dimensions.clone();
+        ink.extend(plan.gdt.iter().filter_map(crate::dims::gdt::proxy));
+        let cache = crate::dims::footprints::Cache::default();
+        let findings =
+            crate::dims::label_collisions(analysis, &ink, &plan.sheet, &plan.views, &cache);
+        plan.problems
+            .retain(|p| p.code != "annotation_outside_area");
+        plan.problems.extend(
+            findings
+                .into_iter()
+                .filter(|p| p.code == "annotation_outside_area"),
+        );
+        plan.status = crate::completeness::status(&plan.problems);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

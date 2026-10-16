@@ -44,10 +44,9 @@
 //!   the port does not plan yet, so the channel stays `dimensions_not_ported`. Its depth and run
 //!   are the plates' and the overall extents', as in draftwright.
 //!
-//! Not done: quiddity's `section_recess_patterns` (draftwright's `N×` pocket patterns): the bridge
-//! does not read them (`bridge::DERIVED_NOT_READ`), so a pattern's pockets are dimensioned
-//! singly; no captured recognition has one. A recess location that coincides with a hole's or a
-//! slot's is not merged (ARCH0009-6).
+//! Unified pocket patterns share one callout, pitches and centre locations. Rounded pockets
+//! retain four corner-radius measurements under a shared radius callout. A recess location
+//! coinciding with a hole's or slot's is not merged (ARCH0009-6).
 
 use super::envelope::profile_views;
 use super::{
@@ -58,7 +57,10 @@ use crate::bridge::holes::{dir_to_part, principal, to_part};
 use crate::lint::section_recesses::{Grammar, grammar, recesses};
 use crate::lint::{channels, pockets};
 
-pub(super) const PLANNER: Planner = Planner { kinds: &[], wants };
+pub(super) const PLANNER: Planner = Planner {
+    kinds: &["pocket_pattern"],
+    wants,
+};
 
 fn not_dimensioned(f: &Feature, why: &str) -> Problem {
     Problem {
@@ -137,6 +139,8 @@ pub(super) fn location(
 fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let mut out = Vec::new();
     let mut problems = Vec::new();
+    corner_wants(cx, &mut out);
+    pattern_wants(cx, &mut out, &mut problems);
     pocket_wants(cx, &mut out, &mut problems);
     hex_wants(cx, &mut out, &mut problems);
     seat_wants(cx, &mut out, &mut problems);
@@ -147,6 +151,9 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
 fn pocket_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>) {
     let [lo, _] = cx.analysis.envelope;
     for (f, p) in pockets::placed(cx.analysis) {
+        if crate::lint::pocket_patterns::member(cx.analysis, &f.id) {
+            continue;
+        }
         let p = match p {
             Ok(p) => p,
             Err(why) => {
@@ -178,11 +185,7 @@ fn pocket_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>) 
             views: vec![view],
             value: p.width,
             terms,
-            measurements: vec![
-                m("pocket_width.length", p.width),
-                m("pocket_length.length", p.length),
-                m(depth, p.depth),
-            ],
+            measurements: vec![m("pocket_width.length",p.width),m("pocket_length.length",p.length),m(depth,p.depth)],
             turning: None,
             basis: format!(
                 "a blind pocket's width, length and {}depth in one callout, in the view that looks into it",
@@ -521,6 +524,248 @@ fn channel_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>)
             },
         });
     }
+}
+
+fn pattern_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>) {
+    for f in cx
+        .analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "pocket_pattern")
+    {
+        let group = match crate::lint::pocket_patterns::read(cx.analysis, f) {
+            Ok(p) => p,
+            Err(why) => {
+                problems.push(not_dimensioned(f, &why));
+                continue;
+            }
+        };
+        let p = &group.pocket;
+        let view = end_on(p.depth_axis);
+        let count = group.members.len();
+        let depth = if p.mouth {
+            "pocket_max_depth.length"
+        } else {
+            "pocket_depth.length"
+        };
+        let mut terms = vec![
+            format!("{count}×"),
+            fmt(p.width),
+            "×".into(),
+            fmt(p.length),
+            "×".into(),
+            fmt(p.depth),
+        ];
+        terms.extend(words(if p.mouth { "MAX DEEP" } else { "DEEP" }));
+        let mut measurements = Vec::new();
+        let mut sites = Vec::new();
+        let placed = pockets::placed(cx.analysis);
+        for owner in std::iter::once(f).chain(group.members.iter().copied()) {
+            for (parameter, value) in [
+                ("pocket_width.length", p.width),
+                ("pocket_length.length", p.length),
+                (depth, p.depth),
+            ] {
+                measurements.push(Measurement {
+                    feature: owner.id.clone(),
+                    parameter: parameter.into(),
+                    value,
+                });
+            }
+            if let Some((_, Ok(q))) = placed.iter().find(|(g, _)| g.id == owner.id) {
+                for sign in [-1.0, 1.0] {
+                    let mut c = q.centre;
+                    c[q.width_axis] += sign * q.width / 2.0;
+                    sites.push((c, 0.0));
+                }
+            }
+        }
+        measurements.push(Measurement {
+            feature: f.id.clone(),
+            parameter: "grouping.count".into(),
+            value: count as f64,
+        });
+        out.push(Want {
+            id: want_id(&f.id, "pocket_width.length"),
+            views: vec![view],
+            value: p.width,
+            terms,
+            measurements,
+            turning: None,
+            basis:
+                "one count and size/depth callout for identical recognised pocket-pattern members"
+                    .into(),
+            shape: Shape::Callout { sites },
+        });
+        for (parameter, axis, pitch, intervals, at) in group.pitches {
+            let mut b = at;
+            b[axis] += pitch;
+            out.push(Want {
+                id: want_id(&f.id, &parameter),
+                views: vec![view],
+                value: pitch,
+                terms: vec![format!("{intervals}× {}", fmt(pitch))],
+                measurements: vec![Measurement {
+                    feature: f.id.clone(),
+                    parameter,
+                    value: pitch,
+                }],
+                turning: None,
+                basis: "the recognised pocket pattern's pitch, counted across its intervals".into(),
+                shape: Shape::Linear {
+                    a: at,
+                    b,
+                    axis,
+                    a_edge: false,
+                    b_edge: false,
+                    order: 0,
+                },
+            });
+        }
+        for k in [p.long_axis, p.width_axis] {
+            if (group.centre[k] - cx.analysis.envelope[0][k]).abs() <= 1e-6 {
+                problems.push(on_datum(cx.analysis, &f.id, k));
+                continue;
+            }
+            out.push(location(
+                &[f],
+                &format!("location_pocket_pattern.location.{}", AXES[k]),
+                group.centre,
+                k,
+                cx.analysis.envelope[0][k],
+                view,
+                "the pocket pattern's centre located from the part's datum".into(),
+            ));
+        }
+    }
+}
+
+/// Equal corners share ink while retaining four independent requirements per occurrence.
+type CornerGroup<'a> = (usize, f64, Vec<(&'a Feature, &'a pockets::Placed)>);
+
+fn corner_wants(cx: &Context, out: &mut Vec<Want>) {
+    let placed = pockets::placed(cx.analysis);
+    let mut groups: Vec<CornerGroup> = Vec::new();
+    for (f, p) in &placed {
+        if let Ok(p) = p
+            && let Some(r) = p.corner_radius
+        {
+            if let Some((_, _, members)) = groups
+                .iter_mut()
+                .find(|(axis, radius, _)| *axis == p.depth_axis && (*radius - r).abs() < 1e-6)
+            {
+                members.push((f, p));
+            } else {
+                groups.push((p.depth_axis, r, vec![(f, p)]));
+            }
+        }
+    }
+    for (axis, r, members) in groups {
+        let count = members.len() * 4;
+        let mut measurements = Vec::new();
+        let mut sites = Vec::new();
+        for (f, p) in &members {
+            for (corner, (u, v)) in [(-1.0, -1.0), (-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)]
+                .into_iter()
+                .enumerate()
+            {
+                measurements.push(Measurement {
+                    feature: f.id.clone(),
+                    parameter: format!("pocket_corner_radius.radius.{corner}"),
+                    value: r,
+                });
+                let mut at = p.centre;
+                at[p.width_axis] += u * (p.width / 2.0 - r + r / std::f64::consts::SQRT_2);
+                at[p.long_axis] += v * (p.length / 2.0 - r + r / std::f64::consts::SQRT_2);
+                sites.push((at, 0.0));
+            }
+        }
+        out.push(Want {
+            id: want_id(&members[0].0.id, "pocket_corner_radius.radius"),
+            views: vec![end_on(axis)],
+            value: r,
+            terms: vec![format!("{count}×"), format!("R{}", fmt(r))],
+            measurements,
+            turning: None,
+            basis: "each rounded pocket retains four equal tangent corner-radius requirements"
+                .into(),
+            shape: Shape::Callout { sites },
+        });
+    }
+}
+
+type Kept = (Want, bool, Option<&'static str>, Vec<&'static str>);
+
+/// A recess location coincident with an existing dimension of the same datum span
+/// needs one carrier. Keep every exact measurement claim and an explicit covered ledger row.
+pub(super) fn consolidate(
+    kept: &mut Vec<Kept>,
+    given: &mut Vec<Vec<String>>,
+    omitted: &mut Vec<super::Omitted>,
+) {
+    let recess_location = |w: &Want| {
+        w.measurements.first().is_some_and(|m| {
+            m.parameter.starts_with("seat_location.")
+                || m.parameter.starts_with("location_pocket.")
+                || m.parameter.starts_with("location_pocket_pattern.")
+        })
+    };
+    let span = |k: &Kept| match k.0.shape {
+        Shape::Linear { a, b, axis, .. } => {
+            Some((k.2.unwrap_or(k.0.views[0]), axis, a[axis], b[axis]))
+        }
+        _ => None,
+    };
+    let mut gone = std::collections::BTreeSet::new();
+    for i in 0..kept.len() {
+        if gone.contains(&i) || !recess_location(&kept[i].0) {
+            continue;
+        }
+        let Some(s) = span(&kept[i]) else { continue };
+        let winner = (0..kept.len())
+            .filter(|&j| j != i && !gone.contains(&j))
+            .filter(|&j| !recess_location(&kept[j].0) || kept[j].0.id < kept[i].0.id)
+            .filter(|&j| {
+                span(&kept[j]).is_some_and(|t| {
+                    s.0 == t.0
+                        && s.1 == t.1
+                        && (s.2 - t.2).abs() <= crate::lint::redundancy::TOL
+                        && (s.3 - t.3).abs() <= crate::lint::redundancy::TOL
+                }) && kept[i].0.terms == kept[j].0.terms
+                    && given[i] == given[j]
+            })
+            .min_by_key(|&j| {
+                (
+                    !kept[j].0.id.starts_with("d:envelope/"),
+                    kept[j].0.id.clone(),
+                )
+            });
+        if let Some(j) = winner {
+            let claims = kept[i].0.measurements.clone();
+            for m in claims {
+                if !kept[j].0.measurements.contains(&m) {
+                    kept[j].0.measurements.push(m);
+                }
+            }
+            let by = kept[j].0.id.clone();
+            omitted.push(super::Omitted {id:kept[i].0.id.clone(),label:kept[i].0.terms.join(" "),
+                basis:format!("conveyed by {by}: the same recess datum span in the same view, with the same approved label"),
+                state:crate::items::State::Covered {by}});
+            gone.insert(i);
+        }
+    }
+    let mut i = 0;
+    kept.retain(|_| {
+        let keep = !gone.contains(&i);
+        i += 1;
+        keep
+    });
+    let mut i = 0;
+    given.retain(|_| {
+        let keep = !gone.contains(&i);
+        i += 1;
+        keep
+    });
 }
 
 #[cfg(test)]

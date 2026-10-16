@@ -52,10 +52,28 @@ fn stating(plan: &Plan, a: &Analysis) -> Vec<(String, String, String)> {
                 .iter()
                 .any(|m| ids.contains(&m.feature.as_str()))
         })
-        .map(|d| {
-            let (_, parameter) = d.id.split_once('/').unwrap();
-            let view = d.view.trim_start_matches("v:");
-            (parameter.to_string(), view.to_string(), d.label.clone())
+        .flat_map(|d| {
+            let parameters = if d.id.starts_with("d:f:section_recess:") {
+                vec![d.id.split_once('/').unwrap().1.to_string()]
+            } else {
+                // A coincident overall span can carry a recess location. Check the same
+                // physical statement even when its drawing-owned carrier has another ID.
+                d.measurements
+                    .iter()
+                    .filter(|m| ids.contains(&m.feature.as_str()))
+                    .map(|m| m.parameter.clone())
+                    .collect()
+            };
+            parameters
+                .into_iter()
+                .map(|parameter| {
+                    (
+                        parameter,
+                        d.view.trim_start_matches("v:").to_string(),
+                        d.label.clone(),
+                    )
+                })
+                .collect::<Vec<_>>()
         })
         .collect();
     out.sort();
@@ -326,8 +344,20 @@ fn identical_hex_pockets_and_coaxial_seats_are_counted_once() {
     let located: Vec<(String, usize)> = plan
         .dimensions
         .iter()
-        .filter(|d| d.id.contains("/seat_location."))
-        .map(|d| (d.label.clone(), d.measurements.len()))
+        .filter(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.parameter.starts_with("seat_location."))
+        })
+        .map(|d| {
+            (
+                d.label.clone(),
+                d.measurements
+                    .iter()
+                    .filter(|m| m.parameter.starts_with("seat_location."))
+                    .count(),
+            )
+        })
         .collect();
     assert_eq!(
         located,

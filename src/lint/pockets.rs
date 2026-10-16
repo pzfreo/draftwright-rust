@@ -22,11 +22,8 @@
 //!
 //! Python follows a Z pocket's two locations through one structured fact that covers both
 //! (`location_pocket.location`); here each is a requirement its claiming annotation must print.
-//! Not ported: a pocket that is a member of a recognised pocket pattern belongs to the pattern,
-//! not to this family; the bridge drops quiddity's derived `section_recess_patterns`, so
-//! membership cannot be read, and every pocket is judged as a lone one (no corpus recognition has
-//! a recess pattern). Not reached: `_suppressed` and `dropped` (lint cannot read the author's
-//! omissions or the placement's drops) and the assembly severity.
+//! Pattern members belong to [`super::pocket_patterns`]. Rounded pockets retain four
+//! independent corner-radius requirements, including pattern members.
 //!
 //! Hexagonal pockets (Python's `lint_hex_pocket_coverage` in `linting/section_recess_coverage.py`,
 //! LINT-section_recess_coverage-hex_pocket): each section recess the grammar reads as a regular
@@ -60,6 +57,7 @@ pub struct Placed {
     pub edge_anchored: bool,
     /// Its mouth is a cylinder, so its depth is its greatest.
     pub mouth: bool,
+    pub corner_radius: Option<f64>,
 }
 
 /// The Analysis's pockets in quiddity's order, each read in the part's frame or why it cannot be.
@@ -125,6 +123,7 @@ pub fn placed(analysis: &Analysis) -> Vec<(&Feature, Result<Placed, String>)> {
                     w_center: centre[width_axis],
                     edge_anchored: p.edge_anchored,
                     mouth: p.mouth.is_some(),
+                    corner_radius: p.corner_radius,
                 }),
             )
         })
@@ -162,6 +161,9 @@ pub fn locations(p: &Placed, datum: [f64; 3]) -> Vec<(String, f64)> {
 pub fn wanted(analysis: &Analysis) -> Vec<Wanted<'_>> {
     let mut out = Vec::new();
     for (f, p) in placed(analysis) {
+        if super::pocket_patterns::member(analysis, &f.id) {
+            continue;
+        }
         let p = match p {
             Ok(p) => p,
             Err(why) => {
@@ -314,6 +316,32 @@ pub fn hex_coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         marks,
         noun,
         "the hex pocket's callout (size across flats and depth), in the view along its axis",
+    )
+}
+
+/// Four physical corner requirements survive removal of their shared radius annotation.
+pub fn corner_coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
+    let mut wanted = Vec::new();
+    for (f, p) in placed(a) {
+        if let Ok(p) = p
+            && let Some(r) = p.corner_radius
+        {
+            for corner in 0..4 {
+                wanted.push(Wanted {
+                    feature: f,
+                    parameter: format!("pocket_corner_radius.radius.{corner}"),
+                    values: Ok(vec![r]),
+                    callout: format!("R{}", fmt(r)),
+                });
+            }
+        }
+    }
+    parameters::coverage(
+        "pocket_corner",
+        &wanted,
+        marks,
+        |f| format!("pocket {}", f.id),
+        "a radius callout identifying each equal tangent corner",
     )
 }
 

@@ -67,6 +67,7 @@ pub mod paired_ramp_steps;
 pub mod parameters;
 pub mod plates;
 pub mod pmi_coverage;
+pub mod pocket_patterns;
 pub mod pockets;
 pub mod polygonal;
 pub mod prismatic;
@@ -423,6 +424,8 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(plates::coverage(analysis, marks));
     issues.extend(polygonal::stock_coverage(analysis, marks));
     issues.extend(pockets::coverage(analysis, marks));
+    issues.extend(pockets::corner_coverage(analysis, marks));
+    issues.extend(pocket_patterns::coverage(analysis, marks));
     issues.extend(pmi_coverage::coverage(analysis, marks));
     issues.extend(envelope::coverage(analysis, marks));
     issues.extend(turned::coverage(analysis, marks));

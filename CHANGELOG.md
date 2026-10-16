@@ -6,6 +6,16 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## 0.1.0-alpha.3 (2026-10-16)
 
+- Read native recognition/3 unified section recesses, source refusals, face levels
+  and risers. The default path now uses the existing pocket/channel/blind-slot/
+  passage drafting grammars and no longer warns that section recesses are absent
+  from the document. Both readers retain unified pocket patterns: grouped count
+  and size/depth callouts, pitch and absolute locations, independent coverage
+  outcomes, and four retained radius requirements per rounded pocket. Five pending
+  recess-reader rules and four formerly bridge-only rules have native regressions.
+  See docs/native-recesses.md for the required quiddity release/pin migration.
+
+
 ### Added
 
 - Gzipped STEP input (maintainer decision 2026-10-15): every command (`analyse`, `plan`,

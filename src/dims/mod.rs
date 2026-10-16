@@ -1032,6 +1032,7 @@ pub(crate) fn plan_inventory(
         bosses::consolidate(analysis, &mut defaults, &mut unused);
         let mut nominal = vec![Vec::new(); defaults.len()];
         holes::consolidate(analysis, &mut defaults, &mut nominal, &mut unused);
+        recesses::consolidate(&mut defaults, &mut nominal, &mut unused);
         plates::share(analysis, &mut defaults, &mut nominal, &mut unused);
         share_statements(&mut defaults, &mut nominal, &mut unused, true);
         share_pmi(&mut defaults, &mut nominal, &mut unused);
@@ -1108,6 +1109,7 @@ pub(crate) fn plan_inventory(
     pmi_dimensions::hide_fit_limits(spec, &notes, &mut kept);
     let mut given = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems)?;
     holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
+    recesses::consolidate(&mut kept, &mut given, &mut omitted);
     plates::share(analysis, &mut kept, &mut given, &mut omitted);
     share_statements(&mut kept, &mut given, &mut omitted, true);
     share_pmi(&mut kept, &mut given, &mut omitted);
@@ -1364,7 +1366,8 @@ pub(crate) fn plan_inventory(
     // Edited text can outgrow the canonical lanes. Keep the canonical layout stable
     // for pins and omission edits; their avoidance pass above owns that geometry.
     if (spec.dimensions.values().any(|d| d.tolerance.is_some())
-        || spec.features.values().any(|f| f.fit.is_some()))
+        || spec.features.values().any(|f| f.fit.is_some())
+        || analysis.features.iter().any(|f| f.kind == "section_recess"))
         && intended.iter().all(Option::is_none)
     {
         placement::clear_linear(

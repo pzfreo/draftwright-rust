@@ -699,6 +699,14 @@ pub(super) fn place_with_obstacles(
                 let radial = rim_tip(site, b.elbow);
                 let u = [radial[0] - site.0[0], radial[1] - site.0[1]];
                 for turn in ROTATIONS {
+                    // A radius leader must remain radial when other feature ink moves it.
+                    if items[jobs[k].0]
+                        .measurements
+                        .iter()
+                        .any(|m| m.parameter == "slot_end_radius.radius")
+                    {
+                        continue;
+                    }
                     let (sin, cos) = (turn * std::f64::consts::TAU / DIRECTIONS as f64).sin_cos();
                     let tip = [
                         site.0[0] + cos * u[0] - sin * u[1],
