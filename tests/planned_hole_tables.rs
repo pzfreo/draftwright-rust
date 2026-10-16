@@ -839,3 +839,316 @@ fn entry_cells_use_the_view_frame_and_lint_checks_it() {
         );
     }
 }
+
+#[test]
+fn an_omitted_hole_size_has_no_schedule_row_or_claim() {
+    let (part, analysis) = plate();
+    let ordinary = model::plan(analysis, &setting("never")).unwrap();
+    let callout = ordinary
+        .dimensions
+        .iter()
+        .find(|d| d.id.starts_with("d:f:hole:") && d.kind == "callout")
+        .unwrap();
+    let features: Vec<_> = callout
+        .measurements
+        .iter()
+        .filter(|m| m.parameter == "bore.diameter")
+        .map(|m| m.feature.clone())
+        .collect();
+    assert!(!features.is_empty());
+    let spec = model::edit(&setting("always"), &serde_json::json!([{"op":"set", "path":format!("dimensions/{}/omit", draftwright::items::key(&callout.id)), "value":true}])).unwrap();
+    let plan = model::plan_escalated(analysis, &spec).unwrap();
+    assert!(!plan.hole_tables.is_empty());
+    assert!(
+        plan.hole_tables
+            .iter()
+            .flat_map(|t| &t.rows)
+            .all(|r| !features.contains(&r.feature))
+    );
+    assert!(
+        plan.omitted
+            .iter()
+            .any(|o| o.id == callout.id && o.state == draftwright::items::State::OmittedByUser)
+    );
+    let font =
+        Font::open(&Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
+            .unwrap();
+    let drawing = model::render(part, analysis, &plan, &font).unwrap();
+    assert!(
+        !drawing
+            .annotations
+            .iter()
+            .flat_map(|a| &a.claims)
+            .any(|c| features.contains(&c.feature) && c.parameter == "bore.diameter")
+    );
+    assert!(
+        draftwright::lint::lint(analysis, &drawing)
+            .iter()
+            .any(|i| i.code == "hole_requirement_missing"
+                && i.subjects.iter().any(|f| features.contains(f)))
+    );
+}
+
+#[test]
+fn damaged_size_cells_lose_size_through_and_quantity_evidence() {
+    let (part, analysis) = plate();
+    let plan = model::plan_escalated(analysis, &setting("always")).unwrap();
+    let font =
+        Font::open(&Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
+            .unwrap();
+    let original = model::render(part, analysis, &plan, &font).unwrap();
+    let size = original
+        .annotations
+        .iter()
+        .find(|a| a.name.starts_with("hole_schedule_") && a.name.ends_with("/size"))
+        .unwrap();
+    let feature = &size.claims[0].feature;
+    for damage in ["wrong", "empty", "missing", "role", "approval", "binding"] {
+        let mut drawing = original.clone();
+        let index = drawing
+            .annotations
+            .iter()
+            .position(|a| a.name == size.name)
+            .unwrap();
+        match damage {
+            "wrong" => drawing.text[size.runs[0]].text = "⌀9999 THRU".into(),
+            "empty" => drawing.annotations[index].runs.clear(),
+            "missing" => {
+                drawing.annotations.remove(index);
+            }
+            "role" => {
+                drawing.annotations[index].claims[0].parameter = "bolt_circle.diameter".into()
+            }
+            "approval" => drawing.annotations[index].approved_text = None,
+            "binding" => drawing.annotations[index].approved_claims.clear(),
+            _ => unreachable!(),
+        }
+        let findings = draftwright::lint::lint(analysis, &drawing);
+        for parameter in ["bore.diameter", "bore.through", "grouping.count"] {
+            assert!(
+                findings.iter().any(|i| i
+                    .requirements
+                    .iter()
+                    .any(|r| &r.feature == feature && r.parameter == parameter)),
+                "{damage} {parameter}: {findings:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn approved_diameter_tolerances_reach_every_scheduled_size_cell_verbatim() {
+    let (part, analysis) = plate();
+    let ordinary = model::plan(analysis, &setting("never")).unwrap();
+    let ops: Vec<_> = ordinary.dimensions.iter().filter(|d| d.kind == "callout" && d.measurements.iter().any(|m| m.parameter == "bore.diameter"))
+        .enumerate().map(|(i,d)| serde_json::json!({"op":"set", "path":format!("dimensions/{}/tolerance",draftwright::items::key(&d.id)), "value":format!("±0.{:02}", i+11)})).collect();
+    assert!(!ops.is_empty());
+    let spec = model::edit(&setting("always"), &serde_json::json!(ops)).unwrap();
+    let plan = model::plan_escalated(analysis, &spec).unwrap();
+    let font =
+        Font::open(&Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
+            .unwrap();
+    let drawing = model::render(part, analysis, &plan, &font).unwrap();
+    let rows: Vec<_> = plan.hole_tables.iter().flat_map(|t| &t.rows).collect();
+    assert_eq!(rows.len(), 18);
+    for row in rows {
+        let source = plan
+            .dimensions
+            .iter()
+            .find(|d| {
+                d.kind == "callout"
+                    && d.measurements
+                        .iter()
+                        .any(|m| m.feature == row.feature && m.parameter == "bore.diameter")
+            })
+            .unwrap();
+        let band = source.terms.iter().find(|t| t.starts_with('±')).unwrap();
+        assert!(
+            row.cells[1].contains(band),
+            "{}: {}",
+            row.feature,
+            row.cells[1]
+        );
+        let cell = drawing
+            .annotations
+            .iter()
+            .find(|a| a.name.ends_with(&format!("/{}/size", row.tag)))
+            .unwrap();
+        let ink = cell
+            .runs
+            .iter()
+            .map(|&i| drawing.text[i].text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert_eq!(ink, row.cells[1]);
+    }
+}
+
+#[test]
+fn drawing_consumer_observes_real_ink_and_reports_failed_builds_unknown() {
+    use draftwright::evaluation::{State, drawing_consumer};
+    let (part, analysis) = plate();
+    let font =
+        Font::open(&Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
+            .unwrap();
+    for setting_name in ["always", "never"] {
+        let plan = model::plan_escalated(analysis, &setting(setting_name)).unwrap();
+        let original = model::render(part, analysis, &plan, &font).unwrap();
+        let observed = drawing_consumer(analysis, Ok(std::slice::from_ref(&original)));
+        assert_eq!(
+            (observed.supported, observed.unsupported, observed.unknown),
+            (18, 0, 0)
+        );
+        assert!(observed.holes.iter().all(|h| !h.carriers.is_empty()));
+        for damage in ["empty", "wrong", "missing", "quantity"] {
+            let mut drawing = original.clone();
+            if damage == "missing" {
+                drawing
+                    .annotations
+                    .retain(|a| !a.claims.iter().any(|c| c.parameter == "bore.diameter"));
+            } else {
+                let runs: Vec<_> = drawing
+                    .annotations
+                    .iter()
+                    .filter(|a| a.claims.iter().any(|c| c.parameter == "bore.diameter"))
+                    .flat_map(|a| &a.runs)
+                    .copied()
+                    .collect();
+                for run in runs {
+                    drawing.text[run].text = match damage {
+                        "empty" => "",
+                        "quantity" => "5×",
+                        _ => "18× ⌀9999 THRU",
+                    }
+                    .into();
+                }
+            }
+            let observed = drawing_consumer(analysis, Ok(&[drawing]));
+            assert_eq!(
+                (observed.supported, observed.unsupported, observed.unknown),
+                (0, 18, 0),
+                "{setting_name}/{damage}"
+            );
+            assert!(
+                observed
+                    .holes
+                    .iter()
+                    .all(|h| h.carriers.is_empty() && h.reason.is_some())
+            );
+        }
+    }
+    let failed = drawing_consumer(analysis, Err("renderer failed"));
+    assert_eq!(
+        (failed.supported, failed.unsupported, failed.unknown),
+        (0, 0, 18)
+    );
+    assert_eq!(failed.build_error.as_deref(), Some("renderer failed"));
+    assert!(
+        failed
+            .holes
+            .iter()
+            .all(|h| h.state == State::Unknown && h.reason.as_deref() == Some("renderer failed"))
+    );
+    let review = draftwright::api::review_analysed(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/scattered_holes.step"),
+        analysis,
+        &setting("always"),
+    )
+    .unwrap();
+    assert_eq!(review.drawing_consumer.supported, 18);
+}
+
+#[test]
+fn schedule_cell_evidence_checks_approved_tolerance_precision_and_through_wording() {
+    let (part, analysis) = plate();
+    let ordinary = model::plan(analysis, &setting("never")).unwrap();
+    let callout = ordinary
+        .dimensions
+        .iter()
+        .find(|d| d.kind == "callout" && d.id.starts_with("d:f:hole:"))
+        .unwrap();
+    let spec = model::edit(&setting("always"), &serde_json::json!([{"op":"set", "path":format!("dimensions/{}/tolerance", draftwright::items::key(&callout.id)), "value":"±0.02"}])).unwrap();
+    let plan = model::plan_escalated(analysis, &spec).unwrap();
+    let font =
+        Font::open(&Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
+            .unwrap();
+    let original = model::render(part, analysis, &plan, &font).unwrap();
+    let cell = original
+        .annotations
+        .iter()
+        .find(|a| {
+            a.approved_text
+                .as_ref()
+                .is_some_and(|t| t.contains("±0.02"))
+        })
+        .unwrap();
+    assert!(
+        !draftwright::lint::lint(analysis, &original)
+            .iter()
+            .any(|i| i.code == "claimed_value_absent")
+    );
+    let approved = cell.approved_text.as_ref().unwrap();
+    for actual in [
+        approved.replace("±0.02", "±0.2"),
+        approved.replace(" ±0.02", ""),
+        approved.replace("THRU", ""),
+        approved.replace("±0.02", "±0.020"),
+    ] {
+        let mut drawing = original.clone();
+        drawing.text[cell.runs[0]].text = actual.clone();
+        let issues = draftwright::lint::lint(analysis, &drawing);
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.code == "claimed_value_absent"
+                    && i.annotation.as_deref() == Some(&cell.name)),
+            "{actual}: {issues:?}"
+        );
+        // The authored callout is additive evidence and may still document this hole;
+        // the damaged table cell itself must lose every claim.
+        assert!(
+            draftwright::lint::marks(&drawing)
+                .iter()
+                .find(|m| m.name == cell.name)
+                .unwrap()
+                .claims
+                .is_empty()
+        );
+    }
+}
+
+#[test]
+fn a_schedule_coordinate_cannot_change_its_approved_axis_or_owner() {
+    let (part, analysis) = plate();
+    let plan = model::plan_escalated(analysis, &setting("always")).unwrap();
+    let font =
+        Font::open(&Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
+            .unwrap();
+    let original = model::render(part, analysis, &plan, &font).unwrap();
+    let index = original
+        .annotations
+        .iter()
+        .position(|a| a.name.starts_with("hole_schedule_") && a.name.ends_with("/x"))
+        .unwrap();
+    for damage in ["axis", "owner", "binding"] {
+        let mut drawing = original.clone();
+        let cell = &mut drawing.annotations[index];
+        let name = cell.name.clone();
+        match damage {
+            "axis" => cell.claims[0].parameter = "location.length.y".into(),
+            "owner" => cell.claims[0].feature = "f:hole:foreign".into(),
+            "binding" => cell.approved_claims.clear(),
+            _ => unreachable!(),
+        }
+        let issues = draftwright::lint::lint(analysis, &drawing);
+        assert!(issues.iter().any(|i| i.code == "claimed_value_absent" && i.annotation.as_deref() == Some(&name)), "{damage}: {issues:?}");
+        assert!(
+            draftwright::lint::marks(&drawing)
+                .iter()
+                .find(|m| m.name == name)
+                .unwrap()
+                .claims
+                .is_empty()
+        );
+    }
+}

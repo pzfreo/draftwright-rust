@@ -346,3 +346,141 @@ fn member_ordinates_prove_a_grid_without_an_axis_aligned_lattice() {
             .any(|i| i.code == "hole_pattern_requirement_unverifiable")
     );
 }
+
+/// A GA keeps exactly the same coverage evidence, but every feature family's missing or
+/// unverifiable requirement is informational. This exercises both the generic backstop and
+/// families that historically built their own Warning issues.
+#[test]
+fn assembly_severity_reaches_all_feature_coverage_families() {
+    let a = analysis(vec![
+        feature(
+            "hole",
+            1,
+            json!({"axis":[0,0,1],"location":[12,12,10],
+            "diameter":4,"depth":10,"bottom":"through"}),
+        ),
+        feature(
+            "boss",
+            2,
+            json!({"axis":[0,0,1],"location":[15,15,10],
+            "diameter":6,"height":4}),
+        ),
+        feature("fillet", 3, json!({"radius":3})),
+        feature("chamfer", 4, json!({"distance":1})),
+        feature("oriented_slot", 5, json!({})),
+        feature("pad", 6, json!({})),
+        feature("double_d_bore", 7, json!({})),
+    ]);
+    let strict = lint::check(&a, &[]);
+    for code in [
+        "feature_not_dimensioned",
+        "hole_requirement_missing",
+        "boss_height_missing",
+        "fillet_requirement_missing",
+        "oriented_slot_requirement_unverifiable",
+        "pad_requirement_unverifiable",
+        "profiled_bore_not_dimensioned",
+    ] {
+        assert!(
+            strict.iter().any(|i| i.code == code),
+            "missing exercised family {code}: {strict:?}"
+        );
+    }
+    for solids in [None, Some(1), Some(2), Some(4)] {
+        let mut a = a.clone();
+        a.solid_count = solids;
+        let ga = lint::check(&a, &[]);
+        assert_eq!(ga.len(), strict.len());
+        for (mut expected, got) in strict.iter().cloned().zip(ga) {
+            if solids.is_some_and(|n| n > 1) && expected.severity == Severity::Warning {
+                expected.severity = Severity::Info;
+            }
+            assert_eq!(got, expected, "{solids:?}");
+        }
+    }
+}
+
+/// ADR3-8: exact occurrences, including repeated occurrences in a deferred family, survive
+/// as explicit, typed policy. Adding a provider subtype must not silently invent a reason.
+#[test]
+fn ownerless_occurrences_have_closed_policy_reasons() {
+    use draftwright::dims::{Disposition, DispositionReason, FeatureDisposition};
+    let subtypes = [
+        "CircularFacePattern",
+        "CounterSink",
+        "FreeformSurface",
+        "InteriorVoid",
+        "ObliqueThroughStep",
+        "OrientedChamfer",
+        "OrientedSlotArray",
+        "OrientedSlotGrid",
+        "SheetMetalBody",
+        "ThinWallBody",
+        "InteriorVoid",
+    ];
+    let mut fs: Vec<_> = subtypes
+        .iter()
+        .enumerate()
+        .map(|(i, subtype)| {
+            let mut f = feature("undrafted", i, json!({}));
+            f["fingerprint"]["subtype"] = json!(subtype);
+            f
+        })
+        .collect();
+    fs.push(feature("angled_step", 20, json!({})));
+    fs.push(feature("new_family", 21, json!({})));
+    fs.push(feature(
+        "hole",
+        22,
+        json!({"axis":[0,0,1],"location":[12,12,10],
+        "diameter":4,"depth":10,"bottom":"through"}),
+    ));
+    let a = analysis(fs);
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(p.feature_dispositions.len(), subtypes.len() + 2);
+    for (i, subtype) in subtypes.iter().enumerate() {
+        let entries: Vec<_> = p
+            .feature_dispositions
+            .iter()
+            .filter(|d| d.subject == format!("f:undrafted:{i}"))
+            .collect();
+        assert_eq!(entries.len(), 1);
+        let d = entries[0];
+        assert_eq!(d.severity, "info");
+        if *subtype == "CounterSink" {
+            assert_eq!(d.disposition, Disposition::EvidenceOnly);
+            assert_eq!(d.reason_code, DispositionReason::HoleCalloutEvidence);
+        } else {
+            assert_eq!(d.disposition, Disposition::Deferred);
+            assert_eq!(d.reason_code, DispositionReason::ConsumerSemanticsDeferred);
+        }
+    }
+    assert!(
+        p.feature_dispositions
+            .iter()
+            .any(|d| d.subject == "f:angled_step:20"
+                && d.disposition == Disposition::Unsupported
+                && d.reason_code == DispositionReason::ConsumerSemanticsUnsupported)
+    );
+    assert!(
+        p.feature_dispositions
+            .iter()
+            .any(|d| d.subject == "f:new_family:21"
+                && d.disposition == Disposition::Deferred
+                && d.reason_code == DispositionReason::DimensionsNotPorted)
+    );
+    assert!(
+        !p.feature_dispositions
+            .iter()
+            .any(|d| d.subject == "f:hole:22")
+    );
+    // A policy record does not erase the existing warning for an unsupported step.
+    assert!(
+        p.problems
+            .iter()
+            .any(|p| p.code == "angled_step_requirement_unsupported" && p.severity == "warning")
+    );
+    let mut bad = serde_json::to_value(&p.feature_dispositions[0]).unwrap();
+    bad["reason_code"] = json!("unreviewed_excuse");
+    assert!(serde_json::from_value::<FeatureDisposition>(bad).is_err());
+}

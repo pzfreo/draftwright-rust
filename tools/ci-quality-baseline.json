@@ -375,7 +375,7 @@
       "views_overlap": 0
     }
   },
-  "source": "docs/rules/text-batch.md: rules-text audit; 30-part non-regression and measured improvements",
-  "source_commit": "12f264ee31149049d6f4ff5253a50f490e2b05b4",
-  "verified_binary_sha256": "035e27a2d10fa807dddc02d4dbe2070af120cf592b7511b0cfa49637ebca8c89"
+  "source": "30-part review-leftovers quality audit, 2026-10-16; all 300 cells checked against the previous baseline",
+  "source_commit": "92769b213eaf54e5db5aad77a982cf13bab30c50",
+  "verified_binary_sha256": "a2eaa85fd7e8a6a9f8c140d3dba03a9250d963ac1acf2d1caa596001c6969072"
 }

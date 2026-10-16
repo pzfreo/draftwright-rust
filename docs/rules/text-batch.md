@@ -1,5 +1,9 @@
 # Text and feature rule batch, 2026-10-16
 
+This records the batch before main's approved catalogue triage was merged. The
+[current merge report](text-main-merge-2026-10-16.md) records the final catalogue
+verdicts and validation against main.
+
 The 29 assigned rules were reviewed against the Python catalogue revision
 `586628b96db6779454d499c7d92d37f1aa8f1df9`, its cited regression tests and the Rust
 Analysis, Spec, planning, output and lint implementations. The read-only Python

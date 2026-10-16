@@ -70,11 +70,11 @@ class Acceptance(unittest.TestCase):
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertIn('incomplete' if not error else 'render failed', result.stderr)
 
-    def test_survey_requires_all_63_parts_and_zero_repeated_spans(self):
+    def test_survey_requires_all_65_parts_and_zero_repeated_spans(self):
         names = [Path(p).stem for p in (ROOT / 'tools/repeated_span_parts.txt').read_text().splitlines()]
         names += [Path(p.name[:-3]).stem for p in (ROOT / 'tests/fixtures/pmi/step').glob('*.gz')]
         result = {name: {'repeated_span': 0} for name in names}
-        self.assertEqual(len(result), 63)
+        self.assertEqual(len(result), 65)
         self.assertEqual(self.check('survey', result).returncode, 0)
         for bad in (dict(list(result.items())[1:]), {**result, names[0]: {'repeated_span': 1}},
                     {**result, names[0]: {'error': 'render failed'}}):
@@ -210,11 +210,11 @@ class Acceptance(unittest.TestCase):
         spec.loader.exec_module(plan_time)
         names = self.runner().survey_names()
         parts = {p: {'instructions': 100, 'seconds': 1} for p in names}
-        budget = {'format': plan_time.FORMAT, 'instructions': {'darwin-arm64': 6300}}
+        budget = {'format': plan_time.FORMAT, 'instructions': {'darwin-arm64': 6500}}
         self.assertTrue(plan_time.verdict(parts, budget, 'darwin-arm64')['passed'])
         slower = {p: {'instructions': 116, 'seconds': 1} for p in names}
         self.assertFalse(plan_time.verdict(slower, budget, 'darwin-arm64')['passed'])
-        lowered = {**budget, 'instructions': {'darwin-arm64': 6300 * .7}}
+        lowered = {**budget, 'instructions': {'darwin-arm64': 6500 * .7}}
         self.assertFalse(plan_time.verdict(parts, lowered, 'darwin-arm64')['passed'])
         # No figure for the platform, or no counter: report only, never fail.
         for key, rows in (('linux-x86_64', parts),
@@ -232,24 +232,33 @@ class Acceptance(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('plan_time', ROOT / 'tools/check_plan_time.py')
         plan_time = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(plan_time)
-        # A marker in the command line finds the child; the work is long enough to pause.
+        # Capture the actual counted child, without requiring a process-list service.
+        # The work is long enough to pause.
         marker = f'paused-{os.getpid()}'
         command = [sys.executable, '-I', '-c', f's = 0\nfor i in range(40_000_000): s += i  # {marker}']
         whole, _ = plan_time.counted(command)
         found = {}
         counting = threading.Thread(target=lambda: found.update(paused=plan_time.counted(command)[0]))
-        counting.start()
-        pid = None
-        while pid is None and counting.is_alive():
-            listed = subprocess.run(['pgrep', '-f', marker], capture_output=True, text=True).stdout.split()
-            pid = int(listed[-1]) if listed else None
-        # As a load governor does: the child paused and continued while it runs.
-        for _ in range(3):
-            time.sleep(0.2)
-            os.kill(pid, signal.SIGSTOP)
-            time.sleep(0.2)
-            os.kill(pid, signal.SIGCONT)
-        counting.join()
+        started = threading.Event()
+        spawn = plan_time.subprocess.Popen
+
+        def counted_child(*args, **kwargs):
+            child = spawn(*args, **kwargs)
+            found['pid'] = child.pid
+            started.set()
+            return child
+
+        with patch.object(plan_time.subprocess, 'Popen', side_effect=counted_child):
+            counting.start()
+            self.assertTrue(started.wait(5), 'counted child did not start')
+            pid = found['pid']
+            # As a load governor does: the child paused and continued while it runs.
+            for _ in range(3):
+                time.sleep(0.2)
+                os.kill(pid, signal.SIGSTOP)
+                time.sleep(0.2)
+                os.kill(pid, signal.SIGCONT)
+            counting.join()
         self.assertGreater(found['paused'], 0.9 * whole)
 
     def test_ci_runs_render_tail_budget_with_release_binary(self):
@@ -335,7 +344,7 @@ class Acceptance(unittest.TestCase):
         with self.assertRaises(ValueError):
             instructions.assess({'a': {'base': 100, 'head': 0}})
 
-    def test_survey_shards_partition_the_63_parts(self):
+    def test_survey_shards_partition_the_65_parts(self):
         runner = self.runner()
         names = runner.survey_names()
         slices = [runner.survey.in_shard(names, k, 4) for k in range(1, 5)]
@@ -379,7 +388,7 @@ class Acceptance(unittest.TestCase):
                     patch.object(survey.quality, 'table'):
                 self.assertEqual(survey.main(), 1)
             results = json.loads((Path(tmp) / 'baseline.json').read_text())
-            self.assertEqual(len(results), 63)
+            self.assertEqual(len(results), 65)
             self.assertTrue(all('timed out' in row['error'] for row in results.values()))
 
     def test_failed_subprocess_reports_exit_before_missing_results(self):

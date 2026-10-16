@@ -40,10 +40,11 @@
 //! Python's `pmi_present_but_ignored` is not-applicable: the port has no switch that ignores a
 //! part's PMI. Its other codes wait on the drawing or on a decision: of the manufacturing notes,
 //! finish symbols and requirement table that `pmi_source_text_mismatch`, `pmi_source_site_mismatch`
-//! and `manufacturing_reference_unresolved` check, the port draws the drawing-wide notes, the
-//! default finish and the threads and knurls (on their callouts or in their table), not a face's
-//! finish, and now checks edge-note and face-finish text runs independently of their formatter.
-//! The filled glyph-path check remains pending; and the title block's material
+//! check, the port draws drawing-wide notes, default and face finishes, and thread/knurl
+//! callouts or table rows. Edge-note and face-finish text runs are checked independently of
+//! their formatter. Manufacturing references are checked against complete source-matched
+//! rendered rows by [`manufacturing_references`]. Filled glyph-path and source-site checks
+//! remain pending. The title block's material
 //! and general tolerance against the file (`step_material_mismatch` and `_disagreement`,
 //! `step_general_tolerance_*`) turn on whether the caller authored the field, which only the Spec
 //! says.
@@ -52,6 +53,7 @@ use std::collections::BTreeSet;
 
 use super::{LintIssue, Mark, Severity};
 use crate::model::Analysis;
+use crate::output::{Drawing, Kind};
 use crate::pmi::{Category, Identities, Outcome, Reading, Record, Report};
 use crate::pmi_lowering::{lower, manufacturing, sheet_requirements};
 
@@ -544,6 +546,101 @@ fn mismatch(r: &Record, text: &str) -> Option<String> {
         expected_zone.unwrap_or("none"),
         list(&datums)
     ))
+}
+
+/// A short manufacturing leader needs exactly one complete, source-matched rendered row.
+/// Read only the drawing and the source reading; searchable text in an unrelated table
+/// cannot supply the requirement or borrow another source's reference.
+pub fn manufacturing_references(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
+    let manufacturing = manufacturing(analysis);
+    let marks = super::marks(drawing);
+    let table_present = drawing
+        .sheet
+        .items
+        .iter()
+        .any(|i| i.name == "manufacturing_requirements" && i.kind == Kind::Table);
+    let normal = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
+    let headers: Vec<_> = marks
+        .iter()
+        .filter(|m| m.name == "manufacturing_requirements_header")
+        .collect();
+    let header_complete =
+        headers.len() == 1 && normal(&headers[0].text) == "REF MANUFACTURING REQUIREMENT";
+    let mut issues = Vec::new();
+    for leader in marks
+        .iter()
+        .filter(|m| !m.name.starts_with("manufacturing_requirements/"))
+    {
+        let owned: Vec<_> = manufacturing
+            .owned
+            .iter()
+            .filter(|o| {
+                leader
+                    .claims
+                    .iter()
+                    .any(|c| c.feature == o.id && c.parameter == o.aspect)
+            })
+            .collect();
+        if owned.is_empty() {
+            continue;
+        }
+        let words: Vec<_> = leader.text.split_whitespace().collect();
+        for words in words.windows(3).filter(|w| w[0] == "SEE" && w[1] == "MFG") {
+            // Python's reference regex ends at a word boundary, so punctuation after the
+            // tag (including a full stop) must not hide an unresolved reference.
+            let end = words[2]
+                .find(|c: char| !c.is_ascii_digit())
+                .unwrap_or(words[2].len());
+            let number = &words[2][..end];
+            if words[2][end..].starts_with(|c: char| c.is_alphanumeric() || c == '_')
+                || number.is_empty()
+                || number.starts_with('0')
+                || !number.bytes().all(|c| c.is_ascii_digit())
+            {
+                continue;
+            }
+            let tag = format!("MFG {number}");
+            let name = format!("manufacturing_requirements/{tag}");
+            let rows: Vec<_> = drawing
+                .annotations
+                .iter()
+                .filter(|m| m.name == name)
+                .collect();
+            let complete = table_present
+                && header_complete
+                && rows.len() == 1
+                && owned.iter().any(|o| {
+                    manufacturing
+                        .tags
+                        .iter()
+                        .any(|(source, t)| source == &o.source && t == &tag)
+                        && rows[0].approved_claims.len() == 1
+                        && rows[0].approved_claims[0].feature == o.id
+                        && rows[0].approved_claims[0].parameter == o.aspect
+                        && normal(&super::schedule_evidence::text(drawing, rows[0]))
+                            == normal(&format!("{tag} {}", o.text))
+                });
+            if complete {
+                continue;
+            }
+            let mut finding = issue(
+                "manufacturing_reference_unresolved",
+                &format!("{}/{tag}", leader.name),
+                Severity::Error,
+                format!(
+                    "{} refers to {tag}, but its complete source-matched manufacturing row is absent",
+                    leader.name
+                ),
+            );
+            finding.sources = owned.iter().map(|o| o.source.clone()).collect();
+            finding.annotation = Some(leader.name.clone());
+            finding.view = leader.view.clone();
+            finding.related = rows.iter().map(|m| m.name.clone()).collect();
+            finding.fix = Some("Restore the complete manufacturing requirements row and its source binding, or print the requirement on its leader in full.".into());
+            issues.push(finding);
+        }
+    }
+    issues
 }
 
 #[cfg(test)]
