@@ -375,7 +375,7 @@
       "views_overlap": 0
     }
   },
-  "source": "Datum placement validation on cx/datum-placement; hidden-on-visible improvement also present at base 3836b296",
-  "source_commit": "3836b296",
-  "verified_binary_sha256": "301e5fc0d4a35d28202dc3c69e5f9bc7963e4de5b3260aa462a3439879fa408a"
+  "source": "30-part review-leftovers quality audit, 2026-10-16; all 300 cells checked against the previous baseline",
+  "source_commit": "92769b213eaf54e5db5aad77a982cf13bab30c50",
+  "verified_binary_sha256": "a2eaa85fd7e8a6a9f8c140d3dba03a9250d963ac1acf2d1caa596001c6969072"
 }

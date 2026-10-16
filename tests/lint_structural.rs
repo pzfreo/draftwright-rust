@@ -263,14 +263,34 @@ fn every_annotation_stays_inside_the_drawable_area() {
 }
 
 #[test]
-fn labels_overlap_by_more_than_half_a_millimetre_both_ways() {
+fn even_a_small_overlap_of_dimension_text_is_reported() {
+    let drawing = sheet(
+        &[],
+        vec![
+            label("d:a", [50.0, 50.0, 60.0, 53.0]),
+            label("d:b", [59.8, 50.0, 70.0, 53.0]),
+        ],
+    );
+    let found = structural::check(&drawing);
+    assert_eq!(codes(&found), ["annotation_overlap"]);
+    assert_eq!(found[0].annotation.as_deref(), Some("d:a"));
+    assert_eq!(found[0].related, ["d:b"]);
+}
+
+#[test]
+fn labels_overlap_beyond_roundoff_both_ways() {
     let a = [50.0, 50.0, 60.0, 53.0];
     let check =
         |b: [f64; 4]| structural::check(&sheet(&[], vec![label("d:a", a), label("d:b", b)]));
-    // 0.5 mm each way is not an overlap; 0.51 mm each way is.
-    assert!(check([59.5, 52.5, 70.0, 56.0]).is_empty());
-    assert!(check([59.49, 52.5, 70.0, 56.0]).is_empty());
-    assert!(check([59.5, 52.49, 70.0, 56.0]).is_empty());
+    // Even half a millimetre obscures text. Only roundoff at a touching edge is ignored.
+    assert!(check([60.0 - 0.5e-9, 50.0, 70.0, 56.0]).is_empty());
+    for b in [
+        [59.5, 52.5, 70.0, 56.0],
+        [59.49, 52.5, 70.0, 56.0],
+        [59.5, 52.49, 70.0, 56.0],
+    ] {
+        assert_eq!(codes(&check(b)), ["annotation_overlap"]);
+    }
     let found = check([59.49, 52.49, 70.0, 56.0]);
     assert_eq!(codes(&found), ["annotation_overlap"]);
     assert_eq!(found[0].severity, Severity::Warning);
