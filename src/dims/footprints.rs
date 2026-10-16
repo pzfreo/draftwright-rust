@@ -473,6 +473,45 @@ impl Footprints {
                 );
             }
         }
+        // A face-level height also witnesses the recess wall that supplies
+        // that exact level support. Match the real face and all support bounds;
+        // another face at the same height does not confer ownership.
+        for level in &analysis.level_supports {
+            for feature in analysis
+                .features
+                .iter()
+                .filter(|f| f.kind == "section_recess")
+            {
+                let owns_support = feature
+                    .faces
+                    .iter()
+                    .filter_map(|&i| analysis.face_attachments.get(i))
+                    .any(|f| {
+                        f.surface.as_deref() == Some("plane")
+                            && f.axis == Some(2)
+                            && f.bounds.is_some_and(|b| {
+                                let wanted = [
+                                    level.x_span[0],
+                                    level.y_span[0],
+                                    level.z,
+                                    level.x_span[1],
+                                    level.y_span[1],
+                                    level.z,
+                                ];
+                                b.iter().zip(wanted).all(|(a, b)| (a - b).abs() <= 1e-6)
+                            })
+                    });
+                if owns_support {
+                    members
+                        .entry(format!(
+                            "step_level/{}",
+                            super::key(level.z - analysis.envelope[0][2])
+                        ))
+                        .or_default()
+                        .insert(feature.id.clone());
+                }
+            }
+        }
         Self {
             features,
             solids,
@@ -552,6 +591,12 @@ impl Footprints {
     fn owned(&self, id: &str, owners: &[Measurement]) -> bool {
         owners.iter().any(|m| {
             m.feature == id
+                || (m.feature == "step_level"
+                    && m.parameter.starts_with("step_height.length.h")
+                    && self
+                        .members
+                        .get(&format!("step_level/{}", super::key(m.value)))
+                        .is_some_and(|members| members.contains(id)))
                 || self
                     .members
                     .get(&m.feature)
@@ -628,6 +673,58 @@ mod tests {
                 "fingerprint":{"version":"test","family":"holes","subtype":"HoleRecord","sizes":{},"axis":[0.0,0.0,1.0],
                     "position":[2.0,0.0,0.0],"neighbourhood":[]}}]
         })).unwrap()
+    }
+
+    #[test]
+    fn a_recess_wall_height_owns_only_its_recorded_support_face() {
+        let corpus = std::env::var_os("DRAFTWRIGHT_CORPUS")
+            .map(std::path::PathBuf::from)
+            .or_else(|| {
+                std::env::var_os("HOME")
+                    .map(|p| std::path::PathBuf::from(p).join("repos/quiddity/tests/corpus"))
+            })
+            .filter(|p| p.is_dir());
+        let Some(corpus) = corpus else {
+            assert!(
+                std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"),
+                "required corpus missing"
+            );
+            return;
+        };
+        let (_, a) =
+            crate::model::analyse_native(&corpus.join("nist/nist_ftc_09_asme1_rd.stp")).unwrap();
+        let level = a
+            .level_supports
+            .iter()
+            .find(|s| (s.z - 109.08707180743679).abs() < 1e-6)
+            .unwrap();
+        let frame = Frame::looking(&a, [0., -1., 0.], [0., 0., 1.], [200., 200.], 1.);
+        let f = Footprints::new(&a, &frame, "front");
+        let shaft = [
+            frame.page([level.x_span[1] + 1., level.y_span[0], level.z]),
+            frame.page([a.envelope[1][0] + 10., level.y_span[0], level.z]),
+        ];
+        let owner = Measurement {
+            feature: "step_level".into(),
+            parameter: "step_height.length.h248_787".into(),
+            value: level.z - a.envelope[0][2],
+        };
+        assert!(
+            f.crossed_extension(shaft, &[])
+                .contains("f:section_recess:5")
+        );
+        let owned = f.crossed_extension(shaft, std::slice::from_ref(&owner));
+        assert!(!owned.contains("f:section_recess:5"));
+        assert!(
+            owned.contains("f:hole:10"),
+            "an unrelated crossed hole remains reported"
+        );
+        let mut other = owner;
+        other.value += 1.;
+        assert!(
+            f.crossed_extension(shaft, &[other])
+                .contains("f:section_recess:5")
+        );
     }
 
     #[test]
