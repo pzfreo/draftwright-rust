@@ -20,6 +20,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- Datum feature symbols try the space inside dimension lanes before outer tiers, can use
+  either proven cylinder silhouette, and can stand on drawn planar face extensions. Shared
+  GD&T placement counts leader crossings with dimension and extension lines for frames,
+  labels and surface finishes too. Complete arrangements cannot introduce a new annotation
+  contact to clear an earlier leader; placement intents and pins retain priority.
+  Empty placement resets restore automatic tiers. The CNC-review spindle's A and B clear
+  the dimension stack.
+
 - NTS captions retry with reduced clearance and nearby vertical positions before retaining
   a clash; structural lint reports shallow caption overlaps with text and line ink. Pinned
   placement refits use the same strict 5% sheet-scale snap as measured refits. An authored
