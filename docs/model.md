@@ -921,7 +921,9 @@ modifiers?, default, basis, placed}` (`surface_finish` added by F2, draftwright-
 - **A datum feature symbol** for each datum whose faces are all planes, or all cylinders, on one
   principal plane or axis: in the view that sees it edge-on (x and z: front; y: side; a y-normal
   plane goes to the plan when the side view is not drawn), on the side its outward normal points
-  to (a cylinder's: its site's), from a proven site on its first face. Drawn as ISO 5459 draws it:
+  to, from a proven site on its face. A cylinder may use either silhouette proved against
+  the trimmed face; a plane may use a drawn extension of its edge-on face beyond either end
+  of the view outline, with the triangle standing on that extension. Drawn as ISO 5459 draws it:
   the filled triangle on the surface, a line along the normal, the letter in a square frame.
 - **A surface texture symbol** (`surface_finish`) for each face's AP242 surface texture (ISO
   10303-1110, which draftwright does not read): attached as a datum's symbol is (its faces all
@@ -930,12 +932,23 @@ modifiers?, default, basis, placed}` (`surface_finish` added by F2, draftwright-
   standing on its leader's shelf, the leader's arrowhead on the edge line, the material removal
   condition's bar or circle, and its parameters under the bar, one per cell and line (`Ra 0.8`,
   µm). A face no principal view shows edge-on (a cone, a tilted plane) is `pmi_not_lowered`; one
-  whose view is not drawn is `pmi_not_drawn`. It keeps its strip, as a datum does.
-- **Placement**: in its strip beyond every dimension of its view there, nearest tier first,
-  clear of the sheet's edge, the views, the title block, other labels and leaders; a frame with
-  no clear tier tries draftwright's other strips, a datum keeps its side; one with no clear place
-  keeps its first tier and its collisions are reported as the dimensions' are. Notes and tables
-  keep clear of the frames.
+  whose view is not drawn is `pmi_not_drawn`. It keeps its outward strip.
+- **Placement**: automatic datums first try inside tiers between their face and the first
+  dimension lane, with normal triangle, shaft, frame and lane clearances. All inside sites
+  are searched before the existing tiers beyond the dimensions. Cylinder alternatives use
+  either proven silhouette; planar alternatives draw an extension outside either end of the
+  view, with a 1 mm outline gap and overrun past the triangle. Sites nearest the original win
+  equal grades. Frames and labels also retry the other strips. Every glyph's obstacle grade
+  includes the count of crossings with dimension and extension lines, arrow shafts and other
+  leaders, using the collision reporter's predicate (including collinear travel). Grade zero
+  requires zero crossings; equal clearance classes prefer fewer crossings. The original
+  complete arrangement remains a candidate. A replacement cannot introduce an annotation
+  contact with a new unordered pair of subjects (reporting direction does not affect the
+  comparison), so a greedy move cannot crowd later frames into overlaps. If the full
+  rearrangement fails this guard, datum changes are tried alone. Unavoidable
+  collisions stay visible and are reported. Notes and tables keep clear of the frames.
+  Explicit coordinates retain their strip/tier behavior; pins keep their resolved geometry.
+  An empty `place: {}` reset restores automatic placement, including inside datum tiers.
 - **Render**: strokes for the frame, the symbols and rings, the font's glyphs for letters and
   numbers (`⌀` drawn as a ring and a stroke, `S⌀` as `Sø`), and one invisible text run per
   compartment (`⌖`, `⌀0.05Ⓜ`, `A`), so the PDF and SVG text layers can be searched; lint reads
@@ -949,7 +962,9 @@ modifiers?, default, basis, placed}` (`surface_finish` added by F2, draftwright-
   with `pmi="annotate"`; the port draws it whenever the part has some.
 
 Compared item by item with draftwright on 14 AP242 files (`tests/pmi_lowering.rs`,
-`tests/fixtures/known_pmi_lowering.json`).
+`tests/fixtures/known_pmi_lowering.json`). Datum placement's
+[base/head survey and render evidence](datum-placement.md) records the corpus/fixture
+crossing and overlap counts and the spindle's inside-lane and face-extension placements.
 
 ### Datums and controls authored in the Spec
 
