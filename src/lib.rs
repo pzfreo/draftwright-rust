@@ -39,7 +39,9 @@ pub mod text;
 pub mod title_block;
 pub mod wording;
 
+#[cfg(not(target_arch = "wasm32"))]
 pub mod mcp;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod stateless;
 
 mod planning;

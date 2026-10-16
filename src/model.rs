@@ -10,6 +10,7 @@
 //! title block. Features, dimensions and annotations join the same documents as they are ported.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
 
 use haecceity::Part;
@@ -691,6 +692,7 @@ pub fn step_bytes(bytes: &[u8]) -> Result<std::borrow::Cow<'_, [u8]>, String> {
 }
 
 /// The STEP text of the file at *path* ([`step_bytes`]: gzip is decompressed).
+#[cfg(not(target_arch = "wasm32"))]
 pub fn read_step_file(path: &Path) -> Result<Vec<u8>, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     step_bytes(&bytes)
@@ -699,16 +701,19 @@ pub fn read_step_file(path: &Path) -> Result<Vec<u8>, String> {
 }
 
 /// Reads the STEP file at *path*: the part, and its analysis, without features.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse(path: &Path) -> Result<(Part, Analysis), Unanalysed> {
     analyse_with(path, None)
 }
 
 /// The distinct parts of the STEP file *bytes* (named *path*, for messages), in haecceity's
 /// order: what [`analyse_step_part`]'s *part* indexes.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn parts(path: &Path, bytes: &[u8]) -> Result<Vec<FilePart>, Unanalysed> {
     let bytes = step_bytes(bytes)
         .map_err(|e| unanalysed(false, format!("cannot read {}: {e}", path.display())))?;
-    let defs = haecceity::step::read_part_definitions(&bytes).map_err(|e| step_refused(path, e))?;
+    let defs = haecceity::step::read_part_definitions(&bytes)
+        .map_err(|e| step_refused(&path.display().to_string(), e))?;
     Ok(file_parts(&defs))
 }
 
@@ -736,17 +741,15 @@ pub fn part_list(parts: &[FilePart]) -> String {
 
 /// Why *path* could not be read as STEP: a file that does not parse is not STEP; one that parses
 /// but holds what the kernel does not model (or lost on reading) is the kernel's failure.
-fn step_refused(path: &Path, e: haecceity::step::StepError) -> Unanalysed {
+fn step_refused(name: &str, e: haecceity::step::StepError) -> Unanalysed {
     let failed = !matches!(e, haecceity::step::StepError::Parse(_));
-    unanalysed(
-        failed,
-        format!("cannot read {} as STEP: {e}", path.display()),
-    )
+    unanalysed(failed, format!("cannot read {} as STEP: {e}", name))
 }
 
 /// Reads the STEP file at *path*, with its features from *recognition*: Python quiddity's JSON
 /// for the same file, written by `tools/recognise.py` ([`crate::bridge`]). Refused when the
 /// kernel did not resolve a face or edge the isometric draws.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_with(
     path: &Path,
     recognition: Option<&Path>,
@@ -756,6 +759,7 @@ pub fn analyse_with(
 
 /// [`analyse_with`], reading one part of an assembly alone when *part* is given
 /// ([`analyse_step_part`]).
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_with_part(
     path: &Path,
     recognition: Option<&Path>,
@@ -787,6 +791,7 @@ pub fn analyse_with_part(
 /// Reads *bytes*, the STEP file named *path* (which is not read: the name is for the part and
 /// for messages), as [`analyse_with`] reads a file, without features: for callers that have the
 /// file's bytes and no file system, such as a browser.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unanalysed> {
     analyse_step_part(path, bytes, None)
 }
@@ -797,16 +802,12 @@ pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unana
 /// part and its index. Part 0 of a file of one part is the whole file, read as with none. With none, the whole file is read as one part, as it always was; an
 /// assembly's parts are then listed in `parts` and the plan warns that they are drawn together.
 /// Refused, naming the parts, when there is no part *k*.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_step_part(
     path: &Path,
     bytes: &[u8],
     chosen: Option<usize>,
 ) -> Result<(Part, Analysis), Unanalysed> {
-    let bytes = &*step_bytes(bytes)
-        .map_err(|e| unanalysed(false, format!("cannot read {}: {e}", path.display())))?;
-    // The file's part definitions are read in both cases (the PMI reading needs them too, and
-    // is given these rather than reading them again). A gzipped file's name is its STEP name
-    // with `.gz` after it, so `part.step.gz` and `part.stp.gz` are named as `part.step` is.
     let stem = || {
         let plain = path
             .extension()
@@ -820,35 +821,76 @@ pub fn analyse_step_part(
             s.to_string_lossy().trim_end_matches(".step").to_string()
         })
     };
+    analyse_step_input(&path.display().to_string(), stem(), bytes, chosen)
+}
+
+/// Analyse in-memory STEP (or gzip) bytes with Rust feature recognition. `name` is only a
+/// display name, never a filesystem path. Browser callers need no filesystem or clock.
+pub fn analyse_native_bytes(name: &str, bytes: &[u8]) -> Result<(Part, Analysis), Unanalysed> {
+    let file = name.rsplit('/').next().unwrap_or(name);
+    let plain = if file
+        .get(file.len().saturating_sub(3)..)
+        .is_some_and(|s| s.eq_ignore_ascii_case(".gz"))
+    {
+        &file[..file.len() - 3]
+    } else {
+        file
+    };
+    let stem = plain
+        .rsplit_once('.')
+        .filter(|(stem, _)| !stem.is_empty())
+        .map_or(plain, |(stem, _)| stem)
+        .trim_end_matches(".step");
+    let (part, mut analysis) = analyse_step_input(name, stem.into(), bytes, None)?;
+    recognise_native(&part, &mut analysis).map_err(|e| {
+        unanalysed(
+            true,
+            format!("Rust quiddity's recognition of {name} was refused: {e}"),
+        )
+    })?;
+    Ok((part, analysis))
+}
+
+fn analyse_step_input(
+    name: &str,
+    stem: String,
+    bytes: &[u8],
+    chosen: Option<usize>,
+) -> Result<(Part, Analysis), Unanalysed> {
+    let bytes =
+        &*step_bytes(bytes).map_err(|e| unanalysed(false, format!("cannot read {}: {e}", name)))?;
+    // The file's part definitions are read in both cases (the PMI reading needs them too, and
+    // is given these rather than reading them again). A gzipped file's name is its STEP name
+    // with `.gz` after it, so `part.step.gz` and `part.stp.gz` are named as `part.step` is.
     let mut chosen = chosen;
-    let (part, defs, name) = match chosen {
+    let (part, defs, part_name) = match chosen {
         None => (
-            haecceity::read_step(bytes).map_err(|e| step_refused(path, e))?,
+            haecceity::read_step(bytes).map_err(|e| step_refused(name, e))?,
             haecceity::step::read_part_definitions(bytes)
                 .map_err(|e| format!("cannot read the parts: {e}")),
-            stem(),
+            stem.clone(),
         ),
         Some(k) => {
-            let file = haecceity::step::StepFile::read(bytes).map_err(|e| step_refused(path, e))?;
+            let file = haecceity::step::StepFile::read(bytes).map_err(|e| step_refused(name, e))?;
             if k == 0 && file.parts.len() == 1 {
                 // Part 0 of a file of one part is the whole file: drawn, titled (by the file's
                 // stem, not the product's name) and bound exactly as without a part chosen.
                 chosen = None;
-                let part = haecceity::read_step(bytes).map_err(|e| step_refused(path, e))?;
-                (part, Ok(file.parts), stem())
+                let part = haecceity::read_step(bytes).map_err(|e| step_refused(name, e))?;
+                (part, Ok(file.parts), stem.clone())
             } else {
                 if k >= file.parts.len() {
                     return Err(unanalysed(
                         false,
                         format!(
                             "{} has {} part(s) ({}); there is no part {k}",
-                            path.display(),
+                            name,
                             file.parts.len(),
                             part_list(&file_parts(&file.parts))
                         ),
                     ));
                 }
-                let part = file.part(k).map_err(|e| step_refused(path, e))?;
+                let part = file.part(k).map_err(|e| step_refused(name, e))?;
                 let name = file.parts[k].name.clone();
                 (part, Ok(file.parts), name)
             }
@@ -863,7 +905,7 @@ pub fn analyse_step_part(
                 .iter()
                 .map(|x| format!("{x:02x}"))
                 .collect(),
-            part: name,
+            part: part_name,
             face_count: part.faces.len(),
             loader: LOADER.into(),
             part_index: chosen,
@@ -924,7 +966,7 @@ pub fn analyse_step_part(
                 true,
                 format!(
                     "cannot draw {}: the kernel did not resolve its {e} on reading",
-                    path.display()
+                    name
                 ),
             )
         })?
@@ -947,11 +989,13 @@ pub fn analyse_step_part(
 }
 
 /// [`analyse_step`], with its features from Rust quiddity's recognition, as [`analyse_native`].
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_native_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unanalysed> {
     analyse_native_step_part(path, bytes, None)
 }
 
 /// [`analyse_native_step`] of one part of the file when *part* is given ([`analyse_step_part`]).
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_native_step_part(
     path: &Path,
     bytes: &[u8],
@@ -990,11 +1034,13 @@ pub const NOT_IN_NATIVE_DOCUMENT: [&str; 1] = ["section_recesses"];
 /// quiddity's recognition document ([`crate::bridge::native`]) in place of Python quiddity's JSON.
 /// Refused, as the kernel's failure, when the native reader refuses the document; never read as
 /// a part without features.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_native(path: &Path) -> Result<(Part, Analysis), Unanalysed> {
     analyse_native_part(path, None)
 }
 
 /// [`analyse_native`] of one part of the file when *part* is given ([`analyse_step_part`]).
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_native_part(
     path: &Path,
     part: Option<usize>,

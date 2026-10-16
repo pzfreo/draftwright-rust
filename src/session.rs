@@ -1,11 +1,14 @@
 //! A live drawing over the same Spec edits and recovered planner as the batch API.
 use std::collections::BTreeMap;
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::api::{self, Error, Features};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::api::Features;
+use crate::api::{self, Error};
 use crate::haecceity::Part;
 use crate::items::{self, Op, State as ItemState};
 use crate::model::{
@@ -384,11 +387,13 @@ pub struct Session {
     planner: Planner,
 }
 impl Session {
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn open(step: &Path, features: Features<'_>, spec: Spec) -> Result<Self, Error> {
         Self::open_part(step, None, features, spec)
     }
     /// [`Session::open`] of part *part* of an assembly alone, when given
     /// ([`crate::model::analyse_step_part`]).
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn open_part(
         step: &Path,
         part: Option<usize>,
