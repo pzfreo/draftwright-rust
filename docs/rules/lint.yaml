@@ -1692,7 +1692,7 @@
     issues: [161, 1321, 1333]
     tests: [tests/test_lint_structural.py, tests/test_issue_1332_overlap_remedy.py]
   status: ported
-  rust_test: labels_overlap_by_more_than_half_a_millimetre_both_ways
+  rust_test: labels_overlap_beyond_roundoff_both_ways
   rust_note: "src/lint/structural.rs: each pair of things in drawing order (not a centreline) whose label boxes, or a label-less thing's whole ink (title block, notes block, a table, a section's hatch, arrowheads and wing stubs, each its own item as draftwright places them), share more than 0.5 mm both ways; a warning. Where the pair's line-work also runs through one of the labels (annotation_ink_overlap's measure) the message names it and how far, and the fix says to move what is drawn (overlapping_labels_name_the_line_work_that_also_crosses); draftwright's other remedy is API advice (label_offset_x), left out. The port draws no frame or zone grid. Agrees with what draftwright's lint read on its own sheets (structural_checks_on_what_draftwright_read_agree_with_what_it_found, tests/fixtures/sheet_lint) and with the captured sheets' labelled pairs (ctc04's one finding); none on the port's own drawings, as the placement problems (known_placement.json) report none."
   port_note: "Keep."
 

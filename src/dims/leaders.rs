@@ -1217,7 +1217,7 @@ type ViewInk = (Vec<[P2; 2]>, Vec<[f64; 4]>);
 
 /// A view's model line-work on the page (edges and square-on cylinder silhouettes), and the
 /// boxes whose ink is not known as lines (the isometric view, section views, other curved faces).
-fn view_ink(
+pub(super) fn view_ink(
     analysis: &crate::model::Analysis,
     ink: &crate::model::projected_ink::EdgeInk,
     v: &crate::model::PlannedView,

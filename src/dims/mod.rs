@@ -1076,13 +1076,29 @@ pub(crate) fn plan_inventory(
                 basis: "authored: the spec omits it".into(),
                 state: State::OmittedByUser,
             }),
-            DimensionSource::Authored if entry.is_none() => omitted.push(Omitted {
-                label: w.terms.join(" "),
-                id: w.id,
-                basis: "authored: not in the spec's complete set (dimension_source authored)"
-                    .into(),
-                state: State::NotAuthored,
-            }),
+            DimensionSource::Authored if entry.is_none() => {
+                // An authored set still keeps the automatic inventory. Surface every
+                // unstated item by name, even when another measurement locates its feature.
+                problems.push(Problem {
+                    id: format!("p:dimension_not_authored:{}", w.id),
+                    code: "dimension_not_authored".into(),
+                    severity: "warning".into(),
+                    message: format!(
+                        "{} is not drawn: the authored dimension set does not list it. Add it to the set to draw it.",
+                        crate::wording::capital(&wording_of(&w))
+                    ),
+                    subjects: vec![w.id.clone()],
+                    fix: vec![Op::set(format!("dimensions/{}", crate::items::key(&w.id)), serde_json::json!({}))],
+                    ..Default::default()
+                });
+                omitted.push(Omitted {
+                    label: w.terms.join(" "),
+                    id: w.id,
+                    basis: "authored: not in the spec's complete set (dimension_source authored)"
+                        .into(),
+                    state: State::NotAuthored,
+                });
+            }
             _ => kept.push((w, entry.is_none(), view, along)),
         }
     }
@@ -1352,6 +1368,9 @@ pub(crate) fn plan_inventory(
         && intended.iter().all(Option::is_none)
     {
         placement::clear_linear(
+            analysis,
+            cache,
+            views,
             &frames,
             &all,
             &chosen,
