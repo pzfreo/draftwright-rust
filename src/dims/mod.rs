@@ -1715,8 +1715,9 @@ fn correlated_set(id: &str) -> Option<&str> {
 /// axis) is approved or omitted whole, never half a staircase. Each member keeps its own ID
 /// (ADR4-6), so the spec's decision on any member applies to the set: with the automatic source,
 /// omitting one member omits the others too; with an authored set, listing one member approves
-/// the others. Returns, by ID, each member the decision spreads to with its basis, and an `info`
-/// problem per set saying so.
+/// the others. An omission never overrides a member the spec decides itself (any entry on it):
+/// that set is left as the spec states it, with a `correlated_set_conflict` warning. Returns, by
+/// ID, each member the decision spreads to with its basis, and an `info` problem per set saying so.
 fn correlated_sets(spec: &Spec, wants: &[Want]) -> (BTreeMap<String, String>, Vec<Problem>) {
     let mut sets: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
     for w in wants {
@@ -1747,6 +1748,36 @@ fn correlated_sets(spec: &Spec, wants: &[Want]) -> (BTreeMap<String, String>, Ve
             format!("the ladder's shoulders along {}", &set[set.len() - 1..])
         };
         let named = decided.join(", ");
+        let restore: Vec<Op> = decided
+            .iter()
+            .map(|id| Op::remove(format!("dimensions/{}/omit", crate::items::key(id))))
+            .collect();
+        // A member the spec decides itself (a tolerance, a view, a place, `omit: false`) keeps
+        // that decision: the omission is not spread over it, and the conflict is reported, its
+        // fix restoring the set (the author's requirement on the member must reach the sheet).
+        let own: Vec<&str> = if auto {
+            rest.iter()
+                .copied()
+                .filter(|id| spec.dimensions.contains_key(*id))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        if !own.is_empty() {
+            let kept = own.join(", ");
+            problems.push(Problem {
+                id: format!("p:correlated_set_conflict:{set}"),
+                code: "correlated_set_conflict".into(),
+                severity: "warning".into(),
+                message: format!(
+                    "The spec omits {named} of {what} but states {kept} itself, so half the set is drawn: a correlated set is approved or omitted whole. Remove the omission to draw the set, or omit every member."
+                ),
+                subjects: decided.iter().chain(&own).map(|s| s.to_string()).collect(),
+                fix: restore,
+                ..Default::default()
+            });
+            continue;
+        }
         let (basis, message, fix) = if auto {
             (
                 format!(
@@ -1755,10 +1786,7 @@ fn correlated_sets(spec: &Spec, wants: &[Want]) -> (BTreeMap<String, String>, Ve
                 format!(
                     "Omitting {named} omits all of {what}: a correlated set is approved or omitted whole, never half a staircase. Remove the omission to restore the set."
                 ),
-                decided
-                    .iter()
-                    .map(|id| Op::remove(format!("dimensions/{}/omit", crate::items::key(id))))
-                    .collect(),
+                restore,
             )
         } else {
             (

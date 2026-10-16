@@ -7776,15 +7776,22 @@ known sandbox socket-bind failures; all remaining integration binaries pass.
   `tests/trust_rules.rs::every_planned_dimension_can_be_addressed` updated to the whole-set rule.
 - **Rules:** ported ISSUE-1154-a, ARCH0015-2. Pending with updated notes: ADR1-8 (families
   `lint::redundancy::span` does not read), ADR4-U1 (angular sets, compound counts),
-  ISSUE-1505-a, ISSUE-1505-b (no detail views), ISSUE-883-a (maintainer question).
+  ISSUE-1505-a (decided: a decorated band stated by the overall diameter keeps that; the
+  decoration reaches the sheet), ISSUE-1505-b (regression pin
+  `tests/dims_turned.rs::a_short_shoulder_never_erases_its_neighbours_lengths`, passes on the
+  base too; no detail views), ISSUE-883-a (decided: a shared ordinate stays one dimension with
+  one ID, members keep their claims, no member-level spec address; build comparison remains).
 - **Judgement calls:** (1) Per-member IDs are kept (ADR4-6, wire compatible); the decision on any
   member spreads to its set: `auto` omit one → all omitted (`omitted_by_user`, basis names the
   set); `authored` list one → all drawn. "Approved whole" was chosen for authored sets because it
   keeps information and matches draftwright, where listing `step_height.length` meant the ladder.
   (2) A turned profile's chain is not a correlated set (omitting one link is ordinary drafting,
-  and #33's baseline restores a band when a rung is omitted). (3) The editor's restore on a
-  spread member (`omit: false` on it) does not restore the set while another member stays
-  omitted; the info problem's fix does. (4) The rung-closure rule applies to boss heights only:
+  and #33's baseline restores a band when a rung is omitted). (3) An omission never spreads
+  over a member the spec decides itself (any entry: a tolerance, view, place or `omit: false`):
+  that set is drawn as the spec states it, half omitted, with a `correlated_set_conflict`
+  warning whose fix removes the omission (fix round: the earlier spread dropped a ±0.1 rung and
+  offered a fix that could not apply). Half a ladder was preferred to overriding either
+  explicit entry; the warning makes it visible. (4) The rung-closure rule applies to boss heights only:
   letting rungs close any interval broke 10047's and FTC-09's designed slot references, so it was
   narrowed rather than reworked. (5) A tried hole-schedule change (carrying a PMI-sized pattern's
   pitches in the schedule) made editor_pmi's sheet worse (schedule lost, 1:1 → 1:2) and was
@@ -7802,3 +7809,10 @@ known sandbox socket-bind failures; all remaining integration binaries pass.
   is byte-identical.
   The single-sheet guard is opt-in and its fixtures are no longer maintained, so no approvals
   were recorded.
+- **Fix round:** `correlated_sets` refuses to spread over a member with its own spec entry
+  (`correlated_set_conflict`, test
+  `tests/ownership_rules.rs::a_ladder_omission_never_overrides_a_rung_the_spec_decides`, fails
+  on the base: no conflict reported; and on the first K6 commit: the ±0.1 rung omitted). Kept
+  as logged: in `auto`, omitting one rung omits the whole ladder (ARCH0015-2's literal reading;
+  the alternative, refusing the partial omission and drawing the whole set, is the maintainer's
+  to choose).

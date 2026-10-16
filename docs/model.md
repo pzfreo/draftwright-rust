@@ -1219,7 +1219,10 @@ height ladder's rungs or the ladder's shoulders along one axis, is approved or o
 the set's. With `auto`, omitting one member omits the others too (`omitted_by_user`, the basis
 naming the set); with `authored`, listing one member draws the others. Either way an `info`
 problem `correlated_set_whole` names the members the decision spread to (with `auto`, its fix
-removes the omission). A turned profile's chain is not such a set. In an edit path, the
+removes the omission). An omission never overrides a member the spec decides itself (any entry
+on it: a tolerance, a view, a place, `omit: false`): that set is drawn as the spec states it,
+half omitted, with a `correlated_set_conflict` warning naming the omitted and the decided members,
+its fix removing the omission. A turned profile's chain is not such a set. In an edit path, the
 `/` inside a dimension's ID is written `~1`, as in a JSON pointer:
 `{"op": "set", "path": "dimensions/d:envelope~1width.length/omit", "value": true}`.
 

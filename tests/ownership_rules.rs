@@ -197,6 +197,57 @@ fn a_height_ladder_is_omitted_or_approved_whole() {
     assert_eq!(ladder(&approved), [h16, h32]);
 }
 
+/// ARCH0015-2 with the spec's own decision on a member: omitting the 16 rung never overrides a
+/// tolerance (or `omit: false`) the spec states on the 32 rung. The 32 rung is drawn with its
+/// tolerance, a `correlated_set_conflict` warning names both rungs, and its fix applies and
+/// draws the whole ladder with the tolerance kept. No problem offers a fix that cannot apply.
+#[test]
+fn a_ladder_omission_never_overrides_a_rung_the_spec_decides() {
+    let a = steps_fixture("plates_pads_levels_and_slanted_steps");
+    let (h16, h32) = (
+        "d:step_level/step_height.length.h16",
+        "d:step_level/step_height.length.h32",
+    );
+    for own in [json!({"tolerance": "±0.1"}), json!({"omit": false})] {
+        let spec: Spec =
+            serde_json::from_value(json!({"dimensions": {h16: {"omit": true}, h32: own}})).unwrap();
+        let plan = model::plan(&a, &spec).unwrap();
+        assert_eq!(ladder(&plan), [h32], "{own}");
+        if own.get("tolerance").is_some() {
+            let label = &plan.dimensions.iter().find(|d| d.id == h32).unwrap().label;
+            assert!(label.contains("±0.1"), "{label}");
+        }
+        assert!(
+            plan.problems.iter().all(|p| !matches!(
+                p.code.as_str(),
+                "correlated_set_whole" | "tolerance_not_shown"
+            )),
+            "{:?}",
+            plan.problems
+        );
+        let p = plan
+            .problems
+            .iter()
+            .find(|p| p.code == "correlated_set_conflict")
+            .expect("the conflict is reported");
+        assert_eq!(
+            (p.severity.as_str(), &p.subjects[..]),
+            ("warning", &[h16.to_string(), h32.to_string()][..])
+        );
+        for q in plan.problems.iter().filter(|q| !q.fix.is_empty()) {
+            model::edit(&spec, &serde_json::to_value(&q.fix).unwrap())
+                .unwrap_or_else(|e| panic!("{}'s fix does not apply: {e:?}", q.code));
+        }
+        let restored = model::edit(&spec, &serde_json::to_value(&p.fix).unwrap()).unwrap();
+        let whole = model::plan(&a, &restored).unwrap();
+        assert_eq!(ladder(&whole), [h16, h32], "{own}");
+        if own.get("tolerance").is_some() {
+            let label = &whole.dimensions.iter().find(|d| d.id == h32).unwrap().label;
+            assert!(label.contains("±0.1"), "{label}");
+        }
+    }
+}
+
 /// ADR4-U1: over-dimensioning that is neither identical nor coincident is reported. A grid's
 /// column pitch, printed beside every member's own location along that axis, states a
 /// separation the locations already fix (`over_dimensioned_pattern`). The plan's own marks

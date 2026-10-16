@@ -159,11 +159,11 @@ pub(super) fn consolidate(
     let mut edges = Vec::new();
     for i in order {
         let s = interval(a, &kept[i].0).unwrap();
-        let boss = kept[i]
-            .0
-            .measurements
-            .iter()
-            .all(|m| m.parameter == "boss_height.length");
+        let measurements = &kept[i].0.measurements;
+        let boss = !measurements.is_empty()
+            && measurements
+                .iter()
+                .all(|m| m.parameter == "boss_height.length");
         let found = path(&edges, s).or_else(|| {
             let with: Vec<_> = edges.iter().chain(&rungs).copied().collect();
             path(&with, s).filter(|route| boss && route.len() > 1)
