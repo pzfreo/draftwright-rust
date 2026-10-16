@@ -187,6 +187,15 @@ pub fn check(s: &Spec) -> Result<(), Invalid> {
                     "a pattern needs a f:hole_pattern:<name> id and at least two distinct holes",
                 ));
             }
+            if id["f:hole_pattern:".len()..]
+                .bytes()
+                .all(|b| b.is_ascii_digit())
+            {
+                return Err(invalid(
+                    &path,
+                    "an authored pattern needs a nonnumeric name such as f:hole_pattern:mounting, so re-analysis cannot collide with an automatic rank",
+                ));
+            }
             for m in &p.members {
                 if !grouped.insert(m) {
                     return Err(invalid(
@@ -201,7 +210,7 @@ pub fn check(s: &Spec) -> Result<(), Invalid> {
 }
 
 /// A named face's signature from existing, view-independent evidence. No B-rep rescan.
-/// Bounds, surface and support are rounded to a micrometre; index and sampling order are absent.
+/// Bounds, surface and support are rounded to 1e-6 mm; index and sampling order are absent.
 pub fn face_fingerprint(a: &Analysis, face: usize) -> Result<String, Invalid> {
     let f = a.face_attachments.get(face).ok_or_else(|| {
         invalid(
@@ -299,6 +308,15 @@ fn resolved_id(a: &Analysis, s: &Spec, id: &str) -> Result<String, Invalid> {
         if candidates.len() == 1 {
             return Ok(candidates[0].clone());
         }
+        if let Some((prefix, _)) = id.rsplit_once(':') {
+            let same_kind: Vec<_> = candidates
+                .iter()
+                .filter(|c| c.starts_with(&format!("{prefix}:")))
+                .collect();
+            if same_kind.len() == 1 {
+                return Ok(same_kind[0].clone());
+            }
+        }
         return Err(invalid(
             &path,
             format!(
@@ -344,7 +362,11 @@ pub fn bind(a: &Analysis, s: Spec) -> Result<Spec, Invalid> {
     let mut ids: BTreeSet<_> = s
         .features
         .iter()
-        .filter(|(_, f)| authored(f) && f.pattern.is_none())
+        .filter(|(id, f)| {
+            (authored(f) || f.anchor.is_some())
+                && f.pattern.is_none()
+                && !id.starts_with("f:declared:")
+        })
         .map(|(id, _)| id.clone())
         .collect();
     ids.extend(
@@ -354,8 +376,12 @@ pub fn bind(a: &Analysis, s: Spec) -> Result<Spec, Invalid> {
             .flat_map(|p| p.members.clone())
             .filter(|id| !id.starts_with("f:declared:")),
     );
+    let mut renamed = BTreeMap::new();
     for id in ids {
         let resolved = resolved_id(a, &s, &id)?;
+        if id != resolved {
+            renamed.insert(id.clone(), resolved.clone());
+        }
         let entry = out.features.entry(id).or_default();
         if entry.anchor.is_none() {
             entry.anchor = Some(anchors(
@@ -396,6 +422,56 @@ pub fn bind(a: &Analysis, s: Spec) -> Result<Spec, Invalid> {
         }
         out.binding = Some(a.binding.clone());
     }
+    if !renamed.is_empty() {
+        out.features = remap_keys(
+            std::mem::take(&mut out.features),
+            |id| renamed.get(id).cloned().unwrap_or_else(|| id.into()),
+            "features",
+        )?;
+        for f in out.features.values_mut() {
+            if let Some(p) = &mut f.pattern {
+                for member in &mut p.members {
+                    if let Some(current) = renamed.get(member) {
+                        *member = current.clone();
+                    }
+                }
+            }
+        }
+        let measurement = |id: &str| {
+            if let Some((feature, role)) = id.strip_prefix("d:").and_then(|v| v.rsplit_once('/'))
+                && let Some(current) = renamed.get(feature)
+            {
+                return format!("d:{current}/{role}");
+            }
+            id.to_string()
+        };
+        out.dimensions = remap_keys(
+            std::mem::take(&mut out.dimensions),
+            measurement,
+            "dimensions",
+        )?;
+        out.precision = remap_keys(std::mem::take(&mut out.precision), measurement, "precision")?;
+    }
+    Ok(out)
+}
+
+fn remap_keys<T>(
+    entries: BTreeMap<String, T>,
+    rename: impl Fn(&str) -> String,
+    path: &str,
+) -> Result<BTreeMap<String, T>, Invalid> {
+    let mut out = BTreeMap::new();
+    for (old, value) in entries {
+        let key = rename(&old);
+        if out.insert(key.clone(), value).is_some() {
+            return Err(invalid(
+                path,
+                format!(
+                    "two saved entries resolve to {key:?}; combine their requirements before rebinding"
+                ),
+            ));
+        }
+    }
     Ok(out)
 }
 
@@ -428,6 +504,7 @@ fn feature(
     kind: Kind,
     faces: Vec<usize>,
     parameters: Value,
+    axis: usize,
 ) -> Result<Feature, Invalid> {
     let mut lo = [f64::INFINITY; 3];
     let mut hi = [f64::NEG_INFINITY; 3];
@@ -457,7 +534,7 @@ fn feature(
             family: kind.name().into(),
             subtype: "Authored".into(),
             sizes,
-            axis: None,
+            axis: Some(unit(axis)),
             position: [0, 1, 2].map(|k| (lo[k] + hi[k]) * 0.5),
             pattern: None,
             neighbourhood: Vec::new(),
@@ -629,12 +706,19 @@ fn cylindrical(a: &Analysis, id: &str, kind: Kind, faces: Vec<usize>) -> Result<
                 "the selected floor normal does not face into the bore",
             ));
         }
+        if kind == Kind::Boss
+            && f.normal
+                .is_none_or(|n| (n[k] - if (b[k] - lo).abs() < TOL { -1. } else { 1. }).abs() > TOL)
+        {
+            return Err(fail(
+                "the selected boss end normal does not face away from its material",
+            ));
+        }
         caps.push(f.support[0]);
     }
     on[k] = (lo + hi) * 0.5;
     let dir = local_dir(a, unit(k));
-    let qk = holes::principal(dir)
-        .ok_or_else(|| fail("the recognition frame has no principal cylinder axis"))?;
+    let qk = holes::principal(dir);
     let mut low = on;
     low[k] = lo;
     let mut high = on;
@@ -660,13 +744,20 @@ fn cylindrical(a: &Analysis, id: &str, kind: Kind, faces: Vec<usize>) -> Result<
             let axis = local_dir(a, unit(k).map(|v| v * if opens_high { -1. } else { 1. }));
             json!({"diameter":2.*r,"depth":hi-lo,"axis":axis,"location":location,"bottom":if through {"through"} else {"flat"}})
         }
-        Kind::Boss => json!({"diameter":2.*r,"height":hi-lo,"axis":dir,"location":h}),
+        Kind::Boss => {
+            let negative = caps.len() == 1 && (caps[0] - lo).abs() < TOL;
+            let axis = if negative { dir.map(|v| -v) } else { dir };
+            let location = if negative { l } else { h };
+            json!({"diameter":2.*r,"height":hi-lo,"axis":axis,"location":location})
+        }
         Kind::TurnedStep => {
+            let qk =
+                qk.ok_or_else(|| fail("the recognition frame has no principal cylinder axis"))?;
             json!({"diameter":2.*r,"lo":l[qk].min(h[qk]),"hi":l[qk].max(h[qk]),"axis":AXES[qk],"profile":{"axis_origin":local_point(a,on),"lo":l[qk].min(h[qk]),"hi":l[qk].max(h[qk])}})
         }
         _ => unreachable!(),
     };
-    feature(a, id, kind, faces, params)
+    feature(a, id, kind, faces, params, k)
 }
 
 fn derive(a: &Analysis, id: &str, kind: Kind, faces: Vec<usize>) -> Result<Feature, Invalid> {
@@ -814,7 +905,7 @@ fn rectangular(a: &Analysis, id: &str, kind: Kind, faces: Vec<usize>) -> Result<
         let end = |open, t| json!({"condition":if open {"open"} else {"capped"},"surface":{"type":"plane","gradient":[0.,0.],"offset":t}});
         json!({"classification":{"feature_kind":"pocket","section_shape":"rectangular"},"evidence":{"defining_faces":faces,"constituent_faces":faces},"geometry":{"frame":{"origin":[0.,0.,0.],"run":unit(qk),"u":unit(qu),"v":unit(qv)},"run_interval":[low[qk],high[qk]],"profile":{"closure":"closed","boundary":boundary},"ends":{"low":end(!open_positive,low[qk]),"high":end(open_positive,high[qk])}}})
     };
-    let f = feature(a, id, kind, faces, params)?;
+    let f = feature(a, id, kind, faces, params, k)?;
     if kind == Kind::Pocket {
         crate::lint::section_recesses::grammar(&f).map_err(|e| fail(e.reason()))?;
     }
@@ -969,12 +1060,13 @@ fn pattern(
         faces,
         parameters: object(params),
     };
-    holes::established_with(
-        &result,
-        &reads.iter().collect::<Vec<_>>(),
-        &holes::bosses(a),
-    )
-    .map_err(|why| fail(&why))?;
+    // Centre corroboration can be a hole outside the pattern, just as in normal planning.
+    let all = holes::read(a)
+        .into_iter()
+        .filter_map(|(_, h)| h.ok())
+        .collect::<Vec<_>>();
+    holes::established_with(&result, &all.iter().collect::<Vec<_>>(), &holes::bosses(a))
+        .map_err(|why| fail(&why))?;
     Ok(result)
 }
 
@@ -1151,7 +1243,14 @@ pub fn effective<'a>(a: &'a Analysis, s: &Spec) -> Result<Cow<'a, Analysis>, Inv
             return Err(invalid(&d.id, "declaration id already exists"));
         }
         let faces = resolve_faces(a, &d.faces, &format!("feature_declarations/{}", d.id))?;
-        if out.features.iter().any(|f| f.faces == faces) {
+        let same_family = |kind: &str| match d.kind {
+            Kind::Hole => kind == "hole",
+            Kind::Boss | Kind::TurnedStep => matches!(kind, "boss" | "turned_step"),
+            Kind::Slot | Kind::Pocket => matches!(kind, "slot" | "section_recess"),
+        };
+        if out.features.iter().any(|f| {
+            f.faces == faces || (same_family(&f.kind) && f.faces.iter().any(|i| faces.contains(i)))
+        }) {
             return Err(invalid(
                 &d.id,
                 "these faces already have a feature; reclassify it, or suppress it explicitly before declaring a replacement",

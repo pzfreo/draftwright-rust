@@ -226,7 +226,7 @@ face fingerprints, never measured sizes or page coordinates:
     "f:hole:9": { "suppress": true },
     "f:hole_pattern:1": { "split": true },
     "f:hole_pattern:mounting": {
-      "pattern": { "arrangement": "grid", "members": ["f:hole:1", "f:hole:2", "f:hole:3", "f:hole:4"] }
+      "pattern": { "arrangement": "grid", "members": ["f:hole:1", "f:hole:2", "f:hole:3", "f:hole:5", "f:hole:6", "f:hole:8"] }
     }
   },
   "feature_declarations": [
@@ -237,7 +237,8 @@ face fingerprints, never measured sizes or page coordinates:
 
 The example's actions are independent; a grouped member must remain an active hole. `pattern`
 accepts `linear`, `grid` or `bolt_circle`; all count, pitch, centre and diameter data is derived
-from its physical members. A line must be evenly spaced along a principal axis; a grid must
+from its physical members. Authored pattern IDs require a nonnumeric name, keeping them
+separate from automatic pattern ranks across re-analysis. A line must be evenly spaced along a principal axis; a grid must
 fill an evenly spaced rectangular lattice; a bolt circle needs at least three noncollinear,
 equally spaced holes on one circle. Members have identical machining sizes, depths and drilling
 direction and open on one plane. The ordinary planner's corroboration still applies to bolt
@@ -254,18 +255,26 @@ need four inward-facing planar walls with matching rectangular spans. A pocket a
 its capped planar floor; a through-slot interpretation refuses that floor. Rust's existing
 `section_recess` feature is the pocket representation. Unsupported, partial, oblique or
 ambiguous geometry is refused with its reason; the correction never invents dimensions.
+Derived fingerprints retain their principal axes, so existing view-demand rules apply. A named
+boss end selects its outward direction; without one unique end, a boss interpretation uses
+the positive principal direction. Name the free end to select a negative-facing boss. Hole
+and boss vectors can still be read when a bridge's working frame is oblique.
 A suppressed feature cannot also carry fit, thread, datum, control, finish, knurl or note
 requirements. Choose only one of `reclassify`, `suppress`, `split` and `pattern` on a key.
 
 Declarations use the same five kinds and geometry checks. `id` is a unique authored
 `f:declared:<name>`; the list carries no numerical parameters. For a bore, name the cylindrical
 wall and its planar blind floor when present; without a floor the cylinder must reach both
-stock planes to prove throughness. An existing feature on those exact faces must be
+stock planes to prove throughness. An existing feature on those exact faces, or in the same physical family sharing a defining
+face, must be
 reclassified or explicitly suppressed before declaring its replacement. The declaration then
 accepts ordinary `features/<declared-id>` requirements and `dimensions/d:<declared-id>/…` edits.
 
 `recognition_corrections::face_fingerprint(analysis, face_index)` supplies each face name;
-`item_options` on `sheet` also lists them in `settable.feature_declarations.fields`.
+`item_options` with `id: "face:<index>"` reads one in
+`settable.feature_declarations.fields`; sheet options explain this lookup. Indices are
+Analysis discovery addresses only: the Spec stores the resulting fingerprint. Each response
+stays bounded rather than returning every face on a large part.
 Signatures hash the existing attachment's surface, principal axis, support, bounds and outward
 planar normal, rounded to 1e-6 mm; they exclude face indices and sample order. They are
 model-space identity fingerprints, never authored geometry. An Analysis lacking face evidence
@@ -276,7 +285,9 @@ fingerprints or removal. Identical signatures are deliberately ambiguous.
 When saving a correction, the bound Plan Spec fills `features/<id>/anchor` with
 `{"faces":["face:sha256:…", …]}` for the target and every grouped member. Explicit anchors are
 never silently replaced. This lets a saved correction resolve by its defining faces on
-re-analysis rather than trusting a changed rank. Authored declaration and group IDs are the
+re-analysis rather than trusting a changed rank. Exact matches refresh feature keys,
+pattern-member references, and the associated dimension and precision keys when recognition
+ranks change. Many-to-one collisions are refused for the author to combine explicitly. Authored declaration and group IDs are the
 chosen names, independent of recognition order. Re-analysis does not renumber them. A
 geometric change outside the exact signature's tolerance needs an explicit reattachment;
 this stream does not guess a nearest face or implement general revision correspondence. When a
@@ -306,6 +317,9 @@ automatically generates Spec declarations. The author names a missed feature and
 resolution reads their already analysed geometry. As in Python's `model/declare.py`, these
 features feed the same IR and planning as recognition. Rust deliberately offers no second
 recognition-free build mode and no explicit numerical geometry constructors.
+
+`item_options` with a recognised feature or pattern ID (`f:…`) returns its correction
+controls. Keeping these on feature queries preserves the dimension options' wire budget.
 
 Session `apply`/preview, undo/redo, stateless operations and WASM's existing `apply`/`setSpec`
 all use the common Spec editor and validation. Use `set`/`remove` at `features/<id>/<field>`;

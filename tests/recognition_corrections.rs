@@ -220,6 +220,7 @@ fn bad_references_conflicting_actions_and_false_patterns_are_refused() {
     let (_, a) = plate();
     for value in [
         json!({"features":{"f:hole:missing":{"suppress":true}}}),
+        json!({"features":{"f:hole_pattern:1":{"pattern":{"arrangement":"linear","members":["f:hole:1","f:hole:2"]}}}}),
         json!({"features":{"f:hole:1":{"suppress":true,"reclassify":"boss"}}}),
         json!({"features":{"f:hole:1":{"split":true}}}),
         json!({"features":{"f:hole_pattern:bad":{"pattern":{"arrangement":"linear","members":["f:hole:1","f:hole:1"]}}}}),
@@ -356,6 +357,19 @@ fn session_preview_apply_history_and_declaration_ops_share_validation() {
         .id
         .clone();
     let mut session = Session::new(part, a, Spec::default()).unwrap();
+    let options = session.options("face:0").unwrap();
+    assert_eq!(
+        options.settable["feature_declarations"]["fields"][0],
+        json!(face_fingerprint(session.analysis(), 0).unwrap())
+    );
+    assert!(serde_json::to_vec(&options).unwrap().len() < 1024);
+    assert!(session.options("face:99999").is_err());
+    let feature_options = session.options(&id).unwrap();
+    assert_eq!(
+        feature_options.settable[&format!("features/{id}/suppress")]["choices"],
+        json!([false, true])
+    );
+    assert!(serde_json::to_vec(&feature_options).unwrap().len() < 1024);
     let before = serde_json::to_value(session.state()).unwrap();
     let ops = [Op::set(format!("features/{id}/suppress"), json!(true))];
     session.apply(&ops, false).unwrap();
@@ -457,7 +471,21 @@ fn declaration_faces_can_be_reindexed_without_changing_the_authored_id() {
     let s = spec(
         json!({"feature_declarations":[{"id":"f:declared:mount","kind":"hole","faces":faces}]}),
     );
+    // A bridge can use an oblique working frame even when the selected bore is principal
+    // in the part. Vector-axis readers must keep that case, just as ordinary holes do.
+    let c = std::f64::consts::FRAC_1_SQRT_2;
+    a.recognition.as_mut().unwrap().frame = [[0.; 3], [1., 0., 0.], [0., c, c], [0., -c, c]];
     let first = corrections::effective(&a, &s).unwrap();
+    assert_eq!(
+        first
+            .features
+            .iter()
+            .find(|f| f.id == "f:declared:mount")
+            .unwrap()
+            .fingerprint
+            .axis,
+        hole.fingerprint.axis
+    );
     let expected = first
         .features
         .iter()
@@ -584,4 +612,119 @@ fn published_mcp_schema_and_common_model_accept_corrections_and_refuse_bad_shape
             .is_err()
         );
     }
+}
+
+#[test]
+fn a_missed_boss_uses_its_named_negative_end_and_the_same_height_planner() {
+    let (part, mut a) = model::analyse_native_bytes(
+        "below-boss.step",
+        include_bytes!("fixtures/recognition_corrections/below_boss.step.gz"),
+    )
+    .unwrap();
+    let faces: Vec<_> = a
+        .face_attachments
+        .iter()
+        .enumerate()
+        .filter(|(_, f)| {
+            f.surface.as_deref() == Some("cylinder")
+                || f.bounds
+                    .is_some_and(|b| (b[2] + 7.).abs() < 1e-5 && (b[5] + 7.).abs() < 1e-5)
+        })
+        .map(|(i, _)| face_fingerprint(&a, i).unwrap())
+        .collect();
+    assert_eq!(faces.len(), 2);
+    let recognised = a.clone();
+    a.features.clear();
+    a.recognition.as_mut().unwrap().patterns.clear();
+    let s = spec(
+        json!({"feature_declarations":[{"id":"f:declared:lower_boss","kind":"boss","faces":faces}]}),
+    );
+    assert!(
+        corrections::effective(&recognised, &s)
+            .unwrap_err()
+            .message
+            .contains("already have a feature")
+    );
+    let effective = corrections::effective(&a, &s).unwrap();
+    let f = effective
+        .features
+        .iter()
+        .find(|f| f.id == "f:declared:lower_boss")
+        .unwrap();
+    assert_eq!(f.parameters["axis"], json!([0., 0., -1.]));
+    assert_eq!(f.parameters["location"], json!([0., 0., -7.]));
+    assert_eq!(f.parameters["height"], json!(4.));
+    assert_eq!(f.fingerprint.axis, Some([0., 0., 1.]));
+    let p = model::plan_recovered(&a, &s).unwrap();
+    assert!(
+        p.dimensions
+            .iter()
+            .flat_map(|d| &d.measurements)
+            .any(|m| m.feature == f.id && (m.value - 4.).abs() < 1e-5)
+    );
+    let drawing = model::render(&part, &a, &p, &font()).unwrap();
+    assert!(
+        !lint::lint(&effective, &drawing)
+            .iter()
+            .any(|i| i.code == "boss_height_missing")
+    );
+}
+
+#[test]
+fn saved_corrections_rebind_members_fits_and_measurement_policies_when_ranks_change() {
+    let (_, a) = plate();
+    let members = a.recognition.as_ref().unwrap().patterns[0].members.clone();
+    let outside = a
+        .features
+        .iter()
+        .find(|f| f.kind == "hole" && !members.contains(&f.id))
+        .unwrap()
+        .id
+        .clone();
+    let mut value = json!({"features":{"f:hole_pattern:mounting":{"pattern":{"arrangement":"grid","members":members}}}});
+    for id in &members {
+        value["features"][id] = json!({"fit":"H7"});
+    }
+    value["features"][&outside] = json!({"reclassify":"hole"});
+    let measurement = format!("d:{outside}/bore.diameter");
+    value["dimensions"] = json!({&measurement:{"tolerance":"±0.05"}});
+    value["precision"] = json!({&measurement:2});
+    let original = model::plan_recovered(&a, &spec(value)).unwrap();
+    let mut again = a.clone();
+    let mut renamed = std::collections::BTreeMap::new();
+    for f in &mut again.features {
+        let old = f.id.clone();
+        f.id = format!(
+            "{}:{}",
+            old.rsplit_once(':').unwrap().0,
+            old.rsplit_once(':').unwrap().1.parse::<usize>().unwrap() + 100
+        );
+        renamed.insert(old, f.id.clone());
+    }
+    for pattern in &mut again.recognition.as_mut().unwrap().patterns {
+        for member in &mut pattern.members {
+            *member = renamed[member].clone();
+        }
+    }
+    let replay = model::plan_recovered(&again, &saved(&original.spec)).unwrap();
+    assert!(replay.spec.features.contains_key("f:hole_pattern:mounting"));
+    for old in &members {
+        assert_eq!(
+            replay.spec.features[&renamed[old]].fit.as_deref(),
+            Some("H7")
+        );
+        assert!(!replay.spec.features.contains_key(old));
+    }
+    let current = format!("d:{}/bore.diameter", renamed[&outside]);
+    assert_eq!(
+        replay.spec.dimensions[&current].tolerance.as_deref(),
+        Some("±0.05")
+    );
+    assert_eq!(replay.spec.precision[&current], 2);
+    assert!(!replay.spec.dimensions.contains_key(&measurement));
+    assert!(replay.dimensions.iter().any(|d| {
+        d.id == current
+            && d.from_spec
+                .contains(&format!("features/{}/reclassify", renamed[&outside]))
+    }));
 }
