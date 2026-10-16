@@ -140,7 +140,8 @@ fn tools_explain_their_operations_without_source_and_fit_schema_budget() {
     // 38,500 after D1 trimmed them; sheet/fit_limits added about 500 bytes across the tools.
     // G3 added the `parts` tool (about 850 bytes) and a `part` argument on four tools
     // (about 150 bytes), bringing the total to 40,501. F4's sheet/projection (#13) added about
-    // 540 bytes across the twelve tools that carry a spec: 41,041.
-    assert!(schema_bytes < 41300, "schemas: {schema_bytes} bytes");
+    // 540 bytes across the twelve tools that carry a spec: 41,041. K1's spec `faces` (datums
+    // and controls on faces, #43) added about 400 bytes the same way: 41,444.
+    assert!(schema_bytes < 41700, "schemas: {schema_bytes} bytes");
     eprintln!("schema bytes per session: {schema_bytes}");
 }

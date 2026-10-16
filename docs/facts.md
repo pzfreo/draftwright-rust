@@ -121,7 +121,8 @@ PYTHONPATH=<draftwright>/src <draftwright>/.venv/bin/python tools/capture_sheet_
 | `hanger` | `ttt_inputs/sm-hanger.step` | sheet metal, with a detail view |
 
 - `cadgenbench_inputs/cgb207.step` was tried and left out. Python draftwright fails on it: "project_to_viewport returned empty geometry for view 'plan'".
-- Gzipped corpus files are left out, because the port reads plain STEP.
+- Gzipped corpus files were left out when the sample was chosen, as the port then read plain
+  STEP only; it reads gzip since 2026-10-15 (maintainer decision), and the sample is unchanged.
 - No part in the sample draws a table.
 - No part in the sample carries a tolerance other than the general one. Draftwright's default
   options import no PMI tolerances onto these sheets.

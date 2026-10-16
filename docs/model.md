@@ -191,7 +191,8 @@ The design also includes `views/sections` and feature `anchor`/`note`
 
 - **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_limits`, `projection`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`),
   `iso_scale_factor`, `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `place`, and the earlier `view`
-  spelling), `annotations/<id>` (`omit`, `place`), `features/<id>/fit`, `notes` and `tables`.
+  spelling), `annotations/<id>` (`omit`, `place`), `features/<id>` (`fit`, `datum`, `controls`),
+  `faces/<face>` (`datum`, `controls`: "Datums and controls authored in the Spec", below), `notes` and `tables`.
   Unknown fields, including page coordinates, are refused. Absent fields keep their defaults.
 - **The spec stores intent, never geometry.** A fit, lane, side or fractional label position is
   resolved against the part and its anchors on every plan. Measured values and resolved paper
@@ -320,7 +321,7 @@ also take `offset` (below):
 | `view` | `front`, `plan` or `side`; a dimension must be visible across that view. `place.view` takes precedence over the earlier `dimensions/<id>/view`. |
 | `side` | `above`, `below`, `left` or `right` of the carrying view's projected envelope. A linear dimension uses the two sides parallel to its measured span; incompatible sides are refused with the choices. |
 | `lane` | Zero-based order out from the view, 0–1000. Linear lanes use the existing paper spacing; callout columns on the left/right use the widest canonical label on that view plus shoulder and clearance, so labels at the same along position have distinct columns; PMI tiers use their glyph's size and clearance. Without strip/label fields a pin keeps the automatic ink. For an explicit strip placement, an omitted lane uses the automatic linear lane or the nearest PMI tier. |
-| `along` | A fraction 0–1, or `start`, `middle`, `end`, `outside` (1.25). A linear label is centred at that fraction of its witness span. Leadered labels use that fraction of the view's extent along the strip, keeping their original feature attachment. |
+| `along` | A fraction 0–1, or `start`, `middle`, `end`, `outside` (1.25). A linear label is centred at that fraction of its witness span; at `outside` it sits just past the line's far end, the dimension line run on to it, as a span too short for its label has it (#32: 1.25 of a long span stranded the text). Leadered labels use that fraction of the view's extent along the strip, keeping their original feature attachment. |
 | `offset` | Callouts only: `[dx, dy]`, each within ±1000 paper mm (y up), the bend's offset from the callout's automatic leader tip. Requires `pinned: true` and excludes `side`, `lane` and `along`. |
 | `pinned` | Defaults to false. True fixes the resolved geometry before automatic layout; without side, lane or along it keeps the canonical automatic ink (its lines and arrows; a label whose own text changes, such as a new tolerance, is re-set from its current text, centred where the old one was, or for a callout from the end of its shoulder); a free item can be adjusted around obstacles. |
 
@@ -394,6 +395,17 @@ hole items that ordinary drop-and-escalate would withdraw. A covered measurement
 `omit: false` and a pin do not bypass consolidation or repeat information. A pin that cannot be
 drawn has `pinned_item_not_drawn`, alongside the reason in its typed state. Pinned view collisions
 and overruns have `pinned_view_overlap` and `pinned_view_off_sheet`.
+
+An explicit (unpinned) side or lane for a linear dimension, such as a proposed fix sets, re-runs
+that side's stack spacing (#32, `dims::placement::respace`): when its line would share a
+dimension line with another linear dimension over an overlapping span (an automatic item at
+its lane, or another explicit one), it moves out lane by lane to the nearest lane of its own
+that fits the page (else the nearest free lane, its overrun reported), shorter spans inside.
+An item that collides with nothing keeps its requested lane. Two lines sharing one offset over
+overlapping spans are `dimension_line_shared` (error, both IDs), and a linear label more than a
+text height (3 mm) from its own dimension line is `dimension_text_stray` (error); structural
+lint reports the same two codes from the drawn ink. A fix that leaves either is therefore a new
+problem in the edit's delta, not a resolved one.
 
 Placement problems provide `edit` operations addressing `place`. Resetting an annotation's
 `place` to `{}` releases it to automatic placement; removing a view's `place` restores automatic
@@ -891,6 +903,59 @@ modifiers?, default, basis, placed}` (`surface_finish` added by F2, draftwright-
 
 Compared item by item with draftwright on 14 AP242 files (`tests/pmi_lowering.rs`,
 `tests/fixtures/known_pmi_lowering.json`).
+
+### Datums and controls authored in the Spec
+
+A part whose STEP carries no AP242 PMI can still carry datums and feature control frames
+(`src/spec_gdt.rs`, draftwright-rust #43 item 1; Python draftwright's `Sheet.datum` and
+`Sheet.control` are the reference):
+
+```json
+"faces":    { "bottom": { "datum": "A" } },
+"features": { "f:hole_pattern:1": { "controls": [
+  { "characteristic": "position", "tolerance": 0.1, "datums": ["A"] } ] } }
+```
+
+- **Targets.** `features/<id>` names a recognised feature or hole pattern by its ID, as
+  `features/<id>/fit` does; a datum or control on a feature with cylinders applies to its
+  cylinders (its axis, as draftwright's `gdt_target` takes a feature's), else to all its faces.
+  `faces/<face>` names a face by the side of the part's box it lies on, facing out (`bottom`,
+  `top`, `left`, `right`, `front`, `back`: -z, +z, -x, +x, -y, +y; every planar face lying
+  there), or by its index, `face:<n>`, as the plan's problems name faces.
+- **`datum`**: a datum letter, one to three capitals (ISO 5459).
+- **`controls`**: a list of `{characteristic, tolerance, datums?, diameter?, modifier?}`: one of
+  draftwright's 14 characteristics (`straightness`, `flatness`, `circularity`, `cylindricity`,
+  `profile_line`, `profile_surface`, `angularity`, `perpendicularity`, `parallelism`,
+  `position`, `concentricity`, `symmetry`, `circular_runout`, `total_runout`), a positive
+  magnitude in mm, the datum letters in precedence order (none on a form tolerance), a `⌀` zone
+  (the default for position and concentricity; accepted on straightness and the orientation
+  characteristics too, refused on the others) and `M` or `L`. `add` appends a control.
+- **Lowering.** Each is lowered into the same record (`pmi::Record`) an AP242 datum or geometric
+  tolerance on those faces is read into, its attachment measured as `src/pmi.rs` measures it,
+  from the Analysis's `face_attachments` (below), and merged into the Analysis's PMI reading
+  (`spec_gdt::effective`, once per plan, and again by `api::review` for lint, which reads no spec).
+  Lowering, placement, band reservation, drawing and lint then treat it as the file's own: its
+  item is `pmi:<identity>`, `annotations/<id>` places or omits it, its `source` is
+  `spec:<path>` (`spec:faces/bottom/datum`), its basis says `spec-authored` and it is not a
+  default.
+- **The Spec wins.** Where the file's PMI states the same (a datum of the same letter; a
+  tolerance of the same characteristic on the same faces), the file's record is not drawn and a
+  `spec_overrides_pmi` warning names both (`refs`: the AP242 source, then the spec's). The same
+  requirement on the same faces keeps its item ID, so its placement carries over.
+- **Reported:** a control referring to a letter neither the spec nor the file declares is drawn
+  with a `datum_undeclared` warning (draftwright's `_validate_datums`); an attachment the faces
+  do not prove is `pmi_not_lowered`, as for the file's records. **Refused** (`invalid`): an
+  unknown feature (with the nearest IDs) or face, a characteristic, letter or modifier not listed
+  (`P`, a projected zone, is not drawn for AP242 PMI either), a tolerance not positive, one letter
+  on two targets, two controls of one characteristic on the same faces, and an Analysis without
+  face attachments (analyse again). Across a revision, the entries are inactive like the other
+  feature-keyed entries.
+
+The Analysis carries `face_attachments` (added to version 7 as an optional field): per face,
+its box, its surface (`plane` or `cylinder`), principal axis and support, its proven sites
+(first, then up to eight spread over it), a plane's outward normal and a cylinder's exact
+principal axis: what `pmi::datum_geometry` and `tolerance_geometry` read of the part, which they
+now read through the same record for the file's own PMI. `tests/spec_gdt.rs`.
 
 ### Toleranced and basic dimensions (PMI)
 

@@ -214,6 +214,12 @@ pub struct Report {
     /// Absent when the whole file is drawn.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub drawn: Option<usize>,
+    /// What merging the Spec's datums and controls into the reading met
+    /// ([`crate::spec_gdt::effective`]): an AP242 record the Spec overrides, a datum letter
+    /// nothing declares. Never serialised: only an effective reading has them, and lowering
+    /// reports them ([`crate::pmi_lowering::lower`]).
+    #[serde(skip)]
+    pub spec_problems: Vec<crate::model::Problem>,
 }
 
 /// A part's material as the file states it (CAx-IF's 'material name' property: draftwright's
@@ -487,6 +493,11 @@ impl Reader {
     /// The reading to put in `Analysis::pmi`. Identical bytes do not parse again.
     /// Keep one reader per immutable part; replace it when the geometry changes.
     pub fn attach(&mut self, bytes: &[u8], part: &Part) -> Option<Reading> {
+        let bytes = match crate::model::step_bytes(bytes) {
+            Ok(b) => b,
+            Err(e) => return Some(Reading::Refused(e)),
+        };
+        let bytes = &*bytes;
         let source = Sha256::digest(bytes).into();
         if self.source != Some(source) {
             self.reads += 1;
@@ -555,6 +566,7 @@ pub fn read(bytes: &[u8], part: &Part) -> Result<Report, String> {
 /// [`read`], where the drawing's *part* is part *chosen* of the file's parts read alone
 /// (`haecceity::StepFile::part`), when given ([`report_part`]).
 pub fn read_part(bytes: &[u8], part: &Part, chosen: Option<usize>) -> Result<Report, String> {
+    let bytes = &*crate::model::step_bytes(bytes)?;
     let defs = read_part_definitions(bytes).map_err(|e| format!("cannot read the parts: {e}"))?;
     read_with(bytes, part, &defs, chosen)
 }
@@ -726,6 +738,7 @@ pub fn report_part(
             validation: a.validation,
         },
         materials,
+        spec_problems: Vec::new(),
     })
 }
 
@@ -2644,26 +2657,125 @@ fn principal(d: [f64; 3], tolerance: f64) -> Option<usize> {
     (c[k] >= 1e-6 && others <= tolerance * c[k]).then_some(k)
 }
 
+/// One face's attachment, as [`datum_geometry`] and [`tolerance_geometry`] measure it from the
+/// part: what a record on the face needs of it to lower. The Analysis carries one per face
+/// ([`face_attachments`]), so a datum or tolerance authored in the Spec, planned with no part to
+/// hand, attaches exactly as an AP242 record on the same faces does ([`crate::spec_gdt`]).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FaceAttachment {
+    /// The face's box, `[xmin, ymin, zmin, xmax, ymax, zmax]`; absent when it is not finite.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bounds: Option<[f64; 6]>,
+    /// `plane` or `cylinder`; absent for any other surface.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub surface: Option<String>,
+    /// A plane's normal or a cylinder's axis (0, 1, 2 for x, y, z), when it is principal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub axis: Option<usize>,
+    /// Where it lies across that axis: a plane's coordinate along it, a cylinder's axis's two
+    /// coordinates across it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub support: Vec<f64>,
+    /// Its first proven site (`_datum_face_site`), then up to eight others spread over it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sites: Vec<[f64; 3]>,
+    /// A plane's outward normal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub normal: Option<[f64; 3]>,
+    /// A cylinder's axis when it is exactly principal (`_common_principal_cylinder_axis`'s test).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exact_axis: Option<usize>,
+}
+
+/// Face *f*'s attachment on *part*.
+pub(crate) fn face_attachment(part: &Part, f: usize) -> FaceAttachment {
+    let b = part.face_bounds(f);
+    let mut out = FaceAttachment {
+        bounds: Some([b.min[0], b.min[1], b.min[2], b.max[0], b.max[1], b.max[2]]),
+        ..FaceAttachment::default()
+    };
+    let (kind, frame) = match &part.faces[f].surface {
+        Surface::Plane { frame } => ("plane", frame),
+        Surface::Cylinder { frame, .. } => ("cylinder", frame),
+        _ => return out,
+    };
+    out.surface = Some(kind.into());
+    if kind == "cylinder" {
+        let d = frame.z;
+        let k = (0..3).fold(0, |k, i| if d[i].abs() > d[k].abs() { i } else { k });
+        let exact =
+            (d[k].abs() - 1.0).abs() <= 1e-6 && (0..3).all(|i| i == k || d[i].abs() <= 1e-6);
+        out.exact_axis = exact.then_some(k);
+    } else {
+        out.normal = part.face_normal(f, 0.0, 0.0);
+    }
+    let Some(k) = principal(frame.z, 1e-6) else {
+        return out;
+    };
+    let o = frame.origin;
+    out.axis = Some(k);
+    out.support = if kind == "plane" {
+        vec![o[k]]
+    } else {
+        (0..3).filter(|&i| i != k).map(|i| o[i]).collect()
+    };
+    let found = face_sites(part, f, &b, kind, k);
+    if let Some(first) = found.first() {
+        out.sites.push(*first);
+        out.sites.extend(spread(&found, &b, 8));
+    }
+    out
+}
+
+/// Every face's attachment, for the Analysis: a face whose box, sites or normal are not finite
+/// keeps only what is (JSON has no infinity), and a record on it is not lowered.
+pub fn face_attachments(part: &Part) -> Vec<FaceAttachment> {
+    let finite = |v: &[f64]| v.iter().all(|x| x.is_finite());
+    (0..part.faces.len())
+        .map(|f| {
+            let mut a = face_attachment(part, f);
+            if !a.bounds.is_some_and(|b| finite(&b)) {
+                a.bounds = None;
+            }
+            if !a.sites.iter().all(|s| finite(s)) || !a.support.iter().all(|x| x.is_finite()) {
+                a.sites.clear();
+                a.support.clear();
+                a.axis = None;
+            }
+            if !a.normal.is_none_or(|n| finite(&n)) {
+                a.normal = None;
+            }
+            a
+        })
+        .collect()
+}
+
+/// The box centre of a face's attachment (not finite when its box is not).
+fn att_centre(a: &FaceAttachment) -> [f64; 3] {
+    a.bounds.map_or([f64::NAN; 3], |b| {
+        [0, 1, 2].map(|k| 0.5 * (b[k] + b[k + 3]))
+    })
+}
+
 /// A geometric tolerance's attachment: its faces' common principal cylinder axis, when every
 /// face is a cylinder and they share one (`_common_principal_cylinder_axis`, which reads no axis
 /// when any reference is not a cylindrical face). The leader's site is its faces' box centre,
 /// which the record carries (`ref_bbox`).
 fn tolerance_geometry(part: &Part, r: &Record) -> Geometry {
+    let faces: Vec<FaceAttachment> = r.faces.iter().map(|&f| face_attachment(part, f)).collect();
+    tolerance_geometry_of(r, &faces)
+}
+
+/// [`tolerance_geometry`] from the attachments of *r*'s faces, in its order.
+pub(crate) fn tolerance_geometry_of(r: &Record, faces: &[FaceAttachment]) -> Geometry {
     let reasons: Vec<String> = placements_reason(r).into_iter().collect();
     let mut axes = BTreeSet::new();
     let mut cylinders = r.edges.is_empty() && !r.faces.is_empty();
-    for &f in &r.faces {
-        match &part.faces[f].surface {
-            Surface::Cylinder { frame, .. } => {
-                let d = frame.z;
-                let k = (0..3).fold(0, |k, i| if d[i].abs() > d[k].abs() { i } else { k });
-                let exact = (d[k].abs() - 1.0).abs() <= 1e-6
-                    && (0..3).all(|i| i == k || d[i].abs() <= 1e-6);
-                if exact {
-                    axes.insert(k);
-                } else {
-                    cylinders = false;
-                }
+    for a in faces {
+        match a.exact_axis {
+            Some(k) if a.surface.as_deref() == Some("cylinder") => {
+                axes.insert(k);
             }
             _ => cylinders = false,
         }
@@ -2687,6 +2799,12 @@ const AXIS_NAMES: [&str; 3] = ["X", "Y", "Z"];
 /// face a plane or cylinder whose axis is principal, all of one kind, coplanar or coaxial; a
 /// site on each; and a plane's outward normal, the faces agreeing.
 fn datum_geometry(part: &Part, r: &Record) -> Geometry {
+    let faces: Vec<FaceAttachment> = r.faces.iter().map(|&f| face_attachment(part, f)).collect();
+    datum_geometry_of(r, &faces)
+}
+
+/// [`datum_geometry`] from the attachments of *r*'s faces, in its order.
+pub(crate) fn datum_geometry_of(r: &Record, faces: &[FaceAttachment]) -> Geometry {
     let mut reasons: Vec<String> = placements_reason(r).into_iter().collect();
     let mut sites = Vec::new();
     let mut axes = Vec::new();
@@ -2696,35 +2814,24 @@ fn datum_geometry(part: &Part, r: &Record) -> Geometry {
     if r.faces.is_empty() {
         reasons.push("referenced geometry is unavailable".into());
     }
-    for &f in &r.faces {
-        let b = part.face_bounds(f);
-        sites.push(b.centre());
-        let (kind, frame) = match &part.faces[f].surface {
-            Surface::Plane { frame } => ("plane", frame),
-            Surface::Cylinder { frame, .. } => ("cylinder", frame),
-            _ => {
-                reasons.push("one datum reference is neither planar nor cylindrical".into());
-                continue;
-            }
+    for a in faces {
+        sites.push(att_centre(a));
+        let Some(kind) = a.surface.as_deref() else {
+            reasons.push("one datum reference is neither planar nor cylindrical".into());
+            continue;
         };
-        let Some(k) = principal(frame.z, 1e-6) else {
+        let Some(k) = a.axis else {
             reasons.push("one datum reference surface is not axis-aligned".into());
             continue;
         };
-        let o = frame.origin;
-        supports.push(if kind == "plane" {
-            vec![o[k]]
-        } else {
-            (0..3).filter(|&i| i != k).map(|i| o[i]).collect()
-        });
+        supports.push(a.support.clone());
         axes.push(k);
         kinds.push(kind);
-        let found = face_sites(part, f, &b, kind, k);
-        match found.first() {
+        match a.sites.first() {
             Some(site) => {
                 *sites.last_mut().expect("pushed") = *site;
                 if alternatives.is_empty() && sites.len() == 1 {
-                    alternatives = spread(&found, &b, 8);
+                    alternatives = a.sites[1..].to_vec();
                 }
             }
             None => reasons
@@ -2756,11 +2863,7 @@ fn datum_geometry(part: &Part, r: &Record) -> Geometry {
         (!kinds.is_empty() && kinds.iter().all(|k| *k == kinds[0])).then(|| kinds[0].to_string());
     let mut normal = None;
     if reasons.is_empty() && surface.as_deref() == Some("plane") {
-        let normals: Vec<[f64; 3]> = r
-            .faces
-            .iter()
-            .filter_map(|&f| part.face_normal(f, 0.0, 0.0))
-            .collect();
+        let normals: Vec<[f64; 3]> = faces.iter().filter_map(|a| a.normal).collect();
         if normals.len() != r.faces.len() {
             reasons.push("datum reference surface has no usable normal".into());
         } else if normals[1..]
@@ -2926,7 +3029,7 @@ fn bbox(part: &Part, faces: &[usize]) -> Option<[f64; 6]> {
 }
 
 /// draftwright's `_dominant_from_bbox`: the axis of the largest extent, `?` when none is.
-fn dominant(b: [f64; 6]) -> &'static str {
+pub(crate) fn dominant(b: [f64; 6]) -> &'static str {
     let spans = [("X", b[3] - b[0]), ("Y", b[4] - b[1]), ("Z", b[5] - b[2])];
     // Python's max keeps the first of equal spans.
     let mut best = spans[0];
