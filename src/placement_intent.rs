@@ -484,6 +484,66 @@ pub(crate) fn views(
             problems.push(p);
         }
     }
+    // Relative view pins have a free root when no annotation carrier is held.
+    // Translate the connected orthographic group to fit a roomy named sheet,
+    // preserving every gap and alignment, rather than centring its root so high
+    // that a feasible relation is incorrectly reported off-sheet.
+    if s.views.values().any(|v| v.place.is_some())
+        && !s
+            .dimensions
+            .values()
+            .any(|d| d.place.as_ref().is_some_and(|p| p.pinned))
+        && !s
+            .annotations
+            .values()
+            .any(|a| a.place.as_ref().is_some_and(|p| p.pinned))
+    {
+        let mut group: BTreeSet<String> = ["front", "plan", "side", "section_aa"]
+            .map(String::from)
+            .into_iter()
+            .collect();
+        for _ in 0..s.views.len() {
+            for (name, v) in &s.views {
+                if v.place
+                    .as_ref()
+                    .is_some_and(|p| group.contains(&p.relative_to))
+                {
+                    group.insert(name.clone());
+                }
+            }
+        }
+        let members: Vec<_> = views
+            .iter()
+            .filter(|v| group.contains(v.id.trim_start_matches("v:")))
+            .collect();
+        let margin = crate::layout::MARGIN;
+        let mut delta = [0.0; 2];
+        for k in 0..2 {
+            let lo = members
+                .iter()
+                .map(|v| v.area[k])
+                .fold(f64::INFINITY, f64::min);
+            let hi = members
+                .iter()
+                .map(|v| v.area[k + 2])
+                .fold(f64::NEG_INFINITY, f64::max);
+            if hi - lo <= page[k] - 2.0 * margin {
+                delta[k] = if hi > page[k] - margin {
+                    page[k] - margin - hi
+                } else if lo < margin {
+                    margin - lo
+                } else {
+                    0.0
+                };
+            }
+        }
+        for v in views
+            .iter_mut()
+            .filter(|v| group.contains(v.id.trim_start_matches("v:")))
+        {
+            shift(v, delta);
+        }
+    }
     let mut fixed: BTreeSet<String> = s
         .views
         .iter()

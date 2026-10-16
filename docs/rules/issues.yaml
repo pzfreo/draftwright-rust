@@ -95,8 +95,8 @@
       - "tests/test_issue_563_placement_intent.py::test_plan_right_corridor_does_not_force_feasible_a4_scale_reduction"
     corpus_parts: []
   status: ported
-  rust_note: "Maintainer approval 2026-10-16 applied: composition reserves every source linear corridor, including below front and above/left of plan, and all authored principal strips at their requested or respaced lanes. Source linear lanes determine the front/plan bands without counting independent callout rows as phantom linear tiers. Preferred-scale reductions are permitted to keep corridors inside their reserved area and on the sheet; no part-specific exceptions."
-  rust_test: "tests/views_layout_rules.rs::every_source_and_explicit_linear_corridor_is_reserved; tests/views_layout_rules.rs::explicit_dimensions_that_reflow_keep_their_reserved_corridors"
+  rust_note: "Maintainer approval 2026-10-16 applied: composition reserves every source linear corridor, including below front and above/left of plan, and all authored principal strips at their requested or respaced lanes. Composition measures the complete settled linear ink, including reflow, labels and outside-arrow corner reach, from the full inventory. Established witness and leader routes are transported with their owning view block; the isometric is fitted against the resulting footprints. Preferred-scale reductions are permitted to keep corridors inside their reserved area and on the sheet; no part-specific exceptions."
+  rust_test: "tests/views_layout_rules.rs::every_source_and_explicit_linear_corridor_is_reserved; tests/views_layout_rules.rs::explicit_dimensions_that_reflow_keep_their_reserved_corridors; tests/views_layout_rules.rs::reserved_location_corridors_choose_witnesses_clear_of_foreign_holes"
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream views-and-layout"
 
 - id: ISSUE-563-c

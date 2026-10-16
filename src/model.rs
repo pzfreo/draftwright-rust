@@ -2371,7 +2371,7 @@ fn plan_with_presentation(
         if smallest * scale < 0.1 {
             return Err(invalid(
                 format!(
-                    "scale {} projects the smallest part dimension to {:.3} mm; drawing geometry degenerates below 0.1 mm. Use scale ≥ {:.3} or omit the scale for automatic selection.",
+                    "scale {} projects the smallest part dimension to {:.3} mm; drawing geometry degenerates below 0.1 mm. Use scale ≥ {} or omit the scale for automatic selection.",
                     scale_name(scale),
                     smallest * scale,
                     0.1 / smallest
@@ -3452,6 +3452,7 @@ fn plan_with_presentation(
         problems,
         spec,
     };
+    crate::sheet_fit::reserve_linear_corridors(analysis, &mut plan, &inventory);
     crate::placement_intent::finish(&mut plan, analysis);
     let [width, height] = plan.sheet.page;
     for v in &plan.views {
@@ -3796,11 +3797,7 @@ impl Projections {
                 .map(|e| placed(e, v.scale, centre, v.at));
             match projected(&moved) {
                 Some(curve) => {
-                    let curve = if v.id == "v:iso" {
-                        curve
-                    } else {
-                        crate::linework::stable_curve(curve)
-                    };
+                    let curve = crate::linework::stable_curve(curve);
                     let items = if piece.visible {
                         &mut geometry.visible
                     } else {
@@ -3813,8 +3810,13 @@ impl Projections {
         }
         if v.cut.is_some() {
             geometry.hidden.clear();
-        } else if v.id != "v:iso" {
+        } else {
+            // Visible ink takes precedence in orientation views too. A scale or
+            // arrangement change must not reveal redundant hidden ink over it.
             geometry.hidden = crate::linework::hidden(&geometry.visible, geometry.hidden);
+            if v.id == "v:iso" {
+                geometry.hidden = crate::linework::hidden(&geometry.visible, geometry.hidden);
+            }
         }
         self.stats.bounds += 1;
         geometry.bbox = items_bbox(&geometry.visible);

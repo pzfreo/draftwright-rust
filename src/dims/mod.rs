@@ -856,11 +856,14 @@ fn lanes_uncached(
         .map(|(i, _)| lane[i] + 1)
         .max()
         .unwrap_or(0);
-    // Every source linear corridor is a composition input, including those
-    // facing open paper (maintainer approval, 2026-10-16, ISSUE-563-b).
-    // Callout rows are routed independently and must not force phantom linear tiers.
-    bands.plate_front_below = bands.plate_front_below.max(front_linear);
-    bands.plate_plan_above = bands.plate_plan_above.max(plan_linear);
+    // A controlling overall adds a lane to the turned axial chain.
+    if wants
+        .iter()
+        .any(|w| w.id.starts_with("d:envelope/") && w.id.ends_with(".length"))
+        && turned::turned(analysis, &QFrame(crate::bridge::holes::frame(analysis))).is_some()
+    {
+        bands.plate_front_below = bands.plate_front_below.max(front_linear);
+    }
     for (i, w) in wants.iter().enumerate() {
         if owner[i].is_some()
             || !w
@@ -910,6 +913,15 @@ pub(crate) fn reserve_linear_intent(
     excluded: &BTreeSet<String>,
     bands: &mut crate::layout::Lanes,
 ) -> Result<(), Invalid> {
+    // A bare automatic placement is a no-op, including a bare pin. Its full
+    // settled corridor is measured in composition; it requests no extra tier.
+    if !spec.dimensions.values().any(|d| {
+        d.place
+            .as_ref()
+            .is_some_and(|p| p.side.is_some() || p.lane.is_some())
+    }) {
+        return Ok(());
+    }
     let (mut wants, _, _) = wants(analysis);
     wants.retain(|w| !excluded.contains(&w.id));
     let frames: BTreeMap<&str, Frame> = views
@@ -943,6 +955,7 @@ pub(crate) fn reserve_linear_intent(
             .get(&w.id)
             .filter(|d| !d.omit)
             .and_then(|d| d.place.as_ref())
+            .filter(|p| p.side.is_some() || p.lane.is_some())
         {
             if let Some(ink) = placement::intent(&frames[view], w, p, side, lane[i], 0.0) {
                 let span =
@@ -992,6 +1005,7 @@ pub(crate) fn reserve_linear_intent(
             .get(&w.id)
             .filter(|d| !d.omit)
             .and_then(|d| d.place.as_ref())
+            .filter(|p| p.side.is_some() || p.lane.is_some())
         else {
             continue;
         };
@@ -1014,7 +1028,7 @@ pub(crate) fn reserve_linear_intent(
             ("front", placement::Side::Right) => &mut bands.front_right,
             ("plan", placement::Side::Above) => &mut bands.plate_plan_above,
             ("plan", placement::Side::Below) => &mut bands.plate_plan_below,
-            ("plan", placement::Side::Left) => &mut bands.plan_left,
+            ("plan", placement::Side::Left) => &mut bands.authored_plan_left,
             ("plan", placement::Side::Right) => &mut bands.plate_plan_right,
             ("side", placement::Side::Above) => &mut bands.side_above,
             ("side", placement::Side::Below) => &mut bands.side_below,

@@ -798,3 +798,313 @@ mod tests {
         assert_eq!(choose(&[], true, true), None);
     }
 }
+
+/// Final compose-then-pack pass for settled linear ink (ISSUE-563-b). Use the
+/// complete placement inventory so omitting a dimension does not change a pin's
+/// frame. Moving a view block transports its already settled routes unchanged.
+pub(crate) fn reserve_linear_corridors(
+    analysis: &Analysis,
+    plan: &mut Plan,
+    inventory: &[crate::dims::PlannedDimension],
+) {
+    let old: Vec<_> = plan.views.iter().map(|v| (v.at, v.area, v.scale)).collect();
+    for d in inventory
+        .iter()
+        .chain(&plan.dimensions)
+        .filter(|d| d.kind == "linear")
+    {
+        let Some(b) = crate::dims::ink_box(d) else {
+            continue;
+        };
+        if let Some(v) = plan.views.iter_mut().find(|v| v.id == d.view) {
+            include(&mut v.area, [b[0], b[1]]);
+            include(&mut v.area, [b[2], b[3]]);
+        }
+    }
+    if plan
+        .views
+        .iter()
+        .zip(&old)
+        .all(|(v, (_, a, _))| v.area == *a)
+    {
+        return;
+    }
+    let mut shifts = vec![[0.0; 2]; plan.views.len()];
+    let index = |id: &str| plan.views.iter().position(|v| v.id == id);
+    let free = !crate::placement_intent::has_pins(&plan.spec)
+        && !plan.spec.views.values().any(|v| v.place.is_some())
+        && plan.gdt.is_empty();
+    if free {
+        let first = plan.spec.sheet.projection.as_deref() == Some("first");
+        let column: Vec<usize> = plan
+            .views
+            .iter()
+            .enumerate()
+            .filter(|(_, v)| matches!(v.id.as_str(), "v:front" | "v:plan"))
+            .map(|(i, _)| i)
+            .collect();
+        if let (Some(front), Some(top)) = (index("v:front"), index("v:plan")) {
+            let (below, above) = if first { (top, front) } else { (front, top) };
+            let gap = (old[above].1[1] - old[below].1[3]).max(0.0);
+            let extra = (plan.views[below].area[3] + gap - plan.views[above].area[1]).max(0.0);
+            shifts[top][1] += if first { -extra } else { extra };
+        }
+        if let Some(side) = index("v:side") {
+            let edge = column
+                .iter()
+                .map(|&i| {
+                    if first {
+                        plan.views[i].area[0]
+                    } else {
+                        plan.views[i].area[2]
+                    }
+                })
+                .reduce(|a, b| if first { a.min(b) } else { a.max(b) })
+                .unwrap_or(if first {
+                    plan.views[side].area[2]
+                } else {
+                    plan.views[side].area[0]
+                });
+            let previous = column
+                .iter()
+                .map(|&i| if first { old[i].1[0] } else { old[i].1[2] })
+                .reduce(|a, b| if first { a.min(b) } else { a.max(b) })
+                .unwrap_or(edge);
+            let gap = if first {
+                (previous - old[side].1[2]).max(0.0)
+            } else {
+                (old[side].1[0] - previous).max(0.0)
+            };
+            shifts[side][0] = if first {
+                (edge - gap - plan.views[side].area[2]).min(0.0)
+            } else {
+                (edge + gap - plan.views[side].area[0]).max(0.0)
+            };
+            for (i, _) in plan
+                .views
+                .iter()
+                .enumerate()
+                .filter(|(_, v)| v.cut.is_some())
+            {
+                shifts[i][0] = shifts[side][0];
+            }
+        }
+        // Keep the assembled row inside the drawing area; source annotations and
+        // every projection partner travel with it. Page-anchored furniture stays.
+        let group: Vec<usize> = plan
+            .views
+            .iter()
+            .enumerate()
+            .filter(|(_, v)| v.id != "v:iso")
+            .map(|(i, _)| i)
+            .collect();
+        let lower = [0, 1].map(|k| {
+            group
+                .iter()
+                .map(|&i| plan.views[i].area[k] + shifts[i][k])
+                .fold(f64::INFINITY, f64::min)
+        });
+        let lift = lower.map(|v| (MARGIN - v).max(0.0));
+        for &i in &group {
+            for k in 0..2 {
+                shifts[i][k] += lift[k];
+            }
+        }
+    }
+    for (i, v) in plan.views.iter_mut().enumerate() {
+        let delta = shifts[i];
+        for k in 0..2 {
+            v.at[k] += delta[k];
+            v.area[k] += delta[k];
+            v.area[k + 2] += delta[k];
+        }
+        crate::centrelines::shift(v, delta);
+    }
+    if plan.spec.views.values().any(|v| v.place.is_some()) {
+        // A relative constraint uses the final footprints. Re-resolve its gap,
+        // retaining the held annotation carriers, then transport their free peers.
+        let template = plan.clone();
+        let mut more = Vec::new();
+        crate::placement_intent::views(
+            &plan.spec,
+            &mut plan.views,
+            Some(&template),
+            &plan.sheet,
+            &[],
+            &mut more,
+        );
+        for (i, v) in plan.views.iter_mut().enumerate() {
+            if v.id == "v:iso"
+                && plan
+                    .spec
+                    .views
+                    .get("iso")
+                    .is_some_and(|v| v.place.as_ref().is_some_and(|p| p.pinned))
+            {
+                v.at = old[i].0;
+                v.area = old[i].1;
+                v.scale = old[i].2;
+            }
+            let extra = [
+                v.at[0] - template.views[i].at[0],
+                v.at[1] - template.views[i].at[1],
+            ];
+            crate::centrelines::shift(v, extra);
+            shifts[i] = [v.at[0] - old[i].0[0], v.at[1] - old[i].0[1]];
+        }
+        for p in more {
+            if !plan.problems.iter().any(|q| q.id == p.id) {
+                plan.problems.push(p);
+            }
+        }
+    }
+    let deltas: std::collections::BTreeMap<_, _> = plan
+        .views
+        .iter()
+        .enumerate()
+        .map(|(i, v)| (v.id.clone(), shifts[i]))
+        .collect();
+    for d in &mut plan.dimensions {
+        let Some(p) = &mut d.placed else {
+            continue;
+        };
+        let delta = deltas.get(&d.view).copied().unwrap_or([0.0; 2]);
+        for q in p.lines.iter_mut().chain(&mut p.arrows).flatten() {
+            for k in 0..2 {
+                q[k] += delta[k];
+            }
+        }
+        for k in 0..2 {
+            p.label_at[k] += delta[k];
+            p.label_box[k] += delta[k];
+            p.label_box[k + 2] += delta[k];
+        }
+    }
+    for g in &mut plan.gdt {
+        let delta = deltas.get(&g.view).copied().unwrap_or([0.0; 2]);
+        if delta == [0.0; 2] {
+            continue;
+        }
+        if let Some(q) = &mut g.placed {
+            for k in 0..2 {
+                q.tip[k] += delta[k];
+                q.label_box[k] += delta[k];
+                q.label_box[k + 2] += delta[k];
+            }
+            for pt in q
+                .lines
+                .iter_mut()
+                .chain(&mut q.arrows)
+                .chain(&mut q.strokes)
+                .flatten()
+            {
+                for k in 0..2 {
+                    pt[k] += delta[k];
+                }
+            }
+            for pt in q.fills.iter_mut().flatten() {
+                for k in 0..2 {
+                    pt[k] += delta[k];
+                }
+            }
+            for arc in &mut q.arcs {
+                arc[0] += delta[0];
+                arc[1] += delta[1];
+            }
+            for text in q.letters.iter_mut().chain(&mut q.runs) {
+                for k in 0..2 {
+                    text.at[k] += delta[k];
+                }
+            }
+        }
+    }
+    // Free isometrics have no measurement ownership. First retain their exact ink
+    // and caption if that footprint remains clear; otherwise fit the orientation
+    // view once against the composed blocks and the page-anchored furniture.
+    if let Some(i) = plan.views.iter().position(|v| v.id == "v:iso") {
+        let iso = &plan.views[i];
+        let mut ink = [
+            iso.at[0] + iso.scale * analysis.iso_bounds[0],
+            iso.at[1] + iso.scale * analysis.iso_bounds[1],
+            iso.at[0] + iso.scale * analysis.iso_bounds[2],
+            iso.at[1] + iso.scale * analysis.iso_bounds[3],
+        ];
+        for c in plan.captions.iter().filter(|c| c.view == "v:iso") {
+            include(&mut ink, [c.ink[0], c.ink[1]]);
+            include(&mut ink, [c.ink[2], c.ink[3]]);
+        }
+        let overlap = |a: Rect, b: Rect| a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+        let mut obstacles: Vec<_> = plan
+            .views
+            .iter()
+            .filter(|v| v.id != "v:iso")
+            .map(|v| v.area)
+            .collect();
+        obstacles.push(plan.sheet.title_block);
+        obstacles.extend(
+            plan.tables
+                .iter()
+                .filter_map(|t| t.placed.as_ref().map(|p| p.cells)),
+        );
+        if let Some(n) = &plan.notes_block {
+            obstacles.push(n.cells);
+        }
+        let iso_pinned = plan
+            .spec
+            .views
+            .get("iso")
+            .is_some_and(|v| v.place.as_ref().is_some_and(|p| p.pinned));
+        // A held region is part of the pin's canonical frame.
+        if !iso_pinned && !obstacles.iter().any(|b| overlap(ink, *b)) {
+            plan.views[i].area = ink;
+        } else if !iso_pinned
+            && free
+            && plan.spec.iso_scale_factor.is_none()
+            && !plan.spec.views.contains_key("iso")
+        {
+            let b = analysis.iso_bounds;
+            let size = [b[2] - b[0], b[3] - b[1]];
+            if size.iter().all(|v| *v > 0.0) {
+                let [w, h] = plan.sheet.page;
+                let rect = crate::layout::largest_empty_rect(
+                    [MARGIN, MARGIN, w - MARGIN, h - MARGIN],
+                    &obstacles,
+                    size,
+                );
+                let fit = ((rect[2] - rect[0]) / size[0]).min((rect[3] - rect[1]) / size[1]);
+                let scale = crate::layout::keep_sheet_scale(
+                    plan.views[i].scale.min(0.9 * fit),
+                    plan.sheet.scale_factor,
+                );
+                if scale > 0.0 {
+                    let iso = &mut plan.views[i];
+                    iso.scale = scale;
+                    iso.area = rect;
+                    iso.at = [
+                        (rect[0] + rect[2] - scale * (b[0] + b[2])) / 2.0,
+                        (rect[1] + rect[3] - scale * (b[1] + b[3])) / 2.0,
+                    ];
+                    iso.basis += "; orientation fitted around measured linear corridors";
+                }
+            }
+        }
+    }
+    let [w, h] = plan.sheet.page;
+    let too_large = plan.views.iter().filter(|v| v.id != "v:iso").any(|v| {
+        v.area[0] < MARGIN - 1e-6
+            || v.area[1] < MARGIN - 1e-6
+            || v.area[2] > w - MARGIN + 1e-6
+            || v.area[3] > h - MARGIN + 1e-6
+    });
+    if too_large && !plan.problems.iter().any(|p| p.code == "page_fit_uncertain") {
+        plan.problems.push(crate::model::Problem {id:"p:page_fit_uncertain:linear_corridors".into(),code:"page_fit_uncertain".into(),severity:"warning".into(),message:"The composed linear corridors do not fit the drawing area; choose a larger sheet or a smaller scale.".into(),subjects:vec!["sheet".into()],..Default::default()});
+    }
+    let checked = crate::dims::recheck(analysis, plan);
+    let codes: std::collections::BTreeSet<_> = checked
+        .iter()
+        .map(|p| p.code.clone())
+        .chain(["annotation_outside_area".into()])
+        .collect();
+    plan.problems.retain(|p| !codes.contains(&p.code));
+    plan.problems.extend(checked);
+}

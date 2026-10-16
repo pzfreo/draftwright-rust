@@ -39,6 +39,7 @@ fn explicit_scales_warn_below_legibility_and_refuse_degenerate_geometry() {
         warning.message
     );
     let error = pinned(&a, "1:1000").unwrap_err();
+    assert!(error.message.contains("0.00125"), "{error}");
     assert!(
         error.message.contains("geometry degenerates") && error.message.contains("0.1 mm"),
         "{error}"
@@ -149,26 +150,23 @@ fn contradictory_principal_pins_stay_fixed_and_report_infeasibility() {
 fn corridor(p: &Plan, d: &draftwright::dims::PlannedDimension) {
     let q = d.placed.as_ref().expect("linear must be placed");
     let v = p.views.iter().find(|v| v.id == d.view).unwrap();
-    let k = if q.rotation.rem_euclid(180.0).abs() < 1e-9 {
-        1
-    } else {
-        0
-    };
-    for x in q
-        .lines
-        .iter()
-        .chain(&q.arrows)
-        .flatten()
-        .map(|a| a[k])
-        .chain([q.label_box[k], q.label_box[k + 2]])
-    {
-        assert!(
-            v.area[k] - 1e-6 <= x && x <= v.area[k + 2] + 1e-6,
-            "{} {} {x} outside {:?}",
-            d.id,
-            v.id,
-            v.area
-        );
+    for k in 0..2 {
+        for x in q
+            .lines
+            .iter()
+            .chain(&q.arrows)
+            .flatten()
+            .map(|a| a[k])
+            .chain([q.label_box[k], q.label_box[k + 2]])
+        {
+            assert!(
+                v.area[k] - 1e-6 <= x && x <= v.area[k + 2] + 1e-6,
+                "{} {} axis {k}: {x} outside {:?}",
+                d.id,
+                v.id,
+                v.area
+            );
+        }
     }
 }
 
@@ -223,6 +221,24 @@ fn internal_stations_require_three_details_of_two_kinds() {
         .section
         .expect("dense internal station warrants a section");
     assert!((section.cut_y + 7.9).abs() < 1e-6, "{section:?}");
+    let unsectioned =
+        model::plan(&a, &spec(json!({"views":{"section_aa":{"omit":true}}}))).unwrap();
+    let slot_requirements = |p: &Plan| -> std::collections::BTreeSet<(String, String, u64)> {
+        p.dimensions
+            .iter()
+            .filter(|d| d.placed.is_some())
+            .flat_map(|d| &d.measurements)
+            .filter(|m| {
+                m.parameter.starts_with("slot_") || m.parameter.starts_with("location_slot")
+            })
+            .map(|m| (m.feature.clone(), m.parameter.clone(), m.value.to_bits()))
+            .collect()
+    };
+    let required = slot_requirements(&unsectioned);
+    assert!(
+        required.len() >= 5,
+        "the fixture must exercise multiple required slot measurements"
+    );
     for recovered in [false, true] {
         let p = if recovered {
             model::plan_recovered(&a, &Spec::default())
@@ -231,6 +247,11 @@ fn internal_stations_require_three_details_of_two_kinds() {
         }
         .unwrap();
         assert!(p.views.iter().any(|v| v.id == "v:section_aa"));
+        assert_eq!(
+            slot_requirements(&p),
+            required,
+            "section allocation lost a required slot measurement"
+        );
         let drawing = model::render(
             &part,
             &a,
@@ -468,4 +489,105 @@ fn indirect_principal_relations_report_projection_infeasibility() {
             .message
             .contains("projection")
     );
+}
+
+#[test]
+fn reserved_location_corridors_choose_witnesses_clear_of_foreign_holes() {
+    for (file, id, foreign) in [
+        (
+            "nist/nist_ftc_06_asme1_rd.stp",
+            "d:f:hole:5/location.length.y",
+            vec!["f:hole:11", "f:hole:12"],
+        ),
+        (
+            "nist/nist_ftc_07_asme1_rd.stp",
+            "d:f:hole:8/location.length.y",
+            vec!["f:hole:5", "f:hole:6", "f:hole:7"],
+        ),
+    ] {
+        let a = model::analyse_native(&corpus::dir().unwrap().join(file))
+            .unwrap()
+            .1;
+        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        let d = p.dimensions.iter().find(|d| d.id == id).unwrap();
+        corridor(&p, d);
+        assert!(
+            !p.problems
+                .iter()
+                .any(|p| p.code == "extension_through_feature" && p.subjects.contains(&id.into())),
+            "{file}"
+        );
+        let view = p.views.iter().find(|v| v.id == d.view).unwrap();
+        let frame = draftwright::haecceity::hlr::View::new(view.direction, view.up).unwrap();
+        let middle = [0, 1, 2].map(|k| (a.envelope[0][k] + a.envelope[1][k]) / 2.0);
+        let centre = frame.map(middle);
+        for (f, h) in draftwright::bridge::holes::read(&a) {
+            if !foreign.contains(&f.id.as_str()) {
+                continue;
+            }
+            let h = h.unwrap();
+            let q = frame.map(h.at);
+            let c = [0, 1].map(|k| view.at[k] + view.scale * (q[k] - centre[k]));
+            for [from, to] in &d.placed.as_ref().unwrap().lines[..2] {
+                let vector = [to[0] - from[0], to[1] - from[1]];
+                let length = vector[0] * vector[0] + vector[1] * vector[1];
+                let t = (((c[0] - from[0]) * vector[0] + (c[1] - from[1]) * vector[1]) / length)
+                    .clamp(0.0, 1.0);
+                assert!(
+                    (from[0] + t * vector[0] - c[0]).hypot(from[1] + t * vector[1] - c[1])
+                        >= h.diameter * view.scale / 2.0 - 1e-6,
+                    "{file}: witness crosses {}",
+                    f.id
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn isometric_hidden_ink_obeys_visible_line_precedence() {
+    let (part, a) = model::analyse_native(
+        &corpus::dir()
+            .unwrap()
+            .join("cadgenbench_inputs/cgb207.step"),
+    )
+    .unwrap();
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let g = model::render_geometry(&part, &a, &p, &mut model::Projections::default()).unwrap();
+    let iso = &g.views.iter().find(|(id, _)| id == "v:iso").unwrap().1;
+    let visible: Vec<_> = iso
+        .visible
+        .iter()
+        .filter_map(|i| {
+            if let draftwright::output::Item::Edge(c) = i {
+                Some(c.clone())
+            } else {
+                None
+            }
+        })
+        .collect();
+    let length = |c: &draftwright::output::Curve| {
+        (0..256)
+            .map(|i| {
+                let a = c.at(i as f64 / 256.0);
+                let b = c.at((i + 1) as f64 / 256.0);
+                (a[0] - b[0]).hypot(a[1] - b[1])
+            })
+            .sum::<f64>()
+    };
+    assert!(!iso.hidden.is_empty(), "truly hidden edges must survive");
+    for i in &iso.hidden {
+        let draftwright::output::Item::Edge(c) = i else {
+            continue;
+        };
+        let remaining: f64 = draftwright::linework::subtract(c, &visible)
+            .iter()
+            .map(&length)
+            .sum();
+        assert!(
+            length(c) - remaining < 0.01,
+            "isometric hidden edge retraces {:.4} mm of visible ink: {c:?}",
+            length(c) - remaining
+        );
+    }
 }

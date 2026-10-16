@@ -237,6 +237,9 @@ pub struct Lanes {
     pub plate_side_left_lanes: usize,
     pub plan_above: usize,
     pub plan_left: usize,
+    /// Authored lanes that must be offered before settling; source corridors are
+    /// measured from their settled routes by sheet_fit::reserve_linear_corridors.
+    pub authored_plan_left: usize,
     pub side_below: usize,
     pub side_above: usize,
     pub side_right: usize,
@@ -259,16 +262,17 @@ pub fn lane_band(lanes: usize) -> f64 {
 }
 
 impl Strips {
-    /// Reserve all source and explicitly placed linear corridors, even where
-    /// they face open paper. The composed area must hold the outer lane's ink;
-    /// smaller preferred scales are allowed when the full drawing needs them
-    /// (ISSUE-563-b, maintainer approval 2026-10-16). Callout-only virtual lanes
-    /// do not enlarge the front/plan linear bands.
-    /// The aligned front/side row also reserves the deeper of its lower bands.
+    /// Reserve authored lanes and the estimate's shared corridors. Every source
+    /// linear's settled footprint is reserved by sheet_fit::reserve_linear_corridors
+    /// during final composition, retaining the routed side instead of estimating a
+    /// different side and forcing its witnesses back across the part.
     pub fn reserve(&mut self, lanes: &Lanes) {
         let widen = |band: &mut f64, n: usize| *band = band.max(lane_band(n));
         widen(&mut self.right, lanes.front_right);
-        widen(&mut self.left, lanes.plate_front_left.max(lanes.plan_left));
+        widen(
+            &mut self.left,
+            lanes.plate_front_left.max(lanes.authored_plan_left),
+        );
         // Short thickness spans use outside arrows and text. Reserve their ink
         // past the adjacent corner as well as the carrying strip's lanes.
         self.fv_top = self.fv_top.max(lanes.plate_front_top);
