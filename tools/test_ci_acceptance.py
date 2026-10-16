@@ -232,24 +232,33 @@ class Acceptance(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('plan_time', ROOT / 'tools/check_plan_time.py')
         plan_time = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(plan_time)
-        # A marker in the command line finds the child; the work is long enough to pause.
+        # Capture the actual counted child, without requiring a process-list service.
+        # The work is long enough to pause.
         marker = f'paused-{os.getpid()}'
         command = [sys.executable, '-I', '-c', f's = 0\nfor i in range(40_000_000): s += i  # {marker}']
         whole, _ = plan_time.counted(command)
         found = {}
         counting = threading.Thread(target=lambda: found.update(paused=plan_time.counted(command)[0]))
-        counting.start()
-        pid = None
-        while pid is None and counting.is_alive():
-            listed = subprocess.run(['pgrep', '-f', marker], capture_output=True, text=True).stdout.split()
-            pid = int(listed[-1]) if listed else None
-        # As a load governor does: the child paused and continued while it runs.
-        for _ in range(3):
-            time.sleep(0.2)
-            os.kill(pid, signal.SIGSTOP)
-            time.sleep(0.2)
-            os.kill(pid, signal.SIGCONT)
-        counting.join()
+        started = threading.Event()
+        spawn = plan_time.subprocess.Popen
+
+        def counted_child(*args, **kwargs):
+            child = spawn(*args, **kwargs)
+            found['pid'] = child.pid
+            started.set()
+            return child
+
+        with patch.object(plan_time.subprocess, 'Popen', side_effect=counted_child):
+            counting.start()
+            self.assertTrue(started.wait(5), 'counted child did not start')
+            pid = found['pid']
+            # As a load governor does: the child paused and continued while it runs.
+            for _ in range(3):
+                time.sleep(0.2)
+                os.kill(pid, signal.SIGSTOP)
+                time.sleep(0.2)
+                os.kill(pid, signal.SIGCONT)
+            counting.join()
         self.assertGreater(found['paused'], 0.9 * whole)
 
     def test_ci_runs_render_tail_budget_with_release_binary(self):
