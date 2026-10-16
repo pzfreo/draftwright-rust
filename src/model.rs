@@ -1880,6 +1880,9 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
 /// caller (the library's [`crate::api`], so the command line, the JSON-lines service and MCP)
 /// is given. A plan that cannot be made is refused as [`plan`] refuses it.
 pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    // Recovery may restore the caller's intent after a trial; retain the migrated keys
+    // and schema there too, rather than restoring a version-1 spec onto a version-2 plan.
+    let spec = &migrate(spec, analysis)?;
     // The Spec's datums and controls merged into the PMI reading, once, so every later use of the
     // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).
     let merged = crate::spec_gdt::effective(analysis, spec)?;
