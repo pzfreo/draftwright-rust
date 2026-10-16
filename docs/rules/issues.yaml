@@ -48,8 +48,8 @@
       - "tests/test_issue_443_grm03_axial_coverage.py::test_grm03_detail_caption_fits_the_selected_a4_sheet"
     corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw.step"]
   status: ported
-  rust_test: "tests/detail_views.rs::string_post_uses_a4_with_an_enlarged_head_and_sheet_scale_iso; tests/issue_drafting.rs::grm03_locates_every_turned_shoulder_and_keeps_the_isometric"
-  rust_note: "src/detail.rs and tests/detail_views.rs recover crowded X heads in an enlarged view, retain A4 and the isometric, and preserve exact axial requirement IDs. Default multi-step profiles now use an inspection baseline."
+  rust_test: "tests/detail_views.rs::string_post_prefers_complete_larger_principals_without_a_detail; tests/detail_views.rs::a_constrained_main_scale_keeps_the_complete_head_crop_and_sheet_scale_iso; tests/issue_drafting.rs::grm03_locates_every_turned_shoulder_and_keeps_the_isometric"
+  rust_note: "Complete principal views win before automatic details under the sheet rules; tests/detail_views.rs covers both the larger default main scale and a constrained scale that still needs the complete enlarged head and sheet-scale isometric. Exact axial requirement IDs and the inspection baseline remain."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream dimensioning-coverage"
 
 - id: ISSUE-443-b
@@ -1404,7 +1404,7 @@
   status: ported
   rust_note: "Detail dimensions and captions share the structural pairwise pass, using their own view scales; src/detail.rs, src/lint/structural.rs."
   port_note: "Keep."
-  rust_test: "tests/detail_views.rs::string_post_uses_a4_with_an_enlarged_head_and_sheet_scale_iso; tests/detail_views.rs::crowded_prismatic_rungs_and_y_chains_use_their_own_camera_and_scale"
+  rust_test: "tests/detail_views.rs::a_constrained_main_scale_keeps_the_complete_head_crop_and_sheet_scale_iso; tests/detail_views.rs::crowded_prismatic_rungs_and_y_chains_use_their_own_camera_and_scale"
 
 - id: ISSUE-1217-a
   statement: "Every claimed representation is verified against what the annotation actually renders: the expected formatted value (not a substring or raw float), locations from their span, every number of a compound callout, and hole-table rows; an unconfirmed claim is reported as a warning."

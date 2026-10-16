@@ -432,12 +432,6 @@
     "reason": "Draftwright plans section A\u2013A through the blind \u23001.6 axial hole (its first placement reserves the section) but then skips it: its final cutting-plane ink crosses a required feature leader (section decision: skipped, leader_conflict, m_flat_z0). The port plans the same section and keeps it, having no leaders yet; whether it survives once leaders are ported is open."
   },
   {
-    "part": "ctc01",
-    "fact": "views",
-    "verdict": "equivalent",
-    "reason": "Detail views are now planned with stable IDs and exact per-view scales. Approved local dimensions move to their own crop; supported crop bounds and rectangular late-furniture placement differ from Python's captured drawing. The isometric keeps sheet scale when its detail reservation allows it. Compare docs/detail-verification.md and tests/detail_views.rs; tests/views.rs compares the same physical point across crop-centred camera transforms."
-  },
-  {
     "part": "grm03",
     "fact": "views",
     "verdict": "equivalent",
@@ -454,24 +448,6 @@
     "fact": "centre:plan",
     "verdict": "rust-correct",
     "reason": "The default connected turned profile now uses an inspection baseline, including its outside-arrow clearance; its principal blocks move with their reserved bands."
-  },
-  {
-    "part": "hanger",
-    "fact": "centre:detail_a",
-    "verdict": "equivalent",
-    "reason": "Detail views are now planned with stable IDs and exact per-view scales. Approved local dimensions move to their own crop; supported crop bounds and rectangular late-furniture placement differ from Python's captured drawing. The isometric keeps sheet scale when its detail reservation allows it. Compare docs/detail-verification.md and tests/detail_views.rs; tests/views.rs compares the same physical point across crop-centred camera transforms."
-  },
-  {
-    "part": "hanger",
-    "fact": "scale:detail_a",
-    "verdict": "equivalent",
-    "reason": "Detail views are now planned with stable IDs and exact per-view scales. Approved local dimensions move to their own crop; supported crop bounds and rectangular late-furniture placement differ from Python's captured drawing. The isometric keeps sheet scale when its detail reservation allows it. Compare docs/detail-verification.md and tests/detail_views.rs; tests/views.rs compares the same physical point across crop-centred camera transforms."
-  },
-  {
-    "part": "m1000",
-    "fact": "views",
-    "verdict": "equivalent",
-    "reason": "Detail views are now planned with stable IDs and exact per-view scales. Approved local dimensions move to their own crop; supported crop bounds and rectangular late-furniture placement differ from Python's captured drawing. The isometric keeps sheet scale when its detail reservation allows it. Compare docs/detail-verification.md and tests/detail_views.rs; tests/views.rs compares the same physical point across crop-centred camera transforms."
   },
   {
     "part": "m10046",
@@ -496,5 +472,11 @@
     "fact": "views",
     "verdict": "equivalent",
     "reason": "Detail views are now planned with stable IDs and exact per-view scales. Approved local dimensions move to their own crop; supported crop bounds and rectangular late-furniture placement differ from Python's captured drawing. The isometric keeps sheet scale when its detail reservation allows it. Compare docs/detail-verification.md and tests/detail_views.rs; tests/views.rs compares the same physical point across crop-centred camera transforms."
+  },
+  {
+    "part": "hanger",
+    "fact": "views",
+    "verdict": "rust-correct",
+    "reason": "Python adds detail A at 2:1. The full-width supported crop does not fit at the preferred enlargement in the estimated sheet layout, so Rust withholds it; a narrow or marginal enlargement is not useful. Recovery selects complete A3 1:2 principal views under the maintainer sheet rule, retaining the 4 mm thickness and supported heights without a detail. The separate centre/scale detail differences cease to apply when the detail is absent."
   }
 ]

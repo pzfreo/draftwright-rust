@@ -26,6 +26,19 @@
     "reason": "A step shoulder's position (19.256) and a hole's y location (19.310) are different quantities 0.054 mm apart that both print 19.3 at the sheet's one-decimal precision; neither conveys the other."
   },
   {
+    "part": "nist/nist_ctc_01_asme1_rd.stp",
+    "view": "front",
+    "label": "50",
+    "rotation": 90,
+    "items": [
+      "d:f:polygonal_boss:1/boss_height.length",
+      "d:step_level/step_height.length.h50"
+    ],
+    "verdict": "distinct-quantities",
+    "draftwright": "m_bossheight_z0 '50' in the front; it plans the 50 rung and withholds it at 1:5 (lint step_dim_withheld: 'approved step height(s) span less than 12.4 mm on the page'); known_dimensions.json lists the rung (undetermined, the legibility gate).",
+    "reason": "The hexagonal boss's height runs from the plate's top (100) to the boss's top (150); the rung runs from the part's base to the slot floor at 50. Different spans and quantities with the same value. Whether the rung is drawn at this scale is the legibility-gate question already listed in known_dimensions.json, not a repeat."
+  },
+  {
     "part": "nist/nist_ctc_04_asme1_rd.stp",
     "view": "plan",
     "label": "140",

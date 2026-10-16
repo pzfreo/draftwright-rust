@@ -1892,7 +1892,7 @@
   status: ported
   rust_note: "src/lint/structural.rs compares detail-caption text with every other label, across view scales, at a half-text-height gap. tests/detail_views.rs covers rendered caption separation."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream detail-views"
-  rust_test: "tests/detail_views.rs::string_post_uses_a4_with_an_enlarged_head_and_sheet_scale_iso"
+  rust_test: "tests/detail_views.rs::a_constrained_main_scale_keeps_the_complete_head_crop_and_sheet_scale_iso"
 - id: LINT-code-derived_view_identifier_reused
   statement: "Each derived-view identifier (section or detail letter) names only one view."
   detail: "Error; read from structured view keys, not caption text."
