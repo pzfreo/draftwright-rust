@@ -1516,3 +1516,41 @@ fn shared_dimension_lines_and_stray_text_are_errors() {
     let near = vertical("d:52", 20.0, 78.0, 130.0, [16.8, 132.5, 19.0, 136.5]);
     assert_eq!(found(vec![near]), vec![]);
 }
+
+#[test]
+fn nts_caption_contacts_with_labels_lines_and_views_are_reported() {
+    let name = model::NTS_CAPTION_ID;
+    let b = [40.0, 40.0, 70.0, 42.0];
+    let caption = item(name, Kind::Caption, b, Some(b));
+    // Even a shallow retained clash must be visible to the caption's backstop.
+    let other = label("callout", [69.9, 41.9, 80.0, 45.0]);
+    let mut leader = item(
+        "leader",
+        Kind::Dimension,
+        [69.8, 39.9, 90.0, 42.0],
+        Some([80.0, 40.0, 90.0, 42.0]),
+    );
+    leader.lines.push([[69.8, 39.9], [70.1, 40.2]]);
+    for (other, code) in [
+        (other, "annotation_overlap"),
+        (leader, "annotation_ink_overlap"),
+    ] {
+        let found = structural::check(&sheet(&[], vec![caption.clone(), other]));
+        assert!(
+            found.iter().any(|i| i.code == code
+                && (i.annotation.as_deref() == Some(name) || i.related.iter().any(|r| r == name))),
+            "{code}: {found:?}"
+        );
+    }
+    let mut drawing = sheet(&[("v:side", [30.0, 30.0, 80.0, 50.0])], vec![caption]);
+    drawing.sheet.views[0]
+        .edges
+        .push(Curve::Line([50.0, 30.0], [50.0, 50.0]));
+    let found = structural::check(&drawing);
+    assert!(
+        found
+            .iter()
+            .any(|i| i.code == "view_annotation_overlap" && i.annotation.as_deref() == Some(name)),
+        "{found:?}"
+    );
+}

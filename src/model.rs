@@ -581,6 +581,8 @@ impl std::fmt::Display for Invalid {
     }
 }
 
+const INFEASIBLE_ISO_SCALE: &str = "The authored iso scale is infeasible in its composed view zone; the requested scale was not reduced.";
+
 fn invalid(message: impl Into<String>, choices: &[&str]) -> Invalid {
     Invalid {
         message: message.into(),
@@ -1498,7 +1500,10 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                 } else {
                     match plan_escalated_with(analysis, &named, true, None) {
                         Ok(p) => p,
-                        Err(e) if spec.iso_scale_factor.is_some() => {
+                        Err(e)
+                            if spec.iso_scale_factor.is_some()
+                                && e.message == INFEASIBLE_ISO_SCALE =>
+                        {
                             tried.push(format!("{name} {} ({})", scale_name(scale), e.message));
                             continue;
                         }
@@ -1529,7 +1534,12 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                     let alternative =
                         match plan_escalated_with(analysis, &named, true, Some(arrangement)) {
                             Ok(p) => p,
-                            Err(_) if spec.iso_scale_factor.is_some() => continue,
+                            Err(e)
+                                if spec.iso_scale_factor.is_some()
+                                    && e.message == INFEASIBLE_ISO_SCALE =>
+                            {
+                                continue;
+                            }
                             Err(e) => return Err(e),
                         };
                     if quality(&alternative) < quality(&p) {
@@ -2486,10 +2496,7 @@ fn plan_with_presentation(
                 || b[2] > g.iso[2] + 1e-6
                 || b[3] > g.iso[3] + 1e-6)
         {
-            return Err(invalid(
-                "The authored iso scale is infeasible in its composed view zone; the requested scale was not reduced.",
-                &[],
-            ));
+            return Err(invalid(INFEASIBLE_ISO_SCALE, &[]));
         }
     }
     if shown("iso") && analysis.iso_bounds == [0.0; 4] {
@@ -4996,22 +5003,15 @@ fn render_annotations_with_cuts(
 /// The caption draftwright prints under an isometric drawn off the sheet's scale, and the name
 /// of the drawn item (draftwright's `note_iso_nts`).
 pub const NTS_CAPTION: &str = "ISO VIEW (NTS)";
-pub const NTS_CAPTION_ID: &str = "note_iso_nts";
-
-/// Whether *v* is an isometric drawn off its sheet's scale (Python's
-/// `_iso_to_sheet_scale`). Judge the actual scale after all fitting and recovery.
-pub fn nts_caption_needed(v: &PlannedView, plan: &Plan) -> bool {
-    v.id == "v:iso"
-        && v.sheet == plan.sheet.number
-        && (v.scale / plan.sheet.scale_factor - 1.0).abs() >= 1e-6
-}
+pub use crate::output::NTS_CAPTION_ID;
 
 /// Where the NTS caption of *size* is centred, for an isometric whose drawn box is *iso* and
 /// whose projection centre is at x = *centre_x* (draftwright's `place_iso_nts_note`): two font
 /// heights below the iso; failing that, further below; beside it, left then right; and only
 /// last above it. The first whose box, with the text padding round it, clears every obstacle
-/// and stays across the drawable area wins; when none does, the first, as required content
-/// is kept at a visible cost rather than dropped.
+/// and stays inside the drawable area wins. Retry without extra text clearance, then slide
+/// candidates vertically clear of obstacle edges before retaining required content at the
+/// natural position; structural lint reports any unavoidable clash.
 pub fn nts_caption_at(
     page: [f64; 2],
     iso: [f64; 4],
@@ -5029,23 +5029,43 @@ pub fn nts_caption_at(
         [iso[2] + font + w / 2.0, natural[1]],
         [centre_x, (iso[3] + 2.0 * font).min(page[1] - MARGIN - font)],
     ];
-    let pad = crate::tables::PAD;
-    candidates
+    let clear = |c: [f64; 2], pad: f64| {
+        let b = [
+            c[0] - w / 2.0,
+            c[1] - h / 2.0,
+            c[0] + w / 2.0,
+            c[1] + h / 2.0,
+        ];
+        if b[0] < MARGIN || b[1] < MARGIN || b[2] > page[0] - MARGIN || b[3] > page[1] - MARGIN {
+            return false;
+        }
+        let k = [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad];
+        !obstacles
+            .iter()
+            .any(|o| k[0] < o[2] && k[2] > o[0] && k[1] < o[3] && k[3] > o[1])
+    };
+    // Dimension strokes already have their own obstacle padding. Do not let stacking
+    // that pad with text clearance force the caption back onto real ink.
+    [crate::tables::PAD, 0.0]
         .into_iter()
-        .find(|c| {
-            let b = [
-                c[0] - w / 2.0,
-                c[1] - h / 2.0,
-                c[0] + w / 2.0,
-                c[1] + h / 2.0,
-            ];
-            if b[0] < MARGIN || b[2] > page[0] - MARGIN {
-                return false;
-            }
-            let k = [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad];
-            !obstacles
-                .iter()
-                .any(|o| k[0] < o[2] && k[2] > o[0] && k[1] < o[3] && k[3] > o[1])
+        .find_map(|pad| candidates.into_iter().find(|c| clear(*c, pad)))
+        .or_else(|| {
+            // A short extension line can still cross a sideways candidate's baseline.
+            // Slide along the same five columns to the nearest obstacle edge before
+            // retaining a clash. Existing clear candidates always take precedence.
+            candidates.into_iter().find_map(|c| {
+                let mut ys: Vec<_> = obstacles
+                    .iter()
+                    .flat_map(|o| [o[1] - h / 2.0 - 1e-6, o[3] + h / 2.0 + 1e-6])
+                    .collect();
+                ys.sort_by(|a, b| {
+                    (a - c[1])
+                        .abs()
+                        .total_cmp(&(b - c[1]).abs())
+                        .then(a.total_cmp(b))
+                });
+                ys.into_iter().map(|y| [c[0], y]).find(|c| clear(*c, 0.0))
+            })
         })
         .unwrap_or(natural)
 }

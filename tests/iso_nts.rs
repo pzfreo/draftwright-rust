@@ -5,6 +5,11 @@
 
 use std::path::Path;
 
+#[path = "common/corpus.rs"]
+mod corpus;
+
+use sha2::{Digest, Sha256};
+
 use draftwright::model::{self, NTS_CAPTION, NTS_CAPTION_ID, Plan, nts_caption_at};
 use draftwright::output::{Drawing, Drawn, Kind};
 
@@ -414,4 +419,102 @@ fn session_edits_remove_and_restore_the_caption_in_items_and_furniture() {
     assert!(delta.added.iter().any(|i| i.item.id == NTS_CAPTION_ID));
     assert!(caption(session.drawing()).is_some());
     assert!(session.svg_fragments(Some(&delta))["furniture"].contains(NTS_CAPTION));
+}
+
+fn saved_spec(analysis: &model::Analysis, prefix: &str) -> model::Spec {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let saved: std::collections::BTreeMap<String, Vec<model::Spec>> = serde_json::from_slice(
+        &std::fs::read(root.join("tests/fixtures/known_single_sheet_specs.json")).unwrap(),
+    )
+    .unwrap();
+    saved[&analysis.binding.source_sha256]
+        .iter()
+        .find(|spec| {
+            let hash: String = Sha256::digest(serde_json::to_vec(spec).unwrap())
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect();
+            hash.starts_with(prefix)
+        })
+        .unwrap_or_else(|| panic!("missing single-sheet spec {prefix}"))
+        .clone()
+}
+
+#[test]
+fn hanger_authored_dimensions_leave_the_nts_caption_clear_of_ink() {
+    let Some(corpus) = corpus::dir() else { return };
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let (part, analysis) =
+        model::analyse_native(&corpus.join("ttt_inputs/sm-hanger.step")).unwrap();
+    let font =
+        draftwright::text::Font::open(&root.join("fonts").join(draftwright::dims::FONT)).unwrap();
+    for prefix in ["060815f5", "85c2add8"] {
+        let spec = saved_spec(&analysis, prefix);
+        let plan = model::plan_recovered(&analysis, &spec).unwrap();
+        assert_eq!(plan.sheet.size, "A4");
+        assert_eq!(plan.sheet.scale, "1:2");
+        let drawing = model::render_with(
+            &part,
+            &analysis,
+            &plan,
+            &font,
+            &mut model::Projections::default(),
+        )
+        .unwrap();
+        let b = caption(&drawing).expect("hanger needs its NTS caption").ink;
+        for v in &drawing.sheet.views {
+            assert!(!overlaps(b, v.bbox), "{prefix}: caption over {}", v.name);
+        }
+        for d in drawing
+            .sheet
+            .items
+            .iter()
+            .filter(|d| d.name != NTS_CAPTION_ID)
+        {
+            if let Some(label) = d.label {
+                assert!(
+                    !overlaps(b, label),
+                    "{prefix}: caption over label {}",
+                    d.name
+                );
+            }
+            for line in &d.lines {
+                assert!(
+                    !crosses(b, *line),
+                    "{prefix}: caption crosses line {}",
+                    d.name
+                );
+            }
+            if !matches!(d.kind, Kind::Dimension | Kind::Centreline) {
+                assert!(!overlaps(b, d.ink), "{prefix}: caption over {}", d.name);
+            }
+        }
+    }
+}
+
+#[test]
+fn pinned_refits_snap_the_isometric_to_sheet_scale() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let (_, analysis) =
+        model::analyse_native(&root.join("tests/fixtures/parts/mounting_plate.step")).unwrap();
+    let plan = model::plan_recovered(&analysis, &saved_spec(&analysis, "2894e20b")).unwrap();
+    assert_eq!(iso_ratio(&plan), 1.0);
+    assert!(plan.captions.is_empty());
+}
+
+#[test]
+fn recovery_with_an_iso_factor_propagates_other_planning_errors() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let (_, analysis) =
+        model::analyse_native(&root.join("tests/fixtures/parts/plate.step")).unwrap();
+    let first = model::plan(&analysis, &model::Spec::default()).unwrap();
+    let invalid = model::Spec {
+        iso_scale_factor: Some(-1.0),
+        ..Default::default()
+    };
+    let expected = model::plan(&analysis, &invalid).unwrap_err();
+    assert_eq!(
+        model::recover(&analysis, &invalid, first).unwrap_err(),
+        expected
+    );
 }

@@ -20,6 +20,11 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- NTS captions retry with reduced clearance and nearby vertical positions before retaining
+  a clash; structural lint reports shallow caption overlaps with text and line ink. Pinned
+  placement refits use the same strict 5% sheet-scale snap as measured refits. An authored
+  iso scale only skips infeasible-iso candidates during recovery; other errors propagate.
+
 - `--part 0` (`"part": 0`) of a file of one part is the whole file: drawn byte for byte as without
   a part chosen, titled by the file's stem rather than the STEP product's name (`plate.step`
   gave `COMPOUND`). A part of a real assembly is still titled by its product's name.

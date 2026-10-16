@@ -208,9 +208,11 @@ When the drawn iso differs from its sheet scale, `Plan.captions` carries `note_i
 text `ISO VIEW (NTS)` at 3 mm, with its view, sheet, resolved position and ink bounds. It is
 an automatic read-only `caption` item, reserved before late notes and tables. It tries
 Python's positions below, further below, left, right and above the iso, keeping 2 mm clear
-of settled view and annotation ink and the title block. If every position is blocked,
-Python's required-content fallback retains the natural position. A sheet-scale or omitted
-iso carries no NTS caption. This furniture does not change the sheet-choice ladder or fill.
+of settled view and annotation ink and the title block. If every position is blocked, it
+retries without the extra text clearance, then slides the candidates vertically to clear
+obstacle edges. Only an entirely blocked search retains Python's natural-position fallback;
+structural lint reports even shallow caption contacts with labels, lines and view edges.
+A sheet-scale or omitted iso carries no NTS caption. This furniture does not change the sheet-choice ladder or fill.
 
 #### Projection method and a pinned sheet's fit
 

@@ -478,10 +478,17 @@ pub(crate) fn views(
                 let factor = ((fit[2] - fit[0]) / size[0])
                     .min((fit[3] - fit[1]) / size[1])
                     .min(1.0);
+                let scale = v.scale * factor;
+                let scale = if s.iso_scale_factor.is_none() {
+                    crate::layout::keep_sheet_scale(scale, sheet.scale_factor)
+                } else {
+                    scale
+                };
+                let factor = scale / v.scale;
                 v.at = [0, 1].map(|k| {
                     0.5 * (fit[k] + fit[k + 2]) + factor * (v.at[k] - 0.5 * (a[k] + a[k + 2]))
                 });
-                v.scale *= factor;
+                v.scale = scale;
                 v.area = fit;
                 v.basis += "; fitted around fixed placement obstacles";
             }

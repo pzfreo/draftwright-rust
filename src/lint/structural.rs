@@ -52,6 +52,8 @@
 //! `lint_drawing` call passes no part box).
 //!
 //! Differences from Python, each judged in `tests/lint_structural.rs`:
+//! - Required `note_iso_nts` furniture reports label and line contacts beyond numerical
+//!   roundoff, including those below the generic 0.5 mm overlap thresholds.
 //! - The port draws every label along or across the page, so a label's box is its text's own:
 //!   no label polygon, and no diagonal dimension to leave uncrossable.
 //! - A centreline without line-work (draftwright's centre circle) is judged by its whole ink's
@@ -65,7 +67,7 @@
 use std::collections::BTreeMap;
 
 use super::{LintIssue, Severity};
-use crate::output::{Curve, Drawing, Drawn, DrawnView, Kind, P};
+use crate::output::{Curve, Drawing, Drawn, DrawnView, Kind, NTS_CAPTION_ID, P};
 
 /// Below this a box past a bound is rounding (draftwright's `BOUNDS_ROUNDOFF`).
 const BOUNDS_ROUNDOFF: f64 = 1e-9;
@@ -487,7 +489,14 @@ fn crossings<'a>(a: &'a Drawn, b: &'a Drawn) -> Vec<(&'a Drawn, &'a Drawn, f64)>
     let mut found: Vec<(&Drawn, &Drawn, f64)> = [(a, b), (b, a)]
         .into_iter()
         .filter_map(|(x, y)| Some((x, y, crossing(&x.lines, crossable(y)?))))
-        .filter(|c| c.2 >= MIN_CROSSING)
+        // Required NTS furniture must not hide even a shallow retained ink clash.
+        .filter(|c| {
+            c.2 >= if c.1.name == NTS_CAPTION_ID {
+                BOUNDS_ROUNDOFF
+            } else {
+                MIN_CROSSING
+            }
+        })
         .collect();
     found.sort_by(|p, q| q.2.total_cmp(&p.2));
     found
@@ -518,7 +527,12 @@ fn centreline_overlap(d: &Drawn, cl: &Drawn) -> Option<(f64, f64)> {
         } else {
             (ly1.min(y1) - ly0.max(y0)).max(0.0)
         };
-        (ox > OVERLAP && oy > OVERLAP).then_some((ox, oy))
+        let threshold = if d.name == NTS_CAPTION_ID {
+            BOUNDS_ROUNDOFF
+        } else {
+            OVERLAP
+        };
+        (ox > threshold && oy > threshold).then_some((ox, oy))
     };
     if cl.lines.is_empty() {
         return overlap(cl.ink, false);
@@ -704,7 +718,12 @@ fn annotation_pairs(drawing: &Drawing) -> Vec<LintIssue> {
             let ox = (la[2].min(lb[2]) - la[0].max(lb[0])).max(0.0);
             let oy = (la[3].min(lb[3]) - la[1].max(lb[1])).max(0.0);
             let crossed = crossings(a, b);
-            if ox > OVERLAP && oy > OVERLAP {
+            let threshold = if a.name == NTS_CAPTION_ID || b.name == NTS_CAPTION_ID {
+                BOUNDS_ROUNDOFF
+            } else {
+                OVERLAP
+            };
+            if ox > threshold && oy > threshold {
                 let mut message = format!(
                     "labels '{}' and '{}' overlap by {ox:.1}×{oy:.1} mm",
                     called(drawing, a),
