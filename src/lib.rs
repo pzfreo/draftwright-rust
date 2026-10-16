@@ -10,6 +10,7 @@ pub mod blends;
 pub mod bridge;
 pub mod centrelines;
 pub mod completeness;
+pub mod cosmetic;
 pub mod demand;
 pub mod dims;
 pub mod hole_table;

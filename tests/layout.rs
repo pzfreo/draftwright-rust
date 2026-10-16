@@ -126,6 +126,7 @@ fn request(c: &Value) -> Request {
             side_step_y: s["side_step_y"].as_bool().unwrap(),
         },
         sections: c["section"].as_u64().unwrap() as usize,
+        section_row_fixed: false,
         table_sizes: c["table_sizes"]
             .as_array()
             .unwrap()

@@ -949,13 +949,20 @@ impl PartReader<'_> {
         out
     }
 
-    // Semantic threads use their stated manufacturing fields and the native lowering rules.
+    // Semantic threads use their stated manufacturing fields and the native lowering rules. An
+    // external thread (the editor's M10×1.5-6g on a turned diameter) is read the same way, as
+    // draftwright's structured `external_thread`: its 'thread manufacturing' attribute set states
+    // its pitch and thread length.
     fn semantic_threads(&self, used: &mut Used) -> Vec<Record> {
         let mut out = Vec::new();
         for (index, thread) in self.pmi.threads.iter().enumerate() {
-            if thread.side != pmi::ThreadSide::Internal || thread.form != "M" {
+            if thread.form != "M" {
                 continue;
             }
+            let side = match thread.side {
+                pmi::ThreadSide::Internal => "internal",
+                pmi::ThreadSide::External => "external",
+            };
             let attributes: Vec<_> = self
                 .pmi
                 .attributes
@@ -993,11 +1000,11 @@ impl PartReader<'_> {
                 Vec::new(),
             );
             r.source_id = format!("manufacturing_requirement:#{}", r.part21_id);
-            r.kind = "internal_thread".into();
+            r.kind = format!("{side}_thread");
             let designation = thread.qualifier.clone().unwrap_or_default();
-            r.label = "internal thread".into();
+            r.label = format!("{side} thread");
             r.fields = vec![
-                ("thread side".into(), Field::Text("internal".into())),
+                ("thread side".into(), Field::Text(side.into())),
                 ("designation".into(), Field::Text(designation)),
                 (
                     "nominal size".into(),

@@ -95,6 +95,10 @@ const MIN_LEADER: f64 = 6.0;
 /// The longest leader taken while any shorter one is free of hard blockers, mm: a longer one
 /// counts as one (draftwright's longest on its captured sheets is 73.5 mm, connector109's).
 const MAX_LEADER: f64 = 75.0;
+/// The least angle a leader to a turned step's silhouette makes with it, degrees: closer to
+/// parallel, it reads as lying on the part's edge (ISO 128-22 has leaders meet the outline at an
+/// angle; it states no figure).
+const GRAZING: f64 = 15.0;
 /// The step between candidate rows (beside a view) and columns (above and below it), mm.
 const STEP: f64 = 1.0;
 /// At most this many rows or columns are tried on each side of a view, however large the view.
@@ -134,6 +138,12 @@ const TEXT_INK: i64 = 1_000 * AREA;
 /// A leader running along or close beside a centre stroke reads as part of it
 /// ([`crate::centrelines::runs_beside`]): avoided at any cost short of one crossing.
 const BESIDE: i64 = 100 * TEXT_INK;
+/// A leader within [`GRAZING`] of the turned silhouette it points at reads as lying on the
+/// part's edge. When a callout's best route grazes, every route but an angled one crossing no
+/// more model line-work or features ([`Candidate::astray`]) costs this, as much as 20 mm more
+/// ink (micrometres): worth a longer leader, never a crossing, and not worth sending the
+/// neighbouring callouts far round to make room.
+const GRAZE: i64 = 20_000;
 /// The clear-route measurement (ISSUE-1187-a, after draftwright's test helper `_clear_routes`,
 /// which no placer uses): from each of a callout's [`SWEEP_SITES`] sites nearest its leader's
 /// tip, the leader leaves radially in [`SWEEP_DIRECTIONS`] directions, its elbow at each of
@@ -159,6 +169,12 @@ struct Candidate {
     furniture_text: u32,
     /// Of the centre strokes it meets, those it runs along or close beside ([`BESIDE`]).
     beside: u32,
+    /// Whether its shaft grazes the turned silhouette it points at (1) or not (0).
+    grazing: u32,
+    /// For a callout steered off its silhouette ([`inventory`]): 1 unless it does not graze
+    /// and crosses no more of its view's model line-work, and no more features, than the
+    /// grazing route ([`GRAZE`]); always 0 otherwise.
+    astray: u32,
     feature_crossings: u32,
     inside: i64,
     features_measured: bool,
@@ -242,6 +258,7 @@ impl Candidate {
             }
             + i64::from(self.furniture) * 100_000
             + i64::from(self.beside) * BESIDE
+            + i64::from(self.astray) * GRAZE
     }
 
     /// Whether it is clear: no hard blocker and nothing crossed.
@@ -453,6 +470,15 @@ struct Job<'a> {
     /// The view's reserved area (box and bands), when the sheet has it.
     area: Option<[f64; 4]>,
     sites: Vec<(P2, f64)>,
+    /// For a turned step's diameter, whose sites lie on its silhouette: the silhouette's
+    /// direction on the page ([`grazing`]).
+    silhouette: Option<P2>,
+    /// For such a callout, its view's model line-work ([`view_ink`]): a route across it is
+    /// what an angle off the silhouette may not buy ([`Candidate::astray`]).
+    model: Option<&'a [[P2; 2]]>,
+    /// Once [`inventory`] steers the callout off its silhouette: the most model lines and
+    /// features an angled route may cross, the grazing route's ([`astray`]).
+    steer: std::cell::Cell<Option<(usize, usize)>>,
     ink_min: P2,
     ink_max: P2,
     /// Below, above, left, right: the distance past that edge clear of the strip's dimensions.
@@ -565,6 +591,25 @@ pub(super) fn place_with_obstacles(
         .iter()
         .map(|v| (v.id.trim_start_matches("v:"), cache.get(analysis, v)))
         .collect();
+    // The model line-work of each view with a turned step's diameter callout to place.
+    let models: BTreeMap<&str, Vec<[P2; 2]>> = analysis
+        .edge_ink
+        .as_ref()
+        .map(|ink| {
+            views
+                .iter()
+                .filter(|v| {
+                    let id = v.id.trim_start_matches("v:");
+                    items.iter().enumerate().any(|(i, w)| {
+                        views_of[i] == Some(id)
+                            && placed[i].is_none()
+                            && frames.get(id).is_some_and(|f| grazing(f, w).is_some())
+                    })
+                })
+                .map(|v| (v.id.trim_start_matches("v:"), view_ink(analysis, ink, v).0))
+                .collect()
+        })
+        .unwrap_or_default();
     let mut jobs: Vec<(usize, Job)> = Vec::new();
     for (i, w) in items.iter().enumerate() {
         let (Shape::Callout { sites }, Some(view)) = (&w.shape, views_of[i]) else {
@@ -588,6 +633,9 @@ pub(super) fn place_with_obstacles(
                 outline: f.outline(),
                 area: page.area(view),
                 sites: page_sites(f, sites),
+                silhouette: grazing(f, w),
+                model: models.get(view).map(Vec::as_slice),
+                steer: std::cell::Cell::new(None),
                 ink_min: ink.min,
                 ink_max: ink.max,
                 beyond,
@@ -864,86 +912,7 @@ pub(super) fn refine(
         return updated;
     }
     // Each view's line-work for the route gates, gathered only once a candidate reaches it.
-    let view_ink = |v: &crate::model::PlannedView| {
-        let mut model: Vec<[P2; 2]> = Vec::new();
-        let mut uncertain: Vec<[f64; 4]> = Vec::new();
-        let frame = Frame::new(analysis, v);
-        if v.id == "v:iso" {
-            let b = analysis.iso_bounds;
-            uncertain.push([
-                v.at[0] + v.scale * b[0],
-                v.at[1] + v.scale * b[1],
-                v.at[0] + v.scale * b[2],
-                v.at[1] + v.scale * b[3],
-            ]);
-            return (model, uncertain);
-        }
-        if v.cut.is_some() {
-            // Section ink needs a cut B-rep: new routes stay outside its envelope.
-            uncertain.push(frame.outline());
-            return (model, uncertain);
-        }
-        model.extend(
-            ink.edges
-                .iter()
-                .flat_map(|e| e.windows(2).map(|s| [frame.page(s[0]), frame.page(s[1])])),
-        );
-        for f in &ink.curved {
-            let [lo, hi] = f.bounds;
-            let corners: Vec<_> = (0..8)
-                .map(|i| [0, 1, 2].map(|k| if i >> k & 1 == 0 { lo[k] } else { hi[k] }))
-                .collect();
-            if let Some(c) = &f.cylinder {
-                let norm = c.axis.iter().map(|x| x * x).sum::<f64>().sqrt();
-                let axis = c.axis.map(|x| x / norm.max(1e-12));
-                let along: f64 = (0..3).map(|k| axis[k] * v.direction[k]).sum();
-                if along.abs() > 1.0 - 1e-9 {
-                    continue;
-                }
-                if along.abs() < 1e-9 {
-                    let h: Vec<f64> = corners
-                        .iter()
-                        .map(|p| (0..3).map(|k| (p[k] - c.origin[k]) * axis[k]).sum())
-                        .collect();
-                    let h0 = h.iter().copied().fold(f64::INFINITY, f64::min);
-                    let h1 = h.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-                    let w = [
-                        axis[1] * v.direction[2] - axis[2] * v.direction[1],
-                        axis[2] * v.direction[0] - axis[0] * v.direction[2],
-                        axis[0] * v.direction[1] - axis[1] * v.direction[0],
-                    ];
-                    for sign in [-1.0, 1.0] {
-                        let at = |t| {
-                            frame.page(
-                                [0, 1, 2]
-                                    .map(|k| c.origin[k] + t * axis[k] + sign * c.radius * w[k]),
-                            )
-                        };
-                        model.push([at(h0), at(h1)]);
-                    }
-                    continue;
-                }
-            }
-            let b = corners.into_iter().map(|p| frame.page(p)).fold(
-                [
-                    f64::INFINITY,
-                    f64::INFINITY,
-                    f64::NEG_INFINITY,
-                    f64::NEG_INFINITY,
-                ],
-                |b, p| {
-                    [
-                        b[0].min(p[0]),
-                        b[1].min(p[1]),
-                        b[2].max(p[0]),
-                        b[3].max(p[1]),
-                    ]
-                },
-            );
-            uncertain.push(b);
-        }
-        (model, uncertain)
-    };
+    let view_ink = |v: &crate::model::PlannedView| view_ink(analysis, ink, v);
     let view_reach: Vec<[f64; 4]> = views
         .iter()
         .map(|v| {
@@ -1166,6 +1135,9 @@ pub(super) fn refine(
             outline: frame.outline(),
             area: page.area(view),
             sites: page_sites.clone(),
+            silhouette: grazing(frame, w),
+            model: None,
+            steer: std::cell::Cell::new(None),
             ink_min: label.min,
             ink_max: label.max,
             beyond: [CLEAR; 4],
@@ -1215,6 +1187,7 @@ pub(super) fn refine(
                 || c.text > prior.text
                 || c.furniture > prior.furniture
                 || c.beside > prior.beside
+                || c.grazing > prior.grazing
             {
                 return None;
             }
@@ -1241,6 +1214,92 @@ pub(super) fn refine(
 
 /// A view's straight line-work and the boxes of its line-work that is not known exactly.
 type ViewInk = (Vec<[P2; 2]>, Vec<[f64; 4]>);
+
+/// A view's model line-work on the page (edges and square-on cylinder silhouettes), and the
+/// boxes whose ink is not known as lines (the isometric view, section views, other curved faces).
+fn view_ink(
+    analysis: &crate::model::Analysis,
+    ink: &crate::model::projected_ink::EdgeInk,
+    v: &crate::model::PlannedView,
+) -> ViewInk {
+    let mut model: Vec<[P2; 2]> = Vec::new();
+    let mut uncertain: Vec<[f64; 4]> = Vec::new();
+    let frame = Frame::new(analysis, v);
+    if v.id == "v:iso" {
+        let b = analysis.iso_bounds;
+        uncertain.push([
+            v.at[0] + v.scale * b[0],
+            v.at[1] + v.scale * b[1],
+            v.at[0] + v.scale * b[2],
+            v.at[1] + v.scale * b[3],
+        ]);
+        return (model, uncertain);
+    }
+    if v.cut.is_some() {
+        // Section ink needs a cut B-rep: new routes stay outside its envelope.
+        uncertain.push(frame.outline());
+        return (model, uncertain);
+    }
+    model.extend(
+        ink.edges
+            .iter()
+            .flat_map(|e| e.windows(2).map(|s| [frame.page(s[0]), frame.page(s[1])])),
+    );
+    for f in &ink.curved {
+        let [lo, hi] = f.bounds;
+        let corners: Vec<_> = (0..8)
+            .map(|i| [0, 1, 2].map(|k| if i >> k & 1 == 0 { lo[k] } else { hi[k] }))
+            .collect();
+        if let Some(c) = &f.cylinder {
+            let norm = c.axis.iter().map(|x| x * x).sum::<f64>().sqrt();
+            let axis = c.axis.map(|x| x / norm.max(1e-12));
+            let along: f64 = (0..3).map(|k| axis[k] * v.direction[k]).sum();
+            if along.abs() > 1.0 - 1e-9 {
+                continue;
+            }
+            if along.abs() < 1e-9 {
+                let h: Vec<f64> = corners
+                    .iter()
+                    .map(|p| (0..3).map(|k| (p[k] - c.origin[k]) * axis[k]).sum())
+                    .collect();
+                let h0 = h.iter().copied().fold(f64::INFINITY, f64::min);
+                let h1 = h.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+                let w = [
+                    axis[1] * v.direction[2] - axis[2] * v.direction[1],
+                    axis[2] * v.direction[0] - axis[0] * v.direction[2],
+                    axis[0] * v.direction[1] - axis[1] * v.direction[0],
+                ];
+                for sign in [-1.0, 1.0] {
+                    let at = |t| {
+                        frame.page(
+                            [0, 1, 2].map(|k| c.origin[k] + t * axis[k] + sign * c.radius * w[k]),
+                        )
+                    };
+                    model.push([at(h0), at(h1)]);
+                }
+                continue;
+            }
+        }
+        let b = corners.into_iter().map(|p| frame.page(p)).fold(
+            [
+                f64::INFINITY,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+                f64::NEG_INFINITY,
+            ],
+            |b, p| {
+                [
+                    b[0].min(p[0]),
+                    b[1].min(p[1]),
+                    b[2].max(p[0]),
+                    b[3].max(p[1]),
+                ]
+            },
+        );
+        uncertain.push(b);
+    }
+    (model, uncertain)
+}
 
 fn length(lines: &[[P2; 2]]) -> f64 {
     lines
@@ -1370,6 +1429,18 @@ fn along_interval(a: [P2; 2], b: [P2; 2]) -> Option<(f64, f64)> {
         }
     }
     (hi > lo).then_some((lo, hi))
+}
+
+/// The page direction of a turned step's silhouette, for its diameter's callout (*w* with a
+/// turning axis), unless the view looks along the axis.
+fn grazing(f: &Frame, w: &Want) -> Option<P2> {
+    let t = w.turning?;
+    let mut e = [0.0; 3];
+    e[t] = 1.0;
+    let (a, b) = (f.page([0.0; 3]), f.page(e));
+    let d = [b[0] - a[0], b[1] - a[1]];
+    let n = d[0].hypot(d[1]);
+    (n > 1e-9 * f.scale()).then(|| [d[0] / n, d[1] / n])
 }
 
 /// A callout's sites on the page, at most [`MAX_SITES`]. A silhouette site (radius 0) that lands
@@ -1718,8 +1789,66 @@ fn inventory(job: &Job, fixed: &Fixed, page: &Page, semantic_pmi: bool) -> Inven
             }
         }
     }
-    let aware = keep(&mut measured, job, fixed);
-    let mut baseline = measured.clone();
+    let lists = kept(&mut measured, job, fixed, semantic_pmi);
+    // A turned step's diameter whose best route grazes its silhouette takes an angled route
+    // instead, but only one that crosses no more of the part's line-work, and passes through
+    // no more features, than the grazing one; with none, the grazing route stands.
+    if job.model.is_none() {
+        return lists;
+    }
+    let grazing: Vec<&Candidate> = [&lists.0, &lists.1, &lists.2]
+        .iter()
+        .filter_map(|l| l.first().filter(|c| c.grazing > 0))
+        .collect();
+    let (Some(edges), Some(features)) = (
+        grazing.iter().map(|c| model_crossings(job, c)).min(),
+        grazing.iter().map(|c| feature_count(job, c)).min(),
+    ) else {
+        return lists;
+    };
+    job.steer.set(Some((edges, features)));
+    for c in &mut measured {
+        c.astray = astray(job, c);
+    }
+    if measured.iter().all(|c| c.astray > 0) {
+        job.steer.set(None);
+        for c in &mut measured {
+            c.astray = 0;
+        }
+        return lists;
+    }
+    kept(&mut measured, job, fixed, semantic_pmi)
+}
+
+/// How many of its view's model lines a route crosses ([`Job::model`]).
+fn model_crossings(job: &Job, c: &Candidate) -> usize {
+    let segs = c.segments();
+    job.model.map_or(0, |model| {
+        model
+            .iter()
+            .filter(|m| segs.iter().any(|s| segments_cross(*s, **m)))
+            .count()
+    })
+}
+
+/// How many features a route's shaft passes through.
+fn feature_count(job: &Job, c: &Candidate) -> usize {
+    job.footprints.crossing_count([c.tip, c.elbow])
+}
+
+/// [`Candidate::astray`] for a route of *job*, as steered ([`Job::steer`]).
+fn astray(job: &Job, c: &Candidate) -> u32 {
+    job.steer.get().map_or(0, |(edges, features)| {
+        u32::from(
+            c.grazing > 0 || model_crossings(job, c) > edges || feature_count(job, c) > features,
+        )
+    })
+}
+
+/// The furniture-aware, baseline-aware and legacy inventories kept from *measured*.
+fn kept(measured: &mut [Candidate], job: &Job, fixed: &Fixed, semantic_pmi: bool) -> Inventories {
+    let aware = keep(measured, job, fixed);
+    let mut baseline = measured.to_vec();
     for c in &mut baseline {
         c.without_furniture();
         c.ignore_furniture = true;
@@ -1905,6 +2034,12 @@ fn measure_at_bounds(
     if shaft > MAX_LEADER {
         hard += 1;
     }
+    // A leader along the silhouette it points at lies on the part's edge: ISO 128-22's leader
+    // meets the outline at an angle.
+    let grazing = job.silhouette.is_some_and(|u| {
+        let d = [elbow[0] - tip[0], elbow[1] - tip[1]];
+        (u[0] * d[1] - u[1] * d[0]).abs() < GRAZING.to_radians().sin() * shaft
+    });
     let bounds = [
         tip[0].min(elbow[0]).min(end[0]).min(lb[0]),
         tip[1].min(elbow[1]).min(lb[1]),
@@ -1923,7 +2058,7 @@ fn measure_at_bounds(
         ((shaft + (end[0] - elbow[0]).hypot(end[1] - elbow[1]) + cut) * 1000.0).round() as i64;
     // The material's boxes are cheap; resolving this length now keeps the score bound tight.
     let inside = (job.footprints.inside_length(segs[0]) * 1000.0).round() as i64;
-    Some(Candidate {
+    let mut c = Candidate {
         tip,
         elbow,
         end,
@@ -1936,6 +2071,8 @@ fn measure_at_bounds(
         furniture_hard: 0,
         furniture_text: 0,
         beside: 0,
+        grazing: u32::from(grazing),
+        astray: 0,
         feature_crossings: 0,
         inside,
         features_measured: false,
@@ -1946,7 +2083,9 @@ fn measure_at_bounds(
         outside: u32::from(outside),
         bounds,
         conflict_ink: OnceCell::new(),
-    })
+    };
+    c.astray = astray(job, &c);
+    Some(c)
 }
 
 // Annotation contacts are the expensive tier. Every retained candidate is fully measured;
@@ -2149,6 +2288,9 @@ pub fn clear_routes(
         outline: f.outline(),
         area: page.area(view),
         sites: page_sites(f, sites),
+        silhouette: grazing(f, w),
+        model: None,
+        steer: std::cell::Cell::new(None),
         ink_min: ink.min,
         ink_max: ink.max,
         beyond: [CLEAR; 4],
@@ -2821,6 +2963,8 @@ mod tests {
             furniture_hard: 0,
             furniture_text: 0,
             beside: 0,
+            grazing: 0,
+            astray: 0,
             feature_crossings: 0,
             inside: 0,
             features_measured: true,

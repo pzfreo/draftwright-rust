@@ -417,7 +417,8 @@ struct Want {
     basis: String,
     shape: Shape,
     /// For a turned part's diameter: its turning axis. The diameter is then drawn across
-    /// whichever radial axis the carrying view shows.
+    /// whichever radial axis the carrying view shows; a step diameter's callout, led to the
+    /// silhouette, keeps its leader off the silhouette's direction ([`leaders`]).
     turning: Option<usize>,
 }
 
@@ -1299,6 +1300,23 @@ pub(crate) fn plan_inventory(
         &page,
     );
     placement::settle_fixed(&mut placed, &fixed, obstacles, analysis, sheet, views);
+    // Edited text can outgrow the canonical lanes. Keep the canonical layout stable
+    // for pins and omission edits; their avoidance pass above owns that geometry.
+    if (spec.dimensions.values().any(|d| d.tolerance.is_some())
+        || spec.features.values().any(|f| f.fit.is_some()))
+        && intended.iter().all(Option::is_none)
+    {
+        placement::clear_linear(
+            &frames,
+            &all,
+            &chosen,
+            &mut sides,
+            &mut lane,
+            &mut placed,
+            obstacles,
+            &page,
+        );
+    }
     angular::place(&frames, &all, &chosen, &mut placed, &page);
     // Radius exceptions are placed around the existing drawing ink. Their addition must not
     // reroute unrelated approved callouts into clutter.

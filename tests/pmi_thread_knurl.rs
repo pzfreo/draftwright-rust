@@ -427,3 +427,240 @@ fn the_requirements_drawing_is_deterministic() {
     let two = serde_json::to_string(&model::plan(&a, &Spec::default()).unwrap()).unwrap();
     assert_eq!(one, two);
 }
+
+/// The straight-knurl spindle with the draftwright-editor's external thread on its ⌀10 band,
+/// hand-written as the editor's `pmi_writer.rs` writes one (AP242 `thread`, side external,
+/// form M, fit class 6g, qualifier M10x1.5, and a 'thread manufacturing' attribute set with
+/// pitch 1.5 and thread length 18, the band's length as specify-core states it).
+fn external_thread() -> (draftwright::haecceity::Part, Analysis) {
+    let gz = root().join("tests/fixtures/turned_knurl/spindle_external_thread.step.gz");
+    analysed_bytes(
+        "spindle_external_thread.step",
+        &gunzip(&std::fs::read(gz).unwrap()),
+    )
+}
+
+/// The lines of the drawing's thin layer (threads and knurls drawn over the outline), page mm.
+fn thin_lines(svg: &str) -> Vec<[f64; 4]> {
+    let Some(start) = svg.find("id=\"thin\"") else {
+        return Vec::new();
+    };
+    let group = &svg[start..start + svg[start..].find("</g>").unwrap()];
+    group
+        .split("<line ")
+        .skip(1)
+        .map(|l| {
+            ["x1", "y1", "x2", "y2"].map(|k| {
+                let at = l.find(&format!("{k}=\"")).unwrap() + k.len() + 2;
+                l[at..at + l[at..].find('"').unwrap()].parse().unwrap()
+            })
+        })
+        .collect()
+}
+
+fn length(l: &[f64; 4]) -> f64 {
+    (l[2] - l[0]).hypot(l[3] - l[1])
+}
+
+/// The scale of the plan's front view (the profile views share it).
+fn front_scale(plan: &Plan) -> f64 {
+    plan.views.iter().find(|v| v.id == "v:front").unwrap().scale
+}
+
+#[test]
+fn a_semantic_external_thread_prints_its_designation_in_place_of_the_diameter() {
+    let (part, a) = external_thread();
+    let r = records(&a)
+        .iter()
+        .find(|r| r.kind == "external_thread")
+        .expect("the AP242 external thread is projected");
+    let source = r.source_id.clone();
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let labels: Vec<&str> = claimed(&plan, &a, &source).iter().map(|c| c.1).collect();
+    assert_eq!(labels, ["M10 x 1.5-6g RH, FULL AVAILABLE LENGTH"]);
+    assert_eq!(refused(&plan, &source), None);
+    // Neither the thread nor its manufacturing attribute set is reported not projected.
+    assert!(
+        !plan.problems.iter().any(|p| p.code == "pmi_not_extracted"
+            && (p.message.contains("(thread)")
+                || p.message.contains("(attribute set)")
+                    && p.message.contains("general_property"))),
+        "{:#?}",
+        plan.problems
+    );
+    // The knurl still prints on its own diameter.
+    let knurl = "manufacturing_requirement:#925";
+    let labels: Vec<&str> = claimed(&plan, &a, knurl).iter().map(|c| c.1).collect();
+    assert_eq!(labels, ["ø24 MAX AFTER KNURL; STRAIGHT KNURL P1"]);
+    let font =
+        draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
+    let drawing = model::render(&part, &a, &plan, &font).unwrap();
+    let svg = drawing.svg();
+    assert!(pdf::svg_text(&svg).join(" ").contains("M10 x 1.5-6g RH"));
+    let lint = draftwright::lint::lint(&a, &drawing);
+    assert!(
+        !lint.iter().any(|i| i.sources.contains(&source)),
+        "{lint:#?}"
+    );
+}
+
+#[test]
+fn an_external_thread_is_drawn_at_its_minor_diameter_over_its_length() {
+    let (part, a) = external_thread();
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let font =
+        draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
+    let drawing = model::render(&part, &a, &plan, &font).unwrap();
+    let s = front_scale(&plan);
+    // ISO 6410: thin lines along the axis at d3 = 10 − 1.22687·1.5 over the 18 mm thread
+    // length, one each side of the axis, in each profile view (front and side, not the
+    // section).
+    let minor = 10.0 - 1.226_87 * 1.5;
+    let lines: Vec<[f64; 4]> = thin_lines(&drawing.svg())
+        .into_iter()
+        .filter(|l| (length(l) - 18.0 * s).abs() < 1e-6)
+        .collect();
+    let pairs = lines
+        .iter()
+        .enumerate()
+        .flat_map(|(i, a)| lines[i + 1..].iter().map(move |b| (a, b)))
+        .filter(|(a, b)| {
+            (a[0] - a[2]).abs() < 1e-9
+                && (b[0] - b[2]).abs() < 1e-9
+                && (a[1] - b[1]).abs() < 1e-9
+                && ((a[0] - b[0]).abs() - minor * s).abs() < 1e-3
+        })
+        .count();
+    assert_eq!(pairs, 2, "{lines:?}");
+}
+
+#[test]
+fn a_knurl_is_drawn_as_a_band_of_thin_lines_over_its_face() {
+    let font =
+        draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
+    for (straight, (part, a)) in [(true, spindle(|s| s)), (false, diamond(|s| s))] {
+        let plan = model::plan(&a, &Spec::default()).unwrap();
+        let s = front_scale(&plan);
+        let drawing = model::render(&part, &a, &plan, &font).unwrap();
+        let lines = thin_lines(&drawing.svg());
+        assert!(lines.len() >= 6, "{lines:?}");
+        // Over the middle half of the 12 mm knurled length, within the ⌀24 band's width.
+        let (lo, hi) = lines.iter().fold((f64::MAX, f64::MIN), |(lo, hi), l| {
+            (lo.min(l[1]).min(l[3]), hi.max(l[1]).max(l[3]))
+        });
+        assert!(hi - lo <= 6.0 * s + 1e-6, "{lo} {hi}");
+        for l in &lines {
+            let dx = (l[2] - l[0]).abs();
+            let dy = (l[3] - l[1]).abs();
+            if straight {
+                // Along the (vertical) axis.
+                assert!(dx < 1e-9, "{l:?}");
+            } else {
+                // Crossed at 30° to it.
+                assert!((dx.atan2(dy).to_degrees() - 30.0).abs() < 1e-3, "{l:?}");
+            }
+            assert!(length(l) <= 6.0 * s / if straight { 1.0 } else { 0.75f64.sqrt() } + 1e-6);
+        }
+        if !straight {
+            let rising = lines.iter().filter(|l| (l[2] - l[0]) * (l[3] - l[1]) > 0.0);
+            assert!(rising.count() * 2 >= lines.len() - 2);
+        }
+    }
+}
+
+/// The editor's fragments: a thread's and knurl's thin lines belong to their view's fragment,
+/// so they move with it, and none are left in the furniture; together the fragments still hold
+/// every line of the sheet.
+#[test]
+fn thread_and_knurl_lines_travel_in_their_views_fragment() {
+    let (part, a) = external_thread();
+    let s = draftwright::session::Session::new(part, a, Spec::default()).unwrap();
+    let full = s.drawing().svg();
+    let fragments = s.svg_fragments(None);
+    assert_eq!(
+        full.matches("<line ").count(),
+        fragments
+            .values()
+            .map(|f| f.matches("<line ").count())
+            .sum::<usize>()
+    );
+    let total = thin_lines(&full).len();
+    let front = thin_lines(&fragments["v:front"]).len();
+    assert!(front > 0 && front < total, "{front} of {total}");
+    assert_eq!(
+        fragments
+            .iter()
+            .filter(|(id, _)| id.starts_with("v:"))
+            .map(|(_, f)| thin_lines(f).len())
+            .sum::<usize>(),
+        total
+    );
+    assert!(thin_lines(&fragments["furniture"]).is_empty());
+}
+
+/// The thread's callout is led to the ⌀10 band's silhouette at an angle, not along it: a leader
+/// lying on the part's edge is ambiguous (ISO 128-22). The spindle turns about z, which its
+/// profile views draw upright, so the silhouette is vertical on the page; the default sheet and
+/// a Spec-named A3 at 2:1 (where the leader once ran down the outline) are both checked.
+#[test]
+fn the_threads_leader_meets_the_silhouette_at_an_angle() {
+    let (_, a) = external_thread();
+    let a3: Spec = serde_json::from_value(serde_json::json!({
+        "schema": "draftwright.spec/2",
+        "sheet": { "size": "A3", "scale": "2:1" }
+    }))
+    .unwrap();
+    for spec in [Spec::default(), a3] {
+        let plan = model::plan(&a, &spec).unwrap();
+        let d = plan
+            .dimensions
+            .iter()
+            .find(|d| d.label.starts_with("M10 x 1.5-6g"))
+            .expect("the thread's callout");
+        let [tip, elbow] = d.placed.as_ref().expect("placed").lines[0];
+        let (dx, dy) = ((elbow[0] - tip[0]).abs(), (elbow[1] - tip[1]).abs());
+        assert!(
+            dx.atan2(dy).to_degrees() >= 15.0 - 1e-9,
+            "{}: {tip:?} {elbow:?}",
+            plan.sheet.basis
+        );
+    }
+}
+
+/// A thread and a fit (J3, #30) on one part: the threaded diameter prints only its thread's
+/// designation, which carries the thread's own tolerance class, and a fit or band given to it
+/// is withheld and reported rather than spliced into the designation; a plain diameter keeps its
+/// shaft fit with its ISO 286 limits.
+#[test]
+fn a_threaded_diameter_keeps_its_designation_and_a_plain_one_its_fit() {
+    let gz = root().join("tests/fixtures/pmi/step/hw_thumbwheel_thread_knurl_intent.step.gz");
+    let (_, a) = analysed_bytes(
+        "hw_thumbwheel_thread_knurl_intent.step",
+        &gunzip(&std::fs::read(gz).unwrap()),
+    );
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let labels: Vec<&str> = plan.dimensions.iter().map(|d| d.label.as_str()).collect();
+    assert!(labels.contains(&"ø10 f7 (-0.013/-0.028)"), "{labels:?}");
+    assert!(
+        labels.contains(&"M5 x 0.8-6g RH, FULL AVAILABLE LENGTH"),
+        "{labels:?}"
+    );
+
+    let (_, a) = external_thread();
+    let id = "d:f:turned_step:1/step.diameter";
+    let spec: Spec = serde_json::from_value(serde_json::json!({
+        "schema": "draftwright.spec/2",
+        "dimensions": { id: { "tolerance": "+0 -0.1" } }
+    }))
+    .unwrap();
+    let plan = model::plan(&a, &spec).unwrap();
+    let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
+    assert_eq!(d.label, "M10 x 1.5-6g RH, FULL AVAILABLE LENGTH");
+    assert!(
+        plan.problems
+            .iter()
+            .any(|p| p.code == "tolerance_withheld" && p.subjects == [id]),
+        "{:?}",
+        plan.problems
+    );
+}

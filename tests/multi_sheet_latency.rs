@@ -1,6 +1,8 @@
 //! R5's overflow case measures complete session edits without increasing the planner budget.
 #[path = "common/corpus.rs"]
 mod corpus;
+#[path = "common/overflow.rs"]
+mod overflow;
 use draftwright::Session;
 use draftwright::api::Features;
 use draftwright::items::Op;
@@ -29,12 +31,24 @@ fn instructions() -> Option<u64> {
 fn r5_multi_sheet_latency() {
     let Some(corpus) = corpus::dir() else { return };
     let step = corpus.join("gramel/string_post.step");
-    let spec: Spec = serde_json::from_value(
-        json!({"sheet":{"size":"A4"},"sheets":{"max":2,"smallest_scale":"5:1"}}),
-    )
+    let spec: Spec = serde_json::from_value(json!({
+        "sheet":{"size":"A4"}, "sheets":{"max":2,"smallest_scale":"5:1"},
+        "tables": overflow::tables()
+    }))
     .unwrap();
     let mut s = Session::open(&step, Features::Native, spec).unwrap();
     assert_eq!(s.plan().sheets.len(), 1);
+    assert_eq!(s.plan().sheet.scale, "5:1");
+    assert!(
+        s.plan()
+            .tables
+            .iter()
+            .any(|t| t.id == "t:1" && t.placed.is_some())
+    );
+    assert!(!s.plan().problems.iter().any(|p| matches!(
+        p.code.as_str(),
+        "table_not_placed" | "sheet_below_smallest_scale"
+    )));
     let mut samples = Vec::new();
     let mut steps = Vec::new();
     let mut retired = Vec::new();
@@ -89,7 +103,8 @@ fn r5_multi_sheet_latency() {
         &json!({"part_ref":key,"parent":parent,"ops":[
             {"op":"set","path":"sheet/size","value":"A4"},
             {"op":"set","path":"sheets/max","value":2},
-            {"op":"set","path":"sheets/smallest_scale","value":"5:1"}
+            {"op":"set","path":"sheets/smallest_scale","value":"5:1"},
+            {"op":"set","path":"tables","value":overflow::tables()}
         ]}),
     )
     .unwrap();

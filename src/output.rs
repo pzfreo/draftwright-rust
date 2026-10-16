@@ -528,6 +528,18 @@ pub fn layer_styles() -> [(&'static str, Style); 3] {
     ]
 }
 
+/// Thin continuous lines over a part's outline (ISO 128 type 01.1): a thread's minor diameter,
+/// a knurl's band ([`crate::cosmetic`]).
+pub fn thin_style() -> Style {
+    Style {
+        colour: [0, 0, 0],
+        width: 0.25,
+        dash: None,
+        fill: false,
+        weight: 25,
+    }
+}
+
 /// Thin long-dash-dot centre furniture (ISO 128 type 04.1).
 pub fn centre_style() -> Style {
     Style {

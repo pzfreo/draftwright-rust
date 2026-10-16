@@ -246,6 +246,17 @@ fn parameter(id: &str) -> &str {
     id.rsplit_once('/').map_or(id, |(_, p)| p)
 }
 
+/// Whether *w* is a diameter whose label states no diameter (no `ø` or `⌀` term): an external
+/// thread's designation stands in its place (ISO 6410) and carries the thread's own tolerance
+/// class, so no band or fit is printed on it.
+pub(super) fn thread_designated(w: &super::Want) -> bool {
+    parameter(&w.id).ends_with("diameter")
+        && !w
+            .terms
+            .iter()
+            .any(|t| t.starts_with('ø') || t.starts_with('⌀'))
+}
+
 /// The term a band follows: the first that states a number and is not a count (`4×`).
 fn value_term(terms: &[String]) -> Option<usize> {
     terms.iter().position(|t| {
@@ -455,7 +466,18 @@ pub(super) fn apply(
                     .collect(),
             ));
         }
-        if let Some(text) = band {
+        if let Some(text) = band.as_ref().filter(|_| thread_designated(w)) {
+            given.clear();
+            problems.push(problem(
+                "tolerance_withheld",
+                &w.id,
+                format!(
+                    "{text} is not printed on {}: its external thread's designation states the diameter and carries the thread's own tolerance class.",
+                    super::wording_of(w)
+                ),
+                vec![w.id.clone()],
+            ));
+        } else if let Some(text) = band {
             match value_term(&w.terms) {
                 Some(i) => w.terms.insert(i + 1, text),
                 None => {
