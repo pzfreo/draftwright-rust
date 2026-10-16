@@ -223,7 +223,11 @@ are strings (`±T` or `+U -L`); fits use `features/<id>/fit`. A feature's item a
 `features/<id>/datum` (`forms`: a letter) and `features/<id>/controls` (`fields`; the 14
 characteristics are in `docs/model.md`) for the feature its ID names; a face takes the
 same at `faces/<bottom|top|left|right|front|back|face:n>/…` (`docs/model.md`, "Datums and
-controls authored in the Spec"; the Spec schema's `faces` in `schemas/mcp/`). View keys are bare (`iso`)
+controls authored in the Spec"; the Spec schema's `faces` in `schemas/mcp/`). It also lists
+`features/<id>/finish` (`fields` `ra`, `removal`), `/note` (`forms`: text), `/thread` (`fields`
+`designation`, `length`) on a hole, hole pattern or turned diameter and `/knurl` (`fields`
+`pattern`, `pitch`) on a turned diameter; the sheet item lists `sheet/default_finish`
+(`docs/model.md`, "Finish, threads, knurls and notes authored in the Spec"). View keys are bare (`iso`)
 and the drawing number is `sheet/title/number`. Compatible view/side pairs remain in
 `placements`; candidates require preview/apply, and a view relation needs both
 `relative_to` and `side`. Set several subfields by setting their complete `place` object.

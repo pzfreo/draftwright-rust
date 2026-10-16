@@ -1879,7 +1879,7 @@
     corpus_parts: []
   status: pending
   rust_test: tests/dims_blends.rs::a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit
-  rust_note: "Partly ported: prose cannot silence coverage. On draftwright's counterbored block with the callout left out, a general note in draftwright's prose (PROFILED BORE: diameter 14 x 8 DEEP), or even in the callout's own words, changes no finding: lint reads only the drawing's annotations, and general notes (n:<k>, src/notes.rs) are not annotations and carry no claims, so the counterbore's diameter and depth stay missing and ø14 stays feature_not_dimensioned, as in draftwright's test. Not ported: a per-feature structured note with an explicit satisfies claim on a placed feature, and so its other clauses (an unplaced note grants nothing, one note does not cover an identical sibling, duplicates do not multiply). Difference: draftwright calls the omitted requirements suppressed; the port's lint never reads the spec, so they are missing. Stage G3 ports automatic radius-note authority only (explicit satisfies claims, never prose); the general authored per-feature satisfaction API is not ported."
+  rust_note: "Partly ported: prose cannot silence coverage. On draftwright's counterbored block with the callout left out, a general note in draftwright's prose (PROFILED BORE: diameter 14 x 8 DEEP), or even in the callout's own words, changes no finding: lint reads only the drawing's annotations, and general notes (n:<k>, src/notes.rs) are not annotations and carry no claims, so the counterbore's diameter and depth stay missing and ø14 stays feature_not_dimensioned, as in draftwright's test. Not ported: a per-feature structured note with an explicit satisfies claim on a placed feature, and so its other clauses (an unplaced note grants nothing, one note does not cover an identical sibling, duplicates do not multiply). Difference: draftwright calls the omitted requirements suppressed; the port's lint never reads the spec, so they are missing. Stage G3 ports automatic radius-note authority only (explicit satisfies claims, never prose); the general authored per-feature satisfaction API is not ported. Stream K1b adds Spec-authored feature and face notes (features/<id>/note, faces/<face>/note, src/spec_notes.rs): drawn as leadered labels that claim no measurement, so their prose silences nothing either (tests/spec_notes.rs::a_feature_note_and_a_sheet_note_are_drawn); the satisfies claim is still not ported."
   port_note: "Keep: Spec note with explicit satisfies=[measurement IDs]; coverage reads that, never note text."
 
 - id: ISSUE-1352-a
@@ -2002,6 +2002,8 @@
       - "tests/test_issue_1360_thread_depth.py::test_thread_depth_width_estimation_and_rendering_share_one_suffix"
     corpus_parts: []
   status: pending
+  rust_test: tests/spec_notes.rs::m10_and_a_knurl_on_the_spindle_print_after_their_diameters
+  rust_note: "Partly ported (stream K1b, src/spec_notes.rs): a Spec-authored thread's length (features/<id>/thread/length) prints in its callout as the minimum full thread (⌀4.2 ↧ 9.2 M5x0.8-6H; 8 MIN FULL THREAD), and one deeper than its blind hole is reported, not drawn (pmi_not_lowered). Not ported: the tap depth as an addressable dimension ID of its own, and the refusal of a thread depth whose callout head is omitted (an omitted callout leaves the thread undrawn; no test checks what is reported then). A bore fit never leaks onto the counterbore: fits are keyed to the bore diameter's dimension (src/dims/tolerance.rs)."
   port_note: "Keep."
 
 - id: ISSUE-1369-a

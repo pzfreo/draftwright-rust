@@ -185,14 +185,16 @@ mention takes its default.
 }
 ```
 
-The design also includes `views/sections` and feature `anchor`/`note`
+The design also includes `views/sections` and feature `anchor`
 (as in the original example: `"sections": [{"id": "A", "through": "f:hole:3"}]`,
-`"anchor": {"…": "fingerprint"}`, `"note": "REAM"`). These fields are not yet read.
+`"anchor": {"…": "fingerprint"}`). These fields are not yet read; a feature's `note` is read
+since K1b (below).
 
-- **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_limits`, `projection`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`),
+- **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_limits`, `projection`, `default_finish`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`),
   `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `place`, and the earlier `view`
-  spelling), `annotations/<id>` (`omit`, `place`), `features/<id>` (`fit`, `datum`, `controls`),
-  `faces/<face>` (`datum`, `controls`: "Datums and controls authored in the Spec", below), `notes` and `tables`.
+  spelling), `annotations/<id>` (`omit`, `place`), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`),
+  `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
+  knurls and notes authored in the Spec", below), `notes` and `tables`.
   Unknown fields, including page coordinates, are refused. Absent fields keep their defaults.
 - **The spec stores intent, never geometry.** A fit, lane, side or fractional label position is
   resolved against the part and its anchors on every plan. Measured values and resolved paper
@@ -796,7 +798,8 @@ and draws them as draftwright draws its document notes (`render_document_notes`)
   reserved); a block no sheet can hold at a standard scale is not reserved (draftwright would let
   it drive the sheet to a computed scale; undetermined, a question in `docs/next-session.md`);
   the text layer keeps `⌀` where draftwright's has `ø` (rust-correct, as for callouts). The
-  per-feature `note` and hole tables are not ported.
+  per-feature `note` is drawn as a leadered label since K1b ("Finish, threads, knurls and
+  notes authored in the Spec", below); hole tables are not ported here.
 
 ### Tables
 
@@ -954,6 +957,64 @@ its box, its surface (`plane` or `cylinder`), principal axis and support, its pr
 (first, then up to eight spread over it), a plane's outward normal and a cylinder's exact
 principal axis: what `pmi::datum_geometry` and `tolerance_geometry` read of the part, which they
 now read through the same record for the file's own PMI. `tests/spec_gdt.rs`.
+
+### Finish, threads, knurls and notes authored in the Spec
+
+The rest of what a part without PMI may need stated (`src/spec_notes.rs`, draftwright-rust #43
+item 1, stream K1b; Python draftwright's `Sheet.finish`, `thread`, `knurl`, `note` and
+`default_surface_finish` are the reference) is authored the way datums and controls are (above):
+
+```json
+"sheet":    { "default_finish": { "ra": 3.2 }, "title": { "tolerance": "ISO 2768-m" } },
+"faces":    { "top": { "finish": { "ra": 0.8, "removal": "required" } } },
+"features": { "f:hole_pattern:1": { "thread": { "designation": "M6" } },
+              "f:turned_step:1":  { "thread": { "designation": "M10", "length": 15 } },
+              "f:turned_step:3":  { "knurl": { "pattern": "diamond", "pitch": 0.8 } },
+              "f:hole:1":         { "note": "DRILL AND TAP AFTER HARDENING" } },
+"notes":    [ { "id": "n:1", "text": "BREAK ALL SHARP EDGES" } ]
+```
+
+- **`finish`** (`features/<id>`, `faces/<face>`): `{ra, removal?}`, Ra in µm, `removal` one of
+  `required` (ISO 1302's bar), `prohibited` (its circle) or `any` (the default). Lowered into an
+  AP242 face surface texture's record (`surface_finish`, on the feature's cylinders, else its
+  faces) and drawn as F2 draws one: the symbol on a leader from the face's edge in the view that
+  sees it edge-on. Faces no principal view shows edge-on, or several cylinders on different axes
+  (a hole pattern's), are `pmi_not_lowered`, as for the file's own.
+- **`sheet/default_finish`**: the same, the part's default finish: the record of an AP242
+  surface texture on the part (`Ra <v> µm unless otherwise specified`), drawn beside the title
+  block (`requirements`, `carrier: sheet`).
+- **General tolerance**: `sheet/title/tolerance`, as before (it fills the title block's cell and
+  wins over the file's, `step_general_tolerance_disagreement`). No new path.
+- **`thread`** (`features/<id>`): `{designation, length?}`, an ISO metric designation
+  (`M<size>[x<pitch>][-<class>][ LH|RH]`, printed as written; with no pitch, ISO 261's coarse
+  pitch is used for the checks) and a minimum full-thread length in mm. On a hole the callouts
+  state on its own, a hole pattern, or a turned step (or boss), it is lowered into an AP242
+  thread's record (`internal_thread` on a hole or pattern, `external_thread` on a turned
+  diameter) and printed on the owner's callout by the thread path: after a hole's terms
+  (`⌀4.2 ↧ 9.2 M5x0.8-6H; 8 MIN FULL THREAD`), before a pattern's suffix (`4× ⌀6 THRU M6 (2×2)`,
+  as draftwright folds a pattern member's thread), after a turned diameter
+  (`ø10 M10; 15 MIN FULL THREAD`); the callout claims it. Reported (`pmi_not_lowered`, error):
+  a member of a pattern the callouts state as one (set it on the pattern), a feature no callout
+  states on its own, a hole larger than the nominal size or smaller than nominal less 1.5
+  pitches, a turned diameter that is not the nominal size, a length past a blind hole's depth or
+  a step's length (ISSUE-1360-a), a boss (as for AP242 threads).
+- **`knurl`** (`features/<id>`): `{pattern, pitch}` (`straight` or `diamond`, mm), on a turned
+  step, lowered into an AP242 knurl's record and printed after its diameter
+  (`ø24 DIAMOND KNURL P0.8`; on the overall diameter when the step's is shared with it).
+- **`note`** (`features/<id>`, `faces/<face>`): one line of text on a leader, lowered into a
+  surface label's record (kind `note`, its leader from each face's first proven site) and drawn
+  as an AP242 label is (`gdt` kind `label`). It claims no measurement, so it never silences
+  coverage (ISSUE-1351-a). A note on the sheet is a general note (`notes`, above).
+- **Lowered and merged** with the datums and controls (`spec_gdt::effective`): item IDs are the
+  records' identities (`pmi:manufacturing_requirement.surface_finish:f2`,
+  `pmi:surface_label.note:f3:t=…`), sources `spec:<path>`, bases `spec-authored`, never defaults;
+  lint judges the drawing against the merged reading.
+- **The Spec wins** with `spec_overrides_pmi` (warning) over the file's finish on any of the same
+  faces, its default finish, and its thread (of either kind) or knurl on any of the same faces.
+- **Refused** (`invalid`): an unknown feature or face, Ra not positive, an unknown removal or
+  knurl pattern, a designation that is not ISO metric or states no pitch where ISO 261 has
+  none, a length or pitch not positive, an empty or multi-line note, a thread on a feature of
+  no threadable kind and a knurl on one that is not turned. `tests/spec_notes.rs`.
 
 ### Toleranced and basic dimensions (PMI)
 

@@ -394,7 +394,10 @@ fn label(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
     } else {
         "below"
     };
-    let what = if r.category == Category::SurfaceLabel {
+    let what = if r.kind == "note" {
+        // A note the Spec authors on a feature or face ([`crate::spec_notes`]).
+        "note"
+    } else if r.category == Category::SurfaceLabel {
         "surface label"
     } else {
         "common label"
@@ -411,7 +414,9 @@ fn label(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
         alternatives: Vec::new(),
         faces: r.faces.clone(),
         basis: format!(
-            "source-authored: the AP242 {what} {} ({}), drawn in the {view} view (its references' longest extent is {}) on the {side} side, as its site lies {side} the part's centre, its leader from its first proven site",
+            "{}: the {} {what} {} ({}), drawn in the {view} view (its references' longest extent is {}) on the {side} side, as its site lies {side} the part's centre, its leader from its first proven site",
+            authored_by(r).0,
+            authored_by(r).1,
             r.label,
             r.source_id,
             axis.to_lowercase()
@@ -624,8 +629,11 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
                 source: r.source_id.clone(),
                 kind: "default_surface_finish",
                 basis: format!(
-                    "source-authored: the AP242 surface texture '{}' ({}), the part's default finish, drawn as a surface texture symbol beside the title block (draftwright's DefaultSurfaceFinish)",
-                    r.label, r.source_id
+                    "{}: the {} surface texture '{}' ({}), the part's default finish, drawn as a surface texture symbol beside the title block (draftwright's DefaultSurfaceFinish)",
+                    authored_by(r).0,
+                    authored_by(r).1,
+                    r.label,
+                    r.source_id
                 ),
                 value: ra,
                 removal: r
@@ -1105,7 +1113,9 @@ fn surface_finish(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> 
         alternatives: at.alternatives,
         faces: r.faces.clone(),
         basis: format!(
-            "source-authored: the AP242 surface texture {} ({}) on a {} along {}, its ISO 1302 symbol on a leader from the face's edge in the {} view on the {} side {}",
+            "{}: the {} surface texture {} ({}) on a {} along {}, its ISO 1302 symbol on a leader from the face's edge in the {} view on the {} side {}",
+            authored_by(r).0,
+            authored_by(r).1,
             r.label,
             r.source_id,
             at.surface,
@@ -1792,6 +1802,20 @@ impl Manufacturing {
         let mut out: Vec<&Owned> = self.owned.iter().filter(|o| o.owner == id).collect();
         out.sort_by_key(|o| o.aspect != "thread");
         out
+    }
+
+    /// Who states the requirements feature *id* carries, for its callout's basis: `the spec's`
+    /// when the Spec authors one ([`crate::spec_notes`]), else `the part's AP242`.
+    pub fn author(&self, id: &str) -> &'static str {
+        if self
+            .on(id)
+            .iter()
+            .any(|o| o.source.starts_with(crate::spec_gdt::SOURCE_PREFIX))
+        {
+            "the spec's"
+        } else {
+            "the part's AP242"
+        }
     }
 
     /// The terms feature *id*'s callout adds after its size, the requirements' printed text
@@ -2642,7 +2666,9 @@ pub fn requirement_geometry(part: &Part, r: &Record) -> Geometry {
 /// `HoleFeature`), read in the drawing's frame.
 struct Owner {
     id: String,
-    /// `hole`, `step` or `boss`.
+    /// `hole`, `step` or `boss`; or `pattern`, a hole pattern the callouts state as one, which
+    /// only a Spec-authored thread names ([`crate::spec_notes`]): no AP242 requirement's
+    /// cylinder proves a pattern ([`owns`]).
     kind: &'static str,
     axis: usize,
     diameter: f64,
@@ -2679,6 +2705,17 @@ fn owners(analysis: &Analysis) -> Vec<Owner> {
         if let Ok(members) = holes::established_with(p, &reads, &bosses)
             && !members.iter().any(|m| taken.contains(m))
         {
+            let h = &readable[members[0]];
+            out.push(Owner {
+                id: p.id.clone(),
+                kind: "pattern",
+                axis: h.principal.expect("a principal hole").0,
+                diameter: h.diameter,
+                at: h.at,
+                span: None,
+                through: h.through,
+                depth: h.depth,
+            });
             taken.extend(members);
         }
     }
@@ -2807,6 +2844,113 @@ fn internal_owner(c: &Cylinder, o: &Owner, envelope: [[f64; 3]; 2]) -> bool {
 enum Aspect {
     Thread(Thread),
     Knurl(Knurl),
+    /// A thread the Spec authors ([`authored`]): its suffix.
+    Authored(String),
+}
+
+/// A thread or knurl the Spec authors on feature `feature` (its record's field): the owner it
+/// names, if the callouts state that feature (a hole on its own, a hole pattern, a turned step or
+/// boss), and what its callout prints; or why its feature cannot carry it: a knurl not on a
+/// turned step; a tap whose hole is larger than its nominal size or smaller than its minor
+/// diameter's bound (nominal less 1.5 pitches); an external thread whose nominal size is not its
+/// diameter; a length past a blind hole's depth or a step's span.
+fn authored(
+    r: &Record,
+    candidates: &[Owner],
+    analysis: &Analysis,
+) -> Result<(usize, Aspect), String> {
+    let why = blockers(r);
+    if !why.is_empty() {
+        return Err(dedup(why).join("; "));
+    }
+    let f = Fields(&r.fields);
+    let feature = f.text("feature")?;
+    let knurl = r.kind == "knurl";
+    let Some(i) = candidates.iter().position(|o| o.id == feature) else {
+        let pattern = analysis
+            .recognition
+            .as_ref()
+            .and_then(|rec| rec.patterns.iter().find(|p| p.members.contains(&feature)));
+        return Err(match pattern {
+            Some(p) if !knurl => format!(
+                "{feature} is called out with its pattern {}, so the thread is set on the pattern (features/{}/thread)",
+                p.id,
+                crate::items::key(&p.id)
+            ),
+            _ => format!(
+                "no callout states {feature} on its own, so it carries no {}",
+                if knurl { "knurl" } else { "thread" }
+            ),
+        });
+    };
+    let o = &candidates[i];
+    let num = |v: f64| crate::dims::fmt(v);
+    if knurl {
+        if o.kind != "step" && o.kind != "boss" {
+            return Err(format!(
+                "{feature} is not a turned diameter, so it carries no knurl"
+            ));
+        }
+        return Ok((
+            i,
+            Aspect::Knurl(
+                Knurl {
+                    pattern: f.text("pattern")?.to_string(),
+                    pitch: f.number("pitch")?,
+                    full_width: false,
+                    edge_chamfer: None,
+                    maximum_diameter: None,
+                    processes: Vec::new(),
+                }
+                .check()?,
+            ),
+        ));
+    }
+    let designation = f.text("designation")?;
+    let nominal = f.number("nominal")?;
+    let pitch = f.number("pitch")?;
+    let length = f.number("length").ok();
+    if matches!(o.kind, "hole" | "pattern") {
+        let minor = nominal - 1.5 * pitch;
+        if o.diameter > nominal + 0.01 || o.diameter < minor - 0.01 {
+            return Err(format!(
+                "its hole is ⌀{}, which a {designation} tap cannot be cut in (from ⌀{} to ⌀{})",
+                num(o.diameter),
+                num(minor),
+                num(nominal)
+            ));
+        }
+        if let (Some(l), Some(d), false) = (length, o.depth, o.through)
+            && l > d + 0.01
+        {
+            return Err(format!(
+                "its thread length {} exceeds its hole's depth {}",
+                num(l),
+                num(d)
+            ));
+        }
+    } else {
+        if !same_number(o.diameter, nominal, 0.01) {
+            return Err(format!(
+                "its diameter is ⌀{}, not the nominal size of {designation}",
+                num(o.diameter)
+            ));
+        }
+        if let (Some(l), Some([lo, hi])) = (length, o.span)
+            && l > hi - lo + 0.01
+        {
+            return Err(format!(
+                "its thread length {} exceeds its length {}",
+                num(l),
+                num(hi - lo)
+            ));
+        }
+    }
+    let mut suffix = designation.to_string();
+    if let Some(l) = length {
+        suffix += &format!("; {} MIN FULL THREAD", num(l));
+    }
+    Ok((i, Aspect::Authored(suffix)))
 }
 
 /// `_manufacturing_owner_matches`: whether *o* owns requirement *a* on cylinder *c*.
@@ -2934,6 +3078,10 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
     let mut proposals: Vec<Result<(usize, Aspect), String>> = Vec::new();
     for r in &records {
         let proposal = (|| {
+            // A thread or knurl the Spec authors names its feature ([`crate::spec_notes`]).
+            if r.source_id.starts_with(crate::spec_gdt::SOURCE_PREFIX) {
+                return authored(r, &candidates, analysis);
+            }
             let mut reasons = blockers(r);
             let g = r.geometry.clone().unwrap_or_default();
             if reasons.is_empty() {
@@ -2968,6 +3116,8 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
                 Aspect::Knurl(k) => k.maximum_diameter,
                 Aspect::Thread(t) if t.internal => t.drill_diameter,
                 Aspect::Thread(t) => Some(t.nominal),
+                // The file's records are never authored ([`authored`] reads the Spec's).
+                Aspect::Authored(_) => None,
             };
             if !expected.is_some_and(|d| same_number(2.0 * c.radius, d, 0.01)) {
                 return Err(disagree());
@@ -3023,7 +3173,7 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
     }
     // One requirement of each aspect per owner.
     let aspect_name = |a: &Aspect| match a {
-        Aspect::Thread(_) => "thread",
+        Aspect::Thread(_) | Aspect::Authored(_) => "thread",
         Aspect::Knurl(_) => "knurl",
     };
     let mut claims: BTreeMap<(usize, &'static str), usize> = BTreeMap::new();
@@ -3050,6 +3200,7 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
                     let (suffix, text, through) = match &aspect {
                         Aspect::Thread(t) => (t.suffix(), t.suffix(), t.through),
                         Aspect::Knurl(k) => (k.suffix(), k.text(), false),
+                        Aspect::Authored(s) => (s.clone(), s.clone(), false),
                     };
                     out.owned.push(Owned {
                         id: id.to_string(),
