@@ -316,6 +316,13 @@ once into a nextest archive and the tests run in parallel shards (`.config/nexte
 haecceity comes by git from the public `pzfreo/quiddity-rust` (Cargo.toml, pinned in
 `Cargo.lock`), so CI needs no secret.
 
+The single-sheet byte guard (`tests/sheets.rs::single_sheet_documents_are_byte_identical`) is
+opt-in since 2026-10-16: it runs only with `DRAFTWRIGHT_SINGLE_SHEET=1` (or its record and
+re-baseline modes), CI no longer runs it, and the `record_single_sheet` dispatch job is gone.
+PRs no longer re-record `known_single_sheet*.json`; those fixtures are kept, unmaintained, until
+the guard is made a gate again for a release. Run it on a PR that should change no drawing to
+list what moved.
+
 When fixtures are re-captured against a changed corpus file, move the workflow's `ref` to a
 quiddity commit that has it.
 

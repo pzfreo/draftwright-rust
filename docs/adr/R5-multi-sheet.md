@@ -441,6 +441,9 @@ The maintainer redesigns the editor after these stages.
 1. **A single-sheet spec is unchanged byte for byte:** its plan JSON, SVG, PDF and PNG.
    Guards: `tests/sheets.rs::single_sheet_documents_are_byte_identical`, together with the
    existing `tests/fixtures/known_*.json` and the CI quality baseline, unchanged.
+   Since 2026-10-16 the byte guard is opt-in (`DRAFTWRIGHT_SINGLE_SHEET=1`) and its fixtures
+   are no longer maintained: this invariant held for Stage I, and the drawings are now being
+   improved on purpose. It returns as a gate when stabilising for a release.
 2. **The principal views are on sheet 1, never split.** Guard:
    `sheets::principal_views_stay_on_sheet_1`.
 3. **Every sheet has the title block, and SHEET reads `n/m` without overflow on A4 to A0 (m < 10).**
