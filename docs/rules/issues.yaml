@@ -288,8 +288,9 @@
     tests:
       - "tests/test_issue_827_real_part_canary.py::test_tuner_retains_occurrences_and_measurements_through_export"
     corpus_parts: ["tuner_jig_blind_obround_pockets.step"]
-  status: pending
-  rust_note: "Not ported: tuner_jig_blind_obround_pockets.step is a draftwright test fixture, not in the shared corpus, so no scenario checks its hand-listed five-pocket measurements. Pockets (obround ones among them) are now dimensioned (src/dims/recesses.rs: W × L × D DEEP and the location in both directions across), but whether the tuner's pockets come out as those five is unchecked. The nearest guard is the placed-count floors (tests/trust_rules.rs::placed_counts_do_not_fall_below_their_floors), by count rather than by hand-listed measurements."
+  status: ported
+  rust_test: "tests/rule_pins.rs::tuner_five_pockets_keep_their_sizes_and_locations_through_export"
+  rust_note: "Already true, now pinned with the exact Python STEP and captured recognition: five centres at y=21.2,48.4,75.6,102.8,130, x=-5, z=8.5; each pocket states 7.9 x 13.6 x 19 DEEP, its x datum offset 10 and hand-listed y offset. All measurements are placed and remain in SVG/DXF exports; twenty R3.94 corner occurrences each retain exactly one stated radius, carried by the R3.9 default note. Rust dimensions the five occurrences singly with a shared x dimension, rather than Python's pocket-pattern adapter; no ownership or grouping policy was changed."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream regression-pins"
 
 - id: ISSUE-883-a
@@ -993,8 +994,9 @@
     tests:
       - "tests/test_issue_1155_grm04_sheet_use.py::test_grm04_measured_replan_keeps_diameter_and_location_on_a_clean_sheet"
     corpus_parts: ["GRM-04", "grm04_drive_plate.step"]
-  status: pending
-  rust_note: "Done in substance (rules assessment of 2026-10-11): GRM-04 keeps the Ø2.4 size and location on a clean sheet, its second location resting on lint's centred-hole exemption although no centre line is drawn (ARCH0016-4). Left pending because no test plans GRM-04 (it has no recognition fixture here)."
+  status: ported
+  rust_test: "tests/rule_pins.rs::grm04_small_hole_retains_diameter_and_location_on_a_clean_sheet"
+  rust_note: "Already true, now pinned with the Python GRM-04 STEP and recognition: a placed 2.4 bore diameter and its location survive automatic sheet recovery, with no structural lint, overlap, out-of-area or dropped-item problem. The precise automatic sheet/scale follows Rust's existing fit policy rather than pinning Python's A4/2:1 implementation detail."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream regression-pins"
 
 - id: ISSUE-1157-a
@@ -1992,8 +1994,9 @@
     tests:
       - "tests/test_issue_1353_cnc_authoritative_workflow.py::test_opposed_coaxial_taps_keep_solver_participation_on_authored_opposite_sides"
     corpus_parts: ["GRM-01"]
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported. Opposed coaxial tapped holes from draftwright's CNC authoritative workflow have no fixture here; the port places every callout in one shared leader assignment (src/dims/leaders.rs), but nothing places opposed holes on authored opposite sides (the Spec places a callout by view, side and lane, not by the hole's entry side)."
+  status: ported
+  rust_test: "tests/rule_pins.rs::opposed_coaxial_taps_keep_authored_left_and_right_callouts"
+  rust_note: "Implemented after the scenario disproved the regression-only triage: an unpinned side-only callout formerly became a fixed station and could run off-sheet or along cutting-plane/centre ink. Side-only requests now constrain the shared solver's inventory before pruning, with printed-label bands reserved before view packing. Explicit lane/along/pinned stations retain their semantics. Python's exact Box/cylinder fixture, including its enclosed cavity, uses captured Python recognition and Spec M2x0.4/M4x0.7; elbows stay outside the authored opposite edges, all rendered lint is informational or clear, and no non-info plan problem remains. No measurement ownership, detail or datum/GD&T placement logic changed."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream regression-pins"
 
 - id: ISSUE-1357-a
@@ -2927,8 +2930,9 @@
       - "tests/test_issue_1555_turned_recognition_format_invariance.py::test_both_encodings_recognise_the_same_turned_profile"
       - "tests/test_issue_1555_turned_recognition_format_invariance.py::test_ctc05_recognises_its_actual_turned_profile"
     corpus_parts: ["nist_ctc_05_asme1_ap203", "nist_ctc_05_asme1_ap242"]
-  status: pending
-  rust_note: "Recognition's lesson: one solid gives one turned profile whatever its encoding. quiddity-rust checks turned steps against Python's captured calls and over the corpus (tests/captured.rs, tests/corpus.rs, nist_ctc_05_asme1_rd.stp among them) and under rigid motion (tests/invariance.rs); the corpus holds one encoding of CTC-05, so encoding invariance itself is not checked there."
+  status: ported
+  rust_test: "tests/rule_pins.rs::ctc05_step_encodings_have_the_same_true_turned_profile"
+  rust_note: "Already true in native Rust recognition, now pinned across both exact Python CTC-05 STEP encodings. The current Python test (after quiddity 0.2.8 coalesced contiguous equal-diameter bands) pins THREE physical z steps: (diameter,lo,hi)=(63.5,279.4,482.6),(304.8,25.4,127),(558.8,0,25.4). Both Rust Analyses match every number within 0.001 mm and have exactly those three steps, excluding the old blend-sized artefact. The catalogue detail and batch's five-step description predate that deliberate Python update."
   owner: quiddity
   port_note: "triage 2026-10-16: PORT, value low, size S, stream regression-pins"
 

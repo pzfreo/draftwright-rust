@@ -1045,6 +1045,51 @@ fn placed_counts_do_not_fall_below_their_floors() {
     assert!(below.is_empty(), "{}", below.join("\n"));
 }
 
+/// ADR5-16: a STEP binding alone cannot identify a run with caller-supplied recognition.
+#[test]
+fn plan_provenance_binds_the_complete_recognition_input() {
+    use sha2::{Digest, Sha256};
+    let (_, mut a) = analysed_with("plate", &recognition("plate"));
+    let s = Spec::default();
+    let original = model::plan(&a, &s).unwrap();
+    let digest = |a: &Analysis| -> String {
+        Sha256::digest(serde_json::to_vec(a).unwrap())
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect()
+    };
+    assert_eq!(
+        original.analysis_sha256.as_deref(),
+        Some(digest(&a).as_str())
+    );
+    assert_eq!(
+        serde_json::to_value(&original).unwrap(),
+        serde_json::to_value(model::plan(&a, &s).unwrap()).unwrap()
+    );
+    // Same STEP, producer and Spec; a different valid recognition run changes the drawing.
+    a.features.retain(|f| f.kind != "hole");
+    let changed = model::plan(&a, &s).unwrap();
+    assert_eq!(original.binding, changed.binding);
+    assert_eq!(original.spec, changed.spec);
+    assert_ne!(original.dimensions.len(), changed.dimensions.len());
+    assert_ne!(original.analysis_sha256, changed.analysis_sha256);
+    assert_eq!(
+        changed.analysis_sha256.as_deref(),
+        Some(digest(&a).as_str())
+    );
+    let saved = serde_json::to_value(&changed).unwrap();
+    let replay: Plan = serde_json::from_value(saved.clone()).unwrap();
+    assert_eq!(replay.analysis_sha256, changed.analysis_sha256);
+    let mut legacy = saved;
+    legacy.as_object_mut().unwrap().remove("analysis_sha256");
+    assert!(
+        serde_json::from_value::<Plan>(legacy)
+            .unwrap()
+            .analysis_sha256
+            .is_none()
+    );
+}
+
 /// Python's span channel disambiguates correlated rungs; Rust uses occurrence-specific IDs.
 #[test]
 fn lint_issue_serialization_preserves_every_inspection_channel() {

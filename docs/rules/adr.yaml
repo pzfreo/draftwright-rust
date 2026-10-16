@@ -515,8 +515,9 @@
     adr: "ADR 2 Unguarded; archive 0018 §7"
     issues: []
     tests: []
-  status: pending
-  rust_note: "Done in substance (rules assessment of 2026-10-11): text is a fixed 3 mm in paper space (layout::FONT_SIZE, dims, section::FONT_SIZE) and nothing shrinks it to fit. Left pending because no test guards it."
+  status: ported
+  rust_test: "tests/rule_pins.rs::fixed_paper_typography_survives_scale_and_sheet_fit"
+  rust_note: "Already true, now pinned on GRM-04, the tuner and opposed holes across automatic recovery and explicit scales, including fitted isometrics. Drawing annotations remain 3 mm in paper space. Title-field labels deliberately remain their existing fixed 1.5 mm style; the guard checks that style too, rather than changing it to 3 mm. No font is reduced by fitting."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream regression-pins"
 
 # ---------------------------------------------------------------------------
@@ -629,9 +630,10 @@
     adr: "ADR 3 invariant 8; archive 0017 Amendment 14"
     issues: [1245]
     tests: ["test_recognition_policy_dispositions.py", "test_issue_1245_passage_disposition.py", "test_issue_1246_prismatic_pocket_disposition.py", "test_issue_1247_angled_step_disposition.py"]
-  status: pending
+  status: ported
+  rust_test: "tests/completeness.rs::ownerless_occurrences_have_closed_policy_reasons"
   port_note: "triage 2026-10-16: PORT, value low, size S, stream lint-and-reporting"
-  rust_note: "Not ported: no capability table gives each family not drawn a disposition (unsupported, deferred, evidence_only) with a closed reason; the bridge's record-type table (bridge::home) and the planners' kinds (dims::PLANNERS) are two lists. Whether records draftwright leaves undimensioned are reported by the plan or by lint is an open maintainer question (docs/next-session.md, d-dims-split); an angled step is reported by both, as unsupported (maintainer decision 2026-10-09, ISSUE-1247-a)."
+  rust_note: "Plan.feature_dispositions records each undrafted occurrence with informational severity, one of unsupported/deferred/evidence_only and a closed reason enum. The same UNDRAFTED capability table drives completeness exemption and reporting; PLANNERS and actual planned measurements distinguish a supported recess from a remaining port gap. Recognition evidence and refusals retain per-record dispositions too. Countersinks are hole-callout evidence, not a second dimension owner; unsupported-step warnings remain independently visible."
 
 - id: ADR3-9
   statement: "Recognition is geometry-only; PMI lowering may change which feature owns a record but never what was recognised."
@@ -1165,9 +1167,10 @@
     adr: "ADR 5 invariant 16"
     issues: []
     tests: ["test_issue_1460_step_inspection.py"]
-  status: pending
+  status: ported
+  rust_test: "tests/trust_rules.rs::plan_provenance_binds_the_complete_recognition_input"
   port_note: "triage 2026-10-16: PORT, value low, size S, stream lint-and-reporting"
-  rust_note: "Not upheld for the Plan: the Analysis records its source hash, its loader (producer and version) and the recognition it took in full, but the Plan records only the analysis's binding and the spec, so two plans of one STEP file under one spec, made with different --features JSON, agree on source, producer and options yet differ. Owed: the Plan names the recognition it was planned from; the field is a document-schema choice, asked in docs/next-session.md."
+  rust_note: "Plan.analysis_sha256 binds the full deterministic effective Analysis JSON, including its recogniser, frame, features, evidence and PMI, beside the STEP binding and embedded Spec. Same STEP and Spec with different supplied recognition now have different provenance. The optional field preserves reading of legacy plans; no digest is invented for those."
 
 - id: ADR5-17
   statement: "An evidence document states what it cannot say: unclaimed geometry is not a missed feature, and what recognition rejected is reported as unavailable rather than as nothing."
@@ -1414,8 +1417,9 @@
     adr: "archive 0009 Amendment 6, note 2026-07-18"
     issues: [346, 636]
     tests: []
-  status: pending
-  rust_note: "Done in substance (rules assessment of 2026-10-11): dims::placement::lanes orders each strip sizes nearest, then locations by distance, the overall extent outermost. Left pending because no test asserts the order."
+  status: ported
+  rust_test: "src/dims/placement.rs::tests::shared_corridor_orders_sizes_then_locations_then_overall"
+  rust_note: "Already true, now pinned: a plate corridor with scrambled input order, a size longer than a near location, three datum distances and an overall extent must have lanes size, near, middle, far, overall. Category precedes length; locations alone sort by datum distance."
   port_note: "triage 2026-10-16: PORT, value medium, size S, stream regression-pins"
 
 - id: ARCH0009-6
@@ -2008,7 +2012,7 @@
     tests: ["test_issue_1357_framed_activation.py", "test_issue_1357_pmi_frame.py"]
   status: pending
   port_note: "triage 2026-10-16: PORT, value low, size M, stream regression-pins"
-  rust_note: "Not ported here: quiddity-rust checks its recognisers under rigid motion, but no test plans a moved part and compares the Analysis's features and the plan's views; the port does not use framed recognition."
+  rust_note: "Not ported here: quiddity-rust checks its recognisers under rigid motion, but no test plans a moved part and compares the Analysis's features and the plan's views; the port does not use framed recognition. Full invariance requires a cross-cutting canonical working Part shared by Analysis, projection, stock extents and PMI/frame correlation; it also crosses the separately owned datum/GD&T placement boundary."
 
 - id: ARCH0020-2
   statement: "Each turned body gets its own step chain anchored to its own silhouette: equal lengths on parallel shafts keep separate marks, and if no conflict-free lane exists a chain is dropped with a required-outcome diagnostic rather than drawn over a sibling."

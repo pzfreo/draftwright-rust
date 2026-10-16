@@ -735,6 +735,13 @@ pub(crate) fn finish(plan: &mut Plan, analysis: &Analysis) {
     }
 }
 
+/// A side alone is an author constraint on the shared solve, rather than a fixed station.
+pub(crate) fn side_hint(p: &Place) -> Option<Side> {
+    (!p.pinned && p.lane.is_none() && p.along.is_none() && p.offset.is_none())
+        .then_some(p.side)
+        .flatten()
+}
+
 pub(crate) fn automatic_pin(p: &Place) -> bool {
     p.pinned && p.side.is_none() && p.lane.is_none() && p.along.is_none() && p.offset.is_none()
 }

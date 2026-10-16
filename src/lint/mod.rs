@@ -233,7 +233,11 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
         relief_issues.push(LintIssue {
             sheet: None,
             code: "relief_profile_requirement_missing".into(),
-            severity: Severity::Warning,
+            severity: if analysis.solid_count.is_some_and(|n| n > 1) {
+                Severity::Info
+            } else {
+                Severity::Warning
+            },
             message: "Grouped shallow relief profiles have no placed model-governing note.".into(),
             subjects: vec![blends::RELIEF_NOTE.into()],
             id: "l:relief_profile_requirement_missing".into(),
@@ -425,13 +429,26 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(plates::coverage(analysis, marks));
     issues.extend(polygonal::stock_coverage(analysis, marks));
     issues.extend(pockets::coverage(analysis, marks));
-    issues.extend(pmi_coverage::coverage(analysis, marks));
     issues.extend(envelope::coverage(analysis, marks));
     issues.extend(turned::coverage(analysis, marks));
     issues.extend(hole_patterns::coverage(analysis, marks));
+    assembly_coverage(analysis, &mut issues);
+    issues.extend(pmi_coverage::coverage(analysis, marks));
     issues.extend(redundancy::coverage(analysis, marks));
     issues.extend(redundancy::references(analysis, marks));
     issues
+}
+
+/// Missing-feature coverage on a general arrangement is informational. Keep this policy at
+/// the collection boundary so every family uses the same solid-count decision.
+fn assembly_coverage(analysis: &Analysis, issues: &mut [LintIssue]) {
+    if analysis.solid_count.is_some_and(|n| n > 1) {
+        for issue in issues {
+            if issue.severity == Severity::Warning {
+                issue.severity = Severity::Info;
+            }
+        }
+    }
 }
 
 /// A bounded coverage finding; several solids retain Python's informational severity.

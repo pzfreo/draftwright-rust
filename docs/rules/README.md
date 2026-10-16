@@ -13,16 +13,17 @@ pzfreo/draftwright at `586628b96db6779454d499c7d92d37f1aa8f1df9`.
 
 Status after the maintainer-approved triage of 2026-10-16, including the earlier Stage G/H
 and K1b/K4/K5/K7 integrations, merged with PR #56 (datum placement) and PR #57
-(K6, one owner per measurement). The table-rule batch adds verified schedule and manufacturing
-evidence, transactional hole-table guards and drawing-consumer checks. Counts are computed
-from the merged YAML entries:
+(K6, one owner per measurement), PR #61 (datum follow-up), the pins/lint batch
+(nine rules ported with tests), and PR #64 (table-rule ports). The table-rule batch adds
+verified schedule and manufacturing evidence, transactional hole-table guards and
+drawing-consumer checks. Counts are computed from the merged YAML entries:
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 13 | 59 | 62 | 26 |
-| `lint.yaml` | 13 | 119 | 14 | 19 |
-| `issues.yaml` | 42 | 71 | 51 | 26 |
-| **All** | **68** | **249** | **127** | **71** |
+| `adr.yaml` | 9 | 63 | 62 | 26 |
+| `lint.yaml` | 12 | 120 | 14 | 19 |
+| `issues.yaml` | 38 | 75 | 51 | 26 |
+| **All** | **59** | **258** | **127** | **71** |
 
 The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
 The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE
@@ -43,6 +44,10 @@ citations name files and tests found in the merged checkout.
 The gear batch ports all eight selected gear rules and promotes the earlier
 `gear_semantics_missing` translation to its exact Python diagnostic. Evidence is in
 `tests/gears.rs`, including the real 13-tooth wheel and a smooth declared blank.
+
+The [pins/lint batch evidence](pins-lint-2026-10-16.md) records its regression pins and
+implementation checks. The [main merge report](pins-lint-main-merge-2026-10-16.md) lists
+retained batch statuses, main's catalogue decisions and merged validation results.
 
 ## An entry
 
