@@ -38,6 +38,17 @@ pub struct Camera {
     pub direction: [f64; 3],
     pub up: [f64; 3],
 }
+impl Camera {
+    fn new(direction: [f64; 3], up: [f64; 3]) -> Self {
+        // JSON.stringify normalises -0 to 0 in browsers. Keep saved camera vectors
+        // canonical on both targets, including axes negated for the plan view.
+        let zero = |v: f64| if v == 0. { 0. } else { v };
+        Self {
+            direction: direction.map(zero),
+            up: up.map(zero),
+        }
+    }
+}
 
 fn fail(path: &str, message: impl std::fmt::Display) -> Invalid {
     // Required members cannot be removed alone: remove their authored view form.
@@ -272,15 +283,9 @@ pub(crate) fn cameras(a: &Analysis, s: &Spec) -> Result<[Camera; 3], Invalid> {
     let up = std::array::from_fn(|k| up[k] * cos + right[k] * sin);
     let right = cross(up, d);
     Ok([
-        Camera { direction: d, up },
-        Camera {
-            direction: up,
-            up: d.map(|v| -v),
-        },
-        Camera {
-            direction: right,
-            up,
-        },
+        Camera::new(d, up),
+        Camera::new(up, d.map(|v| -v)),
+        Camera::new(right, up),
     ])
 }
 
@@ -355,10 +360,7 @@ fn auxiliary_camera(
     let edge = unit(cross(source.direction, d), &path)?;
     let turned = cross(edge, source.up);
     let up = std::array::from_fn(|k| turned[k] + edge[k] * dot(edge, source.up));
-    Ok(Camera {
-        direction: d,
-        up: unit(up, &path)?,
-    })
+    Ok(Camera::new(d, unit(up, &path)?))
 }
 
 pub(crate) fn validate(a: &Analysis, s: &Spec) -> Result<(), Invalid> {

@@ -61,6 +61,15 @@ fn front_direction_rotation_and_explicit_principals_are_applied_without_changing
             let mut s = fixed();
             s["views"]["front"] = json!({"orientation":{"from":direction,"rotation":rotation},"principal_views":["front","plan","side"]});
             let p = model::plan(&a, &spec(s)).unwrap();
+            for v in &p.views {
+                for c in v.direction.iter().chain(&v.up) {
+                    assert!(
+                        *c != 0. || !c.is_sign_negative(),
+                        "{} camera must serialize zero identically in native and browser JSON",
+                        v.id
+                    );
+                }
+            }
             assert!(
                 view(&p, "front")
                     .from_spec
