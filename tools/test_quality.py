@@ -30,6 +30,11 @@ class SheetCoordinates(unittest.TestCase):
                     dimensions=[dict(id='a', view='front'), dict(id='b', view='detail')])
         self.assertEqual(quality.view_conflicts(plan), (0, 0))
         self.assertEqual([[d['id'] for d in p['dimensions']] for p in quality.page_plans(plan)], [['a'], ['b']])
+        plan['hole_tables'] = [dict(id='schedule', sheet=2, view='front', blocks=[])]
+        pages = list(quality.page_plans(plan))
+        self.assertEqual(pages[0]['hole_tables'], [])
+        self.assertEqual([t['id'] for t in pages[1]['hole_tables']], ['schedule'])
+        # A table's datum view remains on page 1 when its blocks move to page 2.
         plan['views'][1]['sheet'] = 1
         self.assertEqual(quality.view_conflicts(plan), (1, 0))
         plan['views'][1]['area'] = [85, 85, 95, 95]

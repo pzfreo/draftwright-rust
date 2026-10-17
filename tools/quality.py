@@ -527,16 +527,16 @@ def page_plans(plan):
         views = [v for v in plan['views'] if v.get('sheet', 1) == number]
         ids = {v['id'] for v in views}
         page = dict(plan, sheet=sheet, sheets=[], views=views)
-        for key in ('dimensions', 'gdt', 'balloons', 'hole_tables'):
+        for key in ('dimensions', 'gdt', 'balloons'):
             page[key] = [item for item in plan.get(key, []) if item.get('view') in ids]
-        for key in ('tables', 'captions'):
+        for key in ('tables', 'hole_tables', 'captions'):
             page[key] = [item for item in plan.get(key, []) if item.get('sheet', 1) == number]
         if number != 1:
             for key in ('notes', 'requirements'):
                 page[key] = []
             for key in ('notes_block', 'radius_notes_block', 'radius_table'):
                 page[key] = None
-        if plan.get('hole_table') and plan['hole_table'].get('view') not in ids:
+        if plan.get('hole_table') and plan['hole_table'].get('sheet', 1) != number:
             page['hole_table'] = None
         yield page
 
