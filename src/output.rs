@@ -401,6 +401,58 @@ pub enum Kind {
     Gdt,
 }
 
+/// Literal wording evidence attached to a finished drawing, with no Spec or planned value.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LabelWording {
+    pub prefix: String,
+    pub suffix: String,
+    pub reference: bool,
+    pub count: Option<usize>,
+}
+impl LabelWording {
+    /// Verify the wrapper around the live printed body. Never substitute an approved value.
+    pub(crate) fn body(&self, label: &str) -> Option<String> {
+        let label = if self.reference {
+            label.strip_prefix('(')?.strip_suffix(')')?
+        } else {
+            label
+        };
+        let mut body = label;
+        if !self.prefix.is_empty() {
+            body = body.strip_prefix(&self.prefix)?.strip_prefix(' ')?;
+        }
+        if !self.suffix.is_empty() {
+            body = body.strip_suffix(&self.suffix)?.strip_suffix(' ')?;
+        }
+        if body.trim().is_empty() {
+            return None;
+        }
+        let body = self
+            .count
+            .map_or_else(|| body.to_string(), |n| format!("{n}× {body}"));
+        Some(if self.reference {
+            format!("({body})")
+        } else {
+            body
+        })
+    }
+}
+
+/// Read live generated text using only evidence carried by the rendered drawing.
+pub(crate) fn drawn_body(drawing: &Drawing, annotation: &Annotation) -> Option<String> {
+    let text = annotation
+        .runs
+        .iter()
+        .filter_map(|&i| drawing.text.get(i))
+        .map(|r| r.text.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
+    match drawing.sheet.label_text.get(&annotation.name) {
+        Some(wording) => wording.body(&text),
+        None => Some(text),
+    }
+}
+
 /// A thing drawn on the sheet: its name, what it is, the box of all its ink, and the box of its
 /// label's text, if it has one (a dimension's is the label's ink box; the port draws every label
 /// along or across the page, so the box is the text's own). Its straight line-work is each line
@@ -415,6 +467,9 @@ pub struct Drawn {
     pub ink: [f64; 4],
     pub label: Option<[f64; 4]>,
     pub lines: Vec<[P; 2]>,
+    /// Filled arrowhead outlines, kept separate from dimension-reading line grammar.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub heads: Vec<[P; 2]>,
     pub elbow: Option<P>,
     /// Placed inside its view on purpose, clear of the view's edges (draftwright's `interior`
     /// placement region), retained from the Plan's proven candidate provenance.
@@ -455,6 +510,10 @@ pub struct DrawnReference {
 /// format.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Sheet {
+    /// Compiled wording wrappers; lint reads the live measured body, never authored numbers.
+    pub label_text: BTreeMap<String, LabelWording>,
+    /// Approved display precision of each dimension's leading value. Ink is still checked.
+    pub precision: BTreeMap<String, u8>,
     /// Remote section addresses, verified against printed text by structural lint.
     pub references: Vec<DrawnReference>,
     /// The drawable area, inside the border (`[x0, y0, x1, y1]`); none when no border is drawn.

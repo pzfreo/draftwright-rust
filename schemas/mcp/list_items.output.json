@@ -2,14 +2,12 @@
   "type": "object",
   "anyOf": [
     {
-      "type": "object",
       "properties": {
         "items": {
           "type": "array",
           "items": {
             "anyOf": [
               {
-                "type": "object",
                 "properties": {
                   "sheet": {
                     "enum": [
@@ -25,74 +23,58 @@
                     ]
                   },
                   "id": {
-                    "type": "string"
+                    "$ref": "#/C"
                   },
                   "kind": {
-                    "type": "string"
+                    "$ref": "#/C"
                   },
                   "label": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
+                    "$ref": "#/A"
                   },
                   "view": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
+                    "$ref": "#/A"
                   },
                   "state": {
                     "anyOf": [
                       {
-                        "type": "object",
-                        "properties": {
-                          "kind": {
-                            "enum": [
-                              "shown",
-                              "omitted_by_user",
-                              "not_authored"
-                            ]
+                        "enum": [
+                          {
+                            "kind": "shown"
+                          },
+                          {
+                            "kind": "omitted_by_user"
+                          },
+                          {
+                            "kind": "not_authored"
                           }
-                        },
-                        "required": [
-                          "kind"
-                        ],
-                        "additionalProperties": false
+                        ]
                       },
                       {
-                        "type": "object",
                         "properties": {
                           "kind": {
                             "const": "covered"
                           },
                           "by": {
-                            "type": "string"
+                            "$ref": "#/C"
                           }
                         },
-                        "required": [
-                          "kind",
-                          "by"
-                        ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "minProperties": 2
                       },
                       {
-                        "type": "object",
                         "properties": {
                           "kind": {
                             "const": "not_drawable"
                           },
                           "reason_code": {
-                            "type": "string"
+                            "$ref": "#/C"
                           }
                         },
-                        "required": [
-                          "kind",
-                          "reason_code"
-                        ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "minProperties": 2
                       }
-                    ]
+                    ],
+                    "type": "object"
                   }
                 },
                 "required": [
@@ -105,7 +87,6 @@
                 "additionalProperties": false
               },
               {
-                "type": "object",
                 "properties": {
                   "item": {
                     "type": "object"
@@ -117,10 +98,7 @@
                     ]
                   },
                   "dimension_kind": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
+                    "$ref": "#/A"
                   },
                   "placement": {
                     "type": [
@@ -128,51 +106,32 @@
                       "null"
                     ]
                   },
-                  "anchors": {
-                    "$ref": "#/$defs/A"
-                  },
-                  "features": {
-                    "$ref": "#/$defs/A"
-                  },
                   "basis": {
-                    "type": "string"
-                  },
-                  "operations": {
-                    "$ref": "#/$defs/A"
+                    "$ref": "#/C"
                   }
                 },
-                "required": [
-                  "item",
-                  "value",
-                  "dimension_kind",
-                  "placement",
-                  "anchors",
-                  "features",
-                  "basis",
-                  "operations"
-                ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "minProperties": 8,
+                "patternProperties": {
+                  "^(anchors|features|operations)$(?!\n)": {
+                    "$ref": "#/B"
+                  }
+                }
               },
               {
-                "type": "object",
                 "properties": {
                   "id": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
+                    "$ref": "#/A"
                   },
                   "detail_ref": {
-                    "type": "string"
+                    "$ref": "#/C"
                   }
                 },
-                "required": [
-                  "id",
-                  "detail_ref"
-                ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "minProperties": 2
               }
-            ]
+            ],
+            "type": "object"
           }
         },
         "total": {
@@ -187,51 +146,51 @@
           "minimum": 0
         }
       },
-      "required": [
-        "items",
-        "total",
-        "next_cursor"
-      ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "minProperties": 3
     },
     {
-      "type": "object",
-      "properties": {
-        "error": {
-          "type": "object",
-          "properties": {
-            "code": {
-              "enum": [
-                "invalid",
-                "failed"
-              ]
-            },
-            "message": {
-              "type": "string"
-            },
-            "choices": {
-              "$ref": "#/$defs/A"
-            }
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "choices": {
+            "$ref": "#/B"
           },
-          "required": [
-            "code",
-            "message"
-          ],
-          "additionalProperties": false
-        }
+          "code": {
+            "enum": [
+              "invalid",
+              "failed"
+            ]
+          },
+          "message": {
+            "$ref": "#/C"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
       },
       "required": [
         "error"
       ],
-      "additionalProperties": false
+      "maxProperties": 1
     }
   ],
-  "$defs": {
-    "A": {
-      "items": {
-        "type": "string"
-      },
-      "type": "array"
-    }
+  "A": {
+    "type": [
+      "string",
+      "null"
+    ]
+  },
+  "B": {
+    "items": {
+      "$ref": "#/C"
+    },
+    "type": "array"
+  },
+  "C": {
+    "type": "string"
   }
 }

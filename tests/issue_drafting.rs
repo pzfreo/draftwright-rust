@@ -2181,3 +2181,57 @@ fn fill_selection_preserves_hard_findings_when_no_complete_candidate_exists() {
         }
     }
 }
+
+#[test]
+fn envelope_wide_bands_and_extent_fits_reach_the_ink() {
+    let (part, a) = analysed("plate");
+    let font = font();
+    let ids = [
+        "d:envelope/width.length",
+        "d:envelope/depth.length",
+        "d:envelope/height.length",
+    ];
+    let wide = spec(json!({"envelope_tolerance": "±0.05"}));
+    let plan = model::plan(&a, &wide).unwrap();
+    let drawing = model::render(&part, &a, &plan, &font).unwrap();
+    for id in ids {
+        let dim = plan.dimensions.iter().find(|d| d.id == id).unwrap();
+        assert!(dim.label.ends_with(" ±0.05"), "{}", dim.label);
+        let anno = drawing.annotations.iter().find(|a| a.name == id).unwrap();
+        assert!(
+            anno.runs
+                .iter()
+                .any(|&i| drawing.text[i].text.ends_with(" ±0.05"))
+        );
+    }
+    for id in ids {
+        let fitted =
+            spec(json!({"dimensions": {id: {"fit": "h7"}}, "sheet": {"fit_limits": false}}));
+        let plan = model::plan(&a, &fitted).unwrap();
+        for d in plan
+            .dimensions
+            .iter()
+            .filter(|d| ids.contains(&d.id.as_str()))
+        {
+            assert_eq!(d.label.ends_with(" h7"), d.id == id, "{} {}", d.id, d.label);
+        }
+        assert!(
+            model::render(&part, &a, &plan, &font)
+                .unwrap()
+                .svg()
+                .contains("h7")
+        );
+    }
+    let override_one = spec(
+        json!({"envelope_tolerance": "±0.05", "dimensions": {ids[0]: {"tolerance": "+0.2 -0.1"}}}),
+    );
+    let plan = model::plan(&a, &override_one).unwrap();
+    assert!(
+        plan.dimensions
+            .iter()
+            .find(|d| d.id == ids[0])
+            .unwrap()
+            .label
+            .ends_with(" +0.2 -0.1")
+    );
+}

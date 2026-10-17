@@ -1,0 +1,212 @@
+# Browser WASM package
+
+`crates/draftwright-wasm` is a `cdylib`/`rlib` workspace member named `draftwright-wasm`.
+The root `draftwright` package, CLI and MCP binaries stay in place. The workspace's default
+member is the root package, preserving ordinary native build/test commands. Use `--workspace`
+when checking both crates. The wrapper's Rust `Session` contains the editor compatibility
+helpers; the `wasm` module only converts arguments/results and exposes `Engine`.
+
+## Build and check locally
+
+Use the pinned Rust toolchain, Node 22 or later, and wasm-pack 0.15.0:
+
+```sh
+rustup target add wasm32-unknown-unknown
+cargo install wasm-pack --version 0.15.0 --locked
+wasm-pack build crates/draftwright-wasm --target web --profile wasm-release --locked
+python3 tools/check_wasm_api.py
+cargo build --locked --release --example wasm_reference
+node --test tools/wasm-parity.test.mjs
+python3 tools/check_wasm_label_text.py
+python3 tools/wasm_size.py crates/draftwright-wasm/pkg/draftwright_wasm_bg.wasm
+python3 tools/check_quiddity_pin.py
+```
+
+The generated, ignored directory is `crates/draftwright-wasm/pkg/`: JS glue,
+`draftwright_wasm_bg.wasm`, TypeScript `.d.ts` files and `package.json` (plus README and
+wasm-pack metadata). No generated binaries are checked in. The dedicated `wasm-release`
+profile inherits `release` and sets `lto = true`, `codegen-units = 1`, `opt-level = 3`;
+native `release` settings are unchanged. wasm-pack also runs its default wasm-opt pass.
+
+The build enables `uuid/js` and `getrandom` 0.3's `wasm_js` only on WASM. The browser opens
+bytes through `model::analyse_native_bytes(name, bytes)`, which never treats the name as a
+filesystem path. Gzip is recognised by magic bytes and decompressed in memory. Filesystem
+adapters, the JSON-lines service, stateless disk cache, MCP and font-file loading are gated
+with `cfg(not(target_arch = "wasm32"))`; native path handling stays intact. There are no
+clock, process or thread calls in the browser adapter. The pinned geometry kernel uses its
+serial fallback on `wasm32-unknown-unknown` (no worker/thread setup is needed).
+
+## JavaScript API
+
+```js
+import init, { Engine } from './wasm/draftwright_wasm.js';
+await init(); // Fetches draftwright_wasm_bg.wasm beside the JS glue.
+const engine = new Engine(file.name, new Uint8Array(await file.arrayBuffer()));
+try {
+  const initial = JSON.parse(engine.snapshot());
+  const delta = JSON.parse(engine.apply(JSON.stringify([
+    { op: 'set', path: 'sheet/title/material', value: 'Steel' },
+  ]), true));
+  const svg = new TextDecoder().decode(engine.renderSvg());
+  const pdf = engine.renderPdf(); // Uint8Array, suitable for a Blob.
+} catch (thrown) {
+  const { code, message, choices = [] } = JSON.parse(thrown);
+  console.error(code, message, choices);
+} finally {
+  engine.free(); // Release the Rust session when the editor closes the drawing.
+}
+```
+
+All JSON arguments/results are **strings**, requiring `JSON.stringify`/`JSON.parse`.
+The other boundary values are names/source hashes (strings), bytes (`Uint8Array`), booleans
+and counts (numbers). Fallible methods throw a **string** containing serialized
+`draftwright::api::Error`: `{ "code": "invalid" | "failed", "message": "...", "choices"?: [...] }`.
+Rust panics invoke `console_error_panic_hook`; they are traps, not recoverable API errors.
+
+| Method | Result and behaviour |
+| --- | --- |
+| `new Engine(name, bytes)` | Analyse STEP with native Rust recognition and open a default `session::Session`. Name supplies the title and diagnostics; no file is read. |
+| `apply(opsJson, commit)` | Delta JSON. `commit=false` computes a delta without changing the session. |
+| `applyFragments(opsJson)` | Commits; JSON `{delta, fragments, pmi, placementOptions?}` with compact changed-item markers and collection `present` flags. View edits include new placement options. |
+| `fragments()` | Complete `svg_fragments(None)` JSON. |
+| `preview(opsJson)` | Snapshot JSON with the hypothetical plan/spec/SVG/problems; session stays unchanged. Other snapshot metadata comes from the current session. |
+| `snapshot()` | JSON `{problems, plan, spec, svg, placementOptions, provenance, analysis, pmi}`. `svg` here is text. |
+| `undo()`, `redo()` | Delta JSON; invalid error if the corresponding history is empty. |
+| `setPmi(source, bytes)` | Attach Specify's STEP PMI. `source` must match the original source SHA-256 in snapshot provenance. Returns void. |
+| `setPmiOps(source, bytes, opsJson)` | Attach PMI and commit Spec operations together; same source check. Returns void. |
+| `setSpec(json)` | Migrate the incoming Spec against the Analysis, diff its top-level fields and commit changed operations. Returns void. |
+| `spec()`, `pmi()`, `plan()` | Current Spec, PMI report or Plan JSON. |
+| `planCount()` | Cumulative planner count (useful for checking one replan per edit). |
+| `faceCount()`, `featureCount()` | Loaded face count and recognised feature count. |
+| `placementOptions()` | JSON map from editable item IDs to labels, per-view sides and allowed operations. |
+| `renderSvg()`, `renderPdf()` | `Uint8Array`: UTF-8 SVG or PDF with bundled fonts. |
+| `start()` | Installs the panic hook once; wasm-bindgen invokes it automatically at initialization. |
+
+The helpers preserve the editor wrapper's packet shape, source validation, Spec migration,
+PDF font lookup, preview and snapshot behaviour. **One migration change:** the old editor
+wrapper returned a string from `renderSvg()`. This package returns bytes as requested by
+issue #66; decode with `new TextDecoder().decode(engine.renderSvg())` where text is needed.
+`snapshot().svg` and SVG fragment strings retain their existing formats.
+
+## Consume a pinned release in the editor
+
+Each published GitHub release whose tag starts with `v` builds from that tag. Keep both
+Cargo package versions in sync with the release tag (without `v`); the workflow checks this.
+The job runs the parity test before uploading with `gh release upload` and `GITHUB_TOKEN`.
+Only that release job has `contents: write`; CI has read permission. Nothing is published
+to npm. Existing native release procedures can stay separate.
+
+For example, after a release carrying these assets exists:
+
+```sh
+version=0.1.0-alpha.4 # Replace with the chosen published version.
+asset="draftwright-wasm-${version}.tgz"
+gh release download "v${version}" --repo pzfreo/draftwright-rust \
+  --pattern "$asset" --pattern "$asset.sha256"
+sha256sum -c "$asset.sha256" # macOS: shasum -a 256 -c "$asset.sha256"
+mkdir -p public/wasm/drawing
+tar -xzf "$asset" --strip-components=1 -C public/wasm/drawing
+```
+
+The archive has a top-level `pkg/`, including the engine license and bundled-font notices. Pin the tag/version and retain the checksum in the
+editor's dependency/update process. Copy the complete package together so JS glue and WASM
+stay matched; serve `.wasm` as `application/wasm`. Import `draftwright_wasm.js` in place of
+`dw_engine.js` (the WASM basename changes too). Await initialization, update the SVG byte
+call sites, then delete the editor's engine crate and Rust/wasm-pack CI build once validated.
+Keep its existing build fallback until the first package release is available. No editor
+repository changes are made by this work.
+
+## Parity and size
+
+`tools/wasm-parity.test.mjs` replays prismatic and polygonal-stock sessions under Node using the **web**
+package. Native `examples/wasm_reference.rs` independently loads the same STEP through
+`model::analyse_native_step` and uses the core Session. It compares Spec JSON, Plan JSON and
+SVG byte for byte after open, edits, fragment edits, Spec replacement and history. Preview
+SVG is also compared byte for byte; its nested JSON documents are compared structurally
+because JS reserialization changes object order and number spelling.
+It also replays compact plan deltas, checks changed SVG fragments against full output, and
+exercises gzip input, counts, snapshots, placement options, JSON error strings, PMI
+source checks and attachment calls, and the PDF signature. Fixtures in `tests/fixtures/wasm/`
+refer to small STEP files already in the repository, so no external corpus is needed.
+These planar fixtures enforce full byte parity, including the Analysis hash. Curved models
+can have target-dependent last-bit differences in profile sampling and HLR segment boundaries
+(the local plate Analysis hash and turned SVG demonstrated this); the parity gate does not
+claim byte identity for every curved model. No comparison tolerance or hash exclusion is used
+for committed states. Native output is unchanged.
+The CI WASM job runs for pull requests and main pushes; the release job repeats parity.
+
+Measured locally on 2026-10-16 with Rust 1.99 and wasm-pack 0.15.0, web target, `wasm-release` and
+wasm-pack's default wasm-opt pass:
+
+| `.wasm` | Bytes | Decimal MB |
+| --- | ---: | ---: |
+| Raw | 13,602,172 | 13.602 |
+| gzip level 9 | 4,486,165 | 4.486 |
+| Brotli quality 11, lgwin 22 | 2,992,302 | 2.992 |
+
+The size script prints raw and gzip level 9 sizes, plus Brotli quality 11 when the Python
+module or `brotli` CLI is installed. These are sizes of the `.wasm` alone; the release tarball also contains glue and
+declarations. Compression is a transfer/deployment choice and does not alter the WASM file.
+The editor's previous build was approximately 15 MB raw / 4 MB Brotli (decimal MB).
+
+## Reviewed API snapshot
+
+`crates/draftwright-wasm/api.d.ts` is the reviewed copy of wasm-pack's generated
+`pkg/draftwright_wasm.d.ts`. The normalizer removes comments (including generator/version
+noise), sorts top-level declarations and class/interface members, and retains signatures,
+parameter names, literal types and nested types. Generated JS and binaries remain ignored.
+After building, run:
+
+```sh
+python3 tools/check_wasm_api.py
+# When intentionally changing the API:
+python3 tools/check_wasm_api.py --update
+```
+
+Review and commit the snapshot diff, and add a new note line (normally a bullet) under
+`### WASM API` in `CHANGELOG.md`'s `## Unreleased` section in the same change. CI compares against the PR base
+commit or the commit before a main push (`--base-ref`); local checks default to `HEAD`.
+API drift fails unless that comparison also adds a WASM API note line. Updating the snapshot
+alone cannot bypass the changelog requirement, and an existing note cannot approve a later
+change. A documented mismatch is allowed as approved by the maintainer, but the check still
+prints the diff and the snapshot update command. Normally commit the refreshed snapshot.
+Run the safeguard tests with `python3 -m unittest discover -s tools -p 'test_wasm_safeguards.py'`.
+
+## Size budget
+
+`tools/wasm-size-budget.json` records the baseline raw, gzip level 9 and Brotli quality 11
+(lgwin 22 for both the Python module and CLI)
+sizes measured on the web target with the `wasm-release` profile and wasm-pack's default
+wasm-opt pass. Its `ceiling_bytes` is about 15% above the raw baseline, rounded up to the
+next 100,000 bytes. `tools/wasm_size.py` enforces that raw-byte ceiling in CI and release
+builds; equality passes. It prints actual transfer sizes and remaining headroom on every
+run. The initial ceiling is **15,700,000 bytes**, leaving **2,097,828 bytes** of headroom
+(15.42% above the measured baseline). Brotli reporting requires the Python `brotli` module
+or the `brotli` CLI; enforcement
+has no optional dependencies. Gzip/Brotli sizes are recorded for deployment planning and
+are not separate gates. A budget increase requires a deliberate reviewed JSON edit; the
+check never raises its own ceiling.
+
+## Matching geometry kernels
+
+Draftwright and Specify embed independent copies of quiddity-rust. STEP files pass between
+them in the editor, so different kernel commits may change face numbering. Run:
+
+```sh
+python3 tools/check_quiddity_pin.py
+```
+
+The script reads both `haecceity` and `quiddity` tag/rev pins from this `Cargo.toml` and
+fetches `pzfreo/specify-core-rust`'s manifest at its most recently published GitHub release,
+including prereleases. It compares resolved commits so a tag and its full commit rev match,
+prints the original pins, and checks that both dependencies agree within each package.
+It uses `gh api` when installed (including its existing login), otherwise the GitHub REST
+API without authentication. `GITHUB_TOKEN` is used when set (`GH_TOKEN` also works).
+
+CI runs the comparison on main pushes. The release job runs it before asset upload with
+`--release "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY"`. A mismatch emits a GitHub Actions
+`::warning::` and appends a `Kernel note:` line describing both packages' pins to the release
+body via `gh release edit`, preserving other notes and replacing its own line on retries.
+It never fails the release: one package necessarily releases first after a kernel bump.
+Fetch, parsing and release-note-edit errors are warnings as well. Running locally without
+`--release` only reads GitHub; it does not edit any release.

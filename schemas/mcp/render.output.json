@@ -2,7 +2,6 @@
   "type": "object",
   "anyOf": [
     {
-      "type": "object",
       "properties": {
         "artifact_ref": {
           "type": "string"
@@ -21,47 +20,39 @@
           "type": "string"
         }
       },
-      "required": [
-        "artifact_ref",
-        "mime_type",
-        "bytes",
-        "spec_version"
-      ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "minProperties": 4
     },
     {
-      "type": "object",
-      "properties": {
-        "error": {
-          "type": "object",
-          "properties": {
-            "code": {
-              "enum": [
-                "invalid",
-                "failed"
-              ]
-            },
-            "message": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "choices": {
+            "items": {
               "type": "string"
             },
-            "choices": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
+            "type": "array"
           },
-          "required": [
-            "code",
-            "message"
-          ],
-          "additionalProperties": false
-        }
+          "code": {
+            "enum": [
+              "invalid",
+              "failed"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
       },
       "required": [
         "error"
       ],
-      "additionalProperties": false
+      "maxProperties": 1
     }
   ]
 }

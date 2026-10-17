@@ -275,6 +275,8 @@ fn overridden(spec: &crate::model::Spec, given: &crate::model::Spec, id: &str) -
     // choices override grouping; inactive entries in the original Spec have no authority.
     spec.dimensions.get(id).is_some_and(|s| {
         s.omit
+            || s.text.is_some()
+            || s.style.is_some()
             || s.tolerance.is_some()
             || s.view.is_some()
             || given
@@ -352,10 +354,10 @@ pub(crate) fn cover_fillets(
     spec: &crate::model::Spec,
     given: &crate::model::Spec,
 ) {
-    for note in notes
-        .iter_mut()
-        .filter(|n| n.placed.is_some() && n.text.starts_with("ALL UNSPECIFIED RADII"))
-    {
+    for note in notes.iter_mut().filter(|n| {
+        n.placed.is_some()
+            && crate::label_text::note_body(spec, n).starts_with("ALL UNSPECIFIED RADII")
+    }) {
         let Some(value) = note.measurements.first().map(|m| m.value) else {
             continue;
         };
@@ -419,10 +421,9 @@ pub(crate) fn tabulate_obstructed(
         if d.placed.is_none()
             || d.measurements.is_empty()
             || !d.measurements.iter().all(|m| m.parameter == "blend.radius")
-            || spec
-                .dimensions
-                .get(&d.id)
-                .is_some_and(|s| s.place.is_some() || s.tolerance.is_some())
+            || spec.dimensions.get(&d.id).is_some_and(|s| {
+                s.place.is_some() || s.tolerance.is_some() || s.text.is_some() || s.style.is_some()
+            })
             || !problems.iter().any(|p| {
                 p.subjects.contains(&d.id) && leader_problem(&p.code)
                     // A clear leader beyond an estimated band stays visible. A

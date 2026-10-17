@@ -2,7 +2,7 @@
   "type": "object",
   "properties": {
     "part_ref": {
-      "type": "string"
+      "$ref": "#/E"
     },
     "spec": {
       "type": "object",
@@ -26,22 +26,19 @@
           ],
           "properties": {
             "max": {
-              "$ref": "#/$defs/C"
+              "$ref": "#/C"
             },
             "smallest_scale": {
-              "$ref": "#/$defs/B"
+              "$ref": "#/B"
             },
             "keep_together": {
               "type": "array",
               "items": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
+                "$ref": "#/D"
               }
             },
             "hole_table": {
-              "$ref": "#/$defs/C"
+              "$ref": "#/C"
             },
             "gdt_on_sheet_1": {
               "type": "boolean"
@@ -52,23 +49,11 @@
         "sheet": {
           "type": "object",
           "properties": {
-            "size": {
-              "$ref": "#/$defs/B"
-            },
-            "scale": {
-              "$ref": "#/$defs/B"
-            },
             "title": {
               "type": "object",
               "additionalProperties": {
-                "type": "string"
+                "$ref": "#/E"
               }
-            },
-            "fit_limits": {
-              "type": [
-                "boolean",
-                "null"
-              ]
             },
             "projection": {
               "enum": [
@@ -84,22 +69,24 @@
               ]
             }
           },
-          "additionalProperties": false
+          "additionalProperties": false,
+          "patternProperties": {
+            "^(hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "$ref": "#/A"
+            },
+            "^(size|scale)$(?!\n)": {
+              "$ref": "#/B"
+            }
+          }
         },
         "views": {
-          "$ref": "#/$defs/A"
-        },
-        "dimensions": {
-          "$ref": "#/$defs/A"
-        },
-        "annotations": {
-          "$ref": "#/$defs/A"
-        },
-        "features": {
-          "$ref": "#/$defs/A"
-        },
-        "faces": {
-          "$ref": "#/$defs/A"
+          "additionalProperties": {
+            "patternProperties": {
+              "^(hidden|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                "$ref": "#/A"
+              }
+            }
+          }
         },
         "dimension_source": {
           "enum": [
@@ -114,26 +101,45 @@
             "never"
           ]
         },
-        "notes": {
-          "type": "array",
+        "feature_declarations": {
           "items": {
+            "properties": {
+              "id": {
+                "$ref": "#/E"
+              },
+              "kind": {
+                "$ref": "#/E"
+              },
+              "faces": {
+                "$ref": "#/D"
+              }
+            },
+            "additionalProperties": false,
+            "minProperties": 3
+          }
+        }
+      },
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(views|dimensions|annotations|features|faces)$(?!\n)": {
+          "type": "object",
+          "additionalProperties": {
             "type": "object"
           }
         },
-        "tables": {
+        "^(notes|tables|gears|feature_declarations)$(?!\n)": {
           "type": "array",
           "items": {
             "type": "object"
           }
         }
-      },
-      "additionalProperties": false
+      }
     },
     "spec_version": {
-      "type": "string"
+      "$ref": "#/E"
     },
     "drawing_ref": {
-      "type": "string"
+      "$ref": "#/E"
     },
     "cursor": {
       "type": "integer",
@@ -151,75 +157,56 @@
       "type": "object",
       "properties": {
         "sheet": {
-          "$ref": "#/$defs/C"
-        },
-        "view": {
-          "$ref": "#/$defs/B"
-        },
-        "kind": {
-          "$ref": "#/$defs/B"
+          "$ref": "#/C"
         },
         "state": {
           "anyOf": [
             {
               "anyOf": [
                 {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "enum": [
-                        "shown",
-                        "omitted_by_user",
-                        "not_authored"
-                      ]
+                  "enum": [
+                    {
+                      "kind": "shown"
+                    },
+                    {
+                      "kind": "omitted_by_user"
+                    },
+                    {
+                      "kind": "not_authored"
                     }
-                  },
-                  "required": [
-                    "kind"
-                  ],
-                  "additionalProperties": false
+                  ]
                 },
                 {
-                  "type": "object",
                   "properties": {
                     "kind": {
                       "const": "covered"
                     },
                     "by": {
-                      "type": "string"
+                      "$ref": "#/E"
                     }
                   },
-                  "required": [
-                    "kind",
-                    "by"
-                  ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "minProperties": 2
                 },
                 {
-                  "type": "object",
                   "properties": {
                     "kind": {
                       "const": "not_drawable"
                     },
                     "reason_code": {
-                      "type": "string"
+                      "$ref": "#/E"
                     }
                   },
-                  "required": [
-                    "kind",
-                    "reason_code"
-                  ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "minProperties": 2
                 }
-              ]
+              ],
+              "type": "object"
             },
             {
               "type": "null"
             }
           ]
-        },
-        "feature": {
-          "$ref": "#/$defs/B"
         },
         "region": {
           "type": [
@@ -232,9 +219,6 @@
           "minItems": 4,
           "maxItems": 4
         },
-        "near": {
-          "$ref": "#/$defs/B"
-        },
         "radius": {
           "type": [
             "number",
@@ -243,39 +227,51 @@
           "minimum": 0
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(view|kind|feature|near)$(?!\n)": {
+          "$ref": "#/B"
+        }
+      }
     }
   },
   "required": [
     "part_ref"
   ],
   "additionalProperties": false,
-  "$defs": {
-    "A": {
-      "additionalProperties": {
-        "type": "object"
-      },
-      "type": "object"
+  "A": {
+    "type": [
+      "boolean",
+      "null"
+    ]
+  },
+  "B": {
+    "type": [
+      "string",
+      "null"
+    ]
+  },
+  "C": {
+    "enum": [
+      null,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ]
+  },
+  "D": {
+    "items": {
+      "$ref": "#/E"
     },
-    "B": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "C": {
-      "enum": [
-        null,
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9
-      ]
-    }
+    "type": "array"
+  },
+  "E": {
+    "type": "string"
   }
 }

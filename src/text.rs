@@ -107,6 +107,7 @@ impl Font {
         Some(Font { data })
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn open(path: &std::path::Path) -> Option<Self> {
         Font::new(std::fs::read(path).ok()?)
     }

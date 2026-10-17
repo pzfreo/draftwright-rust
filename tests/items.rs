@@ -462,9 +462,11 @@ fn the_drawing_review_reads_typed_states_and_classifies_as_from_prose() {
             for (id, p) in &prose {
                 let t = &typed[id];
                 // A hole callout or location the hole table states is unplaced to the prose
-                // review (no basis says so at its start) and covered by the table when typed.
+                // review (no basis says so at its start) and covered by a real table when typed.
+                // Improved composition can select a separately named per-view schedule.
                 let tabled = *p == Review::Unplaced
-                    && *t == Review::Covered(draftwright::hole_table::ID.into());
+                    && matches!(t, Review::Covered(owner)
+                        if plan.hole_tables.iter().any(|table| table.id == *owner));
                 assert!(
                     p == t || tabled,
                     "{part}, {name}: {id} is {p:?} from prose, {t:?} typed"

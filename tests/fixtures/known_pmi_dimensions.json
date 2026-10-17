@@ -51,9 +51,9 @@
   "port": "dimension:#6398",
   "field": "label",
   "python": "2× ⌀130",
-  "rust": "2× ⌀130 g6 (-0.014/-0.039)",
+  "rust": "2× ⌀130 g6",
   "verdict": "rust-correct",
-  "evidence": "J3 (#30) shaft-fit port: haecceity's writer states dimension:#6398 as an ISO 286 shaft class alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values). Its external cylinders correlate to exactly one recognised turned diameter, which prints the class with its limits from ISO 286 (draftwright's fits table, as the S5 symbolic-bore port prints a hole class; hidden by sheet/fit_limits: false). draftwright states the plain size and drops the class; a shaft whose fit is not on the sheet is turned to the general tolerance, so the port's label is the correct one."
+  "evidence": "J3 (#30) shaft-fit port: haecceity's writer states dimension:#6398 as an ISO 286 shaft class alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values). Its external cylinders correlate to exactly one recognised turned diameter, which prints the class alone by default (maintainer decision 2026-10-16; sheet/fit_deviations opts into stacked ISO 286 deviations) (draftwright's fits table, as the S5 symbolic-bore port prints a hole class; hidden by sheet/fit_limits: false). draftwright states the plain size and drops the class; a shaft whose fit is not on the sheet is turned to the general tolerance, so the port's label is the correct one."
  },
  {
   "file": "hw_spool_fits_intent.step",
@@ -61,9 +61,9 @@
   "port": "dimension:#6404",
   "field": "label",
   "python": "2× ⌀130",
-  "rust": "2× ⌀130 g6 (-0.014/-0.039)",
+  "rust": "2× ⌀130 g6",
   "verdict": "rust-correct",
-  "evidence": "J3 (#30) shaft-fit port: haecceity's writer states dimension:#6404 as an ISO 286 shaft class alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values). Its external cylinders correlate to exactly one recognised turned diameter, which prints the class with its limits from ISO 286 (draftwright's fits table, as the S5 symbolic-bore port prints a hole class; hidden by sheet/fit_limits: false). draftwright states the plain size and drops the class; a shaft whose fit is not on the sheet is turned to the general tolerance, so the port's label is the correct one."
+  "evidence": "J3 (#30) shaft-fit port: haecceity's writer states dimension:#6404 as an ISO 286 shaft class alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values). Its external cylinders correlate to exactly one recognised turned diameter, which prints the class alone by default (maintainer decision 2026-10-16; sheet/fit_deviations opts into stacked ISO 286 deviations) (draftwright's fits table, as the S5 symbolic-bore port prints a hole class; hidden by sheet/fit_limits: false). draftwright states the plain size and drops the class; a shaft whose fit is not on the sheet is turned to the general tolerance, so the port's label is the correct one."
  },
  {
   "file": "hw_spool_fits_intent.step",
@@ -71,9 +71,9 @@
   "port": "dimension:#6410",
   "field": "label",
   "python": "⌀70 OD",
-  "rust": "⌀70 f7 (-0.030/-0.060) OD",
+  "rust": "⌀70 f7 OD",
   "verdict": "rust-correct",
-  "evidence": "J3 (#30) shaft-fit port: haecceity's writer states dimension:#6410 as an ISO 286 shaft class alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values). Its external cylinders correlate to exactly one recognised turned diameter, which prints the class with its limits from ISO 286 (draftwright's fits table, as the S5 symbolic-bore port prints a hole class; hidden by sheet/fit_limits: false). draftwright states the plain size and drops the class; a shaft whose fit is not on the sheet is turned to the general tolerance, so the port's label is the correct one."
+  "evidence": "J3 (#30) shaft-fit port: haecceity's writer states dimension:#6410 as an ISO 286 shaft class alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values). Its external cylinders correlate to exactly one recognised turned diameter, which prints the class alone by default (maintainer decision 2026-10-16; sheet/fit_deviations opts into stacked ISO 286 deviations) (draftwright's fits table, as the S5 symbolic-bore port prints a hole class; hidden by sheet/fit_limits: false). draftwright states the plain size and drops the class; a shaft whose fit is not on the sheet is turned to the general tolerance, so the port's label is the correct one."
  },
  {
   "file": "hw_thumbwheel_notes_add.step",
@@ -100,9 +100,9 @@
   "port": "dimension:#685",
   "field": "label",
   "python": "⌀10",
-  "rust": "⌀10 f7 (-0.013/-0.028)",
+  "rust": "⌀10 f7",
   "verdict": "rust-correct",
-  "evidence": "J3 (#30) shaft-fit port: haecceity's writer states dimension:#685 as an ISO 286 shaft class alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values). Its external cylinders correlate to exactly one recognised turned diameter, which prints the class with its limits from ISO 286 (draftwright's fits table, as the S5 symbolic-bore port prints a hole class; hidden by sheet/fit_limits: false). draftwright states the plain size and drops the class; a shaft whose fit is not on the sheet is turned to the general tolerance, so the port's label is the correct one."
+  "evidence": "J3 (#30) shaft-fit port: haecceity's writer states dimension:#685 as an ISO 286 shaft class alone (LIMITS_AND_FITS under PLUS_MINUS_TOLERANCE, no tolerance values). Its external cylinders correlate to exactly one recognised turned diameter, which prints the class alone by default (maintainer decision 2026-10-16; sheet/fit_deviations opts into stacked ISO 286 deviations) (draftwright's fits table, as the S5 symbolic-bore port prints a hole class; hidden by sheet/fit_limits: false). draftwright states the plain size and drops the class; a shaft whose fit is not on the sheet is turned to the general tolerance, so the port's label is the correct one."
  },
  {
   "file": "nist_ctc_02_asme1_ap242-e2.stp",
@@ -1029,9 +1029,9 @@
   "port": "dimension:#1360",
   "field": "label",
   "python": "6× ⌀6.6 THRU (2×3)",
-  "rust": "6× ⌀6.6 H11 (+0.090/0) THRU (2×3)",
+  "rust": "6× ⌀6.6 H11 THRU (2×3)",
   "verdict": "rust-correct",
-  "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed on that owner with its limits from ISO 286 (draftwright's fits table; the maintainer's decision of 2026-10-11, hidden by sheet/fit_limits: false), and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged."
+  "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed on that owner alone by default (maintainer decision 2026-10-16; sheet/fit_deviations opts into stacked deviations) (draftwright's fits table; the maintainer's decision of 2026-10-11, hidden by sheet/fit_limits: false), and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged."
  },
  {
   "file": "hw_spool_fits_intent.step",
@@ -1043,11 +1043,11 @@
    "outcome": "standalone"
   },
   "rust": {
-   "detail": "⌀62 H7 (+0.030/0) THRU ⌴SF ⌀70 ↧ 10",
+   "detail": "⌀62 H7 THRU ⌴SF ⌀70 ↧ 10",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed on that owner with its limits from ISO 286 (draftwright's fits table; the maintainer's decision of 2026-10-11, hidden by sheet/fit_limits: false), and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged."
+  "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed on that owner alone by default (maintainer decision 2026-10-16; sheet/fit_deviations opts into stacked deviations) (draftwright's fits table; the maintainer's decision of 2026-10-11, hidden by sheet/fit_limits: false), and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged."
  },
  {
   "file": "hw_spool_fits_intent.step",
@@ -1055,9 +1055,9 @@
   "port": "dimension:#6392",
   "field": "label",
   "python": "6× ⌀10 THRU EQ SP ON ⌀90 BC",
-  "rust": "6× ⌀10 H11 (+0.090/0) THRU EQ SP ON ⌀90 BC",
+  "rust": "6× ⌀10 H11 THRU EQ SP ON ⌀90 BC",
   "verdict": "rust-correct",
-  "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed on that owner with its limits from ISO 286 (draftwright's fits table; the maintainer's decision of 2026-10-11, hidden by sheet/fit_limits: false), and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged."
+  "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed on that owner alone by default (maintainer decision 2026-10-16; sheet/fit_deviations opts into stacked deviations) (draftwright's fits table; the maintainer's decision of 2026-10-11, hidden by sheet/fit_limits: false), and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged."
  },
  {
   "file": "hw_string_post_tapped_intent.step",
@@ -1065,9 +1065,9 @@
   "port": "dimension:#3116",
   "field": "label",
   "python": "⌀1.7 ↧ 5.4",
-  "rust": "⌀1.7 H11 (+0.060/0) ↧ 5.4",
+  "rust": "⌀1.7 H11 ↧ 5.4",
   "verdict": "rust-correct",
-  "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed on that owner with its limits from ISO 286 (draftwright's fits table; the maintainer's decision of 2026-10-11, hidden by sheet/fit_limits: false), and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged."
+  "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed on that owner alone by default (maintainer decision 2026-10-16; sheet/fit_deviations opts into stacked deviations) (draftwright's fits table; the maintainer's decision of 2026-10-11, hidden by sheet/fit_limits: false), and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged."
  },
  {
   "file": "assembly_plate_pin.step",

@@ -7,6 +7,7 @@
 //! - **whole-part polygonal stock**: its size across flats and its length, in place of the extents;
 //! - **hole callouts**: draftwright's compound grammar (`4× ⌀10 THRU ⌴ ⌀16 ↧ 5 (2×2)`), with
 //!   identical holes grouped and counted, and quiddity's hole patterns called out as patterns;
+//! - **double-D bores**: one compound major-diameter and across-flats callout;
 //! - **hole locations** from the part's box, in the view that looks along each hole, and the
 //!   pitches that locate a pattern's members;
 //! - **through slots**: width, length, an obround's end radius, and location along the slot;
@@ -55,6 +56,7 @@
 //! [`placement`] places it. A new family is a new planner module and an entry in the list.
 
 pub mod angular;
+pub(crate) mod authored;
 pub(crate) mod blends;
 mod bosses;
 mod edges;
@@ -68,8 +70,11 @@ mod grooves;
 mod holes;
 pub(crate) mod interior;
 mod label_lanes;
+mod wording;
+pub(crate) use pmi_dimensions::basic as is_basic;
 mod leaders;
 pub(crate) use label_lanes::settle_inventory;
+pub(crate) use leaders::settle_after_furniture;
 pub(crate) use placement::collisions_cached as label_collisions;
 pub(crate) mod levels;
 mod oriented_slots;
@@ -77,6 +82,8 @@ mod pads;
 mod placement;
 mod plates;
 mod pmi_dimensions;
+pub mod precision;
+mod profiled_bores;
 mod recesses;
 mod redundancy;
 mod slots;
@@ -96,8 +103,8 @@ use crate::model::{Analysis, DimensionSource, Invalid, PlannedSheet, PlannedView
 use crate::output::{Annotation, Claim, Curve, HAlign, Item, TextRun, VAlign};
 use crate::text::{Font, Segment};
 pub use leaders::clear_routes;
-pub use placement::LabelRows;
 pub use placement::label_rows;
+pub use placement::{AlignedDemand, LabelRows};
 use placement::{Frame, across, moved, to_page};
 pub use placement::{LabelInk, label_ink};
 pub(crate) use tolerance::{check as check_tolerances, choices as fit_choices};
@@ -137,7 +144,7 @@ fn carries(w: &Want, v: &str) -> bool {
                     || w.turning
                         .is_some_and(|t| (0..3).any(|j| j != t && j != *axis && toward[j] == 0.0))
             }
-            Shape::Callout { .. } | Shape::Angular { .. } => true,
+            Shape::Callout { .. } | Shape::Angular { .. } | Shape::Aligned { .. } => true,
         }
 }
 
@@ -408,6 +415,8 @@ enum Shape {
         /// Its lane order: sizes 0, locations 1, overall extents 2.
         order: u8,
     },
+    /// An exact span between two proven stations in a principal projection plane.
+    Aligned { a: P3, b: P3 },
     /// A leader to one of these circles (centre, radius), world mm.
     Callout { sites: Vec<(P3, f64)> },
     /// An angle between two sides, drawn about its vertex ([`angular`]).
@@ -495,7 +504,7 @@ struct Planner {
 }
 
 /// The planners, in the order their items are planned.
-const PLANNERS: [Planner; 16] = [
+const PLANNERS: [Planner; 17] = [
     turned::PLANNER,
     envelope::PLANNER,
     stock::PLANNER,
@@ -512,6 +521,7 @@ const PLANNERS: [Planner; 16] = [
     plates::PLANNER,
     pads::PLANNER,
     oriented_slots::PLANNER,
+    profiled_bores::PLANNER,
 ];
 
 /// Everything the defaults would dimension, with the problems met on the way, and what the part's
@@ -588,23 +598,171 @@ fn wants_uncached(
     (out, problems, notes)
 }
 
+/// The consumer policy for an occurrence with no dimension owner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Disposition {
+    Unsupported,
+    Deferred,
+    EvidenceOnly,
+}
+
+/// Closed reasons for recognised occurrences that have no dimension planner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DispositionReason {
+    ConsumerSemanticsUnsupported,
+    ConsumerSemanticsDeferred,
+    HoleCalloutEvidence,
+    DimensionsNotPorted,
+    StepLevelProjectionEvidence,
+    RiserProjectionEvidence,
+    GeometryOnlyCritique,
+    HoleRecognitionEvidence,
+    RecognitionRefused,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FeatureDisposition {
+    pub subject: String,
+    pub disposition: Disposition,
+    pub reason_code: DispositionReason,
+    pub severity: String,
+}
+
 /// quiddity record types (`Fingerprint::subtype`) draftwright gives no dimensions of their own
 /// (`model/detect.py`'s `_ORCHESTRATED_RECORDS` and `_UNCONSUMED_RECORDS`): a countersink rides on
 /// its hole's callout, and the others have no reviewed drafting grammar there (#1365, #1430,
 /// #1557). Leaving them undimensioned is no gap in the port, so they are not reported as one. An
 /// angled step (#1247) has no grammar either, but is reported as unsupported ([`unsupported`]).
-pub(crate) const UNDRAFTED: [&str; 10] = [
-    "CircularFacePattern",
-    "CounterSink",
-    "FreeformSurface",
-    "InteriorVoid",
-    "ObliqueThroughStep",
-    "OrientedChamfer",
-    "OrientedSlotArray",
-    "OrientedSlotGrid",
-    "SheetMetalBody",
-    "ThinWallBody",
+const UNDRAFTED: &[(&str, Disposition, DispositionReason)] = &[
+    (
+        "CircularFacePattern",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "CounterSink",
+        Disposition::EvidenceOnly,
+        DispositionReason::HoleCalloutEvidence,
+    ),
+    (
+        "FreeformSurface",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "InteriorVoid",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "ObliqueThroughStep",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "OrientedChamfer",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "OrientedSlotArray",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "OrientedSlotGrid",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "SheetMetalBody",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "ThinWallBody",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
 ];
+
+pub(crate) fn undrafted(f: &crate::bridge::Feature) -> bool {
+    UNDRAFTED
+        .iter()
+        .any(|(subtype, ..)| *subtype == f.fingerprint.subtype)
+}
+
+/// The capability tables drive both the undrafted exemption and its occurrence report. A
+/// planner can consume a kind it does not claim (section recesses); retain that actual proof.
+/// Authored omissions are still planned capabilities, never ownerless policy.
+pub(crate) fn feature_dispositions(analysis: &Analysis) -> Vec<FeatureDisposition> {
+    let (wants, ..) = wants(analysis);
+    let stated: BTreeSet<_> = wants
+        .iter()
+        .flat_map(|w| &w.measurements)
+        .map(|m| m.feature.as_str())
+        .collect();
+    let mut out = Vec::new();
+    let mut add = |subject: String, disposition, reason_code| {
+        out.push(FeatureDisposition {
+            subject,
+            disposition,
+            reason_code,
+            severity: "info".into(),
+        })
+    };
+    for f in &analysis.features {
+        if let Some((_, disposition, reason)) = UNDRAFTED
+            .iter()
+            .find(|(subtype, ..)| *subtype == f.fingerprint.subtype)
+        {
+            add(f.id.clone(), *disposition, *reason);
+        } else if !stated.contains(f.id.as_str())
+            && !PLANNERS.iter().any(|p| p.kinds.contains(&f.kind.as_str()))
+        {
+            let (disposition, reason) = if f.kind == "angled_step" {
+                (
+                    Disposition::Unsupported,
+                    DispositionReason::ConsumerSemanticsUnsupported,
+                )
+            } else {
+                (
+                    Disposition::Deferred,
+                    DispositionReason::DimensionsNotPorted,
+                )
+            };
+            add(f.id.clone(), disposition, reason);
+        }
+    }
+    if let Some(r) = &analysis.recognition {
+        for (i, record) in r.evidence.iter().enumerate() {
+            let reason = match record.subtype.as_str() {
+                "FaceLevel" => DispositionReason::StepLevelProjectionEvidence,
+                "RiserEvidence" => DispositionReason::RiserProjectionEvidence,
+                "RepeatingRadialProfile" => DispositionReason::GeometryOnlyCritique,
+                // The bridge admits only these four evidence types (bridge::RECORDS).
+                "HoleSpec" => DispositionReason::HoleRecognitionEvidence,
+                _ => continue,
+            };
+            add(
+                format!("recognition:evidence:{i}"),
+                Disposition::EvidenceOnly,
+                reason,
+            );
+        }
+        for (i, _) in r.refusals.iter().enumerate() {
+            add(
+                format!("recognition:refusal:{i}"),
+                Disposition::Unsupported,
+                DispositionReason::RecognitionRefused,
+            );
+        }
+    }
+    out
+}
 
 /// One problem per recognised feature of a kind no planner claims, in the Analysis's feature
 /// order. This reports a gap in the port, not in the part: draftwright converts these records to
@@ -618,7 +776,7 @@ fn not_ported(analysis: &Analysis) -> Vec<Problem> {
         .features
         .iter()
         .filter(|f| !PLANNERS.iter().any(|p| p.kinds.contains(&f.kind.as_str())))
-        .filter(|f| !UNDRAFTED.contains(&f.fingerprint.subtype.as_str()))
+        .filter(|f| !undrafted(f))
         .map(|f| {
             unsupported(f).unwrap_or_else(|| Problem {
                 id: format!("p:dimensions_not_ported:{}", f.id),
@@ -733,6 +891,92 @@ fn route(
     (chosen, end_on)
 }
 
+/// A reduced principal set is permissible only if every planned requirement that
+/// the full set can carry still has a carrier. This covers radial flats, keyways,
+/// cross slots and PMI as well as holes, before placing or losing any item.
+pub(crate) fn reduction_preserves_requirements(
+    analysis: &Analysis,
+    spec: &Spec,
+    kept: &[&str],
+    excluded: &BTreeSet<String>,
+) -> bool {
+    let (wants, _, _) = wants(analysis);
+    wants
+        .iter()
+        .filter(|w| {
+            !excluded.contains(&w.id) && !spec.dimensions.get(&w.id).is_some_and(|d| d.omit)
+        })
+        .all(|w| {
+            // A dimension's view is a preference in Spec; asking to retain a
+            // principal view belongs to views/<name>. Preserve that contract.
+            !NAMES.iter().any(|v| carries(w, v))
+                || kept
+                    .iter()
+                    .any(|v| carries(w, v) && !spec.views.get(*v).is_some_and(|v| v.omit))
+        })
+}
+
+/// Paper-space room for unpinned, side-only callouts. Keep the same labels as the solver,
+/// including threads and authored tolerances, and reserve the column before packing views.
+pub(crate) fn callout_bands(
+    analysis: &Analysis,
+    spec: &Spec,
+) -> Result<Vec<crate::layout::CalloutBand>, Invalid> {
+    if !spec.dimensions.values().any(|d| {
+        d.place
+            .as_ref()
+            .and_then(crate::placement_intent::side_hint)
+            .is_some()
+    }) {
+        return Ok(Vec::new());
+    }
+    let (mut wants, ..) = wants(analysis);
+    authored::append(analysis, spec, &mut wants)?;
+    let mut kept: Vec<_> = wants
+        .into_iter()
+        .map(|w| (w, false, None, Vec::new()))
+        .collect();
+    precision::labels(spec, kept.iter_mut().map(|(w, ..)| w))?;
+    let mut given = tolerance::apply(analysis, spec, &mut kept, &[], &mut Vec::new())?;
+    wording::apply(spec, &mut kept, &mut given)?;
+    Ok(kept
+        .iter()
+        .filter_map(|(w, ..)| {
+            if !matches!(w.shape, Shape::Callout { .. }) {
+                return None;
+            }
+            let entry = spec.dimensions.get(&w.id)?;
+            if entry.omit {
+                return None;
+            }
+            let place = entry.place.as_ref()?;
+            let side = crate::placement_intent::side_hint(place)?;
+            let view = place
+                .view
+                .as_deref()
+                .or(entry.view.as_deref())
+                .unwrap_or(w.views[0]);
+            let view = *NAMES.iter().find(|n| **n == view)?;
+            if spec.views.get(view).is_some_and(|v| v.omit) {
+                return None;
+            }
+            use crate::placement_intent::Side;
+            let ink = label_ink(&w.terms, font());
+            let (side, depth) = match side {
+                Side::Left => ("left", ink.max[0] - ink.min[0] + SHOULDER),
+                Side::Right => ("right", ink.max[0] - ink.min[0] + SHOULDER),
+                Side::Above => ("above", TEXT + LIFT),
+                Side::Below => ("below", TEXT + LIFT),
+            };
+            Some(crate::layout::CalloutBand {
+                view,
+                side,
+                depth: FIRST + depth + 2.0,
+            })
+        })
+        .collect())
+}
+
 /// The lanes the defaults' dimensions take beside the principal *views* (name, direction towards
 /// the viewer, up) before they are placed: what the layout reserves for them
 /// ([`crate::layout::Strips::reserve`]). Every item the part would have counts, whatever the
@@ -744,15 +988,18 @@ fn route(
 /// merged boss heights were what kept the front's lowest lanes inside it (counted without them,
 /// ink 11 to 13 and 9 to 11; `docs/quality-2026-10-09.md`, "After merged-away lanes").
 pub fn lanes(analysis: &Analysis, views: &[(&str, P3, P3)]) -> crate::layout::Lanes {
-    lanes_excluding(analysis, views, &BTreeSet::new())
+    lanes_excluding(analysis, views, &BTreeSet::new(), &Spec::default())
+        .expect("default display policy cannot conflict")
+        .0
 }
 
 pub(crate) fn lanes_excluding(
     analysis: &Analysis,
     views: &[(&str, P3, P3)],
     excluded: &BTreeSet<String>,
-) -> crate::layout::Lanes {
-    lane_policy(analysis, views, excluded, true)
+    spec: &Spec,
+) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
+    lane_policy(analysis, views, excluded, spec, true)
 }
 
 /// A captured bridge drawing's first estimate precedes measured callout columns.
@@ -761,20 +1008,22 @@ pub(crate) fn initial_lanes(
     analysis: &Analysis,
     views: &[(&str, P3, P3)],
     excluded: &BTreeSet<String>,
-) -> crate::layout::Lanes {
-    lane_policy(analysis, views, excluded, false)
+    spec: &Spec,
+) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
+    lane_policy(analysis, views, excluded, spec, false)
 }
 
 fn lane_policy(
     analysis: &Analysis,
     views: &[(&str, P3, P3)],
     excluded: &BTreeSet<String>,
+    spec: &Spec,
     callout_columns: bool,
-) -> crate::layout::Lanes {
-    let key =
-        serde_json::to_vec(&(views, excluded, callout_columns)).expect("lane inputs serialize");
+) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
+    let key = serde_json::to_vec(&(views, excluded, spec, callout_columns))
+        .expect("lane inputs serialize");
     crate::planning::memo(analysis, "lanes", key, || {
-        lanes_uncached(analysis, views, excluded, callout_columns)
+        lanes_uncached(analysis, views, excluded, spec, callout_columns)
     })
 }
 
@@ -782,9 +1031,11 @@ fn lanes_uncached(
     analysis: &Analysis,
     views: &[(&str, P3, P3)],
     excluded: &BTreeSet<String>,
+    spec: &Spec,
     callout_columns: bool,
-) -> crate::layout::Lanes {
-    let (mut wants, ..) = wants(analysis);
+) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
+    let (mut wants, mut problems, notes) = wants(analysis);
+    authored::append(analysis, spec, &mut wants)?;
     wants.retain(|w| !excluded.contains(&w.id));
     let frames: BTreeMap<&str, Frame> = views
         .iter()
@@ -796,6 +1047,9 @@ fn lanes_uncached(
             )
         })
         .collect();
+    if spec.dimensions.values().any(|d| d.between.is_some()) {
+        problems.extend(chosen_views(&mut wants, spec, &frames)?);
+    }
     plates::prefer_readable(analysis, &mut wants, &frames, None);
     let (chosen, _) = route(&mut wants, &frames, analysis);
     let wants: Vec<_> = wants
@@ -843,6 +1097,32 @@ fn lanes_uncached(
     {
         plates::default_terms(analysis, &mut wants, &chosen);
     }
+    // Resolve the printed terms before measuring reservation, using placement's lowering order.
+    let mut kept: Vec<_> = wants
+        .iter()
+        .cloned()
+        .zip(chosen.iter().copied())
+        .map(|(w, view)| (w, true, view, Vec::new()))
+        .collect();
+    let mut omitted = Vec::new();
+    plates::consolidate(analysis, &mut kept, &mut omitted);
+    bosses::consolidate(analysis, &mut kept, &mut omitted);
+    pmi_dimensions::yield_to_spec(spec, &notes, &mut kept, &mut problems);
+    pmi_dimensions::hide_fit_limits(spec, &notes, &mut kept);
+    precision::labels(spec, kept.iter_mut().map(|(w, ..)| w))?;
+    if let Ok(mut given) = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems) {
+        holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
+        plates::share(analysis, &mut kept, &mut given, &mut omitted);
+        share_statements(&mut kept, &mut given, &mut omitted, true);
+        share_pmi(&mut kept, &mut given, &mut omitted);
+        redundancy::consolidate(analysis, &mut kept, &mut given, &mut omitted);
+        wording::apply(spec, &mut kept, &mut given)?;
+    }
+    for w in &mut wants {
+        if let Some((printed, ..)) = kept.iter().find(|(p, ..)| p.id == w.id) {
+            w.terms.clone_from(&printed.terms);
+        }
+    }
     let (sides, lane) = placement::lanes(&frames, wants.iter().zip(chosen.iter().copied()), &owner);
     let mut bands = placement::band_lanes(
         chosen
@@ -880,8 +1160,7 @@ fn lanes_uncached(
         .map(|(i, _)| lane[i] + 1)
         .max()
         .unwrap_or(0);
-    // A controlling overall adds a lane to the turned axial chain. Reserve its
-    // measured depth just as for a slab, rather than letting the chain exceed the band.
+    // A controlling overall adds a lane to the turned axial chain.
     if wants
         .iter()
         .any(|w| w.id.starts_with("d:envelope/") && w.id.ends_with(".length"))
@@ -889,7 +1168,18 @@ fn lanes_uncached(
     {
         bands.plate_front_below = bands.plate_front_below.max(front_linear);
     }
+    // A turned diameter can leave either side of the profile. Keep its full alternate shelf
+    // available to the ordinary side/row/tier search, including tall fit deviations.
     for (i, w) in wants.iter().enumerate() {
+        if chosen[i] == Some("front")
+            && matches!(w.shape, Shape::Callout { .. })
+            && w.measurements
+                .iter()
+                .any(|m| m.parameter == "step.diameter")
+        {
+            let ink = label_ink(&w.terms, font());
+            bands.callout_front_left = bands.callout_front_left.max(leaders::shelf_width(&ink));
+        }
         if owner[i].is_some()
             || !w
                 .measurements
@@ -906,7 +1196,9 @@ fn lanes_uncached(
                     .plate_front_top
                     .max(ink.max[0] - ink.min[0] + ARROW + 3.0);
             }
-            (Some("front"), Some(placement::Side::Below)) => bands.plate_front_below = front_linear,
+            (Some("front"), Some(placement::Side::Below)) => {
+                bands.plate_front_below = bands.plate_front_below.max(front_linear)
+            }
             // A horizontal side thickness's outside arrow reaches past the side's left edge,
             // above or below it.
             (Some("side"), Some(placement::Side::Above | placement::Side::Below)) => {
@@ -918,7 +1210,9 @@ fn lanes_uncached(
                     .plate_side_top
                     .max(ink.max[0] - ink.min[0] + ARROW + 3.0);
             }
-            (Some("plan"), Some(placement::Side::Above)) => bands.plate_plan_above = plan_linear,
+            (Some("plan"), Some(placement::Side::Above)) => {
+                bands.plate_plan_above = bands.plate_plan_above.max(plan_linear)
+            }
             _ => {}
         }
     }
@@ -1023,7 +1317,190 @@ fn lanes_uncached(
         bands.plate_front_below = bands.plate_front_below.max(front_linear);
         bands.plate_plan_above = bands.plate_plan_above.max(plan_linear);
     }
-    bands
+    let mut aligned = Vec::new();
+    for (i, w) in wants.iter().enumerate() {
+        if !matches!(w.shape, Shape::Aligned { .. }) || owner[i].is_some() {
+            continue;
+        }
+        if let (Some(view), Some(side)) = (chosen[i], sides[i]) {
+            let mut display = w.clone();
+            precision::labels(spec, std::iter::once(&mut display))?;
+            aligned.push(AlignedDemand::new(
+                &frames[view],
+                &display,
+                view,
+                side,
+                lane[i],
+            ));
+        }
+    }
+    Ok((bands, aligned))
+}
+
+/// Reserve explicitly requested linear strips before composition, at their
+/// authored lane. The ordinary source lanes remain reserved for edit locality.
+pub(crate) fn reserve_linear_intent(
+    analysis: &Analysis,
+    spec: &Spec,
+    views: &[(&str, P3, P3)],
+    excluded: &BTreeSet<String>,
+    bands: &mut crate::layout::Lanes,
+) -> Result<(), Invalid> {
+    // A bare automatic placement is a no-op, including a bare pin. Its full
+    // settled corridor is measured in composition; it requests no extra tier.
+    if !spec.dimensions.values().any(|d| {
+        d.place
+            .as_ref()
+            .is_some_and(|p| p.side.is_some() || p.lane.is_some())
+    }) {
+        return Ok(());
+    }
+    let (mut wants, _, _) = wants(analysis);
+    wants.retain(|w| !excluded.contains(&w.id));
+    let frames: BTreeMap<&str, Frame> = views
+        .iter()
+        .filter(|(name, ..)| NAMES.contains(name))
+        .map(|(name, direction, up)| {
+            (
+                *name,
+                Frame::looking(analysis, *direction, *up, [0.0; 2], 1.0),
+            )
+        })
+        .collect();
+    chosen_views(&mut wants, spec, &frames)?;
+    plates::prefer_readable(analysis, &mut wants, &frames, Some(spec));
+    let (chosen, _) = route(&mut wants, &frames, analysis);
+    let owner = placement::owners(analysis, &wants, &chosen);
+    let (sides, lane) = placement::lanes(&frames, wants.iter().zip(chosen.iter().copied()), &owner);
+    // Predict the same line-sharing reflow used by placement, before the
+    // bands are composed. Scaling preserves shared stations and lane offsets.
+    let mut occupied: BTreeMap<&str, Vec<Vec<[P2; 2]>>> = BTreeMap::new();
+    let mut requested = Vec::new();
+    for (i, w) in wants.iter().enumerate() {
+        if !matches!(w.shape, Shape::Linear { .. }) || owner[i].is_some() {
+            continue;
+        }
+        let (Some(view), Some(side)) = (chosen[i], sides[i]) else {
+            continue;
+        };
+        if let Some(p) = spec
+            .dimensions
+            .get(&w.id)
+            .filter(|d| !d.omit)
+            .and_then(|d| d.place.as_ref())
+            .filter(|p| p.side.is_some() || p.lane.is_some())
+        {
+            if let Some(ink) = placement::intent(&frames[view], w, p, side, lane[i], 0.0) {
+                let span =
+                    crate::output::linear_ink(&ink.lines).map_or(0.0, |l| l.span[1] - l.span[0]);
+                requested.push((i, p.lane.unwrap_or(lane[i]), span));
+            }
+        } else if let Some(ink) = placement::place(&frames[view], w, side, lane[i]) {
+            occupied.entry(view).or_default().push(ink.lines);
+        }
+    }
+    requested.sort_by(|a, b| {
+        (chosen[a.0], a.1)
+            .cmp(&(chosen[b.0], b.1))
+            .then(a.2.total_cmp(&b.2))
+            .then(a.0.cmp(&b.0))
+    });
+    let mut resolved_lanes = BTreeMap::new();
+    for (i, requested, _) in requested {
+        let view = chosen[i].expect("routed linear");
+        let side = sides[i].expect("linear strip");
+        let p = spec.dimensions[&wants[i].id]
+            .place
+            .as_ref()
+            .expect("explicit place");
+        let taken = occupied.entry(view).or_default();
+        for n in requested..requested + if p.pinned { 1 } else { 64 } {
+            let mut trial = p.clone();
+            trial.lane = Some(n);
+            let Some(ink) = placement::intent(&frames[view], &wants[i], &trial, side, lane[i], 0.0)
+            else {
+                break;
+            };
+            if p.pinned
+                || !taken
+                    .iter()
+                    .any(|q| crate::output::shared_dimension_line(&ink.lines, q))
+            {
+                taken.push(ink.lines);
+                resolved_lanes.insert(i, n);
+                break;
+            }
+        }
+    }
+    for (i, w) in wants.iter().enumerate() {
+        let Some(p) = spec
+            .dimensions
+            .get(&w.id)
+            .filter(|d| !d.omit)
+            .and_then(|d| d.place.as_ref())
+            .filter(|p| p.side.is_some() || p.lane.is_some())
+        else {
+            continue;
+        };
+        if !matches!(w.shape, Shape::Linear { .. }) {
+            continue;
+        }
+        let (Some(view), Some(default_side)) = (chosen[i], sides[i]) else {
+            continue;
+        };
+        let side = p.side.map_or(default_side, |s| match s {
+            crate::placement_intent::Side::Above => placement::Side::Above,
+            crate::placement_intent::Side::Below => placement::Side::Below,
+            crate::placement_intent::Side::Left => placement::Side::Left,
+            crate::placement_intent::Side::Right => placement::Side::Right,
+        });
+        let band = match (view, side) {
+            ("front", placement::Side::Above) => &mut bands.plate_front_above,
+            ("front", placement::Side::Below) => &mut bands.plate_front_below,
+            ("front", placement::Side::Left) => &mut bands.plate_front_left,
+            ("front", placement::Side::Right) => &mut bands.front_right,
+            ("plan", placement::Side::Above) => &mut bands.plate_plan_above,
+            ("plan", placement::Side::Below) => &mut bands.plate_plan_below,
+            ("plan", placement::Side::Left) => &mut bands.authored_plan_left,
+            ("plan", placement::Side::Right) => &mut bands.plate_plan_right,
+            ("side", placement::Side::Above) => &mut bands.side_above,
+            ("side", placement::Side::Below) => &mut bands.side_below,
+            ("side", placement::Side::Left) => &mut bands.plate_side_left_lanes,
+            ("side", placement::Side::Right) => &mut bands.side_right,
+            _ => continue,
+        };
+        *band = (*band).max(
+            resolved_lanes
+                .get(&i)
+                .copied()
+                .unwrap_or_else(|| p.lane.unwrap_or(lane[i]))
+                + 1,
+        );
+    }
+    Ok(())
+}
+
+/// Judge the final drawn ink, including arrow flares, after all ordinary lane passes.
+pub(crate) fn authored_placement_clear(spec: &Spec, dims: &[PlannedDimension]) -> bool {
+    dims.iter()
+        .filter(|d| {
+            spec.dimensions.get(&d.id).is_some_and(|entry| {
+                entry.between.is_some()
+                    && (d.kind == "angular"
+                        || (d.kind == "linear"
+                            && entry.along.as_deref().is_none_or(|a| a == "true")))
+            })
+        })
+        .all(|d| {
+            d.placed.as_ref().is_some_and(|p| {
+                dims.iter()
+                    .filter(|q| q.id != d.id)
+                    .filter_map(|q| q.placed.as_ref())
+                    .all(|q| {
+                        placement::annotations_clear(p, q) && placement::dimension_lines_clear(p, q)
+                    })
+            })
+        })
 }
 
 /// A slot chain must have room for its arrows and its own text between its ends.
@@ -1361,6 +1838,7 @@ fn plan_inventory_ordered(
     stage: u8,
 ) -> Result<(Planned, Vec<PlannedDimension>), Invalid> {
     let (mut wants, mut problems, notes) = wants(analysis);
+    authored::append(analysis, spec, &mut wants)?;
     let frames: BTreeMap<&str, Frame> = views
         .iter()
         .filter_map(|v| {
@@ -1370,9 +1848,38 @@ fn plan_inventory_ordered(
                 .then(|| (name, Frame::new(analysis, v)))
         })
         .collect();
+    let authored_ownership = authored::ownership(analysis, spec, &wants);
     problems.extend(chosen_views(&mut wants, spec, &frames)?);
     plates::prefer_readable(analysis, &mut wants, &frames, Some(spec));
     let (mut chosen, mut end_on) = route(&mut wants, &frames, analysis);
+    // Display intent may not silently undo the established one-owner span grouping.
+    let display_owners = if spec.precision.is_empty() {
+        Vec::new()
+    } else {
+        placement::owners(analysis, &wants, &chosen)
+    };
+    precision::apply(spec, &mut wants)?;
+    for (i, owner) in display_owners.iter().enumerate() {
+        if let Some(j) = owner
+            && (precision::leading(spec, &wants[i]).is_some()
+                || precision::leading(spec, &wants[*j]).is_some())
+            && precision::leading(spec, &wants[i]).map_or_else(
+                || fmt(wants[i].value),
+                |p| precision::format(wants[i].value, p),
+            ) != precision::leading(spec, &wants[*j]).map_or_else(
+                || fmt(wants[*j].value),
+                |p| precision::format(wants[*j].value, p),
+            )
+        {
+            return Err(Invalid {
+                message: format!(
+                    "conflicting precision for coincident dimensions {} and {}; shared measurements require matching display precision",
+                    wants[i].id, wants[*j].id
+                ),
+                choices: vec![],
+            });
+        }
+    }
     let ids: BTreeSet<&str> = wants.iter().map(|w| w.id.as_str()).collect();
     // ARCH0016-5: each dimension is in exactly one view, under one ID. A duplicate is a planner
     // bug, checked in every build.
@@ -1497,6 +2004,14 @@ fn plan_inventory_ordered(
                 state: State::OmittedByUser,
             }),
             DimensionSource::Authored if entry.is_none() => {
+                if let Some(by) = authored_ownership.covered.get(&w.id) {
+                    omitted.push(Omitted {
+                        label: w.terms.join(" "), id: w.id,
+                        basis: format!("spec-authored: this quantity is stated by {by}; the unlisted automatic candidate is withheld (one owner)"),
+                        state: State::Covered { by: by.clone() },
+                    });
+                    continue;
+                }
                 // An authored set still keeps the automatic inventory. Surface every
                 // unstated item by name, even when another measurement locates its feature.
                 problems.push(Problem {
@@ -1526,6 +2041,7 @@ fn plan_inventory_ordered(
     bosses::consolidate(analysis, &mut kept, &mut omitted);
     pmi_dimensions::yield_to_spec(spec, &notes, &mut kept, &mut problems);
     pmi_dimensions::hide_fit_limits(spec, &notes, &mut kept);
+    precision::labels(spec, kept.iter_mut().map(|(w, ..)| w))?;
     let mut given = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems)?;
     holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
     recesses::consolidate(&mut kept, &mut given, &mut omitted);
@@ -1555,6 +2071,8 @@ fn plan_inventory_ordered(
                 .then_some((w.id, w.terms))
         }));
     }
+    wording::apply(spec, &mut kept, &mut given)?;
+    wording::check_covered(spec, &kept, &omitted)?;
     let labels: BTreeMap<&str, &[String]> = kept
         .iter()
         .map(|(w, ..)| (w.id.as_str(), w.terms.as_slice()))
@@ -1575,7 +2093,7 @@ fn plan_inventory_ordered(
             if spec
                 .dimensions
                 .get(&w.id)
-                .is_none_or(|d| d.tolerance.is_none())
+                .is_none_or(|d| d.tolerance.is_none() && d.text.is_none() && d.style.is_none())
                 && let Some(terms) = reference_terms.get(&w.id)
             {
                 w.terms = terms.clone();
@@ -1812,9 +2330,13 @@ fn plan_inventory_ordered(
     if matches!(stage, 0 | 3) && recess_context && intended.iter().all(Option::is_none) {
         leaders::seed_established(analysis, spec, views, &all, &chosen, &mut placed, &page);
     }
-    if recess_context
-        || spec.dimensions.values().any(|d| d.tolerance.is_some())
-        || spec.features.values().any(|f| f.fit.is_some())
+    if (recess_context
+        || spec
+            .dimensions
+            .values()
+            .any(|d| d.tolerance.is_some() || d.text.is_some() || d.style.is_some())
+        || spec.features.values().any(|f| f.fit.is_some()))
+        && intended.iter().all(Option::is_none)
     {
         placement::clear_linear(
             analysis,
@@ -1838,7 +2360,36 @@ fn plan_inventory_ordered(
         .map(|(owner, alone)| if *alone { None } else { *owner })
         .collect();
     placement::share_lanes(&shared_owner, &mut sides, &mut lane);
-    angular::place(&frames, &all, &chosen, &mut placed, &page);
+    let body_fixed: Vec<bool> = all
+        .iter()
+        .enumerate()
+        .map(|(i, w)| {
+            fixed[i]
+                || spec
+                    .dimensions
+                    .get(&w.id)
+                    .is_some_and(|entry| entry.place.is_some())
+        })
+        .collect();
+    problems.extend(placement::body_chains(
+        analysis,
+        &frames,
+        &all,
+        &chosen,
+        &body_fixed,
+        &mut placed,
+        &page,
+    ));
+    angular::place(
+        &frames,
+        &all,
+        &chosen,
+        &sides,
+        &fixed,
+        obstacles,
+        &mut placed,
+        &page,
+    );
     // Radius exceptions are placed around the existing drawing ink. Their addition must not
     // reroute unrelated approved callouts into clutter.
     let mut callout_views = chosen.clone();
@@ -1885,6 +2436,7 @@ fn plan_inventory_ordered(
     let mut leader_problems = if obstacles.is_empty() {
         leaders::place(
             analysis,
+            spec,
             cache,
             views,
             &frames,
@@ -1897,6 +2449,7 @@ fn plan_inventory_ordered(
     } else {
         leaders::place_with_obstacles(
             analysis,
+            spec,
             cache,
             views,
             &frames,
@@ -1920,6 +2473,7 @@ fn plan_inventory_ordered(
         }
         leader_problems.extend(leaders::place_with_obstacles(
             analysis,
+            spec,
             cache,
             views,
             &frames,
@@ -2026,6 +2580,7 @@ fn plan_inventory_ordered(
     if prior != callout_views {
         leader_problems.extend(leaders::place_with_obstacles(
             analysis,
+            spec,
             cache,
             views,
             &frames,
@@ -2052,6 +2607,39 @@ fn plan_inventory_ordered(
         &drawn,
         &sides,
         &lane,
+        &mut placed,
+        &page,
+    );
+    // Merged automatic items now have their final ink. Resolve oblique authored
+    // quantities against it; the later leader refinement sees these settled positions.
+    placement::clear_aligned(
+        &frames,
+        &all,
+        &chosen,
+        &sides,
+        &fixed,
+        &mut placed,
+        obstacles,
+        &page,
+    );
+    for (i, w) in all.iter().enumerate() {
+        if !fixed[i]
+            && matches!(w.shape, Shape::Angular { .. })
+            && spec
+                .dimensions
+                .get(&w.id)
+                .is_some_and(|d| d.between.is_some())
+        {
+            placed[i] = None;
+        }
+    }
+    angular::place(
+        &frames,
+        &all,
+        &chosen,
+        &sides,
+        &fixed,
+        obstacles,
         &mut placed,
         &page,
     );
@@ -2126,7 +2714,7 @@ fn plan_inventory_ordered(
                 region,
                 id: w.id.clone(),
                 kind: match w.shape {
-                    Shape::Linear { .. } => "linear",
+                    Shape::Linear { .. } | Shape::Aligned { .. } => "linear",
                     Shape::Callout { .. } => "callout",
                     Shape::Angular { .. } => "angular",
                 }
@@ -2156,6 +2744,19 @@ fn plan_inventory_ordered(
     let mut missing: BTreeMap<Undrawn, Vec<String>> = BTreeMap::new();
     let mut out = Vec::new();
     for ((mut w, default, chosen, along), mut from_spec) in kept.into_iter().zip(given) {
+        if spec
+            .dimensions
+            .get(&w.id)
+            .is_some_and(|d| d.between.is_some())
+        {
+            from_spec.push("between".into());
+            if spec.dimensions[&w.id].kind.is_some() {
+                from_spec.push("kind".into());
+            }
+            if spec.dimensions[&w.id].along.is_some() {
+                from_spec.push("along".into());
+            }
+        }
         if from_spec.is_empty()
             && spec
                 .dimensions
@@ -2230,13 +2831,19 @@ fn plan_inventory_ordered(
         } else {
             Vec::new()
         };
+        if let Some(claims) = authored_ownership.claims.get(&w.id) {
+            w.measurements.extend(claims.iter().cloned());
+            if !claims.is_empty() {
+                basis += "; retains the measured roles of unlisted automatic candidates";
+            }
+        }
         out.push(PlannedDimension {
             reference,
             determined_by,
             region,
             id: w.id,
             kind: match w.shape {
-                Shape::Linear { .. } => "linear",
+                Shape::Linear { .. } | Shape::Aligned { .. } => "linear",
                 Shape::Callout { .. } => "callout",
                 Shape::Angular { .. } => "angular",
             }
@@ -2533,7 +3140,7 @@ fn share_statements(
                 w.value,
                 pmi_dimensions::basic(&w.measurements),
             )),
-            Shape::Callout { .. } | Shape::Angular { .. } => None,
+            Shape::Callout { .. } | Shape::Angular { .. } | Shape::Aligned { .. } => None,
         }
     };
     let same = |s: &Span, t: &Span| {
@@ -2653,7 +3260,7 @@ fn share_pmi(
                 a[axis].min(b[axis]),
                 a[axis].max(b[axis]),
             )),
-            Shape::Callout { .. } | Shape::Angular { .. } => None,
+            Shape::Callout { .. } | Shape::Angular { .. } | Shape::Aligned { .. } => None,
         };
     let mut gone = BTreeSet::new();
     let order: Vec<usize> = {
@@ -2790,7 +3397,7 @@ pub fn render(
             }
         }
         // A basic dimension's box: its label box, which the plan widened to take it in.
-        if pmi_dimensions::basic(&d.measurements) {
+        if crate::label_text::basic(d) {
             let [x0, y0, x1, y1] = p.label_box;
             for (a, b) in [
                 ([x0, y0], [x1, y0]),
@@ -2886,7 +3493,18 @@ pub(crate) fn leader_reentry(
 
 /// Geometry-backed placement choices for the editor, including omitted dimensions.
 pub fn placement_options(analysis: &Analysis, views: &[PlannedView]) -> BTreeMap<String, Value> {
+    placement_options_with_spec(analysis, views, &Spec::default())
+}
+
+pub(crate) fn placement_options_with_spec(
+    analysis: &Analysis,
+    views: &[PlannedView],
+    spec: &Spec,
+) -> BTreeMap<String, Value> {
     let (mut wants, ..) = wants(analysis);
+    if authored::append(analysis, spec, &mut wants).is_err() {
+        return BTreeMap::new();
+    }
     let original = wants.clone();
     let frames: BTreeMap<&str, Frame> = views
         .iter()
@@ -2921,7 +3539,10 @@ pub fn placement_options(analysis: &Analysis, views: &[PlannedView]) -> BTreeMap
                                 vec!["left", "right"]
                             }
                         }
-                        Shape::Callout { .. } => vec!["above", "below", "left", "right"],
+                        Shape::Callout { .. } | Shape::Aligned { .. } => {
+                            vec!["above", "below", "left", "right"]
+                        }
+                        Shape::Angular { .. } if probe.id.starts_with("d:authored:") => Vec::new(),
                         Shape::Angular { .. } => return None,
                     };
                     Some(serde_json::json!({"view": name, "sides": sides}))
@@ -3087,18 +3708,58 @@ pub(crate) fn refine_inventory(
 
 /// Rejudge settled paper geometry after moving complete view blocks to another sheet.
 pub(crate) fn recheck(analysis: &Analysis, plan: &crate::model::Plan) -> Vec<Problem> {
+    recheck_cached(analysis, plan, &footprints::Cache::default())
+}
+
+pub(crate) fn recheck_cached(
+    analysis: &Analysis,
+    plan: &crate::model::Plan,
+    cache: &footprints::Cache,
+) -> Vec<Problem> {
     let mut all = plan.dimensions.clone();
     all.extend(plan.gdt.iter().filter_map(gdt::proxy));
-    let cache = footprints::Cache::default();
     std::iter::once(&plan.sheet)
         .chain(&plan.sheets)
-        .flat_map(|sheet| placement::collisions_cached(analysis, &all, sheet, &plan.views, &cache))
+        .flat_map(|sheet| placement::collisions_cached(analysis, &all, sheet, &plan.views, cache))
+        .collect()
+}
+
+/// Semantic roles available to a feature note, including compound callout terms.
+pub(crate) fn measurement_ids(analysis: &Analysis) -> BTreeSet<String> {
+    wants(analysis)
+        .0
+        .iter()
+        .flat_map(|w| &w.measurements)
+        .map(|m| want_id(&m.feature, &m.parameter))
         .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn side_only_callout_corridors_grow_with_authored_precision() {
+        let (_, analysis) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/plate.step"),
+        )
+        .unwrap();
+        let id = "d:f:hole_pattern:1/bore.diameter";
+        for side in ["left", "right"] {
+            let mut spec: Spec = serde_json::from_value(serde_json::json!({
+                "dimensions": {id: {"place": {"view": "plan", "side": side}}}
+            }))
+            .unwrap();
+            let bare = callout_bands(&analysis, &spec).unwrap();
+            assert_eq!(bare.len(), 1);
+            spec.precision.insert(id.into(), 15);
+            let precise = callout_bands(&analysis, &spec).unwrap();
+            assert_eq!(precise.len(), 1);
+            assert_eq!(precise[0].side, side);
+            assert!(precise[0].depth > bare[0].depth + 20.0);
+        }
+    }
 
     type Kept = (Want, bool, Option<&'static str>, Vec<&'static str>);
 

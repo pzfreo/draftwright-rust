@@ -6,7 +6,7 @@ fully-annotated engineering drawings from STEP B-rep. No OpenCascade: geometry c
 kernel, and features from the Rust port of quiddity, both in
 [quiddity-rust](https://github.com/pzfreo/quiddity-rust).
 
-**Status: alpha 3** (`0.1.0-alpha.3`, 2026-10-16, on quiddity-rust `0.1.0-alpha.4`). Alpha 1's
+**Status: alpha 4** (`0.1.0-alpha.4`, 2026-10-16, on quiddity-rust `0.1.0-alpha.4`). Alpha 1's
 gates are in `docs/alpha1.md`; what changed is in `CHANGELOG.md`. It is an
 alpha: every drawing reports what it does not state, but drawings are not yet as clean as Python
 draftwright's on dense parts (see "Known limitations"). The port is checked against
@@ -22,6 +22,17 @@ the public `pzfreo/quiddity-rust`, pinned in `Cargo.lock`, so no secret is neede
 ```
 cargo build --release      # target/release/draftwright and target/release/draftwright-mcp
 ```
+
+## Browser WASM package
+
+`crates/draftwright-wasm` packages the live session as `draftwright-wasm`, with JSON-string
+operations, SVG/PDF bytes and TypeScript declarations. Each published `v*` GitHub release
+builds a web-target package and attaches `draftwright-wasm-<version>.tgz` and its SHA-256
+checksum. It is not published to npm. The native package and binaries remain at the workspace
+root; plain `cargo build` and `cargo test` keep their existing scope.
+
+See [docs/wasm.md](docs/wasm.md) for the API, local build, measured sizes, parity test and
+editor migration.
 
 ## Using it
 
@@ -125,10 +136,10 @@ Problem with a code on the item's ID, in `plan`, `render` and `review`.
 
 ## What alpha 1 does not do
 
-- **PMI, not drawn yet:** lengths oblique to the views' axes, a cone's angle (an angle no view
+- **PMI, not drawn yet:** a cone's angle (an angle no view
   shows true), diameters or radii not along x, y or z, a size several faces state together that
   draftwright gives its own step, and bolt circles whose holes carry different requirements
-  (`pmi_dimensions_not_ported`). A thread or knurl on a boss, face-finish requirements, datum
+  (`pmi_dimensions_not_ported`). A thread or knurl on a boss, datum
   scheme and model representation notes are read but not drawn; each is reported
   (`pmi_not_lowered`). A record haecceity could read only in part (NIST CTC-02's
   composite_shape_aspect groups, for example) is reported, not drawn, where draftwright draws

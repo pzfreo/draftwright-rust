@@ -12,7 +12,8 @@
 //!   no tolerance, is stated by it; a plain length between a turned step's two shoulders is
 //!   stated by the step's length;
 //! - **stands beside them**, drawn as its own dimension (draftwright's standalone fallback): a
-//!   length along x, y or z between its two proven stations, in the front view (x and z; the plan
+//!   length between its two proven stations (aligned for an oblique span in a principal plane),
+//!   along x, y or z in the front view (x and z; the plan
 //!   when only the plan's witness is proven), or the side then the plan (y); a diameter by a
 //!   leader to its cylinder where it is seen end-on; a radius by a leader to a proven point of
 //!   its arc; an angle about the vertex of its two planar sides, in the view that shows it true
@@ -20,14 +21,14 @@
 //!   dimension's is boxed. It is an ordinary planned dimension, placed with the others;
 //! - **or is not drawn, and says why**: a record whose reading left blockers, whose faces lie in
 //!   several placements of the part, or whose faces prove no witness (`pmi_not_lowered`, with
-//!   draftwright's reasons); a kind the port does not draw yet: a length oblique to
-//!   the views' axes, a diameter or radius not along x, y or z, a bolt circle whose holes carry
+//!   draftwright's reasons); a kind the port does not draw yet: a diameter or radius not along
+//!   x, y or z, a bolt circle whose holes carry
 //!   different requirements (draftwright splits it; the port splits count groups, grids and
 //!   lines), a counted turned diameter a record names only one of (`pmi_dimensions_not_ported`).
 //!
 //! Dimensions on supplemental (invisible) geometry stay refused. A stated ISO 286 hole class
 //! without limits is printed only on a uniquely matched recognised bore owner, as the class and
-//! its limits from draftwright's table (`⌀10 H7 (+0.015/0)`); one outside the table is refused.
+//! optional stacked deviations from draftwright's table; one outside the table is refused.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -130,7 +131,7 @@ pub(super) fn feature(ids: &Identities, source: &str) -> String {
 }
 
 /// Whether a planned item is a basic PMI dimension: its label is then boxed.
-pub(super) fn basic(measurements: &[Measurement]) -> bool {
+pub(crate) fn basic(measurements: &[Measurement]) -> bool {
     measurements
         .iter()
         .any(|m| m.feature.starts_with("pmi:") && m.parameter.ends_with(".basic"))
@@ -811,8 +812,25 @@ fn outcome(ids: &Identities, r: &Record, wants: &[Want], turned: Option<&Turned>
         }
         "linear" | "thickness" => {
             let Some(k) = k else {
-                return Outcome::Refused(not_ported(
-                    "its stations are oblique to the views' axes; the port draws a dimension along x, y or z only",
+                let [a, b] = g.stations.as_slice() else {
+                    return Outcome::Refused(not_lowered("a length needs two proven stations"));
+                };
+                let delta = [0, 1, 2].map(|k| b[k] - a[k]);
+                let Some(view) = crate::pmi_lowering::projection_view(delta) else {
+                    return Outcome::Refused(not_lowered(
+                        "its stations do not lie in a principal projection plane",
+                    ));
+                };
+                return Outcome::Standalone(own(
+                    ids,
+                    r,
+                    value,
+                    vec![view],
+                    Shape::Aligned { a: *a, b: *b },
+                    format!(
+                        "source-authored: AP242 {} between its two proven stations, exact aligned span in the {view} view",
+                        r.source_id
+                    ),
                 ));
             };
             if !r.basic
@@ -1057,7 +1075,7 @@ fn leader(
 }
 
 /// Drops the limits a PMI fit put beside its class when the spec hides fit limits
-/// (`sheet/fit_limits: false`).
+/// (`sheet/fit_deviations`, off by default).
 pub(super) fn hide_fit_limits(
     spec: &Spec,
     notes: &BTreeMap<String, Note>,
@@ -1183,7 +1201,7 @@ pub const BOX_PAD: f64 = 0.75;
 
 /// A basic dimension's label box takes in its frame, so the collision checks see the ink drawn.
 pub(super) fn finish(out: &mut [super::PlannedDimension]) {
-    for d in out.iter_mut().filter(|d| basic(&d.measurements)) {
+    for d in out.iter_mut().filter(|d| crate::label_text::basic(d)) {
         if let Some(p) = &mut d.placed {
             let b = &mut p.label_box;
             *b = [
@@ -1342,11 +1360,11 @@ mod tests {
             turning: None,
         };
         for (code, value, upper, lower, printed) in [
-            ("g6", 15.0, -0.006, -0.017, "g6 (-0.006/-0.017)"),
-            ("h7", 20.0, 0.0, -0.021, "h7 (0/-0.021)"),
-            ("f7", 25.0, -0.020, -0.041, "f7 (-0.020/-0.041)"),
-            ("k6", 30.0, 0.015, 0.002, "k6 (+0.015/+0.002)"),
-            ("js6", 10.0, 0.0045, -0.0045, "js6 (+0.0045/-0.0045)"),
+            ("g6", 15.0, -0.006, -0.017, "g6 -0.006\n-0.017"),
+            ("h7", 20.0, 0.0, -0.021, "h7 0\n-0.021"),
+            ("f7", 25.0, -0.020, -0.041, "f7 -0.020\n-0.041"),
+            ("k6", 30.0, 0.015, 0.002, "k6 +0.015\n+0.002"),
+            ("js6", 10.0, 0.0045, -0.0045, "js6 +0.0045\n-0.0045"),
         ] {
             let q = requirement(&record(code, value), value).expect(code);
             assert!(

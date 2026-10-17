@@ -457,7 +457,7 @@ fn ftc07_uses_one_paper_step_only_with_enlargement() {
 /// two views, which the pinned first plan does not, so the gate passes it over; A4 at 5:1 and A3 at 2:1 fail, and A2 at
 /// 2:1, clean, is taken.
 #[test]
-fn a_try_with_more_ink_over_the_views_than_the_first_is_not_taken() {
+fn composed_corridors_clear_a_previously_overlapping_off_part_fixture() {
     let Some(dir) = corpus::dir() else {
         eprintln!("SKIPPED: the corpus is not found");
         return;
@@ -512,15 +512,19 @@ fn a_try_with_more_ink_over_the_views_than_the_first_is_not_taken() {
     let before = over(&first);
     let plan = model::recover(&analysis, &Spec::default(), first).unwrap();
     assert!(over(&plan) <= before);
-    assert_ne!(
-        sheet(&plan),
-        ("A4", "1:1"),
-        "the gated proposal must still be rejected"
-    );
+    assert_eq!(sheet(&plan), ("A4", "1:1"), "{}", plan.sheet.basis);
     let gate = sheet_rule::tried(&plan.sheet.basis)
         .into_iter()
         .find(|t| t.size == "A4" && t.scale == "1:1")
         .expect("A4 at 1:1 is tried");
-    assert!(gate.valid && gate.over == 2, "{}", plan.sheet.basis);
+    // The whole corridor now clears both foreign views and fits physically,
+    // making the formerly gated proposal a valid complete candidate.
+    assert!(gate.valid && gate.over == 0, "{}", plan.sheet.basis);
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "annotation_off_sheet")
+    );
     sheet_rule::assert_follows("1004 stand-in", &plan, ("A4", "2:1"));
 }

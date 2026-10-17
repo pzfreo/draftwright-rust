@@ -426,8 +426,20 @@ pub(crate) fn record(
 /// (its feature entries are inactive: `model::plan` lists them). Refused: an entry that cannot be
 /// read ([`check`]), an unknown feature or face, one datum letter on two targets, two controls
 /// of one characteristic on the same faces, or an Analysis made before faces' attachments were
-/// recorded.
+/// recorded. Authored gears are also lowered into the independent requirement inventory
+/// ([`crate::gears`]); their anchors must belong to this revision.
 pub fn effective<'a>(analysis: &'a Analysis, spec: &Spec) -> Result<Cow<'a, Analysis>, Invalid> {
+    let bound = crate::recognition_corrections::canonical(analysis, spec)?;
+    let spec = bound.as_ref();
+    let corrected = crate::recognition_corrections::effective(analysis, spec)?;
+    let merged = match corrected {
+        Cow::Borrowed(a) => pmi_effective(a, spec)?,
+        Cow::Owned(a) => Cow::Owned(pmi_effective(&a, spec)?.into_owned()),
+    };
+    crate::gears::effective(merged, spec)
+}
+
+fn pmi_effective<'a>(analysis: &'a Analysis, spec: &Spec) -> Result<Cow<'a, Analysis>, Invalid> {
     let merged = match &analysis.pmi {
         Some(Reading::Read(r)) => r
             .records

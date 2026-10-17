@@ -2,13 +2,9 @@
   "type": "object",
   "anyOf": [
     {
-      "type": "object",
       "properties": {
         "id": {
           "type": "string"
-        },
-        "operations": {
-          "$ref": "#/$defs/A"
         },
         "placements": {
           "type": "array",
@@ -53,7 +49,7 @@
                 ]
               },
               "offset": {
-                "$ref": "#/$defs/B"
+                "$ref": "#/B"
               },
               "pinned": {
                 "type": "boolean"
@@ -61,12 +57,6 @@
             },
             "additionalProperties": false
           }
-        },
-        "view_anchors": {
-          "$ref": "#/$defs/A"
-        },
-        "scales": {
-          "$ref": "#/$defs/A"
         },
         "settable": {
           "type": "object",
@@ -78,84 +68,70 @@
                 "items": {}
               },
               "range": {
-                "$ref": "#/$defs/B"
+                "$ref": "#/B"
               },
               "integer": {
                 "type": "boolean"
-              },
-              "forms": {
-                "$ref": "#/$defs/A"
-              },
-              "fields": {
-                "$ref": "#/$defs/A"
-              },
-              "paths": {
-                "$ref": "#/$defs/A"
-              },
-              "consequences": {
-                "$ref": "#/$defs/A"
               }
             },
-            "additionalProperties": false
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(forms|fields|paths|consequences)$(?!\n)": {
+                "$ref": "#/A"
+              }
+            }
           }
         }
       },
-      "required": [
-        "id",
-        "operations",
-        "placements",
-        "view_anchors",
-        "scales",
-        "settable"
-      ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "minProperties": 6,
+      "patternProperties": {
+        "^(operations|view_anchors|scales)$(?!\n)": {
+          "$ref": "#/A"
+        }
+      }
     },
     {
-      "type": "object",
-      "properties": {
-        "error": {
-          "type": "object",
-          "properties": {
-            "code": {
-              "enum": [
-                "invalid",
-                "failed"
-              ]
-            },
-            "message": {
-              "type": "string"
-            },
-            "choices": {
-              "$ref": "#/$defs/A"
-            }
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "choices": {
+            "$ref": "#/A"
           },
-          "required": [
-            "code",
-            "message"
-          ],
-          "additionalProperties": false
-        }
+          "code": {
+            "enum": [
+              "invalid",
+              "failed"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
       },
       "required": [
         "error"
       ],
-      "additionalProperties": false
+      "maxProperties": 1
     }
   ],
-  "$defs": {
-    "A": {
-      "items": {
-        "type": "string"
-      },
-      "type": "array"
+  "A": {
+    "items": {
+      "type": "string"
     },
-    "B": {
-      "items": {
-        "type": "number"
-      },
-      "maxItems": 2,
-      "minItems": 2,
-      "type": "array"
-    }
+    "type": "array"
+  },
+  "B": {
+    "items": {
+      "type": "number"
+    },
+    "maxItems": 2,
+    "minItems": 2,
+    "type": "array"
   }
 }

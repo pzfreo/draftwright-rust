@@ -259,14 +259,18 @@ fn a_schedule_without_a_proven_datum_corner_is_refused() {
 fn approved_fit_limits_survive_in_each_size_cell() {
     let analysis = &plate().1;
     let ops: Vec<_> = analysis.features.iter().filter(|f| f.kind == "hole").map(|f| serde_json::json!({"op":"set","path":format!("features/{}/fit",draftwright::items::key(&f.id)),"value":"H7"})).collect();
-    let spec = model::edit(&setting("always"), &serde_json::json!(ops)).unwrap();
+    let mut spec = model::edit(&setting("always"), &serde_json::json!(ops)).unwrap();
+    spec.sheet.fit_deviations = Some(true);
     let plan = model::plan_escalated(analysis, &spec).unwrap();
     assert!(
         tables(&plan)[0]["rows"]
             .as_array()
             .unwrap()
             .iter()
-            .all(|r| r["cells"][1].as_str().unwrap().contains("H7 (+"))
+            .all(|r| {
+                let cell = r["cells"][1].as_str().unwrap();
+                cell.contains("H7 +") && cell.contains("\n0")
+            })
     );
 }
 
@@ -284,6 +288,11 @@ fn semantic_pmi_callouts_remain_source_carrying_beside_the_schedule() {
     };
     let plan = model::plan_escalated(&analysis, &always).unwrap();
     assert!(tables(&plan).as_array().is_some_and(|t| !t.is_empty()));
+    assert_eq!(plan.spec, always);
+    assert!(plan.sheet.default);
+    assert!(!plan.problems.iter().any(|p| {
+        p.code == "annotation_off_sheet" && plan.gdt.iter().any(|g| p.subjects.contains(&g.id))
+    }));
     let semantic: Vec<_> = plan
         .dimensions
         .iter()

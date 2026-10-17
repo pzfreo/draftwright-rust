@@ -1,0 +1,157 @@
+{
+  "name": "prismatic.step",
+  "part": "tests/fixtures/parts/prismatic.step",
+  "steps": [
+    {
+      "edit": "line work",
+      "action": "fragments",
+      "ops": [
+        {
+          "op": "set",
+          "path": "sheet/hidden",
+          "value": false
+        },
+        {
+          "op": "set",
+          "path": "sheet/centre_marks",
+          "value": false
+        },
+        {
+          "op": "set",
+          "path": "views/front/hidden",
+          "value": true
+        },
+        {
+          "op": "set",
+          "path": "views/front/thread_depiction",
+          "value": false
+        },
+        {
+          "op": "set",
+          "path": "views/front/knurl_depiction",
+          "value": false
+        }
+      ]
+    },
+    {
+      "edit": "preview centre lines",
+      "action": "preview",
+      "ops": [
+        {
+          "op": "set",
+          "path": "views/front/centre_lines",
+          "value": false
+        }
+      ]
+    },
+    {
+      "edit": "undo line work",
+      "action": "undo"
+    },
+    {
+      "edit": "redo line work",
+      "action": "redo"
+    },
+    {
+      "edit": "material",
+      "action": "apply",
+      "ops": [
+        {
+          "op": "set",
+          "path": "sheet/title/material",
+          "value": "Steel"
+        }
+      ]
+    },
+    {
+      "edit": "wording",
+      "action": "fragments",
+      "ops": [
+        {
+          "op": "set",
+          "path": "dimensions/d:envelope~1width.length/text",
+          "value": {
+            "template": "{value} AFTER PLATING"
+          }
+        }
+      ]
+    },
+    {
+      "edit": "reference style",
+      "action": "apply",
+      "ops": [
+        {
+          "op": "set",
+          "path": "dimensions/d:envelope~1width.length/style",
+          "value": "reference"
+        }
+      ]
+    },
+    {
+      "edit": "basic style",
+      "action": "apply",
+      "ops": [
+        {
+          "op": "set",
+          "path": "dimensions/d:envelope~1width.length/style",
+          "value": "basic"
+        }
+      ]
+    },
+    {
+      "edit": "default wording",
+      "action": "apply",
+      "ops": [
+        {
+          "op": "remove",
+          "path": "dimensions/d:envelope~1width.length/text"
+        },
+        {
+          "op": "remove",
+          "path": "dimensions/d:envelope~1width.length/style"
+        }
+      ]
+    },
+    {
+      "edit": "hide iso",
+      "action": "fragments",
+      "ops": [
+        {
+          "op": "set",
+          "path": "views/iso/omit",
+          "value": true
+        }
+      ]
+    },
+    {
+      "edit": "undo",
+      "action": "undo"
+    },
+    {
+      "edit": "redo",
+      "action": "redo"
+    },
+    {
+      "edit": "preview material",
+      "action": "preview",
+      "ops": [
+        {
+          "op": "set",
+          "path": "sheet/title/material",
+          "value": "Aluminium"
+        }
+      ]
+    },
+    {
+      "edit": "replace spec",
+      "action": "spec",
+      "ops": [
+        {
+          "op": "set",
+          "path": "sheet/title/material",
+          "value": "Brass"
+        }
+      ]
+    }
+  ]
+}

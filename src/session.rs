@@ -1,11 +1,14 @@
 //! A live drawing over the same Spec edits and recovered planner as the batch API.
 use std::collections::BTreeMap;
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::api::{self, Error, Features};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::api::Features;
+use crate::api::{self, Error};
 use crate::haecceity::Part;
 use crate::items::{self, Op, State as ItemState};
 use crate::model::{
@@ -358,7 +361,7 @@ struct Planner {
 impl Planner {
     fn plan(&mut self, analysis: &Analysis, spec: &Spec) -> Result<Plan, Error> {
         self.calls += 1;
-        Ok(crate::planning::with(analysis, || {
+        Ok(crate::planning::with_retained(analysis, || {
             crate::sheets::allocate_counted(analysis, spec, &mut self.sheet_steps)
         })?)
     }
@@ -384,11 +387,13 @@ pub struct Session {
     planner: Planner,
 }
 impl Session {
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn open(step: &Path, features: Features<'_>, spec: Spec) -> Result<Self, Error> {
         Self::open_part(step, None, features, spec)
     }
     /// [`Session::open`] of part *part* of an assembly alone, when given
     /// ([`crate::model::analyse_step_part`]).
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn open_part(
         step: &Path,
         part: Option<usize>,
@@ -683,7 +688,7 @@ impl Session {
         // Planned captions participate in the furniture collection diff, including removal.
         let furniture_changed = delta.is_none_or(|d| {
             d.plan.fields.keys().any(|k| k != "spec")
-                || (!self.plan().sheets.is_empty() && d.plan.collections.contains_key("views"))
+                || d.plan.collections.contains_key("views")
                 || d.plan.collections.keys().any(|k| {
                     !matches!(
                         k.as_str(),
@@ -996,6 +1001,71 @@ impl Session {
             .collect()
     }
     pub fn options(&self, id: &str) -> Result<Options, Error> {
+        if let Some(face) = id.strip_prefix("face:") {
+            let count = self.analysis.face_attachments.len();
+            let index = face.parse::<usize>().ok().filter(|&i| i < count)
+                .ok_or_else(|| Error::invalid(format!("{id:?} is not a face in this Analysis; use face:<index> with 0 <= index < {count}, or re-analyse if face evidence is absent.")))?;
+            let fingerprint =
+                crate::recognition_corrections::face_fingerprint(&self.analysis, index)?;
+            return Ok(Options {
+                id: id.into(),
+                operations: vec!["add".into()],
+                placements: vec![],
+                view_anchors: vec![],
+                scales: vec![],
+                settable: BTreeMap::from([(
+                    "feature_declarations".into(),
+                    serde_json::json!({"fields":[fingerprint],"forms":["add {id: f:declared:<name>, kind: hole|boss|turned_step|slot|pocket, faces: [fingerprint,…]}"]}),
+                )]),
+            });
+        }
+        if id.starts_with("f:") {
+            let feature = self.analysis.features.iter().find(|f| f.id == id);
+            let pattern = self
+                .analysis
+                .recognition
+                .iter()
+                .flat_map(|r| &r.patterns)
+                .any(|p| p.id == id);
+            if feature.is_none() && !pattern {
+                return Err(Error::invalid(format!(
+                    "There is no recognised feature or pattern {id:?}; use analyse to read the current feature and pattern IDs."
+                )));
+            }
+            let mut fields = BTreeMap::new();
+            let base = format!("features/{}", items::key(id));
+            if let Some(f) = feature {
+                fields.insert(
+                    format!("{base}/suppress"),
+                    serde_json::json!({"choices":[false,true]}),
+                );
+                let kinds = match f.kind.as_str() {
+                    "boss" | "turned_step" => vec!["boss", "turned_step"],
+                    "slot" | "section_recess" => vec!["slot", "pocket"],
+                    _ => vec![],
+                };
+                if !kinds.is_empty() {
+                    fields.insert(
+                        format!("{base}/reclassify"),
+                        serde_json::json!({"choices":kinds}),
+                    );
+                }
+            }
+            if pattern || feature.is_some_and(|f| f.kind == "slot_pattern") {
+                fields.insert(
+                    format!("{base}/split"),
+                    serde_json::json!({"choices":[false,true]}),
+                );
+            }
+            return Ok(Options {
+                id: id.into(),
+                operations: vec!["set".into(), "remove".into()],
+                placements: vec![],
+                view_anchors: vec![],
+                scales: vec![],
+                settable: fields,
+            });
+        }
         Ok(self.options_for(self.item(id)?, &self.placement_choices()))
     }
     /// All item options, computing the shared geometry choices once and without planning.
@@ -1007,7 +1077,11 @@ impl Session {
             .collect()
     }
     fn placement_choices(&self) -> BTreeMap<String, Value> {
-        let mut choices = crate::dims::placement_options(&self.analysis, &self.plan().views);
+        let mut choices = crate::dims::placement_options_with_spec(
+            &self.analysis,
+            &self.plan().views,
+            self.spec(),
+        );
         // The Spec's datums and controls are placed as the file's PMI is ([`crate::spec_gdt`]).
         let merged = crate::spec_gdt::effective(&self.analysis, &self.plan().spec);
         choices.extend(crate::dims::gdt::placement_options(
@@ -1023,6 +1097,7 @@ impl Session {
     }
     fn options_for(&self, item: ItemAnswer, choices: &BTreeMap<String, Value>) -> Options {
         let id = item.item.id.as_str();
+        let angular = item.dimension_kind.as_deref() == Some("angular");
         let placements: Vec<Place> = choices
             .get(id)
             .into_iter()
@@ -1032,10 +1107,13 @@ impl Session {
                         .as_array()
                         .into_iter()
                         .flatten()
-                        .filter_map(|side| {
+                        .map(Some)
+                        .chain(angular.then_some(None))
+                        .filter_map(move |side| {
                             Some(Place {
                                 view: Some(v["view"].as_str()?.into()),
-                                side: serde_json::from_value(side.clone()).ok(),
+                                side: side
+                                    .and_then(|side| serde_json::from_value(side.clone()).ok()),
                                 lane: None,
                                 along: Some(Along::Slot(Slot::Middle)),
                                 offset: None,
@@ -1077,6 +1155,8 @@ fn settable(
 ) -> BTreeMap<String, Value> {
     use serde_json::json;
     let mut fields = BTreeMap::new();
+    let merged = crate::recognition_corrections::effective(session.analysis(), session.spec()).ok();
+    let analysis = merged.as_deref().unwrap_or(session.analysis());
     let id = &item.item.id;
     let base = match item.item.kind.as_str() {
         "dimension" => format!("dimensions/{}", items::key(id)),
@@ -1093,9 +1173,15 @@ fn settable(
         "hole_table".into(),
         choices(json!(["auto", "always", "never"])),
     );
+    if id == "sheet" {
+        fields.insert("dimensions/d:authored:<name>".into(), json!({"forms":["{between:[reference,reference],along:x|y|z|true,kind:linear}","{kind:diameter|radius,between:[face reference]}","{kind:angle,between:[reference,reference]}"],"consequences":["References are stable keys from Analysis.edge_ink.references; duplicate quantities are refused with their existing owner ID"]}));
+    }
     if !base.is_empty() {
         fields.insert(format!("{base}/omit"), choices(json!([false, true])));
         if item.item.kind == "view" {
+            for field in crate::linework::FIELDS {
+                fields.insert(format!("{base}/{field}"), choices(json!([false, true])));
+            }
             // Preserve default single-sheet answers until the author enables sheet controls.
             if session.spec().sheets.is_some() {
                 let name = id.trim_start_matches("v:");
@@ -1187,23 +1273,55 @@ fn settable(
             format!("{base}/place/pinned"),
             choices(json!([false, true])),
         );
+        if item.item.kind == "dimension"
+            || item.item.kind == "label"
+            || id.starts_with("n:f:blend:")
+        {
+            fields.insert(
+                format!("{base}/text"),
+                json!({"fields":["prefix","suffix","template"],"forms":["{value} AFTER PLATING"]}),
+            );
+        }
         if item.item.kind == "dimension" {
+            fields.insert(
+                format!("{base}/style"),
+                choices(json!(["reference", "basic"])),
+            );
             fields.insert(
                 format!("{base}/view"),
                 fields[&format!("{base}/place/view")].clone(),
             );
             fields.insert(format!("{base}/tolerance"), json!({"forms":["±T","+U -L"]}));
+            if session
+                .spec()
+                .dimensions
+                .get(id)
+                .is_some_and(|d| d.between.is_some())
+            {
+                fields.insert(
+                    format!("{base}/kind"),
+                    choices(json!(["linear", "diameter", "radius", "angle"])),
+                );
+                fields.insert(format!("{base}/between"), json!({"forms":["[reference, reference] (linear/angle)","[face reference] (diameter/radius)"],"consequences":["Copy stable keys from Analysis.edge_ink.references; axis:<face key> selects a cylinder axis"]}));
+                fields.insert(
+                    format!("{base}/along"),
+                    choices(json!(["x", "y", "z", "true"])),
+                );
+            }
         }
+    }
+    // Recognition edits travel through the same transactional preview/apply and history.
+    if id == "sheet" {
+        fields.insert("features/f:hole_pattern:<name>/pattern".into(), json!({"fields":["arrangement", "members"], "forms":["{arrangement: linear|grid|bolt_circle, members: [hole id,…]}"]}));
+        fields.insert("feature_declarations".into(), json!({
+            "forms":["add {id: f:declared:<name>, kind: hole|boss|turned_step|slot|pocket, faces: [fingerprint,…]}",
+                format!("Get a face fingerprint with item_options face:<index>, 0 <= index < {}", analysis.face_attachments.len())]
+        }));
     }
     // A fit qualifies a feature, including each member of a consolidated hole mark.
     let mut fits: BTreeMap<Vec<String>, Vec<String>> = BTreeMap::new();
     for feature in &item.features {
-        if let Some(f) = session
-            .analysis()
-            .features
-            .iter()
-            .find(|f| &f.id == feature)
-        {
+        if let Some(f) = analysis.features.iter().find(|f| &f.id == feature) {
             let classes = crate::dims::fit_choices(
                 &f.kind,
                 f.parameters
@@ -1225,10 +1343,14 @@ fn settable(
         }
         fields.insert(paths[0].clone(), descriptor);
     }
+    if item.item.kind == "sheet" {
+        for field in crate::linework::FIELDS {
+            fields.insert(format!("sheet/{field}"), choices(json!([false, true])));
+        }
+    }
     // A datum letter and feature control frames qualify a feature or hole pattern
     // ([`crate::spec_gdt`]); a face takes them at faces/<side or face:n>/….
-    let patterns = session
-        .analysis()
+    let patterns = analysis
         .recognition
         .as_ref()
         .map_or(&[][..], |r| r.patterns.as_slice());
@@ -1241,7 +1363,7 @@ fn settable(
         .and_then(|s| s.rsplit_once('/'))
         .map(|(f, _)| f.to_string());
     if let Some(feature) = &named {
-        let known = session.analysis().features.iter().any(|f| &f.id == feature)
+        let known = analysis.features.iter().any(|f| &f.id == feature)
             || patterns.iter().any(|p| &p.id == feature);
         if known {
             let base = format!("features/{}", items::key(feature));
@@ -1256,8 +1378,7 @@ fn settable(
             // diameter; a knurl on a turned diameter ([`crate::spec_notes`]).
             fields.insert(format!("{base}/finish"), json!({"fields":["ra","removal"]}));
             fields.insert(format!("{base}/note"), json!({"forms":["text"]}));
-            let kind = session
-                .analysis()
+            let kind = analysis
                 .features
                 .iter()
                 .find(|f| &f.id == feature)
@@ -1290,6 +1411,7 @@ fn settable(
             json!({"fields":crate::title_block::KEYS.map(|k|k.0),"forms":["text"]}),
         );
         fields.insert("sheet/fit_limits".into(), choices(json!([false, true])));
+        fields.insert("sheet/fit_deviations".into(), choices(json!([false, true])));
         fields.insert(
             "sheet/projection".into(),
             choices(json!(model::PROJECTIONS)),
@@ -1420,6 +1542,8 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                 });
                 a.basis = v.basis.clone();
                 a.operations = ["omit", "place", "pin"].map(String::from).into();
+                a.operations
+                    .extend(crate::linework::FIELDS.map(String::from));
                 if plan.spec.sheets.is_some() {
                     a.operations.push("move_to_sheet".into());
                 }
@@ -1441,9 +1565,18 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                 a.features.dedup();
                 a.anchors = vec![d.view.clone()];
                 a.anchors.extend(a.features.clone());
-                a.operations = ["omit", "tolerance", "place", "pin"]
+                for m in &d.measurements {
+                    if let Some(refs) = m.feature.strip_prefix("geometry:") {
+                        a.anchors.extend(refs.split('|').map(String::from));
+                    }
+                }
+                a.operations = ["omit", "tolerance", "text", "style", "place", "pin"]
                     .map(String::from)
                     .into();
+                if d.from_spec.iter().any(|field| field == "between") {
+                    a.operations
+                        .extend(["between", "kind", "along"].map(String::from));
+                }
             }
             if let Some(o) = plan.omitted.iter().find(|o| &o.id == id) {
                 a.basis = o.basis.clone();
@@ -1478,6 +1611,9 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                     .map(|f| f.id.clone())
                     .collect();
                 a.operations = ["omit", "place", "pin"].map(String::from).into();
+                if g.kind == "label" {
+                    a.operations.push("text".into());
+                }
             }
             if let Some(c) = plan.captions.iter().find(|c| &c.id == id) {
                 a.basis = c.basis.clone();
@@ -1489,7 +1625,7 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                 a.placement = n.placed.as_ref().map(|p| Placement::Box(p.cells));
                 a.features = n.measurements.iter().map(|m| m.feature.clone()).collect();
                 if n.id.starts_with("n:f:blend:") {
-                    a.operations = ["omit", "place"].map(String::from).into();
+                    a.operations = ["omit", "text", "place"].map(String::from).into();
                 }
             }
             if let Some(r) = plan.requirements.iter().find(|r| &r.id == id) {
@@ -1615,6 +1751,7 @@ fn difference(old: &State, new: &State, analysis: &Analysis, plans: usize) -> De
                         || a.direction != b.direction
                         || a.up != b.up
                         || a.cut != b.cut
+                        || a.line_style != b.line_style
                 })
             })
             .cloned()

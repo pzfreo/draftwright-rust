@@ -677,7 +677,7 @@ pub(super) fn consolidate(
         Shape::Linear { a, b, axis, .. } => {
             Some((axis, a[axis].min(b[axis]), a[axis].max(b[axis])))
         }
-        Shape::Callout { .. } | Shape::Angular { .. } => None,
+        Shape::Callout { .. } | Shape::Angular { .. } | Shape::Aligned { .. } => None,
     };
     let parameter = |w: &Want| w.measurements.first().map(|m| m.parameter.clone());
     let extents: Vec<(String, (usize, f64, f64))> = kept

@@ -17,8 +17,8 @@
 //!   `N× ⌀d` counts d-diameter features, as draftwright reads it.
 //! - `nominal_rounded` (`_lint_display_precision`): once per sheet, info, the dimensions whose
 //!   correctly rounded label prints a nominal the model does not have (by more than 0.0005 mm),
-//!   naming the largest. The port's spec has no display precision to raise, so the message says
-//!   so instead of draftwright's `.format(decimals=…)` advice.
+//!   naming the largest. The Spec can raise precision by semantic measurement ID; the drawing
+//!   records the approved policy alongside the ink for this independent check.
 //! - `angular_label_vs_geometry` (`lint_angular_geometry`): an angular dimension's degrees
 //!   against the angle between its drawn rays (its two extension lines, from their meeting point,
 //!   the vertex), within half its last printed place. Never the planned angle.
@@ -29,8 +29,8 @@
 //!   ray past the arc. The port draws an arc as chords within 0.005 mm of it, so its chords'
 //!   ends are on the circle.
 //! - `angular_support_mismatch` (`lint_angular_supports`, its drawn half): each ray must lie
-//!   along a straight visible edge of the view, so the angle is between the corner's physical
-//!   edges as drawn, and a quantity mark (`n×`) cannot be proved by one drawn corner, so it is
+//!   along a straight visible edge of the view, either both forwards or both extended backwards,
+//!   so the angle remains the corner's physical included angle, and a quantity mark (`n×`) cannot be proved by one drawn corner, so it is
 //!   refused. draftwright compares the drawn witnesses with the supports its registry binds;
 //!   lint here has the drawn view's edges, which the faces of an angle shown true project to.
 //! - `datum_leader_remote` (`_lint_datum_leader_locality`): a datum feature symbol (a PMI datum,
@@ -129,9 +129,41 @@ pub(super) fn check(drawing: &Drawing) -> Vec<LintIssue> {
                 let Some(scale) = scale(*view) else {
                     continue;
                 };
+                let body = drawing
+                    .sheet
+                    .label_text
+                    .get(&d.name)
+                    .map(|wording| wording.body(text));
+                let text = match &body {
+                    Some(Some(body)) if label_value(body).is_some() => {
+                        body.trim_start_matches('(').trim_end_matches(')')
+                    }
+                    Some(_) => {
+                        issues.push(issue(format!("l:label_vs_measured:{}", d.name), "label_vs_measured", Severity::Error,
+                            "Authored wording or its measured value is missing or damaged; restore the generated value and wording wrapper.".into(), Some(d)));
+                        continue;
+                    }
+                    None => text.as_str(),
+                };
                 if let Some(l) = linear_ink(&d.lines) {
                     let measured = l.span[1] - l.span[0];
-                    issues.extend(label_vs_measured(d, text, measured, scale, &mut rounded));
+                    issues.extend(label_vs_measured(
+                        d,
+                        text,
+                        measured,
+                        scale,
+                        drawing.sheet.precision.get(&d.name).copied(),
+                        &mut rounded,
+                    ));
+                } else if let Some(span) = aligned_span(&d.lines) {
+                    issues.extend(label_vs_measured(
+                        d,
+                        text,
+                        span,
+                        scale,
+                        drawing.sheet.precision.get(&d.name).copied(),
+                        &mut rounded,
+                    ));
                 } else if d.lines.len() >= 3 {
                     issues.extend(angular(drawing, d, text, *view));
                 }
@@ -152,7 +184,7 @@ pub(super) fn check(drawing: &Drawing) -> Vec<LintIssue> {
                 "{} dimension(s) print a nominal the model does not have, rounded to the sheet's \
                  precision; the largest is '{label}' for {value:.4} ({shift:.4} mm). Within a \
                  general tolerance this is ordinary. Where a fit depends on it, the dimension \
-                 needs more places, which the spec cannot yet ask for",
+                 needs more places (set precision for its measurement ID)",
                 rounded.len()
             ),
             None,
@@ -227,6 +259,7 @@ fn label_vs_measured(
     label: &str,
     page: f64,
     scale: f64,
+    precision: Option<u8>,
     rounded: &mut Vec<(f64, String, f64)>,
 ) -> Option<LintIssue> {
     if angular_label(label) {
@@ -246,7 +279,10 @@ fn label_vs_measured(
             digits.split_once('.').map_or(0, |(_, f)| f.len()) as i32,
         )
     } else {
-        (1.0, displayed_decimals(label) as i32)
+        (
+            1.0,
+            precision.map_or_else(|| displayed_decimals(label) as i32, i32::from),
+        )
     };
     let value = unit * label_value(label)?;
     let measured = page / scale;
@@ -444,7 +480,9 @@ fn angular(drawing: &Drawing, d: &Drawn, label: &str, view: Option<&str>) -> Vec
              of its sector"
         )));
     }
-    // Its supports: each ray along a straight visible edge of its view.
+    // Both supports may be extended through their common vertex. Reversing
+    // both rays preserves the included angle; reversing only one changes it to
+    // its supplement and must still be refused.
     let edges: Vec<[P; 2]> = view
         .and_then(|name| drawing.sheet.views.iter().find(|w| w.name == name))
         .map(|w| {
@@ -457,10 +495,10 @@ fn angular(drawing: &Drawing, d: &Drawn, label: &str, view: Option<&str>) -> Vec
                 .collect()
         })
         .unwrap_or_default();
-    let supported = |ray: P| {
+    let supported = |ray: P, sense: f64| {
         edges.iter().any(|[a, b]| {
             let across = |p: P| cross(ray, sub(p, vertex)).abs();
-            let along = |p: P| dot(sub(p, vertex), ray);
+            let along = |p: P| sense * dot(sub(p, vertex), ray);
             across(*a) <= ON_EDGE
                 && across(*b) <= ON_EDGE
                 && along(*a).max(along(*b)) > ON_EDGE
@@ -475,7 +513,9 @@ fn angular(drawing: &Drawing, d: &Drawn, label: &str, view: Option<&str>) -> Vec
         Some(format!(
             "its quantity {quantity}× is not proved by the one corner drawn"
         ))
-    } else if !supported(u) || !supported(v) {
+    } else if !((supported(u, 1.0) && supported(v, 1.0))
+        || (supported(u, -1.0) && supported(v, -1.0)))
+    {
         Some("a ray does not lie along a visible edge of its view".to_string())
     } else {
         None
@@ -527,6 +567,26 @@ fn datum_leader(d: &Drawn) -> Option<LintIssue> {
         i.fix = Some("set the datum symbol closer to its surface".into());
         i
     })
+}
+
+/// Recognise perpendicular extension lines and a parallel dimension line at any rotation.
+fn aligned_span(lines: &[[P; 2]]) -> Option<f64> {
+    let [a, b, d] = lines else { return None };
+    let delta = [d[1][0] - d[0][0], d[1][1] - d[0][1]];
+    let length = delta[0].hypot(delta[1]);
+    if length < 1e-9 {
+        return None;
+    }
+    let u = delta.map(|x| x / length);
+    let project = |p: P| p[0] * u[0] + p[1] * u[1];
+    if [a, b]
+        .iter()
+        .any(|e| (project(e[1]) - project(e[0])).abs() > 1e-6)
+    {
+        return None;
+    }
+    let span = (project(b[0]) - project(a[0])).abs();
+    (span > 1e-9).then_some(span)
 }
 
 #[cfg(test)]

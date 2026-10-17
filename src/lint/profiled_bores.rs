@@ -114,9 +114,34 @@ fn documented(f: &Feature, major: f64, across: f64, marks: &[Mark]) -> bool {
         };
         claims("bore.diameter")
             && claims("profile_across_flats.length")
-            && holes::states(&m.text, major)
-            && holes::states(&m.text, across)
+            && role_ink(
+                &m.text,
+                major,
+                across,
+                f.parameters.get("through").and_then(Value::as_bool) == Some(true),
+            )
     })
+}
+
+/// Read the diameter at the head and the across-flats value immediately before its unit.
+/// Numerical coincidence elsewhere in a callout cannot certify either role (issue 1370).
+fn role_ink(text: &str, major: f64, across: f64, through: bool) -> bool {
+    let Some((head, profile)) = text.split_once("DOUBLE-D") else {
+        return false;
+    };
+    let Some((_, diameter)) = head.split_once(['⌀', 'ø', 'Ø']) else {
+        return false;
+    };
+    let diameter = diameter.split_whitespace().next().unwrap_or("");
+    let mut fields = profile.split_whitespace();
+    let width = fields.next().unwrap_or("");
+    let unit = fields.next().unwrap_or("");
+    diameter.parse::<f64>().is_ok()
+        && width.parse::<f64>().is_ok()
+        && holes::states(diameter, major)
+        && holes::states(width, across)
+        && unit == "A/F"
+        && (head.split_whitespace().any(|w| w == "THRU") == through)
 }
 
 /// The profiled bore findings: one for each key whose bores the callouts do not all document,
@@ -198,7 +223,7 @@ fn issue(
         evidence,
         fix: Some(
             "Call out each double-D bore with its major diameter and its size across flats in one \
-             callout (`⌀D THRU, F A/F`), in the view along its axis."
+             callout (`⌀D THRU DOUBLE-D F A/F` for a through bore; state the depth for a blind bore), in the view along its axis."
                 .into(),
         ),
     }
@@ -257,7 +282,7 @@ mod tests {
         second.faces = vec![1];
         second.parameters = bore([20.0, 0.0, 5.0]).as_object().unwrap().clone();
         two.features.push(second);
-        let found = coverage(&two, &[mark("⌀10 THRU 7.2 A/F", id, &both)]);
+        let found = coverage(&two, &[mark("⌀10 THRU DOUBLE-D 7.2 A/F", id, &both)]);
         assert_eq!(found.len(), 1);
         assert!(found[0].message.starts_with("2 through double-D bore(s)"));
         assert!(found[0].message.ends_with("document 1"));

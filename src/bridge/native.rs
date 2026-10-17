@@ -63,7 +63,8 @@ pub const IDENTITY: [[f64; 3]; 4] = [[0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0],
 
 /// Every family of [`SCHEMA_VERSION`] and the record types its records can have, as
 /// `quiddity::recognition::RECORD_TYPES` lists them for that schema (`tests/native.rs` checks the
-/// two agree). The families in [`READ`] are read here; the rest are known and left to the bridge.
+/// two agree). [`READ`] supplies features and [`EVIDENCE_READ`] geometry-only records;
+/// the rest are known and left to the bridge.
 pub const FAMILIES: &[(&str, &[&str])] = &[
     ("fillets", &["Fillet"]),
     ("chamfers", &["Chamfer"]),
@@ -168,6 +169,9 @@ pub const READ: [&str; 30] = [
     "risers",
 ];
 
+/// Geometry-only records consumed by independent lint, never feature declarations.
+pub const EVIDENCE_READ: [&str; 1] = ["repeating_radial_profiles"];
+
 /// What a field of a record must be.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Field {
@@ -232,6 +236,15 @@ pub const FIELDS: &[(&str, &[(&str, Field)])] = &[
             ("body", Field::Count),
             ("reason", Field::Text),
             ("evidence", Field::Object),
+        ],
+    ),
+    (
+        "RepeatingRadialProfile",
+        &[
+            ("axis", Field::Letter),
+            ("centre", Field::Point),
+            ("span", Field::Pair),
+            ("repeat_count", Field::Count),
         ],
     ),
     (
@@ -579,7 +592,8 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
             ));
         }
         let taken = matches!(r.family.as_str(), "holes" | "hole_patterns")
-            || READ.contains(&r.family.as_str());
+            || READ.contains(&r.family.as_str())
+            || EVIDENCE_READ.contains(&r.family.as_str());
         if taken && !r.local.is_empty() {
             return Err(format!(
                 "{} leaves {} in the part's own frame, not the file's",
@@ -618,6 +632,15 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
             "holes" => holes.push(r),
             "hole_patterns" => patterns.push(r),
             "oriented_slot_patterns" => oriented_patterns.push(r),
+            f if EVIDENCE_READ.contains(&f) => {
+                check(&r.parameters, &r.record_type).map_err(|e| format!("{}{e}", r.id))?;
+                evidence.push(super::Record {
+                    family: r.family.clone(),
+                    subtype: r.record_type.clone(),
+                    faces: r.faces.clone(),
+                    parameters: r.parameters.clone(),
+                });
+            }
             f if READ.contains(&f) => others.push(r),
             _ => {}
         }
@@ -990,6 +1013,7 @@ fn ascending(faces: &[usize]) -> bool {
 /// Legacy recess readings represented by the unified projection, including its refusals.
 pub fn represented(family: &str) -> bool {
     READ.contains(&family)
+        || EVIDENCE_READ.contains(&family)
         || [
             "pockets",
             "pocket_patterns",

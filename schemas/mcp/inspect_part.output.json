@@ -2,17 +2,7 @@
   "type": "object",
   "anyOf": [
     {
-      "type": "object",
       "properties": {
-        "part_ref": {
-          "type": "string"
-        },
-        "part": {
-          "type": "string"
-        },
-        "face_count": {
-          "$ref": "#/$defs/A"
-        },
         "status": {
           "enum": [
             "clear",
@@ -21,23 +11,15 @@
         },
         "completeness": {
           "type": "object",
-          "properties": {
-            "claimed_faces": {
-              "$ref": "#/$defs/A"
-            },
-            "faces": {
-              "$ref": "#/$defs/A"
-            },
-            "unplanned_features": {
-              "$ref": "#/$defs/A"
-            }
+          "additionalProperties": {
+            "$ref": "#/C"
           },
           "required": [
             "claimed_faces",
             "faces",
             "unplanned_features"
           ],
-          "additionalProperties": false
+          "maxProperties": 3
         },
         "envelope": {
           "type": "array",
@@ -55,22 +37,19 @@
         "sheet": {
           "type": "object",
           "properties": {
-            "size": {
-              "type": "string"
-            },
-            "scale": {
-              "type": "string"
-            },
             "page": {
-              "$ref": "#/$defs/B"
+              "$ref": "#/B"
             }
+          },
+          "additionalProperties": {
+            "$ref": "#/D"
           },
           "required": [
             "size",
             "scale",
             "page"
           ],
-          "additionalProperties": false
+          "maxProperties": 3
         },
         "sheets": {
           "enum": [
@@ -104,38 +83,21 @@
                 ]
               },
               "size": {
-                "type": "string"
+                "$ref": "#/D"
               },
               "scale": {
-                "type": "string"
+                "$ref": "#/D"
               },
               "page": {
-                "$ref": "#/$defs/B"
+                "$ref": "#/B"
               }
             },
-            "required": [
-              "number",
-              "size",
-              "scale",
-              "page"
-            ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "minProperties": 4
           }
         },
         "views": {
-          "$ref": "#/$defs/C"
-        },
-        "items": {
-          "$ref": "#/$defs/A"
-        },
-        "problems": {
-          "$ref": "#/$defs/A"
-        },
-        "spec_version": {
-          "type": "string"
-        },
-        "plan_ref": {
-          "type": "string"
+          "$ref": "#/A"
         },
         "key_items": {
           "type": "array",
@@ -143,7 +105,7 @@
             "type": "object",
             "properties": {
               "id": {
-                "type": "string"
+                "$ref": "#/D"
               },
               "label": {
                 "type": [
@@ -152,11 +114,8 @@
                 ]
               }
             },
-            "required": [
-              "id",
-              "label"
-            ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "minProperties": 2
           }
         },
         "problem_page": {
@@ -167,26 +126,15 @@
               "items": {
                 "anyOf": [
                   {
-                    "type": "object",
                     "properties": {
-                      "id": {
-                        "type": "string"
-                      },
-                      "code": {
-                        "type": "string"
-                      },
-                      "severity": {
-                        "type": "string"
-                      },
                       "subjects": {
-                        "$ref": "#/$defs/C"
+                        "$ref": "#/A"
                       },
                       "fix": {
                         "type": "array",
                         "items": {
                           "anyOf": [
                             {
-                              "type": "object",
                               "properties": {
                                 "op": {
                                   "enum": [
@@ -195,34 +143,27 @@
                                   ]
                                 },
                                 "path": {
-                                  "type": "string"
+                                  "$ref": "#/D"
                                 },
                                 "value": {}
                               },
-                              "required": [
-                                "op",
-                                "path",
-                                "value"
-                              ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "minProperties": 3
                             },
                             {
-                              "type": "object",
                               "properties": {
                                 "op": {
                                   "const": "remove"
                                 },
                                 "path": {
-                                  "type": "string"
+                                  "$ref": "#/D"
                                 }
                               },
-                              "required": [
-                                "op",
-                                "path"
-                              ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "minProperties": 2
                             }
-                          ]
+                          ],
+                          "type": "object"
                         }
                       }
                     },
@@ -232,10 +173,14 @@
                       "severity",
                       "subjects"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "patternProperties": {
+                      "^(id|code|severity)$(?!\n)": {
+                        "$ref": "#/D"
+                      }
+                    }
                   },
                   {
-                    "type": "object",
                     "properties": {
                       "id": {
                         "type": [
@@ -244,20 +189,18 @@
                         ]
                       },
                       "detail_ref": {
-                        "type": "string"
+                        "$ref": "#/D"
                       }
                     },
-                    "required": [
-                      "id",
-                      "detail_ref"
-                    ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "minProperties": 2
                   }
-                ]
+                ],
+                "type": "object"
               }
             },
             "total": {
-              "$ref": "#/$defs/A"
+              "$ref": "#/C"
             },
             "next_cursor": {
               "type": [
@@ -267,12 +210,8 @@
               "minimum": 0
             }
           },
-          "required": [
-            "items",
-            "total",
-            "next_cursor"
-          ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "minProperties": 3
         }
       },
       "required": [
@@ -288,58 +227,64 @@
         "problems",
         "spec_version"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(part|spec_version|(part|plan)_ref)$(?!\n)": {
+          "$ref": "#/D"
+        },
+        "^(face_count|items|problems)$(?!\n)": {
+          "$ref": "#/C"
+        }
+      }
     },
     {
-      "type": "object",
-      "properties": {
-        "error": {
-          "type": "object",
-          "properties": {
-            "code": {
-              "enum": [
-                "invalid",
-                "failed"
-              ]
-            },
-            "message": {
-              "type": "string"
-            },
-            "choices": {
-              "$ref": "#/$defs/C"
-            }
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "choices": {
+            "$ref": "#/A"
           },
-          "required": [
-            "code",
-            "message"
-          ],
-          "additionalProperties": false
-        }
+          "code": {
+            "enum": [
+              "invalid",
+              "failed"
+            ]
+          },
+          "message": {
+            "$ref": "#/D"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
       },
       "required": [
         "error"
       ],
-      "additionalProperties": false
+      "maxProperties": 1
     }
   ],
-  "$defs": {
-    "A": {
-      "minimum": 0,
-      "type": "integer"
+  "A": {
+    "items": {
+      "$ref": "#/D"
     },
-    "B": {
-      "items": {
-        "type": "number"
-      },
-      "maxItems": 2,
-      "minItems": 2,
-      "type": "array"
+    "type": "array"
+  },
+  "B": {
+    "items": {
+      "type": "number"
     },
-    "C": {
-      "items": {
-        "type": "string"
-      },
-      "type": "array"
-    }
+    "maxItems": 2,
+    "minItems": 2,
+    "type": "array"
+  },
+  "C": {
+    "minimum": 0,
+    "type": "integer"
+  },
+  "D": {
+    "type": "string"
   }
 }

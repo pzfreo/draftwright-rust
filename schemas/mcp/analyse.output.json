@@ -2,39 +2,28 @@
   "type": "object",
   "anyOf": [
     {
-      "type": "object",
       "properties": {
         "schema": {
           "const": "draftwright.analysis/7"
         },
         "binding": {
           "type": "object",
-          "properties": {
-            "source_sha256": {
-              "type": "string"
-            },
-            "part": {
-              "type": "string"
-            },
-            "face_count": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "loader": {
-              "type": "string"
-            },
-            "part_index": {
-              "type": "integer",
-              "minimum": 0
-            }
-          },
           "required": [
             "source_sha256",
             "part",
             "face_count",
             "loader"
           ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "patternProperties": {
+            "^(source_sha256|part|loader)$(?!\n)": {
+              "type": "string"
+            },
+            "^(face_count|part_index)$(?!\n)": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
         },
         "envelope": {
           "type": "array",
@@ -72,38 +61,35 @@
       ]
     },
     {
-      "type": "object",
-      "properties": {
-        "error": {
-          "type": "object",
-          "properties": {
-            "code": {
-              "enum": [
-                "invalid",
-                "failed"
-              ]
-            },
-            "message": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "choices": {
+            "items": {
               "type": "string"
             },
-            "choices": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
+            "type": "array"
           },
-          "required": [
-            "code",
-            "message"
-          ],
-          "additionalProperties": false
-        }
+          "code": {
+            "enum": [
+              "invalid",
+              "failed"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
       },
       "required": [
         "error"
       ],
-      "additionalProperties": false
+      "maxProperties": 1
     }
   ]
 }

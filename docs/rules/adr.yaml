@@ -515,8 +515,9 @@
     adr: "ADR 2 Unguarded; archive 0018 §7"
     issues: []
     tests: []
-  status: pending
-  rust_note: "Done in substance (rules assessment of 2026-10-11): text is a fixed 3 mm in paper space (layout::FONT_SIZE, dims, section::FONT_SIZE) and nothing shrinks it to fit. Left pending because no test guards it."
+  status: ported
+  rust_test: "tests/rule_pins.rs::fixed_paper_typography_survives_scale_and_sheet_fit"
+  rust_note: "Already true, now pinned on GRM-04, the tuner and opposed holes across automatic recovery and explicit scales, including fitted isometrics. Drawing annotations remain 3 mm in paper space. Title-field labels deliberately remain their existing fixed 1.5 mm style; the guard checks that style too, rather than changing it to 3 mm. No font is reduced by fitting."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream regression-pins"
 
 # ---------------------------------------------------------------------------
@@ -629,9 +630,10 @@
     adr: "ADR 3 invariant 8; archive 0017 Amendment 14"
     issues: [1245]
     tests: ["test_recognition_policy_dispositions.py", "test_issue_1245_passage_disposition.py", "test_issue_1246_prismatic_pocket_disposition.py", "test_issue_1247_angled_step_disposition.py"]
-  status: pending
+  status: ported
+  rust_test: "tests/completeness.rs::ownerless_occurrences_have_closed_policy_reasons"
   port_note: "triage 2026-10-16: PORT, value low, size S, stream lint-and-reporting"
-  rust_note: "Not ported: no capability table gives each family not drawn a disposition (unsupported, deferred, evidence_only) with a closed reason; the bridge's record-type table (bridge::home) and the planners' kinds (dims::PLANNERS) are two lists. Whether records draftwright leaves undimensioned are reported by the plan or by lint is an open maintainer question (docs/next-session.md, d-dims-split); an angled step is reported by both, as unsupported (maintainer decision 2026-10-09, ISSUE-1247-a)."
+  rust_note: "Plan.feature_dispositions records each undrafted occurrence with informational severity, one of unsupported/deferred/evidence_only and a closed reason enum. The same UNDRAFTED capability table drives completeness exemption and reporting; PLANNERS and actual planned measurements distinguish a supported recess from a remaining port gap. Recognition evidence and refusals retain per-record dispositions too. Countersinks are hole-callout evidence, not a second dimension owner; unsupported-step warnings remain independently visible."
 
 - id: ADR3-9
   statement: "Recognition is geometry-only; PMI lowering may change which feature owns a record but never what was recognised."
@@ -1165,9 +1167,10 @@
     adr: "ADR 5 invariant 16"
     issues: []
     tests: ["test_issue_1460_step_inspection.py"]
-  status: pending
+  status: ported
+  rust_test: "tests/trust_rules.rs::plan_provenance_binds_the_complete_recognition_input"
   port_note: "triage 2026-10-16: PORT, value low, size S, stream lint-and-reporting"
-  rust_note: "Not upheld for the Plan: the Analysis records its source hash, its loader (producer and version) and the recognition it took in full, but the Plan records only the analysis's binding and the spec, so two plans of one STEP file under one spec, made with different --features JSON, agree on source, producer and options yet differ. Owed: the Plan names the recognition it was planned from; the field is a document-schema choice, asked in docs/next-session.md."
+  rust_note: "Plan.analysis_sha256 binds the full deterministic effective Analysis JSON, including its recogniser, frame, features, evidence and PMI, beside the STEP binding and embedded Spec. Same STEP and Spec with different supplied recognition now have different provenance. The optional field preserves reading of legacy plans; no digest is invented for those."
 
 - id: ADR5-17
   statement: "An evidence document states what it cannot say: unclaimed geometry is not a missed feature, and what recognition rejected is reported as unavailable rather than as nothing."
@@ -1285,9 +1288,10 @@
     adr: "archive 0004 'The geometry legibility floor'"
     issues: [489]
     tests: []
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): partial. The automatic search never draws below the legibility floor it reads from the part's smallest opening (src/sheet_fit.rs::min_legible_scale; tests/sheet_fill.rs::automatic_overflow_never_uses_an_illegible_scale), and when no legible complete candidate exists the drawing is kept with a warning naming that floor (layout_recovery_exhausted; tests/sheet_fill.rs::unavailable_legible_scale_is_a_warning). Not ported: a warning when an explicitly pinned scale is below the 10 mm view-legibility floor (a pinned scale is drawn as asked with no legibility finding), and the 0.1 mm render floor as a hard rejection."
+  status: ported
+  rust_note: "Complete drawing planning preserves Python's two explicit-scale floors (the raw single-pass estimate remains diagnostic): refuse a smallest part extent below 0.1 paper mm (or a degenerate extent), and warn legibility_floor_breached below 10 paper mm only when automatic geometric composition offers a legible fit. The requested scale is honoured. This advisory is independent of Rust's automatic opening-based scale floor."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream views-and-layout"
+  rust_test: "tests/views_layout_rules.rs::explicit_scales_warn_below_legibility_and_refuse_degenerate_geometry"
 
 - id: ARCH0004-4
   statement: "Automatic page selection reserves authored table footprints before the flexible isometric and is not a 'smallest page on which lint happens to be clean' optimiser; a caller-forced page that places every requirement is honoured."
@@ -1388,10 +1392,9 @@
     adr: "archive 0009 Amendments 4-5"
     issues: [318, 381]
     tests: ["test_prismatic_central_hole_callout_not_lifted"]
-  status: translated
-  rust_test: "tests/centrelines.rs::callouts_do_not_borrow_hole_centre_strokes"
-  rust_note: "Turned half: coaxial bore callouts kept off the axis by the leader router (src/dims/leaders.rs centrelines::runs_beside/leader_conflict; src/dims/holes.rs skips holes on the turning axis) and checked by lint label_centerline_overlap/leader_centerline_overlap (tests/centrelines.rs::callouts_do_not_borrow_hole_centre_strokes). Prismatic 'view-centre row, not lifted >3 mm' is a hint to Python's strip-row packer, which Rust does not have."
-  rust_rule: "Turned half: coaxial bore callouts kept off the axis by the leader router (src/dims/leaders.rs centrelines::runs_beside/leader_conflict; src/dims/holes.rs skips holes on the turning axis) and checked by lint label_centerline_overlap/leader_centerline_overlap (tests/centrelines.rs::callouts_do_not_borrow_hole_centre_strokes)."
+  status: ported
+  rust_test: "tests/rules_text.rs::prismatic_central_bores_keep_their_row_and_turned_bores_clear_axis_ink; src/dims/interior.rs::tests::a_blocked_centre_row_keeps_safe_interior_alternatives"
+  rust_note: "Rules-text audit, 2026-10-16: Ported in src/dims/interior.rs: a central prismatic bore prefers horizontal rim-normal interior alternatives with its text midpoint within one font height of the view centre. Preference is ranked after all clearance checks; when the centre row is blocked, other safe interior alternatives remain eligible. The existing 64-alternative budget, material/ink/feature/furniture clearance, authored placement and no-drop fallback remain. Turning-profile records or an analytic surface of revolution spanning the transverse envelope exclude the prismatic hint; this also covers plain cylinders that publish no turned_step. Existing centreline/extension clearance pushes round-view coaxial text off-axis. The regression uses Python's through-hole block, axial cylinder and stepped-shaft shapes, two additional block proportions, actual rendered ink crossings and centre-row bounds. Anchoring remains a spacing hint rather than drop immunity; the blocked-row regression fails with a hard row filter and passes with post-clearance ranking."
   port_note: "Keep: planner rule keyed on part classification from Analysis."
 
 - id: ARCH0009-4
@@ -1414,8 +1417,9 @@
     adr: "archive 0009 Amendment 6, note 2026-07-18"
     issues: [346, 636]
     tests: []
-  status: pending
-  rust_note: "Done in substance (rules assessment of 2026-10-11): dims::placement::lanes orders each strip sizes nearest, then locations by distance, the overall extent outermost. Left pending because no test asserts the order."
+  status: ported
+  rust_test: "src/dims/placement.rs::tests::shared_corridor_orders_sizes_then_locations_then_overall"
+  rust_note: "Already true, now pinned: a plate corridor with scrambled input order, a size longer than a near location, three datum distances and an overall extent must have lanes size, near, middle, far, overall. Category precedes length; locations alone sort by datum distance."
   port_note: "triage 2026-10-16: PORT, value medium, size S, stream regression-pins"
 
 - id: ARCH0009-6
@@ -1561,10 +1565,10 @@
     adr: "archive 0014 Decision 'Assign'"
     issues: [516, 901, 125]
     tests: []
-  status: pending
+  status: ported
   port_note: "triage 2026-10-16: PORT, value low, size M, stream tables"
-  rust_test: tests/hole_tables.rs::an_escalated_table_is_whole_on_the_sheet_with_a_balloon_per_row
-  rust_note: "Partly ported (src/hole_table.rs::place_balloons): bands left, right, above and below the plan view beyond its deepest placed annotation and along its reserved area, free stretches carved around what is placed, strip spacing and least-squares spreading near each hole; a balloon that does not land is reported (balloon_dropped). Simplified: each hole goes out of the side of the view nearest it that has a band, its band's members spread in order (not draftwright's min-cost max-flow with perimeter preference); no halo is reserved by the layout; a ring that overlaps another, or a leader crossing a label, another view, the title block, a table or another leader, is retried on every band half a strip step at a time either way, the nearest clear place taken. Leaders crossing other items' lines are not checked."
+  rust_test: "src/hole_table.rs::tests::balloon_band_assignment_maximises_cardinality_before_leader_length; tests/hole_tables.rs::balloon_leaders_do_not_cross_the_drawings_dimension_or_extension_lines; tests/hole_tables.rs::a_table_without_every_balloon_is_withdrawn_whole"
+  rust_note: "Band assignment now uses residual min-cost max-flow: maximum cardinality first, certifying row keys before optional markers, then actual leader distance to the bands, with deterministic ties. Members keep their geometric order and are spread within free-stretch capacity. Perimeter spreading has Python's bounded halo credit, so a remote band cannot win merely to occupy it. Final candidates reject crossings of dimension and extension lines as well as labels, furniture and other balloons. Capacity or routing loss is still balloon_dropped and the table transaction rolls back whole."
 
 - id: ARCH0014-6
   statement: "An optional, not-yet-committed section cannot veto a required leader; the section checks its final cutting-plane ink, makes at most one bounded end-symbol repair, and yields if a conflict remains."
@@ -1624,8 +1628,9 @@
     adr: "archive 0015 Consequences"
     issues: [1086, 1087]
     tests: []
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported. Neither the Spec nor the PMI path carries a gear declaration, and there is no gear data table. Rust quiddity's repeating_radial_profiles are known to the native reader and not read (src/bridge/native.rs); lint's repeating-profile warning (src/lint/profiles.rs) asks for the outer boundary to be defined by hand and never fills a gear record from the repeat, which keeps the rule's second half by construction. The bridge retains raw repeating_radial_profiles evidence, but Spec has no external-spur-gear declaration, validated normative gear requirement record, source-bound gear-table item, or gear/geometry correspondence auditor. These four layers must be implemented together so a detected repetition never invents normative gear data; that is a cross-cutting subsystem exceeding a day, not an ordinary descriptive-table addition."
+  status: ported
+  rust_test: "tests/gears.rs::gear_table_preserves_exact_python_rows_and_exports; tests/gears.rs::repeating_profile_never_invents_gear_semantics"
+  rust_note: "Authored Spec declarations lower to requirements only; native/Python full-wire recognition supplies independent correspondence evidence. Geometry never supplies normative tooth data."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream gears"
 
 - id: ARCH0015-4
@@ -1837,9 +1842,9 @@
     adr: "archive 0018 §4; ADR 2 Open"
     issues: []
     tests: []
-  status: pending
-  rust_test: "tests/sheet_projection.rs::first_angle_swaps_the_views_and_the_symbol"
-  rust_note: "Partial: first- and third-angle planning and projection symbols follow Spec sheet/projection (src/layout.rs::Request::first_angle; tests/sheet_projection.rs::first_angle_swaps_the_views_and_the_symbol). Remaining: authored view relations are validated for anchors and cycles in src/placement_intent.rs, but a relation that contradicts the projection convention is not refused or warned about."
+  status: ported
+  rust_test: "tests/views_layout_rules.rs::principal_relations_cannot_contradict_the_projection; tests/views_layout_rules.rs::indirect_principal_relations_report_projection_infeasibility; tests/views_layout_rules.rs::contradictory_principal_pins_stay_fixed_and_report_infeasibility; tests/sheet_projection.rs::first_angle_swaps_the_views_and_the_symbol"
+  rust_note: "First/third angle fixes principal side and projection-origin alignment. Contradictory front/plan or front/side relations, non-middle alignment, conflicting pins, and diagonal plan/side relations retain the authored intent and report projection_relation_infeasible as an error, preventing a falsely feasible drawing. Diagnostic plans remain inspectable in the editor. Moving front carries its free projection partners. Indirect constraints or pin obstacles that make the arrangement unconventional report projection_relation_infeasible as an error; the constraint is never silently relaxed. Sections and orientation views retain their freedom."
   port_note: "triage 2026-10-16: PORT, value medium, size S, stream views-and-layout"
 
 - id: ARCH0018-2
@@ -2007,7 +2012,7 @@
     tests: ["test_issue_1357_framed_activation.py", "test_issue_1357_pmi_frame.py"]
   status: pending
   port_note: "triage 2026-10-16: PORT, value low, size M, stream regression-pins"
-  rust_note: "Not ported here: quiddity-rust checks its recognisers under rigid motion, but no test plans a moved part and compares the Analysis's features and the plan's views; the port does not use framed recognition."
+  rust_note: "Not ported here: quiddity-rust checks its recognisers under rigid motion, but no test plans a moved part and compares the Analysis's features and the plan's views; the port does not use framed recognition. Full invariance requires a cross-cutting canonical working Part shared by Analysis, projection, stock extents and PMI/frame correlation; it also crosses the separately owned datum/GD&T placement boundary."
 
 - id: ARCH0020-2
   statement: "Each turned body gets its own step chain anchored to its own silhouette: equal lengths on parallel shafts keep separate marks, and if no conflict-free lane exists a chain is dropped with a required-outcome diagnostic rather than drawn over a sibling."
@@ -2017,9 +2022,9 @@
     adr: "archive 0020 §5"
     issues: [354]
     tests: ["test_issue_1357_plural_turned_profiles.py"]
-  status: pending
-  rust_test: "tests/completeness_rules.rs::each_turned_body_has_its_own_chain_on_its_own_silhouette"
-  rust_note: "Stream K5 (src/dims/turned.rs::own_body, src/dims/placement.rs::body_strip): on a part of several turned bodies along one axis each body's chain is its own (one item per band, so equal lengths on parallel shafts keep separate marks), drawn in the profile view that separates its axis line, its witnesses starting at its own silhouette (the outer corner of each shoulder) on the side of the view its body is nearer, in that side's strip, so it never stands on a sibling's outline (draftwright's turned-step-compound.step: before, the left shaft's chain stood beside the right shaft with witnesses from the view's outline). Not ported: a body between two others (its nearer side still has a sibling between it and the strip), a strip that overflows to the other side (fall_through), and draftwright's drop with a required-outcome diagnostic when no conflict-free lane exists (the port draws and reports collisions instead, R1)."
+  status: ported
+  rust_test: "tests/coverage_holes.rs::a_middle_turned_body_uses_its_own_corridor_and_falls_through_to_the_clear_side; tests/completeness_rules.rs::each_turned_body_has_its_own_chain_on_its_own_silhouette"
+  rust_note: "Body-local chains are placed in the corridor beside their own silhouette, including a body between siblings. Both sides are tried against sibling silhouettes and the page. If neither fits, Policy B retains the chain and reports turned_chain_no_clear_lane plus its actual collisions, rather than silently dropping it. Measurement ownership is unchanged."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream dimensioning-coverage"
 
 - id: ARCH0020-3

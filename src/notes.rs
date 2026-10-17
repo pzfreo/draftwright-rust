@@ -48,6 +48,8 @@ pub struct NoteSpec {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PlannedNote {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub from_spec: Vec<String>,
     /// Exact requirements carried by an automatic note, never inferred from its prose.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub measurements: Vec<crate::dims::Measurement>,
@@ -377,6 +379,7 @@ fn plan_with_rows(
                     .map_or_else(|| n.id.clone(), str::to_string)
             });
             PlannedNote {
+                from_spec: Vec::new(),
                 measurements: Vec::new(),
                 id: n.id.clone(),
                 text: n.text.trim().into(),
@@ -444,6 +447,7 @@ pub(crate) fn radius_notes(
             .position(|n| n.id == given.id)
             .unwrap_or_else(|| {
                 notes.push(PlannedNote {
+                    from_spec: Vec::new(),
                     id: given.id.clone(),
                     text: given.text.clone(),
                     number: notes.len() + 1,
@@ -469,6 +473,10 @@ pub(crate) fn radius_notes(
             "a true default states the most frequent equal radius once; other radii need explicit callouts, and exact identities retain coverage authority".into()
         };
         let entry = spec.annotations.get(&n.id);
+        if entry.is_some_and(|a| a.text.is_some()) {
+            n.from_spec = vec!["text".into()];
+            n.basis += "; from_spec: text; original measured terms retained";
+        }
         if spec.dimension_source == crate::model::DimensionSource::Authored && entry.is_none() {
             n.placed = None;
             n.state = State::NotAuthored;

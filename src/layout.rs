@@ -191,7 +191,22 @@ pub struct Strips {
     pub side_step_y: bool,
 }
 
+/// One authored callout column or row, measured in paper mm before view packing.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CalloutBand {
+    pub view: &'static str,
+    pub side: &'static str,
+    pub depth: f64,
+}
+
 impl Strips {
+    pub fn reserve_callouts(&mut self, bands: &[CalloutBand]) {
+        for b in bands {
+            let band = self.band(b.view, b.side);
+            *band = band.max(b.depth);
+        }
+    }
+
     /// The bands of a part with no features to dimension: the overall height to the right of the
     /// front and the base corridor on the left (draftwright's estimate with no steps).
     pub fn without_features() -> Self {
@@ -228,6 +243,8 @@ pub struct Lanes {
     pub recess_lanes: bool,
     /// Minimum readable scale for an existing slot chain beside new recess items.
     pub recess_chain_scale: f64,
+    /// Full text width plus shoulder for an alternate front callout shelf.
+    pub callout_front_left: f64,
     pub front_below: usize,
     pub front_right: usize,
     pub plate_front_left: usize,
@@ -243,6 +260,9 @@ pub struct Lanes {
     pub plate_side_left_lanes: usize,
     pub plan_above: usize,
     pub plan_left: usize,
+    /// Authored lanes that must be offered before settling; source corridors are
+    /// measured from their settled routes by sheet_fit::reserve_linear_corridors.
+    pub authored_plan_left: usize,
     pub side_below: usize,
     pub side_above: usize,
     pub side_right: usize,
@@ -265,30 +285,10 @@ pub fn lane_band(lanes: usize) -> f64 {
 }
 
 impl Strips {
-    /// Reserves the bands between neighbouring views for the port's own dimension lanes (review
-    /// M3): each is at least [`lane_band`] of the lanes stacked in it, so no ladder runs past its
-    /// band across the next view.
-    ///
-    /// - The side's bands: draftwright reserves them only for its own side-view schemes (axial
-    ///   boss heights, seat offsets, through-step legs), none of which the port plans, so without
-    ///   this the side had no band at all.
-    /// - The band right of the front and the plan (their column's one right band, `geometry`, as
-    ///   in draftwright), between them and the side: the front's height ladder ran on past
-    ///   draftwright's estimate across the side view (ftc09, ftc10, cgb245; drawing quality,
-    ///   2026-10-09). Its lanes hold linear dimensions alone, as callouts never stack right.
-    ///
-    /// The bands that face open paper stay draftwright's estimates: below the front (beyond the
-    /// side's lanes, which it shares), above and left of the plan. Reserving the port's lanes
-    /// there too moves most sheet and scale choices away from draftwright's
-    /// (`docs/quality-2026-10-09.md`, "After the three quality merges and lane reservation":
-    /// cgb245 from 1:2 to 1:5, ftc08 from 1:2 to 1:5, ctc01 to 1:10), because the port's lanes
-    /// count callouts, which take no lane, and every rung, and stack outward 7 mm apart where
-    /// draftwright's solver runs on to the sheet's margin; so it waits for the maintainer, and
-    /// their ink past their bands is reported (`annotation_outside_area`).
-    ///
-    /// The front and the side share a row whose height is set from the front's lower band
-    /// (`geometry`, as in draftwright), so the front's lower band is also at least the side's: a
-    /// deeper band below the side alone would hang below the row.
+    /// Reserve authored lanes and the estimate's shared corridors. Every source
+    /// linear's settled footprint is reserved by sheet_fit::reserve_linear_corridors
+    /// during final composition, retaining the routed side instead of estimating a
+    /// different side and forcing its witnesses back across the part.
     pub fn reserve(&mut self, lanes: &Lanes) {
         let widen = |band: &mut f64, n: usize| *band = band.max(lane_band(n));
         let column = lanes.recess_callouts[0].max(lanes.recess_callouts[1]);
@@ -302,7 +302,11 @@ impl Strips {
             self.pv_authored_top = self.pv_authored_top.max(lane_band(lanes.plan_above));
         }
         widen(&mut self.right, lanes.front_right);
-        widen(&mut self.left, lanes.plate_front_left);
+        self.left = self.left.max(lanes.callout_front_left);
+        widen(
+            &mut self.left,
+            lanes.plate_front_left.max(lanes.authored_plan_left),
+        );
         // Short thickness spans use outside arrows and text. Reserve their ink
         // past the adjacent corner as well as the carrying strip's lanes.
         self.fv_top = self.fv_top.max(lanes.plate_front_top);
@@ -639,6 +643,8 @@ pub struct Request {
     /// The part's extents along x, y and z, mm.
     pub size: [f64; 3],
     pub strips: Strips,
+    /// Exact aligned-dimension ink, measured separately at each candidate scale.
+    pub aligned: Vec<crate::dims::AlignedDemand>,
     /// The number of section views beside the side view.
     pub sections: usize,
     /// Keep the section aligned when view-dependent annotation corridors are reserved.
@@ -668,6 +674,7 @@ impl Request {
             candidate_arrangement: None,
             size,
             strips: Strips::without_features(),
+            aligned: Vec::new(),
             sections: 0,
             section_row_fixed: false,
             table_sizes: Vec::new(),
@@ -810,6 +817,9 @@ fn geometry_with(
 ) -> Geometry {
     let [x_size, y_size, z_size] = req.size;
     let mut strips = req.strips.clone();
+    for aligned in &req.aligned {
+        aligned.reserve(&mut strips, scale);
+    }
     // The Y-hole leader band is spent only when a derived view could claim it.
     if !scaled.derived.is_empty() && strips.front_hole_below > strips.fv_bottom {
         strips.fv_bottom = strips.front_hole_below;

@@ -4,7 +4,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follow
 [Semantic Versioning](https://semver.org/).
 
-## 0.1.0-alpha.3 (2026-10-16)
+## Unreleased
+
+### Added
 
 - Read native recognition/3 unified section recesses, source refusals, face levels
   and risers. The default path now uses the existing pocket/channel/blind-slot/
@@ -13,8 +15,98 @@ All notable changes to draftwright-rust are recorded here, in the style of
   and size/depth callouts, pitch and absolute locations, independent coverage
   outcomes, and four retained radius requirements per rounded pocket. Five pending
   recess-reader rules and four formerly bridge-only rules have native regressions.
-  See docs/native-recesses.md for the required quiddity release/pin migration.
+  The kernel is pinned to recognition/3 merge `0fdf5dcbdf4cf675e1b7f690b349069704e77a82`.
+  See docs/native-recesses.md for reader and drafting details.
 
+- Spec label wording under `dimensions/<id>/text` and prose `annotations/<id>/text`:
+  prefix/suffix or one `{value}` template retain every generated measured term. Explicit
+  dimension `style: reference | basic` draws parentheses or a box. Full ink drives placement;
+  plans expose the overrides and lint still reads live measured text (#76, item 5).
+- Session/editor text and style options use existing Spec operations, preview and history;
+  saved Specs round-trip and stale/merged label IDs are refused with a correction.
+  Large MCP option replies retain full structured data and a lossless text-channel resource.
+- Recognition corrections in the Spec (#76 item 2): reclassify supported cylindrical and
+  rectangular features, group holes as a linear/grid/bolt-circle pattern, split recognised
+  patterns, suppress spurious recognitions, and declare missed features from face fingerprints.
+  Geometry supplies every size; saved face anchors and authored IDs survive re-analysis.
+  Corrections share ordinary dimensions, schedules and independent lint, with `from_spec`
+  provenance, transactional editor operations and MCP schemas inside the existing byte budget.
+- Geometry-authored dimensions (`dimensions/d:authored:<name>`): principal or true distances,
+  cylindrical/spherical diameters and radii, and planar-face/straight-edge angles, with stable
+  fingerprint references, ordinary tolerance/placement, editor/session operations and independent
+  geometry lint (#76 item 1). Duplicate drawn quantities are refused with their existing owner.
+- Spec line-work switches per view and drawing-wide sheet defaults: hidden lines,
+  centre marks, centre lines, thread depiction and knurl depiction (#76 item 6).
+  Session options/edits support them; effective paths are reported in view `from_spec`.
+
+### Fixed
+
+- Keep geometry-authored angle arcs local to their support intersection and place aligned
+  dimensions at a clear parallel offset, moving unpinned linear dimensions out of their way
+  before escalating the sheet.
+
+### WASM API
+
+- Additive recognition-correction Spec fields and Plan provenance use the shared native
+  session model; binding methods and TypeScript signatures are unchanged.
+
+- Establish the reviewed TypeScript API snapshot and changelog gate, a measured WASM size
+  ceiling, and warning-only cross-package quiddity pin checks in CI and release notes.
+- Additive Spec line-work switches and optional Plan view `line_style`/`from_spec`
+  fields, shared with native sessions; no binding method changes.
+- Additive Spec text/style fields and annotation/note `from_spec` JSON provenance
+  through the existing session methods; no new JavaScript methods or signatures.
+- Spec JSON accepts authored dimension fields; Analysis/7 exposes optional exact
+  dimension-reference evidence. Engine method signatures are unchanged.
+
+## 0.1.0-alpha.4 (2026-10-16)
+
+### Added
+
+- Browser `draftwright-wasm` workspace crate, moving the editor's live-session wrapper here
+  (#69, #66). JSON-string operations and errors, SVG/PDF bytes, bundled fonts and panic hook;
+  byte-based analysis and native-only adapter gates keep the browser independent of files.
+- Dedicated `wasm-release` profile, Node/native session parity CI, and a published-release
+  workflow attaching the web package and SHA-256 checksum. See `docs/wasm.md` for builds,
+  package sizes and switching the editor to a pinned release asset.
+- Spec-authored external spur gears, with an ISO 1328 gear data table, validated anchors
+  and gear coverage and reconciliation lint; gears are declared, not recognised (#67).
+
+### Changed
+
+- Small parts try a measured single A4/A3 sheet, then a second A4/A3 sheet, before larger
+  paper; second-sheet views are centred and section references name the right zones (#63).
+- ISO 286 fit callouts show the class alone by default; `sheet/fit_deviations: true` draws
+  stacked upper and lower deviations after the class (#72).
+
+### Fixed
+
+- Datum placement skips searches that cannot improve the result, restoring planning cost;
+  planar datum extensions require the face to end within 1 mm of the view outline (#61).
+- Pinned labels obey the shared-line guard, omitted authored-set callouts report a restoring
+  fix, dimension edits cannot add extension crossings through the part, and thread inference
+  requires a positive designation (#62).
+- Schedule cells verify tolerance, precision and THRU evidence; manufacturing references
+  require complete source-matched ink, and a retained leader crossing rolls back the whole
+  table. Damaged cells lose evidence and descriptive tables cannot replace measurements (#64).
+- Opposed coaxial taps retain their authored callout sides and GRM-04 retains its small-hole
+  callout; plan provenance binds the full recognition input, ownerless occurrences state
+  closed policy reasons, and assembly severity reaches every feature coverage family (#65).
+- Prismatic bore labels keep their view row and turned bore labels clear the axis; lint
+  checks overlaps and manufacturing source text, and finish values respect declared precision
+  and multi-word parameters (#68).
+- Middle turned bodies use their own corridors; prismatic shoulders need truthful evidence,
+  omitted separating views report a restoring fix, double-D callouts preserve their roles,
+  countersink seats stay independent, and hole-pattern counts and balloon allocation are
+  checked (#70).
+- Finish leaders stay on their source faces, oblique PMI uses its exact projected span,
+  envelope bands and extent fits reach the ink, and requested precision reaches dimension
+  chains and locations. Invalid or conflicting precision is refused; structured notes cover
+  only their placed owner's explicit roles (#71).
+- Full fit-label ink drives reservation and placement; dimension lines and arrowheads are
+  obstacles, final settlement includes callouts, and lint counts linear arrow flares (#72).
+
+## 0.1.0-alpha.3 (2026-10-16)
 
 ### Added
 

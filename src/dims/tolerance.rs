@@ -10,8 +10,7 @@
 //! - **A fit** is set on a hole or a cylindrical boss (`features/<id>/fit`): an ISO 286 class
 //!   from draftwright's table (`fits.py`: holes H, G, F; shafts h, g, f, js, k, n, p; grades 5 to
 //!   11; nominal sizes up to 250 mm). It is printed after the diameter of the callout that states
-//!   the feature's size, as the class and its limits (`⌀8.1 H7 (+0.015/0) THRU`), or the class
-//!   alone when the sheet hides fit limits (`sheet/fit_limits: false`, draftwright's form).
+//!   the feature's size, as the class alone (`⌀8.1 H7 THRU`) by default; `sheet/fit_deviations: true` adds stacked deviations.
 //!
 //! A band is withheld, and the plan says so, when the sheet cannot state it truthfully:
 //! - **a band of nothing** (ARCH0019-2): with the authored digits kept, only a band whose every
@@ -193,20 +192,19 @@ pub(super) fn deviations(code: &str, nominal: f64) -> Option<(f64, f64)> {
     Some((f64::from(lo) / 1000.0, f64::from(hi) / 1000.0))
 }
 
-/// A class with its limits, as the sheet prints it when they are shown: `H7 (+0.015/0)`.
+/// A class with its stacked deviations, encoded upper then lower with a newline.
 pub(super) fn with_limits(code: &str, (lower, upper): (f64, f64)) -> String {
     format!("{code} {}", limits_term((lower, upper)))
 }
 
-/// The limits alone: `(+0.015/0)`.
+/// The stacked deviations alone, encoded upper then lower with a newline.
 pub(super) fn limits_term((lower, upper): (f64, f64)) -> String {
-    format!("({}/{})", deviation(upper), deviation(lower))
+    format!("{}\n{}", deviation(upper), deviation(lower))
 }
 
-/// Whether the sheet shows a fit's limits beside its class (`sheet/fit_limits`, shown unless the
-/// spec says false).
+/// Whether the sheet requests stacked fit deviations (off by default).
 pub(super) fn limits_shown(spec: &Spec) -> bool {
-    spec.sheet.fit_limits != Some(false)
+    spec.sheet.fit_deviations.or(spec.sheet.fit_limits) == Some(true)
 }
 
 /// A limit deviation as a fit prints it (draftwright's `fits._fmt_dev`): signed, to the µm
@@ -222,7 +220,33 @@ pub(super) fn deviation(v: f64) -> String {
 /// Checks every tolerance and fit the spec authors reads as one: the form, never the part (that
 /// is [`apply`]'s). A refusal names the entry.
 pub(crate) fn check(spec: &Spec) -> Result<(), Invalid> {
+    if let Some(t) = &spec.envelope_tolerance {
+        tolerance(t).map_err(|why| Invalid {
+            message: format!("The envelope tolerance cannot be read: {why}."),
+            choices: FORMS.map(String::from).to_vec(),
+        })?;
+    }
     for (id, entry) in &spec.dimensions {
+        if let Some(code) = &entry.fit {
+            fit(code).map_err(|why| Invalid {
+                message: why,
+                choices: vec![],
+            })?;
+            let authored_size = id.starts_with("d:authored:")
+                && entry.between.is_some()
+                && matches!(
+                    entry.kind.as_deref().unwrap_or("linear"),
+                    "linear" | "diameter"
+                );
+            if (!id.starts_with("d:envelope/") && !authored_size) || entry.tolerance.is_some() {
+                return Err(Invalid {
+                    message: format!(
+                        "The fit of {id} belongs to an overall extent or an authored linear size/diameter with no explicit tolerance."
+                    ),
+                    choices: vec![],
+                });
+            }
+        }
         if let Some(t) = &entry.tolerance {
             tolerance(t).map_err(|why| Invalid {
                 message: format!("The tolerance of {id:?} cannot be read: {why}."),
@@ -392,7 +416,16 @@ pub(super) fn apply(
                 stated.insert(*k);
             }
         }
-        let authored = spec.dimensions.get(&w.id).and_then(|e| e.tolerance.clone());
+        let extent_fit = spec.dimensions.get(&w.id).and_then(|e| e.fit.as_deref());
+        let authored = spec
+            .dimensions
+            .get(&w.id)
+            .and_then(|e| e.tolerance.clone())
+            .or_else(|| {
+                (w.id.starts_with("d:envelope/") && extent_fit.is_none())
+                    .then(|| spec.envelope_tolerance.clone())
+                    .flatten()
+            });
         if authored.is_some() && member_fits.iter().any(Option::is_some) {
             let fitted: Vec<&str> = members
                 .iter()
@@ -410,7 +443,21 @@ pub(super) fn apply(
                 choices: vec![],
             });
         }
-        let band = if let Some(t) = authored {
+        let band = if let Some(code) = extent_fit {
+            let limits = deviations(code, w.value).ok_or_else(|| Invalid {
+                message: format!(
+                    "The fit {code} of {} is outside the ISO 286 table at {} mm.",
+                    w.id, w.value
+                ),
+                choices: vec![],
+            })?;
+            given.push("fit".into());
+            Some(if limits_shown(spec) {
+                with_limits(code, limits)
+            } else {
+                code.into()
+            })
+        } else if let Some(t) = authored {
             let (text, nothing) = tolerance(&t).expect("checked");
             if nothing {
                 problems.push(Problem {
@@ -550,6 +597,18 @@ pub(super) fn apply(
 /// members' `fit`, and whether that is printed (a band of nothing, or a fit the members do not
 /// all share, is withheld). None when the spec gives it neither.
 pub(super) fn authored(spec: &Spec, w: &Want) -> Option<(&'static str, bool)> {
+    if spec.dimensions.get(&w.id).is_some_and(|e| e.fit.is_some()) {
+        return Some(("fit", true));
+    }
+    if w.id.starts_with("d:envelope/")
+        && spec
+            .dimensions
+            .get(&w.id)
+            .is_none_or(|e| e.tolerance.is_none())
+        && let Some(t) = &spec.envelope_tolerance
+    {
+        return Some(("tolerance", tolerance(t).is_ok_and(|(_, nothing)| !nothing)));
+    }
     if let Some(t) = spec
         .dimensions
         .get(&w.id)

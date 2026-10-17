@@ -138,7 +138,7 @@ fn options_explain_sheet_and_bare_view_keys() {
         );
     }
     let sheet = call(&cache, "item_options", query(&summary, "sheet"));
-    for field in ["size", "scale", "title", "fit_limits"] {
+    for field in ["size", "scale", "title", "fit_limits", "fit_deviations"] {
         assert!(sheet["settable"].get(format!("sheet/{field}")).is_some());
     }
     assert!(
@@ -184,25 +184,34 @@ fn refusals_give_valid_choices_and_an_executable_corrected_op() {
 #[test]
 fn one_feature_problem_query_returns_all_member_fixes() {
     let (cache, summary) = open("feature-problems", "ctc01");
+    // Use authored bad pins to exercise member fixes. The two historical
+    // corridor overruns are correctly eliminated by ISSUE-563-b.
+    let edited = call(
+        &cache,
+        "apply_ops",
+        json!({"part_ref":summary["part_ref"], "parent":summary["spec_version"], "ops":[
+            {"op":"set", "path":"dimensions/d:f:slot:1~1slot_length.length/place", "value":{"side":"below", "lane":99, "pinned":true}},
+            {"op":"set", "path":"dimensions/d:f:slot:1~1slot_width.length/place", "value":{"side":"left", "lane":99, "pinned":true}}
+        ]}),
+    );
+    let version = &edited["spec_version"];
     let result = call(
         &cache,
         "list_problems",
-        json!({"part_ref":summary["part_ref"],"spec_version":summary["spec_version"],"filter":{"feature":"f:slot:1"}}),
+        json!({"part_ref":summary["part_ref"],"spec_version":version,"filter":{"feature":"f:slot:1"}}),
     );
     let problems = result["items"].as_array().unwrap();
-    assert_eq!(problems.len(), 3);
     assert_eq!(
         problems
             .iter()
-            .filter(|p| p["code"] == "extension_through_feature")
+            .filter(|p| p["code"] == "annotation_off_sheet")
             .count(),
-        1
+        2
     );
     assert!(
         problems
             .iter()
-            .filter(|p| p["code"] == "extension_through_feature")
-            .all(|p| p["fix"].as_array().is_none_or(Vec::is_empty))
+            .all(|p| p["code"] != "annotation_outside_area")
     );
     assert_eq!(result["next_cursor"], Value::Null);
     let mut ops = Vec::new();
@@ -220,7 +229,7 @@ fn one_feature_problem_query_returns_all_member_fixes() {
     let preview = call(
         &cache,
         "preview_ops",
-        json!({"part_ref":summary["part_ref"],"spec_version":summary["spec_version"],"ops":ops}),
+        json!({"part_ref":summary["part_ref"],"spec_version":version,"ops":ops}),
     );
     let delta: Value = serde_json::from_slice(
         &cache
@@ -228,7 +237,7 @@ fn one_feature_problem_query_returns_all_member_fixes() {
             .unwrap(),
     )
     .unwrap();
-    assert_eq!(delta["problems_resolved"].as_array().unwrap().len(), 2);
+    assert_eq!(delta["problems_resolved"].as_array().unwrap().len(), 4);
     for p in problems
         .iter()
         .filter(|p| p["code"] != "extension_through_feature")
@@ -258,7 +267,13 @@ fn inspection_batches_a_filtered_problem_page_with_registration() {
         json!({"part_ref":summary["part_ref"],"spec_version":summary["spec_version"],"filter":{"feature":"f:slot:1"}}),
     );
     assert_eq!(result["problem_page"], problems);
-    assert_eq!(result["problem_page"]["items"].as_array().unwrap().len(), 3);
+    let actual = result["problem_page"]["items"].as_array().unwrap();
+    assert_eq!(actual.len(), 1);
+    assert!(
+        actual
+            .iter()
+            .all(|p| p["code"] == "extension_through_feature")
+    );
     let all = call(
         &cache,
         "inspect_part",
@@ -392,5 +407,79 @@ fn compact_nullable_schema_types_keep_validation_strict() {
         mcp::validate(&schema, &accepted).unwrap();
         mcp::validate(&schema, &Value::Null).unwrap();
         assert!(mcp::validate(&schema, &refused).is_err());
+    }
+}
+
+#[test]
+fn compact_prefix_suffix_choices_and_authored_dimension_outputs_stay_strict() {
+    let input = mcp::schema("inspect_part", false).unwrap();
+    for name in [
+        "fit_limits",
+        "fit_deviations",
+        "centre_marks",
+        "centre_lines",
+        "thread_depiction",
+        "knurl_depiction",
+    ] {
+        for value in [json!(true), json!(false), Value::Null] {
+            mcp::validate(
+                &input,
+                &json!({"part_ref":"part","spec":{"sheet":{name:value}}}),
+            )
+            .unwrap();
+        }
+        for bad_name in [format!("{name}\n"), format!("{name}_extra")] {
+            assert!(
+                mcp::validate(
+                    &input,
+                    &json!({"part_ref":"part","spec":{"sheet":{bad_name:true}}})
+                )
+                .is_err()
+            );
+        }
+        assert!(
+            mcp::validate(
+                &input,
+                &json!({"part_ref":"part","spec":{"sheet":{name:"yes"}}})
+            )
+            .is_err()
+        );
+    }
+    for name in [
+        "thread_lines",
+        "knurl_marks",
+        "centre_depiction",
+        "_depiction",
+    ] {
+        assert!(
+            mcp::validate(
+                &input,
+                &json!({"part_ref":"part","spec":{"sheet":{name:true}}})
+            )
+            .is_err()
+        );
+    }
+    let output = mcp::schema("get_spec", true).unwrap();
+    let result = |dimension| {
+        json!({"spec_version":"v","spec":{
+            "dimensions":{"d:authored:test":dimension},
+            "feature_declarations":[{"id":"f:declared:test","kind":"hole","faces":[]}]
+        }})
+    };
+    mcp::validate(
+        &output,
+        &result(json!({"kind":"linear","between":["a","b"],"along":"true"})),
+    )
+    .unwrap();
+    for dimension in [
+        json!([]),
+        Value::Null,
+        json!({"kind":"bad"}),
+        json!({"between":[]}),
+        json!({"between":["a","b","c"]}),
+        json!({"between":[1]}),
+        json!({"along":"bad"}),
+    ] {
+        assert!(mcp::validate(&output, &result(dimension)).is_err());
     }
 }

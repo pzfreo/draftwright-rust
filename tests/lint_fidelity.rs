@@ -66,6 +66,8 @@ fn sheet(scale: f64, edges: Vec<Curve>, items: Vec<(Drawn, &str)>) -> Drawing {
         text,
         annotations,
         sheet: Sheet {
+            label_text: Default::default(),
+            precision: Default::default(),
             references: Vec::new(),
             drawable: Some([10.0, 10.0, 410.0, 287.0]),
             views: vec![DrawnView {
@@ -125,6 +127,7 @@ fn dimension(
             .chain([[label[0], label[1]], [label[2], label[3]]]),
     );
     Drawn {
+        heads: Vec::new(),
         name: name.into(),
         kind,
         ink,
@@ -373,6 +376,23 @@ fn an_angles_rays_are_the_corners_physical_edges() {
     );
 }
 
+#[test]
+fn both_angular_supports_can_extend_through_their_common_corner() {
+    for degrees in [60.0, 120.0] {
+        let edges = vec![
+            Curve::Line(VERTEX, polar(60.0, 0.0)),
+            Curve::Line(VERTEX, polar(60.0, degrees)),
+        ];
+        let label = format!("{degrees}");
+        let issues = structural::check(&sheet(
+            1.0,
+            edges,
+            vec![(angle(180.0, 180.0 + degrees, 20.0), &label)],
+        ));
+        assert!(fidelity(&issues).is_empty(), "{issues:?}");
+    }
+}
+
 /// A datum feature symbol below its surface at y 100: its triangle's base on the surface, its
 /// shaft down *reach* mm from the triangle's apex to its 6 mm frame.
 fn datum(reach: f64) -> Drawn {
@@ -380,6 +400,7 @@ fn datum(reach: f64) -> Drawn {
     let near = [120.0, 95.6 - reach];
     let ink = [114.0, near[1] - 6.0, 126.0, 100.0];
     Drawn {
+        heads: Vec::new(),
         name: "pmi:datum.datum:f3:t=A".into(),
         kind: Kind::Gdt,
         ink,
