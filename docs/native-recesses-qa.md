@@ -1,5 +1,10 @@
 # Native section recess verification
 
+> Historical report of the initial native branch. The layout repair, attribution
+> table and subsequent verification are recorded in
+> [native-recess-layout-review.md](native-recess-layout-review.md). The results
+> below are retained as the before evidence.
+
 Implementation source: `aab5f8a8113283c75e8e9f3028eef4468d2e52a7`. Quiddity source:
 `1b171f4d678966945193047f871988295a2667c1`, document
 `quiddity-rust/recognition/3`. The dependency pins remain `v0.1.0-alpha.4`;

@@ -56,5 +56,7 @@ this drawing reader are `oriented_chamfers`, `circular_face_patterns`,
 `repeating_radial_profiles`, and `freeform_surfaces`. Their per-part records remain
 reported; this change does not imply drafting grammars for them.
 
-Verification and the remaining merge blockers are recorded in
-[native-recesses-qa.md](native-recesses-qa.md).
+The initial verification is retained in [native-recesses-qa.md](native-recesses-qa.md).
+The fourteen-part attribution, layout repair, final checks and render comparisons
+are recorded in [native-recess-layout-review.md](native-recess-layout-review.md).
+The upstream publication and dependency-pin prerequisite above still applies.
