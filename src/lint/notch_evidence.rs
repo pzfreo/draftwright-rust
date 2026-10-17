@@ -95,6 +95,76 @@ pub(crate) fn pmi_angles(a: &Analysis, n: &Notch) -> Vec<String> {
         .collect()
 }
 
+/// An existing unequal-bevel callout may already state the notch's depth as its
+/// first support leg. Require its physical flank face, mouth-end virtual corner,
+/// normal run, both true legs and half-angle. Provider legs/corners have three
+/// decimal places and angles two; these bounds account only for that publication.
+pub(crate) fn bevel_depths(a: &Analysis, n: &Notch) -> Vec<String> {
+    let frame = crate::bridge::holes::frame(a);
+    let principal = |v: [f64; 3], k: usize| unit(v).is_some_and(|u| u[k].abs() > 1.0 - 1e-6);
+    a.features
+        .iter()
+        .filter_map(|f| {
+            if !matches!(f.kind.as_str(), "chamfer" | "oriented_chamfer")
+                || f.faces.is_empty()
+                || !f.faces.iter().all(|i| n.faces.contains(i))
+                || f.parameters
+                    .get("turned")
+                    .and_then(serde_json::Value::as_bool)
+                    == Some(true)
+            {
+                return None;
+            }
+            let p = &f.parameters;
+            let (l1, l2, angle) = (
+                super::parameters::size(f, "leg1").ok()?,
+                super::parameters::size(f, "leg2").ok()?,
+                super::parameters::size(f, "angle").ok()?,
+            );
+            if ![l1, l2, angle].iter().all(|v| v.is_finite() && *v > 0.0) {
+                return None;
+            }
+            if super::chamfers::equal_45(l1, l2, angle) {
+                return None;
+            }
+            let oriented = f.kind == "oriented_chamfer";
+            let run =
+                super::parameters::direction(&frame, p.get(if oriented { "run" } else { "axis" }))?;
+            if !principal(run, n.axis) {
+                return None;
+            }
+            if oriented {
+                super::oriented_chamfers::read(a, f).ok()?;
+                if !principal(
+                    super::parameters::direction(&frame, p.get("leg1_direction"))?,
+                    n.depth_axis,
+                ) || !principal(
+                    super::parameters::direction(&frame, p.get("leg2_direction"))?,
+                    n.width_axis,
+                ) {
+                    return None;
+                }
+            } else if ![n.depth_axis, n.width_axis]
+                .iter()
+                .all(|&k| frame[1..].iter().any(|&v| principal(v, k)))
+            {
+                return None;
+            }
+            let corner = super::parameters::place(&frame, p.get("corner"))?;
+            let mouth = [n.angle.first, n.angle.second].into_iter().find(|c| {
+                [n.depth_axis, n.width_axis]
+                    .iter()
+                    .all(|&k| (c[k] - corner[k]).abs() <= 0.00050001)
+            })?;
+            let other_leg = (n.angle.vertex[n.width_axis] - mouth[n.width_axis]).abs();
+            ((l1 - n.depth()).abs() <= 0.00050001
+                && (l2 - other_leg).abs() <= 0.00050001
+                && (angle - n.angle.degrees() / 2.0).abs() <= 0.00500001)
+                .then(|| f.id.clone())
+        })
+        .collect()
+}
+
 fn line(s: &Support) -> Option<[[f64; 3]; 2]> {
     if let Support::Line { start, end } = s {
         Some([*start, *end])

@@ -3096,6 +3096,7 @@ fn share_pmi(
         i += 1;
         !gone.contains(&(i - 1))
     });
+    notches::share_bevel_depths(analysis, kept, given, omitted);
 }
 
 /// Draws the planned dimensions: lines, arrowheads and labels into *items* (the dims layer), and

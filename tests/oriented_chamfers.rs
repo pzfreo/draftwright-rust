@@ -588,3 +588,64 @@ fn source_pmi_owns_a_notch_angle_at_another_normal_section_without_duplicate_ink
             .all(|d| d.id.contains("/notch.angle."))
     );
 }
+
+#[test]
+fn an_existing_physical_bevel_leg_owns_the_same_notch_depth_once() {
+    let (part, a) =
+        model::analyse_native(&corpus::dir().unwrap().join("mfcadpp/10020.step")).unwrap();
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let depth = p
+        .dimensions
+        .iter()
+        .find(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.parameter == "notch_depth.length")
+        })
+        .unwrap();
+    assert_eq!(depth.id, "d:f:chamfer:1/chamfer.length");
+    assert_eq!(depth.label, "10.6 × 10.6°");
+    assert!(
+        p.dimensions
+            .iter()
+            .all(|d| !d.id.contains("/notch_depth.length.")),
+        "the already stated physical first leg does not get another depth dimension"
+    );
+    assert!(
+        p.omitted
+            .iter()
+            .any(|d| d.id.contains("/notch_depth.length.")
+                && matches!(&d.state, State::Covered { by } if by == &depth.id))
+    );
+    let drawing = model::render(
+        &part,
+        &a,
+        &p,
+        &draftwright::text::Font::new(api::MONO.to_vec()).unwrap(),
+    )
+    .unwrap();
+    let mut marks = lint::marks(&drawing);
+    assert!(
+        !lint::check(&a, &marks)
+            .iter()
+            .any(|i| i.code.starts_with("notch_requirement_"))
+    );
+    marks.iter_mut().find(|m| m.name == depth.id).unwrap().text = "999 × 10.6° ±10.6".into();
+    assert!(
+        lint::check(&a, &marks)
+            .iter()
+            .any(|i| i.code == "notch_requirement_unverifiable"
+                && i.annotation.as_deref() == Some(depth.id.as_str()))
+    );
+    let q = model::plan_recovered(
+        &a,
+        &parse(json!({"dimensions":{(depth.id.clone()):{"omit":true}}})),
+    )
+    .unwrap();
+    assert!(
+        q.dimensions
+            .iter()
+            .any(|d| d.id.contains("/notch_depth.length.")),
+        "with the original callout hidden the explicit notch depth returns"
+    );
+}

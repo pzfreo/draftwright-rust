@@ -176,3 +176,72 @@ pub(super) fn share_pmi(
         keep
     });
 }
+
+/// Reuse an already printed first bevel leg instead of adding the same depth line.
+pub(super) fn share_bevel_depths(
+    analysis: &crate::model::Analysis,
+    kept: &mut Vec<(Want, bool, Option<&'static str>, Vec<&'static str>)>,
+    given: &mut Vec<Vec<String>>,
+    omitted: &mut Vec<super::Omitted>,
+) {
+    let mut gone = std::collections::BTreeSet::new();
+    for n in crate::notches::requirements(analysis) {
+        let alias = id(&n.id, "notch_depth.length");
+        // A source PMI interval or another truthful owner has first claim.
+        if kept.iter().any(|(w, ..)| {
+            w.id != alias
+                && w.measurements
+                    .iter()
+                    .any(|m| m.feature == n.id && m.parameter == "notch_depth.length")
+        }) {
+            continue;
+        }
+        let sources = crate::lint::notch_evidence::bevel_depths(analysis, &n);
+        let Some(p) = kept.iter().position(|(w, _, view, _)| {
+            *view == Some(end_on(n.axis))
+                && w.measurements.iter().any(|m| {
+                    sources.contains(&m.feature)
+                        && matches!(
+                            m.parameter.as_str(),
+                            "chamfer.length" | "oriented_chamfer.length"
+                        )
+                })
+        }) else {
+            continue;
+        };
+        kept[p].0.measurements.push(Measurement {
+            feature: n.id.clone(),
+            parameter: "notch_depth.length".into(),
+            value: n.depth(),
+        });
+        kept[p].0.basis += "; its first support leg also states the bounded V-notch depth";
+        let Some(i) = kept
+            .iter()
+            .position(|(w, default, view, _)| *default && *view == kept[p].2 && w.id == alias)
+        else {
+            continue;
+        };
+        if !given[i].is_empty() {
+            continue;
+        }
+        let owner = kept[p].0.id.clone();
+        omitted.push(super::Omitted {
+            id: alias, label: kept[i].0.terms.join(" "),
+            basis: format!("conveyed by {owner}: the existing bevel first leg spans this same physical notch depth"),
+            state: crate::items::State::Covered { by: owner },
+        });
+        gone.insert(i);
+    }
+    let mut i = 0;
+    kept.retain(|_| {
+        let keep = !gone.contains(&i);
+        i += 1;
+        keep
+    });
+    let mut i = 0;
+    given.retain(|_| {
+        let keep = !gone.contains(&i);
+        i += 1;
+        keep
+    });
+}

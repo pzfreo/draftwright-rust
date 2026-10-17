@@ -16,7 +16,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
   and printed scheme links. Reserve acute-notch arcs before layout; bevel run midpoints do
   not introduce artificial automatic datum stations. Existing PMI angles on the same
   physical flank faces own the notch angle across normal-section heights, retaining their
-  tolerance and implicit degree notation without a duplicate automatic arc.
+  tolerance and implicit degree notation without a duplicate automatic arc. An existing
+  bevel first leg owns a matching physical notch depth, keeping its callout without an
+  extra depth line.
 
 - Authored detail `from` selects an existing principal or section parent; `around` accepts
   a feature/face ID or a nonempty list whose crops are united. Missing members and

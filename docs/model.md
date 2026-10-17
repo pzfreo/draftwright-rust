@@ -1110,6 +1110,10 @@ basis, placed, reference?, determined_by?}`:
   duplicate automatic `60°`. Its PMI ID and tolerance remain, with both claims.
   Independent lint remeasures the source supports before accepting PMI's implicit
   degree notation; removing the typed source claim or changing the nominal loses credit.
+  A bevel's already printed first leg can also own depth when the exact flank face,
+  mouth-end virtual corner, principal run, both legs and half-angle agree within the
+  provider's published precision. On 10020, `10.6 × 10.6°` retains that size instead
+  of adding a duplicate depth line; CTC-01's unrelated C50 stays independent.
   Dimension schemes may own mouth stations. Lint re-reads the provider supports and rejects
   wrong nominal angle, depth and location claims, without taking tolerance digits as proof.
 
