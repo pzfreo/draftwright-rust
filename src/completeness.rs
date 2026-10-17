@@ -103,6 +103,18 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
         .filter(|d| d.placed.is_some() || matches!(d.state, State::Covered { .. }))
         .flat_map(|d| d.measurements.iter().map(|m| m.feature.as_str()))
         .collect();
+    stated.extend(
+        plan.spec
+            .features
+            .iter()
+            .filter(|(id, f)| {
+                !f.note_satisfies.is_empty()
+                    && plan.gdt.iter().any(|g| {
+                        g.placed.is_some() && g.source == format!("spec:features/{id}/note")
+                    })
+            })
+            .map(|(id, _)| id.as_str()),
+    );
     // Table-owned scalar spans live in the covered-item ledger; the schedule retains their
     // measurement provenance while lint independently verifies its printed member cells.
     stated.extend(
@@ -187,9 +199,7 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
         .features
         .iter()
         .filter(|f| {
-            if stated.contains(f.id.as_str())
-                || crate::dims::UNDRAFTED.contains(&f.fingerprint.subtype.as_str())
-            {
+            if stated.contains(f.id.as_str()) || crate::dims::undrafted(f) {
                 return false;
             }
             if f.kind == "boss"

@@ -66,6 +66,7 @@ fn sheet(scale: f64, edges: Vec<Curve>, items: Vec<(Drawn, &str)>) -> Drawing {
         text,
         annotations,
         sheet: Sheet {
+            precision: Default::default(),
             references: Vec::new(),
             drawable: Some([10.0, 10.0, 410.0, 287.0]),
             views: vec![DrawnView {
@@ -125,6 +126,7 @@ fn dimension(
             .chain([[label[0], label[1]], [label[2], label[3]]]),
     );
     Drawn {
+        heads: Vec::new(),
         name: name.into(),
         kind,
         ink,
@@ -380,6 +382,7 @@ fn datum(reach: f64) -> Drawn {
     let near = [120.0, 95.6 - reach];
     let ink = [114.0, near[1] - 6.0, 126.0, 100.0];
     Drawn {
+        heads: Vec::new(),
         name: "pmi:datum.datum:f3:t=A".into(),
         kind: Kind::Gdt,
         ink,

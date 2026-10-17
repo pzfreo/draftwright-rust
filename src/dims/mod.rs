@@ -7,6 +7,7 @@
 //! - **whole-part polygonal stock**: its size across flats and its length, in place of the extents;
 //! - **hole callouts**: draftwright's compound grammar (`4× ⌀10 THRU ⌴ ⌀16 ↧ 5 (2×2)`), with
 //!   identical holes grouped and counted, and quiddity's hole patterns called out as patterns;
+//! - **double-D bores**: one compound major-diameter and across-flats callout;
 //! - **hole locations** from the part's box, in the view that looks along each hole, and the
 //!   pitches that locate a pattern's members;
 //! - **through slots**: width, length, an obround's end radius, and location along the slot;
@@ -68,6 +69,7 @@ pub(crate) mod interior;
 mod label_lanes;
 mod leaders;
 pub(crate) use label_lanes::settle_inventory;
+pub(crate) use leaders::settle_after_furniture;
 pub(crate) use placement::collisions_cached as label_collisions;
 pub(crate) mod levels;
 mod oriented_slots;
@@ -75,6 +77,8 @@ mod pads;
 mod placement;
 mod plates;
 mod pmi_dimensions;
+pub mod precision;
+mod profiled_bores;
 mod recesses;
 mod redundancy;
 mod slots;
@@ -94,8 +98,8 @@ use crate::model::{Analysis, DimensionSource, Invalid, PlannedSheet, PlannedView
 use crate::output::{Annotation, Claim, Curve, HAlign, Item, TextRun, VAlign};
 use crate::text::{Font, Segment};
 pub use leaders::clear_routes;
-pub use placement::LabelRows;
 pub use placement::label_rows;
+pub use placement::{AlignedDemand, LabelRows};
 use placement::{Frame, across, moved, to_page};
 pub use placement::{LabelInk, label_ink};
 pub(crate) use tolerance::{check as check_tolerances, choices as fit_choices};
@@ -135,7 +139,7 @@ fn carries(w: &Want, v: &str) -> bool {
                     || w.turning
                         .is_some_and(|t| (0..3).any(|j| j != t && j != *axis && toward[j] == 0.0))
             }
-            Shape::Callout { .. } | Shape::Angular { .. } => true,
+            Shape::Callout { .. } | Shape::Angular { .. } | Shape::Aligned { .. } => true,
         }
 }
 
@@ -406,6 +410,8 @@ enum Shape {
         /// Its lane order: sizes 0, locations 1, overall extents 2.
         order: u8,
     },
+    /// An exact span between two proven stations in a principal projection plane.
+    Aligned { a: P3, b: P3 },
     /// A leader to one of these circles (centre, radius), world mm.
     Callout { sites: Vec<(P3, f64)> },
     /// An angle between two sides, drawn about its vertex ([`angular`]).
@@ -493,7 +499,7 @@ struct Planner {
 }
 
 /// The planners, in the order their items are planned.
-const PLANNERS: [Planner; 16] = [
+const PLANNERS: [Planner; 17] = [
     turned::PLANNER,
     envelope::PLANNER,
     stock::PLANNER,
@@ -510,6 +516,7 @@ const PLANNERS: [Planner; 16] = [
     plates::PLANNER,
     pads::PLANNER,
     oriented_slots::PLANNER,
+    profiled_bores::PLANNER,
 ];
 
 /// Everything the defaults would dimension, with the problems met on the way, and what the part's
@@ -565,23 +572,171 @@ fn wants_uncached(
     (out, problems, notes)
 }
 
+/// The consumer policy for an occurrence with no dimension owner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Disposition {
+    Unsupported,
+    Deferred,
+    EvidenceOnly,
+}
+
+/// Closed reasons for recognised occurrences that have no dimension planner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DispositionReason {
+    ConsumerSemanticsUnsupported,
+    ConsumerSemanticsDeferred,
+    HoleCalloutEvidence,
+    DimensionsNotPorted,
+    StepLevelProjectionEvidence,
+    RiserProjectionEvidence,
+    GeometryOnlyCritique,
+    HoleRecognitionEvidence,
+    RecognitionRefused,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FeatureDisposition {
+    pub subject: String,
+    pub disposition: Disposition,
+    pub reason_code: DispositionReason,
+    pub severity: String,
+}
+
 /// quiddity record types (`Fingerprint::subtype`) draftwright gives no dimensions of their own
 /// (`model/detect.py`'s `_ORCHESTRATED_RECORDS` and `_UNCONSUMED_RECORDS`): a countersink rides on
 /// its hole's callout, and the others have no reviewed drafting grammar there (#1365, #1430,
 /// #1557). Leaving them undimensioned is no gap in the port, so they are not reported as one. An
 /// angled step (#1247) has no grammar either, but is reported as unsupported ([`unsupported`]).
-pub(crate) const UNDRAFTED: [&str; 10] = [
-    "CircularFacePattern",
-    "CounterSink",
-    "FreeformSurface",
-    "InteriorVoid",
-    "ObliqueThroughStep",
-    "OrientedChamfer",
-    "OrientedSlotArray",
-    "OrientedSlotGrid",
-    "SheetMetalBody",
-    "ThinWallBody",
+const UNDRAFTED: &[(&str, Disposition, DispositionReason)] = &[
+    (
+        "CircularFacePattern",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "CounterSink",
+        Disposition::EvidenceOnly,
+        DispositionReason::HoleCalloutEvidence,
+    ),
+    (
+        "FreeformSurface",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "InteriorVoid",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "ObliqueThroughStep",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "OrientedChamfer",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "OrientedSlotArray",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "OrientedSlotGrid",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "SheetMetalBody",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
+    (
+        "ThinWallBody",
+        Disposition::Deferred,
+        DispositionReason::ConsumerSemanticsDeferred,
+    ),
 ];
+
+pub(crate) fn undrafted(f: &crate::bridge::Feature) -> bool {
+    UNDRAFTED
+        .iter()
+        .any(|(subtype, ..)| *subtype == f.fingerprint.subtype)
+}
+
+/// The capability tables drive both the undrafted exemption and its occurrence report. A
+/// planner can consume a kind it does not claim (section recesses); retain that actual proof.
+/// Authored omissions are still planned capabilities, never ownerless policy.
+pub(crate) fn feature_dispositions(analysis: &Analysis) -> Vec<FeatureDisposition> {
+    let (wants, ..) = wants(analysis);
+    let stated: BTreeSet<_> = wants
+        .iter()
+        .flat_map(|w| &w.measurements)
+        .map(|m| m.feature.as_str())
+        .collect();
+    let mut out = Vec::new();
+    let mut add = |subject: String, disposition, reason_code| {
+        out.push(FeatureDisposition {
+            subject,
+            disposition,
+            reason_code,
+            severity: "info".into(),
+        })
+    };
+    for f in &analysis.features {
+        if let Some((_, disposition, reason)) = UNDRAFTED
+            .iter()
+            .find(|(subtype, ..)| *subtype == f.fingerprint.subtype)
+        {
+            add(f.id.clone(), *disposition, *reason);
+        } else if !stated.contains(f.id.as_str())
+            && !PLANNERS.iter().any(|p| p.kinds.contains(&f.kind.as_str()))
+        {
+            let (disposition, reason) = if f.kind == "angled_step" {
+                (
+                    Disposition::Unsupported,
+                    DispositionReason::ConsumerSemanticsUnsupported,
+                )
+            } else {
+                (
+                    Disposition::Deferred,
+                    DispositionReason::DimensionsNotPorted,
+                )
+            };
+            add(f.id.clone(), disposition, reason);
+        }
+    }
+    if let Some(r) = &analysis.recognition {
+        for (i, record) in r.evidence.iter().enumerate() {
+            let reason = match record.subtype.as_str() {
+                "FaceLevel" => DispositionReason::StepLevelProjectionEvidence,
+                "RiserEvidence" => DispositionReason::RiserProjectionEvidence,
+                "RepeatingRadialProfile" => DispositionReason::GeometryOnlyCritique,
+                // The bridge admits only these four evidence types (bridge::RECORDS).
+                "HoleSpec" => DispositionReason::HoleRecognitionEvidence,
+                _ => continue,
+            };
+            add(
+                format!("recognition:evidence:{i}"),
+                Disposition::EvidenceOnly,
+                reason,
+            );
+        }
+        for (i, _) in r.refusals.iter().enumerate() {
+            add(
+                format!("recognition:refusal:{i}"),
+                Disposition::Unsupported,
+                DispositionReason::RecognitionRefused,
+            );
+        }
+    }
+    out
+}
 
 /// One problem per recognised feature of a kind no planner claims, in the Analysis's feature
 /// order. This reports a gap in the port, not in the part: draftwright converts these records to
@@ -595,7 +750,7 @@ fn not_ported(analysis: &Analysis) -> Vec<Problem> {
         .features
         .iter()
         .filter(|f| !PLANNERS.iter().any(|p| p.kinds.contains(&f.kind.as_str())))
-        .filter(|f| !UNDRAFTED.contains(&f.fingerprint.subtype.as_str()))
+        .filter(|f| !undrafted(f))
         .map(|f| {
             unsupported(f).unwrap_or_else(|| Problem {
                 id: format!("p:dimensions_not_ported:{}", f.id),
@@ -732,6 +887,65 @@ pub(crate) fn reduction_preserves_requirements(
         })
 }
 
+/// Paper-space room for unpinned, side-only callouts. Keep the same labels as the solver,
+/// including threads and authored tolerances, and reserve the column before packing views.
+pub(crate) fn callout_bands(
+    analysis: &Analysis,
+    spec: &Spec,
+) -> Result<Vec<crate::layout::CalloutBand>, Invalid> {
+    if !spec.dimensions.values().any(|d| {
+        d.place
+            .as_ref()
+            .and_then(crate::placement_intent::side_hint)
+            .is_some()
+    }) {
+        return Ok(Vec::new());
+    }
+    let (wants, ..) = wants(analysis);
+    let mut kept: Vec<_> = wants
+        .into_iter()
+        .map(|w| (w, false, None, Vec::new()))
+        .collect();
+    precision::labels(spec, kept.iter_mut().map(|(w, ..)| w))?;
+    tolerance::apply(analysis, spec, &mut kept, &[], &mut Vec::new())?;
+    Ok(kept
+        .iter()
+        .filter_map(|(w, ..)| {
+            if !matches!(w.shape, Shape::Callout { .. }) {
+                return None;
+            }
+            let entry = spec.dimensions.get(&w.id)?;
+            if entry.omit {
+                return None;
+            }
+            let place = entry.place.as_ref()?;
+            let side = crate::placement_intent::side_hint(place)?;
+            let view = place
+                .view
+                .as_deref()
+                .or(entry.view.as_deref())
+                .unwrap_or(w.views[0]);
+            let view = *NAMES.iter().find(|n| **n == view)?;
+            if spec.views.get(view).is_some_and(|v| v.omit) {
+                return None;
+            }
+            use crate::placement_intent::Side;
+            let ink = label_ink(&w.terms, font());
+            let (side, depth) = match side {
+                Side::Left => ("left", ink.max[0] - ink.min[0] + SHOULDER),
+                Side::Right => ("right", ink.max[0] - ink.min[0] + SHOULDER),
+                Side::Above => ("above", TEXT + LIFT),
+                Side::Below => ("below", TEXT + LIFT),
+            };
+            Some(crate::layout::CalloutBand {
+                view,
+                side,
+                depth: FIRST + depth + 2.0,
+            })
+        })
+        .collect())
+}
+
 /// The lanes the defaults' dimensions take beside the principal *views* (name, direction towards
 /// the viewer, up) before they are placed: what the layout reserves for them
 /// ([`crate::layout::Strips::reserve`]). Every item the part would have counts, whatever the
@@ -743,17 +957,20 @@ pub(crate) fn reduction_preserves_requirements(
 /// merged boss heights were what kept the front's lowest lanes inside it (counted without them,
 /// ink 11 to 13 and 9 to 11; `docs/quality-2026-10-09.md`, "After merged-away lanes").
 pub fn lanes(analysis: &Analysis, views: &[(&str, P3, P3)]) -> crate::layout::Lanes {
-    lanes_excluding(analysis, views, &BTreeSet::new())
+    lanes_excluding(analysis, views, &BTreeSet::new(), &Spec::default())
+        .expect("default display policy cannot conflict")
+        .0
 }
 
 pub(crate) fn lanes_excluding(
     analysis: &Analysis,
     views: &[(&str, P3, P3)],
     excluded: &BTreeSet<String>,
-) -> crate::layout::Lanes {
-    let key = serde_json::to_vec(&(views, excluded)).expect("lane inputs serialize");
+    spec: &Spec,
+) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
+    let key = serde_json::to_vec(&(views, excluded, spec)).expect("lane inputs serialize");
     crate::planning::memo(analysis, "lanes", key, || {
-        lanes_uncached(analysis, views, excluded)
+        lanes_uncached(analysis, views, excluded, spec)
     })
 }
 
@@ -761,8 +978,9 @@ fn lanes_uncached(
     analysis: &Analysis,
     views: &[(&str, P3, P3)],
     excluded: &BTreeSet<String>,
-) -> crate::layout::Lanes {
-    let (mut wants, ..) = wants(analysis);
+    spec: &Spec,
+) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
+    let (mut wants, mut problems, notes) = wants(analysis);
     wants.retain(|w| !excluded.contains(&w.id));
     let frames: BTreeMap<&str, Frame> = views
         .iter()
@@ -816,6 +1034,31 @@ fn lanes_uncached(
     {
         plates::default_terms(analysis, &mut wants, &chosen);
     }
+    // Resolve the printed terms before measuring reservation, using placement's lowering order.
+    let mut kept: Vec<_> = wants
+        .iter()
+        .cloned()
+        .zip(chosen.iter().copied())
+        .map(|(w, view)| (w, true, view, Vec::new()))
+        .collect();
+    let mut omitted = Vec::new();
+    plates::consolidate(analysis, &mut kept, &mut omitted);
+    bosses::consolidate(analysis, &mut kept, &mut omitted);
+    pmi_dimensions::yield_to_spec(spec, &notes, &mut kept, &mut problems);
+    pmi_dimensions::hide_fit_limits(spec, &notes, &mut kept);
+    precision::labels(spec, kept.iter_mut().map(|(w, ..)| w))?;
+    if let Ok(mut given) = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems) {
+        holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
+        plates::share(analysis, &mut kept, &mut given, &mut omitted);
+        share_statements(&mut kept, &mut given, &mut omitted, true);
+        share_pmi(&mut kept, &mut given, &mut omitted);
+        redundancy::consolidate(analysis, &mut kept, &mut given, &mut omitted);
+    }
+    for w in &mut wants {
+        if let Some((printed, ..)) = kept.iter().find(|(p, ..)| p.id == w.id) {
+            w.terms.clone_from(&printed.terms);
+        }
+    }
     let (sides, lane) = placement::lanes(&frames, wants.iter().zip(chosen.iter().copied()), &owner);
     let mut bands = placement::band_lanes(
         chosen
@@ -858,7 +1101,18 @@ fn lanes_uncached(
     {
         bands.plate_front_below = bands.plate_front_below.max(front_linear);
     }
+    // A turned diameter can leave either side of the profile. Keep its full alternate shelf
+    // available to the ordinary side/row/tier search, including tall fit deviations.
     for (i, w) in wants.iter().enumerate() {
+        if chosen[i] == Some("front")
+            && matches!(w.shape, Shape::Callout { .. })
+            && w.measurements
+                .iter()
+                .any(|m| m.parameter == "step.diameter")
+        {
+            let ink = label_ink(&w.terms, font());
+            bands.callout_front_left = bands.callout_front_left.max(leaders::shelf_width(&ink));
+        }
         if owner[i].is_some()
             || !w
                 .measurements
@@ -895,7 +1149,24 @@ fn lanes_uncached(
             _ => {}
         }
     }
-    bands
+    let mut aligned = Vec::new();
+    for (i, w) in wants.iter().enumerate() {
+        if !matches!(w.shape, Shape::Aligned { .. }) || owner[i].is_some() {
+            continue;
+        }
+        if let (Some(view), Some(side)) = (chosen[i], sides[i]) {
+            let mut display = w.clone();
+            precision::labels(spec, std::iter::once(&mut display))?;
+            aligned.push(AlignedDemand::new(
+                &frames[view],
+                &display,
+                view,
+                side,
+                lane[i],
+            ));
+        }
+    }
+    Ok((bands, aligned))
 }
 
 /// Reserve explicitly requested linear strips before composition, at their
@@ -1125,6 +1396,34 @@ pub(crate) fn plan_inventory(
     problems.extend(chosen_views(&mut wants, spec, &frames)?);
     plates::prefer_readable(analysis, &mut wants, &frames, Some(spec));
     let (mut chosen, mut end_on) = route(&mut wants, &frames, analysis);
+    // Display intent may not silently undo the established one-owner span grouping.
+    let display_owners = if spec.precision.is_empty() {
+        Vec::new()
+    } else {
+        placement::owners(analysis, &wants, &chosen)
+    };
+    precision::apply(spec, &mut wants)?;
+    for (i, owner) in display_owners.iter().enumerate() {
+        if let Some(j) = owner
+            && (precision::leading(spec, &wants[i]).is_some()
+                || precision::leading(spec, &wants[*j]).is_some())
+            && precision::leading(spec, &wants[i]).map_or_else(
+                || fmt(wants[i].value),
+                |p| precision::format(wants[i].value, p),
+            ) != precision::leading(spec, &wants[*j]).map_or_else(
+                || fmt(wants[*j].value),
+                |p| precision::format(wants[*j].value, p),
+            )
+        {
+            return Err(Invalid {
+                message: format!(
+                    "conflicting precision for coincident dimensions {} and {}; shared measurements require matching display precision",
+                    wants[i].id, wants[*j].id
+                ),
+                choices: vec![],
+            });
+        }
+    }
     let ids: BTreeSet<&str> = wants.iter().map(|w| w.id.as_str()).collect();
     // ARCH0016-5: each dimension is in exactly one view, under one ID. A duplicate is a planner
     // bug, checked in every build.
@@ -1247,13 +1546,29 @@ pub(crate) fn plan_inventory(
                 basis: "authored: the spec omits it".into(),
                 state: State::OmittedByUser,
             }),
-            DimensionSource::Authored if entry.is_none() => omitted.push(Omitted {
-                label: w.terms.join(" "),
-                id: w.id,
-                basis: "authored: not in the spec's complete set (dimension_source authored)"
-                    .into(),
-                state: State::NotAuthored,
-            }),
+            DimensionSource::Authored if entry.is_none() => {
+                // An authored set still keeps the automatic inventory. Surface every
+                // unstated item by name, even when another measurement locates its feature.
+                problems.push(Problem {
+                    id: format!("p:dimension_not_authored:{}", w.id),
+                    code: "dimension_not_authored".into(),
+                    severity: "warning".into(),
+                    message: format!(
+                        "{} is not drawn: the authored dimension set does not list it. Add it to the set to draw it.",
+                        crate::wording::capital(&wording_of(&w))
+                    ),
+                    subjects: vec![w.id.clone()],
+                    fix: vec![Op::set(format!("dimensions/{}", crate::items::key(&w.id)), serde_json::json!({}))],
+                    ..Default::default()
+                });
+                omitted.push(Omitted {
+                    label: w.terms.join(" "),
+                    id: w.id,
+                    basis: "authored: not in the spec's complete set (dimension_source authored)"
+                        .into(),
+                    state: State::NotAuthored,
+                });
+            }
             _ => kept.push((w, entry.is_none(), view, along)),
         }
     }
@@ -1261,6 +1576,7 @@ pub(crate) fn plan_inventory(
     bosses::consolidate(analysis, &mut kept, &mut omitted);
     pmi_dimensions::yield_to_spec(spec, &notes, &mut kept, &mut problems);
     pmi_dimensions::hide_fit_limits(spec, &notes, &mut kept);
+    precision::labels(spec, kept.iter_mut().map(|(w, ..)| w))?;
     let mut given = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems)?;
     holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
     plates::share(analysis, &mut kept, &mut given, &mut omitted);
@@ -1523,6 +1839,9 @@ pub(crate) fn plan_inventory(
         && intended.iter().all(Option::is_none)
     {
         placement::clear_linear(
+            analysis,
+            cache,
+            views,
             &frames,
             &all,
             &chosen,
@@ -1533,6 +1852,26 @@ pub(crate) fn plan_inventory(
             &page,
         );
     }
+    let body_fixed: Vec<bool> = all
+        .iter()
+        .enumerate()
+        .map(|(i, w)| {
+            fixed[i]
+                || spec
+                    .dimensions
+                    .get(&w.id)
+                    .is_some_and(|entry| entry.place.is_some())
+        })
+        .collect();
+    problems.extend(placement::body_chains(
+        analysis,
+        &frames,
+        &all,
+        &chosen,
+        &body_fixed,
+        &mut placed,
+        &page,
+    ));
     angular::place(&frames, &all, &chosen, &mut placed, &page);
     // Radius exceptions are placed around the existing drawing ink. Their addition must not
     // reroute unrelated approved callouts into clutter.
@@ -1545,6 +1884,7 @@ pub(crate) fn plan_inventory(
     let mut leader_problems = if obstacles.is_empty() {
         leaders::place(
             analysis,
+            spec,
             cache,
             views,
             &frames,
@@ -1557,6 +1897,7 @@ pub(crate) fn plan_inventory(
     } else {
         leaders::place_with_obstacles(
             analysis,
+            spec,
             cache,
             views,
             &frames,
@@ -1571,6 +1912,7 @@ pub(crate) fn plan_inventory(
     if prior != chosen {
         leader_problems.extend(leaders::place_with_obstacles(
             analysis,
+            spec,
             cache,
             views,
             &frames,
@@ -1660,7 +2002,7 @@ pub(crate) fn plan_inventory(
                 region,
                 id: w.id.clone(),
                 kind: match w.shape {
-                    Shape::Linear { .. } => "linear",
+                    Shape::Linear { .. } | Shape::Aligned { .. } => "linear",
                     Shape::Callout { .. } => "callout",
                     Shape::Angular { .. } => "angular",
                 }
@@ -1770,7 +2112,7 @@ pub(crate) fn plan_inventory(
             region,
             id: w.id,
             kind: match w.shape {
-                Shape::Linear { .. } => "linear",
+                Shape::Linear { .. } | Shape::Aligned { .. } => "linear",
                 Shape::Callout { .. } => "callout",
                 Shape::Angular { .. } => "angular",
             }
@@ -2057,7 +2399,7 @@ fn share_statements(
                 w.value,
                 pmi_dimensions::basic(&w.measurements),
             )),
-            Shape::Callout { .. } | Shape::Angular { .. } => None,
+            Shape::Callout { .. } | Shape::Angular { .. } | Shape::Aligned { .. } => None,
         }
     };
     let same = |s: &Span, t: &Span| {
@@ -2177,7 +2519,7 @@ fn share_pmi(
                 a[axis].min(b[axis]),
                 a[axis].max(b[axis]),
             )),
-            Shape::Callout { .. } | Shape::Angular { .. } => None,
+            Shape::Callout { .. } | Shape::Angular { .. } | Shape::Aligned { .. } => None,
         };
     let mut gone = BTreeSet::new();
     let order: Vec<usize> = {
@@ -2335,6 +2677,8 @@ pub fn render(
             v_align: VAlign::Baseline,
         });
         annotations.push(Annotation {
+            approved_claims: Vec::new(),
+            approved_text: None,
             coordinate_origin: None,
             satisfies: Vec::new(),
             name: d.id.clone(),
@@ -2443,7 +2787,9 @@ pub fn placement_options(analysis: &Analysis, views: &[PlannedView]) -> BTreeMap
                                 vec!["left", "right"]
                             }
                         }
-                        Shape::Callout { .. } => vec!["above", "below", "left", "right"],
+                        Shape::Callout { .. } | Shape::Aligned { .. } => {
+                            vec!["above", "below", "left", "right"]
+                        }
                         Shape::Angular { .. } => return None,
                     };
                     Some(serde_json::json!({"view": name, "sides": sides}))
@@ -2481,9 +2827,42 @@ pub(crate) fn recheck_cached(
         .collect()
 }
 
+/// Semantic roles available to a feature note, including compound callout terms.
+pub(crate) fn measurement_ids(analysis: &Analysis) -> BTreeSet<String> {
+    wants(analysis)
+        .0
+        .iter()
+        .flat_map(|w| &w.measurements)
+        .map(|m| want_id(&m.feature, &m.parameter))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn side_only_callout_corridors_grow_with_authored_precision() {
+        let (_, analysis) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/plate.step"),
+        )
+        .unwrap();
+        let id = "d:f:hole_pattern:1/bore.diameter";
+        for side in ["left", "right"] {
+            let mut spec: Spec = serde_json::from_value(serde_json::json!({
+                "dimensions": {id: {"place": {"view": "plan", "side": side}}}
+            }))
+            .unwrap();
+            let bare = callout_bands(&analysis, &spec).unwrap();
+            assert_eq!(bare.len(), 1);
+            spec.precision.insert(id.into(), 15);
+            let precise = callout_bands(&analysis, &spec).unwrap();
+            assert_eq!(precise.len(), 1);
+            assert_eq!(precise[0].side, side);
+            assert!(precise[0].depth > bare[0].depth + 20.0);
+        }
+    }
 
     type Kept = (Want, bool, Option<&'static str>, Vec<&'static str>);
 

@@ -278,11 +278,189 @@ pub fn fill(analysis: &Analysis, plan: &Plan) -> f64 {
         / ((w - 2.0 * MARGIN) * (h - 2.0 * MARGIN) - (tb[2] - tb[0]) * (tb[3] - tb[1]))
 }
 
-/// Bounded measured correction for a free orthographic row with no page-anchored annotations.
+/// Bounded measured correction: trim only empty off-paper reservation, then adjust a free row.
 /// A failed estimate can leave an orientation view cramped below an otherwise clear row.
 /// Lift the entire row together (preserving projection alignment and every dimension), then
 /// fit the orientation view against the measured blocks, once. Never move pinned content.
+/// Reconcile conservative section bands with settled ink before spilling onto another page.
+/// Principal projections and their dimensions stay aligned; free sections may use another gap.
+fn correct_sections(analysis: &Analysis, plan: &mut Plan) {
+    if !plan.views.iter().any(|v| v.cut.is_some())
+        || plan.spec.views.values().any(|v| v.place.is_some())
+    {
+        return;
+    }
+    let bounds = footprints(analysis, plan);
+    let mut groups = bounds[..plan.views.len()].to_vec();
+    for d in &plan.dimensions {
+        let Some(p) = &d.placed else { continue };
+        let Some(i) = plan.views.iter().position(|v| v.id == d.view) else {
+            return;
+        };
+        include(&mut groups[i], [p.label_box[0], p.label_box[1]]);
+        include(&mut groups[i], [p.label_box[2], p.label_box[3]]);
+        for q in p.lines.iter().flatten() {
+            include(&mut groups[i], *q);
+        }
+        for arrow in &p.arrows {
+            include_arrow(&mut groups[i], *arrow);
+        }
+    }
+    for (i, v) in plan.views.iter().enumerate() {
+        for curve in v.line_work.iter().flat_map(|w| &w.curves) {
+            let b = curve.bbox();
+            include(&mut groups[i], [b[0], b[1]]);
+            include(&mut groups[i], [b[2], b[3]]);
+        }
+        if let Some(cut) = &v.cut {
+            let projection = haecceity::hlr::View::new(v.direction, v.up).expect("section view");
+            let half = crate::model::extent(analysis, &projection).0[1] * v.scale / 2.;
+            let laid = crate::dims::font().text(
+                &format!("SECTION {}–{}", cut.label, cut.label),
+                crate::section::FONT_SIZE,
+            );
+            let at = [v.at[0], v.at[1] - half - 7.];
+            include(&mut groups[i], [at[0] + laid.min[0], at[1] + laid.min[1]]);
+            include(&mut groups[i], [at[0] + laid.max[0], at[1] + laid.max[1]]);
+            if let Some(j) = plan.views.iter().position(|w| w.id == cut.marked_in) {
+                let parent = &plan.views[j];
+                let projection =
+                    haecceity::hlr::View::new(parent.direction, parent.up).expect("parent view");
+                let (x0, x1, y) = crate::model::cutting_line(analysis, parent, &projection, cut);
+                let (ink, letters) = crate::section::cutting_plane(x0, x1, y);
+                if let Some(b) = crate::output::items_bbox(&ink) {
+                    include(&mut groups[j], [b[0], b[1]]);
+                    include(&mut groups[j], [b[2], b[3]]);
+                }
+                let laid = crate::dims::font().text(&cut.label, crate::section::FONT_SIZE);
+                for at in letters {
+                    include(&mut groups[j], [at[0] + laid.min[0], at[1] + laid.min[1]]);
+                    include(&mut groups[j], [at[0] + laid.max[0], at[1] + laid.max[1]]);
+                }
+            }
+        }
+    }
+
+    let [w, h] = plan.sheet.page;
+    let drawable = [MARGIN + 2., MARGIN + 2., w - MARGIN - 2., h - MARGIN - 2.];
+    let mut obstacles = vec![plan.sheet.title_block];
+    let mut candidate = plan.clone();
+    for (i, v) in candidate
+        .views
+        .iter_mut()
+        .enumerate()
+        .filter(|(_, v)| v.id != "v:iso")
+    {
+        let b = groups[i];
+        v.area = [b[0] - 1., b[1] - 1., b[2] + 1., b[3] + 1.];
+        if v.cut.is_none() {
+            obstacles.push(v.area);
+        }
+    }
+    for v in candidate.views.iter_mut().filter(|v| v.cut.is_some()) {
+        let b = v.area;
+        let size = [b[2] - b[0], b[3] - b[1]];
+        let inside = b[0] >= drawable[0]
+            && b[1] >= drawable[1]
+            && b[2] <= drawable[2]
+            && b[3] <= drawable[3];
+        if !inside || obstacles.iter().any(|o| crate::sheets::overlap(b, *o)) {
+            let r = crate::layout::largest_empty_rect(drawable, &obstacles, size);
+            if r[2] - r[0] < size[0] || r[3] - r[1] < size[1] {
+                return;
+            }
+            let delta = [
+                (r[0] + r[2] - b[0] - b[2]) / 2.,
+                (r[1] + r[3] - b[1] - b[3]) / 2.,
+            ];
+            v.at = [v.at[0] + delta[0], v.at[1] + delta[1]];
+            crate::centrelines::shift(v, delta);
+            v.area = [
+                b[0] + delta[0],
+                b[1] + delta[1],
+                b[2] + delta[0],
+                b[3] + delta[1],
+            ];
+            for d in candidate.dimensions.iter_mut().filter(|d| d.view == v.id) {
+                if let Some(p) = &mut d.placed {
+                    for q in p
+                        .lines
+                        .iter_mut()
+                        .chain(&mut p.arrows)
+                        .flatten()
+                        .chain(std::iter::once(&mut p.label_at))
+                    {
+                        q[0] += delta[0];
+                        q[1] += delta[1];
+                    }
+                    for (k, x) in p.label_box.iter_mut().enumerate() {
+                        *x += delta[k % 2];
+                    }
+                }
+            }
+        }
+        v.basis += "; section placed using settled ink and caption bounds";
+        obstacles.push(v.area);
+    }
+    for b in &mut obstacles {
+        b[0] -= 2.;
+        b[1] -= 2.;
+        b[2] += 2.;
+        b[3] += 2.;
+    }
+    if let Some(iso) = candidate.views.iter_mut().find(|v| v.id == "v:iso") {
+        let b = analysis.iso_bounds;
+        let size = [b[2] - b[0], b[3] - b[1]];
+        if size.iter().any(|s| *s <= 0.) {
+            return;
+        }
+        let r = crate::layout::largest_empty_rect(drawable, &obstacles, size);
+        let fit = ((r[2] - r[0]) / size[0]).min((r[3] - r[1]) / size[1]);
+        let scale = crate::layout::keep_sheet_scale(
+            (0.9 * fit).min(1.3 * plan.sheet.scale_factor),
+            plan.sheet.scale_factor,
+        );
+        if scale <= 0. || obstacles.iter().any(|o| crate::sheets::overlap(r, *o)) {
+            return;
+        }
+        iso.scale = scale;
+        iso.at = [
+            (r[0] + r[2] - scale * (b[0] + b[2])) / 2.,
+            (r[1] + r[3] - scale * (b[1] + b[3])) / 2.,
+        ];
+        iso.area = r;
+        iso.basis = "orientation view fitted around settled projection and section blocks".into();
+    }
+    if crate::model::drawn_sheets_fit(analysis, &candidate) {
+        *plan = candidate;
+    }
+}
+
 pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
+    // Wider label shelves can push an unused edge of the final section's generic band
+    // past the border. The complete rendered footprints prove whether it is empty paper;
+    // never trim an estimate through any model, label, arrow or piece of furniture.
+    if plan.problems.iter().any(|p| p.code == "page_fit_uncertain")
+        && !crate::placement_intent::has_pins(&plan.spec)
+        && plan.gdt.is_empty()
+    {
+        let [w, h] = plan.sheet.page;
+        let inside =
+            |b: &Rect| b[0] >= MARGIN && b[1] >= MARGIN && b[2] <= w - MARGIN && b[3] <= h - MARGIN;
+        if footprints(analysis, plan).iter().all(inside) {
+            for v in plan.views.iter_mut().filter(|v| v.cut.is_some()) {
+                let b = [
+                    v.area[0].max(MARGIN),
+                    v.area[1].max(MARGIN),
+                    v.area[2].min(w - MARGIN),
+                    v.area[3].min(h - MARGIN),
+                ];
+                if b[0] < b[2] && b[1] < b[3] {
+                    v.area = b;
+                }
+            }
+        }
+    }
     if !plan.problems.iter().any(|p| p.code == "page_fit_uncertain")
         || crate::placement_intent::has_pins(&plan.spec)
         || crate::model::dimension_text_edited(&plan.spec)
@@ -294,12 +472,17 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
         || !plan.notes.is_empty()
         || !plan.tables.is_empty()
         || plan.requirements.iter().any(|r| r.placed.is_some())
-        || plan.views.iter().any(|v| v.cut.is_some())
         || plan
             .dimensions
             .iter()
             .any(|d| !matches!(d.kind.as_str(), "linear" | "callout"))
     {
+        return;
+    }
+    if plan.views.iter().any(|v| v.cut.is_some()) {
+        if !crate::model::drawn_sheets_fit(analysis, plan) {
+            correct_sections(analysis, plan);
+        }
         return;
     }
     let Some(iso_index) = plan.views.iter().position(|v| v.id == "v:iso") else {
@@ -456,7 +639,8 @@ pub(crate) fn pack_gdt(analysis: &Analysis, template: &Plan, recipient: &Plan) -
         .filter(|(_, v)| matches!(v.id.as_str(), "v:front" | "v:side"))
         .map(|(i, _)| groups[i][1])
         .fold(groups[root][1], f64::min);
-    let common = [MARGIN + 1.0 - left, MARGIN + 1.0 - row_bottom];
+    // Packing settled blocks retains the same readable paper to the border as a shelf.
+    let common = [MARGIN + 2.0 - left, MARGIN + 2.0 - row_bottom];
     for i in &column {
         shifts[*i] = common;
     }

@@ -34,6 +34,15 @@ with tempfile.TemporaryDirectory(prefix='s7-schema-') as cache:
         nullable.validate({'part_ref': 'part', 'spec': {'sheet': sheet}})
     for sheet in [{'size': 42}, {'fit_limits': 'yes'}]:
         assert not nullable.is_valid({'part_ref': 'part', 'spec': {'sheet': sheet}})
+    for field in ('hidden', 'centre_marks', 'centre_lines', 'thread_depiction', 'knurl_depiction'):
+        for scope in ('sheet', 'views'):
+            def authored(value):
+                settings = {field: value}
+                return {'part_ref': 'part', 'spec': {scope: settings if scope == 'sheet' else {'side': settings}}}
+            for value in (True, False, None):
+                nullable.validate(authored(value))
+            for value in ('false', 0, [], {}):
+                assert not nullable.is_valid(authored(value)), (scope, field, value)
     def call(name, args):
         validators[name, 'input'].validate(args)
         result = rpc('tools/call', {'name': name, 'arguments': args})

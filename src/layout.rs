@@ -191,7 +191,22 @@ pub struct Strips {
     pub side_step_y: bool,
 }
 
+/// One authored callout column or row, measured in paper mm before view packing.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CalloutBand {
+    pub view: &'static str,
+    pub side: &'static str,
+    pub depth: f64,
+}
+
 impl Strips {
+    pub fn reserve_callouts(&mut self, bands: &[CalloutBand]) {
+        for b in bands {
+            let band = self.band(b.view, b.side);
+            *band = band.max(b.depth);
+        }
+    }
+
     /// The bands of a part with no features to dimension: the overall height to the right of the
     /// front and the base corridor on the left (draftwright's estimate with no steps).
     pub fn without_features() -> Self {
@@ -222,6 +237,8 @@ impl Strips {
 /// the plan and the side.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Lanes {
+    /// Full text width plus shoulder for an alternate front callout shelf.
+    pub callout_front_left: f64,
     pub front_below: usize,
     pub front_right: usize,
     pub plate_front_left: usize,
@@ -269,6 +286,7 @@ impl Strips {
     pub fn reserve(&mut self, lanes: &Lanes) {
         let widen = |band: &mut f64, n: usize| *band = band.max(lane_band(n));
         widen(&mut self.right, lanes.front_right);
+        self.left = self.left.max(lanes.callout_front_left);
         widen(
             &mut self.left,
             lanes.plate_front_left.max(lanes.authored_plan_left),
@@ -602,6 +620,8 @@ pub struct Request {
     /// The part's extents along x, y and z, mm.
     pub size: [f64; 3],
     pub strips: Strips,
+    /// Exact aligned-dimension ink, measured separately at each candidate scale.
+    pub aligned: Vec<crate::dims::AlignedDemand>,
     /// The number of section views beside the side view.
     pub sections: usize,
     /// Keep the section aligned when view-dependent annotation corridors are reserved.
@@ -631,6 +651,7 @@ impl Request {
             candidate_arrangement: None,
             size,
             strips: Strips::without_features(),
+            aligned: Vec::new(),
             sections: 0,
             section_row_fixed: false,
             table_sizes: Vec::new(),
@@ -773,6 +794,9 @@ fn geometry_with(
 ) -> Geometry {
     let [x_size, y_size, z_size] = req.size;
     let mut strips = req.strips.clone();
+    for aligned in &req.aligned {
+        aligned.reserve(&mut strips, scale);
+    }
     // The Y-hole leader band is spent only when a derived view could claim it.
     if !scaled.derived.is_empty() && strips.front_hole_below > strips.fv_bottom {
         strips.fv_bottom = strips.front_hole_below;
@@ -2062,6 +2086,51 @@ pub fn plan_sheet(
     sheet: &crate::model::PlannedSheet,
 ) -> bool {
     const GAP: f64 = 10.0;
+    // Auxiliary pages get a composition of their own, with equal cells above the title
+    // block. Centre complete ink/caption blocks in those cells, clear of the frame.
+    let region = [
+        MARGIN + GAP,
+        sheet.title_block[3] + GAP,
+        sheet.page[0] - MARGIN - GAP,
+        sheet.page[1] - MARGIN - GAP,
+    ];
+    for rows in 1..=blocks.len() {
+        let columns = blocks.len().div_ceil(rows);
+        let cell = [
+            (region[2] - region[0]) / columns as f64,
+            (region[3] - region[1]) / rows as f64,
+        ];
+        let mut trial = blocks.to_vec();
+        let fits = trial.iter_mut().enumerate().all(|(i, view)| {
+            let w = view.area[2] - view.area[0];
+            let h = view.area[3] - view.area[1];
+            if w + GAP > cell[0] || h + GAP > cell[1] {
+                return false;
+            }
+            let centre = [
+                region[0] + (i % columns) as f64 * cell[0] + cell[0] / 2.,
+                region[3] - (i / columns) as f64 * cell[1] - cell[1] / 2.,
+            ];
+            let area = [
+                centre[0] - w / 2.,
+                centre[1] - h / 2.,
+                centre[0] + w / 2.,
+                centre[1] + h / 2.,
+            ];
+            if tables.iter().any(|b| crate::sheets::overlap(area, *b)) {
+                return false;
+            }
+            let delta = [area[0] - view.area[0], area[1] - view.area[1]];
+            view.at = [view.at[0] + delta[0], view.at[1] + delta[1]];
+            crate::centrelines::shift(view, delta);
+            view.area = area;
+            true
+        });
+        if fits {
+            blocks.clone_from_slice(&trial);
+            return true;
+        }
+    }
     let mut occupied = tables.to_vec();
     occupied.push(sheet.title_block);
     let mut x = MARGIN;

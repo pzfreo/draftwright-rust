@@ -415,7 +415,12 @@ fn r5_an_auxiliary_shrinks_only_on_its_own_paper_and_reports_the_floor() {
     let p = model::plan_recovered(&a, &s).unwrap();
     let iso = p.views.iter().find(|v| v.id == "v:iso").unwrap();
     assert!(iso.scale < p.sheet.scale_factor);
-    assert_eq!(iso.scale_note.as_deref(), Some("SCALE 2:1"));
+    assert!(iso.scale_note.is_none());
+    assert!(
+        p.captions
+            .iter()
+            .any(|c| c.sheet == iso.sheet && c.text == model::NTS_CAPTION)
+    );
     assert_eq!(p.sheets[0].size, "A4");
     let floor = p
         .problems

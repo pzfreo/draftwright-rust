@@ -76,6 +76,8 @@ pub struct Demand {
     /// The lanes the port's own dimensions take beside each view (set from `dims::lanes` by the
     /// plan; none from [`read`]): the bands are widened to hold them ([`Strips::reserve`]).
     pub lanes: layout::Lanes,
+    /// Authored side-only callout room, including the final printed label width.
+    pub callout_bands: Vec<layout::CalloutBand>,
     /// The part's feature control frames, datum feature symbols and labels as the layout
     /// reserves for them ([`Strips::reserve_gdt`]): with every principal view shown, and with
     /// the side view not shown (where a datum on a y-normal plane moves to the plan).
@@ -474,6 +476,7 @@ pub fn strips(d: &Demand, n_steps: usize, plan_shown: bool) -> Strips {
         ..Strips::without_features()
     };
     strips.reserve(&d.lanes);
+    strips.reserve_callouts(&d.callout_bands);
     strips
 }
 

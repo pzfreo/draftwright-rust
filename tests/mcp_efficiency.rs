@@ -138,7 +138,7 @@ fn options_explain_sheet_and_bare_view_keys() {
         );
     }
     let sheet = call(&cache, "item_options", query(&summary, "sheet"));
-    for field in ["size", "scale", "title", "fit_limits"] {
+    for field in ["size", "scale", "title", "fit_limits", "fit_deviations"] {
         assert!(sheet["settable"].get(format!("sheet/{field}")).is_some());
     }
     assert!(

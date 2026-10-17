@@ -10,6 +10,7 @@
 //! title block. Features, dimensions and annotations join the same documents as they are ported.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
 
 use haecceity::Part;
@@ -136,6 +137,9 @@ pub struct Analysis {
     /// ([`crate::lint::profiles`]), read from the part as draftwright's lint reads it.
     #[serde(default)]
     pub principal_profiles: Vec<crate::lint::profiles::Source>,
+    /// Provider-issued ordered planar outer profiles, with exact body and support identities.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub outer_profiles: Vec<crate::lint::profile_angles::Source>,
     /// The families of features the recogniser did not give, so the part may have features of
     /// them that the Analysis lacks: empty for Python quiddity's recognition, which the bridge
     /// reads in full; for Rust quiddity's ([`analyse_native`]), the families its document has
@@ -228,6 +232,16 @@ pub struct Spec {
     /// Per dimension, by its ID (`d:<feature>/<parameter>`).
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub dimensions: BTreeMap<String, DimensionSpec>,
+    /// A band on all overall extents; an extent's own tolerance or fit takes precedence.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub envelope_tolerance: Option<String>,
+    /// Decimal places (0–15) by measurement ID, including compound callout roles.
+    #[serde(
+        default,
+        skip_serializing_if = "BTreeMap::is_empty",
+        deserialize_with = "crate::dims::precision::read"
+    )]
+    pub precision: BTreeMap<String, u8>,
     /// Placement and omission of semantic PMI frames, datums and labels, by stable ID.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub annotations: BTreeMap<String, crate::placement_intent::AnnotationSpec>,
@@ -246,6 +260,9 @@ pub struct Spec {
     /// ([`crate::tables`]).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tables: Vec<TableSpec>,
+    /// Authored external spur gear requirements, never inferred from geometry.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub gears: Vec<crate::gears::GearSpec>,
 }
 
 /// The two sources of dimension intent (ADR4-5).
@@ -275,6 +292,9 @@ pub struct DimensionSpec {
     /// rules; ARCH0011-1).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tolerance: Option<String>,
+    /// ISO 286 class on this extent; `sheet/fit_deviations` adds stacked deviations.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fit: Option<String>,
     /// The view that carries it (`front`, `plan` or `side`), where the default would put it
     /// elsewhere: no longer part of its ID (`draftwright.spec/2`). One that cannot carry it is
     /// refused; one that is omitted leaves it in its default view, with a warning.
@@ -316,6 +336,9 @@ pub struct FeatureSpec {
     /// A note on a leader to the feature (draftwright's `note`) ([`crate::spec_notes`]).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    /// Roles this placed feature note explicitly satisfies; never inferred from its prose.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub note_satisfies: Vec<String>,
 }
 
 impl Default for Spec {
@@ -330,11 +353,14 @@ impl Default for Spec {
             dimension_source: DimensionSource::Auto,
             hole_table: crate::hole_table::Setting::Auto,
             dimensions: BTreeMap::new(),
+            envelope_tolerance: None,
+            precision: BTreeMap::new(),
             features: BTreeMap::new(),
             faces: BTreeMap::new(),
             annotations: BTreeMap::new(),
             notes: Vec::new(),
             tables: Vec::new(),
+            gears: Vec::new(),
         }
     }
 }
@@ -342,6 +368,18 @@ impl Default for Spec {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct SheetSpec {
+    /// Line-work intent; absent keeps the view's automatic convention.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hidden: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub centre_marks: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub centre_lines: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thread_depiction: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub knurl_depiction: Option<bool>,
+
     /// `A4` … `A0`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub size: Option<String>,
@@ -350,10 +388,13 @@ pub struct SheetSpec {
     pub scale: Option<String>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub title: BTreeMap<String, String>,
-    /// Whether a fit prints its ISO 286 limits beside its class (`⌀10 H7 (+0.015/0)`): shown
-    /// unless false, which prints the class alone (`⌀10 H7`).
+    /// Legacy spelling of `fit_deviations`; explicit values remain supported.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fit_limits: Option<bool>,
+    /// Show stacked ISO 286 deviations after the class; off by default.
+    /// Takes precedence over the legacy `fit_limits` setting.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fit_deviations: Option<bool>,
     /// ISO 5456-2's projection method, `first` or `third` (angle): where the plan and side sit
     /// about the front, and the symbol beside the title block. Third angle unless set. Any
     /// other value is refused when the spec is read, before the part is (ISSUE-1514-a).
@@ -382,6 +423,18 @@ fn projection_method<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<St
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct ViewSpec {
+    /// Line-work intent; absent keeps the view's automatic convention.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hidden: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub centre_marks: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub centre_lines: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thread_depiction: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub knurl_depiction: Option<bool>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sheet: Option<u32>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
@@ -395,6 +448,14 @@ pub struct ViewSpec {
 pub struct Plan {
     pub schema: String,
     pub binding: Binding,
+    /// Digest of the complete Analysis, including the supplied recognition, that determined
+    /// this plan. Absent only in older saved plans. The Spec is embedded separately.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub analysis_sha256: Option<String>,
+    /// Per-occurrence policy for recognised evidence without a dimension owner. Informational;
+    /// unsupported manufacturing requirements retain their independent warnings.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub feature_dispositions: Vec<crate::dims::FeatureDisposition>,
     #[serde(default)]
     pub status: crate::completeness::Status,
     #[serde(default)]
@@ -544,6 +605,11 @@ pub struct PlannedView {
     /// Automatic chain-line furniture, in paper coordinates; never Spec-addressable.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub line_work: Vec<crate::centrelines::LineWork>,
+    /// Effective authored line-work settings (view before sheet); absent preserves defaults.
+    #[serde(default, skip_serializing_if = "crate::linework::Settings::is_empty")]
+    pub line_style: crate::linework::Settings,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub from_spec: Vec<String>,
     /// A section view's cutting plane.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cut: Option<Cut>,
@@ -683,6 +749,7 @@ pub fn step_bytes(bytes: &[u8]) -> Result<std::borrow::Cow<'_, [u8]>, String> {
 }
 
 /// The STEP text of the file at *path* ([`step_bytes`]: gzip is decompressed).
+#[cfg(not(target_arch = "wasm32"))]
 pub fn read_step_file(path: &Path) -> Result<Vec<u8>, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     step_bytes(&bytes)
@@ -691,16 +758,19 @@ pub fn read_step_file(path: &Path) -> Result<Vec<u8>, String> {
 }
 
 /// Reads the STEP file at *path*: the part, and its analysis, without features.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse(path: &Path) -> Result<(Part, Analysis), Unanalysed> {
     analyse_with(path, None)
 }
 
 /// The distinct parts of the STEP file *bytes* (named *path*, for messages), in haecceity's
 /// order: what [`analyse_step_part`]'s *part* indexes.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn parts(path: &Path, bytes: &[u8]) -> Result<Vec<FilePart>, Unanalysed> {
     let bytes = step_bytes(bytes)
         .map_err(|e| unanalysed(false, format!("cannot read {}: {e}", path.display())))?;
-    let defs = haecceity::step::read_part_definitions(&bytes).map_err(|e| step_refused(path, e))?;
+    let defs = haecceity::step::read_part_definitions(&bytes)
+        .map_err(|e| step_refused(&path.display().to_string(), e))?;
     Ok(file_parts(&defs))
 }
 
@@ -728,17 +798,15 @@ pub fn part_list(parts: &[FilePart]) -> String {
 
 /// Why *path* could not be read as STEP: a file that does not parse is not STEP; one that parses
 /// but holds what the kernel does not model (or lost on reading) is the kernel's failure.
-fn step_refused(path: &Path, e: haecceity::step::StepError) -> Unanalysed {
+fn step_refused(name: &str, e: haecceity::step::StepError) -> Unanalysed {
     let failed = !matches!(e, haecceity::step::StepError::Parse(_));
-    unanalysed(
-        failed,
-        format!("cannot read {} as STEP: {e}", path.display()),
-    )
+    unanalysed(failed, format!("cannot read {} as STEP: {e}", name))
 }
 
 /// Reads the STEP file at *path*, with its features from *recognition*: Python quiddity's JSON
 /// for the same file, written by `tools/recognise.py` ([`crate::bridge`]). Refused when the
 /// kernel did not resolve a face or edge the isometric draws.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_with(
     path: &Path,
     recognition: Option<&Path>,
@@ -748,6 +816,7 @@ pub fn analyse_with(
 
 /// [`analyse_with`], reading one part of an assembly alone when *part* is given
 /// ([`analyse_step_part`]).
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_with_part(
     path: &Path,
     recognition: Option<&Path>,
@@ -779,6 +848,7 @@ pub fn analyse_with_part(
 /// Reads *bytes*, the STEP file named *path* (which is not read: the name is for the part and
 /// for messages), as [`analyse_with`] reads a file, without features: for callers that have the
 /// file's bytes and no file system, such as a browser.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unanalysed> {
     analyse_step_part(path, bytes, None)
 }
@@ -789,16 +859,12 @@ pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unana
 /// part and its index. Part 0 of a file of one part is the whole file, read as with none. With none, the whole file is read as one part, as it always was; an
 /// assembly's parts are then listed in `parts` and the plan warns that they are drawn together.
 /// Refused, naming the parts, when there is no part *k*.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_step_part(
     path: &Path,
     bytes: &[u8],
     chosen: Option<usize>,
 ) -> Result<(Part, Analysis), Unanalysed> {
-    let bytes = &*step_bytes(bytes)
-        .map_err(|e| unanalysed(false, format!("cannot read {}: {e}", path.display())))?;
-    // The file's part definitions are read in both cases (the PMI reading needs them too, and
-    // is given these rather than reading them again). A gzipped file's name is its STEP name
-    // with `.gz` after it, so `part.step.gz` and `part.stp.gz` are named as `part.step` is.
     let stem = || {
         let plain = path
             .extension()
@@ -812,35 +878,76 @@ pub fn analyse_step_part(
             s.to_string_lossy().trim_end_matches(".step").to_string()
         })
     };
+    analyse_step_input(&path.display().to_string(), stem(), bytes, chosen)
+}
+
+/// Analyse in-memory STEP (or gzip) bytes with Rust feature recognition. `name` is only a
+/// display name, never a filesystem path. Browser callers need no filesystem or clock.
+pub fn analyse_native_bytes(name: &str, bytes: &[u8]) -> Result<(Part, Analysis), Unanalysed> {
+    let file = name.rsplit('/').next().unwrap_or(name);
+    let plain = if file
+        .get(file.len().saturating_sub(3)..)
+        .is_some_and(|s| s.eq_ignore_ascii_case(".gz"))
+    {
+        &file[..file.len() - 3]
+    } else {
+        file
+    };
+    let stem = plain
+        .rsplit_once('.')
+        .filter(|(stem, _)| !stem.is_empty())
+        .map_or(plain, |(stem, _)| stem)
+        .trim_end_matches(".step");
+    let (part, mut analysis) = analyse_step_input(name, stem.into(), bytes, None)?;
+    recognise_native(&part, &mut analysis).map_err(|e| {
+        unanalysed(
+            true,
+            format!("Rust quiddity's recognition of {name} was refused: {e}"),
+        )
+    })?;
+    Ok((part, analysis))
+}
+
+fn analyse_step_input(
+    name: &str,
+    stem: String,
+    bytes: &[u8],
+    chosen: Option<usize>,
+) -> Result<(Part, Analysis), Unanalysed> {
+    let bytes =
+        &*step_bytes(bytes).map_err(|e| unanalysed(false, format!("cannot read {}: {e}", name)))?;
+    // The file's part definitions are read in both cases (the PMI reading needs them too, and
+    // is given these rather than reading them again). A gzipped file's name is its STEP name
+    // with `.gz` after it, so `part.step.gz` and `part.stp.gz` are named as `part.step` is.
     let mut chosen = chosen;
-    let (part, defs, name) = match chosen {
+    let (part, defs, part_name) = match chosen {
         None => (
-            haecceity::read_step(bytes).map_err(|e| step_refused(path, e))?,
+            haecceity::read_step(bytes).map_err(|e| step_refused(name, e))?,
             haecceity::step::read_part_definitions(bytes)
                 .map_err(|e| format!("cannot read the parts: {e}")),
-            stem(),
+            stem.clone(),
         ),
         Some(k) => {
-            let file = haecceity::step::StepFile::read(bytes).map_err(|e| step_refused(path, e))?;
+            let file = haecceity::step::StepFile::read(bytes).map_err(|e| step_refused(name, e))?;
             if k == 0 && file.parts.len() == 1 {
                 // Part 0 of a file of one part is the whole file: drawn, titled (by the file's
                 // stem, not the product's name) and bound exactly as without a part chosen.
                 chosen = None;
-                let part = haecceity::read_step(bytes).map_err(|e| step_refused(path, e))?;
-                (part, Ok(file.parts), stem())
+                let part = haecceity::read_step(bytes).map_err(|e| step_refused(name, e))?;
+                (part, Ok(file.parts), stem.clone())
             } else {
                 if k >= file.parts.len() {
                     return Err(unanalysed(
                         false,
                         format!(
                             "{} has {} part(s) ({}); there is no part {k}",
-                            path.display(),
+                            name,
                             file.parts.len(),
                             part_list(&file_parts(&file.parts))
                         ),
                     ));
                 }
-                let part = file.part(k).map_err(|e| step_refused(path, e))?;
+                let part = file.part(k).map_err(|e| step_refused(name, e))?;
                 let name = file.parts[k].name.clone();
                 (part, Ok(file.parts), name)
             }
@@ -855,7 +962,7 @@ pub fn analyse_step_part(
                 .iter()
                 .map(|x| format!("{x:02x}"))
                 .collect(),
-            part: name,
+            part: part_name,
             face_count: part.faces.len(),
             loader: LOADER.into(),
             part_index: chosen,
@@ -888,6 +995,7 @@ pub fn analyse_step_part(
         level_supports,
         risers,
         principal_profiles: crate::lint::profiles::evidence(&part),
+        outer_profiles: crate::lint::profile_angles::evidence(&part),
         unrecognised: Vec::new(),
         pmi: crate::pmi::attach_with(
             bytes,
@@ -916,7 +1024,7 @@ pub fn analyse_step_part(
                 true,
                 format!(
                     "cannot draw {}: the kernel did not resolve its {e} on reading",
-                    path.display()
+                    name
                 ),
             )
         })?
@@ -939,11 +1047,13 @@ pub fn analyse_step_part(
 }
 
 /// [`analyse_step`], with its features from Rust quiddity's recognition, as [`analyse_native`].
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_native_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unanalysed> {
     analyse_native_step_part(path, bytes, None)
 }
 
 /// [`analyse_native_step`] of one part of the file when *part* is given ([`analyse_step_part`]).
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_native_step_part(
     path: &Path,
     bytes: &[u8],
@@ -982,11 +1092,13 @@ pub const NOT_IN_NATIVE_DOCUMENT: [&str; 1] = ["section_recesses"];
 /// quiddity's recognition document ([`crate::bridge::native`]) in place of Python quiddity's JSON.
 /// Refused, as the kernel's failure, when the native reader refuses the document; never read as
 /// a part without features.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_native(path: &Path) -> Result<(Part, Analysis), Unanalysed> {
     analyse_native_part(path, None)
 }
 
 /// [`analyse_native`] of one part of the file when *part* is given ([`analyse_step_part`]).
+#[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_native_part(
     path: &Path,
     part: Option<usize>,
@@ -1031,11 +1143,10 @@ pub fn recognise_document(
     // As the bridge orders them: by kind, then faces (each kind's IDs are ranked so already).
     features.sort_by(|a, b| (&a.kind, &a.faces).cmp(&(&b.kind, &b.faces)));
     let mut counts = BTreeMap::<&str, usize>::new();
-    for r in doc
-        .records
-        .iter()
-        .filter(|r| !native::READ.contains(&r.family.as_str()))
-    {
+    for r in doc.records.iter().filter(|r| {
+        !native::READ.contains(&r.family.as_str())
+            && !native::EVIDENCE_READ.contains(&r.family.as_str())
+    }) {
         *counts.entry(r.family.as_str()).or_default() += 1;
     }
     let mut unrecognised: Vec<Unrecognised> = NOT_IN_NATIVE_DOCUMENT
@@ -1054,7 +1165,7 @@ pub fn recognise_document(
     analysis.recognition = Some(Recognition {
         recogniser: read.recogniser,
         frame: native::IDENTITY,
-        evidence: Vec::new(),
+        evidence: read.evidence,
         refusals: Vec::new(),
         patterns: read.patterns,
     });
@@ -1152,7 +1263,7 @@ pub(crate) fn findings(plan: &Plan) -> layout::Findings {
 
 /// A plan's annotations over a view not their own: a label on a view's box or a line across
 /// another view (`annotation_over_view`, `annotation_line_over_view`), at warning or error.
-fn over_views(plan: &Plan) -> usize {
+pub(crate) fn over_views(plan: &Plan) -> usize {
     plan.problems
         .iter()
         .filter(|p| {
@@ -1278,6 +1389,37 @@ fn carried(plan: &Plan) -> BTreeSet<(String, String)> {
         }
     }
     out
+}
+
+pub(crate) fn carries_required(required: &Plan, candidate: &Plan) -> bool {
+    carried(required).is_subset(&carried(candidate))
+}
+
+/// Check actual bounds independently on each sheet; coincident coordinates on different
+/// pages are expected. Keep the single-sheet gate identical.
+pub(crate) fn drawn_sheets_fit(analysis: &Analysis, plan: &Plan) -> bool {
+    std::iter::once(&plan.sheet)
+        .chain(&plan.sheets)
+        .all(|sheet| {
+            let mut local = plan.clone();
+            local.sheet = sheet.clone();
+            local.views.retain(|v| v.sheet == sheet.number);
+            let carries = |id: &str| local.views.iter().any(|v| v.id == id);
+            local.dimensions.retain(|d| carries(&d.view));
+            local.gdt.retain(|g| carries(&g.view));
+            local.balloons.retain(|b| carries(&b.view));
+            local.tables.retain(|t| t.sheet == sheet.number);
+            local.hole_table = local.hole_table.filter(|t| t.sheet == sheet.number);
+            local.hole_tables.retain(|t| t.sheet == sheet.number);
+            if sheet.number > 1 {
+                local.notes.clear();
+                local.notes_block = None;
+                local.radius_notes_block = None;
+                local.radius_table = None;
+                local.requirements.clear();
+            }
+            drawn_items_fit(analysis, &local)
+        })
 }
 
 fn drawn_items_fit(analysis: &Analysis, p: &Plan) -> bool {
@@ -1427,8 +1569,9 @@ const LARGE_SHEET: usize = 2;
 /// Whether the part's views fit A3 at 1:1 (maintainer, 2026-10-15): drawn full size, each with
 /// one dimension row ([`layout::DIM_PAD`]) on either side, the row of views (the front with the
 /// side and any sections beside it) is no wider than A3's usable paper and the column (the plan
-/// above the front) no taller. Such a part never takes A2 or larger by default.
-fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
+/// above the front) no taller. Such a part exhausts single- and multi-sheet A4/A3 plans
+/// before the automatic search admits A2 or larger.
+pub(crate) fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
     let (_, w, h) = layout::PAGES[LARGE_SHEET - 1];
     let size = |v: &PlannedView| {
         let view = View::new(v.direction, v.up).expect("planned view");
@@ -1567,9 +1710,7 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
     let mut smallest = None;
     let mut smallest_iso: Option<f64> = None;
     let mut recipes = BTreeMap::new();
-    // The large sheets stay closed to a small part only while it has a valid drawing below
-    // them; with none, the search goes on to A2 and up as before (judgement, 2026-10-16: redrawn
-    // smaller, such a drawing would lose items off the sheet).
+    // Exhaust practical single sheets, then R5 allocation, before admitting large paper.
     let mut rule = true;
     let mut first_sheet = 0;
     loop {
@@ -1783,6 +1924,21 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
         }
         if cut && candidates.is_empty() {
             tried.pop();
+            // Already allocated content is assembled by the caller. Its completed document
+            // gets the same fallback in sheets::allocate_counted, rather than nesting moves.
+            let assigned = spec.views.values().any(|v| v.sheet.is_some_and(|n| n > 1))
+                || spec.tables.iter().any(|t| t.sheet.is_some_and(|n| n > 1))
+                || spec
+                    .sheets
+                    .as_ref()
+                    .and_then(|s| s.hole_table)
+                    .is_some_and(|n| n > 1);
+            if !assigned
+                && let Some(plan) =
+                    crate::sheets::small_fallback(analysis, spec, &first, &mut tried)
+            {
+                return Ok(plan);
+            }
             rule = false;
             seed_kept = seed_clean;
             first_sheet = LARGE_SHEET;
@@ -2052,7 +2208,35 @@ fn plan_escalated_uncached(
                     true,
                     Some(&selection),
                 )?;
-                if crate::hole_table::install(analysis, &mut scheduled, &selection) {
+                let mut installed = crate::hole_table::install(analysis, &mut scheduled, &selection);
+                // Measured source corridors may outgrow the estimated sheet. An explicit
+                // schedule request still deserves a transaction on larger automatic paper,
+                // at the same scale, before falling back to the original dimensions.
+                if !installed
+                    && spec.hole_table == crate::hole_table::Setting::Always
+                    && spec.sheet.size.is_none()
+                    && !crate::placement_intent::has_pins(spec)
+                {
+                    let first = layout::PAGES.iter().position(|(name, ..)| *name == p.sheet.size)
+                        .expect("planned paper is standard");
+                    for (name, ..) in layout::PAGES.iter().skip(first + 1) {
+                        let mut larger = spec.clone();
+                        larger.sheet.size = Some((*name).into());
+                        let mut candidate = plan_with_presentation(
+                            analysis, &larger, beyond_lanes, automatic_pair,
+                            candidate_arrangement, true, Some(&selection),
+                        )?;
+                        if crate::hole_table::install(analysis, &mut candidate, &selection) {
+                            candidate.spec = spec.clone();
+                            candidate.sheet.default = true;
+                            candidate.sheet.basis += "; larger automatic paper retains the requested schedule and measured corridors";
+                            scheduled = candidate;
+                            installed = true;
+                            break;
+                        }
+                    }
+                }
+                if installed {
                     p = scheduled;
                 } else {
                     p.problems.push(Problem { id:"p:hole_table_unavailable:sheet".into(), code:"hole_table_unavailable".into(), severity:if spec.hole_table == crate::hole_table::Setting::Always { "warning" } else { "info" }.into(), message:"The selected hole table or one of its tags has no clear place; the original dimensions are kept.".into(), subjects:vec!["sheet".into()], ..Default::default() });
@@ -2182,11 +2366,13 @@ fn plan_with_presentation(
     let merged = crate::spec_gdt::effective(analysis, spec)?;
     let analysis = merged.as_ref();
     crate::sheets::validate(spec)?;
+    crate::spec_notes::check_claims(analysis, spec)?;
     crate::dims::check_views(spec)?;
     crate::placement_intent::check(spec)?;
     title_block::check(&spec.sheet.title)?;
     crate::notes::check(&spec.notes)?;
     crate::tables::check(&spec.tables)?;
+    crate::gears::check(&spec.gears)?;
     let mut problems = Vec::new();
     // The spec the plan follows: across a revision, without the entries that cannot be trusted.
     let canonical = if crate::placement_intent::has_pins(spec) {
@@ -2194,6 +2380,8 @@ fn plan_with_presentation(
         base.sheet.size = spec.sheet.size.clone();
         base.sheet.scale = spec.sheet.scale.clone();
         base.sheet.projection = spec.sheet.projection.clone();
+        base.sheet.fit_deviations = spec.sheet.fit_deviations;
+        base.sheet.fit_limits = spec.sheet.fit_limits;
         base.hole_table = spec.hole_table;
         base.iso_scale_factor = spec.iso_scale_factor;
         Some(if complete_views {
@@ -2275,6 +2463,9 @@ fn plan_with_presentation(
             .collect::<Vec<_>>();
         effective
             .dimensions
+            .retain(|id, _| !id.starts_with("d:f:") && !id.starts_with("d:pmi:"));
+        effective
+            .precision
             .retain(|id, _| !id.starts_with("d:f:") && !id.starts_with("d:pmi:"));
         effective.annotations.clear();
         effective.features.clear();
@@ -2385,13 +2576,21 @@ fn plan_with_presentation(
             let mut names = VIEWS.map(|v| v.0).to_vec();
             names.push(SECTION);
             return Err(invalid(
-                format!("There is no view called {name:?}."),
+                if name.starts_with("v:") {
+                    // The MCP's bounded correction recognises this established diagnostic.
+                    format!("There is no view called {name:?}.")
+                } else {
+                    format!(
+                        "There is no view called {name:?}; replace views/{name} with a listed view name, or remove it."
+                    )
+                },
                 &names,
             ));
         }
     }
     let mut demand = crate::demand::read(analysis);
     demand.gdt_beyond_lanes = gdt_beyond_lanes;
+    demand.callout_bands = crate::dims::callout_bands(analysis, spec)?;
     // A turned part drops the view that repeats its profile, unless the spec asks for it, or
     // omits the profile view it keeps (front): the dropped view is then the only profile left;
     // or a PMI item is drawn in it (draftwright's `annotation_view_required`).
@@ -2423,8 +2622,27 @@ fn plan_with_presentation(
         .filter(|(name, ..)| shown(name))
         .copied()
         .collect();
-    demand.lanes = crate::dims::lanes_excluding(analysis, &shown_views, &excluded);
+    let (lanes, aligned) = crate::dims::lanes_excluding(analysis, &shown_views, &excluded, spec)?;
+    demand.lanes = lanes;
     crate::dims::reserve_linear_intent(analysis, spec, &shown_views, &excluded, &mut demand.lanes)?;
+    // Full printed extents reserve ink, but an authored linear tolerance must not recenter
+    // every projection and its unrelated dimensions (ARCH0003-2). Keep the established
+    // linear anchor bands separately; the placed blocks below still use the full extents.
+    let linear_anchor_lanes = if spec.dimensions.values().any(|d| d.tolerance.is_some()) {
+        let mut nominal = spec.clone();
+        for d in nominal.dimensions.values_mut() {
+            d.tolerance = None;
+        }
+        let (before, _) =
+            crate::dims::lanes_excluding(analysis, &shown_views, &excluded, &nominal)?;
+        let mut anchors = demand.lanes;
+        anchors.plate_front_top = before.plate_front_top;
+        anchors.plate_side_top = before.plate_side_top;
+        (anchors != demand.lanes).then_some(anchors)
+    } else {
+        None
+    };
+
     if !(principals.front || principals.plan || principals.side) {
         return Err(invalid(
             "Every principal view is omitted; a sheet needs front, plan or side.",
@@ -2555,6 +2773,7 @@ fn plan_with_presentation(
         principals,
         shown("iso"),
     );
+    request.aligned = aligned;
     request.automatic_pair = automatic_pair;
     request.candidate_arrangement = candidate_arrangement;
     request.first_angle = first_angle;
@@ -2607,6 +2826,9 @@ fn plan_with_presentation(
     );
     request.iso_scale_factor = spec.iso_scale_factor;
     request.required_tables = crate::tables::sizes(&spec.tables);
+    request
+        .required_tables
+        .extend(crate::tables::sizes(&crate::gears::tables(analysis)));
     if let Some(p) = presentation {
         request.required_tables.extend(p.sizes());
     }
@@ -2709,7 +2931,7 @@ fn plan_with_presentation(
         (None, Some(_), Some(_)) => "as the spec asks".into(),
     };
 
-    let g = layout::geometry(
+    let mut g = layout::geometry(
         &request,
         &Scaled::default(),
         pick.scale,
@@ -2718,6 +2940,39 @@ fn plan_with_presentation(
         pick.arrangement,
         None,
     );
+    if let Some(lanes) = linear_anchor_lanes {
+        let anchors = crate::demand::Demand {
+            lanes,
+            ..demand.clone()
+        };
+        let (_, strips, _) =
+            crate::demand::size(&anchors, &request, Some(pick.scale), Some(pick.page), lo[2]);
+        let anchored_request = Request {
+            strips,
+            ..request.clone()
+        };
+        let frame = layout::geometry(
+            &anchored_request,
+            &Scaled::default(),
+            pick.scale,
+            pick.page,
+            pick.tb_w,
+            pick.arrangement,
+            None,
+        );
+        let shift = [
+            frame.section[0] - g.section[0],
+            frame.section[1] - g.section[1],
+        ];
+        for b in &mut g.section_boxes {
+            for k in 0..2 {
+                b[k] += shift[k];
+                b[k + 2] += shift[k];
+            }
+        }
+        (g.front, g.plan, g.side, g.section) = (frame.front, frame.plan, frame.side, frame.section);
+        (g.iso, g.iso_centre) = (frame.iso, frame.iso_centre);
+    }
     let ib = analysis.iso_bounds.map(|b| b * pick.scale);
     let iso_factor = spec
         .iso_scale_factor
@@ -2817,6 +3072,7 @@ fn plan_with_presentation(
                 state: ItemState::Shown,
                 cut: None,
                 line_work: Vec::new(),
+                line_style: Default::default(), from_spec: Vec::new(),
             }
         })
         .collect();
@@ -2838,6 +3094,7 @@ fn plan_with_presentation(
             ),
             state: ItemState::Shown,
             line_work: Vec::new(),
+            line_style: Default::default(), from_spec: Vec::new(),
             cut: Some(Cut {
                 xref: None,
                 label: "A".into(),
@@ -3000,6 +3257,7 @@ fn plan_with_presentation(
         for (view, basis) in plan.views.iter_mut().zip(view_bases) {
             view.basis = basis;
         }
+        crate::linework::configure(spec, &mut plan.views);
         return Ok(plan);
     }
     let footprint_cache = crate::dims::footprints::Cache::default();
@@ -3232,6 +3490,15 @@ fn plan_with_presentation(
         &mut inventory,
         &settle_fixed,
     );
+    let rerouted = crate::dims::settle_after_furniture(
+        analysis,
+        &label_spec,
+        &sheet,
+        &views,
+        &mut inventory,
+        &settle_fixed,
+        &footprint_cache,
+    );
     for d in &mut dimensions {
         if let Some(settled) = inventory.iter().find(|settled| settled.id == d.id) {
             d.placed = settled.placed.clone();
@@ -3243,6 +3510,11 @@ fn plan_with_presentation(
         .map(|d| d.id.as_str())
         .collect();
     problems.retain(|p| {
+        if p.code == "annotation_leader_long"
+            && p.subjects.iter().any(|id| rerouted.contains_key(id))
+        {
+            return false;
+        }
         !matches!(
             p.code.as_str(),
             "annotation_outside_area"
@@ -3263,6 +3535,7 @@ fn plan_with_presentation(
             .iter()
             .any(|id| settled_ids.contains(id.as_str()))
     });
+    problems.extend(rerouted.into_values().flatten());
     let mut ink = dimensions.clone();
     ink.extend(reserved);
     problems.extend(crate::dims::label_collisions(
@@ -3346,6 +3619,27 @@ fn plan_with_presentation(
     problems.extend(more);
     tables.extend(schedule);
     ink.extend(tables.iter().filter_map(crate::tables::proxy));
+    let (mut gear_tables, more) = crate::tables::plan(
+        &crate::gears::tables(analysis),
+        analysis,
+        &sheet,
+        &views,
+        &ink,
+        notes_block.as_ref().map(|b| b.cells),
+    );
+    problems.extend(more);
+    for (i, table) in gear_tables.iter_mut().enumerate() {
+        table.basis = format!(
+            "authored: gears/{i}, metric external spur gear requirements; ISO 21771-1/-2, ISO 53, ISO 54 and ISO 1328-1; placed as a standards data table"
+        );
+    }
+    tables.extend(gear_tables);
+    ink.extend(
+        tables
+            .iter()
+            .filter(|t| t.id.starts_with("gear_data_"))
+            .filter_map(crate::tables::proxy),
+    );
     let exceptions_unstated =
         crate::dims::blends::exceptions_unstated(analysis, &dimensions, &radius_notes);
     if exceptions_unstated {
@@ -3536,6 +3830,18 @@ fn plan_with_presentation(
     let mut plan = Plan {
         schema: PLAN_SCHEMA.into(),
         binding: analysis.binding.clone(),
+        analysis_sha256: Some(crate::planning::memo(
+            analysis,
+            "analysis_sha256",
+            Vec::new(),
+            || {
+                Sha256::digest(serde_json::to_vec(analysis).expect("analysis serializes"))
+                    .iter()
+                    .map(|b| format!("{b:02x}"))
+                    .collect()
+            },
+        )),
+        feature_dispositions: crate::dims::feature_dispositions(analysis),
         status: crate::completeness::Status::NeedsAttention,
         completeness: crate::completeness::Completeness::default(),
         sheet,
@@ -3809,6 +4115,7 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
     title_block::check(&spec.sheet.title)?;
     crate::notes::check(&spec.notes)?;
     crate::tables::check(&spec.tables)?;
+    crate::gears::check(&spec.gears)?;
     Ok(spec)
 }
 
@@ -3902,7 +4209,15 @@ impl Projections {
         let view = View::new(v.direction, v.up).expect("a planned view");
         let centre = extent(analysis, &view).1;
         let key = projection_key(v);
-        let placement = bits(&[&[v.scale, f64::from(v.id == "v:iso")], &centre, &v.at]);
+        let placement = bits(&[
+            &[
+                v.scale,
+                f64::from(v.id == "v:iso"),
+                f64::from(v.line_style.hidden != Some(false)),
+            ],
+            &centre,
+            &v.at,
+        ]);
         if let Some((previous, geometry)) = self.geometry.get(&key)
             && *previous == placement
         {
@@ -3937,18 +4252,18 @@ impl Projections {
                     };
                     items.push(Item::Edge(curve));
                 }
-                None => geometry.undrawn += 1,
+                None if piece.visible || v.line_style.hidden != Some(false) => {
+                    geometry.undrawn += 1
+                }
+                None => {}
             }
         }
-        if v.cut.is_some() {
+        if v.cut.is_some() || v.line_style.hidden == Some(false) {
             geometry.hidden.clear();
         } else {
             // Visible ink takes precedence in orientation views too. A scale or
             // arrangement change must not reveal redundant hidden ink over it.
             geometry.hidden = crate::linework::hidden(&geometry.visible, geometry.hidden);
-            if v.id == "v:iso" {
-                geometry.hidden = crate::linework::hidden(&geometry.visible, geometry.hidden);
-            }
         }
         self.stats.bounds += 1;
         geometry.bbox = items_bbox(&geometry.visible);
@@ -4062,6 +4377,25 @@ pub fn render_item(item: AnnotationItem<'_>) -> RenderedItem {
         AnnotationItem::Dimension(d) => d.region == Some(crate::dims::CandidateRegion::Interior),
         AnnotationItem::Gdt(_) => false,
     };
+    let heads = match &item {
+        AnnotationItem::Dimension(d) => d
+            .placed
+            .as_ref()
+            .map(|p| {
+                p.arrows
+                    .iter()
+                    .flat_map(|&[tip, tail]| {
+                        let n = [tail[1] - tip[1], tip[0] - tail[0]];
+                        let k = (crate::dims::ARROW / 6.0) / n[0].hypot(n[1]).max(1e-12);
+                        let a = [tail[0] + k * n[0], tail[1] + k * n[1]];
+                        let b = [tail[0] - k * n[0], tail[1] - k * n[1]];
+                        [[tip, a], [a, b], [b, tip]]
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
+        AnnotationItem::Gdt(_) => Vec::new(),
+    };
     let (kind, label, lines, elbow) = match item {
         AnnotationItem::Dimension(d) => {
             out.annotations =
@@ -4090,6 +4424,7 @@ pub fn render_item(item: AnnotationItem<'_>) -> RenderedItem {
     };
     if let (Some(a), Some(ink)) = (out.annotations.first(), items_bbox(&out.items)) {
         out.drawn.push(Drawn {
+            heads,
             name: a.name.clone(),
             kind,
             ink,
@@ -4403,6 +4738,7 @@ fn render_annotations_with_cuts(
             let ink: Vec<_> = w.curves.iter().cloned().map(Item::Edge).collect();
             if let Some(ink_box) = items_bbox(&ink) {
                 sheet.items.push(Drawn {
+                    heads: Vec::new(),
                     name: w.id.clone(),
                     kind: Kind::Centreline,
                     ink: ink_box,
@@ -4460,6 +4796,7 @@ fn render_annotations_with_cuts(
             let mut piece = |name: String, kind: Kind, ink: &[Item], lines: Vec<[[f64; 2]; 2]>| {
                 if let Some(ink) = items_bbox(ink) {
                     sheet.items.push(Drawn {
+                        heads: Vec::new(),
                         name,
                         kind,
                         ink,
@@ -4523,7 +4860,7 @@ fn render_annotations_with_cuts(
                     cut.xref.as_ref().filter(|_| f.chain.is_some()),
                     format!("SECTION {}–{},", cut.label, cut.label),
                     format!("{}/cut/xref", v.id),
-                    "section_caption".into(),
+                    v.id.clone(),
                 ),
             ] {
                 if let Some(r) = reference {
@@ -4650,6 +4987,7 @@ fn render_annotations_with_cuts(
     // A text-only thing as drawn: the box of its ink *items*, which is also its label.
     let labelled = |name: &str, kind: Kind, items: &[Item]| {
         items_bbox(items).map(|b| Drawn {
+            heads: Vec::new(),
             name: name.into(),
             kind,
             ink: b,
@@ -4796,6 +5134,7 @@ fn render_annotations_with_cuts(
         _ => None,
     }));
     sheet.items.push(Drawn {
+        heads: Vec::new(),
         name: "title_block".into(),
         kind: Kind::TitleBlock,
         ink,
@@ -4850,6 +5189,8 @@ fn render_annotations_with_cuts(
             }
             if !n.measurements.is_empty() || n.id == crate::dims::blends::RELIEF_NOTE {
                 annotations.push(Annotation {
+                    approved_claims: Vec::new(),
+                    approved_text: None,
                     coordinate_origin: None,
                     claims: Vec::new(),
                     name: n.id.clone(),
@@ -4868,6 +5209,7 @@ fn render_annotations_with_cuts(
         }
         if let Some(ink) = items_bbox(&dims[notes_from..]) {
             sheet.items.push(Drawn {
+                heads: Vec::new(),
                 name: if i == 0 {
                     "general_notes"
                 } else {
@@ -4911,6 +5253,7 @@ fn render_annotations_with_cuts(
         stated.entry(r.id.clone()).or_default().extend(at);
         if let Some(ink) = items_bbox(&dims[from..]) {
             sheet.items.push(Drawn {
+                heads: Vec::new(),
                 name: r.id.clone(),
                 kind: Kind::Gdt,
                 ink,
@@ -4928,13 +5271,70 @@ fn render_annotations_with_cuts(
         for [a, b] in crate::tables::ruling(p.cells, &p.columns) {
             dims.push(Item::Edge(Curve::Line(a, b)));
         }
-        for (cell, at) in crate::tables::texts(table) {
-            let run = (cell.trim(), crate::dims::FONT, crate::tables::TEXT);
-            let laid = font.text(&crate::tables::ink(cell), crate::tables::TEXT);
-            label(laid, at, dims, Some(run));
+        let mut manufacturing_runs: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+        let mut manufacturing_header = Vec::new();
+        let mut gear_runs = Vec::new();
+        let mut tag = None;
+        for (r, (row, positions)) in table.rows.iter().zip(&p.cells_at).enumerate() {
+            if table.id == crate::pmi_lowering::SCHEDULE_ID && r > 0 && !row[0].is_empty() {
+                tag = Some(row[0].clone());
+            }
+            for (cell, at) in row.iter().zip(positions) {
+                let Some(at) = at else { continue };
+                let run = (cell.trim(), crate::dims::FONT, crate::tables::TEXT);
+                let laid = font.text(&crate::tables::ink(cell), crate::tables::TEXT);
+                let index = label(laid, *at, dims, Some(run));
+                if table.id.starts_with("gear_data_") {
+                    gear_runs.extend(index);
+                }
+                if table.id == crate::pmi_lowering::SCHEDULE_ID && r == 0 {
+                    manufacturing_header.extend(index);
+                }
+                if let Some(tag) = &tag {
+                    manufacturing_runs
+                        .entry(tag.clone())
+                        .or_default()
+                        .extend(index);
+                }
+            }
+        }
+        if let Some(owner) = table.id.strip_prefix("gear_data_") {
+            annotations.push(Annotation {
+                name: table.id.clone(),
+                runs: gear_runs,
+                claims: vec![Claim {
+                    feature: format!("gear:{owner}"),
+                    parameter: "gear.requirement".into(),
+                }],
+                ..Default::default()
+            });
+        }
+        if !manufacturing_header.is_empty() {
+            annotations.push(Annotation {
+                name: "manufacturing_requirements_header".into(),
+                runs: manufacturing_header,
+                ..Default::default()
+            });
+        }
+        if !manufacturing_runs.is_empty() {
+            for binding in &table.row_claims {
+                if let Some(runs) = manufacturing_runs.remove(&binding.tag) {
+                    annotations.push(Annotation {
+                        name: format!("{}/{}", table.id, binding.tag),
+                        approved_claims: binding.claims.clone(),
+                        approved_text: None,
+                        coordinate_origin: None,
+                        view: None,
+                        runs,
+                        claims: Vec::new(),
+                        satisfies: Vec::new(),
+                    });
+                }
+            }
         }
         if let Some(ink) = items_bbox(&dims[table_from..]) {
             sheet.items.push(Drawn {
+                heads: Vec::new(),
                 name: table.id.clone(),
                 kind: Kind::Table,
                 ink,
@@ -4969,6 +5369,14 @@ fn render_annotations_with_cuts(
                 && let Some(radius) = t.rows.get(i - 1)
             {
                 annotations.push(Annotation {
+                    approved_claims: Vec::new(),
+                    approved_text: Some(
+                        row.iter()
+                            .filter(|c| !c.is_empty())
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                    ),
                     coordinate_origin: None,
                     name: format!("{}/{}", t.table.id, radius.feature),
                     view: Some(radius.view.clone()),
@@ -4983,6 +5391,7 @@ fn render_annotations_with_cuts(
         }
         if let Some(ink) = items_bbox(&dims[start..]) {
             sheet.items.push(Drawn {
+                heads: Vec::new(),
                 name: t.table.id.clone(),
                 kind: Kind::Table,
                 ink,
@@ -5073,6 +5482,7 @@ fn render_annotations_with_cuts(
         }
         if let Some(ink) = items_bbox(&dims[table_from..]) {
             sheet.items.push(Drawn {
+                heads: Vec::new(),
                 name: t.id.clone(),
                 kind: Kind::Table,
                 ink,
@@ -5086,6 +5496,16 @@ fn render_annotations_with_cuts(
             if t.view.is_none() {
                 annotations.push(Annotation {
                     satisfies: Vec::new(),
+                    approved_claims: Vec::new(),
+                    approved_text: Some(
+                        row.cells
+                            .iter()
+                            .skip(1)
+                            .filter(|c| !c.is_empty())
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                    ),
                     coordinate_origin: None,
                     name: format!("{}/{}", t.id, row.tag),
                     view: Some("v:plan".into()),
@@ -5106,6 +5526,8 @@ fn render_annotations_with_cuts(
                     if c == 4 {
                         annotations.push(Annotation {
                             satisfies: Vec::new(),
+                            approved_claims: Vec::new(),
+                            approved_text: Some(row.cells[c].clone()),
                             coordinate_origin: None,
                             name: format!("{}/{}/entry", t.id, row.tag),
                             view: t.view.clone(),
@@ -5151,6 +5573,8 @@ fn render_annotations_with_cuts(
                         .collect();
                     annotations.push(Annotation {
                         satisfies: Vec::new(),
+                        approved_claims: Vec::new(),
+                        approved_text: Some(row.cells[c].clone()),
                         coordinate_origin: if c > 1 { t.origin } else { None },
                         name: format!("{}/{}/{}", t.id, row.tag, ["tag", "size", "x", "y"][c]),
                         view: t.view.clone(),
@@ -5213,6 +5637,7 @@ fn render_annotations_with_cuts(
         }
         if let Some(ink) = items_bbox(&dims[from..]) {
             sheet.items.push(Drawn {
+                heads: Vec::new(),
                 name: b.id.clone(),
                 kind: if b.id.starts_with("hole_schedule_") {
                     Kind::Dimension
@@ -5260,6 +5685,8 @@ fn render_annotations_with_cuts(
     }
     // Each drawing-wide PMI requirement by the runs that state it, for lint and the PMI checks.
     annotations.extend(stated.into_iter().map(|(name, runs)| Annotation {
+        approved_claims: Vec::new(),
+        approved_text: None,
         coordinate_origin: None,
         satisfies: Vec::new(),
         name,
@@ -5267,6 +5694,16 @@ fn render_annotations_with_cuts(
         runs,
         claims: Vec::new(),
     }));
+    // Rendered feature notes retain their explicit authority, separately from measurements.
+    for a in &mut annotations {
+        if let Some(g) = plan
+            .gdt
+            .iter()
+            .find(|g| g.id == a.name && g.placed.is_some())
+        {
+            a.satisfies = crate::spec_notes::satisfaction(&plan.spec, &g.source);
+        }
+    }
     // Authored plate omissions are consumer provenance, with no ink or claimed value.
     annotations.extend(
         plan.omitted
@@ -5281,6 +5718,8 @@ fn render_annotations_with_cuts(
             .filter_map(|o| {
                 let (feature, parameter) = o.id.strip_prefix("d:")?.split_once('/')?;
                 Some(Annotation {
+                    approved_claims: Vec::new(),
+                    approved_text: None,
                     coordinate_origin: None,
                     name: format!("suppressed:{}", o.id),
                     view: None,
@@ -5297,6 +5736,7 @@ fn render_annotations_with_cuts(
         let ink: Vec<Item> = symbol.curves.iter().cloned().map(Item::Edge).collect();
         if let Some(bbox) = items_bbox(&ink) {
             sheet.items.push(Drawn {
+                heads: Vec::new(),
                 name: "projection_symbol".into(),
                 kind: Kind::ProjectionSymbol,
                 ink: bbox,
@@ -5321,6 +5761,31 @@ fn render_annotations_with_cuts(
             style,
             items: ink,
         });
+    }
+    if !plan.spec.precision.is_empty() {
+        for d in &plan.dimensions {
+            let role = d.id.rsplit_once('/').map_or("", |(_, p)| p);
+            if let Some(p) = plan.spec.precision.get(&d.id).or_else(|| {
+                d.measurements
+                    .iter()
+                    .filter(|m| m.parameter == role)
+                    .find_map(|m| {
+                        plan.spec
+                            .precision
+                            .get(&format!("d:{}/{}", m.feature, m.parameter))
+                    })
+            }) {
+                sheet.precision.insert(d.id.clone(), *p);
+            }
+        }
+    }
+    // The cell annotations were bound above from the compiler's row measurements. Retain
+    // those identities separately from the live claims, just as approved text is retained
+    // separately from rendered runs; downstream mutations must preserve both contracts.
+    for annotation in &mut annotations {
+        if annotation.approved_text.is_some() {
+            annotation.approved_claims = annotation.claims.clone();
+        }
     }
     Ok(Drawing {
         page: plan.sheet.page,

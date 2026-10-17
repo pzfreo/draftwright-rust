@@ -101,6 +101,7 @@ fn callout(name: &str, claims: &[(&str, &str)], tip: P, elbow: P) -> (Annotation
             ..Annotation::default()
         },
         Drawn {
+            heads: Vec::new(),
             name: name.into(),
             kind: Kind::Dimension,
             ink: [
@@ -133,6 +134,7 @@ fn drawing(direction: [f64; 3], items: Vec<(Annotation, Drawn)>) -> Drawing {
         text: Vec::new(),
         annotations,
         sheet: Sheet {
+            precision: Default::default(),
             references: Vec::new(),
             drawable: Some([10.0, 10.0, 410.0, 287.0]),
             views: vec![DrawnView {

@@ -56,6 +56,8 @@ pub fn ink(analysis: &Analysis, m: &Manufacturing, v: &PlannedView) -> Vec<Curve
             page([0, 1, 2].map(|k| p[k] + r * u[k]))
         };
         match d.kind {
+            DepictionKind::Thread { .. } if v.line_style.thread_depiction == Some(false) => {}
+            DepictionKind::Knurl { .. } if v.line_style.knurl_depiction == Some(false) => {}
             DepictionKind::Thread { minor } => {
                 let r = minor / 2.0;
                 if r <= 0.0 || r >= d.diameter / 2.0 {

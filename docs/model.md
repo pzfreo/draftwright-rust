@@ -190,7 +190,7 @@ The design also includes `views/sections` and feature `anchor`
 `"anchor": {"…": "fingerprint"}`). These fields are not yet read; a feature's `note` is read
 since K1b (below).
 
-- **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_limits`, `projection`, `default_finish`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`),
+- **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`),
   `iso_scale_factor`, `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `place`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`),
   `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
@@ -238,9 +238,64 @@ the pinned sheet at the scale the recovery picks for it, else the pinned scale o
 that holds it, else the automatic pair; each is offered only when, pinned, its drawing fits. The
 message names it (`…; A4 at 1:1 fits.`).
 
+#### Line work per view (#76 item 6)
+
+Each view accepts optional boolean `hidden`, `centre_marks`, `centre_lines`,
+`thread_depiction` and `knurl_depiction`. The same fields under `sheet` set defaults
+for **every view on every sheet**, including auxiliary views allocated to later sheets:
+
+```json
+{
+  "sheet": {"hidden": false, "centre_marks": true, "thread_depiction": false},
+  "views": {
+    "side": {"hidden": true, "centre_marks": false},
+    "front": {"centre_lines": false, "knurl_depiction": false}
+  }
+}
+```
+
+Precedence is **view, then sheet, then the view's automatic convention**. There are
+currently no `sheets/<n>` settings: `sheets` controls allocation, not numbered sheet
+styles. Removing a setting restores inheritance; absent fields preserve the original
+output, including the isometric's own defaults. An explicit centre switch can request
+eligible centre furniture in the isometric; it does not fabricate an axis or feature.
+`centre_marks` controls end-on crosses, while `centre_lines` controls profile axes and
+pitch circles. They are independent. Thread and knurl switches affect conventional
+ink only: manufacturing requirements, dimensions, callouts and coverage remain.
+Cosmetic depiction still requires a proven profile feature. Sections always omit hidden
+edges and cosmetic threads/knurls, even with `true`; centre switches do not remove the
+cutting-plane chain line, section arrows or hatching.
+
+Settings name stable existing view keys (`front`, `plan`, `side`, `iso`, `section_aa`),
+never page coordinates or projected edges. Unknown view references are refused with
+available names and a replacement/removal instruction; misspelled fields and non-boolean
+values are refused. As with other optional Spec fields, JSON `null` means absent.
+A setting for an omitted view is saved for when that view is shown again. No new
+feature-level switch or fingerprint address is introduced: furniture can be merged across
+features, so per-feature suppression needs separate ownership work.
+
+Planned views record effective authored switches in `line_style`, with the winning
+Spec paths in `from_spec`, `default: false`, and an explanation in `basis`. The embedded
+Spec retains all inherited and overridden entries. `set`/`remove` edits use the usual
+paths, for example `views/side/hidden` or `sheet/centre_marks`; session options expose
+all five booleans for views and sheets. Preview, undo/redo, geometry caching and delta
+replay follow the ordinary Spec edit path.
+
+These are drawing choices, not lint exemptions. Hidden curves switched off are absent
+from rendered geometry, so `hidden_on_visible` and `section_hidden` measure only drawn
+curves. Hidden-geometry completeness is not inferred from undrawn curves. Independent
+lint still reports missing centre marks when the author disables them, as well as wrong
+dimensions, missing manufacturing requirements and other drawing defects. Automatic
+layout and its conservative projected-ink clearance remain in force; hiding edges does
+not relax safety margins or change sheet-size, scale, detail, fit or datum policy.
+
 #### Sheet allocation (R5, Stage I)
 
-`sheets.max` allows 1–9 sheets; absent means one. `sheets.smallest_scale` is an ISO
+`sheets.max` allows 1–9 sheets. An explicit count is binding. With no count,
+the normal search starts with one sheet; a small part with no valid complete A4/A3
+single-sheet drawing tries R5 allocation on A4/A3 before A2 or larger (up to the
+existing nine-sheet bound). Named paper keeps the original default of one.
+See the [R5 small-part amendment](adr/R5-multi-sheet.md#small-part-overflow-amendment-2026-10-16). `sheets.smallest_scale` is an ISO
 5455 scale floor, `keep_together` is a list of groups of view names (also allowing
 `hole_table`), `hole_table` assigns a rescue hole table if escalation actually makes
 one, and `gdt_on_sheet_1` records that requirement. A hole-table assignment does not
@@ -257,7 +312,27 @@ an explicit sheet assignment remains possible for an auxiliary group. A stated
 scale or lower the floor. List-index edits are supported only for
 `tables/<index>/sheet`, with `set` and `remove`.
 
-Without sheet controls the existing planner path and serialized bytes are unchanged.
+The [2026-10-16 audit](second-sheet-audit.csv) lists all 68 small A2+ cases found
+among 2,150 native default/spec cases over 190 corpus and fixture STEP inputs
+(baseline `53aa9f3f`, origin/main at the start of the change). All 63 source hashes
+in the captured single-sheet spec fixture are covered. Three selections
+improved: 10224 and 10255 use one A3 sheet at 2:1 after measured section
+correction; GRM-03's fixed 10:1 spec fits one A3. The
+[follow-up review](second-sheet-review.md) records the original candidate failures,
+auxiliary-page composition and references checked against drawn target positions.
+The 44 named large-paper requests stay as authored. Every other small
+large-paper case records both failed practical-paper allocations. The report's
+required-drop count includes unreadably crowded location dimensions. When no
+allocation prefix is clean, the reported best step may be the original one-sheet
+step; each audit's `audit.json` retains every paper/scale and moved-prefix trial.
+All 742 cases whose full-size views need larger paper retain their size, scale
+and count.
+
+Run `cargo run --release --example sheet_policy_audit -- CORPUS OUT` against each
+revision, then `python3 -I tools/compare_sheet_policy.py BEFORE/audit.json
+AFTER/audit.json OUT` to reproduce the case table and the unchanged-large-part gate.
+
+Without sheet controls a valid single A4/A3 drawing keeps the existing planner path.
 A floor alone enters the existing recovery. With `sheets.max > 1`, each allocation
 prefix uses the existing finished-sheet recovery with the floor, including table
 recovery. There are at most four prefixes; H6's exhaustive selection supersedes
@@ -328,6 +403,11 @@ also take `offset` (below):
 | `along` | A fraction 0–1, or `start`, `middle`, `end`, `outside` (1.25). A linear label is centred at that fraction of its witness span; at `outside` it sits just past the line's far end, the dimension line run on to it, as a span too short for its label has it (#32: 1.25 of a long span stranded the text). Leadered labels use that fraction of the view's extent along the strip, keeping their original feature attachment. |
 | `offset` | Callouts only: `[dx, dy]`, each within ±1000 paper mm (y up), the bend's offset from the callout's automatic leader tip. Requires `pinned: true` and excludes `side`, `lane` and `along`. |
 | `pinned` | Defaults to false. True fixes the resolved geometry before automatic layout; without side, lane or along it keeps the canonical automatic ink (its lines and arrows; a label whose own text changes, such as a new tolerance, is re-set from its current text, centred where the old one was, or for a callout from the end of its shoulder); a free item can be adjusted around obstacles. |
+
+An unpinned callout with only `side` (and optionally `view`) keeps participating in the
+shared leader solve. Its candidates stay on that side, its printed label reserves paper space
+before view packing, and the solver chooses a station clear of other ink. Supplying `lane`,
+`along` or a pin continues to prescribe a station.
 
 A pinned callout above or below a view puts its text on the side its leader runs to:
 an elbow left of the tip carries text to the left, and a vertical leader defaults to the
@@ -448,6 +528,22 @@ reviewed by re-planning. Exports embed these entries, so extracting the Spec and
 reproduces the same geometry (`tests/placement_intent.rs`, SVG, DXF, PDF and PNG).
 
 ### Plan: what the sheet will say
+
+`analysis_sha256` identifies the complete effective Analysis used for planning, including its
+recognition records and recogniser, beside the STEP `binding` and embedded `spec`. It is a
+SHA-256 digest of the deterministic JSON serialization, not merely the source-file hash;
+changing `--features` therefore changes the run's provenance even for the same STEP and Spec.
+Older saved plans read with no digest.
+
+`feature_dispositions` reports each recognised occurrence without a dimension owner. Its
+`subject` is a feature ID, or `recognition:evidence:<index>` / `recognition:refusal:<index>` in
+the Analysis's same-run record arrays. Each informational entry has a closed `disposition`
+(`unsupported`, `deferred`, `evidence_only`) and `reason_code`. The dimension planners and their
+undrafted capability table supply the policy: a countersink is hole-callout evidence, while
+unreviewed freeform, sheet-metal and similar grammars are deferred. Evidence-only step levels,
+risers and repeating profiles keep their own reasons. These records do not remove completeness
+or unsupported-feature warnings, and an authored omission is not an ownerless disposition.
+
 
 `plan(analysis, spec)` produces it. The plan is the preview, and renderers draw only from it.
 
@@ -695,10 +791,15 @@ basis, placed, reference?, determined_by?}`:
   - `features/<id>/fit` is an ISO 286 class from draftwright's table (`fits.py`): on a hole an
     upper-case hole class (H, G, F), on a cylindrical boss a lower-case shaft class (h, g, f, js,
     k, n, p), grades 5 to 11, for a nominal size up to 250 mm. It is printed after the diameter
-    of the callout that states the feature's size, as the class and its limits from the table
-    (`2× ⌀6.3 H7 (+0.012/0) ↧ 12.7`, `ø44.5 h6 (0/-0.016)`); `sheet/fit_limits: false` prints
-    the class alone, as draftwright does (`2× ⌀6.3 H7 ↧ 12.7`). A PMI hole class stated without
-    limits is printed the same way. A fit on any other feature, on a hole pattern (set it on its holes), on a feature the
+    of the callout that states the feature's size. The default is the class alone
+    (`2× ⌀6.3 H7 ↧ 12.7`, `ø44.5 h6`), including classes imported from AP242 PMI.
+    `sheet/fit_deviations: true` adds ISO 286 deviations stacked upper above lower after
+    the class, at 70% text height (ISO 129-1). Signs and upper/lower order are retained;
+    zero prints `0`. Plan labels and searchable text encode that stack with a newline,
+    for example `ø10 g6 -0.005\n-0.014`. This applies to turned diameters, hole fits,
+    spec fits, editor previews and MCP output. Explicit ± and band tolerances are unchanged.
+    The legacy `sheet/fit_limits` spelling remains accepted; `fit_deviations` takes precedence
+    when both are set. A fit on any other feature, on a hole pattern (set it on its holes), on a feature the
     part does not have, of the wrong case (`"h7" reads as "H7"`) or outside the table is
     refused; so is a size given both a tolerance and a fit.
   - The item lists what the spec gave it in `from_spec` (`tolerance`, `fit`) and is not a
@@ -870,6 +971,60 @@ and draws them as draftwright draws its document notes (`render_document_notes`)
   the text layer keeps `⌀` where draftwright's has `ø` (rust-correct, as for callouts). The
   per-feature `note` is drawn as a leadered label since K1b ("Finish, threads, knurls and
   notes authored in the Spec", below); hole tables are not ported here.
+
+### External spur gears
+
+`gears` is an ordered list of authored manufacturing requirements (ISO 21771-1:2024,
+ISO 21771-2:2025, ISO 53:1998, ISO 54:1996 and ISO 1328-1:2013):
+
+```json
+{"gears": [{
+  "on": "f:boss:1",
+  "frame": {"origin": [0, 0, 0], "axis": "z"},
+  "tooth_count": 13, "module": 1.25, "pressure_angle": 20,
+  "profile_shift": 0, "face_width": 10,
+  "tooth_thickness": 1.9634954084936207,
+  "tooth_thickness_tolerance": [-0.03, 0.01],
+  "flank_tolerance_class": 7
+}]}
+```
+
+Every field is required. `on` anchors ownership to a cylindrical `boss`,
+`cylindrical_boss` or `turned_step` feature, a `face:<n>`, or a named stock face
+(`top`, `bottom`, `left`, `right`, `front`, `back`). Use a face anchor for a toothed
+wheel. `frame` explicitly authors the gear centre and principal axis in the part's
+coordinates, in mm; axis letters accept either case. The axial span is the centre
+coordinate on that axis ± half the face width. Anchors on another revision are
+refused until reattached.
+
+Validation follows Python's `ExternalSpurGearFeature`: finite origin; integer tooth
+count 5–1000; positive finite module, face width and tooth thickness; module
+0.5–70 mm; width 4–1200 mm; reference diameter `module × tooth_count` 5–15000 mm;
+finite pressure angle strictly between 0 and 90 degrees; finite profile shift;
+two finite tooth-thickness deviations, lower ≤ upper, retaining a strictly positive
+lower thickness limit; integer flank tolerance class 1–11. Booleans are refused
+as numeric values. Deviations are lower then upper, in mm.
+
+A declaration creates `gear_data_1`, `gear_data_2`, … table items. Each prints the
+header and Python's nine fixed ISO rows with exact authored float formatting,
+units, and signed deviations. These tables reserve space through the sheet rules
+and are placed towards the top right as late furniture, clear of dimensions,
+notes, captions and earlier tables. They carry rendered provenance to `gear:1`,
+`gear:2`, …; they are never recognised from geometry. Edit the whole `gears` list
+with `set`, or append a declaration with `add` on `gears`; the MCP Spec schemas
+expose the same list, like `notes` and `tables`.
+
+Lint reads declarations lowered into the Analysis's independent requirement
+inventory and the actual rendered table text, without reading the embedded Spec.
+It reports missing, ambiguous or stale tables. Full-wire repeating-profile evidence
+from native or Python recognition is matched by centre and axial span (1e-6 mm),
+then audited for axis and repeat count. Missing, displaced or ambiguous evidence
+is `gear_correspondence_unverifiable`; an undeclared repeating profile is
+`gear_semantics_missing`. Arc counts alone never prove correspondence. A smooth
+blank can carry a declaration and table but remains unverifiable, as in Python.
+Python imposes no derived tip-diameter or face-width agreement with a blank;
+the port adds no such refusal. `tests/gears.rs` covers the blank, real wheel,
+validation, export and all reconciliation outcomes.
 
 ### Tables
 
@@ -1675,3 +1830,22 @@ Same-face boss/blend precedence uses one shared predicate for planning and lint.
 proven blend radius replaces that face's duplicate boss diameter; the independent boss height
 remains required. Missing or ambiguous face evidence never deduplicates by scalar equality.
 The differences and verdicts are recorded in `tests/fixtures/known_blends.json`.
+
+Precision is a display policy in `precision`, a map from measurement IDs such as
+`d:envelope/width.length` or `d:f:hole:1/counterbore.depth` to decimal places (0–15).
+It retains trailing zeroes in the label and its measured reservation, without changing the
+nominal or tolerance. Conflicting explicit policies for a shared printed term are refused;
+they require separate dimension owners. Without a policy, formatting is unchanged.
+
+`envelope_tolerance` supplies a band to all three overall extents. A dimension's own
+`tolerance` or `fit` overrides that fallback. An extent fit uses the existing ISO 286 table
+and prints the class alone by default. `sheet/fit_deviations: true` adds stacked upper/lower
+deviations; the legacy `sheet/fit_limits` alias is supported, with the new setting taking
+precedence. Authored precision controls the extent nominal in both modes and leaves the
+fit deviations and explicit tolerance digits unchanged.
+
+A feature note can explicitly satisfy its own measurement roles with
+`features/<id>/note_satisfies`, for example `["counterbore.diameter", "counterbore.depth"]`.
+Only its placed leadered note grants authority. This is separate from dimension claims:
+prose grants no coverage, a diameter role implies neither THRU nor count, and sibling
+features need their own explicit claims.

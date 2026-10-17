@@ -1,11 +1,14 @@
 //! A live drawing over the same Spec edits and recovered planner as the batch API.
 use std::collections::BTreeMap;
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::api::{self, Error, Features};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::api::Features;
+use crate::api::{self, Error};
 use crate::haecceity::Part;
 use crate::items::{self, Op, State as ItemState};
 use crate::model::{
@@ -358,7 +361,7 @@ struct Planner {
 impl Planner {
     fn plan(&mut self, analysis: &Analysis, spec: &Spec) -> Result<Plan, Error> {
         self.calls += 1;
-        Ok(crate::planning::with(analysis, || {
+        Ok(crate::planning::with_retained(analysis, || {
             crate::sheets::allocate_counted(analysis, spec, &mut self.sheet_steps)
         })?)
     }
@@ -384,11 +387,13 @@ pub struct Session {
     planner: Planner,
 }
 impl Session {
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn open(step: &Path, features: Features<'_>, spec: Spec) -> Result<Self, Error> {
         Self::open_part(step, None, features, spec)
     }
     /// [`Session::open`] of part *part* of an assembly alone, when given
     /// ([`crate::model::analyse_step_part`]).
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn open_part(
         step: &Path,
         part: Option<usize>,
@@ -683,7 +688,7 @@ impl Session {
         // Planned captions participate in the furniture collection diff, including removal.
         let furniture_changed = delta.is_none_or(|d| {
             d.plan.fields.keys().any(|k| k != "spec")
-                || (!self.plan().sheets.is_empty() && d.plan.collections.contains_key("views"))
+                || d.plan.collections.contains_key("views")
                 || d.plan.collections.keys().any(|k| {
                     !matches!(
                         k.as_str(),
@@ -1096,6 +1101,9 @@ fn settable(
     if !base.is_empty() {
         fields.insert(format!("{base}/omit"), choices(json!([false, true])));
         if item.item.kind == "view" {
+            for field in crate::linework::FIELDS {
+                fields.insert(format!("{base}/{field}"), choices(json!([false, true])));
+            }
             // Preserve default single-sheet answers until the author enables sheet controls.
             if session.spec().sheets.is_some() {
                 let name = id.trim_start_matches("v:");
@@ -1225,6 +1233,11 @@ fn settable(
         }
         fields.insert(paths[0].clone(), descriptor);
     }
+    if item.item.kind == "sheet" {
+        for field in crate::linework::FIELDS {
+            fields.insert(format!("sheet/{field}"), choices(json!([false, true])));
+        }
+    }
     // A datum letter and feature control frames qualify a feature or hole pattern
     // ([`crate::spec_gdt`]); a face takes them at faces/<side or face:n>/….
     let patterns = session
@@ -1290,6 +1303,7 @@ fn settable(
             json!({"fields":crate::title_block::KEYS.map(|k|k.0),"forms":["text"]}),
         );
         fields.insert("sheet/fit_limits".into(), choices(json!([false, true])));
+        fields.insert("sheet/fit_deviations".into(), choices(json!([false, true])));
         fields.insert(
             "sheet/projection".into(),
             choices(json!(model::PROJECTIONS)),
@@ -1420,6 +1434,8 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                 });
                 a.basis = v.basis.clone();
                 a.operations = ["omit", "place", "pin"].map(String::from).into();
+                a.operations
+                    .extend(crate::linework::FIELDS.map(String::from));
                 if plan.spec.sheets.is_some() {
                     a.operations.push("move_to_sheet".into());
                 }
@@ -1615,6 +1631,7 @@ fn difference(old: &State, new: &State, analysis: &Analysis, plans: usize) -> De
                         || a.direction != b.direction
                         || a.up != b.up
                         || a.cut != b.cut
+                        || a.line_style != b.line_style
                 })
             })
             .cloned()

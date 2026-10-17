@@ -24,10 +24,10 @@
 //!   evidence is the structured claim only, as for the location backstop
 //!   ([`super::coverage::located`]).
 //! - Python judges the converted pads and pockets draftwright modelled: a pad or pocket record
-//!   its conversion dropped counts as undefined (pads) or as unrecognised geometry (pockets, the
-//!   prismatic `unrecognised_defining_geometry`, not ported: the port has no conversion between
-//!   the Analysis and the drawing, and lint may not see the plan). Here every pad and pocket of
-//!   the Analysis is judged.
+//!   its conversion dropped counts as undefined (pads) or unrecognised geometry. Rust has
+//!   no conversion between Analysis and drawing: every pad and pocket is judged directly,
+//!   and shoulder_coverage independently requires each projected defining riser station on
+//!   the drawing, retaining the lone-transition and exact channel/through-step exemptions.
 //! - Python excuses a pocket cut along z that starts on the datum only through symmetry or a
 //!   witness to its centre, where draftwright's planner places no centre location for such a
 //!   pocket; the port applies the datum-start exemption Python's other pockets have
@@ -177,6 +177,7 @@ pub fn unlocated_pockets<'a>(
 /// The prismatic findings: pads not defined, then pockets not located.
 pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let mut issues = Vec::new();
+    issues.extend(shoulder_coverage(analysis, marks));
     let pads = undefined_pads(analysis, marks);
     if !pads.is_empty() {
         issues.push(issue(
@@ -220,6 +221,115 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             "Locate each pocket from the part's corner along each axis named, in the view that \
              looks into it.",
         ));
+    }
+    issues
+}
+
+/// Project the recognised risers independently of dimension selection. Two or more shoulder
+/// stations describe defining geometry; a lone transition can belong to plate thickness.
+fn shoulder_coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
+    let mut shoulders = Vec::new();
+    for r in &analysis.risers {
+        let on = |z: f64| {
+            r.body_levels.iter().any(|level| {
+                (z - level).abs() < r.tol
+                    && analysis.levels.iter().any(|l| (l - level).abs() < r.tol)
+            })
+        };
+        let tied = if r.vertical {
+            on(r.z_lo)
+        } else {
+            (r.lo_at_envelope || on(r.z_lo)) && (r.hi_at_envelope || on(r.z_hi))
+        };
+        if tied {
+            for (axis, positions) in [(&r.axis, &r.positions), (&r.other_axis, &r.other_positions)]
+            {
+                if let Some(k) = AXES.iter().position(|a| a == axis) {
+                    shoulders.extend(positions.iter().filter(|x| x.is_finite()).map(|&x| (k, x)));
+                }
+            }
+        }
+    }
+    shoulders.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
+    shoulders.dedup_by(|a, b| a.0 == b.0 && (a.1 - b.1).abs() < 0.001);
+    if shoulders.len() < 2 {
+        return Vec::new();
+    }
+    let qframe = crate::bridge::holes::frame(analysis);
+    let channels = super::channels::placed(analysis);
+    let mut issues = Vec::new();
+    for (k, at) in shoulders {
+        let distance = at - analysis.envelope[0][k];
+        if distance.abs() < 1e-6 {
+            continue;
+        }
+        let claimed = marks.iter().any(|m| {
+            m.claims.iter().any(|c| {
+                if c.feature != "step_level" {
+                    return false;
+                }
+                let prefix = format!("step_position.length.{}", AXES[k]);
+                let Some(word) = c.parameter.strip_prefix(&prefix) else {
+                    return false;
+                };
+                let encoded = word.replace('m', "-").replace('_', ".");
+                encoded
+                    .parse::<f64>()
+                    .is_ok_and(|v| (v - distance).abs() <= 0.001)
+                    && holes::states(&m.text, distance)
+            })
+        });
+        // Exact feature geometry supplies the other Python owners; its own ledger still
+        // checks their required ink, so missing channel/step dimensions are never excused.
+        let channel = channels.iter().any(|(_, c)| {
+            c.as_ref()
+                .is_ok_and(|c| c.width_axis == k && c.walls.iter().any(|w| (w - at).abs() <= 0.001))
+        });
+        let bend = analysis
+            .features
+            .iter()
+            .filter(|f| f.kind == "through_step")
+            .any(|f| {
+                let p = &f.parameters;
+                let Some(run) = p
+                    .get("axis")
+                    .and_then(serde_json::Value::as_str)
+                    .and_then(|v| AXES.iter().position(|a| *a == v))
+                else {
+                    return false;
+                };
+                let Some(mut point) = crate::bridge::holes::point(p.get("at")) else {
+                    return false;
+                };
+                let Some(bend) = p
+                    .get("section")
+                    .and_then(serde_json::Value::as_array)
+                    .and_then(|s| s.get(1))
+                    .and_then(serde_json::Value::as_array)
+                else {
+                    return false;
+                };
+                let across: Vec<_> = (0..3).filter(|i| *i != run).collect();
+                for (i, axis) in across.iter().enumerate() {
+                    let Some(value) = bend.get(i).and_then(serde_json::Value::as_f64) else {
+                        return false;
+                    };
+                    point[*axis] = value;
+                }
+                let world = crate::bridge::holes::to_part(&qframe, point);
+                let mut direction = [0.0; 3];
+                direction[run] = 1.0;
+                let run = crate::bridge::holes::principal(crate::bridge::holes::dir_to_part(
+                    &qframe, direction,
+                ));
+                run.is_some_and(|r| r != 2 && k != r && k != 2) && (world[k] - at).abs() <= 0.001
+            });
+        if claimed || channel || bend {
+            continue;
+        }
+        let parameter = format!("step_position.length.{}{}", AXES[k], distance);
+        issues.push(super::uncovered(analysis, "unrecognised_defining_geometry", "step_level", &parameter,
+            format!("The recognised {} shoulder at {at} has no stated position on the drawing (distance {distance} from the part's box).", AXES[k])));
     }
     issues
 }

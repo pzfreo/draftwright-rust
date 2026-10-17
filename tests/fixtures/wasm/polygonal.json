@@ -1,0 +1,12 @@
+{
+  "name": "polygonal.step.gz",
+  "part": "tests/fixtures/recognition/polygonal_stock/plain.step",
+  "gzip": true,
+  "steps": [
+    {"edit": "title", "action": "fragments", "ops": [{"op": "set", "path": "sheet/title/material", "value": "Steel"}]},
+    {"edit": "first angle", "action": "apply", "ops": [{"op": "set", "path": "sheet/projection", "value": "first"}]},
+    {"edit": "undo", "action": "undo"},
+    {"edit": "redo", "action": "redo"},
+    {"edit": "preview iso", "action": "preview", "ops": [{"op": "set", "path": "views/iso/omit", "value": true}]}
+  ]
+}

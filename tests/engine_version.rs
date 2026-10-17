@@ -143,6 +143,8 @@ fn tools_explain_their_operations_without_source_and_fit_schema_budget() {
     // 540 bytes across the twelve tools that carry a spec: 41,041. K1's spec `faces` (datums
     // and controls on faces, #43) added about 400 bytes the same way: 41,444. K1b's
     // sheet/default_finish (#43) added about 530 bytes the same way: 41,972.
-    assert!(schema_bytes < 42200, "schemas: {schema_bytes} bytes");
+    // Authored gears add 32 bytes to each of twelve Spec-carrying schemas: 42,356.
+    // Line-work switches plus equivalent patternProperties compaction: 42,113 bytes.
+    assert!(schema_bytes < 42500, "schemas: {schema_bytes} bytes");
     eprintln!("schema bytes per session: {schema_bytes}");
 }

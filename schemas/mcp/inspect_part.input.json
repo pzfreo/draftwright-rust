@@ -1,9 +1,6 @@
 {
   "type": "object",
   "properties": {
-    "part_ref": {
-      "type": "string"
-    },
     "spec": {
       "type": "object",
       "properties": {
@@ -25,22 +22,11 @@
             "null"
           ],
           "properties": {
-            "max": {
-              "enum": [
-                null,
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-                8,
-                9
-              ]
-            },
             "smallest_scale": {
-              "$ref": "#/$defs/B"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "keep_together": {
               "type": "array",
@@ -51,7 +37,13 @@
                 }
               }
             },
-            "hole_table": {
+            "gdt_on_sheet_1": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false,
+          "patternProperties": {
+            "^(max|hole_table)$": {
               "enum": [
                 null,
                 1,
@@ -64,33 +56,17 @@
                 8,
                 9
               ]
-            },
-            "gdt_on_sheet_1": {
-              "type": "boolean"
             }
-          },
-          "additionalProperties": false
+          }
         },
         "sheet": {
           "type": "object",
           "properties": {
-            "size": {
-              "$ref": "#/$defs/B"
-            },
-            "scale": {
-              "$ref": "#/$defs/B"
-            },
             "title": {
               "type": "object",
               "additionalProperties": {
                 "type": "string"
               }
-            },
-            "fit_limits": {
-              "type": [
-                "boolean",
-                "null"
-              ]
             },
             "projection": {
               "enum": [
@@ -106,22 +82,35 @@
               ]
             }
           },
-          "additionalProperties": false
+          "additionalProperties": false,
+          "patternProperties": {
+            "^(size|scale)$": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "^(fit_limits|fit_deviations|hidden|centre_marks|centre_lines|thread_depiction|knurl_depiction)$": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          }
         },
         "views": {
-          "$ref": "#/$defs/A"
-        },
-        "dimensions": {
-          "$ref": "#/$defs/A"
-        },
-        "annotations": {
-          "$ref": "#/$defs/A"
-        },
-        "features": {
-          "$ref": "#/$defs/A"
-        },
-        "faces": {
-          "$ref": "#/$defs/A"
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "patternProperties": {
+              "^(hidden|centre_marks|centre_lines|thread_depiction|knurl_depiction)$": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              }
+            }
+          }
         },
         "dimension_source": {
           "enum": [
@@ -135,33 +124,23 @@
             "always",
             "never"
           ]
-        },
-        "notes": {
-          "type": "array",
-          "items": {
-            "type": "object"
-          }
-        },
-        "tables": {
-          "type": "array",
-          "items": {
-            "type": "object"
-          }
         }
       },
-      "additionalProperties": false
-    },
-    "spec_version": {
-      "type": "string"
-    },
-    "drawing_ref": {
-      "type": "string"
-    },
-    "step": {
-      "type": "string"
-    },
-    "features": {
-      "type": "string"
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(dimensions|annotations|features|faces)$": {
+          "additionalProperties": {
+            "type": "object"
+          },
+          "type": "object"
+        },
+        "^(notes|tables|gears)$": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        }
+      }
     },
     "part": {
       "type": "integer",
@@ -173,9 +152,6 @@
     "problem_filter": {
       "type": "object",
       "properties": {
-        "code": {
-          "$ref": "#/$defs/B"
-        },
         "severity": {
           "enum": [
             null,
@@ -183,15 +159,17 @@
             "warning",
             "error"
           ]
-        },
-        "subject": {
-          "$ref": "#/$defs/B"
-        },
-        "feature": {
-          "$ref": "#/$defs/B"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(code|subject|feature)$": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
     }
   },
   "additionalProperties": false,
@@ -207,18 +185,9 @@
       ]
     }
   ],
-  "$defs": {
-    "A": {
-      "additionalProperties": {
-        "type": "object"
-      },
-      "type": "object"
-    },
-    "B": {
-      "type": [
-        "string",
-        "null"
-      ]
+  "patternProperties": {
+    "^(part_ref|spec_version|drawing_ref|step|features)$": {
+      "type": "string"
     }
   }
 }

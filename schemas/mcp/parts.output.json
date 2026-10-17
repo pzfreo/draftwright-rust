@@ -2,32 +2,11 @@
   "type": "object",
   "anyOf": [
     {
-      "type": "object",
       "properties": {
         "parts": {
           "type": "array",
           "items": {
             "type": "object",
-            "properties": {
-              "part": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "name": {
-                "type": "string"
-              },
-              "product_id": {
-                "type": "string"
-              },
-              "faces": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "instances": {
-                "type": "integer",
-                "minimum": 0
-              }
-            },
             "required": [
               "part",
               "name",
@@ -35,7 +14,16 @@
               "faces",
               "instances"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(part|faces|instances)$": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "^(name|product_id)$": {
+                "type": "string"
+              }
+            }
           }
         }
       },
@@ -45,7 +33,6 @@
       "additionalProperties": false
     },
     {
-      "type": "object",
       "properties": {
         "error": {
           "type": "object",

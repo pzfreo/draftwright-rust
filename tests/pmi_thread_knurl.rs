@@ -640,7 +640,7 @@ fn a_threaded_diameter_keeps_its_designation_and_a_plain_one_its_fit() {
     );
     let plan = model::plan(&a, &Spec::default()).unwrap();
     let labels: Vec<&str> = plan.dimensions.iter().map(|d| d.label.as_str()).collect();
-    assert!(labels.contains(&"ø10 f7 (-0.013/-0.028)"), "{labels:?}");
+    assert!(labels.contains(&"ø10 f7"), "{labels:?}");
     assert!(
         labels.contains(&"M5 x 0.8-6g RH, FULL AVAILABLE LENGTH"),
         "{labels:?}"
@@ -663,4 +663,195 @@ fn a_threaded_diameter_keeps_its_designation_and_a_plain_one_its_fit() {
         "{:?}",
         plan.problems
     );
+}
+
+/// A reference is only useful while its complete, source-bound row reaches the sheet.
+#[test]
+fn manufacturing_references_require_complete_source_matched_ink() {
+    let (part, a) = analysed("thumbwheel_thread_knurl");
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let font =
+        draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
+    let original = model::render(&part, &a, &plan, &font).unwrap();
+    let unresolved = |drawing: &draftwright::output::Drawing| {
+        draftwright::lint::lint(&a, drawing)
+            .into_iter()
+            .filter(|i| i.code == "manufacturing_reference_unresolved")
+            .collect::<Vec<_>>()
+    };
+    assert!(unresolved(&original).is_empty());
+    for damage in ["header text", "header absent"] {
+        let mut drawing = original.clone();
+        let header = drawing
+            .annotations
+            .iter_mut()
+            .find(|a| a.name == "manufacturing_requirements_header")
+            .unwrap();
+        if damage == "header text" {
+            drawing.text[header.runs[0]].text = "WRONG HEADER".into();
+        } else {
+            header.runs.clear();
+        }
+        assert_eq!(unresolved(&drawing).len(), 3, "{damage}");
+    }
+    // Removing the whole table cannot leave the short leaders certified by provenance alone.
+    let mut absent = original.clone();
+    absent
+        .annotations
+        .retain(|a| !a.name.starts_with("manufacturing_requirements/"));
+    absent
+        .sheet
+        .items
+        .retain(|i| i.name != "manufacturing_requirements");
+    assert_eq!(unresolved(&absent).len(), 3);
+    let mut punctuated = absent.clone();
+    for annotation in original.annotations.iter().filter(|a| {
+        !a.name.starts_with("manufacturing_requirements/")
+            && a.runs
+                .iter()
+                .any(|&i| original.text[i].text.contains("SEE MFG"))
+    }) {
+        let last = *annotation.runs.last().unwrap();
+        punctuated.text[last].text.push('.');
+    }
+    assert_eq!(unresolved(&punctuated).len(), 3);
+    let rows: Vec<_> = original
+        .annotations
+        .iter()
+        .filter(|a| a.name.starts_with("manufacturing_requirements/"))
+        .collect();
+    assert_eq!(rows.len(), 3);
+    for row in rows {
+        assert!(
+            row.claims.is_empty(),
+            "a row is source provenance, not a second measurement owner"
+        );
+        assert_eq!(row.approved_claims.len(), 1);
+        for damage in ["text", "empty", "source", "tag", "duplicate"] {
+            let mut drawing = original.clone();
+            let index = drawing
+                .annotations
+                .iter()
+                .position(|a| a.name == row.name)
+                .unwrap();
+            match damage {
+                "text" => {
+                    drawing.text[row.runs[1]].text = "INCOMPLETE REQUIREMENT".into();
+                }
+                "empty" => drawing.annotations[index].runs.clear(),
+                "source" => {
+                    drawing.annotations[index].approved_claims[0].feature =
+                        "pmi:wrong-source".into()
+                }
+                "tag" => drawing.text[row.runs[0]].text = "MFG 999".into(),
+                "duplicate" => drawing.annotations.push(row.clone()),
+                _ => unreachable!(),
+            }
+            let issues = unresolved(&drawing);
+            assert_eq!(issues.len(), 1, "{} {damage}: {issues:?}", row.name);
+            assert_eq!(issues[0].severity, draftwright::lint::Severity::Error);
+            assert!(issues[0].sources.len() == 1 && issues[0].annotation.is_some());
+        }
+    }
+}
+
+#[test]
+fn authored_manufacturing_rows_keep_the_compilers_source_bindings() {
+    let (part, analysis) = analysed("thumbwheel_thread_knurl");
+    let spec = model::edit(
+        &Spec::default(),
+        &serde_json::json!([{
+            "op":"set", "path":"features/f:hole:1/thread",
+            "value":{"designation":"M2x0.4-6H", "length":2.5}
+        }]),
+    )
+    .unwrap();
+    let plan = model::plan(&analysis, &spec).unwrap();
+    assert!(
+        plan.tables
+            .iter()
+            .any(|t| t.id == "manufacturing_requirements" && t.placed.is_some())
+    );
+    let font =
+        draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
+    // The renderer receives the original Analysis, exactly as the batch and session paths do.
+    let drawing = model::render(&part, &analysis, &plan, &font).unwrap();
+    let effective = draftwright::spec_gdt::effective(&analysis, &spec).unwrap();
+    let issues = draftwright::lint::lint(&effective, &drawing);
+    assert!(
+        !issues
+            .iter()
+            .any(|i| i.code == "manufacturing_reference_unresolved"),
+        "{issues:?}"
+    );
+    let manufacturing = draftwright::pmi_lowering::manufacturing(&effective);
+    let authored = manufacturing
+        .owned
+        .iter()
+        .find(|o| o.source.starts_with("spec:"))
+        .unwrap();
+    assert!(drawing.annotations.iter().any(|a| {
+        a.name.starts_with("manufacturing_requirements/")
+            && a.approved_claims
+                .iter()
+                .any(|c| c.feature == authored.id && c.parameter == authored.aspect)
+    }));
+}
+
+#[test]
+fn spec_can_switch_thread_and_knurl_ink_independently_without_losing_requirements() {
+    let (part, a) = external_thread();
+    let auto = model::plan(&a, &Spec::default()).unwrap();
+    let m = draftwright::pmi_lowering::manufacturing(&a);
+    let front = |p: &Plan| p.views.iter().find(|v| v.id == "v:front").unwrap().clone();
+    let automatic = draftwright::cosmetic::ink(&a, &m, &front(&auto));
+    assert!(automatic.len() > 2);
+    for (thread, knurl, expected) in [
+        (false, false, 0),
+        (true, false, 2),
+        (false, true, automatic.len() - 2),
+        (true, true, automatic.len()),
+    ] {
+        let s: Spec = serde_json::from_value(serde_json::json!({
+            "sheet":{"thread_depiction":false,"knurl_depiction":false},
+            "views":{"front":{"thread_depiction":thread,"knurl_depiction":knurl}}
+        }))
+        .unwrap();
+        let p = model::plan(&a, &s).unwrap();
+        assert_eq!(
+            draftwright::cosmetic::ink(&a, &m, &front(&p)).len(),
+            expected
+        );
+        assert_eq!(
+            p.dimensions.iter().map(|d| &d.label).collect::<Vec<_>>(),
+            auto.dimensions.iter().map(|d| &d.label).collect::<Vec<_>>()
+        );
+        let drawing = model::render(
+            &part,
+            &a,
+            &p,
+            &draftwright::text::Font::new(draftwright::api::MONO.to_vec()).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            !draftwright::lint::lint(&a, &drawing)
+                .iter()
+                .any(|i| i.code == "pmi_not_rendered")
+        );
+    }
+    let mut session = draftwright::Session::new(part, a, Spec::default()).unwrap();
+    let before = session.svg_fragments(None);
+    assert!(!thin_lines(&before["v:front"]).is_empty());
+    let delta = session
+        .apply(
+            &[
+                draftwright::items::Op::set("sheet/thread_depiction", serde_json::json!(false)),
+                draftwright::items::Op::set("sheet/knurl_depiction", serde_json::json!(false)),
+            ],
+            true,
+        )
+        .unwrap();
+    assert!(delta.geometry.views.iter().any(|(id, _)| id == "v:front"));
+    let fragments = session.svg_fragments(Some(&delta));
+    assert!(thin_lines(&fragments["v:front"]).is_empty());
 }

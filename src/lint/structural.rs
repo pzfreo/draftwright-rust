@@ -14,8 +14,9 @@
 //!   taller than its cell. Warning; the message points to the notes block, as draftwright's does.
 //! - `leader_line_through_text` (`_lint_leader`): a callout's leader elbow inside its own label's
 //!   box. Error.
-//! - `annotation_overlap` (`_lint_annotation_pairs`): two labels whose text boxes overlap by more
-//!   than 0.5 mm in both directions; a thing with no label (the title block, the notes block, a
+//! - `annotation_overlap` (`_lint_annotation_pairs`): two labels whose text boxes overlap beyond
+//!   roundoff in both directions. A pair involving label-less furniture keeps the 0.5 mm
+//!   allowance for conservative ink bounds; a thing with no label (the title block, the notes block, a
 //!   section's hatch, arrowheads and wings) takes part by its whole ink, a centreline none, as in
 //!   Python. Where the pair's line-work also runs through one of the labels, the message says
 //!   which, by how much, and that separating the text is not enough. Warning.
@@ -77,8 +78,8 @@ const BOUNDS_ROUNDOFF: f64 = 1e-9;
 /// Half the title block's border stroke (draftwright's `_TB_LINE_WIDTH / 2`): the border may
 /// straddle the drawable area's edge.
 const TITLE_HALF_STROKE: f64 = 0.075;
-/// Two labels overlap when they share more than this, mm, in both directions; so do a label and
-/// a centreline.
+/// Conservative label-less furniture bounds, or a label and centreline, overlap when they
+/// share more than this, mm, in both directions. Actual text pairs use BOUNDS_ROUNDOFF.
 const OVERLAP: f64 = 0.5;
 /// Line-work running this far through a label is reported, mm (draftwright's `MIN_CROSSING_MM`).
 const MIN_CROSSING: f64 = 0.5;
@@ -174,7 +175,13 @@ pub fn check_sheets(drawings: &[Drawing]) -> Vec<LintIssue> {
                     .checked_sub(1)
                     .and_then(|n| drawings.get(n as usize));
                 let zone = target.and_then(|d| {
-                    let at = d.sheet.items.iter().find(|i| i.name == r.target)?.label?;
+                    let at = d
+                        .sheet
+                        .views
+                        .iter()
+                        .find(|v| v.name == r.target)
+                        .map(|v| v.bbox)
+                        .or_else(|| d.sheet.items.iter().find(|i| i.name == r.target)?.label)?;
                     drawn_zone(d, [(at[0] + at[2]) / 2., (at[1] + at[3]) / 2.])
                 });
                 if zone.as_ref() != Some(&r.zone)
@@ -493,7 +500,12 @@ fn crossable(d: &Drawn) -> Option<[f64; 4]> {
 fn crossings<'a>(a: &'a Drawn, b: &'a Drawn) -> Vec<(&'a Drawn, &'a Drawn, f64)> {
     let mut found: Vec<(&Drawn, &Drawn, f64)> = [(a, b), (b, a)]
         .into_iter()
-        .filter_map(|(x, y)| Some((x, y, crossing(&x.lines, crossable(y)?))))
+        .filter_map(|(x, y)| {
+            let b = crossable(y)?;
+            let length = crossing(&x.lines, b);
+            let head = crossing(&x.heads, b);
+            Some((x, y, length.max(head)))
+        })
         // Required NTS furniture must not hide even a shallow retained ink clash.
         .filter(|c| {
             c.2 >= if c.1.name == NTS_CAPTION_ID {
@@ -501,6 +513,8 @@ fn crossings<'a>(a: &'a Drawn, b: &'a Drawn) -> Vec<(&'a Drawn, &'a Drawn, f64)>
             } else {
                 MIN_CROSSING
             }
+            // A flare is filled ink: report even a shallow contact, retaining its real size.
+            || crossable(c.1).is_some_and(|b| crossing(&c.0.heads, b) > BOUNDS_ROUNDOFF)
         })
         .collect();
     found.sort_by(|p, q| q.2.total_cmp(&p.2));
@@ -686,7 +700,8 @@ fn dimension_lines(drawing: &Drawing) -> Vec<LintIssue> {
 
 /// The pairwise checks, each pair once in drawing order (draftwright's `_lint_annotation_pairs`):
 /// a centreline against a label by `label_centerline_overlap`; two other things by their label
-/// boxes (a label-less thing by its whole ink), `annotation_overlap` past 0.5 mm both ways (its
+/// boxes (a label-less thing by its whole ink), `annotation_overlap` beyond roundoff for text
+/// pairs or past 0.5 mm for conservative furniture bounds (its
 /// message naming any line-work also crossing), and otherwise `annotation_ink_overlap` for each
 /// label the other's line-work runs through.
 fn annotation_pairs(drawing: &Drawing) -> Vec<LintIssue> {
@@ -723,7 +738,12 @@ fn annotation_pairs(drawing: &Drawing) -> Vec<LintIssue> {
             let ox = (la[2].min(lb[2]) - la[0].max(lb[0])).max(0.0);
             let oy = (la[3].min(lb[3]) - la[1].max(lb[1])).max(0.0);
             let crossed = crossings(a, b);
-            let threshold = if a.name == NTS_CAPTION_ID || b.name == NTS_CAPTION_ID {
+            // Actual text has no acceptable overlap. Keep the half-millimetre
+            // allowance only for label-less furniture's conservative ink bounds.
+            let threshold = if (a.label.is_some() && b.label.is_some())
+                || a.name == NTS_CAPTION_ID
+                || b.name == NTS_CAPTION_ID
+            {
                 BOUNDS_ROUNDOFF
             } else {
                 OVERLAP

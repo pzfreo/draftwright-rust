@@ -56,6 +56,7 @@ pub mod envelope;
 pub mod fidelity;
 pub mod fillets;
 pub mod flats;
+pub mod gears;
 pub mod grooves;
 pub mod gussets;
 pub mod hole_patterns;
@@ -70,9 +71,11 @@ pub mod pmi_coverage;
 pub mod pockets;
 pub mod polygonal;
 pub mod prismatic;
+pub mod profile_angles;
 pub mod profiled_bores;
 pub mod profiles;
 pub mod redundancy;
+pub mod schedule_evidence;
 pub mod section_recesses;
 pub mod slots;
 pub mod steps;
@@ -168,17 +171,19 @@ pub fn marks(drawing: &Drawing) -> Vec<Mark> {
     drawing
         .annotations
         .iter()
-        .map(|a| Mark {
-            name: a.name.clone(),
-            view: a.view.clone(),
-            text: a
-                .runs
-                .iter()
-                .filter_map(|&i| drawing.text.get(i))
-                .map(|r| r.text.as_str())
-                .collect::<Vec<_>>()
-                .join(" "),
-            claims: a.claims.clone(),
+        .map(|a| {
+            let text = schedule_evidence::text(drawing, a);
+            let claims = if schedule_evidence::verified(a, &text) {
+                a.claims.clone()
+            } else {
+                Vec::new()
+            };
+            Mark {
+                name: a.name.clone(),
+                view: a.view.clone(),
+                text,
+                claims,
+            }
         })
         .collect()
 }
@@ -213,6 +218,13 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
             mark.claims.clear();
         }
     }
+    // Withdraw a damaged scheduled size cell as a unit, including its THRU/count riders.
+    // The requirement inventory remains in the Analysis and still reports the missing ink.
+    for mark in &mut marks {
+        if !holes::verified_schedule_size(analysis, mark) {
+            mark.claims.clear();
+        }
+    }
     let marks: Vec<_> = marks
         .into_iter()
         .filter(|m| blends::verified_row(analysis, m))
@@ -222,7 +234,11 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
         relief_issues.push(LintIssue {
             sheet: None,
             code: "relief_profile_requirement_missing".into(),
-            severity: Severity::Warning,
+            severity: if analysis.solid_count.is_some_and(|n| n > 1) {
+                Severity::Info
+            } else {
+                Severity::Warning
+            },
             message: "Grouped shallow relief profiles have no placed model-governing note.".into(),
             subjects: vec![blends::RELIEF_NOTE.into()],
             id: "l:relief_profile_requirement_missing".into(),
@@ -314,23 +330,82 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
         })
         .map(|c| (&c.feature, &c.parameter))
         .collect();
+    let mut satisfied = satisfied;
+    // Authored feature notes grant only their exact, explicitly named physical identities.
+    // No prose, synthetic through/count authority, or sibling propagation is involved.
+    if let Some(crate::pmi::Reading::Read(report)) = &analysis.pmi {
+        let ids = report.identities();
+        for a in &drawing.annotations {
+            let record = ids
+                .source(&a.name)
+                .and_then(|id| report.records.iter().find(|r| r.source_id == id));
+            let Some(r) = record.filter(|r| r.kind == "note") else {
+                continue;
+            };
+            let Some(owner) = r
+                .source_id
+                .strip_prefix("spec:features/")
+                .and_then(|s| s.strip_suffix("/note"))
+            else {
+                continue;
+            };
+            if a.view.as_deref().is_none_or(|v| {
+                !drawing
+                    .sheet
+                    .frames
+                    .contains_key(v.trim_start_matches("v:"))
+            }) || !drawing.sheet.items.iter().any(|i| {
+                i.name == a.name && i.kind == crate::output::Kind::Gdt && !i.lines.is_empty()
+            }) || !a.runs.iter().any(|&i| {
+                drawing
+                    .text
+                    .get(i)
+                    .is_some_and(|r| !r.text.trim().is_empty())
+            }) {
+                continue;
+            }
+            for c in &a.satisfies {
+                if c.feature == owner
+                    && (analysis.features.iter().any(|f| f.id == owner)
+                        || analysis
+                            .recognition
+                            .as_ref()
+                            .is_some_and(|r| r.patterns.iter().any(|p| p.id == owner)))
+                {
+                    satisfied.insert((&c.feature, &c.parameter));
+                }
+            }
+        }
+    }
     let mut issues: Vec<_> = check(analysis, &marks)
         .into_iter()
-        .filter(|i| {
-            !matches!(
-                i.code.as_str(),
-                "blend_requirement_missing" | "fillet_requirement_missing"
-            ) || !i
+        .filter_map(|mut i| {
+            if !i
                 .requirements
                 .iter()
-                .all(|r| satisfied.contains(&(&r.feature, &r.parameter)))
+                .any(|r| satisfied.contains(&(&r.feature, &r.parameter)))
+            {
+                return Some(i);
+            }
+            i.requirements
+                .retain(|r| !satisfied.contains(&(&r.feature, &r.parameter)));
+            if i.requirements.is_empty() {
+                return None;
+            }
+            i.subjects
+                .retain(|id| i.requirements.iter().any(|r| &r.feature == id));
+            Some(i)
         })
         .chain(relief_issues)
         .collect();
+    issues.extend(gears::check(analysis, drawing));
+    issues.extend(schedule_evidence::check(drawing));
+    issues.extend(pmi_coverage::manufacturing_references(analysis, drawing));
     issues.extend(coverage::drawn_centre_marks(analysis, drawing));
     // Stream K4: each callout's tip against the edge it names, and its shaft against the
     // material (`leaders`).
     issues.extend(leaders::check(analysis, drawing));
+    issues.extend(pmi_coverage::source_sites(analysis, drawing));
     issues
 }
 
@@ -361,6 +436,10 @@ pub fn lint_sheets(analysis: &Analysis, drawings: &[Drawing]) -> Vec<LintIssue> 
             .items
             .extend(drawing.sheet.items.iter().cloned());
         combined.sheet.frames.extend(drawing.sheet.frames.clone());
+        combined
+            .sheet
+            .precision
+            .extend(drawing.sheet.precision.clone());
         for (view, centres) in &drawing.sheet.centre_marks {
             combined
                 .sheet
@@ -393,6 +472,7 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(channels::circular_coverage(analysis, marks));
     issues.extend(angled_steps::coverage(analysis, marks));
     issues.extend(profiles::coverage(analysis));
+    issues.extend(profile_angles::coverage(analysis, marks));
     issues.extend(profiled_bores::coverage(analysis, marks));
     issues.extend(flats::coverage(analysis, marks));
     issues.extend(grooves::coverage(analysis, marks));
@@ -411,13 +491,26 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(plates::coverage(analysis, marks));
     issues.extend(polygonal::stock_coverage(analysis, marks));
     issues.extend(pockets::coverage(analysis, marks));
-    issues.extend(pmi_coverage::coverage(analysis, marks));
     issues.extend(envelope::coverage(analysis, marks));
     issues.extend(turned::coverage(analysis, marks));
     issues.extend(hole_patterns::coverage(analysis, marks));
+    assembly_coverage(analysis, &mut issues);
+    issues.extend(pmi_coverage::coverage(analysis, marks));
     issues.extend(redundancy::coverage(analysis, marks));
     issues.extend(redundancy::references(analysis, marks));
     issues
+}
+
+/// Missing-feature coverage on a general arrangement is informational. Keep this policy at
+/// the collection boundary so every family uses the same solid-count decision.
+fn assembly_coverage(analysis: &Analysis, issues: &mut [LintIssue]) {
+    if analysis.solid_count.is_some_and(|n| n > 1) {
+        for issue in issues {
+            if issue.severity == Severity::Warning {
+                issue.severity = Severity::Info;
+            }
+        }
+    }
 }
 
 /// A bounded coverage finding; several solids retain Python's informational severity.

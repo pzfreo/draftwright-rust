@@ -10,8 +10,7 @@
 //! - **A fit** is set on a hole or a cylindrical boss (`features/<id>/fit`): an ISO 286 class
 //!   from draftwright's table (`fits.py`: holes H, G, F; shafts h, g, f, js, k, n, p; grades 5 to
 //!   11; nominal sizes up to 250 mm). It is printed after the diameter of the callout that states
-//!   the feature's size, as the class and its limits (`⌀8.1 H7 (+0.015/0) THRU`), or the class
-//!   alone when the sheet hides fit limits (`sheet/fit_limits: false`, draftwright's form).
+//!   the feature's size, as the class alone (`⌀8.1 H7 THRU`) by default; `sheet/fit_deviations: true` adds stacked deviations.
 //!
 //! A band is withheld, and the plan says so, when the sheet cannot state it truthfully:
 //! - **a band of nothing** (ARCH0019-2): with the authored digits kept, only a band whose every
@@ -193,20 +192,19 @@ pub(super) fn deviations(code: &str, nominal: f64) -> Option<(f64, f64)> {
     Some((f64::from(lo) / 1000.0, f64::from(hi) / 1000.0))
 }
 
-/// A class with its limits, as the sheet prints it when they are shown: `H7 (+0.015/0)`.
+/// A class with its stacked deviations, encoded upper then lower with a newline.
 pub(super) fn with_limits(code: &str, (lower, upper): (f64, f64)) -> String {
     format!("{code} {}", limits_term((lower, upper)))
 }
 
-/// The limits alone: `(+0.015/0)`.
+/// The stacked deviations alone, encoded upper then lower with a newline.
 pub(super) fn limits_term((lower, upper): (f64, f64)) -> String {
-    format!("({}/{})", deviation(upper), deviation(lower))
+    format!("{}\n{}", deviation(upper), deviation(lower))
 }
 
-/// Whether the sheet shows a fit's limits beside its class (`sheet/fit_limits`, shown unless the
-/// spec says false).
+/// Whether the sheet requests stacked fit deviations (off by default).
 pub(super) fn limits_shown(spec: &Spec) -> bool {
-    spec.sheet.fit_limits != Some(false)
+    spec.sheet.fit_deviations.or(spec.sheet.fit_limits) == Some(true)
 }
 
 /// A limit deviation as a fit prints it (draftwright's `fits._fmt_dev`): signed, to the µm
@@ -222,7 +220,27 @@ pub(super) fn deviation(v: f64) -> String {
 /// Checks every tolerance and fit the spec authors reads as one: the form, never the part (that
 /// is [`apply`]'s). A refusal names the entry.
 pub(crate) fn check(spec: &Spec) -> Result<(), Invalid> {
+    if let Some(t) = &spec.envelope_tolerance {
+        tolerance(t).map_err(|why| Invalid {
+            message: format!("The envelope tolerance cannot be read: {why}."),
+            choices: FORMS.map(String::from).to_vec(),
+        })?;
+    }
     for (id, entry) in &spec.dimensions {
+        if let Some(code) = &entry.fit {
+            fit(code).map_err(|why| Invalid {
+                message: why,
+                choices: vec![],
+            })?;
+            if !id.starts_with("d:envelope/") || entry.tolerance.is_some() {
+                return Err(Invalid {
+                    message: format!(
+                        "The fit of {id} belongs to an overall extent with no per-extent tolerance."
+                    ),
+                    choices: vec![],
+                });
+            }
+        }
         if let Some(t) = &entry.tolerance {
             tolerance(t).map_err(|why| Invalid {
                 message: format!("The tolerance of {id:?} cannot be read: {why}."),
@@ -246,15 +264,16 @@ fn parameter(id: &str) -> &str {
     id.rsplit_once('/').map_or(id, |(_, p)| p)
 }
 
-/// Whether *w* is a diameter whose label states no diameter (no `ø` or `⌀` term): an external
-/// thread's designation stands in its place (ISO 6410) and carries the thread's own tolerance
-/// class, so no band or fit is printed on it.
+/// Whether the nominal term is a supported thread designation in place of a plain
+/// diameter. A missing diameter glyph alone says nothing about a thread. A tapping
+/// drill printed before the designation remains the value that takes a bore tolerance.
 pub(super) fn thread_designated(w: &super::Want) -> bool {
     parameter(&w.id).ends_with("diameter")
-        && !w
-            .terms
-            .iter()
-            .any(|t| t.starts_with('ø') || t.starts_with('⌀'))
+        && value_term(&w.terms).is_some_and(|i| {
+            // Manufacturing suffixes append depth/length prose after a comma or semicolon.
+            let designation = w.terms[i].split([',', ';']).next().unwrap_or_default();
+            crate::spec_notes::metric(designation).is_ok()
+        })
 }
 
 /// The term a band follows: the first that states a number and is not a count (`4×`).
@@ -391,7 +410,16 @@ pub(super) fn apply(
                 stated.insert(*k);
             }
         }
-        let authored = spec.dimensions.get(&w.id).and_then(|e| e.tolerance.clone());
+        let extent_fit = spec.dimensions.get(&w.id).and_then(|e| e.fit.as_deref());
+        let authored = spec
+            .dimensions
+            .get(&w.id)
+            .and_then(|e| e.tolerance.clone())
+            .or_else(|| {
+                (w.id.starts_with("d:envelope/") && extent_fit.is_none())
+                    .then(|| spec.envelope_tolerance.clone())
+                    .flatten()
+            });
         if authored.is_some() && member_fits.iter().any(Option::is_some) {
             let fitted: Vec<&str> = members
                 .iter()
@@ -409,7 +437,21 @@ pub(super) fn apply(
                 choices: vec![],
             });
         }
-        let band = if let Some(t) = authored {
+        let band = if let Some(code) = extent_fit {
+            let limits = deviations(code, w.value).ok_or_else(|| Invalid {
+                message: format!(
+                    "The fit {code} of {} is outside the ISO 286 table at {} mm.",
+                    w.id, w.value
+                ),
+                choices: vec![],
+            })?;
+            given.push("fit".into());
+            Some(if limits_shown(spec) {
+                with_limits(code, limits)
+            } else {
+                code.into()
+            })
+        } else if let Some(t) = authored {
             let (text, nothing) = tolerance(&t).expect("checked");
             if nothing {
                 problems.push(Problem {
@@ -472,7 +514,7 @@ pub(super) fn apply(
                 "tolerance_withheld",
                 &w.id,
                 format!(
-                    "{text} is not printed on {}: its external thread's designation states the diameter and carries the thread's own tolerance class.",
+                    "{text} is not printed on {}: its thread designation states the nominal size and carries the thread's own tolerance class.",
                     super::wording_of(w)
                 ),
                 vec![w.id.clone()],
@@ -549,6 +591,18 @@ pub(super) fn apply(
 /// members' `fit`, and whether that is printed (a band of nothing, or a fit the members do not
 /// all share, is withheld). None when the spec gives it neither.
 pub(super) fn authored(spec: &Spec, w: &Want) -> Option<(&'static str, bool)> {
+    if spec.dimensions.get(&w.id).is_some_and(|e| e.fit.is_some()) {
+        return Some(("fit", true));
+    }
+    if w.id.starts_with("d:envelope/")
+        && spec
+            .dimensions
+            .get(&w.id)
+            .is_none_or(|e| e.tolerance.is_none())
+        && let Some(t) = &spec.envelope_tolerance
+    {
+        return Some(("tolerance", tolerance(t).is_ok_and(|(_, nothing)| !nothing)));
+    }
     if let Some(t) = spec
         .dimensions
         .get(&w.id)
@@ -740,6 +794,72 @@ mod tests {
             serde_json::from_value(serde_json::json!({"tolerance": "±0"})).unwrap(),
         );
         assert_eq!(authored(&spec, &step), Some(("tolerance", false)));
+    }
+
+    #[test]
+    fn thread_designations_are_positive_and_a_tapped_hole_is_not_called_external() {
+        let (_, analysis) = crate::model::analyse(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/plate.step"),
+        )
+        .unwrap();
+        let id = "d:f:hole:1/bore.diameter";
+        let want = |terms: &[&str]| Want {
+            id: id.into(),
+            views: vec!["plan"],
+            value: 6.0,
+            terms: terms.iter().map(|t| t.to_string()).collect(),
+            measurements: vec![super::super::Measurement {
+                feature: "f:hole:1".into(),
+                parameter: "bore.diameter".into(),
+                value: 6.0,
+            }],
+            basis: String::new(),
+            shape: super::super::Shape::Callout { sites: Vec::new() },
+            turning: None,
+        };
+        let spec: Spec = serde_json::from_value(serde_json::json!({
+            "dimensions": {id: {"tolerance": "±0.1"}}
+        }))
+        .unwrap();
+        // No drill diameter: the designation carries a thread class, not an ISO 286 bore band.
+        let tapped = want(&["2×", "M6x1-6H", "THRU"]);
+        assert!(thread_designated(&tapped));
+        let mut kept = vec![(tapped, true, Some("plan"), Vec::new())];
+        let mut problems = Vec::new();
+        apply(&analysis, &spec, &mut kept, &[], &mut problems).unwrap();
+        assert_eq!(kept[0].0.terms, ["2×", "M6x1-6H", "THRU"]);
+        let withheld = problems
+            .iter()
+            .find(|p| p.code == "tolerance_withheld")
+            .unwrap();
+        assert!(withheld.message.contains("thread designation"));
+        assert!(
+            !withheld.message.contains("external"),
+            "{}",
+            withheld.message
+        );
+        // A plain numeric nominal is not a thread, with or without a diameter glyph.
+        // When a drill size precedes a thread, the band belongs to the drill size.
+        for terms in [
+            &["6", "THRU"][..],
+            &["5", "THRU", "M6x1-6H"][..],
+            &["⌀5", "THRU", "M6x1-6H"][..],
+        ] {
+            let plain = want(terms);
+            assert!(!thread_designated(&plain));
+            let mut kept = vec![(plain, true, Some("plan"), Vec::new())];
+            let mut problems = Vec::new();
+            apply(&analysis, &spec, &mut kept, &[], &mut problems).unwrap();
+            assert_eq!(kept[0].0.terms[1], "±0.1");
+            assert!(
+                !problems.iter().any(|p| p.code == "tolerance_withheld"),
+                "{problems:?}"
+            );
+        }
+        assert!(thread_designated(&want(&[
+            "M10 x 1.5-6g RH, FULL AVAILABLE LENGTH"
+        ])));
     }
 
     #[test]

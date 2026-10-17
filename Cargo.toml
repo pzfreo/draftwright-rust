@@ -1,6 +1,6 @@
 [package]
 name = "draftwright"
-version = "0.1.0-alpha.3"
+version = "0.1.0-alpha.4"
 edition = "2024"
 license = "AGPL-3.0-only"
 description = "Automated technical drawings from STEP B-rep: a Rust port of draftwright."
@@ -21,9 +21,26 @@ tiny-skia = { version = "0.12.0", default-features = false, features = ["std"] }
 ttf-parser = "0.25.1"
 uuid = { version = "1", default-features = false }
 
+# dxf's uuid needs a browser random source even when this library is built directly.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+uuid = { version = "1", default-features = false, features = ["js"] }
+getrandom = { version = "0.3", features = ["wasm_js"] }
+
 [dev-dependencies]
 flate2 = "1.1.10"
 serde_json = { version = "1.0.151", features = ["float_roundtrip"] }
 
 [build-dependencies]
 sha2 = "0.11.0"
+
+[workspace]
+members = ["crates/draftwright-wasm"]
+default-members = ["."]
+resolver = "3"
+
+# Keep the native release build's compile time and behaviour unchanged.
+[profile.wasm-release]
+inherits = "release"
+lto = true
+codegen-units = 1
+opt-level = 3

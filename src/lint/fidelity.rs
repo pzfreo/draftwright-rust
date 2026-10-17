@@ -17,8 +17,8 @@
 //!   `N× ⌀d` counts d-diameter features, as draftwright reads it.
 //! - `nominal_rounded` (`_lint_display_precision`): once per sheet, info, the dimensions whose
 //!   correctly rounded label prints a nominal the model does not have (by more than 0.0005 mm),
-//!   naming the largest. The port's spec has no display precision to raise, so the message says
-//!   so instead of draftwright's `.format(decimals=…)` advice.
+//!   naming the largest. The Spec can raise precision by semantic measurement ID; the drawing
+//!   records the approved policy alongside the ink for this independent check.
 //! - `angular_label_vs_geometry` (`lint_angular_geometry`): an angular dimension's degrees
 //!   against the angle between its drawn rays (its two extension lines, from their meeting point,
 //!   the vertex), within half its last printed place. Never the planned angle.
@@ -131,7 +131,23 @@ pub(super) fn check(drawing: &Drawing) -> Vec<LintIssue> {
                 };
                 if let Some(l) = linear_ink(&d.lines) {
                     let measured = l.span[1] - l.span[0];
-                    issues.extend(label_vs_measured(d, text, measured, scale, &mut rounded));
+                    issues.extend(label_vs_measured(
+                        d,
+                        text,
+                        measured,
+                        scale,
+                        drawing.sheet.precision.get(&d.name).copied(),
+                        &mut rounded,
+                    ));
+                } else if let Some(span) = aligned_span(&d.lines) {
+                    issues.extend(label_vs_measured(
+                        d,
+                        text,
+                        span,
+                        scale,
+                        drawing.sheet.precision.get(&d.name).copied(),
+                        &mut rounded,
+                    ));
                 } else if d.lines.len() >= 3 {
                     issues.extend(angular(drawing, d, text, *view));
                 }
@@ -152,7 +168,7 @@ pub(super) fn check(drawing: &Drawing) -> Vec<LintIssue> {
                 "{} dimension(s) print a nominal the model does not have, rounded to the sheet's \
                  precision; the largest is '{label}' for {value:.4} ({shift:.4} mm). Within a \
                  general tolerance this is ordinary. Where a fit depends on it, the dimension \
-                 needs more places, which the spec cannot yet ask for",
+                 needs more places (set precision for its measurement ID)",
                 rounded.len()
             ),
             None,
@@ -227,6 +243,7 @@ fn label_vs_measured(
     label: &str,
     page: f64,
     scale: f64,
+    precision: Option<u8>,
     rounded: &mut Vec<(f64, String, f64)>,
 ) -> Option<LintIssue> {
     if angular_label(label) {
@@ -246,7 +263,10 @@ fn label_vs_measured(
             digits.split_once('.').map_or(0, |(_, f)| f.len()) as i32,
         )
     } else {
-        (1.0, displayed_decimals(label) as i32)
+        (
+            1.0,
+            precision.map_or_else(|| displayed_decimals(label) as i32, i32::from),
+        )
     };
     let value = unit * label_value(label)?;
     let measured = page / scale;
@@ -527,6 +547,26 @@ fn datum_leader(d: &Drawn) -> Option<LintIssue> {
         i.fix = Some("set the datum symbol closer to its surface".into());
         i
     })
+}
+
+/// Recognise perpendicular extension lines and a parallel dimension line at any rotation.
+fn aligned_span(lines: &[[P; 2]]) -> Option<f64> {
+    let [a, b, d] = lines else { return None };
+    let delta = [d[1][0] - d[0][0], d[1][1] - d[0][1]];
+    let length = delta[0].hypot(delta[1]);
+    if length < 1e-9 {
+        return None;
+    }
+    let u = delta.map(|x| x / length);
+    let project = |p: P| p[0] * u[0] + p[1] * u[1];
+    if [a, b]
+        .iter()
+        .any(|e| (project(e[1]) - project(e[0])).abs() > 1e-6)
+    {
+        return None;
+    }
+    let span = (project(b[0]) - project(a[0])).abs();
+    (span > 1e-9).then_some(span)
 }
 
 #[cfg(test)]

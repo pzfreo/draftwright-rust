@@ -534,6 +534,53 @@ impl Callout {
     }
 }
 
+/// Whether the rendered bore term, excluding quantities, tolerances and pitch circles,
+/// states this diameter at the precision actually printed.
+pub fn states_bore(text: &str, diameter: f64) -> bool {
+    // A lone loose number may be a quantity, location or depth. Bore observations require
+    // the explicit diameter term; the scalar fallback is for independent depth dimensions.
+    Callout::read(text)
+        .term("bore.diameter", false)
+        .is_some_and(|(number, decimals)| rounds(number, decimals, diameter))
+}
+
+/// A scheduled size cell is one physical hole's complete callout. Its physical riders
+/// (THRU and quantity) are usable only while every size it claims is borne out by that
+/// cell's own ink. A pitch-circle diameter or a number in another row proves nothing.
+pub fn verified_schedule_size(analysis: &Analysis, mark: &Mark) -> bool {
+    if !mark.name.starts_with("hole_schedule_") || !mark.name.ends_with("/size") {
+        return true;
+    }
+    let bores: Vec<_> = mark
+        .claims
+        .iter()
+        .filter(|c| c.parameter == "bore.diameter")
+        .collect();
+    if bores.len() != 1 {
+        return false;
+    }
+    let Some(group) = groups(analysis)
+        .into_iter()
+        .find(|g| g.members.contains(&bores[0].feature))
+    else {
+        return false;
+    };
+    let callout = Callout::read(&mark.text);
+    group
+        .requirements()
+        .iter()
+        .filter(|(p, _)| !matches!(*p, "grouping.count" | "bore.through"))
+        .all(|(parameter, value)| {
+            mark.claims
+                .iter()
+                .any(|c| c.feature == bores[0].feature && c.parameter == *parameter)
+                && value.is_some_and(|v| {
+                    callout.states(parameter, v, group.sizes.counterbore.is_some())
+                })
+        })
+        && (!group.sizes.through || says_thru(&mark.text))
+}
+
 /// The holes whose bore diameters *m* claims.
 fn diameters(m: &Mark) -> BTreeSet<&str> {
     m.claims
@@ -634,6 +681,22 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             };
             if match parameter {
                 "grouping.count" => uncounted.is_empty(),
+                // A native grouped callout states the group's shared nominal; quantity is
+                // audited separately. A schedule replaces that statement with physical rows,
+                // so a valid sibling row must not hide one missing or damaged member cell.
+                _ if claiming.iter().any(|m| {
+                    m.name.starts_with("hole_schedule_") || m.name.starts_with("hole_table_plan/")
+                }) =>
+                {
+                    g.members.iter().all(|feature| {
+                        claiming.iter().any(|m| {
+                            m.claims
+                                .iter()
+                                .any(|c| &c.feature == feature && c.parameter == carrier)
+                                && stated(m)
+                        })
+                    })
+                }
                 _ => claiming.iter().any(stated),
             } {
                 continue;
@@ -707,6 +770,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             });
         }
     }
+    issues.extend(unattached_countersinks(analysis));
     // A hole whose record cannot be read is reported, never left out of the count.
     for (f, read) in holes::read(analysis) {
         if let Err(why) = read {
@@ -734,6 +798,62 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 evidence: Some(why),
                 fix: None,
             });
+        }
+    }
+    issues
+}
+
+/// Consume each attached seat once. A standalone recognised seat cannot disappear merely
+/// because the hole record has only one countersink slot (Python issue 1229/1370).
+fn unattached_countersinks(analysis: &Analysis) -> Vec<LintIssue> {
+    let mut attached: Vec<&serde_json::Value> = analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "hole")
+        .filter_map(|f| f.parameters.get("csink").filter(|v| !v.is_null()))
+        .collect();
+    let same = |a: &serde_json::Value, b: &serde_json::Map<String, serde_json::Value>| {
+        [
+            "axis",
+            "location",
+            "major_diameter",
+            "drill_diameter",
+            "included_angle",
+            "depth",
+        ]
+        .iter()
+        .all(|k| a.get(*k) == b.get(*k))
+    };
+    let mut issues = Vec::new();
+    for f in analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "countersink" || f.fingerprint.subtype == "CounterSink")
+    {
+        if let Some(i) = attached.iter().position(|a| same(a, &f.parameters)) {
+            attached.remove(i);
+            continue;
+        }
+        for (parameter, field) in [
+            ("countersink.diameter", "major_diameter"),
+            ("countersink.angle", "included_angle"),
+        ] {
+            let mut finding = super::uncovered(
+                analysis,
+                "hole_requirement_unverifiable",
+                &f.id,
+                parameter,
+                format!(
+                    "Recognised countersink {} has no attributable hole callout: {parameter} remains unverifiable; the hole record carries only one seat.",
+                    f.id
+                ),
+            );
+            finding.evidence = f
+                .parameters
+                .get(field)
+                .map(|v| format!("Recognised {field}: {v}"));
+            finding.fix = Some("State this seat on its opening face, or supply recognition evidence attributing every seat to its bore.".into());
+            issues.push(finding);
         }
     }
     issues

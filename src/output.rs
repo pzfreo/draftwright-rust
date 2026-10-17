@@ -356,6 +356,16 @@ pub struct Annotation {
     /// Its label's runs, as indices into [`Drawing::text`].
     pub runs: Vec<usize>,
     pub claims: Vec<Claim>,
+    /// The compiler-bound identities belonging to the approved cell. These remain separate
+    /// from its live claims so a changed owner or parameter loses proof. Manufacturing
+    /// rows retain source provenance here without adding a second physical measurement owner.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub approved_claims: Vec<Claim>,
+    /// Display-complete compiler approval for a measurement schedule cell. Kept apart from
+    /// its actual text runs so damaged content cannot certify itself. This is evidence only;
+    /// the physical requirement inventory still comes independently from Analysis.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approved_text: Option<String>,
     /// Model-space datum of a coordinate schedule cell, resolved by the Plan.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub coordinate_origin: Option<[f64; 3]>,
@@ -405,6 +415,9 @@ pub struct Drawn {
     pub ink: [f64; 4],
     pub label: Option<[f64; 4]>,
     pub lines: Vec<[P; 2]>,
+    /// Filled arrowhead outlines, kept separate from dimension-reading line grammar.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub heads: Vec<[P; 2]>,
     pub elbow: Option<P>,
     /// Placed inside its view on purpose, clear of the view's edges (draftwright's `interior`
     /// placement region), retained from the Plan's proven candidate provenance.
@@ -432,7 +445,7 @@ pub struct DrawnField {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DrawnReference {
     pub name: String,
-    /// Name of the target's actual caption or cutting-plane letter.
+    /// Name of the target view or cutting-plane letter.
     pub target: String,
     pub prefix: String,
     pub sheet: u32,
@@ -445,6 +458,8 @@ pub struct DrawnReference {
 /// format.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Sheet {
+    /// Approved display precision of each dimension's leading value. Ink is still checked.
+    pub precision: BTreeMap<String, u8>,
     /// Remote section addresses, verified against printed text by structural lint.
     pub references: Vec<DrawnReference>,
     /// The drawable area, inside the border (`[x0, y0, x1, y1]`); none when no border is drawn.

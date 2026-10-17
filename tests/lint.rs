@@ -1867,6 +1867,8 @@ fn lint_reads_the_drawings_annotations() {
             v_align: VAlign::Baseline,
         });
         drawing.annotations.push(Annotation {
+            approved_claims: Vec::new(),
+            approved_text: None,
             coordinate_origin: None,
             satisfies: Vec::new(),
             name: "d:f:hole:1/bore.diameter@v:plan".into(),

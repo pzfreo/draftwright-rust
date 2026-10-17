@@ -19,8 +19,8 @@
 //!   blockers, its modifiers or its attachment stop it, a surface or common label has no proven
 //!   site, a drawing-wide requirement ([`sheet_requirements`]) is ambiguous or not a supported
 //!   default, a thread or knurl no one feature owns ([`manufacturing`]: its text disagrees with
-//!   its cylinder, or no feature or several prove it), or it is a face finish (read, not drawn
-//!   yet); a dimension that does not lower ([`dimension`]). Error; a manufacturing requirement of
+//!   its cylinder, or no feature or several prove it); a dimension that does not lower
+//!   ([`dimension`]). Error; a manufacturing requirement of
 //!   a kind draftwright does not support is a warning.
 //! - `pmi_not_rendered`: a record [`lower`] or [`sheet_requirements`] lowers, a thread or knurl
 //!   [`manufacturing`] gives to its owner (its owner's callout claims it), or a dimension that
@@ -38,19 +38,19 @@
 //!   Warnings.
 //!
 //! Python's `pmi_present_but_ignored` is not-applicable: the port has no switch that ignores a
-//! part's PMI. Its other codes wait on the drawing or on a decision: of the manufacturing notes,
-//! finish symbols and requirement table that `pmi_source_text_mismatch`, `pmi_source_site_mismatch`
-//! and `manufacturing_reference_unresolved` check, the port draws the drawing-wide notes, the
-//! default finish and the threads and knurls (on their callouts or in their table), not a face's
-//! finish, and checks none of their text yet; and the title block's material
-//! and general tolerance against the file (`step_material_mismatch` and `_disagreement`,
-//! `step_general_tolerance_*`) turn on whether the caller authored the field, which only the Spec
-//! says.
+//! part's PMI. Source-site fidelity is checked by [`source_sites`] against the finished leader
+//! and independently recorded face attachments, including census-only sources with no typed
+//! record. Edge-note and face-finish text runs are checked independently of their formatter.
+//! Manufacturing references are checked against complete source-matched rendered rows by
+//! [`manufacturing_references`]. Filled glyph-path text checks remain pending. The title block's
+//! material and general tolerance against the file (`step_material_mismatch`, `_disagreement`,
+//! `step_general_tolerance_*`) depend on whether the caller authored the field.
 
 use std::collections::BTreeSet;
 
 use super::{LintIssue, Mark, Severity};
 use crate::model::Analysis;
+use crate::output::{Drawing, Kind};
 use crate::pmi::{Category, Identities, Outcome, Reading, Record, Report};
 use crate::pmi_lowering::{lower, manufacturing, sheet_requirements};
 
@@ -254,6 +254,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             out.push(i);
         }
     }
+    out.extend(manufacturing_text(report, marks, &ids));
     out.extend(materials(report));
     let known: BTreeSet<&str> = report
         .records
@@ -271,6 +272,90 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                  contain — the provenance is fabricated, not merely unmatched"
             ),
         ));
+    }
+    out
+}
+
+/// Source-scoped manufacturing text, read from the source itself, independently of the
+/// lowering/row formatter. Whitespace may change when notes wrap; words and parameters may not.
+/// This checks the text runs. The independent audit of the filled glyph paths remains pending.
+fn manufacturing_text(report: &Report, marks: &[Mark], ids: &Identities) -> Vec<LintIssue> {
+    let mut out = Vec::new();
+    for m in marks {
+        let Some(source) = m.name.strip_prefix("pmi:") else {
+            continue;
+        };
+        let source = ids.source(&m.name).unwrap_or(source);
+        let Some(r) = report
+            .records
+            .iter()
+            .find(|r| r.source_id == source && r.category == Category::ManufacturingRequirement)
+        else {
+            continue;
+        };
+        let words: Vec<&str> = m.text.split_whitespace().collect();
+        let states = match r.kind.as_str() {
+            "edge_condition" => {
+                // The general notes block numbers each note's first row. Its annotation owns
+                // only that note's runs, including every wrapped continuation row.
+                let note = match words.first().and_then(|s| s.parse::<usize>().ok()) {
+                    Some(n) if n > 0 => &words[1..],
+                    _ => &words[..],
+                };
+                !note.is_empty() && note == r.label.split_whitespace().collect::<Vec<_>>()
+            }
+            "surface_finish" => {
+                let parameters: Vec<_> = r
+                    .fields
+                    .iter()
+                    .filter_map(|(name, field)| match field {
+                        crate::pmi::Field::Length(mm) => Some((name.as_str(), mm * 1000.0)),
+                        _ => None,
+                    })
+                    .collect();
+                // ISO 1302's parameter labels carry values in micrometres. An arbitrary
+                // number somewhere in a label cannot stand for the named parameter. Accept
+                // the exact source value or its declared three-significant-digit display,
+                // independently of the lowering formatter, never an interval of nearby values.
+                let mut printed = words.iter().copied();
+                let states = !parameters.is_empty()
+                    && parameters.iter().all(|(name, expected)| {
+                        name.split_whitespace()
+                            .all(|word| printed.next() == Some(word))
+                            && expected.is_finite()
+                            && printed
+                                .next()
+                                .and_then(|word| word.parse::<f64>().ok())
+                                .is_some_and(|value| {
+                                    value.is_finite()
+                                        && (value == *expected
+                                            || format!("{expected:.2e}")
+                                                .parse::<f64>()
+                                                .is_ok_and(|display| value == display))
+                                })
+                    });
+                states && printed.next().is_none()
+            }
+            _ => continue,
+        };
+        if !states {
+            let mut i = sourced(
+                "pmi_source_text_mismatch",
+                source,
+                Severity::Error,
+                format!(
+                    "{} does not state AP242 {} {} as {:?}",
+                    m.name,
+                    r.kind.replace('_', " "),
+                    source,
+                    r.label
+                ),
+            );
+            i.id = format!("l:pmi_source_text_mismatch:{}", m.name);
+            i.annotation = Some(m.name.clone());
+            i.view = m.view.clone();
+            out.push(i);
+        }
     }
     out
 }
@@ -302,10 +387,12 @@ fn dimension(r: &Record) -> Result<(), String> {
     }
     match (r.kind.as_str(), &g.axis) {
         ("linear" | "thickness" | "diameter" | "radius", Some(_)) => Ok(()),
-        ("linear" | "thickness", None) => Err(
-            "its stations are oblique to the views' axes; the port draws a length along x, y or z"
-                .into(),
-        ),
+        ("linear" | "thickness", None) => {
+            match g.stations.as_slice() {
+                [a,b] if crate::pmi_lowering::projection_view([0,1,2].map(|k| b[k]-a[k])).is_some() => Ok(()),
+                _ => Err("its stations have no proven span in a principal projection plane".into()),
+            }
+        },
         ("diameter" | "radius", None) => Err(
             "its axis is not along x, y or z; the port draws a diameter or radius seen end-on"
                 .into(),
@@ -460,6 +547,263 @@ fn mismatch(r: &Record, text: &str) -> Option<String> {
     ))
 }
 
+/// Source sites are checked against the finished leader and the source faces, never the Plan.
+/// A planar finish may slide along its face's edge line; a cylinder uses either silhouette.
+pub(super) fn source_sites(
+    analysis: &Analysis,
+    drawing: &crate::output::Drawing,
+) -> Vec<LintIssue> {
+    use crate::output::Kind;
+    let Some(Reading::Read(report)) = &analysis.pmi else {
+        return vec![];
+    };
+    let ids = report.identities();
+    let mut out = Vec::new();
+    for a in &drawing.annotations {
+        let Some(source) = ids.source(&a.name).or_else(|| a.name.strip_prefix("pmi:")) else {
+            continue;
+        };
+        let ink = drawing.sheet.items.iter().find(|i| i.name == a.name);
+        let text = a
+            .runs
+            .iter()
+            .filter_map(|&i| drawing.text.get(i))
+            .map(|r| r.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let finish_carrier = a.view.is_some()
+            && ink.is_some_and(|i| i.kind == Kind::Gdt)
+            && ["Ra ", "Rz ", "Rq "]
+                .iter()
+                .any(|prefix| text.starts_with(prefix));
+        let general_note = a.view.is_none()
+            && drawing.sheet.items.iter().any(|i| {
+                i.kind == Kind::Notes
+                    && i.name == "general_notes"
+                    && a.runs
+                        .iter()
+                        .filter_map(|&j| drawing.text.get(j))
+                        .any(|run| {
+                            (0..2).all(|k| {
+                                i.ink[k] - 0.05 <= run.at[k] && run.at[k] <= i.ink[k + 2] + 0.05
+                            })
+                        })
+            });
+        let Some(r) = report.records.iter().find(|r| r.source_id == source) else {
+            if (finish_carrier || general_note) && report.sources.iter().any(|s| s.id == source) {
+                let mut finding = sourced(
+                    "pmi_source_site_mismatch",
+                    source,
+                    Severity::Error,
+                    format!(
+                        "{} claims source {source}, whose census entry has no resolved face-finish or document-note record",
+                        a.name
+                    ),
+                );
+                finding.id = format!("l:pmi_source_site_mismatch:{}", a.name);
+                finding.annotation = Some(a.name.clone());
+                finding.view = a.view.clone();
+                out.push(finding);
+            }
+            continue;
+        };
+        let valid = if r.kind == "surface_finish" || finish_carrier {
+            r.kind == "surface_finish"
+                && a.view.is_some()
+                && ink.is_some_and(|i| i.kind == Kind::Gdt)
+                && (|| {
+                    let tip = ink?.lines.first()?.first()?;
+                    let frame = drawing
+                        .sheet
+                        .frames
+                        .get(a.view.as_deref()?.trim_start_matches("v:"))?;
+                    let view = haecceity::hlr::View::new(frame.direction, frame.up)?;
+                    let [lo, hi] = analysis.envelope;
+                    let centre = view.map([0, 1, 2].map(|k| 0.5 * (lo[k] + hi[k])));
+                    let page = |p| {
+                        let q = view.map(p);
+                        [0, 1].map(|k| frame.at[k] + frame.scale * (q[k] - centre[k]))
+                    };
+                    Some(
+                        r.faces
+                            .iter()
+                            .filter_map(|&f| analysis.face_attachments.get(f))
+                            .any(|f| {
+                                let (Some(b), Some(axis)) = (f.bounds, f.axis) else {
+                                    return false;
+                                };
+                                // The source surface must be seen edge-on, as its carrier promises.
+                                let end_on = view.toward[axis].abs() > 1.0 - 1e-6;
+                                let mut bounds = [
+                                    f64::INFINITY,
+                                    f64::INFINITY,
+                                    f64::NEG_INFINITY,
+                                    f64::NEG_INFINITY,
+                                ];
+                                for mask in 0..8 {
+                                    let q =
+                                        page([0, 1, 2].map(|k| {
+                                            b[k + if mask & (1 << k) == 0 { 0 } else { 3 }]
+                                        }));
+                                    for k in 0..2 {
+                                        bounds[k] = bounds[k].min(q[k]);
+                                        bounds[k + 2] = bounds[k + 2].max(q[k]);
+                                    }
+                                }
+                                let inside = (0..2).all(|k| {
+                                    bounds[k] - 0.05 <= tip[k] && tip[k] <= bounds[k + 2] + 0.05
+                                });
+                                match f.surface.as_deref() {
+                                    Some("plane") => {
+                                        !end_on
+                                            && inside
+                                            && (0..2).any(|k| {
+                                                bounds[k + 2] - bounds[k] <= 0.05
+                                                    && (tip[k] - bounds[k]).abs() <= 0.05
+                                            })
+                                    }
+                                    Some("cylinder") => {
+                                        let direction =
+                                            view.map([0, 1, 2].map(|k| f64::from(k == axis)));
+                                        let across = if direction[0].abs() > direction[1].abs() {
+                                            1
+                                        } else {
+                                            0
+                                        };
+                                        !end_on
+                                            && inside
+                                            && [bounds[across], bounds[across + 2]]
+                                                .iter()
+                                                .any(|v| (tip[across] - v).abs() <= 0.05)
+                                    }
+                                    _ => false,
+                                }
+                            }),
+                    )
+                })()
+                .unwrap_or(false)
+        } else if general_note {
+            matches!(
+                r.kind.as_str(),
+                "edge_condition" | "datum_scheme" | "model_representation"
+            )
+        } else {
+            true
+        };
+        if !valid {
+            let mut finding = sourced(
+                "pmi_source_site_mismatch",
+                source,
+                Severity::Error,
+                format!(
+                    "{} is not anchored to its referenced AP242 {} source {source}",
+                    a.name, r.kind
+                ),
+            );
+            finding.id = format!("l:pmi_source_site_mismatch:{}", a.name);
+            finding.annotation = Some(a.name.clone());
+            finding.view = a.view.clone();
+            out.push(finding);
+        }
+    }
+    out
+}
+
+/// A short manufacturing leader needs exactly one complete, source-matched rendered row.
+/// Read only the drawing and the source reading; searchable text in an unrelated table
+/// cannot supply the requirement or borrow another source's reference.
+pub fn manufacturing_references(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
+    let manufacturing = manufacturing(analysis);
+    let marks = super::marks(drawing);
+    let table_present = drawing
+        .sheet
+        .items
+        .iter()
+        .any(|i| i.name == "manufacturing_requirements" && i.kind == Kind::Table);
+    let normal = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
+    let headers: Vec<_> = marks
+        .iter()
+        .filter(|m| m.name == "manufacturing_requirements_header")
+        .collect();
+    let header_complete =
+        headers.len() == 1 && normal(&headers[0].text) == "REF MANUFACTURING REQUIREMENT";
+    let mut issues = Vec::new();
+    for leader in marks
+        .iter()
+        .filter(|m| !m.name.starts_with("manufacturing_requirements/"))
+    {
+        let owned: Vec<_> = manufacturing
+            .owned
+            .iter()
+            .filter(|o| {
+                leader
+                    .claims
+                    .iter()
+                    .any(|c| c.feature == o.id && c.parameter == o.aspect)
+            })
+            .collect();
+        if owned.is_empty() {
+            continue;
+        }
+        let words: Vec<_> = leader.text.split_whitespace().collect();
+        for words in words.windows(3).filter(|w| w[0] == "SEE" && w[1] == "MFG") {
+            // Python's reference regex ends at a word boundary, so punctuation after the
+            // tag (including a full stop) must not hide an unresolved reference.
+            let end = words[2]
+                .find(|c: char| !c.is_ascii_digit())
+                .unwrap_or(words[2].len());
+            let number = &words[2][..end];
+            if words[2][end..].starts_with(|c: char| c.is_alphanumeric() || c == '_')
+                || number.is_empty()
+                || number.starts_with('0')
+                || !number.bytes().all(|c| c.is_ascii_digit())
+            {
+                continue;
+            }
+            let tag = format!("MFG {number}");
+            let name = format!("manufacturing_requirements/{tag}");
+            let rows: Vec<_> = drawing
+                .annotations
+                .iter()
+                .filter(|m| m.name == name)
+                .collect();
+            let complete = table_present
+                && header_complete
+                && rows.len() == 1
+                && owned.iter().any(|o| {
+                    manufacturing
+                        .tags
+                        .iter()
+                        .any(|(source, t)| source == &o.source && t == &tag)
+                        && rows[0].approved_claims.len() == 1
+                        && rows[0].approved_claims[0].feature == o.id
+                        && rows[0].approved_claims[0].parameter == o.aspect
+                        && normal(&super::schedule_evidence::text(drawing, rows[0]))
+                            == normal(&format!("{tag} {}", o.text))
+                });
+            if complete {
+                continue;
+            }
+            let mut finding = issue(
+                "manufacturing_reference_unresolved",
+                &format!("{}/{tag}", leader.name),
+                Severity::Error,
+                format!(
+                    "{} refers to {tag}, but its complete source-matched manufacturing row is absent",
+                    leader.name
+                ),
+            );
+            finding.sources = owned.iter().map(|o| o.source.clone()).collect();
+            finding.annotation = Some(leader.name.clone());
+            finding.view = leader.view.clone();
+            finding.related = rows.iter().map(|m| m.name.clone()).collect();
+            finding.fix = Some("Restore the complete manufacturing requirements row and its source binding, or print the requirement on its leader in full.".into());
+            issues.push(finding);
+        }
+    }
+    issues
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -490,7 +834,11 @@ mod tests {
         assert_eq!(dimension(&r), Ok(()));
         let mut oblique = r.clone();
         oblique.geometry.as_mut().unwrap().axis = None;
-        assert!(dimension(&oblique).unwrap_err().contains("oblique"));
+        assert!(
+            dimension(&oblique)
+                .unwrap_err()
+                .contains("principal projection plane")
+        );
         let mut unproven = r.clone();
         unproven.geometry.as_mut().unwrap().reasons =
             vec!["linear reference groups occupy the same station".into()];
@@ -575,5 +923,126 @@ mod tests {
         // Within the display's rounding of the 13th significant digit.
         let r = frame(0.1 + 0.2, &[], &[]);
         assert_eq!(mismatch(&r, "⏥ 0.3"), None);
+    }
+
+    /// LINT-code-pmi_source_text_mismatch: source-scoped notes compare their own words, never
+    /// the shared note formatter; a finish compares its parameter and value, not just a number.
+    #[test]
+    fn manufacturing_source_text_is_checked_independently_of_its_identity() {
+        use crate::pmi::Field;
+        use serde_json::json;
+        let mut edge = frame(0., &[], &[]);
+        edge.source_id = "manufacturing_requirement:#2".into();
+        edge.category = Category::ManufacturingRequirement;
+        edge.kind = "edge_condition".into();
+        edge.label = "Break sharp edges and remove burrs 0.2 max".into();
+        let mut finish = edge.clone();
+        finish.source_id = "surface_texture:#3".into();
+        finish.kind = "surface_finish".into();
+        finish.label = "Ra 0.8 µm".into();
+        finish.fields = vec![("Ra".into(), Field::Length(0.0008))];
+        let report: Report = serde_json::from_value(json!({
+            "schema": "draftwright.pmi/1", "parts": ["plate"], "sources": [],
+            "records": [edge, finish], "accounting": {"semantic": 0, "consumed": 0, "reported": 0, "presentation": 0, "validation": 0}, "materials": []
+        }))
+        .unwrap();
+        let mut a: Analysis = serde_json::from_value(json!({
+            "schema": "draftwright.analysis/5",
+            "binding": {"source_sha256": "", "part": "", "face_count": 0, "loader": ""},
+            "envelope": [[0., 0., 0.], [1., 1., 1.]], "iso_bounds": [0., 0., 0., 0.]
+        }))
+        .unwrap();
+        let ids = report.identities();
+        let marks = |edge: &str, finish: &str| {
+            vec![
+                Mark {
+                    name: ids.id("manufacturing_requirement:#2").unwrap().into(),
+                    view: None,
+                    text: edge.into(),
+                    claims: vec![],
+                },
+                Mark {
+                    name: ids.id("surface_texture:#3").unwrap().into(),
+                    view: None,
+                    text: finish.into(),
+                    claims: vec![],
+                },
+            ]
+        };
+        a.pmi = Some(Reading::Read(report.clone()));
+        let mismatches = |marks: &[Mark]| {
+            coverage(&a, marks)
+                .into_iter()
+                .filter(|i| i.code == "pmi_source_text_mismatch")
+                .collect::<Vec<_>>()
+        };
+        let good = marks("1  Break sharp edges and remove\nburrs  0.2 max", "Ra 0.80");
+        assert!(mismatches(&good).is_empty());
+        for text in [
+            "1 Break sharp edges and remove burrs",
+            "1 Deburr all edges",
+            "1 Break sharp edges and remove burrs 0.2 max EXCEPT HOLES",
+        ] {
+            let found = mismatches(&marks(text, "Ra 0.8"));
+            assert_eq!(found.len(), 1, "{text}: {found:?}");
+            assert_eq!(found[0].sources, ["manufacturing_requirement:#2"]);
+            assert_eq!(found[0].severity, Severity::Error);
+            assert_eq!(found[0].annotation.as_deref(), Some(good[0].name.as_str()));
+        }
+        for text in [
+            "Ra 9.9",
+            "Ra 0.8001",
+            "Ra 0.8000000000001",
+            "Rz 0.8",
+            "Ra 0.8 Ra 0.8",
+            "Ra NaN",
+            "",
+        ] {
+            let found = mismatches(&marks(&good[0].text, text));
+            assert_eq!(found.len(), 1, "{text}: {found:?}");
+            assert_eq!(found[0].sources, ["surface_texture:#3"]);
+        }
+        // Text on an unrelated annotation cannot rescue either source's own corrupted text.
+        let mut wrong = marks("1 Deburr", "Ra 9.9");
+        wrong.push(Mark {
+            name: "n:1".into(),
+            view: None,
+            text: format!("{} Ra 0.8", report.records[0].label),
+            claims: vec![],
+        });
+        assert_eq!(mismatches(&wrong).len(), 2);
+        // Structured AP242 textures may also name a multi-word length parameter.
+        let mut multi = report.clone();
+        multi.records[1]
+            .fields
+            .push(("sampling length".into(), Field::Length(0.25)));
+        let mark = Mark {
+            name: "pmi:surface_texture:#3".into(),
+            view: None,
+            text: "Ra 0.80 sampling length 250".into(),
+            claims: vec![],
+        };
+        assert!(manufacturing_text(&multi, &[mark], &multi.identities()).is_empty());
+        // The existing surface-finish display contract is three significant digits. Neither
+        // unit conversion roundoff nor a correctly rounded value is a source mismatch.
+        for (mm, text) in [
+            (0.00012, "Ra 0.12"),
+            (0.001016, "Ra 1.02"),
+            (0.009999, "Ra 10"),
+            (0.00000000001234, "Ra 1.23e-8"),
+        ] {
+            let mut source = report.clone();
+            source.records[1].fields = vec![("Ra".into(), Field::Length(mm))];
+            let mark = Mark {
+                name: "pmi:surface_texture:#3".into(),
+                view: None,
+                text: text.into(),
+                claims: vec![],
+            };
+            assert!(
+                manufacturing_text(&source, &[mark], &source.identities()).is_empty(),
+                "{mm} mm must print as {text}"
+            );
+        }
     }
 }

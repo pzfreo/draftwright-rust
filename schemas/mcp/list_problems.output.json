@@ -2,7 +2,6 @@
   "type": "object",
   "anyOf": [
     {
-      "type": "object",
       "properties": {
         "items": {
           "type": "array",
@@ -11,24 +10,6 @@
               {
                 "type": "object",
                 "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "code": {
-                    "type": "string"
-                  },
-                  "severity": {
-                    "type": "string"
-                  },
-                  "message": {
-                    "type": "string"
-                  },
-                  "subjects": {
-                    "$ref": "#/$defs/A"
-                  },
-                  "refs": {
-                    "$ref": "#/$defs/A"
-                  },
                   "fix": {
                     "$ref": "#/$defs/B"
                   }
@@ -40,20 +21,19 @@
                   "message",
                   "subjects"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "patternProperties": {
+                  "^(id|code|severity|message)$": {
+                    "type": "string"
+                  },
+                  "^(subjects|refs)$": {
+                    "$ref": "#/$defs/A"
+                  }
+                }
               },
               {
                 "type": "object",
                 "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "code": {
-                    "type": "string"
-                  },
-                  "severity": {
-                    "type": "string"
-                  },
                   "subjects": {
                     "$ref": "#/$defs/A"
                   },
@@ -67,7 +47,12 @@
                   "severity",
                   "subjects"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "patternProperties": {
+                  "^(id|code|severity)$": {
+                    "type": "string"
+                  }
+                }
               },
               {
                 "type": "object",
@@ -111,7 +96,6 @@
       "additionalProperties": false
     },
     {
-      "type": "object",
       "properties": {
         "error": {
           "type": "object",

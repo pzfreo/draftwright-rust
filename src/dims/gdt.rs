@@ -1681,6 +1681,8 @@ pub fn render(
         });
     }
     Some(Annotation {
+        approved_claims: Vec::new(),
+        approved_text: None,
         coordinate_origin: None,
         satisfies: Vec::new(),
         name: g.id.clone(),
@@ -1762,6 +1764,8 @@ pub(crate) fn validate_placements(
             state: State::Shown,
             cut: None,
             line_work: Vec::new(),
+            line_style: Default::default(),
+            from_spec: Vec::new(),
         })
         .collect();
     let Some(crate::pmi::Reading::Read(report)) = &analysis.pmi else {
