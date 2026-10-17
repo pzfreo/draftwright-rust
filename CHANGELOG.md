@@ -15,7 +15,17 @@ All notable changes to draftwright-rust are recorded here, in the style of
 - Session/editor text and style options use existing Spec operations, preview and history;
   saved Specs round-trip and stale/merged label IDs are refused with a correction.
   Large MCP option replies retain full structured data and a lossless text-channel resource.
-- WASM API: additive Spec text/style fields and annotation/note `from_spec` JSON provenance
+- Spec line-work switches per view and drawing-wide sheet defaults: hidden lines,
+  centre marks, centre lines, thread depiction and knurl depiction (#76 item 6).
+  Session options/edits support them; effective paths are reported in view `from_spec`.
+
+### WASM API
+
+- Establish the reviewed TypeScript API snapshot and changelog gate, a measured WASM size
+  ceiling, and warning-only cross-package quiddity pin checks in CI and release notes.
+- Additive Spec line-work switches and optional Plan view `line_style`/`from_spec`
+  fields, shared with native sessions; no binding method changes.
+- Additive Spec text/style fields and annotation/note `from_spec` JSON provenance
   through the existing session methods; no new JavaScript methods or signatures.
 
 ## 0.1.0-alpha.4 (2026-10-16)

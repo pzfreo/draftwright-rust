@@ -48,18 +48,6 @@
                                   "kind": {
                                     "type": "string"
                                   },
-                                  "label": {
-                                    "type": [
-                                      "string",
-                                      "null"
-                                    ]
-                                  },
-                                  "view": {
-                                    "type": [
-                                      "string",
-                                      "null"
-                                    ]
-                                  },
                                   "state": {
                                     "anyOf": [
                                       {
@@ -73,8 +61,10 @@
                                             ]
                                           }
                                         },
-                                        "additionalProperties": false,
-                                        "minProperties": 1
+                                        "required": [
+                                          "kind"
+                                        ],
+                                        "additionalProperties": false
                                       },
                                       {
                                         "type": "object",
@@ -86,8 +76,11 @@
                                             "type": "string"
                                           }
                                         },
-                                        "additionalProperties": false,
-                                        "minProperties": 2
+                                        "required": [
+                                          "kind",
+                                          "by"
+                                        ],
+                                        "additionalProperties": false
                                       },
                                       {
                                         "type": "object",
@@ -99,8 +92,11 @@
                                             "type": "string"
                                           }
                                         },
-                                        "additionalProperties": false,
-                                        "minProperties": 2
+                                        "required": [
+                                          "kind",
+                                          "reason_code"
+                                        ],
+                                        "additionalProperties": false
                                       }
                                     ]
                                   }
@@ -112,7 +108,15 @@
                                   "view",
                                   "state"
                                 ],
-                                "additionalProperties": false
+                                "additionalProperties": false,
+                                "patternProperties": {
+                                  "^(label|view)$": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  }
+                                }
                               },
                               {
                                 "type": "object",
@@ -138,21 +142,26 @@
                                       "null"
                                     ]
                                   },
-                                  "anchors": {
-                                    "$ref": "#/$defs/A"
-                                  },
-                                  "features": {
-                                    "$ref": "#/$defs/A"
-                                  },
                                   "basis": {
                                     "type": "string"
-                                  },
-                                  "operations": {
-                                    "$ref": "#/$defs/A"
                                   }
                                 },
+                                "required": [
+                                  "item",
+                                  "value",
+                                  "dimension_kind",
+                                  "placement",
+                                  "anchors",
+                                  "features",
+                                  "basis",
+                                  "operations"
+                                ],
                                 "additionalProperties": false,
-                                "minProperties": 8
+                                "patternProperties": {
+                                  "^(anchors|features|operations)$": {
+                                    "$ref": "#/$defs/A"
+                                  }
+                                }
                               },
                               {
                                 "$ref": "#/$defs/u"
@@ -160,8 +169,11 @@
                             ]
                           }
                         },
-                        "additionalProperties": false,
-                        "minProperties": 2
+                        "required": [
+                          "change",
+                          "item"
+                        ],
+                        "additionalProperties": false
                       },
                       {
                         "type": "object",
@@ -173,8 +185,11 @@
                             "type": "string"
                           }
                         },
-                        "additionalProperties": false,
-                        "minProperties": 2
+                        "required": [
+                          "change",
+                          "id"
+                        ],
+                        "additionalProperties": false
                       },
                       {
                         "type": "object",
@@ -190,24 +205,6 @@
                               {
                                 "type": "object",
                                 "properties": {
-                                  "id": {
-                                    "type": "string"
-                                  },
-                                  "code": {
-                                    "type": "string"
-                                  },
-                                  "severity": {
-                                    "type": "string"
-                                  },
-                                  "message": {
-                                    "type": "string"
-                                  },
-                                  "subjects": {
-                                    "$ref": "#/$defs/A"
-                                  },
-                                  "refs": {
-                                    "$ref": "#/$defs/A"
-                                  },
                                   "fix": {
                                     "$ref": "#/$defs/B"
                                   }
@@ -219,20 +216,19 @@
                                   "message",
                                   "subjects"
                                 ],
-                                "additionalProperties": false
+                                "additionalProperties": false,
+                                "patternProperties": {
+                                  "^(id|code|severity|message)$": {
+                                    "type": "string"
+                                  },
+                                  "^(subjects|refs)$": {
+                                    "$ref": "#/$defs/A"
+                                  }
+                                }
                               },
                               {
                                 "type": "object",
                                 "properties": {
-                                  "id": {
-                                    "type": "string"
-                                  },
-                                  "code": {
-                                    "type": "string"
-                                  },
-                                  "severity": {
-                                    "type": "string"
-                                  },
                                   "subjects": {
                                     "$ref": "#/$defs/A"
                                   },
@@ -246,7 +242,12 @@
                                   "severity",
                                   "subjects"
                                 ],
-                                "additionalProperties": false
+                                "additionalProperties": false,
+                                "patternProperties": {
+                                  "^(id|code|severity)$": {
+                                    "type": "string"
+                                  }
+                                }
                               },
                               {
                                 "$ref": "#/$defs/u"
@@ -254,8 +255,11 @@
                             ]
                           }
                         },
-                        "additionalProperties": false,
-                        "minProperties": 2
+                        "required": [
+                          "change",
+                          "problem"
+                        ],
+                        "additionalProperties": false
                       },
                       {
                         "$ref": "#/$defs/u"
@@ -275,8 +279,12 @@
                   "minimum": 0
                 }
               },
-              "additionalProperties": false,
-              "minProperties": 3
+              "required": [
+                "items",
+                "total",
+                "next_cursor"
+              ],
+              "additionalProperties": false
             },
             "delta_ref": {
               "type": "string"
@@ -286,12 +294,19 @@
               "minimum": 0
             }
           },
-          "additionalProperties": false,
-          "minProperties": 3
+          "required": [
+            "events",
+            "delta_ref",
+            "plans"
+          ],
+          "additionalProperties": false
         }
       },
-      "additionalProperties": false,
-      "minProperties": 2
+      "required": [
+        "spec_version",
+        "delta"
+      ],
+      "additionalProperties": false
     },
     {
       "properties": {
@@ -318,8 +333,10 @@
           "additionalProperties": false
         }
       },
-      "additionalProperties": false,
-      "minProperties": 1
+      "required": [
+        "error"
+      ],
+      "additionalProperties": false
     }
   ],
   "$defs": {
@@ -336,8 +353,11 @@
           "type": "string"
         }
       },
-      "additionalProperties": false,
-      "minProperties": 2
+      "required": [
+        "id",
+        "detail_ref"
+      ],
+      "additionalProperties": false
     },
     "op": {
       "anyOf": [
@@ -355,8 +375,12 @@
             },
             "value": {}
           },
-          "additionalProperties": false,
-          "minProperties": 3
+          "required": [
+            "op",
+            "path",
+            "value"
+          ],
+          "additionalProperties": false
         },
         {
           "type": "object",
@@ -368,8 +392,11 @@
               "type": "string"
             }
           },
-          "additionalProperties": false,
-          "minProperties": 2
+          "required": [
+            "op",
+            "path"
+          ],
+          "additionalProperties": false
         }
       ]
     },

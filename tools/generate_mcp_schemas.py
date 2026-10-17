@@ -29,6 +29,11 @@ problem_filter=obj({'code':nullable(S),'severity':nullable({'enum':['info','warn
 label_text=obj({'prefix':S,'suffix':S,'template':S})
 label_entry=obj({'text':ref('x'),'style':{'enum':['reference','basic']}},extra=True)
 spec=obj({'schema':{'enum':['draftwright.spec/1','draftwright.spec/2']},'binding':nullable({'type':'object'}),'sheets':nullable(obj({'max':nullable(SHEET),'smallest_scale':nullable(S),'keep_together':arr(arr(S)),'hole_table':nullable(SHEET),'gdt_on_sheet_1':B})),'sheet':obj({'size':nullable(S),'scale':nullable(S),'title':{'type':'object','additionalProperties':S},'fit_limits':nullable({'type':'boolean'}),'fit_deviations':nullable({'type':'boolean'}),'projection':nullable({'enum':['first','third']}),'default_finish':nullable({'type':'object'})}),'views':{'type':'object','additionalProperties':{'type':'object'}},'dimensions':{'type':'object','additionalProperties':{'type':'object'}},'annotations':{'type':'object','additionalProperties':{'type':'object'}},'features':{'type':'object','additionalProperties':{'type':'object'}},'faces':{'type':'object','additionalProperties':{'type':'object'}},'dimension_source':{'enum':['auto','authored']},'hole_table':{'enum':['auto','always','never']},'notes':arr({'type':'object'}),'tables':arr({'type':'object'}),'gears':arr({'type':'object'})})
+# Line-work intent is typed in both scopes; other view fields retain their existing schema.
+line_fields = {name: nullable(B) for name in
+               ('hidden', 'centre_marks', 'centre_lines', 'thread_depiction', 'knurl_depiction')}
+spec['properties']['sheet']['properties'].update(line_fields)
+spec['properties']['views']['additionalProperties'] = obj(line_fields, extra=True)
 authored_spec={**spec,'properties':{**spec['properties'], 'dimensions':{'type':'object','additionalProperties':label_entry}, 'annotations':{'type':'object','additionalProperties':obj({'text':ref('x')},extra=True)}}}
 defs={'authored_spec':authored_spec,'x':label_text,'state':state,'spec':spec,'op':op,'item':item,'compact':compact,'problem':problem,'error':obj({'code':{'enum':['invalid','failed']},'message':S,'choices':arr(S)},['code','message'])}
 stub=obj({'id':nullable(S),'detail_ref':S},['id','detail_ref'])
@@ -119,6 +124,32 @@ def share_repeated(schema):
         schema = best[1]
     return schema
 
+def group_properties(schema, top=True):
+    """Use anchored name alternatives for equal property shapes, only when smaller.
+
+    This preserves object types, required fields and additionalProperties checks.
+    """
+    from collections import defaultdict
+    if isinstance(schema, list): return [group_properties(v, False) for v in schema]
+    if not isinstance(schema, dict): return schema
+    schema = {k: group_properties(v, False) for k, v in schema.items()}
+    props = schema.get('properties', {})
+    groups = defaultdict(list)
+    for name, value in props.items():
+        if (not top or name not in schema.get('required', [])) and re.fullmatch(r'[A-Za-z0-9_]+', name):
+            groups[json.dumps(value, sort_keys=True, separators=(',', ':'))].append(name)
+    for shape, names in groups.items():
+        if len(names) < 2: continue
+        pattern = '^(' + '|'.join(names) + ')$'
+        before = len(json.dumps(schema, separators=(',', ':')))
+        trial = {**schema, 'properties': {k:v for k,v in props.items() if k not in names},
+                 'patternProperties': {**schema.get('patternProperties', {}), pattern: json.loads(shape)}}
+        if not trial['properties']: del trial['properties']
+        if len(json.dumps(trial, separators=(',', ':'))) < before:
+            schema = trial
+            props = schema.get('properties', {})
+    return schema
+
 def short_names(schema):
     names = {'state':'t','spec':'s','op':'op','item':'i','compact':'c',
              'problem':'p','error':'e','stub':'u','problem_small':'r'}
@@ -131,20 +162,6 @@ def short_names(schema):
             result['$defs'] = {names.get(k, k): v for k, v in result['$defs'].items()}
         return result
     if isinstance(schema, list): return [short_names(v) for v in schema]
-    return schema
-
-def compact_required(schema, root=True):
-    """A closed object requiring every declared field equivalently requires that field count."""
-    if isinstance(schema, list): return [compact_required(v, False) for v in schema]
-    if not isinstance(schema, dict): return schema
-    schema = {k: compact_required(v, False) for k, v in schema.items()}
-    required = schema.get('required', [])
-    if (not root and required and schema.get('additionalProperties') is False
-            and set(required) == set(schema.get('properties', {}))):
-        # Keep the explicit form unless the equivalent cardinality is strictly smaller.
-        if len(json.dumps({'required':required}, separators=(',', ':'))) > len(json.dumps({'minProperties':len(required)}, separators=(',', ':'))):
-            del schema['required']
-            schema['minProperties'] = len(required)
     return schema
 
 for tool,(inp,out) in tools.items():
@@ -172,8 +189,6 @@ for tool,(inp,out) in tools.items():
         for branch in schema.get('anyOf', []):
             if branch.get('type') == schema.get('type'):
                 branch.pop('type', None)
-        if kind == 'output' and tool in ('apply_ops', 'preview_ops'):
-            schema = compact_required(schema)
-        schema = short_names(share_repeated(inline_single_use(schema, keep)))
+        schema = short_names(share_repeated(group_properties(inline_single_use(schema, keep))))
         if not schema['$defs']: del schema['$defs']
         Path(f'schemas/mcp/{tool}.{kind}.json').write_text(json.dumps(schema,indent=2)+'\n')

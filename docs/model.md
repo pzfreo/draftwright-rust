@@ -190,7 +190,7 @@ The design also includes `views/sections` and feature `anchor`
 `"anchor": {"…": "fingerprint"}`). These fields are not yet read; a feature's `note` is read
 since K1b (below).
 
-- **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`),
+- **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`),
   `iso_scale_factor`, `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `fit`, `text`, `style`, `place`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`, `text` for prose callouts and automatic notes), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`),
   `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
@@ -237,6 +237,57 @@ do not fit, the problem's `fix` sets the nearest pair that does, found by the en
 the pinned sheet at the scale the recovery picks for it, else the pinned scale on the smallest sheet
 that holds it, else the automatic pair; each is offered only when, pinned, its drawing fits. The
 message names it (`…; A4 at 1:1 fits.`).
+
+#### Line work per view (#76 item 6)
+
+Each view accepts optional boolean `hidden`, `centre_marks`, `centre_lines`,
+`thread_depiction` and `knurl_depiction`. The same fields under `sheet` set defaults
+for **every view on every sheet**, including auxiliary views allocated to later sheets:
+
+```json
+{
+  "sheet": {"hidden": false, "centre_marks": true, "thread_depiction": false},
+  "views": {
+    "side": {"hidden": true, "centre_marks": false},
+    "front": {"centre_lines": false, "knurl_depiction": false}
+  }
+}
+```
+
+Precedence is **view, then sheet, then the view's automatic convention**. There are
+currently no `sheets/<n>` settings: `sheets` controls allocation, not numbered sheet
+styles. Removing a setting restores inheritance; absent fields preserve the original
+output, including the isometric's own defaults. An explicit centre switch can request
+eligible centre furniture in the isometric; it does not fabricate an axis or feature.
+`centre_marks` controls end-on crosses, while `centre_lines` controls profile axes and
+pitch circles. They are independent. Thread and knurl switches affect conventional
+ink only: manufacturing requirements, dimensions, callouts and coverage remain.
+Cosmetic depiction still requires a proven profile feature. Sections always omit hidden
+edges and cosmetic threads/knurls, even with `true`; centre switches do not remove the
+cutting-plane chain line, section arrows or hatching.
+
+Settings name stable existing view keys (`front`, `plan`, `side`, `iso`, `section_aa`),
+never page coordinates or projected edges. Unknown view references are refused with
+available names and a replacement/removal instruction; misspelled fields and non-boolean
+values are refused. As with other optional Spec fields, JSON `null` means absent.
+A setting for an omitted view is saved for when that view is shown again. No new
+feature-level switch or fingerprint address is introduced: furniture can be merged across
+features, so per-feature suppression needs separate ownership work.
+
+Planned views record effective authored switches in `line_style`, with the winning
+Spec paths in `from_spec`, `default: false`, and an explanation in `basis`. The embedded
+Spec retains all inherited and overridden entries. `set`/`remove` edits use the usual
+paths, for example `views/side/hidden` or `sheet/centre_marks`; session options expose
+all five booleans for views and sheets. Preview, undo/redo, geometry caching and delta
+replay follow the ordinary Spec edit path.
+
+These are drawing choices, not lint exemptions. Hidden curves switched off are absent
+from rendered geometry, so `hidden_on_visible` and `section_hidden` measure only drawn
+curves. Hidden-geometry completeness is not inferred from undrawn curves. Independent
+lint still reports missing centre marks when the author disables them, as well as wrong
+dimensions, missing manufacturing requirements and other drawing defects. Automatic
+layout and its conservative projected-ink clearance remain in force; hiding edges does
+not relax safety margins or change sheet-size, scale, detail, fit or datum policy.
 
 #### Sheet allocation (R5, Stage I)
 

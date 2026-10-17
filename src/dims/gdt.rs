@@ -1785,6 +1785,8 @@ pub(crate) fn validate_placements(
             state: State::Shown,
             cut: None,
             line_work: Vec::new(),
+            line_style: Default::default(),
+            from_spec: Vec::new(),
         })
         .collect();
     let Some(crate::pmi::Reading::Read(report)) = &analysis.pmi else {
