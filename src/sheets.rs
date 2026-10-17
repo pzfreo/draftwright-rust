@@ -640,14 +640,13 @@ pub(crate) fn paper_fallback(
             && dropped == 0
             && legible
             && p.sheet.scale_factor >= scale
-            && (!model::findings(required).clean()
-                || (model::feature_crossings(&p) <= model::feature_crossings(required)
-                    && model::ink_findings(&p) <= model::ink_findings(required)))
+            && (!model::drawn_quality_reference(analysis, required)
+                || model::no_new_drawing_issues(required, &p))
             && small_content_fits(analysis, required, &p);
         let blockers: BTreeSet<_> = p
             .problems
             .iter()
-            .filter(|q| blocks_small_plan(q))
+            .filter(|q| blocks_rescue(required, q))
             .map(|q| q.code.as_str())
             .collect();
         tried.push(format!(
@@ -684,7 +683,22 @@ fn small_content_fits(analysis: &Analysis, required: &Plan, plan: &Plan) -> bool
         && model::carries_required(required, plan)
         && model::drawn_sheets_fit(analysis, plan)
         && model::over_views(plan) <= model::over_views(required)
-        && !plan.problems.iter().any(blocks_small_plan)
+        && !plan.problems.iter().any(|p| blocks_rescue(required, p))
+}
+
+/// Unsupported source PMI is independent of paper. Preserve that exact refusal,
+/// rather than buying larger paper which cannot resolve it. Every new refusal and
+/// every physical/layout error still blocks the allocation.
+fn blocks_rescue(required: &Plan, problem: &Problem) -> bool {
+    blocks_small_plan(problem)
+        && !(problem.code == "pmi_not_lowered"
+            && required.problems.iter().any(|prior| {
+                prior.code == problem.code
+                    && prior.severity == problem.severity
+                    && prior.subjects == problem.subjects
+                    && prior.refs == problem.refs
+                    && prior.message == problem.message
+            }))
 }
 
 fn blocks_small_plan(problem: &Problem) -> bool {
@@ -1698,6 +1712,36 @@ pub(crate) fn overlap(a: [f64; 4], b: [f64; 4]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_an_identical_source_pmi_refusal_survives_paper_rescue() {
+        let (_, a) = model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/mounting_plate.step"),
+        )
+        .unwrap();
+        let mut required = model::plan(&a, &Spec::default()).unwrap();
+        let mut refusal = problem(
+            "pmi_not_lowered",
+            "error",
+            "pmi:unsupported",
+            "Source semantics are unsupported on every paper size.".into(),
+            vec![],
+        );
+        refusal.refs = vec!["#42".into()];
+        assert!(blocks_rescue(&required, &refusal));
+        required.problems.push(refusal.clone());
+        assert!(!blocks_rescue(&required, &refusal));
+        refusal.refs = vec!["#43".into()];
+        assert!(blocks_rescue(&required, &refusal));
+        refusal.refs = vec!["#42".into()];
+        refusal.message.push_str(" A newly missing owner.");
+        assert!(blocks_rescue(&required, &refusal));
+        refusal = required.problems.last().unwrap().clone();
+        refusal.code = "annotation_off_sheet".into();
+        required.problems.push(refusal.clone());
+        assert!(blocks_rescue(&required, &refusal));
+    }
 
     #[test]
     fn explicit_under_floor_steps_do_not_block_small_sheet_rescue() {

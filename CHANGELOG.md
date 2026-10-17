@@ -13,6 +13,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   enlargement instead of ranking paper sizes. Readability measures dimensioned
   openings (2 mm), turned intervals (2.1 mm), text/arrows, 10/7 mm dimension lanes,
   and repetitive/thread ink (0.7 mm). Explicit Spec paper and scale remain authoritative.
+  An identical unsupported-source-PMI refusal remains reported without forcing
+  larger paper when the complete allocated drawing otherwise fits and reads cleanly.
 
 ### Added
 

@@ -934,6 +934,11 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   to chase fill would contradict the paper-cost order. No quality baseline or
   collision threshold is relaxed for an underfilled drawing.
 
+  A source-PMI refusal that is identical on the seed and allocated drawing
+  (`pmi_not_lowered`, including source refs, subjects, severity and explanation)
+  remains reported but cannot justify buying larger paper. New or changed
+  refusals still block allocation, as do all physical/layout errors.
+
   A complete candidate retains every required measurement and GD&T item, fits
   actual drawn bounds, and adds no foreign-view conflicts. When none exists,
   recovery retains the best physically fitting drawing and all its measurements
@@ -945,6 +950,27 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   ratchet, and schedules keep their existing installation/allocation policy. Settled GD&T blocks can still be composed
   from a same-scale A0 template and moved as whole blocks. Every title collision
   lifts the row even when overflow must be reported; nothing is clipped.
+
+  A fitted drawing carrying its measurements and control frames remains the
+  annotation-quality reference even if close feature intervals are unreadable.
+  Each annotation/material finding type is a separate limit: fewer crossings do
+  not pay for a new long leader. An incomplete fallback does not buy paper larger
+  than that retained drawing for a partial improvement. A complete readable
+  enlargement on the retained paper can establish its material-routing reference;
+  its annotation limits still hold. A compressed estimate must not force larger
+  paper merely to match its shorter-scale material routing.
+
+  Schedule recovery retains installed row measurements. If enlargement clears
+  the original schedule trigger, the same selector and installer retry those
+  rows at readable scales on each paper, including the existing allocation,
+  before larger paper. A smaller still-readable scale may carry the complete
+  schedule more cleanly. Failed presentation trials retain the original rows and
+  tags and report the refusal. Exact selector inputs key per-call candidate
+  preparation so repeated allocation prefixes do not repeat the same planning.
+
+  An unpinned oblique-dimension side hint may yield to shorter clean witnesses
+  in the same sheet, scale and view frames. All measurements, control frames,
+  collision checks and pinned placements remain authoritative.
 - **A hole item with no place on the sheet is dropped and escalated** (the maintainer's decision
   of 2026-10-09, draftwright's `_prepare_hole_table_run`; `src/hole_table.rs`, applied to every
   plan the recovery judges by `model::plan_escalated`). A hole callout or hole location that

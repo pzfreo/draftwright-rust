@@ -175,8 +175,17 @@ mod tests {
             .unwrap();
         assert!(!session.projections().dirty);
         assert_eq!(session.projections().disk_bytes().unwrap(), bytes);
+        // Paper policy can already choose 1:1. Exercise an actual scale change.
+        let changed_scale = if session.plan().sheet.scale == "1:1" {
+            "2:1"
+        } else {
+            "1:1"
+        };
         session
-            .apply(&[Op::set("sheet/scale", serde_json::json!("1:1"))], true)
+            .apply(
+                &[Op::set("sheet/scale", serde_json::json!(changed_scale))],
+                true,
+            )
             .unwrap();
         assert!(session.projections().dirty);
         assert_ne!(session.projections().disk_bytes().unwrap(), bytes);

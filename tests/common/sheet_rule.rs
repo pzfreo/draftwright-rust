@@ -68,6 +68,50 @@ pub fn tried(basis: &str) -> Vec<Tried> {
 /// precede larger paper; their individual sheets are checked by sheets tests.
 pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, String) {
     let basis = &plan.sheet.basis;
+    if basis.starts_with("screen-first scheduled-row recovery:") {
+        let trials = basis.rsplit_once("; schedule trials: ").unwrap().1;
+        let completed: Vec<_> = trials
+            .split("; ")
+            .filter(|t| t.contains(" scheduled ") && t.contains(", valid "))
+            .collect();
+        let valid = completed
+            .iter()
+            .find(|t| t.contains(", valid true,"))
+            .unwrap();
+        assert!(valid.contains("installed true"));
+        assert!(valid.contains("hard: 0, dropped: 0"));
+        assert!(valid.contains("retained true, bounds fit true, no new ink true"));
+        assert!(valid.contains("readability [0 unreadable step spans, 0 openings below 2 mm, 0 text/arrow fit failures, 0 depiction gaps below 0.7 mm, 0 dimension-lane failures]"));
+        let pair = |t: &str| {
+            let words: Vec<_> = t.split_whitespace().collect();
+            (
+                words[0].to_owned(),
+                words[2].trim_end_matches(':').to_owned(),
+            )
+        };
+        let chosen = pair(valid);
+        assert_eq!(
+            (&plan.sheet.size, &plan.sheet.scale),
+            (&chosen.0, &chosen.1)
+        );
+        for earlier in completed
+            .iter()
+            .take_while(|t| !t.contains(", valid true,"))
+        {
+            let other = pair(earlier);
+            assert!(
+                sheet_index(&other.0) < sheet_index(&chosen.0)
+                    || (other.0 == chosen.0 && factor(&other.1) > factor(&chosen.1))
+            );
+        }
+        for paper in draftwright::layout::PAGES
+            .iter()
+            .take(sheet_index(&chosen.0))
+        {
+            assert!(basis.contains(&format!("{} multi-sheet:", paper.0)));
+        }
+        return chosen;
+    }
     if basis.starts_with("screen-first paper policy:") {
         assert!(
             basis.contains("R5 allocation before larger paper"),

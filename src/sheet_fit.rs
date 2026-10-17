@@ -101,6 +101,12 @@ pub const MIN_DEPICTION_GAP: f64 = 0.7;
 /// Require four distinct starts to avoid treating ordinary shoulders as threads.
 /// Use the axial repeat and root/crest separation, not tessellation chord lengths.
 fn modelled_line_scale(analysis: &Analysis) -> f64 {
+    crate::planning::memo(analysis, "sheet-depiction-scale", vec![], || {
+        modelled_line_scale_uncached(analysis)
+    })
+}
+
+fn modelled_line_scale_uncached(analysis: &Analysis) -> f64 {
     let Some(ink) = &analysis.edge_ink else {
         return 0.0;
     };
@@ -237,7 +243,9 @@ pub fn readability(analysis: &Analysis, plan: &Plan) -> Readability {
     let mut levels = std::collections::BTreeMap::<&str, Vec<f64>>::new();
     let mut locations = std::collections::BTreeMap::<(&str, &str), Vec<f64>>::new();
     let modelled = modelled_line_scale(analysis);
-    let manufacturing = crate::pmi_lowering::manufacturing(analysis);
+    let manufacturing = crate::planning::memo(analysis, "sheet-depictions", vec![], || {
+        crate::pmi_lowering::manufacturing(analysis)
+    });
     for v in plan.views.iter().filter(|v| v.id != "v:iso") {
         if v.detail.is_none() && v.scale + 1e-6 < modelled {
             result.depiction += 1;

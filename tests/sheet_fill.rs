@@ -318,8 +318,8 @@ fn gz_part(name: &str) -> Analysis {
 }
 
 /// The former full-size-only cap accepted 1:5 holes below the new 2 mm
-/// readability floor. A small assembly may need A2 for its readable annotations;
-/// the related fixture still fits A3. Both must exhaust A4 and A3 allocation first.
+/// readability floor. The first assembly needs A2; retaining the related fixture's
+/// schedule at 1:2 fits A3. Both exhaust readable A4 allocation first.
 #[test]
 fn small_parts_exhaust_readability_and_allocation_before_large_paper() {
     for (name, size) in [
@@ -330,6 +330,7 @@ fn small_parts_exhaust_readability_and_allocation_before_large_paper() {
         let p = model::plan_recovered(&a, &Spec::default()).unwrap();
         assert_eq!(p.sheet.size, size, "{name}: {}", p.sheet.basis);
         assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
+        sheet_rule::assert_rule(name, &p);
         assert!(
             p.sheet.basis.contains("A4 multi-sheet:"),
             "{name}: {}",
@@ -356,6 +357,39 @@ fn small_parts_exhaust_readability_and_allocation_before_large_paper() {
     let mut s = Spec::default();
     s.sheet.size = Some("A2".into());
     assert_eq!(model::recover(&a, &s, first).unwrap().sheet.size, "A2");
+}
+
+#[test]
+fn a_central_bore_keeps_its_dimension_and_drawn_common_axis_without_redundant_table_coordinates() {
+    let a = gz_part("spool_fits.step");
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert!(p.dimensions.iter().any(|d| d.placed.is_some()
+        && d.measurements.iter().any(|m| m.feature == "f:hole:7"
+            && m.parameter == "bore.diameter"
+            && m.value == 62.0)));
+    assert!(p.dimensions.iter().any(|d| {
+        d.placed.is_some()
+            && d.measurements.iter().any(|m| {
+                m.feature == "envelope" && m.parameter == "od.diameter" && m.value == 130.0
+            })
+    }));
+    let plan = p.views.iter().find(|v| v.id == "v:plan").unwrap();
+    let cross = plan
+        .line_work
+        .iter()
+        .find(|w| w.id == "ink:v:plan:f:hole:7")
+        .unwrap();
+    assert_eq!(cross.centre, Some(plan.at));
+    assert!(cross.curves.len() >= 2);
+    assert!(
+        p.views
+            .iter()
+            .flat_map(|v| &v.line_work)
+            .any(|w| w.id.ends_with(":f:hole:7")
+                && w.kind == "axis"
+                && w.global_axis
+                && !w.curves.is_empty())
+    );
 }
 
 /// Different tolerances keep each of the small turned part's statements distinct. A
@@ -430,10 +464,12 @@ fn section_correction_preserves_the_gdt_string_posts_readable_scale() {
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A3", "5:1"),
+        ("A4", "5:1"),
         "{}",
         p.sheet.basis
     );
+    assert_eq!(p.sheets.len(), 1);
+    assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
     assert!(!p.problems.iter().any(|p| matches!(
         p.code.as_str(),
         "annotation_off_sheet"
@@ -456,6 +492,8 @@ fn assert_small_single_sheet(name: &str) {
         p.sheet.basis
     );
     assert!(p.sheets.is_empty(), "{name}: {}", p.sheet.basis);
+    assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
+    sheet_rule::assert_rule(name, &p);
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
         ("A3", "2:1")
