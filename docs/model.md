@@ -340,6 +340,8 @@ Reproduce three before/after PNG, SVG, Plan, Spec and lint pairs with
 `cargo run --release --example recognition_corrections` in
 `target/recognition-corrections/renders/`. These use unchanged STEP geometry: split a native
 grid, declare a real native pocket omission, and reinterpret a boss as a turned band.
+See [the validation and drafting review](recognition-corrections-validation.md) for
+results, retained warnings and the measured performance gates.
 
 #### Projection method and a pinned sheet's fit
 
