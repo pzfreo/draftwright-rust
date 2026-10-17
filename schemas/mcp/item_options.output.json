@@ -49,7 +49,7 @@
                 ]
               },
               "offset": {
-                "$ref": "#/$defs/A"
+                "$ref": "#/B"
               },
               "pinned": {
                 "type": "boolean"
@@ -68,7 +68,7 @@
                 "items": {}
               },
               "range": {
-                "$ref": "#/$defs/A"
+                "$ref": "#/B"
               },
               "integer": {
                 "type": "boolean"
@@ -77,72 +77,61 @@
             "additionalProperties": false,
             "patternProperties": {
               "^(forms|fields|paths|consequences)$(?!\\s)": {
-                "$ref": "#/$defs/B"
+                "$ref": "#/A"
               }
             }
           }
         }
       },
-      "required": [
-        "id",
-        "operations",
-        "placements",
-        "view_anchors",
-        "scales",
-        "settable"
-      ],
       "additionalProperties": false,
+      "minProperties": 6,
       "patternProperties": {
         "^(operations|view_anchors|scales)$(?!\\s)": {
-          "$ref": "#/$defs/B"
+          "$ref": "#/A"
         }
       }
     },
     {
-      "properties": {
-        "error": {
-          "type": "object",
-          "properties": {
-            "code": {
-              "enum": [
-                "invalid",
-                "failed"
-              ]
-            },
-            "message": {
-              "type": "string"
-            },
-            "choices": {
-              "$ref": "#/$defs/B"
-            }
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "choices": {
+            "$ref": "#/A"
           },
-          "required": [
-            "code",
-            "message"
-          ],
-          "additionalProperties": false
-        }
+          "code": {
+            "enum": [
+              "invalid",
+              "failed"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
       },
       "required": [
         "error"
       ],
-      "additionalProperties": false
+      "maxProperties": 1
     }
   ],
-  "$defs": {
-    "A": {
-      "items": {
-        "type": "number"
-      },
-      "maxItems": 2,
-      "minItems": 2,
-      "type": "array"
+  "A": {
+    "items": {
+      "type": "string"
     },
-    "B": {
-      "items": {
-        "type": "string"
-      },
-      "type": "array"
-    }
+    "type": "array"
+  },
+  "B": {
+    "items": {
+      "type": "number"
+    },
+    "maxItems": 2,
+    "minItems": 2,
+    "type": "array"
   }
 }

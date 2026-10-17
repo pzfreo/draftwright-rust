@@ -797,3 +797,61 @@ fn authored_manufacturing_rows_keep_the_compilers_source_bindings() {
                 .any(|c| c.feature == authored.id && c.parameter == authored.aspect)
     }));
 }
+
+#[test]
+fn spec_can_switch_thread_and_knurl_ink_independently_without_losing_requirements() {
+    let (part, a) = external_thread();
+    let auto = model::plan(&a, &Spec::default()).unwrap();
+    let m = draftwright::pmi_lowering::manufacturing(&a);
+    let front = |p: &Plan| p.views.iter().find(|v| v.id == "v:front").unwrap().clone();
+    let automatic = draftwright::cosmetic::ink(&a, &m, &front(&auto));
+    assert!(automatic.len() > 2);
+    for (thread, knurl, expected) in [
+        (false, false, 0),
+        (true, false, 2),
+        (false, true, automatic.len() - 2),
+        (true, true, automatic.len()),
+    ] {
+        let s: Spec = serde_json::from_value(serde_json::json!({
+            "sheet":{"thread_depiction":false,"knurl_depiction":false},
+            "views":{"front":{"thread_depiction":thread,"knurl_depiction":knurl}}
+        }))
+        .unwrap();
+        let p = model::plan(&a, &s).unwrap();
+        assert_eq!(
+            draftwright::cosmetic::ink(&a, &m, &front(&p)).len(),
+            expected
+        );
+        assert_eq!(
+            p.dimensions.iter().map(|d| &d.label).collect::<Vec<_>>(),
+            auto.dimensions.iter().map(|d| &d.label).collect::<Vec<_>>()
+        );
+        let drawing = model::render(
+            &part,
+            &a,
+            &p,
+            &draftwright::text::Font::new(draftwright::api::MONO.to_vec()).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            !draftwright::lint::lint(&a, &drawing)
+                .iter()
+                .any(|i| i.code == "pmi_not_rendered")
+        );
+    }
+    let mut session = draftwright::Session::new(part, a, Spec::default()).unwrap();
+    let before = session.svg_fragments(None);
+    assert!(!thin_lines(&before["v:front"]).is_empty());
+    let delta = session
+        .apply(
+            &[
+                draftwright::items::Op::set("sheet/thread_depiction", serde_json::json!(false)),
+                draftwright::items::Op::set("sheet/knurl_depiction", serde_json::json!(false)),
+            ],
+            true,
+        )
+        .unwrap();
+    assert!(delta.geometry.views.iter().any(|(id, _)| id == "v:front"));
+    let fragments = session.svg_fragments(Some(&delta));
+    assert!(thin_lines(&fragments["v:front"]).is_empty());
+}

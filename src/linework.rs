@@ -701,3 +701,91 @@ mod tests {
         assert!(result.iter().all(|c| matches!(c, Curve::Beziers(_))));
     }
 }
+
+/// Optional authored line-work switches. No geometry or projected edge identity enters Spec.
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Settings {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hidden: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub centre_marks: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub centre_lines: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thread_depiction: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub knurl_depiction: Option<bool>,
+}
+
+impl Settings {
+    pub fn is_empty(&self) -> bool {
+        self == &Self::default()
+    }
+}
+
+/// Resolve explicit intent once per view. Sections retain their independent drawing rules.
+pub(crate) fn configure(spec: &crate::model::Spec, views: &mut [crate::model::PlannedView]) {
+    if spec.sheet.hidden.is_none()
+        && spec.sheet.centre_marks.is_none()
+        && spec.sheet.centre_lines.is_none()
+        && spec.sheet.thread_depiction.is_none()
+        && spec.sheet.knurl_depiction.is_none()
+        && spec.views.values().all(|v| {
+            v.hidden.is_none()
+                && v.centre_marks.is_none()
+                && v.centre_lines.is_none()
+                && v.thread_depiction.is_none()
+                && v.knurl_depiction.is_none()
+        })
+    {
+        return;
+    }
+    for v in views {
+        let name = v.id.trim_start_matches("v:");
+        let entry = spec.views.get(name);
+        let mut settings = Settings::default();
+        let mut paths = Vec::new();
+        macro_rules! setting {
+            ($field:ident) => {
+                if let Some(value) = entry.and_then(|e| e.$field) {
+                    settings.$field = Some(value);
+                    paths.push(format!("views/{name}/{}", stringify!($field)));
+                } else if let Some(value) = spec.sheet.$field {
+                    settings.$field = Some(value);
+                    paths.push(format!("sheet/{}", stringify!($field)));
+                }
+            };
+        }
+        setting!(hidden);
+        setting!(centre_marks);
+        setting!(centre_lines);
+        setting!(thread_depiction);
+        setting!(knurl_depiction);
+        if settings.is_empty() {
+            continue;
+        }
+        v.line_style = settings;
+        v.from_spec = paths;
+        v.default = false;
+        let basis = v
+            .basis
+            .split("; Spec line work: ")
+            .next()
+            .unwrap()
+            .to_owned();
+        v.basis = format!(
+            "{basis}; Spec line work: {} (sections retain no hidden or cosmetic ink)",
+            v.from_spec.join(", ")
+        );
+    }
+}
+
+/// Spec/editor vocabulary shared by sheet and view switches.
+pub const FIELDS: [&str; 5] = [
+    "hidden",
+    "centre_marks",
+    "centre_lines",
+    "thread_depiction",
+    "knurl_depiction",
+];

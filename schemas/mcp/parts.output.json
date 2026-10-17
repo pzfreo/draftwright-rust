@@ -2,68 +2,58 @@
   "type": "object",
   "anyOf": [
     {
-      "properties": {
-        "parts": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": [
-              "part",
-              "name",
-              "product_id",
-              "faces",
-              "instances"
-            ],
-            "additionalProperties": false,
-            "patternProperties": {
-              "^(part|faces|instances)$(?!\\s)": {
-                "minimum": 0,
-                "type": "integer"
-              },
-              "^(name|product_id)$(?!\\s)": {
-                "type": "string"
-              }
+      "additionalProperties": {
+        "items": {
+          "additionalProperties": false,
+          "minProperties": 5,
+          "patternProperties": {
+            "^(name|product_id)$(?!\\s)": {
+              "type": "string"
+            },
+            "^(part|faces|instances)$(?!\\s)": {
+              "minimum": 0,
+              "type": "integer"
             }
-          }
-        }
+          },
+          "type": "object"
+        },
+        "type": "array"
       },
       "required": [
         "parts"
       ],
-      "additionalProperties": false
+      "maxProperties": 1
     },
     {
-      "properties": {
-        "error": {
-          "type": "object",
-          "properties": {
-            "code": {
-              "enum": [
-                "invalid",
-                "failed"
-              ]
-            },
-            "message": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "choices": {
+            "items": {
               "type": "string"
             },
-            "choices": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
+            "type": "array"
           },
-          "required": [
-            "code",
-            "message"
-          ],
-          "additionalProperties": false
-        }
+          "code": {
+            "enum": [
+              "invalid",
+              "failed"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
       },
       "required": [
         "error"
       ],
-      "additionalProperties": false
+      "maxProperties": 1
     }
   ]
 }

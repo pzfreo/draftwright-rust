@@ -10,7 +10,7 @@
               {
                 "properties": {
                   "fix": {
-                    "$ref": "#/$defs/B"
+                    "$ref": "#/B"
                   }
                 },
                 "required": [
@@ -26,17 +26,17 @@
                     "type": "string"
                   },
                   "^(subjects|refs)$(?!\\s)": {
-                    "$ref": "#/$defs/A"
+                    "$ref": "#/A"
                   }
                 }
               },
               {
                 "properties": {
                   "subjects": {
-                    "$ref": "#/$defs/A"
+                    "$ref": "#/A"
                   },
                   "fix": {
-                    "$ref": "#/$defs/B"
+                    "$ref": "#/B"
                   }
                 },
                 "required": [
@@ -64,11 +64,8 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "id",
-                  "detail_ref"
-                ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "minProperties": 2
               }
             ],
             "type": "object"
@@ -86,93 +83,78 @@
           "minimum": 0
         }
       },
-      "required": [
-        "items",
-        "total",
-        "next_cursor"
-      ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "minProperties": 3
     },
     {
-      "properties": {
-        "error": {
-          "type": "object",
-          "properties": {
-            "code": {
-              "enum": [
-                "invalid",
-                "failed"
-              ]
-            },
-            "message": {
-              "type": "string"
-            },
-            "choices": {
-              "$ref": "#/$defs/A"
-            }
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "choices": {
+            "$ref": "#/A"
           },
-          "required": [
-            "code",
-            "message"
-          ],
-          "additionalProperties": false
-        }
+          "code": {
+            "enum": [
+              "invalid",
+              "failed"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
       },
       "required": [
         "error"
       ],
-      "additionalProperties": false
+      "maxProperties": 1
     }
   ],
-  "$defs": {
-    "A": {
-      "items": {
-        "type": "string"
-      },
-      "type": "array"
+  "A": {
+    "items": {
+      "type": "string"
     },
-    "B": {
-      "items": {
-        "anyOf": [
-          {
-            "properties": {
-              "op": {
-                "enum": [
-                  "set",
-                  "add"
-                ]
-              },
-              "path": {
-                "type": "string"
-              },
-              "value": {}
+    "type": "array"
+  },
+  "B": {
+    "items": {
+      "anyOf": [
+        {
+          "properties": {
+            "op": {
+              "enum": [
+                "set",
+                "add"
+              ]
             },
-            "required": [
-              "op",
-              "path",
-              "value"
-            ],
-            "additionalProperties": false
+            "path": {
+              "type": "string"
+            },
+            "value": {}
           },
-          {
-            "properties": {
-              "op": {
-                "const": "remove"
-              },
-              "path": {
-                "type": "string"
-              }
+          "additionalProperties": false,
+          "minProperties": 3
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "remove"
             },
-            "required": [
-              "op",
-              "path"
-            ],
-            "additionalProperties": false
-          }
-        ],
-        "type": "object"
-      },
-      "type": "array"
-    }
+            "path": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "minProperties": 2
+        }
+      ],
+      "type": "object"
+    },
+    "type": "array"
   }
 }

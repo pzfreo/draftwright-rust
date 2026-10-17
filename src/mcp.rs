@@ -45,13 +45,13 @@ fn description(tool: &str) -> &'static str {
             "List drawing problems by code, severity, subject item ID or feature ID (all its dimensions/annotations) for part_ref plus spec or spec_version. Follow next_cursor for all problems. Default rows include corrective Spec ops; detail=true adds explanations. Use filter.feature for one query covering a whole feature."
         }
         "item_options" => {
-            "Get every settable Spec path with choices, ranges and tolerance forms, compatible view anchors, scales and relative placements for an item id in part_ref plus spec or spec_version. IDs accept sheet:<n>/<id>. Views offer move_to_sheet at views/<name>/sheet with choices and keep_together/relative_to consequences. Linear dimensions accept only sides parallel to their span. Fits use features/<feature-id>/fit, not dimension tolerance; classes are valid for the feature kind and diameter. Datums and GD&T frames use features/<feature-id>/datum (a letter) and features/<feature-id>/controls (a list of {characteristic, tolerance, datums?, diameter?, modifier?}); finish {ra, removal?}, thread {designation, length?}, knurl {pattern, pitch} and note (text) sit beside them, and sheet/default_finish on the sheet. Descriptors with paths share choices across all those paths. Combine place subfields into one place object when setting a view relation. Use a recognised feature or pattern id (f:...) to query recognition controls: features/<id>/reclassify, suppress, split or pattern {arrangement, members}; add {id, kind, faces} to feature_declarations. Sheet options explain declarations; item_options with id face:<index> reads one face fingerprint. Options are candidates; preview_ops checks their effects."
+            "Get every settable Spec path with choices, ranges and tolerance forms, compatible view anchors, scales and relative placements for an item id in part_ref plus spec or spec_version. IDs accept sheet:<n>/<id>. Views offer move_to_sheet at views/<name>/sheet with choices and keep_together/relative_to consequences. Linear dimensions accept only sides parallel to their span. Fits use features/<feature-id>/fit, not dimension tolerance; classes are valid for the feature kind and diameter. Datums and GD&T frames use features/<feature-id>/datum (a letter) and features/<feature-id>/controls (a list of {characteristic, tolerance, datums?, diameter?, modifier?}); finish {ra, removal?}, thread {designation, length?}, knurl {pattern, pitch} and note (text) sit beside them, and sheet/default_finish on the sheet. Descriptors with paths share choices across all those paths. View/sheet hidden, centre_marks, centre_lines, thread_depiction and knurl_depiction are booleans; view settings win. Combine place subfields into one place object when setting a view relation. Use a recognised feature or pattern id (f:...) to query recognition controls: features/<id>/reclassify, suppress, split or pattern {arrangement, members}; add {id, kind, faces} to feature_declarations. Sheet options explain declarations; item_options with id face:<index> reads one face fingerprint. Options are candidates; preview_ops checks their effects."
         }
         "preview_ops" => {
             "Try up to 32 Spec ops without saving or changing the drawing head. Supply part_ref and spec or spec_version. Ops are set/add {path,value} or remove {path}, with RFC6901 escaping (~1 for a slash inside an ID). Returns paged change/problem events and lossless delta_ref."
         }
         "apply_ops" => {
-            "Commit up to 32 Spec ops to drawing_ref (default: default), requiring its current spec_version as parent. Returns new immutable spec_version and paged delta; stale parents are refused with current head. Batch all edits for one request in ops. Tolerances are strings \"±T\" or \"+U -L\"; fits use features/f:hole:1/fit (e.g. H7). Datums: set features/<id>/datum or faces/<bottom|top|left|right|front|back|face:n>/datum to a letter; GD&T: add to features/<id>/controls or faces/<face>/controls {characteristic:position,tolerance:0.1,datums:[A]}. Finish: set features/<id>/finish, faces/<face>/finish or sheet/default_finish {ra:0.8}; thread: features/<id>/thread {designation:M6,length?:10}; knurl: features/<id>/knurl {pattern:straight,pitch:0.8}; note: features/<id>/note or faces/<face>/note text. Move views with set views/<name>/sheet n (no new op kind); set sheets/max first in the same batch. View paths use bare names, views/iso/omit; title drawing number is sheet/title/number. Use paths such as dimensions/d:envelope~1width.length/place with {side:above,lane:0,pinned:true}. Read later delta pages via resources/read, never re-apply to page."
+            "Commit up to 32 Spec ops to drawing_ref (default: default), requiring its current spec_version as parent. Returns new immutable spec_version and paged delta; stale parents are refused with current head. Batch all edits for one request in ops. Tolerances are strings \"±T\" or \"+U -L\"; fits use features/f:hole:1/fit (e.g. H7). Datums: set features/<id>/datum or faces/<bottom|top|left|right|front|back|face:n>/datum to a letter; GD&T: add to features/<id>/controls or faces/<face>/controls {characteristic:position,tolerance:0.1,datums:[A]}. Finish: set features/<id>/finish, faces/<face>/finish or sheet/default_finish {ra:0.8}; thread: features/<id>/thread {designation:M6,length?:10}; knurl: features/<id>/knurl {pattern:straight,pitch:0.8}; note: features/<id>/note or faces/<face>/note text. Move views with set views/<name>/sheet n (no new op kind); set sheets/max first in the same batch. Line work: set sheet/hidden or views/side/hidden to a boolean; centre_marks, centre_lines, thread_depiction and knurl_depiction use the same paths. View paths use bare names, views/iso/omit; title drawing number is sheet/title/number. Use paths such as dimensions/d:envelope~1width.length/place with {side:above,lane:0,pinned:true}. Read later delta pages via resources/read, never re-apply to page."
         }
         "view_sheet" => {
             "Render a PNG for visual review of part_ref plus spec or spec_version. Optional region is paper millimetres [left,bottom,right,top], y up; sheet defaults to 1; overlay_ids is true for all local items or a list of bare or sheet:<n>/<id> addresses on that sheet. dpi defaults to 150, maximum 400. Returns image content and artifact_ref; exports embed the Spec."
@@ -150,6 +150,15 @@ pub fn validate(schema: &Value, value: &Value) -> Result<(), String> {
             }
         }
         if let Some(o) = v.as_object() {
+            if s["minProperties"]
+                .as_u64()
+                .is_some_and(|n| o.len() < n as usize)
+                || s["maxProperties"]
+                    .as_u64()
+                    .is_some_and(|n| o.len() > n as usize)
+            {
+                return Err(bad());
+            }
             if let Some(r) = s["required"].as_array() {
                 for key in r {
                     if !o.contains_key(key.as_str().unwrap()) {
@@ -158,24 +167,35 @@ pub fn validate(schema: &Value, value: &Value) -> Result<(), String> {
                 }
             }
             for (key, val) in o {
+                if let Some(names) = s.get("propertyNames") {
+                    visit(root, names, &Value::String(key.clone()), path)?;
+                }
+                // Generated schemas group equal shapes with anchored, literal name choices.
+                let patterns: Vec<_> = s["patternProperties"]
+                    .as_object()
+                    .into_iter()
+                    .flatten()
+                    .filter(|(pattern, _)| {
+                        pattern
+                            .strip_prefix("^(")
+                            .and_then(|p| p.strip_suffix(")$(?!\\s)"))
+                            .is_some_and(|names| names.split('|').any(|name| name == key))
+                    })
+                    .map(|(_, shape)| shape)
+                    .collect();
                 if let Some(p) = s["properties"].get(key) {
                     visit(root, p, val, &format!("{path}/{key}"))?;
-                } else if let Some(p) = s["patternProperties"].as_object().and_then(|patterns| {
-                    patterns.iter().find_map(|(pattern, shape)| {
-                        // The generator emits anchored alternatives of literal field names only.
-                        pattern
-                            .strip_prefix("^(")?
-                            .strip_suffix(")$(?!\\s)")?
-                            .split('|')
-                            .any(|name| name == key)
-                            .then_some(shape)
-                    })
-                }) {
+                }
+                for p in &patterns {
                     visit(root, p, val, &format!("{path}/{key}"))?;
-                } else if s["additionalProperties"] == false {
+                }
+                if s["properties"].get(key).is_some() || !patterns.is_empty() {
+                    continue;
+                }
+                if s["additionalProperties"] == false {
                     return Err(format!(
-                        "{path}: {key:?} is unknown; accepted fields: {}",
-                        s["properties"]
+                        "{path}: {key:?} is unknown; accepted fields: {}; grouped fields: {}",
+                        s["properties"], s["patternProperties"]
                     ));
                 } else if s["additionalProperties"].is_object() {
                     visit(

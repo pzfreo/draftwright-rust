@@ -10,7 +10,7 @@ I = {'type': 'integer', 'minimum': 0}
 SHEET = {'enum':list(range(1, 10))}
 def arr(item, **kw): return {'type': 'array', 'items': item, **kw}
 def obj(props, required=(), extra=False): return {'type':'object', 'properties':props, **({'required':list(required)} if required else {}), **({'additionalProperties':extra} if extra is not True else {})}
-def ref(name): return {'$ref':'#/$defs/'+name}
+def ref(name): return {'$ref':'#/'+name}
 def nullable(s):
     if set(s) == {'enum'}: return {'enum':[None, *s['enum']]}
     # Type-specific constraints do not apply to null; avoid a redundant anyOf wrapper.
@@ -27,6 +27,24 @@ rectangle=arr(N,minItems=4,maxItems=4)
 filter_=obj({'sheet':nullable(SHEET),'view':nullable(S),'kind':nullable(S),'state':nullable(ref('state')),'feature':nullable(S),'region':nullable(rectangle),'near':nullable(S),'radius':nullable({'type':'number','minimum':0})})
 problem_filter=obj({'code':nullable(S),'severity':nullable({'enum':['info','warning','error']}),'subject':nullable(S),'feature':nullable(S)})
 spec=obj({'schema':{'enum':['draftwright.spec/1','draftwright.spec/2']},'binding':nullable({'type':'object'}),'sheets':nullable(obj({'max':nullable(SHEET),'smallest_scale':nullable(S),'keep_together':arr(arr(S)),'hole_table':nullable(SHEET),'gdt_on_sheet_1':B})),'sheet':obj({'size':nullable(S),'scale':nullable(S),'title':{'type':'object','additionalProperties':S},'fit_limits':nullable({'type':'boolean'}),'fit_deviations':nullable({'type':'boolean'}),'projection':nullable({'enum':['first','third']}),'default_finish':nullable({'type':'object'})}),'views':{'type':'object','additionalProperties':{'type':'object'}},'dimensions':{'type':'object','additionalProperties':{'type':'object'}},'annotations':{'type':'object','additionalProperties':{'type':'object'}},'features':{'type':'object','additionalProperties':{'type':'object'}},'faces':{'type':'object','additionalProperties':{'type':'object'}},'dimension_source':{'enum':['auto','authored']},'hole_table':{'enum':['auto','always','never']},'notes':arr({'type':'object'}),'tables':arr({'type':'object'}),'gears':arr({'type':'object'}),'feature_declarations':arr(obj({'id':S,'kind':S,'faces':arr(S)},['id','kind','faces']))})
+# Line-work intent is typed in both scopes; other view fields retain their existing schema.
+line_fields = {name: nullable(B) for name in
+               ('hidden', 'centre_marks', 'centre_lines', 'thread_depiction', 'knurl_depiction')}
+spec['properties']['sheet']['properties'].update(line_fields)
+spec['properties']['views']['additionalProperties'] = obj(line_fields, extra=True)
+# Share the base map/list shapes while retaining each view/declaration constraint.
+# The common pattern and the named property both apply (draft 2020-12).
+spec['patternProperties'] = {
+    '^(views|dimensions|annotations|features|faces)$(?!\\s)':
+        {'type':'object', 'additionalProperties':{'type':'object'}},
+    '^(notes|tables|gears|feature_declarations)$(?!\\s)': arr({'type':'object'}),
+}
+for name in ('dimensions', 'annotations', 'features', 'faces', 'notes', 'tables', 'gears'):
+    del spec['properties'][name]
+del spec['properties']['views']['type']
+del spec['properties']['views']['additionalProperties']['type']
+del spec['properties']['feature_declarations']['type']
+del spec['properties']['feature_declarations']['items']['type']
 defs={'state':state,'spec':spec,'op':op,'item':item,'compact':compact,'problem':problem,'error':obj({'code':{'enum':['invalid','failed']},'message':S,'choices':arr(S)},['code','message'])}
 stub=obj({'id':nullable(S),'detail_ref':S},['id','detail_ref'])
 problem_small=obj({'id':S,'code':S,'severity':S,'subjects':arr(S),'fix':arr(ref('op'))},['id','code','severity','subjects'])
@@ -70,12 +88,12 @@ def inline_single_use(schema, keep=()):
                 for child in value: count(child)
         count(schema)
         names = sorted(name for name in schema['$defs']
-                       if name not in keep and counts['#/$defs/' + name] == 1)
+                       if name not in keep and counts['#/' + name] == 1)
         if not names: return schema
         definitions = {name: schema['$defs'].pop(name) for name in names}
         def replace(value):
             if isinstance(value, dict):
-                name = value.get('$ref', '').removeprefix('#/$defs/')
+                name = value.get('$ref', '').removeprefix('#/')
                 if name in definitions: return replace(definitions[name])
                 return {k: replace(v) for k, v in value.items()}
             if isinstance(value, list): return [replace(v) for v in value]
@@ -99,7 +117,8 @@ def share_repeated(schema):
         best = None
         for shape, occurrences in counts.items():
             if occurrences < 2: continue
-            name = chr(ord('A') + index)
+            name = next(chr(c) for c in range(ord('A'), ord('Z') + 1)
+                        if chr(c) not in schema['$defs'])
             replacement = ref(name)
             if len(shape) <= len(encoded(replacement)): continue
             def replace(value):
@@ -116,18 +135,17 @@ def share_repeated(schema):
         schema = best[1]
     return schema
 
-def group_properties(schema):
-    """Factor identical property shapes with literal-name alternatives, preserving validation.
+def group_properties(schema, top=True):
+    """Use anchored name alternatives for equal property shapes, only when smaller.
 
-    These are ordinary JSON Schema regexes; our small MCP validator supports the emitted
-    anchored literal-name vocabulary. This saves wire bytes without loosening a constraint.
+    This preserves object types, required fields and additionalProperties checks.
+    The negative lookahead prevents $ matching before a trailing newline.
     """
     from collections import defaultdict
-    from copy import deepcopy
-    def encoded(v): return json.dumps(v, sort_keys=True, separators=(',', ':'))
-    if isinstance(schema, list): return [group_properties(v) for v in schema]
+    if isinstance(schema, list): return [group_properties(v, False) for v in schema]
     if not isinstance(schema, dict): return schema
-    schema = {k: group_properties(v) for k, v in schema.items()}
+    schema = {k: group_properties(v, False) for k, v in schema.items()}
+    # Lift a type shared by every alternative without changing accepted instances.
     branches = schema.get('anyOf', [])
     if branches and all(isinstance(b, dict) and b.get('type') == branches[0].get('type')
                         for b in branches) and isinstance(branches[0].get('type'), str):
@@ -135,17 +153,54 @@ def group_properties(schema):
         if schema.get('type', kind) == kind:
             schema['type'] = kind
             for branch in branches: del branch['type']
-    if 'properties' not in schema: return schema
+    props = schema.get('properties', {})
+    required_original = schema.get('required', [])
+    if (schema.get('additionalProperties') is False and not schema.get('patternProperties') and props
+            and set(required_original) == set(props)
+            and all('const' in v or 'enum' in v for v in props.values())):
+        from itertools import product
+        choices = [v.get('enum', [v.get('const')]) for v in props.values()]
+        if all(len(c) <= 16 for c in choices):
+            values = [dict(zip(props, vs)) for vs in product(*choices)]
+            trial = {'type': 'object', 'enum': values}
+            if len(json.dumps(trial)) < len(json.dumps(schema)): return trial
+    # A closed object requiring every declared name is equivalently a full object.
+    # Keep tool-root required names explicit for MCP consumers.
+    if (not top and schema.get('additionalProperties') is False and not schema.get('patternProperties') and props
+            and set(schema.get('required', [])) == set(props)):
+        full = {k: v for k, v in schema.items() if k != 'required'}
+        full['minProperties'] = len(props)
+        if len(json.dumps(full)) < len(json.dumps(schema)): schema = full
+    original, original_props = schema, props
     groups = defaultdict(list)
-    for key, shape in schema['properties'].items():
-        if re.fullmatch(r'[a-zA-Z_][a-zA-Z_0-9]*', key): groups[encoded(shape)].append(key)
-    for shape, keys in groups.items():
-        if len(keys) < 2: continue
-        trial = deepcopy(schema)
-        for key in keys: del trial['properties'][key]
-        trial.setdefault('patternProperties', {})['^(' + '|'.join(keys) + ')$(?!\\s)'] = json.loads(shape)
-        if len(encoded(trial)) < len(encoded(schema)): schema = trial
-    if schema.get('properties') == {}: del schema['properties']
+    for name, value in props.items():
+        if (not top or name not in schema.get('required', [])) and re.fullmatch(r'[A-Za-z0-9_]+', name):
+            groups[json.dumps(value, sort_keys=True, separators=(',', ':'))].append(name)
+    for shape, names in groups.items():
+        if len(names) < 2: continue
+        pattern = '^(' + '|'.join(names) + ')$(?!\\s)'
+        before = len(json.dumps(schema, separators=(',', ':')))
+        trial = {**schema, 'properties': {k:v for k,v in props.items() if k not in names},
+                 'patternProperties': {**schema.get('patternProperties', {}), pattern: json.loads(shape)}}
+        if not trial['properties']: del trial['properties']
+        if len(json.dumps(trial, separators=(',', ':'))) < before:
+            schema = trial
+            props = schema.get('properties', {})
+    if original.get('additionalProperties') is False and not original.get('patternProperties') and original_props:
+        # For near-uniform objects a literal name whitelist plus a default shape is shorter.
+        for shape in groups:
+            trial = {**original, 'propertyNames': {'enum': list(original_props)},
+                     'additionalProperties': json.loads(shape),
+                     'properties': {k:v for k,v in original_props.items()
+                                    if json.dumps(v, sort_keys=True, separators=(',', ':')) != shape}}
+            if not trial['properties']: del trial['properties']
+            if len(json.dumps(trial)) < len(json.dumps(schema)): schema = trial
+            if set(required_original) == set(original_props):
+                trial.pop('propertyNames', None)
+                trial.pop('minProperties', None)
+                trial['required'] = required_original
+                trial['maxProperties'] = len(original_props)
+                if len(json.dumps(trial)) < len(json.dumps(schema)): schema = trial
     return schema
 
 def short_names(schema):
@@ -155,7 +210,7 @@ def short_names(schema):
         result = {k: short_names(v) for k, v in schema.items()}
         if '$ref' in result:
             name = result['$ref'].split('/')[-1]
-            result['$ref'] = '#/$defs/' + names.get(name, name)
+            result['$ref'] = '#/' + names.get(name, name)
         if '$defs' in result:
             result['$defs'] = {names.get(k, k): v for k, v in result['$defs'].items()}
         return result
@@ -187,6 +242,13 @@ for tool,(inp,out) in tools.items():
         for branch in schema.get('anyOf', []):
             if branch.get('type') == schema.get('type'):
                 branch.pop('type', None)
-        schema = short_names(inline_single_use(share_repeated(group_properties(inline_single_use(schema, keep))), keep))
-        if not schema['$defs']: del schema['$defs']
+        schema = inline_single_use(schema, keep)
+        for _ in range(10):
+            trial = inline_single_use(share_repeated(group_properties(schema)), keep)
+            if len(json.dumps(trial)) >= len(json.dumps(schema)): break
+            schema = trial
+        schema = short_names(schema)
+        # JSON Pointers may reference schema-valued extension keys at the root.
+        # Short local targets keep each tool standalone without repeating $defs paths.
+        schema.update(schema.pop('$defs'))
         Path(f'schemas/mcp/{tool}.{kind}.json').write_text(json.dumps(schema,indent=2)+'\n')

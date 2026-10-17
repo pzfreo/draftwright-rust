@@ -14,6 +14,19 @@ All notable changes to draftwright-rust are recorded here, in the style of
   Geometry supplies every size; saved face anchors and authored IDs survive re-analysis.
   Corrections share ordinary dimensions, schedules and independent lint, with `from_spec`
   provenance, transactional editor operations and MCP schemas inside the existing byte budget.
+- Spec line-work switches per view and drawing-wide sheet defaults: hidden lines,
+  centre marks, centre lines, thread depiction and knurl depiction (#76 item 6).
+  Session options/edits support them; effective paths are reported in view `from_spec`.
+
+### WASM API
+
+- Additive recognition-correction Spec fields and Plan provenance use the shared native
+  session model; binding methods and TypeScript signatures are unchanged.
+
+- Establish the reviewed TypeScript API snapshot and changelog gate, a measured WASM size
+  ceiling, and warning-only cross-package quiddity pin checks in CI and release notes.
+- Additive Spec line-work switches and optional Plan view `line_style`/`from_spec`
+  fields, shared with native sessions; no binding method changes.
 
 ## 0.1.0-alpha.4 (2026-10-16)
 

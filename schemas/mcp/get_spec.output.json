@@ -28,15 +28,12 @@
               ],
               "properties": {
                 "smallest_scale": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "$ref": "#/B"
                 },
                 "keep_together": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/$defs/A"
+                    "$ref": "#/A"
                   }
                 },
                 "gdt_on_sheet_1": {
@@ -64,35 +61,11 @@
             "sheet": {
               "type": "object",
               "properties": {
-                "size": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "scale": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
                 "title": {
                   "type": "object",
                   "additionalProperties": {
                     "type": "string"
                   }
-                },
-                "fit_limits": {
-                  "type": [
-                    "boolean",
-                    "null"
-                  ]
-                },
-                "fit_deviations": {
-                  "type": [
-                    "boolean",
-                    "null"
-                  ]
                 },
                 "projection": {
                   "enum": [
@@ -108,7 +81,30 @@
                   ]
                 }
               },
-              "additionalProperties": false
+              "additionalProperties": false,
+              "patternProperties": {
+                "^(fit_limits|fit_deviations|hidden|centre_marks|centre_lines|thread_depiction|knurl_depiction)$(?!\\s)": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "^(size|scale)$(?!\\s)": {
+                  "$ref": "#/B"
+                }
+              }
+            },
+            "views": {
+              "additionalProperties": {
+                "patternProperties": {
+                  "^(hidden|centre_marks|centre_lines|thread_depiction|knurl_depiction)$(?!\\s)": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  }
+                }
+              }
             },
             "dimension_source": {
               "enum": [
@@ -124,89 +120,83 @@
               ]
             },
             "feature_declarations": {
-              "type": "array",
               "items": {
-                "type": "object",
                 "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "kind": {
-                    "type": "string"
-                  },
                   "faces": {
-                    "$ref": "#/$defs/A"
+                    "$ref": "#/A"
                   }
+                },
+                "additionalProperties": {
+                  "type": "string"
                 },
                 "required": [
                   "id",
                   "kind",
                   "faces"
                 ],
-                "additionalProperties": false
+                "maxProperties": 3
               }
             }
           },
           "additionalProperties": false,
           "patternProperties": {
             "^(views|dimensions|annotations|features|faces)$(?!\\s)": {
+              "type": "object",
               "additionalProperties": {
                 "type": "object"
-              },
-              "type": "object"
+              }
             },
-            "^(notes|tables|gears)$(?!\\s)": {
+            "^(notes|tables|gears|feature_declarations)$(?!\\s)": {
+              "type": "array",
               "items": {
                 "type": "object"
-              },
-              "type": "array"
+              }
             }
           }
         }
       },
-      "required": [
-        "spec_version",
-        "spec"
-      ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "minProperties": 2
     },
     {
-      "properties": {
-        "error": {
-          "type": "object",
-          "properties": {
-            "code": {
-              "enum": [
-                "invalid",
-                "failed"
-              ]
-            },
-            "message": {
-              "type": "string"
-            },
-            "choices": {
-              "$ref": "#/$defs/A"
-            }
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "choices": {
+            "$ref": "#/A"
           },
-          "required": [
-            "code",
-            "message"
-          ],
-          "additionalProperties": false
-        }
+          "code": {
+            "enum": [
+              "invalid",
+              "failed"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
       },
       "required": [
         "error"
       ],
-      "additionalProperties": false
+      "maxProperties": 1
     }
   ],
-  "$defs": {
-    "A": {
-      "items": {
-        "type": "string"
-      },
-      "type": "array"
-    }
+  "A": {
+    "items": {
+      "type": "string"
+    },
+    "type": "array"
+  },
+  "B": {
+    "type": [
+      "string",
+      "null"
+    ]
   }
 }

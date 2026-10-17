@@ -23,18 +23,12 @@
           ],
           "properties": {
             "smallest_scale": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "$ref": "#/B"
             },
             "keep_together": {
               "type": "array",
               "items": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
+                "$ref": "#/A"
               }
             },
             "gdt_on_sheet_1": {
@@ -62,35 +56,11 @@
         "sheet": {
           "type": "object",
           "properties": {
-            "size": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "scale": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
             "title": {
               "type": "object",
               "additionalProperties": {
                 "type": "string"
               }
-            },
-            "fit_limits": {
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
-            "fit_deviations": {
-              "type": [
-                "boolean",
-                "null"
-              ]
             },
             "projection": {
               "enum": [
@@ -106,7 +76,30 @@
               ]
             }
           },
-          "additionalProperties": false
+          "additionalProperties": false,
+          "patternProperties": {
+            "^(fit_limits|fit_deviations|hidden|centre_marks|centre_lines|thread_depiction|knurl_depiction)$(?!\\s)": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "^(size|scale)$(?!\\s)": {
+              "$ref": "#/B"
+            }
+          }
+        },
+        "views": {
+          "additionalProperties": {
+            "patternProperties": {
+              "^(hidden|centre_marks|centre_lines|thread_depiction|knurl_depiction)$(?!\\s)": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              }
+            }
+          }
         },
         "dimension_source": {
           "enum": [
@@ -122,45 +115,37 @@
           ]
         },
         "feature_declarations": {
-          "type": "array",
           "items": {
-            "type": "object",
             "properties": {
-              "id": {
-                "type": "string"
-              },
-              "kind": {
-                "type": "string"
-              },
               "faces": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
+                "$ref": "#/A"
               }
+            },
+            "additionalProperties": {
+              "type": "string"
             },
             "required": [
               "id",
               "kind",
               "faces"
             ],
-            "additionalProperties": false
+            "maxProperties": 3
           }
         }
       },
       "additionalProperties": false,
       "patternProperties": {
         "^(views|dimensions|annotations|features|faces)$(?!\\s)": {
+          "type": "object",
           "additionalProperties": {
             "type": "object"
-          },
-          "type": "object"
+          }
         },
-        "^(notes|tables|gears)$(?!\\s)": {
+        "^(notes|tables|gears|feature_declarations)$(?!\\s)": {
+          "type": "array",
           "items": {
             "type": "object"
-          },
-          "type": "array"
+          }
         }
       }
     },
@@ -227,5 +212,17 @@
     "^(part_ref|spec_version|drawing_ref|step|features)$(?!\\s)": {
       "type": "string"
     }
+  },
+  "A": {
+    "items": {
+      "type": "string"
+    },
+    "type": "array"
+  },
+  "B": {
+    "type": [
+      "string",
+      "null"
+    ]
   }
 }

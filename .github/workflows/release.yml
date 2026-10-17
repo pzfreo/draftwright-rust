@@ -54,6 +54,11 @@ jobs:
           cp LICENSE fonts/LICENSE-IBMPlexMono-OFL.txt fonts/LICENSE-IBMPlexSansCondensed-OFL.txt crates/draftwright-wasm/pkg/
           tar -czf "$asset" -C crates/draftwright-wasm pkg
           sha256sum "$asset" > "$asset.sha256"
+      - name: Compare released quiddity pins and annotate release (warning only)
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/check_quiddity_pin.py --release "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY"
       - name: Attach the package to this release
         env:
           GH_TOKEN: ${{ github.token }}
