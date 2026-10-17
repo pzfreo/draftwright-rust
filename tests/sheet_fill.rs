@@ -109,6 +109,11 @@ fn grm03_requires_a3_when_a4_cannot_preserve_clear_leader_associations() {
     assert_eq!(roomy.binding.source_sha256, a.binding.source_sha256);
     let fill = draftwright::sheet_fit::fill(&a, &roomy);
     assert!((0.60..=0.85).contains(&fill), "GRM-03 fill {fill:.4}");
+    let default_fill = draftwright::sheet_fit::fill(&a, &p);
+    assert!(
+        (0.60..=0.85).contains(&default_fill),
+        "GRM-03 automatic fill {default_fill:.4}"
+    );
     assert!(p.views.iter().all(|v| v.detail.is_none()));
     assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
     sheet_rule::assert_rule("grm03", &p);

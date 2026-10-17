@@ -1993,6 +1993,60 @@ fn complete_candidate(findings: layout::Findings, extra_view_conflicts: usize) -
 mod complete_candidate_tests {
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
+    fn schedule_policy_does_not_repeat_settled_ink_preparation() {
+        use super::*;
+        for (file, scale) in [
+            ("tests/fixtures/parts/mounting_plate.step", "1:1"),
+            (
+                "tests/fixtures/pmi/step/hw_string_post_tapped_intent.step.gz",
+                "5:1",
+            ),
+        ] {
+            let (_, a) =
+                analyse_native(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(file))
+                    .unwrap();
+            let base: Spec =
+                serde_json::from_value(serde_json::json!({"sheet":{"size":"A3","scale":scale}}))
+                    .unwrap();
+            crate::planning::with(&a, || {
+                let mut expected = None;
+                for policy in [
+                    crate::hole_table::Setting::Auto,
+                    crate::hole_table::Setting::Never,
+                    crate::hole_table::Setting::Always,
+                ] {
+                    let mut spec = base.clone();
+                    spec.hole_table = policy;
+                    if policy == crate::hole_table::Setting::Never {
+                        spec.binding = Some(a.binding.clone());
+                    }
+                    let p = plan_with(&a, &spec, false, true, None, true, false).unwrap();
+                    assert_eq!(p.spec.hole_table, policy);
+                    if file.contains("intent") {
+                        assert!(!p.gdt.is_empty());
+                    }
+                    let fresh_analysis = a.clone();
+                    let fresh = crate::planning::with(&fresh_analysis, || {
+                        plan_with(&fresh_analysis, &spec, false, true, None, true, false).unwrap()
+                    });
+                    assert_eq!(
+                        serde_json::to_value(&p).unwrap(),
+                        serde_json::to_value(&fresh).unwrap()
+                    );
+                    let mut geometry = serde_json::to_value(p).unwrap();
+                    geometry.as_object_mut().unwrap().remove("spec");
+                    if let Some(expected) = &expected {
+                        assert_eq!(&geometry, expected);
+                    } else {
+                        expected = Some(geometry);
+                    }
+                }
+            });
+        }
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn inactive_sheet_search_controls_preserve_candidate_ink() {
         use super::*;
         let Some(root) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
@@ -3593,6 +3647,7 @@ fn recover_tables_inner(
     seed.hole_table = crate::hole_table::Setting::Never;
     if let Some(scale) = minimum {
         seed.sheet.scale = Some(scale_name(scale));
+        seed = normalized_sheet_candidate(analysis, seed, scale);
     }
     let mut baseline = if reference_only {
         recover_candidates(
@@ -3608,7 +3663,7 @@ fn recover_tables_inner(
         recover_uncached(
             analysis,
             &baseline_spec,
-            plan_escalated(analysis, &seed)?,
+            plan_escalated_with(analysis, &seed, true, None, false)?,
             minimum,
         )?
     } else {
@@ -5085,6 +5140,27 @@ fn plan_with_presentation(
         && crate::planning::enabled(analysis)
         && !crate::placement_intent::has_pins(spec);
     let key = if reusable {
+        // Presentation policy is read by the selector/installer after this
+        // preparation. It cannot change these settled dimensions or GD&T.
+        // Keep every actual reservation and selection input in the key.
+        let mut geometry_spec = spec.clone();
+        geometry_spec.hole_table = crate::hole_table::Setting::Auto;
+        let mut geometry_given = given.clone();
+        geometry_given.hole_table = crate::hole_table::Setting::Auto;
+        // With no inactive entries the returned Spec binds to this Analysis in
+        // both cases. An absent binding and this exact current binding describe
+        // the same preparation; every other revision remains a distinct input.
+        if inactive.is_empty() {
+            for input in [&mut geometry_spec, &mut geometry_given] {
+                if input
+                    .binding
+                    .as_ref()
+                    .is_none_or(|b| b == &analysis.binding)
+                {
+                    input.binding = Some(analysis.binding.clone());
+                }
+            }
+        }
         let mut geometry_sheet = sheet.clone();
         geometry_sheet.basis.clear();
         geometry_sheet.arrangement.clear();
@@ -5093,8 +5169,14 @@ fn plan_with_presentation(
             view.basis.clear();
         }
         serde_json::to_vec(&(
-            spec,
-            given,
+            &geometry_spec,
+            &geometry_given,
+            automatic_pair,
+            complete_views,
+            views
+                .iter()
+                .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
+                .then_some((gdt_beyond_lanes, candidate_arrangement.map(|a| a.name()))),
             &geometry_sheet,
             &geometry_views,
             &problems,
@@ -5132,6 +5214,9 @@ fn plan_with_presentation(
         {
             return Err(invalid(NO_AUTOMATIC_DETAIL, &[]));
         }
+        // A cache hit owns the current presentation intent just as a freshly
+        // prepared Plan does. The outer selector and installer still execute.
+        plan.spec.hole_table = given.hole_table;
         crate::linework::configure(spec, &mut plan.views);
         return Ok(plan);
     }

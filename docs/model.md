@@ -1024,7 +1024,12 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   reference and authored crops retain their established handling. Internal candidates share only inert capacity
   and unrequested crop controls; authored placements and text edits retain their
   complete canonical inputs. An already optimal arrangement or packing rank
-  cannot improve through another identical solve.
+  cannot improve through another identical solve. Settled preparation also shares
+  geometry across schedule policies and an absent versus matching current source
+  binding; the selected policy is restored before schedule selection. Foreign
+  bindings, automatic versus authored trials, crops, reservations and fallback
+  inputs remain distinct. Automatic R5 schedule seeds use the same exact-scale
+  preparation as other automatic candidates.
 
   An unpinned oblique-dimension side hint may yield to shorter clean witnesses
   in the same sheet, scale and view frames. All measurements, control frames,
