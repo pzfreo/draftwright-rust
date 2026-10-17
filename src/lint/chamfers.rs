@@ -33,7 +33,7 @@ pub fn wanted(analysis: &Analysis) -> Vec<Wanted<'_>> {
         .map(|f| {
             let sizes = (|| {
                 if f.kind == "oriented_chamfer" {
-                    crate::oriented_chamfers::read(analysis, f)?;
+                    super::oriented_chamfers::read(analysis, f)?;
                 }
                 let leg1 = parameters::size(f, "leg1")?;
                 let leg2 = parameters::size(f, "leg2")?;

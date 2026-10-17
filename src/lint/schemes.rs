@@ -136,7 +136,7 @@ pub(crate) fn evidence(a: &Analysis, marks: &[Mark]) -> (Vec<Mark>, Vec<LintIssu
                 }
             }
         }
-        for n in crate::notches::requirements(a) {
+        for n in super::notch_evidence::requirements(a) {
             if [n.width_axis, n.depth_axis].contains(&k) {
                 roles.push((
                     n.id,

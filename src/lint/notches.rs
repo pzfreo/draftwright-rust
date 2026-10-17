@@ -3,9 +3,9 @@ use super::{LintIssue, Mark, holes};
 use crate::model::Analysis;
 pub(super) fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let mut out = Vec::new();
-    for n in crate::notches::requirements(a) {
+    for n in super::notch_evidence::requirements(a) {
         let values = [
-            ("notch.angle".to_string(), n.angle.degrees().unwrap()),
+            ("notch.angle".to_string(), n.angle.degrees()),
             ("notch_depth.length".to_string(), n.depth()),
             (
                 format!("location.length.{}", ["x", "y", "z"][n.width_axis]),

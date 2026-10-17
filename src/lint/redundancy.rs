@@ -121,7 +121,7 @@ pub(crate) fn span(a: &Analysis, feature: &str, parameter: &str) -> Option<Span>
         if !feature.starts_with("notch:") {
             return None;
         }
-        let n = crate::notches::requirements(a)
+        let n = super::notch_evidence::requirements(a)
             .into_iter()
             .find(|n| n.id == feature)?;
         let k = ["x", "y", "z"]

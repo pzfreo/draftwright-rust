@@ -48,6 +48,16 @@ pub struct Angle {
     pub second: [f64; 3],
 }
 
+impl From<&crate::lint::profile_angles::Corner> for Angle {
+    fn from(c: &crate::lint::profile_angles::Corner) -> Self {
+        Self {
+            vertex: c.vertex,
+            first: c.first,
+            second: c.second,
+        }
+    }
+}
+
 fn sub(a: P3, b: P3) -> P3 {
     [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
 }
@@ -428,10 +438,10 @@ pub(crate) fn notch_reservations(
             _ => ("plan", [0., 0., 1.], [0., 1., 0.]),
         };
         let frame = Frame::looking(a, direction, up, [0.; 2], scale);
-        let terms = vec![format!("{}°", super::fmt(n.angle.degrees().unwrap()))];
+        let terms = vec![format!("{}°", super::fmt(n.angle.degrees()))];
         let ink = label_ink(&terms, font());
         let size = [ink.max[0] - ink.min[0], ink.max[1] - ink.min[1]];
-        let physical = Ink::new(&frame, &n.angle, size).unwrap();
+        let physical = Ink::new(&frame, &(&n.angle).into(), size).unwrap();
         let mut extended = Ink::new(
             &frame,
             &Angle {

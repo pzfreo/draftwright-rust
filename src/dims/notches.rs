@@ -6,13 +6,13 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let mut out = Vec::new();
     for n in crate::notches::requirements(cx.analysis) {
         let view = end_on(n.axis);
-        let value = n.angle.degrees().unwrap();
+        let value = n.angle.degrees();
         out.push(Want {
             id: want_id(&n.id,"notch.angle"), views:vec![view], value,
             terms:vec![format!("{}°",fmt(value))],
             measurements:vec![Measurement {feature:n.id.clone(),parameter:"notch.angle".into(),value}],
             basis:"a V-notch's included angle, in the normal view that shows it true; rounded roots extend to the theoretical sharp apex".into(),
-            shape:Shape::Angular {angle:n.angle.clone()}, turning:None,
+            shape:Shape::Angular {angle:(&n.angle).into()}, turning:None,
         });
         let k = n.depth_axis;
         let value = n.depth();
