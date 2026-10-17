@@ -12,6 +12,11 @@ The public Spec vocabulary and edit paths are documented in [model.md](model.md#
 
 ## Decisions
 
+- Fitting chain links share one dimension line, end to end. The common geometric lane
+  allocator handles authored and automatic chains, including body-local turned chains.
+  Overlapping baselines remain nested; links too short for their printed text retain a
+  separate lane. The rule uses the actual scale and measured glyph width.
+
 - `from` defaults to `min`, along the named part-frame axis. The empty map preserves the
   automatic decision, including the inspection-end baseline on turned parts.
 - Ordinate means a signed running coordinate, with an origin ring and one endpoint arrow.
@@ -40,7 +45,7 @@ The public Spec vocabulary and edit paths are documented in [model.md](model.md#
 
 ## Focused tests
 
-The 12 tests in `tests/dimension_schemes.rs` cover all three schemes; high-end and fingerprint datums;
+The original 12 tests in `tests/dimension_schemes.rs` cover all three schemes; high-end and fingerprint datums;
 unchanged defaults after removal; complete hole/slot pattern expansion; turned shoulders;
 composition at shared datums, partial counted-pitch refusal, repeated turned shoulders;
 unknown references, incompatible axes/views, overlapping schemes, duplicate targets across
@@ -51,7 +56,7 @@ printed evidence. The WASM replay fixture exercises chain, high-end baseline pre
 negative ordinates, refreshed fragment placement options, undo/redo and removal against
 the same native replay. The unchanged lint independence guard also checks the new rule module.
 
-## MCP budget
+## Previous MCP budget (before #80/#81 merge)
 
 The 26 generated schemas total **42,340 bytes** in compact served JSON, compared with
 42,124 on the starting main: **216 additional bytes**, **160 bytes remaining** under the
@@ -62,7 +67,7 @@ also pass: global scheme discovery is offered once on sheet options, matching au
 dimensions, rather than repeated on every dimension answer. All 13 tools and 26 published/served
 schemas pass the independent draft-2020-12 validator, including scheme round-trip and refusal cases.
 
-## Render review
+## Previous render review
 
 All paths below are relative to the repository root. Each PNG has matching `.svg`,
 `.plan.json`, `.spec.json` and `.lint.json` evidence beside it.
@@ -86,7 +91,7 @@ All six PNGs were opened and visually reviewed after the final production build.
 arrow directions, origin rings, physical member witnesses and surviving automatic owners
 are legible and consistent with the intended measurements.
 
-## Required checks
+## Previous required checks
 
 Raw local logs are `/tmp/scheme-*.log`; generated check evidence is under
 `target/dimension-scheme-*`. Implementation commit: `e8fec5d`.
@@ -133,3 +138,107 @@ Raw local logs are `/tmp/scheme-*.log`; generated check evidence is under
   headroom); gzip 4,644,803, Brotli 3,103,287.
 
 
+
+## Chain correction and merge of #80 / #81 (2026-10-17)
+
+Merged `origin/main` at `54704307` after reading its recognition-correction, label-text
+and schema-compaction changes. The merge keeps correction binding before planning,
+geometry-authored dimensions, scheme ownership, label wording/styles, annotation wording,
+fragment placement-option refresh and all independent live-value checks. Revision-sensitive
+scheme references are checked before recognition binding can refresh the saved binding;
+fingerprint-only generated owner edits remain eligible for anchored correction rebinding.
+Text/style edits on a retiring automatic owner are refused with the same remedy as its
+other explicit dimension intent.
+
+The chain fix groups connected, nonoverlapping links in the ordinary lane allocator and
+body-local turned placement, using actual scale and printed glyph widths. Overlapping
+baseline spans and links that cannot fit their labels between arrows keep separate lanes.
+The authored regression proves the 20 / 30 / 30 / 15 chain is collinear at 1:1 and 2:1.
+The automatic regression covers horizontal/vertical chains, reversed ends, a bridging link,
+overlapping baselines and a genuinely short link. Two merge regressions cover recognition
+splitting with generated owner text/basic style, saved replay and damaged printed evidence,
+and refusal of stale feature-ranked schemes beside anchored corrections.
+
+### Schema bytes and validation
+
+All JSON was regenerated with `tools/generate_mcp_schemas.py`; no JSON conflict was
+hand-merged. Main's iterative compaction loop, root-local definitions, exact name/newline
+matching, declaration constraints and typed label/authored fields remain intact. Adding a
+separate sparse scheme property under that compactor costs 648 bytes (43,113 total).
+Sharing the existing object-map constraint saves 432 bytes, producing **42,681 bytes**.
+The only differences from main's 42,465 bytes are **18 bytes in each of 12 schemas** for
+the literal `dimension_schemes` alternative: **216 additional bytes**. With 35 bytes of
+old headroom, the ceiling increases by **181 bytes**, to exactly **42,681**, inclusive.
+No validation constraint is weakened. Independent checks also reject malformed scheme
+maps/entries and newline-suffixed field names. All 26 files reproduce byte for byte when
+the generator runs in a temporary output directory. Per-schema attribution is saved in
+`target/dimension-scheme-merge-validation/schema-sizes.json`.
+
+### Regenerated drawing review
+
+All six PNGs below were opened after the merged production build; their matching SVG,
+Plan, Spec and independent lint reports were regenerated beside them.
+
+| Example | Before PNG | After PNG | Result |
+| --- | --- | --- | --- |
+| Mounting plate chain | `target/dimension-schemes/holes-chain-before.png` | `target/dimension-schemes/holes-chain-after.png` | The 20 / 30 / 30 / 15 links share one line and extension stations; all eight arrow tips have page Y = 281.87 mm. Automatic paper selection retains A3 2:1 after, A4 1:1 before. |
+| Turned high-end baseline | `target/dimension-schemes/turned-baseline-before.png` | `target/dimension-schemes/turned-baseline-after.png` | Clear 30 and 70 high-end baselines, A3 2:1 in both. |
+| Pattern ordinate | `target/dimension-schemes/pattern-ordinate-before.png` | `target/dimension-schemes/pattern-ordinate-after.png` | Clear origin rings and running 20 / 30 / 40 coordinates; unselected pattern retained, A4 1:1 in both. |
+
+The mounting plate retains the one pre-existing `leader_centerline_overlap` warning
+before and after. The turned and ordinate pairs have no independent lint findings.
+The chosen drawing uses one common chain line while retaining ordinary sheet/scale
+selection; no example-specific placement or paper override was added.
+
+### Merge verification
+
+Checks ran one at a time with `CARGO_BUILD_JOBS=4 RUST_TEST_THREADS=4`. Logs and the
+command/exit/time ledger are in `target/dimension-scheme-merge-validation/`.
+
+| Check | Result |
+| --- | --- |
+| `cargo fmt --all --check` | Passed. |
+| `cargo clippy --workspace --all-targets --release -- -D warnings` | Passed. |
+| Locked release build and `uv run --with jsonschema python tools/check_mcp_schemas.py` | Passed: all 13 tools' inputs, outputs and refusals; 26 published/served schemas agree. |
+| Locked WASM web build with `--profile wasm-release` | Passed with the existing helper cache under `/tmp`. |
+| Locked native reference build and Node parity | All five tests passed. Prismatic: 18 states / 52 byte comparisons; polygonal: nine / 25; schemes: ten / 28; plus authored geometry and invalid STEP checks. Preview documents retain structured checks; every committed Spec/Plan/SVG byte check is retained. |
+| `python3 tools/check_wasm_api.py --base-ref origin/main` | Matches the reviewed snapshot. |
+| Scheme and automatic-chain regressions | All 15 integration tests and the automatic horizontal/vertical unit test passed. |
+| Every test target found by `ls tests \| grep -i 'label\|recogn\|authored'` | All 72 tests passed across eight targets: authored dimensions, fit-label layout, label lanes, label rows, label text, PMI labels, recognition corrections and repeated labels. |
+| Thirty-part quality comparison | Passed: all 300 cells exactly match `tools/ci-quality-baseline.json`. No baseline or known-defect entry changed. |
+| Leader routes | Passed: 119 callouts on 30 parts, no new crossings or excessive runs; 14 pre-existing long runs unchanged. |
+| Sixty-five-part planning instruction budget | Passed: **2,627,135,421,883 instructions**, below the unchanged **3,165,755,533,285** limit (0.954 of recorded baseline); wall 182.8 s. |
+
+Main appends recognition edits/history to every WASM replay. The initial parity run exposed
+an assertion that assumed the scheme fixture still ended the combined replay. The correction
+keeps every original scheme assertion scoped to its fixture, checks that restored automatic
+ownership persists through every appended correction state, and retains every byte comparison.
+The initial failure remains in `wasm-parity-before-replay-fix.log`; the final run is
+`wasm-parity.log`.
+
+The full workspace suite completed with the required corpus:
+
+```sh
+export CARGO_BUILD_JOBS=4 RUST_TEST_THREADS=4
+DRAFTWRIGHT_CORPUS=/Users/paul/repos/quiddity/tests/corpus \
+DRAFTWRIGHT_CORPUS_REQUIRED=1 \
+cargo test --workspace --release --no-fail-fast
+```
+
+Result: **1,208 passed, one failed, zero ignored** across **120 test/doc-test harnesses**,
+including all **114 integration targets**. Both doc-test harnesses completed. Wall time
+including compilation was 2,050.636 seconds. The sole failure was
+`session::nist_benchmark_deltas`: native p90 **229.095 ms**, above the unchanged **150 ms**
+limit. The nine sorted samples were 20.992, 23.014, 25.568, 26.743, 27.258, 27.487,
+44.015, 51.111 and 229.095 ms. The slow sample changed the envelope width's carrying view
+to `plan`. No latency gate, timing environment override or instruction budget was changed;
+the latency test was not rewritten or rerun to replace this result. Plate, turned and
+multi-sheet latency tests passed, as did all stateless HTTP tests. The complete log is
+`full-suite.log`, and counts are saved in `full-suite-summary.json` beside it.
+
+The four Python schema-compactor tests also pass. No schema constraint, quality baseline,
+known-defect list or non-schema byte/time budget was weakened. Nothing was pushed.
+
+The final WASM size gate passes: **14,295,787 raw bytes**, below the unchanged
+**15,700,000-byte** ceiling (1,404,213 bytes headroom); gzip 4,741,024 and Brotli
+3,164,380 bytes. Evidence is in `wasm-size.log`.
