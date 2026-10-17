@@ -1418,6 +1418,9 @@ pub(crate) fn no_new_drawing_issues(first: &Plan, candidate: &Plan) -> bool {
 }
 
 fn no_new_issues(first: &Plan, candidate: &Plan, material: bool) -> bool {
+    if repeated_linear_labels(candidate) > repeated_linear_labels(first) {
+        return false;
+    }
     let counts = |p: &Plan| {
         let mut counts = BTreeMap::<String, usize>::new();
         for q in p.problems.iter().filter(|q| {
@@ -1437,6 +1440,25 @@ fn no_new_issues(first: &Plan, candidate: &Plan, material: bool) -> bool {
     counts(candidate)
         .into_iter()
         .all(|(code, n)| n <= before.get(&code).copied().unwrap_or(0))
+}
+
+// Match quality.py's existing linear-label measure, including an unplaced
+// record's default rotation. Equal text in the same view and direction must
+// not increase when an installed table is reconstructed as inline dimensions.
+fn repeated_linear_labels(plan: &Plan) -> usize {
+    let mut labels = BTreeMap::new();
+    for d in plan.dimensions.iter().filter(|d| d.kind == "linear") {
+        let rotation = d.placed.as_ref().map_or(0.0, |p| p.rotation);
+        let rotation = if rotation == 0.0 {
+            0
+        } else {
+            rotation.to_bits()
+        };
+        *labels
+            .entry((&d.view, &d.label, rotation))
+            .or_insert(0usize) += 1;
+    }
+    labels.values().map(|n| n.saturating_sub(1)).sum()
 }
 
 fn no_new_issue_pairs(first: &Plan, candidate: &Plan) -> bool {
@@ -1493,7 +1515,7 @@ fn protect_retained_routes(
             >= crate::sheet_fit::readability(analysis, reference).failures();
     if !drawn_quality_reference(analysis, reference)
         || (!unjustified_paper
-            && no_new_issue_pairs(reference, &candidate)
+            && no_new_drawing_issues(reference, &candidate)
             && crate::sheet_fit::routes_no_worse(analysis, reference, &candidate)
             && drawn_sheets_fit(analysis, &candidate)
             && carries_required(reference, &candidate))

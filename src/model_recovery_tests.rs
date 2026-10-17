@@ -270,33 +270,41 @@ fn an_installed_native_schedule_is_the_fitted_reference_for_readability_trials()
         );
         return;
     };
-    let (_, a) = analyse_native(&root.join("nist/nist_ctc_02_asme1_rc.stp")).unwrap();
-    crate::planning::with(&a, || {
-        let spec = Spec::default();
-        established_drawing(&a, &spec).unwrap();
-        let first = plan_escalated(&a, &spec).unwrap();
-        assert!(!first.hole_tables.is_empty());
-        assert!(crate::sheet_fit::readability(&a, &first).failures() > 0);
-        let reference =
-            recover_candidates(&a, &spec, first.clone(), true, false, None, true).unwrap();
-        assert_eq!(
-            serde_json::to_value(&reference).unwrap(),
-            serde_json::to_value(&first).unwrap(),
-            "the guarded installed schedule is already the historical fitted drawing"
-        );
-        let recovered = recover_tables(&a, &spec, first, None, false).unwrap();
-        assert!(carried(&reference).is_subset(&carried(&recovered)));
-        assert!(no_new_drawing_issues(&reference, &recovered));
-        assert!(crate::sheet_fit::routes_no_worse(
-            &a, &reference, &recovered
-        ));
-        assert!(
-            recovered
-                .problems
-                .iter()
-                .any(|p| p.code == "layout_recovery_exhausted")
-        );
-    });
+    for name in [
+        "nist/nist_ctc_02_asme1_rc.stp",
+        "nist/nist_ftc_06_asme1_rd.stp",
+    ] {
+        let (_, a) = analyse_native(&root.join(name)).unwrap();
+        crate::planning::with(&a, || {
+            let spec = Spec::default();
+            established_drawing(&a, &spec).unwrap();
+            let first = plan_escalated(&a, &spec).unwrap();
+            assert!(!first.hole_tables.is_empty());
+            let initially_unreadable = crate::sheet_fit::readability(&a, &first).failures() > 0;
+            let reference =
+                recover_candidates(&a, &spec, first.clone(), true, false, None, true).unwrap();
+            assert_eq!(
+                serde_json::to_value(&reference).unwrap(),
+                serde_json::to_value(&first).unwrap(),
+                "the guarded installed schedule is already the historical fitted drawing"
+            );
+            let recovered = recover_tables(&a, &spec, first, None, false).unwrap();
+            assert!(carried(&reference).is_subset(&carried(&recovered)));
+            assert!(repeated_linear_labels(&recovered) <= repeated_linear_labels(&reference));
+            assert!(no_new_drawing_issues(&reference, &recovered));
+            assert!(crate::sheet_fit::routes_no_worse(
+                &a, &reference, &recovered
+            ));
+            assert!(
+                !initially_unreadable
+                    || crate::sheet_fit::readability(&a, &recovered).failures() == 0
+                    || recovered
+                        .problems
+                        .iter()
+                        .any(|p| p.code == "layout_recovery_exhausted")
+            );
+        });
+    }
 }
 
 #[test]
