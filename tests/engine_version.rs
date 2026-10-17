@@ -145,6 +145,7 @@ fn tools_explain_their_operations_without_source_and_fit_schema_budget() {
     // sheet/default_finish (#43) added about 530 bytes the same way: 41,972.
     // Authored gears add 32 bytes to each of twelve Spec-carrying schemas: 42,356.
     // Line-work switches plus equivalent patternProperties compaction: 42,113 bytes.
+    // Dimension schemes share the sparse per-ID map: 42,340 bytes (budget unchanged).
     assert!(schema_bytes < 42500, "schemas: {schema_bytes} bytes");
     eprintln!("schema bytes per session: {schema_bytes}");
 }

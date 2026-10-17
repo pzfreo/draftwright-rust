@@ -59,7 +59,7 @@ function replayPlan(previous, delta) {
   return plan;
 }
 
-for (const part of ['prismatic', 'polygonal']) {
+for (const part of ['prismatic', 'polygonal', 'schemes']) {
   test(`${part}: WASM and native plan, spec and SVG bytes match throughout a session`, () => {
     const replay = JSON.parse(readFileSync(new URL(`../tests/fixtures/wasm/${part}.json`, import.meta.url)));
     const plain = readFileSync(new URL(`../${replay.part}`, import.meta.url));

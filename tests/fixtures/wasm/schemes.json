@@ -1,0 +1,12 @@
+{
+  "name": "scattered_holes.step",
+  "part": "tests/fixtures/parts/scattered_holes.step",
+  "steps": [
+    {"edit":"chain locations","action":"fragments","ops":[{"op":"set","path":"dimension_schemes/inspection","value":{"scheme":"chain","axis":"x","view":"plan"}}]},
+    {"edit":"preview high baseline","action":"preview","ops":[{"op":"set","path":"dimension_schemes/inspection/scheme","value":"baseline"},{"op":"set","path":"dimension_schemes/inspection/from","value":"max"}]},
+    {"edit":"undo scheme","action":"undo"},
+    {"edit":"redo scheme","action":"redo"},
+    {"edit":"signed ordinates","action":"apply","ops":[{"op":"set","path":"dimension_schemes/inspection/scheme","value":"ordinate"},{"op":"set","path":"dimension_schemes/inspection/from","value":"max"}]},
+    {"edit":"restore automatic","action":"fragments","ops":[{"op":"remove","path":"dimension_schemes/inspection"}]}
+  ]
+}

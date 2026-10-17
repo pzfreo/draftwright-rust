@@ -170,7 +170,7 @@
           },
           "additionalProperties": false,
           "patternProperties": {
-            "^(annotations|features|faces)$": {
+            "^(annotations|features|faces|dimension_schemes)$": {
               "additionalProperties": {
                 "type": "object"
               },

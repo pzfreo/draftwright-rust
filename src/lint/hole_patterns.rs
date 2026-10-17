@@ -134,7 +134,6 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 })
             })
             .collect();
-        let all_members_located = member_locations.iter().all(|axes| axes.iter().all(|b| *b));
         let member_anchor_with_pitch = member_locations.iter().any(|axes| axes.iter().all(|b| *b))
             && requirements.iter().all(|(parameter, value)| {
                 value.is_some_and(|d| {
@@ -262,7 +261,16 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         }
         for (parameter, value) in requirements {
             // Fully located members state their separations without a redundant pitch label.
-            if member_spacing && all_members_located {
+            let pitch_axis = match parameter.as_str() {
+                "grid_pitch.length.col" => Some(0),
+                "grid_pitch.length.row" => Some(1),
+                "pitch.length" if rows.len() == 1 => Some(0),
+                "pitch.length" if cols.len() == 1 => Some(1),
+                _ => None,
+            };
+            if member_spacing
+                && pitch_axis.is_some_and(|axis| member_locations.iter().all(|axes| axes[axis]))
+            {
                 continue;
             }
             let claiming: Vec<_> = marks

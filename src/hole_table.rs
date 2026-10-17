@@ -323,6 +323,10 @@ pub enum TableOutcome {
 /// Drops what has no place and escalates as draftwright does (the module's doc). Applied to
 /// every plan the recovery judges.
 pub fn escalate(analysis: &Analysis, plan: &mut Plan, table_sheet: Option<u32>) -> TableOutcome {
+    // A full-part rescue must not introduce coordinate owners beside an authored network.
+    if !plan.spec.dimension_schemes.is_empty() {
+        return TableOutcome::None;
+    }
     let mut outcome = TableOutcome::None;
     let restore = table_sheet
         .filter(|n| *n > 1)
@@ -1972,6 +1976,14 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
         .filter_map(|(f, h)| Some((f.id.as_str(), h.ok()?)))
         .collect();
     for view in &plan.views {
+        if !plan.spec.dimension_schemes.is_empty()
+            && plan
+                .dimensions
+                .iter()
+                .any(|d| d.view == view.id && d.id.starts_with("d:scheme:"))
+        {
+            continue;
+        }
         let Some(axis) = view.direction.iter().position(|d| d.abs() > 0.999) else {
             continue;
         };

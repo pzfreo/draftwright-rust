@@ -82,6 +82,7 @@ pub mod precision;
 mod profiled_bores;
 mod recesses;
 mod redundancy;
+mod schemes;
 mod slots;
 mod steps;
 mod stock;
@@ -903,7 +904,11 @@ pub(crate) fn callout_bands(
         return Ok(Vec::new());
     }
     let (mut wants, ..) = wants(analysis);
+    let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
     authored::append(analysis, spec, &mut wants)?;
+    if !scheme_covered.is_empty() {
+        wants.retain(|w| !scheme_covered.contains_key(&w.id));
+    }
     let mut kept: Vec<_> = wants
         .into_iter()
         .map(|w| (w, false, None, Vec::new()))
@@ -983,8 +988,13 @@ fn lanes_uncached(
     spec: &Spec,
 ) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
     let (mut wants, mut problems, notes) = wants(analysis);
+    let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
     authored::append(analysis, spec, &mut wants)?;
-    wants.retain(|w| !excluded.contains(&w.id));
+    if scheme_covered.is_empty() {
+        wants.retain(|w| !excluded.contains(&w.id));
+    } else {
+        wants.retain(|w| !excluded.contains(&w.id) && !scheme_covered.contains_key(&w.id));
+    }
     let frames: BTreeMap<&str, Frame> = views
         .iter()
         .filter(|(name, ..)| NAMES.contains(name))
@@ -1194,7 +1204,15 @@ pub(crate) fn reserve_linear_intent(
         return Ok(());
     }
     let (mut wants, _, _) = wants(analysis);
-    wants.retain(|w| !excluded.contains(&w.id));
+    let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
+    if !spec.dimension_schemes.is_empty() {
+        authored::append(analysis, spec, &mut wants)?;
+    }
+    if scheme_covered.is_empty() {
+        wants.retain(|w| !excluded.contains(&w.id));
+    } else {
+        wants.retain(|w| !excluded.contains(&w.id) && !scheme_covered.contains_key(&w.id));
+    }
     let frames: BTreeMap<&str, Frame> = views
         .iter()
         .filter(|(name, ..)| NAMES.contains(name))
@@ -1413,7 +1431,19 @@ pub(crate) fn plan_inventory(
     excluded: &BTreeSet<String>,
 ) -> Result<(Planned, Vec<PlannedDimension>), Invalid> {
     let (mut wants, mut problems, notes) = wants(analysis);
+    let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
     authored::append(analysis, spec, &mut wants)?;
+    let retired: Vec<_> = if scheme_covered.is_empty() {
+        Vec::new()
+    } else {
+        let retired = wants
+            .iter()
+            .filter(|w| scheme_covered.contains_key(&w.id))
+            .cloned()
+            .collect();
+        wants.retain(|w| !scheme_covered.contains_key(&w.id));
+        retired
+    };
     let frames: BTreeMap<&str, Frame> = views
         .iter()
         .filter_map(|v| {
@@ -1455,10 +1485,18 @@ pub(crate) fn plan_inventory(
             });
         }
     }
-    let ids: BTreeSet<&str> = wants.iter().map(|w| w.id.as_str()).collect();
+    let ids: BTreeSet<&str> = wants
+        .iter()
+        .chain(&retired)
+        .map(|w| w.id.as_str())
+        .collect();
     // ARCH0016-5: each dimension is in exactly one view, under one ID. A duplicate is a planner
     // bug, checked in every build.
-    assert_eq!(ids.len(), wants.len(), "dimension IDs are unique");
+    assert_eq!(
+        ids.len(),
+        wants.len() + retired.len(),
+        "dimension IDs are unique"
+    );
     for (id, entry) in &spec.dimensions {
         if !ids.contains(id.as_str()) {
             let mut near: Vec<&str> = ids.iter().copied().collect();
@@ -1515,7 +1553,20 @@ pub(crate) fn plan_inventory(
     // The spec chooses what is drawn, and states the tolerances and fits on the kept labels.
     let all = wants.clone();
     let owner = placement::owners(analysis, &all, &chosen);
-    let mut omitted = Vec::new();
+    let mut omitted: Vec<_> = retired
+        .into_iter()
+        .map(|w| Omitted {
+            state: State::Covered {
+                by: scheme_covered[&w.id].clone(),
+            },
+            basis: format!(
+                "conveyed by {}: the Spec station network determines this interval",
+                scheme_covered[&w.id]
+            ),
+            id: w.id,
+            label: w.terms.join(" "),
+        })
+        .collect();
     let mut kept = Vec::new();
     // The default consolidation of every item, independent of the spec: what an omission or an
     // authored set is measured against (lanes, reference ink, authored-set parity).
@@ -2113,6 +2164,11 @@ pub(crate) fn plan_inventory(
     let mut missing: BTreeMap<Undrawn, Vec<String>> = BTreeMap::new();
     let mut out = Vec::new();
     for ((mut w, default, chosen, along), mut from_spec) in kept.into_iter().zip(given) {
+        if !spec.dimension_schemes.is_empty()
+            && let Some(path) = schemes::from_spec(&w)
+        {
+            from_spec.push(path);
+        }
         if spec
             .dimensions
             .get(&w.id)
@@ -2152,7 +2208,14 @@ pub(crate) fn plan_inventory(
         let placed = positions
             .remove(&w.id)
             .flatten()
-            .map(|p| placement::relabel(&p, &geometry_terms[&w.id], &w));
+            .map(|p| placement::relabel(&p, &geometry_terms[&w.id], &w))
+            .map(|p| {
+                if spec.dimension_schemes.is_empty() {
+                    p
+                } else {
+                    schemes::ink(&w, p)
+                }
+            });
         if let Some(v) = spec.dimensions.get(&w.id).and_then(|e| e.view.as_deref())
             && chosen == Some(v)
         {
@@ -2861,7 +2924,9 @@ pub(crate) fn placement_options_with_spec(
     spec: &Spec,
 ) -> BTreeMap<String, Value> {
     let (mut wants, ..) = wants(analysis);
-    if authored::append(analysis, spec, &mut wants).is_err() {
+    if schemes::apply(analysis, spec, &mut wants).is_err()
+        || authored::append(analysis, spec, &mut wants).is_err()
+    {
         return BTreeMap::new();
     }
     let original = wants.clone();

@@ -65,6 +65,11 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
                 .collect(),
         })
         .collect();
+    let mut marks = marks;
+    if !plan.spec.dimension_schemes.is_empty() {
+        let (extra, _) = crate::lint::schemes::evidence(analysis, &marks);
+        marks.extend(extra);
+    }
     let overall_stated = crate::lint::envelope::outcomes(analysis, &marks)
         .iter()
         .all(|o| o.state == crate::lint::turned::State::Placed);

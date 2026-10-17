@@ -191,7 +191,7 @@ The design also includes `views/sections` and feature `anchor`
 since K1b (below).
 
 - **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`),
-  `iso_scale_factor`, `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `place`, `kind`, `between`, `along`, and the earlier `view`
+  `iso_scale_factor`, `dimension_source`, `dimension_schemes/<name>` (`scheme`, `axis`, `targets`, `view`, `from`), `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `place`, `kind`, `between`, `along`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`),
   `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
   knurls and notes authored in the Spec", below), `notes` and `tables`.
@@ -388,6 +388,77 @@ addresses are drawn as searchable text, and structural lint checks that each
 address reaches its rendered target in the printed grid. MCP sheet
 operations are I3's scope. The plan and spec schema versions stay the same;
 old documents read with single-sheet defaults.
+
+#### Dimensioning schemes (#76 item 4)
+
+`dimension_schemes` is a map keyed by a stable author name (letters, digits, `_`, `-`).
+Each entry owns a station network on a **part-frame** axis. For example:
+
+```json
+{
+  "dimension_schemes": {
+    "inspection": {"scheme": "baseline", "axis": "z", "view": "front", "from": "max"},
+    "mounts": {"scheme": "chain", "axis": "x", "targets": ["f:hole_pattern:1"], "view": "plan"},
+    "drilling": {"scheme": "ordinate", "axis": "y", "targets": ["f:hole:1", "f:hole:3"],
+                 "view": "plan", "from": "face:v1:<fingerprint>"}
+  }
+}
+```
+
+These are independent examples; overlapping entries on the same view axis are refused.
+`scheme` and `axis` are required. `targets` names a feature pattern, feature IDs or exact
+fingerprint references from `Analysis.edge_ink.references`; omitted/empty targets applies to
+all automatic locations and turned-profile shoulders on the named `view` axis. A view is
+required for that whole-axis form. Otherwise the first compatible automatic location's view
+is preferred, falling back to front (plan for Y). `view` is a bare principal view name and
+must show the measuring axis across the page. It constrains the generated owners' carrier.
+
+A hole or slot pattern expands to its physical members. A turned step expands to both its
+shoulders. Other feature IDs select their position; a feature proving one transverse planar
+face can also name that datum plane. `start:f:turned_step:1` and `end:f:turned_step:1`
+select a band's low and high shoulder. `from` accepts the same station references, or
+`min`/`max` for the two ends of the part along the chosen axis; absent means `min`.
+A face must be planar and perpendicular to the measuring axis; a cylinder axis or straight
+edge must have one constant coordinate on that axis. A vertex is a station too.
+No face/edge traversal indices, page coordinates or nominal distances are accepted.
+A datum authored through `features/<id>/datum` or `faces` remains the existing GD&T intent;
+select its feature ID or face fingerprint here instead of inventing another datum symbol.
+
+Chain orders distinct stations along the axis and dimensions adjacent pairs. Baseline
+measures every station from the chosen datum. Ordinate uses signed coordinates from that
+datum, with an origin circle and one endpoint arrow per running coordinate. Coincident
+stations share one owner; a controlling overall that would close the chain is covered.
+Circular patterns retain their PCD convention: to request Cartesian dimensions explicitly,
+name their individual members. Multi-solid analyses are refused for schemes; select a single
+part first, so one station cannot accidentally borrow another body's ownership.
+
+New owners have deterministic `d:scheme:<name>/<reference-hash>` IDs. Retired automatic IDs
+stay in `omitted` as `covered`, naming the network owner. Generated items record
+`dimension_schemes/<name>` in `from_spec`, `default: false`, measured values and endpoint
+references. They use the ordinary dimension placement, tolerancing, precision and layout
+pipeline. Inspect the generated IDs, then set `dimensions/<id>/{tolerance,place,...}` as
+usual. A conflicting explicit omission/tolerance/placement on a retired automatic ID, or
+an overlapping #78 authored dimension or semantic PMI owner, is refused with its ID and a
+remedy. In `dimension_source: authored`, generated IDs must also be listed to draw them;
+the scheme does not bypass the authored set. Missing or omitted links lose lint coverage.
+
+Set/remove uses ordinary `items::Op` and session transactions, for example
+`set dimension_schemes/inspection` with a complete entry, or
+`set dimension_schemes/inspection/from` to change its datum. Remove the entry to restore
+automatic planning. Preview, undo/redo and saved Specs retain the same references. A Spec
+bound to another revision cannot reuse feature IDs here: replace them with matching current
+fingerprints or explicitly rebind. Unknown, ambiguous or incompatible references and
+misspelled fields are refused with an explanation and correction/removal instruction.
+
+Without entries the existing automatic choice, including the turned inspection-end baseline,
+is unchanged. Scheme resolution returns immediately for an empty map. Lint independently
+re-measures the printed links from Analysis references and checks their connectivity before
+crediting inferred locations or band lengths. Wrong text, removed links, closed chains,
+placement collisions and manufacturing omissions remain findings. Sheet size, scale,
+second-sheet recovery, details, datum placement and class-only fit defaults remain the
+ordinary policies. An automatic hole schedule cannot replace a view carrying an explicit scheme;
+the full-part coordinate-table rescue is disabled while a scheme is authored. MCP retains its sparse per-ID object map; Rust validates each complete
+scheme entry and session options describe its forms.
 
 #### Placement (`place`, S3)
 

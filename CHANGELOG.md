@@ -8,6 +8,10 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Added
 
+- Spec dimensioning schemes by feature pattern, station set or principal view axis: chain,
+  chosen-datum baseline and signed running ordinate, with stable references, session edits,
+  one-owner networks and independent printed-link lint (#76 item 4).
+
 - Geometry-authored dimensions (`dimensions/d:authored:<name>`): principal or true distances,
   cylindrical/spherical diameters and radii, and planar-face/straight-edge angles, with stable
   fingerprint references, ordinary tolerance/placement, editor/session operations and independent
@@ -23,6 +27,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
   before escalating the sheet.
 
 ### WASM API
+
+- Additive Spec `dimension_schemes` map and scheme measurement claims; native and browser
+  sessions share the same JSON vocabulary. Engine method signatures are unchanged.
 
 - Establish the reviewed TypeScript API snapshot and changelog gate, a measured WASM size
   ceiling, and warning-only cross-package quiddity pin checks in CI and release notes.

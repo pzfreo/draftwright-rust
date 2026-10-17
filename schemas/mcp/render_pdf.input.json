@@ -131,7 +131,7 @@
       },
       "additionalProperties": false,
       "patternProperties": {
-        "^(dimensions|annotations|features|faces)$": {
+        "^(dimensions|annotations|features|faces|dimension_schemes)$": {
           "additionalProperties": {
             "type": "object"
           },
