@@ -219,3 +219,8 @@ cgb243 uses 2,830,658,999,458 instructions (1.055 times its baseline; limit
 
 The final changes are committed in coherent steps with the requested Codex
 co-author trailer. No push was performed.
+
+## Native-recess main integration
+
+The later merge with #85/#86, five-part render review and local verification are
+recorded in [the main integration report](oriented-chamfers-main-merge-2026-10-17.md).

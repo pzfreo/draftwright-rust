@@ -46,9 +46,9 @@ packages retain main's resolution.
 All required families are published. Families still published but not consumed by
 this drawing reader are `circular_face_patterns`,
 `thin_wall_bodies`, `interior_voids`, `sheet_metal_bodies`,
-and `freeform_surfaces`. Oriented chamfers are now consumed as bevels alongside
-bounded profile-notch dimensions. Their per-part records remain
-reported; this change does not imply drafting grammars for them.
+and `freeform_surfaces`. Their per-part records remain
+reported; this change does not imply drafting grammars for them. Oriented chamfers are now
+consumed as bevels alongside bounded profile-notch dimensions.
 
 The initial verification is retained in [native-recesses-qa.md](native-recesses-qa.md).
 The fourteen-part attribution, layout repair, final checks and render comparisons
