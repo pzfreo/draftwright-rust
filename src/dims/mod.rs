@@ -529,6 +529,16 @@ fn wants(
     result
 }
 
+/// Captured bridge documents already carried their recess inventory. Only a
+/// native reading adds that information relative to the released reader.
+pub(crate) fn has_new_native_recess_dimensions(analysis: &Analysis) -> bool {
+    analysis
+        .recognition
+        .as_ref()
+        .is_some_and(|r| r.recogniser.starts_with("quiddity-rust "))
+        && has_recess_dimensions(analysis)
+}
+
 pub(crate) fn has_recess_dimensions(analysis: &Analysis) -> bool {
     wants(analysis).0.iter().any(|w| {
         w.measurements
@@ -742,9 +752,29 @@ pub(crate) fn lanes_excluding(
     views: &[(&str, P3, P3)],
     excluded: &BTreeSet<String>,
 ) -> crate::layout::Lanes {
-    let key = serde_json::to_vec(&(views, excluded)).expect("lane inputs serialize");
+    lane_policy(analysis, views, excluded, true)
+}
+
+/// A captured bridge drawing's first estimate precedes measured callout columns.
+/// The complete recovery candidates always reserve those columns.
+pub(crate) fn initial_lanes(
+    analysis: &Analysis,
+    views: &[(&str, P3, P3)],
+    excluded: &BTreeSet<String>,
+) -> crate::layout::Lanes {
+    lane_policy(analysis, views, excluded, false)
+}
+
+fn lane_policy(
+    analysis: &Analysis,
+    views: &[(&str, P3, P3)],
+    excluded: &BTreeSet<String>,
+    callout_columns: bool,
+) -> crate::layout::Lanes {
+    let key =
+        serde_json::to_vec(&(views, excluded, callout_columns)).expect("lane inputs serialize");
     crate::planning::memo(analysis, "lanes", key, || {
-        lanes_uncached(analysis, views, excluded)
+        lanes_uncached(analysis, views, excluded, callout_columns)
     })
 }
 
@@ -752,6 +782,7 @@ fn lanes_uncached(
     analysis: &Analysis,
     views: &[(&str, P3, P3)],
     excluded: &BTreeSet<String>,
+    callout_columns: bool,
 ) -> crate::layout::Lanes {
     let (mut wants, ..) = wants(analysis);
     wants.retain(|w| !excluded.contains(&w.id));
@@ -945,7 +976,8 @@ fn lanes_uncached(
         }
     }
     for (i, w) in wants.iter().enumerate() {
-        if matches!(w.shape, Shape::Callout { .. })
+        if callout_columns
+            && matches!(w.shape, Shape::Callout { .. })
             && w.measurements
                 .iter()
                 .any(|m| m.feature.starts_with("f:section_recess:"))
@@ -958,7 +990,8 @@ fn lanes_uncached(
         }
     }
     for (i, w) in wants.iter().enumerate() {
-        if owner[i].is_none()
+        if callout_columns
+            && owner[i].is_none()
             && matches!(w.shape, Shape::Linear { .. })
             && w.measurements
                 .iter()

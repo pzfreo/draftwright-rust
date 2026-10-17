@@ -433,6 +433,15 @@ fn correct_sections(analysis: &Analysis, plan: &mut Plan) {
         iso.basis = "orientation view fitted around settled projection and section blocks".into();
     }
     if crate::model::drawn_sheets_fit(analysis, &candidate) {
+        // Packing moved the section and its centre lines together. Replace
+        // their old page-bound findings with checks of the actual final ink.
+        candidate
+            .problems
+            .retain(|p| !p.id.starts_with("p:annotation_off_sheet:ink:"));
+        candidate.problems.extend(crate::model::line_work_problems(
+            &candidate.sheet,
+            &candidate.views,
+        ));
         *plan = candidate;
     }
 }
@@ -575,6 +584,27 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
 /// Pack settled annotated view blocks without re-routing their witnesses or leaders. The template is built at the same scale on A0; only owned paper geometry moves.
 /// Page-anchored blocks and authored view relations stay with the existing planner.
 pub(crate) fn pack_gdt(analysis: &Analysis, template: &Plan, recipient: &Plan) -> Option<Plan> {
+    pack_reserved(analysis, template, recipient, template)
+}
+
+/// Omission edits reserve the complete inventory, keeping unaffected items fixed.
+pub(crate) fn pack_inventory(
+    analysis: &Analysis,
+    plan: &Plan,
+    recipient: &Plan,
+    inventory: &[crate::dims::PlannedDimension],
+) -> Option<Plan> {
+    let mut reservation = plan.clone();
+    reservation.dimensions = inventory.to_vec();
+    pack_reserved(analysis, plan, recipient, &reservation)
+}
+
+fn pack_reserved(
+    analysis: &Analysis,
+    template: &Plan,
+    recipient: &Plan,
+    reservation: &Plan,
+) -> Option<Plan> {
     if template.spec.iso_scale_factor.is_some()
         || template.spec.sheet.projection.as_deref() == Some("first")
         || template.hole_table.is_some()
@@ -592,10 +622,10 @@ pub(crate) fn pack_gdt(analysis: &Analysis, template: &Plan, recipient: &Plan) -
     }
     let mut p = template.clone();
     p.sheet = recipient.sheet.clone();
-    let footprints = footprints(analysis, template);
+    let footprints = footprints(analysis, reservation);
     let count = template.views.len();
     let mut groups = footprints[..count].to_vec();
-    let owners = template
+    let owners = reservation
         .dimensions
         .iter()
         .filter(|d| d.placed.is_some())

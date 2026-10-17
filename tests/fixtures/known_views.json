@@ -333,61 +333,25 @@
     "part": "m10127",
     "fact": "centre:front",
     "verdict": "undetermined",
-    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls; tests/bands.rs compares the bands): the sheet and scale differ (A4 at 1:1 against A3 at 2:1, below); draftwright's hole-callout band (left 28.597 mm), not ported until the plan carries the callout labels; draftwright's through-step leg bands (below the plan and above the side, 26.5 mm), not ported; the staggered-side arrangement draftwright's annotation-demand profile chose, with that profile's protected gutters."
+    "reason": "The sheet and view scales now agree with Draftwright (A3 at 2:1); these six scale/sheet exceptions have been removed. The view centres still differ because the port reserves its complete dimension lanes and packs their measured annotation blocks; Draftwright uses its staggered-side arrangement and protected gutters."
   },
   {
     "part": "m10127",
     "fact": "centre:iso",
     "verdict": "undetermined",
-    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls; tests/bands.rs compares the bands): the sheet and scale differ (A4 at 1:1 against A3 at 2:1, below); draftwright's hole-callout band (left 28.597 mm), not ported until the plan carries the callout labels; draftwright's through-step leg bands (below the plan and above the side, 26.5 mm), not ported; the staggered-side arrangement draftwright's annotation-demand profile chose, with that profile's protected gutters; the isometric's rectangle, which is what the views leave."
+    "reason": "The sheet and view scales now agree with Draftwright (A3 at 2:1); these six scale/sheet exceptions have been removed. The view centres still differ because the port reserves its complete dimension lanes and packs their measured annotation blocks; Draftwright uses its staggered-side arrangement and protected gutters. The orientation view occupies the remaining free rectangle."
   },
   {
     "part": "m10127",
     "fact": "centre:plan",
     "verdict": "undetermined",
-    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls; tests/bands.rs compares the bands): the sheet and scale differ (A4 at 1:1 against A3 at 2:1, below); draftwright's hole-callout band (left 28.597 mm), not ported until the plan carries the callout labels; draftwright's through-step leg bands (below the plan and above the side, 26.5 mm), not ported; the staggered-side arrangement draftwright's annotation-demand profile chose, with that profile's protected gutters."
+    "reason": "The sheet and view scales now agree with Draftwright (A3 at 2:1); these six scale/sheet exceptions have been removed. The view centres still differ because the port reserves its complete dimension lanes and packs their measured annotation blocks; Draftwright uses its staggered-side arrangement and protected gutters."
   },
   {
     "part": "m10127",
     "fact": "centre:side",
     "verdict": "undetermined",
-    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls; tests/bands.rs compares the bands): the sheet and scale differ (A4 at 1:1 against A3 at 2:1, below); draftwright's hole-callout band (left 28.597 mm), not ported until the plan carries the callout labels; draftwright's through-step leg bands (below the plan and above the side, 26.5 mm), not ported; the staggered-side arrangement draftwright's annotation-demand profile chose, with that profile's protected gutters."
-  },
-  {
-    "part": "m10127",
-    "fact": "scale",
-    "verdict": "undetermined",
-    "reason": "The port makes draftwright's first choice, A4 at 1:1. Draftwright then re-planned to A3 at 2:1 on its finished drawing's lint (scale decision: automatic_replanned; ADR2-3 tries a larger scale on the chosen sheet before a larger sheet, ADR2-16 vetoes a sheet whose annotations overlap or overflow). The port has no annotations to judge yet."
-  },
-  {
-    "part": "m10127",
-    "fact": "scale:front",
-    "verdict": "undetermined",
-    "reason": "The view takes the sheet's scale, which differs: A4 at 1:1 vs A3 at 2:1."
-  },
-  {
-    "part": "m10127",
-    "fact": "scale:iso",
-    "verdict": "undetermined",
-    "reason": "The isometric's own scale (draftwright 2.6): the sheet's scale differs (A4 at 1:1 vs A3 at 2:1); draftwright's staggered-side profile projects the isometric at 0.65 of the sheet scale before fitting it; draftwright fits the isometric to a rectangle left by different view blocks and caps its growth at annotation obstacles."
-  },
-  {
-    "part": "m10127",
-    "fact": "scale:plan",
-    "verdict": "undetermined",
-    "reason": "The view takes the sheet's scale, which differs: A4 at 1:1 vs A3 at 2:1."
-  },
-  {
-    "part": "m10127",
-    "fact": "scale:side",
-    "verdict": "undetermined",
-    "reason": "The view takes the sheet's scale, which differs: A4 at 1:1 vs A3 at 2:1."
-  },
-  {
-    "part": "m10127",
-    "fact": "sheet",
-    "verdict": "undetermined",
-    "reason": "The port makes draftwright's first choice, A4 at 1:1. Draftwright then re-planned to A3 at 2:1 on its finished drawing's lint (scale decision: automatic_replanned; ADR2-3 tries a larger scale on the chosen sheet before a larger sheet, ADR2-16 vetoes a sheet whose annotations overlap or overflow). The port has no annotations to judge yet."
+    "reason": "The sheet and view scales now agree with Draftwright (A3 at 2:1); these six scale/sheet exceptions have been removed. The view centres still differ because the port reserves its complete dimension lanes and packs their measured annotation blocks; Draftwright uses its staggered-side arrangement and protected gutters."
   },
   {
     "part": "spool132",

@@ -1535,6 +1535,7 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
     // to fill the page. Use the established drawing's scale as an automatic cap;
     // the finished solve still includes every new recess and may spend more paper.
     let established_plan = if spec.sheet.scale.is_none()
+        && crate::dims::has_new_native_recess_dimensions(analysis)
         && first.dimensions.iter().any(|d| {
             d.measurements
                 .iter()
@@ -2068,7 +2069,7 @@ pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
     let merged = crate::spec_gdt::effective(analysis, spec)?;
     let analysis = merged.as_ref();
     crate::planning::with(analysis, || {
-        if spec.sheet.scale.is_none() && crate::dims::has_recess_dimensions(analysis) {
+        if spec.sheet.scale.is_none() && crate::dims::has_new_native_recess_dimensions(analysis) {
             established_drawing(analysis, spec)?;
         }
         crate::sheets::allocate(analysis, spec)
@@ -2148,7 +2149,7 @@ pub fn plan_escalated(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
     let merged = crate::spec_gdt::effective(analysis, spec)?;
     let analysis = merged.as_ref();
     crate::planning::with(analysis, || {
-        if spec.sheet.scale.is_none() && crate::dims::has_recess_dimensions(analysis) {
+        if spec.sheet.scale.is_none() && crate::dims::has_new_native_recess_dimensions(analysis) {
             established_drawing(analysis, spec)?;
         }
         let mut plan = plan_escalated_with(analysis, spec, false, None)?;
@@ -2612,7 +2613,19 @@ fn plan_with_presentation(
         .filter(|(name, ..)| shown(name))
         .copied()
         .collect();
-    demand.lanes = crate::dims::lanes_excluding(analysis, &shown_views, &excluded);
+    demand.lanes = if !automatic_pair
+        && !gdt_beyond_lanes
+        && spec.sheet.size.is_none()
+        && spec.sheet.scale.is_none()
+        && analysis
+            .recognition
+            .as_ref()
+            .is_some_and(|r| !r.recogniser.starts_with("quiddity-rust "))
+    {
+        crate::dims::initial_lanes(analysis, &shown_views, &excluded)
+    } else {
+        crate::dims::lanes_excluding(analysis, &shown_views, &excluded)
+    };
     if !(principals.front || principals.plan || principals.side) {
         return Err(invalid(
             "Every principal view is omitted; a sheet needs front, plan or side.",
@@ -3835,32 +3848,8 @@ fn plan_with_presentation(
         spec,
     };
     crate::placement_intent::finish(&mut plan, analysis);
-    let [width, height] = plan.sheet.page;
-    for v in &plan.views {
-        for w in v.line_work.iter().filter(|w| w.kind != "cutting_plane") {
-            if w.curves.iter().any(|c| {
-                let b = c.bbox();
-                b[0] < MARGIN - 1e-9
-                    || b[1] < MARGIN - 1e-9
-                    || b[2] > width - MARGIN + 1e-9
-                    || b[3] > height - MARGIN + 1e-9
-            }) {
-                plan.problems.push(Problem {
-                    id: format!("p:annotation_off_sheet:{}", w.id),
-                    code: "annotation_off_sheet".into(),
-                    severity: "error".into(),
-                    message: format!(
-                        "{} in {} extends past the drawable area; choose a larger sheet or a smaller scale.",
-                        crate::wording::capital(&crate::wording::line_work(&w.kind)),
-                        crate::wording::view(&v.id)
-                    ),
-                    subjects: vec![v.id.clone()],
-                    refs: vec![w.id.clone()],
-                    ..Default::default()
-                });
-            }
-        }
-    }
+    plan.problems
+        .extend(line_work_problems(&plan.sheet, &plan.views));
     for p in &mut plan.problems {
         for subject in &mut p.subjects {
             if let Some(v) = plan.views.iter().find(|v| {
@@ -3879,10 +3868,95 @@ fn plan_with_presentation(
     crate::completeness::report(analysis, &mut plan);
     plan.sheet.fill = crate::sheet_fit::fill(analysis, &plan);
     plan.sheet.basis += &format!("; drawn-item fill {:.1}%", plan.sheet.fill * 100.0);
+    let captured = analysis
+        .recognition
+        .as_ref()
+        .is_some_and(|r| !r.recogniser.starts_with("quiddity-rust "));
+    if captured && crate::dims::has_recess_dimensions(analysis) {
+        crate::planning::store(
+            analysis,
+            "complete-annotation-inventory",
+            serde_json::to_vec(&plan.views).expect("views serialize"),
+            inventory,
+        );
+        // Settle on roomy paper at this exact scale, then pack the complete
+        // annotation blocks onto the initial sheet. Omitted items retain their
+        // reservations, so the same packing applies to omission edits.
+        if !automatic_pair
+            && !gdt_beyond_lanes
+            && plan.spec.sheet.size.is_none()
+            && plan.spec.sheet.scale.is_none()
+            && plan.views.iter().all(|v| v.cut.is_none())
+            && ink_findings(&plan) > 0
+        {
+            let mut roomy = plan.spec.clone();
+            roomy.sheet.size = Some("A0".into());
+            roomy.sheet.scale = Some(plan.sheet.scale.clone());
+            let template = plan_with(analysis, &roomy, false, true, candidate_arrangement)?;
+            let inventory: Vec<crate::dims::PlannedDimension> = crate::planning::lookup(
+                analysis,
+                "complete-annotation-inventory",
+                &serde_json::to_vec(&template.views).expect("views serialize"),
+            )
+            .unwrap_or_default();
+            if let Some(mut packed) =
+                crate::sheet_fit::pack_inventory(analysis, &template, &plan, &inventory)
+                && !inventory.is_empty()
+                && drawn_sheets_fit(analysis, &packed)
+                && findings(&packed).hard <= findings(&plan).hard
+                && ink_findings(&packed) < ink_findings(&plan)
+                && carries_required(&plan, &packed)
+            {
+                packed.spec = plan.spec.clone();
+                let basis = plan
+                    .sheet
+                    .basis
+                    .rsplit_once("; drawn-item fill ")
+                    .map_or(plan.sheet.basis.as_str(), |(b, _)| b);
+                packed.sheet.basis = format!(
+                    "{basis}; complete annotation blocks packed at the same scale; drawn-item fill {:.1}%",
+                    packed.sheet.fill * 100.0
+                );
+                plan = packed;
+            }
+        }
+    }
     if reusable {
         crate::planning::store(analysis, "resolved_candidate", key, plan.clone());
     }
     Ok(plan)
+}
+
+/// Recompute centre-line page bounds after a view and its ink move together.
+pub(crate) fn line_work_problems(sheet: &PlannedSheet, views: &[PlannedView]) -> Vec<Problem> {
+    let [width, height] = sheet.page;
+    let mut problems = Vec::new();
+    for v in views {
+        for w in v.line_work.iter().filter(|w| w.kind != "cutting_plane") {
+            if w.curves.iter().any(|c| {
+                let b = c.bbox();
+                b[0] < MARGIN - 1e-9
+                    || b[1] < MARGIN - 1e-9
+                    || b[2] > width - MARGIN + 1e-9
+                    || b[3] > height - MARGIN + 1e-9
+            }) {
+                problems.push(Problem {
+                    id: format!("p:annotation_off_sheet:{}", w.id),
+                    code: "annotation_off_sheet".into(),
+                    severity: "error".into(),
+                    message: format!(
+                        "{} in {} extends past the drawable area; choose a larger sheet or a smaller scale.",
+                        crate::wording::capital(&crate::wording::line_work(&w.kind)),
+                        crate::wording::view(&v.id)
+                    ),
+                    subjects: vec![v.id.clone()],
+                    refs: vec![w.id.clone()],
+                    ..Default::default()
+                });
+            }
+        }
+    }
+    problems
 }
 
 /// *spec* as this version reads it (`draftwright.spec/2`): a version 2 spec as it is; a version
