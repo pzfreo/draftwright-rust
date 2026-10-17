@@ -49,3 +49,6 @@ pub mod stateless;
 mod planning;
 
 pub mod iso_caption;
+
+/// Authored corrections resolved into the ordinary feature inventory.
+pub mod recognition_corrections;

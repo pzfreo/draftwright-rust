@@ -185,14 +185,11 @@ mention takes its default.
 }
 ```
 
-The design also includes `views/sections` and feature `anchor`
-(as in the original example: `"sections": [{"id": "A", "through": "f:hole:3"}]`,
-`"anchor": {"…": "fingerprint"}`). These fields are not yet read; a feature's `note` is read
-since K1b (below).
+The design also includes `views/sections` (for example `"sections": [{"id": "A", "through": "f:hole:3"}]`). Feature `anchor` is read for recognition corrections, below; a feature's `note` is read since K1b (below).
 
 - **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`),
-  `iso_scale_factor`, `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `fit`, `text`, `style`, `place`, and the earlier `view`
-  spelling), `annotations/<id>` (`omit`, `place`, `text` for prose callouts and automatic notes), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`),
+  `iso_scale_factor`, `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `fit`, `text`, `style`, `place`, `kind`, `between`, `along`, and the earlier `view`
+  spelling), `annotations/<id>` (`omit`, `place`, `text` for prose callouts and automatic notes), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`, `anchor`, `reclassify`, `suppress`, `split`, `pattern`), `feature_declarations`,
   `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
   knurls and notes authored in the Spec", below), `notes` and `tables`.
   Unknown fields, including page coordinates, are refused. Absent fields keep their defaults.
@@ -215,6 +212,136 @@ retries without the extra text clearance, then slides the candidates vertically 
 obstacle edges. Only an entirely blocked search retains Python's natural-position fallback;
 structural lint reports even shallow caption contacts with labels, lines and view edges.
 A sheet-scale or omitted iso carries no NTS caption. This furniture does not change the sheet-choice ladder or fill.
+
+#### Recognition corrections (#76 item 2)
+
+The automatic reading remains the default. Corrections sit beside a feature's other authored
+requirements; missed features have a separate declaration list. They carry intent and stable
+face fingerprints, never measured sizes or page coordinates:
+
+```json
+{
+  "features": {
+    "f:boss:1": { "reclassify": "turned_step" },
+    "f:hole:9": { "suppress": true },
+    "f:hole_pattern:1": { "split": true },
+    "f:hole_pattern:mounting": {
+      "pattern": { "arrangement": "grid", "members": ["f:hole:1", "f:hole:2", "f:hole:3", "f:hole:5", "f:hole:6", "f:hole:8"] }
+    }
+  },
+  "feature_declarations": [
+    { "id": "f:declared:pilot", "kind": "hole", "faces": ["face:sha256:<64 hex digits>"] }
+  ]
+}
+```
+
+The example's actions are independent; a grouped member must remain an active hole. `pattern`
+accepts `linear`, `grid` or `bolt_circle`; all count, pitch, centre and diameter data is derived
+from its physical members. Authored pattern IDs require a nonnumeric name, keeping them
+separate from automatic pattern ranks across re-analysis. A line must be evenly spaced along a principal axis; a grid must
+fill an evenly spaced rectangular lattice; a bolt circle needs at least three noncollinear,
+equally spaced holes on one circle. Members have identical machining sizes, depths and drilling
+direction and open on one plane. The ordinary planner's corroboration still applies to bolt
+circles with fewer than five holes: a bore or boss must prove the centre. A new group replaces
+intersecting automatic groups; holes may belong to only one authored group. `split` dissolves
+a recognised hole or slot pattern and keeps its members. Normal sharing of identical hole
+sizes continues; their locations are individual and the pattern's pitch statements disappear.
+
+`reclassify` accepts `hole`, `boss`, `turned_step`, `slot` or `pocket`. Supported changes are
+boss ↔ turned step and slot ↔ pocket, when defining faces prove the target grammar. Cylindrical
+interpretations need complete, coaxial, equal-radius principal cylinders with contiguous axial
+spans; opening evidence distinguishes a bore from an external band. Rectangular interpretations
+need four inward-facing planar walls with matching rectangular spans. A pocket also needs
+its capped planar floor and a proved open planar mouth; a through slot needs two proved
+open ends. Exact principal profiles or the existing planar edge graph on a single solid
+prove the opening, including local stock planes below a higher boss. An omitted cap cannot
+turn a closed void or a blind pocket into an open slot. Curved/unproved mouths are refused. Rust's existing
+`section_recess` feature is the pocket representation. Unsupported, partial, oblique or
+ambiguous geometry is refused with its reason; the correction never invents dimensions.
+Derived fingerprints retain their principal axes, so existing view-demand rules apply. A named
+boss end selects its outward direction; without one unique end, a boss interpretation uses
+the positive principal direction. Name the free end to select a negative-facing boss. Hole
+and boss vectors can still be read when a bridge's working frame is oblique.
+A suppressed feature cannot also carry fit, thread, datum, control, finish, knurl or note
+requirements. Choose only one of `reclassify`, `suppress`, `split` and `pattern` on a key.
+
+Declarations use the same five kinds and geometry checks. `id` is a unique authored
+`f:declared:<name>`; the list carries no numerical parameters. For a bore, name the cylindrical
+wall and its planar blind floor when present; without a floor the cylinder must reach both
+stock planes to prove throughness. Equivalent automatic recognition yields to the declared ID, including when a later
+recogniser learns the previously missed feature. Automatic hole/slot pattern links follow
+that identity, so a physical occurrence is never counted twice. Extra planar end caps may
+belong to the same proven scope. A different/incomplete scope, another authored declaration,
+or authored requirements/references still naming the retired automatic owner is refused;
+move those references to the declared ID, or suppress/reclassify the conflicting reading
+explicitly. The declaration then
+accepts ordinary `features/<declared-id>` requirements and `dimensions/d:<declared-id>/…` edits.
+
+`recognition_corrections::face_fingerprint(analysis, face_index)` supplies each face name;
+`item_options` with `id: "face:<index>"` reads one in
+`settable.feature_declarations.fields`; sheet options explain this lookup. Indices are
+Analysis discovery addresses only: the Spec stores the resulting fingerprint. Each response
+stays bounded rather than returning every face on a large part.
+Signatures hash the existing attachment's surface, principal axis, support, bounds and outward
+planar normal, rounded to 1e-6 mm; they exclude face indices and sample order. They are
+model-space identity fingerprints, never authored geometry. An Analysis lacking face evidence
+must be regenerated. A fingerprint must resolve to exactly one face: missing or ambiguous
+faces are refused, naming the saved path and fingerprint and advising reattachment to current
+fingerprints or removal. Identical signatures are deliberately ambiguous.
+
+When saving a correction, the bound Plan Spec fills `features/<id>/anchor` with
+`{"faces":["face:sha256:…", …]}` for the target and every grouped member. Explicit anchors are
+never silently replaced. This lets a saved correction resolve by its defining faces on
+re-analysis rather than trusting a changed rank. Exact matches refresh feature keys,
+pattern-member references, and the associated dimension and precision keys when recognition
+ranks change. Many-to-one collisions are refused for the author to combine explicitly. Authored declaration and group IDs are the
+chosen names, independent of recognition order. Re-analysis does not renumber them. A
+geometric change outside the exact signature's tolerance needs an explicit reattachment;
+this stream does not guess a nearest face or implement general revision correspondence. When a
+source hash changes but all correction anchors still resolve exactly, a correction-only Spec
+can bind to the new source. A Spec also containing unrelated, unanchored revision-specific
+edits is refused until those edits are reattached; they cannot inherit the correction's proof.
+
+Corrections resolve before sheet demand, dimensioning, callouts, schedules and completeness.
+The same effective Analysis is passed to independent lint by `spec_gdt::effective` (the existing
+merge entry point used by API review and sessions). Lint continues to read only Analysis and
+rendered evidence. Suppression removes a spurious feature from that inventory; it does not
+acknowledge unrelated findings, remove PMI or silence the independent profile checks.
+Declarations and reclassifications acquire the normal measurement requirements. Omitting or
+misprinting their output still raises lint findings. Library callers who invoke lint directly
+must pass this effective Analysis, as for authored GD&T.
+
+`Plan.recognition_corrections` records every applied decision as `{id, from_spec, basis}`, even
+suppression, which has no resulting dimension. Affected dimensions also carry the correction
+path in `from_spec`, set `default: false`, and explain the change in their basis. With no
+corrections the resolver borrows the existing Analysis, emits no new Plan fields and performs
+no face lookup, hashing, geometry scan or recognition run. Sheet selection, detail policy,
+datum position and fits defaults continue through the existing planner.
+
+This is authored intent within R4's **one analysed part** decision (ADR4-3), consistent with
+ADR1-4's single feature waist. `analyse` continues to report recognition unchanged; it never
+automatically generates Spec declarations. The author names a missed feature and its faces;
+resolution reads their already analysed geometry. As in Python's `model/declare.py`, these
+features feed the same IR and planning as recognition. Rust deliberately offers no second
+recognition-free build mode and no explicit numerical geometry constructors.
+
+`item_options` with a recognised feature or pattern ID (`f:…`) returns its correction
+controls. Keeping these on feature queries preserves the dimension options' wire budget.
+
+Session `apply`/preview, undo/redo, stateless operations and WASM's existing `apply`/`setSpec`
+all use the common Spec editor and validation. Use `set`/`remove` at `features/<id>/<field>`;
+use `add` at `feature_declarations`, or `set` the whole declaration list to replace/re-anchor it.
+List-index editing remains reserved for the existing table sheet operation. Invalid edits
+leave the committed session unchanged. MCP declaration shapes are published by
+`tools/generate_mcp_schemas.py`; supported kinds, face resolution and geometric semantics are
+validated by the common Rust model, as with other feature requirements.
+
+Reproduce three before/after PNG, SVG, Plan, Spec and lint pairs with
+`cargo run --release --example recognition_corrections` in
+`target/recognition-corrections/renders/`. These use unchanged STEP geometry: split a native
+grid, declare a real native pocket omission, and reinterpret a boss as a turned band.
+See [the validation and drafting review](recognition-corrections-validation.md) for
+results, retained warnings and the measured performance gates.
 
 #### Projection method and a pinned sheet's fit
 
@@ -1395,6 +1522,104 @@ half omitted, with a `correlated_set_conflict` warning naming the omitted and th
 its fix removing the omission. A turned profile's chain is not such a set. In an edit path, the
 `/` inside a dimension's ID is written `~1`, as in a JSON pointer:
 `{"op": "set", "path": "dimensions/d:envelope~1width.length/omit", "value": true}`.
+
+### Dimensions authored from geometry (#76 item 1)
+
+`dimensions/d:authored:<name>` adds a quantity independently of recognition. The name is
+chosen by the author (letters, digits, `_` and `-`), remains its ID after moving it to another
+view, and must not reuse an automatic dimension ID. For example (replace the abbreviated
+fingerprints with complete keys from the Analysis):
+
+```json
+{
+  "dimensions": {
+    "d:authored:axis_offset": {
+      "between": ["face:v1:<fingerprint>", "axis:face:v1:<fingerprint>"],
+      "along": "x", "view": "front", "tolerance": "±0.1",
+      "place": {"side": "below", "lane": 1, "along": "middle"}
+    },
+    "d:authored:diagonal": {
+      "kind": "linear", "between": ["vertex:v1:<fingerprint>", "vertex:v1:<fingerprint>"],
+      "along": "true", "view": "front"
+    },
+    "d:authored:seat_radius": {
+      "kind": "radius", "between": ["face:v1:<fingerprint>"], "tolerance": "±0.05"
+    },
+    "d:authored:corner": {
+      "kind": "angle", "between": ["edge:v1:<fingerprint>", "edge:v1:<fingerprint>"]
+    }
+  }
+}
+```
+
+- `kind` is `linear` (default), `diameter`, `radius` or `angle`. `between` contains two
+  references for linear/angle, one cylindrical or spherical face for diameter/radius.
+  `along` is `x`, `y`, `z` or `true` (default), for linear dimensions only. It is distinct
+  from `place.along`, which positions the label. No measured value or model/paper point is
+  accepted in the Spec. Existing `tolerance`, `view`, `place`, omission and `precision`
+  policies apply. Linear sizes and diameters also accept `fit` (ISO 286 class, without an
+  explicit tolerance), class-only by default; radius and angle dimensions take explicit bands.
+- **Discover references in `Analysis.edge_ink.references`.** This optional Analysis/7 field
+  maps full `face:v1:<sha256>`, `edge:v1:<sha256>` and `vertex:v1:<sha256>` keys to lists of
+  exact model-space records. A usable key has exactly one record. Plane, cylinder and sphere
+  faces, straight B-rep edges and topological vertices are available. `axis:<face key>`
+  selects a cylinder's axis; `axis:f:hole:3` selects the common cylinder axis of a recognized
+  feature, refusing a feature with several axes. Prefer the face spelling when saving across
+  revisions. Index-based `face:12`, `edge:12`, and page-coordinate references are not accepted.
+  Older Analyses lacking evidence still plan their defaults; authoring requires analysing again.
+- **Fingerprint contract.** The `v1` spelling and its content are fixed: SHA-256 of canonical
+  sorted-key JSON containing the exact analytic record and sorted face-boundary endpoint
+  signatures, with numbers rounded to 1e-6 mm. Plane normals and cylinder axes have their
+  first nonzero component positive; their origins are the nearest point to the model origin
+  on the plane/axis. Edge ends and boundary surface sites are sorted; a boundaryless sphere
+  uses its six cardinal sites in x−, x+, y−, y+, z−, z+ order. Face traversal indices are absent.
+  Fingerprints therefore survive face/edge/vertex enumeration and edge reversal. They identify
+  unchanged geometry, not a guessed successor after a resize or rigid move. Coincident
+  topological entities remain a multi-record ambiguity and are refused. A future fingerprint
+  algorithm must retain `v1` resolution. A missing key names the reference and tells the author
+  to copy a current Analysis key; it never silently binds to another entity.
+- **Measurement.** Linear references are supporting planes, straight supporting lines (including
+  cylinder axes), or vertices. A principal direction requires a unique station: a plane normal
+  to that direction, an edge/axis perpendicular to it, or a vertex. `true` measures the shortest
+  separation of the supports. Intersecting supports have zero distance and are refused.
+  Angular references are two nonparallel planar faces or two coplanar, nonparallel straight
+  edges; as for PMI, the actual face stations or edge ends select the half-rays and their
+  minor included sector (0–180 degrees). Obtuse included angles remain obtuse.
+  True lengths and angular sectors need a principal view that shows them true; a requested
+  incompatible view is refused with the compatible choices. Angular placement uses view,
+  radial lane and along; a side does not choose another measured sector. A size leader can attach to any
+  cylindrical/spherical face, including an oblique cylinder, using exact surface sites.
+- **One quantity, one owner (K6).** A new dimension duplicating a drawn automatic owner is
+  refused, naming that owner ID in the message and choices. Edit its tolerance/view/place
+  instead. Coincident principal spans, identical true spans/angular sectors, and the radius
+  or diameter of a face already sized by its feature owner are duplicates; equal numeric
+  sizes alone are not. A radius and diameter on the same face are one size quantity.
+  In `dimension_source: authored`, only listed automatic IDs are owners; unlisted automatic
+  candidates remain withheld, so a drawing can use entirely geometry-authored dimensions.
+  Omitted dimensions do not own quantities. A replacement retains the matched numeric
+  roles for independent completeness lint. A wholly restated automatic candidate is `covered`
+  by the authored ID, with the basis naming that owner; a compound candidate's THRU, count,
+  depth and other unstated roles remain required and are never inferred from its diameter.
+- **Same planning and lint.** Authored quantities enter the ordinary dimension inventory before
+  view routing, tolerance formatting and band reservation. They use its lanes, arrows, angular
+  arcs, leaders, collision findings and sheet-selection rules. `default` is false, the basis
+  says `spec-authored`, and `from_spec` includes `between`, plus explicit `kind`, `along`,
+  tolerance and placement fields. A drawing claim carries only reference identities and the
+  requested quantity (`geometry:<reference>|<reference>`, `linear.x`/`linear.true`, `diameter`,
+  `radius`, `angle`), not a trusted nominal. Lint remeasures these against the Analysis and
+  checks the leading printed value and size symbol; bad ink or unresolved references report
+  `authored_dimension_invalid` errors. Existing structural and feature-completeness lint still
+  applies; authored dimensions never silence missing manufacturing requirements.
+- **Editing.** Existing `items::Op::set` / `remove` and session preview, apply, undo and redo
+  operate on the entry and its fields, with atomic refusal. Set the complete entry to create
+  it, for example `{"op":"set","path":"dimensions/d:authored:corner","value":{...}}`;
+  remove the entry to delete it. Session/MCP item answers expose its reference anchors,
+  placement options and editable fields. Sheet options describe the creation forms. MCP
+  schemas describe the new fields without adding a tool. `get_spec` output declares the authored
+  fields once; inputs retain the established sparse per-ID object maps and use the same Spec
+  and geometry validators. Equivalent shared object-type constraints keep the 26 standalone
+  schemas within the unchanged 42,500-byte session budget. Browser bindings accept the same
+  Spec and operations; their method signatures are unchanged.
 
 ## The five operations
 

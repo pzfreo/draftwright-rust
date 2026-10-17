@@ -15,11 +15,30 @@ All notable changes to draftwright-rust are recorded here, in the style of
 - Session/editor text and style options use existing Spec operations, preview and history;
   saved Specs round-trip and stale/merged label IDs are refused with a correction.
   Large MCP option replies retain full structured data and a lossless text-channel resource.
+- Recognition corrections in the Spec (#76 item 2): reclassify supported cylindrical and
+  rectangular features, group holes as a linear/grid/bolt-circle pattern, split recognised
+  patterns, suppress spurious recognitions, and declare missed features from face fingerprints.
+  Geometry supplies every size; saved face anchors and authored IDs survive re-analysis.
+  Corrections share ordinary dimensions, schedules and independent lint, with `from_spec`
+  provenance, transactional editor operations and MCP schemas inside the existing byte budget.
+- Geometry-authored dimensions (`dimensions/d:authored:<name>`): principal or true distances,
+  cylindrical/spherical diameters and radii, and planar-face/straight-edge angles, with stable
+  fingerprint references, ordinary tolerance/placement, editor/session operations and independent
+  geometry lint (#76 item 1). Duplicate drawn quantities are refused with their existing owner.
 - Spec line-work switches per view and drawing-wide sheet defaults: hidden lines,
   centre marks, centre lines, thread depiction and knurl depiction (#76 item 6).
   Session options/edits support them; effective paths are reported in view `from_spec`.
 
+### Fixed
+
+- Keep geometry-authored angle arcs local to their support intersection and place aligned
+  dimensions at a clear parallel offset, moving unpinned linear dimensions out of their way
+  before escalating the sheet.
+
 ### WASM API
+
+- Additive recognition-correction Spec fields and Plan provenance use the shared native
+  session model; binding methods and TypeScript signatures are unchanged.
 
 - Establish the reviewed TypeScript API snapshot and changelog gate, a measured WASM size
   ceiling, and warning-only cross-package quiddity pin checks in CI and release notes.
@@ -27,6 +46,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   fields, shared with native sessions; no binding method changes.
 - Additive Spec text/style fields and annotation/note `from_spec` JSON provenance
   through the existing session methods; no new JavaScript methods or signatures.
+- Spec JSON accepts authored dimension fields; Analysis/7 exposes optional exact
+  dimension-reference evidence. Engine method signatures are unchanged.
 
 ## 0.1.0-alpha.4 (2026-10-16)
 

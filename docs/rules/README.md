@@ -23,14 +23,17 @@ corridors, prismatic shoulders, countersink seats, compound double-D callouts, p
 counts and balloon assignment). Automatic profile-angle placement remains pending after
 failing the unchanged drawing-quality bar. The rules-text merge retains its two completed
 ports and pending blockers ([merge report](text-main-merge-2026-10-16.md)).
+The views-and-layout batch retains six verified ports: ARCH0004-3, ARCH0018-1,
+ISSUE-563-b, ISSUE-1262-a, ISSUE-1530-a and ISSUE-1604-a. ISSUE-563-b includes the
+maintainer-approved reservation of every linear corridor, permitting smaller scales.
 Counts are computed from the merged YAML entries:
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 7 | 66 | 61 | 26 |
+| `adr.yaml` | 5 | 68 | 61 | 26 |
 | `lint.yaml` | 9 | 123 | 14 | 19 |
-| `issues.yaml` | 27 | 86 | 51 | 26 |
-| **All** | **43** | **275** | **126** | **71** |
+| `issues.yaml` | 23 | 90 | 51 | 26 |
+| **All** | **37** | **281** | **126** | **71** |
 
 The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
 The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE

@@ -45,6 +45,7 @@ use crate::model::Analysis;
 use crate::output::{Claim, Drawing};
 
 pub mod angled_steps;
+mod authored;
 pub mod blends;
 pub mod blind_slots;
 pub mod bosses;
@@ -458,6 +459,7 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         .collect();
     let marks = &verified;
     let mut issues = coverage::feature_coverage(analysis, marks);
+    issues.extend(authored::check(analysis, marks));
     issues.extend(bosses::coverage(analysis, marks));
     issues.extend(coverage::located(analysis, marks));
     issues.extend(coverage::schedule_entries(analysis, marks));

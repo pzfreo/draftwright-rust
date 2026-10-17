@@ -8,10 +8,9 @@
           "items": {
             "anyOf": [
               {
-                "type": "object",
                 "properties": {
                   "fix": {
-                    "$ref": "#/$defs/B"
+                    "$ref": "#/B"
                   }
                 },
                 "required": [
@@ -23,22 +22,21 @@
                 ],
                 "additionalProperties": false,
                 "patternProperties": {
-                  "^(id|code|severity|message)$": {
+                  "^(id|code|severity|message)$(?!\n)": {
                     "type": "string"
                   },
-                  "^(subjects|refs)$": {
-                    "$ref": "#/$defs/A"
+                  "^(subjects|refs)$(?!\n)": {
+                    "$ref": "#/A"
                   }
                 }
               },
               {
-                "type": "object",
                 "properties": {
                   "subjects": {
-                    "$ref": "#/$defs/A"
+                    "$ref": "#/A"
                   },
                   "fix": {
-                    "$ref": "#/$defs/B"
+                    "$ref": "#/B"
                   }
                 },
                 "required": [
@@ -49,13 +47,12 @@
                 ],
                 "additionalProperties": false,
                 "patternProperties": {
-                  "^(id|code|severity)$": {
+                  "^(id|code|severity)$(?!\n)": {
                     "type": "string"
                   }
                 }
               },
               {
-                "type": "object",
                 "properties": {
                   "id": {
                     "type": [
@@ -67,13 +64,11 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "id",
-                  "detail_ref"
-                ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "minProperties": 2
               }
-            ]
+            ],
+            "type": "object"
           }
         },
         "total": {
@@ -88,49 +83,48 @@
           "minimum": 0
         }
       },
-      "required": [
-        "items",
-        "total",
-        "next_cursor"
-      ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "minProperties": 3
     },
     {
-      "properties": {
-        "error": {
-          "type": "object",
-          "properties": {
-            "code": {
-              "enum": [
-                "invalid",
-                "failed"
-              ]
-            },
-            "message": {
-              "type": "string"
-            },
-            "choices": {
-              "$ref": "#/$defs/A"
-            }
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "choices": {
+            "$ref": "#/A"
           },
-          "required": [
-            "code",
-            "message"
-          ],
-          "additionalProperties": false
-        }
+          "code": {
+            "enum": [
+              "invalid",
+              "failed"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
       },
       "required": [
         "error"
       ],
-      "additionalProperties": false
+      "maxProperties": 1
     }
   ],
-  "$defs": {
-    "op": {
+  "A": {
+    "items": {
+      "type": "string"
+    },
+    "type": "array"
+  },
+  "B": {
+    "items": {
       "anyOf": [
         {
-          "type": "object",
           "properties": {
             "op": {
               "enum": [
@@ -143,15 +137,10 @@
             },
             "value": {}
           },
-          "required": [
-            "op",
-            "path",
-            "value"
-          ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "minProperties": 3
         },
         {
-          "type": "object",
           "properties": {
             "op": {
               "const": "remove"
@@ -160,25 +149,12 @@
               "type": "string"
             }
           },
-          "required": [
-            "op",
-            "path"
-          ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "minProperties": 2
         }
-      ]
+      ],
+      "type": "object"
     },
-    "A": {
-      "items": {
-        "type": "string"
-      },
-      "type": "array"
-    },
-    "B": {
-      "items": {
-        "$ref": "#/$defs/op"
-      },
-      "type": "array"
-    }
+    "type": "array"
   }
 }

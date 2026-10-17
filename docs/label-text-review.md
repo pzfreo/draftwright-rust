@@ -193,3 +193,106 @@ DRAFTWRIGHT_CORPUS_REQUIRED=1 \
 
 No source changed during these checks. The follow-up corrects the documented browser
 check command and records these results; generated binaries and logs remain ignored.
+
+## Main integration (#78–#80) — 2026-10-17
+
+Merged `origin/main` at `00ebbb93`, after reviewing the authored-dimension,
+views/layout and recognition-correction commits. `DimensionSpec` retains `kind`,
+`between` and `along` alongside `text` and `style`. The saved-Spec schema describes
+all five fields together. Both editor operation sets and geometry reference anchors
+are retained. Complete-view canonical Specs clear text/style with tolerance/fit while
+retaining authored geometry, so wording edits use the settled view frames.
+
+The new authored-dimension regression covers reference/basic styles and prefix/suffix
+wording around a toleranced, geometry-measured distance. It checks saved-Spec round-trip,
+all five fields' schema validation, measured claims and provenance, rendered ink and
+independent lint after damage to the live numeric body.
+
+Schemas were regenerated exclusively with `tools/generate_mcp_schemas.py`. Main's
+`hoist_objects`, iterative compaction, strict field-name anchors and root-local
+references are retained. The new finite-name suffix factoring shares expressions such
+as `(thread|knurl)_depiction`; an independent equivalence test includes invalid types,
+unlisted combinations and trailing newlines. The native finite-name matcher also handles
+trailing literal suffixes, with native strictness regressions for both grouped forms.
+The annotation entry's object type is
+already required by the common map constraint, as for main's dimension entries.
+
+The exact compact UTF-8 session schema accounting is:
+
+| Measurement | Bytes |
+| --- | ---: |
+| Main at `00ebbb93` | 42,405 |
+| Main vocabulary with the new equivalent name compaction | 42,207 |
+| Dimension and annotation text, including the shared closed prefix/suffix/template shape | +219 |
+| Dimension reference/basic style enum | +39 |
+| Final session schemas | **42,465** |
+| Unchanged budget (strictly less than) | **42,500** |
+
+Text fields preserve generated measured terms while exposing editable wording on both
+dimensions and prose annotations. Style fields retain the explicit reference/basic
+choice. Neither shape is discarded or weakened to save bytes. Label fields add **258
+bytes**, equivalent compaction saves **198 bytes**, and the net increase from main is
+**60 bytes**. Only `get_spec` describes the detailed saved fields; inputs retain the
+existing generic per-item convention. No validation or latency threshold was changed.
+
+Verification logs and machine-readable results are in
+`target/integration-78-80-checks/`; the thirty-part quality comparison is in
+`target/integration-78-80-quality/`.
+
+Final verification:
+
+- `cargo fmt --all --check` and workspace/all-targets release Clippy with `-D warnings`:
+  passed, including a fresh run after the native finite-name matcher update.
+- Locked release build of bins and `wasm_reference`: passed. The exact requested
+  `uv run --with jsonschema python tools/check_mcp_schemas.py` command passed using
+  the writable `/tmp/cx-steer-text-uv-cache`: all thirteen tool inputs, outputs and
+  refusals validate, and all twenty-six served schemas match their generated files.
+- All four Python schema-compaction equivalence tests and all sixteen WASM safeguard
+  tests passed.
+- Targeted release tests: **15 authored dimensions, 21 recognition corrections,
+  12 views/layout rules, 10 MCP efficiency and 3 engine-version/schema-budget tests
+  passed**. All **17 label-text tests passed**; the three label/MCP strictness and
+  wire-budget tests also passed again after the native matcher fix.
+- Thirty-part quality generation and `ci_acceptance.py --check-results quality`:
+  passed. Every one of the **300 cells equals main's baseline**; no baseline was
+  changed beyond the incoming main merge.
+
+The first schema-compaction run exposed the native matcher's former prefix-only
+assumption. It rejected valid suffix-grouped names such as `part_ref`, while the
+independent JSON Schema validator accepted them. The matcher now strips both exact
+literal ends before matching the finite alternatives; the strict native regressions
+and independent all-tool validation pass on the corrected source. Initial logs are
+retained alongside the successful `*-final.log` rechecks.
+
+- Final locked `wasm-pack build crates/draftwright-wasm --target web --profile
+  wasm-release --locked`, including wasm-opt: passed with the existing writable
+  `/tmp/steer-label-text-wasm-pack-cache`.
+- `check_wasm_api.py --base-ref origin/main`: passed against the reviewed snapshot.
+  All **four Node/native parity tests passed**, including geometry-authored dimensions;
+  the label text/style browser API smoke test passed too.
+- WASM size gate: **14,097,243 raw**, **4,670,078 gzip**, **3,116,505 Brotli bytes**,
+  under the unchanged **15,700,000-byte** raw ceiling.
+
+The unchanged `multi_sheet_latency::r5_multi_sheet_latency` gate failed in the full
+suite: MCP p90 **511.794 ms > 150 ms** (p50 **124.993 ms**, maximum **551.614 ms**).
+Native p90 was **64.937 ms**. No latency threshold, assertion or environment
+override was changed.
+
+The complete required-corpus workspace release suite finished with **1,192 passed,
+1 failed, 0 ignored**, across **119 test/doc-test harnesses**, exit status **101**.
+The only failure was the multi-sheet MCP wall-clock gate above. All session latency
+gates, the HTTP/stateless tests, all authored/recognition/layout/label regressions,
+and both documentation-test harnesses passed. Every target ran; no gate was disabled.
+
+```sh
+export CARGO_BUILD_JOBS=4 RUST_TEST_THREADS=4
+DRAFTWRIGHT_CORPUS=/Users/paul/repos/quiddity/tests/corpus \
+DRAFTWRIGHT_CORPUS_REQUIRED=1 \
+  cargo test --workspace --release --no-fail-fast
+```
+
+Source and generated schema contents remained unchanged through the final full-suite
+run. The detailed full-suite summary is in `full-suite-summary.json`, command statuses
+in `results.json` and `rechecks.json`, and exact schema attribution in
+`schema-accounting.json`, under `target/integration-78-80-checks/`.
+Nothing was pushed.

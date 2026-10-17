@@ -56,6 +56,7 @@
 //! [`placement`] places it. A new family is a new planner module and an entry in the list.
 
 pub mod angular;
+pub(crate) mod authored;
 pub(crate) mod blends;
 mod bosses;
 mod edges;
@@ -864,6 +865,31 @@ fn route(
     (chosen, end_on)
 }
 
+/// A reduced principal set is permissible only if every planned requirement that
+/// the full set can carry still has a carrier. This covers radial flats, keyways,
+/// cross slots and PMI as well as holes, before placing or losing any item.
+pub(crate) fn reduction_preserves_requirements(
+    analysis: &Analysis,
+    spec: &Spec,
+    kept: &[&str],
+    excluded: &BTreeSet<String>,
+) -> bool {
+    let (wants, _, _) = wants(analysis);
+    wants
+        .iter()
+        .filter(|w| {
+            !excluded.contains(&w.id) && !spec.dimensions.get(&w.id).is_some_and(|d| d.omit)
+        })
+        .all(|w| {
+            // A dimension's view is a preference in Spec; asking to retain a
+            // principal view belongs to views/<name>. Preserve that contract.
+            !NAMES.iter().any(|v| carries(w, v))
+                || kept
+                    .iter()
+                    .any(|v| carries(w, v) && !spec.views.get(*v).is_some_and(|v| v.omit))
+        })
+}
+
 /// Paper-space room for unpinned, side-only callouts. Keep the same labels as the solver,
 /// including threads and authored tolerances, and reserve the column before packing views.
 pub(crate) fn callout_bands(
@@ -878,7 +904,8 @@ pub(crate) fn callout_bands(
     }) {
         return Ok(Vec::new());
     }
-    let (wants, ..) = wants(analysis);
+    let (mut wants, ..) = wants(analysis);
+    authored::append(analysis, spec, &mut wants)?;
     let mut kept: Vec<_> = wants
         .into_iter()
         .map(|w| (w, false, None, Vec::new()))
@@ -959,6 +986,7 @@ fn lanes_uncached(
     spec: &Spec,
 ) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
     let (mut wants, mut problems, notes) = wants(analysis);
+    authored::append(analysis, spec, &mut wants)?;
     wants.retain(|w| !excluded.contains(&w.id));
     let frames: BTreeMap<&str, Frame> = views
         .iter()
@@ -970,6 +998,9 @@ fn lanes_uncached(
             )
         })
         .collect();
+    if spec.dimensions.values().any(|d| d.between.is_some()) {
+        problems.extend(chosen_views(&mut wants, spec, &frames)?);
+    }
     plates::prefer_readable(analysis, &mut wants, &frames, None);
     let (chosen, _) = route(&mut wants, &frames, analysis);
     let wants: Vec<_> = wants
@@ -1072,8 +1103,7 @@ fn lanes_uncached(
         .map(|(i, _)| lane[i] + 1)
         .max()
         .unwrap_or(0);
-    // A controlling overall adds a lane to the turned axial chain. Reserve its
-    // measured depth just as for a slab, rather than letting the chain exceed the band.
+    // A controlling overall adds a lane to the turned axial chain.
     if wants
         .iter()
         .any(|w| w.id.starts_with("d:envelope/") && w.id.ends_with(".length"))
@@ -1109,7 +1139,9 @@ fn lanes_uncached(
                     .plate_front_top
                     .max(ink.max[0] - ink.min[0] + ARROW + 3.0);
             }
-            (Some("front"), Some(placement::Side::Below)) => bands.plate_front_below = front_linear,
+            (Some("front"), Some(placement::Side::Below)) => {
+                bands.plate_front_below = bands.plate_front_below.max(front_linear)
+            }
             // A horizontal side thickness's outside arrow reaches past the side's left edge,
             // above or below it.
             (Some("side"), Some(placement::Side::Above | placement::Side::Below)) => {
@@ -1121,7 +1153,9 @@ fn lanes_uncached(
                     .plate_side_top
                     .max(ink.max[0] - ink.min[0] + ARROW + 3.0);
             }
-            (Some("plan"), Some(placement::Side::Above)) => bands.plate_plan_above = plan_linear,
+            (Some("plan"), Some(placement::Side::Above)) => {
+                bands.plate_plan_above = bands.plate_plan_above.max(plan_linear)
+            }
             _ => {}
         }
     }
@@ -1143,6 +1177,172 @@ fn lanes_uncached(
         }
     }
     Ok((bands, aligned))
+}
+
+/// Reserve explicitly requested linear strips before composition, at their
+/// authored lane. The ordinary source lanes remain reserved for edit locality.
+pub(crate) fn reserve_linear_intent(
+    analysis: &Analysis,
+    spec: &Spec,
+    views: &[(&str, P3, P3)],
+    excluded: &BTreeSet<String>,
+    bands: &mut crate::layout::Lanes,
+) -> Result<(), Invalid> {
+    // A bare automatic placement is a no-op, including a bare pin. Its full
+    // settled corridor is measured in composition; it requests no extra tier.
+    if !spec.dimensions.values().any(|d| {
+        d.place
+            .as_ref()
+            .is_some_and(|p| p.side.is_some() || p.lane.is_some())
+    }) {
+        return Ok(());
+    }
+    let (mut wants, _, _) = wants(analysis);
+    wants.retain(|w| !excluded.contains(&w.id));
+    let frames: BTreeMap<&str, Frame> = views
+        .iter()
+        .filter(|(name, ..)| NAMES.contains(name))
+        .map(|(name, direction, up)| {
+            (
+                *name,
+                Frame::looking(analysis, *direction, *up, [0.0; 2], 1.0),
+            )
+        })
+        .collect();
+    chosen_views(&mut wants, spec, &frames)?;
+    plates::prefer_readable(analysis, &mut wants, &frames, Some(spec));
+    let (chosen, _) = route(&mut wants, &frames, analysis);
+    let owner = placement::owners(analysis, &wants, &chosen);
+    let (sides, lane) = placement::lanes(&frames, wants.iter().zip(chosen.iter().copied()), &owner);
+    // Predict the same line-sharing reflow used by placement, before the
+    // bands are composed. Scaling preserves shared stations and lane offsets.
+    let mut occupied: BTreeMap<&str, Vec<Vec<[P2; 2]>>> = BTreeMap::new();
+    let mut requested = Vec::new();
+    for (i, w) in wants.iter().enumerate() {
+        if !matches!(w.shape, Shape::Linear { .. }) || owner[i].is_some() {
+            continue;
+        }
+        let (Some(view), Some(side)) = (chosen[i], sides[i]) else {
+            continue;
+        };
+        if let Some(p) = spec
+            .dimensions
+            .get(&w.id)
+            .filter(|d| !d.omit)
+            .and_then(|d| d.place.as_ref())
+            .filter(|p| p.side.is_some() || p.lane.is_some())
+        {
+            if let Some(ink) = placement::intent(&frames[view], w, p, side, lane[i], 0.0) {
+                let span =
+                    crate::output::linear_ink(&ink.lines).map_or(0.0, |l| l.span[1] - l.span[0]);
+                requested.push((i, p.lane.unwrap_or(lane[i]), span));
+            }
+        } else if let Some(ink) = placement::place(&frames[view], w, side, lane[i]) {
+            occupied.entry(view).or_default().push(ink.lines);
+        }
+    }
+    requested.sort_by(|a, b| {
+        (chosen[a.0], a.1)
+            .cmp(&(chosen[b.0], b.1))
+            .then(a.2.total_cmp(&b.2))
+            .then(a.0.cmp(&b.0))
+    });
+    let mut resolved_lanes = BTreeMap::new();
+    for (i, requested, _) in requested {
+        let view = chosen[i].expect("routed linear");
+        let side = sides[i].expect("linear strip");
+        let p = spec.dimensions[&wants[i].id]
+            .place
+            .as_ref()
+            .expect("explicit place");
+        let taken = occupied.entry(view).or_default();
+        for n in requested..requested + if p.pinned { 1 } else { 64 } {
+            let mut trial = p.clone();
+            trial.lane = Some(n);
+            let Some(ink) = placement::intent(&frames[view], &wants[i], &trial, side, lane[i], 0.0)
+            else {
+                break;
+            };
+            if p.pinned
+                || !taken
+                    .iter()
+                    .any(|q| crate::output::shared_dimension_line(&ink.lines, q))
+            {
+                taken.push(ink.lines);
+                resolved_lanes.insert(i, n);
+                break;
+            }
+        }
+    }
+    for (i, w) in wants.iter().enumerate() {
+        let Some(p) = spec
+            .dimensions
+            .get(&w.id)
+            .filter(|d| !d.omit)
+            .and_then(|d| d.place.as_ref())
+            .filter(|p| p.side.is_some() || p.lane.is_some())
+        else {
+            continue;
+        };
+        if !matches!(w.shape, Shape::Linear { .. }) {
+            continue;
+        }
+        let (Some(view), Some(default_side)) = (chosen[i], sides[i]) else {
+            continue;
+        };
+        let side = p.side.map_or(default_side, |s| match s {
+            crate::placement_intent::Side::Above => placement::Side::Above,
+            crate::placement_intent::Side::Below => placement::Side::Below,
+            crate::placement_intent::Side::Left => placement::Side::Left,
+            crate::placement_intent::Side::Right => placement::Side::Right,
+        });
+        let band = match (view, side) {
+            ("front", placement::Side::Above) => &mut bands.plate_front_above,
+            ("front", placement::Side::Below) => &mut bands.plate_front_below,
+            ("front", placement::Side::Left) => &mut bands.plate_front_left,
+            ("front", placement::Side::Right) => &mut bands.front_right,
+            ("plan", placement::Side::Above) => &mut bands.plate_plan_above,
+            ("plan", placement::Side::Below) => &mut bands.plate_plan_below,
+            ("plan", placement::Side::Left) => &mut bands.authored_plan_left,
+            ("plan", placement::Side::Right) => &mut bands.plate_plan_right,
+            ("side", placement::Side::Above) => &mut bands.side_above,
+            ("side", placement::Side::Below) => &mut bands.side_below,
+            ("side", placement::Side::Left) => &mut bands.plate_side_left_lanes,
+            ("side", placement::Side::Right) => &mut bands.side_right,
+            _ => continue,
+        };
+        *band = (*band).max(
+            resolved_lanes
+                .get(&i)
+                .copied()
+                .unwrap_or_else(|| p.lane.unwrap_or(lane[i]))
+                + 1,
+        );
+    }
+    Ok(())
+}
+
+/// Judge the final drawn ink, including arrow flares, after all ordinary lane passes.
+pub(crate) fn authored_placement_clear(spec: &Spec, dims: &[PlannedDimension]) -> bool {
+    dims.iter()
+        .filter(|d| {
+            spec.dimensions.get(&d.id).is_some_and(|entry| {
+                entry.between.is_some()
+                    && (d.kind == "angular"
+                        || (d.kind == "linear"
+                            && entry.along.as_deref().is_none_or(|a| a == "true")))
+            })
+        })
+        .all(|d| {
+            d.placed.as_ref().is_some_and(|p| {
+                dims.iter()
+                    .filter(|q| q.id != d.id)
+                    .filter_map(|q| q.placed.as_ref())
+                    .all(|q| {
+                        placement::annotations_clear(p, q) && placement::dimension_lines_clear(p, q)
+                    })
+            })
+        })
 }
 
 /// The planned dimensions under *spec*, placed around *views* on *sheet*, with what the spec
@@ -1217,6 +1417,7 @@ pub(crate) fn plan_inventory(
     excluded: &BTreeSet<String>,
 ) -> Result<(Planned, Vec<PlannedDimension>), Invalid> {
     let (mut wants, mut problems, notes) = wants(analysis);
+    authored::append(analysis, spec, &mut wants)?;
     let frames: BTreeMap<&str, Frame> = views
         .iter()
         .filter_map(|v| {
@@ -1226,6 +1427,7 @@ pub(crate) fn plan_inventory(
                 .then(|| (name, Frame::new(analysis, v)))
         })
         .collect();
+    let authored_ownership = authored::ownership(analysis, spec, &wants);
     problems.extend(chosen_views(&mut wants, spec, &frames)?);
     plates::prefer_readable(analysis, &mut wants, &frames, Some(spec));
     let (mut chosen, mut end_on) = route(&mut wants, &frames, analysis);
@@ -1380,6 +1582,14 @@ pub(crate) fn plan_inventory(
                 state: State::OmittedByUser,
             }),
             DimensionSource::Authored if entry.is_none() => {
+                if let Some(by) = authored_ownership.covered.get(&w.id) {
+                    omitted.push(Omitted {
+                        label: w.terms.join(" "), id: w.id,
+                        basis: format!("spec-authored: this quantity is stated by {by}; the unlisted automatic candidate is withheld (one owner)"),
+                        state: State::Covered { by: by.clone() },
+                    });
+                    continue;
+                }
                 // An authored set still keeps the automatic inventory. Surface every
                 // unstated item by name, even when another measurement locates its feature.
                 problems.push(Problem {
@@ -1710,7 +1920,16 @@ pub(crate) fn plan_inventory(
         &mut placed,
         &page,
     ));
-    angular::place(&frames, &all, &chosen, &mut placed, &page);
+    angular::place(
+        &frames,
+        &all,
+        &chosen,
+        &sides,
+        &fixed,
+        obstacles,
+        &mut placed,
+        &page,
+    );
     // Radius exceptions are placed around the existing drawing ink. Their addition must not
     // reroute unrelated approved callouts into clutter.
     let mut prior = chosen.clone();
@@ -1770,6 +1989,39 @@ pub(crate) fn plan_inventory(
         &alone,
         &sides,
         &lane,
+        &mut placed,
+        &page,
+    );
+    // Merged automatic items now have their final ink. Resolve oblique authored
+    // quantities against it; the later leader refinement sees these settled positions.
+    placement::clear_aligned(
+        &frames,
+        &all,
+        &chosen,
+        &sides,
+        &fixed,
+        &mut placed,
+        obstacles,
+        &page,
+    );
+    for (i, w) in all.iter().enumerate() {
+        if !fixed[i]
+            && matches!(w.shape, Shape::Angular { .. })
+            && spec
+                .dimensions
+                .get(&w.id)
+                .is_some_and(|d| d.between.is_some())
+        {
+            placed[i] = None;
+        }
+    }
+    angular::place(
+        &frames,
+        &all,
+        &chosen,
+        &sides,
+        &fixed,
+        obstacles,
         &mut placed,
         &page,
     );
@@ -1870,6 +2122,19 @@ pub(crate) fn plan_inventory(
     let mut missing: BTreeMap<Undrawn, Vec<String>> = BTreeMap::new();
     let mut out = Vec::new();
     for ((mut w, default, chosen, along), mut from_spec) in kept.into_iter().zip(given) {
+        if spec
+            .dimensions
+            .get(&w.id)
+            .is_some_and(|d| d.between.is_some())
+        {
+            from_spec.push("between".into());
+            if spec.dimensions[&w.id].kind.is_some() {
+                from_spec.push("kind".into());
+            }
+            if spec.dimensions[&w.id].along.is_some() {
+                from_spec.push("along".into());
+            }
+        }
         if from_spec.is_empty()
             && spec
                 .dimensions
@@ -1944,6 +2209,12 @@ pub(crate) fn plan_inventory(
         } else {
             Vec::new()
         };
+        if let Some(claims) = authored_ownership.claims.get(&w.id) {
+            w.measurements.extend(claims.iter().cloned());
+            if !claims.is_empty() {
+                basis += "; retains the measured roles of unlisted automatic candidates";
+            }
+        }
         out.push(PlannedDimension {
             reference,
             determined_by,
@@ -2590,7 +2861,18 @@ pub(crate) fn leader_reentry(
 
 /// Geometry-backed placement choices for the editor, including omitted dimensions.
 pub fn placement_options(analysis: &Analysis, views: &[PlannedView]) -> BTreeMap<String, Value> {
+    placement_options_with_spec(analysis, views, &Spec::default())
+}
+
+pub(crate) fn placement_options_with_spec(
+    analysis: &Analysis,
+    views: &[PlannedView],
+    spec: &Spec,
+) -> BTreeMap<String, Value> {
     let (mut wants, ..) = wants(analysis);
+    if authored::append(analysis, spec, &mut wants).is_err() {
+        return BTreeMap::new();
+    }
     let original = wants.clone();
     let frames: BTreeMap<&str, Frame> = views
         .iter()
@@ -2628,6 +2910,7 @@ pub fn placement_options(analysis: &Analysis, views: &[PlannedView]) -> BTreeMap
                         Shape::Callout { .. } | Shape::Aligned { .. } => {
                             vec!["above", "below", "left", "right"]
                         }
+                        Shape::Angular { .. } if probe.id.starts_with("d:authored:") => Vec::new(),
                         Shape::Angular { .. } => return None,
                     };
                     Some(serde_json::json!({"view": name, "sides": sides}))
@@ -2649,12 +2932,19 @@ pub(crate) fn symbolic_bore(r: &crate::pmi::Record) -> bool {
 
 /// Rejudge settled paper geometry after moving complete view blocks to another sheet.
 pub(crate) fn recheck(analysis: &Analysis, plan: &crate::model::Plan) -> Vec<Problem> {
+    recheck_cached(analysis, plan, &footprints::Cache::default())
+}
+
+pub(crate) fn recheck_cached(
+    analysis: &Analysis,
+    plan: &crate::model::Plan,
+    cache: &footprints::Cache,
+) -> Vec<Problem> {
     let mut all = plan.dimensions.clone();
     all.extend(plan.gdt.iter().filter_map(gdt::proxy));
-    let cache = footprints::Cache::default();
     std::iter::once(&plan.sheet)
         .chain(&plan.sheets)
-        .flat_map(|sheet| placement::collisions_cached(analysis, &all, sheet, &plan.views, &cache))
+        .flat_map(|sheet| placement::collisions_cached(analysis, &all, sheet, &plan.views, cache))
         .collect()
 }
 

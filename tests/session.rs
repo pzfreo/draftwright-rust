@@ -60,7 +60,9 @@ fn benchmark(file: &str) {
         let start = Instant::now();
         let delta = s.apply(ops, true).unwrap();
         assert_eq!(delta.plans, 1);
-        times.push(start.elapsed().as_secs_f64() * 1000.0);
+        let elapsed = start.elapsed().as_secs_f64() * 1000.0;
+        times.push(elapsed);
+        eprintln!("SESSION_EDIT_LATENCY {file}: {elapsed:.3} ms {ops:?}");
         assert_eq!(
             serde_json::to_vec(&delta).unwrap(),
             serde_json::to_vec(&preview).unwrap()
