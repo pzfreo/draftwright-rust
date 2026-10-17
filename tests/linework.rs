@@ -103,15 +103,11 @@ fn section(file: &str, check_hidden: bool) {
             "{file}: hidden ink in section"
         );
     }
-    let drawing = model::render_annotations(
-        &part,
-        &a,
-        &plan,
-        &Font::new(api::MONO.to_vec()).unwrap(),
-        geometry,
-        &mut cache,
-    )
-    .unwrap();
+    // A readable scale can allocate the section to a later sheet. Inspect
+    // its actual carrier rather than assuming all hatch belongs to sheet 1.
+    let drawings =
+        model::render_sheets(&part, &a, &plan, &Font::new(api::MONO.to_vec()).unwrap()).unwrap();
+    let drawing = &drawings[v.sheet.saturating_sub(1) as usize];
     let view = View::new(v.direction, v.up).unwrap();
     let centre = view.map([0, 1, 2].map(|k| (a.envelope[0][k] + a.envelope[1][k]) / 2.));
     let to_model = |q: [f64; 2], side: f64| {

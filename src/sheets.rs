@@ -317,10 +317,42 @@ thread_local! {
     static RUNS: Cell<usize> = const { Cell::new(0) };
 }
 
-fn run(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+fn run(analysis: &Analysis, spec: &Spec, minimum: Option<f64>) -> Result<Plan, Invalid> {
     RUNS.with(|runs| runs.set(runs.get() + 1));
     crate::planning::with(analysis, || {
-        model::recover(analysis, spec, model::plan_escalated(analysis, spec)?)
+        if let Some(minimum) = minimum {
+            // R5 capacity constrains auxiliary packing, not the layout of an
+            // already named principal sheet. Keep it out of that pure solve's
+            // memo key, so step zero shares the ordinary candidate preparation.
+            // Every allocation prefix and its original capacity still runs.
+            let mut main = spec.clone();
+            if main.sheet.size.is_some() {
+                let needed = assignments(&main)
+                    .values()
+                    .copied()
+                    .chain(main.tables.iter().filter_map(|t| t.sheet))
+                    .max()
+                    .unwrap_or(1)
+                    .max(1);
+                // Already assigned carriers still pass the ordinary Spec
+                // validator. Capacity above their maximum affects packing only.
+                if let Some(sheets) = &mut main.sheets {
+                    sheets.max = (needed > 1).then_some(needed);
+                }
+                if main
+                    .sheets
+                    .as_ref()
+                    .is_some_and(|s| *s == SheetsSpec::default())
+                {
+                    main.sheets = None;
+                }
+            }
+            let mut p = model::recover_at_scale(analysis, &main, minimum)?;
+            p.spec.sheets = spec.sheets.clone();
+            Ok(p)
+        } else {
+            model::recover(analysis, spec, model::plan_escalated(analysis, spec)?)
+        }
     })
 }
 
@@ -337,13 +369,17 @@ pub(crate) fn allocate_counted(
 ) -> Result<Plan, Invalid> {
     let before = RUNS.with(Cell::get);
     let result = (|| {
-        let mut plan = allocate_inner(analysis, spec, None)?;
+        let mut plan = allocate_inner(analysis, spec, None, None)?;
         // Finish forced allocations and table presentation before checking paths that
         // bypassed ordinary recovery (fixed scale, pins, or a rebuilt hole schedule).
+        let fixed_scale_search = spec.sheet.scale.is_some()
+            && !crate::placement_intent::has_pins(spec)
+            && plan.sheet.size != "A4";
         if spec.sheet.size.is_none()
             && spec.sheets.as_ref().and_then(|s| s.max) != Some(1)
-            && ["A2", "A1", "A0"].contains(&plan.sheet.size.as_str())
-            && model::fits_a3_at_full_size(analysis, &plan)
+            && (fixed_scale_search
+                || (["A2", "A1", "A0"].contains(&plan.sheet.size.as_str())
+                    && model::fits_a3_at_full_size(analysis, &plan)))
             && (spec.sheet.scale.is_some()
                 || crate::placement_intent::has_pins(spec)
                 || !plan.hole_tables.is_empty()
@@ -368,12 +404,13 @@ fn allocate_inner(
     analysis: &Analysis,
     spec: &Spec,
     required: Option<&Plan>,
+    minimum: Option<f64>,
 ) -> Result<Plan, Invalid> {
     if spec.sheets.is_none()
         && spec.views.values().all(|v| v.sheet.is_none())
         && spec.tables.iter().all(|t| t.sheet.is_none())
     {
-        return run(analysis, spec);
+        return run(analysis, spec, minimum);
     }
     let migrated = model::migrate(spec, analysis)?;
     let spec = &migrated;
@@ -392,10 +429,15 @@ fn allocate_inner(
             }
         }
     }
-    let mut first = run(analysis, &working(analysis, spec, &moved))?;
+    let mut first = run(analysis, &working(analysis, spec, &moved), minimum)?;
     if !first.sheets.is_empty() && moved.is_empty() {
         return Ok(first);
     }
+    let fitted_seed = (spec.sheet.size.is_none()
+        && spec.sheet.scale.is_none()
+        && assigned.is_empty()
+        && model::drawn_quality_reference(analysis, &first))
+    .then(|| first.clone());
     let long = first.table_outcome == hole_table::TableOutcome::NoPlace;
     let possible = candidates(analysis, spec, long);
     let mut tried = Vec::new();
@@ -422,7 +464,7 @@ fn allocate_inner(
             if moved.contains_key("hole_table") {
                 copy.sheets.as_mut().unwrap().hole_table = Some(2);
             }
-            first = run(analysis, &copy)?;
+            first = run(analysis, &copy, minimum)?;
         }
         let mut p = first.clone();
         if !pack_with_overflow(analysis, spec, &moved, &mut p, step == 0) {
@@ -436,6 +478,9 @@ fn allocate_inner(
         // clean prefix can stop the search. Later prefixes may restore a seed measurement
         // or relieve a page whose packed estimate passed but whose actual ink did not.
         if required.is_some_and(|seed| !small_content_fits(analysis, seed, &p)) {
+            f.hard += 1;
+        }
+        if minimum.is_some_and(|scale| p.sheet.scale_factor < scale) {
             f.hard += 1;
         }
         let hard = f.hard;
@@ -454,6 +499,15 @@ fn allocate_inner(
         }
     }
     let (_, mut p) = best.expect("step zero was packed");
+    if let Some(seed) = fitted_seed
+        && p.sheet.page[0] > seed.sheet.page[0]
+        && crate::sheet_fit::readability(analysis, &p).failures() > 0
+    {
+        // Permitting auxiliary sheets cannot buy larger paper for an incomplete
+        // readability improvement. Keep the fitted drawing and its refusal;
+        // forced assignments and explicit paper/scale remain authoritative.
+        p = seed;
+    }
     if maximum(spec) > 1 || !moved.is_empty() {
         p.sheet.basis += &format!("; sheet allocation: {}", tried.join("; "));
     }
@@ -524,33 +578,141 @@ pub(crate) fn small_fallback(
         return None;
     }
     for (name, _, _) in layout::PAGES.iter().take(2) {
+        if let Some(p) = paper_fallback(analysis, spec, required, name, 0.0, tried, required) {
+            return Some(p);
+        }
+    }
+    None
+}
+
+/// R5's established cumulative allocation, on one paper size and at readable
+/// standard scales. When fill is low, only an enlargement of the single-sheet
+/// candidate is useful. Named paper prevents recursive allocation searches.
+#[allow(clippy::too_many_arguments)] // Retained information and route references are independent.
+pub(crate) fn paper_fallback(
+    analysis: &Analysis,
+    spec: &Spec,
+    required: &Plan,
+    name: &str,
+    above_scale: f64,
+    tried: &mut Vec<String>,
+    route_reference: &Plan,
+) -> Option<Plan> {
+    if spec.sheet.size.is_some() || spec.sheets.as_ref().and_then(|s| s.max) == Some(1) {
+        return None;
+    }
+    let (_, w, h) = layout::PAGES.iter().find(|p| p.0 == name)?;
+    let minimum = floor(spec)
+        .unwrap_or(0.0)
+        .max(crate::sheet_fit::min_legible_scale(analysis));
+    let scales: Vec<_> = layout::SCALES
+        .into_iter()
+        .filter(|scale| {
+            *scale > above_scale
+                && (spec
+                    .sheet
+                    .scale
+                    .as_ref()
+                    .map_or(*scale >= minimum, |s| model::scale_name(*scale) == *s))
+        })
+        .collect();
+    for scale in scales {
+        if required
+            .views
+            .iter()
+            .filter(|v| v.id != "v:iso" && v.detail.is_none() && v.sheet == 1)
+            .any(|v| {
+                let frame = haecceity::hlr::View::new(v.direction, v.up).expect("planned view");
+                let (size, _) = model::extent(analysis, &frame);
+                size[0] * scale > w - 2.0 * layout::MARGIN
+                    || size[1] * scale > h - 2.0 * layout::MARGIN
+            })
+        {
+            continue;
+        }
+        if !spec.views.values().any(|v| v.place.is_some()) {
+            let size = |id: &str| {
+                required
+                    .views
+                    .iter()
+                    .find(|v| v.id == id && v.sheet == 1)
+                    .map(|v| {
+                        let frame =
+                            haecceity::hlr::View::new(v.direction, v.up).expect("planned view");
+                        model::extent(analysis, &frame).0.map(|x| x * scale)
+                    })
+                    .unwrap_or([0.0; 2])
+            };
+            let front = size("v:front");
+            let plan = size("v:plan");
+            let side = size("v:side");
+            // Necessary geometry-only bounds for the aligned principal projections.
+            // Moving auxiliary content cannot shorten either principal row/column.
+            // Do not charge speculative annotation bands in this cheap refusal.
+            if front[0] + side[0] > w - 2.0 * layout::MARGIN
+                || front[1] + plan[1] > h - 2.0 * layout::MARGIN
+            {
+                tried.push(format!("{name} multi-sheet: {} principal projection row/column exceeds usable paper at the readable scale", model::scale_name(scale)));
+                continue;
+            }
+        }
         let mut working = spec.clone();
-        working.sheet.size = Some((*name).into());
+        working.sheet.size = Some(name.into());
         working.sheets.get_or_insert_with(Default::default).max =
             Some(spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9));
-        let mut p = match allocate_inner(analysis, &working, Some(required)) {
+        if spec.sheet.scale.is_none()
+            && crate::sheet_fit::unavoidable_steps_at_scale(
+                analysis, &working, required, scale, false,
+            ) > 0
+        {
+            tried.push(format!("{name} multi-sheet: {} dimensioned step span fails its paper-space floor; auxiliary allocation cannot enlarge a principal step",model::scale_name(scale)));
+            continue;
+        }
+        let mut p = match allocate_inner(
+            analysis,
+            &working,
+            Some(required),
+            spec.sheet.scale.is_none().then_some(scale),
+        ) {
             Ok(plan) => plan,
             Err(error) => {
                 tried.push(format!("{name} multi-sheet: invalid ({})", error.message));
                 continue;
             }
         };
+        if model::drawn_quality_reference(analysis, route_reference) {
+            crate::sheet_fit::retain_callouts(analysis, route_reference, &mut p);
+        }
         crate::iso_caption::refresh(analysis, &mut p);
         let (mut f, dropped) = score(analysis, &working, &p);
         f.hard = f.hard.max(model::findings(&p).hard);
+        let readable = crate::sheet_fit::readability(analysis, &p);
+        let legible = if spec.sheet.scale.is_some() {
+            readable.failures() <= crate::sheet_fit::readability(analysis, required).failures()
+        } else {
+            readable.failures() == 0
+        };
         let complete = model::carries_required(required, &p);
         let fits = model::drawn_sheets_fit(analysis, &p);
         let over = model::over_views(&p) > model::over_views(required);
-        let clean = f.hard == 0 && dropped == 0 && small_content_fits(analysis, required, &p);
+        let route_reason = crate::sheet_fit::route_refusal(analysis, route_reference, &p);
+        let routes = !model::drawn_quality_reference(analysis, route_reference)
+            || (model::no_new_drawing_issues(route_reference, &p) && route_reason.is_none());
+        let clean = f.hard == 0
+            && dropped == 0
+            && legible
+            && p.sheet.scale_factor >= scale
+            && routes
+            && small_content_fits(analysis, required, &p);
         let blockers: BTreeSet<_> = p
             .problems
             .iter()
-            .filter(|q| blocks_small_plan(q))
+            .filter(|q| blocks_rescue(required, q))
             .map(|q| q.code.as_str())
             .collect();
         tried.push(format!(
-            "{name} multi-sheet: {} sheets at {}, {} hard findings, {dropped} required drops, required measurements retained {complete}, drawn bounds fit {fits}, additional view conflicts {over}, blocking problems [{}]",
-            1 + p.sheets.len(), p.sheet.scale, f.hard, blockers.into_iter().collect::<Vec<_>>().join(", ")
+            "{name} multi-sheet: {} sheets at {}, {} hard findings, {dropped} required drops, required measurements retained {complete}, drawn bounds fit {fits}, additional view conflicts {over}, retained leader association quality {routes} ({}), readability [{readable}], blocking problems [{}]",
+            1 + p.sheets.len(), p.sheet.scale, f.hard, route_reason.unwrap_or("annotation/feature association"), blockers.into_iter().collect::<Vec<_>>().join(", ")
         ));
         if clean {
             let binding = p.spec.binding.clone();
@@ -562,12 +724,13 @@ pub(crate) fn small_fallback(
                 sheet.default = true;
             }
             p.sheet.basis = format!(
-                "small part: practical-paper R5 allocation before A2 and larger; {}",
+                "screen-first paper policy: {name} R5 allocation before larger paper; fill floor 60%; candidates: {}",
                 tried.join("; ")
             );
             return Some(p);
         }
     }
+    tried.push(format!("{name} multi-sheet: no clean readable allocation at an admissible scale (minimum {}); principal ink must fit with 10/7 mm dimension lanes", model::scale_name(minimum)));
     None
 }
 
@@ -581,7 +744,22 @@ fn small_content_fits(analysis: &Analysis, required: &Plan, plan: &Plan) -> bool
         && model::carries_required(required, plan)
         && model::drawn_sheets_fit(analysis, plan)
         && model::over_views(plan) <= model::over_views(required)
-        && !plan.problems.iter().any(blocks_small_plan)
+        && !plan.problems.iter().any(|p| blocks_rescue(required, p))
+}
+
+/// Unsupported source PMI is independent of paper. Preserve that exact refusal,
+/// rather than buying larger paper which cannot resolve it. Every new refusal and
+/// every physical/layout error still blocks the allocation.
+fn blocks_rescue(required: &Plan, problem: &Problem) -> bool {
+    blocks_small_plan(problem)
+        && !(problem.code == "pmi_not_lowered"
+            && required.problems.iter().any(|prior| {
+                prior.code == problem.code
+                    && prior.severity == problem.severity
+                    && prior.subjects == problem.subjects
+                    && prior.refs == problem.refs
+                    && prior.message == problem.message
+            }))
 }
 
 fn blocks_small_plan(problem: &Problem) -> bool {
@@ -606,7 +784,7 @@ fn score(analysis: &Analysis, spec: &Spec, plan: &Plan) -> (layout::Findings, us
         .retain(|p| p.subjects.is_empty() || p.subjects.iter().any(|id| !off.contains(id)));
     let mut f = model::findings(&first);
     if spec.sheet.scale.is_none() {
-        f.hard += crate::sheet_fit::illegible_steps(analysis, plan);
+        f.hard += crate::sheet_fit::readability(analysis, plan).failures();
     }
     let requested = floor(spec);
     let legible = crate::sheet_fit::min_legible_scale(analysis);
@@ -1597,6 +1775,36 @@ mod tests {
     use super::*;
 
     #[test]
+    fn only_an_identical_source_pmi_refusal_survives_paper_rescue() {
+        let (_, a) = model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/mounting_plate.step"),
+        )
+        .unwrap();
+        let mut required = model::plan(&a, &Spec::default()).unwrap();
+        let mut refusal = problem(
+            "pmi_not_lowered",
+            "error",
+            "pmi:unsupported",
+            "Source semantics are unsupported on every paper size.".into(),
+            vec![],
+        );
+        refusal.refs = vec!["#42".into()];
+        assert!(blocks_rescue(&required, &refusal));
+        required.problems.push(refusal.clone());
+        assert!(!blocks_rescue(&required, &refusal));
+        refusal.refs = vec!["#43".into()];
+        assert!(blocks_rescue(&required, &refusal));
+        refusal.refs = vec!["#42".into()];
+        refusal.message.push_str(" A newly missing owner.");
+        assert!(blocks_rescue(&required, &refusal));
+        refusal = required.problems.last().unwrap().clone();
+        refusal.code = "annotation_off_sheet".into();
+        required.problems.push(refusal.clone());
+        assert!(blocks_rescue(&required, &refusal));
+    }
+
+    #[test]
     fn explicit_under_floor_steps_do_not_block_small_sheet_rescue() {
         let (_, a) = model::analyse_native(
             &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -1613,7 +1821,7 @@ mod tests {
         // The A3 candidate already meets every gate except inherited step legibility.
         let mut small_spec = spec.clone();
         small_spec.sheet.size = Some("A3".into());
-        let small = allocate_inner(&a, &small_spec, Some(&seed)).unwrap();
+        let small = allocate_inner(&a, &small_spec, Some(&seed), None).unwrap();
         assert!(model::findings(&small).clean());
         assert!(model::carries_required(&seed, &small));
         assert!(model::drawn_sheets_fit(&a, &small));

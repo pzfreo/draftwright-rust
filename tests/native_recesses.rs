@@ -738,7 +738,13 @@ fn recess_locations_do_not_send_an_existing_ramp_leader_through_extra_hidden_edg
     );
     assert!(
         crossings(&a, &p) <= old,
-        "new recess ink displaced the existing route"
+        "new recess ink displaced the existing route: {} -> {}; {} at {} vs {} at {}",
+        old,
+        crossings(&a, &p),
+        before.sheet.size,
+        before.sheet.scale,
+        p.sheet.size,
+        p.sheet.scale
     );
     let claims: Vec<_> = p
         .dimensions

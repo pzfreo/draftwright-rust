@@ -1,7 +1,7 @@
-//! Finished-sheet policy (maintainer 2026-10-12, H6), with Python recovery replay.
+//! Finished-sheet policy (maintainer 2026-10-17), with Python recovery replay.
 //! The low-level layout::recover stand-ins retain the historical bounded retry contract;
-//! model::recover now selects the smallest complete fit and at most one enlarged paper step,
-//! by measured fill. Corpus tests protect complete measurements, explicit overrides and
+//! model::recover exhausts clean readable A4 and its allocation before larger paper.
+//! Corpus tests protect complete measurements, explicit overrides and
 //! the veto on extra ink over other views. Deliberate Python differences are recorded in
 //! tests/fixtures/known_sheet_policy.json. model::plan remains the unrecovered estimate.
 
@@ -268,15 +268,26 @@ fn a_try_with_hole_locations_too_close_to_read_is_not_taken() {
         .iter()
         .find(|p| p.code == "layout_recovery_exhausted")
         .unwrap_or_else(|| panic!("{:?}", codes(&plan)));
-    assert_eq!(said.severity, "info");
+    assert_eq!(said.severity, "warning");
+    let readability = draftwright::sheet_fit::readability(&analysis, &plan);
+    assert_eq!(readability.lanes, 2);
+    assert!(readability.steps > 0);
     assert!(
-        said.message
-            .starts_with("A2 at 1:2 has 2 hole locations too close to read"),
+        said.message.contains(&readability.to_string()),
         "{}",
         said.message
     );
-    for tried in ["A3 1:5 fill", "A2 1:2 fill", "A0 2:1 fill"] {
-        assert!(said.message.contains(tried), "{tried}: {}", said.message);
+    assert!(said.message.contains("physically fitting drawing is kept"));
+    for tried in [
+        "A3 1:5 (below minimum readable feature/extent/depiction scale",
+        "A2 1:2 (dimensioned step span fails its paper-space floor",
+        "A0 2:1 (dimensioned step span fails its paper-space floor",
+    ] {
+        assert!(
+            plan.sheet.basis.contains(tried),
+            "{tried}: {}",
+            plan.sheet.basis
+        );
     }
     assert!(!plan.sheet.basis.contains("layout recovery"));
 }
@@ -311,25 +322,70 @@ fn a_valid_plan_is_reconsidered_for_fill() {
     }
 }
 
-/// H6 review (2026-10-12): below the fill band the fullest valid allowed pair wins, so a valid
-/// A4 drawing is not traded for an emptier A3 one with one annotation conflict fewer. Measured:
-/// 10060 A4 1:1 17.0% against A3 2:1 14.9%; 10063 A4 1:1 22.6% against A3 2:1 20.8%; 10000
-/// A4 1:1 24.0% against A3 2:1 23.8%; string_post_tapped (AP242) A4 2:1 against A3 5:1.
+/// A4 wins when it is readable. A low-fill A4 whose steps are too small must
+/// enlarge (including allocation); a smaller readable paper precedes a fill gain.
 #[test]
-fn below_the_band_the_fullest_valid_pair_wins_on_real_candidates() {
-    let Some(dir) = corpus::dir() else {
-        eprintln!("SKIPPED: the corpus is not found");
-        return;
-    };
+fn readable_a4_precedes_fill_but_unreadable_steps_require_enlargement() {
+    let Some(dir) = corpus::dir() else { return };
     for (file, expected) in [
         ("mfcadpp/10060.step", ("A4", "1:1")),
-        ("mfcadpp/10063.step", ("A4", "1:1")),
-        ("mfcadpp/10000.step", ("A4", "1:1")),
+        ("mfcadpp/10000.step", ("A3", "2:1")),
     ] {
-        let plan = api::plan_from(&dir.join(file), Features::Native, &Spec::default()).unwrap();
+        let path = dir.join(file);
+        let plan = api::plan_from(&path, Features::Native, &Spec::default()).unwrap();
         sheet_rule::assert_rule(file, &plan);
         assert_eq!(sheet(&plan), expected, "{file}: {}", plan.sheet.basis);
+        let analysis = api::analyse_from(&path, Features::Native).unwrap();
+        assert_eq!(
+            draftwright::sheet_fit::readability(&analysis, &plan).failures(),
+            0
+        );
+        if expected.0 != "A4" {
+            let compressed =
+                api::plan_analysed(&analysis, &spec(json!({"size":"A4", "scale":"1:1"}))).unwrap();
+            assert!(
+                draftwright::sheet_fit::readability(&analysis, &compressed).steps > 0,
+                "{file}"
+            );
+            assert!(plan.sheet.basis.contains("A4 multi-sheet:"));
+        }
     }
+}
+
+/// A newly measured step failure cannot buy a long or obstructed callout. The
+/// established A4 drawing remains a reported refusal when all readable
+/// enlargements violate the independent, unchanged leader quality limits.
+#[test]
+fn an_exhausted_step_search_reports_its_retained_a4_failure() {
+    let Some(dir) = corpus::dir() else { return };
+    let path = dir.join("mfcadpp/10063.step");
+    let plan = api::plan_from(&path, Features::Native, &Spec::default()).unwrap();
+    let analysis = api::analyse_from(&path, Features::Native).unwrap();
+    assert_eq!(sheet(&plan), ("A4", "1:1"));
+    assert!(draftwright::sheet_fit::readability(&analysis, &plan).steps > 0);
+    assert!(
+        plan.problems
+            .iter()
+            .any(|p| p.code == "layout_recovery_exhausted" && p.severity == "warning")
+    );
+    assert!(!plan.problems.iter().any(|p| p.code.ends_with("_dropped")
+        || matches!(
+            p.code.as_str(),
+            "annotation_off_sheet" | "annotation_over_title_block"
+        )));
+    for paper in ["A4", "A3", "A2", "A1", "A0"] {
+        assert!(
+            plan.sheet.basis.contains(&format!("{paper} multi-sheet:")),
+            "{}",
+            plan.sheet.basis
+        );
+    }
+    assert!(
+        plan.sheet
+            .basis
+            .contains("leader length exceeds retained route by more than 2 mm")
+    );
+    sheet_rule::assert_rule("10063", &plan);
 }
 
 /// The non-veto case of `test_recovery_does_not_trade_a_required_drop_for_unreadable_ink`: an
@@ -410,12 +466,11 @@ fn every_planning_entry_point_applies_the_recovery() {
     assert_eq!(named.sheet.size, "A2");
 }
 
-/// Native FTC-07's smallest complete fit is A2 at 1:2. A1 at 1:1 would be allowed only
-/// because it is its immediate neighbour and enlarges the dimensioned views; since the Stage H
-/// chain rules (h-chains) its A1 1:1 drawing lays a pitch line through a hole callout (a hard
-/// finding), so it is no candidate and the smallest fit is kept.
+/// FTC-07 retains its established fitting A2 1:2 drawing when no supported
+/// standard sheet meets the stronger readability floor. Larger partial trials
+/// must not replace its measurements or buy paper without a clean readable result.
 #[test]
-fn ftc07_uses_one_paper_step_only_with_enlargement() {
+fn ftc07_reports_its_readability_refusal_on_the_established_fitted_sheet() {
     let Some(dir) = corpus::dir() else {
         return;
     };
@@ -430,15 +485,28 @@ fn ftc07_uses_one_paper_step_only_with_enlargement() {
     };
     let chosen = api::plan_analysed(&analysis, &never).unwrap();
     assert_eq!(sheet(&chosen), ("A2", "1:2"));
-    assert!(chosen.sheet.basis.contains("smallest fit A2 at 1:2"));
+    assert!(
+        chosen
+            .sheet
+            .basis
+            .starts_with("readability refusal on A2 at 1:2")
+    );
+    assert!(draftwright::sheet_fit::readability(&analysis, &chosen).failures() > 0);
+    assert!(
+        chosen
+            .problems
+            .iter()
+            .any(|p| p.code == "layout_recovery_exhausted" && p.severity == "warning")
+    );
     sheet_rule::assert_rule("ftc07", &chosen);
-    let a1 = chosen
-        .sheet
-        .basis
-        .split("; ")
-        .find(|c| c.starts_with("A1 1:1 "))
-        .unwrap_or_else(|| panic!("{}", chosen.sheet.basis));
-    assert!(a1.contains("hard layout finding"), "{a1}");
+    assert!(
+        chosen
+            .sheet
+            .basis
+            .contains("A1 1:1 (dimensioned step span fails its paper-space floor"),
+        "{}",
+        chosen.sheet.basis
+    );
     let first =
         model::plan_escalated(&analysis, &spec(json!({"size":"A3", "scale":"1:5"}))).unwrap();
     let again = model::recover(&analysis, &Spec::default(), first).unwrap();
@@ -527,4 +595,83 @@ fn composed_corridors_clear_a_previously_overlapping_off_part_fixture() {
             .any(|p| p.code == "annotation_off_sheet")
     );
     sheet_rule::assert_follows("1004 stand-in", &plan, ("A4", "2:1"));
+}
+
+/// A raw seed can have worse routes than its established fitted drawing. The
+/// quality comparison must use the fitted reference, preserving exact pairs.
+#[test]
+fn a_fitted_route_reference_keeps_pair_identity_without_restoring_raw_crossings() {
+    fn pairs(p: &Plan) -> std::collections::BTreeSet<(String, Vec<String>, Vec<String>)> {
+        p.problems
+            .iter()
+            .filter(|q| {
+                q.severity != "info"
+                    && (q.code.starts_with("annotation_")
+                        || matches!(
+                            q.code.as_str(),
+                            "leader_through_feature" | "extension_through_feature"
+                        ))
+            })
+            .map(|q| (q.code.clone(), q.subjects.clone(), q.refs.clone()))
+            .collect()
+    }
+    fn measurements(p: &Plan) -> std::collections::BTreeSet<(String, String)> {
+        p.dimensions
+            .iter()
+            .filter(|d| d.placed.is_some())
+            .flat_map(|d| &d.measurements)
+            .map(|m| (m.feature.clone(), m.parameter.clone()))
+            .collect()
+    }
+    let Some(dir) = corpus::dir() else { return };
+    let a = api::analyse_from(&dir.join("mfcadpp_holdout/419.step"), Features::Native).unwrap();
+    let reference = api::plan_analysed(&a, &spec(json!({"size":"A3", "scale":"2:1"}))).unwrap();
+    let p = api::plan_analysed(&a, &Spec::default()).unwrap();
+    assert_eq!(sheet(&p), ("A4", "1:1"));
+    assert_eq!(
+        pairs(&reference)
+            .iter()
+            .filter(|(code, _, _)| code == "annotation_leader_crossing")
+            .count(),
+        0
+    );
+    assert!(pairs(&p).is_subset(&pairs(&reference)));
+    assert!(measurements(&reference).is_subset(&measurements(&p)));
+    assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
+
+    use std::io::Read as _;
+    let mut data = Vec::new();
+    flate2::read::GzDecoder::new(
+        include_bytes!("fixtures/pmi/step/assembly_plate_pin.step.gz").as_slice(),
+    )
+    .read_to_end(&mut data)
+    .unwrap();
+    let (_, a) =
+        model::analyse_native_step(std::path::Path::new("assembly_plate_pin.step"), &data).unwrap();
+    let reference = api::plan_analysed(&a, &spec(json!({"size":"A4", "scale":"1:5"}))).unwrap();
+    let p = api::plan_analysed(&a, &Spec::default()).unwrap();
+    assert_eq!(sheet(&p), ("A4", "1:5"));
+    // A fully pinned pair deliberately keeps a different frame. The route
+    // reference is the actual fitted drawing archived from the pre-policy base.
+    let saved: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/sheet_policy_routes.json")).unwrap();
+    assert_eq!(
+        a.binding.source_sha256,
+        saved["source_sha256"].as_str().unwrap()
+    );
+    let expected: std::collections::BTreeSet<(String, Vec<String>, Vec<String>)> =
+        serde_json::from_value(saved["pairs"].clone()).unwrap();
+    assert_eq!(pairs(&p), expected);
+    assert!(measurements(&reference).is_subset(&measurements(&p)));
+    assert_eq!(
+        p.gdt.iter().filter(|g| g.placed.is_some()).count(),
+        reference.gdt.iter().filter(|g| g.placed.is_some()).count()
+    );
+    assert!(draftwright::sheet_fit::readability(&a, &p).failures() > 0);
+    assert!(
+        p.problems
+            .iter()
+            .any(|q| q.code == "layout_recovery_exhausted"
+                && q.message.contains("without new crossing pairs"))
+    );
 }

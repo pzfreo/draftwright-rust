@@ -623,10 +623,21 @@ fn r5_paper_runs_before_a_further_sheet() {
     );
     let p = model::plan_recovered(&a, &s).unwrap();
     assert!(p.sheet.scale_factor >= 5.);
-    assert_ne!(p.sheet.size, "A4");
-    assert!(p.sheets.is_empty());
-    assert!(p.sheet.basis.contains("smallest fit"));
-    assert!(p.sheet.basis.contains("step 0: 0 hard findings"));
+    assert_eq!(p.sheet.size, "A4");
+    assert_eq!(p.sheet.scale, "5:1");
+    assert_eq!(p.sheets.len(), 1);
+    assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
+    assert!(p.sheet.basis.contains("R5 allocation before larger paper"));
+    assert!(p.tables.iter().any(|t| t.id == "t:1" && t.placed.is_some()));
+    assert!(!p.problems.iter().any(|p| {
+        [
+            "table_not_placed",
+            "annotation_off_sheet",
+            "views_overlap",
+            "view_on_title_block",
+        ]
+        .contains(&p.code.as_str())
+    }));
 }
 
 #[test]

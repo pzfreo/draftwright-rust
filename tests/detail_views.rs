@@ -165,7 +165,13 @@ fn bare_dimension_pins_keep_recoverys_detail_selection_and_ink() {
     let Some(dir) = corpus::dir() else { return };
     let (_, a) = model::analyse_native(&dir.join("mfcadpp/10046.step")).unwrap();
     let base = model::plan_recovered(&a, &Spec::default()).unwrap();
-    assert!(base.views.iter().all(|v| v.detail.is_none()));
+    // The screen-first policy needs this crop to carry readable A4 principals;
+    // a bare pin must retain that recovered choice just as it retained A3 before.
+    assert_eq!(
+        (base.sheet.size.as_str(), base.sheet.scale.as_str()),
+        ("A4", "1:1")
+    );
+    assert_eq!(base.views.iter().filter(|v| v.detail.is_some()).count(), 1);
     assert!(base.problems.iter().all(|p| !matches!(
         p.code.as_str(),
         "annotation_over_view" | "annotation_line_over_view"

@@ -89,8 +89,9 @@ fn editor_spindle_g6_label_clears_dimension_lines_and_arrows() {
     let mut spec = Spec::default();
     spec.sheet.fit_deviations = Some(true);
     let plan = model::plan_recovered(&a, &spec).unwrap();
-    assert_eq!(plan.sheet.size, "A3");
-    assert_eq!(plan.sheet.scale, "2:1");
+    assert_eq!(plan.sheet.size, "A4");
+    assert_eq!(plan.sheet.scale, "1:1");
+    assert_eq!(draftwright::sheet_fit::readability(&a, &plan).failures(), 0);
     clear_label(
         &plan,
         "d:f:turned_step:1/step.diameter",

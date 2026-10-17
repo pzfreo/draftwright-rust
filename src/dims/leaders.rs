@@ -4024,7 +4024,7 @@ fn segment_near(s: [P2; 2], b: [f64; 4]) -> bool {
 
 /// The distance within which two parallel lines read as one, and how long they must run together
 /// to, mm.
-const ALONG: f64 = 1.0;
+pub(super) const ALONG: f64 = 1.0;
 const ALONG_RUN: f64 = 0.5;
 
 /// Whether two lines' ink meets: they cross ([`segments_cross`]), or run along each other (a

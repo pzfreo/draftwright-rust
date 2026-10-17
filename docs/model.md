@@ -487,9 +487,10 @@ not relax safety margins or change sheet-size, scale, detail, fit or datum polic
 #### Sheet allocation (R5, Stage I)
 
 `sheets.max` allows 1–9 sheets. An explicit count is binding. With no count,
-the normal search starts with one sheet; a small part with no valid complete A4/A3
-single-sheet drawing tries R5 allocation on A4/A3 before A2 or larger (up to the
-existing nine-sheet bound). Named paper keeps the original default of one.
+the normal search tries a single clean readable A4 drawing, then the existing R5
+allocation on A4 before A3. Each paper exhausts its readable single-sheet and
+multi-sheet trials before larger paper, up to the existing nine-sheet bound.
+Named paper keeps the original default of one.
 See the [R5 small-part amendment](adr/R5-multi-sheet.md#small-part-overflow-amendment-2026-10-16). `sheets.smallest_scale` is an ISO
 5455 scale floor, `keep_together` is a list of groups of view names (also allowing
 `hole_table`), `hole_table` assigns a rescue hole table if escalation actually makes
@@ -892,38 +893,181 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
 - **Nothing the plan approves vanishes silently.** An item that can't be drawn is reported
   against its ID, never dropped. This is carried over from the Python version's ADR 4
   invariant 9.
-- **Automatic sheet and scale are chosen on finished drawings** (maintainer, 2026-10-12,
-  H6; `model::plan_recovered` / `model::recover`, policy in `sheet_fit::choose`). Each
-  standard sheet and scale at or above the legibility floor is planned and judged. A
-  candidate is valid and complete when it has no hard layout finding, its drawn items and
-  views fit inside the border and off the title block, it drops or loses no measurement
-  the first plan carried, every GD&T item is drawn, and it lays no more annotations over
-  another view than the first plan. The smallest fit is the smallest sheet with a valid
-  complete candidate, at its largest such scale. Only that pair and the next larger sheet
-  at a larger scale compete. Against a valid first plan, an allowed pair that adds material
-  crossings (a leader or witness through a feature) is set aside; this never changes which
-  pair is the smallest fit, and if every allowed pair adds them the valid first plan is
-  kept. Among the rest, in
-  `sheet_fit::FILL_BAND` (initially 60–85%) the larger scale wins, then the smaller sheet;
-  if none reaches the band, the fullest wins. A Spec-named sheet keeps its sheet and
-  chooses its scale by the same ranking; a named scale or pinned placement is not
-  re-planned. On the larger neighbour the orientation view keeps the smallest fit's
-  paper scale, so the extra paper goes to the dimensioned views.
-  `sheet.fill` is the union of each drawn item's bounding footprint (view envelopes,
-  dimensions with witnesses, leaders and arrows, GD&T, notes, tables, balloons and the
-  scale/projection/section furniture), with 1 mm clearance, inside the border and
-  excluding the drawn title grid. Reserved bands never count. `sheet.basis` lists every
-  measured candidate's fill and findings. The legibility floor
-  (`sheet_fit::min_legible_scale`) keeps the smallest hole or slot opening at least
-  0.8 mm and the longest extent at least 20 mm on paper, and never goes below 1:10. If
-  no candidate is valid and complete, the first drawing and its findings are kept on
-  its own sheet, with `layout_recovery_exhausted`: a warning when that drawing is below
-  the legibility floor, otherwise info. Only a first drawing below 1:10 is redrawn at
-  1:10 on its sheet. A GD&T layout may also be composed from settled view blocks of a
-  same-scale A0 template, moving witnesses, leaders and frames with their view; one
-  measured correction may lift a free projection row and refit its orientation view.
-  Every title-block collision lifts the row, even when the resulting overflow must be
-  reported. Nothing is clipped.
+- **Automatic paper is a real cost** (maintainer, 2026-10-17;
+  `model::recover`, `sheet_fit`, `sheets::paper_fallback`). Search A4 at the largest
+  clean, readable standard scale first. Before A3, try the existing R5 cumulative
+  allocation on A4: auxiliary views, sections, details, tables and control views
+  retain their established grouping, packing and cross-references. Exhaust each
+  paper size in this order before A2/A1/A0. Larger paper requires a failed smaller
+  paper fit/readability test; a marginal fill gain never purchases larger paper.
+  Candidate histories record actual fit, measurement retention and separate
+  readability counts. The material-crossing ratchet against a valid fitted seed
+  remains. The established fitted drawing also supplies the exact crossing-pair
+  reference: improving the raw seed cannot restore its worse routes, and fewer
+  crossings cannot pay for a newly obstructed dimension or feature association.
+  Explicit paper, scale, sheet limits, assignments and pins retain priority.
+  An authored scale with automatic paper still tries multi-sheet A4 before A3;
+  the scale itself is preserved.
+  Version-1 Spec keys are migrated before recovery; restoring user intent after
+  temporary search controls preserves canonical keys and revision bindings.
+  Underestimated annotation bands reuse the existing settled-block packing,
+  moving entire carriers without rerouting any witness or leader. Actual fit,
+  measurement retention, readability and physical findings are checked again;
+  authored frames and details are left intact.
+  Optional details are tried only when an ordinary drawing cannot provide the
+  smaller readable paper; authored details remain explicit intent.
+
+  Native-recess integration preserves the established scale cap for fill-driven
+  growth; a measured readability failure may still request necessary enlargement.
+  A fallback cannot buy larger paper without reducing its readability failures.
+  Before spending paper, bounded free-dimension trials can separate overlapping
+  parallel spans, move an exterior stack just far enough to meet its first-line
+  clearance while preserving seven-millimetre gaps, and put text cleanly outside
+  its arrows. Movement is limited to two existing lanes (14 mm). Authored placements
+  stay fixed. Every accepted repair strictly improves readability, retains all
+  measurements, fits the drawing, and adds no drawing or leader-route finding.
+
+  Readability is measured in the owning view's paper millimetres:
+  `MIN_OPENING = 2.0` for a dimensioned hole/slot; `MIN_STEP_SPAN = 2.1` (the
+  existing printed capital height) for a dimensioned turned interval, including
+  baseline intervals. Prismatic steps and differences between baseline heights
+  use 2.0 mm, preserving a real 2 mm wall at 1:1. Linear text must clear its own extension lines: between
+  inward arrows it needs its actual ink width plus two 2.7 mm arrowheads; outside
+  arrows or outside text are accepted with clean clearance. Aligned dimensions are
+  measured in their rotated frame using actual label ink. External dimensions
+  need the existing `dims::FIRST = 10.0` mm witness offset and overlapping parallel
+  spans need `dims::LANE = 7.0` mm separation. Interior placements use their
+  established material-clearance checks. `MIN_DEPICTION_GAP = 0.7` mm keeps
+  thread root/crest strokes and modelled repetitive cylindrical ink apart;
+  cosmetic knurls already enforce 3 mm spacing. Four evenly spaced coaxial
+  strips identify modelled repetitive ink, avoiding tessellation chord lengths
+  and ordinary isolated shoulders. No manufacturing designation is inferred.
+  These floors preserve the existing step/font and ISO lane measures while
+  strengthening the former 0.8 mm opening floor for screen and ordinary-printer
+  reading. The longest principal extent remains at least 20 mm, with an absolute
+  automatic scale floor of 1:10.
+
+  `sheet.fill` is the union of drawn-item footprints (including witnesses,
+  leaders, arrows and furniture), with 1 mm clearance inside the border and
+  excluding the title grid. Reserved bands never count. The existing 60% lower
+  target is a **floor triggering enlargement on the same paper**, including
+  multi-sheet allocation; 85% remains a saturation guide. If no enlarged clean
+  readable allocation fits, keep the largest clean readable scale on that paper
+  and explicitly report that the fill floor is unattainable. Increasing paper
+  to chase fill would contradict the paper-cost order. No quality baseline or
+  collision threshold is relaxed for an underfilled drawing.
+
+  A source-PMI refusal that is identical on the seed and allocated drawing
+  (`pmi_not_lowered`, including source refs, subjects, severity and explanation)
+  remains reported but cannot justify buying larger paper. New or changed
+  refusals still block allocation, as do all physical/layout errors.
+
+  A complete candidate retains every required measurement and GD&T item, fits
+  actual drawn bounds, and adds no foreign-view conflicts. When no clean readable
+  candidate exists, an established fitted drawing is retained with an explicit
+  `layout_recovery_exhausted` warning. The historical comparator is used only to
+  reconstruct fitted route references and refusal geometry; it never ranks
+  qualified readable drawings. Retaining an already clean readable reference
+  does not create a readability warning. An automatic reference below 1:10
+  cannot restore a sub-floor scale when even the largest sheet overflows.
+  The old 0.8 mm opening preparation floor remains for arranging legacy control
+  frames, separately from the new 2 mm acceptance floor, so a new diagnostic does
+  not reflow a fixed or refused drawing. Below-floor candidates cannot qualify as
+  clean readable drawings. If no established fitted candidate exists, the fallback
+  preserves measurements on physically fitting paper and reports its remaining
+  failures rather than returning an off-paper raw estimate.
+
+  Optional crops keep the existing annotation/material-crossing quality veto.
+  Enlargement trials preserve each seed annotation limit, including when an
+  optional crop is omitted, declined or never requested. A readable reduction
+  keeps the ordinary-layout ratchet: avoiding a raw estimate's obstructed routes
+  must not force the drawing back onto its larger paper.
+  Incomplete and scheduled-row recovery trials compare each annotation/material
+  finding type independently; fewer crossings do not pay for a new long leader.
+  Paper/scale changes also protect leader associations: no new 1 mm padded
+  text/extension contact, no new exact annotation/feature finding, and no moved
+  route running for more than 2 mm within 0.3 mm of projected model/extension ink.
+  This includes existing principal-profile tangent evidence for conical and other
+  curved silhouettes, plus square-on cylindrical generators clipped to trimmed
+  face evidence and detail crops, rather than B-rep edges alone.
+  A route on an already globally legible drawing cannot grow by more than 2 mm.
+  Growth from below the global feature/depiction floor may require longer clear
+  travel to the enlarged model's exterior, but no readability component may get
+  worse and every contact, finding and parallel-run limit remains independent.
+  The search tries the other established arrangements before rejecting paper. It
+  can shorten a clear outgoing shaft or transport a proven attachment and its
+  paper-space elbow/label offset, then repeats placement, retention, bounds and
+  readability checks. Failed alternatives are discarded. Each sheet has independent
+  coordinates; an unchanged pre-existing run is allowed only while it does not grow.
+  Impossible principal projection rows/columns are rejected before solving, as are
+  scales below the preparation floor once a complete fitted drawing exists; these
+  trials can qualify neither readability nor the historical retained reference.
+  A complete readable ordinary layout keeps the established placement pipeline,
+  rather than comparing its routes with an unreadably compressed raw estimate.
+  Settled GD&T blocks can still be composed from a same-scale A0 template and moved
+  as whole blocks. Every title collision lifts the row even when overflow must be
+  reported; nothing is clipped. A fully located counted pattern with its pitches
+  carries its members' coordinate requirements. A dimensioned central bore with a
+  drawn common axis carries its concentric location, without redundant half-OD
+  box coordinates. Neither equivalence is inferred from equal numbers alone.
+
+  Schedule recovery retains installed row measurements. If enlargement clears
+  the original schedule trigger, the same selector and installer retry those
+  rows at readable scales on each paper, including the existing allocation,
+  before larger paper. A smaller still-readable scale may carry the complete
+  schedule more cleanly. Failed presentation trials retain the original rows and
+  tags and report the refusal. Exact selector inputs key per-call candidate
+  preparation so repeated allocation prefixes do not repeat the same planning.
+  A complete ordinary single-sheet A4 keeps optional details out. A larger
+  ordinary drawing or an existing allocation still allows a necessary crop to
+  reach cheaper paper or fewer sheets. That comparison exhausts only the paper
+  sizes that can improve this cost; details never justify a same-cost drawing
+  solely for scale or fill.
+  Historical reconstruction includes the original ordinary-before-optional
+  detail choice and reinstates a fitted seed's material-crossing veto after
+  practical paper is exhausted. A declined automatic crop must not change the
+  published reference's diagnostics or introduce new crossing pairs.
+  R5 exhausts paper and standard scales outside its main-sheet solver: each
+  prefix solves that trial's exact scale, rather than starting another scale
+  ladder or historical-reference search. The complete assembled drawing still
+  passes every information, fit, readability and retained-route gate. Projected
+  route ink is cached under its complete view/crop/extension inputs; a bounded
+  spatial index accelerates the same finite-strip calculation, with exhaustive
+  fallbacks for long segments and wide queries.
+  Settled readability and route comparisons are memoized by actual dimensions,
+  balloons, view transforms, crops, depiction style and scale-floor inputs;
+  diagnostic history never substitutes for geometry. Scale and stroke edits
+  invalidate these measurements. A step-floor preflight grants each potentially
+  owned measurement an independent crop at the largest available requested
+  scale; an unrelated crop cannot defer that step's test. The historical
+  reference and authored crops retain their established handling. Internal candidates share only inert capacity
+  and unrequested crop controls; authored placements and text edits retain their
+  complete canonical inputs. An already optimal arrangement or packing rank
+  cannot improve through another identical solve. Settled preparation also shares
+  geometry across schedule policies and an absent versus matching current source
+  binding; the selected policy is restored before schedule selection. Foreign
+  bindings, automatic versus authored trials, crops, reservations and fallback
+  inputs remain distinct. Automatic R5 schedule seeds use the same exact-scale
+  preparation as other automatic candidates. Absent automatic crop controls share
+  preparation only after their carrier is absent; each request keeps its own Spec
+  and diagnostic prefix. Such a result is cached only when that prefix survived
+  unchanged. Final label settlement separately keys on dimension placement intent,
+  actual ink and fixed obstacles, physical paper/title bounds, sheet number and
+  view geometry; source diagnostics never enter that geometric operation.
+  That cache stores placements only, leaving each candidate's current measured
+  values, provenance and explanations intact.
+  Feature footprints share exact frame/scale projections across the finite
+  internal search; actual crop definitions and user intent separate retained
+  cache entries. Route comparisons build each page's extension inventory once;
+  geometric contact and parallel-run predicates remain unchanged. Final label
+  settlement rejects disjoint ink bounds before those predicates, padding by
+  the existing 1 mm parallel-contact strip and clearance. It constructs candidate
+  placements lazily in the original order. Exhaustive comparisons cover dense,
+  separated, rotated and pinned ink, including both sides of that contact limit.
+
+  An unpinned oblique-dimension side hint may yield to shorter clean witnesses
+  in the same sheet, scale and view frames. All measurements, control frames,
+  collision checks and pinned placements remain authoritative.
 - **A hole item with no place on the sheet is dropped and escalated** (the maintainer's decision
   of 2026-10-09, draftwright's `_prepare_hole_table_run`; `src/hole_table.rs`, applied to every
   plan the recovery judges by `model::plan_escalated`). A hole callout or hole location that

@@ -79,7 +79,7 @@ fn a_valid_candidate_crossing_two_views_is_rejected_even_when_the_planner_return
                 );
             }
         }
-        recover_uncached(&analysis, &Spec::default(), first).unwrap()
+        recover_uncached(&analysis, &Spec::default(), first, None).unwrap()
     });
     assert_eq!(over_views(&plan), 0);
     assert_ne!(

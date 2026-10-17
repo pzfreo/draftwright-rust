@@ -262,7 +262,11 @@ def collect(directory):
         name = Path(file).stem
         plan = json.loads((directory / (name+'.plan.json')).read_text())
         analysis = json.loads((directory / (name+'.analysis.json')).read_text())
-        out[name] = measures(plan, directory / (name+'.svg'), analysis)
+        out[name] = {}
+        for page in quality.page_plans(plan):
+            number = page['sheet'].get('number', 1)
+            suffix = '' if number == 1 else f'.sheet{number}'
+            out[name].update(measures(page, directory / (name+suffix+'.svg'), analysis))
     return out
 
 
@@ -275,8 +279,8 @@ def main():
     p.add_argument('--report', type=Path)
     args = p.parse_args()
     result = collect(args.drawings)
-    contacts = {name: quality.leader_on_extension(json.loads(
-        (args.drawings / (name+'.plan.json')).read_text())) for name in result}
+    contacts = {name: sum(quality.leader_on_extension(page) for page in quality.page_plans(json.loads(
+        (args.drawings / (name+'.plan.json')).read_text()))) for name in result}
     if args.record:
         args.record.write_text(json.dumps(dict(base='0419fa6c1ebc81226cb577639276ea45eb9df3a1', parts=result, contacts=contacts), indent=2, sort_keys=True)+'\n')
         return 0

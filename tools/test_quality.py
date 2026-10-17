@@ -21,6 +21,26 @@ routes = importlib.util.module_from_spec(route_spec)
 route_spec.loader.exec_module(routes)
 
 
+class SheetCoordinates(unittest.TestCase):
+    def test_identical_coordinates_only_conflict_on_the_same_page(self):
+        plan = dict(sheet=dict(number=1, title_block=[80, 80, 100, 100]),
+                    sheets=[dict(number=2, title_block=[80, 80, 100, 100])],
+                    views=[dict(id='front', sheet=1, area=[10, 10, 40, 40]),
+                           dict(id='detail', sheet=2, area=[10, 10, 40, 40])],
+                    dimensions=[dict(id='a', view='front'), dict(id='b', view='detail')])
+        self.assertEqual(quality.view_conflicts(plan), (0, 0))
+        self.assertEqual([[d['id'] for d in p['dimensions']] for p in quality.page_plans(plan)], [['a'], ['b']])
+        plan['hole_tables'] = [dict(id='schedule', sheet=2, view='front', blocks=[])]
+        pages = list(quality.page_plans(plan))
+        self.assertEqual(pages[0]['hole_tables'], [])
+        self.assertEqual([t['id'] for t in pages[1]['hole_tables']], ['schedule'])
+        # A table's datum view remains on page 1 when its blocks move to page 2.
+        plan['views'][1]['sheet'] = 1
+        self.assertEqual(quality.view_conflicts(plan), (1, 0))
+        plan['views'][1]['area'] = [85, 85, 95, 95]
+        self.assertEqual(quality.view_conflicts(plan), (0, 1))
+
+
 class LeaderRoutes(unittest.TestCase):
     def row(self, **changes):
         row = dict(length=10., run=0., route=[[0., 0.], [6., 6.]], label=[7., 5., 12., 8.],

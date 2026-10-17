@@ -450,7 +450,11 @@ pub(super) fn centered_short(p: &Placed) -> Option<Placed> {
     Some(c)
 }
 
-fn alternatives(p: &Placed, drawable: [f64; 4], others: &[&PlannedDimension]) -> Vec<Placed> {
+fn alternatives<'a>(
+    p: &'a Placed,
+    drawable: [f64; 4],
+    others: &[&PlannedDimension],
+) -> impl Iterator<Item = Placed> + use<'a> {
     alternatives_placed(
         p,
         drawable,
@@ -459,7 +463,6 @@ fn alternatives(p: &Placed, drawable: [f64; 4], others: &[&PlannedDimension]) ->
             .filter_map(|d| d.placed.as_ref())
             .collect::<Vec<_>>(),
     )
-    .collect()
 }
 
 pub(super) fn alternatives_placed<'a>(
@@ -562,11 +565,17 @@ pub(crate) fn settle_inventory(
         .filter_map(|(id, d)| d.place.as_ref().is_some_and(|p| p.pinned).then_some(id))
         .collect();
     let page = Page::new(analysis, sheet, views);
-    let key = serde_json::to_vec(&(pins, page, geometry(inventory), geometry(fixed)))
-        .expect("label settlement inputs serialize");
+    let key = serde_json::to_vec(&(
+        pins,
+        crate::planning::policy_key(analysis),
+        page,
+        geometry(inventory),
+        geometry(fixed),
+    ))
+    .expect("label settlement inputs serialize");
     let next: Vec<_> = crate::planning::memo(analysis, "settled-label-inventory", key, || {
         let mut next = inventory.to_vec();
-        settle_inventory_uncached(analysis, spec, sheet, views, &mut next, fixed);
+        settle_inventory_inner::<true>(analysis, spec, sheet, views, &mut next, fixed);
         next.into_iter().map(|d| d.placed).collect::<Vec<_>>()
     });
     for (d, placed) in inventory.iter_mut().zip(next) {
@@ -574,7 +583,7 @@ pub(crate) fn settle_inventory(
     }
 }
 
-fn settle_inventory_uncached(
+fn settle_inventory_inner<const BOUNDS: bool>(
     analysis: &Analysis,
     spec: &Spec,
     sheet: &PlannedSheet,
@@ -639,7 +648,7 @@ fn settle_inventory_uncached(
             .iter()
             .zip(&peer_bounds)
             .map(|(q, b)| {
-                if boxes_overlap(original_bounds, *b) {
+                if !BOUNDS || boxes_overlap(original_bounds, *b) {
                     contacts(p, q)
                 } else {
                     0
@@ -682,7 +691,7 @@ fn settle_inventory_uncached(
                 .zip(prepared)
                 .zip(&clearance)
                 .all(|((((q, before), peer), cached), margin)| {
-                    if !boxes_overlap(bounds, *peer) {
+                    if BOUNDS && !boxes_overlap(bounds, *peer) {
                         return true;
                     }
                     let contact = cached.contacts(c);
@@ -704,7 +713,7 @@ fn settle_inventory_uncached(
                 .iter()
                 .zip(&peer_bounds)
                 .zip(prepared)
-                .filter(|((_, b), _)| boxes_overlap(bounds, **b))
+                .filter(|((_, b), _)| !BOUNDS || boxes_overlap(bounds, **b))
                 .map(|((_, _), cached)| cached.contacts(c).count_ones() as usize)
                 .sum();
             // The caller still requires !span_bad(c), so a retained candidate's
@@ -737,7 +746,6 @@ fn settle_inventory_uncached(
                     .map(|q| LabelContacts::new(&lane, q))
                     .collect();
                 alternatives(&lane, page.drawable(), &others)
-                    .into_iter()
                     .find(|c| allowed(c, &prepared) && better(c, &prepared) && !span_bad(c))
             });
         if let Some(c) = found {
@@ -761,6 +769,159 @@ mod tests {
             "state": {"kind": "shown"}, "placed": p
         }))
         .unwrap()
+    }
+
+    #[test]
+    fn bounds_pruning_matches_exhaustive_settlement_for_dense_and_separated_ink() {
+        let analysis = model::analyse(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/plate.step"),
+        )
+        .unwrap()
+        .1;
+        let sheet: PlannedSheet = serde_json::from_value(json!({
+            "size":"A4", "page":[297,210], "scale":"1:1", "scale_factor":1,
+            "arrangement":"columns", "title_block":[200,10,287,40],
+            "default":true, "basis":"", "state":{"kind":"shown"}, "title":{}
+        }))
+        .unwrap();
+        for seed in 1..=48_u64 {
+            let mut state = seed;
+            let mut random = || {
+                state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+                (state >> 32) as f64 / u32::MAX as f64
+            };
+            let mut original = Vec::new();
+            let mut fixed = Vec::new();
+            let mut spec = Spec::default();
+            for i in 0..24 {
+                let x = 20.0 + (i % 3) as f64 * 75.0 + (random() * 10.0).floor();
+                let y = 30.0 + (i / 3) as f64 * 15.0 + (random() * 10.0).floor();
+                let width = 8.0 + (random() * 35.0).floor();
+                let mut p = Placed {
+                    lines: vec![
+                        [[x, y - 12.0], [x, y + 2.0]],
+                        [[x + width, y - 12.0], [x + width, y + 2.0]],
+                        [[x, y], [x + width, y]],
+                    ],
+                    arrows: vec![
+                        [[x, y], [x + 2.7, y]],
+                        [[x + width, y], [x + width - 2.7, y]],
+                    ],
+                    label_at: [x + 2.0, y + 1.0],
+                    label_box: [x + 2.0, y + 1.0, x + 14.0, y + 3.0],
+                    rotation: 0.0,
+                };
+                if i % 4 == 0 {
+                    for q in p.lines.iter_mut().chain(&mut p.arrows).flatten() {
+                        q.swap(0, 1);
+                    }
+                    p.label_at.swap(0, 1);
+                    p.label_box = [
+                        p.label_box[1],
+                        p.label_box[0],
+                        p.label_box[3],
+                        p.label_box[2],
+                    ];
+                    p.rotation = 90.0;
+                }
+                let kind = if i % 5 == 0 { "callout" } else { "linear" };
+                let id = format!("d:test:{i}/length");
+                let d = dimension(&id, kind, width, p);
+                if i % 7 == 0 {
+                    fixed.push(d);
+                } else {
+                    original.push(d);
+                }
+                if i % 6 == 0 {
+                    spec.dimensions
+                        .entry(id)
+                        .or_default()
+                        .place
+                        .get_or_insert_with(Default::default)
+                        .pinned = true;
+                }
+            }
+            let mut fast = original.clone();
+            let mut exhaustive = original;
+            settle_inventory_inner::<true>(&analysis, &spec, &sheet, &[], &mut fast, &fixed);
+            settle_inventory_inner::<false>(&analysis, &spec, &sheet, &[], &mut exhaustive, &fixed);
+            assert_eq!(fast, exhaustive, "seed {seed}");
+        }
+    }
+
+    #[test]
+    fn bounds_keep_near_parallel_contacts_across_the_original_strip_boundary() {
+        let analysis = model::analyse(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/plate.step"),
+        )
+        .unwrap()
+        .1;
+        let sheet: PlannedSheet = serde_json::from_value(json!({
+            "size":"A4", "page":[297,210], "scale":"1:1", "scale_factor":1,
+            "arrangement":"columns", "title_block":[200,10,287,40],
+            "default":true, "basis":"", "state":{"kind":"shown"}, "title":{}
+        }))
+        .unwrap();
+        for gap in [0.7, 0.999999, 1.0, 1.000001] {
+            let size = dimension(
+                "d:test/length",
+                "linear",
+                20.0,
+                Placed {
+                    lines: vec![
+                        [[20.0, 10.0], [20.0, 30.0]],
+                        [[40.0, 10.0], [40.0, 30.0]],
+                        [[20.0, 30.0], [40.0, 30.0]],
+                    ],
+                    arrows: vec![[[20.0, 30.0], [22.7, 30.0]], [[40.0, 30.0], [37.3, 30.0]]],
+                    label_at: [25.0, 25.0],
+                    label_box: [25.0, 25.0, 35.0, 27.0],
+                    rotation: 0.0,
+                },
+            );
+            let fixed = vec![dimension(
+                "pmi:datum:test",
+                "callout",
+                0.0,
+                Placed {
+                    lines: vec![[[21.0, 30.0 + gap], [39.0, 30.0 + gap]]],
+                    arrows: vec![],
+                    label_at: [40.1, 29.5 + gap],
+                    label_box: [40.1, 29.5 + gap, 46.1, 31.5 + gap],
+                    rotation: 0.0,
+                },
+            )];
+            let mut fast = vec![size.clone()];
+            let mut exhaustive = vec![size];
+            settle_inventory_inner::<true>(
+                &analysis,
+                &Spec::default(),
+                &sheet,
+                &[],
+                &mut fast,
+                &fixed,
+            );
+            settle_inventory_inner::<false>(
+                &analysis,
+                &Spec::default(),
+                &sheet,
+                &[],
+                &mut exhaustive,
+                &fixed,
+            );
+            assert_eq!(fast, exhaustive, "gap {gap}");
+            assert_eq!(
+                fast[0].placed.as_ref().unwrap().arrows[0][0][1],
+                if gap <= super::super::leaders::ALONG {
+                    37.0
+                } else {
+                    30.0
+                },
+                "gap {gap}"
+            );
+        }
     }
 
     #[test]
@@ -938,8 +1099,7 @@ mod tests {
         ));
         assert!(
             alternatives(p, [10.0, 10.0, 287.0, 200.0], &[&fixed[0]])
-                .iter()
-                .all(|c| contacts(c, &fixed[0]) != 0),
+                .all(|c| contacts(&c, &fixed[0]) != 0),
             "no along-span alternative is clear"
         );
         let mut items = original.clone();
