@@ -99,6 +99,9 @@ fn grm03_prefers_larger_principals_without_losing_measurements() {
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
         ("A3", "10:1")
     );
+    // Remeasured A3 10:1 crop-free drawing: 60.95% of usable paper.
+    let fill = draftwright::sheet_fit::fill(&a, &p);
+    assert!((0.60..=0.85).contains(&fill), "GRM-03 fill {fill:.4}");
     assert!(p.views.iter().all(|v| v.detail.is_none()));
     assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
     sheet_rule::assert_rule("grm03", &p);

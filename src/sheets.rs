@@ -574,7 +574,10 @@ pub(crate) fn small_fallback(
 /// The supplement search uses the recovery's actual-ink and measurement-retention gates.
 fn small_content_fits(analysis: &Analysis, required: &Plan, plan: &Plan) -> bool {
     model::findings(plan).clean()
-        && crate::sheet_fit::illegible_steps(analysis, plan) == 0
+        // An authored small scale may already have under-floor steps. A rescue
+        // must not add any, but preserving those steps cannot force larger paper.
+        && crate::sheet_fit::illegible_steps(analysis, plan)
+            <= crate::sheet_fit::illegible_steps(analysis, required)
         && model::carries_required(required, plan)
         && model::drawn_sheets_fit(analysis, plan)
         && model::over_views(plan) <= model::over_views(required)
@@ -1592,6 +1595,43 @@ pub(crate) fn overlap(a: [f64; 4], b: [f64; 4]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explicit_under_floor_steps_do_not_block_small_sheet_rescue() {
+        let (_, a) = model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/k5/turned-step-repeated-lengths.step"),
+        )
+        .unwrap();
+        let mut spec = Spec::default();
+        spec.sheet.scale = Some("1:10".into());
+        let mut seed_spec = spec.clone();
+        seed_spec.sheet.size = Some("A2".into());
+        let seed = model::plan_escalated(&a, &seed_spec).unwrap();
+        assert!(crate::sheet_fit::illegible_steps(&a, &seed) > 0);
+        assert!(model::fits_a3_at_full_size(&a, &seed));
+        // The A3 candidate already meets every gate except inherited step legibility.
+        let mut small_spec = spec.clone();
+        small_spec.sheet.size = Some("A3".into());
+        let small = allocate_inner(&a, &small_spec, Some(&seed)).unwrap();
+        assert!(model::findings(&small).clean());
+        assert!(model::carries_required(&seed, &small));
+        assert!(model::drawn_sheets_fit(&a, &small));
+        assert!(model::over_views(&small) <= model::over_views(&seed));
+        assert!(!small.problems.iter().any(blocks_small_plan));
+        assert!(crate::sheet_fit::illegible_steps(&a, &small) > 0);
+        let mut tried = Vec::new();
+        let rescued =
+            small_fallback(&a, &spec, &seed, &mut tried).unwrap_or_else(|| panic!("{tried:?}"));
+        assert!(["A4", "A3"].contains(&rescued.sheet.size.as_str()));
+        assert_eq!(rescued.sheet.scale, "1:10");
+        assert!(model::carries_required(&seed, &rescued));
+        assert!(model::drawn_sheets_fit(&a, &rescued));
+        assert!(
+            crate::sheet_fit::illegible_steps(&a, &rescued)
+                <= crate::sheet_fit::illegible_steps(&a, &seed)
+        );
+    }
 
     #[test]
     fn long_table_preflight_reserves_an_exclusive_sheet() {
