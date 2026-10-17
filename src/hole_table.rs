@@ -825,9 +825,10 @@ fn rows(
         }
     }
     for (i, d) in &locations {
-        if d.measurements
-            .iter()
-            .all(|m| tabulated.contains(m.feature.as_str()))
+        if !crate::label_text::overridden(d)
+            && d.measurements
+                .iter()
+                .all(|m| tabulated.contains(m.feature.as_str()))
         {
             replace.push(*i);
         }
@@ -2171,7 +2172,8 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                 && d.from_spec
                     .iter()
                     .any(|s| matches!(s.as_str(), "fit" | "tolerance"));
-            if !pinned(plan, d) && !semantic && !authored_size {
+            if !pinned(plan, d) && !semantic && !authored_size && !crate::label_text::overridden(d)
+            {
                 replaced.insert(d.id.clone());
             }
         }
@@ -2278,6 +2280,7 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
             if d.view == view.id
                 && (!pinned(plan, d) || covered_pins.contains(&d.id))
                 && !d.from_spec.iter().any(|s| s == "tolerance")
+                && !crate::label_text::overridden(d)
                 && !d.measurements.is_empty()
                 && d.measurements.iter().all(|m| {
                     (features.contains(m.feature.as_str())

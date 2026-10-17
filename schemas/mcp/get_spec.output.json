@@ -28,18 +28,12 @@
               ],
               "properties": {
                 "smallest_scale": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "$ref": "#/B"
                 },
                 "keep_together": {
                   "type": "array",
                   "items": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
+                    "$ref": "#/A"
                   }
                 },
                 "gdt_on_sheet_1": {
@@ -48,7 +42,7 @@
               },
               "additionalProperties": false,
               "patternProperties": {
-                "^(max|hole_table)$": {
+                "^(max|hole_table)$(?!\n)": {
                   "enum": [
                     null,
                     1,
@@ -89,26 +83,21 @@
               },
               "additionalProperties": false,
               "patternProperties": {
-                "^(size|scale)$": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "^(fit_limits|fit_deviations|hidden|centre_marks|centre_lines|thread_depiction|knurl_depiction)$": {
+                "^(hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                   "type": [
                     "boolean",
                     "null"
                   ]
+                },
+                "^(size|scale)$(?!\n)": {
+                  "$ref": "#/B"
                 }
               }
             },
             "views": {
-              "type": "object",
               "additionalProperties": {
-                "type": "object",
                 "patternProperties": {
-                  "^(hidden|centre_marks|centre_lines|thread_depiction|knurl_depiction)$": {
+                  "^(hidden|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                     "type": [
                       "boolean",
                       "null"
@@ -117,11 +106,49 @@
                 }
               }
             },
-            "dimensions": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "object",
+            "dimension_source": {
+              "enum": [
+                "auto",
+                "authored"
+              ]
+            },
+            "hole_table": {
+              "enum": [
+                "auto",
+                "always",
+                "never"
+              ]
+            },
+            "feature_declarations": {
+              "items": {
                 "properties": {
+                  "faces": {
+                    "$ref": "#/A"
+                  }
+                },
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "required": [
+                  "id",
+                  "kind",
+                  "faces"
+                ],
+                "maxProperties": 3
+              }
+            },
+            "dimensions": {
+              "additionalProperties": {
+                "properties": {
+                  "text": {
+                    "$ref": "#/x"
+                  },
+                  "style": {
+                    "enum": [
+                      "reference",
+                      "basic"
+                    ]
+                  },
                   "kind": {
                     "enum": [
                       null,
@@ -154,75 +181,88 @@
                 }
               }
             },
-            "dimension_source": {
-              "enum": [
-                "auto",
-                "authored"
-              ]
-            },
-            "hole_table": {
-              "enum": [
-                "auto",
-                "always",
-                "never"
-              ]
+            "annotations": {
+              "additionalProperties": {
+                "properties": {
+                  "text": {
+                    "$ref": "#/x"
+                  }
+                }
+              }
             }
           },
           "additionalProperties": false,
           "patternProperties": {
-            "^(annotations|features|faces|dimension_schemes)$": {
+            "^(views|dimensions|annotations|features|faces|dimension_schemes)$(?!\n)": {
+              "type": "object",
               "additionalProperties": {
                 "type": "object"
-              },
-              "type": "object"
+              }
             },
-            "^(notes|tables|gears)$": {
+            "^(notes|tables|gears|feature_declarations)$(?!\n)": {
+              "type": "array",
               "items": {
                 "type": "object"
-              },
-              "type": "array"
+              }
             }
           }
         }
       },
-      "required": [
-        "spec_version",
-        "spec"
-      ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "minProperties": 2
     },
     {
-      "properties": {
-        "error": {
-          "type": "object",
-          "properties": {
-            "code": {
-              "enum": [
-                "invalid",
-                "failed"
-              ]
-            },
-            "message": {
-              "type": "string"
-            },
-            "choices": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "choices": {
+            "$ref": "#/A"
           },
-          "required": [
-            "code",
-            "message"
-          ],
-          "additionalProperties": false
-        }
+          "code": {
+            "enum": [
+              "invalid",
+              "failed"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
       },
       "required": [
         "error"
       ],
-      "additionalProperties": false
+      "maxProperties": 1
     }
-  ]
+  ],
+  "x": {
+    "type": "object",
+    "additionalProperties": {
+      "type": "string"
+    },
+    "propertyNames": {
+      "enum": [
+        "prefix",
+        "suffix",
+        "template"
+      ]
+    }
+  },
+  "A": {
+    "items": {
+      "type": "string"
+    },
+    "type": "array"
+  },
+  "B": {
+    "type": [
+      "string",
+      "null"
+    ]
+  }
 }

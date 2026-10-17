@@ -131,7 +131,7 @@ pub(super) fn feature(ids: &Identities, source: &str) -> String {
 }
 
 /// Whether a planned item is a basic PMI dimension: its label is then boxed.
-pub(super) fn basic(measurements: &[Measurement]) -> bool {
+pub(crate) fn basic(measurements: &[Measurement]) -> bool {
     measurements
         .iter()
         .any(|m| m.feature.starts_with("pmi:") && m.parameter.ends_with(".basic"))
@@ -1201,7 +1201,7 @@ pub const BOX_PAD: f64 = 0.75;
 
 /// A basic dimension's label box takes in its frame, so the collision checks see the ink drawn.
 pub(super) fn finish(out: &mut [super::PlannedDimension]) {
-    for d in out.iter_mut().filter(|d| basic(&d.measurements)) {
+    for d in out.iter_mut().filter(|d| crate::label_text::basic(d)) {
         if let Some(p) = &mut d.placed {
             let b = &mut p.label_box;
             *b = [

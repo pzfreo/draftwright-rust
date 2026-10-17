@@ -668,3 +668,84 @@ fn authored_aligned_span_clears_dimension_lines_extensions_and_arrowheads() {
         }
     }
 }
+
+#[test]
+fn authored_dimensions_keep_label_overrides_geometry_schema_and_live_lint() {
+    let (part, a) = plate();
+    let base = authored(&a);
+    let original = model::plan_recovered(&a, &base).unwrap();
+    let old = original
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:authored:width")
+        .unwrap();
+    let schema = draftwright::mcp::schema("get_spec", true).unwrap();
+    for style in ["basic", "reference"] {
+        let mut value = serde_json::to_value(&base).unwrap();
+        let entry = &mut value["dimensions"]["d:authored:width"];
+        entry["kind"] = json!("linear");
+        entry["text"] = json!({"prefix":"TYP", "suffix":"AFTER PLATING"});
+        entry["style"] = json!(style);
+        draftwright::mcp::validate(&schema, &json!({"spec_version":"v", "spec":value})).unwrap();
+        for (field, bad) in [
+            ("kind", json!("bad")),
+            ("between", json!([])),
+            ("along", json!("bad")),
+            ("text", json!({"suffix":42})),
+            ("style", json!("bad")),
+        ] {
+            let mut invalid = value.clone();
+            invalid["dimensions"]["d:authored:width"][field] = bad;
+            assert!(
+                draftwright::mcp::validate(&schema, &json!({"spec_version":"v", "spec":invalid}))
+                    .is_err(),
+                "{field}"
+            );
+        }
+        let spec: Spec = serde_json::from_value(value).unwrap();
+        let saved: Spec = serde_json::from_slice(&serde_json::to_vec(&spec).unwrap()).unwrap();
+        assert_eq!(spec, saved);
+        let plan = model::plan_recovered(&a, &saved).unwrap();
+        let d = plan.dimensions.iter().find(|d| d.id == old.id).unwrap();
+        let label = format!("TYP {} AFTER PLATING", old.label);
+        assert_eq!(
+            d.label,
+            if style == "reference" {
+                format!("({label})")
+            } else {
+                label
+            }
+        );
+        assert_eq!(d.value, old.value);
+        assert_eq!(d.measurements, old.measurements);
+        assert!(d.placed.is_some());
+        for field in [
+            "kind",
+            "between",
+            "along",
+            "text",
+            &format!("style.{style}"),
+        ] {
+            assert!(d.from_spec.iter().any(|f| f == field), "{field}");
+        }
+        let font = draftwright::text::Font::new(api::MONO.to_vec()).unwrap();
+        let drawing = model::render(&part, &a, &plan, &font).unwrap();
+        let mut marks = draftwright::lint::marks(&drawing);
+        assert!(
+            !draftwright::lint::check(&a, &marks)
+                .iter()
+                .any(|i| i.code == "authored_dimension_invalid")
+        );
+        assert!(
+            !draftwright::lint::structural::check(&drawing)
+                .iter()
+                .any(|i| i.code == "label_vs_measured")
+        );
+        marks.iter_mut().find(|m| m.name == old.id).unwrap().text = "999 ±0.1".into();
+        assert!(
+            draftwright::lint::check(&a, &marks)
+                .iter()
+                .any(|i| i.code == "authored_dimension_invalid")
+        );
+    }
+}

@@ -78,6 +78,7 @@ pub(super) fn apply(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<Cov
         return Ok(covered);
     }
     crate::dimension_scheme::check(s)?;
+    crate::dimension_scheme::check_binding(a, s)?;
     let old = wants.clone();
     let mut occupied: Vec<(usize, &'static str, f64, bool, String)> = Vec::new();
     let mut named_owners = BTreeMap::new();
@@ -88,19 +89,6 @@ pub(super) fn apply(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<Cov
             ))
         };
         let k = AXES.iter().position(|&k| k == d.axis).unwrap();
-        let generated_prefix = format!("d:scheme:{name}/");
-        let generated_edits = d.targets.is_empty()
-            && s.dimensions
-                .keys()
-                .chain(s.precision.keys())
-                .any(|id| id.starts_with(&generated_prefix));
-        if s.binding
-            .as_ref()
-            .is_some_and(|b| b.source_sha256 != a.binding.source_sha256)
-            && (generated_edits || d.targets.iter().chain(&d.from).any(|r| r.contains("f:")))
-        {
-            return Err(fail("Feature IDs belong to another STEP revision; replace them with current fingerprint references or explicitly rebind the Spec.".into()));
-        }
         if a.solid_count.is_some_and(|n| n > 1) {
             return Err(fail("A scheme needs one carrying solid; select a single part before authoring its station network.".into()));
         }
@@ -448,6 +436,8 @@ fn check_edits(s: &Spec, w: &Want) -> Result<(), Invalid> {
         || s.dimensions.get(&w.id).is_some_and(|d| {
             d.tolerance.is_some()
                 || d.fit.is_some()
+                || d.text.is_some()
+                || d.style.is_some()
                 || d.place.is_some()
                 || d.view.is_some()
                 || d.omit

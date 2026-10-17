@@ -532,3 +532,82 @@ fn fitting_authored_chain_links_share_one_dimension_line() {
         }
     }
 }
+
+#[test]
+fn recognition_split_and_scheme_label_edits_share_the_same_inventory() {
+    let (part, a) = part("mounting_plate");
+    let pattern = &a.recognition.as_ref().unwrap().patterns[0].id;
+    let mut s = whole("chain", "x", "plan", "min");
+    s.sheet.scale = Some("2:1".into());
+    s.features.insert(
+        pattern.clone(),
+        serde_json::from_value(json!({"split":true})).unwrap(),
+    );
+    let p = model::plan_recovered(&a, &s).unwrap();
+    let owner = p
+        .dimensions
+        .iter()
+        .find(|d| d.id.starts_with("d:scheme:"))
+        .unwrap();
+    let id = owner.id.clone();
+    s = p.spec.clone();
+    s.dimensions.insert(
+        id.clone(),
+        serde_json::from_value(json!({"text":{"prefix":"TYP"},"style":"basic"})).unwrap(),
+    );
+    let p = model::plan_recovered(&a, &s).unwrap();
+    let edited = p.dimensions.iter().find(|d| d.id == id).unwrap();
+    assert!(edited.label.starts_with("TYP "));
+    assert_eq!(edited.measurements, owner.measurements);
+    assert!(edited.from_spec.contains(&"text".into()));
+    assert!(edited.from_spec.contains(&"style.basic".into()));
+    assert!(
+        edited
+            .from_spec
+            .contains(&"dimension_schemes/locations".into())
+    );
+    assert_eq!(p.recognition_corrections.len(), 1);
+    let saved: Spec = serde_json::from_slice(&serde_json::to_vec(&p.spec).unwrap()).unwrap();
+    assert_eq!(
+        serde_json::to_value(&p).unwrap(),
+        serde_json::to_value(model::plan_recovered(&a, &saved).unwrap()).unwrap()
+    );
+    let effective = draftwright::spec_gdt::effective(&a, &p.spec).unwrap();
+    let font = draftwright::text::Font::new(api::MONO.to_vec()).unwrap();
+    let drawing = model::render(&part, &a, &p, &font).unwrap();
+    assert!(
+        !draftwright::lint::lint(&effective, &drawing)
+            .iter()
+            .any(|i| [
+                "dimension_scheme_invalid",
+                "closed_dimension_chain",
+                "label_vs_measured"
+            ]
+            .contains(&i.code.as_str()))
+    );
+    let mut marks = draftwright::lint::marks(&drawing);
+    marks.iter_mut().find(|m| m.name == id).unwrap().text = "TYP 999".into();
+    assert!(
+        draftwright::lint::check(&effective, &marks)
+            .iter()
+            .any(|i| i.code == "dimension_scheme_invalid")
+    );
+}
+
+#[test]
+fn recognition_rebinding_cannot_silently_refresh_rank_based_scheme_targets() {
+    let (_, a) = part("scattered_holes");
+    let holes: Vec<_> = a.features.iter().filter(|f| f.kind == "hole").collect();
+    let s = spec(json!({
+        "features":{&holes[0].id:{"suppress":true}},
+        "dimension_schemes":{"locations":{"scheme":"chain","axis":"x","view":"plan","targets":[holes[1].id]}}
+    }));
+    let mut saved = model::plan_recovered(&a, &s).unwrap().spec;
+    saved.binding.as_mut().unwrap().source_sha256 = "another-revision".into();
+    assert!(
+        model::plan_recovered(&a, &saved)
+            .unwrap_err()
+            .message
+            .contains("rebind")
+    );
+}

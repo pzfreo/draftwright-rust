@@ -12,6 +12,19 @@ All notable changes to draftwright-rust are recorded here, in the style of
   chosen-datum baseline and signed running ordinate, with stable references, session edits,
   one-owner networks and independent printed-link lint (#76 item 4).
 
+- Spec label wording under `dimensions/<id>/text` and prose `annotations/<id>/text`:
+  prefix/suffix or one `{value}` template retain every generated measured term. Explicit
+  dimension `style: reference | basic` draws parentheses or a box. Full ink drives placement;
+  plans expose the overrides and lint still reads live measured text (#76, item 5).
+- Session/editor text and style options use existing Spec operations, preview and history;
+  saved Specs round-trip and stale/merged label IDs are refused with a correction.
+  Large MCP option replies retain full structured data and a lossless text-channel resource.
+- Recognition corrections in the Spec (#76 item 2): reclassify supported cylindrical and
+  rectangular features, group holes as a linear/grid/bolt-circle pattern, split recognised
+  patterns, suppress spurious recognitions, and declare missed features from face fingerprints.
+  Geometry supplies every size; saved face anchors and authored IDs survive re-analysis.
+  Corrections share ordinary dimensions, schedules and independent lint, with `from_spec`
+  provenance, transactional editor operations and MCP schemas inside the existing byte budget.
 - Geometry-authored dimensions (`dimensions/d:authored:<name>`): principal or true distances,
   cylindrical/spherical diameters and radii, and planar-face/straight-edge angles, with stable
   fingerprint references, ordinary tolerance/placement, editor/session operations and independent
@@ -31,11 +44,15 @@ All notable changes to draftwright-rust are recorded here, in the style of
 - Additive Spec `dimension_schemes` map and scheme measurement claims; native and browser
   sessions share the same JSON vocabulary. Scheme fragment edits refresh placement options.
   Engine method signatures are unchanged.
+- Additive recognition-correction Spec fields and Plan provenance use the shared native
+  session model; binding methods and TypeScript signatures are unchanged.
 
 - Establish the reviewed TypeScript API snapshot and changelog gate, a measured WASM size
   ceiling, and warning-only cross-package quiddity pin checks in CI and release notes.
 - Additive Spec line-work switches and optional Plan view `line_style`/`from_spec`
   fields, shared with native sessions; no binding method changes.
+- Additive Spec text/style fields and annotation/note `from_spec` JSON provenance
+  through the existing session methods; no new JavaScript methods or signatures.
 - Spec JSON accepts authored dimension fields; Analysis/7 exposes optional exact
   dimension-reference evidence. Engine method signatures are unchanged.
 

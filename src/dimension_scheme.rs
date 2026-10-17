@@ -1,5 +1,5 @@
 //! Authored scheme intent; independent model-space station evidence lives on Analysis.
-use crate::model::{Invalid, Spec};
+use crate::model::{Analysis, Invalid, Spec};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -55,6 +55,31 @@ pub(crate) fn check(s: &Spec) -> Result<(), Invalid> {
             return Err(fail(
                 "references cannot be empty; use feature IDs or fingerprint keys from Analysis.edge_ink.references",
             ));
+        }
+    }
+    Ok(())
+}
+
+/// Check revision-sensitive scheme references before recognition binding can refresh binding.
+/// Fingerprint-only stations remain safe; feature ranks and whole-axis generated edits do not.
+pub(crate) fn check_binding(a: &Analysis, s: &Spec) -> Result<(), Invalid> {
+    if s.binding
+        .as_ref()
+        .is_none_or(|b| b.source_sha256 == a.binding.source_sha256)
+    {
+        return Ok(());
+    }
+    for (name, d) in &s.dimension_schemes {
+        let prefix = format!("d:scheme:{name}/");
+        let generated_edits = d.targets.is_empty()
+            && s.dimensions
+                .keys()
+                .chain(s.precision.keys())
+                .any(|id| id.starts_with(&prefix));
+        if generated_edits || d.targets.iter().chain(&d.from).any(|r| r.contains("f:")) {
+            return Err(invalid(format!(
+                "dimension_schemes/{name}: Feature IDs belong to another STEP revision; replace them with current fingerprint references or explicitly rebind the Spec. Correct the reference or remove dimension_schemes/{name}."
+            )));
         }
     }
     Ok(())
