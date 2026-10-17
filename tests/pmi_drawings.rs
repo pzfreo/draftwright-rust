@@ -21,11 +21,14 @@
 #[macro_use]
 mod support;
 
+#[path = "common/cache.rs"]
+mod cache;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
-use draftwright::model::{self, Analysis, Plan, Spec};
+use draftwright::model::{self, Analysis, Plan};
 use draftwright::output::Drawing;
 use draftwright::pmi::{Category, Reading, Record};
 use serde::Deserialize;
@@ -80,14 +83,20 @@ fn json_gz(path: &Path) -> Value {
 
 /// The part and its Analysis with Rust quiddity's features, from *bytes* (written to a scratch
 /// file of its own, as `analyse` reads a path).
-fn analysed(file: &str, bytes: &[u8]) -> (draftwright::haecceity::Part, Analysis) {
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("pmi_drawings");
+fn analysed_uncached(file: &str, bytes: &[u8]) -> (draftwright::haecceity::Part, Analysis) {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("pmi_drawings")
+        .join(std::process::id().to_string());
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join(file);
     std::fs::write(&path, bytes).unwrap();
     let out = model::analyse_native(&path).unwrap();
     std::fs::remove_file(&path).unwrap();
     out
+}
+
+fn analysed(file: &str, bytes: &[u8]) -> (std::sync::Arc<draftwright::haecceity::Part>, Analysis) {
+    cache::analysed(file, bytes, true, || analysed_uncached(file, bytes))
 }
 
 fn records(a: &Analysis) -> &[Record] {
@@ -704,7 +713,7 @@ fn one(file: &str, stem: &str, bytes: &[u8]) -> (Vec<Diff>, usize, String) {
     };
     assert_eq!(ids(&py, "items"), ids(&reading, "records"), "{file}");
     let (part, a) = analysed(file, bytes);
-    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let plan = cache::default_plan(&a, true);
     let drawing = drawn(&part, &a, &plan);
     let d = compare(file, &py, &reading, &a, &plan, &drawing);
     let n = py["items"].as_array().unwrap().len();

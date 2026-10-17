@@ -25,6 +25,9 @@ mod pdf;
 #[macro_use]
 mod support;
 
+#[path = "common/cache.rs"]
+mod cache;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
@@ -85,18 +88,22 @@ fn json_gz(path: &Path) -> Value {
 /// The part and its Analysis, with Rust quiddity's features (the CLI's default, and what
 /// draftwright's drawing correlates its PMI with), from *bytes* (written to a scratch file of its
 /// own, as `analyse` reads a path and the tests run in parallel).
-fn analysed(file: &str, bytes: &[u8]) -> (draftwright::haecceity::Part, Analysis) {
+fn analysed_uncached(file: &str, bytes: &[u8]) -> (draftwright::haecceity::Part, Analysis) {
     static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join("pmi_dimensions")
-        .join(n.to_string());
+        .join(format!("{}-{n}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join(file);
     std::fs::write(&path, bytes).unwrap();
     let out = model::analyse_native(&path).unwrap();
     std::fs::remove_file(&path).unwrap();
     out
+}
+
+fn analysed(file: &str, bytes: &[u8]) -> (std::sync::Arc<draftwright::haecceity::Part>, Analysis) {
+    cache::analysed(file, bytes, true, || analysed_uncached(file, bytes))
 }
 
 fn records(a: &Analysis) -> &[Record] {
@@ -400,7 +407,7 @@ fn pmi_dimensions_match_draftwright_or_are_known(only: &str) {
             "{file}: not the captured file"
         );
         let (_, a) = analysed(&file, &bytes);
-        let plan = model::plan(&a, &Spec::default()).unwrap();
+        let plan = cache::default_plan(&a, false);
         let d = compare(&file, &py, &reading, &a, &plan);
         records += py["records"].as_array().unwrap().len();
         eprintln!(
@@ -460,9 +467,16 @@ fn fixture(stem: &str) -> (String, Vec<u8>) {
         .unwrap()
 }
 
-fn planned(stem: &str) -> (draftwright::haecceity::Part, Analysis, Plan) {
+fn planned(stem: &str) -> (std::sync::Arc<draftwright::haecceity::Part>, Analysis, Plan) {
     let (file, bytes) = fixture(stem);
     let (part, a) = analysed(&file, &bytes);
+    let plan = cache::default_plan(&a, false);
+    (part, a, plan)
+}
+
+fn planned_uncached(stem: &str) -> (draftwright::haecceity::Part, Analysis, Plan) {
+    let (file, bytes) = fixture(stem);
+    let (part, a) = analysed_uncached(&file, &bytes);
     let plan = model::plan(&a, &Spec::default()).unwrap();
     (part, a, plan)
 }
@@ -478,7 +492,7 @@ pmi_cases!(every_dimension_is_drawn_or_reported_never_both);
 fn every_dimension_is_drawn_or_reported_never_both(only: &str) {
     for (file, _, bytes) in inputs().into_iter().filter(|(file, _, _)| file == only) {
         let (_, a) = analysed(&file, &bytes);
-        let plan = model::plan(&a, &Spec::default()).unwrap();
+        let plan = cache::default_plan(&a, false);
         for r in records(&a)
             .iter()
             .filter(|r| r.category == Category::Dimension && r.kind != "common_label")
@@ -767,7 +781,7 @@ fn a_basic_location_of_a_turned_parts_cross_hole_is_boxed() {
     let raw =
         std::fs::read(root().join("tests/fixtures/samples/cnc-review-spindle.step.gz")).unwrap();
     let (part, a) = analysed("cnc-review-spindle.step", &gunzip(&raw));
-    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let plan = cache::default_plan(&a, false);
     let basic = |d: &PlannedDimension| {
         d.measurements
             .iter()
@@ -852,7 +866,7 @@ fn a_turned_profile_is_dimensioned_from_its_datum_end() {
     let raw =
         std::fs::read(root().join("tests/fixtures/samples/cnc-review-spindle.step.gz")).unwrap();
     let (_, a) = analysed("cnc-review-spindle.step", &gunzip(&raw));
-    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let plan = cache::default_plan(&a, false);
     let labels = front_z_labels(&plan);
     for want in ["12", "34", "52"] {
         let d = plan
@@ -957,7 +971,7 @@ fn pmi_heights_from_a_datum_are_drawn_as_a_baseline_not_a_chain() {
             g.stations = vec![[0.0, 0.0, 0.0], [0.0, 0.0, to]];
             report.records.push(r);
         }
-        let plan = model::plan(&a, &Spec::default()).unwrap();
+        let plan = cache::default_plan(&a, false);
         let labels = front_z_labels(&plan);
         for want in ["12 ±0.2", "34 ±0.3", "42 ±0.3", "52 ±0.3"] {
             let d = plan
@@ -1001,7 +1015,7 @@ fn what_the_faces_do_not_prove_is_reported_not_guessed() {
             .iter_mut()
             .filter(|r| r.source_id == source)
             .for_each(f);
-        model::plan(&b, &Spec::default()).unwrap()
+        cache::default_plan(&b, false)
     };
     let reason = |plan: &Plan| {
         plan.problems
@@ -1073,7 +1087,7 @@ fn a_shaft_fit_prints_its_class_by_default_and_stacked_deviations_on_request() {
         .find(|r| r.fit.as_deref() == Some("g6"))
         .unwrap();
     assert_eq!(fit.blockers, Vec::<String>::new());
-    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let plan = cache::default_plan(&a, false);
     let d = plan
         .dimensions
         .iter()
@@ -1114,7 +1128,7 @@ part_cases!(the_same_part_gives_the_same_plan_and_bytes;
     nist_ftc_10_asme1_ap242_e2 => "nist_ftc_10_asme1_ap242-e2",
 );
 fn the_same_part_gives_the_same_plan_and_bytes(stem: &str) {
-    let (part, a, plan) = planned(stem);
+    let (part, a, plan) = planned_uncached(stem);
     let again = model::plan(&a, &Spec::default()).unwrap();
     assert_eq!(
         serde_json::to_string(&plan).unwrap(),

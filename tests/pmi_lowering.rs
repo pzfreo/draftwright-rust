@@ -25,6 +25,9 @@ mod pdf;
 #[macro_use]
 mod support;
 
+#[path = "common/cache.rs"]
+mod cache;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
@@ -86,7 +89,7 @@ fn json_gz(path: &Path) -> Value {
 /// The part and its Analysis, without features, from *bytes* (written to a scratch file of its
 /// own, as `analyse` reads a path and the tests run in parallel: threads of one process, or
 /// separate processes under nextest, hence the process id as well as the counter).
-fn analysed(file: &str, bytes: &[u8]) -> (draftwright::haecceity::Part, Analysis) {
+fn analysed_uncached(file: &str, bytes: &[u8]) -> (draftwright::haecceity::Part, Analysis) {
     static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
@@ -98,6 +101,10 @@ fn analysed(file: &str, bytes: &[u8]) -> (draftwright::haecceity::Part, Analysis
     let out = model::analyse(&path).unwrap();
     std::fs::remove_file(&path).unwrap();
     out
+}
+
+fn analysed(file: &str, bytes: &[u8]) -> (std::sync::Arc<draftwright::haecceity::Part>, Analysis) {
+    cache::analysed(file, bytes, false, || analysed_uncached(file, bytes))
 }
 
 fn records(a: &Analysis) -> &[Record] {
@@ -514,7 +521,7 @@ fn pmi_lowering_matches_draftwright_or_is_known(only: &str) {
             "{file}: not the captured file"
         );
         let (_, a) = analysed(&file, &bytes);
-        let plan = model::plan(&a, &Spec::default()).unwrap();
+        let plan = cache::default_plan(&a, false);
         let d = compare(&file, &py, &reading, &a, &plan);
         items += py["items"].as_array().unwrap().len();
         eprintln!(
@@ -576,9 +583,16 @@ fn fixture(stem: &str) -> (String, Vec<u8>) {
 }
 
 /// The planted fixtures' parts and default plans.
-fn planned(stem: &str) -> (draftwright::haecceity::Part, Analysis, Plan) {
+fn planned(stem: &str) -> (std::sync::Arc<draftwright::haecceity::Part>, Analysis, Plan) {
     let (file, bytes) = fixture(stem);
     let (part, a) = analysed(&file, &bytes);
+    let plan = cache::default_plan(&a, false);
+    (part, a, plan)
+}
+
+fn planned_uncached(stem: &str) -> (draftwright::haecceity::Part, Analysis, Plan) {
+    let (file, bytes) = fixture(stem);
+    let (part, a) = analysed_uncached(&file, &bytes);
     let plan = model::plan(&a, &Spec::default()).unwrap();
     (part, a, plan)
 }
@@ -587,7 +601,7 @@ pmi_cases!(every_record_and_source_is_drawn_or_reported);
 fn every_record_and_source_is_drawn_or_reported(only: &str) {
     for (file, _, bytes) in inputs().into_iter().filter(|(file, _, _)| file == only) {
         let (_, a) = analysed(&file, &bytes);
-        let plan = model::plan(&a, &Spec::default()).unwrap();
+        let plan = cache::default_plan(&a, false);
         let Some(Reading::Read(report)) = &a.pmi else {
             panic!("{file}: its PMI is read");
         };
@@ -892,7 +906,7 @@ part_cases!(the_same_part_gives_the_same_plan_and_bytes;
     nist_ftc_07_asme1_ap242_e2 => "nist_ftc_07_asme1_ap242-e2",
 );
 fn the_same_part_gives_the_same_plan_and_bytes(stem: &str) {
-    let (part, a, plan) = planned(stem);
+    let (part, a, plan) = planned_uncached(stem);
     let again = model::plan(&a, &Spec::default()).unwrap();
     assert_eq!(
         serde_json::to_string(&plan).unwrap(),
@@ -927,7 +941,7 @@ fn a_part_without_pmi_and_an_older_analysis_have_none() {
     older["schema"] = "draftwright.analysis/5".into();
     older.as_object_mut().unwrap().remove("pmi");
     b = serde_json::from_value(older).unwrap();
-    let plan = model::plan(&b, &Spec::default()).unwrap();
+    let plan = cache::default_plan(&b, false);
     assert!(plan.gdt.is_empty());
     assert!(plan.problems.iter().all(|p| !p.code.starts_with("pmi_")));
 }
@@ -954,7 +968,7 @@ fn the_corpus_nist_parts_carry_presentation_only() {
         };
         assert!(r.records.is_empty(), "{}", p.display());
         assert!(r.accounting.presentation > 0, "{}", p.display());
-        let plan = model::plan(&a, &Spec::default()).unwrap();
+        let plan = cache::default_plan(&a, false);
         assert!(plan.gdt.is_empty());
         assert!(
             plan.problems

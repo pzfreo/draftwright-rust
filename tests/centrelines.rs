@@ -6,6 +6,9 @@ mod corpus;
 #[macro_use]
 mod support;
 
+#[path = "common/cache.rs"]
+mod cache;
+
 use draftwright::{
     api,
     model::{self, Spec},
@@ -22,7 +25,7 @@ fn drawing_with(
     file: &Path,
     spec: &Spec,
 ) -> (model::Analysis, model::Plan, draftwright::output::Drawing) {
-    let (part, a) = model::analyse_native(file).unwrap();
+    let (part, a) = cache::native(file);
     let p = model::plan_recovered(&a, spec).unwrap();
     let d = model::render(&part, &a, &p, &Font::new(api::MONO.to_vec()).unwrap()).unwrap();
     (a, p, d)
@@ -412,10 +415,10 @@ fn beside_run(line: [[f64; 2]; 2], c: [f64; 2], e: [f64; 2]) -> f64 {
     best
 }
 
-/// cgb207's R5 ran 36.5 mm beside hole 1's axis (0.775 mm off, then tilted to converge on it)
-/// and string_post's ⌀1.6 8.9 mm along the A-A cutting line.
-/// No leader shaft on these sheets may run beside a centre stroke, at any small angle, other
-/// than its own hole's centre mark.
+// cgb207's R5 ran 36.5 mm beside hole 1's axis (0.775 mm off, then tilted to converge on it)
+// and string_post's ⌀1.6 8.9 mm along the A-A cutting line.
+// No leader shaft on these sheets may run beside a centre stroke, at any small angle, other
+// than its own hole's centre mark.
 part_cases!(leaders_do_not_run_beside_centre_lines;
     cgb207 => "cadgenbench_inputs/cgb207.step",
     cgb203 => "cadgenbench_inputs/cgb203.step",
@@ -531,7 +534,7 @@ fn a_label_across_an_axis_end_trims_the_overrun() {
 #[test]
 fn linework_overrides_leave_sections_and_cutting_plane_rules_intact() {
     let Some(dir) = corpus::dir() else { return };
-    let (part, a) = model::analyse_native(&dir.join("gramel/string_post.step")).unwrap();
+    let (part, a) = cache::native(&dir.join("gramel/string_post.step"));
     let s: Spec = serde_json::from_value(serde_json::json!({
         "sheet":{"hidden":false,"centre_marks":false,"centre_lines":false},
         "views":{"section_aa":{"hidden":true,"thread_depiction":true,"knurl_depiction":true}}

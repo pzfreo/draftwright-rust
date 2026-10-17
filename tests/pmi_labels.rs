@@ -8,6 +8,9 @@
 #[path = "common/pdf.rs"]
 mod pdf;
 
+#[path = "common/cache.rs"]
+mod cache;
+
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
@@ -20,7 +23,7 @@ fn root() -> PathBuf {
 /// An AP242 fixture's part and Analysis (`tests/fixtures/pmi/step/<stem>.*.gz`), its bytes
 /// written to a scratch file of each call's own, as the tests run in parallel and several read
 /// one fixture.
-fn analysed(stem: &str) -> (draftwright::haecceity::Part, Analysis) {
+fn analysed_uncached(stem: &str) -> (draftwright::haecceity::Part, Analysis) {
     static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let dir = root().join("tests/fixtures/pmi/step");
@@ -39,11 +42,22 @@ fn analysed(stem: &str) -> (draftwright::haecceity::Part, Analysis) {
     let file = gz.file_name().unwrap().to_string_lossy();
     let out = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join("pmi_labels")
-        .join(n.to_string());
+        .join(format!("{}-{n}", std::process::id()));
     std::fs::create_dir_all(&out).unwrap();
     let path = out.join(file.strip_suffix(".gz").unwrap());
     std::fs::write(&path, &bytes).unwrap();
     model::analyse_native(&path).unwrap()
+}
+
+fn analysed(stem: &str) -> (std::sync::Arc<draftwright::haecceity::Part>, Analysis) {
+    let path = std::fs::read_dir(root().join("tests/fixtures/pmi/step"))
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .find(|p| p.file_name().unwrap().to_string_lossy().split('.').next() == Some(stem))
+        .unwrap();
+    cache::analysed(stem, &std::fs::read(path).unwrap(), true, || {
+        analysed_uncached(stem)
+    })
 }
 
 fn font() -> draftwright::text::Font {
@@ -81,7 +95,7 @@ fn codes<'a>(plan: &'a Plan, subject: &str) -> Vec<&'a str> {
 
 #[test]
 fn common_labels_are_drawn_with_leaders_and_searchable() {
-    let (part, a) = analysed("nist_ftc_10_asme1_ap242-e2");
+    let (part, a) = analysed_uncached("nist_ftc_10_asme1_ap242-e2");
     let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
     let labels: Vec<_> = plan.gdt.iter().filter(|g| g.kind == "label").collect();
     // F65, F81 and the five '4's are drawn (front and side, by their faces' longest extent);
@@ -118,7 +132,7 @@ fn common_labels_are_drawn_with_leaders_and_searchable() {
 #[test]
 fn surface_labels_attach_at_their_edges_midpoints() {
     let (_, a) = analysed("nist_ctc_01_asme1_ap242-e1");
-    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let plan = cache::default_plan(&a, true);
     let mut labels: Vec<(&str, &str)> = plan
         .gdt
         .iter()
@@ -132,7 +146,7 @@ fn surface_labels_attach_at_their_edges_midpoints() {
 #[test]
 fn sheet_requirements_are_on_the_title_block_beside_it_and_in_the_notes() {
     let (part, a) = analysed("spool_fits");
-    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let plan = cache::default_plan(&a, true);
     let kinds: Vec<(&str, &str, &str)> = plan
         .requirements
         .iter()
@@ -215,7 +229,7 @@ fn the_specs_tolerance_wins_and_a_different_pmi_one_is_reported() {
 #[test]
 fn pmi_supplies_the_general_tolerance_but_a_spec_blank_still_needs_attention() {
     let (_, a) = analysed("spool_fits");
-    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let plan = cache::default_plan(&a, false);
     assert!(
         !plan
             .problems
@@ -236,7 +250,7 @@ fn pmi_supplies_the_general_tolerance_but_a_spec_blank_still_needs_attention() {
             .any(|p| p.code == "step_general_tolerance_disagreement")
     );
     let (_, a) = analysed("assembly_plate_pin");
-    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let plan = cache::default_plan(&a, false);
     assert!(
         plan.problems
             .iter()
@@ -248,7 +262,7 @@ fn pmi_supplies_the_general_tolerance_but_a_spec_blank_still_needs_attention() {
 #[test]
 fn two_defaults_of_one_kind_are_ambiguous_and_neither_is_drawn() {
     let (_, a) = analysed("assembly_plate_pin");
-    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let plan = cache::default_plan(&a, false);
     let kinds: Vec<&str> = plan.requirements.iter().map(|q| q.kind.as_str()).collect();
     // The plate's and the pin's edge conditions are both notes; their two general tolerances
     // and two surface textures are refused.
@@ -280,7 +294,7 @@ fn a_turned_part_keeps_the_view_its_pmi_is_drawn_in() {
     // The spool is turned about one axis, so the reduction would leave out its side view; its
     // flatness frame is drawn there (draftwright's `annotation_view_required`).
     let (_, a) = analysed("spool_fits");
-    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let plan = cache::default_plan(&a, false);
     assert!(plan.views.iter().any(|v| v.id == "v:side"));
     let flatness = plan
         .gdt

@@ -6,6 +6,9 @@ mod corpus;
 #[macro_use]
 mod support;
 
+#[path = "common/cache.rs"]
+mod cache;
+
 use draftwright::items::State;
 use draftwright::model::{self, Spec};
 use serde_json::json;
@@ -25,7 +28,7 @@ fn missing(a: &model::Analysis, p: &model::Plan, part: &draftwright::haecceity::
         .count()
 }
 
-/// ISSUE-1433-a, ARCH0015-1: numerous equal radii use notes with one exact credit per blend.
+// ISSUE-1433-a, ARCH0015-1: numerous equal radii use notes with one exact credit per blend.
 part_cases!(many_blends_are_stated_without_counted_radius_clutter;
     cgb245 => "cadgenbench_inputs/cgb245.step",
     nist_ctc_01_asme1_rd => "nist/nist_ctc_01_asme1_rd.stp",
@@ -77,8 +80,13 @@ fn many_blends_are_stated_without_counted_radius_clutter(file: &str) {
         serde_json::to_value(&p).unwrap(),
         serde_json::to_value(again).unwrap()
     );
-    let (part, a) = model::analyse_native(&dir.join("nist/nist_ctc_02_asme1_rc.stp")).unwrap();
-    let p = model::plan(&a, &Spec::default()).unwrap();
+}
+
+#[test]
+fn ctc02_radius_exceptions_retain_credit() {
+    let Some(dir) = corpus::dir() else { return };
+    let (part, a) = cache::native(&dir.join("nist/nist_ctc_02_asme1_rc.stp"));
+    let p = cache::default_plan(&a, false);
     assert_eq!(
         missing(&a, &p, &part),
         0,
@@ -96,8 +104,8 @@ fn many_blends_are_stated_without_counted_radius_clutter(file: &str) {
 #[test]
 fn few_blends_share_a_radius_callout_and_lose_credit_when_hidden() {
     let Some(dir) = corpus::dir() else { return };
-    let (part, a) = model::analyse_native(&dir.join("gramel/string_post.step")).unwrap();
-    let p = model::plan(&a, &Spec::default()).unwrap();
+    let (part, a) = cache::native(&dir.join("gramel/string_post.step"));
+    let p = cache::default_plan(&a, false);
     let radius = p
         .dimensions
         .iter()
@@ -135,8 +143,8 @@ fn few_blends_share_a_radius_callout_and_lose_credit_when_hidden() {
 #[test]
 fn a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit() {
     let Some(dir) = corpus::dir() else { return };
-    let (part, a) = model::analyse_native(&dir.join("cadgenbench_inputs/cgb245.step")).unwrap();
-    let p = model::plan(&a, &Spec::default()).unwrap();
+    let (part, a) = cache::native(&dir.join("cadgenbench_inputs/cgb245.step"));
+    let p = cache::default_plan(&a, false);
     let note = p
         .notes
         .iter()
@@ -274,7 +282,7 @@ fn a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit(
 fn a_blend_owns_its_cylindrical_face_without_erasing_unrelated_equal_bosses() {
     let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/parts/prismatic.step");
-    let (_, mut a) = model::analyse_native(&fixture).unwrap();
+    let (_, mut a) = cache::native(&fixture);
     let template = a.features[0].clone();
     a.features.clear();
     for (id, kind, faces, parameters) in [
@@ -308,7 +316,7 @@ fn a_blend_owns_its_cylindrical_face_without_erasing_unrelated_equal_bosses() {
     a.levels.clear();
     a.level_supports.clear();
     a.risers.clear();
-    let p = model::plan(&a, &Spec::default()).unwrap();
+    let p = cache::default_plan(&a, false);
     assert!(
         !p.dimensions
             .iter()
@@ -328,7 +336,7 @@ fn a_blend_owns_its_cylindrical_face_without_erasing_unrelated_equal_bosses() {
             .any(|r| r.feature == "f:boss:1")
     );
     a.features[1].parameters.insert("height".into(), json!(5.0));
-    let short = model::plan(&a, &Spec::default()).unwrap();
+    let short = cache::default_plan(&a, false);
     assert!(
         !short
             .dimensions
@@ -344,7 +352,7 @@ fn a_blend_owns_its_cylindrical_face_without_erasing_unrelated_equal_bosses() {
             .any(|m| m.feature == "f:boss:1" && m.parameter == "boss_height.length")
     );
     a.features[1].faces.clear();
-    let p = model::plan(&a, &Spec::default()).unwrap();
+    let p = cache::default_plan(&a, false);
     assert!(
         p.dimensions
             .iter()
@@ -357,8 +365,8 @@ fn a_blend_owns_its_cylindrical_face_without_erasing_unrelated_equal_bosses() {
 #[test]
 fn a_bare_pin_keeps_a_shared_radius_leader_and_its_default() {
     let Some(dir) = corpus::dir() else { return };
-    let (part, a) = model::analyse_native(&dir.join("cadgenbench_inputs/cgb245.step")).unwrap();
-    let p = model::plan(&a, &Spec::default()).unwrap();
+    let (part, a) = cache::native(&dir.join("cadgenbench_inputs/cgb245.step"));
+    let p = cache::default_plan(&a, false);
     let shared = p
         .dimensions
         .iter()
@@ -411,8 +419,8 @@ fn a_bare_pin_keeps_a_shared_radius_leader_and_its_default() {
 #[test]
 fn ctc01_states_real_corners_and_the_radius_default_without_logo_callouts() {
     let Some(dir) = corpus::dir() else { return };
-    let (part, a) = model::analyse_native(&dir.join("nist/nist_ctc_01_asme1_rd.stp")).unwrap();
-    let p = model::plan(&a, &Spec::default()).unwrap();
+    let (part, a) = cache::native(&dir.join("nist/nist_ctc_01_asme1_rd.stp"));
+    let p = cache::default_plan(&a, false);
     assert!(p.omitted.iter().any(|d| d.label == "4× R25"
         && matches!(&d.state, State::Covered { by } if by == "t:radius-centres")));
     let table = serde_json::to_value(&p).unwrap();
@@ -448,7 +456,7 @@ fn ctc01_states_real_corners_and_the_radius_default_without_logo_callouts() {
     );
 }
 
-/// The same geometric relief decision works on different carriers and preserves real radii.
+// The same geometric relief decision works on different carriers and preserves real radii.
 part_cases!(grouped_relief_radii_are_excluded_on_several_parts_with_explicit_evidence;
     nist_ctc_01_asme1_rd => "nist/nist_ctc_01_asme1_rd.stp",
     nist_ctc_04_asme1_rd => "nist/nist_ctc_04_asme1_rd.stp",
@@ -459,8 +467,8 @@ part_cases!(grouped_relief_radii_are_excluded_on_several_parts_with_explicit_evi
 fn grouped_relief_radii_are_excluded_on_several_parts_with_explicit_evidence(file: &str) {
     let Some(dir) = corpus::dir() else { return };
 
-    let (part, a) = model::analyse_native(&dir.join(file)).unwrap();
-    let p = model::plan(&a, &Spec::default()).unwrap();
+    let (part, a) = cache::native(&dir.join(file));
+    let p = cache::default_plan(&a, false);
     let evidence = serde_json::to_value(&a).unwrap();
     let reliefs = evidence["radius_reliefs"]
         .as_array()
@@ -519,7 +527,7 @@ fn grouped_relief_radii_are_excluded_on_several_parts_with_explicit_evidence(fil
 fn real_corners_have_no_relief_exclusions() {
     let Some(dir) = corpus::dir() else { return };
     for file in ["cadgenbench_inputs/cgb245.step", "gramel/string_post.step"] {
-        let (_, a) = model::analyse_native(&dir.join(file)).unwrap();
+        let (_, a) = cache::native(&dir.join(file));
         let evidence = serde_json::to_value(&a).unwrap();
         assert!(
             evidence
@@ -534,8 +542,8 @@ fn real_corners_have_no_relief_exclusions() {
 #[test]
 fn radius_exceptions_are_stated_despite_routing_cost() {
     let Some(dir) = corpus::dir() else { return };
-    let (_, a) = model::analyse_native(&dir.join("nist/nist_ctc_02_asme1_rc.stp")).unwrap();
-    let p = model::plan(&a, &Spec::default()).unwrap();
+    let (_, a) = cache::native(&dir.join("nist/nist_ctc_02_asme1_rc.stp"));
+    let p = cache::default_plan(&a, false);
     for label in ["4× R15", "6× R18"] {
         assert!(
             p.omitted.iter().any(|d| d.label == label
@@ -550,8 +558,8 @@ fn radius_exceptions_are_stated_despite_routing_cost() {
 #[test]
 fn relief_profile_note_is_required_for_the_default_and_independent_lint() {
     let Some(dir) = corpus::dir() else { return };
-    let (part, a) = model::analyse_native(&dir.join("nist/nist_ctc_01_asme1_rd.stp")).unwrap();
-    let p = model::plan(&a, &Spec::default()).unwrap();
+    let (part, a) = cache::native(&dir.join("nist/nist_ctc_01_asme1_rd.stp"));
+    let p = cache::default_plan(&a, false);
     let relief = p
         .notes
         .iter()
@@ -633,7 +641,7 @@ fn deep_profiles_are_not_exempted_as_shallow_relief() {
             .get("radius_reliefs")
             .is_none_or(|r| r.as_array().unwrap().is_empty())
     );
-    let p = model::plan(&a, &Spec::default()).unwrap();
+    let p = cache::default_plan(&a, false);
     let doc = serde_json::to_value(&p).unwrap();
     assert!(
         p.dimensions
@@ -646,8 +654,8 @@ fn deep_profiles_are_not_exempted_as_shallow_relief() {
     );
 }
 
-/// Every row locates one occurrence; changing or deleting its locator loses that occurrence
-/// and the dependent default. Copying another row cannot replace its exact identity.
+// Every row locates one occurrence; changing or deleting its locator loses that occurrence
+// and the dependent default. Copying another row cannot replace its exact identity.
 part_cases!(radius_centre_table_credits_every_occurrence_and_rejects_wrong_locators;
     nist_ctc_01_asme1_rd => "nist/nist_ctc_01_asme1_rd.stp",
     nist_ctc_02_asme1_rc => "nist/nist_ctc_02_asme1_rc.stp",

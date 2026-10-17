@@ -22,6 +22,9 @@
 #[macro_use]
 mod support;
 
+#[path = "common/cache.rs"]
+mod cache;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
@@ -103,12 +106,33 @@ fn inputs() -> Vec<(String, String, Vec<u8>)> {
 
 /// The part's Analysis and the port's drawing of it, from *bytes* (written to a scratch file of
 /// its own, as `analyse` reads a path and the tests run in parallel).
-fn drawn(file: &str, bytes: &[u8]) -> (Part, Analysis, Drawing) {
+fn drawn(file: &str, bytes: &[u8]) -> (std::sync::Arc<Part>, Analysis, Drawing) {
+    let (part, a) = cache::analysed(file, bytes, true, || {
+        static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+            .join("pmi_coverage")
+            .join(format!("{}-{n}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(file);
+        std::fs::write(&path, bytes).unwrap();
+        let result = model::analyse_native(&path).unwrap();
+        std::fs::remove_file(&path).unwrap();
+        result
+    });
+    let plan = cache::default_plan(&a, true);
+    let font =
+        draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
+    let drawing = model::render(&part, &a, &plan, &font).unwrap();
+    (part, a, drawing)
+}
+
+fn drawn_uncached(file: &str, bytes: &[u8]) -> (Part, Analysis, Drawing) {
     static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join("pmi_coverage")
-        .join(n.to_string());
+        .join("pmi_coverage_uncached")
+        .join(format!("{}-{n}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join(file);
     std::fs::write(&path, bytes).unwrap();
@@ -525,8 +549,8 @@ fn fixture(stem: &str) -> (String, Vec<u8>) {
 #[test]
 fn the_same_drawing_gives_the_same_findings() {
     let (file, bytes) = fixture("nist_ctc_01_asme1_ap242-e1");
-    let (_, a, one) = drawn(&file, &bytes);
-    let (_, b, two) = drawn(&file, &bytes);
+    let (_, a, one) = drawn_uncached(&file, &bytes);
+    let (_, b, two) = drawn_uncached(&file, &bytes);
     let first = coverage(&a, &one);
     assert!(!first.is_empty());
     assert_eq!(
@@ -669,7 +693,7 @@ fn a_source_edge_note_must_keep_every_word_when_wrapped() {
     edge.label = "Break sharp edges and remove all burrs around external corners 0.2 max".into();
     let source = edge.source_id.clone();
     let id = report.identities().id(&source).unwrap().to_string();
-    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let plan = cache::default_plan(&a, true);
     let font =
         draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
     let mut drawing = model::render(&part, &a, &plan, &font).unwrap();

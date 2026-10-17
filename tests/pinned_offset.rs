@@ -5,7 +5,7 @@ use draftwright::items::{Op, key};
 use draftwright::model::{Problem, Spec};
 use draftwright::{Session, api};
 use serde_json::json;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[path = "common/corpus.rs"]
 mod corpus;
@@ -187,10 +187,10 @@ fn offset_is_a_pinned_callout_form_of_its_own() {
     assert!(!fields.keys().any(|k| k.ends_with("/place/offset")));
 }
 
-/// Every callout drawn with a leader on several parts, pinned at the offset callout_offset
-/// reports: its ink is the automatic ink, the whole plan is the bare pin's, and the reported
-/// offset is unchanged. One callout per part is then dragged, and its bend lands where it was
-/// put. GRM-03's views move after packing, the frame the review found the reported tip in.
+// Every callout drawn with a leader on several parts, pinned at the offset callout_offset
+// reports: its ink is the automatic ink, the whole plan is the bare pin's, and the reported
+// offset is unchanged. One callout per part is then dragged, and its bend lands where it was
+// put. GRM-03's views move after packing, the frame the review found the reported tip in.
 part_cases!(pinning_every_callout_at_its_reported_offset_moves_nothing;
     editor_plate => "editor-plate",
     grm03 => "gramel/GRM-03_thumbwheel_drive_screw.step",

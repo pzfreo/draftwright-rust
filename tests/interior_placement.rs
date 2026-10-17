@@ -1,4 +1,7 @@
 //! Interior candidates require projection evidence and protect the complete sheet's ink.
+#[path = "common/cache.rs"]
+mod cache;
+
 use draftwright::model::{self, Analysis, Plan, Spec};
 use serde_json::json;
 use std::path::Path;
@@ -25,7 +28,7 @@ fn interiors(p: &Plan) -> Vec<&draftwright::dims::PlannedDimension> {
 #[test]
 fn blank_projected_face_prefers_interior_callouts() {
     let a = plate();
-    let p = model::plan(&a, &Spec::default()).unwrap();
+    let p = cache::default_plan(&a, false);
     assert!(
         !interiors(&p).is_empty(),
         "blank plate should carry an interior callout"
@@ -41,16 +44,16 @@ fn blank_projected_face_prefers_interior_callouts() {
 #[test]
 fn missing_projection_evidence_cannot_prove_blank_face() {
     let a = plate();
-    assert!(!interiors(&model::plan(&a, &Spec::default()).unwrap()).is_empty());
+    assert!(!interiors(&cache::default_plan(&a, false)).is_empty());
     let mut value = serde_json::to_value(a).unwrap();
     value.as_object_mut().unwrap().remove("edge_ink");
     let old: Analysis = serde_json::from_value(value).unwrap();
-    assert!(interiors(&model::plan(&old, &Spec::default()).unwrap()).is_empty());
+    assert!(interiors(&cache::default_plan(&old, false)).is_empty());
 }
 #[test]
 fn projected_linework_refuses_interior_labels() {
     let a = plate();
-    assert!(!interiors(&model::plan(&a, &Spec::default()).unwrap()).is_empty());
+    assert!(!interiors(&cache::default_plan(&a, false)).is_empty());
     let mut value = serde_json::to_value(&a).unwrap();
     // A dense grid of edges in all three principal planes covers every interior candidate.
     let [lo, hi] = a.envelope;
@@ -78,7 +81,7 @@ fn projected_linework_refuses_interior_labels() {
         }
     }
     let blocked: Analysis = serde_json::from_value(value).unwrap();
-    assert!(interiors(&model::plan(&blocked, &Spec::default()).unwrap()).is_empty());
+    assert!(interiors(&cache::default_plan(&blocked, false)).is_empty());
 }
 #[test]
 fn interior_output_is_deterministic_and_replays_projection_evidence() {
@@ -95,7 +98,7 @@ fn interior_output_is_deterministic_and_replays_projection_evidence() {
 #[test]
 fn another_view_blocks_the_owning_views_interior() {
     let a = plate();
-    let p = model::plan(&a, &Spec::default()).unwrap();
+    let p = cache::default_plan(&a, false);
     assert!(!interiors(&p).is_empty());
     let own = p
         .views
@@ -118,7 +121,7 @@ fn another_view_blocks_the_owning_views_interior() {
 #[test]
 fn labels_and_entire_interior_dimensions_clear_other_annotation_ink() {
     let a = plate();
-    let p = model::plan(&a, &Spec::default()).unwrap();
+    let p = cache::default_plan(&a, false);
     assert!(!interiors(&p).is_empty());
     for d in interiors(&p) {
         assert!(!p.problems.iter().any(|q| matches!(
@@ -145,7 +148,7 @@ fn labels_and_entire_interior_dimensions_clear_other_annotation_ink() {
 #[test]
 fn failed_exterior_corridors_retry_the_whole_linear_dimension_inside() {
     let a = plate();
-    let p = model::plan(&a, &Spec::default()).unwrap();
+    let p = cache::default_plan(&a, false);
     let linear: Vec<_> = interiors(&p)
         .into_iter()
         .filter(|d| d.kind == "linear")
@@ -172,19 +175,19 @@ fn failed_exterior_corridors_retry_the_whole_linear_dimension_inside() {
 #[test]
 fn empty_space_without_projected_material_is_refused() {
     let a = plate();
-    assert!(!interiors(&model::plan(&a, &Spec::default()).unwrap()).is_empty());
+    assert!(!interiors(&cache::default_plan(&a, false)).is_empty());
     let mut value = serde_json::to_value(a).unwrap();
     value["edge_ink"]["planes"] = json!([]);
     let empty: Analysis = serde_json::from_value(value).unwrap();
-    assert!(interiors(&model::plan(&empty, &Spec::default()).unwrap()).is_empty());
+    assert!(interiors(&cache::default_plan(&empty, false)).is_empty());
 }
 
 #[test]
 fn interior_provenance_does_not_hide_a_rendered_ink_overlap() {
     let file =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/mounting_plate.step");
-    let (part, a) = model::analyse_native(&file).unwrap();
-    let p = model::plan(&a, &Spec::default()).unwrap();
+    let (part, a) = cache::native(&file);
+    let p = cache::default_plan(&a, false);
     assert!(!interiors(&p).is_empty());
     let drawing = model::render(&part, &a, &p, &font()).unwrap();
     let problems = draftwright::lint::structural::check(&drawing);
@@ -222,8 +225,8 @@ fn all_quality_parts_interior_lines_arrows_and_tips_clear_rendered_ink() {
     };
     let files: Vec<_> = include_str!("../tools/quality_parts.txt").lines().collect();
     let count: usize = support::parallel(&files, |&file| {
-        let (part, a) = model::analyse_native(&root.join(file)).unwrap();
-        let p = model::plan(&a, &Spec::default()).unwrap();
+        let (part, a) = cache::native(&root.join(file));
+        let p = cache::default_plan(&a, false);
         let interior: Vec<_> = p
             .dimensions
             .iter()
@@ -248,7 +251,7 @@ fn all_quality_parts_interior_lines_arrows_and_tips_clear_rendered_ink() {
 #[test]
 fn a_hidden_edge_in_an_arrow_wing_refuses_the_old_interior_placement() {
     let mut a = plate();
-    let p = model::plan(&a, &Spec::default()).unwrap();
+    let p = cache::default_plan(&a, false);
     let d = interiors(&p)
         .into_iter()
         .find(|d| d.kind == "callout")
@@ -281,7 +284,7 @@ fn a_hidden_edge_in_an_arrow_wing_refuses_the_old_interior_placement() {
         .unwrap()
         .edges
         .push(vec![point(-1.0), point(1.0)]);
-    let after = model::plan(&a, &Spec::default()).unwrap();
+    let after = cache::default_plan(&a, false);
     let got = after.dimensions.iter().find(|q| q.id == d.id).unwrap();
     assert!(
         got.region != Some(draftwright::dims::CandidateRegion::Interior) || got.placed != d.placed,
@@ -293,8 +296,8 @@ fn a_hidden_edge_in_an_arrow_wing_refuses_the_old_interior_placement() {
 #[test]
 fn an_occluded_native_boss_diameter_uses_its_visible_profile() {
     let Some(root) = corpus::dir() else { return };
-    let (part, a) = model::analyse_native(&root.join("nist/nist_ftc_06_asme1_rd.stp")).unwrap();
-    let p = model::plan(&a, &Spec::default()).unwrap();
+    let (part, a) = cache::native(&root.join("nist/nist_ftc_06_asme1_rd.stp"));
+    let p = cache::default_plan(&a, false);
     let d = p
         .dimensions
         .iter()

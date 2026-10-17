@@ -17,6 +17,9 @@ mod corpus;
 #[path = "common/support.rs"]
 mod support;
 
+#[path = "common/cache.rs"]
+mod cache;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
@@ -51,8 +54,12 @@ fn scratch(gz: &Path, name: &str) -> PathBuf {
 
 /// An AP242 fixture (`tests/fixtures/pmi/step/<file>.gz`), analysed as the command line does.
 fn ap242(file: &str) -> Analysis {
-    let path = scratch(&fixture(&format!("pmi/step/{file}.gz")), file);
-    model::analyse_native(&path).unwrap().1
+    let source = fixture(&format!("pmi/step/{file}.gz"));
+    cache::analysed(file, &std::fs::read(&source).unwrap(), true, || {
+        let path = scratch(&source, file);
+        model::analyse_native(&path).unwrap()
+    })
+    .1
 }
 
 /// The slice's parts this checkout has: the plates and CTC-01 always; 10127 and GRM-03 from the
@@ -68,9 +75,7 @@ fn slice() -> Vec<(String, Analysis)> {
         ),
         (
             "mounting_plate".to_string(),
-            model::analyse_native(&fixture("parts/mounting_plate.step"))
-                .unwrap()
-                .1,
+            cache::native(&fixture("parts/mounting_plate.step")).1,
         ),
         (
             "nist_ctc_01_asme1_ap242-e1".to_string(),
@@ -82,10 +87,7 @@ fn slice() -> Vec<(String, Analysis)> {
             "mfcadpp/10127.step",
             "gramel/GRM-03_thumbwheel_drive_screw.step",
         ] {
-            out.push((
-                file.to_string(),
-                model::analyse_native(&dir.join(file)).unwrap().1,
-            ));
+            out.push((file.to_string(), cache::native(&dir.join(file)).1));
         }
     } else {
         eprintln!("SKIPPED: the corpus parts (the corpus is not found)");
@@ -101,7 +103,7 @@ fn spec(v: Value) -> Spec {
 /// given a band of nothing; an authored set of two; each principal view omitted in turn. A spec
 /// a part refuses is left out.
 fn specs(a: &Analysis) -> Vec<(String, Spec)> {
-    let base = model::plan_recovered(a, &Spec::default()).unwrap();
+    let base = cache::default_plan(a, true);
     let ids: Vec<&str> = base.dimensions.iter().map(|d| d.id.as_str()).collect();
     let linear = base
         .dimensions
@@ -281,7 +283,11 @@ fn every_plan_item_has_a_state_and_every_problem_subject_is_a_live_item() {
         let mut checked = 0;
         let mut states = BTreeSet::new();
         for (name, spec) in specs(a) {
-            let plan = model::plan_recovered(a, &spec).unwrap();
+            let plan = if spec == Spec::default() {
+                cache::default_plan(a, true)
+            } else {
+                model::plan_recovered(a, &spec).unwrap()
+            };
             checked += consistent(&format!("{part}, {name}"), &plan, a, &spec);
             states.extend(items::items(&plan).into_iter().map(|i| match i.state {
                 State::Covered { .. } => "covered".to_string(),
@@ -314,7 +320,7 @@ fn every_plan_item_has_a_state_and_every_problem_subject_is_a_live_item() {
         .collect();
     checked += support::parallel(&files, |file| {
         let a = ap242(file);
-        let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+        let plan = cache::default_plan(&a, true);
         consistent(file, &plan, &a, &Spec::default())
     })
     .into_iter()
@@ -337,8 +343,8 @@ fn on_the_quality_parts_too() {
     .unwrap();
     let files: Vec<_> = list.lines().filter(|l| !l.trim().is_empty()).collect();
     let mut dropped: usize = support::parallel(&files, |&file| {
-        let a = model::analyse_native(&dir.join(file)).unwrap().1;
-        let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+        let a = cache::native(&dir.join(file)).1;
+        let plan = cache::default_plan(&a, true);
         consistent(file, &plan, &a, &Spec::default());
         // Exercise both forms; auto tables should not erase loss/state-machine coverage.
         let ladder = Spec {
@@ -355,9 +361,7 @@ fn on_the_quality_parts_too() {
     .into_iter()
     .sum();
     assert_eq!(dropped, 0, "the default quality drawings retain every item");
-    let a = model::analyse_native(&dir.join("nist/nist_ftc_08_asme1_rc.stp"))
-        .unwrap()
-        .1;
+    let a = cache::native(&dir.join("nist/nist_ftc_08_asme1_rc.stp")).1;
     let starved = spec(json!({"sheet": {"size": "A4", "scale": "1:1"}, "hole_table": "never"}));
     let mut plan = model::plan(&a, &starved).unwrap();
     draftwright::hole_table::escalate(&a, &mut plan, None);
@@ -375,7 +379,7 @@ fn on_the_quality_parts_too() {
     }))
     .unwrap();
     dropped += support::parallel(&files, |&file| {
-        let a = model::analyse_native(&dir.join(file)).unwrap().1;
+        let a = cache::native(&dir.join(file)).1;
         let p = model::plan_recovered(&a, &forced).unwrap();
         consistent(file, &p, &a, &forced);
         p.dimensions
@@ -483,7 +487,11 @@ fn the_drawing_review_reads_typed_states_and_classifies_as_from_prose() {
     let results = support::parallel(&slice(), |(part, a)| {
         let mut compared = BTreeMap::new();
         for (name, spec) in specs(a) {
-            let plan = model::plan_recovered(a, &spec).unwrap();
+            let plan = if spec == Spec::default() {
+                cache::default_plan(a, true)
+            } else {
+                model::plan_recovered(a, &spec).unwrap()
+            };
             let (prose, typed) = (by_prose(&plan, &spec), by_state(&plan, &spec));
             assert_eq!(
                 prose.keys().collect::<Vec<_>>(),
@@ -534,7 +542,7 @@ fn the_drawing_review_reads_typed_states_and_classifies_as_from_prose() {
 #[test]
 fn every_item_is_labelled_as_it_is_drawn() {
     support::parallel(&slice(), |(part, a)| {
-        let base = model::plan_recovered(a, &Spec::default()).unwrap();
+        let base = cache::default_plan(a, true);
         for d in &base.dimensions {
             assert_eq!(
                 items::label(&base, &d.id).as_deref(),
@@ -570,7 +578,7 @@ fn a_problems_fix_resolves_it() {
     let plate = model::analyse_with(&fixture("parts/plate.step"), Some(&features))
         .unwrap()
         .1;
-    let base = model::plan(&plate, &Spec::default()).unwrap();
+    let base = cache::default_plan(&plate, false);
     let linear = base.dimensions.iter().find(|d| d.kind == "linear").unwrap();
     // The holes' callout (the plate's is its hole pattern's), and a hole it states.
     let callout = base
@@ -629,18 +637,15 @@ fn a_problems_fix_resolves_it() {
         ),
     ];
     let ctc01 = ap242("nist_ctc_01_asme1_ap242-e1.stp");
-    let pmi = model::plan(&ctc01, &Spec::default()).unwrap();
+    let pmi = cache::default_plan(&ctc01, false);
     let frame_view = pmi.gdt[0].view.trim_start_matches("v:").to_string();
     cases.push((
         "pmi_not_drawn",
         &ctc01,
         spec(json!({ "views": { frame_view: { "omit": true } } })),
     ));
-    let ftc06 = corpus::dir().map(|dir| {
-        model::analyse_native(&dir.join("nist/nist_ftc_06_asme1_rd.stp"))
-            .unwrap()
-            .1
-    });
+    let ftc06 =
+        corpus::dir().map(|dir| cache::native(&dir.join("nist/nist_ftc_06_asme1_rd.stp")).1);
     if let Some(a) = &ftc06 {
         cases.push((
             "section_not_shown",

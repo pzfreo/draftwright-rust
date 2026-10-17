@@ -12,6 +12,9 @@
 #[path = "common/support.rs"]
 mod support;
 
+#[path = "common/cache.rs"]
+mod cache;
+
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
@@ -28,21 +31,24 @@ fn fixture(path: &str) -> PathBuf {
 /// The gzipped fixture *path*, analysed as the command line analyses it, from a scratch file of
 /// its own named *name* (a binding names its part by the file's stem).
 fn gz(path: &str, name: &str) -> Analysis {
-    static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-    let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join("problem_wording")
-        .join(format!("{}-{n}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let mut bytes = Vec::new();
-    flate2::read::GzDecoder::new(std::fs::File::open(fixture(path)).unwrap())
-        .read_to_end(&mut bytes)
-        .unwrap();
-    let scratch = dir.join(name);
-    std::fs::write(&scratch, bytes).unwrap();
-    let a = model::analyse_native(&scratch).unwrap().1;
-    std::fs::remove_dir_all(&dir).unwrap();
-    a
+    cache::analysed(name, &std::fs::read(fixture(path)).unwrap(), true, || {
+        static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+            .join("problem_wording")
+            .join(format!("{}-{n}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut bytes = Vec::new();
+        flate2::read::GzDecoder::new(std::fs::File::open(fixture(path)).unwrap())
+            .read_to_end(&mut bytes)
+            .unwrap();
+        let scratch = dir.join(name);
+        std::fs::write(&scratch, bytes).unwrap();
+        let result = model::analyse_native(&scratch).unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
+        result
+    })
+    .1
 }
 
 fn spindle() -> Analysis {
@@ -60,7 +66,7 @@ fn spec(v: Value) -> Spec {
 /// second extension line crosses the ⌀8 hole.
 #[test]
 fn the_plates_extension_crossing_reads_in_drawing_language() {
-    let (_, a) = model::analyse_native(&fixture("parts/mounting_plate.step")).unwrap();
+    let (_, a) = cache::native(&fixture("parts/mounting_plate.step"));
     let pitch = "d:f:hole_pattern:1/grid_pitch.length.col";
     let s = spec(json!({ "dimensions": { pitch: { "place": { "side": "above" } } } }));
     let plan = model::plan_recovered(&a, &s).unwrap();
@@ -83,7 +89,7 @@ fn the_plates_extension_crossing_reads_in_drawing_language() {
 #[test]
 fn the_spindles_unclaimed_faces_are_its_subjects() {
     let a = spindle();
-    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let plan = cache::default_plan(&a, true);
     let p = plan
         .problems
         .iter()
@@ -153,7 +159,7 @@ fn the_spindles_bracketed_length_is_a_reference_with_what_determines_it() {
     for f in a.features.iter_mut().filter(|f| f.kind == "turned_step") {
         f.parameters["profile"]["body_key"] = json!([f.id]);
     }
-    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let plan = cache::default_plan(&a, true);
     let d = plan
         .dimensions
         .iter()
@@ -279,9 +285,7 @@ fn plans() -> &'static [(String, Plan)] {
                 gz(&format!("pmi/step/{file}"), file.trim_end_matches(".gz")),
             )
         }));
-        let bases = support::parallel(&parts, |(_, a)| {
-            model::plan_recovered(a, &Spec::default()).unwrap()
-        });
+        let bases = support::parallel(&parts, |(_, a)| cache::default_plan(a, true));
         let jobs: Vec<(String, String, &Analysis, Spec)> = parts
             .iter()
             .zip(&bases)

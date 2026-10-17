@@ -18,6 +18,9 @@
 #[macro_use]
 mod support;
 
+#[path = "common/cache.rs"]
+mod cache;
+
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
@@ -51,7 +54,7 @@ fn analysed(stem: &str) -> Analysis {
     let part = out.join(format!("{:?}.part", std::thread::current().id()));
     std::fs::write(&part, &bytes).unwrap();
     std::fs::rename(&part, &path).unwrap();
-    model::analyse_native(&path).unwrap().1
+    cache::native(&path).1
 }
 
 /// The plan's GD&T items reported with *code*.
@@ -69,7 +72,7 @@ fn reported<'a>(plan: &'a Plan, code: &str) -> Vec<&'a draftwright::dims::gdt::P
 #[test]
 fn ctc_02_frames_and_datum_symbols_are_inside_their_bands_and_on_the_sheet() {
     let a = analysed("nist_ctc_02_asme1_ap242-e2");
-    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let plan = cache::default_plan(&a, true);
     assert_eq!(plan.gdt.len(), 10, "five frames and five datum symbols");
     assert!(plan.gdt.iter().all(|g| g.placed.is_some()));
     let off: Vec<&str> = reported(&plan, "annotation_off_sheet")
@@ -99,7 +102,7 @@ part_cases!(frames_datum_symbols_and_labels_are_on_the_sheet_and_off_the_other_v
     thumbwheel_thread_knurl => "thumbwheel_thread_knurl",
 );
 fn frames_datum_symbols_and_labels_are_on_the_sheet_and_off_the_other_views(stem: &str) {
-    let plan = model::plan_recovered(&analysed(stem), &Spec::default()).unwrap();
+    let plan = cache::default_plan(&analysed(stem), true);
     assert!(!plan.gdt.is_empty(), "{stem} has GD&T");
     for code in [
         "annotation_off_sheet",
@@ -117,7 +120,7 @@ fn frames_datum_symbols_and_labels_are_on_the_sheet_and_off_the_other_views(stem
 #[test]
 fn stc_09_datum_symbols_are_inside_their_bands_and_frames_past_them_had_no_clear_strip() {
     let a = analysed("nist_stc_09_asme1_ap242-e4");
-    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let plan = cache::default_plan(&a, true);
     assert!(
         plan.sheet
             .basis
@@ -204,7 +207,7 @@ fn the_reservation_stacks_overlapping_items_in_tiers_beyond_the_dimensions() {
 fn stc09_without_a_complete_fit_keeps_its_first_drawing_and_reports_the_floor() {
     let a = analysed("nist_stc_09_asme1_ap242-e4");
     let first = model::plan_escalated(&a, &Spec::default()).unwrap();
-    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let p = cache::default_plan(&a, true);
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
         (first.sheet.size.as_str(), first.sheet.scale.as_str())

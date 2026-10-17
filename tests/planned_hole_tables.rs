@@ -3,6 +3,9 @@
 #[macro_use]
 mod support;
 
+#[path = "common/cache.rs"]
+mod cache;
+
 use draftwright::{
     model::{self, Analysis, Plan, Spec},
     text::Font,
@@ -118,8 +121,7 @@ part_cases!(the_dense_acceptance_parts_have_no_hole_location_tower;
 fn the_dense_acceptance_parts_have_no_hole_location_tower(name: &str) {
     let Some(corpus) = corpus::dir() else { return };
 
-    let (_, analysis) =
-        model::analyse_native(&Path::new(&corpus).join(format!("nist/{name}.stp"))).unwrap();
+    let (_, analysis) = cache::native(&Path::new(&corpus).join(format!("nist/{name}.stp")));
     let p = model::plan_escalated(&analysis, &Spec::default()).unwrap();
     assert!(
         tables(&p).as_array().is_some_and(|t| !t.is_empty()),
@@ -182,7 +184,7 @@ fn the_dense_acceptance_parts_have_no_hole_location_tower(name: &str) {
 #[test]
 fn an_omitted_hole_location_is_not_silently_reintroduced_by_a_table() {
     let analysis = &plate().1;
-    let first = model::plan(analysis, &Spec::default()).unwrap();
+    let first = cache::default_plan(analysis, false);
     let id = first
         .dimensions
         .iter()
@@ -313,7 +315,7 @@ fn semantic_pmi_callouts_remain_source_carrying_beside_the_schedule() {
 #[test]
 fn a_bare_pin_on_a_table_covered_location_does_not_restore_the_ladder() {
     let analysis = &plate().1;
-    let base = model::plan_recovered(analysis, &Spec::default()).unwrap();
+    let base = cache::default_plan(analysis, true);
     let covered = base.omitted.iter().find(|o| o.id.starts_with("d:f:hole:") && o.id.ends_with("/location.length.x") && matches!(&o.state,draftwright::items::State::Covered {by} if by.starts_with("hole_schedule_"))).unwrap();
     let spec = model::edit(&Spec::default(), &serde_json::json!([{"op":"set","path":format!("dimensions/{}/place",draftwright::items::key(&covered.id)),"value":{"pinned":true}}])).unwrap();
     let after = model::plan_recovered(analysis, &spec).unwrap();
@@ -344,9 +346,8 @@ fn a_bare_pin_on_a_table_covered_location_does_not_restore_the_ladder() {
 #[test]
 fn non_hole_pins_keep_the_settled_schedule_and_isometric_frame() {
     let Some(corpus) = corpus::dir() else { return };
-    let (_, analysis) =
-        model::analyse_native(&Path::new(&corpus).join("nist/nist_ftc_08_asme1_rc.stp")).unwrap();
-    let base = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    let (_, analysis) = cache::native(&Path::new(&corpus).join("nist/nist_ftc_08_asme1_rc.stp"));
+    let base = cache::default_plan(&analysis, true);
     assert!(!tables(&base).as_array().unwrap().is_empty());
     let ops: Vec<_> = [
         "d:f:slot:3/slot_width.length",
@@ -399,9 +400,8 @@ fn non_hole_pins_keep_the_settled_schedule_and_isometric_frame() {
 #[test]
 fn table_recess_and_depth_symbols_are_drawn_inside_the_size_cell() {
     let Some(corpus) = corpus::dir() else { return };
-    let (part, analysis) =
-        model::analyse_native(&Path::new(&corpus).join("nist/nist_ftc_06_asme1_rd.stp")).unwrap();
-    let plan = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    let (part, analysis) = cache::native(&Path::new(&corpus).join("nist/nist_ftc_06_asme1_rd.stp"));
+    let plan = cache::default_plan(&analysis, true);
     let table = tables(&plan);
     assert!(
         table[0]["rows"][0]["cells"][1]
@@ -451,9 +451,8 @@ fn table_recess_and_depth_symbols_are_drawn_inside_the_size_cell() {
 #[test]
 fn held_labels_do_not_remove_the_canonical_schedule() {
     let Some(corpus) = corpus::dir() else { return };
-    let (_, analysis) =
-        model::analyse_native(&Path::new(&corpus).join("nist/nist_ftc_07_asme1_rd.stp")).unwrap();
-    let base = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    let (_, analysis) = cache::native(&Path::new(&corpus).join("nist/nist_ftc_07_asme1_rd.stp"));
+    let base = cache::default_plan(&analysis, true);
     assert_eq!(tables(&base)[0]["id"], "hole_schedule_front");
     let ops: Vec<_> = [
         "d:step_level/step_height.length.h218_024",
@@ -498,9 +497,8 @@ fn held_labels_do_not_remove_the_canonical_schedule() {
 #[test]
 fn the_cgb245_view_pin_reproducer_keeps_its_schedule() {
     let Some(corpus) = corpus::dir() else { return };
-    let (_, analysis) =
-        model::analyse_native(&corpus.join("cadgenbench_inputs/cgb245.step")).unwrap();
-    let base = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    let (_, analysis) = cache::native(&corpus.join("cadgenbench_inputs/cgb245.step"));
+    let base = cache::default_plan(&analysis, true);
     assert!(!tables(&base).as_array().unwrap().is_empty());
     let ordinary = model::plan_recovered(&analysis, &setting("never")).unwrap();
     let iso = base.views.iter().find(|v| v.id == "v:iso").unwrap();
@@ -545,8 +543,8 @@ part_cases!(rounded_datums_and_stacked_openings_are_unambiguous;
 fn rounded_datums_and_stacked_openings_are_unambiguous(name: &str) {
     let Some(corpus) = corpus::dir() else { return };
 
-    let (_, analysis) = model::analyse_native(&corpus.join(format!("nist/{name}.stp"))).unwrap();
-    let plan = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    let (_, analysis) = cache::native(&corpus.join(format!("nist/{name}.stp")));
+    let plan = cache::default_plan(&analysis, true);
     assert!(!plan.hole_tables.is_empty(), "{name}");
     for table in &plan.hole_tables {
         assert_eq!(table.origin, Some(analysis.envelope[0]));
@@ -588,9 +586,8 @@ fn rounded_datums_and_stacked_openings_are_unambiguous(name: &str) {
 #[test]
 fn an_incomplete_bolt_circle_states_pcd_and_each_angle() {
     let Some(corpus) = corpus::dir() else { return };
-    let (_, analysis) =
-        model::analyse_native(&corpus.join("nist/nist_ctc_05_asme1_rd.stp")).unwrap();
-    let plan = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    let (_, analysis) = cache::native(&corpus.join("nist/nist_ctc_05_asme1_rd.stp"));
+    let plan = cache::default_plan(&analysis, true);
     let table = plan
         .hole_tables
         .iter()
@@ -633,8 +630,8 @@ fn schedule_labels_clear_the_rendered_part_and_other_annotations(file: &str) {
     )
     .unwrap();
 
-    let (part, analysis) = model::analyse_native(&corpus.join(file)).unwrap();
-    let plan = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    let (part, analysis) = cache::native(&corpus.join(file));
+    let plan = cache::default_plan(&analysis, true);
     let drawing = model::render(&part, &analysis, &plan, &font).unwrap();
     for issue in draftwright::lint::structural::check(&drawing) {
         if issue
@@ -688,10 +685,10 @@ fn a_changed_entry_cell_is_reported_even_when_xy_is_correct() {
     );
 }
 
-/// Every tag names one hole a reader can find: page positions come from the table's own X/Y
-/// cells and its drawn origin, as a reader would find them. A tag without a leader is nearer
-/// its own rim (and centre) than any other scheduled hole's; a leadered tag's arrow touches its
-/// own rim and no other.
+// Every tag names one hole a reader can find: page positions come from the table's own X/Y
+// cells and its drawn origin, as a reader would find them. A tag without a leader is nearer
+// its own rim (and centre) than any other scheduled hole's; a leadered tag's arrow touches its
+// own rim and no other.
 part_cases!(each_tag_is_beside_or_leadered_to_its_own_hole;
     nist_ctc_02_asme1_rc => "nist_ctc_02_asme1_rc",
     nist_ctc_04_asme1_rd => "nist_ctc_04_asme1_rd",
@@ -712,9 +709,8 @@ fn each_tag_is_beside_or_leadered_to_its_own_hole(name: &str) {
             .fold(0.0, f64::max)
     };
 
-    let (_, analysis) =
-        model::analyse_native(&Path::new(&corpus).join(format!("nist/{name}.stp"))).unwrap();
-    let p = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    let (_, analysis) = cache::native(&Path::new(&corpus).join(format!("nist/{name}.stp")));
+    let p = cache::default_plan(&analysis, true);
     assert!(!p.hole_tables.is_empty(), "{name}");
     for t in &p.hole_tables {
         let view = p
@@ -785,8 +781,8 @@ fn each_tag_is_beside_or_leadered_to_its_own_hole(name: &str) {
     }
 }
 
-/// The entry column is in the view's frame (X right, Y up, Z out of the page), as X and Y
-/// are: a side or front view never states a part-frame axis there, and lint rejects one.
+// The entry column is in the view's frame (X right, Y up, Z out of the page), as X and Y
+// are: a side or front view never states a part-frame axis there, and lint rejects one.
 part_cases!(entry_cells_use_the_view_frame_and_lint_checks_it;
     nist_ctc_02_asme1_rc => "nist_ctc_02_asme1_rc",
     nist_ftc_06_asme1_rd => "nist_ftc_06_asme1_rd",
@@ -799,9 +795,8 @@ fn entry_cells_use_the_view_frame_and_lint_checks_it(name: &str) {
     )
     .unwrap();
 
-    let (part, analysis) =
-        model::analyse_native(&Path::new(&corpus).join(format!("nist/{name}.stp"))).unwrap();
-    let p = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    let (part, analysis) = cache::native(&Path::new(&corpus).join(format!("nist/{name}.stp")));
+    let p = cache::default_plan(&analysis, true);
     let off_plan: Vec<_> = p
         .hole_tables
         .iter()
