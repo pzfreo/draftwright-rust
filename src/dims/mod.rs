@@ -77,6 +77,7 @@ pub(crate) use label_lanes::settle_inventory;
 pub(crate) use leaders::settle_after_furniture;
 pub(crate) use placement::collisions_cached as label_collisions;
 pub(crate) mod levels;
+mod notches;
 mod oriented_slots;
 mod pads;
 mod placement;
@@ -450,8 +451,25 @@ fn wording_of(w: &Want) -> String {
     crate::wording::item(&w.id, "", &w.terms.join(" "))
 }
 
-/// A dimension's ID, `d:<feature>/<parameter>`: what it measures, never the view that carries
-/// it, so routing it to another view (an omitted view, a sheet or scale change) keeps it.
+/// Contact between annotation text and the other annotation's rendered ink.
+pub(crate) fn text_contact(a: &Placed, b: &Placed) -> bool {
+    placement::boxes_overlap(a.label_box, b.label_box)
+        || placement::ink_through(a, b.label_box)
+        || placement::ink_through(b, a.label_box)
+}
+
+/// The four overall sizes, excluding source-stamped profile requirements.
+pub(crate) fn is_envelope_extent(id: &str) -> bool {
+    matches!(
+        id,
+        "d:envelope/width.length"
+            | "d:envelope/depth.length"
+            | "d:envelope/height.length"
+            | "d:envelope/od.diameter"
+    )
+}
+
+/// A dimension's ID names what it measures, independently of the carrying view.
 fn want_id(feature: &str, parameter: &str) -> String {
     format!("d:{feature}/{parameter}")
 }
@@ -509,7 +527,7 @@ struct Planner {
 }
 
 /// The planners, in the order their items are planned.
-const PLANNERS: [Planner; 17] = [
+const PLANNERS: [Planner; 18] = [
     turned::PLANNER,
     envelope::PLANNER,
     stock::PLANNER,
@@ -517,6 +535,7 @@ const PLANNERS: [Planner; 17] = [
     slots::PLANNER,
     bosses::PLANNER,
     edges::PLANNER,
+    notches::PLANNER,
     blends::PLANNER,
     grooves::PLANNER,
     flats::PLANNER,
@@ -703,11 +722,6 @@ const UNDRAFTED: &[(&str, Disposition, DispositionReason)] = &[
     ),
     (
         "ObliqueThroughStep",
-        Disposition::Deferred,
-        DispositionReason::ConsumerSemanticsDeferred,
-    ),
-    (
-        "OrientedChamfer",
         Disposition::Deferred,
         DispositionReason::ConsumerSemanticsDeferred,
     ),
@@ -1278,7 +1292,7 @@ fn lanes_uncached(
         holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
         plates::share(analysis, &mut kept, &mut given, &mut omitted);
         share_statements(&mut kept, &mut given, &mut omitted, true);
-        share_pmi(&mut kept, &mut given, &mut omitted);
+        share_pmi(analysis, &mut kept, &mut given, &mut omitted);
         redundancy::consolidate(analysis, &mut kept, &mut given, &mut omitted);
         wording::apply(spec, &mut kept, &mut given)?;
     }
@@ -1327,7 +1341,7 @@ fn lanes_uncached(
     // A controlling overall adds a lane to the turned axial chain.
     if wants
         .iter()
-        .any(|w| w.id.starts_with("d:envelope/") && w.id.ends_with(".length"))
+        .any(|w| crate::dims::is_envelope_extent(&w.id) && w.id.ends_with(".length"))
         && turned::turned(analysis, &QFrame(crate::bridge::holes::frame(analysis))).is_some()
     {
         bands.plate_front_below = bands.plate_front_below.max(front_linear);
@@ -1379,6 +1393,30 @@ fn lanes_uncached(
             }
             _ => {}
         }
+    }
+    // Reserve canonical physical notch statements, independent of printed sharing.
+    // A tolerance may split a counted depth without changing this plan-left allowance.
+    // Reserving every historical lane would enlarge otherwise readable
+    // sheets; omitting these new lanes can strand an existing centre ordinate.
+    let notch_lanes = wants
+        .iter()
+        .zip(&chosen)
+        .filter(|(w, view)| {
+            **view == Some("plan")
+                && (spec.dimension_source == DimensionSource::Auto
+                    || spec.dimensions.contains_key(&w.id))
+                && w.measurements
+                    .iter()
+                    .any(|m| m.feature.starts_with("notch:"))
+                && matches!(w.shape, Shape::Linear { axis, .. }
+                if placement::across(&frames["plan"], axis) == Some(false))
+        })
+        .count();
+    if notch_lanes > 0 {
+        let base = ((crate::layout::DIM_PAD - crate::layout::lane_band(1)).max(0.) / LANE).ceil()
+            as usize
+            + 1;
+        bands.authored_plan_left = bands.authored_plan_left.max(base + notch_lanes);
     }
     bands.recess_lanes = wants.iter().any(|w| {
         w.measurements
@@ -2272,7 +2310,7 @@ fn plan_inventory_ordered(
         recesses::consolidate(&mut defaults, &mut nominal, &mut unused);
         plates::share(analysis, &mut defaults, &mut nominal, &mut unused);
         share_statements(&mut defaults, &mut nominal, &mut unused, true);
-        share_pmi(&mut defaults, &mut nominal, &mut unused);
+        share_pmi(analysis, &mut defaults, &mut nominal, &mut unused);
         redundancy::consolidate(analysis, &mut defaults, &mut nominal, &mut unused);
         (defaults, unused)
     });
@@ -2358,7 +2396,7 @@ fn plan_inventory_ordered(
     recesses::consolidate(&mut kept, &mut given, &mut omitted);
     plates::share(analysis, &mut kept, &mut given, &mut omitted);
     share_statements(&mut kept, &mut given, &mut omitted, true);
-    share_pmi(&mut kept, &mut given, &mut omitted);
+    share_pmi(analysis, &mut kept, &mut given, &mut omitted);
     let references = redundancy::consolidate(analysis, &mut kept, &mut given, &mut omitted);
     problems.extend(pmi_dimensions::omitted(analysis, &all, &kept, &omitted));
 
@@ -2491,7 +2529,12 @@ fn plan_inventory_ordered(
                 .filter_map(|d| d.placed.as_ref())
                 .map(|p| p.label_box[2] - p.label_box[0])
                 .fold(0.0, f64::max);
-            placement::intent(&frames[v], w, p, sides[i]?, lane[i], callout_width)
+            // Angular ink has no strip. Its intent handler measures the requested
+            // radius directly and does not use this linear/callout side argument.
+            let side = sides[i].or_else(|| {
+                matches!(w.shape, Shape::Angular { .. }).then_some(placement::Side::Below)
+            })?;
+            placement::intent(&frames[v], w, p, side, lane[i], callout_width)
         })
         .collect();
     // #32: an explicit side/lane (as a proposed fix sets) re-runs its side's stack spacing, so
@@ -2739,6 +2782,29 @@ fn plan_inventory_ordered(
         &mut placed,
         &page,
     ));
+    let interior_proofs = interior::proofs(analysis, views);
+    let notch_void = |view: &str, p: &Placed| {
+        let Some(frame) = frames.get(view) else {
+            return false;
+        };
+        let b = frame.outline();
+        // Interior provenance covers the whole annotation, inside its own view.
+        // An ordinary exterior sector must not inherit an own-view-only proof.
+        if !page.fits_interior(p, view)
+            || !placement::ink_points(p)
+                .all(|q| q[0] >= b[0] && q[0] <= b[2] && q[1] >= b[1] && q[1] <= b[3])
+        {
+            return false;
+        }
+        views
+            .iter()
+            .find(|v| v.id == format!("v:{view}"))
+            .is_some_and(|v| {
+                interior_proofs
+                    .get(&v.id)
+                    .is_some_and(|proof| proof.exterior_annotation_clear(v, p))
+            })
+    };
     angular::place(
         &frames,
         &all,
@@ -2748,6 +2814,7 @@ fn plan_inventory_ordered(
         obstacles,
         &mut placed,
         &page,
+        &notch_void,
     );
     // Radius exceptions are placed around the existing drawing ink. Their addition must not
     // reroute unrelated approved callouts into clutter.
@@ -3007,6 +3074,7 @@ fn plan_inventory_ordered(
         obstacles,
         &mut placed,
         &page,
+        &notch_void,
     );
     interior.extend(interior::place(
         analysis,
@@ -3021,7 +3089,6 @@ fn plan_inventory_ordered(
         obstacles,
         cache,
     ));
-    let interior_proofs = interior::proofs(analysis, views);
     let refined = leaders::refine(
         analysis,
         spec,
@@ -3069,6 +3136,8 @@ fn plan_inventory_ordered(
                     views.iter().find(|v| v.id == view).is_some_and(|v| {
                         interior_proofs.get(&v.id).is_some_and(|proof| {
                             proof.annotation_clear(v, p, matches!(w.shape, Shape::Callout { .. }))
+                                || (w.measurements.iter().any(|m| m.parameter == "notch.angle")
+                                    && notch_void(v.id.trim_start_matches("v:"), p))
                         })
                     })
                 })
@@ -3194,6 +3263,8 @@ fn plan_inventory_ordered(
                     .is_some_and(|v| {
                         interior_proofs.get(&v.id).is_some_and(|proof| {
                             proof.annotation_clear(v, p, matches!(w.shape, Shape::Callout { .. }))
+                                || (w.measurements.iter().any(|m| m.parameter == "notch.angle")
+                                    && notch_void(v.id.trim_start_matches("v:"), p))
                         })
                     })
             })
@@ -3316,7 +3387,8 @@ fn plan_inventory_ordered(
 }
 /// The sizes that one dimension states for every feature it spans ([`share`]), and whether its
 /// label then counts them (`n×`).
-const SHARED: [(&str, bool); 4] = [
+const SHARED: [(&str, bool); 5] = [
+    ("notch_depth.length", true),
     // draftwright's `_coalesce_aligned_linear_pitch_dims`: parallel rows with the same stations
     // show one pitch, its label unchanged, claiming every row's.
     ("pitch.length", false),
@@ -3619,10 +3691,12 @@ fn share_statements(
 /// Each one that gives way moves to *omitted*, `conveyed by` the survivor. *given* stays aligned
 /// with *kept*.
 fn share_pmi(
+    analysis: &Analysis,
     kept: &mut Vec<(Want, bool, Option<&'static str>, Vec<&'static str>)>,
     given: &mut Vec<Vec<String>>,
     omitted: &mut Vec<Omitted>,
 ) {
+    notches::share_pmi(analysis, kept, given, omitted);
     const SAME_SPAN: f64 = 1e-6;
     let pmi = |w: &Want| {
         w.measurements
@@ -3710,6 +3784,7 @@ fn share_pmi(
         i += 1;
         !gone.contains(&(i - 1))
     });
+    notches::share_bevel_depths(analysis, kept, given, omitted);
 }
 
 /// Draws the planned dimensions: lines, arrowheads and labels into *items* (the dims layer), and
@@ -3922,7 +3997,15 @@ pub(crate) fn placement_options_with_spec(
                         Shape::Callout { .. } | Shape::Aligned { .. } => {
                             vec!["above", "below", "left", "right"]
                         }
-                        Shape::Angular { .. } if probe.id.starts_with("d:authored:") => Vec::new(),
+                        Shape::Angular { .. }
+                            if probe.id.starts_with("d:authored:")
+                                || probe
+                                    .measurements
+                                    .iter()
+                                    .any(|m| m.parameter == "notch.angle") =>
+                        {
+                            Vec::new()
+                        }
                         Shape::Angular { .. } => return None,
                     };
                     Some(serde_json::json!({"view": name, "sides": sides}))

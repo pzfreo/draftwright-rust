@@ -47,6 +47,8 @@ pub mod mcp;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod stateless;
 
+mod notches;
+mod oriented_chamfers;
 mod planning;
 
 pub mod iso_caption;

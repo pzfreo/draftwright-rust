@@ -290,7 +290,8 @@ fn duplicate(a: &Analysis, w: &Want, o: &Want, refs: &[String], kind: &str) -> b
     }
     if let (Shape::Angular { angle: p }, Shape::Angular { angle: q }) = (&w.shape, &o.shape) {
         return close(w.value, o.value)
-            && (0..3).all(|k| close(p.vertex[k], q.vertex[k]))
+            && p.principal() == q.principal()
+            && (0..3).all(|k| Some(k) == p.principal() || close(p.vertex[k], q.vertex[k]))
             && p.rays().zip(q.rays()).is_some_and(|(p, q)| {
                 p.iter().all(|p| {
                     q.iter().any(|q| {

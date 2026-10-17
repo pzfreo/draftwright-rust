@@ -62,7 +62,7 @@ edited.
   (absent when the document does not carry the family at all). Empty, and left out, for Python
   quiddity's JSON, which the bridge reads in full; for Rust quiddity's recognition
   (`model::analyse_native`, the command line's default) the families its document has that
-  `bridge::native` does not read (oriented chamfers among them). Unified recesses and
+  `bridge::native` does not read. Unified recesses and
   their patterns are represented by recognition/3. `plan` reports unread families as one `features_not_recognised` warning. `plan` reads older
   analyses with none; `render` and `review` draw only from this version.
 - **Principal profiles** (`draftwright.analysis/6`, `principal_profiles`): for each solid of a
@@ -1053,7 +1053,69 @@ basis, placed, reference?, determined_by?}`:
 - **Fillets and chamfers** (`src/dims/edges.rs`): `R3` and `C1` or `4.5 × 42.1°` callouts, equal
   ones counted (`4× R3`), where the edge is seen end-on, or in the profile when quiddity marks
   them turned. A record whose sizes or axis cannot be read is reported (`feature_not_dimensioned`).
-  Oriented chamfers (always oblique in quiddity) are left undimensioned, as in draftwright (#1365).
+  Python defers oriented chamfers (`consumer_semantics_deferred`); on CTC-01 its front
+  view states only `2× C5`. These four records describe the hex boss's 5 × 5 mm top
+  bevels (corner z=50, run length 51.96 mm), independently of the plate's V-notches.
+  Oriented chamfers are read with their defining faces, true support-plane legs, run,
+  virtual corner and support spans. Their leader states `C5` for equal legs at 45°, or
+  `10 × 26.6°`; it never measures an angle from a foreshortened projection. Equal bevels
+  share a counted callout with principal-edge chamfers, retaining the existing principal
+  owner and ID (CTC-01: `2× C5` becomes `6× C5`, while `C50` remains independent).
+  Bevels are edge treatments located by their drawn supports, as principal chamfers are.
+  The provider virtual corner is a run midpoint, not a design datum: no automatic station
+  is invented there. Explicit dimension schemes may still target that corner.
+- **V-notches** (`src/lint/notch_evidence.rs`, `src/dims/notches.rs`): ordered outer-profile supports
+  establish symmetric straight-sided V recesses with a principal mouth and depth direction.
+  A sharp or tangent circular root is supported. The true included angle is drawn in the
+  normal principal view, plus depth to the theoretical sharp apex and mouth-centre locations
+  from minimum envelope datums. Equal depth spans share a counted dimension; coincident
+  locations retain all notch claims through ordinary span ownership. This is a bounded
+  drafting projection of provider evidence, not another recognition family. Back profiles,
+  asymmetric sections, inner wires and arbitrary sloping edge pairs grant no notch authority.
+  The sheet reserves the minimum exterior angular footprint before packing, so an acute
+  notch does not have to extend beyond a band estimated only from linear lanes. Added
+  vertical notch statements reserve their own datum lanes; a silhouette-mouth station
+  leaves its witness on that free side. Mouth stations distribute their ink between
+  true aligned projections: left-half X
+  stations prefer the normal view, right-half X stations prefer front, and Y stations
+  prefer side. This keeps the plan's notch arcs and bore-leader bands clear without
+  stacking every X witness in front. When front carries GD&T, both X stations stay
+  there so its existing shared dimension/frame band is retained; removing one tier
+  must not push a control frame into a datum's compact route. A notch angle may use
+  blank exterior space within its view's
+  envelope only after projected-face containment and edge/arrow clearance prove it empty.
+  Every planar projection counts; curved faces use their full covers. Radius leaders displaced
+  by these new bands consider model strokes before their joint solve. This preserves short
+  existing leaders without enabling general interior angular placement.
+  Within the chosen sheet and scale, the layout tries reserving an existing automatic
+  concave radius-centre schedule when at least four exact, end-on centres share a view.
+  It may use another existing arrangement but cannot enlarge the chosen page or change
+  its scale for this optional table. Principal fillet owners and authored radius
+  presentations are excluded; the late table still requires genuine leader obstruction
+  and states every occurrence's own centre. This keeps the added notch
+  information from displacing CTC-01's four-row R25 schedule.
+  Python's general profile-angle rule chooses only the foremost camera-facing planar
+  face per body/view: on CTC-01 that is the hex top, whose 120° corners the HEX callout
+  defines. It never reaches the plate notches. This bounded notch grammar deliberately
+  adds that information; it does not enable general profile-angle planning.
+  Profile dimensions use ordinary envelope IDs, for example
+  `d:envelope/notch.angle.f3_e88_e90`, with support stamps distinguishing physical
+  corners. Their measurement claims retain the source notch identity. Overall-extent
+  policies match the four extent IDs exactly, so a profile dimension never inherits
+  an overall tolerance or fit. The IDs accept omit, tolerance, placement and label-text intent.
+  Authored angles compare the same projected supports even when their normal-section stations
+  differ; authored mode transfers the automatic role, and auto mode names the existing owner.
+  An existing source PMI angle on the exact same flank faces also owns the bounded
+  angle across normal-section heights: AP242 CTC-01 keeps its `60 ±0.5` and omits the
+  duplicate automatic `60°`. Its PMI ID and tolerance remain, with both claims.
+  Independent lint remeasures the source supports before accepting PMI's implicit
+  degree notation; removing the typed source claim or changing the nominal loses credit.
+  A bevel's already printed first leg can also own depth when the exact flank face,
+  mouth-end virtual corner, principal run, both legs and half-angle agree within the
+  provider's published precision. On 10020, `10.6 × 10.6°` retains that size instead
+  of adding a duplicate depth line; CTC-01's unrelated C50 stays independent.
+  Dimension schemes may own mouth stations. Lint re-reads the provider supports and rejects
+  wrong nominal angle, depth and location claims, without taking tolerance digits as proof.
 
 - **Tolerances and fits** (`src/dims/tolerance.rs`; ARCH0011-1: a tolerance or fit belongs to a
   dimension) come only from the spec, never from the part (ADR5-D2), and reach the label

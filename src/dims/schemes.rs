@@ -487,7 +487,7 @@ fn complete_ownership(
             (
                 if w.id.starts_with("d:pmi:") {
                     0
-                } else if w.id.starts_with("d:envelope/") {
+                } else if crate::dims::is_envelope_extent(&w.id) {
                     1
                 } else if w
                     .measurements
@@ -536,7 +536,9 @@ fn complete_ownership(
             spans.sort_by(|p, q| p.lo.total_cmp(&q.lo).then(p.hi.total_cmp(&q.hi)));
             spans.dedup_by(|p, q| p.same(*q));
             if spans.is_empty()
-                && (eligible(w, k) || w.id.starts_with("d:envelope/") || w.id.starts_with("d:pmi:"))
+                && (eligible(w, k)
+                    || crate::dims::is_envelope_extent(&w.id)
+                    || w.id.starts_with("d:pmi:"))
             {
                 spans.push(span);
             }

@@ -21,7 +21,10 @@ drawing-consumer checks. The PMI/source and precision batch retains its six veri
 feature-note authority). The coverage/holes stream retains its nine ported rules (body-local
 corridors, prismatic shoulders, countersink seats, compound double-D callouts, pattern
 counts and balloon assignment). Automatic profile-angle placement remains pending after
-failing the unchanged drawing-quality bar. The rules-text merge retains its two completed
+failing the unchanged drawing-quality bar. The oriented-chamfer consumer adds a bounded
+symmetric V-notch grammar, with true included angles, theoretical sharp depths and datum
+locations; it reuses the existing C-notation and ownership rules. It ports no additional full
+Python catalogue rule, so the counts below remain unchanged. The rules-text merge retains its two completed
 ports and pending blockers ([merge report](text-main-merge-2026-10-16.md)).
 The views-and-layout batch retains six verified ports: ARCH0004-3, ARCH0018-1,
 ISSUE-563-b, ISSUE-1262-a, ISSUE-1530-a and ISSUE-1604-a. ISSUE-563-b includes the

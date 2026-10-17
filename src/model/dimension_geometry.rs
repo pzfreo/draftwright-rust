@@ -235,7 +235,13 @@ impl Analysis {
             p[radial] += b.diameter / 2.;
             return Ok(p);
         }
+        if let Some(n) = crate::notches::requirements(a).iter().find(|n| n.id == key) {
+            return Ok(n.mouth);
+        }
         if let Some(f) = a.features.iter().find(|f| f.id == key) {
+            if f.kind == "oriented_chamfer" {
+                return crate::oriented_chamfers::read(a, f).map(|r| r.corner);
+            }
             if f.kind == "turned_step" {
                 return Err(format!(
                     "{key} has two shoulders; choose start:{key} or end:{key}."

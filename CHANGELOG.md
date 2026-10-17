@@ -8,6 +8,17 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Added
 
+- Consume oriented chamfers from native recognition, claim their faces, and include equal
+  oblique and principal bevels in one counted true-section C/size-and-angle callout.
+- Dimension symmetric V-notches from ordered profile evidence with true included angles,
+  theoretical sharp depths and datum locations. Their ordinary IDs support dimension edits,
+  authored ownership and location schemes; lint verifies live values against source geometry
+  and printed scheme links. Reserve acute-notch arcs before layout; bevel run midpoints do
+  not introduce artificial automatic datum stations. Existing PMI angles on the same
+  physical flank faces own the notch angle across normal-section heights, retaining their
+  tolerance and implicit degree notation without a duplicate automatic arc. An existing
+  bevel first leg owns a matching physical notch depth, keeping its callout without an
+  extra depth line.
 - Read native recognition/3 unified section recesses, source refusals, face levels
   and risers. The default path now uses the existing pocket/channel/blind-slot/
   passage drafting grammars and no longer warns that section recesses are absent

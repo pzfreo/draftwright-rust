@@ -136,6 +136,15 @@ pub(crate) fn evidence(a: &Analysis, marks: &[Mark]) -> (Vec<Mark>, Vec<LintIssu
                 }
             }
         }
+        for n in super::notch_evidence::requirements(a) {
+            if [n.width_axis, n.depth_axis].contains(&k) {
+                roles.push((
+                    n.id,
+                    format!("location.length.{}", ["x", "y", "z"][k]),
+                    Span::new(k, a.envelope[0][k], n.mouth[k]),
+                ));
+            }
+        }
         for c in marks.iter().flat_map(|m| &m.claims) {
             if let Some(feature) = c.feature.strip_prefix("scheme_owns:")
                 && let Some(span) = super::redundancy::span(a, feature, &c.parameter)
