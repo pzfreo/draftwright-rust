@@ -530,11 +530,17 @@ fn section_correction_preserves_the_gdt_string_posts_readable_scale() {
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A4", "5:1"),
+        ("A3", "5:1"),
         "{}",
         p.sheet.basis
     );
-    assert_eq!(p.sheets.len(), 1);
+    assert!(p.sheets.is_empty());
+    assert!(p.sheet.basis.contains("A4 multi-sheet:"));
+    assert!(
+        p.sheet
+            .basis
+            .contains("retained leader association quality false")
+    );
     assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
     assert!(!p.problems.iter().any(|p| matches!(
         p.code.as_str(),

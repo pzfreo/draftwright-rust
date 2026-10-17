@@ -16,6 +16,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
   migrated legacy dimension keys and revision bindings survive recovery.
   An identical unsupported-source-PMI refusal remains reported without forcing
   larger paper when the complete allocated drawing otherwise fits and reads cleanly.
+  Paper changes retain short, unobstructed leader associations; failed alternatives
+  keep their explicit refusal. Quality and leader checks inspect allocated pages
+  independently without changing their thresholds or baselines.
 
 ### Added
 

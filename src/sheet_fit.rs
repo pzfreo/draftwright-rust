@@ -2,6 +2,389 @@
 use crate::layout::{MARGIN, Rect};
 use crate::model::{Analysis, Plan};
 
+/// Paper changes must preserve the established callout quality in paper mm.
+/// Use the same 2 mm length allowance, 1 mm label/extension pad and 0.3 mm
+/// parallel-ink strip as the rendered leader acceptance. Projected edges include
+/// visible and hidden boundaries; their crossing count cannot be purchased by
+/// enlarging the feature. Each page is independent.
+pub(crate) fn routes_no_worse(analysis: &Analysis, before: &Plan, after: &Plan) -> bool {
+    routes_no_worse_for(analysis, before, after, None)
+}
+
+fn routes_no_worse_for(
+    analysis: &Analysis,
+    before: &Plan,
+    after: &Plan,
+    only: Option<&str>,
+) -> bool {
+    route_refusal_for(analysis, before, after, only).is_none()
+}
+
+pub(crate) fn route_refusal(
+    analysis: &Analysis,
+    before: &Plan,
+    after: &Plan,
+) -> Option<&'static str> {
+    route_refusal_for(analysis, before, after, None)
+}
+
+fn route_refusal_for(
+    analysis: &Analysis,
+    before: &Plan,
+    after: &Plan,
+    only: Option<&str>,
+) -> Option<&'static str> {
+    let length =
+        |p: &crate::dims::Placed| p.lines.iter().map(|s| distance(s[0], s[1])).sum::<f64>();
+    let mut changed = Vec::new();
+    for d in after
+        .dimensions
+        .iter()
+        .filter(|d| d.kind == "callout" && only.is_none_or(|id| id == d.id))
+    {
+        let Some(p) = &d.placed else { continue };
+        let Some(old) = before.dimensions.iter().find(|o| o.id == d.id) else {
+            continue;
+        };
+        let Some(q) = &old.placed else { continue };
+        if length(p) > length(q) + 2.0 + 1e-6 {
+            return Some("leader length exceeds retained route by more than 2 mm");
+        }
+        let (Some(v), Some(w)) = (
+            after.views.iter().find(|v| v.id == d.view),
+            before.views.iter().find(|v| v.id == old.view),
+        ) else {
+            return Some("callout has no carrying view");
+        };
+        let same = v.scale == w.scale
+            && v.direction == w.direction
+            && v.up == w.up
+            && p.lines.len() == q.lines.len()
+            && p.lines
+                .iter()
+                .flatten()
+                .zip(q.lines.iter().flatten())
+                .all(|(a, b)| (0..2).all(|k| ((a[k] - v.at[k]) - (b[k] - w.at[k])).abs() < 1e-6))
+            && (0..4).all(|k| {
+                ((p.label_box[k] - v.at[k % 2]) - (q.label_box[k] - w.at[k % 2])).abs() < 1e-6
+            });
+        changed.push((p, v.sheet, q, w.sheet, same));
+    }
+    if changed.is_empty() {
+        return None;
+    }
+    let extensions = |plan: &Plan, sheet| {
+        plan.dimensions
+            .iter()
+            .filter(|d| {
+                plan.views
+                    .iter()
+                    .any(|v| v.id == d.view && v.sheet == sheet)
+            })
+            .filter_map(|d| d.placed.as_ref().map(|p| (d.id.as_str(), p)))
+            .filter(|(_, p)| p.arrows.len() == 2 && p.lines.len() >= 3)
+            .flat_map(|(id, p)| p.lines[..2].iter().map(move |s| (id.to_string(), *s)))
+            .collect::<Vec<_>>()
+    };
+    let mut current_ink = std::collections::BTreeMap::new();
+    let mut reference_ink = std::collections::BTreeMap::new();
+    for (p, sheet, q, old_sheet, same) in changed {
+        let a = extensions(after, sheet);
+        let b = extensions(before, old_sheet);
+        let contacts = |p: &crate::dims::Placed, ext: &[(String, [[f64; 2]; 2])]| {
+            let pad = grow_route_box(p.label_box, 1.0);
+            let mut all = std::collections::BTreeSet::new();
+            let mut text = std::collections::BTreeSet::new();
+            for (id, s) in ext {
+                if route_touches(*s, pad) {
+                    text.insert(id);
+                    all.insert(id);
+                }
+                if p.lines
+                    .iter()
+                    .any(|l| route_touches(*l, grow_route_box(route_bounds(*s), 1.0)))
+                {
+                    all.insert(id);
+                }
+            }
+            (all.len(), text.len())
+        };
+        let (total, text) = contacts(p, &a);
+        let (old_total, old_text) = contacts(q, &b);
+        if total > old_total || (!same && text > old_text) {
+            return Some("leader/text gains a 1 mm padded extension-line contact");
+        }
+        // A rigidly translated route at the same scale preserves its own model
+        // relationship. Changed routes must also clear the projected model ink.
+        if !same {
+            let ink = current_ink
+                .entry(sheet)
+                .or_insert_with(|| route_ink(analysis, after, sheet));
+            let old_ink = reference_ink
+                .entry(old_sheet)
+                .or_insert_with(|| route_ink(analysis, before, old_sheet));
+            let crossing = |p: &crate::dims::Placed, ink: &[[[f64; 2]; 2]]| {
+                ink.iter()
+                    .filter(|s| p.lines.iter().any(|l| route_crosses(*l, **s)))
+                    .count()
+            };
+            if crossing(p, ink) > crossing(q, old_ink) {
+                return Some("leader gains projected model/hidden-edge crossings");
+            }
+            let ink: Vec<_> = ink
+                .iter()
+                .copied()
+                .chain(a.iter().map(|(_, s)| *s))
+                .collect();
+            if p.lines.iter().any(|s| route_run(*s, &ink) > 2.0 + 1e-6) {
+                return Some(
+                    "moved leader runs for more than 2 mm within 0.3 mm of model/extension ink",
+                );
+            }
+        }
+    }
+    None
+}
+
+/// Preserve a short proven paper-space leader when its feature grows. The new
+/// proven attachment maps into the new ordinary view; the old elbow/label offset
+/// is transported in paper millimetres. This is a bounded alternative, accepted only after all ordinary
+/// placement, information and route gates are repeated.
+pub(crate) fn retain_callouts(analysis: &Analysis, reference: &Plan, plan: &mut Plan) {
+    if routes_no_worse(analysis, reference, plan) {
+        return;
+    }
+    let worse: std::collections::BTreeSet<_> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.kind == "callout")
+        .filter(|d| !routes_no_worse_for(analysis, reference, plan, Some(&d.id)))
+        .map(|d| d.id.clone())
+        .collect();
+    let mut trial = plan.clone();
+    let mut changed = false;
+    for d in &mut trial.dimensions {
+        if !worse.contains(&d.id)
+            || trial
+                .spec
+                .dimensions
+                .get(&d.id)
+                .is_some_and(|e| e.place.is_some())
+        {
+            continue;
+        }
+        let Some(old) = reference
+            .dimensions
+            .iter()
+            .find(|old| old.id == d.id && old.terms == d.terms && old.view == d.view)
+        else {
+            continue;
+        };
+        let (Some(p), Some(q)) = (&mut d.placed, &old.placed) else {
+            continue;
+        };
+        let (Some(line), Some(old_line)) = (p.lines.first(), q.lines.first()) else {
+            continue;
+        };
+        let (Some(view), Some(old_view)) = (
+            trial.views.iter().find(|v| v.id == d.view),
+            reference.views.iter().find(|v| v.id == old.view),
+        ) else {
+            continue;
+        };
+        if view.direction != old_view.direction || view.up != old_view.up {
+            continue;
+        }
+        // Retain the proven attachment itself. A new router can select the
+        // opposite rim; translating the old outgoing ray from that other rim
+        // would take the shaft through the part. Ordinary view centres share
+        // the same model projection, so this affine map preserves the site.
+        let tip = if view.detail.is_none()
+            && old_view.detail.is_none()
+            && view.cut.is_none()
+            && old_view.cut.is_none()
+        {
+            [0, 1].map(|k| {
+                view.at[k] + (old_line[0][k] - old_view.at[k]) * view.scale / old_view.scale
+            })
+        } else {
+            line[0]
+        };
+        let delta = [0, 1].map(|k| tip[k] - old_line[0][k]);
+        *p = q.clone();
+        for at in p.lines.iter_mut().chain(&mut p.arrows).flatten() {
+            for k in 0..2 {
+                at[k] += delta[k];
+            }
+        }
+        for k in 0..2 {
+            p.label_at[k] += delta[k];
+            p.label_box[k] += delta[k];
+            p.label_box[k + 2] += delta[k];
+        }
+        changed = true;
+    }
+    if !changed || !routes_no_worse(analysis, reference, &trial) {
+        return;
+    }
+    let checked = crate::dims::recheck(analysis, &trial);
+    let codes: std::collections::BTreeSet<_> = crate::dims::recheck(analysis, plan)
+        .into_iter()
+        .chain(checked.iter().cloned())
+        .map(|q| q.code)
+        .collect();
+    trial.problems.retain(|q| !codes.contains(&q.code));
+    trial.problems.extend(checked);
+    enclose_free_ink(analysis, &mut trial);
+    if routes_no_worse(analysis, reference, &trial)
+        && crate::model::no_new_drawing_issues(reference, &trial)
+        && crate::model::no_new_drawing_issues(plan, &trial)
+        && crate::model::drawn_sheets_fit(analysis, &trial)
+        && crate::model::carries_required(plan, &trial)
+        && readability(analysis, &trial).failures() <= readability(analysis, plan).failures()
+    {
+        trial.status = crate::completeness::status(&trial.problems);
+        trial.sheet.fill = fill(analysis, &trial);
+        *plan = trial;
+    }
+}
+
+fn distance(a: [f64; 2], b: [f64; 2]) -> f64 {
+    (a[0] - b[0]).hypot(a[1] - b[1])
+}
+fn grow_route_box(b: Rect, pad: f64) -> Rect {
+    [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad]
+}
+fn route_bounds(s: [[f64; 2]; 2]) -> Rect {
+    [
+        s[0][0].min(s[1][0]),
+        s[0][1].min(s[1][1]),
+        s[0][0].max(s[1][0]),
+        s[0][1].max(s[1][1]),
+    ]
+}
+fn route_touches(s: [[f64; 2]; 2], b: Rect) -> bool {
+    let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
+    for k in 0..2 {
+        let d = s[1][k] - s[0][k];
+        if d.abs() < 1e-12 {
+            if s[0][k] < b[k] || s[0][k] > b[k + 2] {
+                return false;
+            }
+        } else {
+            let a = (b[k] - s[0][k]) / d;
+            let z = (b[k + 2] - s[0][k]) / d;
+            lo = lo.max(a.min(z));
+            hi = hi.min(a.max(z));
+        }
+    }
+    lo <= hi
+}
+fn route_crosses(a: [[f64; 2]; 2], b: [[f64; 2]; 2]) -> bool {
+    let side = |p: [f64; 2], q: [f64; 2], r: [f64; 2]| {
+        (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+    };
+    side(a[0], a[1], b[0]) * side(a[0], a[1], b[1]) < -1e-12
+        && side(b[0], b[1], a[0]) * side(b[0], b[1], a[1]) < -1e-12
+}
+fn route_ink(analysis: &Analysis, plan: &Plan, sheet: u32) -> Vec<[[f64; 2]; 2]> {
+    let Some(ink) = &analysis.edge_ink else {
+        return Vec::new();
+    };
+    plan.views
+        .iter()
+        .filter(|v| v.sheet == sheet && v.id != "v:iso" && v.cut.is_none())
+        .flat_map(|v| {
+            let frame = haecceity::hlr::View::new(v.direction, v.up).expect("planned view");
+            let centre = if v.detail.is_some() {
+                crate::detail::crop_extent(analysis, v).1
+            } else {
+                crate::model::extent(analysis, &frame).1
+            };
+            let page = |p| {
+                let q = frame.map(p);
+                [0, 1].map(|k| v.at[k] + v.scale * (q[k] - centre[k]))
+            };
+            ink.edges
+                .iter()
+                .flat_map(|e| e.windows(2).map(|s| [page(s[0]), page(s[1])]))
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+fn route_run(a: [[f64; 2]; 2], ink: &[[[f64; 2]; 2]]) -> f64 {
+    let d = [a[1][0] - a[0][0], a[1][1] - a[0][1]];
+    let mut intervals = Vec::new();
+    for b in ink {
+        let w = [b[1][0] - b[0][0], b[1][1] - b[0][1]];
+        let n = w[0] * w[0] + w[1] * w[1];
+        if n < 1e-18 || (d[0] * w[1] - d[1] * w[0]).abs() > 0.3 * distance(a[0], a[1]) * n.sqrt() {
+            continue;
+        }
+        let q = [a[0][0] - b[0][0], a[0][1] - b[0][1]];
+        let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
+        for (at, slope, min, max) in [
+            (q[0] * w[0] + q[1] * w[1], d[0] * w[0] + d[1] * w[1], 0.0, n),
+            (
+                q[0] * w[1] - q[1] * w[0],
+                d[0] * w[1] - d[1] * w[0],
+                -0.3 * n.sqrt(),
+                0.3 * n.sqrt(),
+            ),
+        ] {
+            if slope.abs() < 1e-15 {
+                if at < min || at > max {
+                    hi = -1.0;
+                    break;
+                }
+            } else {
+                let x = (min - at) / slope;
+                let y = (max - at) / slope;
+                lo = lo.max(x.min(y));
+                hi = hi.min(x.max(y));
+            }
+        }
+        if hi > lo {
+            intervals.push((lo, hi));
+        }
+    }
+    intervals.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let (mut start, mut stop, mut longest) = (0.0_f64, 0.0_f64, 0.0_f64);
+    for (lo, hi) in intervals {
+        if lo > stop {
+            start = lo;
+        }
+        stop = stop.max(hi);
+        longest = longest.max(stop - start);
+    }
+    longest * distance(a[0], a[1])
+}
+
+/// A primary interval cannot become readable by repacking annotations. Defer
+/// this preflight whenever an authored/automatic crop may change its owner.
+/// The finished drawing remains authoritative; this only rejects a proved floor
+/// failure before the expensive layout solves.
+pub(crate) fn unavoidable_steps_at_scale(
+    analysis: &Analysis,
+    spec: &crate::model::Spec,
+    plan: &Plan,
+    scale: f64,
+    primary_only: bool,
+) -> usize {
+    if !crate::detail::requests(analysis, spec, scale).is_empty() {
+        return 0;
+    }
+    let mut probe = plan.clone();
+    for view in probe.views.iter_mut().filter(|v| v.detail.is_none()) {
+        view.scale = scale;
+    }
+    if primary_only {
+        primary_illegible_steps(analysis, &probe)
+    } else {
+        readability(analysis, &probe).steps
+    }
+}
+
 /// Usable-paper fill target. The lower bound triggers enlargement on the same
 /// paper (including allocation); it never buys a larger sheet (2026-10-17).
 pub const FILL_BAND: [f64; 2] = [0.60, 0.85];
@@ -1844,6 +2227,99 @@ pub(crate) fn reserve_linear_corridors(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn smaller_paper_is_not_its_own_route_reference() {
+        let Some(corpus) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
+            return;
+        };
+        let (_, a) = crate::model::analyse_native(
+            &std::path::PathBuf::from(corpus).join("mfcadpp/10033.step"),
+        )
+        .unwrap();
+        let p = crate::model::plan_recovered(&a, &crate::model::Spec::default()).unwrap();
+        if p.sheet.size != "A4" {
+            assert_eq!(
+                (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+                ("A3", "2:1")
+            );
+            assert!(
+                p.sheet
+                    .basis
+                    .contains("leader length exceeds retained route"),
+                "{}",
+                p.sheet.basis
+            );
+        }
+        let id = "d:f:chamfer:2/chamfer.length";
+        let q = p
+            .dimensions
+            .iter()
+            .find(|d| d.id == id)
+            .unwrap()
+            .placed
+            .as_ref()
+            .unwrap();
+        let baseline: serde_json::Value =
+            serde_json::from_str(include_str!("../tests/fixtures/leader_routes.json")).unwrap();
+        let old_length = baseline["parts"]["10033"][id]["length"].as_f64().unwrap();
+        assert!(
+            q.lines.iter().map(|s| distance(s[0], s[1])).sum::<f64>() <= old_length + 2.0 + 1e-6
+        );
+    }
+
+    #[test]
+    fn leader_runs_join_adjacent_strokes_but_not_transverse_contacts() {
+        let route = [[0.0, 0.0], [10.0, 0.0]];
+        assert!(
+            (route_run(route, &[[[1.0, 0.2], [2.0, 0.2]], [[2.0, 0.2], [4.0, 0.2]]]) - 3.0).abs()
+                < 1e-6
+        );
+        assert_eq!(route_run(route, &[[[1.0, -2.0], [1.0, 2.0]]]), 0.0);
+        assert_eq!(route_run(route, &[[[1.0, 0.31], [4.0, 0.31]]]), 0.0);
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn paper_enlargement_cannot_buy_longer_or_obstructed_callouts() {
+        let (_, a) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/mounting_plate.step"),
+        )
+        .unwrap();
+        let first = crate::model::plan(&a, &crate::model::Spec::default()).unwrap();
+        assert!(routes_no_worse(&a, &first, &first));
+        let mut longer = first.clone();
+        let p = longer
+            .dimensions
+            .iter_mut()
+            .find(|d| d.kind == "callout" && d.placed.is_some())
+            .unwrap()
+            .placed
+            .as_mut()
+            .unwrap();
+        p.lines[1][1][0] += 50.0;
+        assert!(!routes_no_worse(&a, &first, &longer));
+        let mut obstructed = first.clone();
+        let extension = first
+            .dimensions
+            .iter()
+            .filter_map(|d| d.placed.as_ref())
+            .find(|p| p.arrows.len() == 2 && p.lines.len() >= 3)
+            .unwrap()
+            .lines[0];
+        let p = obstructed
+            .dimensions
+            .iter_mut()
+            .find(|d| d.kind == "callout" && d.placed.is_some())
+            .unwrap()
+            .placed
+            .as_mut()
+            .unwrap();
+        p.label_box = grow_route_box(route_bounds(extension), 0.1);
+        assert!(!routes_no_worse(&a, &first, &obstructed));
+    }
 
     #[test]
     #[cfg(not(target_arch = "wasm32"))]

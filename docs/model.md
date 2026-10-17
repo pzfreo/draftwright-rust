@@ -968,6 +968,15 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   must not force the drawing back onto its larger paper.
   Incomplete and scheduled-row recovery trials compare each annotation/material
   finding type independently; fewer crossings do not pay for a new long leader.
+  Paper/scale changes also keep the rendered leader acceptance limits: no route
+  more than 2 mm longer, no new 1 mm padded text/extension contact, and no moved
+  route running for more than 2 mm within 0.3 mm of projected model/extension ink.
+  The search can transport a proven short leader offset to the candidate's new
+  feature attachment, then repeats placement, retention, bounds and readability
+  checks. A failed transport is discarded. Each sheet has independent coordinates.
+  Impossible principal projection rows/columns are rejected before solving, as are
+  scales below the preparation floor once a complete fitted drawing exists; these
+  trials can qualify neither readability nor the historical retained reference.
   A complete readable ordinary layout keeps the established placement pipeline,
   rather than comparing its routes with an unreadably compressed raw estimate.
   Settled GD&T blocks can still be composed from a same-scale A0 template and moved

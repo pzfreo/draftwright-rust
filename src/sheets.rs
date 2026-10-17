@@ -532,7 +532,7 @@ pub(crate) fn small_fallback(
         return None;
     }
     for (name, _, _) in layout::PAGES.iter().take(2) {
-        if let Some(p) = paper_fallback(analysis, spec, required, name, 0.0, tried) {
+        if let Some(p) = paper_fallback(analysis, spec, required, name, 0.0, tried, required) {
             return Some(p);
         }
     }
@@ -542,6 +542,7 @@ pub(crate) fn small_fallback(
 /// R5's established cumulative allocation, on one paper size and at readable
 /// standard scales. When fill is low, only an enlargement of the single-sheet
 /// candidate is useful. Named paper prevents recursive allocation searches.
+#[allow(clippy::too_many_arguments)] // Retained information and route references are independent.
 pub(crate) fn paper_fallback(
     analysis: &Analysis,
     spec: &Spec,
@@ -549,6 +550,7 @@ pub(crate) fn paper_fallback(
     name: &str,
     above_scale: f64,
     tried: &mut Vec<String>,
+    route_reference: &Plan,
 ) -> Option<Plan> {
     if spec.sheet.size.is_some() || spec.sheets.as_ref().and_then(|s| s.max) == Some(1) {
         return None;
@@ -612,6 +614,14 @@ pub(crate) fn paper_fallback(
         working.sheet.size = Some(name.into());
         working.sheets.get_or_insert_with(Default::default).max =
             Some(spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9));
+        if spec.sheet.scale.is_none()
+            && crate::sheet_fit::unavoidable_steps_at_scale(
+                analysis, &working, required, scale, false,
+            ) > 0
+        {
+            tried.push(format!("{name} multi-sheet: {} dimensioned step span fails its paper-space floor; auxiliary allocation cannot enlarge a principal step",model::scale_name(scale)));
+            continue;
+        }
         let mut p = match allocate_inner(
             analysis,
             &working,
@@ -624,6 +634,9 @@ pub(crate) fn paper_fallback(
                 continue;
             }
         };
+        if model::drawn_quality_reference(analysis, route_reference) {
+            crate::sheet_fit::retain_callouts(analysis, route_reference, &mut p);
+        }
         crate::iso_caption::refresh(analysis, &mut p);
         let (mut f, dropped) = score(analysis, &working, &p);
         f.hard = f.hard.max(model::findings(&p).hard);
@@ -636,12 +649,14 @@ pub(crate) fn paper_fallback(
         let complete = model::carries_required(required, &p);
         let fits = model::drawn_sheets_fit(analysis, &p);
         let over = model::over_views(&p) > model::over_views(required);
+        let route_reason = crate::sheet_fit::route_refusal(analysis, route_reference, &p);
+        let routes = !model::drawn_quality_reference(analysis, route_reference)
+            || (model::no_new_drawing_issues(route_reference, &p) && route_reason.is_none());
         let clean = f.hard == 0
             && dropped == 0
             && legible
             && p.sheet.scale_factor >= scale
-            && (!model::drawn_quality_reference(analysis, required)
-                || model::no_new_drawing_issues(required, &p))
+            && routes
             && small_content_fits(analysis, required, &p);
         let blockers: BTreeSet<_> = p
             .problems
@@ -650,8 +665,8 @@ pub(crate) fn paper_fallback(
             .map(|q| q.code.as_str())
             .collect();
         tried.push(format!(
-            "{name} multi-sheet: {} sheets at {}, {} hard findings, {dropped} required drops, required measurements retained {complete}, drawn bounds fit {fits}, additional view conflicts {over}, readability [{readable}], blocking problems [{}]",
-            1 + p.sheets.len(), p.sheet.scale, f.hard, blockers.into_iter().collect::<Vec<_>>().join(", ")
+            "{name} multi-sheet: {} sheets at {}, {} hard findings, {dropped} required drops, required measurements retained {complete}, drawn bounds fit {fits}, additional view conflicts {over}, retained leader association quality {routes} ({}), readability [{readable}], blocking problems [{}]",
+            1 + p.sheets.len(), p.sheet.scale, f.hard, route_reason.unwrap_or("annotation/feature association"), blockers.into_iter().collect::<Vec<_>>().join(", ")
         ));
         if clean {
             let binding = p.spec.binding.clone();
