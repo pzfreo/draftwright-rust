@@ -3057,12 +3057,10 @@ fn recover_candidates_before(
         && crate::detail::requests(analysis, spec, first.sheet.scale_factor)
             .iter()
             .any(|(_, d)| !d.authored));
-    // Keep main's physical seed test independent of scale qualification. A
-    // short step cannot be repaired by changing arrangements at the same scale;
-    // marking its fitted seed corrupt repeats every native inventory solve.
-    // Candidate and retained-reference legibility remain checked separately.
-    let seed_clean =
-        findings(&first).clean() && undrawn_gdt(&first) == 0 && drawn_items_fit(analysis, &first);
+    let seed_clean = findings(&first).clean()
+        && undrawn_gdt(&first) == 0
+        && drawn_items_fit(analysis, &first)
+        && (!reference_only || crate::sheet_fit::primary_illegible_steps(analysis, &first) == 0);
     // Omitting an optional detail changes candidate construction, never the
     // route-quality reference supplied by a physically complete first estimate.
     let seed_kept = seed_clean
@@ -4126,7 +4124,11 @@ fn recover_tables(
     }
     let key = serde_json::to_vec(&(spec, &first)).expect("table route reference inputs serialize");
     let reference = crate::planning::memo(analysis, "sheet-table-route-reference", key, || {
-        recover_tables_inner(analysis, spec, first.clone(), None, true)
+        // Preserve main's guarded installed-native-schedule reference before
+        // expanding rows into an inline ladder. The ordinary entry checks all
+        // scale, bounds, coverage, corridor and material budgets; only a failed
+        // reference enters the full historical table reconstruction below.
+        recover_candidates(analysis, spec, first.clone(), true, false, None, true)
     })?;
     let candidate = recover_tables_inner(analysis, spec, first, minimum, false)?;
     Ok(protect_retained_routes(

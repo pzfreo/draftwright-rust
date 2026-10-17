@@ -255,6 +255,51 @@ fn recess_scale_reference_uses_the_established_fitted_choice_before_a4_ranking()
 }
 
 #[test]
+fn an_installed_native_schedule_is_the_fitted_reference_for_readability_trials() {
+    let root = std::env::var_os("DRAFTWRIGHT_CORPUS")
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME")
+                .map(|h| std::path::PathBuf::from(h).join("repos/quiddity/tests/corpus"))
+        })
+        .filter(|p| p.is_dir());
+    let Some(root) = root else {
+        assert!(
+            std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"),
+            "required corpus missing"
+        );
+        return;
+    };
+    let (_, a) = analyse_native(&root.join("nist/nist_ctc_02_asme1_rc.stp")).unwrap();
+    crate::planning::with(&a, || {
+        let spec = Spec::default();
+        established_drawing(&a, &spec).unwrap();
+        let first = plan_escalated(&a, &spec).unwrap();
+        assert!(!first.hole_tables.is_empty());
+        assert!(crate::sheet_fit::readability(&a, &first).failures() > 0);
+        let reference =
+            recover_candidates(&a, &spec, first.clone(), true, false, None, true).unwrap();
+        assert_eq!(
+            serde_json::to_value(&reference).unwrap(),
+            serde_json::to_value(&first).unwrap(),
+            "the guarded installed schedule is already the historical fitted drawing"
+        );
+        let recovered = recover_tables(&a, &spec, first, None, false).unwrap();
+        assert!(carried(&reference).is_subset(&carried(&recovered)));
+        assert!(no_new_drawing_issues(&reference, &recovered));
+        assert!(crate::sheet_fit::routes_no_worse(
+            &a, &reference, &recovered
+        ));
+        assert!(
+            recovered
+                .problems
+                .iter()
+                .any(|p| p.code == "layout_recovery_exhausted")
+        );
+    });
+}
+
+#[test]
 fn native_corridor_violations_in_the_seed_cannot_veto_the_fitted_reference() {
     let evidence: serde_json::Value = serde_json::from_str(include_str!(
         "../tests/fixtures/sheet_policy_native_routes.json"
