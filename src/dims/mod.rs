@@ -1634,7 +1634,10 @@ fn plan_inventory_uncached(
     };
     precision::apply(spec, &mut wants)?;
     for (i, owner) in display_owners.iter().enumerate() {
+        // Baseline arithmetic can convey a shorter interval through longer
+        // stations. It shares placement ownership, not one printed scalar.
         if let Some(j) = owner
+            && (wants[i].value - wants[*j].value).abs() <= 1e-6
             && (precision::leading(spec, &wants[i]).is_some()
                 || precision::leading(spec, &wants[*j]).is_some())
             && precision::leading(spec, &wants[i]).map_or_else(
