@@ -30,6 +30,10 @@ with tempfile.TemporaryDirectory(prefix='s7-schema-') as cache:
             Draft202012Validator.check_schema(published)
             validators[tool['name'], direction] = Draft202012Validator(published)
     nullable = validators['inspect_part', 'input']
+    assert not nullable.is_valid({'part_ref': 'part', 'part_ref\n': 'bad'}), 'literal property names stay strict at a final newline'
+    for spec in ({'dimensions\n': {}}, {'sheet': {'centre_marks\n': True}},
+                 {'sheet': {'fit_limits\n': True}}):
+        assert not nullable.is_valid({'part_ref': 'part', 'spec': spec}), spec
     for sheet in [{'size': None, 'fit_limits': None}, {'size': 'A4', 'fit_limits': True}]:
         nullable.validate({'part_ref': 'part', 'spec': {'sheet': sheet}})
     for sheet in [{'size': 42}, {'fit_limits': 'yes'}]:
@@ -56,6 +60,29 @@ with tempfile.TemporaryDirectory(prefix='s7-schema-') as cache:
                 nullable.validate(authored(value))
             for value in ('false', 0, [], {}):
                 assert not nullable.is_valid(authored(value)), (scope, field, value)
+    declaration = {'id': 'f:declared:x', 'kind': 'hole', 'faces': []}
+    nullable.validate({'part_ref': 'part', 'spec': {'feature_declarations': [declaration]}})
+    for bad in ({'kind': 'hole', 'faces': [], 'replacement': 'x'},
+                {**declaration, 'extra': 'x'}, {'id': 'f:declared:x', 'faces': []},
+                {**declaration, 'faces': 'not-a-list'}, None, [], 'bad'):
+        assert not nullable.is_valid({'part_ref': 'part', 'spec': {'feature_declarations': [bad]}}), bad
+    # Named view constraints and the common object-map shape must both apply.
+    assert not nullable.is_valid({'part_ref': 'part', 'spec': {'views': {'side': []}}})
+    assert not nullable.is_valid({'part_ref': 'part', 'spec': {'feature_declarations': 'bad'}})
+    read_spec = validators['get_spec', 'output']
+    def dimension_result(dimension):
+        return {'spec_version': 'v', 'spec': {'dimensions': {'d:authored:test': dimension},
+                'feature_declarations': [declaration]}}
+    for dimension in ({}, {'kind': 'linear', 'between': ['a', 'b'], 'along': 'true'},
+                      {'kind': None, 'between': None, 'along': None},
+                      {'kind': 'linear', 'between': ['a', 'b'], 'along': 'x',
+                       'text': {'prefix': 'TYP', 'suffix': 'AFTER PLATING'}, 'style': 'basic'}):
+        read_spec.validate(dimension_result(dimension))
+    for dimension in ([], None, {'kind': 'bad'}, {'between': []},
+                      {'between': ['a', 'b', 'c']}, {'between': [1]}, {'along': 'bad'},
+                      {'text': {'prefix': 1}}, {'text': {'unknown': 'bad'}},
+                      {'text': {'prefix\n': 'bad'}}, {'style': 'bad'}):
+        assert not read_spec.is_valid(dimension_result(dimension)), dimension
     def call(name, args):
         validators[name, 'input'].validate(args)
         result = rpc('tools/call', {'name': name, 'arguments': args})
@@ -82,6 +109,8 @@ with tempfile.TemporaryDirectory(prefix='s7-schema-') as cache:
     }
     for name, args in cases.items():
         call(name, args)
+    for item_id in ('face:0', 'f:hole:1'):
+        call('item_options', {'part_ref': part, 'id': item_id})
     call('inspect_part', {'part_ref': part, 'problem_filter': {'feature': 'f:hole:4'}})
     call('list_problems', {'part_ref': part, 'filter': {'feature': 'f:hole:4'}})
     corrected = rpc('tools/call', {'name': 'preview_ops', 'arguments': {

@@ -1,5 +1,9 @@
 # Detail/main integration, 2026-10-17
 
+Latest integration: [recognition corrections and label text (#80/#81)](detail-main-81-verification.md).
+The first integration below is historical; current schema accounting is in
+[detail-schema-budget.md](detail-schema-budget.md).
+
 Fetched origin and merged `origin/main` at `2eb328ce` into `cx/detail-views`.
 This includes #77, #78 and #79, the alpha.4 release, PMI precision/source fixes and
 WASM safeguards. Recognition corrections #80 were not in origin/main at fetch time.

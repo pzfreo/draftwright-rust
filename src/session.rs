@@ -1017,6 +1017,71 @@ impl Session {
             .collect()
     }
     pub fn options(&self, id: &str) -> Result<Options, Error> {
+        if let Some(face) = id.strip_prefix("face:") {
+            let count = self.analysis.face_attachments.len();
+            let index = face.parse::<usize>().ok().filter(|&i| i < count)
+                .ok_or_else(|| Error::invalid(format!("{id:?} is not a face in this Analysis; use face:<index> with 0 <= index < {count}, or re-analyse if face evidence is absent.")))?;
+            let fingerprint =
+                crate::recognition_corrections::face_fingerprint(&self.analysis, index)?;
+            return Ok(Options {
+                id: id.into(),
+                operations: vec!["add".into()],
+                placements: vec![],
+                view_anchors: vec![],
+                scales: vec![],
+                settable: BTreeMap::from([(
+                    "feature_declarations".into(),
+                    serde_json::json!({"fields":[fingerprint],"forms":["add {id: f:declared:<name>, kind: hole|boss|turned_step|slot|pocket, faces: [fingerprint,…]}"]}),
+                )]),
+            });
+        }
+        if id.starts_with("f:") {
+            let feature = self.analysis.features.iter().find(|f| f.id == id);
+            let pattern = self
+                .analysis
+                .recognition
+                .iter()
+                .flat_map(|r| &r.patterns)
+                .any(|p| p.id == id);
+            if feature.is_none() && !pattern {
+                return Err(Error::invalid(format!(
+                    "There is no recognised feature or pattern {id:?}; use analyse to read the current feature and pattern IDs."
+                )));
+            }
+            let mut fields = BTreeMap::new();
+            let base = format!("features/{}", items::key(id));
+            if let Some(f) = feature {
+                fields.insert(
+                    format!("{base}/suppress"),
+                    serde_json::json!({"choices":[false,true]}),
+                );
+                let kinds = match f.kind.as_str() {
+                    "boss" | "turned_step" => vec!["boss", "turned_step"],
+                    "slot" | "section_recess" => vec!["slot", "pocket"],
+                    _ => vec![],
+                };
+                if !kinds.is_empty() {
+                    fields.insert(
+                        format!("{base}/reclassify"),
+                        serde_json::json!({"choices":kinds}),
+                    );
+                }
+            }
+            if pattern || feature.is_some_and(|f| f.kind == "slot_pattern") {
+                fields.insert(
+                    format!("{base}/split"),
+                    serde_json::json!({"choices":[false,true]}),
+                );
+            }
+            return Ok(Options {
+                id: id.into(),
+                operations: vec!["set".into(), "remove".into()],
+                placements: vec![],
+                view_anchors: vec![],
+                scales: vec![],
+                settable: fields,
+            });
+        }
         Ok(self.options_for(self.item(id)?, &self.placement_choices()))
     }
     /// All item options, computing the shared geometry choices once and without planning.
@@ -1106,6 +1171,8 @@ fn settable(
 ) -> BTreeMap<String, Value> {
     use serde_json::json;
     let mut fields = BTreeMap::new();
+    let merged = crate::recognition_corrections::effective(session.analysis(), session.spec()).ok();
+    let analysis = merged.as_deref().unwrap_or(session.analysis());
     let id = &item.item.id;
     let base = match item.item.kind.as_str() {
         "dimension" => format!("dimensions/{}", items::key(id)),
@@ -1222,7 +1289,20 @@ fn settable(
             format!("{base}/place/pinned"),
             choices(json!([false, true])),
         );
+        if item.item.kind == "dimension"
+            || item.item.kind == "label"
+            || id.starts_with("n:f:blend:")
+        {
+            fields.insert(
+                format!("{base}/text"),
+                json!({"fields":["prefix","suffix","template"],"forms":["{value} AFTER PLATING"]}),
+            );
+        }
         if item.item.kind == "dimension" {
+            fields.insert(
+                format!("{base}/style"),
+                choices(json!(["reference", "basic"])),
+            );
             fields.insert(
                 format!("{base}/view"),
                 fields[&format!("{base}/place/view")].clone(),
@@ -1246,15 +1326,18 @@ fn settable(
             }
         }
     }
+    // Recognition edits travel through the same transactional preview/apply and history.
+    if id == "sheet" {
+        fields.insert("features/f:hole_pattern:<name>/pattern".into(), json!({"fields":["arrangement", "members"], "forms":["{arrangement: linear|grid|bolt_circle, members: [hole id,…]}"]}));
+        fields.insert("feature_declarations".into(), json!({
+            "forms":["add {id: f:declared:<name>, kind: hole|boss|turned_step|slot|pocket, faces: [fingerprint,…]}",
+                format!("Get a face fingerprint with item_options face:<index>, 0 <= index < {}", analysis.face_attachments.len())]
+        }));
+    }
     // A fit qualifies a feature, including each member of a consolidated hole mark.
     let mut fits: BTreeMap<Vec<String>, Vec<String>> = BTreeMap::new();
     for feature in &item.features {
-        if let Some(f) = session
-            .analysis()
-            .features
-            .iter()
-            .find(|f| &f.id == feature)
-        {
+        if let Some(f) = analysis.features.iter().find(|f| &f.id == feature) {
             let classes = crate::dims::fit_choices(
                 &f.kind,
                 f.parameters
@@ -1283,8 +1366,7 @@ fn settable(
     }
     // A datum letter and feature control frames qualify a feature or hole pattern
     // ([`crate::spec_gdt`]); a face takes them at faces/<side or face:n>/….
-    let patterns = session
-        .analysis()
+    let patterns = analysis
         .recognition
         .as_ref()
         .map_or(&[][..], |r| r.patterns.as_slice());
@@ -1297,7 +1379,7 @@ fn settable(
         .and_then(|s| s.rsplit_once('/'))
         .map(|(f, _)| f.to_string());
     if let Some(feature) = &named {
-        let known = session.analysis().features.iter().any(|f| &f.id == feature)
+        let known = analysis.features.iter().any(|f| &f.id == feature)
             || patterns.iter().any(|p| &p.id == feature);
         if known {
             let base = format!("features/{}", items::key(feature));
@@ -1312,8 +1394,7 @@ fn settable(
             // diameter; a knurl on a turned diameter ([`crate::spec_notes`]).
             fields.insert(format!("{base}/finish"), json!({"fields":["ra","removal"]}));
             fields.insert(format!("{base}/note"), json!({"forms":["text"]}));
-            let kind = session
-                .analysis()
+            let kind = analysis
                 .features
                 .iter()
                 .find(|f| &f.id == feature)
@@ -1505,7 +1586,7 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                         a.anchors.extend(refs.split('|').map(String::from));
                     }
                 }
-                a.operations = ["omit", "tolerance", "place", "pin"]
+                a.operations = ["omit", "tolerance", "text", "style", "place", "pin"]
                     .map(String::from)
                     .into();
                 if d.from_spec.iter().any(|field| field == "between") {
@@ -1546,6 +1627,9 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                     .map(|f| f.id.clone())
                     .collect();
                 a.operations = ["omit", "place", "pin"].map(String::from).into();
+                if g.kind == "label" {
+                    a.operations.push("text".into());
+                }
             }
             if let Some(c) = plan.captions.iter().find(|c| &c.id == id) {
                 a.basis = c.basis.clone();
@@ -1557,7 +1641,7 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                 a.placement = n.placed.as_ref().map(|p| Placement::Box(p.cells));
                 a.features = n.measurements.iter().map(|m| m.feature.clone()).collect();
                 if n.id.starts_with("n:f:blend:") {
-                    a.operations = ["omit", "place"].map(String::from).into();
+                    a.operations = ["omit", "text", "place"].map(String::from).into();
                 }
             }
             if let Some(r) = plan.requirements.iter().find(|r| &r.id == id) {

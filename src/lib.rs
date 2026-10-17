@@ -17,6 +17,7 @@ pub mod evaluation;
 pub mod gears;
 pub mod hole_table;
 pub mod items;
+pub mod label_text;
 pub mod layout;
 pub mod linework;
 pub mod lint;
@@ -50,3 +51,5 @@ mod planning;
 pub mod iso_caption;
 
 pub mod detail;
+/// Authored corrections resolved into the ordinary feature inventory.
+pub mod recognition_corrections;

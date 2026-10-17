@@ -248,6 +248,9 @@ pub struct Spec {
     /// Per feature, by its ID (`f:<kind>:<n>`).
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub features: BTreeMap<String, FeatureSpec>,
+    /// Features authored from stable face fingerprints; sizes are read from Analysis evidence.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub feature_declarations: Vec<crate::recognition_corrections::Declaration>,
     /// Datums and feature control frames on faces, by the side of the part's box the face is
     /// on (`bottom`, `top`, `left`, `right`, `front`, `back`) or its index (`face:<n>`)
     /// ([`crate::spec_gdt`]).
@@ -285,6 +288,10 @@ impl DimensionSource {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct DimensionSpec {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<crate::label_text::Text>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub style: Option<crate::label_text::Style>,
     /// Authored quantity; absent means an edit of an automatic dimension.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<String>,
@@ -317,6 +324,21 @@ pub struct DimensionSpec {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct FeatureSpec {
+    /// Stable defining-face fingerprints, filled when a correction is saved.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<crate::recognition_corrections::Anchor>,
+    /// Author's geometric interpretation; uses the ordinary feature planners.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reclassify: Option<crate::recognition_corrections::Kind>,
+    /// Remove a spurious recognition, including its feature requirements.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub suppress: bool,
+    /// Dissolve a recognised hole or slot pattern, retaining its members.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub split: bool,
+    /// Group existing holes under this stable, author-chosen pattern ID.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<crate::recognition_corrections::PatternSpec>,
     /// An ISO 286 fit class on a hole's bore or a cylindrical boss's diameter (`H7`, `g6`),
     /// printed after the diameter of the callout that states it.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -364,6 +386,7 @@ impl Default for Spec {
             envelope_tolerance: None,
             precision: BTreeMap::new(),
             features: BTreeMap::new(),
+            feature_declarations: Vec::new(),
             faces: BTreeMap::new(),
             annotations: BTreeMap::new(),
             notes: Vec::new(),
@@ -456,6 +479,9 @@ pub struct ViewSpec {
 /// What the sheet will say.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Plan {
+    /// Authored recognition changes, including suppression with no resulting annotation.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recognition_corrections: Vec<crate::recognition_corrections::Applied>,
     pub schema: String,
     pub binding: Binding,
     /// Digest of the complete Analysis, including the supplied recognition, that determined
@@ -1519,6 +1545,8 @@ pub(crate) fn undrawn_gdt(p: &Plan) -> usize {
 /// Find the smallest fit and its largest scale; only its immediate larger sheet, with an
 /// enlargement, may compete. Pins keep their canonical sheet; explicit choices override.
 pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
+    let bound = crate::recognition_corrections::canonical(analysis, spec)?;
+    let spec = bound.as_ref();
     // The Spec's datums and controls merged into the PMI reading, once, so every later use of the
     // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).
     let merged = crate::spec_gdt::effective(analysis, spec)?;
@@ -1716,7 +1744,7 @@ pub(crate) fn dimension_text_edited(spec: &Spec) -> bool {
         && spec
             .dimensions
             .values()
-            .filter(|d| d.tolerance.is_some())
+            .filter(|d| d.tolerance.is_some() || d.text.is_some() || d.style.is_some())
             .count()
             + spec.features.values().filter(|f| f.fit.is_some()).count()
             == 1
@@ -2386,6 +2414,8 @@ fn recover_candidates(
 /// caller (the library's [`crate::api`], so the command line, the JSON-lines service and MCP)
 /// is given. A plan that cannot be made is refused as [`plan`] refuses it.
 pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    let bound = crate::recognition_corrections::canonical(analysis, spec)?;
+    let spec = bound.as_ref();
     // The Spec's datums and controls merged into the PMI reading, once, so every later use of the
     // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).
     let merged = crate::spec_gdt::effective(analysis, spec)?;
@@ -2471,6 +2501,8 @@ fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan,
 /// the dimensions, which on most parts keeps a larger scale, but where the dimensions run on
 /// past it an item can find no place (nist_stc_09 e4 at 1:1: 13 frames across the plan).
 pub fn plan_escalated(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    let bound = crate::recognition_corrections::canonical(analysis, spec)?;
+    let spec = bound.as_ref();
     // The Spec's datums and controls merged into the PMI reading, once, so every later use of the
     // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).
     let merged = crate::spec_gdt::effective(analysis, spec)?;
@@ -2722,7 +2754,7 @@ fn plan_with_presentation(
             &ANALYSIS_SCHEMAS,
         ));
     }
-    let spec = &migrate(spec, analysis)?;
+    let spec = &crate::recognition_corrections::bind(analysis, migrate(spec, analysis)?)?;
     crate::dims::authored::check(spec)?;
     if spec
         .iso_scale_factor
@@ -2740,6 +2772,7 @@ fn plan_with_presentation(
     crate::spec_notes::check_claims(analysis, spec)?;
     crate::dims::check_views(spec)?;
     crate::placement_intent::check(spec)?;
+    crate::label_text::check(spec)?;
     title_block::check(&spec.sheet.title)?;
     crate::notes::check(&spec.notes)?;
     crate::tables::check(&spec.tables)?;
@@ -2763,6 +2796,8 @@ fn plan_with_presentation(
                 d.view = None;
                 d.tolerance = None;
                 d.fit = None;
+                d.text = None;
+                d.style = None;
             }
         }
         Some(if complete_views {
@@ -2771,12 +2806,14 @@ fn plan_with_presentation(
             plan(analysis, &base)?
         })
     } else if complete_views && dimension_text_edited(spec) {
-        // Tolerance/fit edits change annotation ink, not the part projections.
+        // Tolerance, fit and wording edits change annotation ink, not the part projections.
         // Keep authored geometry in the complete unedited frame too.
         let mut base = spec.clone();
         for d in base.dimensions.values_mut() {
             d.tolerance = None;
             d.fit = None;
+            d.text = None;
+            d.style = None;
         }
         for f in base.features.values_mut() {
             f.fit = None;
@@ -2936,17 +2973,22 @@ fn plan_with_presentation(
         });
     }
     if !effective.annotations.is_empty() {
-        let mut annotation_ids: Vec<String> = crate::pmi_lowering::lower(analysis, &|_| true)
-            .0
-            .into_iter()
-            .map(|i| i.id)
-            .collect();
+        let mut lowered = crate::pmi_lowering::lower(analysis, &|_| true).0;
+        crate::label_text::annotations(&mut lowered, &effective)?;
+        let mut annotation_ids: Vec<String> = lowered.into_iter().map(|i| i.id).collect();
         annotation_ids.extend(crate::dims::blends::note_ids(analysis));
         for id in effective.annotations.keys() {
             if !annotation_ids.contains(id) {
                 return Err(Invalid {
-                    message: format!("There is no annotation {id:?} on this part."),
-                    choices: annotation_ids.clone(),
+                    message: format!(
+                        "There is no annotation {id:?} on this part. Choose a current annotation ID, or remove annotations/{}.",
+                        crate::items::key(id)
+                    ),
+                    choices: if annotation_ids.is_empty() {
+                        vec![format!("remove annotations/{}", crate::items::key(id))]
+                    } else {
+                        annotation_ids.clone()
+                    },
                 });
             }
         }
@@ -2974,6 +3016,12 @@ fn plan_with_presentation(
         }
     }
     let mut demand = crate::demand::read(analysis);
+    if spec.annotations.values().any(|a| a.text.is_some()) {
+        demand.gdt = [
+            crate::dims::gdt::demand_with_spec(analysis, spec, &|_| true),
+            crate::dims::gdt::demand_with_spec(analysis, spec, &|v| v != "side"),
+        ];
+    }
     demand.gdt_beyond_lanes = gdt_beyond_lanes;
     demand.callout_bands = crate::dims::callout_bands(analysis, spec)?;
     // A turned part drops the view that repeats its profile, unless the spec asks for it, or
@@ -3013,10 +3061,16 @@ fn plan_with_presentation(
     // Full printed extents reserve ink, but an authored linear tolerance must not recenter
     // every projection and its unrelated dimensions (ARCH0003-2). Keep the established
     // linear anchor bands separately; the placed blocks below still use the full extents.
-    let linear_anchor_lanes = if spec.dimensions.values().any(|d| d.tolerance.is_some()) {
+    let linear_anchor_lanes = if spec
+        .dimensions
+        .values()
+        .any(|d| d.tolerance.is_some() || d.text.is_some() || d.style.is_some())
+    {
         let mut nominal = spec.clone();
         for d in nominal.dimensions.values_mut() {
             d.tolerance = None;
+            d.text = None;
+            d.style = None;
         }
         let (before, _) =
             crate::dims::lanes_excluding(analysis, &shown_views, &excluded, &nominal)?;
@@ -3184,6 +3238,13 @@ fn plan_with_presentation(
             }),
     );
     let mut radius_notes = crate::dims::blends::notes(analysis);
+    for (note, _) in &mut radius_notes {
+        if let Some(text) = spec.annotations.get(&note.id).and_then(|a| a.text.as_ref()) {
+            note.text = text
+                .terms(&note.id, std::slice::from_ref(&note.text))?
+                .join(" ");
+        }
+    }
     if spec.dimension_source == DimensionSource::Authored {
         radius_notes.retain(|(n, _)| spec.annotations.contains_key(&n.id));
     }
@@ -3961,7 +4022,10 @@ fn plan_with_presentation(
     }
     let reserved: Vec<_> = gdt.iter().filter_map(crate::dims::gdt::proxy).collect();
     let mut label_spec = spec.clone();
-    if spec.dimensions.values().any(|d| d.tolerance.is_some())
+    if spec
+        .dimensions
+        .values()
+        .any(|d| d.tolerance.is_some() || d.text.is_some() || d.style.is_some())
         || spec.features.values().any(|f| f.fit.is_some())
     {
         // Text edits retain unaffected peers' canonical settlement, just as lane assignment
@@ -4258,7 +4322,7 @@ fn plan_with_presentation(
                 || (exceptions_unstated && matches!(n.state, ItemState::OmittedByUser)))
                 && !spec.annotations.get(&n.id).is_some_and(|e| e.omit)
                 && !n.measurements.is_empty()
-                && n.text.starts_with("ALL UNSPECIFIED RADII")
+                && crate::label_text::note_body(spec, n).starts_with("ALL UNSPECIFIED RADII")
         }) {
             note.placed = None;
             note.state = ItemState::NotDrawable {
@@ -4378,6 +4442,7 @@ fn plan_with_presentation(
         }
     }
     let mut plan = Plan {
+        recognition_corrections: Vec::new(),
         schema: PLAN_SCHEMA.into(),
         binding: analysis.binding.clone(),
         analysis_sha256: Some(crate::planning::memo(
@@ -4440,6 +4505,7 @@ fn plan_with_presentation(
             ..Default::default()
         });
     }
+    crate::recognition_corrections::report(analysis, &mut plan);
     if complete_views {
         crate::sheet_fit::reserve_linear_corridors(
             analysis,
@@ -4826,10 +4892,12 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
     crate::dims::authored::check(&spec)?;
     crate::dims::check_views(&spec)?;
     crate::placement_intent::check(&spec)?;
+    crate::label_text::check(&spec)?;
     title_block::check(&spec.sheet.title)?;
     crate::notes::check(&spec.notes)?;
     crate::tables::check(&spec.tables)?;
     crate::gears::check(&spec.gears)?;
+    crate::recognition_corrections::check(&spec)?;
     Ok(spec)
 }
 
@@ -6614,6 +6682,7 @@ fn render_annotations_with_cuts(
             items: ink,
         });
     }
+    crate::label_text::capture(plan, &mut sheet);
     if !plan.spec.precision.is_empty() {
         for d in &plan.dimensions {
             let role = d.id.rsplit_once('/').map_or("", |(_, p)| p);

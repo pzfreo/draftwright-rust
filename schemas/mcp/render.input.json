@@ -23,18 +23,12 @@
           ],
           "properties": {
             "smallest_scale": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "$ref": "#/B"
             },
             "keep_together": {
               "type": "array",
               "items": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
+                "$ref": "#/A"
               }
             },
             "gdt_on_sheet_1": {
@@ -43,7 +37,7 @@
           },
           "additionalProperties": false,
           "patternProperties": {
-            "^(max|hole_table)$": {
+            "^(max|hole_table)$(?!\n)": {
               "enum": [
                 null,
                 1,
@@ -84,24 +78,19 @@
           },
           "additionalProperties": false,
           "patternProperties": {
-            "^(size|scale)$": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "^(fit_limits|fit_deviations|hidden|centre_marks|centre_lines|thread_depiction|knurl_depiction)$": {
+            "^(hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
               "type": [
                 "boolean",
                 "null"
               ]
+            },
+            "^(size|scale)$(?!\n)": {
+              "$ref": "#/B"
             }
           }
         },
         "views": {
-          "type": "object",
           "additionalProperties": {
-            "type": "object",
             "properties": {
               "detail": {
                 "type": [
@@ -138,7 +127,7 @@
               }
             },
             "patternProperties": {
-              "^(hidden|centre_marks|centre_lines|thread_depiction|knurl_depiction)$": {
+              "^(hidden|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"
@@ -159,21 +148,39 @@
             "always",
             "never"
           ]
+        },
+        "feature_declarations": {
+          "items": {
+            "properties": {
+              "faces": {
+                "$ref": "#/A"
+              }
+            },
+            "additionalProperties": {
+              "type": "string"
+            },
+            "required": [
+              "id",
+              "kind",
+              "faces"
+            ],
+            "maxProperties": 3
+          }
         }
       },
       "additionalProperties": false,
       "patternProperties": {
-        "^(dimensions|annotations|features|faces)$": {
+        "^(views|dimensions|annotations|features|faces)$(?!\n)": {
+          "type": "object",
           "additionalProperties": {
             "type": "object"
-          },
-          "type": "object"
+          }
         },
-        "^(notes|tables|gears)$": {
+        "^(notes|tables|gears|feature_declarations)$(?!\n)": {
+          "type": "array",
           "items": {
             "type": "object"
-          },
-          "type": "array"
+          }
         }
       }
     },
@@ -237,8 +244,20 @@
     }
   ],
   "patternProperties": {
-    "^(part_ref|spec_version|drawing_ref|step|features)$": {
+    "^(spec_version|step|features|(part|drawing)_ref)$(?!\n)": {
       "type": "string"
     }
+  },
+  "A": {
+    "items": {
+      "type": "string"
+    },
+    "type": "array"
+  },
+  "B": {
+    "type": [
+      "string",
+      "null"
+    ]
   }
 }

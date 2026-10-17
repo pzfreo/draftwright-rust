@@ -429,7 +429,13 @@ pub(crate) fn record(
 /// recorded. Authored gears are also lowered into the independent requirement inventory
 /// ([`crate::gears`]); their anchors must belong to this revision.
 pub fn effective<'a>(analysis: &'a Analysis, spec: &Spec) -> Result<Cow<'a, Analysis>, Invalid> {
-    let merged = pmi_effective(analysis, spec)?;
+    let bound = crate::recognition_corrections::canonical(analysis, spec)?;
+    let spec = bound.as_ref();
+    let corrected = crate::recognition_corrections::effective(analysis, spec)?;
+    let merged = match corrected {
+        Cow::Borrowed(a) => pmi_effective(a, spec)?,
+        Cow::Owned(a) => Cow::Owned(pmi_effective(&a, spec)?.into_owned()),
+    };
     crate::gears::effective(merged, spec)
 }
 

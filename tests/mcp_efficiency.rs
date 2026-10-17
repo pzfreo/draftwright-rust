@@ -451,3 +451,77 @@ fn shared_schema_types_preserve_state_alternatives_and_detail_placements() {
     options["placements"] = json!([{"view":"detail_i", "side":"above"}]);
     assert!(mcp::validate(&schema, &options).is_err());
 }
+
+#[test]
+fn compact_prefix_suffix_choices_and_authored_dimension_outputs_stay_strict() {
+    let input = mcp::schema("inspect_part", false).unwrap();
+    for name in [
+        "fit_limits",
+        "fit_deviations",
+        "centre_marks",
+        "centre_lines",
+        "thread_depiction",
+        "knurl_depiction",
+    ] {
+        for value in [json!(true), json!(false), Value::Null] {
+            mcp::validate(
+                &input,
+                &json!({"part_ref":"part","spec":{"sheet":{name:value}}}),
+            )
+            .unwrap();
+        }
+        for bad_name in [format!("{name}\n"), format!("{name}_extra")] {
+            assert!(
+                mcp::validate(
+                    &input,
+                    &json!({"part_ref":"part","spec":{"sheet":{bad_name:true}}})
+                )
+                .is_err()
+            );
+        }
+        assert!(
+            mcp::validate(
+                &input,
+                &json!({"part_ref":"part","spec":{"sheet":{name:"yes"}}})
+            )
+            .is_err()
+        );
+    }
+    for name in [
+        "thread_lines",
+        "knurl_marks",
+        "centre_depiction",
+        "_depiction",
+    ] {
+        assert!(
+            mcp::validate(
+                &input,
+                &json!({"part_ref":"part","spec":{"sheet":{name:true}}})
+            )
+            .is_err()
+        );
+    }
+    let output = mcp::schema("get_spec", true).unwrap();
+    let result = |dimension| {
+        json!({"spec_version":"v","spec":{
+            "dimensions":{"d:authored:test":dimension},
+            "feature_declarations":[{"id":"f:declared:test","kind":"hole","faces":[]}]
+        }})
+    };
+    mcp::validate(
+        &output,
+        &result(json!({"kind":"linear","between":["a","b"],"along":"true"})),
+    )
+    .unwrap();
+    for dimension in [
+        json!([]),
+        Value::Null,
+        json!({"kind":"bad"}),
+        json!({"between":[]}),
+        json!({"between":["a","b","c"]}),
+        json!({"between":[1]}),
+        json!({"along":"bad"}),
+    ] {
+        assert!(mcp::validate(&output, &result(dimension)).is_err());
+    }
+}

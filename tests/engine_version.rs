@@ -144,7 +144,9 @@ fn tools_explain_their_operations_without_source_and_fit_schema_budget() {
     // and controls on faces, #43) added about 400 bytes the same way: 41,444. K1b's
     // sheet/default_finish (#43) added about 530 bytes the same way: 41,972.
     // Authored gears add 32 bytes to each of twelve Spec-carrying schemas: 42,356.
-    // Typed detail records and equivalent compaction: exactly 46,328 served bytes.
-    assert!(schema_bytes < 46329, "schemas: {schema_bytes} bytes");
+    // Line-work switches plus equivalent patternProperties compaction: 42,113 bytes.
+    // Authored geometry, recognition corrections and label text: 42,465 bytes.
+    // Typed detail records add 4,103; placement names add 88: exactly 46,656.
+    assert!(schema_bytes < 46657, "schemas: {schema_bytes} bytes");
     eprintln!("schema bytes per session: {schema_bytes}");
 }

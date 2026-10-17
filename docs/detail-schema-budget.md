@@ -1,34 +1,35 @@
-# Detail schema cost after main integration
+# Detail schema cost after recognition and label-text integration
 
-The regenerated 26 standalone MCP schemas occupy **46,328 compact UTF-8 bytes** per
-session. Both the generator and the Rust tools/list test use the exact strict bound
-`< 46,329`. Main's regenerated schemas occupy 42,124 bytes, inside its 42,500 budget.
-No schema validation was removed to meet a byte target.
+The 26 regenerated standalone MCP schemas occupy **46,656 compact UTF-8 bytes**
+per session. The generator and `tests/engine_version.rs` enforce the smallest
+strict integer bound, **< 46,657**. Generated JSON comes exclusively from
+`tools/generate_mcp_schemas.py`.
 
-The detail record adds **4,116 bytes**: **343 bytes in each of twelve Spec schemas**
-(eleven tool inputs and get_spec output). The same compaction with the record removed
-measures 42,212 bytes. Eight supported detail placement-view names add another **88
-bytes** in item_options output. Total detail vocabulary cost relative to regenerated
-main is therefore **4,204 bytes**. The previous branch measured 46,868 bytes; main's
-compaction saves 540 bytes while also retaining authored dimension and line-work forms.
+Main at `54704307` (#80 and #81) regenerates to **42,465 bytes**. Removing only
+our typed detail record from the merged generator, then rerunning the same
+compaction, yields **42,553 bytes**. The detail record's marginal share is therefore
+**4,103 bytes**, with another **88 bytes** for eight placement-view names.
+Total detail vocabulary cost relative to main is **4,191 bytes**.
 
-| Record component | Per schema | All twelve | Why it is needed |
-| --- | ---: | ---: | --- |
-| `around` and its required constraint | 98 | 1,176 | Stable feature/face ID or nonempty string array; rejects missing targets, empty arrays and nonstring members. |
-| Optional `from` | 96 | 1,152 | Nullable principal/section source, constrained by a strict end-anchored pattern; rejects iso, malformed sections and trailing newlines. |
-| Optional `scale_factor` | 54 | 648 | Numeric enlargement strictly greater than one. |
-| `detail` property and closed nullable record structure | 95 | 1,140 | Distinguishes an absent/null request from an object and refuses unsupported geometry fields such as bounds. |
-| **Total record** | **343** | **4,116** | |
+| Spec schemas | Record bytes each | Subtotal |
+| --- | ---: | ---: |
+| get_item, get_spec, inspect_part, item_options, list_problems, render, render_pdf inputs | 343 | 2,401 |
+| apply_ops, preview_ops, list_items inputs | 340 | 1,020 |
+| view_sheet input and get_spec output | 341 | 682 |
+| **All twelve** | | **4,103** |
 
-These are marginal removal measurements with the same generator and optimizers;
-removing all three fields leaves the 95-byte structural cost per schema. Retain main's
-`spec_read`, `hoist_objects`, `group_properties`, `inline_single_use`, `share_repeated`
-and short local definitions. The disjoint string/array type avoids union branches;
-the section-name pattern avoids an enumerated list. The strict 42,500 limit leaves only 375 usable
-bytes beyond main, while the typed record alone costs 4,116. Replacing typed input
-records with permissive sparse objects would fit better but would discard validation
-that the detail schema regressions require, so the exact measured bound is retained.
+The previous accepted branch measured 46,328 bytes, including a 4,116-byte
+record. Main's iterative compaction and root schema targets lower the record's
+marginal cost by 13 bytes while retaining recognition declarations and label text.
+The final merged total is 328 bytes larger than the previous accepted branch.
 
-Reproduce the total with `python3 tools/generate_mcp_schemas.py`; the served-byte Rust
-check is `tools_explain_their_operations_without_source_and_fit_schema_budget` in
-`tests/engine_version.rs`. Generated JSON is never hand-merged.
+The record remains closed and nullable, requires `around` as a string or nonempty
+string array, constrains `from` to principal/section names with a strict end anchor,
+and requires numeric `scale_factor > 1`. No validation was removed for size.
+Main's sparse input maps, typed read forms, recognition declarations, label fields,
+iterative compaction and root reference targets are retained.
+
+Measurements are removal experiments with identical optimizers, so sharing can
+make the marginal cost differ across standalone schemas. Reproduce the final total
+with `python3 tools/generate_mcp_schemas.py`; the Rust served-byte check is
+`tools_explain_their_operations_without_source_and_fit_schema_budget`.

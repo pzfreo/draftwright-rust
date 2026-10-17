@@ -8,7 +8,6 @@
           "items": {
             "anyOf": [
               {
-                "type": "object",
                 "properties": {
                   "sheet": {
                     "enum": [
@@ -24,27 +23,31 @@
                     ]
                   },
                   "id": {
-                    "type": "string"
+                    "$ref": "#/C"
                   },
                   "kind": {
-                    "type": "string"
+                    "$ref": "#/C"
+                  },
+                  "label": {
+                    "$ref": "#/A"
+                  },
+                  "view": {
+                    "$ref": "#/A"
                   },
                   "state": {
                     "anyOf": [
                       {
-                        "properties": {
-                          "kind": {
-                            "enum": [
-                              "shown",
-                              "omitted_by_user",
-                              "not_authored"
-                            ]
+                        "enum": [
+                          {
+                            "kind": "shown"
+                          },
+                          {
+                            "kind": "omitted_by_user"
+                          },
+                          {
+                            "kind": "not_authored"
                           }
-                        },
-                        "required": [
-                          "kind"
-                        ],
-                        "additionalProperties": false
+                        ]
                       },
                       {
                         "properties": {
@@ -52,14 +55,11 @@
                             "const": "covered"
                           },
                           "by": {
-                            "type": "string"
+                            "$ref": "#/C"
                           }
                         },
-                        "required": [
-                          "kind",
-                          "by"
-                        ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "minProperties": 2
                       },
                       {
                         "properties": {
@@ -67,14 +67,11 @@
                             "const": "not_drawable"
                           },
                           "reason_code": {
-                            "type": "string"
+                            "$ref": "#/C"
                           }
                         },
-                        "required": [
-                          "kind",
-                          "reason_code"
-                        ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "minProperties": 2
                       }
                     ],
                     "type": "object"
@@ -87,18 +84,9 @@
                   "view",
                   "state"
                 ],
-                "additionalProperties": false,
-                "patternProperties": {
-                  "^(label|view)$": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  }
-                }
+                "additionalProperties": false
               },
               {
-                "type": "object",
                 "properties": {
                   "item": {
                     "type": "object"
@@ -110,10 +98,7 @@
                     ]
                   },
                   "dimension_kind": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
+                    "$ref": "#/A"
                   },
                   "placement": {
                     "type": [
@@ -122,49 +107,31 @@
                     ]
                   },
                   "basis": {
-                    "type": "string"
+                    "$ref": "#/C"
                   }
                 },
-                "required": [
-                  "item",
-                  "value",
-                  "dimension_kind",
-                  "placement",
-                  "anchors",
-                  "features",
-                  "basis",
-                  "operations"
-                ],
                 "additionalProperties": false,
+                "minProperties": 8,
                 "patternProperties": {
-                  "^(anchors|features|operations)$": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
+                  "^(anchors|features|operations)$(?!\n)": {
+                    "$ref": "#/B"
                   }
                 }
               },
               {
-                "type": "object",
                 "properties": {
                   "id": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
+                    "$ref": "#/A"
                   },
                   "detail_ref": {
-                    "type": "string"
+                    "$ref": "#/C"
                   }
                 },
-                "required": [
-                  "id",
-                  "detail_ref"
-                ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "minProperties": 2
               }
-            ]
+            ],
+            "type": "object"
           }
         },
         "total": {
@@ -179,45 +146,51 @@
           "minimum": 0
         }
       },
-      "required": [
-        "items",
-        "total",
-        "next_cursor"
-      ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "minProperties": 3
     },
     {
-      "properties": {
-        "error": {
-          "type": "object",
-          "properties": {
-            "code": {
-              "enum": [
-                "invalid",
-                "failed"
-              ]
-            },
-            "message": {
-              "type": "string"
-            },
-            "choices": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "choices": {
+            "$ref": "#/B"
           },
-          "required": [
-            "code",
-            "message"
-          ],
-          "additionalProperties": false
-        }
+          "code": {
+            "enum": [
+              "invalid",
+              "failed"
+            ]
+          },
+          "message": {
+            "$ref": "#/C"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
       },
       "required": [
         "error"
       ],
-      "additionalProperties": false
+      "maxProperties": 1
     }
-  ]
+  ],
+  "A": {
+    "type": [
+      "string",
+      "null"
+    ]
+  },
+  "B": {
+    "items": {
+      "$ref": "#/C"
+    },
+    "type": "array"
+  },
+  "C": {
+    "type": "string"
+  }
 }

@@ -72,6 +72,8 @@ impl Along {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct AnnotationSpec {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<crate::label_text::Text>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub omit: bool,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -68,6 +68,8 @@ mod grooves;
 mod holes;
 pub(crate) mod interior;
 mod label_lanes;
+mod wording;
+pub(crate) use pmi_dimensions::basic as is_basic;
 mod leaders;
 pub(crate) use label_lanes::settle_inventory;
 pub(crate) use leaders::settle_after_furniture;
@@ -1041,7 +1043,8 @@ pub(crate) fn callout_bands(
         .map(|w| (w, false, None, Vec::new()))
         .collect();
     precision::labels(spec, kept.iter_mut().map(|(w, ..)| w))?;
-    tolerance::apply(analysis, spec, &mut kept, &[], &mut Vec::new())?;
+    let mut given = tolerance::apply(analysis, spec, &mut kept, &[], &mut Vec::new())?;
+    wording::apply(spec, &mut kept, &mut given)?;
     Ok(kept
         .iter()
         .filter_map(|(w, ..)| {
@@ -1191,6 +1194,7 @@ fn lanes_uncached(
         share_statements(&mut kept, &mut given, &mut omitted, true);
         share_pmi(&mut kept, &mut given, &mut omitted);
         redundancy::consolidate(analysis, &mut kept, &mut given, &mut omitted);
+        wording::apply(spec, &mut kept, &mut given)?;
     }
     for w in &mut wants {
         if let Some((printed, ..)) = kept.iter().find(|(p, ..)| p.id == w.id) {
@@ -1846,6 +1850,8 @@ fn plan_inventory_uncached(
                 .then_some((w.id, w.terms))
         }));
     }
+    wording::apply(spec, &mut kept, &mut given)?;
+    wording::check_covered(spec, &kept, &omitted)?;
     let labels: BTreeMap<&str, &[String]> = kept
         .iter()
         .map(|(w, ..)| (w.id.as_str(), w.terms.as_slice()))
@@ -1856,7 +1862,7 @@ fn plan_inventory_uncached(
             if spec
                 .dimensions
                 .get(&w.id)
-                .is_none_or(|d| d.tolerance.is_none())
+                .is_none_or(|d| d.tolerance.is_none() && d.text.is_none() && d.style.is_none())
                 && let Some(terms) = reference_terms.get(&w.id)
             {
                 w.terms = terms.clone();
@@ -2123,7 +2129,10 @@ fn plan_inventory_uncached(
     placement::settle_fixed(&mut placed, &fixed, obstacles, analysis, sheet, views);
     // Edited text can outgrow the canonical lanes. Keep the canonical layout stable
     // for pins and omission edits; their avoidance pass above owns that geometry.
-    if (spec.dimensions.values().any(|d| d.tolerance.is_some())
+    if (spec
+        .dimensions
+        .values()
+        .any(|d| d.tolerance.is_some() || d.text.is_some() || d.style.is_some())
         || spec.features.values().any(|f| f.fit.is_some()))
         && intended.iter().all(Option::is_none)
     {
@@ -3022,7 +3031,7 @@ pub fn render(
             }
         }
         // A basic dimension's box: its label box, which the plan widened to take it in.
-        if pmi_dimensions::basic(&d.measurements) {
+        if crate::label_text::basic(d) {
             let [x0, y0, x1, y1] = p.label_box;
             for (a, b) in [
                 ([x0, y0], [x1, y0]),

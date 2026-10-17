@@ -1,5 +1,8 @@
 # Final detail legibility and main integration review — 2026-10-17
 
+Subsequent integration: [main #80/#81 verification](detail-main-81-verification.md).
+The review below records the accepted pre-integration state.
+
 The connector now selects **A3 at 1:5**, with no enlarged detail. This is the chosen standard-scale drawing: its principal profile grows from 42 to 84 mm on paper, and its 20 mm bands grow from 2 to 4 mm. All 26 dimensions remain placed. The accepted string_post, GRM-03 and sm-hanger PNGs are **byte-identical** to revision `67588408`.
 
 ## Why the connector passed before

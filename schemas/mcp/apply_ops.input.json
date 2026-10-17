@@ -2,7 +2,7 @@
   "type": "object",
   "properties": {
     "part_ref": {
-      "type": "string"
+      "$ref": "#/A"
     },
     "spec": {
       "type": "object",
@@ -26,18 +26,12 @@
           ],
           "properties": {
             "smallest_scale": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "$ref": "#/C"
             },
             "keep_together": {
               "type": "array",
               "items": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
+                "$ref": "#/B"
               }
             },
             "gdt_on_sheet_1": {
@@ -46,7 +40,7 @@
           },
           "additionalProperties": false,
           "patternProperties": {
-            "^(max|hole_table)$": {
+            "^(max|hole_table)$(?!\n)": {
               "enum": [
                 null,
                 1,
@@ -68,7 +62,7 @@
             "title": {
               "type": "object",
               "additionalProperties": {
-                "type": "string"
+                "$ref": "#/A"
               }
             },
             "projection": {
@@ -87,24 +81,19 @@
           },
           "additionalProperties": false,
           "patternProperties": {
-            "^(size|scale)$": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "^(fit_limits|fit_deviations|hidden|centre_marks|centre_lines|thread_depiction|knurl_depiction)$": {
+            "^(hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
               "type": [
                 "boolean",
                 "null"
               ]
+            },
+            "^(size|scale)$(?!\n)": {
+              "$ref": "#/C"
             }
           }
         },
         "views": {
-          "type": "object",
           "additionalProperties": {
-            "type": "object",
             "properties": {
               "detail": {
                 "type": [
@@ -118,7 +107,7 @@
                       "array"
                     ],
                     "items": {
-                      "type": "string"
+                      "$ref": "#/A"
                     },
                     "minItems": 1
                   },
@@ -141,7 +130,7 @@
               }
             },
             "patternProperties": {
-              "^(hidden|centre_marks|centre_lines|thread_depiction|knurl_depiction)$": {
+              "^(hidden|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"
@@ -162,29 +151,47 @@
             "always",
             "never"
           ]
+        },
+        "feature_declarations": {
+          "items": {
+            "properties": {
+              "faces": {
+                "$ref": "#/B"
+              }
+            },
+            "additionalProperties": {
+              "$ref": "#/A"
+            },
+            "required": [
+              "id",
+              "kind",
+              "faces"
+            ],
+            "maxProperties": 3
+          }
         }
       },
       "additionalProperties": false,
       "patternProperties": {
-        "^(dimensions|annotations|features|faces)$": {
+        "^(views|dimensions|annotations|features|faces)$(?!\n)": {
+          "type": "object",
           "additionalProperties": {
             "type": "object"
-          },
-          "type": "object"
+          }
         },
-        "^(notes|tables|gears)$": {
+        "^(notes|tables|gears|feature_declarations)$(?!\n)": {
+          "type": "array",
           "items": {
             "type": "object"
-          },
-          "type": "array"
+          }
         }
       }
     },
     "spec_version": {
-      "type": "string"
+      "$ref": "#/A"
     },
     "drawing_ref": {
-      "type": "string"
+      "$ref": "#/A"
     },
     "cursor": {
       "type": "integer",
@@ -201,12 +208,12 @@
     "ops": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/op"
+        "$ref": "#/op"
       },
       "maxItems": 32
     },
     "parent": {
-      "type": "string"
+      "$ref": "#/A"
     }
   },
   "required": [
@@ -215,46 +222,52 @@
     "parent"
   ],
   "additionalProperties": false,
-  "$defs": {
-    "op": {
-      "anyOf": [
-        {
-          "properties": {
-            "op": {
-              "enum": [
-                "set",
-                "add"
-              ]
-            },
-            "path": {
-              "type": "string"
-            },
-            "value": {}
+  "op": {
+    "anyOf": [
+      {
+        "properties": {
+          "op": {
+            "enum": [
+              "set",
+              "add"
+            ]
           },
-          "required": [
-            "op",
-            "path",
-            "value"
-          ],
-          "additionalProperties": false
+          "path": {
+            "$ref": "#/A"
+          },
+          "value": {}
         },
-        {
-          "properties": {
-            "op": {
-              "const": "remove"
-            },
-            "path": {
-              "type": "string"
-            }
+        "additionalProperties": false,
+        "minProperties": 3
+      },
+      {
+        "properties": {
+          "op": {
+            "const": "remove"
           },
-          "required": [
-            "op",
-            "path"
-          ],
-          "additionalProperties": false
-        }
-      ],
-      "type": "object"
-    }
+          "path": {
+            "$ref": "#/A"
+          }
+        },
+        "additionalProperties": false,
+        "minProperties": 2
+      }
+    ],
+    "type": "object"
+  },
+  "A": {
+    "type": "string"
+  },
+  "B": {
+    "items": {
+      "$ref": "#/A"
+    },
+    "type": "array"
+  },
+  "C": {
+    "type": [
+      "string",
+      "null"
+    ]
   }
 }
