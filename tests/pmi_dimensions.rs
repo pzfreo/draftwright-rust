@@ -21,6 +21,13 @@
 #[path = "common/pdf.rs"]
 mod pdf;
 
+#[path = "common/support.rs"]
+#[macro_use]
+mod support;
+
+#[path = "common/cache.rs"]
+mod cache;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
@@ -56,12 +63,16 @@ fn sha256(bytes: &[u8]) -> String {
 }
 
 /// The AP242 fixtures: `(file name as captured, stem, bytes)`.
-fn inputs() -> Vec<(String, String, Vec<u8>)> {
+fn inputs(only: &str) -> Vec<(String, String, Vec<u8>)> {
     let mut paths: Vec<PathBuf> = std::fs::read_dir(fixtures().join("step"))
         .unwrap()
         .map(|e| e.unwrap().path())
         .filter(|p| p.extension().is_some_and(|x| x == "gz"))
         .collect();
+    paths.retain(|path| {
+        let name = path.file_name().unwrap().to_string_lossy();
+        name.strip_suffix(".gz") == Some(only) || name.split('.').next() == Some(only)
+    });
     paths.sort();
     paths
         .into_iter()
@@ -81,7 +92,7 @@ fn json_gz(path: &Path) -> Value {
 /// The part and its Analysis, with Rust quiddity's features (the CLI's default, and what
 /// draftwright's drawing correlates its PMI with), from *bytes* (written to a scratch file of its
 /// own, as `analyse` reads a path and the tests run in parallel).
-fn analysed(file: &str, bytes: &[u8]) -> (draftwright::haecceity::Part, Analysis) {
+fn analysed_uncached(file: &str, bytes: &[u8]) -> (draftwright::haecceity::Part, Analysis) {
     static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
@@ -94,6 +105,10 @@ fn analysed(file: &str, bytes: &[u8]) -> (draftwright::haecceity::Part, Analysis
     let out = model::analyse_native(&path).unwrap();
     std::fs::remove_file(&path).unwrap();
     out
+}
+
+fn analysed(file: &str, bytes: &[u8]) -> (std::sync::Arc<draftwright::haecceity::Part>, Analysis) {
+    cache::analysed(file, bytes, true, || analysed_uncached(file, bytes))
 }
 
 fn records(a: &Analysis) -> &[Record] {
@@ -361,8 +376,8 @@ fn compare(file: &str, py: &Value, reading: &Value, a: &Analysis, plan: &Plan) -
     diffs
 }
 
-#[test]
-fn pmi_dimensions_match_draftwright_or_are_known() {
+pmi_cases!(pmi_dimensions_match_draftwright_or_are_known);
+fn pmi_dimensions_match_draftwright_or_are_known(only: &str) {
     let known: Vec<Known> = serde_json::from_str(
         &std::fs::read_to_string(root().join("tests/fixtures/known_pmi_dimensions.json")).unwrap(),
     )
@@ -376,13 +391,18 @@ fn pmi_dimensions_match_draftwright_or_are_known() {
     ];
     for k in &known {
         assert!(
+            support::PMI_FILES.contains(&k.file.as_str()),
+            "unknown fixture: {}",
+            k.file
+        );
+        assert!(
             verdicts.contains(&k.verdict.as_str()) && !k.evidence.trim().is_empty(),
             "{k:?}"
         );
     }
     let mut diffs = Vec::new();
     let mut records = 0;
-    for (file, stem, bytes) in inputs() {
+    for (file, stem, bytes) in inputs(only).into_iter().filter(|(file, _, _)| file == only) {
         let py = json_gz(&fixtures().join(format!("dimensions/{stem}.json.gz")));
         let reading = json_gz(&fixtures().join(format!("{stem}.json.gz")));
         assert_eq!(py["file"], file.as_str());
@@ -392,7 +412,7 @@ fn pmi_dimensions_match_draftwright_or_are_known() {
             "{file}: not the captured file"
         );
         let (_, a) = analysed(&file, &bytes);
-        let plan = model::plan(&a, &Spec::default()).unwrap();
+        let plan = cache::default_plan(&a, false);
         let d = compare(&file, &py, &reading, &a, &plan);
         records += py["records"].as_array().unwrap().len();
         eprintln!(
@@ -404,6 +424,7 @@ fn pmi_dimensions_match_draftwright_or_are_known() {
     }
     let listed: Vec<Diff> = known
         .iter()
+        .filter(|k| k.file == only)
         .map(|k| Diff {
             file: k.file.clone(),
             record: k.record.clone(),
@@ -444,16 +465,23 @@ fn pmi_dimensions_match_draftwright_or_are_known() {
 
 /// A fixture by stem: its file name and bytes.
 fn fixture(stem: &str) -> (String, Vec<u8>) {
-    inputs()
+    inputs(stem)
         .into_iter()
         .find(|(_, s, _)| s == stem)
         .map(|(f, _, b)| (f, b))
         .unwrap()
 }
 
-fn planned(stem: &str) -> (draftwright::haecceity::Part, Analysis, Plan) {
+fn planned(stem: &str) -> (std::sync::Arc<draftwright::haecceity::Part>, Analysis, Plan) {
     let (file, bytes) = fixture(stem);
     let (part, a) = analysed(&file, &bytes);
+    let plan = cache::default_plan(&a, false);
+    (part, a, plan)
+}
+
+fn planned_uncached(stem: &str) -> (draftwright::haecceity::Part, Analysis, Plan) {
+    let (file, bytes) = fixture(stem);
+    let (part, a) = analysed_uncached(&file, &bytes);
     let plan = model::plan(&a, &Spec::default()).unwrap();
     (part, a, plan)
 }
@@ -465,11 +493,11 @@ const REFUSALS: [&str; 3] = [
     "pmi_not_drawn",
 ];
 
-#[test]
-fn every_dimension_is_drawn_or_reported_never_both() {
-    for (file, _, bytes) in inputs() {
+pmi_cases!(every_dimension_is_drawn_or_reported_never_both);
+fn every_dimension_is_drawn_or_reported_never_both(only: &str) {
+    for (file, _, bytes) in inputs(only).into_iter().filter(|(file, _, _)| file == only) {
         let (_, a) = analysed(&file, &bytes);
-        let plan = model::plan(&a, &Spec::default()).unwrap();
+        let plan = cache::default_plan(&a, false);
         for r in records(&a)
             .iter()
             .filter(|r| r.category == Category::Dimension && r.kind != "common_label")
@@ -517,34 +545,37 @@ fn every_dimension_is_drawn_or_reported_never_both() {
     }
 }
 
-#[test]
-fn the_open_questions_stay_refused() {
-    // stc_10's ⌀3 holes are dimensioned on supplemental geometry; ftc_10's ⌀3.5 G6 states its
-    // class without limits. Both are open maintainer questions.
-    for (stem, needle) in [
-        ("nist_stc_10_asme1_ap242-e2", "supplemental geometry"),
-        ("nist_ftc_10_asme1_ap242-e2", "stated without limits"),
-    ] {
-        let (_, a, plan) = planned(stem);
-        let open: Vec<&Record> = records(&a)
+part_cases!(the_open_questions_stay_refused;
+    nist_stc_10_asme1_ap242_e2 => "nist_stc_10_asme1_ap242-e2",
+    nist_ftc_10_asme1_ap242_e2 => "nist_ftc_10_asme1_ap242-e2",
+);
+fn the_open_questions_stay_refused(stem: &str) {
+    // stc_10's supplemental geometry and ftc_10's fit without limits stay open questions.
+    let needle = match stem {
+        "nist_stc_10_asme1_ap242-e2" => "supplemental geometry",
+        "nist_ftc_10_asme1_ap242-e2" => "stated without limits",
+        _ => unreachable!(),
+    };
+
+    let (_, a, plan) = planned(stem);
+    let open: Vec<&Record> = records(&a)
+        .iter()
+        .filter(|r| r.category == Category::Dimension)
+        .filter(|r| r.blockers.iter().any(|b| b.contains(needle)))
+        .collect();
+    assert!(!open.is_empty(), "{stem}: {needle}");
+    for r in open {
+        assert!(stating(&plan, &a, r).is_none(), "{}", r.source_id);
+        let p = plan
+            .problems
             .iter()
-            .filter(|r| r.category == Category::Dimension)
-            .filter(|r| r.blockers.iter().any(|b| b.contains(needle)))
-            .collect();
-        assert!(!open.is_empty(), "{stem}: {needle}");
-        for r in open {
-            assert!(stating(&plan, &a, r).is_none(), "{}", r.source_id);
-            let p = plan
-                .problems
-                .iter()
-                .find(|p| p.code == "pmi_not_lowered" && p.refs == [r.source_id.clone()])
-                .unwrap();
-            assert!(
-                p.message.contains("open question for the maintainer"),
-                "{}",
-                p.message
-            );
-        }
+            .find(|p| p.code == "pmi_not_lowered" && p.refs == [r.source_id.clone()])
+            .unwrap();
+        assert!(
+            p.message.contains("open question for the maintainer"),
+            "{}",
+            p.message
+        );
     }
 }
 
@@ -758,7 +789,7 @@ fn a_basic_location_of_a_turned_parts_cross_hole_is_boxed() {
     let raw =
         std::fs::read(root().join("tests/fixtures/samples/cnc-review-spindle.step.gz")).unwrap();
     let (part, a) = analysed("cnc-review-spindle.step", &gunzip(&raw));
-    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let plan = cache::default_plan(&a, false);
     let basic = |d: &PlannedDimension| {
         d.measurements
             .iter()
@@ -843,7 +874,7 @@ fn a_turned_profile_is_dimensioned_from_its_datum_end() {
     let raw =
         std::fs::read(root().join("tests/fixtures/samples/cnc-review-spindle.step.gz")).unwrap();
     let (_, a) = analysed("cnc-review-spindle.step", &gunzip(&raw));
-    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let plan = cache::default_plan(&a, false);
     let labels = front_z_labels(&plan);
     for want in ["12", "34", "52"] {
         let d = plan
@@ -948,7 +979,7 @@ fn pmi_heights_from_a_datum_are_drawn_as_a_baseline_not_a_chain() {
             g.stations = vec![[0.0, 0.0, 0.0], [0.0, 0.0, to]];
             report.records.push(r);
         }
-        let plan = model::plan(&a, &Spec::default()).unwrap();
+        let plan = cache::default_plan(&a, false);
         let labels = front_z_labels(&plan);
         for want in ["12 ±0.2", "34 ±0.3", "42 ±0.3", "52 ±0.3"] {
             let d = plan
@@ -992,7 +1023,7 @@ fn what_the_faces_do_not_prove_is_reported_not_guessed() {
             .iter_mut()
             .filter(|r| r.source_id == source)
             .for_each(f);
-        model::plan(&b, &Spec::default()).unwrap()
+        cache::default_plan(&b, false)
     };
     let reason = |plan: &Plan| {
         plan.problems
@@ -1064,7 +1095,7 @@ fn a_shaft_fit_prints_its_class_by_default_and_stacked_deviations_on_request() {
         .find(|r| r.fit.as_deref() == Some("g6"))
         .unwrap();
     assert_eq!(fit.blockers, Vec::<String>::new());
-    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let plan = cache::default_plan(&a, false);
     let d = plan
         .dimensions
         .iter()
@@ -1100,35 +1131,35 @@ fn a_shaft_fit_prints_its_class_by_default_and_stacked_deviations_on_request() {
     );
 }
 
-#[test]
-fn the_same_part_gives_the_same_plan_and_bytes() {
-    for stem in ["assembly_plate_pin", "nist_ftc_10_asme1_ap242-e2"] {
-        let (part, a, plan) = planned(stem);
-        let again = model::plan(&a, &Spec::default()).unwrap();
-        assert_eq!(
-            serde_json::to_string(&plan).unwrap(),
-            serde_json::to_string(&again).unwrap(),
-            "{stem}"
-        );
-        let font =
-            draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT))
-                .unwrap();
-        let one = model::render(&part, &a, &plan, &font).unwrap();
-        let two = model::render(&part, &a, &again, &font).unwrap();
-        assert_eq!(one.svg(), two.svg(), "{stem}");
-        assert_eq!(one.dxf(), two.dxf(), "{stem}");
-        // The Analysis round-trips through JSON with its dimensions' geometry, and plans the
-        // same.
-        let text = serde_json::to_string(&a).unwrap();
-        let back: Analysis = serde_json::from_str(&text).unwrap();
-        assert_eq!(serde_json::to_string(&back).unwrap(), text, "{stem}");
-        let replanned = model::plan(&back, &Spec::default()).unwrap();
-        assert_eq!(
-            serde_json::to_string(&replanned).unwrap(),
-            serde_json::to_string(&plan).unwrap(),
-            "{stem}"
-        );
-    }
+part_cases!(the_same_part_gives_the_same_plan_and_bytes;
+    assembly_plate_pin => "assembly_plate_pin",
+    nist_ftc_10_asme1_ap242_e2 => "nist_ftc_10_asme1_ap242-e2",
+);
+fn the_same_part_gives_the_same_plan_and_bytes(stem: &str) {
+    let (part, a, plan) = planned_uncached(stem);
+    let again = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        serde_json::to_string(&plan).unwrap(),
+        serde_json::to_string(&again).unwrap(),
+        "{stem}"
+    );
+    let font =
+        draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
+    let one = model::render(&part, &a, &plan, &font).unwrap();
+    let two = model::render(&part, &a, &again, &font).unwrap();
+    assert_eq!(one.svg(), two.svg(), "{stem}");
+    assert_eq!(one.dxf(), two.dxf(), "{stem}");
+    // The Analysis round-trips through JSON with its dimensions' geometry, and plans the
+    // same.
+    let text = serde_json::to_string(&a).unwrap();
+    let back: Analysis = serde_json::from_str(&text).unwrap();
+    assert_eq!(serde_json::to_string(&back).unwrap(), text, "{stem}");
+    let replanned = model::plan(&back, &Spec::default()).unwrap();
+    assert_eq!(
+        serde_json::to_string(&replanned).unwrap(),
+        serde_json::to_string(&plan).unwrap(),
+        "{stem}"
+    );
 }
 
 /// One span, one dimension for PMI (`share_pmi`): the plate states each grid hole's basic
