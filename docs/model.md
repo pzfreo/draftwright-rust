@@ -1049,7 +1049,11 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   Feature footprints share exact frame/scale projections across the finite
   internal search; actual crop definitions and user intent separate retained
   cache entries. Route comparisons build each page's extension inventory once;
-  geometric contact and parallel-run predicates remain unchanged.
+  geometric contact and parallel-run predicates remain unchanged. Final label
+  settlement rejects disjoint ink bounds before those predicates, padding by
+  the existing 1 mm parallel-contact strip and clearance. It constructs candidate
+  placements lazily in the original order. Exhaustive comparisons cover dense,
+  separated, rotated and pinned ink, including both sides of that contact limit.
 
   An unpinned oblique-dimension side hint may yield to shorter clean witnesses
   in the same sheet, scale and view frames. All measurements, control frames,

@@ -5,6 +5,9 @@ use super::{ARROW, LANE, Placed, PlannedDimension};
 use crate::model::{Analysis, PlannedSheet, PlannedView, Spec};
 
 const CLEAR: f64 = 1.0;
+// Near-parallel leader contacts count even without a segment intersection.
+// The broad phase must retain the existing router's full contact strip.
+const CONTACT_PAD: f64 = super::leaders::ALONG;
 const OFF_SPAN: f64 = ARROW + 3.0;
 
 fn axis(p: &Placed) -> usize {
@@ -252,6 +255,38 @@ pub(crate) fn settle_inventory(
     inventory: &mut [PlannedDimension],
     fixed: &[PlannedDimension],
 ) {
+    settle_inventory_inner::<true>(analysis, spec, sheet, views, inventory, fixed);
+}
+
+// Conservative broad phase only; every surviving pair keeps the original
+// contact and one-millimetre-clearance predicates and candidate order.
+fn ink_bounds(p: &Placed) -> [f64; 4] {
+    p.lines
+        .iter()
+        .chain(&p.arrows)
+        .flatten()
+        .fold(p.label_box, |b, q| {
+            [
+                b[0].min(q[0]),
+                b[1].min(q[1]),
+                b[2].max(q[0]),
+                b[3].max(q[1]),
+            ]
+        })
+}
+
+fn disjoint(a: [f64; 4], b: Option<[f64; 4]>, pad: f64) -> bool {
+    b.is_none_or(|b| (0..2).any(|k| a[k] > b[k + 2] + pad || b[k] > a[k + 2] + pad))
+}
+
+fn settle_inventory_inner<const BOUNDS: bool>(
+    analysis: &Analysis,
+    spec: &Spec,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    inventory: &mut [PlannedDimension],
+    fixed: &[PlannedDimension],
+) {
     let page = Page::new(analysis, sheet, views);
     // One traversal: the next lane, or one rung further if a peer occupies that lane.
     for i in 0..inventory.len() {
@@ -299,7 +334,22 @@ pub(crate) fn settle_inventory(
                     b[3].max(q[1]),
                 ]
             });
-        let old: Vec<_> = others.iter().map(|q| contacts(p, q)).collect();
+        let other_bounds: Vec<_> = others
+            .iter()
+            .map(|q| q.placed.as_ref().map(ink_bounds))
+            .collect();
+        let bounds = ink_bounds(p);
+        let old: Vec<_> = others
+            .iter()
+            .zip(&other_bounds)
+            .map(|(q, b)| {
+                if BOUNDS && disjoint(bounds, *b, CONTACT_PAD + 1e-6) {
+                    0
+                } else {
+                    contacts(p, q)
+                }
+            })
+            .collect();
         let count: usize = old.iter().map(|hits| hits.count_ones() as usize).sum();
         let span_bad = |c: &Placed| {
             off_span(
@@ -314,13 +364,23 @@ pub(crate) fn settle_inventory(
             continue;
         }
         let allowed = |c: &Placed| {
+            let bounds = ink_bounds(c);
             page.fits(c, view)
                 && !outside(c, region)
                 && (!outside(c, area) || outside(p, area))
-                && others.iter().zip(&old).all(|(q, before)| {
-                    let contact = contacts(c, q);
-                    contact & (1 << 4) == 0 && contact & !before == 0 && clears_with_margin(p, c, q)
-                })
+                && others
+                    .iter()
+                    .zip(&old)
+                    .zip(&other_bounds)
+                    .all(|((q, before), b)| {
+                        if BOUNDS && disjoint(bounds, *b, CLEAR.max(CONTACT_PAD) + 1e-6) {
+                            return true;
+                        }
+                        let contact = contacts(c, q);
+                        contact & (1 << 4) == 0
+                            && contact & !before == 0
+                            && clears_with_margin(p, c, q)
+                    })
                 && others
                     .iter()
                     .filter(|q| q.kind == "linear" && q.view == d.view)
@@ -328,18 +388,28 @@ pub(crate) fn settle_inventory(
                     .all(|q| !off_span(q, std::iter::once(c)) || off_span(q, std::iter::once(p)))
         };
         let better = |c: &Placed| {
+            let bounds = ink_bounds(c);
             let hits: usize = others
                 .iter()
-                .map(|q| contacts(c, q).count_ones() as usize)
+                .zip(&other_bounds)
+                .map(|(q, b)| {
+                    if BOUNDS && disjoint(bounds, *b, CONTACT_PAD + 1e-6) {
+                        0
+                    } else {
+                        contacts(c, q).count_ones() as usize
+                    }
+                })
                 .sum();
             (hits, span_bad(c)) < (count, span_bad(p))
         };
         // A single occupied rung may be skipped; fixed-ink obstructions never justify
         // a farther search. Two paper lanes is the absolute movement bound.
         let next_lane = promote(p, LANE);
-        let next_occupied = others
-            .iter()
-            .any(|q| contacts(&next_lane, q) & (1 << 4) != 0);
+        let next_bounds = ink_bounds(&next_lane);
+        let next_occupied = others.iter().zip(&other_bounds).any(|(q, b)| {
+            !(BOUNDS && disjoint(next_bounds, *b, CONTACT_PAD + 1e-6))
+                && contacts(&next_lane, q) & (1 << 4) != 0
+        });
         let found = (0..=if next_occupied { 2 } else { 1 })
             .take_while(|n| !outside(&promote(p, *n as f64 * LANE), region))
             .find_map(|n| {
@@ -368,6 +438,159 @@ mod tests {
             "state": {"kind": "shown"}, "placed": p
         }))
         .unwrap()
+    }
+
+    #[test]
+    fn bounds_pruning_matches_exhaustive_settlement_for_dense_and_separated_ink() {
+        let analysis = model::analyse(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/plate.step"),
+        )
+        .unwrap()
+        .1;
+        let sheet: PlannedSheet = serde_json::from_value(json!({
+            "size":"A4", "page":[297,210], "scale":"1:1", "scale_factor":1,
+            "arrangement":"columns", "title_block":[200,10,287,40],
+            "default":true, "basis":"", "state":{"kind":"shown"}, "title":{}
+        }))
+        .unwrap();
+        for seed in 1..=48_u64 {
+            let mut state = seed;
+            let mut random = || {
+                state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+                (state >> 32) as f64 / u32::MAX as f64
+            };
+            let mut original = Vec::new();
+            let mut fixed = Vec::new();
+            let mut spec = Spec::default();
+            for i in 0..24 {
+                let x = 20.0 + (i % 3) as f64 * 75.0 + (random() * 10.0).floor();
+                let y = 30.0 + (i / 3) as f64 * 15.0 + (random() * 10.0).floor();
+                let width = 8.0 + (random() * 35.0).floor();
+                let mut p = Placed {
+                    lines: vec![
+                        [[x, y - 12.0], [x, y + 2.0]],
+                        [[x + width, y - 12.0], [x + width, y + 2.0]],
+                        [[x, y], [x + width, y]],
+                    ],
+                    arrows: vec![
+                        [[x, y], [x + 2.7, y]],
+                        [[x + width, y], [x + width - 2.7, y]],
+                    ],
+                    label_at: [x + 2.0, y + 1.0],
+                    label_box: [x + 2.0, y + 1.0, x + 14.0, y + 3.0],
+                    rotation: 0.0,
+                };
+                if i % 4 == 0 {
+                    for q in p.lines.iter_mut().chain(&mut p.arrows).flatten() {
+                        q.swap(0, 1);
+                    }
+                    p.label_at.swap(0, 1);
+                    p.label_box = [
+                        p.label_box[1],
+                        p.label_box[0],
+                        p.label_box[3],
+                        p.label_box[2],
+                    ];
+                    p.rotation = 90.0;
+                }
+                let kind = if i % 5 == 0 { "callout" } else { "linear" };
+                let id = format!("d:test:{i}/length");
+                let d = dimension(&id, kind, width, p);
+                if i % 7 == 0 {
+                    fixed.push(d);
+                } else {
+                    original.push(d);
+                }
+                if i % 6 == 0 {
+                    spec.dimensions
+                        .entry(id)
+                        .or_default()
+                        .place
+                        .get_or_insert_with(Default::default)
+                        .pinned = true;
+                }
+            }
+            let mut fast = original.clone();
+            let mut exhaustive = original;
+            settle_inventory_inner::<true>(&analysis, &spec, &sheet, &[], &mut fast, &fixed);
+            settle_inventory_inner::<false>(&analysis, &spec, &sheet, &[], &mut exhaustive, &fixed);
+            assert_eq!(fast, exhaustive, "seed {seed}");
+        }
+    }
+
+    #[test]
+    fn bounds_keep_near_parallel_contacts_across_the_original_strip_boundary() {
+        let analysis = model::analyse(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/plate.step"),
+        )
+        .unwrap()
+        .1;
+        let sheet: PlannedSheet = serde_json::from_value(json!({
+            "size":"A4", "page":[297,210], "scale":"1:1", "scale_factor":1,
+            "arrangement":"columns", "title_block":[200,10,287,40],
+            "default":true, "basis":"", "state":{"kind":"shown"}, "title":{}
+        }))
+        .unwrap();
+        for gap in [0.7, 0.999999, 1.0, 1.000001] {
+            let size = dimension(
+                "d:test/length",
+                "linear",
+                20.0,
+                Placed {
+                    lines: vec![
+                        [[20.0, 10.0], [20.0, 30.0]],
+                        [[40.0, 10.0], [40.0, 30.0]],
+                        [[20.0, 30.0], [40.0, 30.0]],
+                    ],
+                    arrows: vec![[[20.0, 30.0], [22.7, 30.0]], [[40.0, 30.0], [37.3, 30.0]]],
+                    label_at: [25.0, 25.0],
+                    label_box: [25.0, 25.0, 35.0, 27.0],
+                    rotation: 0.0,
+                },
+            );
+            let fixed = vec![dimension(
+                "pmi:datum:test",
+                "callout",
+                0.0,
+                Placed {
+                    lines: vec![[[21.0, 30.0 + gap], [39.0, 30.0 + gap]]],
+                    arrows: vec![],
+                    label_at: [40.1, 29.5 + gap],
+                    label_box: [40.1, 29.5 + gap, 46.1, 31.5 + gap],
+                    rotation: 0.0,
+                },
+            )];
+            let mut fast = vec![size.clone()];
+            let mut exhaustive = vec![size];
+            settle_inventory_inner::<true>(
+                &analysis,
+                &Spec::default(),
+                &sheet,
+                &[],
+                &mut fast,
+                &fixed,
+            );
+            settle_inventory_inner::<false>(
+                &analysis,
+                &Spec::default(),
+                &sheet,
+                &[],
+                &mut exhaustive,
+                &fixed,
+            );
+            assert_eq!(fast, exhaustive, "gap {gap}");
+            assert_eq!(
+                fast[0].placed.as_ref().unwrap().arrows[0][0][1],
+                if gap <= super::super::leaders::ALONG {
+                    37.0
+                } else {
+                    30.0
+                },
+                "gap {gap}"
+            );
+        }
     }
 
     #[test]
