@@ -2127,7 +2127,7 @@ fn grm03_locates_every_turned_shoulder_and_keeps_the_isometric() {
             recovered.sheet.size.as_str(),
             recovered.sheet.scale.as_str()
         ),
-        ("A4", "5:1")
+        ("A3", "10:1")
     );
     assert_eq!(
         draftwright::sheet_fit::readability(analysis, &recovered).failures(),
@@ -2253,7 +2253,9 @@ fn assert_reported_refusal(name: &str, analysis: &Analysis, first: &Plan, after:
     );
     assert!(
         readable.failures() <= draftwright::sheet_fit::readability(analysis, first).failures(),
-        "{name}: readability worsened"
+        "{name}: readability worsened: before {}; after {}",
+        draftwright::sheet_fit::readability(analysis, first),
+        readable
     );
     let counts = |p: &Plan| {
         let mut out = BTreeMap::new();

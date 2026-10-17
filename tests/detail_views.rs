@@ -163,57 +163,66 @@ fn an_omitted_detail_seed_cannot_leak_into_an_ordinary_candidate() {
 #[test]
 fn bare_dimension_pins_keep_recoverys_detail_selection_and_ink() {
     let Some(dir) = corpus::dir() else { return };
-    let (_, a) = model::analyse_native(&dir.join("mfcadpp/10046.step")).unwrap();
-    let base = model::plan_recovered(&a, &Spec::default()).unwrap();
-    // The screen-first policy needs this crop to carry readable A4 principals;
-    // a bare pin must retain that recovered choice just as it retained A3 before.
-    assert_eq!(
-        (base.sheet.size.as_str(), base.sheet.scale.as_str()),
-        ("A4", "1:1")
-    );
-    assert_eq!(base.views.iter().filter(|v| v.detail.is_some()).count(), 1);
-    assert!(base.problems.iter().all(|p| !matches!(
-        p.code.as_str(),
-        "annotation_over_view" | "annotation_line_over_view"
-    )));
-    let dimensions = |plan: &model::Plan| {
-        let mut dims = plan.dimensions.clone();
-        for d in &mut dims {
-            // The pin changes provenance; all measurements and drawn ink must stay equal.
-            d.default = true;
-            d.from_spec.clear();
-            d.basis.clear();
-        }
-        dims
-    };
-    for pinned in &base.dimensions {
-        let spec: Spec = serde_json::from_value(json!({
-            "dimensions": {&pinned.id: {"place": {"pinned": true}}}
-        }))
-        .unwrap();
-        let plan = model::plan_recovered(&a, &spec).unwrap();
-        assert_eq!(dimensions(&plan), dimensions(&base), "pin {}", pinned.id);
+    // Native section recesses make 10046 readable without a crop at 2:1;
+    // 11512 retains a real crop. A bare pin must preserve either presentation.
+    for (part, paper, scale, details) in [
+        ("mfcadpp/10046.step", "A3", "2:1", 0),
+        ("mfcadpp_regressions/11512.step", "A4", "1:1", 1),
+    ] {
+        let (_, a) = model::analyse_native(&dir.join(part)).unwrap();
+        let base = model::plan_recovered(&a, &Spec::default()).unwrap();
         assert_eq!(
-            plan.views
-                .iter()
-                .map(|v| (&v.id, v.at, v.area, v.scale))
-                .collect::<Vec<_>>(),
-            base.views
-                .iter()
-                .map(|v| (&v.id, v.at, v.area, v.scale))
-                .collect::<Vec<_>>(),
-            "pin {}",
-            pinned.id
+            (base.sheet.size.as_str(), base.sheet.scale.as_str()),
+            (paper, scale)
         );
-        assert!(
-            plan.problems.iter().all(|p| !matches!(
-                p.code.as_str(),
-                "annotation_over_view" | "annotation_line_over_view"
-            )),
-            "pin {}: {:?}",
-            pinned.id,
-            plan.problems
+        assert_eq!(
+            base.views.iter().filter(|v| v.detail.is_some()).count(),
+            details
         );
+        assert_eq!(draftwright::sheet_fit::readability(&a, &base).failures(), 0);
+        assert!(base.problems.iter().all(|p| !matches!(
+            p.code.as_str(),
+            "annotation_over_view" | "annotation_line_over_view"
+        )));
+        let dimensions = |plan: &model::Plan| {
+            let mut dims = plan.dimensions.clone();
+            for d in &mut dims {
+                // The pin changes provenance; all measurements and drawn ink must stay equal.
+                d.default = true;
+                d.from_spec.clear();
+                d.basis.clear();
+            }
+            dims
+        };
+        for pinned in &base.dimensions {
+            let spec: Spec = serde_json::from_value(json!({
+                "dimensions": {&pinned.id: {"place": {"pinned": true}}}
+            }))
+            .unwrap();
+            let plan = model::plan_recovered(&a, &spec).unwrap();
+            assert_eq!(dimensions(&plan), dimensions(&base), "pin {}", pinned.id);
+            assert_eq!(
+                plan.views
+                    .iter()
+                    .map(|v| (&v.id, v.at, v.area, v.scale))
+                    .collect::<Vec<_>>(),
+                base.views
+                    .iter()
+                    .map(|v| (&v.id, v.at, v.area, v.scale))
+                    .collect::<Vec<_>>(),
+                "pin {}",
+                pinned.id
+            );
+            assert!(
+                plan.problems.iter().all(|p| !matches!(
+                    p.code.as_str(),
+                    "annotation_over_view" | "annotation_line_over_view"
+                )),
+                "pin {}: {:?}",
+                pinned.id,
+                plan.problems
+            );
+        }
     }
 }
 
