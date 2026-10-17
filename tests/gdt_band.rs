@@ -47,6 +47,7 @@ fn analysed(stem: &str) -> Analysis {
     let file = gz.file_name().unwrap().to_string_lossy();
     let out = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join("gdt_band")
+        .join(std::process::id().to_string())
         .join(stem);
     std::fs::create_dir_all(&out).unwrap();
     let path = out.join(file.strip_suffix(".gz").unwrap());
