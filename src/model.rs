@@ -226,6 +226,9 @@ pub struct Spec {
     /// `authored` (exactly the dimensions listed, a complete set: ADR4-5).
     #[serde(skip_serializing_if = "DimensionSource::is_auto")]
     pub dimension_source: DimensionSource,
+    /// Authored location networks, by stable author name. Empty preserves automatic planning.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub dimension_schemes: BTreeMap<String, crate::dimension_scheme::Scheme>,
     /// Plan-time hole presentation; rescue tables also obey `never`.
     #[serde(skip_serializing_if = "crate::hole_table::Setting::is_auto")]
     pub hole_table: crate::hole_table::Setting,
@@ -381,6 +384,7 @@ impl Default for Spec {
             sheets: None,
             views: BTreeMap::new(),
             dimension_source: DimensionSource::Auto,
+            dimension_schemes: BTreeMap::new(),
             hole_table: crate::hole_table::Setting::Auto,
             dimensions: BTreeMap::new(),
             envelope_tolerance: None,
@@ -2756,6 +2760,7 @@ fn plan_with_presentation(
     }
     let spec = &crate::recognition_corrections::bind(analysis, migrate(spec, analysis)?)?;
     crate::dims::authored::check(spec)?;
+    crate::dimension_scheme::check(spec)?;
     if spec
         .iso_scale_factor
         .is_some_and(|s| !s.is_finite() || s <= 0.0)
@@ -2788,6 +2793,7 @@ fn plan_with_presentation(
         base.sheet.fit_limits = spec.sheet.fit_limits;
         base.hole_table = spec.hole_table;
         base.iso_scale_factor = spec.iso_scale_factor;
+        base.dimension_schemes = spec.dimension_schemes.clone();
         if spec.dimensions.values().any(|d| d.between.is_some()) {
             base.dimension_source = spec.dimension_source;
             base.dimensions = spec.dimensions.clone();
@@ -4890,6 +4896,7 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
     crate::dims::check_tolerances(&spec)?;
     crate::spec_gdt::check(&spec)?;
     crate::dims::authored::check(&spec)?;
+    crate::dimension_scheme::check(&spec)?;
     crate::dims::check_views(&spec)?;
     crate::placement_intent::check(&spec)?;
     crate::label_text::check(&spec)?;

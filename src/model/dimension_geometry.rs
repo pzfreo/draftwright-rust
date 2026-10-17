@@ -208,6 +208,103 @@ pub struct Measurement {
 }
 
 impl Analysis {
+    /// A reference's station and physical witness. No Spec coordinate is accepted.
+    pub(crate) fn scheme_station(&self, key: &str, k: usize) -> Result<[f64; 3], String> {
+        let a = self;
+        if key == "min" || key == "max" {
+            let mut p = a.envelope[0];
+            p[k] = a.envelope[usize::from(key == "max")][k];
+            return Ok(p);
+        }
+        if let Some((end, id)) = key.split_once(':')
+            && ["start", "end"].contains(&end)
+        {
+            let f = a.features.iter().find(|f| f.id == id).ok_or_else(|| {
+                format!("Unknown feature {id}; choose a current Analysis feature ID.")
+            })?;
+            let b = crate::lint::turned::band(&crate::bridge::holes::frame(a), f)?;
+            if b.axis != k {
+                return Err(format!(
+                    "{key} is not a shoulder on the chosen axis; choose the feature's turning axis."
+                ));
+            }
+            let mut p = b.on;
+            p[k] = if end == "start" { b.lo } else { b.hi };
+            // Witnesses start on the outside of the profile, rather than its centre line.
+            let radial = (0..3).find(|&j| j != k).unwrap();
+            p[radial] += b.diameter / 2.;
+            return Ok(p);
+        }
+        if let Some(f) = a.features.iter().find(|f| f.id == key) {
+            if f.kind == "turned_step" {
+                return Err(format!(
+                    "{key} has two shoulders; choose start:{key} or end:{key}."
+                ));
+            }
+            if matches!(f.kind.as_str(), "slot" | "slot_pattern") {
+                return Ok(f.fingerprint.position);
+            }
+            // Trimmed cylindrical bounds need not be centred on the analytic feature axis.
+            let axis_key = format!("axis:{key}");
+            if matches!(a.dimension_reference(&axis_key),Ok(Reference::Cylinder {axis,..}) if axis[k].abs()<1e-8)
+            {
+                return a.scheme_station(&axis_key, k);
+            }
+            // A planar datum feature must prove one plane perpendicular to the measuring axis.
+            let planes: Vec<_> = f
+                .faces
+                .iter()
+                .filter_map(|&i| a.face_attachments.get(i))
+                .filter_map(|f| f.bounds.zip(f.normal))
+                .filter(|(_, n)| n[k].abs() > 1. - 1e-8)
+                .map(|(b, _)| [0, 1, 2].map(|j| (b[j] + b[j + 3]) / 2.))
+                .collect();
+            if let Some(p) = planes.first() {
+                if planes.iter().any(|q| (p[k] - q[k]).abs() > 1e-6) {
+                    return Err(format!(
+                        "{key} has multiple datum planes; choose a face:v1:<fingerprint> instead."
+                    ));
+                }
+                return Ok(*p);
+            }
+            if f.fingerprint.axis.is_some_and(|axis| axis[k].abs() > 1e-8) {
+                return Err(format!(
+                    "{key}'s axis does not define a station across {}; choose a perpendicular axis or planar face.",
+                    ["x", "y", "z"][k]
+                ));
+            }
+            return Ok(f.fingerprint.position);
+        }
+        match a.dimension_reference(key)? {
+            Reference::Plane {
+                origin,
+                normal,
+                bounds,
+            } if normal[k].abs() > 1. - 1e-8 => {
+                let mut p = [0, 1, 2].map(|j| (bounds[0][j] + bounds[1][j]) / 2.);
+                p[k] = origin[k];
+                Ok(p)
+            }
+            Reference::Vertex { point } => Ok(point),
+            Reference::Edge { ends } if (ends[0][k] - ends[1][k]).abs() < 1e-8 => {
+                Ok([0, 1, 2].map(|j| (ends[0][j] + ends[1][j]) / 2.))
+            }
+            Reference::Cylinder {
+                origin,
+                axis,
+                bounds,
+                ..
+            } if axis[k].abs() < 1e-8 => {
+                let centre = [0, 1, 2].map(|j| (bounds[0][j] + bounds[1][j]) / 2.);
+                let t: f64 = (0..3).map(|j| (centre[j] - origin[j]) * axis[j]).sum();
+                Ok([0, 1, 2].map(|j| origin[j] + t * axis[j]))
+            }
+            _ => Err(format!(
+                "{key} does not define one station on this axis; choose a perpendicular planar face, a transverse cylinder axis, vertex or constant-axis edge."
+            )),
+        }
+    }
+
     /// Inventory to copy into an authored dimension. Empty in older Analyses: analyse again.
     pub fn dimension_references(&self) -> &BTreeMap<String, Vec<Reference>> {
         static EMPTY: std::sync::OnceLock<BTreeMap<String, Vec<Reference>>> =

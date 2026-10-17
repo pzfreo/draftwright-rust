@@ -360,6 +360,7 @@ pub fn bind(a: &Analysis, s: Spec) -> Result<Spec, Invalid> {
     if !authors(&s) {
         return Ok(s);
     }
+    crate::dimension_scheme::check_binding(a, &s)?;
     check(&s)?;
     let mut out = s.clone();
     let mut ids: BTreeSet<_> = s
@@ -414,6 +415,10 @@ pub fn bind(a: &Analysis, s: Spec) -> Result<Spec, Invalid> {
         };
         let measurement = |id: &str| {
             id.starts_with("d:envelope/")
+                || out
+                    .dimension_schemes
+                    .keys()
+                    .any(|name| id.starts_with(&format!("d:scheme:{name}/")))
                 || id
                     .strip_prefix("d:")
                     .and_then(|v| v.rsplit_once('/'))

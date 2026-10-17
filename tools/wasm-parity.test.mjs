@@ -59,7 +59,7 @@ function replayPlan(previous, delta) {
   return plan;
 }
 
-for (const part of ['prismatic', 'polygonal']) {
+for (const part of ['prismatic', 'polygonal', 'schemes']) {
   test(`${part}: WASM and native plan, spec and SVG bytes match throughout a session`, () => {
     const replay = JSON.parse(readFileSync(new URL(`../tests/fixtures/wasm/${part}.json`, import.meta.url)));
     const plain = readFileSync(new URL(`../${replay.part}`, import.meta.url));
@@ -79,6 +79,7 @@ for (const part of ['prismatic', 'polygonal']) {
       invalid(() => engine.redo());
       // Exercise recognition correction, bound face anchors, delta replay and history on
       // the existing planar fixtures; exports and comparison tolerances stay unchanged.
+      const fixtureStates = replay.steps.length + 1;
       const corrected = snapshot.analysis.features.find(feature => feature.faces.length > 0);
       assert.ok(corrected);
       replay.steps.push(
@@ -115,7 +116,7 @@ for (const part of ['prismatic', 'polygonal']) {
           for (const [id, svg] of Object.entries(packet.fragments)) {
             assert.equal(svg, complete[id], `changed fragment ${id}`);
           }
-          if (step.ops.some(op => op.path.startsWith('views'))) {
+          if (step.ops.some(op => op.path.startsWith('views') || op.path.startsWith('dimension_schemes'))) {
             assert.deepEqual(packet.placementOptions, JSON.parse(engine.placementOptions()));
           }
           for (const [name, patch] of Object.entries(packet.delta.plan.collections)) {
@@ -124,6 +125,24 @@ for (const part of ['prismatic', 'polygonal']) {
         } else JSON.parse(engine.apply(ops, true));
         assert.equal(engine.planCount() - before, 1, step.edit);
         actual.push(documents(engine, step.edit));
+      }
+      if (part === 'schemes') {
+        // Two distinct analytic feature stations exercise real chains, baselines and
+        // signed running coordinates. Keep every native/WASM byte comparison below.
+        for (const state of actual.slice(1, fixtureStates - 1)) {
+          const plan = JSON.parse(state.plan);
+          const generated = plan.dimensions.filter(d => d.id.startsWith('d:scheme:'));
+          assert.equal(generated.length, state.edit === 'undo scheme' ? 0 : 2, `${state.edit}: both feature stations remain owned unless undone`);
+          assert.ok(generated.every(d => d.from_spec.includes('dimension_schemes/inspection')));
+          if (state.edit === 'signed ordinates') {
+            assert.ok(generated.every(d => d.value < 0 && d.placed.arrows.length === 1));
+          }
+        }
+        // The fixture restores automatic placement before main appends recognition edits.
+        // Check that restored state and every subsequent correction/history state.
+        for (const state of actual.slice(fixtureStates - 1)) {
+          assert.ok(!JSON.parse(state.plan).dimensions.some(d => d.id.startsWith('d:scheme:')), state.edit);
+        }
       }
       const native = spawnSync(process.env.DRAFTWRIGHT_WASM_REFERENCE ?? 'target/release/examples/wasm_reference', [], {
         cwd: root, input: JSON.stringify(replay), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,

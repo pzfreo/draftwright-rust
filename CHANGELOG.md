@@ -12,13 +12,17 @@ All notable changes to draftwright-rust are recorded here, in the style of
   a feature/face ID or a nonempty list whose crops are united. Missing members and
   degenerate projections in an explicit parent are refused. Mixed natural sources choose
   the view with most visible members and explain the choice in the basis. Saved strings
-  remain compatible. Typed MCP schemas measure 46,656 bytes (strict budget below 46,657).
+  remain compatible.
 
 - Enlarged orthographic detail views for crowded turned chains and heads, thin terminal
   flanges, prismatic height ladders and authored feature crops. Details participate in sheet
   planning, carry stable view IDs and their own scale, and draw parent circles, letters,
   captions and relocated dimensions. A fitting iso keeps sheet scale beside a detail.
   Verification and Python differences: [detail views](docs/detail-verification.md).
+- Spec dimensioning schemes by feature pattern, station set or principal view axis: chain,
+  chosen-datum baseline and signed running ordinate, with stable references, session edits,
+  one-owner networks and independent printed-link lint (#76 item 4).
+
 - Spec label wording under `dimensions/<id>/text` and prose `annotations/<id>/text`:
   prefix/suffix or one `{value}` template retain every generated measured term. Explicit
   dimension `style: reference | basic` draws parentheses or a box. Full ink drives placement;
@@ -52,6 +56,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### WASM API
 
+- Additive Spec `dimension_schemes` map and scheme measurement claims; native and browser
+  sessions share the same JSON vocabulary. Scheme fragment edits refresh placement options.
+  Engine method signatures are unchanged.
 - Additive recognition-correction Spec fields and Plan provenance use the shared native
   session model; binding methods and TypeScript signatures are unchanged.
 
