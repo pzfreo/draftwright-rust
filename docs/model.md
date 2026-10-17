@@ -487,9 +487,10 @@ not relax safety margins or change sheet-size, scale, detail, fit or datum polic
 #### Sheet allocation (R5, Stage I)
 
 `sheets.max` allows 1–9 sheets. An explicit count is binding. With no count,
-the normal search starts with one sheet; a small part with no valid complete A4/A3
-single-sheet drawing tries R5 allocation on A4/A3 before A2 or larger (up to the
-existing nine-sheet bound). Named paper keeps the original default of one.
+the normal search tries a single clean readable A4 drawing, then the existing R5
+allocation on A4 before A3. Each paper exhausts its readable single-sheet and
+multi-sheet trials before larger paper, up to the existing nine-sheet bound.
+Named paper keeps the original default of one.
 See the [R5 small-part amendment](adr/R5-multi-sheet.md#small-part-overflow-amendment-2026-10-16). `sheets.smallest_scale` is an ISO
 5455 scale floor, `keep_together` is a list of groups of view names (also allowing
 `hole_table`), `hole_table` assigns a rescue hole table if escalation actually makes
@@ -911,7 +912,8 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   baseline intervals. Prismatic steps and differences between baseline heights
   use 2.0 mm, preserving a real 2 mm wall at 1:1. Linear text must clear its own extension lines: between
   inward arrows it needs its actual ink width plus two 2.7 mm arrowheads; outside
-  arrows or outside text are accepted with clean clearance. External dimensions
+  arrows or outside text are accepted with clean clearance. Aligned dimensions are
+  measured in their rotated frame using actual label ink. External dimensions
   need the existing `dims::FIRST = 10.0` mm witness offset and overlapping parallel
   spans need `dims::LANE = 7.0` mm separation. Interior placements use their
   established material-clearance checks. `MIN_DEPICTION_GAP = 0.7` mm keeps
@@ -940,25 +942,28 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   refusals still block allocation, as do all physical/layout errors.
 
   A complete candidate retains every required measurement and GD&T item, fits
-  actual drawn bounds, and adds no foreign-view conflicts. When none exists,
-  recovery retains the best physically fitting drawing and all its measurements
-  with `layout_recovery_exhausted`; it never silently drops information. Below-floor
-  scales may be evaluated for that refusal fallback, but cannot qualify as clean
-  readable candidates. The fallback prefers fewer readability failures and better
-  annotation quality, then larger scale; it is explicitly a `needs_attention`
-  drawing. Declining an optional crop never disables the original material-crossing
-  ratchet, and schedules keep their existing installation/allocation policy. Settled GD&T blocks can still be composed
-  from a same-scale A0 template and moved as whole blocks. Every title collision
-  lifts the row even when overflow must be reported; nothing is clipped.
+  actual drawn bounds, and adds no foreign-view conflicts. When no clean readable
+  candidate exists, an established fitted drawing is retained with an explicit
+  `layout_recovery_exhausted` warning. The historical comparator is used only to
+  reconstruct this refusal geometry; it never ranks qualified readable drawings.
+  The old 0.8 mm opening preparation floor remains for arranging legacy control
+  frames, separately from the new 2 mm acceptance floor, so a new diagnostic does
+  not reflow a fixed or refused drawing. Below-floor candidates cannot qualify as
+  clean readable drawings. If no established fitted candidate exists, the fallback
+  preserves measurements on physically fitting paper and reports its remaining
+  failures rather than returning an off-paper raw estimate.
 
-  A fitted drawing carrying its measurements and control frames remains the
-  annotation-quality reference even if close feature intervals are unreadable.
-  Each annotation/material finding type is a separate limit: fewer crossings do
-  not pay for a new long leader. An incomplete fallback does not buy paper larger
-  than that retained drawing for a partial improvement. A complete readable
-  enlargement on the retained paper can establish its material-routing reference;
-  its annotation limits still hold. A compressed estimate must not force larger
-  paper merely to match its shorter-scale material routing.
+  Optional crops keep the existing annotation/material-crossing quality veto.
+  Incomplete and scheduled-row recovery trials compare each annotation/material
+  finding type independently; fewer crossings do not pay for a new long leader.
+  A complete readable ordinary layout keeps the established placement pipeline,
+  rather than comparing its routes with an unreadably compressed raw estimate.
+  Settled GD&T blocks can still be composed from a same-scale A0 template and moved
+  as whole blocks. Every title collision lifts the row even when overflow must be
+  reported; nothing is clipped. A fully located counted pattern with its pitches
+  carries its members' coordinate requirements. A dimensioned central bore with a
+  drawn common axis carries its concentric location, without redundant half-OD
+  box coordinates. Neither equivalence is inferred from equal numbers alone.
 
   Schedule recovery retains installed row measurements. If enlargement clears
   the original schedule trigger, the same selector and installer retry those

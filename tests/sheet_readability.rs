@@ -215,3 +215,46 @@ fn a3_explains_the_a4_prismatic_readability_refusal() {
     let compressed = model::plan_recovered(&a, &spec).unwrap();
     assert!(sheet_fit::readability(&a, &compressed).steps > 0);
 }
+
+#[test]
+fn aligned_dimensions_measure_text_and_lanes_in_their_rotated_frame() {
+    let (a, mut p) = plate();
+    let mut d = p
+        .dimensions
+        .iter()
+        .find(|d| d.kind == "linear")
+        .unwrap()
+        .clone();
+    let ink = d.placed.as_mut().unwrap();
+    let h = 0.5_f64.sqrt();
+    // A 20 mm aligned span, with outside text and 10 mm witness clearance.
+    ink.arrows = vec![
+        [[0.0, 0.0], [-2.7 * h, -2.7 * h]],
+        [[20.0 * h, 20.0 * h], [22.7 * h, 22.7 * h]],
+    ];
+    ink.lines = vec![
+        [[10.0 * h, -10.0 * h], [0.0, 0.0]],
+        [[30.0 * h, 10.0 * h], [20.0 * h, 20.0 * h]],
+        [[0.0, 0.0], [20.0 * h, 20.0 * h]],
+    ];
+    ink.label_at = [25.0 * h, 25.0 * h];
+    ink.rotation = 45.0;
+    p.dimensions = vec![d.clone()];
+    let before = sheet_fit::readability(&a, &p);
+    assert_eq!(before.text_arrows, 0);
+    let ink = p.dimensions[0].placed.as_mut().unwrap();
+    ink.label_at = [19.0 * h, 19.0 * h];
+    assert!(sheet_fit::readability(&a, &p).text_arrows > before.text_arrows);
+    p.dimensions = vec![d.clone()];
+    let ink = d.placed.as_mut().unwrap();
+    for point in ink.lines.iter_mut().chain(&mut ink.arrows).flatten() {
+        point[0] -= 3.5 * h;
+        point[1] += 3.5 * h;
+    }
+    p.dimensions.push(d);
+    assert!(sheet_fit::readability(&a, &p).lanes > before.lanes);
+    p.dimensions.truncate(1);
+    let ink = p.dimensions[0].placed.as_mut().unwrap();
+    ink.lines[0][0] = [3.0 * h, -3.0 * h];
+    assert!(sheet_fit::readability(&a, &p).lanes > before.lanes);
+}

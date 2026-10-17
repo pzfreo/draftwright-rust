@@ -14,6 +14,16 @@ pub const MIN_OPENING: f64 = 2.0;
 pub const ABSOLUTE_FLOOR: f64 = 0.1;
 
 pub fn min_legible_scale(analysis: &Analysis) -> f64 {
+    scale_floor(analysis, MIN_OPENING, modelled_line_scale(analysis))
+}
+
+// Preserve the established frame preparation at explicit and refused scales.
+// This historical layout heuristic never qualifies a drawing as readable.
+pub(crate) fn preparation_scale(analysis: &Analysis) -> f64 {
+    scale_floor(analysis, 0.8, 0.0)
+}
+
+fn scale_floor(analysis: &Analysis, opening_floor: f64, depiction_floor: f64) -> f64 {
     let opening = analysis
         .features
         .iter()
@@ -32,9 +42,9 @@ pub fn min_legible_scale(analysis: &Analysis) -> f64 {
     let longest = (0..3)
         .map(|k| analysis.envelope[1][k] - analysis.envelope[0][k])
         .fold(0.0, f64::max);
-    let needed = (MIN_OPENING / opening)
+    let needed = (opening_floor / opening)
         .max(20.0 / longest.max(1e-12))
-        .max(modelled_line_scale(analysis))
+        .max(depiction_floor)
         .max(ABSOLUTE_FLOOR);
     crate::layout::SCALES
         .into_iter()
@@ -53,6 +63,14 @@ pub const MIN_STEP_SPAN: f64 = crate::dims::CAP;
 /// stations still owe the physical interval they replace; enlarged detail owners
 /// use their own scale, never the parent sheet's.
 pub fn illegible_steps(analysis: &Analysis, plan: &Plan) -> usize {
+    illegible_spans(analysis, plan, false)
+}
+
+pub(crate) fn primary_illegible_steps(analysis: &Analysis, plan: &Plan) -> usize {
+    illegible_spans(analysis, plan, true)
+}
+
+fn illegible_spans(analysis: &Analysis, plan: &Plan, primary_only: bool) -> usize {
     let mut checked = std::collections::BTreeSet::new();
     plan.dimensions
         .iter()
@@ -64,6 +82,11 @@ pub fn illegible_steps(analysis: &Analysis, plan: &Plan) -> usize {
                 .find(|v| v.id == d.view)
                 .map_or(0.0, |v| v.scale);
             d.measurements.iter().filter_map(move |m| {
+                if primary_only
+                    && !matches!(m.parameter.as_str(), "step.length" | "step_position.length")
+                {
+                    return None;
+                }
                 let length = if m.parameter.starts_with("through_step_leg.length")
                     || m.parameter == "circular_step_depth.length"
                     || m.parameter.starts_with("step_height.length")
@@ -323,18 +346,48 @@ pub fn readability(analysis: &Analysis, plan: &Plan) -> Readability {
         }
         let a = p.arrows[0][0];
         let b = p.arrows[1][0];
-        let axis = usize::from((b[1] - a[1]).abs() > (b[0] - a[0]).abs());
-        let other = 1 - axis;
-        if (b[other] - a[other]).abs() > 1e-4 {
+        let delta = [b[0] - a[0], b[1] - a[1]];
+        let span = delta[0].hypot(delta[1]);
+        if span < 1e-6 {
+            result.text_arrows += 1;
             continue;
         }
-        let lo = a[axis].min(b[axis]);
-        let hi = a[axis].max(b[axis]);
-        let text = [p.label_box[axis], p.label_box[axis + 2]];
-        let inward = p
-            .arrows
-            .iter()
-            .all(|[tip, tail]| (tail[axis] - tip[axis]) * ((lo + hi) * 0.5 - tip[axis]) > 0.0);
+        // Project into the dimension's frame, including authored aligned spans.
+        let sign = if delta[0] < -1e-6 || (delta[0].abs() < 1e-6 && delta[1] < 0.0) {
+            -1.0
+        } else {
+            1.0
+        };
+        let u = [sign * delta[0] / span, sign * delta[1] / span];
+        let n = [-u[1], u[0]];
+        let along = |p: [f64; 2]| p[0] * u[0] + p[1] * u[1];
+        let across = |p: [f64; 2]| p[0] * n[0] + p[1] * n[1];
+        let lo = along(a).min(along(b));
+        let hi = along(a).max(along(b));
+        let text = if u[0].abs() < 1e-6 || u[1].abs() < 1e-6 {
+            let axis = usize::from(u[1].abs() > u[0].abs());
+            [p.label_box[axis], p.label_box[axis + 2]]
+        } else {
+            // An axis-aligned bounding box overestimates rotated text. Project
+            // the actual label's four corners through its placement transform.
+            let ink = crate::dims::label_ink(&d.terms, crate::dims::font());
+            let (sin, cos) = p.rotation.to_radians().sin_cos();
+            let mut bounds = [f64::INFINITY, f64::NEG_INFINITY];
+            for x in [ink.min[0], ink.max[0]] {
+                for y in [ink.min[1], ink.max[1]] {
+                    let t = along([
+                        p.label_at[0] + cos * x - sin * y,
+                        p.label_at[1] + sin * x + cos * y,
+                    ]);
+                    bounds[0] = bounds[0].min(t);
+                    bounds[1] = bounds[1].max(t);
+                }
+            }
+            bounds
+        };
+        let inward = p.arrows.iter().all(|[tip, tail]| {
+            (along(*tail) - along(*tip)) * ((lo + hi) * 0.5 - along(*tip)) > 0.0
+        });
         let inset = if inward { crate::dims::ARROW } else { 0.0 };
         let inside = text[0] >= lo + inset - 0.1 && text[1] <= hi - inset + 0.1;
         let outside =
@@ -345,14 +398,14 @@ pub fn readability(analysis: &Analysis, plan: &Plan) -> Readability {
         // Interior dimensions deliberately use internal material space. Exterior
         // lanes must be achievable within the settled view reservation.
         if d.region != Some(crate::dims::CandidateRegion::Interior) {
-            let row = a[other];
+            let row = across(a);
             if p.lines[..2]
                 .iter()
-                .any(|line| (row - line[0][other]).abs() + 1.0 + 0.1 < crate::dims::FIRST)
+                .any(|line| (row - across(line[0])).abs() + 1.0 + 0.1 < crate::dims::FIRST)
             {
                 result.lanes += 1;
             }
-            rows.push((d.view.as_str(), axis, row, lo, hi));
+            rows.push((d.view.as_str(), u, row, lo, hi));
         }
     }
     for values in levels.values_mut().filter(|v| v.len() > 1) {
@@ -375,7 +428,11 @@ pub fn readability(analysis: &Analysis, plan: &Plan) -> Readability {
     result.openings = openings.len();
     for (i, a) in rows.iter().enumerate() {
         for b in &rows[i + 1..] {
-            if a.0 == b.0 && a.1 == b.1 && a.3 < b.4 && b.3 < a.4 {
+            if a.0 == b.0
+                && (a.1[0] * b.1[1] - a.1[1] * b.1[0]).abs() < 1e-6
+                && a.3 < b.4
+                && b.3 < a.4
+            {
                 let gap = (a.2 - b.2).abs();
                 if gap + 0.1 < crate::dims::LANE {
                     result.lanes += 1;
@@ -1285,6 +1342,47 @@ pub(crate) fn choose(
     Some((chosen, smallest))
 }
 
+// Compatibility choice for a reported refusal ONLY. Qualified drawings always
+// use the screen-first comparator above. Keeping the established fitted geometry
+// when the stronger floor cannot be met prevents a readability change from
+// replacing a published drawing with an incomplete or less readable raw seed.
+fn retained_refusal_rank(a: (f64, f64, f64), b: (f64, f64, f64)) -> std::cmp::Ordering {
+    let band = |p: (f64, f64, f64)| (FILL_BAND[0]..=FILL_BAND[1]).contains(&p.2);
+    band(b).cmp(&band(a)).then_with(|| {
+        if band(a) && band(b) {
+            b.0.total_cmp(&a.0).then_with(|| a.1.total_cmp(&b.1))
+        } else {
+            b.2.total_cmp(&a.2)
+                .then_with(|| b.0.total_cmp(&a.0))
+                .then_with(|| a.1.total_cmp(&b.1))
+        }
+    })
+}
+
+pub(crate) fn retained_refusal_choice(
+    candidates: &[Candidate],
+    named_sheet: bool,
+    seed_clean: bool,
+) -> Option<(Option<usize>, (usize, f64))> {
+    let smallest = candidates
+        .iter()
+        .map(|c| (c.sheet, c.scale))
+        .min_by(|a, b| a.0.cmp(&b.0).then(b.1.total_cmp(&a.1)))?;
+    let key = |c: &Candidate| (c.scale, c.width, c.fill);
+    let chosen = candidates
+        .iter()
+        .enumerate()
+        .filter(|(_, c)| {
+            named_sheet
+                || (c.sheet == smallest.0 && c.scale == smallest.1)
+                || (c.sheet == smallest.0 + 1 && c.scale > smallest.1)
+        })
+        .filter(|(_, c)| !seed_clean || c.extra_crossings == 0)
+        .min_by(|a, b| retained_refusal_rank(key(a.1), key(b.1)))
+        .map(|(i, _)| i);
+    Some((chosen, smallest))
+}
+
 /// Final compose-then-pack pass for settled linear ink (ISSUE-563-b). Use the
 /// complete placement inventory so omitting a dimension does not change a pin's
 /// frame. Moving a view block transports its already settled routes unchanged.
@@ -1300,7 +1398,7 @@ pub(crate) fn reserve_linear_corridors(
         || plan.spec.dimensions.values().any(|d| d.tolerance.is_some())
         || plan.spec.features.values().any(|f| f.fit.is_some()))
         // An unreadable seed keeps its established control-frame bands.
-        && (plan.gdt.is_empty() || plan.sheet.scale_factor >= min_legible_scale(analysis))
+        && (plan.gdt.is_empty() || plan.sheet.scale_factor >= preparation_scale(analysis))
         && !crate::placement_intent::has_pins(&plan.spec)
         && !crate::model::dimension_text_edited(&plan.spec)
         && !plan.spec.views.values().any(|v| v.place.is_some())
