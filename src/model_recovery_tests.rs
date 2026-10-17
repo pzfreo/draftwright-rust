@@ -68,15 +68,23 @@ fn a_valid_candidate_crossing_two_views_is_rejected_even_when_the_planner_return
             // first candidate; inject the same unsafe drawing on either side of
             // that preparation, under the planner's complete exact input key.
             for policy in [(false, false), (false, true)] {
-                let key =
-                    serde_json::to_vec(&(analysis_key, policy, &named, true, arrangement, false))
-                        .unwrap();
-                crate::planning::store(
-                    &analysis,
-                    "candidate",
-                    key,
-                    Ok::<Plan, Invalid>(unsafe_try.clone()),
-                );
+                for paper in [None, Some([297.0_f64.to_bits(), 210.0_f64.to_bits()])] {
+                    let key = serde_json::to_vec(&(
+                        analysis_key,
+                        (policy.0, policy.1, paper),
+                        &named,
+                        true,
+                        arrangement,
+                        false,
+                    ))
+                    .unwrap();
+                    crate::planning::store(
+                        &analysis,
+                        "candidate",
+                        key,
+                        Ok::<Plan, Invalid>(unsafe_try.clone()),
+                    );
+                }
             }
         }
         recover_uncached(&analysis, &Spec::default(), first, None).unwrap()
@@ -252,6 +260,57 @@ fn recess_scale_reference_uses_the_established_fitted_choice_before_a4_ranking()
     let (_, channels) = analyse_native(&root.join("nist/nist_ftc_08_asme1_rc.stp")).unwrap();
     assert_eq!(crate::sheet_fit::preparation_scale(&channels), 0.5);
     assert_eq!(crate::sheet_fit::min_legible_scale(&channels), 1.0);
+}
+
+#[test]
+fn native_pocket_mouths_and_oversized_automatic_details_obey_the_paper_trial() {
+    let root = std::env::var_os("DRAFTWRIGHT_CORPUS")
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME")
+                .map(|h| std::path::PathBuf::from(h).join("repos/quiddity/tests/corpus"))
+        })
+        .filter(|p| p.is_dir());
+    let Some(root) = root else {
+        assert!(
+            std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"),
+            "required corpus missing"
+        );
+        return;
+    };
+    let (_, a) = analyse_native(&root.join("mfcadpp/10000.step")).unwrap();
+    assert_eq!(crate::sheet_fit::preparation_scale(&a), 0.5);
+    assert_eq!(crate::sheet_fit::min_legible_scale(&a), 2.0);
+    let mut forced = Spec::default();
+    forced.sheet.size = Some("A4".into());
+    forced.sheet.scale = Some("1:1".into());
+    let first = plan_recovered(&a, &forced).unwrap();
+    assert!(crate::sheet_fit::readability(&a, &first).native_openings > 0);
+    crate::planning::with(&a, || {
+        let original = crate::detail::requests(&a, &Spec::default(), 1.0);
+        assert_eq!(original[0].1.scale, 10.0);
+        {
+            let _paper = crate::planning::detail_paper_scope(&a, Some([297.0, 210.0]));
+            let smaller = crate::detail::requests(&a, &Spec::default(), 1.0);
+            assert_eq!(smaller[0].1.scale, 2.0);
+            assert_eq!(smaller[0].1.bounds, original[0].1.bounds);
+            assert_eq!(smaller[0].1.dimensions, original[0].1.dimensions);
+        }
+        assert_eq!(
+            crate::detail::requests(&a, &Spec::default(), 1.0)[0]
+                .1
+                .scale,
+            10.0
+        );
+    });
+    let recovered = plan_recovered(&a, &Spec::default()).unwrap();
+    assert_eq!(crate::sheet_fit::readability(&a, &recovered).failures(), 0);
+    assert!(carried(&first).is_subset(&carried(&recovered)));
+    assert!(no_new_drawing_issues(&first, &recovered));
+    assert!(
+        recovered.views.iter().all(|v| v.detail.is_none()),
+        "a readable ordinary drawing must not buy an oversized detail"
+    );
 }
 
 #[test]

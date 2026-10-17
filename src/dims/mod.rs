@@ -555,12 +555,35 @@ pub(crate) fn has_new_native_recess_dimensions(analysis: &Analysis) -> bool {
 }
 
 pub(crate) fn has_recess_dimensions(analysis: &Analysis) -> bool {
-    let (canonical, established) = crate::planning::policy_key(analysis);
+    let (canonical, established, _) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "recess-presence",
         vec![u8::from(canonical), u8::from(established)],
         || has_recess_dimensions_uncached(analysis),
+    )
+}
+
+pub(crate) fn native_opening(feature: &str, parameter: &str) -> bool {
+    feature.starts_with("f:section_recess:")
+        && matches!(parameter, "pocket_width.length" | "channel_width.length")
+}
+
+pub(crate) fn native_min_opening(analysis: &Analysis) -> f64 {
+    let (canonical, established, _) = crate::planning::policy_key(analysis);
+    crate::planning::memo(
+        analysis,
+        "native-dimensioned-opening",
+        vec![u8::from(canonical), u8::from(established)],
+        || {
+            wants(analysis)
+                .0
+                .iter()
+                .flat_map(|w| &w.measurements)
+                .filter(|m| native_opening(&m.feature, &m.parameter) && m.value > 0.0)
+                .map(|m| m.value)
+                .fold(f64::INFINITY, f64::min)
+        },
     )
 }
 
@@ -884,7 +907,7 @@ pub(crate) fn inspection_datum(a: &Analysis) -> Option<(usize, f64)> {
 }
 
 pub(crate) fn detail_levels(a: &Analysis) -> Vec<(String, f64)> {
-    let (canonical, established) = crate::planning::policy_key(a);
+    let (canonical, established, _) = crate::planning::policy_key(a);
     crate::planning::memo(
         a,
         "detail-linear-levels",
@@ -1679,7 +1702,7 @@ pub(crate) fn authored_placement_clear(spec: &Spec, dims: &[PlannedDimension]) -
 /// A slot chain must have room for its arrows and its own text between its ends.
 /// New recess annotations reserve extra paper rather than reducing these existing chains.
 pub(crate) fn recess_chain_scale(analysis: &Analysis, opening_floor: f64) -> f64 {
-    let (canonical, established) = crate::planning::policy_key(analysis);
+    let (canonical, established, _) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "recess-readable-scale",

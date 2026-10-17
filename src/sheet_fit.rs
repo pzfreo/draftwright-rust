@@ -120,6 +120,7 @@ fn route_refusal_uncached(
                     && new.depiction <= old.depiction
                     && new.steps <= old.steps
                     && new.openings <= old.openings
+                    && new.native_openings <= old.native_openings
                     && new.text_arrows <= old.text_arrows
                     && new.lanes <= old.lanes
             })
@@ -976,6 +977,7 @@ pub(crate) fn repair_readability(analysis: &Analysis, plan: &mut Plan) {
                     || after.text_arrows > before.text_arrows
                     || after.steps > before.steps
                     || after.openings > before.openings
+                    || after.native_openings > before.native_openings
                     || after.depiction > before.depiction
                 {
                     continue;
@@ -1028,7 +1030,13 @@ pub(crate) const PREPARATION_MIN_OPENING: f64 = 0.8;
 pub const ABSOLUTE_FLOOR: f64 = 0.1;
 
 pub fn min_legible_scale(analysis: &Analysis) -> f64 {
-    scale_floor(analysis, MIN_OPENING, modelled_line_scale(analysis))
+    let needed = scale_floor(analysis, MIN_OPENING, modelled_line_scale(analysis))
+        .max(MIN_OPENING / crate::dims::native_min_opening(analysis));
+    crate::layout::SCALES
+        .into_iter()
+        .rev()
+        .find(|s| *s >= needed)
+        .unwrap_or(needed)
 }
 
 // Preserve the established frame preparation at explicit and refused scales.
@@ -1260,13 +1268,21 @@ fn modelled_line_scale_uncached(analysis: &Analysis) -> f64 {
 pub struct Readability {
     pub steps: usize,
     pub openings: usize,
+    /// Native pocket/channel mouths, kept separate from the original hole/slot
+    /// metric so archived calibration facts retain their original meaning.
+    pub native_openings: usize,
     pub text_arrows: usize,
     pub depiction: usize,
     pub lanes: usize,
 }
 impl Readability {
     pub fn failures(self) -> usize {
-        self.steps + self.openings + self.text_arrows + self.depiction + self.lanes
+        self.steps
+            + self.openings
+            + self.native_openings
+            + self.text_arrows
+            + self.depiction
+            + self.lanes
     }
 }
 impl std::fmt::Display for Readability {
@@ -1274,7 +1290,11 @@ impl std::fmt::Display for Readability {
         write!(
             f,
             "{} unreadable step spans, {} openings below 2 mm, {} text/arrow fit failures, {} depiction gaps below 0.7 mm, {} dimension-lane failures",
-            self.steps, self.openings, self.text_arrows, self.depiction, self.lanes
+            self.steps,
+            self.openings + self.native_openings,
+            self.text_arrows,
+            self.depiction,
+            self.lanes
         )
     }
 }
@@ -1300,6 +1320,7 @@ fn readability_uncached(analysis: &Analysis, plan: &Plan) -> Readability {
         ..Default::default()
     };
     let mut openings = std::collections::BTreeSet::new();
+    let mut native_openings = std::collections::BTreeSet::new();
     // A schedule's hole sizes still owe readable geometry in the balloon's
     // carrier view; moving their numbers into a table does not enlarge the holes.
     for balloon in &plan.balloons {
@@ -1372,6 +1393,12 @@ fn readability_uncached(analysis: &Analysis, plan: &Plan) -> Readability {
                 .push(d.value);
         }
         for m in &d.measurements {
+            if crate::dims::native_opening(&m.feature, &m.parameter)
+                && m.value > 0.0
+                && m.value * v.scale + 1e-6 < MIN_OPENING
+            {
+                native_openings.insert(m.feature.as_str());
+            }
             let Some(feature) = analysis.features.iter().find(|f| f.id == m.feature) else {
                 continue;
             };
@@ -1463,6 +1490,7 @@ fn readability_uncached(analysis: &Analysis, plan: &Plan) -> Readability {
         result.lanes += crate::layout::crowded_locations(&values, scale);
     }
     result.openings = openings.len();
+    result.native_openings = native_openings.len();
     for (i, a) in rows.iter().enumerate() {
         for b in &rows[i + 1..] {
             if a.0 == b.0

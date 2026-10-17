@@ -329,7 +329,7 @@ fn readable_a4_precedes_fill_but_unreadable_steps_require_enlargement() {
     let Some(dir) = corpus::dir() else { return };
     for (file, expected) in [
         ("mfcadpp/10060.step", ("A4", "1:1")),
-        ("mfcadpp/10000.step", ("A1", "1:1")),
+        ("mfcadpp/10000.step", ("A1", "5:1")),
     ] {
         let path = dir.join(file);
         let plan = api::plan_from(&path, Features::Native, &Spec::default()).unwrap();
@@ -346,6 +346,10 @@ fn readable_a4_precedes_fill_but_unreadable_steps_require_enlargement() {
             assert!(
                 draftwright::sheet_fit::readability(&analysis, &compressed).steps > 0,
                 "{file}"
+            );
+            assert!(
+                draftwright::sheet_fit::readability(&analysis, &compressed).native_openings > 0,
+                "the native pocket must also exceed 2 mm: {file}"
             );
             assert!(plan.sheet.basis.contains("A4 multi-sheet:"));
         }

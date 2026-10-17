@@ -160,11 +160,40 @@ pub(crate) fn enabled(analysis: &Analysis) -> bool {
 }
 
 /// Placement policies held in the planning scope are inputs to exact result caches too.
-pub(crate) fn policy_key(analysis: &Analysis) -> (bool, bool) {
+pub(crate) fn policy_key(analysis: &Analysis) -> (bool, bool, Option<[u64; 2]>) {
     (
         lookup::<bool>(analysis, "canonical-circular-recipes", &[]).unwrap_or(false),
         lookup::<bool>(analysis, "established-route-policy", &[]).unwrap_or(false),
+        detail_paper(analysis).map(|paper| paper.map(f64::to_bits)),
     )
+}
+
+pub(crate) fn detail_paper(analysis: &Analysis) -> Option<[f64; 2]> {
+    lookup::<Option<[f64; 2]>>(analysis, "automatic-detail-paper", &[]).flatten()
+}
+
+pub(crate) struct DetailPaper<'a> {
+    analysis: &'a Analysis,
+    previous: Option<[f64; 2]>,
+}
+
+impl Drop for DetailPaper<'_> {
+    fn drop(&mut self) {
+        store(
+            self.analysis,
+            "automatic-detail-paper",
+            Vec::new(),
+            self.previous,
+        );
+    }
+}
+
+/// Only qualified paper trials may reduce an oversized automatic crop. The
+/// scope restores the legacy reference policy on every exit, including unwind.
+pub(crate) fn detail_paper_scope(analysis: &Analysis, paper: Option<[f64; 2]>) -> DetailPaper<'_> {
+    let previous = detail_paper(analysis);
+    store(analysis, "automatic-detail-paper", Vec::new(), paper);
+    DetailPaper { analysis, previous }
 }
 
 type SharedValues<T> = VecDeque<([u8; 32], Arc<T>)>;
