@@ -94,4 +94,20 @@ with tempfile.TemporaryDirectory(prefix='s7-schema-') as cache:
         'part_ref': part, 'spec': sheets, 'id': 'sheet:1/v:iso'}})
     assert wrong['isError'] and 'sheet:2/v:iso' in wrong['structuredContent']['error']['choices']
     validators['get_item', 'output'].validate(wrong['structuredContent'])
+    schemes = {'dimension_schemes': {'locations': {
+        'scheme': 'chain', 'axis': 'x', 'view': 'plan'}}}
+    call('inspect_part', {'part_ref': part, 'spec': schemes})
+    saved = call('get_spec', {'part_ref': part, 'spec': schemes})
+    assert saved['spec']['dimension_schemes'] == schemes['dimension_schemes']
+    assert not validators['inspect_part', 'input'].is_valid({
+        'part_ref': part, 'spec': {'dimension_schemes': {'locations': False}}})
+    bad_scheme = rpc('tools/call', {'name': 'inspect_part', 'arguments': {
+        'part_ref': part, 'spec': {'dimension_schemes': {'locations': {
+            'scheme': 'baseline', 'axis': 'x', 'view': 'plan', 'from': 'face:missing'}}}}})
+    assert bad_scheme['isError']
+    refusal = bad_scheme['structuredContent']
+    validators['inspect_part', 'output'].validate(refusal)
+    assert refusal['error']['code'] == 'invalid'
+    assert 'dimension_schemes/locations' in refusal['error']['message']
+    assert 'remove' in refusal['error']['message']
     print(f'{len(tools)} tool inputs, outputs and refusals validated; {len(validators)} published and served schemas agree')
