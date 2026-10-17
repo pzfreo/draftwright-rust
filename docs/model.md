@@ -904,7 +904,10 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   readability counts. The material-crossing ratchet against a valid fitted seed
   remains. The established fitted drawing also supplies the exact crossing-pair
   reference: improving the raw seed cannot restore its worse routes, and fewer
-  crossings cannot pay for a newly obstructed dimension or feature association. Explicit paper, scale, sheet limits, assignments and pins retain priority.
+  crossings cannot pay for a newly obstructed dimension or feature association.
+  Explicit paper, scale, sheet limits, assignments and pins retain priority.
+  An authored scale with automatic paper still tries multi-sheet A4 before A3;
+  the scale itself is preserved.
   Version-1 Spec keys are migrated before recovery; restoring user intent after
   temporary search controls preserves canonical keys and revision bindings.
   Underestimated annotation bands reuse the existing settled-block packing,
@@ -953,7 +956,10 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   actual drawn bounds, and adds no foreign-view conflicts. When no clean readable
   candidate exists, an established fitted drawing is retained with an explicit
   `layout_recovery_exhausted` warning. The historical comparator is used only to
-  reconstruct this refusal geometry; it never ranks qualified readable drawings.
+  reconstruct fitted route references and refusal geometry; it never ranks
+  qualified readable drawings. Retaining an already clean readable reference
+  does not create a readability warning. An automatic reference below 1:10
+  cannot restore a sub-floor scale when even the largest sheet overflows.
   The old 0.8 mm opening preparation floor remains for arranging legacy control
   frames, separately from the new 2 mm acceptance floor, so a new diagnostic does
   not reflow a fixed or refused drawing. Below-floor candidates cannot qualify as
@@ -971,6 +977,9 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   Paper/scale changes also protect leader associations: no new 1 mm padded
   text/extension contact, no new exact annotation/feature finding, and no moved
   route running for more than 2 mm within 0.3 mm of projected model/extension ink.
+  This includes existing principal-profile tangent evidence for conical and other
+  curved silhouettes, plus square-on cylindrical generators clipped to trimmed
+  face evidence and detail crops, rather than B-rep edges alone.
   A route on an already globally legible drawing cannot grow by more than 2 mm.
   Growth from below the global feature/depiction floor may require longer clear
   travel to the enlarged model's exterior, but no readability component may get

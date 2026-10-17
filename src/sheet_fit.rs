@@ -363,6 +363,15 @@ fn route_ink(analysis: &Analysis, plan: &Plan, sheet: u32) -> Vec<[[f64; 2]; 2]>
                 .iter()
                 .flat_map(|e| e.windows(2).map(|s| [page(s[0]), page(s[1])]))
                 .collect();
+            // Principal-face evidence already includes tangent generators for
+            // cones and other analytic curved faces. They are not B-rep edges;
+            // omitting them can approve a leader running along a chamfer.
+            lines.extend(analysis.principal_profiles.iter().flat_map(|source| {
+                source
+                    .boundary_segments
+                    .iter()
+                    .map(|s| [page(s[0]), page(s[1])])
+            }));
             // A cylinder's side generators are silhouettes, not B-rep edges. Use
             // the same square-on evidence as the existing callout route refiner.
             for face in &ink.curved {
@@ -2402,6 +2411,7 @@ mod tests {
         .unwrap();
         let mut p = crate::model::plan(&a, &crate::model::Spec::default()).unwrap();
         a.envelope = [[-1.0, -1.0, 0.0], [1.0, 1.0, 10.0]];
+        a.principal_profiles.clear();
         a.edge_ink = Some(crate::model::projected_ink::EdgeInk {
             references: Default::default(),
             edges: Vec::new(),
@@ -2434,6 +2444,36 @@ mod tests {
             route_run([[49.2, 46.0], [49.2, 49.0]], &route_ink(&a, &p, 1)),
             0.0
         );
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn principal_tangents_guard_non_cylindrical_silhouettes() {
+        let (_, mut a) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/mounting_plate.step"),
+        )
+        .unwrap();
+        let mut p = crate::model::plan(&a, &crate::model::Spec::default()).unwrap();
+        a.envelope = [[-4.0, -4.0, 0.0], [4.0, 4.0, 10.0]];
+        // A conical tangent has no corresponding B-rep edge or cylinder.
+        a.edge_ink.as_mut().unwrap().edges.clear();
+        a.edge_ink.as_mut().unwrap().curved.clear();
+        a.principal_profiles = vec![crate::lint::profiles::Source {
+            bounds: a.envelope,
+            faces: Vec::new(),
+            boundary_segments: vec![[[-1.0, 0.0, 1.0], [-4.0, 0.0, 4.0]]],
+            curved_faces: Vec::new(),
+        }];
+        p.views.retain(|v| v.id == "v:front");
+        let v = &mut p.views[0];
+        v.direction = [0.0, -1.0, 0.0];
+        v.up = [0.0, 0.0, 1.0];
+        v.scale = 1.0;
+        v.at = [50.0, 50.0];
+        let ink = route_ink(&a, &p, 1);
+        assert!(route_run([[49.1, 46.0], [46.1, 49.0]], &ink) > 4.0);
+        assert_eq!(route_run([[49.5, 46.0], [46.5, 49.0]], &ink), 0.0);
     }
 
     #[test]
