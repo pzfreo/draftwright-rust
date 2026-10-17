@@ -108,10 +108,11 @@ fn the_spindles_unclaimed_faces_are_its_subjects() {
 /// or the title block drawn on it.
 #[test]
 fn only_sheet_problems_have_the_sheet_as_subject() {
-    const SHEET: [&str; 14] = [
+    const SHEET: [&str; 15] = [
         "layout_replanned",
         "layout_recovery_exhausted",
         "scale_fallback_applied",
+        "legibility_floor_breached",
         "views_do_not_fit",
         "page_fit_uncertain",
         "sheet_below_smallest_scale",

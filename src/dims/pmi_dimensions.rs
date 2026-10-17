@@ -12,7 +12,8 @@
 //!   no tolerance, is stated by it; a plain length between a turned step's two shoulders is
 //!   stated by the step's length;
 //! - **stands beside them**, drawn as its own dimension (draftwright's standalone fallback): a
-//!   length along x, y or z between its two proven stations, in the front view (x and z; the plan
+//!   length between its two proven stations (aligned for an oblique span in a principal plane),
+//!   along x, y or z in the front view (x and z; the plan
 //!   when only the plan's witness is proven), or the side then the plan (y); a diameter by a
 //!   leader to its cylinder where it is seen end-on; a radius by a leader to a proven point of
 //!   its arc; an angle about the vertex of its two planar sides, in the view that shows it true
@@ -20,8 +21,8 @@
 //!   dimension's is boxed. It is an ordinary planned dimension, placed with the others;
 //! - **or is not drawn, and says why**: a record whose reading left blockers, whose faces lie in
 //!   several placements of the part, or whose faces prove no witness (`pmi_not_lowered`, with
-//!   draftwright's reasons); a kind the port does not draw yet: a length oblique to
-//!   the views' axes, a diameter or radius not along x, y or z, a bolt circle whose holes carry
+//!   draftwright's reasons); a kind the port does not draw yet: a diameter or radius not along
+//!   x, y or z, a bolt circle whose holes carry
 //!   different requirements (draftwright splits it; the port splits count groups, grids and
 //!   lines), a counted turned diameter a record names only one of (`pmi_dimensions_not_ported`).
 //!
@@ -811,8 +812,25 @@ fn outcome(ids: &Identities, r: &Record, wants: &[Want], turned: Option<&Turned>
         }
         "linear" | "thickness" => {
             let Some(k) = k else {
-                return Outcome::Refused(not_ported(
-                    "its stations are oblique to the views' axes; the port draws a dimension along x, y or z only",
+                let [a, b] = g.stations.as_slice() else {
+                    return Outcome::Refused(not_lowered("a length needs two proven stations"));
+                };
+                let delta = [0, 1, 2].map(|k| b[k] - a[k]);
+                let Some(view) = crate::pmi_lowering::projection_view(delta) else {
+                    return Outcome::Refused(not_lowered(
+                        "its stations do not lie in a principal projection plane",
+                    ));
+                };
+                return Outcome::Standalone(own(
+                    ids,
+                    r,
+                    value,
+                    vec![view],
+                    Shape::Aligned { a: *a, b: *b },
+                    format!(
+                        "source-authored: AP242 {} between its two proven stations, exact aligned span in the {view} view",
+                        r.source_id
+                    ),
                 ));
             };
             if !r.basic

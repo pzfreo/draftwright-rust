@@ -1,0 +1,21 @@
+{
+  "schema": "draftwright.spec/2",
+  "binding": {
+    "face_count": 10,
+    "loader": "haecceity via draftwright 0.1.0-alpha.4",
+    "part": "plate",
+    "source_sha256": "e980c12943dcfe9dbf7e7c47e2a6a5741cf6b9a371ba35e7436ebfe9d858e361"
+  },
+  "dimension_source": "authored",
+  "dimensions": {
+    "d:authored:width": {
+      "between": [
+        "face:v1:ee69fd1b779540ba6dac32c6f403ecbeee8b20b88c778e4ff875b832192eb278",
+        "face:v1:f13ae81d7336cec6069b5f4fbbca17f6ae141e37c499b24e104a30b8854bb719"
+      ],
+      "along": "x",
+      "view": "front",
+      "tolerance": "±0.1"
+    }
+  }
+}

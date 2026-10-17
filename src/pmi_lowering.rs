@@ -1611,7 +1611,7 @@ fn stations_proof(
 
 /// The principal view whose plane holds a span (draftwright's `_linear_projection_view`): the
 /// one axis its difference has none of.
-fn projection_view(delta: [f64; 3]) -> Option<&'static str> {
+pub(crate) fn projection_view(delta: [f64; 3]) -> Option<&'static str> {
     let primary = delta.iter().map(|d| d.abs()).fold(0.0, f64::max);
     if (delta[0].powi(2) + delta[1].powi(2) + delta[2].powi(2)).sqrt() <= 1e-9 {
         return None;

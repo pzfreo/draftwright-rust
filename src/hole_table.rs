@@ -1782,6 +1782,49 @@ fn schedule_number(value: f64) -> String {
     text.strip_suffix(".0").unwrap_or(&text).into()
 }
 
+fn has_precision(plan: &Plan, d: &PlannedDimension) -> bool {
+    !plan.spec.precision.is_empty()
+        && (plan.spec.precision.contains_key(&d.id)
+            || d.measurements.iter().any(|m| {
+                plan.spec
+                    .precision
+                    .contains_key(&format!("d:{}/{}", m.feature, m.parameter))
+            }))
+}
+
+fn coordinate_number(
+    plan: &Plan,
+    dimension: Option<&PlannedDimension>,
+    feature: &str,
+    parameter: &str,
+    distance: f64,
+) -> String {
+    if plan.spec.precision.is_empty() {
+        return schedule_number(distance);
+    }
+    let policy = plan
+        .spec
+        .precision
+        .get(&format!("d:{feature}/{parameter}"))
+        .or_else(|| {
+            dimension.and_then(|d| {
+                d.measurements
+                    .iter()
+                    .filter(|m| m.parameter == parameter)
+                    .find_map(|m| {
+                        plan.spec
+                            .precision
+                            .get(&format!("d:{}/{}", m.feature, m.parameter))
+                    })
+                    .or_else(|| plan.spec.precision.get(&d.id))
+            })
+        });
+    policy.map_or_else(
+        || schedule_number(distance),
+        |&p| crate::dims::precision::format(distance, p),
+    )
+}
+
 /// A table carries a view title so its local X/Y cannot be mistaken for another view's.
 fn schedule_cells(t: &HoleTable) -> Vec<Vec<String>> {
     let mut title = vec![
@@ -2032,7 +2075,10 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
             ));
             // Array grammar locates members only in the leader version; the schedule's physical
             // member ordinates replace it. Compound recess/thread wording is retained verbatim.
+            // Explicit nominal formatting has already been applied to these terms. Parsing
+            // them again would strip its trailing zeroes, including bare recess depths.
             let approved_size = d.measurements.iter().any(|m| m.feature.starts_with("pmi:"))
+                || has_precision(plan, d)
                 || d.from_spec
                     .iter()
                     .any(|s| matches!(s.as_str(), "fit" | "tolerance"));
@@ -2071,7 +2117,7 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                         measured
                             .filter(|_| (origin[k] - analysis.envelope[0][k]).abs() <= 1e-6)
                             .map_or_else(
-                                || schedule_number(distance),
+                                || coordinate_number(plan, measured, f, &parameter, distance),
                                 |d| {
                                     d.terms
                                         .iter()
@@ -2079,8 +2125,12 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                                             d.terms.first().is_some_and(|t| t.ends_with('×')),
                                         ))
                                         .map(|t| {
-                                            t.parse::<f64>()
-                                                .map_or_else(|_| t.clone(), schedule_number)
+                                            if has_precision(plan, d) {
+                                                t.clone()
+                                            } else {
+                                                t.parse::<f64>()
+                                                    .map_or_else(|_| t.clone(), schedule_number)
+                                            }
                                         })
                                         .collect::<Vec<_>>()
                                         .join(" ")

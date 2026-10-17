@@ -1,5 +1,16 @@
 # Next session: handoff (2026-10-08)
 
+## Release 0.1.0-alpha.4 (2026-10-16)
+
+Both workspace crates and Cargo.lock are at `0.1.0-alpha.4`; README and CHANGELOG cover
+PRs #61–65 and #67–72 since alpha 3. The quiddity-rust `v0.1.0-alpha.4` tag pin is unchanged.
+The published-release workflow requires matching native and WASM versions and attaches the
+browser package and checksum. Formatting and strict workspace/all-target release Clippy pass.
+The required-corpus workspace release run completed all targets: **1113 passed, 1 failed,
+0 ignored**; doc tests pass (0 tests). The sole failure is the 150 ms multi-sheet MCP
+wall-clock gate: `multi_sheet_latency::r5_multi_sheet_latency` p90 **388.300 ms** (in-process
+p90 65.016 ms); the session latency gate passes. Logs: `/private/tmp/draftwright-alpha4-*.log`.
+
 ## Release 0.1.0-alpha.3 (2026-10-16)
 
 Version, README and CHANGELOG are prepared for alpha 3. haecceity and quiddity are pinned

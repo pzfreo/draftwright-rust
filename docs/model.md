@@ -258,8 +258,8 @@ The design also includes `views/sections` and feature `anchor`
 `"anchor": {"…": "fingerprint"}`). These fields are not yet read; a feature's `note` is read
 since K1b (below).
 
-- **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`),
-  `iso_scale_factor`, `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `place`, and the earlier `view`
+- **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`),
+  `iso_scale_factor`, `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `place`, `kind`, `between`, `along`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`),
   `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
   knurls and notes authored in the Spec", below), `notes` and `tables`.
@@ -305,6 +305,57 @@ do not fit, the problem's `fix` sets the nearest pair that does, found by the en
 the pinned sheet at the scale the recovery picks for it, else the pinned scale on the smallest sheet
 that holds it, else the automatic pair; each is offered only when, pinned, its drawing fits. The
 message names it (`…; A4 at 1:1 fits.`).
+
+#### Line work per view (#76 item 6)
+
+Each view accepts optional boolean `hidden`, `centre_marks`, `centre_lines`,
+`thread_depiction` and `knurl_depiction`. The same fields under `sheet` set defaults
+for **every view on every sheet**, including auxiliary views allocated to later sheets:
+
+```json
+{
+  "sheet": {"hidden": false, "centre_marks": true, "thread_depiction": false},
+  "views": {
+    "side": {"hidden": true, "centre_marks": false},
+    "front": {"centre_lines": false, "knurl_depiction": false}
+  }
+}
+```
+
+Precedence is **view, then sheet, then the view's automatic convention**. There are
+currently no `sheets/<n>` settings: `sheets` controls allocation, not numbered sheet
+styles. Removing a setting restores inheritance; absent fields preserve the original
+output, including the isometric's own defaults. An explicit centre switch can request
+eligible centre furniture in the isometric; it does not fabricate an axis or feature.
+`centre_marks` controls end-on crosses, while `centre_lines` controls profile axes and
+pitch circles. They are independent. Thread and knurl switches affect conventional
+ink only: manufacturing requirements, dimensions, callouts and coverage remain.
+Cosmetic depiction still requires a proven profile feature. Sections always omit hidden
+edges and cosmetic threads/knurls, even with `true`; centre switches do not remove the
+cutting-plane chain line, section arrows or hatching.
+
+Settings name stable existing view keys (`front`, `plan`, `side`, `iso`, `section_aa`),
+never page coordinates or projected edges. Unknown view references are refused with
+available names and a replacement/removal instruction; misspelled fields and non-boolean
+values are refused. As with other optional Spec fields, JSON `null` means absent.
+A setting for an omitted view is saved for when that view is shown again. No new
+feature-level switch or fingerprint address is introduced: furniture can be merged across
+features, so per-feature suppression needs separate ownership work.
+
+Planned views record effective authored switches in `line_style`, with the winning
+Spec paths in `from_spec`, `default: false`, and an explanation in `basis`. The embedded
+Spec retains all inherited and overridden entries. `set`/`remove` edits use the usual
+paths, for example `views/side/hidden` or `sheet/centre_marks`; session options expose
+all five booleans for views and sheets. Preview, undo/redo, geometry caching and delta
+replay follow the ordinary Spec edit path.
+
+These are drawing choices, not lint exemptions. Hidden curves switched off are absent
+from rendered geometry, so `hidden_on_visible` and `section_hidden` measure only drawn
+curves. Hidden-geometry completeness is not inferred from undrawn curves. Independent
+lint still reports missing centre marks when the author disables them, as well as wrong
+dimensions, missing manufacturing requirements and other drawing defects. Automatic
+layout and its conservative projected-ink clearance remain in force; hiding edges does
+not relax safety margins or change sheet-size, scale, detail, fit or datum policy.
 
 #### Sheet allocation (R5, Stage I)
 
@@ -1415,6 +1466,104 @@ its fix removing the omission. A turned profile's chain is not such a set. In an
 `/` inside a dimension's ID is written `~1`, as in a JSON pointer:
 `{"op": "set", "path": "dimensions/d:envelope~1width.length/omit", "value": true}`.
 
+### Dimensions authored from geometry (#76 item 1)
+
+`dimensions/d:authored:<name>` adds a quantity independently of recognition. The name is
+chosen by the author (letters, digits, `_` and `-`), remains its ID after moving it to another
+view, and must not reuse an automatic dimension ID. For example (replace the abbreviated
+fingerprints with complete keys from the Analysis):
+
+```json
+{
+  "dimensions": {
+    "d:authored:axis_offset": {
+      "between": ["face:v1:<fingerprint>", "axis:face:v1:<fingerprint>"],
+      "along": "x", "view": "front", "tolerance": "±0.1",
+      "place": {"side": "below", "lane": 1, "along": "middle"}
+    },
+    "d:authored:diagonal": {
+      "kind": "linear", "between": ["vertex:v1:<fingerprint>", "vertex:v1:<fingerprint>"],
+      "along": "true", "view": "front"
+    },
+    "d:authored:seat_radius": {
+      "kind": "radius", "between": ["face:v1:<fingerprint>"], "tolerance": "±0.05"
+    },
+    "d:authored:corner": {
+      "kind": "angle", "between": ["edge:v1:<fingerprint>", "edge:v1:<fingerprint>"]
+    }
+  }
+}
+```
+
+- `kind` is `linear` (default), `diameter`, `radius` or `angle`. `between` contains two
+  references for linear/angle, one cylindrical or spherical face for diameter/radius.
+  `along` is `x`, `y`, `z` or `true` (default), for linear dimensions only. It is distinct
+  from `place.along`, which positions the label. No measured value or model/paper point is
+  accepted in the Spec. Existing `tolerance`, `view`, `place`, omission and `precision`
+  policies apply. Linear sizes and diameters also accept `fit` (ISO 286 class, without an
+  explicit tolerance), class-only by default; radius and angle dimensions take explicit bands.
+- **Discover references in `Analysis.edge_ink.references`.** This optional Analysis/7 field
+  maps full `face:v1:<sha256>`, `edge:v1:<sha256>` and `vertex:v1:<sha256>` keys to lists of
+  exact model-space records. A usable key has exactly one record. Plane, cylinder and sphere
+  faces, straight B-rep edges and topological vertices are available. `axis:<face key>`
+  selects a cylinder's axis; `axis:f:hole:3` selects the common cylinder axis of a recognized
+  feature, refusing a feature with several axes. Prefer the face spelling when saving across
+  revisions. Index-based `face:12`, `edge:12`, and page-coordinate references are not accepted.
+  Older Analyses lacking evidence still plan their defaults; authoring requires analysing again.
+- **Fingerprint contract.** The `v1` spelling and its content are fixed: SHA-256 of canonical
+  sorted-key JSON containing the exact analytic record and sorted face-boundary endpoint
+  signatures, with numbers rounded to 1e-6 mm. Plane normals and cylinder axes have their
+  first nonzero component positive; their origins are the nearest point to the model origin
+  on the plane/axis. Edge ends and boundary surface sites are sorted; a boundaryless sphere
+  uses its six cardinal sites in x−, x+, y−, y+, z−, z+ order. Face traversal indices are absent.
+  Fingerprints therefore survive face/edge/vertex enumeration and edge reversal. They identify
+  unchanged geometry, not a guessed successor after a resize or rigid move. Coincident
+  topological entities remain a multi-record ambiguity and are refused. A future fingerprint
+  algorithm must retain `v1` resolution. A missing key names the reference and tells the author
+  to copy a current Analysis key; it never silently binds to another entity.
+- **Measurement.** Linear references are supporting planes, straight supporting lines (including
+  cylinder axes), or vertices. A principal direction requires a unique station: a plane normal
+  to that direction, an edge/axis perpendicular to it, or a vertex. `true` measures the shortest
+  separation of the supports. Intersecting supports have zero distance and are refused.
+  Angular references are two nonparallel planar faces or two coplanar, nonparallel straight
+  edges; as for PMI, the actual face stations or edge ends select the half-rays and their
+  minor included sector (0–180 degrees). Obtuse included angles remain obtuse.
+  True lengths and angular sectors need a principal view that shows them true; a requested
+  incompatible view is refused with the compatible choices. Angular placement uses view,
+  radial lane and along; a side does not choose another measured sector. A size leader can attach to any
+  cylindrical/spherical face, including an oblique cylinder, using exact surface sites.
+- **One quantity, one owner (K6).** A new dimension duplicating a drawn automatic owner is
+  refused, naming that owner ID in the message and choices. Edit its tolerance/view/place
+  instead. Coincident principal spans, identical true spans/angular sectors, and the radius
+  or diameter of a face already sized by its feature owner are duplicates; equal numeric
+  sizes alone are not. A radius and diameter on the same face are one size quantity.
+  In `dimension_source: authored`, only listed automatic IDs are owners; unlisted automatic
+  candidates remain withheld, so a drawing can use entirely geometry-authored dimensions.
+  Omitted dimensions do not own quantities. A replacement retains the matched numeric
+  roles for independent completeness lint. A wholly restated automatic candidate is `covered`
+  by the authored ID, with the basis naming that owner; a compound candidate's THRU, count,
+  depth and other unstated roles remain required and are never inferred from its diameter.
+- **Same planning and lint.** Authored quantities enter the ordinary dimension inventory before
+  view routing, tolerance formatting and band reservation. They use its lanes, arrows, angular
+  arcs, leaders, collision findings and sheet-selection rules. `default` is false, the basis
+  says `spec-authored`, and `from_spec` includes `between`, plus explicit `kind`, `along`,
+  tolerance and placement fields. A drawing claim carries only reference identities and the
+  requested quantity (`geometry:<reference>|<reference>`, `linear.x`/`linear.true`, `diameter`,
+  `radius`, `angle`), not a trusted nominal. Lint remeasures these against the Analysis and
+  checks the leading printed value and size symbol; bad ink or unresolved references report
+  `authored_dimension_invalid` errors. Existing structural and feature-completeness lint still
+  applies; authored dimensions never silence missing manufacturing requirements.
+- **Editing.** Existing `items::Op::set` / `remove` and session preview, apply, undo and redo
+  operate on the entry and its fields, with atomic refusal. Set the complete entry to create
+  it, for example `{"op":"set","path":"dimensions/d:authored:corner","value":{...}}`;
+  remove the entry to delete it. Session/MCP item answers expose its reference anchors,
+  placement options and editable fields. Sheet options describe the creation forms. MCP
+  schemas describe the new fields without adding a tool. `get_spec` output declares the authored
+  fields once; inputs retain the established sparse per-ID object maps and use the same Spec
+  and geometry validators. Equivalent shared object-type constraints keep the 26 standalone
+  schemas within the unchanged 42,500-byte session budget. Browser bindings accept the same
+  Spec and operations; their method signatures are unchanged.
+
 ## The five operations
 
 These are one Rust core: pure functions over the documents, deterministic, with no state between
@@ -1850,3 +1999,22 @@ Same-face boss/blend precedence uses one shared predicate for planning and lint.
 proven blend radius replaces that face's duplicate boss diameter; the independent boss height
 remains required. Missing or ambiguous face evidence never deduplicates by scalar equality.
 The differences and verdicts are recorded in `tests/fixtures/known_blends.json`.
+
+Precision is a display policy in `precision`, a map from measurement IDs such as
+`d:envelope/width.length` or `d:f:hole:1/counterbore.depth` to decimal places (0–15).
+It retains trailing zeroes in the label and its measured reservation, without changing the
+nominal or tolerance. Conflicting explicit policies for a shared printed term are refused;
+they require separate dimension owners. Without a policy, formatting is unchanged.
+
+`envelope_tolerance` supplies a band to all three overall extents. A dimension's own
+`tolerance` or `fit` overrides that fallback. An extent fit uses the existing ISO 286 table
+and prints the class alone by default. `sheet/fit_deviations: true` adds stacked upper/lower
+deviations; the legacy `sheet/fit_limits` alias is supported, with the new setting taking
+precedence. Authored precision controls the extent nominal in both modes and leaves the
+fit deviations and explicit tolerance digits unchanged.
+
+A feature note can explicitly satisfy its own measurement roles with
+`features/<id>/note_satisfies`, for example `["counterbore.diameter", "counterbore.depth"]`.
+Only its placed leadered note grants authority. This is separate from dimension claims:
+prose grants no coverage, a diameter role implies neither THRU nor count, and sibling
+features need their own explicit claims.

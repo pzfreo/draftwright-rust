@@ -6,9 +6,6 @@
         "id": {
           "type": "string"
         },
-        "operations": {
-          "$ref": "#/$defs/A"
-        },
         "placements": {
           "type": "array",
           "items": {
@@ -60,7 +57,7 @@
                 ]
               },
               "offset": {
-                "$ref": "#/$defs/B"
+                "$ref": "#/$defs/A"
               },
               "pinned": {
                 "type": "boolean"
@@ -68,12 +65,6 @@
             },
             "additionalProperties": false
           }
-        },
-        "view_anchors": {
-          "$ref": "#/$defs/A"
-        },
-        "scales": {
-          "$ref": "#/$defs/A"
         },
         "settable": {
           "type": "object",
@@ -85,25 +76,18 @@
                 "items": {}
               },
               "range": {
-                "$ref": "#/$defs/B"
+                "$ref": "#/$defs/A"
               },
               "integer": {
                 "type": "boolean"
-              },
-              "forms": {
-                "$ref": "#/$defs/A"
-              },
-              "fields": {
-                "$ref": "#/$defs/A"
-              },
-              "paths": {
-                "$ref": "#/$defs/A"
-              },
-              "consequences": {
-                "$ref": "#/$defs/A"
               }
             },
-            "additionalProperties": false
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(forms|fields|paths|consequences)$": {
+                "$ref": "#/$defs/B"
+              }
+            }
           }
         }
       },
@@ -115,7 +99,12 @@
         "scales",
         "settable"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(operations|view_anchors|scales)$": {
+          "$ref": "#/$defs/B"
+        }
+      }
     },
     {
       "properties": {
@@ -132,7 +121,7 @@
               "type": "string"
             },
             "choices": {
-              "$ref": "#/$defs/A"
+              "$ref": "#/$defs/B"
             }
           },
           "required": [
@@ -151,16 +140,16 @@
   "$defs": {
     "A": {
       "items": {
-        "type": "string"
-      },
-      "type": "array"
-    },
-    "B": {
-      "items": {
         "type": "number"
       },
       "maxItems": 2,
       "minItems": 2,
+      "type": "array"
+    },
+    "B": {
+      "items": {
+        "type": "string"
+      },
       "type": "array"
     }
   }

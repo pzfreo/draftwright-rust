@@ -191,7 +191,10 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
     let [lo, hi] = a.envelope;
     for v in views.iter_mut() {
         v.line_work.clear();
-        if v.id == "v:iso" || v.detail.is_some() {
+        if (v.id == "v:iso" || v.detail.is_some())
+            && v.line_style.centre_marks != Some(true)
+            && v.line_style.centre_lines != Some(true)
+        {
             continue;
         }
         let view = View::new(v.direction, v.up).expect("planned view");
@@ -506,6 +509,16 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
                     None,
                 ));
             }
+        }
+        if v.line_style.centre_marks == Some(false)
+            || v.line_style.centre_lines == Some(false)
+            || v.id == "v:iso"
+        {
+            v.line_work.retain(|w| match w.kind.as_str() {
+                "cross" => v.line_style.centre_marks.unwrap_or(v.id != "v:iso"),
+                "axis" | "pitch_circle" => v.line_style.centre_lines.unwrap_or(v.id != "v:iso"),
+                _ => true,
+            });
         }
         merge(&mut v.line_work);
     }

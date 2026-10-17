@@ -94,9 +94,9 @@
       - "tests/test_issue_563_placement_intent.py::test_unhinted_source_linear_dimensions_reserve_their_render_routes_issue_2192"
       - "tests/test_issue_563_placement_intent.py::test_plan_right_corridor_does_not_force_feasible_a4_scale_reduction"
     corpus_parts: []
-  status: pending
-  rust_note: "Partial: the side view's bands and the band right of the front and the plan (between them and the side) are reserved from the lanes their dimensions take (layout::Strips::reserve, Demand::lanes), so that ink never runs past them over the next view (stream d-quality-lanes). Not ported: the bands below the front and above and left of the plan are still draftwright's estimates, so their lanes can run past them (annotation_outside_area, and off the sheet); reserving them too forces scale reductions on cgb245, ctc01 and ftc08 against draftwright's choices, because the port's lane counts include callouts and every rung (docs/quality-2026-10-09.md, a maintainer question in docs/next-session.md); explicitly placed dimensions (the spec places none). Stage H6 keeps the existing lane reservations; no new corridor reservation work."
-  rust_test: "tests/placement.rs::placed_ink_lies_in_its_views_area_or_is_reported"
+  status: ported
+  rust_note: "Maintainer approval 2026-10-16 applied: composition reserves every source linear corridor, including below front and above/left of plan, and all authored principal strips at their requested or respaced lanes. Complete automatic composition (escalated/recovered planning) measures the settled linear ink, including reflow, labels and outside-arrow corner reach, from the full inventory. Established witness and leader routes, including settled GD&T, are transported with their owning view block without changing their attachment or placement decisions; the isometric is fitted against the resulting footprints. Preferred-scale reductions are permitted to keep corridors inside their reserved area and on the sheet. A single tolerance/fit edit retains the complete unedited projection frame while reserving the edited ink; bulk tolerancing receives complete composition. Edited labels are settled at their new widths. An explicitly named sheet/scale retains its projection origins and section-mark frame while reserving the complete ink; automatic candidates may repack free blocks. The low-level single-pass estimate retains its original band-overrun diagnostics; every drawing API uses the complete compose-then-pack path. For dimension-only drawings, if no complete candidate exists and measured corridors make the seed run off paper, a physically fitting candidate with no hard findings may carry every seed measurement, still reporting all missing requirements. Unreadable GD&T seeds keep their established bands and recovery contract; legible settled blocks compose from their measured ink without changing attachment or placement decisions. No part-specific exceptions."
+  rust_test: "tests/views_layout_rules.rs::every_source_and_explicit_linear_corridor_is_reserved; tests/views_layout_rules.rs::explicit_dimensions_that_reflow_keep_their_reserved_corridors; tests/views_layout_rules.rs::reserved_location_corridors_choose_witnesses_clear_of_foreign_holes"
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream views-and-layout"
 
 - id: ISSUE-563-c
@@ -1276,10 +1276,11 @@
       - "tests/test_issue_1209_linear_pmi_witnesses.py::test_linear_witness_uses_stations_while_bbox_supplies_only_transverse_support"
       - "tests/test_issue_1209_linear_pmi_witnesses.py::test_oblique_linear_support_renders_its_exact_projected_span"
     corpus_parts: ["nist_ctc_03_asme1_ap242", "nist_ctc_04_asme1_ap242"]
-  status: pending
-  rust_test: "tests/pmi_dimensions.rs::what_the_faces_do_not_prove_is_reported_not_guessed"
-  rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`); its geometric tolerances and datums are drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`), and its dimensions are lowered by `src/dims/pmi_dimensions.rs` (`tests/pmi_dimensions.rs`, `known_pmi_dimensions.json`). Partly: a linear or thickness dimension is drawn only from its two proven stations (the faces' group centres, parallel planes' normal and witness view, a plane-to-bore witness), between them along x, y or z; coincident stations, a span off the nominal, a relationship outside a principal plane and a missing group are `pmi_not_lowered` with draftwright's reasons; an oblique span in a principal plane is `pmi_dimensions_not_ported` (no aligned dimension yet)."
+  status: ported
+  rust_test: "tests/pmi_dimensions.rs::oblique_pmi_draws_its_exact_projected_station_span"
+  rust_note: "Proven linear/thickness stations in a principal plane now draw an aligned dimension in the preserving front, plan or side projection, including Python's transverse-noise tolerance. The witness endpoints, dimension line, arrows, rotated label and reservation use that exact projected span. The existing geometric proof still refuses incomplete, coincident, wrong-nominal and nonprincipal relationships; tests/pmi_dimensions.rs::what_the_faces_do_not_prove_is_reported_not_guessed pins those refusals. Scale-aware layout reserves the actual rotated ink; the regression also checks its drawing border and reserved area with default and authored precision in all three projections. Centered text and clipped witnesses follow Python's Dimension with either arrow arrangement; axis-only label sliding cannot bend the oblique line. Ownership is unchanged."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream pmi"
+  owner: draftwright
 
 - id: ISSUE-1215-a
   statement: "An authored envelope tolerance prints in the label of the decorated extent (height, width or depth) and only there; a bare tolerance applies to every extent, and limit pairs and fit classes print in full."
@@ -1294,9 +1295,9 @@
       - "tests/test_issue_1215_envelope_tolerance.py::test_a_limit_pair_prints_both_limits"
       - "tests/test_issue_1215_envelope_tolerance.py::test_the_tolerance_reaches_the_exported_ink"
     corpus_parts: []
-  status: pending
-  rust_test: "tests/issue_drafting.rs::an_envelope_tolerance_prints_on_its_own_extent"
-  rust_note: "Partial: a tolerance set on one extent's ID (dimensions/<id>/tolerance, src/dims/tolerance.rs) prints on that extent's label and drawn text run only, a symmetric band and a pair of deviations as draftwright prints them (5 ±0.05, 5 +0.2 -0.1); checked on plate for each of the three extents. Not ported: a bare envelope tolerance folded onto every extent (the spec has no envelope-wide entry; each extent's ID takes its own) and a fit class on an extent (a fit is set on a hole or a cylindrical boss only)."
+  status: ported
+  rust_test: "tests/issue_drafting.rs::envelope_wide_bands_and_extent_fits_reach_the_ink"
+  rust_note: "Spec.envelope_tolerance supplies every overall extent's band. Per-extent tolerance or fit overrides the fallback; an ISO 286 class on an extent prints its code alone by default, with stacked upper/lower deviations when sheet/fit_deviations is true (the legacy fit_limits alias remains supported). Requested nominal precision composes with both modes, pinned in tests/precision.rs::extent_precision_composes_with_default_and_stacked_fit_labels. Tests inspect the planned label and the rendered text runs, with the other extents bare for a per-extent fit. Existing per-extent deviation pairs and bounds tests remain."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream spec-tolerance-precision"
 
 - id: ISSUE-1215-b
@@ -1612,9 +1613,9 @@
       - "tests/test_issue_1262_automatic_turned_views.py::test_an_explicit_scale_still_selects_the_smallest_complete_view_set"
       - "tests/test_issue_1262_automatic_turned_views.py::test_grm03_callout_keeps_external_text_clearance_from_the_end_view"
     corpus_parts: ["grm03_thumbwheel_drive_screw_ap242_pmi.step"]
-  status: pending
-  rust_test: a_turned_part_leaves_out_the_view_that_repeats_its_profile
-  rust_note: "The reduction is ported: src/demand.rs::turned_views keeps the profile and end views and says why in their basis (also its unit test a_turned_part_drops_the_repeated_view_unless_a_feature_needs_it). The veto is narrower than draftwright's: only a hole that needs the dropped view end-on vetoes it, while draftwright vetoes on any planned annotation or finished-sheet loss. The port now plans dimensions and lints holes, but the veto does not consult either yet."
+  status: ported
+  rust_test: "tests/views_layout_rules.rs::a_radial_flat_or_cross_slot_vetoes_turning_view_reduction; tests/sections.rs::a_turned_part_leaves_out_the_view_that_repeats_its_profile"
+  rust_note: "The complete automatic build (escalated/recovered planning, used by every drawing API) vetoes a reduced candidate before composition if any wanted measurement the full set can carry has no carrier in the kept set, including radial flats, cross slots and fillets. PMI targets and a needed section also retain their carriers. The low-level single-pass estimate keeps its existing missing-view diagnostics; the complete build never accepts that loss. DimensionSpec view remains a preference; retaining a view is authored in views/name, preserving the existing dimension ownership contract. Omitted requirements are excluded. Plain turned parts still keep profile, end and iso, with an explicit scale too."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream views-and-layout"
 
 - id: ISSUE-1276-a
@@ -1901,9 +1902,10 @@
       - "tests/test_issue_1349_precision_display.py::test_automatic_default_formatting_is_unchanged_without_an_explicit_policy"
       - "tests/test_issue_1349_precision_display.py::test_close_diameters_with_distinct_authoritative_text_do_not_deduplicate"
     corpus_parts: []
-  status: pending
-  rust_note: "Not ported: the spec has no display precision; every value prints at draftwright's default precision (dims::fmt), and an authored tolerance keeps its own digits (ISSUE-1524-a). Stream K7 ported the checks a policy would be judged by (label_vs_measured reads a bare label's own places; nominal_rounded reports where the one-place sheet precision rounds a nominal), so what remains is the Spec setting by measurement ID and its reach into every rendered form, a Spec feature outside K7's lint scope."
+  status: ported
+  rust_note: "Spec.precision is a map from semantic measurement IDs to decimal places. It formats each nominal from its original numeric value before placement, including compound callout roles, chains, ladders and locations; the same terms are measured and drawn, preserving tolerance digits, symbolic thread/reference text and numeric provenance. Compound terms, reservations, close diameters, zero-place lint, and hole-schedule cells and their rendered ink are additionally pinned in tests/precision.rs (requested_precision_survives_hole_schedule_cells_and_their_ink covers native coordinates and counterbore depths). Existing shared dimension owners are retained: conflicting text policies on a shared term or coincident span are refused as Python's shared_location_text does, without changing ownership."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream spec-tolerance-precision"
+  rust_test: "tests/precision.rs::requested_precision_reaches_extents_chains_ladders_and_locations"
 
 - id: ISSUE-1349-b
   statement: "Conflicting precision for one semantic dimension, or an invalid precision, is refused; precision boundaries and negative zero format stably."
@@ -1915,10 +1917,11 @@
       - "tests/test_issue_1349_precision_display.py::test_invalid_precision_is_refused_at_both_public_inputs"
       - "tests/test_issue_1349_precision_display.py::test_precision_boundaries_and_negative_zero_are_stable"
     corpus_parts: []
-  status: pending
-  rust_test: formatting_rounds_negative_zero_without_a_sign
-  rust_note: "Not ported: the spec has no precision; numbers print by draftwright's _fmt (dims::fmt), which prints negative zero as 0. Stage G1: negative rounded zero prints without a sign (tests/completeness.rs::formatting_rounds_negative_zero_without_a_sign). Precision conflicts are moot until the Spec has a precision."
+  status: ported
+  rust_test: "tests/precision.rs::invalid_and_conflicting_precision_fail_closed_at_both_inputs"
+  rust_note: "Precision is an integer from 0 to 15, checked by Spec deserialization and model::edit, also checked for programmatically constructed Specs at planning. Conflicting repeated JSON keys and coincident measurement policies fail closed. tests/precision.rs::coincident_measurements_require_matching_explicit_precision and dims::precision::tests::precision_boundaries_and_negative_zero_are_stable pin conflicts, boundaries, retained zeroes and negative zero."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream spec-tolerance-precision"
+  owner: draftwright
 
 - id: ISSUE-1350-a
   statement: "Taking over a detected baseline is one order-independent workflow: detected items keep their handles, matching declarations mean the same before or after takeover, and contradictory sources are rejected atomically."
@@ -1948,10 +1951,11 @@
       - "tests/test_issue_1351_structured_note_coverage.py::test_callout_and_note_on_one_diameter_do_not_cover_an_identical_sibling"
       - "tests/test_issue_1351_structured_note_coverage.py::test_duplicate_notes_do_not_multiply_one_requirement_identity_into_physical_count"
     corpus_parts: []
-  status: pending
-  rust_test: tests/dims_blends.rs::a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit
-  rust_note: "Partly ported: prose cannot silence coverage. On draftwright's counterbored block with the callout left out, a general note in draftwright's prose (PROFILED BORE: diameter 14 x 8 DEEP), or even in the callout's own words, changes no finding: lint reads only the drawing's annotations, and general notes (n:<k>, src/notes.rs) are not annotations and carry no claims, so the counterbore's diameter and depth stay missing and ø14 stays feature_not_dimensioned, as in draftwright's test. Not ported: a per-feature structured note with an explicit satisfies claim on a placed feature, and so its other clauses (an unplaced note grants nothing, one note does not cover an identical sibling, duplicates do not multiply). Difference: draftwright calls the omitted requirements suppressed; the port's lint never reads the spec, so they are missing. Stage G3 ports automatic radius-note authority only (explicit satisfies claims, never prose); the general authored per-feature satisfaction API is not ported. Stream K1b adds Spec-authored feature and face notes (features/<id>/note, faces/<face>/note, src/spec_notes.rs): drawn as leadered labels that claim no measurement, so their prose silences nothing either (tests/spec_notes.rs::a_feature_note_and_a_sheet_note_are_drawn); the satisfies claim is still not ported."
+  status: ported
+  rust_test: "tests/spec_notes.rs::structured_feature_notes_cover_only_explicit_roles_of_their_placed_owner"
+  rust_note: "FeatureSpec.note_satisfies names explicit measurement roles of its note's owner. Unknown roles are refused. The rendered annotation carries satisfaction claims separately from measurements; lint accepts them only for a source-resolved, placed leadered feature note with surviving text in its view. Coverage removes only the exact satisfied identities: prose, an unplaced/removed note, a sibling and implicit THRU/count gain nothing. Set membership prevents duplicate authority multiplying physical counts. Existing notes and datum/GD&T placement are unchanged."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream spec-tolerance-precision"
+  owner: draftwright
 
 - id: ISSUE-1352-a
   statement: "PDF export carries a searchable text layer for dimensions, callouts, notes, GD&T and title-block values, in reading order and orientation, without changing the visible rendered ink."
@@ -2768,9 +2772,9 @@
       - "tests/test_issue_1530_section_provenance.py::test_an_internal_gap_or_tangent_cut_has_an_honest_outcome"
       - "tests/test_issue_1530_section_provenance.py::test_preexisting_coplanar_boundaries_are_not_new_cut_faces"
     corpus_parts: []
-  status: pending
-  rust_test: "tests/issue_drafting.rs::a_sections_ink_describes_its_cut"
-  rust_note: "Partial: on the parts with a section (ftc06, string_post) the cutting plane lies inside the part's extent along its normal and is marked on a planned view, and the drawing captions it SECTION A-A and letters both ends of the plane. Not ported: an authored cut (the spec cannot place one, so a cut outside the part cannot be asked for); the tangent, gap and coplanar-boundary cases have no fixture here (src/model.rs::section_furniture keeps hatch only where material lies behind the cut)."
+  status: ported
+  rust_test: "tests/views_layout_rules.rs::section_hatch_excludes_coplanar_boundaries_and_retained_material; tests/views_layout_rules.rs::gap_tangent_and_outside_sections_are_reported_without_false_cut_ink; tests/issue_drafting.rs::a_sections_ink_describes_its_cut"
+  rust_note: "Hatching already clips to material on both sides of the actual plane; new attached, detached, adjacent, notch and bored multi-region fixtures pin it. Rendering now refuses section geometry, attached dimensions, hatch and furniture when the cut is outside the open extent or no material crosses it (gap/tangent/coplanar-only), reporting section_dropped on the otherwise drawable sheet. The check uses geometric boundary samples and the solid classifier independently of paper hatch spacing. Rust has no authored cut-plane Spec verb; the renderer checks public Plan cuts without introducing that API."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream views-and-layout"
 
 - id: ISSUE-1531-a
@@ -3052,9 +3056,10 @@
       - "tests/test_issue_1604_internal_section.py::test_station_needs_multiple_unlike_internal_details"
       - "tests/test_issue_1604_internal_section.py::test_original_frame_section_and_required_slots_survive_script_replay"
     corpus_parts: ["issue_1595_whistle_key_frame.step"]
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported. Section A-A is planned only through the densest row of Z-axis holes whose profile no standard view shows (src/demand.rs::section); a station with several unlike internal details does not earn a section (src/demand.rs says sections on internal-detail rows are not ported)."
+  status: ported
+  rust_note: "Python internal_section_rows is ported for recognized Analysis features through the shared section-recess grammars (the original fixture uses the supported recognition bridge): Z hex pockets, Y circular seats and X blind-hole physical members qualify rows within 0.5 mm, at least three details of two kinds. Internal rows use Python's decimal round(y, 1), including ties to even and binary-value boundaries. Qualifying bore rows have priority; otherwise the densest internal row wins, nearest the part centre then lowest Y on a tie. The original whistle-frame fixture chooses Y=-7.9 and retains a hatched section and required slot dimensions through direct and recovered planning; one-kind or only two-detail rows do not qualify."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream views-and-layout"
+  rust_test: "tests/views_layout_rules.rs::internal_stations_require_three_details_of_two_kinds; src/demand.rs::internal_station_rows_use_python_rounding"
 
 - id: ISSUE-1612-a
   statement: "Physical sheet options (independent margins, zero meaning an unframed edge, zone labels) preserve nominal frame and title-block geometry, are refused before build when invalid, and survive repacking; an opt-in filing layout keeps hole location coverage."

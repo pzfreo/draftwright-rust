@@ -525,3 +525,33 @@ fn a_label_across_an_axis_end_trims_the_overrun() {
         "the label still stands over the axis column"
     );
 }
+
+#[test]
+fn linework_overrides_leave_sections_and_cutting_plane_rules_intact() {
+    let Some(dir) = corpus::dir() else { return };
+    let (part, a) = model::analyse_native(&dir.join("gramel/string_post.step")).unwrap();
+    let s: Spec = serde_json::from_value(serde_json::json!({
+        "sheet":{"hidden":false,"centre_marks":false,"centre_lines":false},
+        "views":{"section_aa":{"hidden":true,"thread_depiction":true,"knurl_depiction":true}}
+    }))
+    .unwrap();
+    let p = model::plan_recovered(&a, &s).unwrap();
+    let section = p.views.iter().find(|v| v.cut.is_some()).unwrap();
+    let g = model::render_geometry(&part, &a, &p, &mut model::Projections::default()).unwrap();
+    assert!(
+        g.views
+            .iter()
+            .find(|(id, _)| id == &section.id)
+            .unwrap()
+            .1
+            .hidden
+            .is_empty()
+    );
+    assert!(
+        draftwright::cosmetic::ink(&a, &draftwright::pmi_lowering::manufacturing(&a), section)
+            .is_empty()
+    );
+    assert_eq!(work(&p, "cutting_plane").len(), 1);
+    assert!(work(&p, "cross").is_empty());
+    assert!(work(&p, "axis").is_empty());
+}

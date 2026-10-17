@@ -583,6 +583,13 @@ pub(super) fn lanes<'a>(
                     (*order, key((b[*axis] - a[*axis]).abs())),
                 )
             }
+            Shape::Aligned { a, b } => {
+                let (a, b) = (f.page(*a), f.page(*b));
+                (
+                    strip(view, (b[0] - a[0]).abs() >= (b[1] - a[1]).abs()),
+                    (1, key((b[0] - a[0]).hypot(b[1] - a[1]))),
+                )
+            }
             Shape::Callout { sites } => {
                 let side = callout_strip(view);
                 let (tip, _) = callout_tip(f, sites, side == Side::Above);
@@ -734,7 +741,7 @@ pub(super) fn fall_through(
     views: &[PlannedView],
 ) {
     let page = Page::new(analysis, sheet, views);
-    let linear = |i: usize| matches!(items[i].shape, Shape::Linear { .. });
+    let linear = |i: usize| matches!(items[i].shape, Shape::Linear { .. } | Shape::Aligned { .. });
     let mut strips: BTreeMap<(&str, Side), Vec<usize>> = BTreeMap::new();
     // Callouts hold no lanes: their leaders are placed around the dimensions afterwards.
     for i in 0..items.len() {
@@ -850,7 +857,7 @@ fn share_held(
     // Each held lane's items' extents along it.
     let mut taken: BTreeMap<(&str, Side, usize), Vec<[f64; 2]>> = BTreeMap::new();
     for j in 0..items.len() {
-        if let (Some(view), Some(side), None, Shape::Linear { .. }) =
+        if let (Some(view), Some(side), None, Shape::Linear { .. } | Shape::Aligned { .. }) =
             (views_of[j], sides[j], owner[j], &items[j].shape)
             && lanes[j] < *held.get(&(view, side)).unwrap_or(&0)
             && !stranded.contains(&j)
@@ -1112,6 +1119,7 @@ pub(super) fn body_chains(
 pub(super) fn place(frame: &Frame, w: &Want, side: Side, lane: usize) -> Option<Placed> {
     match &w.shape {
         Shape::Linear { .. } => place_linear(frame, &w.shape, &w.terms, side, lane),
+        Shape::Aligned { a, b } => place_aligned(frame, *a, *b, &w.terms, side, lane),
         // A callout's leader is placed with the others' ([`super::leaders`]), an angle about its
         // vertex ([`super::angular`]).
         Shape::Callout { .. } | Shape::Angular { .. } => None,
@@ -1640,6 +1648,7 @@ pub(super) fn intent(
     };
     let lane = p.lane.unwrap_or(lane);
     let mut placed = match &w.shape {
+        Shape::Aligned { a, b } => place_aligned(frame, *a, *b, &w.terms, side, lane)?,
         Shape::Linear { axis, .. } => {
             let horizontal = across(frame, *axis)?;
             if horizontal != matches!(side, Side::Above | Side::Below) {
@@ -1815,6 +1824,10 @@ fn settle_where(
 /// made as they are tried: a line far longer than the sheet (a part drawn at a scale too large
 /// for it) has more places than memory holds.
 fn slides(p: &Placed, drawable: [f64; 4]) -> Box<dyn Iterator<Item = Placed> + '_> {
+    // This solver slides x or y alone; oblique geometry is placed in its own frame.
+    if !(p.rotation == 0.0 || p.rotation.abs() == 90.0) {
+        return Box::new(std::iter::empty());
+    }
     // Along the line: x for a horizontal dimension, y for a vertical one.
     let k = usize::from(p.rotation != 0.0);
     let Some(&line) = p.lines.get(2) else {
@@ -2111,7 +2124,476 @@ impl<'a> Page<'a> {
     }
 }
 
-/// What the simple placement collides with: each a problem on the dimension's ID.
+/// Includes the filled arrowheads' edges, rather than only their centre shafts.
+fn dimension_segments(p: &Placed) -> impl Iterator<Item = [P2; 2]> + '_ {
+    p.lines
+        .iter()
+        .copied()
+        .chain(p.arrows.iter().flat_map(|a| super::leaders::head(*a)))
+}
+
+pub(super) fn dimension_lines_clear(a: &Placed, b: &Placed) -> bool {
+    dimension_segments(a).all(|a| dimension_segments(b).all(|b| !super::leaders::lines_meet(a, b)))
+}
+
+pub(super) fn annotations_clear(a: &Placed, b: &Placed) -> bool {
+    !boxes_overlap(a.label_box, b.label_box)
+        && !ink_through(a, b.label_box)
+        && !ink_through(b, a.label_box)
+}
+
+/// Make room for a compact candidate by moving only unpinned, ordinary linear
+/// dimensions. Their usual policy permits transverse witness crossings, but no
+/// shared strokes or ink through labels; the new dimension clears every stroke.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn make_room(
+    i: usize,
+    candidate: &Placed,
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    views_of: &[Option<&'static str>],
+    sides: &[Option<Side>],
+    fixed: &[bool],
+    placed: &[Option<Placed>],
+    obstacles: &[PlannedDimension],
+    page: &Page,
+) -> Option<Vec<(usize, Placed)>> {
+    let mut room = Room {
+        root: i,
+        candidate,
+        frames,
+        items,
+        views_of,
+        sides,
+        fixed,
+        obstacles,
+        page,
+    };
+    let strict =
+        |p: &Placed| annotations_clear(candidate, p) && dimension_lines_clear(candidate, p);
+    if obstacles
+        .iter()
+        .filter_map(|d| d.placed.as_ref())
+        .any(|p| !strict(p))
+    {
+        return None;
+    }
+    let blockers: Vec<_> = placed
+        .iter()
+        .enumerate()
+        .filter_map(|(j, p)| (i != j && p.as_ref().is_some_and(|p| !strict(p))).then_some(j))
+        .collect();
+    let mut work = placed.to_vec();
+    work[i] = Some(candidate.clone());
+    let mut locked = fixed.to_vec();
+    locked[i] = true;
+    for j in blockers {
+        if !room.relocate(j, &mut work, &mut locked, 4) {
+            return None;
+        }
+    }
+    Some(
+        work.into_iter()
+            .enumerate()
+            .filter_map(|(j, p)| {
+                (i != j && p != placed[j])
+                    .then(|| p.map(|p| (j, p)))
+                    .flatten()
+            })
+            .collect(),
+    )
+}
+
+struct Room<'a, 'p> {
+    root: usize,
+    candidate: &'a Placed,
+    frames: &'a BTreeMap<&'a str, Frame>,
+    items: &'a [Want],
+    views_of: &'a [Option<&'static str>],
+    sides: &'a [Option<Side>],
+    fixed: &'a [bool],
+    obstacles: &'a [PlannedDimension],
+    page: &'a Page<'p>,
+}
+
+impl Room<'_, '_> {
+    fn relocate(
+        &mut self,
+        j: usize,
+        work: &mut Vec<Option<Placed>>,
+        locked: &mut Vec<bool>,
+        depth: usize,
+    ) -> bool {
+        if depth == 0
+            || locked[j]
+            || self.fixed[j]
+            || !matches!(self.items[j].shape, Shape::Linear { .. })
+        {
+            return false;
+        }
+        let (Some(view), Some(side)) = (self.views_of[j], self.sides[j]) else {
+            return false;
+        };
+        let clear_root = |p: &Placed| {
+            annotations_clear(self.candidate, p) && dimension_lines_clear(self.candidate, p)
+        };
+        let compatible = |p: &Placed, q: &Placed| {
+            annotations_clear(p, q)
+                && !dimension_segments(p)
+                    .any(|a| dimension_segments(q).any(|b| super::leaders::segments_along(a, b)))
+        };
+        let mut candidates: Vec<_> = (0..12)
+            .flat_map(|lane| {
+                [side, opposite(side)]
+                    .into_iter()
+                    .map(move |side| (side, lane))
+            })
+            .filter_map(|(side, lane)| place(&self.frames[view], &self.items[j], side, lane))
+            .filter(|p| {
+                self.page.fits(p, view)
+                    && clear_root(p)
+                    && self
+                        .obstacles
+                        .iter()
+                        .filter_map(|d| d.placed.as_ref())
+                        .all(|q| compatible(p, q))
+            })
+            .map(|p| {
+                let blockers: Vec<_> = work
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(k, q)| {
+                        (k != j && k != self.root && q.as_ref().is_some_and(|q| !compatible(&p, q)))
+                            .then_some(k)
+                    })
+                    .collect();
+                let crossings = work
+                    .iter()
+                    .flatten()
+                    .map(|q| {
+                        dimension_segments(&p)
+                            .filter(|a| {
+                                dimension_segments(q).any(|b| super::leaders::segments_cross(*a, b))
+                            })
+                            .count()
+                    })
+                    .sum::<usize>();
+                (blockers, crossings, p)
+            })
+            .collect();
+        candidates.sort_by_key(|(blockers, crossings, _)| (blockers.len(), *crossings));
+        for (blockers, _, p) in candidates {
+            if blockers.iter().any(|&k| locked[k]) {
+                continue;
+            }
+            let saved = work.clone();
+            let saved_locks = locked.clone();
+            locked[j] = true;
+            work[j] = Some(p);
+            if blockers
+                .into_iter()
+                .all(|k| self.relocate(k, work, locked, depth - 1))
+            {
+                return true;
+            }
+            *work = saved;
+            *locked = saved_locks;
+        }
+        false
+    }
+}
+
+/// Search the perpendicular offsets of an aligned span against the settled ink.
+/// A side/lane hint is kept when clear; only a pin can require colliding ink.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn clear_aligned(
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    views_of: &[Option<&'static str>],
+    sides: &[Option<Side>],
+    fixed: &[bool],
+    placed: &mut [Option<Placed>],
+    obstacles: &[PlannedDimension],
+    page: &Page,
+) {
+    for (i, w) in items.iter().enumerate() {
+        let (Shape::Aligned { a, b }, Some(view), Some(side)) = (&w.shape, views_of[i], sides[i])
+        else {
+            continue;
+        };
+        if fixed[i] || placed[i].is_none() {
+            continue;
+        }
+        let frame = &frames[view];
+        let others: Vec<_> = placed
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| *j != i)
+            .filter_map(|(_, p)| p.as_ref())
+            .chain(obstacles.iter().filter_map(|d| d.placed.as_ref()))
+            .collect();
+        let clear = |p: &Placed| {
+            page.fits(p, view)
+                && others.iter().all(|q| {
+                    dimension_lines_clear(p, q)
+                        && !boxes_overlap(p.label_box, q.label_box)
+                        && !dimension_segments(p).any(|s| crosses(s, q.label_box))
+                        && !dimension_segments(q).any(|s| crosses(s, p.label_box))
+                })
+        };
+        if placed[i].as_ref().is_some_and(clear) {
+            continue;
+        }
+        let found = (0..80).find_map(|step| {
+            [side, opposite(side)].into_iter().find_map(|side| {
+                aligned_at_offset(
+                    frame.page(*a),
+                    frame.page(*b),
+                    frame.outline(),
+                    &w.terms,
+                    side,
+                    GAP + step as f64,
+                )
+                .and_then(|p| {
+                    if !page.fits(&p, view) {
+                        return None;
+                    }
+                    let moves = make_room(
+                        i, &p, frames, items, views_of, sides, fixed, placed, obstacles, page,
+                    )?;
+                    Some((p, moves))
+                })
+            })
+        });
+        if let Some((p, moves)) = found {
+            for (j, q) in moves {
+                placed[j] = Some(q);
+            }
+            placed[i] = Some(p);
+        }
+    }
+}
+
+/// An aligned dimension's projected witnesses and display, before page scale and view position.
+/// Layout measures its real rotated ink at each scale instead of estimating an axis-aligned lane.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AlignedDemand {
+    view: &'static str,
+    a: P2,
+    b: P2,
+    outline: [f64; 4],
+    terms: Vec<String>,
+    side: Side,
+    lane: usize,
+}
+
+impl AlignedDemand {
+    pub(super) fn new(
+        frame: &Frame,
+        w: &Want,
+        view: &'static str,
+        side: Side,
+        lane: usize,
+    ) -> Self {
+        let Shape::Aligned { a, b } = w.shape else {
+            unreachable!("only an aligned dimension has aligned demand")
+        };
+        Self {
+            view,
+            a: frame.page(a),
+            b: frame.page(b),
+            outline: frame.outline(),
+            terms: w.terms.clone(),
+            side,
+            lane,
+        }
+    }
+
+    pub(crate) fn reserve(&self, strips: &mut crate::layout::Strips, scale: f64) {
+        let outline = self.outline.map(|v| v * scale);
+        let Some(p) = place_aligned_page(
+            self.a.map(|v| v * scale),
+            self.b.map(|v| v * scale),
+            outline,
+            &self.terms,
+            self.side,
+            self.lane,
+        ) else {
+            return;
+        };
+        let bounds = ink_points(&p).fold(
+            [
+                f64::INFINITY,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+                f64::NEG_INFINITY,
+            ],
+            |b, p| {
+                [
+                    b[0].min(p[0]),
+                    b[1].min(p[1]),
+                    b[2].max(p[0]),
+                    b[3].max(p[1]),
+                ]
+            },
+        );
+        let [left, below, right, above] = [
+            outline[0] - bounds[0],
+            outline[1] - bounds[1],
+            bounds[2] - outline[2],
+            bounds[3] - outline[3],
+        ]
+        .map(|v| if v > 0.0 { v + GAP } else { 0.0 });
+        if self.view == "side" {
+            strips.sv_left = strips.sv_left.max(left);
+            strips.sv_right = strips.sv_right.max(right);
+            strips.sv_top = strips.sv_top.max(above);
+            strips.sv_bottom = strips.sv_bottom.max(below);
+            // Front and side share the same projection row.
+            strips.fv_top = strips.fv_top.max(above);
+            strips.fv_bottom = strips.fv_bottom.max(below);
+        } else {
+            strips.left = strips.left.max(left);
+            strips.right = strips.right.max(right);
+            if self.view == "plan" {
+                strips.pv_authored_top = strips.pv_authored_top.max(above);
+                strips.pv_bottom = strips.pv_bottom.max(below);
+            } else {
+                strips.fv_top = strips.fv_top.max(above);
+                strips.fv_bottom = strips.fv_bottom.max(below);
+            }
+        }
+    }
+}
+
+/// Aligned ISO 129 dimension: perpendicular witnesses, exact projected station span.
+fn place_aligned(
+    frame: &Frame,
+    a: P3,
+    b: P3,
+    terms: &[String],
+    side: Side,
+    lane: usize,
+) -> Option<Placed> {
+    place_aligned_page(
+        frame.page(a),
+        frame.page(b),
+        frame.outline(),
+        terms,
+        side,
+        lane,
+    )
+}
+
+fn place_aligned_page(
+    a: P2,
+    b: P2,
+    o: [f64; 4],
+    terms: &[String],
+    side: Side,
+    lane: usize,
+) -> Option<Placed> {
+    aligned_at_offset(a, b, o, terms, side, FIRST + lane as f64 * LANE)
+}
+
+fn aligned_at_offset(
+    mut a: P2,
+    mut b: P2,
+    o: [f64; 4],
+    terms: &[String],
+    side: Side,
+    offset: f64,
+) -> Option<Placed> {
+    if b[0] < a[0] || (b[0] == a[0] && b[1] < a[1]) {
+        std::mem::swap(&mut a, &mut b);
+    }
+    let span = (b[0] - a[0]).hypot(b[1] - a[1]);
+    if span <= 1e-9 {
+        return None;
+    }
+    let u = [(b[0] - a[0]) / span, (b[1] - a[1]) / span];
+    let mut n = [-u[1], u[0]];
+    let outward = match side {
+        Side::Above => [0.0, 1.0],
+        Side::Below => [0.0, -1.0],
+        Side::Left => [-1.0, 0.0],
+        Side::Right => [1.0, 0.0],
+    };
+    if n[0] * outward[0] + n[1] * outward[1] < 0.0 {
+        n = n.map(|x| -x);
+    }
+    let dot = |p: P2| p[0] * n[0] + p[1] * n[1];
+    let outer = [[o[0], o[1]], [o[0], o[3]], [o[2], o[1]], [o[2], o[3]]]
+        .map(dot)
+        .into_iter()
+        .fold(f64::NEG_INFINITY, f64::max);
+    let height = outer + offset;
+    let move_to = |p: P2, h: f64| [0, 1].map(|k| p[k] + (h - dot(p)) * n[k]);
+    let (pa, pb) = (move_to(a, height), move_to(b, height));
+    let ink = label_ink(terms, font());
+    let width = ink.max[0] - ink.min[0];
+    let along = |p: P2, s: f64| [0, 1].map(|k| p[k] + s * u[k]);
+    let mut lines = vec![
+        [move_to(a, dot(a) + GAP), move_to(a, height + OVERSHOOT)],
+        [move_to(b, dot(b) + GAP), move_to(b, height + OVERSHOOT)],
+    ];
+    let arrows = if span >= width + 2.0 * ARROW + 2.0 {
+        lines.push([pa, pb]);
+        vec![arrow(pa, along(pa, 1.0)), arrow(pb, along(pb, -1.0))]
+    } else {
+        lines.push([along(pa, -ARROW - 2.0), along(pb, ARROW + 2.0)]);
+        vec![arrow(pa, along(pa, -1.0)), arrow(pb, along(pb, 1.0))]
+    };
+    // Python's Dimension keeps the label centred independently of outside arrows.
+    let start = 0.5 * (span - width) - ink.min[0];
+    let label_at = [
+        pa[0] + start * u[0] - LIFT * u[1],
+        pa[1] + start * u[1] + LIFT * u[0],
+    ];
+    let rotation = u[1].atan2(u[0]).to_degrees();
+    // Long centred text can reach across a witness. Clip that witness around the
+    // text in the dimension's own frame, as Python's above-line Dimension does.
+    let normal = [-u[1], u[0]];
+    let text = [
+        start + ink.min[0] - GAP,
+        start + ink.max[0] + GAP,
+        LIFT + ink.min[1] - GAP,
+        LIFT + ink.max[1] + GAP,
+    ];
+    let mut continuations = Vec::new();
+    for (i, t) in [0.0, span].into_iter().enumerate() {
+        if t < text[0] || t > text[1] {
+            continue;
+        }
+        let line = lines[i];
+        let coordinate = |p: P2| (p[0] - pa[0]) * normal[0] + (p[1] - pa[1]) * normal[1];
+        let (a, b) = (coordinate(line[0]), coordinate(line[1]));
+        let mut cut = [(text[2] - a) / (b - a), (text[3] - a) / (b - a)];
+        cut.sort_by(f64::total_cmp);
+        let (lo, hi) = (cut[0].max(0.0), cut[1].min(1.0));
+        if lo >= hi {
+            continue;
+        }
+        let at = |t: f64| [0, 1].map(|k| line[0][k] + t * (line[1][k] - line[0][k]));
+        if lo > 1e-9 {
+            lines[i] = [line[0], at(lo)];
+            if hi < 1.0 - 1e-9 {
+                continuations.push([at(hi), line[1]]);
+            }
+        } else {
+            lines[i] = [at(hi), line[1]];
+        }
+    }
+    lines.extend(continuations);
+    Some(Placed {
+        lines,
+        arrows,
+        label_at,
+        rotation,
+        label_box: label_box(&ink, label_at, rotation),
+    })
+}
+
 #[cfg(test)]
 pub(super) fn collisions(
     analysis: &Analysis,

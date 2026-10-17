@@ -341,6 +341,22 @@ fn on_the_quality_parts_too() {
             .filter(|d| matches!(d.state, State::NotDrawable { .. }))
             .count();
     }
+    // Complete automatic composition can now retain all of these items.
+    // Force an overcrowded sheet to keep the loss-state/reporting checks real.
+    let forced: Spec = serde_json::from_value(json!({
+        "sheet": {"size": "A4", "scale": "10:1"}, "hole_table": "never"
+    }))
+    .unwrap();
+    for file in list.lines().filter(|l| !l.trim().is_empty()) {
+        let a = model::analyse_native(&dir.join(file)).unwrap().1;
+        let p = model::plan_recovered(&a, &forced).unwrap();
+        consistent(file, &p, &a, &forced);
+        dropped += p
+            .dimensions
+            .iter()
+            .filter(|d| matches!(d.state, State::NotDrawable { .. }))
+            .count();
+    }
     assert!(dropped > 0, "no item was dropped");
 }
 
@@ -449,9 +465,11 @@ fn the_drawing_review_reads_typed_states_and_classifies_as_from_prose() {
             for (id, p) in &prose {
                 let t = &typed[id];
                 // A hole callout or location the hole table states is unplaced to the prose
-                // review (no basis says so at its start) and covered by the table when typed.
+                // review (no basis says so at its start) and covered by a real table when typed.
+                // Improved composition can select a separately named per-view schedule.
                 let tabled = *p == Review::Unplaced
-                    && *t == Review::Covered(draftwright::hole_table::ID.into());
+                    && matches!(t, Review::Covered(owner)
+                        if plan.hole_tables.iter().any(|table| table.id == *owner));
                 assert!(
                     p == t || tabled,
                     "{part}, {name}: {id} is {p:?} from prose, {t:?} typed"

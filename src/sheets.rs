@@ -627,6 +627,7 @@ pub(crate) fn line_work(analysis: &Analysis, spec: &Spec, views: &mut Vec<Planne
     if let Some(marker) = marker.as_ref() {
         views.push(marker.clone());
     }
+    crate::linework::configure(spec, views);
     crate::centrelines::plan(analysis, views);
     if marker.is_some() {
         views.pop();
@@ -684,6 +685,8 @@ fn auxiliary(
         basis: "auxiliary view moved as a whole after sheet-1 paper recovery".into(),
         state: State::Shown,
         line_work: Vec::new(),
+        line_style: Default::default(),
+        from_spec: Vec::new(),
         cut: section.map(|s| {
             let [lo, hi] = analysis.envelope;
             model::Cut {
@@ -1079,6 +1082,7 @@ fn pack_with_overflow(
         for sheet in &mut plan.sheets {
             sheet.zones = Some(zones(sheet.page));
         }
+        crate::linework::configure(&plan.spec, &mut plan.views);
         let mut generated = plan.views.clone();
         crate::centrelines::plan(analysis, &mut generated);
         for view in plan.views.iter_mut().filter(|v| v.sheet > 1) {

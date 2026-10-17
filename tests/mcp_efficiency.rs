@@ -184,25 +184,34 @@ fn refusals_give_valid_choices_and_an_executable_corrected_op() {
 #[test]
 fn one_feature_problem_query_returns_all_member_fixes() {
     let (cache, summary) = open("feature-problems", "ctc01");
+    // Use authored bad pins to exercise member fixes. The two historical
+    // corridor overruns are correctly eliminated by ISSUE-563-b.
+    let edited = call(
+        &cache,
+        "apply_ops",
+        json!({"part_ref":summary["part_ref"], "parent":summary["spec_version"], "ops":[
+            {"op":"set", "path":"dimensions/d:f:slot:1~1slot_length.length/place", "value":{"side":"below", "lane":99, "pinned":true}},
+            {"op":"set", "path":"dimensions/d:f:slot:1~1slot_width.length/place", "value":{"side":"left", "lane":99, "pinned":true}}
+        ]}),
+    );
+    let version = &edited["spec_version"];
     let result = call(
         &cache,
         "list_problems",
-        json!({"part_ref":summary["part_ref"],"spec_version":summary["spec_version"],"filter":{"feature":"f:slot:1"}}),
+        json!({"part_ref":summary["part_ref"],"spec_version":version,"filter":{"feature":"f:slot:1"}}),
     );
     let problems = result["items"].as_array().unwrap();
-    assert_eq!(problems.len(), 3);
     assert_eq!(
         problems
             .iter()
-            .filter(|p| p["code"] == "extension_through_feature")
+            .filter(|p| p["code"] == "annotation_off_sheet")
             .count(),
-        1
+        2
     );
     assert!(
         problems
             .iter()
-            .filter(|p| p["code"] == "extension_through_feature")
-            .all(|p| p["fix"].as_array().is_none_or(Vec::is_empty))
+            .all(|p| p["code"] != "annotation_outside_area")
     );
     assert_eq!(result["next_cursor"], Value::Null);
     let mut ops = Vec::new();
@@ -220,7 +229,7 @@ fn one_feature_problem_query_returns_all_member_fixes() {
     let preview = call(
         &cache,
         "preview_ops",
-        json!({"part_ref":summary["part_ref"],"spec_version":summary["spec_version"],"ops":ops}),
+        json!({"part_ref":summary["part_ref"],"spec_version":version,"ops":ops}),
     );
     let delta: Value = serde_json::from_slice(
         &cache
@@ -228,7 +237,7 @@ fn one_feature_problem_query_returns_all_member_fixes() {
             .unwrap(),
     )
     .unwrap();
-    assert_eq!(delta["problems_resolved"].as_array().unwrap().len(), 2);
+    assert_eq!(delta["problems_resolved"].as_array().unwrap().len(), 4);
     for p in problems
         .iter()
         .filter(|p| p["code"] != "extension_through_feature")
@@ -258,7 +267,13 @@ fn inspection_batches_a_filtered_problem_page_with_registration() {
         json!({"part_ref":summary["part_ref"],"spec_version":summary["spec_version"],"filter":{"feature":"f:slot:1"}}),
     );
     assert_eq!(result["problem_page"], problems);
-    assert_eq!(result["problem_page"]["items"].as_array().unwrap().len(), 3);
+    let actual = result["problem_page"]["items"].as_array().unwrap();
+    assert_eq!(actual.len(), 1);
+    assert!(
+        actual
+            .iter()
+            .all(|p| p["code"] == "extension_through_feature")
+    );
     let all = call(
         &cache,
         "inspect_part",

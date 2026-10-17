@@ -46,6 +46,8 @@ struct Stored {
     views: BTreeMap<Vec<u64>, Vec<Piece>>,
     cuts: BTreeMap<Vec<u64>, Vec<Vec<[f64; 3]>>>,
     geometry: BTreeMap<Vec<u64>, (Vec<u64>, ViewGeometry)>,
+    cut_material: BTreeMap<Vec<u64>, bool>,
+    hatches: BTreeMap<Vec<u64>, Vec<Item>>,
 }
 // JSON map keys are strings; sorted pairs retain numeric cache keys without hash iteration order.
 type CutPairs = Vec<(Vec<u64>, Vec<Vec<[f64; 3]>>)>;
@@ -56,6 +58,10 @@ struct Pairs {
     views: Vec<(Vec<u64>, Vec<Piece>)>,
     cuts: CutPairs,
     geometry: GeometryPairs,
+    #[serde(default)]
+    cut_material: Vec<(Vec<u64>, bool)>,
+    #[serde(default)]
+    hatches: Vec<(Vec<u64>, Vec<Item>)>,
 }
 impl Projections {
     pub fn disk_bytes(&self) -> Result<Vec<u8>, serde_json::Error> {
@@ -80,12 +86,16 @@ impl Projections {
                 .collect(),
             cuts: self.cuts.clone().into_iter().collect(),
             geometry: self.geometry.clone().into_iter().collect(),
+            cut_material: self.cut_material.clone().into_iter().collect(),
+            hatches: self.hatches.clone().into_iter().collect(),
         };
         serde_json::to_vec(&Pairs {
             binding: stored.binding,
             views: stored.views.into_iter().collect(),
             cuts: stored.cuts.into_iter().collect(),
             geometry: stored.geometry.into_iter().collect(),
+            cut_material: stored.cut_material.into_iter().collect(),
+            hatches: stored.hatches.into_iter().collect(),
         })
     }
     pub fn from_disk(bytes: &[u8]) -> Result<Self, serde_json::Error> {
@@ -121,6 +131,8 @@ impl Projections {
                 .collect(),
             cuts: p.cuts.into_iter().collect(),
             geometry: p.geometry.into_iter().collect(),
+            cut_material: p.cut_material.into_iter().collect(),
+            hatches: p.hatches.into_iter().collect(),
             stats: ProjectionStats::default(),
             dirty: false,
         };

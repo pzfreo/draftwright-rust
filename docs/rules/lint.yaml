@@ -2026,10 +2026,10 @@
     lint_code: "pmi_source_site_mismatch"
     module: "linting/pmi_coverage.py"
     tests: [tests/test_pmi_manufacturing_finish.py]
-  status: pending
-  rust_test: "tests/surface_texture.rs::a_face_texture_is_a_symbol_on_its_edge_line"
+  status: ported
+  rust_test: "tests/surface_texture.rs::a_finish_leader_must_stay_on_its_source_face"
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream pmi"
-  rust_note: "Partial: face-scoped surface texture symbols are drawn with a leader tip on the face's edge line (tests/surface_texture.rs::a_face_texture_is_a_symbol_on_its_edge_line). src/lint/pmi_coverage.rs does not implement pmi_source_site_mismatch; its mention in tests/pmi_coverage.rs is a code inventory, not a site check. Independent checking of the symbol's anchor against its referenced source face remains to port."
+  rust_note: "Source-site lint reads the finished leader tip, its recorded view transform and the source record's exact face attachments. Planar finishes must lie on that face's edge line; cylindrical finishes on its silhouette. A source-scoped general note must name a document-note source. A known census source without a typed finish/note record is rejected, rather than borrowing its mere census presence. The Rust annotation identity resolves directly to a record (unknown claims are pmi_source_unknown), so no separate, losable Part21/source_id declaration pair exists. No datum or GD&T placement was changed."
 
 - id: LINT-code-pmi_unreconciled
   statement: "Content claiming an AP242 origin with no source census available is reported as unverified, never as satisfied."
