@@ -51,5 +51,6 @@ mod planning;
 
 pub mod iso_caption;
 
+pub mod detail;
 /// Authored corrections resolved into the ordinary feature inventory.
 pub mod recognition_corrections;

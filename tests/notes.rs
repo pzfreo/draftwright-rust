@@ -445,11 +445,42 @@ fn the_block_matches_draftwrights_on_corpus_parts() {
             py["page"][0].as_f64().unwrap(),
             py["page"][1].as_f64().unwrap(),
         ];
-        assert!(
-            (w - block[2] - (pw - pb[2])).abs() < 1e-6
-                && (h - block[3] - (ph - pb[3])).abs() < 1e-6,
-            "{name} {block:?} {pb:?}"
-        );
+        if plan.views.iter().any(|v| v.detail.is_some()) {
+            // Details reserve furniture space before the notes. A different corner is
+            // justified only by actual occupied ink at Python's established corner.
+            let corner = [
+                w - (pw - pb[2]) - (block[2] - block[0]),
+                h - (ph - pb[3]) - size[1],
+                w - (pw - pb[2]),
+                h - (ph - pb[3]),
+            ];
+            assert!(
+                ((w - block[2] - (pw - pb[2])).abs() < 1e-6
+                    && (h - block[3] - (ph - pb[3])).abs() < 1e-6)
+                    || plan.views.iter().any(|v| overlaps(
+                        corner,
+                        [
+                            v.area[0] - 2.0,
+                            v.area[1] - 2.0,
+                            v.area[2] + 2.0,
+                            v.area[3] + 2.0
+                        ]
+                    ))
+                    || plan
+                        .dimensions
+                        .iter()
+                        .filter_map(|d| d.placed.as_ref())
+                        .any(|p| overlaps(corner, p.label_box)
+                            || p.lines.iter().any(|l| overlaps(corner, seg_box(l)))),
+                "{name}: an unobstructed top-right corner must stay preferred"
+            );
+        } else {
+            assert!(
+                (w - block[2] - (pw - pb[2])).abs() < 1e-6
+                    && (h - block[3] - (ph - pb[3])).abs() < 1e-6,
+                "{name} {block:?} {pb:?}"
+            );
+        }
         let indent = font().advance("   ", notes::TEXT);
         let wider = (block[2] - block[0]) - size[0];
         assert!((wider - indent).abs() < 0.2, "{name}: {wider} vs {indent}");

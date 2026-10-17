@@ -21,13 +21,14 @@ def nullable(s):
     return {'anyOf':[s, {'type':'null'}]}
 state={'anyOf':[obj({'kind':{'enum':['shown','omitted_by_user','not_authored']}},['kind']), obj({'kind':{'const':'covered'},'by':S},['kind','by']),obj({'kind':{'const':'not_drawable'},'reason_code':S},['kind','reason_code'])]}
 op={'anyOf':[obj({'op':{'enum':['set','add']},'path':S,'value':{}},['op','path','value']),obj({'op':{'const':'remove'},'path':S},['op','path'])]}
-place=obj({'view':{'enum':['front','plan','side']},'side':{'enum':['above','below','left','right']},'lane':{'type':'integer','minimum':0,'maximum':1000},'along':{'anyOf':[{'enum':['start','middle','end','outside']},{'type':'number','minimum':0,'maximum':1}]},'offset':arr(N,minItems=2,maxItems=2),'pinned':B})
+place=obj({'view':{'enum':['front','plan','side',*[f'detail_{c}' for c in 'abcdefgh']]},'side':{'enum':['above','below','left','right']},'lane':{'type':'integer','minimum':0,'maximum':1000},'along':{'anyOf':[{'enum':['start','middle','end','outside']},{'type':'number','minimum':0,'maximum':1}]},'offset':arr(N,minItems=2,maxItems=2),'pinned':B})
 compact=obj({'sheet':SHEET,'id':S,'kind':S,'label':nullable(S),'view':nullable(S),'state':ref('state')},['id','kind','label','view','state'])
 item=obj({'item':{'type':'object'},'value':nullable(N),'dimension_kind':nullable(S),'placement':nullable({'type':'object'}),'anchors':arr(S),'features':arr(S),'basis':S,'operations':arr(S)},['item','value','dimension_kind','placement','anchors','features','basis','operations'])
 problem=obj({'id':S,'code':S,'severity':S,'message':S,'subjects':arr(S),'refs':arr(S),'fix':arr(ref('op'))},['id','code','severity','message','subjects'])
 rectangle=arr(N,minItems=4,maxItems=4)
 filter_=obj({'sheet':nullable(SHEET),'view':nullable(S),'kind':nullable(S),'state':nullable(ref('state')),'feature':nullable(S),'region':nullable(rectangle),'near':nullable(S),'radius':nullable({'type':'number','minimum':0})})
 problem_filter=obj({'code':nullable(S),'severity':nullable({'enum':['info','warning','error']}),'subject':nullable(S),'feature':nullable(S)})
+detail=obj({'around':{'type':['string','array'],'items':S,'minItems':1},'from':{'type':['string','null'],'pattern':r'^(front|plan|side|section_([a-h])\2)(?![\s\S])'},'scale_factor':{'type':'number','exclusiveMinimum':1}},['around'])
 label_text=obj({'prefix':S,'suffix':S,'template':S})
 # Inputs retain the established sparse per-ID map; get_spec describes authored forms once.
 dimension=obj({'text':ref('x'),'style':{'enum':['reference','basic']},'kind':nullable({'enum':['linear','diameter','radius','angle']}),'between':nullable(arr(S,minItems=1,maxItems=2)),'along':nullable({'enum':['x','y','z','true']})},extra=True)
@@ -36,7 +37,7 @@ spec=obj({'schema':{'enum':['draftwright.spec/1','draftwright.spec/2']},'binding
 line_fields = {name: nullable(B) for name in
                ('hidden', 'centre_marks', 'centre_lines', 'thread_depiction', 'knurl_depiction')}
 spec['properties']['sheet']['properties'].update(line_fields)
-spec['properties']['views']['additionalProperties'] = obj(line_fields, extra=True)
+spec['properties']['views']['additionalProperties'] = obj({**line_fields, 'detail':nullable(detail)}, extra=True)
 # Share the base map/list shapes while retaining each view/declaration constraint.
 # The common pattern and the named property both apply (draft 2020-12).
 # Scheme entries share the sparse per-ID object map; Rust validates complete entries.
@@ -329,7 +330,8 @@ for mode in ('validation', 'published'):
                 total += compact_size(schema)
                 Path(f'schemas/mcp/{tool}.{kind}.json').write_text(json.dumps(schema,indent=2)+'\n')
 Path('schemas/mcp-validation.json').write_text(json.dumps(validation, indent=2) + '\n')
-# Exact measured ceiling, shared with tests/engine_version.rs. Nested Spec growth is free.
-SCHEMA_BUDGET = 34389
+# Exact measured ceiling, shared with tests/engine_version.rs. Nested Spec growth is free;
+# detail placement view names (detail_a…) add 88 bytes to item_options.
+SCHEMA_BUDGET = 34477
 assert total <= SCHEMA_BUDGET, f'schemas: {total} bytes (budget {SCHEMA_BUDGET})'
 print(f'{len(tools)} tools; {total} compact schema bytes')

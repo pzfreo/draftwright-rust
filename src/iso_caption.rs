@@ -50,6 +50,26 @@ pub(crate) fn proxy(c: &PlannedCaption) -> PlannedDimension {
     }
 }
 
+fn view_box(analysis: &Analysis, v: &PlannedView) -> [f64; 4] {
+    if v.id == "v:iso" {
+        let b = analysis.iso_bounds;
+        [
+            v.at[0] + v.scale * b[0],
+            v.at[1] + v.scale * b[1],
+            v.at[0] + v.scale * b[2],
+            v.at[1] + v.scale * b[3],
+        ]
+    } else {
+        let (size, _) = crate::detail::crop_extent(analysis, v);
+        [
+            v.at[0] - v.scale * size[0] / 2.,
+            v.at[1] - v.scale * size[1] / 2.,
+            v.at[0] + v.scale * size[0] / 2.,
+            v.at[1] + v.scale * size[1] / 2.,
+        ]
+    }
+}
+
 pub(crate) fn plan(
     analysis: &Analysis,
     sheet: &PlannedSheet,
@@ -67,32 +87,10 @@ pub(crate) fn plan(
     else {
         return Vec::new();
     };
-    let iso_box = |v: &PlannedView| {
-        let b = analysis.iso_bounds;
-        [
-            v.at[0] + v.scale * b[0],
-            v.at[1] + v.scale * b[1],
-            v.at[0] + v.scale * b[2],
-            v.at[1] + v.scale * b[3],
-        ]
-    };
     let mut obstacles: Vec<_> = views
         .iter()
         .filter(|v| v.sheet == sheet.number)
-        .map(|v| {
-            if v.id == "v:iso" {
-                iso_box(v)
-            } else {
-                let view = haecceity::hlr::View::new(v.direction, v.up).expect("planned view");
-                let (size, _) = crate::model::extent(analysis, &view);
-                [
-                    v.at[0] - v.scale * size[0] / 2.0,
-                    v.at[1] - v.scale * size[1] / 2.0,
-                    v.at[0] + v.scale * size[0] / 2.0,
-                    v.at[1] + v.scale * size[1] / 2.0,
-                ]
-            }
-        })
+        .map(|v| view_box(analysis, v))
         .collect();
     obstacles.push(sheet.title_block);
     obstacles.extend(crate::sheet_fit::furniture_bounds(analysis, sheet, views));
@@ -118,7 +116,13 @@ pub(crate) fn plan(
     let height = crate::section::FONT_SIZE;
     let laid = crate::dims::font().text(NTS_CAPTION, height);
     let size = [laid.max[0] - laid.min[0], laid.max[1] - laid.min[1]];
-    let at = crate::model::nts_caption_at(sheet.page, iso_box(iso), iso.at[0], size, &obstacles);
+    let at = crate::model::nts_caption_at(
+        sheet.page,
+        view_box(analysis, iso),
+        iso.at[0],
+        size,
+        &obstacles,
+    );
     vec![PlannedCaption {
         id: NTS_CAPTION_ID.into(),
         view: iso.id.clone(),
@@ -281,6 +285,23 @@ pub(crate) fn refresh(analysis: &Analysis, p: &mut Plan) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn detail_obstacle_equals_its_crop_footprint() {
+        let (_, a) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/mounting_plate.step"),
+        )
+        .unwrap();
+        let spec = serde_json::from_value(serde_json::json!({"sheet":{"size":"A2","scale":"1:2"},"views":{"detail_c":{"detail":{"around":"f:hole:1","from":"plan","scale_factor":2}}}})).unwrap();
+        let p = crate::model::plan(&a, &spec).unwrap();
+
+        let v = p.views.iter().find(|v| v.id == "v:detail_c").unwrap();
+        let mut crop_only = p.clone();
+        crop_only.views = vec![v.clone()];
+        let footprint = crate::sheet_fit::footprints(&a, &crop_only)[0];
+        assert_eq!(view_box(&a, v), footprint);
+    }
 
     #[test]
     fn a_section_reference_is_settled_ink_for_the_iso_caption() {

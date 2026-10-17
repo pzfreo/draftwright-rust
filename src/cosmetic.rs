@@ -32,7 +32,11 @@ pub fn ink(analysis: &Analysis, m: &Manufacturing, v: &PlannedView) -> Vec<Curve
     let Some(view) = View::new(v.direction, v.up) else {
         return out;
     };
-    let centre = extent(analysis, &view).1;
+    let (size, centre) = if v.detail.is_some() {
+        crate::detail::crop_extent(analysis, v)
+    } else {
+        extent(analysis, &view)
+    };
     let page = |p: [f64; 3]| -> P {
         let q = view.map(p);
         [0, 1].map(|k| v.at[k] + v.scale * (q[k] - centre[k]))
@@ -71,6 +75,24 @@ pub fn ink(analysis: &Analysis, m: &Manufacturing, v: &PlannedView) -> Vec<Curve
                 out.extend(knurl(d, diamond, pitch * v.scale, v.scale, &at));
             }
         }
+    }
+    if v.detail.is_some() {
+        let rect = [
+            v.at[0] - size[0] * v.scale / 2.0,
+            v.at[1] - size[1] * v.scale / 2.0,
+            v.at[0] + size[0] * v.scale / 2.0,
+            v.at[1] + size[1] * v.scale / 2.0,
+        ];
+        let mut boundary = crate::detail::Boundary::default();
+        out = out
+            .into_iter()
+            .flat_map(|c| {
+                let clipped = crate::detail::clip(c.clone(), rect);
+                boundary.add(&c, &clipped, rect);
+                clipped
+            })
+            .collect();
+        out.extend(boundary.ink(rect));
     }
     out
 }

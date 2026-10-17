@@ -100,13 +100,23 @@ fn view_planning_matches_draftwright_or_is_known() {
                 .map(|k| (look_at[k] - centre[k]).abs())
                 .fold(0.0, f64::max);
             assert!(
-                off < 1e-3,
+                v.detail.is_some() || off < 1e-3,
                 "{name} {id}: the boxes' centres differ by {off} mm"
             );
             let at = t.page(centre).unwrap();
+            // Compare one physical point for both transforms. Detail cameras centre on
+            // their own crops, whose extents can differ from Python's supported strip.
+            let mut ours = v.at;
+            if let Some(d) = &v.detail {
+                let view = haecceity::hlr::View::new(v.direction, v.up).unwrap();
+                let crop_centre = [0, 1, 2].map(|k| (d.bounds[0][k] + d.bounds[1][k]) / 2.0);
+                let c = view.map(crop_centre);
+                let p = view.map(centre);
+                ours = [0, 1].map(|k| v.at[k] + v.scale * (p[k] - c[k]));
+            }
             check(
                 format!("centre:{id}"),
-                (v.at[0] - at[0]).hypot(v.at[1] - at[1]) < 0.01,
+                (ours[0] - at[0]).hypot(ours[1] - at[1]) < 0.01,
             );
             let scale = t.scale.unwrap();
             check(

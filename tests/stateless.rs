@@ -937,3 +937,27 @@ fn content_keys_survive_paths_and_cold_cache_rebuilds_refuse_corruption() {
             .contains("cached STEP differs")
     );
 }
+
+#[test]
+fn a_failed_history_write_keeps_the_parent_live_and_can_be_retried() {
+    let cache = scratch("history-write-failure");
+    let key = cache.register(&parts()[0], None).unwrap();
+    let parent = cache.head(&key, "drawing").unwrap();
+    let artifacts = cache.root.join("artifacts");
+    assert!(!artifacts.exists());
+    std::fs::write(&artifacts, b"not a directory").unwrap();
+    let ops = [draftwright::items::Op::set(
+        "sheet/title/material",
+        json!("Steel"),
+    )];
+    assert!(cache.apply_version(&key, "drawing", &parent, &ops).is_err());
+    assert_eq!(cache.head(&key, "drawing").unwrap(), parent);
+    std::fs::remove_file(&artifacts).unwrap();
+    let (version, applied) = cache.apply_version(&key, "drawing", &parent, &ops).unwrap();
+    assert_eq!(cache.head(&key, "drawing").unwrap(), version);
+    assert_eq!(
+        bytes(&cache.get_version(&version).unwrap()),
+        bytes(&applied.spec)
+    );
+    assert_eq!(applied.spec.sheet.title["material"], "Steel");
+}

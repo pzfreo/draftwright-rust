@@ -228,10 +228,30 @@ fn fixed_ink_review_catches_the_captured_section_defects() {
         };
         captured_on.sheet.size = case["sheet"]["size"].as_str().map(String::from);
         captured_on.sheet.scale = case["sheet"]["scale"].as_str().map(String::from);
-        drawn = drawing_with(&dir.join(case["step"].as_str().unwrap()), &captured_on).2;
+        let (_, captured_plan, captured_drawing) =
+            drawing_with(&dir.join(case["step"].as_str().unwrap()), &captured_on);
+        drawn = captured_drawing;
         for captured in case["dimensions"].as_array().unwrap() {
-            let g: draftwright::dims::Placed =
+            let mut g: draftwright::dims::Placed =
                 serde_json::from_value(captured["placed"].clone()).unwrap();
+            let frame = &captured["frame"];
+            let v = captured_plan
+                .views
+                .iter()
+                .find(|v| v.id == frame["id"].as_str().unwrap())
+                .unwrap();
+            assert_eq!(v.scale, frame["scale"].as_f64().unwrap());
+            let delta = [0, 1].map(|k| v.at[k] - frame["at"][k].as_f64().unwrap());
+            for point in g.lines.iter_mut().chain(&mut g.arrows).flatten() {
+                for k in 0..2 {
+                    point[k] += delta[k];
+                }
+            }
+            for (k, shift) in delta.iter().enumerate() {
+                g.label_at[k] += shift;
+                g.label_box[k] += shift;
+                g.label_box[k + 2] += shift;
+            }
             let item = drawn
                 .sheet
                 .items
@@ -441,7 +461,7 @@ fn leaders_do_not_run_beside_centre_lines() {
 #[test]
 fn a_label_across_an_axis_end_trims_the_overrun() {
     let Some(dir) = corpus::dir() else { return };
-    let (_, p, _) = drawing(&dir.join("nist/nist_ftc_10_asme1_rb.stp"));
+    let (analysis, p, _) = drawing(&dir.join("nist/nist_ftc_10_asme1_rb.stp"));
     let d = p
         .dimensions
         .iter()
@@ -466,9 +486,29 @@ fn a_label_across_an_axis_end_trims_the_overrun() {
     let (a, b) = (axis.curves[0].start(), axis.curves[0].end());
     assert!((a[0] - b[0]).abs() < 1e-9, "a vertical axis");
     let (low, high) = (a[1].min(b[1]), a[1].max(b[1]));
+    let holes = draftwright::bridge::holes::read(&analysis);
+    let h = holes
+        .iter()
+        .find_map(|(f, h)| (f.id == "f:hole:13").then_some(h.as_ref().unwrap()))
+        .unwrap();
+    let centre = [0, 1, 2].map(|k| (analysis.envelope[0][k] + analysis.envelope[1][k]) / 2.0);
+    let projected =
+        |q: [f64; 3]| v.at[1] + v.scale * (0..3).map(|k| v.up[k] * (q[k] - centre[k])).sum::<f64>();
+    let ends = [
+        projected(h.at),
+        projected([0, 1, 2].map(|k| {
+            h.at[k]
+                + h.direction[k]
+                    * (h.depth.unwrap()
+                        + h.counterbore.and_then(|r| r.depth).unwrap_or(0.0)
+                        + h.spotface.and_then(|r| r.depth).unwrap_or(0.0))
+        })),
+    ];
+    let physical_low = ends[0].min(ends[1]);
+    let physical_high = ends[0].max(ends[1]);
     // The opening-to-bottom span is 65 mm with 3 mm overrun each end (round 3: y 245..316).
     assert!(
-        (low - 245.).abs() < 1e-6,
+        (low - (physical_low - 3.0)).abs() < 1e-6,
         "far end keeps its overrun: {low}"
     );
     assert!(
@@ -477,7 +517,7 @@ fn a_label_across_an_axis_end_trims_the_overrun() {
         label[1]
     );
     assert!(
-        high >= 316. - 3. + 1. - 1e-6,
+        high >= physical_high + 1. - 1e-6,
         "at least 1 mm overrun stays: {high}"
     );
     assert!(

@@ -47,9 +47,9 @@
       - "tests/test_issue_443_grm03_axial_coverage.py::test_grm03_replans_for_truthful_step_lengths_without_spending_the_iso"
       - "tests/test_issue_443_grm03_axial_coverage.py::test_grm03_detail_caption_fits_the_selected_a4_sheet"
     corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw.step"]
-  status: pending
-  rust_test: "tests/issue_drafting.rs::grm03_locates_every_turned_shoulder_and_keeps_the_isometric"
-  rust_note: "Partial: on GRM-03 the default plan states and places draftwright's four step lengths (0.5, 2, 3, 18; its captured sheet's), keeps the isometric, stays on A4 and leaves no turned step undimensioned (src/dims/turned.rs). Not ported: draftwright reaches its sheet by re-planning (A4 at 2:1 needed a detail view for the short shoulders, so it took 5:1); the port's first fit is A4 at 2:1, where the 0.5 shoulder is 1 mm on the page, because it has no legibility gate (a maintainer question in docs/next-session.md). Whether its step lengths are legible there is undetermined; the detail caption has nothing to fit (no detail views)."
+  status: ported
+  rust_test: "tests/detail_views.rs::string_post_prefers_complete_larger_principals_without_a_detail; tests/detail_views.rs::a_constrained_main_scale_keeps_the_complete_head_crop_and_sheet_scale_iso; tests/issue_drafting.rs::grm03_locates_every_turned_shoulder_and_keeps_the_isometric"
+  rust_note: "Complete principal views win before automatic details under the sheet rules; tests/detail_views.rs covers both the larger default main scale and a constrained scale that still needs the complete enlarged head and sheet-scale isometric. Exact axial requirement IDs and the inspection baseline remain."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream dimensioning-coverage"
 
 - id: ISSUE-443-b
@@ -390,7 +390,7 @@
     corpus_parts: ["issue_915_case_study_2.step"]
   status: pending
   rust_test: "tests/issue_drafting.rs::a_rungs_witnesses_stand_on_its_levels_support"
-  rust_note: "Partial: the ladder's witnesses stand on each level's own support (src/dims/levels.rs): on every part both witness lines of each height start at its level's support (its faces' largest x and smallest y, as draftwright's rung span does), not at the part's box (checked to differ on a sampled part), and a level with no recorded support is reported (step_level_support_missing). Not ported: the single spacing solve for a dense plan view's hole callouts, and detail views (none is drawn, so neither the crop nor the search for an empty region matching the detail's shape exists). issue_915_case_study_2.step is not among the parts here (draftwright's own test of it is an expected failure on quiddity#536)."
+  rust_note: "Partial: the ladder's witnesses stand on each level's own support (src/dims/levels.rs): on every part both witness lines of each height start at its level's support (its faces' largest x and smallest y, as draftwright's rung span does), not at the part's box (checked to differ on a sampled part), and a level with no recorded support is reported (step_level_support_missing). The detail crop and rectangular free-space search are now ported in src/detail.rs and src/layout.rs. Still pending: the dense-plan single spacing solve. issue_915_case_study_2.step is not among the parts here (draftwright's own test of it is an expected failure on quiddity#536)."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream detail-views"
 
 - id: ISSUE-916-a
@@ -454,9 +454,9 @@
       - "tests/test_issue_955_height_contingency.py::test_an_unplaceable_fallback_is_a_drop_not_a_stale_suppression"
     corpus_parts: []
   status: translated
-  rust_test: "tests/dims_turned.rs::the_overall_is_stated_and_a_closed_chain_has_one_reference_member; tests/dims_turned.rs::spec_tolerances_and_omissions_reach_the_step_items"
+  rust_test: "tests/dims_turned.rs::the_overall_finishes_the_default_baseline_and_a_partial_profile_keeps_its_length; tests/dims_turned.rs::spec_tolerances_and_omissions_reach_the_step_items"
   rust_rule: "Rust placement never drops a chain item (Policy B)."
-  rust_note: "Rust placement never drops a chain item (Policy B). The overall length is stated and a closed turned chain has one reference member (src/dims/turned.rs; tests/dims_turned.rs::the_overall_is_stated_and_a_closed_chain_has_one_reference_member). Authored omissions do not release a contingency or replan the remaining chain (tests/dims_turned.rs::spec_tolerances_and_omissions_reach_the_step_items)."
+  rust_note: "Rust placement never drops a chain item (Policy B). The overall length finishes the common inspection baseline; independent profiles retain supported chains (src/dims/turned.rs; tests/dims_turned.rs::the_overall_finishes_the_default_baseline_and_a_partial_profile_keeps_its_length). Authored omissions do not release a contingency or replan the remaining chain (tests/dims_turned.rs::spec_tolerances_and_omissions_reach_the_step_items)."
   port_note: "Keep: plan default with basis 'contingency for dropped chain'; scenario test forcing the chain drop."
 
 - id: ISSUE-955-b
@@ -1260,7 +1260,7 @@
   status: translated
   rust_rule: "Problem IDs are unique (tests/issue_trust.rs::diagnostics_are_the_same_every_run)."
   rust_test: "tests/issue_trust.rs::diagnostics_are_the_same_every_run; tests/lint_fidelity.rs::a_linear_label_states_its_drawn_span_divided_by_the_view_scale"
-  rust_note: "Problem IDs are unique (tests/issue_trust.rs::diagnostics_are_the_same_every_run). Each annotation is judged at its own view's recorded scale (Sheet::frames; tests/lint_fidelity.rs::a_linear_label_states_its_drawn_span_divided_by_the_view_scale). Detail-view scales should be re-checked when stream J lands."
+  rust_note: "Each problem is reported once (problem IDs are unique in every plan checked), and stream K7's label_vs_measured judges each annotation at its own view's recorded scale (Sheet::frames; tests/lint_fidelity.rs::a_linear_label_states_its_drawn_span_divided_by_the_view_scale). Detail views now carry their own scale (src/detail.rs; tests/detail_views.rs)."
   port_note: "Keep: single check pass with per-annotation view scale."
 
 - id: ISSUE-1209-a
@@ -1402,10 +1402,10 @@
       - "tests/test_issue_1216_pairwise_across_scale_groups.py::test_a_detail_scale_dim_is_not_flagged_against_the_sheet_scale"
       - "tests/test_issue_1216_pairwise_across_scale_groups.py::test_lint_dim_reads_the_items_own_scale"
     corpus_parts: []
-  status: translated
-  rust_rule: "Placement (src/dims/placement.rs) and lint (src/lint/structural.rs) compare every pair in one pass."
-  rust_note: "Placement (src/dims/placement.rs) and lint (src/lint/structural.rs) compare every pair in one pass. Scale groups exist only with detail views, so this needs revisiting when stream J lands."
+  status: ported
+  rust_note: "Detail dimensions and captions share the structural pairwise pass, using their own view scales; src/detail.rs, src/lint/structural.rs."
   port_note: "Keep."
+  rust_test: "tests/detail_views.rs::a_constrained_main_scale_keeps_the_complete_head_crop_and_sheet_scale_iso; tests/detail_views.rs::crowded_prismatic_rungs_and_y_chains_use_their_own_camera_and_scale"
 
 - id: ISSUE-1217-a
   statement: "Every claimed representation is verified against what the annotation actually renders: the expected formatted value (not a substring or raw float), locations from their span, every number of a compound callout, and hole-table rows; an unconfirmed claim is reported as a warning."
@@ -1583,7 +1583,7 @@
   status: translated
   rust_rule: "Authored omissions replan before projection, sections need their plan parent, named sheet scales are never relaxed and an exact iso scale is kept (tests/issue_drafting.rs::what_the_spec_asks_of_the_views_is_kept_or_reported, tests/iso_nts.rs)."
   rust_test: "tests/issue_drafting.rs::what_the_spec_asks_of_the_views_is_kept_or_reported"
-  rust_note: "Authored omissions replan before projection, sections need their plan parent, named sheet scales are never relaxed and an exact iso scale is kept (tests/issue_drafting.rs::what_the_spec_asks_of_the_views_is_kept_or_reported, tests/iso_nts.rs). Per-principal scales don't exist in the Spec, so there's nothing to relax. Detail views belong to stream J."
+  rust_note: "Partial: authored omissions replan before projection, derived sections require their plan parent, and named sheet scales are never relaxed. Spec.iso_scale_factor now preserves an exact authored iso scale through fitting/recovery and captions every result off sheet scale (tests/iso_nts.rs). Detail-view generation is now ported (src/detail.rs); per-principal exact scales are absent from the Spec; view placement constraints are covered by placement_intent."
   port_note: "Keep: Spec view constraints -> Plan honours them or reports infeasibility; never silently relaxes."
 
 - id: ISSUE-1260-b
@@ -2645,7 +2645,7 @@
       - "tests/test_issue_1505_short_axial_chains.py::test_detail_retracts_only_recovered_main_view_length_drops"
     corpus_parts: []
   status: pending
-  rust_note: "Partial (stream K6): the planner plans every band's step.length with its own ID and value, and has no legibility gate that drops a short shoulder (placement reports what collides instead), so a short shoulder erases no neighbour; the test pins it with a 1 mm shoulder (each band's own item, claiming that band alone, drawn, and the neighbours' lengths as with a 10 mm shoulder). It already held on the base, so the test is a regression pin. Not ported: detail views (Stage J), so off-page shoulders cannot be recovered in a shoulder detail."
+  rust_note: "Partial: X-head and Y-chain requests carry exact approved requirement IDs through the normal planner; Z terminal flanges also get a head detail. Saved chain IDs and all 14 string-post tolerances remain addressable. Omitted dimensions are not reconstructed in the crop. Still pending: general nonterminal off-page Z-chain recovery and solid Boolean cut caps; the current kernel clips exact projected intervals."
   rust_test: "tests/dims_turned.rs::a_short_shoulder_never_erases_its_neighbours_lengths"
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream detail-views"
 

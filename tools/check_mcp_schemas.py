@@ -56,6 +56,19 @@ with tempfile.TemporaryDirectory(prefix='s7-schema-') as cache:
         nullable.validate({'part_ref': 'part', 'spec': {'sheet': sheet}})
     for sheet in [{'size': 42}, {'fit_limits': 'yes'}]:
         assert not nullable.is_valid({'part_ref': 'part', 'spec': {'sheet': sheet}})
+    for around in ['f:turned_step:3', ['f:groove:1', 'face:4']]:
+        for source in ['front', 'plan', 'side', 'section_aa', 'section_bb', None]:
+            nullable.validate({'part_ref': 'part', 'spec': {'views': {'detail_c': {
+                'detail': {'around': around, 'from': source, 'scale_factor': 3}}}}})
+    for detail in [{'around': []}, {'around': 12}, {'around': ['face:1', 3]},
+                   {'around': 'face:1', 'from': 'iso'},
+                   {'around': 'face:1', 'from': 'front\n'},
+                   {'around': 'face:1', 'from': 'section_ab'},
+                   {'around': 'face:1', 'from': 3},
+                   {'around': 'face:1', 'scale_factor': 1},
+                   {'around': 'face:1', 'bounds': [[0, 0, 0], [1, 1, 1]]}]:
+        assert not nullable.is_valid({'part_ref': 'part', 'spec': {'views': {
+            'detail_c': {'detail': detail}}}})
     for field in ('hidden', 'centre_marks', 'centre_lines', 'thread_depiction', 'knurl_depiction'):
         for scope in ('sheet', 'views'):
             def authored(value):

@@ -43,8 +43,34 @@ pub fn ink(text: &str) -> String {
 
 /// *text*'s ink `[x0, x1]` laid from a pen at 0, or none when it draws nothing.
 pub(crate) fn span(text: &str) -> Option<[f64; 2]> {
-    let laid = crate::dims::font().baseline(&ink(text), TEXT);
-    (!laid.contours.is_empty()).then_some([laid.min[0], laid.max[0]])
+    // The bundled table font and height are fixed. Layout trials repeatedly measure
+    // the same schedule cells; retain their exact ink bounds, not their outlines.
+    use std::collections::VecDeque;
+    use std::sync::{Mutex, OnceLock};
+    type Memo = VecDeque<(String, Option<[f64; 2]>)>;
+    static MEMO: OnceLock<Mutex<Memo>> = OnceLock::new();
+    let text = ink(text);
+    let memo = MEMO.get_or_init(|| Mutex::new(VecDeque::new()));
+    if let Some(span) = memo
+        .lock()
+        .expect("table metrics memo lock")
+        .iter()
+        .find(|(t, _)| *t == text)
+        .map(|(_, span)| *span)
+    {
+        return span;
+    }
+    let laid = crate::dims::font().baseline(&text, TEXT);
+    let span = (!laid.contours.is_empty()).then_some([laid.min[0], laid.max[0]]);
+    if text.len() <= 4096 {
+        let mut memo = memo.lock().expect("table metrics memo lock");
+        memo.retain(|(t, _)| *t != text);
+        if memo.len() == 128 {
+            memo.pop_front();
+        }
+        memo.push_back((text, span));
+    }
+    span
 }
 
 /// What a block keeps clear of: the views' areas (the isometric's drawn box), every

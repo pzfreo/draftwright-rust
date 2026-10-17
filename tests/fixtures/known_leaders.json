@@ -28,41 +28,6 @@
   "reason": "On cgb245 (native) the plan's slot width d:f:slot:3/slot_width.length (7.0), a vertical dimension, now stays in its own strip left of the plan: since stream d-quality-merged-lanes the items merged away (each conveyed by a coincident dimension) share their survivor's lane, as draftwright's corridor dedup places no displaced duplicate, so that strip has room for it, where before it fell through to the strip right of the plan, nearer its slot. Its extension lines now run from the slot across the view to the left, through this callout's leader; the joint assignment took the fewest crossings its bounded inventory offers. The strips (dims::placement::strip) take no account of which side a feature is nearer; reported as annotation_leader_crossing."
  },
  {
-  "part": "connector109",
-  "callout": "d:f:chamfer:1/chamfer.length",
-  "crossing": "line:d:f:boss:2/boss.diameter",
-  "verdict": "rust-wrong",
-  "reason": "The turned bosses' diameters (d:f:boss:2, :3, :4/boss.diameter@front, dims::bosses) are linear dimensions below the front whose extension lines run up the profile's silhouette; this leader crosses one where it leaves the outline beside it. The solver found no route clear of them within its bounds: the column left of the front holds the step diameters (as draftwright's does) and rows above or below the 420 mm profile are past the 75 mm leader limit. draftwright states those boss diameters as callouts in its left column, so its sheet has no such extension lines (its connector109 leaders cross no line by this test's predicate). The cause is the bosses' presentation, not the leader placement; reported as annotation_leader_crossing."
- },
- {
-  "part": "connector109",
-  "callout": "d:f:chamfer:1/chamfer.length",
-  "crossing": "line:d:f:boss:3/boss.diameter",
-  "verdict": "rust-wrong",
-  "reason": "The turned bosses' diameters (d:f:boss:2, :3, :4/boss.diameter@front, dims::bosses) are linear dimensions below the front whose extension lines run up the profile's silhouette; this leader crosses one where it leaves the outline beside it. The solver found no route clear of them within its bounds: the column left of the front holds the step diameters (as draftwright's does) and rows above or below the 420 mm profile are past the 75 mm leader limit. draftwright states those boss diameters as callouts in its left column, so its sheet has no such extension lines (its connector109 leaders cross no line by this test's predicate). The cause is the bosses' presentation, not the leader placement; reported as annotation_leader_crossing."
- },
- {
-  "part": "connector109",
-  "callout": "d:f:groove:1/groove.length",
-  "crossing": "line:d:f:boss:3/boss.diameter",
-  "verdict": "rust-wrong",
-  "reason": "The turned bosses' diameters (d:f:boss:2, :3, :4/boss.diameter@front, dims::bosses) are linear dimensions below the front whose extension lines run up the profile's silhouette; this leader crosses one where it leaves the outline beside it. The solver found no route clear of them within its bounds: the column left of the front holds the step diameters (as draftwright's does) and rows above or below the 420 mm profile are past the 75 mm leader limit. draftwright states those boss diameters as callouts in its left column, so its sheet has no such extension lines (its connector109 leaders cross no line by this test's predicate). The cause is the bosses' presentation, not the leader placement; reported as annotation_leader_crossing."
- },
- {
-  "part": "connector109",
-  "callout": "d:f:groove:2/groove.length",
-  "crossing": "line:d:f:boss:3/boss.diameter",
-  "verdict": "rust-wrong",
-  "reason": "The turned bosses' diameters (d:f:boss:2, :3, :4/boss.diameter@front, dims::bosses) are linear dimensions below the front whose extension lines run up the profile's silhouette; this leader crosses one where it leaves the outline beside it. The solver found no route clear of them within its bounds: the column left of the front holds the step diameters (as draftwright's does) and rows above or below the 420 mm profile are past the 75 mm leader limit. draftwright states those boss diameters as callouts in its left column, so its sheet has no such extension lines (its connector109 leaders cross no line by this test's predicate). The cause is the bosses' presentation, not the leader placement; reported as annotation_leader_crossing."
- },
- {
-  "part": "connector109",
-  "callout": "d:f:groove:3/groove.length",
-  "crossing": "line:d:f:boss:3/boss.diameter",
-  "verdict": "rust-wrong",
-  "reason": "The turned bosses' diameters (d:f:boss:2, :3, :4/boss.diameter@front, dims::bosses) are linear dimensions below the front whose extension lines run up the profile's silhouette; this leader crosses one where it leaves the outline beside it. The solver found no route clear of them within its bounds: the column left of the front holds the step diameters (as draftwright's does) and rows above or below the 420 mm profile are past the 75 mm leader limit. draftwright states those boss diameters as callouts in its left column, so its sheet has no such extension lines (its connector109 leaders cross no line by this test's predicate). The cause is the bosses' presentation, not the leader placement; reported as annotation_leader_crossing."
- },
- {
   "part": "ctc04 (native)",
   "callout": "d:f:hole:10/bore.diameter",
   "crossing": "line:d:f:hole:56/location.length.x",

@@ -118,6 +118,7 @@ pub(crate) fn check_views(spec: &Spec) -> Result<(), Invalid> {
             .and_then(|p| p.view.as_ref())
             .or(entry.view.as_ref())
             && !NAMES.contains(&v.as_str())
+            && !crate::detail::NAMES.contains(&v.as_str())
         {
             return Err(Invalid {
                 message: format!(
@@ -133,6 +134,9 @@ pub(crate) fn check_views(spec: &Spec) -> Result<(), Invalid> {
 /// Whether view *v* can carry *w*: it is one of *w*'s views and does not look along it (a
 /// turned part's diameter turns to a radial axis the view shows), as [`route`] decides.
 fn carries(w: &Want, v: &str) -> bool {
+    if crate::detail::NAMES.contains(&v) {
+        return w.views.contains(&v);
+    }
     let Some((_, toward)) = TOWARD.iter().find(|(n, _)| *n == v) else {
         return false;
     };
@@ -247,7 +251,7 @@ pub const LANE: f64 = 7.0;
 /// dimension line, the middle of a capital above its baseline, and a leader's shoulder.
 const TOKEN_GAP: f64 = 0.45 * TEXT;
 const LIFT: f64 = 1.0;
-const CAP: f64 = 0.7 * TEXT;
+pub(crate) const CAP: f64 = 0.7 * TEXT;
 const SHOULDER: f64 = 3.0;
 /// The font labels are measured and drawn with (ARCH0006-1: one file for both).
 pub const FONT: &str = "IBMPlexMono-Regular.ttf";
@@ -558,6 +562,35 @@ fn wants_uncached(
         out.extend(w);
         problems.extend(more);
     }
+    // All axial locations use the same inspection end as the turned shoulder baseline.
+    if let Some((axis, datum)) = turned::axial_datum(analysis) {
+        for w in &mut out {
+            if w.measurements
+                .iter()
+                .any(|m| m.parameter.starts_with("location.length."))
+                && let Shape::Linear {
+                    a,
+                    b,
+                    axis: k,
+                    order,
+                    ..
+                } = &mut w.shape
+                && *k == axis
+            {
+                a[axis] = datum;
+                w.value = (b[axis] - datum).abs();
+                w.terms = vec![fmt(w.value)];
+                for m in &mut w.measurements {
+                    m.value = w.value;
+                }
+                *order = 1;
+                w.basis = format!(
+                    "axial location in {} from the profile's common inspection end",
+                    AXES[axis]
+                );
+            }
+        }
+    }
     // A planner may dimension some records of a kind it does not claim (the section recesses
     // that are blind slots): those are not reported.
     let stated: BTreeSet<String> = out
@@ -811,6 +844,107 @@ pub(crate) fn levenshtein(a: &str, b: &str) -> usize {
         }
     }
     row[b.len()]
+}
+
+pub(crate) fn inspection_datum(a: &Analysis) -> Option<(usize, f64)> {
+    turned::axial_datum(a)
+}
+
+pub(crate) fn detail_levels(a: &Analysis) -> Vec<(String, f64)> {
+    wants(a)
+        .0
+        .into_iter()
+        .filter_map(|w| match w.shape {
+            Shape::Linear { .. } => Some((w.id, w.value)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Route the exact owned requirements through the same placement and tolerance pipeline.
+/// A baseline with a witness outside the crop stays on the parent; its local band size
+/// is recovered inside the detail under the saved chain ID.
+fn detail_routes(a: &Analysis, wants: &mut [Want], views: &[PlannedView]) {
+    for v in views {
+        let Some(d) = &v.detail else { continue };
+        let Some(&name) = crate::detail::NAMES
+            .iter()
+            .find(|n| v.id == format!("v:{n}"))
+        else {
+            continue;
+        };
+        let inside =
+            |p: P3| (0..3).all(|k| d.bounds[0][k] - 1e-6 <= p[k] && p[k] <= d.bounds[1][k] + 1e-6);
+        for w in wants.iter_mut() {
+            let explicit = d.dimensions.contains(&w.id);
+            let blend = w
+                .measurements
+                .iter()
+                .any(|m| m.parameter == "blend.radius" || m.parameter == "fillet.radius");
+            let sites = match &w.shape {
+                Shape::Callout { sites } => sites.iter().any(|(p, _)| inside(*p)),
+                _ => false,
+            };
+            let feature = w
+                .measurements
+                .iter()
+                .any(|m| crate::dims::feature_origin(a, &m.feature).is_some_and(inside));
+            if !explicit && !(sites && blend && d.kind == "turned-head") && !(d.authored && feature)
+            {
+                continue;
+            }
+            match &mut w.shape {
+                Shape::Linear {
+                    a: pa,
+                    b: pb,
+                    axis,
+                    a_edge,
+                    b_edge,
+                    ..
+                } => {
+                    // Dimension an x-turned head at its positive silhouette. Try the
+                    // rim witnesses on copies: a rejected crop keeps the parent's ink.
+                    let (mut next_a, mut next_b) = (*pa, *pb);
+                    if w.id.ends_with("/step.length")
+                        && d.kind == "turned-head"
+                        && *axis == 0
+                        && let Some(band) = w
+                            .measurements
+                            .first()
+                            .and_then(|m| a.features.iter().find(|f| f.id == m.feature))
+                            .and_then(|f| {
+                                crate::lint::turned::band(&crate::bridge::holes::frame(a), f).ok()
+                            })
+                    {
+                        next_a[2] = band.on[2] + band.diameter / 2.0;
+                        next_b[2] = next_a[2];
+                    }
+                    if !inside(next_a) || !inside(next_b) {
+                        continue;
+                    }
+                    (*pa, *pb) = (next_a, next_b);
+                    if w.id.ends_with("/step.length") && *axis == 0 {
+                        *a_edge = false;
+                        *b_edge = false;
+                    }
+                }
+                Shape::Callout { sites } => {
+                    sites.retain(|(p, _)| inside(*p));
+                    if sites.is_empty() {
+                        continue;
+                    }
+                }
+                Shape::Aligned { a, b } => {
+                    if !inside(*a) || !inside(*b) {
+                        continue;
+                    }
+                }
+                Shape::Angular { .. } => continue,
+            }
+            w.views.insert(0, name);
+            w.basis += &format!("; recovered at enlarged scale in {name}");
+        }
+    }
 }
 
 /// The view that carries each of *wants*: its first choice that is shown (in *frames*) and does
@@ -1434,6 +1568,73 @@ pub(crate) fn plan_inventory(
     cache: &footprints::Cache,
     excluded: &BTreeSet<String>,
 ) -> Result<(Planned, Vec<PlannedDimension>), Invalid> {
+    if !crate::planning::enabled(analysis) {
+        return plan_inventory_uncached(
+            analysis, spec, sheet, views, obstacles, held, cache, excluded,
+        );
+    }
+    // Detail-vs-parent proofs and hole-table trials can ask for identical placed ink.
+    // Table selection happens after this stage; retain every placement input, but do
+    // not solve again solely for that presentation policy or a frame's explanation.
+    let mut geometry_spec = spec.clone();
+    geometry_spec.hole_table = crate::hole_table::Setting::Auto;
+    // The placer reads the title block rectangle, never its cells or their text.
+    // Keep the actual rectangle below: an expanded title block still invalidates ink.
+    geometry_spec.sheet.title.clear();
+    let mut geometry_sheet = sheet.clone();
+    geometry_sheet.title.clear();
+    geometry_sheet.title_cells.clear();
+    geometry_sheet.basis.clear();
+    geometry_sheet.arrangement.clear();
+    let mut geometry_views = views.to_vec();
+    for view in &mut geometry_views {
+        view.basis.clear();
+    }
+    use sha2::{Digest, Sha256};
+    let analysis_key: [u8; 32] =
+        crate::planning::memo(analysis, "analysis_digest", Vec::new(), || {
+            Sha256::digest(serde_json::to_vec(analysis).expect("Analysis serializes")).into()
+        });
+    let key = serde_json::to_vec(&(
+        analysis_key,
+        geometry_spec,
+        geometry_sheet,
+        geometry_views,
+        obstacles,
+        held,
+        excluded,
+    ))
+    .expect("dimension placement inputs serialize");
+    crate::planning::memo(analysis, "dimension_placement", key.clone(), || {
+        // Stateless reconstruction and title edits revisit the same physical placement.
+        // This bounded process memo owns its results and hashes every read input, including
+        // the complete Analysis, so edited PMI/geometry cannot reuse an old placement.
+        type Inventory = Result<(Planned, Vec<PlannedDimension>), Invalid>;
+        static MEMO: crate::planning::BoundedMemo<Inventory> =
+            crate::planning::BoundedMemo::new(64);
+        let digest: [u8; 32] = Sha256::digest(&key).into();
+        if let Some(result) = MEMO.get(&digest) {
+            return result;
+        }
+        let result = plan_inventory_uncached(
+            analysis, spec, sheet, views, obstacles, held, cache, excluded,
+        );
+        MEMO.insert(digest, result.clone());
+        result
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn plan_inventory_uncached(
+    analysis: &Analysis,
+    spec: &Spec,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    obstacles: &[PlannedDimension],
+    held: &[PlannedDimension],
+    cache: &footprints::Cache,
+    excluded: &BTreeSet<String>,
+) -> Result<(Planned, Vec<PlannedDimension>), Invalid> {
     let (mut wants, mut problems, notes) = wants(analysis);
     let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
     authored::append(analysis, spec, &mut wants)?;
@@ -1452,11 +1653,11 @@ pub(crate) fn plan_inventory(
         .iter()
         .filter_map(|v| {
             let name = v.id.strip_prefix("v:")?;
-            NAMES
-                .contains(&name)
+            (NAMES.contains(&name) || crate::detail::NAMES.contains(&name))
                 .then(|| (name, Frame::new(analysis, v)))
         })
         .collect();
+    detail_routes(analysis, &mut wants, views);
     let authored_ownership = authored::ownership(analysis, spec, &wants);
     problems.extend(chosen_views(&mut wants, spec, &frames)?);
     plates::prefer_readable(analysis, &mut wants, &frames, Some(spec));
@@ -1469,7 +1670,10 @@ pub(crate) fn plan_inventory(
     };
     precision::apply(spec, &mut wants)?;
     for (i, owner) in display_owners.iter().enumerate() {
+        // Baseline arithmetic can convey a shorter interval through longer
+        // stations. It shares placement ownership, not one printed scalar.
         if let Some(j) = owner
+            && (wants[i].value - wants[*j].value).abs() <= 1e-6
             && (precision::leading(spec, &wants[i]).is_some()
                 || precision::leading(spec, &wants[*j]).is_some())
             && precision::leading(spec, &wants[i]).map_or_else(
@@ -1880,14 +2084,62 @@ pub(crate) fn plan_inventory(
         .map(|w| labels.contains_key(w.id.as_str()))
         .collect();
     let alone = placement::separate(&owner, &drawn, &chosen, &sides, &mut lane);
+    // Local tolerances measure band lengths, never cumulative positions. Keep those
+    // explicit requirements in a separate stack opposite the inspection baseline.
+    let has_baseline = all.iter().any(|w| w.id.ends_with("/step_position.length"));
+    let local_tolerances: std::collections::BTreeSet<usize> = all
+        .iter()
+        .enumerate()
+        .filter(|(i, w)| {
+            has_baseline
+                && owner[*i].is_some()
+                && drawn[*i]
+                && w.id.ends_with("/step.length")
+                && spec
+                    .dimensions
+                    .get(&w.id)
+                    .is_some_and(|d| d.tolerance.is_some() && d.place.is_none())
+        })
+        .map(|(i, _)| i)
+        .collect();
+    let mut locals: Vec<_> = local_tolerances.iter().copied().collect();
+    locals.sort_by(|&i, &j| all[i].value.total_cmp(&all[j].value).then(i.cmp(&j)));
+    let mut next = BTreeMap::new();
+    for i in locals {
+        let Some((view, side)) = chosen[i].zip(sides[i]) else {
+            continue;
+        };
+        let opposite = match side {
+            placement::Side::Right => placement::Side::Left,
+            placement::Side::Left => placement::Side::Right,
+            placement::Side::Above => placement::Side::Below,
+            placement::Side::Below => placement::Side::Above,
+        };
+        let n = next.entry((view, opposite)).or_insert_with(|| {
+            (0..all.len())
+                .filter(|j| {
+                    chosen[*j] == Some(view)
+                        && sides[*j] == Some(opposite)
+                        && matches!(all[*j].shape, Shape::Linear { .. })
+                        && owner[*j].is_none()
+                })
+                .map(|j| lane[j] + 1)
+                .max()
+                .unwrap_or(0)
+        });
+        sides[i] = Some(opposite);
+        lane[i] = *n;
+        *n += 1;
+    }
     let mut placed: Vec<Option<Placed>> = all
         .iter()
         .zip(&chosen)
         .zip(sides.iter().zip(&lane))
         .zip(&owner)
-        .map(|(((w, view), (side, lane)), owner)| {
+        .enumerate()
+        .map(|(i, (((w, view), (side, lane)), owner))| {
             view.zip(*side)
-                .filter(|_| owner.is_none())
+                .filter(|_| owner.is_none() || local_tolerances.contains(&i))
                 .and_then(|(v, side)| placement::place(&frames[v], w, side, *lane))
         })
         .collect();
@@ -2043,6 +2295,12 @@ pub(crate) fn plan_inventory(
         &mut placed,
         &page,
     );
+    // Explicit tolerances can revive local band lengths conveyed by a baseline. Settle
+    // their combined ink once more: the outer overall witness must not run through a
+    // toleranced local label. Keep the measured quantities and all pins intact.
+    if !local_tolerances.is_empty() {
+        placement::settle_fixed(&mut placed, &fixed, obstacles, analysis, sheet, views);
+    }
     // Merged automatic items now have their final ink. Resolve oblique authored
     // quantities against it; the later leader refinement sees these settled positions.
     placement::clear_aligned(
@@ -2909,9 +3167,10 @@ pub(crate) fn leader_reentry(
     d: &PlannedDimension,
 ) -> f64 {
     let (Some(v), Some(shaft)) = (
-        views
-            .iter()
-            .find(|v| v.id == d.view && NAMES.contains(&v.id.strip_prefix("v:").unwrap_or(&v.id))),
+        views.iter().find(|v| {
+            let name = v.id.strip_prefix("v:").unwrap_or(&v.id);
+            v.id == d.view && (NAMES.contains(&name) || crate::detail::NAMES.contains(&name))
+        }),
         d.placed.as_ref().and_then(|p| p.lines.first()),
     ) else {
         return 0.0;
@@ -2938,13 +3197,13 @@ pub(crate) fn placement_options_with_spec(
     {
         return BTreeMap::new();
     }
+    detail_routes(analysis, &mut wants, views);
     let original = wants.clone();
     let frames: BTreeMap<&str, Frame> = views
         .iter()
         .filter_map(|v| {
             let name = v.id.strip_prefix("v:")?;
-            NAMES
-                .contains(&name)
+            (NAMES.contains(&name) || crate::detail::NAMES.contains(&name))
                 .then(|| (name, Frame::new(analysis, v)))
         })
         .collect();
@@ -3026,6 +3285,51 @@ pub(crate) fn measurement_ids(analysis: &Analysis) -> BTreeSet<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rejected_head_routes_leave_parent_witnesses_untouched() {
+        let (_, mut a) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/turned.step"),
+        )
+        .unwrap();
+        let p = crate::model::plan(&a, &Spec::default()).unwrap();
+        let mut v = p.views.iter().find(|v| v.id == "v:front").unwrap().clone();
+        a.recognition = None;
+        let f = &mut a.features[0];
+        f.kind = "turned_step".into();
+        f.parameters = serde_json::json!({"axis":"x","lo":0.,"hi":10.,"diameter":8.,"profile":{"axis_origin":[0.,0.,0.]}}).as_object().unwrap().clone();
+        let feature = f.id.clone();
+        v.id = "v:detail_a".into();
+        v.detail = Some(serde_json::from_value(serde_json::json!({
+            "label":"A","axis":0,"source_view":"v:front","kind":"turned-head",
+            "bounds":[[0.,-5.,-5.],[5.,5.,5.]],"marked_bounds":[[0.,-5.,-5.],[5.,5.,5.]],
+            "dimensions":[want_id(&feature,"step.length")],"scale":2.,"authored":false,"partial_profile":false
+        })).unwrap());
+        let mut w = size(&feature, "step.length", 0., 10., &["10"]).0;
+        if let Shape::Linear { a, b, .. } = &mut w.shape {
+            a[1] = 0.;
+            b[1] = 0.;
+        }
+        let original = w.clone();
+        detail_routes(&a, std::slice::from_mut(&mut w), std::slice::from_ref(&v));
+        let witnesses = |w: &Want| match w.shape {
+            Shape::Linear { a, b, .. } => [a, b],
+            _ => unreachable!(),
+        };
+        assert_eq!(w.views, original.views);
+        assert_eq!(w.basis, original.basis);
+        assert_eq!(
+            witnesses(&w),
+            witnesses(&original),
+            "a rejected crop must not change the parent's shoulders"
+        );
+        // A full shoulder crop still recovers the length at the positive silhouette.
+        v.detail.as_mut().unwrap().bounds = [[0., -5., 3.], [10., 5., 5.]];
+        detail_routes(&a, std::slice::from_mut(&mut w), &[v]);
+        assert_eq!(w.views[0], "detail_a");
+        assert_eq!(witnesses(&w), [[0., 0., 4.], [10., 0., 4.]]);
+    }
 
     #[test]
     fn side_only_callout_corridors_grow_with_authored_precision() {

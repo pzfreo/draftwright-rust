@@ -1059,6 +1059,47 @@
       },
       "additionalProperties": false
     },
+    "detail": {
+      "type": "object",
+      "properties": {
+        "around": {
+          "type": [
+            "string",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "from": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(front|plan|side|section_([a-h])\\2)(?![\\s\\S])"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scale_factor": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "around"
+      ]
+    },
     "view": {
       "type": "object",
       "properties": {
@@ -1128,6 +1169,16 @@
           "anyOf": [
             {
               "$ref": "#/$defs/view_place"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/detail"
             },
             {
               "type": "null"

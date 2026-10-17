@@ -1064,9 +1064,7 @@ pub(super) fn refine(
                     .dimensions
                     .get(&items[i].id)
                     .is_some_and(|d| d.place.is_some())
-                && placed[i]
-                    .as_ref()
-                    .is_some_and(|p| extension_contacts(&extensions, &p.lines, p.label_box).0 > 0)
+                && placed[i].is_some()
         })
         .collect();
     if todo.is_empty() {
@@ -1131,20 +1129,52 @@ pub(super) fn refine(
             .copied()
             .collect();
         let before = extension_contacts(&extensions, &old.lines, old.label_box);
+        let probe = grow([elbow[0], elbow[1], elbow[0], elbow[1]], span);
+        let mut probe_ink = Vec::new();
+        let mut probe_uncertain = Vec::new();
+        for (k, v) in views.iter().enumerate() {
+            if boxes_meet(view_reach[k], probe) {
+                let (m, u) = gathered[k].get_or_init(|| view_ink(v));
+                probe_ink.extend(m.iter().copied());
+                probe_uncertain.extend(u.iter().copied());
+            }
+        }
+        probe_ink.extend(extensions.iter().map(|(_, s)| *s));
+        let old_run = old.lines.iter().any(|s| runs_beside(*s, &probe_ink))
+            || (w
+                .measurements
+                .iter()
+                .any(|m| m.parameter == "chamfer.length")
+                && probe_uncertain
+                    .iter()
+                    .any(|b| old.lines.iter().any(|s| buried(*s, *b) > 2.0)));
+        if before.0 == 0 && !old_run {
+            continue;
+        }
         // Every station of the local row, shoulder-only changes first, kept only while it is
         // no longer than the old route by 2 mm and lowers the contacts without the text gaining
         // one: text on an extension line is worse than a leader across it.
         let mut candidates = Vec::new();
-        let reach = ROW as i32;
+        let reach = (if old_run { 3.0 * ROW } else { ROW }) as i32;
         let shifts = std::iter::once([0, 0]).chain((-reach..=reach).flat_map(|x| {
             (-reach..=reach)
                 .filter(move |y| x != 0 || *y != 0)
                 .map(move |y| [x, y])
         }));
         let shelf = (end[0] - elbow[0]).abs();
-        for shift in shifts {
-            let q = [0, 1].map(|k| elbow[k] + f64::from(shift[k]) * STEP);
-            let t = if shift == [0, 0] {
+        let mut elbows: Vec<P2> = shifts
+            .map(|shift| [0, 1].map(|k| elbow[k] + f64::from(shift[k]) * STEP))
+            .collect();
+        if super::turned::axial_datum(analysis).is_some_and(|(k, _)| k == 2) {
+            // A new inspection baseline can occupy the old diameter column. The opposite
+            // silhouette is the same diameter; try its mirrored column under every existing
+            // length, feature, arrowhead and text-clearance gate.
+            let outline = frame.outline();
+            let mirror = outline[0] + outline[2] - elbow[0];
+            elbows.extend((-reach..=reach).map(|dy| [mirror, elbow[1] + f64::from(dy) * STEP]));
+        }
+        for q in elbows {
+            let t = if q == elbow {
                 tip
             } else {
                 let site = nearest(&page_sites, q);
@@ -1153,7 +1183,8 @@ pub(super) fn refine(
                 }
                 rim_tip(site, q)
             };
-            if (q[0] - t[0]).hypot(q[1] - t[1]) < MIN_LEADER {
+            let shaft = (q[0] - t[0]).hypot(q[1] - t[1]);
+            if shaft < MIN_LEADER || shaft + shelf > old_length + 2.0 + 1e-5 {
                 continue;
             }
             for right in [right, !right] {
@@ -1169,8 +1200,13 @@ pub(super) fn refine(
                         continue;
                     }
                     let (_, lb) = label_geometry(q, e, right, label.min, label.max);
-                    let now = extension_contacts(&extensions, &lines, lb);
-                    if now.0 >= before.0 || now.1 > before.1 {
+                    let maximum = (before.0.saturating_sub(usize::from(!old_run)), before.1);
+                    let Some(now) =
+                        extension_contacts_bounded(&extensions, &lines, lb, Some(maximum))
+                    else {
+                        continue;
+                    };
+                    if now.0 > before.0 || now.1 > before.1 || (now.0 == before.0 && !old_run) {
                         continue;
                     }
                     let moved = (q[0] - elbow[0]).hypot(q[1] - elbow[1])
@@ -1236,14 +1272,12 @@ pub(super) fn refine(
         let crossed = |lines: &[[P2; 2]], e: [P2; 2]| lines.iter().any(|s| segments_cross(*s, e));
         // The text and the elbow keep off the outline: a label or an elbow within the label
         // pad of a model line reads as butting the part.
-        let on_model = |q: P2, lb: [f64; 4]| {
-            let pad = grow(lb, LABEL_PAD);
-            let at = grow([q[0], q[1], q[0], q[1]], LABEL_PAD);
-            (
-                near_model.iter().filter(|s| touches_box(**s, pad)).count(),
-                near_model.iter().any(|s| touches_box(*s, at)),
-            )
-        };
+        let model_grid = Grid::new([
+            near_model.iter().map(|s| segment_bounds(*s)).collect(),
+            Vec::new(),
+            Vec::new(),
+        ]);
+        let on_model = |q: P2, lb: [f64; 4]| model_contacts(&near_model, &model_grid, q, lb);
         let (old_text_model, old_elbow_model) = on_model(elbow, old.label_box);
         // The arrowhead keeps out of the extension lines it was clear of: a flare over the
         // start of one reads as a contact whatever the shaft does.
@@ -1271,7 +1305,7 @@ pub(super) fn refine(
                 lines
                     .iter()
                     .enumerate()
-                    .any(|(i, s)| touches_box(*s, *b) && *s != old.lines[i])
+                    .any(|(i, s)| buried(*s, *b) > buried(old.lines[i], *b) + 1e-6)
             }) && !lines.iter().any(|s| runs_beside(*s, &near_lines))
                 && !near_model
                     .iter()
@@ -1289,7 +1323,26 @@ pub(super) fn refine(
             continue;
         }
         // Fewest contacts first, then the least movement: the nearest acceptable route wins.
-        candidates.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
+        // Clearance checks are geometric work: compute their ranking once per candidate,
+        // rather than once per comparison. Keep the same stable ordering and exact score.
+        let mut ranked: Vec<_> = candidates
+            .into_iter()
+            .map(|c| {
+                let score = if old_run {
+                    length(&[[c.2, c.3], [c.3, c.4]])
+                } else {
+                    c.1
+                };
+                (head_on(c.2, c.3), score, c)
+            })
+            .collect();
+        ranked.sort_by(|a, b| {
+            a.2.0
+                .cmp(&b.2.0)
+                .then(a.0.cmp(&b.0))
+                .then(a.1.total_cmp(&b.1))
+        });
+        let candidates: Vec<_> = ranked.into_iter().map(|(_, _, c)| c).collect();
         let job = Job {
             side: None,
             view,
@@ -1342,24 +1395,30 @@ pub(super) fn refine(
                     .filter(|proof| proof.annotation_clear(v, &old, true))
                     .map(|proof| (v, proof))
             });
-        let acceptable = |c: &Candidate| {
-            if c.hard > prior.hard
-                || c.crossings > prior.crossings
-                || c.feature_crossings > prior.feature_crossings
-                || c.outside > prior.outside
-                || c.text > prior.text
-                || c.furniture > prior.furniture
-                || c.beside > prior.beside
-                || c.grazing > prior.grazing
-            {
-                return None;
-            }
-            let p = c.placed();
-            if interior.is_some_and(|(v, proof)| !proof.annotation_clear(v, &p, true)) {
-                return None;
-            }
-            Some(p)
-        };
+        let acceptable =
+            |c: &Candidate| {
+                if c.hard > prior.hard
+                    || c.crossings > prior.crossings
+                    || c.feature_crossings > prior.feature_crossings
+                    || c.outside > prior.outside
+                    || c.text > prior.text
+                    || c.furniture > prior.furniture
+                    || c.beside > prior.beside
+                    || c.grazing > prior.grazing
+                {
+                    return None;
+                }
+                let p = c.placed();
+                if fixed.labels.iter().any(|(_, b)| {
+                    boxes_overlap(p.label_box, *b) && !boxes_overlap(old.label_box, *b)
+                }) {
+                    return None;
+                }
+                if interior.is_some_and(|(v, proof)| !proof.annotation_clear(v, &p, true)) {
+                    return None;
+                }
+                Some(p)
+            };
         // Measuring a station against the placed ink is the expensive tier, so it runs last.
         let chosen = candidates.iter().find_map(|&(_, _, t, q, e, right, _)| {
             acceptable(&measure_at(&job, t, q, e, right, &fixed, page)?)
@@ -1487,6 +1546,17 @@ fn extension_contacts(
     lines: &[[P2; 2]],
     label: [f64; 4],
 ) -> (usize, usize) {
+    extension_contacts_bounded(extensions, lines, label, None).expect("an unbounded count")
+}
+
+/// Contacts only accumulate. Stop a candidate once it cannot pass the existing gates;
+/// every surviving candidate retains its exact unique-owner counts for the stable ranking.
+fn extension_contacts_bounded(
+    extensions: &[(usize, [P2; 2])],
+    lines: &[[P2; 2]],
+    label: [f64; 4],
+    maximum: Option<(usize, usize)>,
+) -> Option<(usize, usize)> {
     let pad = grow(label, LABEL_PAD);
     let mut pairs = std::collections::BTreeSet::new();
     let mut text = std::collections::BTreeSet::new();
@@ -1507,8 +1577,36 @@ fn extension_contacts(
         if on_text || lines.iter().any(|s| touches_box(*s, b)) {
             pairs.insert(*j);
         }
+        if maximum.is_some_and(|(p, t)| pairs.len() > p || text.len() > t) {
+            return None;
+        }
     }
-    (pairs.len(), text.len())
+    Some((pairs.len(), text.len()))
+}
+
+/// Bounds for broad-phase lookup. Non-finite geometry must remain an always-tested item.
+fn segment_bounds(s: [P2; 2]) -> [f64; 4] {
+    if s.iter().flatten().any(|v| !v.is_finite()) {
+        return [f64::NAN; 4];
+    }
+    [
+        s[0][0].min(s[1][0]),
+        s[0][1].min(s[1][1]),
+        s[0][0].max(s[1][0]),
+        s[0][1].max(s[1][1]),
+    ]
+}
+
+/// The grid changes only the candidate set: preserve the exact per-stroke predicate,
+/// duplicate-stroke counts, inclusive boundaries and non-finite fallback of the full scan.
+fn model_contacts(model: &[[P2; 2]], grid: &Grid, q: P2, label: [f64; 4]) -> (usize, bool) {
+    let pad = grow(label, LABEL_PAD);
+    let at = grow([q[0], q[1], q[0], q[1]], LABEL_PAD);
+    let mut text = 0;
+    grid.near(0, pad, |i| text += usize::from(touches_box(model[i], pad)));
+    let mut elbow = false;
+    grid.near(0, at, |i| elbow |= !elbow && touches_box(model[i], at));
+    (text, elbow)
 }
 
 /// Whether a leader segment runs within 0.3 mm of the given line-work for over 2 mm.
@@ -1529,7 +1627,36 @@ fn runs_beside(s: [P2; 2], ink: &[[P2; 2]]) -> bool {
     false
 }
 
+/// Length inside a conservative curved-face box; an attached route may leave it,
+/// while a refinement cannot increase its unverified travel through that box.
+fn buried(s: [P2; 2], b: [f64; 4]) -> f64 {
+    let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
+    for k in 0..2 {
+        let d = s[1][k] - s[0][k];
+        if d.abs() < 1e-12 {
+            if s[0][k] < b[k] || s[0][k] > b[k + 2] {
+                return 0.0;
+            }
+        } else {
+            let p = (b[k] - s[0][k]) / d;
+            let q = (b[k + 2] - s[0][k]) / d;
+            lo = lo.max(p.min(q));
+            hi = hi.min(p.max(q));
+        }
+    }
+    (hi - lo).max(0.0) * (s[1][0] - s[0][0]).hypot(s[1][1] - s[0][1])
+}
+
 fn touches_box(s: [P2; 2], b: [f64; 4]) -> bool {
+    // Wholly outside one side cannot meet the finite box. Keep endpoint contacts and
+    // run the unchanged clipping calculation for every broad-phase survivor.
+    if (s[0][0] < b[0] && s[1][0] < b[0])
+        || (s[0][0] > b[2] && s[1][0] > b[2])
+        || (s[0][1] < b[1] && s[1][1] < b[1])
+        || (s[0][1] > b[3] && s[1][1] > b[3])
+    {
+        return false;
+    }
     let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
     for k in 0..2 {
         let d = s[1][k] - s[0][k];
@@ -2452,11 +2579,11 @@ pub fn clear_routes(
         .iter()
         .filter_map(|v| {
             let name = v.id.strip_prefix("v:")?;
-            super::NAMES
-                .contains(&name)
+            (super::NAMES.contains(&name) || crate::detail::NAMES.contains(&name))
                 .then(|| (name, Frame::new(analysis, v)))
         })
         .collect();
+    super::detail_routes(analysis, &mut wants, views);
     super::route(&mut wants, &frames, analysis);
     let w = wants.iter().find(|w| w.id == id)?;
     let Shape::Callout { sites } = &w.shape else {
@@ -3002,6 +3129,81 @@ impl Search {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn refinement_grid_keeps_duplicate_strokes_and_boundary_contacts() {
+        use super::*;
+        let mut lines = vec![
+            [[0.0, 0.0], [10.0, 0.0]],
+            [[0.0, 0.0], [10.0, 0.0]],
+            [[4.0, -20.0], [4.0, 20.0]],
+            [[f64::NAN, -2.0], [3.0, 4.0]],
+        ];
+        let mut seed = 82;
+        for _ in 0..128 {
+            lines.push(std::array::from_fn(|_| {
+                std::array::from_fn(|_| 100.0 * lcg(&mut seed) - 50.0)
+            }));
+        }
+        let grid = Grid::new([
+            lines.iter().map(|s| segment_bounds(*s)).collect(),
+            Vec::new(),
+            Vec::new(),
+        ]);
+        let mut queries = vec![
+            ([0.0, 0.0], [2.0, 1.0, 4.0, 2.0]),
+            ([10.0, 0.0], [10.0, 0.0, 10.0, 0.0]),
+            ([200.0, -200.0], [199.0, -201.0, 201.0, -199.0]),
+            ([f64::NAN, 0.0], [f64::NAN, 0.0, 5.0, 5.0]),
+        ];
+        for _ in 0..100 {
+            let q = std::array::from_fn(|_| 200.0 * lcg(&mut seed) - 100.0);
+            queries.push((q, [q[0], q[1], q[0] + 5.0, q[1] + 5.0]));
+        }
+        for (q, label) in queries {
+            let pad = grow(label, LABEL_PAD);
+            let at = grow([q[0], q[1], q[0], q[1]], LABEL_PAD);
+            let exhaustive = (
+                lines.iter().filter(|s| touches_box(**s, pad)).count(),
+                lines.iter().any(|s| touches_box(*s, at)),
+            );
+            assert_eq!(
+                model_contacts(&lines, &grid, q, label),
+                exhaustive,
+                "{q:?} {label:?}"
+            );
+        }
+    }
+    #[test]
+    fn contact_limits_preserve_unique_owners_and_boundary_touches() {
+        use super::*;
+        let extensions = [
+            (7, [[0.0, -2.0], [0.0, 2.0]]),
+            (3, [[4.0, -2.0], [4.0, 2.0]]),
+            (7, [[0.0, -2.0], [0.0, 2.0]]),
+        ];
+        let lines = [[[-2.0, 0.0], [6.0, 0.0]]];
+        // Owner 3 touches the padded text's boundary; repeated owner 7 counts once.
+        let label = [2.0, -0.5, 3.0, 0.5];
+        assert_eq!(extension_contacts(&extensions, &lines, label), (2, 1));
+        assert_eq!(
+            extension_contacts_bounded(&extensions, &lines, label, Some((2, 1))),
+            Some((2, 1))
+        );
+        assert_eq!(
+            extension_contacts_bounded(&extensions, &lines, label, Some((1, 1))),
+            None
+        );
+        assert_eq!(
+            extension_contacts_bounded(&extensions, &lines, label, Some((2, 0))),
+            None
+        );
+        assert!(touches_box([[2.0, 2.0], [3.0, 3.0]], [0.0, 0.0, 2.0, 2.0]));
+        assert!(touches_box([[3.0, 3.0], [2.0, 2.0]], [0.0, 0.0, 2.0, 2.0]));
+        assert!(!touches_box(
+            [[2.0 + 1e-10, 2.0], [3.0, 3.0]],
+            [0.0, 0.0, 2.0, 2.0]
+        ));
+    }
     use super::*;
 
     /// The tip lies on the rim, radial towards the elbow (`holes._rim_tip`): the leader points at
@@ -3104,7 +3306,7 @@ mod tests {
             .flat_map(|(j, p)| p.lines[..2].iter().map(move |s| (j, *s)))
             .collect();
         for (id, contacts) in [
-            ("d:f:turned_step:1/step.diameter", (1, 0)),
+            ("d:f:turned_step:1/step.diameter", (0, 0)),
             ("d:f:turned_step:2/step.diameter", (0, 0)),
         ] {
             let callout = plan

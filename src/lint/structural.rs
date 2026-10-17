@@ -109,6 +109,7 @@ fn issue(id: String, code: &str, severity: Severity, message: String) -> LintIss
 pub fn check(drawing: &Drawing) -> Vec<LintIssue> {
     let mut issues = derived_view_identifiers(drawing);
     issues.extend(scale_stated(drawing));
+    issues.extend(detail_caption_clearance(drawing));
     issues.extend(cross_references(drawing));
     issues.extend(annotation_items(drawing));
     issues.extend(annotation_pairs(drawing));
@@ -120,6 +121,48 @@ pub fn check(drawing: &Drawing) -> Vec<LintIssue> {
     // Stream K7: what each label states against what its ink draws (`super::fidelity`).
     issues.extend(super::fidelity::check(drawing));
     issues
+}
+
+/// Detail captions take part in the same text comparison as every scale group.
+fn detail_caption_clearance(drawing: &Drawing) -> Vec<LintIssue> {
+    let mut out = Vec::new();
+    for caption in drawing
+        .sheet
+        .items
+        .iter()
+        .filter(|i| i.name.starts_with("detail_caption_"))
+    {
+        let Some(b) = caption.label else { continue };
+        for other in drawing
+            .sheet
+            .items
+            .iter()
+            .filter(|i| i.name != caption.name)
+        {
+            let Some(c) = other.label else { continue };
+            let dx = (b[0] - c[2]).max(c[0] - b[2]).max(0.0);
+            let dy = (b[1] - c[3]).max(c[1] - b[3]).max(0.0);
+            let gap = drawing
+                .text
+                .iter()
+                .find(|t| t.text.starts_with("DETAIL "))
+                .map_or((b[3] - b[1]) / 2.0, |t| t.size / 2.0);
+            if dx < gap && dy < gap {
+                let mut finding = issue(
+                    format!("l:detail_caption_clearance:{}:{}", caption.name, other.name),
+                    "detail_caption_clearance",
+                    Severity::Warning,
+                    format!(
+                        "{} needs readable clearance from {}.",
+                        caption.name, other.name
+                    ),
+                );
+                finding.subjects = vec![caption.name.clone(), other.name.clone()];
+                out.push(finding);
+            }
+        }
+    }
+    out
 }
 
 /// Compare positions within each page, retaining page identity on later-sheet findings.

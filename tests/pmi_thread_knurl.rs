@@ -55,14 +55,18 @@ fn analysed(stem: &str) -> (draftwright::haecceity::Part, Analysis) {
 fn analysed_bytes(name: &str, bytes: &[u8]) -> (draftwright::haecceity::Part, Analysis) {
     static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    // nextest runs each test in its own process, with its own counter starting at zero.
+    let thread = std::thread::current();
+    let test = thread.name().unwrap_or("unnamed");
     let scratch = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join("pmi_thread_knurl")
-        .join(n.to_string());
+        .join(format!("{}-{test}-{n}", std::process::id()));
     std::fs::create_dir_all(&scratch).unwrap();
     let path = scratch.join(name);
     std::fs::write(&path, bytes).unwrap();
     let out = model::analyse_native(&path).unwrap();
     std::fs::remove_file(&path).unwrap();
+    std::fs::remove_dir(&scratch).unwrap();
     out
 }
 
@@ -665,6 +669,72 @@ fn a_threaded_diameter_keeps_its_designation_and_a_plain_one_its_fit() {
     );
 }
 
+/// F1's thin manufacturing ink and K4's drawn transform must use the same crop as a detail.
+#[test]
+fn an_external_thread_detail_clips_its_ink_and_records_its_true_transform() {
+    let (part, a) = external_thread();
+    let manufacturing = draftwright::pmi_lowering::manufacturing(&a);
+    let thread = manufacturing
+        .owned
+        .iter()
+        .find(|o| {
+            matches!(
+                o.depiction.as_ref().map(|d| &d.kind),
+                Some(draftwright::pmi_lowering::DepictionKind::Thread { .. })
+            )
+        })
+        .unwrap();
+    let spec: Spec = serde_json::from_value(serde_json::json!({
+        "sheet": {"size": "A3", "scale": "1:2"},
+        "views": {"detail_c": {"detail": {"around": thread.owner, "scale_factor": 3.0}}}
+    }))
+    .unwrap();
+    let plan = model::plan(&a, &spec).unwrap();
+    let detail = plan
+        .views
+        .iter()
+        .find(|v| v.id == "v:detail_c")
+        .expect("authored detail");
+    let bounds = detail.detail.as_ref().unwrap().bounds;
+    let view = draftwright::haecceity::hlr::View::new(detail.direction, detail.up).unwrap();
+    let corners: Vec<_> = (0..8)
+        .map(|i| view.map([0, 1, 2].map(|k| bounds[(i >> k) & 1][k])))
+        .collect();
+    let lo = [0, 1].map(|k| corners.iter().map(|p| p[k]).fold(f64::INFINITY, f64::min));
+    let hi = [0, 1].map(|k| {
+        corners
+            .iter()
+            .map(|p| p[k])
+            .fold(f64::NEG_INFINITY, f64::max)
+    });
+    let centre = [0, 1].map(|k| (lo[k] + hi[k]) / 2.0);
+    let ink = draftwright::cosmetic::ink(&a, &manufacturing, detail);
+    assert!(
+        !ink.is_empty(),
+        "thread detail retains its conventional lines"
+    );
+    for curve in &ink {
+        let b = curve.bbox();
+        for k in 0..2 {
+            assert!(
+                b[k] >= detail.at[k] + detail.scale * (lo[k] - centre[k]) - 1e-6,
+                "{b:?}"
+            );
+            assert!(
+                b[k + 2] <= detail.at[k] + detail.scale * (hi[k] - centre[k]) + 1e-6,
+                "{b:?}"
+            );
+        }
+    }
+    let font =
+        draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
+    let drawing = model::render(&part, &a, &plan, &font).unwrap();
+    let frame = &drawing.sheet.frames["detail_c"];
+    let whole = view.map([0, 1, 2].map(|k| (a.envelope[0][k] + a.envelope[1][k]) / 2.0));
+    for k in 0..2 {
+        assert!((frame.at[k] - detail.at[k] - detail.scale * (whole[k] - centre[k])).abs() < 1e-6);
+    }
+}
 /// A reference is only useful while its complete, source-bound row reaches the sheet.
 #[test]
 fn manufacturing_references_require_complete_source_matched_ink() {

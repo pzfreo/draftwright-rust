@@ -31,7 +31,7 @@
 //!   23.7); along y, each contiguous run of three or more equal lengths is one `N× L` instead
 //!   (`_render_y_profile`).
 //! - **A baseline from the datum** replaces the chain of a profile that runs end to end of a part
-//!   turned whole when the part's PMI measures it from one end (#33; [`datum_end`]): a planar
+//!   turned whole by default. PMI keeps first say (#33; [`datum_end`]): a planar
 //!   datum feature on that end face (beyond draftwright), or PMI lengths from that end to its
 //!   shoulders (draftwright's `add_authored_step_positions`). The band at the datum keeps its
 //!   length, each further shoulder is located from the datum (`step_position.length` of the band
@@ -42,12 +42,11 @@
 //!   chain conveys it (`_step_chain_covers_extent`; ISSUE-955-a's "a surviving chain does not
 //!   release a redundant height").
 //!
-//! Not ported, as placement decisions the planners cannot see (they do not know the scale):
-//! draftwright's dropping of the smallest diameters when its row or column overflows, its
-//! stagger and dense-chain drop, and its enlarged details for a crowded head of short bands.
-//! Every item is planned, and placement reports what collides. A part of several turned bodies
-//! along one axis gives each body's chain the view that separates its axis line and witnesses on
-//! its own silhouette ([`own_body`], ARCH0020-2).
+//! Enlarged crowded-head and Y-chain recovery is planned at candidate scale in
+//! [`crate::detail`], retaining these exact IDs. Not ported: dropping the smallest diameters on
+//! overflow and stagger/dense-chain drops. Every item remains planned, and placement reports
+//! what collides. A part of several turned bodies along one axis gives each body's chain the
+//! view that separates its axis line and witnesses on its own silhouette ([`own_body`], ARCH0020-2).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -583,11 +582,11 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             && (p[0].1.lo - lo[k]).abs() <= 1e-3
             && (p[p.len() - 1].1.hi - hi[k]).abs() <= 1e-3
             && p.windows(2).all(|w| (w[0].1.hi - w[1].1.lo).abs() <= 1e-3);
-        // #33: a profile the PMI measures from one end is a baseline from that end, so the sheet
-        // and the inspection list agree; the overall length is its last rung.
+        // A whole multi-step profile uses one inspection end (PMI first, then the larger flat
+        // end); separate bodies keep their own chains and silhouette witnesses below.
         if full
             && p.len() >= 2
-            && let Some((high, from)) = datum_end(cx.analysis, p)
+            && let Some((high, from)) = profile_datum(cx.analysis, p)
         {
             let (shoulders, last) = baseline(p, high, &from);
             out.extend(shoulders);
@@ -812,6 +811,37 @@ fn datum_end(analysis: &Analysis, p: &[&Banded]) -> Option<(bool, String)> {
             sources[end].join(", ")
         ),
     ))
+}
+
+/// PMI has first say; otherwise measure from the larger flat end. Equal ends use the low
+/// station, giving a deterministic inspection origin independent of feature numbering.
+fn profile_datum(analysis: &Analysis, p: &[&Banded]) -> Option<(bool, String)> {
+    datum_end(analysis, p).or_else(|| {
+        let high = p.last()?.1.diameter > p.first()?.1.diameter + 1e-6;
+        Some((
+            high,
+            format!("the {} flat end", if high { "high" } else { "low" }),
+        ))
+    })
+}
+
+/// The common inspection origin for axial locations on a whole turned part.
+pub(super) fn axial_datum(analysis: &Analysis) -> Option<(usize, f64)> {
+    let frame = super::QFrame(crate::bridge::holes::frame(analysis));
+    let t = turned(analysis, &frame)?;
+    let mut read: Vec<_> = analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "turned_step")
+        .filter_map(|f| band(&frame.0, f).ok().map(|b| (f, b)))
+        .collect();
+    read.sort_by(|a, b| a.1.lo.total_cmp(&b.1.lo));
+    let p: Vec<_> = read.iter().collect();
+    if p.len() < 2 {
+        return None;
+    }
+    let (high, _) = profile_datum(analysis, &p)?;
+    Some((t.axis, analysis.envelope[usize::from(high)][t.axis]))
 }
 
 /// Profile *p*'s shoulders located from its datum end (the high end when *high*), named *from*:

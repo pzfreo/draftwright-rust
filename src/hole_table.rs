@@ -285,7 +285,7 @@ struct Frame {
 impl Frame {
     fn new(analysis: &Analysis, v: &PlannedView) -> Frame {
         let view = View::new(v.direction, v.up).expect("a planned view");
-        let (size, centre) = crate::model::extent(analysis, &view);
+        let (size, centre) = crate::detail::crop_extent(analysis, v);
         let (at, s) = (v.at, v.scale);
         Frame {
             view,
@@ -1663,6 +1663,27 @@ fn segments_cross(a: [[f64; 2]; 2], b: [[f64; 2]; 2]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn detail_obstacle_equals_its_crop_footprint() {
+        let (_, a) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/mounting_plate.step"),
+        )
+        .unwrap();
+        let spec = serde_json::from_value(serde_json::json!({"sheet":{"size":"A2","scale":"1:2"},"views":{"detail_c":{"detail":{"around":"f:hole:1","from":"plan","scale_factor":2}}}})).unwrap();
+        let p = crate::model::plan(&a, &spec).unwrap();
+
+        let v = p.views.iter().find(|v| v.id == "v:detail_c").unwrap();
+        let mut crop_only = p.clone();
+        crop_only.views = vec![v.clone()];
+        let footprint = crate::sheet_fit::footprints(&a, &crop_only)[0];
+        let frame = Frame::new(&a, v);
+        assert_eq!(frame.outline, footprint);
+        let bounds = v.detail.as_ref().unwrap().bounds;
+        let middle = [0, 1, 2].map(|k| (bounds[0][k] + bounds[1][k]) / 2.);
+        assert_eq!(frame.page(middle), v.at);
+    }
 
     #[test]
     fn balloon_band_assignment_maximises_cardinality_before_leader_length() {

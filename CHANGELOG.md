@@ -8,6 +8,17 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Added
 
+- Authored detail `from` selects an existing principal or section parent; `around` accepts
+  a feature/face ID or a nonempty list whose crops are united. Missing members and
+  degenerate projections in an explicit parent are refused. Mixed natural sources choose
+  the view with most visible members and explain the choice in the basis. Saved strings
+  remain compatible.
+
+- Enlarged orthographic detail views for crowded turned chains and heads, thin terminal
+  flanges, prismatic height ladders and authored feature crops. Details participate in sheet
+  planning, carry stable view IDs and their own scale, and draw parent circles, letters,
+  captions and relocated dimensions. A fitting iso keeps sheet scale beside a detail.
+  Verification and Python differences: [detail views](docs/detail-verification.md).
 - MCP `spec_schema {}` returns the full draft-2020-12 author Spec schema and its
   named `get_spec` read shape on demand. Tool schemas retain explicit typed top-level
   outlines, reducing session schema context from 42,681 to 34,389 bytes (19.43%).
@@ -41,6 +52,10 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- Automatic sheet candidates require dimensioned turned-step intervals to span at least
+  the printed annotation capital height in their owning view, including baseline replacements.
+  Explicit scales retain their geometry and warn below this floor. A complete, legible
+  A3 drawing keeps practical paper instead of growing to A2 solely for fill.
 - Keep geometry-authored angle arcs local to their support intersection and place aligned
   dimensions at a clear parallel offset, moving unpinned linear dimensions out of their way
   before escalating the sheet.
@@ -57,6 +72,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   ceiling, and warning-only cross-package quiddity pin checks in CI and release notes.
 - Additive Spec line-work switches and optional Plan view `line_style`/`from_spec`
   fields, shared with native sessions; no binding method changes.
+- Spec JSON accepts authored feature crops (`detail`, `around`, `from`, `scale_factor`)
+  and optional Plan view `detail` records; engine method signatures are unchanged.
 - Additive Spec text/style fields and annotation/note `from_spec` JSON provenance
   through the existing session methods; no new JavaScript methods or signatures.
 - Spec JSON accepts authored dimension fields; Analysis/7 exposes optional exact
@@ -108,6 +125,19 @@ All notable changes to draftwright-rust are recorded here, in the style of
   only their placed owner's explicit roles (#71).
 - Full fit-label ink drives reservation and placement; dimension lines and arrowheads are
   obstacles, final settlement includes callouts, and lint counts linear arrow flares (#72).
+
+### Fixed
+
+- Optional detail requests no longer veto valid ordinary drawings or cap principal scale.
+  Cropped edges meet thin zigzag break lines; captions follow real projected ink. Prismatic
+  details keep the feature silhouette and use preferred enlargement scales. Extent queries
+  map only the envelope, once per projected view, and large-paper omissions precede planning.
+- Multi-step turned profiles use one inspection end by default, preserving PMI datum
+  precedence and saved chain IDs. Cross-hole axial locations use the same end; baseline
+  lanes run shortest nearest the part. Valid complete larger principal views take precedence
+  over optional details under the practical-paper sheet rules.
+- Visible edges take precedence over hidden edges in the isometric as well as principal
+  views, including when a detail changes the isometric scale.
 
 ## 0.1.0-alpha.3 (2026-10-16)
 

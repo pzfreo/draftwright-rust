@@ -5,6 +5,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 
 #[cfg(not(target_arch = "wasm32"))]
 use crate::api::Features;
@@ -385,6 +386,7 @@ pub struct Session {
     redo: Vec<Spec>,
     stats: Stats,
     planner: Planner,
+    render_memo: crate::planning::BoundedMemo<Drawing>,
 }
 impl Session {
     #[cfg(not(target_arch = "wasm32"))]
@@ -442,6 +444,7 @@ impl Session {
             redo: Vec::new(),
             stats,
             planner,
+            render_memo: crate::planning::BoundedMemo::new(1),
         })
     }
     pub fn projections(&self) -> &Projections {
@@ -884,7 +887,20 @@ impl Session {
             geometry,
             annotations,
         };
-        let drawing = state.render(&self.part, &self.analysis, &self.font, &mut cache)?;
+        // Part, font and recognized geometry are fixed for this Session; PMI and
+        // Spec are its mutable rendering inputs. Reuse an exact preview's assembled
+        // drawing, still planning, placing geometry and computing ink/deltas each time.
+        let key: [u8; 32] = Sha256::digest(
+            serde_json::to_vec(&(spec, &self.analysis.pmi)).expect("render inputs serialize"),
+        )
+        .into();
+        let drawing = if let Some(drawing) = self.render_memo.get(&key) {
+            drawing
+        } else {
+            let drawing = state.render(&self.part, &self.analysis, &self.font, &mut cache)?;
+            self.render_memo.insert(key, drawing.clone());
+            drawing
+        };
         state.problems.extend(drawing.problems.clone());
         Ok(Evaluation {
             state,

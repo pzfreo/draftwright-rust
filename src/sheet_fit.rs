@@ -41,6 +41,44 @@ pub fn min_legible_scale(analysis: &Analysis) -> f64 {
         .unwrap_or(needed)
 }
 
+/// Minimum primary step span: the dimension font's printed capital height, mm.
+/// The 3 mm em includes unused font space; a 2.5 mm flange can still exceed its ink.
+pub const MIN_STEP_SPAN: f64 = crate::dims::CAP;
+
+/// Primary axial step spans need at least one capital height on paper. A collision-free
+/// label alone does not make a compressed profile readable. Small treatments
+/// stated by notes (grooves, chamfers and radii) do not set this floor. Baseline
+/// stations still owe the physical interval they replace; enlarged detail owners
+/// use their own scale, never the parent sheet's.
+pub fn illegible_steps(analysis: &Analysis, plan: &Plan) -> usize {
+    let mut checked = std::collections::BTreeSet::new();
+    plan.dimensions
+        .iter()
+        .filter(|d| d.placed.is_some())
+        .flat_map(|d| {
+            let scale = plan
+                .views
+                .iter()
+                .find(|v| v.id == d.view)
+                .map_or(0.0, |v| v.scale);
+            d.measurements.iter().filter_map(move |m| {
+                if !matches!(m.parameter.as_str(), "step.length" | "step_position.length") {
+                    return None;
+                }
+                let f = analysis
+                    .features
+                    .iter()
+                    .find(|f| f.id == m.feature && f.kind == "turned_step")?;
+                let length =
+                    f.parameters.get("hi")?.as_f64()? - f.parameters.get("lo")?.as_f64()?;
+                (length.is_finite() && length > 0.0 && length * scale + 1e-6 < MIN_STEP_SPAN)
+                    .then_some(m.feature.as_str())
+            })
+        })
+        .filter(|feature| checked.insert(*feature))
+        .count()
+}
+
 fn include(b: &mut Rect, p: [f64; 2]) {
     b[0] = b[0].min(p[0]);
     b[1] = b[1].min(p[1]);
@@ -123,6 +161,19 @@ pub(crate) fn furniture_bounds(
             out.push(b);
         }
     }
+    for v in views.iter().filter(|v| v.sheet == sheet.number) {
+        if let Some(d) = &v.detail {
+            out.push(text_box(
+                &crate::detail::caption(d),
+                crate::section::FONT_SIZE,
+                crate::detail::caption_at(v),
+            ));
+            if let Some(source) = views.iter().find(|s| s.id == d.source_view) {
+                let (_, at) = crate::detail::marker(analysis, d, source, views, sheet.page, &[]);
+                out.push(text_box(&d.label, crate::section::FONT_SIZE, at));
+            }
+        }
+    }
     for v in views
         .iter()
         .filter(|v| v.sheet == sheet.number && v.cut.is_some())
@@ -176,8 +227,7 @@ pub fn footprints(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
                 v.at[1] + v.scale * b[3],
             ]
         } else {
-            let view = haecceity::hlr::View::new(v.direction, v.up).expect("planned view");
-            let (size, _) = crate::model::extent(analysis, &view);
+            let (size, _) = crate::detail::crop_extent(analysis, v);
             [
                 v.at[0] - v.scale * size[0] / 2.0,
                 v.at[1] - v.scale * size[1] / 2.0,
@@ -311,6 +361,29 @@ fn correct_sections(analysis: &Analysis, plan: &mut Plan) {
             let b = curve.bbox();
             include(&mut groups[i], [b[0], b[1]]);
             include(&mut groups[i], [b[2], b[3]]);
+        }
+        if let Some(detail) = &v.detail {
+            let laid = crate::dims::font()
+                .text(&crate::detail::caption(detail), crate::section::FONT_SIZE);
+            let at = crate::detail::caption_at(v);
+            include(&mut groups[i], [at[0] + laid.min[0], at[1] + laid.min[1]]);
+            include(&mut groups[i], [at[0] + laid.max[0], at[1] + laid.max[1]]);
+            if let Some(j) = plan.views.iter().position(|p| p.id == detail.source_view) {
+                let (circle, at) = crate::detail::marker(
+                    analysis,
+                    detail,
+                    &plan.views[j],
+                    &plan.views,
+                    plan.sheet.page,
+                    &[],
+                );
+                let b = circle.bbox();
+                include(&mut groups[j], [b[0], b[1]]);
+                include(&mut groups[j], [b[2], b[3]]);
+                let laid = crate::dims::font().text(&detail.label, crate::section::FONT_SIZE);
+                include(&mut groups[j], [at[0] + laid.min[0], at[1] + laid.min[1]]);
+                include(&mut groups[j], [at[0] + laid.max[0], at[1] + laid.max[1]]);
+            }
         }
         if let Some(cut) = &v.cut {
             let projection = haecceity::hlr::View::new(v.direction, v.up).expect("section view");
@@ -483,6 +556,9 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
         if !crate::model::drawn_sheets_fit(analysis, plan) {
             correct_sections(analysis, plan);
         }
+        return;
+    }
+    if plan.views.iter().any(|v| v.detail.is_some()) {
         return;
     }
     let Some(iso_index) = plan.views.iter().position(|v| v.id == "v:iso") else {
@@ -782,6 +858,7 @@ pub(crate) fn pack_gdt(analysis: &Analysis, template: &Plan, recipient: &Plan) -
         }
     }
     let sheet_scale = p.sheet.scale_factor;
+    let has_detail = p.views.iter().any(|v| v.detail.is_some());
     if let Some(iso) = p.views.iter_mut().find(|v| v.id == "v:iso") {
         boxes.push(tb);
         for b in &mut boxes {
@@ -801,7 +878,12 @@ pub(crate) fn pack_gdt(analysis: &Analysis, template: &Plan, recipient: &Plan) -
             size,
         );
         let fit = ((rect[2] - rect[0]) / size[0]).min((rect[3] - rect[1]) / size[1]);
-        let scale = crate::layout::keep_sheet_scale(iso.scale.min(0.9 * fit), sheet_scale);
+        let desired = if has_detail {
+            iso.scale.min(sheet_scale)
+        } else {
+            iso.scale
+        };
+        let scale = crate::layout::keep_sheet_scale(desired.min(0.9 * fit), sheet_scale);
         if scale <= 0.0 {
             return None;
         }
@@ -937,8 +1019,7 @@ pub(crate) fn reserve_linear_corridors(
         // Settled control frames and edited labels use their real ink, as pack_gdt does.
         // Estimated empty lanes are not additional physical drafting demands.
         for v in plan.views.iter_mut().filter(|v| v.id != "v:iso") {
-            let frame = haecceity::hlr::View::new(v.direction, v.up).expect("planned view");
-            let size = crate::model::extent(analysis, &frame).0;
+            let size = crate::detail::crop_extent(analysis, v).0;
             v.area = [
                 v.at[0] - v.scale * size[0] / 2.0,
                 v.at[1] - v.scale * size[1] / 2.0,
@@ -1088,6 +1169,15 @@ pub(crate) fn reserve_linear_corridors(
                 .filter(|(_, v)| v.cut.is_some())
             {
                 shifts[i][0] = shifts[side][0];
+                // A measured side corridor may reach its section partner. Carry
+                // the section beyond the final side edge, preserving the old gap;
+                // an actual positive gap also avoids rounded touching rectangles.
+                if old[i].1[0] >= old[side].1[0] {
+                    let gap = (old[i].1[0] - old[side].1[2]).max(1e-6);
+                    shifts[i][0] = shifts[i][0].max(
+                        plan.views[side].area[2] + shifts[side][0] + gap - plan.views[i].area[0],
+                    );
+                }
             }
         }
         // Keep the assembled row inside the drawing area; source annotations and
@@ -1340,6 +1430,25 @@ pub(crate) fn reserve_linear_corridors(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn foreign_sheet_details_do_not_reserve_local_furniture() {
+        let (_, a) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/mounting_plate.step"),
+        )
+        .unwrap();
+        let spec = serde_json::from_value(serde_json::json!({"sheet":{"size":"A2","scale":"1:2"},"views":{"detail_c":{"detail":{"around":"f:hole:1","from":"plan","scale_factor":2}}}})).unwrap();
+        let mut p = crate::model::plan(&a, &spec).unwrap();
+
+        for v in &mut p.views {
+            v.sheet = 2;
+        }
+        let with = furniture_bounds(&a, &p.sheet, &p.views);
+        p.views.retain(|v| v.detail.is_none());
+        assert_eq!(with, furniture_bounds(&a, &p.sheet, &p.views));
+    }
+
     fn candidate(scale: f64, width: f64, fill: f64) -> (f64, f64, f64) {
         (scale, width, fill)
     }

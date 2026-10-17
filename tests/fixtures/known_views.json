@@ -87,31 +87,31 @@
     "part": "ctc04",
     "fact": "centre:front",
     "verdict": "undetermined",
-    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls; tests/bands.rs compares the bands): the sheet differs (A2 at 1:5 against A1 at 1:5): the bridge refuses ctc04's recognition (face 367's area differs from OpenCascade's by 0.15 %), so the port plans it without features and reserves none of draftwright's bands (left and right 50.047 mm, plan balloon ring 21.5 mm, above plan 140 mm, section A–A) or its angular dimensions and hole tables; the staggered-side arrangement draftwright's annotation-demand profile chose, with that profile's protected gutters."
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls; tests/bands.rs compares the bands): the sheet differs (A2 at 1:5 against A1 at 1:5): the bridge refuses ctc04's recognition (face 367's area differs from OpenCascade's by 0.15 %), so the port plans it without features and reserves none of draftwright's bands (left and right 50.047 mm, plan balloon ring 21.5 mm, above plan 140 mm, section A\u2013A) or its angular dimensions and hole tables; the staggered-side arrangement draftwright's annotation-demand profile chose, with that profile's protected gutters."
   },
   {
     "part": "ctc04",
     "fact": "centre:iso",
     "verdict": "undetermined",
-    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls; tests/bands.rs compares the bands): the sheet differs (A2 at 1:5 against A1 at 1:5): the bridge refuses ctc04's recognition (face 367's area differs from OpenCascade's by 0.15 %), so the port plans it without features and reserves none of draftwright's bands (left and right 50.047 mm, plan balloon ring 21.5 mm, above plan 140 mm, section A–A) or its angular dimensions and hole tables; the staggered-side arrangement draftwright's annotation-demand profile chose, with that profile's protected gutters; the isometric's rectangle, which is what the views leave."
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls; tests/bands.rs compares the bands): the sheet differs (A2 at 1:5 against A1 at 1:5): the bridge refuses ctc04's recognition (face 367's area differs from OpenCascade's by 0.15 %), so the port plans it without features and reserves none of draftwright's bands (left and right 50.047 mm, plan balloon ring 21.5 mm, above plan 140 mm, section A\u2013A) or its angular dimensions and hole tables; the staggered-side arrangement draftwright's annotation-demand profile chose, with that profile's protected gutters; the isometric's rectangle, which is what the views leave."
   },
   {
     "part": "ctc04",
     "fact": "centre:plan",
     "verdict": "undetermined",
-    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls; tests/bands.rs compares the bands): the sheet differs (A2 at 1:5 against A1 at 1:5): the bridge refuses ctc04's recognition (face 367's area differs from OpenCascade's by 0.15 %), so the port plans it without features and reserves none of draftwright's bands (left and right 50.047 mm, plan balloon ring 21.5 mm, above plan 140 mm, section A–A) or its angular dimensions and hole tables; the staggered-side arrangement draftwright's annotation-demand profile chose, with that profile's protected gutters."
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls; tests/bands.rs compares the bands): the sheet differs (A2 at 1:5 against A1 at 1:5): the bridge refuses ctc04's recognition (face 367's area differs from OpenCascade's by 0.15 %), so the port plans it without features and reserves none of draftwright's bands (left and right 50.047 mm, plan balloon ring 21.5 mm, above plan 140 mm, section A\u2013A) or its angular dimensions and hole tables; the staggered-side arrangement draftwright's annotation-demand profile chose, with that profile's protected gutters."
   },
   {
     "part": "ctc04",
     "fact": "centre:side",
     "verdict": "undetermined",
-    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls; tests/bands.rs compares the bands): the sheet differs (A2 at 1:5 against A1 at 1:5): the bridge refuses ctc04's recognition (face 367's area differs from OpenCascade's by 0.15 %), so the port plans it without features and reserves none of draftwright's bands (left and right 50.047 mm, plan balloon ring 21.5 mm, above plan 140 mm, section A–A) or its angular dimensions and hole tables; the staggered-side arrangement draftwright's annotation-demand profile chose, with that profile's protected gutters."
+    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls; tests/bands.rs compares the bands): the sheet differs (A2 at 1:5 against A1 at 1:5): the bridge refuses ctc04's recognition (face 367's area differs from OpenCascade's by 0.15 %), so the port plans it without features and reserves none of draftwright's bands (left and right 50.047 mm, plan balloon ring 21.5 mm, above plan 140 mm, section A\u2013A) or its angular dimensions and hole tables; the staggered-side arrangement draftwright's annotation-demand profile chose, with that profile's protected gutters."
   },
   {
     "part": "ctc04",
     "fact": "sheet",
     "verdict": "undetermined",
-    "reason": "Draftwright's first choice, with the bands its features need (left and right 50.047 mm, plan balloon ring 21.5 mm, above plan 140 mm; angular dimensions, section A–A, hole tables), was A1 at 1:5. The bridge refuses ctc04's recognition (face 367's area: 13.081 mm² in haecceity, 13.100 in OpenCascade, outside the bridge's 1e-3 proof), so the port plans it without features and fits A2 at 1:5."
+    "reason": "Draftwright's first choice, with the bands its features need (left and right 50.047 mm, plan balloon ring 21.5 mm, above plan 140 mm; angular dimensions, section A\u2013A, hole tables), was A1 at 1:5. The bridge refuses ctc04's recognition (face 367's area: 13.081 mm\u00b2 in haecceity, 13.100 in OpenCascade, outside the bridge's 1e-3 proof), so the port plans it without features and fits A2 at 1:5."
   },
   {
     "part": "ftc06",
@@ -135,7 +135,7 @@
     "part": "ftc06",
     "fact": "centre:section_aa",
     "verdict": "undetermined",
-    "reason": "Section A–A sits in the front's row in both, but the row differs (see centre:front) and so does the slot: draftwright places the section in the leftmost free gap right of the side view and its annotations (section decision: placed at x=349.4); the port centres it in the block the layout reserves right of the side view's band (layout geometry's SECTION_X), having no annotations to clear yet."
+    "reason": "Section A\u2013A sits in the front's row in both, but the row differs (see centre:front) and so does the slot: draftwright places the section in the leftmost free gap right of the side view and its annotations (section decision: placed at x=349.4); the port centres it in the block the layout reserves right of the side view's band (layout geometry's SECTION_X), having no annotations to clear yet."
   },
   {
     "part": "ftc06",
@@ -232,12 +232,6 @@
     "fact": "scale:iso",
     "verdict": "undetermined",
     "reason": "The isometric's own scale (draftwright 1): draftwright's staggered-side profile projects the isometric at 0.65 of the sheet scale before fitting it; draftwright fits the isometric to a rectangle left by different view blocks and caps its growth at annotation obstacles."
-  },
-  {
-    "part": "hanger",
-    "fact": "views",
-    "verdict": "undetermined",
-    "reason": "Draftwright adds detail view A (detail decision: placed); detail views are not planned by the port yet."
   },
   {
     "part": "m1000",
@@ -435,6 +429,48 @@
     "part": "string_post",
     "fact": "views",
     "verdict": "undetermined",
-    "reason": "Draftwright plans section A–A through the blind ⌀1.6 axial hole (its first placement reserves the section) but then skips it: its final cutting-plane ink crosses a required feature leader (section decision: skipped, leader_conflict, m_flat_z0). The port plans the same section and keeps it, having no leaders yet; whether it survives once leaders are ported is open."
+    "reason": "Draftwright plans section A\u2013A through the blind \u23001.6 axial hole (its first placement reserves the section) but then skips it: its final cutting-plane ink crosses a required feature leader (section decision: skipped, leader_conflict, m_flat_z0). The port plans the same section and keeps it, having no leaders yet; whether it survives once leaders are ported is open."
+  },
+  {
+    "part": "grm05",
+    "fact": "centre:front",
+    "verdict": "rust-correct",
+    "reason": "The default connected turned profile now uses an inspection baseline, including its outside-arrow clearance; its principal blocks move with their reserved bands."
+  },
+  {
+    "part": "grm05",
+    "fact": "centre:plan",
+    "verdict": "rust-correct",
+    "reason": "The default connected turned profile now uses an inspection baseline, including its outside-arrow clearance; its principal blocks move with their reserved bands."
+  },
+  {
+    "part": "m10046",
+    "fact": "views",
+    "verdict": "equivalent",
+    "reason": "Detail views are now planned with stable IDs and exact per-view scales. Approved local dimensions move to their own crop; supported crop bounds and rectangular late-furniture placement differ from Python's captured drawing. The isometric keeps sheet scale when its detail reservation allows it. Compare docs/detail-verification.md and tests/detail_views.rs; tests/views.rs compares the same physical point across crop-centred camera transforms."
+  },
+  {
+    "part": "m10127",
+    "fact": "views",
+    "verdict": "equivalent",
+    "reason": "Detail views are now planned with stable IDs and exact per-view scales. Approved local dimensions move to their own crop; supported crop bounds and rectangular late-furniture placement differ from Python's captured drawing. The isometric keeps sheet scale when its detail reservation allows it. Compare docs/detail-verification.md and tests/detail_views.rs; tests/views.rs compares the same physical point across crop-centred camera transforms."
+  },
+  {
+    "part": "spool132",
+    "fact": "scale:iso",
+    "verdict": "equivalent",
+    "reason": "Detail views are now planned with stable IDs and exact per-view scales. Approved local dimensions move to their own crop; supported crop bounds and rectangular late-furniture placement differ from Python's captured drawing. The isometric keeps sheet scale when its detail reservation allows it. Compare docs/detail-verification.md and tests/detail_views.rs; tests/views.rs compares the same physical point across crop-centred camera transforms."
+  },
+  {
+    "part": "spool132",
+    "fact": "views",
+    "verdict": "equivalent",
+    "reason": "Detail views are now planned with stable IDs and exact per-view scales. Approved local dimensions move to their own crop; supported crop bounds and rectangular late-furniture placement differ from Python's captured drawing. The isometric keeps sheet scale when its detail reservation allows it. Compare docs/detail-verification.md and tests/detail_views.rs; tests/views.rs compares the same physical point across crop-centred camera transforms."
+  },
+  {
+    "part": "hanger",
+    "fact": "views",
+    "verdict": "rust-correct",
+    "reason": "Python adds detail A at 2:1. The full-width supported crop does not fit at the preferred enlargement in the estimated sheet layout, so Rust withholds it; a narrow or marginal enlargement is not useful. Recovery selects complete A3 1:2 principal views under the maintainer sheet rule, retaining the 4 mm thickness and supported heights without a detail. The separate centre/scale detail differences cease to apply when the detail is absent."
   }
 ]

@@ -150,7 +150,7 @@ fn hole_callout(d: &PlannedDimension) -> bool {
 /// Where world point *p* lands on the page in view *v* (the centre of the part's box lands on
 /// `at`; the page's x is `up × direction`).
 fn page_of(v: &PlannedView, analysis: &Analysis, p: [f64; 3]) -> [f64; 2] {
-    let [lo, hi] = analysis.envelope;
+    let [lo, hi] = v.detail.as_ref().map_or(analysis.envelope, |d| d.bounds);
     let (t, u) = (v.direction, v.up);
     let right = [
         u[1] * t[2] - u[2] * t[1],
@@ -550,6 +550,25 @@ fn a_hole_callouts_tip_is_on_the_rim_of_a_hole_it_names() {
 }
 
 /// The features the plan states *parameter* of.
+fn marks(plan: &Plan) -> Vec<Mark> {
+    plan.dimensions
+        .iter()
+        .map(|d| Mark {
+            name: d.id.clone(),
+            view: Some(d.view.clone()),
+            text: d.label.clone(),
+            claims: d
+                .measurements
+                .iter()
+                .map(|m| draftwright::output::Claim {
+                    feature: m.feature.clone(),
+                    parameter: m.parameter.clone(),
+                })
+                .collect(),
+        })
+        .collect()
+}
+
 fn stated<'a>(plan: &'a Plan, parameter: &str) -> BTreeSet<&'a str> {
     plan.dimensions
         .iter()
@@ -683,7 +702,19 @@ fn equal_diameters_on_different_features_are_stated_apart() {
 #[test]
 fn a_rear_view_is_never_added_and_one_asked_for_is_refused() {
     for (name, analysis, plan) in planned() {
-        let names: BTreeSet<&str> = plan.views.iter().map(|v| v.id.as_str()).collect();
+        for v in plan.views.iter().filter(|v| v.detail.is_some()) {
+            assert!(
+                draftwright::detail::NAMES
+                    .iter()
+                    .any(|n| v.id == format!("v:{n}"))
+            );
+        }
+        let names: BTreeSet<&str> = plan
+            .views
+            .iter()
+            .filter(|v| v.detail.is_none())
+            .map(|v| v.id.as_str())
+            .collect();
         assert!(
             names.is_subset(&BTreeSet::from([
                 "v:front",
@@ -959,7 +990,17 @@ fn each_turned_band_carries_its_diameter_and_length() {
             if plan.dimensions.iter().any(|d| d.id.contains("/step.")) {
                 for parameter in ["step.diameter", "step.length"] {
                     assert!(
-                        stated(plan, parameter).contains(b.id.as_str()),
+                        if parameter == "step.length" {
+                            lint::turned::outcomes(analysis, &marks(plan))
+                                .iter()
+                                .any(|o| {
+                                    o.feature == b.id
+                                        && o.parameter == parameter
+                                        && o.state == lint::turned::State::Placed
+                                })
+                        } else {
+                            stated(plan, parameter).contains(b.id.as_str())
+                        },
                         "{name}: {} has no {parameter}",
                         b.id
                     );
@@ -1117,7 +1158,7 @@ fn eccentric_cylinders_are_not_one_turned_profile() {
             item("f:turned_step:1", "step.diameter", "ø30"),
             item("f:turned_step:1", "step.length", "40"),
             item("f:turned_step:2", "step.diameter", "ø16"),
-            item("f:turned_step:2", "step.length", "(30)"),
+            item("f:turned_step:2", "step_position.length", "70"),
         ]
     );
 
@@ -1868,15 +1909,21 @@ fn a_rungs_witnesses_stand_on_its_levels_support() {
     let (mut seen, mut off_box) = (0, 0);
     for (name, analysis, plan) in planned() {
         let [lo, hi] = analysis.envelope;
-        let front = plan.views.iter().find(|v| v.id == "v:front");
         for d in &plan.dimensions {
             if !d.id.starts_with("d:step_level/step_height.length.h") {
                 continue;
             }
-            let (Some(p), Some(v)) = (&d.placed, front) else {
+            let (Some(p), Some(v)) = (&d.placed, plan.views.iter().find(|v| v.id == d.view)) else {
                 continue;
             };
-            assert_eq!(d.view, "v:front", "{name}: {}", d.id);
+            assert!(
+                d.view == "v:front"
+                    || v.detail
+                        .as_ref()
+                        .is_some_and(|d| d.source_view == "v:front"),
+                "{name}: {}",
+                d.id
+            );
             seen += 1;
             let z = lo[2] + d.value;
             let key = |z: f64| (z * 1e3).round() as i64;
@@ -2008,17 +2055,14 @@ fn a_shoulder_on_the_box_is_reported_not_drawn() {
     }
 }
 
-/// ISSUE-443-a, in part: on GRM-03's automatic sheet every turned shoulder is located along the
-/// axis, and the isometric is kept. The default plan states draftwright's four step lengths
-/// (0.5, 2, 3 and 18), each placed, keeps the isometric and stays on A4, as draftwright's sheet
-/// does, with no turned step left undimensioned. Not ported: draftwright gets there by re-planning
-/// (its captured sheet is A4 at 5:1, after A4 at 2:1 needed a detail view for the short
-/// shoulders); the port's first fit is A4 at 2:1 and draws the 0.5 shoulder there, 1 mm on the
-/// page, as it has no legibility gate (a maintainer question in docs/next-session.md), so
-/// whether its step lengths are legible at that scale is undetermined.
+/// ISSUE-443-a: every GRM-03 shoulder is determined by actual printed ink and the
+/// isometric remains. Python states four local lengths; the raw Rust estimate
+/// uses the inspection-end baseline, with one local length and two shoulder
+/// stations. Prove all eight band quantities independently, including after
+/// recovery enlarges the complete main views instead of adding a partial head.
 #[test]
 fn grm03_locates_every_turned_shoulder_and_keeps_the_isometric() {
-    let Some((_, _, plan)) = planned().iter().find(|p| p.0 == "grm03") else {
+    let Some((_, analysis, plan)) = planned().iter().find(|p| p.0 == "grm03") else {
         return;
     };
     let facts = facts::load("grm03");
@@ -2035,7 +2079,65 @@ fn grm03_locates_every_turned_shoulder_and_keeps_the_isometric() {
         .filter(|d| d.id.ends_with("/step.length") && d.placed.is_some())
         .map(|d| d.label.as_str())
         .collect();
-    assert_eq!(ours, BTreeSet::from(["(0.5)", "2", "3", "18"]));
+    assert_eq!(ours, BTreeSet::from(["0.5"]));
+    assert_eq!(
+        plan.dimensions
+            .iter()
+            .filter(|d| d.id.ends_with("/step_position.length") && d.placed.is_some())
+            .map(|d| d.label.as_str())
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from(["2.5", "5.5"])
+    );
+    let printed: Vec<_> = marks(plan)
+        .into_iter()
+        .filter(|m| {
+            plan.dimensions
+                .iter()
+                .any(|d| d.id == m.name && d.placed.is_some())
+        })
+        .collect();
+    let outcomes = lint::turned::outcomes(analysis, &printed);
+    assert_eq!(outcomes.len(), 8);
+    assert!(
+        outcomes
+            .iter()
+            .all(|o| o.state == lint::turned::State::Placed),
+        "{outcomes:?}"
+    );
+    for station in printed
+        .iter()
+        .filter(|m| m.name.ends_with("/step_position.length"))
+    {
+        let kept: Vec<_> = printed
+            .iter()
+            .filter(|m| m.name != station.name)
+            .cloned()
+            .collect();
+        assert!(
+            lint::turned::outcomes(analysis, &kept)
+                .iter()
+                .any(|o| o.parameter == "step.length" && o.state != lint::turned::State::Placed),
+            "{} did not control a physical interval",
+            station.name
+        );
+    }
+    let recovered = model::recover(analysis, &Spec::default(), plan.clone()).unwrap();
+    assert_eq!(
+        (
+            recovered.sheet.size.as_str(),
+            recovered.sheet.scale.as_str()
+        ),
+        ("A3", "10:1")
+    );
+    assert!(recovered.views.iter().all(|v| v.detail.is_none()));
+    assert!(recovered.views.iter().any(|v| v.id == "v:iso"));
+    assert_eq!(
+        plan.dimensions
+            .iter()
+            .filter(|d| d.id.ends_with("/step_position.length"))
+            .count(),
+        2
+    );
     assert!(facts.views.iter().any(|v| v.name == "iso"));
     assert!(plan.views.iter().any(|v| v.id == "v:iso"));
     assert_eq!(
@@ -2083,9 +2185,12 @@ fn recovered() -> &'static [(String, Plan)] {
     })
 }
 
-/// The (feature, parameter) of every hole and turned-step measurement a placed dimension states.
-fn hole_and_shoulder_outcomes(plan: &Plan) -> BTreeSet<(&str, &str)> {
-    plan.dimensions
+/// Hole/shoulder quantities stated directly or independently proven by printed baselines.
+/// The linter checks actual band geometry and both printed shoulder stations; a Covered
+/// ledger entry alone is insufficient, and unplaced annotations supply no evidence.
+fn hole_and_shoulder_outcomes(analysis: &Analysis, plan: &Plan) -> BTreeSet<(String, String)> {
+    let mut outcomes: BTreeSet<_> = plan
+        .dimensions
         .iter()
         .filter(|d| d.placed.is_some())
         .flat_map(|d| &d.measurements)
@@ -2096,8 +2201,25 @@ fn hole_and_shoulder_outcomes(plan: &Plan) -> BTreeSet<(&str, &str)> {
                 .chain(&t.covered)
         }))
         .filter(|m| m.feature.starts_with("f:hole") || m.feature.starts_with("f:turned_step:"))
-        .map(|m| (m.feature.as_str(), m.parameter.as_str()))
-        .collect()
+        .map(|m| (m.feature.clone(), m.parameter.clone()))
+        .collect();
+    let live: BTreeSet<_> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.placed.is_some())
+        .map(|d| d.id.as_str())
+        .collect();
+    let printed: Vec<_> = marks(plan)
+        .into_iter()
+        .filter(|m| live.contains(m.name.as_str()))
+        .collect();
+    outcomes.extend(
+        lint::turned::outcomes(analysis, &printed)
+            .into_iter()
+            .filter(|o| o.state == lint::turned::State::Placed)
+            .map(|o| (o.feature, o.parameter)),
+    );
+    outcomes
 }
 
 /// H6 replaces the old recovery order (ISSUE-1338-a's same-page-first ladder) with the
@@ -2120,12 +2242,12 @@ fn sheet_selection_is_bounded_and_keeps_every_outcome() {
         .iter()
         .map(|(n, a, _)| (n.clone(), model::plan_recovered(a, &style).unwrap()))
         .collect();
-    for ((name, _, first), (_, after)) in initial.iter().zip(&recovered) {
-        let kept = hole_and_shoulder_outcomes(after);
+    for ((name, analysis, first), (_, after)) in initial.iter().zip(&recovered) {
+        let kept = hole_and_shoulder_outcomes(analysis, after);
         assert!(
-            hole_and_shoulder_outcomes(first).is_subset(&kept),
+            hole_and_shoulder_outcomes(analysis, first).is_subset(&kept),
             "{name}: {:?}",
-            hole_and_shoulder_outcomes(first).difference(&kept)
+            hole_and_shoulder_outcomes(analysis, first).difference(&kept)
         );
         if after.sheet.basis.starts_with("smallest fit ") {
             sheet_rule::assert_follows(
