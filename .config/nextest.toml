@@ -5,6 +5,12 @@
 # nextest (CI run 37848776092) against 57 s for the binary under its own harness (CI run
 # 37851506194), and issue_trust's 314 s against 90 s. The profile leaves those binaries out, and
 # the workflow's `harness` job runs whatever binaries it leaves out whole.
+# Latency gates measure interactive edits; run them without competing test processes.
+# Their native 150 ms assertions remain enabled, including in local shard simulations.
+[[profile.default.overrides]]
+filter = 'test(=r5_multi_sheet_latency) | (binary(=session) & test(_benchmark_deltas))'
+threads-required = "num-cpus"
+
 # Aggregate audits retain their global assertions and use at most four scoped workers.
 # Account for those workers in nextest's budget (also inherited by the ci profile).
 [[profile.default.overrides]]
