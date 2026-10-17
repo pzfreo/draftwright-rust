@@ -1168,7 +1168,7 @@ pub(crate) fn reserve_linear_corridors(
                 // A measured side corridor may reach its section partner. Carry
                 // the section beyond the final side edge, preserving the old gap;
                 // an actual positive gap also avoids rounded touching rectangles.
-                if old[i].1[0] >= old[side].1[2] - 1e-6 {
+                if old[i].1[0] >= old[side].1[0] {
                     let gap = (old[i].1[0] - old[side].1[2]).max(1e-6);
                     shifts[i][0] = shifts[i][0].max(
                         plan.views[side].area[2] + shifts[side][0] + gap - plan.views[i].area[0],

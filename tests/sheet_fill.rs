@@ -615,7 +615,7 @@ fn connector109_uses_a3_at_one_to_five_for_readable_steps() {
 
 #[test]
 fn step_legibility_uses_the_owning_view_and_keeps_baseline_intervals() {
-    let mut a = model::analyse(
+    let mut a = model::analyse_native(
         &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/turned.step"),
     )
     .unwrap()

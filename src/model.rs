@@ -2404,9 +2404,11 @@ fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan,
         false,
         replanned,
         None,
-        true,
+        ViewPolicy {
+            complete: true,
+            require_detail: false,
+        },
         Some(&selection),
-        false,
     )?;
     if replanned {
         scheduled.spec = spec.clone();
@@ -2537,9 +2539,8 @@ fn plan_escalated_uncached(
                     beyond_lanes,
                     automatic_pair,
                     candidate_arrangement,
-                    true,
+                    ViewPolicy { complete: true, require_detail: require_automatic },
                     Some(&selection),
-                    require_automatic,
                 )?;
                 let mut installed = crate::hole_table::install(analysis, &mut scheduled, &selection);
                 // Measured source corridors may outgrow the estimated sheet. An explicit
@@ -2557,7 +2558,7 @@ fn plan_escalated_uncached(
                         larger.sheet.size = Some((*name).into());
                         let mut candidate = plan_with_presentation(
                             analysis, &larger, beyond_lanes, automatic_pair,
-                            candidate_arrangement, true, Some(&selection), require_automatic,
+                            candidate_arrangement, ViewPolicy { complete: true, require_detail: require_automatic }, Some(&selection),
                         )?;
                         if crate::hole_table::install(analysis, &mut candidate, &selection) {
                             candidate.spec = spec.clone();
@@ -2661,10 +2662,18 @@ fn plan_with(
         gdt_beyond_lanes,
         automatic_pair,
         candidate_arrangement,
-        complete_views,
+        ViewPolicy {
+            complete: complete_views,
+            require_detail: require_automatic,
+        },
         None,
-        require_automatic,
     )
+}
+
+#[derive(Clone, Copy)]
+struct ViewPolicy {
+    complete: bool,
+    require_detail: bool,
 }
 
 fn plan_with_presentation(
@@ -2673,10 +2682,13 @@ fn plan_with_presentation(
     gdt_beyond_lanes: bool,
     automatic_pair: bool,
     candidate_arrangement: Option<layout::Arrangement>,
-    complete_views: bool,
+    policy: ViewPolicy,
     presentation: Option<&crate::hole_table::Selection>,
-    require_automatic: bool,
 ) -> Result<Plan, Invalid> {
+    let ViewPolicy {
+        complete: complete_views,
+        require_detail: require_automatic,
+    } = policy;
     let excluded = presentation
         .map(|p| &p.replaced)
         .cloned()
@@ -3876,9 +3888,11 @@ fn plan_with_presentation(
             gdt_beyond_lanes,
             automatic_pair,
             candidate_arrangement,
-            complete_views,
+            ViewPolicy {
+                complete: complete_views,
+                require_detail: false,
+            },
             presentation,
-            false,
         )?;
         p.spec = given.clone();
         if require_automatic
@@ -4490,9 +4504,11 @@ fn plan_with_presentation(
             gdt_beyond_lanes,
             automatic_pair,
             candidate_arrangement,
-            complete_views,
+            ViewPolicy {
+                complete: complete_views,
+                require_detail: false,
+            },
             presentation,
-            false,
         )?;
         retain_short_leaders(analysis, &mut plan, &bare);
         let old = (
