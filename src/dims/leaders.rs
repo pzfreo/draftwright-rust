@@ -432,6 +432,16 @@ impl ExtensionIndex {
     }
 
     fn contacts(&self, lines: &[[P2; 2]], label: [f64; 4]) -> (usize, usize) {
+        self.contacts_bounded(lines, label, None)
+            .expect("unbounded contacts")
+    }
+
+    fn contacts_bounded(
+        &self,
+        lines: &[[P2; 2]],
+        label: [f64; 4],
+        maximum: Option<(usize, usize)>,
+    ) -> Option<(usize, usize)> {
         let pad = grow(label, LABEL_PAD);
         let reach = lines.iter().flatten().fold(pad, |b, p| {
             [
@@ -451,17 +461,18 @@ impl ExtensionIndex {
             if on_text || lines.iter().any(|s| touches_box(*s, self.bounds[n])) {
                 pairs.insert(owner);
             }
+            maximum.is_none_or(|(p, t)| pairs.len() <= p && text.len() <= t)
         };
-        if let Some(grid) = &self.grid {
-            grid.near(0, reach, measure);
+        let complete = if let Some(grid) = &self.grid {
+            grid.try_near(0, reach, measure)
         } else {
-            for (n, b) in self.bounds.iter().enumerate() {
-                if boxes_meet(*b, reach) {
-                    measure(n);
-                }
-            }
-        }
-        (pairs.len(), text.len())
+            self.bounds
+                .iter()
+                .enumerate()
+                .filter(|(_, b)| boxes_meet(**b, reach))
+                .all(|(n, _)| measure(n))
+        };
+        complete.then(|| (pairs.len(), text.len()))
     }
 }
 
@@ -557,6 +568,31 @@ impl Grid {
             at(x0 - HAIR, o[0], nx)..=at(x1 + HAIR, o[0], nx),
             at(y0 - HAIR, o[1], ny)..=at(y1 + HAIR, o[1], ny),
         )
+    }
+
+    fn try_near(&self, kind: usize, b: [f64; 4], mut f: impl FnMut(usize) -> bool) -> bool {
+        if !finite(b) {
+            return (0..self.count[kind]).all(f);
+        }
+        let query = self.query.get() + 1;
+        self.query.set(query);
+        let seen = &self.seen[kind];
+        for &n in &self.always[kind] {
+            if !f(n as usize) {
+                return false;
+            }
+        }
+        let (xs, ys) = self.span(b);
+        for y in ys {
+            for x in xs.clone() {
+                for &n in &self.cells[kind][y * self.size[0] + x] {
+                    if seen[n as usize].replace(query) != query && !f(n as usize) {
+                        return false;
+                    }
+                }
+            }
+        }
+        true
     }
 
     /// Calls *f* with the index of each box of *kind* listed in the cells *b* meets, once.
@@ -657,6 +693,19 @@ fn side_index(side: Side) -> usize {
         Side::Left => 2,
         Side::Right => 3,
     }
+}
+
+/// Routing needs only this immutable classification. Lowering a dense AP242
+/// document again for every callout discards identical items and diagnostics.
+fn has_semantic_pmi(analysis: &crate::model::Analysis, frames: &BTreeMap<&str, Frame>) -> bool {
+    let key = ["front", "plan", "side"]
+        .map(|name| u8::from(frames.contains_key(name)))
+        .to_vec();
+    crate::planning::memo(analysis, "leader-semantic-pmi", key, || {
+        !crate::pmi_lowering::lower(analysis, &|name| frames.contains_key(name))
+            .0
+            .is_empty()
+    })
 }
 
 /// Places every callout of *items* (its view in *views_of*), whose entry in *placed* is empty,
@@ -838,9 +887,7 @@ fn place_with_obstacles_uncached(
         .collect();
     // Semantic PMI uses the legacy floor; its unused footprint-aware baseline need not be
     // sorted. The furniture-aware inventory and the legacy survivors stay fully measured.
-    let semantic_pmi = !crate::pmi_lowering::lower(analysis, &|name| frames.contains_key(name))
-        .0
-        .is_empty();
+    let semantic_pmi = has_semantic_pmi(analysis, frames);
     let profile_proofs = if items.iter().any(boss_profile) {
         super::interior::proofs(analysis, views)
     } else {
@@ -1400,14 +1447,25 @@ pub(super) fn refine(
     let canonical = crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[])
         .unwrap_or(false);
     let proof_views: Vec<_> = proofs.keys().collect();
+    let mut geometry_sheet = sheet.clone();
+    geometry_sheet.title.clear();
+    geometry_sheet.title_cells.clear();
+    geometry_sheet.basis.clear();
+    geometry_sheet.arrangement.clear();
+    geometry_sheet.default = false;
+    geometry_sheet.fill = 0.0;
+    let mut geometry_views = views.to_vec();
+    for view in &mut geometry_views {
+        view.basis.clear();
+    }
     let key = serde_json::to_vec(&(
         &spec.dimensions,
         edited_labels(spec),
         proof_views,
         reference_key,
         has_reference,
-        sheet,
-        views,
+        geometry_sheet,
+        geometry_views,
         frame_geometry,
         canonical,
         items,
@@ -1445,7 +1503,7 @@ fn refine_uncached(
     proofs: &BTreeMap<String, std::rc::Rc<super::interior::Proof>>,
 ) -> BTreeMap<String, Vec<Problem>> {
     let mut updated = BTreeMap::new();
-    let Some(ink) = analysis.edge_ink.as_ref() else {
+    let Some(_) = analysis.edge_ink.as_ref() else {
         return updated;
     };
     // The linear dimensions' extension lines, each with its owner. Refinement moves only
@@ -1558,7 +1616,6 @@ fn refine_uncached(
             })
     };
     // Each view's line-work for the route gates, gathered only once a candidate reaches it.
-    let view_ink = |v: &crate::model::PlannedView| view_ink(analysis, ink, v);
     let view_reach: Vec<[f64; 4]> = views
         .iter()
         .map(|v| {
@@ -1576,8 +1633,19 @@ fn refine_uncached(
             grow(b, 1.0)
         })
         .collect();
-    let gathered: Vec<std::cell::OnceCell<(SegmentIndex, Vec<[f64; 4]>)>> =
-        views.iter().map(|_| std::cell::OnceCell::new()).collect();
+    let gathered: Vec<_> = views
+        .iter()
+        .map(|v| {
+            std::cell::LazyCell::new(move || {
+                cache.model(analysis, v).expect("edge ink is available")
+            })
+        })
+        .collect();
+    // Every route lies inside its candidate union plus two text pads. The same
+    // eligible cameras therefore supply the exact same full edge predicates;
+    // edges outside that union cannot touch a query. Share their trees and memo
+    // queries across callouts instead of rebuilding a cropped tree for each one.
+    let mut route_ink: BTreeMap<Vec<usize>, std::rc::Rc<RefinementInk>> = BTreeMap::new();
     let canonical = crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[])
         .unwrap_or(false);
     let model_run = |w: &Want, p: &Placed| {
@@ -1600,14 +1668,11 @@ fn refine_uncached(
             .iter()
             .any(|m| m.parameter == "chamfer.length");
         p.lines.iter().any(|s| runs_beside(*s, &extension_ink))
-            || views.iter().enumerate().any(|(k, v)| {
+            || views.iter().enumerate().any(|(k, _)| {
                 if !boxes_meet(view_reach[k], probe) {
                     return false;
                 }
-                let (model, uncertain) = gathered[k].get_or_init(|| {
-                    let (lines, unknown) = view_ink(v);
-                    (SegmentIndex::new(lines), unknown)
-                });
+                let (model, uncertain) = gathered[k].as_ref();
                 p.lines.iter().any(|s| model.runs_beside(*s))
                     || (chamfer
                         && uncertain
@@ -1655,6 +1720,7 @@ fn refine_uncached(
         .iter()
         .map(|v| (v.id.trim_start_matches("v:"), cache.get(analysis, v)))
         .collect();
+    let directed = !repair_models.is_empty() && !has_semantic_pmi(analysis, frames);
     for i in todo {
         let w = &items[i];
         let (Shape::Callout { sites }, Some(view), Some(old)) =
@@ -1733,10 +1799,7 @@ fn refine_uncached(
                     Some((v, proofs.get(&v.id)?.as_ref()))
                 })
                 .flatten(),
-            directed: !repair_models.is_empty()
-                && crate::pmi_lowering::lower(analysis, &|name| frames.contains_key(name))
-                    .0
-                    .is_empty(),
+            directed,
             corridors: boss_profile(w)
                 || w.measurements
                     .iter()
@@ -1792,7 +1855,10 @@ fn refine_uncached(
                         continue;
                     }
                     let (_, lb) = label_geometry(q, e, right, label.min, label.max);
-                    let now = extension_index.contacts(&lines, lb);
+                    let Some(now) = extension_index.contacts_bounded(&lines, lb, Some(before))
+                    else {
+                        continue;
+                    };
                     if now.0 > before.0 || (!repair_run && now.0 == before.0) || now.1 > before.1 {
                         continue;
                     }
@@ -1829,7 +1895,11 @@ fn refine_uncached(
                                 continue;
                             }
                             let (_, lb) = label_geometry(q, e, right, label.min, label.max);
-                            let contacts = extension_index.contacts(&lines, lb);
+                            let Some(contacts) =
+                                extension_index.contacts_bounded(&lines, lb, Some(before))
+                            else {
+                                continue;
+                            };
                             if contacts.0 <= before.0 && contacts.1 <= before.1 {
                                 let moved = (q[0] - elbow[0]).hypot(q[1] - elbow[1])
                                     + (e[0] - end[0]).hypot(e[1] - end[1]);
@@ -1870,7 +1940,9 @@ fn refine_uncached(
                 continue;
             }
             let (_, lb) = label_geometry(q, e, right, label.min, label.max);
-            let now = extension_index.contacts(&lines, lb);
+            let Some(now) = extension_index.contacts_bounded(&lines, lb, Some(before)) else {
+                continue;
+            };
             if now.0 > before.0 || (!repair_run && now.0 == before.0) || now.1 > before.1 {
                 continue;
             }
@@ -1898,7 +1970,10 @@ fn refine_uncached(
                             continue;
                         }
                         let (_, lb) = label_geometry(q, e, right, label.min, label.max);
-                        let now = extension_index.contacts(&lines, lb);
+                        let Some(now) = extension_index.contacts_bounded(&lines, lb, Some(before))
+                        else {
+                            continue;
+                        };
                         if now.0 > before.0 || now.1 > before.1 {
                             continue;
                         }
@@ -1923,7 +1998,10 @@ fn refine_uncached(
                         let e = [q[0] + if right { shoulder } else { -shoulder }, q[1]];
                         let lines = [[t, q], [q, e]];
                         let (_, lb) = label_geometry(q, e, right, label.min, label.max);
-                        let now = extension_index.contacts(&lines, lb);
+                        let Some(now) = extension_index.contacts_bounded(&lines, lb, Some(before))
+                        else {
+                            continue;
+                        };
                         if length(&lines) <= max_length + 1e-6
                             && now.0 <= before.0
                             && now.1 <= before.1
@@ -1965,57 +2043,49 @@ fn refine_uncached(
             region[2] + 2.0 * LABEL_PAD,
             region[3] + 2.0 * LABEL_PAD,
         ];
-        let mut near_model: Vec<[P2; 2]> = Vec::new();
-        let mut uncertain: Vec<[f64; 4]> = Vec::new();
-        for (k, v) in views.iter().enumerate() {
-            if !boxes_meet(view_reach[k], region) {
-                continue;
-            }
-            let (m, u) = gathered[k].get_or_init(|| {
-                let (lines, unknown) = view_ink(v);
-                (SegmentIndex::new(lines), unknown)
-            });
-            near_model.extend(
-                m.near(region)
-                    .into_iter()
-                    .filter(|s| touches_box(**s, region))
-                    .copied(),
-            );
-            uncertain.extend(u);
-        }
-        let near_cuts: Vec<[P2; 2]> = cuts
+        let selected: Vec<_> = view_reach
+            .iter()
+            .enumerate()
+            .filter(|(_, reach)| boxes_meet(**reach, region))
+            .map(|(k, _)| k)
+            .collect();
+        let prepared = route_ink
+            .entry(selected.clone())
+            .or_insert_with(|| {
+                let mut model = Vec::new();
+                let mut unknown = Vec::new();
+                for k in selected {
+                    let (edges, boxes) = gathered[k].as_ref();
+                    edges.append_ink(&mut model);
+                    unknown.extend(boxes);
+                }
+                let lines = model
+                    .iter()
+                    .copied()
+                    .chain(extension_ink.iter().copied())
+                    .collect();
+                let unknown_grid = Grid::new([unknown.clone(), Vec::new(), Vec::new()]);
+                std::rc::Rc::new((
+                    SegmentIndex::new(model),
+                    SegmentIndex::new(lines),
+                    unknown,
+                    unknown_grid,
+                ))
+            })
+            .clone();
+        let (model_index, line_index, uncertain, unknown_grid) = prepared.as_ref();
+        let near_cuts: Vec<_> = cuts
             .iter()
             .filter(|s| touches_box(**s, region))
             .copied()
             .collect();
-        let near_lines: Vec<[P2; 2]> = near_model
-            .iter()
-            .copied()
-            .chain(
-                extensions
-                    .iter()
-                    .map(|(_, s)| *s)
-                    .filter(|s| touches_box(*s, region)),
-            )
-            .collect();
-        let model_index = SegmentIndex::new(near_model);
-        let line_index = SegmentIndex::new(near_lines);
         let crossed = |lines: &[[P2; 2]], e: [P2; 2]| lines.iter().any(|s| segments_cross(*s, e));
         // The text and the elbow keep off the outline: a label or an elbow within the label
         // pad of a model line reads as butting the part.
         let on_model = |q: P2, lb: [f64; 4]| {
-            let pad = grow(lb, LABEL_PAD);
-            let at = grow([q[0], q[1], q[0], q[1]], LABEL_PAD);
             (
-                model_index
-                    .near(pad)
-                    .into_iter()
-                    .filter(|s| touches_box(**s, pad))
-                    .count(),
-                model_index
-                    .near(at)
-                    .into_iter()
-                    .any(|s| touches_box(*s, at)),
+                model_index.touching(grow(lb, LABEL_PAD)),
+                model_index.touching(grow([q[0], q[1], q[0], q[1]], LABEL_PAD)) > 0,
             )
         };
         let (old_text_model, old_elbow_model) = on_model(elbow, old.label_box);
@@ -2042,18 +2112,14 @@ fn refine_uncached(
             .map_or(old.lines.as_slice(), |p| p.lines.as_slice());
         let route_safe = |lines: &[[P2; 2]]| {
             (clear_new_text
-                || !uncertain.iter().any(|b| {
-                    if old_run && repair_models.is_empty() && !edited_text {
-                        // Ordinary inspection repairs retain main's bounded uncertain-ink
-                        // test; recess and edited-label repairs prove the historical path.
-                        lines
-                            .iter()
-                            .enumerate()
-                            .any(|(i, s)| buried(*s, *b) > buried(old.lines[i], *b) + 1e-6)
-                    } else {
-                        lines.iter().any(|s| adds_unknown_path(*s, *b, historical))
-                    }
-                }))
+                || unknown_route_safe(
+                    lines,
+                    uncertain,
+                    unknown_grid,
+                    historical,
+                    &old.lines,
+                    old_run && repair_models.is_empty() && !edited_text,
+                ))
                 && !lines.iter().any(|s| line_index.runs_beside(*s))
                 && (clear_new_text || !model_index.new_crossing(lines, historical))
                 && !near_cuts
@@ -2061,6 +2127,11 @@ fn refine_uncached(
                     .any(|s| crossed(lines, *s) && !crossed(historical, *s))
         };
 
+        // The incumbent and its measured roles stay fixed for every candidate.
+        let keep_off_centres = centre_run(&old)
+            && w.measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:section_recess:"));
         let route_allowed = |(_, _, t, q, e, right, lb): &RouteStation| {
             if clear_new_text {
                 let (label_at, _) = label_geometry(*q, *e, *right, label.min, label.max);
@@ -2078,17 +2149,22 @@ fn refine_uncached(
                     return false;
                 }
             }
-            let (text_model, elbow_model) = on_model(*q, *lb);
-            (!centre_run(&old)
-                || !w
-                    .measurements
-                    .iter()
-                    .any(|m| m.feature.starts_with("f:section_recess:"))
-                || !centre_lines(&[[*t, *q], [*q, *e]]))
-                && text_model <= old_text_model
-                && (!elbow_model || old_elbow_model)
-                && head_on(*t, *q) <= old_head
-                && route_safe(&[[*t, *q], [*q, *e]])
+            let lines = [[*t, *q], [*q, *e]];
+            // Ranking has already measured heads for run repairs. Reject their
+            // known contacts and the immutable centre condition before querying
+            // model ink; the complete original conjunction still adjudicates survivors.
+            if (keep_off_centres && centre_lines(&lines))
+                || head_on(*t, *q) > old_head
+                || !route_safe(&lines)
+            {
+                return false;
+            }
+            // An incumbent elbow already on model ink places no restriction on
+            // this candidate's elbow. Also reject excess text contacts before
+            // querying the elbow, whose result cannot rescue that candidate.
+            model_index.touching_at_most(grow(*lb, LABEL_PAD), old_text_model)
+                && (old_elbow_model
+                    || model_index.touching_at_most(grow([q[0], q[1], q[0], q[1]], LABEL_PAD), 0))
         };
         if clear_new_text {
             candidates.retain(route_allowed);
@@ -2254,6 +2330,7 @@ fn refine_uncached(
 
 /// A view's straight line-work and the boxes of its line-work that is not known exactly.
 type ViewInk = (Vec<[P2; 2]>, Vec<[f64; 4]>);
+type RefinementInk = (SegmentIndex, SegmentIndex, Vec<[f64; 4]>, Grid);
 
 /// A view's model line-work on the page (edges and square-on cylinder silhouettes), and the
 /// boxes whose ink is not known as lines (the isometric view, section views, other curved faces).
@@ -2275,7 +2352,7 @@ pub(super) fn view_ink(
         ]);
         return (model, uncertain);
     }
-    if v.cut.is_some() {
+    if v.cut.is_some() || v.detail.as_ref().is_some_and(|d| d.source_cut.is_some()) {
         // Section ink needs a cut B-rep: new routes stay outside its envelope.
         uncertain.push(frame.outline());
         return (model, uncertain);
@@ -2366,6 +2443,7 @@ pub(super) struct SegmentIndex {
     counts: std::cell::RefCell<std::collections::HashMap<[u64; 4], usize>>,
     besides: std::cell::RefCell<std::collections::HashMap<[u64; 4], bool>>,
     routes: std::cell::RefCell<std::collections::HashMap<[u64; 8], usize>>,
+    touching: std::cell::RefCell<std::collections::HashMap<[u64; 4], (usize, bool)>>,
 }
 
 impl SegmentIndex {
@@ -2406,9 +2484,100 @@ impl SegmentIndex {
             counts: std::cell::RefCell::default(),
             besides: std::cell::RefCell::default(),
             routes: std::cell::RefCell::default(),
+            touching: std::cell::RefCell::default(),
         }
     }
 
+    fn append_ink(&self, into: &mut Vec<[P2; 2]>) {
+        if let Some(children) = &self.children {
+            for child in children.iter() {
+                child.append_ink(into);
+            }
+        } else {
+            into.extend(&self.ink);
+        }
+    }
+
+    /// Exact closed-box stroke count, reused by labels and elbows on the same frame.
+    fn touching(&self, bounds: [f64; 4]) -> usize {
+        let key = bounds.map(f64::to_bits);
+        if let Some(&(count, true)) = self.touching.borrow().get(&key) {
+            return count;
+        }
+        let count = self.touching_uncached(bounds);
+        let mut saved = self.touching.borrow_mut();
+        if saved.len() >= 32768 {
+            saved.clear();
+        }
+        saved.insert(key, (count, true));
+        count
+    }
+
+    // Candidate text only needs to stay within the incumbent's contact count.
+    // A failed bounded query records a lower bound; a complete query records
+    // its exact count, so later thresholds cannot reuse an incomplete result.
+    fn touching_at_most(&self, bounds: [f64; 4], maximum: usize) -> bool {
+        let key = bounds.map(f64::to_bits);
+        if let Some(&(count, complete)) = self.touching.borrow().get(&key) {
+            if complete || count > maximum {
+                return count <= maximum;
+            }
+        }
+        let result = self.touching_bounded(bounds, maximum);
+        let mut saved = self.touching.borrow_mut();
+        if saved.len() >= 32768 {
+            saved.clear();
+        }
+        saved.insert(
+            key,
+            (
+                result.unwrap_or_else(|| maximum.saturating_add(1)),
+                result.is_some(),
+            ),
+        );
+        result.is_some()
+    }
+
+    fn touching_bounded(&self, bounds: [f64; 4], maximum: usize) -> Option<usize> {
+        if !boxes_meet(self.bounds, bounds) {
+            return Some(0);
+        }
+        let mut count = 0;
+        if let Some(children) = &self.children {
+            for child in children.iter() {
+                count += child.touching_bounded(bounds, maximum - count)?;
+            }
+        } else {
+            for s in &self.ink {
+                if boxes_meet(segment_bounds(*s), bounds) && touches_box(*s, bounds) {
+                    count += 1;
+                    if count > maximum {
+                        return None;
+                    }
+                }
+            }
+        }
+        Some(count)
+    }
+
+    fn touching_uncached(&self, bounds: [f64; 4]) -> usize {
+        if !boxes_meet(self.bounds, bounds) {
+            return 0;
+        }
+        if let Some(children) = &self.children {
+            children
+                .iter()
+                .map(|child| child.touching_uncached(bounds))
+                .sum()
+        } else {
+            self.ink
+                .iter()
+                .filter(|s| boxes_meet(segment_bounds(**s), bounds) && touches_box(**s, bounds))
+                .count()
+        }
+    }
+
+    #[cfg(test)]
     fn near(&self, bounds: [f64; 4]) -> Vec<&[P2; 2]> {
         let mut found = Vec::new();
         self.collect(bounds, &mut found);
@@ -2543,6 +2712,7 @@ impl SegmentIndex {
         }
     }
 
+    #[cfg(test)]
     fn collect<'a>(&'a self, bounds: [f64; 4], found: &mut Vec<&'a [P2; 2]>) {
         if !boxes_meet(self.bounds, bounds) {
             return;
@@ -2700,6 +2870,14 @@ pub(super) fn runs_beside(s: [P2; 2], ink: &[[P2; 2]]) -> bool {
 }
 
 pub(super) fn touches_box(s: [P2; 2], b: [f64; 4]) -> bool {
+    if (s[0][0] < b[0] && s[1][0] < b[0])
+        || (s[0][0] > b[2] && s[1][0] > b[2])
+        || (s[0][1] < b[1] && s[1][1] < b[1])
+        || (s[0][1] > b[3] && s[1][1] > b[3])
+    {
+        return false;
+    }
+
     let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
     for k in 0..2 {
         let d = s[1][k] - s[0][k];
@@ -2720,6 +2898,48 @@ pub(super) fn touches_box(s: [P2; 2], b: [f64; 4]) -> bool {
 /// Whether the candidate introduces any path inside an uncertain material box.
 /// Collinear extension in empty paper is safe only when its entire clipped
 /// material segment was already covered by one established straight segment.
+/// A new path can differ only inside a box it actually meets. The grid discards
+/// unrelated uncertain faces; every survivor uses the original exact predicate.
+fn unknown_route_safe(
+    lines: &[[P2; 2]],
+    boxes: &[[f64; 4]],
+    grid: &Grid,
+    historical: &[[P2; 2]],
+    old: &[[P2; 2]],
+    ordinary: bool,
+) -> bool {
+    let mut bounds = lines.iter().map(|s| segment_bounds(*s)).fold(
+        [
+            f64::INFINITY,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NEG_INFINITY,
+        ],
+        |a, b| {
+            [
+                a[0].min(b[0]),
+                a[1].min(b[1]),
+                a[2].max(b[2]),
+                a[3].max(b[3]),
+            ]
+        },
+    );
+    if lines.iter().flatten().flatten().any(|v| !v.is_finite()) {
+        bounds = [f64::NAN; 4];
+    }
+    grid.try_near(0, bounds, |i| {
+        let b = boxes[i];
+        if ordinary {
+            !lines
+                .iter()
+                .enumerate()
+                .any(|(i, s)| buried(*s, b) > buried(old[i], b) + 1e-6)
+        } else {
+            !lines.iter().any(|s| adds_unknown_path(*s, b, historical))
+        }
+    })
+}
+
 fn buried(s: [P2; 2], b: [f64; 4]) -> f64 {
     let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
     for k in 0..2 {
@@ -2739,6 +2959,14 @@ fn buried(s: [P2; 2], b: [f64; 4]) -> f64 {
 }
 
 fn adds_unknown_path(s: [P2; 2], b: [f64; 4], old: &[[P2; 2]]) -> bool {
+    if (s[0][0] < b[0] && s[1][0] < b[0])
+        || (s[0][0] > b[2] && s[1][0] > b[2])
+        || (s[0][1] < b[1] && s[1][1] < b[1])
+        || (s[0][1] > b[3] && s[1][1] > b[3])
+    {
+        return false;
+    }
+
     let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
     for k in 0..2 {
         let d = s[1][k] - s[0][k];
@@ -4576,6 +4804,19 @@ mod tests {
                 indexed.contacts(&route, label),
                 extension_contacts(&ink, &route, label)
             );
+            let full = extension_contacts(&ink, &route, label);
+            for maximum in [
+                (0, 0),
+                full,
+                (full.0.saturating_sub(1), full.1),
+                (full.0, full.1.saturating_sub(1)),
+            ] {
+                let expected = (full.0 <= maximum.0 && full.1 <= maximum.1).then_some(full);
+                assert_eq!(
+                    indexed.contacts_bounded(&route, label, Some(maximum)),
+                    expected
+                );
+            }
             assert_eq!(
                 meets_extensions(
                     &ink.iter().map(|(_, e)| *e).collect::<Vec<_>>(),
@@ -4592,6 +4833,64 @@ mod tests {
         let ink = vec![(4, [[0., 0.], [0., 20.]]), (4, [[2., 0.], [2., 20.]])];
         let index = ExtensionIndex::new(ink.clone());
         assert_eq!(index.contacts(&[], [0., 5., 2., 10.]), (1, 1));
+    }
+
+    #[test]
+    fn shared_route_ink_and_uncertain_boxes_match_local_full_scans() {
+        let mut seed = 7843;
+        let ink: Vec<_> = (0..500)
+            .map(|_| {
+                std::array::from_fn(|_| std::array::from_fn(|_| 200.0 * lcg(&mut seed) - 100.0))
+            })
+            .collect();
+        let region = [-20.0, -20.0, 20.0, 20.0];
+        let local: Vec<_> = ink
+            .iter()
+            .copied()
+            .filter(|s| touches_box(*s, region))
+            .collect();
+        let shared = SegmentIndex::new(ink.clone());
+        let cropped = SegmentIndex::new(local);
+        let boxes: Vec<_> = (0..100)
+            .map(|_| {
+                let x = 200.0 * lcg(&mut seed) - 100.0;
+                let y = 200.0 * lcg(&mut seed) - 100.0;
+                [x, y, x + 5.0, y + 8.0]
+            })
+            .collect();
+        let grid = Grid::new([boxes.clone(), Vec::new(), Vec::new()]);
+        let historical = [[[-30.0, 0.0], [30.0, 0.0]], [[30.0, 0.0], [35.0, 0.0]]];
+        for _ in 0..150 {
+            let lines: [[P2; 2]; 2] = std::array::from_fn(|_| {
+                std::array::from_fn(|_| std::array::from_fn(|_| 36.0 * lcg(&mut seed) - 18.0))
+            });
+            let at = lines[0][0];
+            let bounds = [at[0] - 1.0, at[1] - 1.0, at[0] + 1.0, at[1] + 1.0];
+            assert_eq!(shared.touching(bounds), cropped.touching(bounds));
+            assert_eq!(
+                shared.new_crossing(&lines, &historical),
+                cropped.new_crossing(&lines, &historical)
+            );
+            for line in lines {
+                assert_eq!(shared.runs_beside(line), cropped.runs_beside(line));
+            }
+            for ordinary in [false, true] {
+                let full = !boxes.iter().any(|b| {
+                    if ordinary {
+                        lines
+                            .iter()
+                            .enumerate()
+                            .any(|(i, s)| buried(*s, *b) > buried(historical[i], *b) + 1e-6)
+                    } else {
+                        lines.iter().any(|s| adds_unknown_path(*s, *b, &historical))
+                    }
+                });
+                assert_eq!(
+                    unknown_route_safe(&lines, &boxes, &grid, &historical, &historical, ordinary),
+                    full
+                );
+            }
+        }
     }
 
     #[test]
@@ -4619,6 +4918,18 @@ mod tests {
                 ink.iter()
                     .any(|line| crate::dims::placement::crosses(*line, bounds))
             );
+            let full = ink.iter().filter(|s| touches_box(**s, bounds)).count();
+            // Start with an incomplete zero-bound query, then raise and lower
+            // the bound and request an exact count from the same cache entry.
+            for maximum in [0, full.saturating_sub(1), full, full + 1, 0] {
+                assert_eq!(index.touching_at_most(bounds, maximum), full <= maximum);
+            }
+            for _ in 0..2 {
+                assert_eq!(
+                    index.touching(bounds),
+                    ink.iter().filter(|s| touches_box(**s, bounds)).count()
+                );
+            }
             assert_eq!(
                 index
                     .near(bounds)

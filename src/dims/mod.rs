@@ -555,6 +555,16 @@ pub(crate) fn has_new_native_recess_dimensions(analysis: &Analysis) -> bool {
 }
 
 pub(crate) fn has_recess_dimensions(analysis: &Analysis) -> bool {
+    let (canonical, established) = crate::planning::policy_key(analysis);
+    crate::planning::memo(
+        analysis,
+        "recess-presence",
+        vec![u8::from(canonical), u8::from(established)],
+        || has_recess_dimensions_uncached(analysis),
+    )
+}
+
+fn has_recess_dimensions_uncached(analysis: &Analysis) -> bool {
     wants(analysis).0.iter().any(|w| {
         w.measurements
             .iter()
@@ -874,6 +884,16 @@ pub(crate) fn inspection_datum(a: &Analysis) -> Option<(usize, f64)> {
 }
 
 pub(crate) fn detail_levels(a: &Analysis) -> Vec<(String, f64)> {
+    let (canonical, established) = crate::planning::policy_key(a);
+    crate::planning::memo(
+        a,
+        "detail-linear-levels",
+        vec![u8::from(canonical), u8::from(established)],
+        || detail_levels_uncached(a),
+    )
+}
+
+fn detail_levels_uncached(a: &Analysis) -> Vec<(String, f64)> {
     wants(a)
         .0
         .into_iter()
@@ -1658,6 +1678,16 @@ pub(crate) fn authored_placement_clear(spec: &Spec, dims: &[PlannedDimension]) -
 /// A slot chain must have room for its arrows and its own text between its ends.
 /// New recess annotations reserve extra paper rather than reducing these existing chains.
 pub(crate) fn recess_chain_scale(analysis: &Analysis) -> f64 {
+    let (canonical, established) = crate::planning::policy_key(analysis);
+    crate::planning::memo(
+        analysis,
+        "recess-readable-scale",
+        vec![u8::from(canonical), u8::from(established)],
+        || recess_chain_scale_uncached(analysis),
+    )
+}
+
+fn recess_chain_scale_uncached(analysis: &Analysis) -> f64 {
     if !gdt::demand(analysis, &|_| true).is_empty() {
         return 0.0;
     }
@@ -1809,6 +1839,23 @@ pub(crate) fn plan_inventory(
     // selected that same size/scale or the allocator selected it automatically.
     geometry_spec.sheet.size = None;
     geometry_spec.sheet.scale = None;
+    geometry_spec.views.retain(|name, view| {
+        let inactive = crate::detail::NAMES.contains(&name.as_str())
+            && *view
+                == crate::model::ViewSpec {
+                    omit: true,
+                    ..Default::default()
+                }
+            && !views.iter().any(|v| v.id.strip_prefix("v:") == Some(name));
+        let named = spec.dimensions.values().any(|d| {
+            d.view.as_ref() == Some(name)
+                || d.place.as_ref().and_then(|p| p.view.as_ref()) == Some(name)
+        }) || spec
+            .annotations
+            .values()
+            .any(|d| d.place.as_ref().and_then(|p| p.view.as_ref()) == Some(name));
+        !inactive || named
+    });
     let mut geometry_sheet = sheet.clone();
     geometry_sheet.title.clear();
     geometry_sheet.title_cells.clear();

@@ -2437,16 +2437,11 @@ fn clear_linear_ordered(
                 .flat_map(|q| q.lines.iter().take(2).copied())
                 .collect(),
         );
-        let repair_peers: Vec<Vec<_>> = (0..placed.len())
-            .map(|j| {
-                placed
-                    .iter()
-                    .enumerate()
-                    .filter(|(t, _)| *t != i && *t != j)
-                    .filter_map(|(_, q)| q.as_ref())
-                    .chain(obstacles.iter().filter_map(|d| d.placed.as_ref()))
-                    .collect()
-            })
+        // Most trials never need to move a peer label. Prepare a peer's full
+        // immutable obstacle list only if that particular repair is reached,
+        // instead of building every quadratic list for every current dimension.
+        let repair_peers: Vec<_> = (0..placed.len())
+            .map(|_| std::cell::OnceCell::new())
             .collect();
         let repair_static: Vec<_> = (0..placed.len())
             .map(|_| std::cell::OnceCell::new())
@@ -2456,6 +2451,14 @@ fn clear_linear_ordered(
         let candidates = choices
             .into_iter()
             .flat_map(|(target, lane)| {
+                // Crossing counts and peer repairs cannot be negative. Skip
+                // preparing strokes whose best possible score already loses.
+                if best_rank
+                    .get()
+                    .is_some_and(|best| best <= ((0, 0), 0, target != side, lane))
+                {
+                    return Vec::new();
+                }
                 let Some(c) = place(&frames[view], &items[i], target, lane) else {
                     return Vec::new();
                 };
@@ -2764,7 +2767,15 @@ fn clear_linear_ordered(
                         if !repair_witnesses[j] {
                             return None;
                         }
-                        let peers = &repair_peers[j];
+                        let peers = repair_peers[j].get_or_init(|| {
+                            placed
+                                .iter()
+                                .enumerate()
+                                .filter(|(t, _)| *t != i && *t != j)
+                                .filter_map(|(_, q)| q.as_ref())
+                                .chain(obstacles.iter().filter_map(|d| d.placed.as_ref()))
+                                .collect::<Vec<_>>()
+                        });
                         let rest: Vec<_> =
                             peers.iter().copied().chain(std::iter::once(&c)).collect();
                         let repaired =
@@ -2884,14 +2895,14 @@ fn clear_linear_ordered(
                 candidate.1 != side,
                 candidate.2,
             );
-            let optimal = candidate.0 == (0, 0) && candidate.4.is_empty() && candidate.1 == side;
+            let optimal = candidate.0 == (0, 0) && candidate.4.is_empty();
             if best_rank.get().is_none_or(|best| score < best) {
                 best_rank.set(Some(score));
                 found = Some(candidate);
             }
-            // Lanes are generated in increasing order on the current strip.
-            // Once both crossing tiers and repairs are zero, later lanes or
-            // the opposite strip cannot improve the original lexicographic rank.
+            // Current-strip lanes precede opposite-strip lanes, each increasing.
+            // Once both crossing tiers and repairs are zero, every later lane
+            // loses or ties the original lexicographic rank on either strip.
             if optimal {
                 break;
             }

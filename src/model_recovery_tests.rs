@@ -64,21 +64,20 @@ fn a_valid_candidate_crossing_two_views_is_rejected_even_when_the_planner_return
         ] {
             let analysis_key: [u8; 32] =
                 Sha256::digest(serde_json::to_vec(&analysis).unwrap()).into();
-            let key = serde_json::to_vec(&(
-                analysis_key,
-                crate::planning::policy_key(&analysis),
-                &named,
-                true,
-                arrangement,
-                false,
-            ))
-            .unwrap();
-            crate::planning::store(
-                &analysis,
-                "candidate",
-                key,
-                Ok::<Plan, Invalid>(unsafe_try.clone()),
-            );
+            // Native recovery prepares its established-route policy before the
+            // first candidate; inject the same unsafe drawing on either side of
+            // that preparation, under the planner's complete exact input key.
+            for policy in [(false, false), (false, true)] {
+                let key =
+                    serde_json::to_vec(&(analysis_key, policy, &named, true, arrangement, false))
+                        .unwrap();
+                crate::planning::store(
+                    &analysis,
+                    "candidate",
+                    key,
+                    Ok::<Plan, Invalid>(unsafe_try.clone()),
+                );
+            }
         }
         recover_uncached(&analysis, &Spec::default(), first).unwrap()
     });

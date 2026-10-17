@@ -250,8 +250,101 @@ impl<'a> LabelContacts<'a> {
     }
 }
 
+/// Clearance against the original ink is invariant while testing label slides.
+/// Keep the exact old-contact masks, then test only each candidate's new ink.
+struct LabelClearance<'a> {
+    peer: &'a Placed,
+    padded: [f64; 4],
+    overlap: bool,
+    near: bool,
+    peer_clear: Vec<[[f64; 2]; 2]>,
+    moving_clear: Vec<usize>,
+    moving_crossed: Vec<usize>,
+    peer_crossed: Vec<[[f64; 2]; 2]>,
+}
+
+fn clearance_box(b: [f64; 4]) -> [f64; 4] {
+    [b[0] - CLEAR, b[1] - CLEAR, b[2] + CLEAR, b[3] + CLEAR]
+}
+
+impl<'a> LabelClearance<'a> {
+    fn new(original: &Placed, peer: &'a Placed) -> Self {
+        let padded = clearance_box(peer.label_box);
+        let was = clearance_box(original.label_box);
+        Self {
+            peer,
+            padded,
+            overlap: boxes_overlap(original.label_box, peer.label_box),
+            near: boxes_overlap(original.label_box, padded),
+            peer_clear: peer
+                .lines
+                .iter()
+                .chain(&peer.arrows)
+                .copied()
+                .filter(|s| !crosses(*s, was))
+                .collect(),
+            moving_clear: original
+                .lines
+                .iter()
+                .chain(&original.arrows)
+                .enumerate()
+                .filter_map(|(i, s)| (!crosses(*s, padded)).then_some(i))
+                .collect(),
+            moving_crossed: original
+                .lines
+                .iter()
+                .enumerate()
+                .filter_map(|(i, s)| crosses(*s, peer.label_box).then_some(i))
+                .collect(),
+            peer_crossed: peer
+                .lines
+                .iter()
+                .copied()
+                .filter(|s| crosses(*s, original.label_box))
+                .collect(),
+        }
+    }
+
+    fn clears(&self, candidate: &Placed) -> bool {
+        if boxes_overlap(candidate.label_box, self.padded)
+            && (!self.near
+                || (self.overlap && !boxes_overlap(candidate.label_box, self.peer.label_box)))
+        {
+            return false;
+        }
+        let near = clearance_box(candidate.label_box);
+        if self.peer_clear.iter().any(|s| crosses(*s, near)) {
+            return false;
+        }
+        let stroke = |i: usize| {
+            if i < candidate.lines.len() {
+                candidate.lines.get(i)
+            } else {
+                candidate.arrows.get(i - candidate.lines.len())
+            }
+        };
+        if self
+            .moving_clear
+            .iter()
+            .filter_map(|&i| stroke(i))
+            .any(|s| crosses(*s, self.padded))
+        {
+            return false;
+        }
+        self.moving_crossed
+            .iter()
+            .filter_map(|&i| candidate.lines.get(i))
+            .all(|s| crosses(*s, self.peer.label_box) || !crosses(*s, self.padded))
+            && self
+                .peer_crossed
+                .iter()
+                .all(|s| crosses(*s, candidate.label_box) || !crosses(*s, near))
+    }
+}
+
 /// A removed contact must leave readable paper, including when another stroke of the
 /// same item remains close. Test strokes separately so existing witness proximity is kept.
+#[cfg(test)]
 fn clears_with_margin(p: &Placed, c: &Placed, q: &PlannedDimension) -> bool {
     let Some(qp) = &q.placed else { return true };
     let pad = |b: [f64; 4]| [b[0] - CLEAR, b[1] - CLEAR, b[2] + CLEAR, b[3] + CLEAR];
@@ -563,28 +656,47 @@ fn settle_inventory_uncached(
                     .filter_map(|q| q.placed.as_ref()),
             )
         };
-        if count == 0 && !span_bad(p) {
+        let original_span_bad = span_bad(p);
+        if count == 0 && !original_span_bad {
             continue;
         }
+        // Whether the original ink already detached a peer's text is constant
+        // throughout every slide and lane trial for this one dimension.
+        let protected_spans: Vec<_> = others
+            .iter()
+            .filter(|q| q.kind == "linear" && q.view == d.view)
+            .filter_map(|q| q.placed.as_ref())
+            .filter(|q| !off_span(q, std::iter::once(p)))
+            .collect();
+        let clearance: Vec<_> = others.iter().map(|_| std::cell::OnceCell::new()).collect();
         let allowed = |c: &Placed, prepared: &[LabelContacts]| {
             if !page.fits(c, view) || outside(c, region) || (outside(c, area) && !outside(p, area))
             {
                 return false;
             }
             let bounds = contact_bounds(c);
-            others.iter().zip(&old).zip(&peer_bounds).zip(prepared).all(
-                |(((q, before), peer), cached)| {
+            others
+                .iter()
+                .zip(&old)
+                .zip(&peer_bounds)
+                .zip(prepared)
+                .zip(&clearance)
+                .all(|((((q, before), peer), cached), margin)| {
                     if !boxes_overlap(bounds, *peer) {
                         return true;
                     }
                     let contact = cached.contacts(c);
-                    contact & (1 << 4) == 0 && contact & !before == 0 && clears_with_margin(p, c, q)
-                },
-            ) && others
-                .iter()
-                .filter(|q| q.kind == "linear" && q.view == d.view)
-                .filter_map(|q| q.placed.as_ref())
-                .all(|q| !off_span(q, std::iter::once(c)) || off_span(q, std::iter::once(p)))
+                    contact & (1 << 4) == 0
+                        && contact & !before == 0
+                        && margin
+                            .get_or_init(|| {
+                                LabelClearance::new(p, q.placed.as_ref().expect("placed peer"))
+                            })
+                            .clears(c)
+                })
+                && protected_spans
+                    .iter()
+                    .all(|q| !off_span(q, std::iter::once(c)))
         };
         let better = |c: &Placed, prepared: &[LabelContacts]| {
             let bounds = contact_bounds(c);
@@ -595,7 +707,9 @@ fn settle_inventory_uncached(
                 .filter(|((_, b), _)| boxes_overlap(bounds, **b))
                 .map(|((_, _), cached)| cached.contacts(c).count_ones() as usize)
                 .sum();
-            (hits, span_bad(c)) < (count, span_bad(p))
+            // The caller still requires !span_bad(c), so a retained candidate's
+            // span tier is false; evaluate that guard once after scoring.
+            (hits, false) < (count, original_span_bad)
         };
         // A single occupied rung may be skipped; fixed-ink obstructions never justify
         // a farther search. Two paper lanes is the absolute movement bound.
@@ -683,9 +797,11 @@ mod tests {
                     for n in 0..=2 {
                         let lane = promote(&original, f64::from(n) * LANE);
                         let prepared = LabelContacts::new(&lane, &q);
+                        let clearance = LabelClearance::new(&original, q.placed.as_ref().unwrap());
                         for at in -20..=20 {
                             let c = label_at(&lane, f64::from(at));
                             assert_eq!(prepared.contacts(&c), contacts(&c, &q));
+                            assert_eq!(clearance.clears(&c), clears_with_margin(&original, &c, &q));
                         }
                     }
                     for m in -20..=20 {

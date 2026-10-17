@@ -60,6 +60,21 @@ pub(crate) struct Cache {
     models: RefCell<Models>,
 }
 
+fn frame_key(view: &crate::model::PlannedView) -> Vec<u64> {
+    let mut key: Vec<_> = view
+        .direction
+        .iter()
+        .chain(&view.up)
+        .chain(&view.at)
+        .chain(std::iter::once(&view.scale))
+        .map(|v| v.to_bits())
+        .collect();
+    if let Some(detail) = &view.detail {
+        key.extend(detail.bounds.iter().flatten().map(|v| v.to_bits()));
+    }
+    key
+}
+
 impl Cache {
     pub(super) fn model(
         &self,
@@ -67,15 +82,10 @@ impl Cache {
         view: &crate::model::PlannedView,
     ) -> Option<ModelInk> {
         let ink = analysis.edge_ink.as_ref()?;
-        let geometry = view
-            .direction
-            .iter()
-            .chain(&view.up)
-            .chain(&view.at)
-            .chain(std::iter::once(&view.scale))
-            .map(|v| v.to_bits())
-            .collect();
-        let key = (view.id.clone(), geometry, view.cut.is_some());
+        let geometry = frame_key(view);
+        let cut =
+            view.cut.is_some() || view.detail.as_ref().is_some_and(|d| d.source_cut.is_some());
+        let key = (view.id.clone(), geometry, cut);
         let mut models = self.models.borrow_mut();
         if models.len() >= 128 && !models.contains_key(&key) {
             models.clear();
@@ -99,14 +109,7 @@ impl Cache {
         analysis: &Analysis,
         view: &crate::model::PlannedView,
     ) -> Rc<Footprints> {
-        let key = view
-            .direction
-            .iter()
-            .chain(&view.up)
-            .chain(&view.at)
-            .chain(std::iter::once(&view.scale))
-            .map(|v| v.to_bits())
-            .collect();
+        let key = frame_key(view);
         let frame_key = serde_json::to_vec(&(&view.id, &key)).expect("footprint frame serializes");
         self.views
             .borrow_mut()
@@ -1013,6 +1016,28 @@ mod tests {
         assert_eq!(first.features.len(), moved.features.len());
         for (a, b) in first.features.iter().zip(&moved.features) {
             assert!((b.shape.bounds()[0] - a.shape.bounds()[0] - 10.0).abs() < 1e-9);
+        }
+        // Enlarging a different crop can keep the same camera, scale and page
+        // centre while changing the world centre mapped there. Cached ink must move.
+        view.id = "v:detail_a".into();
+        view.detail = Some(
+            serde_json::from_value(serde_json::json!({
+                "label":"A","axis":2,"source_view":"v:plan","kind":"authored-feature",
+                "bounds":[[0.,0.,0.],[10.,10.,10.]],"marked_bounds":[[0.,0.,0.],[10.,10.,10.]],
+                "dimensions":[],"scale":2.,"authored":true,"partial_profile":true
+            }))
+            .unwrap(),
+        );
+        let crop = cache.get(&a, &view);
+        let crop_model = cache.model(&a, &view).unwrap();
+        view.detail.as_mut().unwrap().bounds[0][0] += 2.0;
+        let changed = cache.get(&a, &view);
+        let changed_model = cache.model(&a, &view).unwrap();
+        assert!(!Rc::ptr_eq(&crop_model, &changed_model));
+        assert!(!Rc::ptr_eq(&crop, &changed));
+        assert!(!crop.features.is_empty());
+        for (before, after) in crop.features.iter().zip(&changed.features) {
+            assert!((after.shape.bounds()[0] - before.shape.bounds()[0] + view.scale).abs() < 1e-9);
         }
     }
 

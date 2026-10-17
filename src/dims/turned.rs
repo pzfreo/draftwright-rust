@@ -827,6 +827,12 @@ fn profile_datum(analysis: &Analysis, p: &[&Banded]) -> Option<(bool, String)> {
 
 /// The common inspection origin for axial locations on a whole turned part.
 pub(super) fn axial_datum(analysis: &Analysis) -> Option<(usize, f64)> {
+    crate::planning::memo(analysis, "inspection-datum", Vec::new(), || {
+        axial_datum_uncached(analysis)
+    })
+}
+
+fn axial_datum_uncached(analysis: &Analysis) -> Option<(usize, f64)> {
     let frame = super::QFrame(crate::bridge::holes::frame(analysis));
     let t = turned(analysis, &frame)?;
     let mut read: Vec<_> = analysis
