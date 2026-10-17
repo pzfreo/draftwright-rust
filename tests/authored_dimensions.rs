@@ -538,3 +538,133 @@ fn angular_editor_options_offer_radial_placement_without_inapplicable_sides() {
         json!(["front"])
     );
 }
+
+#[test]
+fn authored_corner_angle_keeps_the_plate_sheet_and_scale() {
+    let (_, a) = plate();
+    let before = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let x = planes(&a, 0);
+    let z = planes(&a, 2);
+    let s = parse(json!({"dimensions":{"d:authored:corner":{
+        "kind":"angle", "between":[x[0].0,z.last().unwrap().0],
+        "view":"front", "tolerance":"±0.5"
+    }}}));
+    let after = model::plan_recovered(&a, &s).unwrap();
+    assert_eq!(before.sheet.size, "A4");
+    assert_eq!(after.sheet.size, before.sheet.size);
+    assert_eq!(
+        after.sheet.scale, before.sheet.scale,
+        "{:?}",
+        after.problems
+    );
+    let d = after
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:authored:corner")
+        .unwrap();
+    let p = d.placed.as_ref().unwrap();
+    // A corner arc must remain local, regardless of how far away the face centres are.
+    let extent = |k: usize| {
+        let coords: Vec<_> = p.lines.iter().flatten().map(|q| q[k]).collect();
+        coords.iter().copied().fold(f64::NEG_INFINITY, f64::max)
+            - coords.iter().copied().fold(f64::INFINITY, f64::min)
+    };
+    assert!(extent(0) < 30.0 && extent(1) < 30.0, "{p:?}");
+    let front = after.views.iter().find(|v| v.id == "v:front").unwrap();
+    let half = [
+        0.5 * front.scale * (a.envelope[1][0] - a.envelope[0][0]),
+        0.5 * front.scale * (a.envelope[1][2] - a.envelope[0][2]),
+    ];
+    for q in p.lines.iter().skip(2).flatten() {
+        assert!(
+            q[0] <= front.at[0] - half[0]
+                || q[0] >= front.at[0] + half[0]
+                || q[1] <= front.at[1] - half[1]
+                || q[1] >= front.at[1] + half[1],
+            "the corner arc enters the outline: {q:?}"
+        );
+    }
+
+    assert!(
+        !after.problems.iter().any(|p| p.severity == "error"),
+        "{:?}",
+        after.problems
+    );
+}
+
+// Independent of the placer's collision helper: include the rendered arrow flares.
+fn dimension_strokes(p: &draftwright::dims::Placed) -> Vec<[[f64; 2]; 2]> {
+    let mut lines = p.lines.clone();
+    for [tip, tail] in &p.arrows {
+        let d = [tail[0] - tip[0], tail[1] - tip[1]];
+        let k = 0.45 / d[0].hypot(d[1]);
+        let left = [tail[0] - k * d[1], tail[1] + k * d[0]];
+        let right = [tail[0] + k * d[1], tail[1] - k * d[0]];
+        lines.extend([[*tip, left], [left, right], [right, *tip]]);
+    }
+    lines
+}
+
+fn strokes_cross(a: [[f64; 2]; 2], b: [[f64; 2]; 2]) -> bool {
+    let orient = |p: [f64; 2], q: [f64; 2], r: [f64; 2]| {
+        (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+    };
+    orient(a[0], a[1], b[0]) * orient(a[0], a[1], b[1]) < -1e-12
+        && orient(b[0], b[1], a[0]) * orient(b[0], b[1], a[1]) < -1e-12
+}
+
+#[test]
+fn authored_aligned_span_clears_dimension_lines_extensions_and_arrowheads() {
+    let (_, a) = plate();
+    let vertices: Vec<_> = a
+        .dimension_references()
+        .iter()
+        .filter_map(|(id, rs)| match rs.as_slice() {
+            [Reference::Vertex { point }] => Some((id, point)),
+            _ => None,
+        })
+        .collect();
+    let (p, q) = vertices
+        .iter()
+        .flat_map(|p| vertices.iter().map(move |q| (p, q)))
+        .find(|(p, q)| {
+            (p.1[1] - q.1[1]).abs() < 1e-7
+                && (p.1[0] - q.1[0]).abs() > 1e-3
+                && (p.1[2] - q.1[2]).abs() > 1e-3
+        })
+        .unwrap();
+    for place in [json!(null), json!({"side":"below","lane":1})] {
+        let s = parse(json!({"dimensions":{"d:authored:diagonal":{
+            "between":[p.0,q.0], "along":"true", "view":"front",
+            "tolerance":"±0.1", "place":place
+        }}}));
+        let plan = model::plan_recovered(&a, &s).unwrap();
+        let diagonal = plan
+            .dimensions
+            .iter()
+            .find(|d| d.id == "d:authored:diagonal")
+            .unwrap();
+        let placed = diagonal.placed.as_ref().unwrap();
+        assert_eq!(plan.sheet.size, "A4");
+        let strokes = dimension_strokes(placed);
+        for other in plan.dimensions.iter().filter(|d| d.id != diagonal.id) {
+            let Some(other_placed) = &other.placed else {
+                continue;
+            };
+            for line in &strokes {
+                for other_line in dimension_strokes(other_placed) {
+                    assert!(
+                        !strokes_cross(*line, other_line),
+                        "diagonal crosses {}: {line:?}, {other_line:?}",
+                        other.id
+                    );
+                }
+            }
+        }
+        // The parallel offset should use short perpendicular witnesses, even
+        // when an unpinned hint requested the obstructed side.
+        for [a, b] in placed.lines.iter().take(2) {
+            assert!((b[0] - a[0]).hypot(b[1] - a[1]) < 20.0, "{placed:?}");
+        }
+    }
+}

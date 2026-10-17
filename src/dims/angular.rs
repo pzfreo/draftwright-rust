@@ -19,10 +19,11 @@
 //!   past each witness to just past the arc; an arc about the vertex across the minor sector,
 //!   broken around the label, an arrowhead at each end; the label inline on the bisector, aligned
 //!   with the arc's tangent and turned to read from below or the right. The radius is the
-//!   smallest that leaves room for both arrows and the whole label and reaches past the
-//!   witnesses (draftwright's `minimum_radius`), then grows in 1 mm steps to the first place whose
+//!   smallest that leaves room for both arrows and the whole label. Witness stations select
+//!   the support half-rays, without imposing a radius. Both the physical sector and the equal
+//!   sector on the two extended supports are tried, in increasing radius, in 1 mm steps, whose
 //!   ink stays on the sheet, its label off the views, the title block and the other items, and
-//!   whose lines cross no other view and no other label. With none, it keeps the smallest radius
+//!   whose lines cross no other view, dimension or label. With none, it keeps the smallest radius
 //!   whose label is clear of the views, and the collision checks report what it hits: nothing is
 //!   dropped. The arc is drawn as chords within 0.005 mm of it (draftwright's sampling).
 //!
@@ -277,12 +278,24 @@ impl Ink {
         let relative = text_angle - middle;
         let radial_half = relative.cos().abs() * width / 2.0 + relative.sin().abs() * height / 2.0;
         let tangent_half = relative.sin().abs() * width / 2.0 + relative.cos().abs() * height / 2.0;
-        let longest = lengths[0].max(lengths[1]);
-        let minimum = (longest + GAP + ARROW).max(
-            (2.0 * tangent_half + 2.0 * radial_half + 2.0 * PAD + 4.0 * ARROW) / sweep
-                + radial_half
-                + PAD,
-        );
+        // Witness stations select the physical half-rays; their distance from the
+        // intersection must not force the arc out past the middle of a long face.
+        let mut lo = radial_half + PAD;
+        let mut hi = (2.0 * tangent_half + 2.0 * radial_half + 2.0 * PAD + 4.0 * ARROW) / sweep
+            + radial_half
+            + PAD;
+        // Fit the actual text gap and the two arrow lengths instead of adding
+        // their radial and tangential extents as if all ran along one line.
+        for _ in 0..40 {
+            let radius = 0.5 * (lo + hi);
+            let gap = (tangent_half + PAD).atan2(radius - radial_half - PAD);
+            if (0.5 * sweep - gap) * radius > ARROW {
+                hi = radius;
+            } else {
+                lo = radius;
+            }
+        }
+        let minimum = hi + 1e-6;
         Some(Ink {
             vertex,
             start,
@@ -326,7 +339,7 @@ impl Ink {
         let mut lines = Vec::new();
         for (length, angle) in self.lengths.iter().zip([self.start, end]) {
             lines.push([
-                self.point(length + GAP, angle),
+                self.point(length.min(radius - GAP - OVERSHOOT) + GAP, angle),
                 self.point(radius + OVERSHOOT, angle),
             ]);
         }
@@ -399,10 +412,14 @@ pub(super) fn intent(
 /// Places each angular item of *items* in its carrying view (*views_of*) about its vertex (see
 /// the module's notes), clear of what *placed* already holds where it can be; *placed* takes
 /// its ink.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn place(
     frames: &std::collections::BTreeMap<&str, Frame>,
     items: &[Want],
     views_of: &[Option<&'static str>],
+    sides: &[Option<super::placement::Side>],
+    fixed: &[bool],
+    obstacles: &[super::PlannedDimension],
     placed: &mut [Option<Placed>],
     page: &Page,
 ) {
@@ -419,16 +436,37 @@ pub(super) fn place(
         let Some(geometry) = Ink::new(&frames[view], angle, size) else {
             continue;
         };
-        let candidates: Vec<Placed> = (0..TRIES)
-            .filter_map(|n| geometry.placed(geometry.minimum + n as f64 * STEP, terms))
-            .collect();
+        // Extending both supports reverses both rays and preserves the measured
+        // included angle (also for obtuse angles). Search radius first, so a compact
+        // exterior sector wins over an enormous arc around the original witnesses.
+        let mut extended = Ink::new(
+            &frames[view],
+            &Angle {
+                vertex: angle.vertex,
+                first: [0, 1, 2].map(|k| 2.0 * angle.vertex[k] - angle.first[k]),
+                second: [0, 1, 2].map(|k| 2.0 * angle.vertex[k] - angle.second[k]),
+            },
+            size,
+        )
+        .expect("reversing both rays preserves the angle");
+        extended.lengths = [0.0; 2];
+        let mut candidates = (0..TRIES).flat_map(|n| {
+            [&geometry, &extended]
+                .into_iter()
+                .filter_map(move |g| g.placed(g.minimum + n as f64 * STEP, terms))
+        });
         let others: Vec<&Placed> = placed
             .iter()
             .enumerate()
             .filter(|(j, _)| *j != i)
             .filter_map(|(_, q)| q.as_ref())
+            .chain(obstacles.iter().filter_map(|d| d.placed.as_ref()))
             .collect();
         let own = format!("v:{view}");
+        let exterior = items[i]
+            .measurements
+            .iter()
+            .any(|m| m.feature.starts_with("geometry:"));
         let furniture = |c: &Placed| {
             !boxes_overlap(c.label_box, page.title_block())
                 && page
@@ -436,6 +474,11 @@ pub(super) fn place(
                     .iter()
                     .all(|(_, b)| !boxes_overlap(c.label_box, *b))
                 && !c.lines.iter().any(|l| crosses(*l, page.title_block()))
+                && (!exterior
+                    || c.lines
+                        .iter()
+                        .skip(2)
+                        .all(|l| !crosses(*l, frames[view].outline())))
         };
         let on_sheet = |c: &Placed| {
             let d = page.drawable();
@@ -450,15 +493,36 @@ pub(super) fn place(
                     !boxes_overlap(c.label_box, q.label_box)
                         && !q.lines.iter().any(|l| crosses(*l, c.label_box))
                         && !c.lines.iter().any(|l| crosses(*l, q.label_box))
+                        && super::placement::dimension_lines_clear(c, q)
                 })
         };
-        let chosen = candidates
-            .iter()
-            .find(|c| on_sheet(c) && furniture(c) && clear(c))
-            .or_else(|| candidates.iter().find(|c| furniture(c)))
-            .or_else(|| candidates.first())
-            .cloned();
-        placed[i] = chosen;
+        let mut first = None;
+        let mut fallback = None;
+        let mut moves = Vec::new();
+        let chosen = candidates.find(|c| {
+            first.get_or_insert_with(|| c.clone());
+            if !furniture(c) {
+                return false;
+            }
+            fallback.get_or_insert_with(|| c.clone());
+            if !on_sheet(c) || !page.fits(c, view) {
+                return false;
+            }
+            if clear(c) {
+                return true;
+            }
+            if let Some(room) = super::placement::make_room(
+                i, c, frames, items, views_of, sides, fixed, placed, obstacles, page,
+            ) {
+                moves = room;
+                return true;
+            }
+            false
+        });
+        for (j, p) in moves {
+            placed[j] = Some(p);
+        }
+        placed[i] = chosen.or(fallback).or(first);
     }
 }
 

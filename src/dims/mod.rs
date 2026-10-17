@@ -1147,6 +1147,29 @@ fn lanes_uncached(
     Ok((bands, aligned))
 }
 
+/// Judge the final drawn ink, including arrow flares, after all ordinary lane passes.
+pub(crate) fn authored_placement_clear(spec: &Spec, dims: &[PlannedDimension]) -> bool {
+    dims.iter()
+        .filter(|d| {
+            spec.dimensions.get(&d.id).is_some_and(|entry| {
+                entry.between.is_some()
+                    && (d.kind == "angular"
+                        || (d.kind == "linear"
+                            && entry.along.as_deref().is_none_or(|a| a == "true")))
+            })
+        })
+        .all(|d| {
+            d.placed.as_ref().is_some_and(|p| {
+                dims.iter()
+                    .filter(|q| q.id != d.id)
+                    .filter_map(|q| q.placed.as_ref())
+                    .all(|q| {
+                        placement::annotations_clear(p, q) && placement::dimension_lines_clear(p, q)
+                    })
+            })
+        })
+}
+
 /// The planned dimensions under *spec*, placed around *views* on *sheet*, with what the spec
 /// left out and the problems found. A spec naming a dimension the part does not have is refused
 /// with the nearest IDs.
@@ -1717,7 +1740,16 @@ pub(crate) fn plan_inventory(
         &mut placed,
         &page,
     ));
-    angular::place(&frames, &all, &chosen, &mut placed, &page);
+    angular::place(
+        &frames,
+        &all,
+        &chosen,
+        &sides,
+        &fixed,
+        obstacles,
+        &mut placed,
+        &page,
+    );
     // Radius exceptions are placed around the existing drawing ink. Their addition must not
     // reroute unrelated approved callouts into clutter.
     let mut prior = chosen.clone();
@@ -1777,6 +1809,39 @@ pub(crate) fn plan_inventory(
         &alone,
         &sides,
         &lane,
+        &mut placed,
+        &page,
+    );
+    // Merged automatic items now have their final ink. Resolve oblique authored
+    // quantities against it; the later leader refinement sees these settled positions.
+    placement::clear_aligned(
+        &frames,
+        &all,
+        &chosen,
+        &sides,
+        &fixed,
+        &mut placed,
+        obstacles,
+        &page,
+    );
+    for (i, w) in all.iter().enumerate() {
+        if !fixed[i]
+            && matches!(w.shape, Shape::Angular { .. })
+            && spec
+                .dimensions
+                .get(&w.id)
+                .is_some_and(|d| d.between.is_some())
+        {
+            placed[i] = None;
+        }
+    }
+    angular::place(
+        &frames,
+        &all,
+        &chosen,
+        &sides,
+        &fixed,
+        obstacles,
         &mut placed,
         &page,
     );

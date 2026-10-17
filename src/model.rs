@@ -1524,6 +1524,7 @@ fn fit_fix(
             .any(|q| matches!(q.code.as_str(), "page_fit_uncertain" | "views_do_not_fit"));
         let fits = !doubted || drawn_items_fit(analysis, &p) || {
             crate::sheet_fit::correct_estimate(analysis, &mut p);
+            compact_authored_row(analysis, &mut p);
             drawn_items_fit(analysis, &p)
         };
         if !fits {
@@ -1539,6 +1540,76 @@ fn fit_fix(
         return Ok(Some((ops, pair.0, pair.1)));
     }
     Ok(None)
+}
+
+/// Spend free row space against measured ink before escalating an oblique authored quantity.
+fn compact_authored_row(analysis: &Analysis, plan: &mut Plan) {
+    if crate::dims::authored_placement_clear(&plan.spec, &plan.dimensions)
+        || crate::placement_intent::has_pins(&plan.spec)
+        || plan.spec.views.values().any(|v| v.place.is_some())
+        || !plan.gdt.is_empty()
+        || plan.hole_table.is_some()
+        || !plan.hole_tables.is_empty()
+        || plan.views.iter().any(|v| v.cut.is_some())
+    {
+        return;
+    }
+    let before = findings(plan);
+    for step in 1..=plan.sheet.page[1].ceil() as usize {
+        let mut trial = plan.clone();
+        let dy = if plan.spec.sheet.projection.as_deref() == Some("first") {
+            step as f64
+        } else {
+            -(step as f64)
+        };
+        for v in trial
+            .views
+            .iter_mut()
+            .filter(|v| matches!(v.id.as_str(), "v:front" | "v:side"))
+        {
+            v.at[1] += dy;
+            v.area[1] += dy;
+            v.area[3] += dy;
+        }
+        if !drawn_items_fit(analysis, &trial) {
+            continue;
+        }
+        crate::sheets::line_work(analysis, &trial.spec, &mut trial.views);
+        let furniture = crate::centrelines::obstacles(&trial.views);
+        let Ok((dims, omitted, problems)) = crate::dims::plan_with_obstacles(
+            analysis,
+            &trial.spec,
+            &trial.sheet,
+            &trial.views,
+            &furniture,
+            &[],
+            &crate::dims::footprints::Cache::default(),
+        ) else {
+            continue;
+        };
+        trial.dimensions = dims;
+        trial.omitted = omitted;
+        trial.problems.retain(|p| {
+            !p.code.starts_with("annotation_")
+                && !matches!(
+                    p.code.as_str(),
+                    "leader_through_feature" | "extension_through_feature" | "dimension_text_stray"
+                )
+        });
+        for p in problems {
+            trial.problems.retain(|old| old.id != p.id);
+            trial.problems.push(p);
+        }
+        if crate::dims::authored_placement_clear(&trial.spec, &trial.dimensions)
+            && drawn_items_fit(analysis, &trial)
+            && findings(&trial).hard <= before.hard
+            && findings(&trial).dropped <= before.dropped
+            && over_views(&trial) <= over_views(plan)
+        {
+            *plan = trial;
+            break;
+        }
+    }
 }
 
 /// The first of the large sheets ([`layout::PAGES`]): A2 and larger are for parts that need
@@ -1593,6 +1664,7 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
             let mut corrected = first.clone();
             if !drawn_items_fit(analysis, &corrected) {
                 crate::sheet_fit::correct_estimate(analysis, &mut corrected);
+                compact_authored_row(analysis, &mut corrected);
             }
             if drawn_items_fit(analysis, &corrected) {
                 first = corrected;
@@ -1794,6 +1866,7 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                     iso.basis += "; the smallest fit's orientation scale kept while dimensioned views enlarge";
                 }
                 crate::sheet_fit::correct_estimate(analysis, &mut p);
+                compact_authored_row(analysis, &mut p);
                 crate::iso_caption::refresh(analysis, &mut p);
                 // An estimate's iso budget can refuse a sheet whose finished drawing fits.
                 // Only discharge that estimate when all actual item bounds and reserved views fit.

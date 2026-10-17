@@ -95,9 +95,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     save(&out, "diagonal", &part, &a, diagonal)?;
     let x = planes(&a, 0);
     let z = planes(&a, 2);
-    let angle: Spec = serde_json::from_value(json!({"sheet":{"scale":"2:1"},"dimensions":{
-        "d:authored:corner":{"kind":"angle","between":[x[0].0,z.last().unwrap().0],"view":"front","tolerance":"±0.5"},
-        "d:envelope/width.length":{"place":{"along":0.85}}
+    let angle: Spec = serde_json::from_value(json!({"dimensions":{
+        "d:authored:corner":{"kind":"angle","between":[x[0].0,z.last().unwrap().0],"view":"front","tolerance":"±0.5"}
     }}))?;
     save(&out, "angle", &part, &a, angle)?;
     // No recognized feature document: the author sizes a real cylinder directly from B-rep.

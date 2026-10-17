@@ -2104,6 +2104,256 @@ impl<'a> Page<'a> {
     }
 }
 
+/// Includes the filled arrowheads' edges, rather than only their centre shafts.
+fn dimension_segments(p: &Placed) -> impl Iterator<Item = [P2; 2]> + '_ {
+    p.lines
+        .iter()
+        .copied()
+        .chain(p.arrows.iter().flat_map(|a| super::leaders::head(*a)))
+}
+
+pub(super) fn dimension_lines_clear(a: &Placed, b: &Placed) -> bool {
+    dimension_segments(a).all(|a| dimension_segments(b).all(|b| !super::leaders::lines_meet(a, b)))
+}
+
+pub(super) fn annotations_clear(a: &Placed, b: &Placed) -> bool {
+    !boxes_overlap(a.label_box, b.label_box)
+        && !ink_through(a, b.label_box)
+        && !ink_through(b, a.label_box)
+}
+
+/// Make room for a compact candidate by moving only unpinned, ordinary linear
+/// dimensions. Their usual policy permits transverse witness crossings, but no
+/// shared strokes or ink through labels; the new dimension clears every stroke.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn make_room(
+    i: usize,
+    candidate: &Placed,
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    views_of: &[Option<&'static str>],
+    sides: &[Option<Side>],
+    fixed: &[bool],
+    placed: &[Option<Placed>],
+    obstacles: &[PlannedDimension],
+    page: &Page,
+) -> Option<Vec<(usize, Placed)>> {
+    let mut room = Room {
+        root: i,
+        candidate,
+        frames,
+        items,
+        views_of,
+        sides,
+        fixed,
+        obstacles,
+        page,
+    };
+    let strict =
+        |p: &Placed| annotations_clear(candidate, p) && dimension_lines_clear(candidate, p);
+    if obstacles
+        .iter()
+        .filter_map(|d| d.placed.as_ref())
+        .any(|p| !strict(p))
+    {
+        return None;
+    }
+    let blockers: Vec<_> = placed
+        .iter()
+        .enumerate()
+        .filter_map(|(j, p)| (i != j && p.as_ref().is_some_and(|p| !strict(p))).then_some(j))
+        .collect();
+    let mut work = placed.to_vec();
+    work[i] = Some(candidate.clone());
+    let mut locked = fixed.to_vec();
+    locked[i] = true;
+    for j in blockers {
+        if !room.relocate(j, &mut work, &mut locked, 4) {
+            return None;
+        }
+    }
+    Some(
+        work.into_iter()
+            .enumerate()
+            .filter_map(|(j, p)| {
+                (i != j && p != placed[j])
+                    .then(|| p.map(|p| (j, p)))
+                    .flatten()
+            })
+            .collect(),
+    )
+}
+
+struct Room<'a, 'p> {
+    root: usize,
+    candidate: &'a Placed,
+    frames: &'a BTreeMap<&'a str, Frame>,
+    items: &'a [Want],
+    views_of: &'a [Option<&'static str>],
+    sides: &'a [Option<Side>],
+    fixed: &'a [bool],
+    obstacles: &'a [PlannedDimension],
+    page: &'a Page<'p>,
+}
+
+impl Room<'_, '_> {
+    fn relocate(
+        &mut self,
+        j: usize,
+        work: &mut Vec<Option<Placed>>,
+        locked: &mut Vec<bool>,
+        depth: usize,
+    ) -> bool {
+        if depth == 0
+            || locked[j]
+            || self.fixed[j]
+            || !matches!(self.items[j].shape, Shape::Linear { .. })
+        {
+            return false;
+        }
+        let (Some(view), Some(side)) = (self.views_of[j], self.sides[j]) else {
+            return false;
+        };
+        let clear_root = |p: &Placed| {
+            annotations_clear(self.candidate, p) && dimension_lines_clear(self.candidate, p)
+        };
+        let compatible = |p: &Placed, q: &Placed| {
+            annotations_clear(p, q)
+                && !dimension_segments(p)
+                    .any(|a| dimension_segments(q).any(|b| super::leaders::segments_along(a, b)))
+        };
+        let mut candidates: Vec<_> = (0..12)
+            .flat_map(|lane| {
+                [side, opposite(side)]
+                    .into_iter()
+                    .map(move |side| (side, lane))
+            })
+            .filter_map(|(side, lane)| place(&self.frames[view], &self.items[j], side, lane))
+            .filter(|p| {
+                self.page.fits(p, view)
+                    && clear_root(p)
+                    && self
+                        .obstacles
+                        .iter()
+                        .filter_map(|d| d.placed.as_ref())
+                        .all(|q| compatible(p, q))
+            })
+            .map(|p| {
+                let blockers: Vec<_> = work
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(k, q)| {
+                        (k != j && k != self.root && q.as_ref().is_some_and(|q| !compatible(&p, q)))
+                            .then_some(k)
+                    })
+                    .collect();
+                let crossings = work
+                    .iter()
+                    .flatten()
+                    .map(|q| {
+                        dimension_segments(&p)
+                            .filter(|a| {
+                                dimension_segments(q).any(|b| super::leaders::segments_cross(*a, b))
+                            })
+                            .count()
+                    })
+                    .sum::<usize>();
+                (blockers, crossings, p)
+            })
+            .collect();
+        candidates.sort_by_key(|(blockers, crossings, _)| (blockers.len(), *crossings));
+        for (blockers, _, p) in candidates {
+            if blockers.iter().any(|&k| locked[k]) {
+                continue;
+            }
+            let saved = work.clone();
+            let saved_locks = locked.clone();
+            locked[j] = true;
+            work[j] = Some(p);
+            if blockers
+                .into_iter()
+                .all(|k| self.relocate(k, work, locked, depth - 1))
+            {
+                return true;
+            }
+            *work = saved;
+            *locked = saved_locks;
+        }
+        false
+    }
+}
+
+/// Search the perpendicular offsets of an aligned span against the settled ink.
+/// A side/lane hint is kept when clear; only a pin can require colliding ink.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn clear_aligned(
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    views_of: &[Option<&'static str>],
+    sides: &[Option<Side>],
+    fixed: &[bool],
+    placed: &mut [Option<Placed>],
+    obstacles: &[PlannedDimension],
+    page: &Page,
+) {
+    for (i, w) in items.iter().enumerate() {
+        let (Shape::Aligned { a, b }, Some(view), Some(side)) = (&w.shape, views_of[i], sides[i])
+        else {
+            continue;
+        };
+        if fixed[i] || placed[i].is_none() {
+            continue;
+        }
+        let frame = &frames[view];
+        let others: Vec<_> = placed
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| *j != i)
+            .filter_map(|(_, p)| p.as_ref())
+            .chain(obstacles.iter().filter_map(|d| d.placed.as_ref()))
+            .collect();
+        let clear = |p: &Placed| {
+            page.fits(p, view)
+                && others.iter().all(|q| {
+                    dimension_lines_clear(p, q)
+                        && !boxes_overlap(p.label_box, q.label_box)
+                        && !dimension_segments(p).any(|s| crosses(s, q.label_box))
+                        && !dimension_segments(q).any(|s| crosses(s, p.label_box))
+                })
+        };
+        if placed[i].as_ref().is_some_and(clear) {
+            continue;
+        }
+        let found = (0..80).find_map(|step| {
+            [side, opposite(side)].into_iter().find_map(|side| {
+                aligned_at_offset(
+                    frame.page(*a),
+                    frame.page(*b),
+                    frame.outline(),
+                    &w.terms,
+                    side,
+                    GAP + step as f64,
+                )
+                .and_then(|p| {
+                    if !page.fits(&p, view) {
+                        return None;
+                    }
+                    let moves = make_room(
+                        i, &p, frames, items, views_of, sides, fixed, placed, obstacles, page,
+                    )?;
+                    Some((p, moves))
+                })
+            })
+        });
+        if let Some((p, moves)) = found {
+            for (j, q) in moves {
+                placed[j] = Some(q);
+            }
+            placed[i] = Some(p);
+        }
+    }
+}
+
 /// An aligned dimension's projected witnesses and display, before page scale and view position.
 /// Layout measures its real rotated ink at each scale instead of estimating an axis-aligned lane.
 #[derive(Clone, Debug, PartialEq)]
@@ -2216,12 +2466,23 @@ fn place_aligned(
 }
 
 fn place_aligned_page(
+    a: P2,
+    b: P2,
+    o: [f64; 4],
+    terms: &[String],
+    side: Side,
+    lane: usize,
+) -> Option<Placed> {
+    aligned_at_offset(a, b, o, terms, side, FIRST + lane as f64 * LANE)
+}
+
+fn aligned_at_offset(
     mut a: P2,
     mut b: P2,
     o: [f64; 4],
     terms: &[String],
     side: Side,
-    lane: usize,
+    offset: f64,
 ) -> Option<Placed> {
     if b[0] < a[0] || (b[0] == a[0] && b[1] < a[1]) {
         std::mem::swap(&mut a, &mut b);
@@ -2246,7 +2507,7 @@ fn place_aligned_page(
         .map(dot)
         .into_iter()
         .fold(f64::NEG_INFINITY, f64::max);
-    let height = outer + FIRST + lane as f64 * LANE;
+    let height = outer + offset;
     let move_to = |p: P2, h: f64| [0, 1].map(|k| p[k] + (h - dot(p)) * n[k]);
     let (pa, pb) = (move_to(a, height), move_to(b, height));
     let ink = label_ink(terms, font());
