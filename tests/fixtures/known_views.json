@@ -432,12 +432,6 @@
     "reason": "Draftwright plans section A\u2013A through the blind \u23001.6 axial hole (its first placement reserves the section) but then skips it: its final cutting-plane ink crosses a required feature leader (section decision: skipped, leader_conflict, m_flat_z0). The port plans the same section and keeps it, having no leaders yet; whether it survives once leaders are ported is open."
   },
   {
-    "part": "grm03",
-    "fact": "views",
-    "verdict": "equivalent",
-    "reason": "Detail views are now planned with stable IDs and exact per-view scales. Approved local dimensions move to their own crop; supported crop bounds and rectangular late-furniture placement differ from Python's captured drawing. The isometric keeps sheet scale when its detail reservation allows it. Compare docs/detail-verification.md and tests/detail_views.rs; tests/views.rs compares the same physical point across crop-centred camera transforms."
-  },
-  {
     "part": "grm05",
     "fact": "centre:front",
     "verdict": "rust-correct",

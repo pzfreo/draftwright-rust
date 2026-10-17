@@ -104,6 +104,42 @@ fn a_constrained_main_scale_keeps_the_complete_head_crop_and_sheet_scale_iso() {
 }
 
 #[test]
+fn x_heads_keep_complete_profiles_or_withhold_the_crop() {
+    let Some(dir) = corpus::dir() else { return };
+    let (part, a) = corpus::analyse(&dir, "gramel/GRM-03_thumbwheel_drive_screw.step", "grm03");
+    let fixed = |size: &str| {
+        serde_json::from_value::<Spec>(json!({"sheet":{"size":size,"scale":"2:1"}})).unwrap()
+    };
+    let small = model::plan_recovered(&a, &fixed("A4")).unwrap();
+    assert!(small.views.iter().all(|v| v.detail.is_none()));
+    for value in [0.5, 6.0] {
+        assert!(small.dimensions.iter().any(|d| {
+            d.view == "v:front" && (d.value - value).abs() < 1e-6 && d.placed.is_some()
+        }));
+    }
+    let p = model::plan_recovered(&a, &fixed("A3")).unwrap();
+    let v = p
+        .views
+        .iter()
+        .find(|v| v.detail.is_some())
+        .expect("full head fits A3");
+    let d = v.detail.as_ref().unwrap();
+    assert_eq!(d.axis, 0);
+    assert!(!d.partial_profile);
+    assert!(d.bounds[0][2] <= a.envelope[0][2] && d.bounds[1][2] >= a.envelope[1][2]);
+    for value in [0.5, 2.0, 6.0] {
+        assert!(p.dimensions.iter().any(|dim| {
+            dim.view == v.id && (dim.value - value).abs() < 1e-6 && dim.placed.is_some()
+        }));
+    }
+    let geometry =
+        model::render_geometry(&part, &a, &p, &mut model::Projections::default()).unwrap();
+    let g = &geometry.views.iter().find(|(id, _)| id == &v.id).unwrap().1;
+    let ink = draftwright::output::items_bbox(&g.visible).unwrap();
+    assert!(ink[3] - ink[1] >= (a.envelope[1][2] - a.envelope[0][2]) * v.scale - 0.1);
+}
+
+#[test]
 fn an_omitted_detail_seed_cannot_leak_into_an_ordinary_candidate() {
     let Some(a) = string_post() else { return };
     let seed = model::plan_escalated(&a, &Spec::default()).unwrap();

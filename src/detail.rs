@@ -489,16 +489,23 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
                     bounds[1][axis] = (hi + 1.0).min(a.envelope[1][axis]);
                 }
                 if axis == 0 {
-                    // Python's supported secondary crop keeps every controlled outer rim,
-                    // with 2 paper mm of context (at least 0.1 model mm).
+                    // Keep the complete selected profiles. A crop around only their
+                    // positive rims can reduce a smaller adjacent lip to a meaningless strip.
                     let context = 0.1_f64.max(2.0 / needed);
-                    let rims: Vec<_> = run
+                    let profiles: Vec<_> = run
                         .iter()
-                        .map(|&i| bands[i].1.on[2] + bands[i].1.diameter / 2.0)
+                        .map(|&i| {
+                            let b = &bands[i].1;
+                            [b.on[2] - b.diameter / 2.0, b.on[2] + b.diameter / 2.0]
+                        })
                         .collect();
-                    bounds[0][2] = (rims.iter().copied().fold(f64::INFINITY, f64::min) - context)
+                    bounds[0][2] = (profiles.iter().map(|b| b[0]).fold(f64::INFINITY, f64::min)
+                        - context)
                         .max(a.envelope[0][2]);
-                    bounds[1][2] = (rims.iter().copied().fold(f64::NEG_INFINITY, f64::max)
+                    bounds[1][2] = (profiles
+                        .iter()
+                        .map(|b| b[1])
+                        .fold(f64::NEG_INFINITY, f64::max)
                         + context)
                         .min(a.envelope[1][2]);
                 }
@@ -821,11 +828,18 @@ impl Boundary {
             (3, 1, r[3], b[3] > r[3] + 1e-7),
         ] {
             if cut {
-                for c in clipped {
-                    for p in [c.at(0.0), c.at(1.0)] {
-                        if (p[axis] - edge).abs() < 1e-6 {
-                            self.contacts[side].push(p[1 - axis]);
-                        }
+                // An adjoining edge may start exactly on the crop and lie entirely
+                // outside it. Its zero-length intersection still needs a break contact.
+                for p in clipped
+                    .iter()
+                    .flat_map(|c| [c.at(0.0), c.at(1.0)])
+                    .chain([original.at(0.0), original.at(1.0)])
+                {
+                    if (p[axis] - edge).abs() < 1e-6
+                        && p[1 - axis] >= r[1 - axis] - 1e-6
+                        && p[1 - axis] <= r[3 - axis] + 1e-6
+                    {
+                        self.contacts[side].push(p[1 - axis]);
                     }
                 }
             }
@@ -1030,6 +1044,23 @@ mod tests {
         let mut boundary = Boundary::default();
         boundary.add(&c, &clip(c.clone(), r), r);
         assert!(boundary.ink(r).is_empty());
+    }
+
+    #[test]
+    fn a_crop_at_a_shoulder_joins_continuing_edges_even_with_zero_retained_length() {
+        let r = [-1.0, -1.0, 1.0, 1.0];
+        let mut boundary = Boundary::default();
+        for y in [-0.5, 0.5] {
+            let edge = Curve::Line([1.0, y], [3.0, y]);
+            let clipped = clip(edge.clone(), r);
+            assert!(clipped.is_empty());
+            boundary.add(&edge, &clipped, r);
+        }
+        let ink = boundary.ink(r);
+        for y in [-0.5, 0.5] {
+            assert!(ink.iter().any(|c| [c.start(), c.end()].contains(&[1.0, y])));
+        }
+        assert!(ink.iter().any(|c| c.start()[0] != c.end()[0]));
     }
 
     #[test]
