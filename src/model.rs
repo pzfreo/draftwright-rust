@@ -1479,6 +1479,18 @@ fn protect_retained_routes(
         id: "p:layout_recovery_exhausted:sheet".into(), code: "layout_recovery_exhausted".into(), severity: "warning".into(),
         message: format!("No clean readable drawing preserves the established annotation/feature associations. The fitted drawing and every measurement are retained without new crossing pairs. Readability: {}.", crate::sheet_fit::readability(analysis, &kept)), subjects: vec!["sheet".into()], ..Default::default()
     });
+    if (kept.sheet.size.as_str(), kept.sheet.scale.as_str())
+        != (
+            candidate.sheet.size.as_str(),
+            candidate.sheet.scale.as_str(),
+        )
+        && !kept.problems.iter().any(|q| q.code == "layout_replanned")
+    {
+        kept.problems.push(Problem {
+            id: "p:layout_replanned:sheet".into(), code: "layout_replanned".into(), severity: "info".into(),
+            message: format!("Sheet choice changed from {} at {} to {} at {} to retain the fitted geometry without new crossing pairs; the candidate history records the declined enlargement.", candidate.sheet.size, candidate.sheet.scale, kept.sheet.size, kept.sheet.scale), subjects: vec!["sheet".into()], ..Default::default()
+        });
+    }
     kept.status = crate::completeness::status(&kept.problems);
     kept
 }
@@ -2416,6 +2428,10 @@ fn recover_candidates(
     // An unresolved small-part fallback must not buy large paper for a partial
     // improvement. Complete readable candidates remain eligible on every size.
     let practical_fallback = spec.sheet.size.is_none() && fits_a3_at_full_size(analysis, &first);
+    let legacy_seed_kept = seed_kept
+        && !suppressed_detail
+        && crate::sheet_fit::primary_illegible_steps(analysis, &first) == 0
+        && !(seed_paper >= LARGE_SHEET && practical_fallback);
     // Exhaust each paper and its existing R5 allocation before opening the next.
     for (i, (name, _, _)) in layout::PAGES.iter().enumerate() {
         if spec.sheet.size.as_ref().is_some_and(|n| n != name) {
@@ -2626,23 +2642,10 @@ fn recover_candidates(
             // A readable reduction keeps the ordinary-layout quality ratchet:
             // it can remove a raw estimate's obstructed routes without being
             // forced back onto that larger, worse sheet by one crossing type.
-            let quality_veto = detail_quality_veto
+            let mut quality_veto = detail_quality_veto
                 || (crate::sheets::floor(spec).is_none()
                     && scale > first.sheet.scale_factor + 1e-6
                     && !no_new_issues(&first, &p, false));
-            let verdict = if quality_veto {
-                format!("drawing quality veto; {}", said(f, drops(&p)))
-            } else {
-                said(f, drops(&p))
-            };
-            tried.push(format!(
-                    "{name} {} fill {:.1}% ({}, {over} additional view conflicts, {crossings} additional material crossings, {} annotation conflicts, {readability}, {})",
-                    p.sheet.scale,
-                    p.sheet.fill * 100.0,
-                    verdict,
-                    ink_findings(&p),
-                    p.sheet.arrangement
-                ));
             let retained_findings = layout::Findings {
                 hard: layout_hard + crate::sheet_fit::primary_illegible_steps(analysis, &p),
                 dropped: f.dropped,
@@ -2669,6 +2672,34 @@ fn recover_candidates(
                     p.clone(),
                 ));
             }
+            // The old fitted reference becomes available as each paper is
+            // exhausted. A pair veto is a real candidate refusal: continue to
+            // later readable scales/papers instead of stopping at that drawing.
+            let retained_keys: Vec<_> = retained_candidates.iter().map(|(c, _)| *c).collect();
+            let reference = crate::sheet_fit::retained_refusal_choice(
+                &retained_keys,
+                spec.sheet.size.is_some(),
+                legacy_seed_kept,
+            )
+            .and_then(|(choice, _)| choice.map(|index| &retained_candidates[index].1))
+            .unwrap_or(&first);
+            let route_pair_veto = complete_candidate(f, over)
+                && drawn_quality_reference(analysis, reference)
+                && !no_new_issue_pairs(reference, &p);
+            quality_veto |= route_pair_veto;
+            let verdict = if quality_veto {
+                format!("drawing quality veto; {}", said(f, drops(&p)))
+            } else {
+                said(f, drops(&p))
+            };
+            tried.push(format!(
+                    "{name} {} fill {:.1}% ({}, {over} additional view conflicts, {crossings} additional material crossings, {} annotation conflicts, {readability}, {})",
+                    p.sheet.scale,
+                    p.sheet.fill * 100.0,
+                    verdict,
+                    ink_findings(&p),
+                    p.sheet.arrangement
+                ));
             // Reserving real corridors may reveal that the seed loses ink off paper.
             // If no complete drawing exists, retain all its measurements on a physically
             // fitting sheet with fewer hard findings, still reporting every missing item.
@@ -2677,6 +2708,7 @@ fn recover_candidates(
                     < crate::sheet_fit::readability(analysis, &first).failures()
                 && no_new_issues(&first, &p, false);
             if actual_fit
+                && !route_pair_veto
                 && (!practical_fallback || i < LARGE_SHEET || readability_gain)
                 && carried(&first).is_subset(&carried(&p))
                 && undrawn_gdt(&p) <= undrawn_gdt(&first)
@@ -2787,10 +2819,7 @@ fn recover_candidates(
     let route_reference = crate::sheet_fit::retained_refusal_choice(
         &retained_keys,
         spec.sheet.size.is_some(),
-        seed_kept
-            && !suppressed_detail
-            && crate::sheet_fit::primary_illegible_steps(analysis, &first) == 0
-            && !(seed_paper >= LARGE_SHEET && practical_fallback),
+        legacy_seed_kept,
     )
     .and_then(|(choice, _)| choice.map(|index| &retained_candidates[index].1))
     .unwrap_or(&first)
@@ -2822,7 +2851,12 @@ fn recover_candidates(
             }
             kept.problems.push(Problem { id:"p:layout_recovery_exhausted:sheet".into(),code:"layout_recovery_exhausted".into(),severity:"warning".into(),message:format!("No clean readable standard-sheet drawing meets the new floor; the established fitted drawing and every measurement are retained. Readability: {}.",crate::sheet_fit::readability(analysis,&kept)),subjects:vec!["sheet".into()],..Default::default() });
             kept.status = crate::completeness::status(&kept.problems);
-            return Ok(kept);
+            return Ok(protect_retained_routes(
+                analysis,
+                spec,
+                &route_reference,
+                kept,
+            ));
         }
         if let Some((_, mut fitting)) = fitting_incomplete {
             restore_search_spec(&mut fitting, spec);
