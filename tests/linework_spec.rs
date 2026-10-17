@@ -70,9 +70,48 @@ fn hidden_precedence_defaults_and_cache_reuse() {
     }
     let restored = geometry(&part, &a, &auto, &mut cache);
     assert_eq!(
-        serde_json::to_value(original).unwrap(),
+        serde_json::to_value(&original).unwrap(),
         serde_json::to_value(restored).unwrap()
     );
+    // Iso uses visible precedence too, while explicit view switches still win
+    // over sheet defaults and invalidate the same projection cache.
+    let original_iso = &original
+        .views
+        .iter()
+        .find(|(id, _)| id == "v:iso")
+        .unwrap()
+        .1;
+    assert!(!original_iso.hidden.is_empty());
+    for (sheet_hidden, iso_hidden) in [(false, true), (true, false), (false, true)] {
+        let p = model::plan(
+            &a,
+            &spec(json!({
+                "sheet": {"hidden": sheet_hidden},
+                "views": {"iso": {"hidden": iso_hidden}}
+            })),
+        )
+        .unwrap();
+        let changed = geometry(&part, &a, &p, &mut cache);
+        let iso = &changed
+            .views
+            .iter()
+            .find(|(id, _)| id == "v:iso")
+            .unwrap()
+            .1;
+        assert_eq!(view(&p, "iso").from_spec, ["views/iso/hidden"]);
+        assert_eq!(
+            serde_json::to_value(&iso.visible).unwrap(),
+            serde_json::to_value(&original_iso.visible).unwrap()
+        );
+        if iso_hidden {
+            assert_eq!(
+                serde_json::to_value(&iso.hidden).unwrap(),
+                serde_json::to_value(&original_iso.hidden).unwrap()
+            );
+        } else {
+            assert!(iso.hidden.is_empty());
+        }
+    }
 }
 
 #[test]
