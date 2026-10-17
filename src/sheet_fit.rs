@@ -783,6 +783,8 @@ pub(crate) fn repair_readability(analysis: &Analysis, plan: &mut Plan) {
     if initial.lanes == 0 && initial.text_arrows == 0 {
         return;
     }
+    let cache = crate::dims::footprints::Cache::default();
+    let mut original_codes = None;
     for i in 0..plan.dimensions.len() {
         let d = &plan.dimensions[i];
         if d.kind != "linear"
@@ -864,7 +866,9 @@ pub(crate) fn repair_readability(analysis: &Analysis, plan: &mut Plan) {
             if !near && !parallel && lanes != 0 {
                 break;
             }
-            for at in positions {
+            // With unchanged text every position produces identical ink. A
+            // failed trial must not repeat the same collision solve three times.
+            for at in positions.into_iter().take(if text_bad { 3 } else { 1 }) {
                 let mut trial = plan.clone();
                 let shift = if lanes == 0 {
                     0.0
@@ -976,12 +980,16 @@ pub(crate) fn repair_readability(analysis: &Analysis, plan: &mut Plan) {
                 {
                     continue;
                 }
-                let checked = crate::dims::recheck(analysis, &trial);
-                let codes: std::collections::BTreeSet<_> = crate::dims::recheck(analysis, plan)
-                    .into_iter()
-                    .chain(checked.iter().cloned())
-                    .map(|p| p.code)
-                    .collect();
+                let checked = crate::dims::recheck_cached(analysis, &trial, &cache);
+                let mut codes = original_codes
+                    .get_or_insert_with(|| {
+                        crate::dims::recheck_cached(analysis, plan, &cache)
+                            .into_iter()
+                            .map(|p| p.code)
+                            .collect::<std::collections::BTreeSet<_>>()
+                    })
+                    .clone();
+                codes.extend(checked.iter().map(|p| p.code.clone()));
                 trial.problems.retain(|p| !codes.contains(&p.code));
                 trial.problems.extend(checked);
                 enclose_free_ink(analysis, &mut trial);
@@ -997,6 +1005,11 @@ pub(crate) fn repair_readability(analysis: &Analysis, plan: &mut Plan) {
         }
         if let Some(trial) = accepted {
             *plan = trial;
+            original_codes = None;
+            let remaining = readability(analysis, plan);
+            if remaining.lanes == 0 && remaining.text_arrows == 0 {
+                return;
+            }
         }
     }
 }

@@ -2953,8 +2953,9 @@ fn recover_candidates_before(
     let established_scale = established.map(|e| e.0);
     // A native recess may expose a real readability failure. Its established
     // scale caps fill-driven enlargement, never a necessary readable trial.
-    let readability_recovery =
-        !reference_only && crate::sheet_fit::readability(analysis, &first).failures() > 0;
+    let readability_recovery = established_scale.is_some()
+        && !reference_only
+        && crate::sheet_fit::readability(analysis, &first).failures() > 0;
 
     let orientation_cap = established.and_then(|e| e.1);
     let corridor_budget = established.map(|e| e.2);
@@ -2969,14 +2970,10 @@ fn recover_candidates_before(
             crate::dims::extension_contacts(&p.dimensions).saturating_sub(budget)
         })
     };
-    let min_legible_scale = crate::sheets::floor(spec).map_or_else(
-        || crate::sheet_fit::min_legible_scale(analysis),
-        |floor| floor.max(crate::sheet_fit::min_legible_scale(analysis)),
-    );
     let min_legible_scale = if reference_only {
         crate::sheet_fit::preparation_scale(analysis).max(crate::sheets::floor(spec).unwrap_or(0.0))
     } else {
-        min_legible_scale
+        crate::sheet_fit::min_legible_scale(analysis).max(crate::sheets::floor(spec).unwrap_or(0.0))
     }
     .max(minimum.unwrap_or(0.0));
     first.sheet.fill = crate::sheet_fit::fill(analysis, &first);
