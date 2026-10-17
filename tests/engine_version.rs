@@ -77,6 +77,9 @@ fn engine_inputs_ignore_stray_files_but_include_source_and_assets() {
         std::fs::write(scratch.join(file), "input").unwrap();
     }
     let before = build_support::inputs(&scratch).unwrap();
+    for file in ["schemas/spec.json", "schemas/mcp-validation.json"] {
+        assert!(before.iter().any(|path| path == Path::new(file)), "{file}");
+    }
     let hash = build_support::fingerprint(&scratch, &before).unwrap();
     for file in [
         "src/.DS_Store",

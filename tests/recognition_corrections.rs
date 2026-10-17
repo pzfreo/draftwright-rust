@@ -1,4 +1,7 @@
 //! Issue #76 item 2: author intent changes the inventory, never the measuring/rendering path.
+#[path = "common/mcp_schema.rs"]
+mod mcp_schema;
+
 use std::borrow::Cow;
 use std::path::Path;
 
@@ -676,7 +679,7 @@ fn a_bolt_circle_derives_its_pcd_and_lint_still_requires_its_position() {
 
 #[test]
 fn published_mcp_schema_and_common_model_accept_corrections_and_refuse_bad_shapes() {
-    let input = draftwright::mcp::schema("inspect_part", false).unwrap();
+    let input = mcp_schema::with_full_spec("inspect_part", false);
     assert!(
         draftwright::mcp::validate(&input, &json!({"part_ref":"part","part_ref\n":"bad"})).is_err()
     );
