@@ -5366,7 +5366,35 @@ fn plan_with_presentation(
         crate::linework::configure(spec, &mut plan.views);
         return Ok(plan);
     }
-    let footprint_cache = crate::dims::footprints::Cache::default();
+    // A moved iso or a different paper need not rebuild the same principal
+    // feature footprints. Cache::get keys exact frame coordinates and scale;
+    // its per-plan assumption about crop shapes is retained by this outer key.
+    // Keep arbitrary interactive edits in separate bounded planning entries;
+    // only the finite internal paper/scale/allocation ladder shares this cache.
+    let mut footprint_intent = given.clone();
+    footprint_intent.binding = None;
+    footprint_intent.sheet.size = None;
+    footprint_intent.sheet.scale = None;
+    footprint_intent.sheets = None;
+    footprint_intent.hole_table = crate::hole_table::Setting::Auto;
+    footprint_intent.views.retain(|_, v| {
+        v.omit = false;
+        v.sheet = None;
+        *v != ViewSpec::default()
+    });
+    let crop_key = serde_json::to_vec(&(
+        footprint_intent,
+        views
+            .iter()
+            .filter(|v| v.detail.is_some())
+            .map(|v| (&v.id, &v.detail, &v.cut))
+            .collect::<Vec<_>>(),
+    ))
+    .expect("candidate crop inputs serialize");
+    let footprint_cache =
+        crate::planning::memo(analysis, "sheet-feature-footprints", crop_key, || {
+            std::rc::Rc::new(crate::dims::footprints::Cache::default())
+        });
     let held = crate::placement_intent::held_dimensions(canonical.as_ref(), &views);
     let mut fixed_spec = spec.clone();
     fixed_spec

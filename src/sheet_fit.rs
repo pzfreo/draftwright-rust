@@ -159,11 +159,17 @@ fn route_refusal_uncached(
             .flat_map(|(id, p)| p.lines[..2].iter().map(move |s| (id.to_string(), *s)))
             .collect::<Vec<_>>()
     };
+    let mut current_extensions = std::collections::BTreeMap::new();
+    let mut reference_extensions = std::collections::BTreeMap::new();
     let mut current_ink = std::collections::BTreeMap::new();
     let mut reference_ink = std::collections::BTreeMap::new();
     for (p, sheet, q, old_sheet, same) in changed {
-        let a = extensions(after, sheet);
-        let b = extensions(before, old_sheet);
+        let a = current_extensions
+            .entry(sheet)
+            .or_insert_with(|| extensions(after, sheet));
+        let b = reference_extensions
+            .entry(old_sheet)
+            .or_insert_with(|| extensions(before, old_sheet));
         let contacts = |p: &crate::dims::Placed, ext: &[(String, [[f64; 2]; 2])]| {
             let pad = grow_route_box(p.label_box, 1.0);
             let mut all = std::collections::BTreeSet::new();
@@ -182,8 +188,8 @@ fn route_refusal_uncached(
             }
             (all.len(), text.len())
         };
-        let (total, text) = contacts(p, &a);
-        let (old_total, old_text) = contacts(q, &b);
+        let (total, text) = contacts(p, a);
+        let (old_total, old_text) = contacts(q, b);
         if total > old_total || (!same && text > old_text) {
             return Some("leader/text gains a 1 mm padded extension-line contact");
         }
@@ -193,10 +199,10 @@ fn route_refusal_uncached(
         {
             let ink = current_ink
                 .entry(sheet)
-                .or_insert_with(|| indexed_route_ink(analysis, after, sheet, &a));
+                .or_insert_with(|| indexed_route_ink(analysis, after, sheet, a));
             let old_ink = reference_ink
                 .entry(old_sheet)
-                .or_insert_with(|| indexed_route_ink(analysis, before, old_sheet, &b));
+                .or_insert_with(|| indexed_route_ink(analysis, before, old_sheet, b));
             if p.lines.iter().enumerate().any(|(i, s)| {
                 let run = ink.run(*s);
                 run > 2.0 + 1e-6 && (!same || run > old_ink.run(q.lines[i]) + 1e-6)
