@@ -223,6 +223,106 @@ pub(super) fn not_dimensioned(f: &Feature, why: &str) -> Problem {
     }
 }
 
+/// Keep an established exterior statement's view. A formerly interior statement
+/// whose rim is actually hidden needs the visible-profile repair instead.
+pub(super) fn prefer_established(analysis: &Analysis, wants: &mut [Want]) {
+    let Some(interior) =
+        crate::planning::lookup::<BTreeSet<String>>(analysis, "canonical-interior-statements", &[])
+    else {
+        return;
+    };
+    let Some(recognition) = &analysis.recognition else {
+        return;
+    };
+    let frame = QFrame(recognition.frame);
+    for w in wants {
+        if w.views.len() < 2
+            || !matches!(w.shape, Shape::Callout { .. })
+            || !w
+                .measurements
+                .iter()
+                .all(|m| m.parameter == "boss.diameter")
+            || interior.contains(&w.id)
+        {
+            continue;
+        }
+        let Some(f) = w
+            .measurements
+            .first()
+            .and_then(|m| analysis.features.iter().find(|f| f.id == m.feature))
+        else {
+            continue;
+        };
+        let Ok(b) = read(f, &frame) else { continue };
+        let view = end_on(b.axis);
+        w.views.retain(|&v| v != view);
+        w.views.insert(0, view);
+        w.basis = "the established exterior cylindrical statement keeps its end view and every diameter claim".into();
+    }
+}
+
+/// The same counted cylindrical statement, with physical attachment stations
+/// on the visible profile's generators and end rims. The selected view determines
+/// the radial axis; an explicitly requested end view keeps circular rim sites.
+pub(super) fn route_profile(analysis: &Analysis, w: &mut Want, view: &str) {
+    if w.views.len() < 2
+        || !matches!(w.shape, Shape::Callout { .. })
+        || !w
+            .measurements
+            .iter()
+            .all(|m| m.parameter == "boss.diameter")
+    {
+        return;
+    }
+    let Some(recognition) = &analysis.recognition else {
+        return;
+    };
+    let frame = QFrame(recognition.frame);
+    let Some((_, toward)) = super::TOWARD.iter().find(|(n, _)| *n == view) else {
+        return;
+    };
+    let mut sites = Vec::new();
+    for m in &w.measurements {
+        let Some(f) = analysis.features.iter().find(|f| f.id == m.feature) else {
+            continue;
+        };
+        let Ok(b) = read(f, &frame) else { continue };
+        let Section::Round(d) = b.section else {
+            continue;
+        };
+        if toward[b.axis].abs() > 0.9 {
+            sites.push((b.top, d / 2.0));
+            continue;
+        }
+        let Some(radial) = (0..3).find(|&k| k != b.axis && toward[k] == 0.0) else {
+            continue;
+        };
+        let base = b.base.unwrap_or(b.top);
+        for c in [base, scale3(add(base, b.top), 0.5), b.top] {
+            for sign in [-1.0, 1.0] {
+                let mut p = c;
+                p[radial] += sign * d / 2.0;
+                sites.push((p, 0.0));
+            }
+        } // End-cap rim stations project onto the visible cap edge too. They
+        // avoid a size's own wall-height witness without inventing an anchor.
+        for c in [base, b.top] {
+            for fraction in [-0.5_f64, 0.0, 0.5] {
+                let mut p = c;
+                p[radial] += fraction * d / 2.0;
+                let across = (1.0 - fraction * fraction).sqrt() * d / 2.0;
+                for k in 0..3 {
+                    p[k] += toward[k] * across;
+                }
+                sites.push((p, 0.0));
+            }
+        }
+    }
+    if !sites.is_empty() {
+        w.shape = Shape::Callout { sites };
+    }
+}
+
 fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let analysis = cx.analysis;
     let [lo, _] = analysis.envelope;
@@ -397,7 +497,9 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         if n > 1 {
             terms.push(format!("{n}×"));
         }
-        let (parameter, value, sites, basis) = match &first.section {
+        let (parameter, value, sites, basis): (&str, f64, Vec<(P3, f64)>, String) = match &first
+            .section
+        {
             Section::Round(d) => {
                 terms.push(format!("ø{}", fmt(*d)));
                 (
@@ -454,9 +556,32 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 )
             }
         };
+        let profile = !crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[])
+            .unwrap_or(false)
+            && matches!(first.section, Section::Round(_))
+            && members.iter().all(|&m| bosses[m].base.is_some())
+            && analysis
+                .recognition
+                .as_ref()
+                .is_some_and(|r| r.recogniser.starts_with("quiddity-rust "))
+            && super::interior::visible_circular_rims(analysis, view, &sites) == Some(false);
+        let views = if profile {
+            let mut v = profile_views(first.axis);
+            v.push(view);
+            v
+        } else {
+            vec![view]
+        };
+        let basis = if profile {
+            format!(
+                "{n} identical cylindrical bosses retain every diameter claim; their end-on rims are occluded, so visible profile walls are preferred"
+            )
+        } else {
+            basis
+        };
         out.push(Want {
             id: want_id(&first.feature.id, parameter),
-            views: vec![view],
+            views,
             value,
             terms,
             measurements: members

@@ -1,28 +1,7 @@
-//! Features from Rust quiddity directly: its versioned recognition document
-//! (`quiddity::recognition`), run on the part draftwright has already read, in place of Python
-//! quiddity's JSON ([`super::read`]), family by family ([`READ`]): holes and hole patterns, then
-//! fillets, chamfers, countersinks, bosses and turned steps, then grooves, flats, the steps
-//! (angled, paired-ramp, circular blind, through and oblique through) and blends, then through
-//! slots and slot patterns, polygonal bosses and stock, double-D bores, plates, gusset ribs and
-//! their patterns, oriented slots and their patterns, and raised pads. Face levels and risers
-//! are evidence Rust quiddity finds (`features::levels`) but its document does not carry, so they
-//! still come through the bridge.
-//!
-//! The recess families the document carries (pockets, channels, pocket patterns, prismatic
-//! pockets, round-bottom and rectangular blind slots, section passages, edge-open circular
-//! pockets and edge-open prismatic recesses) are known and not read. draftwright draws and lints
-//! none of them as such: it reads pockets, channels, blind slots and passages as `section_recess`
-//! features (Python's published `SectionRecess`, one section-geometry record into which Python
-//! projects its internal pocket, prismatic pocket, channel, blind slot and passage readings;
-//! Python's document has no `prismatic_pockets`). Since quiddity-rust 0.1.0-alpha.2 the
-//! document also publishes that projection, as the `section_recesses` family (`SectionRecess`
-//! records and `SectionRecessRefusal`s, an additive family of the same schema); it is known and
-//! not yet read here, so draftwright's section recesses come through the bridge as before
-//! (reading them is the G7b reader stream). The other families draftwright neither draws
-//! nor lints (oriented chamfers, circular face patterns, thin-wall bodies, interior voids,
-//! sheet-metal bodies, freeform surfaces) are known and not read
-//! either. Repeating radial profiles are read only as full-wire correspondence evidence;
-//! they never populate a normative gear feature.
+//! Native recognition/3 reader. Unified section recesses and their patterns use the same
+//! parameters, constituent faces, feature IDs and grammar as the Python bridge. Source
+//! recess families are represented by this projection; source refusals remain lint evidence.
+//! Step levels and risers are retained as evidence, as on the bridge path.
 //!
 //! The document is read fail-closed (ADR3-4): one schema version ([`SCHEMA_VERSION`]), the STEP
 //! file's coordinates, the part's face count, and only the families and record types that schema
@@ -77,7 +56,7 @@ use serde_json::{Map, Value};
 use super::{FINGERPRINT_VERSION, Feature, Fingerprint, HolePattern, QHolePattern};
 
 /// The one document schema this reader knows.
-pub const SCHEMA_VERSION: &str = "quiddity-rust/recognition/2";
+pub const SCHEMA_VERSION: &str = "quiddity-rust/recognition/3";
 
 /// The identity frame: the document's coordinates are the part's.
 pub const IDENTITY: [[f64; 3]; 4] = [[0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
@@ -149,11 +128,15 @@ pub const FAMILIES: &[(&str, &[&str])] = &[
         "section_recesses",
         &["SectionRecess", "SectionRecessRefusal"],
     ),
+    (
+        "section_recess_patterns",
+        &["SectionRecessArray", "SectionRecessGrid"],
+    ),
 ];
 
 /// The families read here: each record is a feature, except an oriented slot pattern's, which is
 /// checked and not kept (see the module docs).
-pub const READ: [&str; 26] = [
+pub const READ: [&str; 30] = [
     "holes",
     "hole_patterns",
     "fillets",
@@ -180,6 +163,10 @@ pub const READ: [&str; 26] = [
     "oriented_slots",
     "oriented_slot_patterns",
     "pads",
+    "section_recesses",
+    "section_recess_patterns",
+    "step_levels",
+    "risers",
 ];
 
 /// Geometry-only records consumed by independent lint, never feature declarations.
@@ -233,6 +220,24 @@ pub enum Field {
 /// so a change to it does not refuse a read that would not use it. `a.b` is field `b` of object
 /// field `a`, checked when `a` is not null (`a` is listed first).
 pub const FIELDS: &[(&str, &[(&str, Field)])] = &[
+    (
+        "SectionRecess",
+        &[
+            ("index", Field::Count),
+            ("body", Field::Count),
+            ("geometry", Field::Object),
+            ("classification", Field::Object),
+            ("evidence", Field::Object),
+        ],
+    ),
+    (
+        "SectionRecessRefusal",
+        &[
+            ("body", Field::Count),
+            ("reason", Field::Text),
+            ("evidence", Field::Object),
+        ],
+    ),
     (
         "RepeatingRadialProfile",
         &[
@@ -523,8 +528,8 @@ pub struct Native {
     /// The other families' features, by kind and then ID; their parameters are in the part's
     /// frame ([`IDENTITY`]).
     pub features: Vec<Feature>,
-    /// Full-wire geometry evidence; never authored gear requirements.
     pub evidence: Vec<super::Record>,
+    pub refusals: Vec<super::Record>,
 }
 
 /// Runs Rust quiddity's recognition on *part* and reads the families of [`READ`].
@@ -561,7 +566,9 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
     let mut patterns = Vec::new();
     let mut others = Vec::new();
     let mut oriented_patterns = Vec::new();
+    let mut recess_patterns = Vec::new();
     let mut evidence = Vec::new();
+    let mut refusals = Vec::new();
     for r in &doc.records {
         let known = FAMILIES
             .iter()
@@ -595,6 +602,33 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
             ));
         }
         match r.family.as_str() {
+            "section_recess_patterns" => {
+                if (r.record_type == "SectionRecessGrid") != r.parameters.contains_key("rows") {
+                    return Err(format!(
+                        "{} has the wrong section-recess pattern shape",
+                        r.id
+                    ));
+                }
+                recess_patterns.push(r.parameters.clone());
+            }
+            "step_levels" | "risers" => evidence.push(super::Record {
+                family: r.family.clone(),
+                subtype: r.record_type.clone(),
+                faces: r.faces.clone(),
+                parameters: r.parameters.clone(),
+            }),
+            "section_recesses" if r.record_type == "SectionRecessRefusal" => {
+                check(&r.parameters, &r.record_type)?;
+                refusals.push(super::Record {
+                    family: r.family.clone(),
+                    subtype: r.record_type.clone(),
+                    faces: super::recess_patterns::constituent_faces(
+                        &r.parameters,
+                        part.faces.len(),
+                    )?,
+                    parameters: r.parameters.clone(),
+                });
+            }
             "holes" => holes.push(r),
             "hole_patterns" => patterns.push(r),
             "oriented_slot_patterns" => oriented_patterns.push(r),
@@ -694,6 +728,18 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
     }
     name_slot_members(&mut others)?;
     check_oriented_slot_patterns(&others, &oriented_patterns)?;
+    super::recess_patterns::append(part, &IDENTITY, &mut others, &recess_patterns)?;
+    // Match the bridge's stable record order; provider family order is not its order.
+    let key = |r: &super::Record| {
+        (
+            r.family.clone(),
+            r.subtype.clone(),
+            r.faces.clone(),
+            Value::Object(r.parameters.clone()).to_string(),
+        )
+    };
+    evidence.sort_by_cached_key(key);
+    refusals.sort_by_cached_key(key);
     Ok(Native {
         recogniser: format!(
             "{} {} ({})",
@@ -703,6 +749,7 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
         patterns,
         features: others,
         evidence,
+        refusals,
     })
 }
 
@@ -719,7 +766,11 @@ fn feature(
             r.id, r.record_type, r.family
         )
     })?;
-    let faces = r.faces.clone();
+    let faces = if r.family == "section_recesses" {
+        super::recess_patterns::constituent_faces(&r.parameters, part.faces.len())?
+    } else {
+        r.faces.clone()
+    };
     if !ascending(&faces) {
         return Err(format!("{} has no ascending faces to anchor it", r.id));
     }
@@ -957,4 +1008,22 @@ fn slot_centre(r: &Map<String, Value>) -> Option<[f64; 3]> {
 /// Whether *faces* are some faces, strictly ascending: a face named twice is not a record's.
 fn ascending(faces: &[usize]) -> bool {
     !faces.is_empty() && faces.windows(2).all(|w| w[0] < w[1])
+}
+
+/// Legacy recess readings represented by the unified projection, including its refusals.
+pub fn represented(family: &str) -> bool {
+    READ.contains(&family)
+        || EVIDENCE_READ.contains(&family)
+        || [
+            "pockets",
+            "pocket_patterns",
+            "channels",
+            "prismatic_pockets",
+            "round_bottom_blind_slots",
+            "rectangular_blind_slots",
+            "section_passages",
+            "edge_open_circular_pockets",
+            "edge_open_prismatic_recesses",
+        ]
+        .contains(&family)
 }

@@ -237,6 +237,12 @@ impl Strips {
 /// the plan and the side.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Lanes {
+    /// A recess callout's measured text and leader room beside each principal view.
+    pub recess_callouts: [f64; 3],
+    /// Linear recess items use the same full lane budget as their peers.
+    pub recess_lanes: bool,
+    /// Minimum readable scale for an existing slot chain beside new recess items.
+    pub recess_chain_scale: f64,
     /// Full text width plus shoulder for an alternate front callout shelf.
     pub callout_front_left: f64,
     pub front_below: usize,
@@ -247,7 +253,7 @@ pub struct Lanes {
     pub plate_side_left: f64,
     pub plate_side_top: f64,
     pub plate_plan_above: usize,
-    /// Plate thicknesses whose witnesses meet the silhouette on a side the fixed map never uses.
+    /// Linear witnesses on an opposite silhouette strip, including table-adjacent locations.
     pub plate_front_above: usize,
     pub plate_plan_right: usize,
     pub plate_plan_below: usize,
@@ -285,6 +291,16 @@ impl Strips {
     /// different side and forcing its witnesses back across the part.
     pub fn reserve(&mut self, lanes: &Lanes) {
         let widen = |band: &mut f64, n: usize| *band = band.max(lane_band(n));
+        let column = lanes.recess_callouts[0].max(lanes.recess_callouts[1]);
+        self.left = self.left.max(column);
+        self.right = self.right.max(column);
+        self.sv_left = self.sv_left.max(lanes.recess_callouts[2]);
+        self.sv_right = self.sv_right.max(lanes.recess_callouts[2]);
+        if lanes.recess_lanes {
+            widen(&mut self.left, lanes.plan_left);
+            widen(&mut self.fv_bottom, lanes.front_below);
+            self.pv_authored_top = self.pv_authored_top.max(lane_band(lanes.plan_above));
+        }
         widen(&mut self.right, lanes.front_right);
         self.left = self.left.max(lanes.callout_front_left);
         widen(
@@ -312,6 +328,13 @@ impl Strips {
         widen(&mut self.sv_bottom, lanes.side_below);
         widen(&mut self.sv_top, lanes.side_above);
         widen(&mut self.sv_right, lanes.side_right);
+        if lanes.recess_lanes {
+            widen(&mut self.sv_top, lanes.side_above.max(1) + 2);
+            if lanes.side_below > 0 {
+                widen(&mut self.sv_bottom, lanes.side_below + 2);
+                self.fv_bottom = self.fv_bottom.max(self.sv_bottom);
+            }
+        }
     }
 
     /// Reserves room at *scale* for the feature control frames, datum feature symbols and labels
@@ -1198,6 +1221,39 @@ fn geometry_with(
         }
     }
     let drawable: Rect = [left, bottom, page_w - right, page_h - top];
+
+    // Required lower-corner blocks need their paper before the views claim it.
+    // Keep the aligned row together and retain its scale; when there is no
+    // height for the lift, the ordinary auxiliary placement remains available.
+    let mut fixed = vec![tb_rect];
+    let mut lower_tables = Vec::new();
+    for (size, corner) in &req.required_tables {
+        if !matches!(corner, Corner::BottomLeft | Corner::BottomRight) {
+            continue;
+        }
+        if let Some([x, y]) = fit_auxiliary_box(*size, drawable, &fixed, *corner, 2.0) {
+            let b = [x, y, x + size[0], y + size[1]];
+            fixed.push(b);
+            lower_tables.push(b);
+        }
+    }
+    if !lower_tables.is_empty() {
+        let boxes = placed_boxes(fv_y, pv_y, sv_y, section_y);
+        let mut lift = 0.0_f64;
+        for b in &boxes {
+            for t in &lower_tables {
+                if b[0] < t[2] + PREFERRED_BLOCK_GUTTER && t[0] - PREFERRED_BLOCK_GUTTER < b[2] {
+                    lift = lift.max(t[3] + PREFERRED_BLOCK_GUTTER - b[1]);
+                }
+            }
+        }
+        if lift > 0.0 && boxes.iter().all(|b| b[3] + lift.next_up() <= page_h - top) {
+            fv_y += lift.next_up();
+            pv_y += lift.next_up();
+            sv_y += lift.next_up();
+            section_y += lift.next_up();
+        }
+    }
 
     // The pinned title block, and the isometric in the largest gap left.
     let title_block = Block {

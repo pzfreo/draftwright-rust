@@ -36,6 +36,7 @@ use serde_json::{Map, Value};
 
 pub mod holes;
 pub mod native;
+pub mod recess_patterns;
 
 pub const RECOGNITION_FORMAT: &str = "draftwright.recognition/1";
 pub const FINGERPRINT_VERSION: &str = "draftwright-bridge/2";
@@ -48,14 +49,9 @@ pub const QUIDDITY_FORMAT_VERSION: u64 = 3;
 pub const QUIDDITY_VERSIONS: [&str; 2] = ["0.3.9", "0.4.0.dev0"];
 /// The derived collections a format-3 document carries that the bridge does not read, and why:
 /// `hole_pairs` restates pairs of holes it reads; `turned_profiles` restates the turned steps;
-/// `oriented_slot_patterns` and `section_recess_patterns` group features it reads one by one
+/// `oriented_slot_patterns` group features it reads one by one
 /// (draftwright gives oriented slot arrays no drafting grammar, #1430). Any other is refused.
-const DERIVED_NOT_READ: [&str; 4] = [
-    "hole_pairs",
-    "oriented_slot_patterns",
-    "section_recess_patterns",
-    "turned_profiles",
-];
+const DERIVED_NOT_READ: [&str; 3] = ["hole_pairs", "oriented_slot_patterns", "turned_profiles"];
 
 /// Where the features came from, and the frame quiddity's coordinates are in.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -336,6 +332,8 @@ struct QInstance {
 #[derive(Deserialize)]
 struct Derived {
     #[serde(default)]
+    section_recess_patterns: Vec<Map<String, Value>>,
+    #[serde(default)]
     hole_patterns: Vec<QHolePattern>,
     #[serde(default)]
     slot_patterns: Vec<QSlotPattern>,
@@ -535,7 +533,7 @@ pub fn read(part: &Part, sha256: &str, json: &str) -> Result<(Recognition, Vec<F
         .iter()
         .filter_map(|(f, index, _)| Some(((*index)?, f.id.clone())))
         .collect();
-    let features: Vec<Feature> = features
+    let mut features: Vec<Feature> = features
         .into_iter()
         .map(|(mut f, _, members)| {
             if !members.is_empty() {
@@ -545,6 +543,17 @@ pub fn read(part: &Part, sha256: &str, json: &str) -> Result<(Recognition, Vec<F
             f
         })
         .collect();
+    // The released 0.3.9 bridge draws these occurrences independently. Keep
+    // their individual size and datum-location owners when replaying archived
+    // documents; the 0.4 contract and native reader use unified patterns.
+    if doc.package.version != "0.3.9" {
+        recess_patterns::append(
+            part,
+            &frame,
+            &mut features,
+            &derived.section_recess_patterns,
+        )?;
+    }
     let patterns = hole_patterns(&derived.hole_patterns, &features)?;
     // Records with no ID are ordered by everything they carry.
     let key = |r: &Record| {
@@ -595,7 +604,7 @@ fn check_document(doc: &Document, recogniser: &str) -> Result<(), String> {
             doc.coordinate_space
         ));
     }
-    let read = ["hole_patterns", "slot_patterns"];
+    let read = ["hole_patterns", "slot_patterns", "section_recess_patterns"];
     if let Some(other) = doc
         .derived
         .keys()

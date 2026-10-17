@@ -372,13 +372,14 @@ pub(crate) fn views(
                 Side::Right => b[2] + p.gap - a[0],
                 Side::Left => b[0] - p.gap - a[2],
             };
+            let exact = |d: f64| if d.abs() < 1e-9 { 0.0 } else { d };
             let previous = views[i].at;
             shift(
                 &mut views[i],
                 if horizontal {
-                    [out, offset]
+                    [exact(out), exact(offset)]
                 } else {
-                    [offset, out]
+                    [exact(offset), exact(out)]
                 },
             );
             if name == "front" {
@@ -939,6 +940,24 @@ pub(crate) fn side_hint(p: &Place) -> Option<Side> {
 
 pub(crate) fn automatic_pin(p: &Place) -> bool {
     p.pinned && p.side.is_none() && p.lane.is_none() && p.along.is_none() && p.offset.is_none()
+}
+
+/// A bare dimension pin keeps its existing station and adds no packing obstacle.
+pub(crate) fn automatic_pins_only(spec: &Spec) -> bool {
+    spec.dimensions
+        .values()
+        .any(|d| d.place.as_ref().is_some_and(automatic_pin))
+        && spec
+            .dimensions
+            .values()
+            .all(|d| d.place.as_ref().is_none_or(automatic_pin))
+        && spec.annotations.is_empty()
+        && spec.views.values().all(|v| v.place.is_none())
+        && spec
+            .dimensions
+            .values()
+            .all(|d| d.tolerance.is_none() && d.text.is_none() && d.style.is_none())
+        && spec.features.values().all(|f| f.fit.is_none())
 }
 
 /// Whether `offset` puts callout `id`'s bend where `base` draws it, from its leader tip: the

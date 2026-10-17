@@ -193,13 +193,13 @@ fn check_part(name: &str, drops: bool) {
 }
 
 #[test]
-fn ftc09_drops_and_reports_its_off_sheet_hole_items() {
-    check_part("ftc09", true);
+fn ftc09_keeps_every_hole_item_with_the_reserved_recess_lanes() {
+    check_part("ftc09", false);
 }
 
 #[test]
-fn ftc08_drops_and_reports_its_off_sheet_hole_items() {
-    check_part("ftc08", true);
+fn ftc08_keeps_every_hole_item_with_the_reserved_recess_lanes() {
+    check_part("ftc08", false);
 }
 
 #[test]
@@ -628,6 +628,60 @@ fn retained_leader_crossings_roll_back_the_whole_table_and_restore_fallbacks() {
             );
         } else {
             assert_eq!(restored, original, "{}", original.id);
+        }
+    }
+}
+
+/// Larger annotation budgets must not weaken the audit when the author really
+/// asks for a sheet that cannot carry the hole items.
+#[test]
+fn a_starved_dense_sheet_reports_every_dropped_hole_item() {
+    for name in ["ftc08", "ftc09"] {
+        let Some((_, analysis)) = part(name) else {
+            return;
+        };
+        let spec: Spec = serde_json::from_value(serde_json::json!({
+            "sheet": {"size": "A4", "scale": "1:1"}, "hole_table": "never"
+        }))
+        .unwrap();
+        let first = model::plan(analysis, &spec).unwrap();
+        let off: Vec<_> = first
+            .dimensions
+            .iter()
+            .filter(|d| {
+                hole_item(d)
+                    && first.problems.iter().any(|p| {
+                        p.code == "annotation_off_sheet" && p.subjects.first() == Some(&d.id)
+                    })
+            })
+            .map(|d| d.id.clone())
+            .collect();
+        assert!(
+            !off.is_empty(),
+            "{name}: the explicit sheet must starve hole items"
+        );
+        let mut escalated = first.clone();
+        hole_table::escalate(analysis, &mut escalated, None);
+        for (before, after) in first.dimensions.iter().zip(&escalated.dimensions) {
+            assert_eq!(before.id, after.id);
+            assert_eq!(
+                after.placed.is_none(),
+                before.placed.is_none() || off.contains(&before.id)
+            );
+            let reports = escalated
+                .problems
+                .iter()
+                .filter(|p| {
+                    hole_table::DROPS.contains(&p.code.as_str())
+                        && p.subjects.first() == Some(&before.id)
+                })
+                .count();
+            assert_eq!(
+                reports,
+                usize::from(off.contains(&before.id)),
+                "{name}: {}",
+                before.id
+            );
         }
     }
 }

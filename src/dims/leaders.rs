@@ -186,6 +186,9 @@ struct Candidate {
     /// grazing route ([`GRAZE`]); always 0 otherwise.
     astray: u32,
     feature_crossings: u32,
+    recess: bool,
+    /// Score the actual directed callout contacts in a shared recess solve.
+    directed: bool,
     inside: i64,
     features_measured: bool,
     fixed_measured: bool,
@@ -256,7 +259,11 @@ impl Candidate {
     fn score(&self) -> i64 {
         i64::from(self.hard) * HARD
             + if self.aware {
-                i64::from(self.crossings + self.outside + self.feature_crossings) * CROSSING
+                i64::from(
+                    self.crossings
+                        + self.outside
+                        + self.feature_crossings * if self.recess { 2 } else { 1 },
+                ) * CROSSING
                     + i64::from(self.text) * TEXT_INK
                     + self.cost
                     + self.inside
@@ -298,6 +305,8 @@ impl Candidate {
 struct Fixed {
     segments: Vec<(usize, [P2; 2])>,
     labels: Vec<(usize, [f64; 4])>,
+    extensions: Vec<(usize, [P2; 2])>,
+    extension_index: ExtensionIndex,
     /// The arrowheads' outlines as `dims::render` draws them ([`head`]), which must stay out of
     /// the label: a flare can reach into it beside a shaft that does not.
     heads: Vec<(usize, [P2; 2])>,
@@ -316,6 +325,11 @@ impl Fixed {
             .flat_map(|(i, p)| p.lines.iter().chain(&p.arrows).map(move |s| (i, *s)))
             .collect();
         let labels: Vec<(usize, [f64; 4])> = on.clone().map(|(i, p)| (i, p.label_box)).collect();
+        let extensions: Vec<_> = on
+            .clone()
+            .filter(|(_, p)| p.arrows.len() == 2 && p.lines.len() >= 3)
+            .flat_map(|(i, p)| p.lines[..2].iter().map(move |s| (i, *s)))
+            .collect();
         let heads: Vec<(usize, [P2; 2])> = on
             .flat_map(|(i, p)| p.arrows.iter().flat_map(move |a| head(*a).map(|e| (i, e))))
             .collect();
@@ -333,14 +347,132 @@ impl Fixed {
             labels.iter().map(|l| l.1).collect(),
             heads.iter().map(line_box).collect(),
         ]);
+        let extension_index = ExtensionIndex::new(extensions.clone());
         Fixed {
             segments,
             labels,
+            extensions,
+            extension_index,
             heads,
             grid,
             furniture: BTreeMap::new(),
             crosses: Default::default(),
         }
+    }
+}
+
+// An owner may have two witnesses. Dense inventories usually fit in one
+// integer; unusual larger owner IDs retain the general set semantics.
+#[derive(Default)]
+struct ContactOwners {
+    small: u128,
+    large: std::collections::BTreeSet<usize>,
+}
+impl ContactOwners {
+    fn insert(&mut self, owner: usize) {
+        if owner < 128 {
+            self.small |= 1u128 << owner;
+        } else {
+            self.large.insert(owner);
+        }
+    }
+    fn len(&self) -> usize {
+        self.small.count_ones() as usize + self.large.len()
+    }
+}
+
+struct ExtensionIndex {
+    ink: Vec<(usize, [P2; 2])>,
+    bounds: Vec<[f64; 4]>,
+    grid: Option<Grid>,
+}
+impl ExtensionIndex {
+    fn new(ink: Vec<(usize, [P2; 2])>) -> Self {
+        let bounds: Vec<_> = ink
+            .iter()
+            .map(|(_, e)| grow(segment_bounds(*e), LABEL_PAD))
+            .collect();
+        let grid = (ink.len() > 64).then(|| Grid::new([bounds.clone(), Vec::new(), Vec::new()]));
+        Self { ink, bounds, grid }
+    }
+    /// Count physical witness strokes touched by the arrow flare (not distinct owners).
+    /// The contact grid's 1 mm boxes conservatively include the exact 0.2 mm test.
+    fn head_contacts(&self, flare: &[[P2; 2]]) -> usize {
+        let reach = flare.iter().map(|s| segment_bounds(*s)).fold(
+            [
+                f64::INFINITY,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+                f64::NEG_INFINITY,
+            ],
+            |a, b| {
+                [
+                    a[0].min(b[0]),
+                    a[1].min(b[1]),
+                    a[2].max(b[2]),
+                    a[3].max(b[3]),
+                ]
+            },
+        );
+        let mut count = 0;
+        let mut measure = |i: usize| {
+            let bounds = grow(segment_bounds(self.ink[i].1), 0.2);
+            count += usize::from(flare.iter().any(|s| touches_box(*s, bounds)));
+        };
+        if let Some(grid) = &self.grid {
+            grid.near(0, reach, measure);
+        } else {
+            for (i, b) in self.bounds.iter().enumerate() {
+                if boxes_meet(*b, reach) {
+                    measure(i);
+                }
+            }
+        }
+        count
+    }
+
+    fn contacts(&self, lines: &[[P2; 2]], label: [f64; 4]) -> (usize, usize) {
+        self.contacts_bounded(lines, label, None)
+            .expect("unbounded contacts")
+    }
+
+    fn contacts_bounded(
+        &self,
+        lines: &[[P2; 2]],
+        label: [f64; 4],
+        maximum: Option<(usize, usize)>,
+    ) -> Option<(usize, usize)> {
+        let pad = grow(label, LABEL_PAD);
+        let reach = lines.iter().flatten().fold(pad, |b, p| {
+            [
+                b[0].min(p[0]),
+                b[1].min(p[1]),
+                b[2].max(p[0]),
+                b[3].max(p[1]),
+            ]
+        });
+        let (mut pairs, mut text) = (ContactOwners::default(), ContactOwners::default());
+        let mut measure = |n: usize| {
+            let (owner, e) = self.ink[n];
+            let on_text = touches_box(e, pad);
+            if on_text {
+                text.insert(owner);
+            }
+            if on_text || lines.iter().any(|s| touches_box(*s, self.bounds[n])) {
+                pairs.insert(owner);
+            }
+            maximum.is_none_or(|(p, t)| pairs.len() <= p && text.len() <= t)
+        };
+        let complete = if let Some(grid) = &self.grid {
+            grid.try_near(0, reach, measure)
+        } else {
+            self.bounds
+                .iter()
+                .enumerate()
+                .filter(|(_, b)| boxes_meet(**b, reach))
+                .all(|(n, _)| measure(n))
+        };
+        complete.then(|| (pairs.len(), text.len()))
     }
 }
 
@@ -438,6 +570,31 @@ impl Grid {
         )
     }
 
+    fn try_near(&self, kind: usize, b: [f64; 4], mut f: impl FnMut(usize) -> bool) -> bool {
+        if !finite(b) {
+            return (0..self.count[kind]).all(f);
+        }
+        let query = self.query.get() + 1;
+        self.query.set(query);
+        let seen = &self.seen[kind];
+        for &n in &self.always[kind] {
+            if !f(n as usize) {
+                return false;
+            }
+        }
+        let (xs, ys) = self.span(b);
+        for y in ys {
+            for x in xs.clone() {
+                for &n in &self.cells[kind][y * self.size[0] + x] {
+                    if seen[n as usize].replace(query) != query && !f(n as usize) {
+                        return false;
+                    }
+                }
+            }
+        }
+        true
+    }
+
     /// Calls *f* with the index of each box of *kind* listed in the cells *b* meets, once.
     fn near(&self, kind: usize, b: [f64; 4], mut f: impl FnMut(usize)) {
         if !finite(b) {
@@ -473,6 +630,15 @@ pub(super) fn head(arrow: [P2; 2]) -> [[P2; 2]; 3] {
     [[tip, a], [a, b], [b, tip]]
 }
 
+fn boss_profile(w: &Want) -> bool {
+    w.views.len() > 1
+        && !w.measurements.is_empty()
+        && w.measurements
+            .iter()
+            .all(|m| m.parameter == "boss.diameter")
+        && matches!(&w.shape, Shape::Callout { sites } if !sites.is_empty() && sites.iter().all(|(_, r)| *r == 0.0))
+}
+
 /// One callout's job: its view's outline, its sites on the page (centre, radius), its label's ink
 /// box about its baseline origin, and how far past each edge the strip's dimensions reach.
 struct Job<'a> {
@@ -488,7 +654,11 @@ struct Job<'a> {
     silhouette: Option<P2>,
     /// For such a callout, its view's model line-work ([`view_ink`]): a route across it is
     /// what an angle off the silhouette may not buy ([`Candidate::astray`]).
-    model: Option<&'a [[P2; 2]]>,
+    model: Option<&'a SegmentIndex>,
+    corridors: bool,
+    directed: bool,
+    short_profile: bool,
+    profile_proof: Option<(&'a crate::model::PlannedView, &'a super::interior::Proof)>,
     /// Once [`inventory`] steers the callout off its silhouette: the most model lines and
     /// features an angled route may cross, the grazing route's ([`astray`]).
     steer: std::cell::Cell<Option<(usize, usize)>>,
@@ -523,6 +693,19 @@ fn side_index(side: Side) -> usize {
         Side::Left => 2,
         Side::Right => 3,
     }
+}
+
+/// Routing needs only this immutable classification. Lowering a dense AP242
+/// document again for every callout discards identical items and diagnostics.
+fn has_semantic_pmi(analysis: &crate::model::Analysis, frames: &BTreeMap<&str, Frame>) -> bool {
+    let key = ["front", "plan", "side"]
+        .map(|name| u8::from(frames.contains_key(name)))
+        .to_vec();
+    crate::planning::memo(analysis, "leader-semantic-pmi", key, || {
+        !crate::pmi_lowering::lower(analysis, &|name| frames.contains_key(name))
+            .0
+            .is_empty()
+    })
 }
 
 /// Places every callout of *items* (its view in *views_of*), whose entry in *placed* is empty,
@@ -564,6 +747,62 @@ pub(super) fn place(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn place_with_obstacles(
+    analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
+    cache: &super::footprints::Cache,
+    views: &[crate::model::PlannedView],
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    views_of: &[Option<&'static str>],
+    sides: &[Option<Side>],
+    placed: &mut [Option<Placed>],
+    page: &Page,
+    obstacles: &[PlannedDimension],
+) -> Vec<Problem> {
+    if !items.iter().enumerate().any(|(i, w)| {
+        matches!(w.shape, Shape::Callout { .. }) && views_of[i].is_some() && placed[i].is_none()
+    }) {
+        return Vec::new();
+    }
+    // Candidate retries can reach the same settled inventory. Retain the exact
+    // solve only within this immutable Analysis, with every routing input in
+    // the key. Frames are derived from these planned views and the Analysis.
+    let route_policy =
+        crate::planning::lookup::<bool>(analysis, "established-route-policy", &[]).unwrap_or(false);
+    let frame_geometry: Vec<_> = frames
+        .iter()
+        .map(|(name, f)| (name, f.memo_geometry()))
+        .collect();
+    let canonical = crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[])
+        .unwrap_or(false);
+    let key = serde_json::to_vec(&(
+        &spec.dimensions,
+        views,
+        frame_geometry,
+        canonical,
+        items,
+        views_of,
+        sides,
+        &*placed,
+        page,
+        obstacles,
+        route_policy,
+    ))
+    .expect("leader solve inputs serialize");
+    let (next, problems) = crate::planning::memo(analysis, "settled-leader-solve", key, || {
+        let mut next = placed.to_vec();
+        let problems = place_with_obstacles_uncached(
+            analysis, spec, cache, views, frames, items, views_of, sides, &mut next, page,
+            obstacles,
+        );
+        (next, problems)
+    });
+    placed.clone_from_slice(&next);
+    problems
+}
+
+#[allow(clippy::too_many_arguments)]
+fn place_with_obstacles_uncached(
     analysis: &crate::model::Analysis,
     spec: &crate::model::Spec,
     cache: &super::footprints::Cache,
@@ -626,24 +865,34 @@ pub(super) fn place_with_obstacles(
         .map(|v| (v.id.trim_start_matches("v:"), cache.get(analysis, v)))
         .collect();
     // The model line-work of each view with a turned step's diameter callout to place.
-    let models: BTreeMap<&str, Vec<[P2; 2]>> = analysis
-        .edge_ink
-        .as_ref()
-        .map(|ink| {
-            views
-                .iter()
-                .filter(|v| {
-                    let id = v.id.trim_start_matches("v:");
-                    items.iter().enumerate().any(|(i, w)| {
-                        views_of[i] == Some(id)
-                            && placed[i].is_none()
-                            && frames.get(id).is_some_and(|f| grazing(f, w).is_some())
-                    })
-                })
-                .map(|v| (v.id.trim_start_matches("v:"), view_ink(analysis, ink, v).0))
-                .collect()
+    let recess_context = items.iter().any(|w| {
+        w.measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:section_recess:"))
+    });
+    let models: BTreeMap<_, _> = views
+        .iter()
+        .filter(|v| {
+            let id = v.id.trim_start_matches("v:");
+            items.iter().enumerate().any(|(i, w)| {
+                views_of[i] == Some(id)
+                    && placed[i].is_none()
+                    && (frames.get(id).is_some_and(|f| grazing(f, w).is_some())
+                        || w.measurements
+                            .iter()
+                            .any(|m| m.feature.starts_with("f:section_recess:")))
+            })
         })
-        .unwrap_or_default();
+        .filter_map(|v| Some((v.id.trim_start_matches("v:"), cache.model(analysis, v)?)))
+        .collect();
+    // Semantic PMI uses the legacy floor; its unused footprint-aware baseline need not be
+    // sorted. The furniture-aware inventory and the legacy survivors stay fully measured.
+    let semantic_pmi = has_semantic_pmi(analysis, frames);
+    let profile_proofs = if items.iter().any(boss_profile) {
+        super::interior::proofs(analysis, views)
+    } else {
+        BTreeMap::new()
+    };
     let mut jobs: Vec<(usize, Job)> = Vec::new();
     for (i, w) in items.iter().enumerate() {
         let (Shape::Callout { sites }, Some(view)) = (&w.shape, views_of[i]) else {
@@ -673,7 +922,24 @@ pub(super) fn place_with_obstacles(
                 area: page.area(view),
                 sites: page_sites(f, sites),
                 silhouette: grazing(f, w),
-                model: models.get(view).map(Vec::as_slice),
+                model: models.get(view).map(|m| &m.as_ref().0),
+                short_profile: boss_profile(w),
+                profile_proof: boss_profile(w)
+                    .then(|| {
+                        let v = views
+                            .iter()
+                            .find(|v| v.id.trim_start_matches("v:") == view)?;
+                        Some((v, profile_proofs.get(&v.id)?.as_ref()))
+                    })
+                    .flatten(),
+                directed: recess_context
+                    && !semantic_pmi
+                    && !crate::planning::lookup::<bool>(analysis, "established-route-policy", &[])
+                        .unwrap_or(false),
+                corridors: boss_profile(w)
+                    || w.measurements
+                        .iter()
+                        .any(|m| m.feature.starts_with("f:section_recess:")),
                 steer: std::cell::Cell::new(None),
                 ink_min: ink.min,
                 ink_max: ink.max,
@@ -682,11 +948,6 @@ pub(super) fn place_with_obstacles(
             },
         ));
     }
-    // Semantic PMI uses the legacy floor; its unused footprint-aware baseline need not be
-    // sorted. The furniture-aware inventory and the legacy survivors stay fully measured.
-    let semantic_pmi = !crate::pmi_lowering::lower(analysis, &|name| frames.contains_key(name))
-        .0
-        .is_empty();
     let measured: Vec<_> = jobs
         .iter()
         .map(|(_, job)| inventory(job, &fixed, page, semantic_pmi))
@@ -739,6 +1000,16 @@ pub(super) fn place_with_obstacles(
                 let radial = rim_tip(site, b.elbow);
                 let u = [radial[0] - site.0[0], radial[1] - site.0[1]];
                 for turn in ROTATIONS {
+                    // New recess footprints can move a radius leader; keep those retries
+                    // radial while preserving the canonical routes on unaffected drawings.
+                    if recess_context
+                        && items[jobs[k].0]
+                            .measurements
+                            .iter()
+                            .any(|m| m.parameter == "slot_end_radius.radius")
+                    {
+                        continue;
+                    }
                     let (sin, cos) = (turn * std::f64::consts::TAU / DIRECTIONS as f64).sin_cos();
                     let tip = [
                         site.0[0] + cos * u[0] - sin * u[1],
@@ -814,15 +1085,18 @@ pub(super) fn place_with_obstacles(
                         .map(|(j, &n)| conflict(c, &inventories[j][n]))
                         .sum::<u32>()
             };
-            let ceiling =
-                local(&inventories[k][choice[k]]) + floor - defects(&inventories, &choice);
+            let ceiling = local(&inventories[k][choice[k]])
+                .saturating_add(floor)
+                .saturating_sub(defects(&inventories, &choice));
             choice[k] = inventories[k]
                 .iter()
                 .enumerate()
                 .filter(|(_, c)| local(c) <= ceiling)
                 .min_by_key(|(n, c)| (c.score() + i64::from(local(c) - ordinary(c)) * CROSSING, *n))
                 .map(|(n, _)| n)
-                .expect("the prior route meets its own floor");
+                // A remeasured incumbent can exceed the legacy floor after a new
+                // corridor is installed. Keep it until a safe improvement exists.
+                .unwrap_or(choice[k]);
         }
         if choice == before {
             break;
@@ -952,11 +1226,11 @@ pub(crate) fn settle_after_furniture(
         let view = v.id.trim_start_matches("v:");
         let ink = label_ink(&d.terms, font());
         let footprint = cache.get(analysis, v);
-        let model = analysis
-            .edge_ink
-            .as_ref()
-            .filter(|_| grazing(&frame, w).is_some())
-            .map(|ink| view_ink(analysis, ink, v).0);
+        let model = if grazing(&frame, w).is_some() {
+            cache.model(analysis, v)
+        } else {
+            None
+        };
         let job = Job {
             side: spec
                 .dimensions
@@ -968,8 +1242,12 @@ pub(crate) fn settle_after_furniture(
             outline: frame.outline(),
             area: page.area(view),
             sites: page_sites(&frame, sites),
+            directed: false,
+            corridors: false,
+            short_profile: boss_profile(w),
+            profile_proof: None,
             silhouette: grazing(&frame, w),
-            model: model.as_deref(),
+            model: model.as_ref().map(|m| &m.as_ref().0),
             steer: std::cell::Cell::new(None),
             ink_min: ink.min,
             ink_max: ink.max,
@@ -1027,11 +1305,194 @@ pub(crate) fn settle_after_furniture(
 /// draftsman sees is worse: no longer by over 2 mm, no new crossing of model, hidden-edge or
 /// cutting-plane ink, no 2 mm run beside a model or extension line, text and arrowhead on no
 /// new extension line, elbow and text off the outline, and no worse on every placement tier.
+fn text_conflict(
+    i: usize,
+    p: &Placed,
+    placed: &[Option<Placed>],
+    obstacles: &[PlannedDimension],
+) -> bool {
+    placed
+        .iter()
+        .enumerate()
+        .filter(|(j, _)| *j != i)
+        .filter_map(|(_, p)| p.as_ref())
+        .chain(obstacles.iter().filter_map(|d| d.placed.as_ref()))
+        .any(|q| {
+            boxes_overlap(p.label_box, q.label_box)
+                || super::placement::ink_through(p, q.label_box)
+                || super::placement::ink_through(q, p.label_box)
+        })
+}
+
+pub(super) fn edited_labels(spec: &crate::model::Spec) -> bool {
+    spec.dimensions
+        .values()
+        .any(|d| d.tolerance.is_some() || d.text.is_some() || d.style.is_some())
+        || spec.features.values().any(|f| f.fit.is_some())
+}
+
+/// Claim an established exterior route before the new witnesses settle. These
+/// are trial preferences, not pins: the complete layout is still adjudicated,
+/// interior placement and refinement may repair them, and the other schedules
+/// can win if these corridors are unsuitable for the expanded inventory.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn seed_established(
+    analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
+    views: &[crate::model::PlannedView],
+    items: &[Want],
+    chosen: &[Option<&str>],
+    placed: &mut [Option<Placed>],
+    page: &Page,
+) {
+    let key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
+        .expect("presentation inputs serialize");
+    let Some(reference) = crate::planning::lookup::<
+        Result<crate::model::Plan, crate::model::Invalid>,
+    >(analysis, "established-drawing", &key)
+    .and_then(Result::ok) else {
+        return;
+    };
+    for (i, w) in items.iter().enumerate() {
+        if placed[i].is_some() || !matches!(w.shape, Shape::Callout { .. }) {
+            continue;
+        }
+        let Some(d) = reference
+            .dimensions
+            .iter()
+            .find(|d| d.id == w.id && d.kind == "callout")
+        else {
+            continue;
+        };
+        if reference.problems.iter().any(|p| {
+            p.subjects.contains(&d.id)
+                && matches!(
+                    p.code.as_str(),
+                    "annotation_line_over_view" | "annotation_leader_long"
+                )
+        }) {
+            continue;
+        }
+        let Some(p) = translated(&reference, d, views, w) else {
+            continue;
+        };
+        if chosen[i].is_some_and(|v| d.view == format!("v:{v}") && page.fits(&p, v)) {
+            placed[i] = Some(p);
+        }
+    }
+}
+
+fn translated(
+    reference: &crate::model::Plan,
+    d: &PlannedDimension,
+    views: &[crate::model::PlannedView],
+    w: &Want,
+) -> Option<Placed> {
+    let before = reference.views.iter().find(|v| v.id == d.view)?;
+    let now = views.iter().find(|v| {
+        v.id == d.view
+            && v.scale == before.scale
+            && v.direction == before.direction
+            && v.up == before.up
+    })?;
+    let mut p = super::placement::relabel(d.placed.as_ref()?, &d.terms, w);
+    let delta = [now.at[0] - before.at[0], now.at[1] - before.at[1]];
+    for q in p.lines.iter_mut().chain(&mut p.arrows).flatten() {
+        q[0] += delta[0];
+        q[1] += delta[1];
+    }
+    for (k, shift) in delta.into_iter().enumerate() {
+        p.label_at[k] += shift;
+        p.label_box[k] += shift;
+        p.label_box[k + 2] += shift;
+    }
+    Some(p)
+}
+
+// Exact refinement rank, movement and immutable route geometry.
+type RouteStation = ((usize, usize), f64, P2, P2, P2, bool, [f64; 4]);
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn refine(
     analysis: &crate::model::Analysis,
     spec: &crate::model::Spec,
     cache: &super::footprints::Cache,
+    sheet: &crate::model::PlannedSheet,
+    views: &[crate::model::PlannedView],
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    views_of: &[Option<&str>],
+    placed: &mut [Option<Placed>],
+    page: &Page,
+    obstacles: &[PlannedDimension],
+    proofs: &BTreeMap<String, std::rc::Rc<super::interior::Proof>>,
+) -> BTreeMap<String, Vec<Problem>> {
+    if analysis.edge_ink.is_none() {
+        return BTreeMap::new();
+    }
+    let reference_key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
+        .expect("presentation inputs serialize");
+    // The reference is immutable for this key within the Analysis scope.
+    let has_reference =
+        crate::planning::lookup::<Result<crate::model::Plan, crate::model::Invalid>>(
+            analysis,
+            "established-drawing",
+            &reference_key,
+        )
+        .is_some();
+    let frame_geometry: Vec<_> = frames
+        .iter()
+        .map(|(name, f)| (name, f.memo_geometry()))
+        .collect();
+    let canonical = crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[])
+        .unwrap_or(false);
+    let proof_views: Vec<_> = proofs.keys().collect();
+    let mut geometry_sheet = sheet.clone();
+    geometry_sheet.title.clear();
+    geometry_sheet.title_cells.clear();
+    geometry_sheet.basis.clear();
+    geometry_sheet.arrangement.clear();
+    geometry_sheet.default = false;
+    geometry_sheet.fill = 0.0;
+    let mut geometry_views = views.to_vec();
+    for view in &mut geometry_views {
+        view.basis.clear();
+    }
+    let key = serde_json::to_vec(&(
+        &spec.dimensions,
+        edited_labels(spec),
+        proof_views,
+        reference_key,
+        has_reference,
+        geometry_sheet,
+        geometry_views,
+        frame_geometry,
+        canonical,
+        items,
+        views_of,
+        &*placed,
+        page,
+        obstacles,
+    ))
+    .expect("leader refinement inputs serialize");
+    let (next, reports) = crate::planning::memo(analysis, "settled-leader-refinement", key, || {
+        let mut next = placed.to_vec();
+        let reports = refine_uncached(
+            analysis, spec, cache, sheet, views, frames, items, views_of, &mut next, page,
+            obstacles, proofs,
+        );
+        (next, reports)
+    });
+    placed.clone_from_slice(&next);
+    reports
+}
+
+#[allow(clippy::too_many_arguments)]
+fn refine_uncached(
+    analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
+    cache: &super::footprints::Cache,
+    sheet: &crate::model::PlannedSheet,
     views: &[crate::model::PlannedView],
     frames: &BTreeMap<&str, Frame>,
     items: &[Want],
@@ -1042,7 +1503,7 @@ pub(super) fn refine(
     proofs: &BTreeMap<String, std::rc::Rc<super::interior::Proof>>,
 ) -> BTreeMap<String, Vec<Problem>> {
     let mut updated = BTreeMap::new();
-    let Some(ink) = analysis.edge_ink.as_ref() else {
+    let Some(_) = analysis.edge_ink.as_ref() else {
         return updated;
     };
     // The linear dimensions' extension lines, each with its owner. Refinement moves only
@@ -1054,24 +1515,107 @@ pub(super) fn refine(
         .filter(|(_, p)| p.arrows.len() == 2 && p.lines.len() >= 3)
         .flat_map(|(j, p)| p.lines[..2].iter().map(move |s| (j, *s)))
         .collect();
-    // Only a free callout already in contact is refined; most sheets have none, and then the
-    // view ink below is never gathered.
-    let todo: Vec<usize> = (0..items.len())
-        .filter(|&i| {
-            matches!(items[i].shape, Shape::Callout { .. })
-                && views_of[i].is_some()
-                && !spec
-                    .dimensions
-                    .get(&items[i].id)
-                    .is_some_and(|d| d.place.is_some())
-                && placed[i].is_some()
+    let extension_index = ExtensionIndex::new(extensions.clone());
+    // Runs beside newly recognised edges need the same bounded repair as extension
+    // contacts. Gather each projection once, then test only routes that need repair.
+    let repair_models: BTreeMap<_, _> = if items.iter().any(|w| {
+        w.measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:section_recess:"))
+    }) {
+        views
+            .iter()
+            .filter_map(|v| Some((v.id.trim_start_matches("v:"), cache.model(analysis, v)?)))
+            .collect()
+    } else {
+        BTreeMap::new()
+    };
+    let extension_ink: Vec<_> = extensions.iter().map(|(_, e)| *e).collect();
+    let bad_run = |p: &Placed, view: &str| {
+        repair_models.get(view).is_some_and(|model| {
+            p.lines
+                .iter()
+                .any(|s| model.as_ref().0.runs_beside(*s) || runs_beside(*s, &extension_ink))
         })
-        .collect();
-    if todo.is_empty() {
-        return updated;
-    }
+    };
+    let centre_lines = |lines: &[[P2; 2]]| {
+        lines.iter().any(|line| {
+            obstacles
+                .iter()
+                .filter(|d| d.kind == "ink")
+                .filter_map(|d| d.placed.as_ref())
+                .flat_map(|p| &p.lines)
+                .any(|fixed| crate::centrelines::runs_beside(*line, *fixed))
+        })
+    };
+    let centre_run = |p: &Placed| centre_lines(&p.lines);
+    let reference_key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
+        .expect("presentation inputs serialize");
+    let established_reference = crate::planning::lookup::<
+        Result<crate::model::Plan, crate::model::Invalid>,
+    >(analysis, "established-drawing", &reference_key)
+    .and_then(Result::ok);
+    let bare = established_reference.is_none();
+    // Bare API plans do not run sheet recovery. Give their final callout repair
+    // an established same-scale recipe without changing the lane solve or its
+    // inventory. The final drawing always uses the full original Analysis.
+    let reference = established_reference.or_else(|| {
+        if !items.iter().any(|w| {
+            w.measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:section_recess:"))
+        }) || obstacles.iter().any(|d| d.kind == "callout")
+        {
+            return None;
+        }
+        let key = serde_json::to_vec(&(&sheet.size, &sheet.scale, &spec.sheet.projection))
+            .expect("bare route inputs serialize");
+        crate::planning::memo(analysis, "bare-leader-reference", key, || {
+            let mut base = analysis.clone();
+            base.features.retain(|f| f.kind != "section_recess");
+            let mut recipe = crate::model::Spec::default();
+            recipe.sheet.size = Some(sheet.size.clone());
+            recipe.sheet.scale = Some(sheet.scale.clone());
+            recipe.sheet.projection = spec.sheet.projection.clone();
+            crate::model::plan(&base, &recipe).ok()
+        })
+    });
+    let legacy = |i: usize| {
+        reference.as_ref().and_then(|p| {
+            p.dimensions
+                .iter()
+                .find(|d| d.id == items[i].id && d.kind == "callout")
+        })
+    };
+    let longer_than_established = |i: usize, p: &Placed| {
+        legacy(i)
+            .and_then(|d| d.placed.as_ref())
+            .is_some_and(|old| length(&p.lines) > length(&old.lines) + 2.0 + 1e-6)
+    };
+    // A joint assignment can shorten an old leader while sending it through
+    // different model edges. Length and annotation contacts alone do not catch
+    // that regression; compare the complete physical route with its translated
+    // established recipe before deciding whether refinement is necessary.
+    let added_material_crossing = |i: usize, p: &Placed| {
+        legacy(i)
+            .and_then(|d| translated(reference.as_ref()?, d, views, &items[i]))
+            .zip(views_of[i].and_then(|view| repair_models.get(view)))
+            .is_some_and(|(old, model)| model.as_ref().0.new_crossing(&p.lines, &old.lines))
+    };
+    let callout_crossing = |i: usize, p: &Placed, placed: &[Option<Placed>]| {
+        bare && !repair_models.is_empty()
+            && obstacles.iter().all(|d| d.kind != "callout")
+            && placed.iter().enumerate().any(|(j, q)| {
+                i != j
+                    && q.as_ref().is_some_and(|q| {
+                        q.arrows.len() == 1
+                            && p.lines.iter().any(|s| {
+                                q.lines.iter().chain(&q.arrows).any(|t| lines_meet(*s, *t))
+                            })
+                    })
+            })
+    };
     // Each view's line-work for the route gates, gathered only once a candidate reaches it.
-    let view_ink = |v: &crate::model::PlannedView| view_ink(analysis, ink, v);
     let view_reach: Vec<[f64; 4]> = views
         .iter()
         .map(|v| {
@@ -1089,8 +1633,83 @@ pub(super) fn refine(
             grow(b, 1.0)
         })
         .collect();
-    let gathered: Vec<std::cell::OnceCell<ViewInk>> =
-        views.iter().map(|_| std::cell::OnceCell::new()).collect();
+    let gathered: Vec<_> = views
+        .iter()
+        .map(|v| {
+            std::cell::LazyCell::new(move || {
+                cache.model(analysis, v).expect("edge ink is available")
+            })
+        })
+        .collect();
+    // Every route lies inside its candidate union plus two text pads. The same
+    // eligible cameras therefore supply the exact same full edge predicates;
+    // edges outside that union cannot touch a query. Share their trees and memo
+    // queries across callouts instead of rebuilding a cropped tree for each one.
+    let mut route_ink: BTreeMap<Vec<usize>, std::rc::Rc<RefinementInk>> = BTreeMap::new();
+    let canonical = crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[])
+        .unwrap_or(false);
+    let model_run = |w: &Want, p: &Placed| {
+        // The comparison recipe retains its original routes. Main's new inspection
+        // repair belongs to the final drawing, which is checked against that recipe.
+        if canonical {
+            return false;
+        }
+        let label = label_ink(&w.terms, font());
+        let span = ROW * STEP
+            + length(&p.lines)
+            + 2.0
+            + (label.max[0] - label.min[0])
+            + (label.max[1] - label.min[1])
+            + 4.0 * LABEL_PAD;
+        let elbow = p.lines[0][1];
+        let probe = grow([elbow[0], elbow[1], elbow[0], elbow[1]], span);
+        let chamfer = w
+            .measurements
+            .iter()
+            .any(|m| m.parameter == "chamfer.length");
+        p.lines.iter().any(|s| runs_beside(*s, &extension_ink))
+            || views.iter().enumerate().any(|(k, _)| {
+                if !boxes_meet(view_reach[k], probe) {
+                    return false;
+                }
+                let (model, uncertain) = gathered[k].as_ref();
+                p.lines.iter().any(|s| model.runs_beside(*s))
+                    || (chamfer
+                        && uncertain
+                            .iter()
+                            .any(|b| p.lines.iter().any(|s| buried(*s, *b) > 2.0)))
+            })
+    };
+    // Only a free callout already in contact is refined; most sheets have none, and then the
+    // view ink below is never gathered.
+    let edited_text = edited_labels(spec);
+    let todo: Vec<usize> = (0..items.len())
+        .filter(|&i| {
+            matches!(items[i].shape, Shape::Callout { .. })
+                && views_of[i].is_some()
+                && !spec
+                    .dimensions
+                    .get(&items[i].id)
+                    .is_some_and(|d| d.place.is_some())
+                && placed[i].as_ref().is_some_and(|p| {
+                    extension_index.contacts(&p.lines, p.label_box).0 > 0
+                        || callout_crossing(i, p, placed)
+                        || longer_than_established(i, p)
+                        || added_material_crossing(i, p)
+                        || bad_run(p, views_of[i].unwrap())
+                        || model_run(&items[i], p)
+                        || (edited_text && text_conflict(i, p, placed, obstacles))
+                        || (items[i]
+                            .measurements
+                            .iter()
+                            .any(|m| m.feature.starts_with("f:section_recess:"))
+                            && (centre_run(p) || text_conflict(i, p, placed, obstacles)))
+                })
+        })
+        .collect();
+    if todo.is_empty() {
+        return updated;
+    }
     let cuts: Vec<_> = views
         .iter()
         .flat_map(|v| &v.line_work)
@@ -1101,6 +1720,7 @@ pub(super) fn refine(
         .iter()
         .map(|v| (v.id.trim_start_matches("v:"), cache.get(analysis, v)))
         .collect();
+    let directed = !repair_models.is_empty() && !has_semantic_pmi(analysis, frames);
     for i in todo {
         let w = &items[i];
         let (Shape::Callout { sites }, Some(view), Some(old)) =
@@ -1114,46 +1734,81 @@ pub(super) fn refine(
         let frame = &frames[view];
         let page_sites = page_sites(frame, sites);
         let old_length = length(&old.lines);
-        let label = label_ink(&w.terms, font());
-        // Every candidate lies within this box: a leader no longer than the old one by 2 mm
-        // from an elbow in the row, then its shoulder and padded label.
-        let span = ROW * STEP
-            + old_length
-            + 2.0
-            + (label.max[0] - label.min[0])
-            + (label.max[1] - label.min[1])
-            + 4.0 * LABEL_PAD;
-        let extensions: Vec<(usize, [P2; 2])> = extensions
+        let new_recess = w
+            .measurements
             .iter()
-            .filter(|(_, s)| touches_box(*s, grow([elbow[0], elbow[1], elbow[0], elbow[1]], span)))
-            .copied()
-            .collect();
-        let before = extension_contacts(&extensions, &old.lines, old.label_box);
-        let probe = grow([elbow[0], elbow[1], elbow[0], elbow[1]], span);
-        let mut probe_ink = Vec::new();
-        let mut probe_uncertain = Vec::new();
-        for (k, v) in views.iter().enumerate() {
-            if boxes_meet(view_reach[k], probe) {
-                let (m, u) = gathered[k].get_or_init(|| view_ink(v));
-                probe_ink.extend(m.iter().copied());
-                probe_uncertain.extend(u.iter().copied());
-            }
-        }
-        probe_ink.extend(extensions.iter().map(|(_, s)| *s));
-        let old_run = old.lines.iter().any(|s| runs_beside(*s, &probe_ink))
+            .any(|m| m.feature.starts_with("f:section_recess:"));
+        let ceiling = legacy(i)
+            .and_then(|d| d.placed.as_ref())
+            .map(|p| length(&p.lines) + 2.0);
+        let max_length = ceiling.unwrap_or(if new_recess {
+            MAX_LEADER
+        } else {
+            old_length + 2.0
+        });
+        let repair_text = (new_recess || edited_text) && text_conflict(i, &old, placed, obstacles);
+        // A longer authored label may overlap a peer while its shaft is clear.
+        // Include slides along that exact shaft, preserving its real attachment
+        // and the normal material, length and witness gates.
+        let established = legacy(i)
+            .and_then(|d| translated(reference.as_ref()?, d, views, w))
+            .or_else(|| (edited_text && repair_text).then(|| old.clone()));
+        let clear_new_text = repair_text
+            && !w.measurements.is_empty()
+            && w.measurements
+                .iter()
+                .all(|m| m.feature.starts_with("f:section_recess:"));
+        let repair_cross = callout_crossing(i, &old, placed);
+        let old_run = model_run(w, &old);
+        let repair_run = old_run
+            || repair_cross
+            || repair_text
+            || longer_than_established(i, &old)
+            || added_material_crossing(i, &old)
+            || bad_run(&old, view)
             || (w
                 .measurements
                 .iter()
-                .any(|m| m.parameter == "chamfer.length")
-                && probe_uncertain
-                    .iter()
-                    .any(|b| old.lines.iter().any(|s| buried(*s, *b) > 2.0)));
-        if before.0 == 0 && !old_run {
-            continue;
-        }
+                .any(|m| m.feature.starts_with("f:section_recess:"))
+                && centre_run(&old));
+        let label = label_ink(&w.terms, font());
+        let before = extension_index.contacts(&old.lines, old.label_box);
         // Every station of the local row, shoulder-only changes first, kept only while it is
         // no longer than the old route by 2 mm and lowers the contacts without the text gaining
         // one: text on an extension line is worse than a leader across it.
+        let job = Job {
+            side: spec
+                .dimensions
+                .get(&w.id)
+                .and_then(|e| e.place.as_ref())
+                .and_then(crate::placement_intent::side_hint),
+            stroke_pad: stroke_clearance(&w.terms),
+            view,
+            footprints: &footprints[view],
+            outline: frame.outline(),
+            area: page.area(view),
+            sites: page_sites.clone(),
+            silhouette: grazing(frame, w),
+            model: None,
+            short_profile: boss_profile(w),
+            profile_proof: boss_profile(w)
+                .then(|| {
+                    let v = views
+                        .iter()
+                        .find(|v| v.id.trim_start_matches("v:") == view)?;
+                    Some((v, proofs.get(&v.id)?.as_ref()))
+                })
+                .flatten(),
+            directed,
+            corridors: boss_profile(w)
+                || w.measurements
+                    .iter()
+                    .any(|m| m.feature.starts_with("f:section_recess:")),
+            steer: std::cell::Cell::new(None),
+            ink_min: label.min,
+            ink_max: label.max,
+            beyond: [CLEAR; 4],
+        };
         let mut candidates = Vec::new();
         let reach = (if old_run { 3.0 * ROW } else { ROW }) as i32;
         let shifts = std::iter::once([0, 0]).chain((-reach..=reach).flat_map(|x| {
@@ -1196,22 +1851,166 @@ pub(super) fn refine(
                         continue;
                     }
                     let lines = [[t, q], [q, e]];
-                    if length(&lines) > old_length + 2.0 + 1e-6 {
+                    if length(&lines) > max_length + 1e-6 {
                         continue;
                     }
                     let (_, lb) = label_geometry(q, e, right, label.min, label.max);
-                    let maximum = (before.0.saturating_sub(usize::from(!old_run)), before.1);
-                    let Some(now) =
-                        extension_contacts_bounded(&extensions, &lines, lb, Some(maximum))
+                    let Some(now) = extension_index.contacts_bounded(&lines, lb, Some(before))
                     else {
                         continue;
                     };
-                    if now.0 > before.0 || now.1 > before.1 || (now.0 == before.0 && !old_run) {
+                    if now.0 > before.0 || (!repair_run && now.0 == before.0) || now.1 > before.1 {
                         continue;
                     }
                     let moved = (q[0] - elbow[0]).hypot(q[1] - elbow[1])
                         + (e[0] - end[0]).hypot(e[1] - end[1]);
                     candidates.push((now, moved, t, q, e, right, lb));
+                }
+            }
+        }
+        if let Some(p) = established
+            .as_ref()
+            .filter(|p| p.lines.len() == 2 && length(&p.lines) <= max_length + 1e-6)
+        {
+            let [t, q] = p.lines[0];
+            let e = p.lines[1][1];
+            let right = e[0] >= q[0];
+            let (_, lb) = label_geometry(q, e, right, label.min, label.max);
+            let now = extension_index.contacts(&p.lines, lb);
+            // Extend or trim the established shaft along its exact supporting
+            // line, then keep the standard horizontal shelf. Only ink outside
+            // the uncertain material can be new; the route gate proves this.
+            if repair_run {
+                let dy = q[1] - t[1];
+                if dy.abs() > 1e-9 {
+                    for step in -28..=28 {
+                        let y = q[1] + f64::from(step) * 0.25;
+                        let q = [t[0] + (q[0] - t[0]) * (y - t[1]) / dy, y];
+                        for shoulder in [0.75, 1.5, SHOULDER] {
+                            let e = [q[0] + if right { shoulder } else { -shoulder }, y];
+                            let lines = [[t, q], [q, e]];
+                            if self::length(&lines) > max_length + 1e-6
+                                || (q[0] - t[0]) * (e[0] - q[0]) < -1e-9
+                            {
+                                continue;
+                            }
+                            let (_, lb) = label_geometry(q, e, right, label.min, label.max);
+                            let Some(contacts) =
+                                extension_index.contacts_bounded(&lines, lb, Some(before))
+                            else {
+                                continue;
+                            };
+                            if contacts.0 <= before.0 && contacts.1 <= before.1 {
+                                let moved = (q[0] - elbow[0]).hypot(q[1] - elbow[1])
+                                    + (e[0] - end[0]).hypot(e[1] - end[1]);
+                                candidates.push((contacts, moved, t, q, e, right, lb));
+                            }
+                        }
+                    }
+                }
+            }
+            if now.0 <= before.0 && now.1 <= before.1 && (repair_run || now.0 < before.0) {
+                let moved =
+                    (q[0] - elbow[0]).hypot(q[1] - elbow[1]) + (e[0] - end[0]).hypot(e[1] - end[1]);
+                candidates.push((now, moved, t, q, e, right, lb));
+                // An established shaft may already be the clearest route, with
+                // its glyph only a fraction short of the outline's text pad.
+                // Keep the shaft and shelf exact; try a small glyph lift with
+                // real baseline and bounding-box movement, never a fake box.
+                for lift in [0.25, -0.25, 0.5, -0.5] {
+                    let lifted = [lb[0], lb[1] + lift, lb[2], lb[3] + lift];
+                    let contacts = extension_index.contacts(&p.lines, lifted);
+                    if contacts.0 <= before.0 && contacts.1 <= before.1 {
+                        candidates.push((contacts, moved + lift.abs(), t, q, e, right, lifted));
+                    }
+                }
+            }
+        }
+        // Local row moves cannot reach the opposite wall of a small pocket
+        // or the opposite rim of a hole. Retry the same bounded radial sweep
+        // used by the initial solver, retaining the route-length and ink gates.
+        for (t, q, right) in (!repair_models.is_empty())
+            .then(|| sweep(&job, tip))
+            .into_iter()
+            .flatten()
+        {
+            let e = [q[0] + if right { SHOULDER } else { -SHOULDER }, q[1]];
+            let lines = [[t, q], [q, e]];
+            if length(&lines) > max_length + 1e-6 {
+                continue;
+            }
+            let (_, lb) = label_geometry(q, e, right, label.min, label.max);
+            let Some(now) = extension_index.contacts_bounded(&lines, lb, Some(before)) else {
+                continue;
+            };
+            if now.0 > before.0 || (!repair_run && now.0 == before.0) || now.1 > before.1 {
+                continue;
+            }
+            let moved =
+                (q[0] - elbow[0]).hypot(q[1] - elbow[1]) + (e[0] - end[0]).hypot(e[1] - end[1]);
+            candidates.push((now, moved, t, q, e, right, lb));
+        }
+        if clear_new_text {
+            // A dense datum tower can leave only a narrow clear row. The radial
+            // sweep's discrete reaches may skip it, so also use the initial
+            // solver's bounded one-millimetre stations beside the view.
+            let o = job.outline;
+            let dr = page.drawable();
+            for right in [true, false] {
+                for off in ESCAPES {
+                    let x = if right { o[2] + off } else { o[0] - off };
+                    for y in stations(tip[1], o[1].max(dr[1]), o[3].min(dr[3])) {
+                        let q = [x, y];
+                        let t = rim_tip(nearest(&page_sites, q), q);
+                        let e = [x + if right { SHOULDER } else { -SHOULDER }, y];
+                        let lines = [[t, q], [q, e]];
+                        if length(&lines) > max_length + 1e-6
+                            || (q[0] - t[0]).hypot(q[1] - t[1]) < MIN_LEADER
+                        {
+                            continue;
+                        }
+                        let (_, lb) = label_geometry(q, e, right, label.min, label.max);
+                        let Some(now) = extension_index.contacts_bounded(&lines, lb, Some(before))
+                        else {
+                            continue;
+                        };
+                        if now.0 > before.0 || now.1 > before.1 {
+                            continue;
+                        }
+                        let moved = (q[0] - elbow[0]).hypot(q[1] - elbow[1])
+                            + (e[0] - end[0]).hypot(e[1] - end[1]);
+                        candidates.push((now, moved, t, q, e, right, lb));
+                    }
+                }
+            }
+        }
+        if repair_cross {
+            // Concentric diameter callouts can need a fan on opposite sides of
+            // their common axis. Reflect the elbow about its real circular site;
+            // the route keeps its established length bound and all ink gates.
+            let site = nearest(&page_sites, elbow);
+            if site.1 > 0.0 {
+                for shift in -(ROW as i32)..=ROW as i32 {
+                    let q = [2.0 * site.0[0] - elbow[0] + f64::from(shift), elbow[1]];
+                    let t = rim_tip(site, q);
+                    for right in [true, false] {
+                        let shoulder = (end[0] - elbow[0]).abs();
+                        let e = [q[0] + if right { shoulder } else { -shoulder }, q[1]];
+                        let lines = [[t, q], [q, e]];
+                        let (_, lb) = label_geometry(q, e, right, label.min, label.max);
+                        let Some(now) = extension_index.contacts_bounded(&lines, lb, Some(before))
+                        else {
+                            continue;
+                        };
+                        if length(&lines) <= max_length + 1e-6
+                            && now.0 <= before.0
+                            && now.1 <= before.1
+                        {
+                            let moved = (q[0] - elbow[0]).hypot(q[1] - elbow[1])
+                                + (e[0] - end[0]).hypot(e[1] - end[1]);
+                            candidates.push((now, moved, t, q, e, right, lb));
+                        }
+                    }
                 }
             }
         }
@@ -1244,120 +2043,160 @@ pub(super) fn refine(
             region[2] + 2.0 * LABEL_PAD,
             region[3] + 2.0 * LABEL_PAD,
         ];
-        let mut near_model: Vec<[P2; 2]> = Vec::new();
-        let mut uncertain: Vec<[f64; 4]> = Vec::new();
-        for (k, v) in views.iter().enumerate() {
-            if !boxes_meet(view_reach[k], region) {
-                continue;
-            }
-            let (m, u) = gathered[k].get_or_init(|| view_ink(v));
-            near_model.extend(m.iter().filter(|s| touches_box(**s, region)));
-            uncertain.extend(u);
-        }
-        let near_cuts: Vec<[P2; 2]> = cuts
+        let selected: Vec<_> = view_reach
+            .iter()
+            .enumerate()
+            .filter(|(_, reach)| boxes_meet(**reach, region))
+            .map(|(k, _)| k)
+            .collect();
+        let prepared = route_ink
+            .entry(selected.clone())
+            .or_insert_with(|| {
+                let mut model = Vec::new();
+                let mut unknown = Vec::new();
+                for k in selected {
+                    let (edges, boxes) = gathered[k].as_ref();
+                    edges.append_ink(&mut model);
+                    unknown.extend(boxes);
+                }
+                let lines = model
+                    .iter()
+                    .copied()
+                    .chain(extension_ink.iter().copied())
+                    .collect();
+                let unknown_grid = Grid::new([unknown.clone(), Vec::new(), Vec::new()]);
+                std::rc::Rc::new((
+                    SegmentIndex::new(model),
+                    SegmentIndex::new(lines),
+                    unknown,
+                    unknown_grid,
+                ))
+            })
+            .clone();
+        let (model_index, line_index, uncertain, unknown_grid) = prepared.as_ref();
+        let near_cuts: Vec<_> = cuts
             .iter()
             .filter(|s| touches_box(**s, region))
             .copied()
             .collect();
-        let near_lines: Vec<[P2; 2]> = near_model
-            .iter()
-            .copied()
-            .chain(
-                extensions
-                    .iter()
-                    .map(|(_, s)| *s)
-                    .filter(|s| touches_box(*s, region)),
-            )
-            .collect();
         let crossed = |lines: &[[P2; 2]], e: [P2; 2]| lines.iter().any(|s| segments_cross(*s, e));
         // The text and the elbow keep off the outline: a label or an elbow within the label
         // pad of a model line reads as butting the part.
-        let model_grid = Grid::new([
-            near_model.iter().map(|s| segment_bounds(*s)).collect(),
-            Vec::new(),
-            Vec::new(),
-        ]);
-        let on_model = |q: P2, lb: [f64; 4]| model_contacts(&near_model, &model_grid, q, lb);
+        let on_model = |q: P2, lb: [f64; 4]| {
+            (
+                model_index.touching(grow(lb, LABEL_PAD)),
+                model_index.touching(grow([q[0], q[1], q[0], q[1]], LABEL_PAD)) > 0,
+            )
+        };
         let (old_text_model, old_elbow_model) = on_model(elbow, old.label_box);
         // The arrowhead keeps out of the extension lines it was clear of: a flare over the
         // start of one reads as a contact whatever the shaft does.
+        let arrow_contacts = std::cell::RefCell::new(std::collections::HashMap::new());
         let head_on = |t: P2, q: P2| {
-            let flare = head(arrow(t, q));
-            extensions
-                .iter()
-                .filter(|(_, e)| {
-                    let b = grow(
-                        [
-                            e[0][0].min(e[1][0]),
-                            e[0][1].min(e[1][1]),
-                            e[0][0].max(e[1][0]),
-                            e[0][1].max(e[1][1]),
-                        ],
-                        0.2,
-                    );
-                    flare.iter().any(|s| touches_box(*s, b))
-                })
-                .count()
+            let key = [
+                t[0].to_bits(),
+                t[1].to_bits(),
+                q[0].to_bits(),
+                q[1].to_bits(),
+            ];
+            if let Some(&count) = arrow_contacts.borrow().get(&key) {
+                return count;
+            }
+            let count = extension_index.head_contacts(&head(arrow(t, q)));
+            arrow_contacts.borrow_mut().insert(key, count);
+            count
         };
         let old_head = head_on(tip, elbow);
+        let historical = established
+            .as_ref()
+            .map_or(old.lines.as_slice(), |p| p.lines.as_slice());
         let route_safe = |lines: &[[P2; 2]]| {
-            !uncertain.iter().any(|b| {
-                lines
+            (clear_new_text
+                || unknown_route_safe(
+                    lines,
+                    uncertain,
+                    unknown_grid,
+                    historical,
+                    &old.lines,
+                    old_run && repair_models.is_empty() && !edited_text,
+                ))
+                && !lines.iter().any(|s| line_index.runs_beside(*s))
+                && (clear_new_text || !model_index.new_crossing(lines, historical))
+                && !near_cuts
                     .iter()
-                    .enumerate()
-                    .any(|(i, s)| buried(*s, *b) > buried(old.lines[i], *b) + 1e-6)
-            }) && !lines.iter().any(|s| runs_beside(*s, &near_lines))
-                && !near_model
-                    .iter()
-                    .chain(&near_cuts)
-                    .any(|s| crossed(lines, *s) && !crossed(&old.lines, *s))
+                    .any(|s| crossed(lines, *s) && !crossed(historical, *s))
         };
-        candidates.retain(|(_, _, t, q, e, _, lb)| {
-            let (text_model, elbow_model) = on_model(*q, *lb);
-            text_model <= old_text_model
-                && (!elbow_model || old_elbow_model)
-                && head_on(*t, *q) <= old_head
-                && route_safe(&[[*t, *q], [*q, *e]])
-        });
+
+        // The incumbent and its measured roles stay fixed for every candidate.
+        let keep_off_centres = centre_run(&old)
+            && w.measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:section_recess:"));
+        let route_allowed = |(_, _, t, q, e, right, lb): &RouteStation| {
+            if clear_new_text {
+                let (label_at, _) = label_geometry(*q, *e, *right, label.min, label.max);
+                let p = Placed {
+                    lines: vec![[*t, *q], [*q, *e]],
+                    arrows: vec![arrow(*t, *q)],
+                    label_at,
+                    label_box: *lb,
+                    rotation: 0.0,
+                };
+                if !page.fits(&p, view)
+                    || text_conflict(i, &p, placed, obstacles)
+                    || centre_lines(&p.lines)
+                {
+                    return false;
+                }
+            }
+            let lines = [[*t, *q], [*q, *e]];
+            // Ranking has already measured heads for run repairs. Reject their
+            // known contacts and the immutable centre condition before querying
+            // model ink; the complete original conjunction still adjudicates survivors.
+            if (keep_off_centres && centre_lines(&lines))
+                || head_on(*t, *q) > old_head
+                || !route_safe(&lines)
+            {
+                return false;
+            }
+            // An incumbent elbow already on model ink places no restriction on
+            // this candidate's elbow. Also reject excess text contacts before
+            // querying the elbow, whose result cannot rescue that candidate.
+            model_index.touching_at_most(grow(*lb, LABEL_PAD), old_text_model)
+                && (old_elbow_model
+                    || model_index.touching_at_most(grow([q[0], q[1], q[0], q[1]], LABEL_PAD), 0))
+        };
+        if clear_new_text {
+            candidates.retain(route_allowed);
+        }
         if candidates.is_empty() {
             continue;
         }
         // Fewest contacts first, then the least movement: the nearest acceptable route wins.
-        // Clearance checks are geometric work: compute their ranking once per candidate,
-        // rather than once per comparison. Keep the same stable ordering and exact score.
-        let mut ranked: Vec<_> = candidates
-            .into_iter()
-            .map(|c| {
-                let score = if old_run {
-                    length(&[[c.2, c.3], [c.3, c.4]])
-                } else {
-                    c.1
-                };
-                (head_on(c.2, c.3), score, c)
-            })
-            .collect();
-        ranked.sort_by(|a, b| {
-            a.2.0
-                .cmp(&b.2.0)
-                .then(a.0.cmp(&b.0))
-                .then(a.1.total_cmp(&b.1))
-        });
-        let candidates: Vec<_> = ranked.into_iter().map(|(_, _, c)| c).collect();
-        let job = Job {
-            side: None,
-            view,
-            footprints: &footprints[view],
-            outline: frame.outline(),
-            area: page.area(view),
-            sites: page_sites.clone(),
-            silhouette: grazing(frame, w),
-            model: None,
-            steer: std::cell::Cell::new(None),
-            ink_min: label.min,
-            ink_max: label.max,
-            stroke_pad: stroke_clearance(&w.terms),
-            beyond: [CLEAR; 4],
-        };
+        if clear_new_text {
+            let mut graded: Vec<_> = candidates
+                .into_iter()
+                .map(|c| (job.footprints.crossing_count([c.2, c.3]), c))
+                .collect();
+            graded.sort_by(|(na, a), (nb, b)| {
+                a.0.cmp(&b.0).then(na.cmp(nb)).then(a.1.total_cmp(&b.1))
+            });
+            candidates = graded.into_iter().map(|(_, c)| c).collect();
+        } else if old_run {
+            let mut ranked: Vec<_> = candidates
+                .into_iter()
+                .map(|c| (head_on(c.2, c.3), length(&[[c.2, c.3], [c.3, c.4]]), c))
+                .collect();
+            ranked.sort_by(|a, b| {
+                a.2.0
+                    .cmp(&b.2.0)
+                    .then(a.0.cmp(&b.0))
+                    .then(a.1.total_cmp(&b.1))
+            });
+            candidates = ranked.into_iter().map(|(_, _, c)| c).collect();
+        } else {
+            candidates.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
+        }
         let mut fixed = Fixed::new(
             placed
                 .iter()
@@ -1395,34 +2234,89 @@ pub(super) fn refine(
                     .filter(|proof| proof.annotation_clear(v, &old, true))
                     .map(|proof| (v, proof))
             });
-        let acceptable =
-            |c: &Candidate| {
-                if c.hard > prior.hard
-                    || c.crossings > prior.crossings
-                    || c.feature_crossings > prior.feature_crossings
-                    || c.outside > prior.outside
-                    || c.text > prior.text
-                    || c.furniture > prior.furniture
-                    || c.beside > prior.beside
-                    || c.grazing > prior.grazing
-                {
-                    return None;
-                }
-                let p = c.placed();
-                if fixed.labels.iter().any(|(_, b)| {
-                    boxes_overlap(p.label_box, *b) && !boxes_overlap(old.label_box, *b)
-                }) {
-                    return None;
-                }
-                if interior.is_some_and(|(v, proof)| !proof.annotation_clear(v, &p, true)) {
-                    return None;
-                }
-                Some(p)
-            };
+        let directed_contacts = |p: &Placed| {
+            placed
+                .iter()
+                .enumerate()
+                .filter(|(j, _)| *j != i)
+                .filter_map(|(_, q)| q.as_ref())
+                .map(|q| {
+                    usize::from(
+                        p.lines
+                            .iter()
+                            .any(|s| q.lines.iter().chain(&q.arrows).any(|t| lines_meet(*s, *t))),
+                    ) + usize::from(
+                        q.arrows.len() == 1
+                            && q.lines.iter().any(|s| {
+                                p.lines.iter().chain(&p.arrows).any(|t| lines_meet(*s, *t))
+                            }),
+                    )
+                })
+                .sum::<usize>()
+        };
+        let prior_contacts = directed_contacts(&old);
+        let acceptable = |c: &Candidate| {
+            // The initial search penalises finite extension-corridor contacts
+            // in its hard tier. Here they retain their separate no-increase
+            // gate above. A new callout may clear real text blockers while
+            // retaining fewer such crossings; every physical hard blocker
+            // (sheet, view, material re-entry, length and furniture) stays zero.
+            let corridors = extension_index
+                .contacts(&[[c.tip, c.elbow], [c.elbow, c.end]], c.label_box)
+                .0 as u32;
+            if c.hard > prior.hard
+                || (clear_new_text && c.hard > corridors)
+                || c.crossings > prior.crossings
+                || (repair_cross && directed_contacts(&c.placed()) >= prior_contacts)
+                || (!clear_new_text && c.feature_crossings > prior.feature_crossings)
+                || (!clear_new_text && c.outside > prior.outside)
+                || c.text > prior.text
+                || c.clearance > prior.clearance
+                || (!clear_new_text && c.furniture > prior.furniture)
+                || c.beside > prior.beside
+                || c.grazing > prior.grazing
+            {
+                return None;
+            }
+            let p = c.placed();
+            if (clear_new_text && !page.fits(&p, view))
+                || (repair_text && text_conflict(i, &p, placed, obstacles))
+            {
+                return None;
+            }
+            if interior.is_some_and(|(v, proof)| !proof.annotation_clear(v, &p, true))
+                && !(new_recess && page.fits(&p, view))
+            {
+                return None;
+            }
+            Some(p)
+        };
         // Measuring a station against the placed ink is the expensive tier, so it runs last.
-        let chosen = candidates.iter().find_map(|&(_, _, t, q, e, right, _)| {
-            acceptable(&measure_at(&job, t, q, e, right, &fixed, page)?)
-        });
+        // Filtering after this stable sort retains the original selected route.
+        let chosen = candidates
+            .iter()
+            .filter(|c| clear_new_text || route_allowed(c))
+            .find_map(|&(_, _, t, q, e, right, lb)| {
+                let mut c = measure_at_bounds(&job, t, q, e, right, page)?;
+                let shift = [lb[0] - c.label_box[0], lb[1] - c.label_box[1]];
+                if shift != [0.0; 2] {
+                    c.label_at[0] += shift[0];
+                    c.label_at[1] += shift[1];
+                    c.label_box = lb;
+                    c.bounds = [
+                        c.bounds[0].min(lb[0]),
+                        c.bounds[1].min(lb[1]),
+                        c.bounds[2].max(lb[2]),
+                        c.bounds[3].max(lb[3]),
+                    ];
+                    if !page.fits(&c.placed(), view) {
+                        return None;
+                    }
+                }
+                measure_fixed(&mut c, &job, &fixed);
+                c.measure_features(&job);
+                acceptable(&c)
+            });
         if let Some(p) = chosen {
             updated.insert(
                 w.id.clone(),
@@ -1436,6 +2330,7 @@ pub(super) fn refine(
 
 /// A view's straight line-work and the boxes of its line-work that is not known exactly.
 type ViewInk = (Vec<[P2; 2]>, Vec<[f64; 4]>);
+type RefinementInk = (SegmentIndex, SegmentIndex, Vec<[f64; 4]>, Grid);
 
 /// A view's model line-work on the page (edges and square-on cylinder silhouettes), and the
 /// boxes whose ink is not known as lines (the isometric view, section views, other curved faces).
@@ -1457,7 +2352,7 @@ pub(super) fn view_ink(
         ]);
         return (model, uncertain);
     }
-    if v.cut.is_some() {
+    if v.cut.is_some() || v.detail.as_ref().is_some_and(|d| d.source_cut.is_some()) {
         // Section ink needs a cut B-rep: new routes stay outside its envelope.
         uncertain.push(frame.outline());
         return (model, uncertain);
@@ -1538,10 +2433,356 @@ fn grow(b: [f64; 4], d: f64) -> [f64; 4] {
     [b[0] - d, b[1] - d, b[2] + d, b[3] + d]
 }
 
+/// A conservative broad phase for the final route checks. Dense models have
+/// thousands of tessellated edge segments; a candidate still receives the exact
+/// same predicates, but only against segments whose closed bounds can meet it.
+pub(super) struct SegmentIndex {
+    bounds: [f64; 4],
+    ink: Vec<[P2; 2]>,
+    children: Option<Box<[SegmentIndex; 2]>>,
+    counts: std::cell::RefCell<std::collections::HashMap<[u64; 4], usize>>,
+    besides: std::cell::RefCell<std::collections::HashMap<[u64; 4], bool>>,
+    routes: std::cell::RefCell<std::collections::HashMap<[u64; 8], usize>>,
+    touching: std::cell::RefCell<std::collections::HashMap<[u64; 4], (usize, bool)>>,
+}
+
+impl SegmentIndex {
+    pub(super) fn new(mut ink: Vec<[P2; 2]>) -> Self {
+        let bounds = ink.iter().map(|s| segment_bounds(*s)).fold(
+            [
+                f64::INFINITY,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+                f64::NEG_INFINITY,
+            ],
+            |a, b| {
+                [
+                    a[0].min(b[0]),
+                    a[1].min(b[1]),
+                    a[2].max(b[2]),
+                    a[3].max(b[3]),
+                ]
+            },
+        );
+        let children = if ink.len() > 16 {
+            let axis = usize::from(bounds[3] - bounds[1] > bounds[2] - bounds[0]);
+            ink.sort_unstable_by(|a, b| {
+                (a[0][axis] + a[1][axis]).total_cmp(&(b[0][axis] + b[1][axis]))
+            });
+            let other = ink.split_off(ink.len() / 2);
+            Some(Box::new([
+                Self::new(std::mem::take(&mut ink)),
+                Self::new(other),
+            ]))
+        } else {
+            None
+        };
+        Self {
+            bounds,
+            ink,
+            children,
+            counts: std::cell::RefCell::default(),
+            besides: std::cell::RefCell::default(),
+            routes: std::cell::RefCell::default(),
+            touching: std::cell::RefCell::default(),
+        }
+    }
+
+    fn append_ink(&self, into: &mut Vec<[P2; 2]>) {
+        if let Some(children) = &self.children {
+            for child in children.iter() {
+                child.append_ink(into);
+            }
+        } else {
+            into.extend(&self.ink);
+        }
+    }
+
+    /// Exact closed-box stroke count, reused by labels and elbows on the same frame.
+    fn touching(&self, bounds: [f64; 4]) -> usize {
+        let key = bounds.map(f64::to_bits);
+        if let Some(&(count, true)) = self.touching.borrow().get(&key) {
+            return count;
+        }
+        let count = self.touching_uncached(bounds);
+        let mut saved = self.touching.borrow_mut();
+        if saved.len() >= 32768 {
+            saved.clear();
+        }
+        saved.insert(key, (count, true));
+        count
+    }
+
+    // Candidate text only needs to stay within the incumbent's contact count.
+    // A failed bounded query records a lower bound; a complete query records
+    // its exact count, so later thresholds cannot reuse an incomplete result.
+    fn touching_at_most(&self, bounds: [f64; 4], maximum: usize) -> bool {
+        let key = bounds.map(f64::to_bits);
+        if let Some(&(count, complete)) = self.touching.borrow().get(&key)
+            && (complete || count > maximum)
+        {
+            return count <= maximum;
+        }
+        let result = self.touching_bounded(bounds, maximum);
+        let mut saved = self.touching.borrow_mut();
+        if saved.len() >= 32768 {
+            saved.clear();
+        }
+        saved.insert(
+            key,
+            (
+                result.unwrap_or_else(|| maximum.saturating_add(1)),
+                result.is_some(),
+            ),
+        );
+        result.is_some()
+    }
+
+    fn touching_bounded(&self, bounds: [f64; 4], maximum: usize) -> Option<usize> {
+        if !boxes_meet(self.bounds, bounds) {
+            return Some(0);
+        }
+        let mut count = 0;
+        if let Some(children) = &self.children {
+            for child in children.iter() {
+                count += child.touching_bounded(bounds, maximum - count)?;
+            }
+        } else {
+            for s in &self.ink {
+                if boxes_meet(segment_bounds(*s), bounds) && touches_box(*s, bounds) {
+                    count += 1;
+                    if count > maximum {
+                        return None;
+                    }
+                }
+            }
+        }
+        Some(count)
+    }
+
+    fn touching_uncached(&self, bounds: [f64; 4]) -> usize {
+        if !boxes_meet(self.bounds, bounds) {
+            return 0;
+        }
+        if let Some(children) = &self.children {
+            children
+                .iter()
+                .map(|child| child.touching_uncached(bounds))
+                .sum()
+        } else {
+            self.ink
+                .iter()
+                .filter(|s| boxes_meet(segment_bounds(**s), bounds) && touches_box(**s, bounds))
+                .count()
+        }
+    }
+
+    #[cfg(test)]
+    fn near(&self, bounds: [f64; 4]) -> Vec<&[P2; 2]> {
+        let mut found = Vec::new();
+        self.collect(bounds, &mut found);
+        found
+    }
+
+    pub(super) fn crossings(&self, line: [P2; 2]) -> usize {
+        let key = [
+            line[0][0].to_bits(),
+            line[0][1].to_bits(),
+            line[1][0].to_bits(),
+            line[1][1].to_bits(),
+        ];
+        if let Some(&count) = self.counts.borrow().get(&key) {
+            return count;
+        }
+        let count = self.crossings_uncached(line);
+        let mut saved = self.counts.borrow_mut();
+        if saved.len() >= 8192 {
+            saved.clear();
+        }
+        saved.insert(key, count);
+        count
+    }
+
+    fn meets_line(&self, line: [P2; 2]) -> bool {
+        self.meets_padded_line(line, 1e-9)
+    }
+
+    fn meets_padded_line(&self, line: [P2; 2], pad: f64) -> bool {
+        // A diagonal witness's bounding rectangle can cover most of a dense
+        // view. Clip the actual shaft against each tree node instead; keep
+        // closed, slightly widened bounds so even degenerate leaves survive.
+        // The final segment crossing predicate is unchanged.
+        let bounds = grow(self.bounds, pad);
+        let mut interval = [0.0_f64, 1.0_f64];
+        for k in 0..2 {
+            let d = line[1][k] - line[0][k];
+            if d == 0.0 {
+                if line[0][k] < bounds[k] || line[0][k] > bounds[k + 2] {
+                    return false;
+                }
+            } else {
+                let a = (bounds[k] - line[0][k]) / d;
+                let b = (bounds[k + 2] - line[0][k]) / d;
+                interval[0] = interval[0].max(a.min(b));
+                interval[1] = interval[1].min(a.max(b));
+                if interval[0] > interval[1] {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    fn crossings_uncached(&self, line: [P2; 2]) -> usize {
+        if !self.meets_line(line) {
+            return 0;
+        }
+        if let Some(children) = &self.children {
+            children
+                .iter()
+                .map(|child| child.crossings_uncached(line))
+                .sum()
+        } else {
+            self.ink
+                .iter()
+                .filter(|s| segments_cross(line, **s))
+                .count()
+        }
+    }
+
+    // Count each projected edge once, even when both legs cross it. This is
+    // the router's original full-scan predicate, queried through the same tree.
+    fn route_crossings(&self, lines: [[P2; 2]; 2]) -> usize {
+        let key = std::array::from_fn(|i| lines[i / 4][i / 2 % 2][i % 2].to_bits());
+        if let Some(&n) = self.routes.borrow().get(&key) {
+            return n;
+        }
+        let n = self.route_crossings_uncached(lines);
+        let mut saved = self.routes.borrow_mut();
+        if saved.len() >= 8192 {
+            saved.clear();
+        }
+        saved.insert(key, n);
+        n
+    }
+
+    fn route_crossings_uncached(&self, lines: [[P2; 2]; 2]) -> usize {
+        if !lines.iter().any(|line| self.meets_line(*line)) {
+            return 0;
+        }
+        if let Some(children) = &self.children {
+            children
+                .iter()
+                .map(|child| child.route_crossings_uncached(lines))
+                .sum()
+        } else {
+            self.ink
+                .iter()
+                .filter(|edge| lines.iter().any(|line| segments_cross(*line, **edge)))
+                .count()
+        }
+    }
+
+    // A refinement must not buy a shorter route by crossing a different
+    // original edge. Preserve edge identity and the exact leaf predicates.
+    fn new_crossing(&self, next: &[[P2; 2]], old: &[[P2; 2]]) -> bool {
+        if !next.iter().any(|line| self.meets_line(*line)) {
+            return false;
+        }
+        if let Some(children) = &self.children {
+            children.iter().any(|child| child.new_crossing(next, old))
+        } else {
+            self.ink.iter().any(|edge| {
+                next.iter().any(|line| segments_cross(*line, *edge))
+                    && !old.iter().any(|line| segments_cross(*line, *edge))
+            })
+        }
+    }
+
+    pub(super) fn crosses_box(&self, bounds: [f64; 4]) -> bool {
+        if !boxes_meet(self.bounds, bounds) {
+            return false;
+        }
+        if let Some(children) = &self.children {
+            children.iter().any(|child| child.crosses_box(bounds))
+        } else {
+            self.ink
+                .iter()
+                .any(|line| crate::dims::placement::crosses(*line, bounds))
+        }
+    }
+
+    #[cfg(test)]
+    fn collect<'a>(&'a self, bounds: [f64; 4], found: &mut Vec<&'a [P2; 2]>) {
+        if !boxes_meet(self.bounds, bounds) {
+            return;
+        }
+        if let Some(children) = &self.children {
+            for child in children.iter() {
+                child.collect(bounds, found);
+            }
+        } else {
+            found.extend(
+                self.ink
+                    .iter()
+                    .filter(|s| boxes_meet(segment_bounds(**s), bounds)),
+            );
+        }
+    }
+
+    fn collect_beside(&self, line: [P2; 2], found: &mut Vec<[P2; 2]>) {
+        // Any interval within the 0.3 mm perpendicular band must meet
+        // these expanded closed bounds, including a nearly diagonal run.
+        if !self.meets_padded_line(line, 0.3 + 1e-9) {
+            return;
+        }
+        if let Some(children) = &self.children {
+            for child in children.iter() {
+                child.collect_beside(line, found);
+            }
+        } else {
+            found.extend(&self.ink);
+        }
+    }
+
+    fn runs_beside(&self, line: [P2; 2]) -> bool {
+        let key = [
+            line[0][0].to_bits(),
+            line[0][1].to_bits(),
+            line[1][0].to_bits(),
+            line[1][1].to_bits(),
+        ];
+        if let Some(&result) = self.besides.borrow().get(&key) {
+            return result;
+        }
+        let mut ink = Vec::new();
+        self.collect_beside(line, &mut ink);
+        let result = runs_beside(line, &ink);
+        let mut saved = self.besides.borrow_mut();
+        if saved.len() >= 8192 {
+            saved.clear();
+        }
+        saved.insert(key, result);
+        result
+    }
+}
+
+// The boolean form needs no distinct-owner bookkeeping. A positive owner
+// count is exactly one of these unchanged finite-corridor predicates passing.
+pub(super) fn meets_extensions(extensions: &[[P2; 2]], lines: &[[P2; 2]], label: [f64; 4]) -> bool {
+    let label = grow(label, LABEL_PAD);
+    extensions.iter().any(|e| {
+        touches_box(*e, label)
+            || lines
+                .iter()
+                .any(|s| touches_box(*s, grow(segment_bounds(*e), LABEL_PAD)))
+    })
+}
+
 /// A callout's contacts with the extension lines of linear dimensions (decision (iii)):
 /// the dimensions whose extension line the leader or the padded label touches, and of those,
 /// the ones the padded label touches.
-fn extension_contacts(
+pub(super) fn extension_contacts(
     extensions: &[(usize, [P2; 2])],
     lines: &[[P2; 2]],
     label: [f64; 4],
@@ -1599,6 +2840,7 @@ fn segment_bounds(s: [P2; 2]) -> [f64; 4] {
 
 /// The grid changes only the candidate set: preserve the exact per-stroke predicate,
 /// duplicate-stroke counts, inclusive boundaries and non-finite fallback of the full scan.
+#[cfg(test)]
 fn model_contacts(model: &[[P2; 2]], grid: &Grid, q: P2, label: [f64; 4]) -> (usize, bool) {
     let pad = grow(label, LABEL_PAD);
     let at = grow([q[0], q[1], q[0], q[1]], LABEL_PAD);
@@ -1610,7 +2852,7 @@ fn model_contacts(model: &[[P2; 2]], grid: &Grid, q: P2, label: [f64; 4]) -> (us
 }
 
 /// Whether a leader segment runs within 0.3 mm of the given line-work for over 2 mm.
-fn runs_beside(s: [P2; 2], ink: &[[P2; 2]]) -> bool {
+pub(super) fn runs_beside(s: [P2; 2], ink: &[[P2; 2]]) -> bool {
     let mut intervals: Vec<_> = ink.iter().filter_map(|e| along_interval(s, *e)).collect();
     intervals.sort_by(|a, b| a.0.total_cmp(&b.0));
     let length = (s[1][0] - s[0][0]).hypot(s[1][1] - s[0][1]);
@@ -1627,8 +2869,77 @@ fn runs_beside(s: [P2; 2], ink: &[[P2; 2]]) -> bool {
     false
 }
 
-/// Length inside a conservative curved-face box; an attached route may leave it,
-/// while a refinement cannot increase its unverified travel through that box.
+pub(super) fn touches_box(s: [P2; 2], b: [f64; 4]) -> bool {
+    if (s[0][0] < b[0] && s[1][0] < b[0])
+        || (s[0][0] > b[2] && s[1][0] > b[2])
+        || (s[0][1] < b[1] && s[1][1] < b[1])
+        || (s[0][1] > b[3] && s[1][1] > b[3])
+    {
+        return false;
+    }
+
+    let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
+    for k in 0..2 {
+        let d = s[1][k] - s[0][k];
+        if d.abs() < 1e-12 {
+            if s[0][k] < b[k] || s[0][k] > b[k + 2] {
+                return false;
+            }
+        } else {
+            let a = (b[k] - s[0][k]) / d;
+            let z = (b[k + 2] - s[0][k]) / d;
+            lo = lo.max(a.min(z));
+            hi = hi.min(a.max(z));
+        }
+    }
+    lo <= hi
+}
+
+/// Whether the candidate introduces any path inside an uncertain material box.
+/// Collinear extension in empty paper is safe only when its entire clipped
+/// material segment was already covered by one established straight segment.
+/// A new path can differ only inside a box it actually meets. The grid discards
+/// unrelated uncertain faces; every survivor uses the original exact predicate.
+fn unknown_route_safe(
+    lines: &[[P2; 2]],
+    boxes: &[[f64; 4]],
+    grid: &Grid,
+    historical: &[[P2; 2]],
+    old: &[[P2; 2]],
+    ordinary: bool,
+) -> bool {
+    let mut bounds = lines.iter().map(|s| segment_bounds(*s)).fold(
+        [
+            f64::INFINITY,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NEG_INFINITY,
+        ],
+        |a, b| {
+            [
+                a[0].min(b[0]),
+                a[1].min(b[1]),
+                a[2].max(b[2]),
+                a[3].max(b[3]),
+            ]
+        },
+    );
+    if lines.iter().flatten().flatten().any(|v| !v.is_finite()) {
+        bounds = [f64::NAN; 4];
+    }
+    grid.try_near(0, bounds, |i| {
+        let b = boxes[i];
+        if ordinary {
+            !lines
+                .iter()
+                .enumerate()
+                .any(|(i, s)| buried(*s, b) > buried(old[i], b) + 1e-6)
+        } else {
+            !lines.iter().any(|s| adds_unknown_path(*s, b, historical))
+        }
+    })
+}
+
 fn buried(s: [P2; 2], b: [f64; 4]) -> f64 {
     let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
     for k in 0..2 {
@@ -1647,9 +2958,7 @@ fn buried(s: [P2; 2], b: [f64; 4]) -> f64 {
     (hi - lo).max(0.0) * (s[1][0] - s[0][0]).hypot(s[1][1] - s[0][1])
 }
 
-fn touches_box(s: [P2; 2], b: [f64; 4]) -> bool {
-    // Wholly outside one side cannot meet the finite box. Keep endpoint contacts and
-    // run the unchanged clipping calculation for every broad-phase survivor.
+fn adds_unknown_path(s: [P2; 2], b: [f64; 4], old: &[[P2; 2]]) -> bool {
     if (s[0][0] < b[0] && s[1][0] < b[0])
         || (s[0][0] > b[2] && s[1][0] > b[2])
         || (s[0][1] < b[1] && s[1][1] < b[1])
@@ -1657,6 +2966,7 @@ fn touches_box(s: [P2; 2], b: [f64; 4]) -> bool {
     {
         return false;
     }
+
     let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
     for k in 0..2 {
         let d = s[1][k] - s[0][k];
@@ -1671,7 +2981,21 @@ fn touches_box(s: [P2; 2], b: [f64; 4]) -> bool {
             hi = hi.min(a.max(z));
         }
     }
-    lo <= hi
+    if lo > hi {
+        return false;
+    }
+    let inside = [lo, hi].map(|t| [0, 1].map(|k| s[0][k] + t * (s[1][k] - s[0][k])));
+    !old.iter().any(|[a, z]| {
+        let d = [z[0] - a[0], z[1] - a[1]];
+        let n = d[0] * d[0] + d[1] * d[1];
+        n > 1e-18
+            && inside.iter().all(|p| {
+                let w = [p[0] - a[0], p[1] - a[1]];
+                let cross = w[0] * d[1] - w[1] * d[0];
+                let t = (w[0] * d[0] + w[1] * d[1]) / n;
+                cross.abs() <= 1e-9 * n.sqrt() && (-1e-9..=1.0 + 1e-9).contains(&t)
+            })
+    })
 }
 
 /// The interval along a leader within 0.3 paper mm of another finite segment.
@@ -2061,6 +3385,21 @@ fn inventory(job: &Job, fixed: &Fixed, page: &Page, semantic_pmi: bool) -> Inven
             }
         }
     }
+    if job.short_profile {
+        // A hidden end rim may be represented from its visible profile. Give
+        // its real end stations the same short bounded rays as interior jobs,
+        // instead of forcing a long column outside the entire view envelope.
+        for &site in &job.sites {
+            for j in 0..DIRECTIONS {
+                let a = std::f64::consts::TAU * j as f64 / DIRECTIONS as f64;
+                let u = [a.cos(), a.sin()];
+                let tip = [site.0[0] + site.1 * u[0], site.0[1] + site.1 * u[1]];
+                for &reach in SWEEP_REACH.iter().take(3) {
+                    raw.push((tip, [tip[0] + reach * u[0], tip[1] + reach * u[1]], None));
+                }
+            }
+        }
+    }
     if let Some(side) = job.side {
         use crate::placement_intent::Side;
         raw.retain(|(_, elbow, _)| match side {
@@ -2088,7 +3427,19 @@ fn inventory(job: &Job, fixed: &Fixed, page: &Page, semantic_pmi: bool) -> Inven
             }
         }
     }
-    let lists = kept(&mut measured, job, fixed, semantic_pmi);
+    let mut lists = kept(&mut measured, job, fixed, semantic_pmi);
+    if job.corridors
+        && lists.0.first().is_none_or(|c| {
+            c.hard > c.furniture_hard || c.feature_crossings > 0 || c.crossings > c.furniture_text
+        })
+    {
+        measured.extend(
+            sweep(job, job.sites[0].0)
+                .into_iter()
+                .filter_map(|(tip, elbow, right)| measure_bounds(job, tip, elbow, right, page)),
+        );
+        lists = kept(&mut measured, job, fixed, semantic_pmi);
+    }
     // A turned step's diameter whose best route grazes its silhouette takes an angled route
     // instead, but only one that crosses no more of the part's line-work, and passes through
     // no more features, than the grazing one; with none, the grazing route stands.
@@ -2121,13 +3472,8 @@ fn inventory(job: &Job, fixed: &Fixed, page: &Page, semantic_pmi: bool) -> Inven
 
 /// How many of its view's model lines a route crosses ([`Job::model`]).
 fn model_crossings(job: &Job, c: &Candidate) -> usize {
-    let segs = c.segments();
-    job.model.map_or(0, |model| {
-        model
-            .iter()
-            .filter(|m| segs.iter().any(|s| segments_cross(*s, **m)))
-            .count()
-    })
+    job.model
+        .map_or(0, |model| model.route_crossings(c.segments()))
 }
 
 /// How many features a route's shaft passes through.
@@ -2252,13 +3598,13 @@ fn measure_bounds(job: &Job, tip: P2, elbow: P2, right: bool, page: &Page) -> Op
     measure_at_bounds(job, tip, elbow, end, right, page)
 }
 
-fn label_geometry(elbow: P2, end: P2, right: bool, ink_min: P2, ink_max: P2) -> (P2, [f64; 4]) {
+fn label_geometry(_elbow: P2, end: P2, right: bool, ink_min: P2, ink_max: P2) -> (P2, [f64; 4]) {
     let at_x = if right {
         end[0] + 1.0 - ink_min[0]
     } else {
         end[0] - 1.0 - ink_max[0]
     };
-    let label_at = [at_x, elbow[1] - 0.5 * CAP];
+    let label_at = [at_x, end[1] - 0.5 * CAP];
     let ink = super::LabelInk {
         glyphs: Vec::new(),
         strokes: Vec::new(),
@@ -2374,6 +3720,8 @@ fn measure_at_bounds(
         grazing: u32::from(grazing),
         astray: 0,
         feature_crossings: 0,
+        recess: job.corridors && !job.short_profile,
+        directed: job.directed,
         inside,
         features_measured: false,
         fixed_measured: false,
@@ -2385,6 +3733,14 @@ fn measure_at_bounds(
         conflict_ink: OnceCell::new(),
     };
     c.astray = astray(job, &c);
+    if let Some((view, proof)) = job.profile_proof {
+        // An invented or hidden station is never a diameter attachment, even
+        // when every available real route has another reported obstruction.
+        if !proof.touches(view, tip) {
+            return None;
+        }
+        c.hard += u32::from(!proof.profile_clear(view, &c.placed()));
+    }
     Some(c)
 }
 
@@ -2427,7 +3783,9 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
             // radial leader leaving its own hole along that hole's centre mark is its
             // attachment, not travel along another feature's line.
             beside = crate::centrelines::runs_beside(segs[0], *f)
-                && !(fixed.crosses.contains(i) && through(*f, nearest(&job.sites, tip).0));
+                && !(fixed.crosses.contains(i)
+                    && !job.corridors
+                    && through(*f, nearest(&job.sites, tip).0));
             collinear = lines.iter().any(|s| s.collinear(*f));
             beside
                 || collinear
@@ -2518,6 +3876,27 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
         v.dedup();
     }
     let crossings = (crossed.len() + text.len()) as u32;
+    if job.corridors {
+        // The same finite 1 mm extension corridor used by the route acceptance
+        // check participates in the initial solve, before a route becomes fixed.
+        hard += fixed.extension_index.contacts(&segs, lb).0 as u32;
+        if job.short_profile {
+            hard += fixed
+                .extensions
+                .iter()
+                .filter(|(_, e)| {
+                    let bounds = grow(segment_bounds(*e), 0.2);
+                    own_head.iter().any(|h| touches_box(*h, bounds))
+                })
+                .count() as u32;
+        }
+        if job
+            .model
+            .is_some_and(|model| segs.iter().any(|s| model.runs_beside(*s)))
+        {
+            hard += 1;
+        }
+    }
     c.hard += hard;
     c.crossings = crossings;
     c.furniture = furniture.len() as u32;
@@ -2602,6 +3981,10 @@ pub fn clear_routes(
         sites: page_sites(f, sites),
         silhouette: grazing(f, w),
         model: None,
+        short_profile: false,
+        profile_proof: None,
+        directed: false,
+        corridors: false,
         steer: std::cell::Cell::new(None),
         ink_min: ink.min,
         ink_max: ink.max,
@@ -2728,17 +4111,33 @@ pub(super) fn segments_cross(a: [P2; 2], b: [P2; 2]) -> bool {
 /// label: a hard finding, `annotation_ink_overlap`), one when only their lines cross (Policy B
 /// keeps that, `annotation_leader_crossing`), none when they are clear.
 fn conflict(a: &Candidate, b: &Candidate) -> u32 {
+    let directed = a.directed || b.directed;
+    let text = TEXT_CONFLICT + u32::from(directed);
     let (ia, ib) = (a.conflict_ink(), b.conflict_ink());
     if !boxes_overlap(ia.bounds, ib.bounds) {
         return 0;
     }
     if boxes_overlap(ia.label, b.label_box) {
-        return TEXT_CONFLICT;
+        return text;
     }
     if ia.segments.iter().any(|s| crosses(*s, b.label_box))
         || ib.segments.iter().any(|s| crosses(*s, a.label_box))
     {
-        TEXT_CONFLICT
+        text
+    } else if directed {
+        let ab = ia.segments.iter().any(|s| {
+            ib.segments
+                .iter()
+                .chain(std::iter::once(&arrow(b.tip, b.elbow)))
+                .any(|t| lines_meet(*s, *t))
+        });
+        let ba = ib.segments.iter().any(|s| {
+            ia.segments
+                .iter()
+                .chain(std::iter::once(&arrow(a.tip, a.elbow)))
+                .any(|t| lines_meet(*s, *t))
+        });
+        u32::from(ab) + u32::from(ba)
     } else {
         u32::from(
             ia.lines
@@ -3209,6 +4608,17 @@ mod tests {
     /// The tip lies on the rim, radial towards the elbow (`holes._rim_tip`): the leader points at
     /// the hole's centre whatever side it leaves by.
     #[test]
+    fn only_the_established_path_may_touch_uncertain_material() {
+        let b = [0.0, 0.0, 10.0, 10.0];
+        let old = [[[5.0, 5.0], [5.0, 12.0]]];
+        assert!(!adds_unknown_path([[5.0, 5.0], [5.0, 15.0]], b, &old));
+        assert!(!adds_unknown_path([[5.0, 5.0], [5.0, 11.0]], b, &old));
+        assert!(adds_unknown_path([[5.0, 4.0], [5.0, 15.0]], b, &old));
+        assert!(adds_unknown_path([[5.0, 5.0], [6.0, 15.0]], b, &old));
+        assert!(adds_unknown_path([[4.0, 5.0], [4.0, 15.0]], b, &old));
+    }
+
+    #[test]
     fn a_tip_is_on_the_rim_radial_to_the_elbow() {
         let site = ([50.0, 40.0], 6.0);
         for elbow in [[80.0, 40.0], [20.0, 70.0], [50.0, 10.0], [61.0, 52.0]] {
@@ -3217,6 +4627,45 @@ mod tests {
             assert!((r[0].hypot(r[1]) - 6.0).abs() < 1e-9);
             let l = [elbow[0] - t[0], elbow[1] - t[1]];
             assert!((r[0] * l[1] - r[1] * l[0]).abs() < 1e-9 && r[0] * l[0] + r[1] * l[1] > 0.0);
+        }
+    }
+
+    #[test]
+    fn a_part_without_recesses_keeps_its_published_radius_route() {
+        let corpus = std::env::var_os("DRAFTWRIGHT_CORPUS")
+            .map(std::path::PathBuf::from)
+            .or_else(|| {
+                std::env::var_os("HOME")
+                    .map(|h| std::path::PathBuf::from(h).join("repos/quiddity/tests/corpus"))
+            });
+        let Some(corpus) = corpus.filter(|p| p.is_dir()) else {
+            assert_ne!(
+                std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").as_deref(),
+                Ok("1")
+            );
+            return;
+        };
+        let a = crate::model::analyse_native(&corpus.join("cadgenbench_inputs/cgb245.step"))
+            .unwrap()
+            .1;
+        assert!(a.features.iter().all(|f| f.kind != "section_recess"));
+        let plan = crate::model::plan_recovered(&a, &crate::model::Spec::default()).unwrap();
+        let id = "d:f:slot:1/slot_end_radius.radius";
+        let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
+        let p = d.placed.as_ref().unwrap();
+        let v = plan.views.iter().find(|v| v.id == d.view).unwrap();
+        let baseline: serde_json::Value =
+            serde_json::from_str(include_str!("../../tests/fixtures/leader_routes.json")).unwrap();
+        let route = &baseline["parts"]["cgb245"][id]["route"];
+        let points: Vec<_> = p.lines.iter().flatten().collect();
+        assert_eq!(points.len(), route.as_array().unwrap().len());
+        for (i, point) in points.iter().enumerate() {
+            for (k, coordinate) in point.iter().enumerate() {
+                assert!(
+                    (coordinate - v.at[k] - route[i][k].as_f64().unwrap()).abs() < 1e-6,
+                    "{id}: route changed at {i}/{k}"
+                );
+            }
         }
     }
 
@@ -3323,6 +4772,248 @@ mod tests {
         }
     }
 
+    #[test]
+    fn indexed_extension_contacts_match_full_scans_and_count_distinct_owners() {
+        let mut seed = 7919;
+        let ink: Vec<_> = (0..300)
+            .map(|n| {
+                (
+                    (if n % 3 == 0 { n + 150 } else { n / 2 }) * 1_000_003 + 500,
+                    std::array::from_fn(|_| std::array::from_fn(|_| 200. * lcg(&mut seed) - 100.)),
+                )
+            })
+            .collect();
+        let indexed = ExtensionIndex::new(ink.clone());
+        for _ in 0..500 {
+            let route: [[P2; 2]; 2] = std::array::from_fn(|_| {
+                std::array::from_fn(|_| std::array::from_fn(|_| 200. * lcg(&mut seed) - 100.))
+            });
+            let at = [200. * lcg(&mut seed) - 100., 200. * lcg(&mut seed) - 100.];
+            let label = [at[0], at[1], at[0] + 12., at[1] + 4.];
+            let flare = head(arrow(route[0][0], route[0][1]));
+            assert_eq!(
+                indexed.head_contacts(&flare),
+                ink.iter()
+                    .filter(|(_, e)| {
+                        let bounds = grow(segment_bounds(*e), 0.2);
+                        flare.iter().any(|s| touches_box(*s, bounds))
+                    })
+                    .count()
+            );
+            assert_eq!(
+                indexed.contacts(&route, label),
+                extension_contacts(&ink, &route, label)
+            );
+            let full = extension_contacts(&ink, &route, label);
+            for maximum in [
+                (0, 0),
+                full,
+                (full.0.saturating_sub(1), full.1),
+                (full.0, full.1.saturating_sub(1)),
+            ] {
+                let expected = (full.0 <= maximum.0 && full.1 <= maximum.1).then_some(full);
+                assert_eq!(
+                    indexed.contacts_bounded(&route, label, Some(maximum)),
+                    expected
+                );
+            }
+            assert_eq!(
+                meets_extensions(
+                    &ink.iter().map(|(_, e)| *e).collect::<Vec<_>>(),
+                    &route,
+                    label
+                ),
+                extension_contacts(&ink, &route, label).0 > 0
+            );
+            assert_eq!(
+                indexed.contacts(&[], label),
+                extension_contacts(&ink, &[], label)
+            );
+        }
+        let ink = vec![(4, [[0., 0.], [0., 20.]]), (4, [[2., 0.], [2., 20.]])];
+        let index = ExtensionIndex::new(ink.clone());
+        assert_eq!(index.contacts(&[], [0., 5., 2., 10.]), (1, 1));
+        let sparse = vec![
+            (usize::MAX, [[0., 0.], [0., 20.]]),
+            (usize::MAX, [[2., 0.], [2., 20.]]),
+            (1_000_007, [[1., 0.], [1., 20.]]),
+        ];
+        assert_eq!(
+            ExtensionIndex::new(sparse.clone()).contacts(&[], [0., 5., 2., 10.]),
+            extension_contacts(&sparse, &[], [0., 5., 2., 10.])
+        );
+    }
+
+    #[test]
+    fn shared_route_ink_and_uncertain_boxes_match_local_full_scans() {
+        let mut seed = 7843;
+        let ink: Vec<_> = (0..500)
+            .map(|_| {
+                std::array::from_fn(|_| std::array::from_fn(|_| 200.0 * lcg(&mut seed) - 100.0))
+            })
+            .collect();
+        let region = [-20.0, -20.0, 20.0, 20.0];
+        let local: Vec<_> = ink
+            .iter()
+            .copied()
+            .filter(|s| touches_box(*s, region))
+            .collect();
+        let shared = SegmentIndex::new(ink.clone());
+        let cropped = SegmentIndex::new(local);
+        let boxes: Vec<_> = (0..100)
+            .map(|_| {
+                let x = 200.0 * lcg(&mut seed) - 100.0;
+                let y = 200.0 * lcg(&mut seed) - 100.0;
+                [x, y, x + 5.0, y + 8.0]
+            })
+            .collect();
+        let grid = Grid::new([boxes.clone(), Vec::new(), Vec::new()]);
+        let historical = [[[-30.0, 0.0], [30.0, 0.0]], [[30.0, 0.0], [35.0, 0.0]]];
+        for _ in 0..150 {
+            let lines: [[P2; 2]; 2] = std::array::from_fn(|_| {
+                std::array::from_fn(|_| std::array::from_fn(|_| 36.0 * lcg(&mut seed) - 18.0))
+            });
+            let at = lines[0][0];
+            let bounds = [at[0] - 1.0, at[1] - 1.0, at[0] + 1.0, at[1] + 1.0];
+            assert_eq!(shared.touching(bounds), cropped.touching(bounds));
+            assert_eq!(
+                shared.new_crossing(&lines, &historical),
+                cropped.new_crossing(&lines, &historical)
+            );
+            for line in lines {
+                assert_eq!(shared.runs_beside(line), cropped.runs_beside(line));
+            }
+            for ordinary in [false, true] {
+                let full = !boxes.iter().any(|b| {
+                    if ordinary {
+                        lines
+                            .iter()
+                            .enumerate()
+                            .any(|(i, s)| buried(*s, *b) > buried(historical[i], *b) + 1e-6)
+                    } else {
+                        lines.iter().any(|s| adds_unknown_path(*s, *b, &historical))
+                    }
+                });
+                assert_eq!(
+                    unknown_route_safe(&lines, &boxes, &grid, &historical, &historical, ordinary),
+                    full
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn indexed_route_checks_match_full_edge_scans() {
+        let mut seed = 7919;
+        let mut ink: Vec<_> = (0..300)
+            .map(|_| {
+                std::array::from_fn(|_| std::array::from_fn(|_| 200.0 * lcg(&mut seed) - 100.0))
+            })
+            .collect();
+        // A run assembled from short strokes must not disappear at leaf boundaries.
+        ink.extend((0..40).map(|n| [[n as f64, 0.0], [n as f64 + 1.0, 0.0]]));
+        let index = SegmentIndex::new(ink.clone());
+        for n in 0..200 {
+            let line = if n == 0 {
+                [[0.0, 0.3], [40.0, 0.3]]
+            } else {
+                std::array::from_fn(|_| std::array::from_fn(|_| 200.0 * lcg(&mut seed) - 100.0))
+            };
+            assert_eq!(index.runs_beside(line), runs_beside(line, &ink));
+            assert_eq!(index.runs_beside(line), runs_beside(line, &ink));
+            let bounds = grow(segment_bounds(line), 1.0);
+            assert_eq!(
+                index.crosses_box(bounds),
+                ink.iter()
+                    .any(|line| crate::dims::placement::crosses(*line, bounds))
+            );
+            let full = ink.iter().filter(|s| touches_box(**s, bounds)).count();
+            // Start with an incomplete zero-bound query, then raise and lower
+            // the bound and request an exact count from the same cache entry.
+            for maximum in [0, full.saturating_sub(1), full, full + 1, 0] {
+                assert_eq!(index.touching_at_most(bounds, maximum), full <= maximum);
+            }
+            for _ in 0..2 {
+                assert_eq!(
+                    index.touching(bounds),
+                    ink.iter().filter(|s| touches_box(**s, bounds)).count()
+                );
+            }
+            assert_eq!(
+                index
+                    .near(bounds)
+                    .into_iter()
+                    .filter(|s| touches_box(**s, bounds))
+                    .count(),
+                ink.iter().filter(|s| touches_box(**s, bounds)).count()
+            );
+            assert_eq!(
+                index.crossings(line),
+                ink.iter().filter(|s| segments_cross(line, **s)).count()
+            );
+        }
+    }
+
+    #[test]
+    fn diagonal_crossing_queries_retain_thin_and_boundary_leaves() {
+        let ink: Vec<_> = (0..2048)
+            .map(|n| {
+                let x = (n % 64) as f64;
+                let y = (n / 64) as f64;
+                [[x, y], [x, y + 0.75]]
+            })
+            .collect();
+        let index = SegmentIndex::new(ink.clone());
+        for line in [
+            [[-1., -1.], [65., 33.]],
+            [[0., 0.], [63., 31.]],
+            [[0., 0.375], [63., 0.375]],
+            [[63., -1.], [63., 33.]],
+            [[-1., 31.375], [65., 31.375]],
+        ] {
+            for _ in 0..2 {
+                assert_eq!(
+                    index.crossings(line),
+                    ink.iter().filter(|s| segments_cross(line, **s)).count()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn indexed_leader_routes_match_full_scans_and_count_double_crossings_once() {
+        let edge = [[-1., 0.5], [3., 0.5]];
+        let route = [[[0., 0.], [1., 1.]], [[1., 1.], [2., 0.]]];
+        let index = SegmentIndex::new(vec![edge]);
+        assert!(route.iter().all(|s| segments_cross(*s, edge)));
+        assert_eq!(index.route_crossings(route), 1);
+        assert_eq!(index.route_crossings(route), 1);
+        let mut seed = 7919;
+        let ink: Vec<_> = (0..300)
+            .map(|_| std::array::from_fn(|_| std::array::from_fn(|_| 200. * lcg(&mut seed) - 100.)))
+            .collect();
+        let index = SegmentIndex::new(ink.clone());
+        for _ in 0..200 {
+            let points: [P2; 3] =
+                std::array::from_fn(|_| std::array::from_fn(|_| 200. * lcg(&mut seed) - 100.));
+            let route = [[points[0], points[1]], [points[1], points[2]]];
+            let full = ink
+                .iter()
+                .filter(|edge| route.iter().any(|line| segments_cross(*line, **edge)))
+                .count();
+            assert_eq!(index.route_crossings(route), full);
+            assert_eq!(index.route_crossings(route), full);
+            let old = [[[0., 0.], [25., -30.]], [[25., -30.], [-20., 15.]]];
+            assert_eq!(
+                index.new_crossing(&route, &old),
+                ink.iter().any(|edge| {
+                    route.iter().any(|line| segments_cross(*line, *edge))
+                        && !old.iter().any(|line| segments_cross(*line, *edge))
+                })
+            );
+        }
+    }
+
     /// Stations start at the natural one, alternate outwards, stay within the side and are
     /// bounded however long the side.
     #[test]
@@ -3355,6 +5046,8 @@ mod tests {
             grazing: 0,
             astray: 0,
             feature_crossings: 0,
+            recess: false,
+            directed: false,
             inside: 0,
             features_measured: true,
             fixed_measured: true,
@@ -3370,6 +5063,16 @@ mod tests {
                 tip[1].max(elbow[1]).max(label_box[3]),
             ],
         }
+    }
+
+    #[test]
+    fn a_shared_recess_solve_counts_both_directions_of_a_shaft_crossing() {
+        let mut a = cand([0., 0.], [10., 10.], 14_000);
+        let b = cand([0., 10.], [10., 0.], 14_000);
+        assert_eq!(conflict(&a, &b), 1);
+        a.directed = true;
+        assert_eq!(conflict(&a, &b), 2);
+        assert_eq!(conflict(&b, &a), 2);
     }
 
     /// Two callouts whose cheapest leaders cross: the joint assignment gives one its second

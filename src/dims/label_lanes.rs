@@ -48,14 +48,34 @@ pub(super) fn off_span<'a>(p: &Placed, others: impl Iterator<Item = &'a Placed>)
     })
 }
 
-/// Finished label/leader predicates, plus the measured-span guard for sharing a lane.
-fn contacts(p: &Placed, q: &PlannedDimension) -> u8 {
-    let Some(qp) = &q.placed else {
-        return 0;
-    };
-    let mut hits = 0;
-    // Crossing extension lines is normal; coincident dimension lines over overlapping
-    // measured spans are ambiguous even when their text boxes happen to be separate.
+fn ink_bounds(p: &Placed) -> [f64; 4] {
+    ink_points(p).fold(
+        [
+            f64::INFINITY,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NEG_INFINITY,
+        ],
+        |b, q| {
+            [
+                b[0].min(q[0]),
+                b[1].min(q[1]),
+                b[2].max(q[0]),
+                b[3].max(q[1]),
+            ]
+        },
+    )
+}
+
+// Two millimetres conservatively exceed every contact and clearance margin
+// below. A separated pair needs none of the exact stroke/head predicates.
+fn contact_bounds(p: &Placed) -> [f64; 4] {
+    let b = ink_bounds(p);
+    [b[0] - 2., b[1] - 2., b[2] + 2., b[3] + 2.]
+}
+
+fn shared_span_contact(p: &Placed, q: &PlannedDimension) -> bool {
+    let Some(qp) = &q.placed else { return false };
     if q.kind == "linear"
         && p.arrows.len() == 2
         && qp.arrows.len() == 2
@@ -67,17 +87,41 @@ fn contacts(p: &Placed, q: &PlannedDimension) -> u8 {
         if (p.arrows[0][0][1 - k] - qp.arrows[0][0][1 - k]).abs() < 1e-6
             && b.min(d) - a.max(c) > 1e-6
         {
-            hits |= 1 << 4;
+            return true;
         }
+    }
+
+    false
+}
+
+/// Finished label/leader predicates, plus the measured-span guard for sharing a lane.
+fn contacts(p: &Placed, q: &PlannedDimension) -> u8 {
+    let Some(qp) = &q.placed else {
+        return 0;
+    };
+    let mut hits = 0;
+    if shared_span_contact(p, q) {
+        hits |= 1 << 4;
     }
 
     if boxes_overlap(p.label_box, qp.label_box) {
         hits |= 1 << 0;
     }
-    if p.lines.iter().any(|l| crosses(*l, qp.label_box)) {
+    if p.lines
+        .iter()
+        .copied()
+        .chain(p.arrows.iter().flat_map(|h| super::leaders::head(*h)))
+        .any(|l| crosses(l, qp.label_box))
+    {
         hits |= 1 << 1;
     }
-    if qp.lines.iter().any(|l| crosses(*l, p.label_box)) {
+    if qp
+        .lines
+        .iter()
+        .copied()
+        .chain(qp.arrows.iter().flat_map(|h| super::leaders::head(*h)))
+        .any(|l| crosses(l, p.label_box))
+    {
         hits |= 1 << 2;
     }
     if q.kind == "callout"
@@ -90,11 +134,217 @@ fn contacts(p: &Placed, q: &PlannedDimension) -> u8 {
     {
         hits |= 1 << 3;
     }
+    if q.kind == "callout" && p.arrows.len() == 2 && p.lines.len() >= 3 {
+        let extensions = [(0, p.lines[0]), (0, p.lines[1])];
+        let (leader, text) =
+            super::leaders::extension_contacts(&extensions, &qp.lines, qp.label_box);
+        if leader > 0 {
+            hits |= 1 << 5;
+        }
+        if text > 0 {
+            hits |= 1 << 6;
+        }
+        if qp
+            .arrows
+            .iter()
+            .flat_map(|a| super::leaders::head(*a))
+            .any(|s| {
+                p.lines[..2].iter().any(|[a, b]| {
+                    super::leaders::touches_box(
+                        s,
+                        [
+                            a[0].min(b[0]) - 0.2,
+                            a[1].min(b[1]) - 0.2,
+                            a[0].max(b[0]) + 0.2,
+                            a[1].max(b[1]) + 0.2,
+                        ],
+                    )
+                })
+            })
+        {
+            hits |= 1 << 7;
+        }
+    }
     hits
+}
+
+// A label slide changes only its box and the dimension-line run-on. Measure
+// all witness/head/owner contacts once for this lane; retain the complete mask.
+struct LabelContacts<'a> {
+    peer: &'a PlannedDimension,
+    heads: Vec<[[f64; 2]; 2]>,
+    constant: u8,
+}
+impl<'a> LabelContacts<'a> {
+    fn new(lane: &Placed, peer: &'a PlannedDimension) -> Self {
+        let Some(q) = &peer.placed else {
+            return Self {
+                peer,
+                heads: Vec::new(),
+                constant: 0,
+            };
+        };
+        let mut constant = contacts(lane, peer) & ((1 << 4) | (1 << 5) | (1 << 6) | (1 << 7));
+        if lane
+            .lines
+            .iter()
+            .enumerate()
+            .filter(|(n, _)| *n != 2)
+            .any(|(_, s)| crosses(*s, q.label_box))
+            || lane
+                .arrows
+                .iter()
+                .flat_map(|a| super::leaders::head(*a))
+                .any(|s| crosses(s, q.label_box))
+        {
+            constant |= 1 << 1;
+        }
+        if peer.kind == "callout"
+            && q.lines.iter().any(|s| {
+                lane.lines
+                    .iter()
+                    .enumerate()
+                    .filter(|(n, _)| *n != 2)
+                    .map(|(_, s)| s)
+                    .chain(&lane.arrows)
+                    .any(|t| super::leaders::lines_meet(*s, *t))
+            })
+        {
+            constant |= 1 << 3;
+        }
+        Self {
+            peer,
+            constant,
+            heads: q
+                .arrows
+                .iter()
+                .flat_map(|a| super::leaders::head(*a))
+                .collect(),
+        }
+    }
+    fn contacts(&self, c: &Placed) -> u8 {
+        let Some(q) = &self.peer.placed else { return 0 };
+        let mut hits = self.constant;
+        if boxes_overlap(c.label_box, q.label_box) {
+            hits |= 1;
+        }
+        if hits & (1 << 1) == 0 && crosses(c.lines[2], q.label_box) {
+            hits |= 1 << 1;
+        }
+        if q.lines
+            .iter()
+            .chain(&self.heads)
+            .any(|s| crosses(*s, c.label_box))
+        {
+            hits |= 1 << 2;
+        }
+        if hits & (1 << 3) == 0
+            && self.peer.kind == "callout"
+            && q.lines
+                .iter()
+                .any(|s| super::leaders::lines_meet(*s, c.lines[2]))
+        {
+            hits |= 1 << 3;
+        }
+        hits
+    }
+}
+
+/// Clearance against the original ink is invariant while testing label slides.
+/// Keep the exact old-contact masks, then test only each candidate's new ink.
+struct LabelClearance<'a> {
+    peer: &'a Placed,
+    padded: [f64; 4],
+    overlap: bool,
+    near: bool,
+    peer_clear: Vec<[[f64; 2]; 2]>,
+    moving_clear: Vec<usize>,
+    moving_crossed: Vec<usize>,
+    peer_crossed: Vec<[[f64; 2]; 2]>,
+}
+
+fn clearance_box(b: [f64; 4]) -> [f64; 4] {
+    [b[0] - CLEAR, b[1] - CLEAR, b[2] + CLEAR, b[3] + CLEAR]
+}
+
+impl<'a> LabelClearance<'a> {
+    fn new(original: &Placed, peer: &'a Placed) -> Self {
+        let padded = clearance_box(peer.label_box);
+        let was = clearance_box(original.label_box);
+        Self {
+            peer,
+            padded,
+            overlap: boxes_overlap(original.label_box, peer.label_box),
+            near: boxes_overlap(original.label_box, padded),
+            peer_clear: peer
+                .lines
+                .iter()
+                .chain(&peer.arrows)
+                .copied()
+                .filter(|s| !crosses(*s, was))
+                .collect(),
+            moving_clear: original
+                .lines
+                .iter()
+                .chain(&original.arrows)
+                .enumerate()
+                .filter_map(|(i, s)| (!crosses(*s, padded)).then_some(i))
+                .collect(),
+            moving_crossed: original
+                .lines
+                .iter()
+                .enumerate()
+                .filter_map(|(i, s)| crosses(*s, peer.label_box).then_some(i))
+                .collect(),
+            peer_crossed: peer
+                .lines
+                .iter()
+                .copied()
+                .filter(|s| crosses(*s, original.label_box))
+                .collect(),
+        }
+    }
+
+    fn clears(&self, candidate: &Placed) -> bool {
+        if boxes_overlap(candidate.label_box, self.padded)
+            && (!self.near
+                || (self.overlap && !boxes_overlap(candidate.label_box, self.peer.label_box)))
+        {
+            return false;
+        }
+        let near = clearance_box(candidate.label_box);
+        if self.peer_clear.iter().any(|s| crosses(*s, near)) {
+            return false;
+        }
+        let stroke = |i: usize| {
+            if i < candidate.lines.len() {
+                candidate.lines.get(i)
+            } else {
+                candidate.arrows.get(i - candidate.lines.len())
+            }
+        };
+        if self
+            .moving_clear
+            .iter()
+            .filter_map(|&i| stroke(i))
+            .any(|s| crosses(*s, self.padded))
+        {
+            return false;
+        }
+        self.moving_crossed
+            .iter()
+            .filter_map(|&i| candidate.lines.get(i))
+            .all(|s| crosses(*s, self.peer.label_box) || !crosses(*s, self.padded))
+            && self
+                .peer_crossed
+                .iter()
+                .all(|s| crosses(*s, candidate.label_box) || !crosses(*s, near))
+    }
 }
 
 /// A removed contact must leave readable paper, including when another stroke of the
 /// same item remains close. Test strokes separately so existing witness proximity is kept.
+#[cfg(test)]
 fn clears_with_margin(p: &Placed, c: &Placed, q: &PlannedDimension) -> bool {
     let Some(qp) = &q.placed else { return true };
     let pad = |b: [f64; 4]| [b[0] - CLEAR, b[1] - CLEAR, b[2] + CLEAR, b[3] + CLEAR];
@@ -175,7 +425,48 @@ fn label_at(p: &Placed, at: f64) -> Placed {
     c
 }
 
+/// Outside arrows can carry short text centred over their measured span.
+/// Lift it half a millimetre to leave paper above the outward arrowheads.
+pub(super) fn centered_short(p: &Placed) -> Option<Placed> {
+    if p.arrows.len() != 2 || p.lines.len() < 3 {
+        return None;
+    }
+    let k = axis(p);
+    let (lo, hi) = tips(p);
+    if !p
+        .arrows
+        .iter()
+        .any(|[_, tail]| tail[k] < lo || tail[k] > hi)
+    {
+        return None;
+    }
+    let width = p.label_box[k + 2] - p.label_box[k];
+    let mut c = label_at(p, 0.5 * (lo + hi - width));
+    let normal = 1 - k;
+    let lift = if k == 0 { 0.5 } else { -0.5 };
+    c.label_at[normal] += lift;
+    c.label_box[normal] += lift;
+    c.label_box[normal + 2] += lift;
+    Some(c)
+}
+
 fn alternatives(p: &Placed, drawable: [f64; 4], others: &[&PlannedDimension]) -> Vec<Placed> {
+    alternatives_placed(
+        p,
+        drawable,
+        &others
+            .iter()
+            .filter_map(|d| d.placed.as_ref())
+            .collect::<Vec<_>>(),
+    )
+    .collect()
+}
+
+pub(super) fn alternatives_placed<'a>(
+    p: &'a Placed,
+    drawable: [f64; 4],
+    others: &[&Placed],
+) -> impl Iterator<Item = Placed> + use<'a> {
     let k = axis(p);
     let (lo, hi) = tips(p);
     let width = p.label_box[k + 2] - p.label_box[k];
@@ -191,7 +482,7 @@ fn alternatives(p: &Placed, drawable: [f64; 4], others: &[&PlannedDimension]) ->
         let centre = (0.5 * (lo + hi - width)).clamp(low, high);
         positions.extend([centre, low, high]);
         positions.push(p.label_box[k].clamp(low, high));
-        for q in others.iter().filter_map(|q| q.placed.as_ref()) {
+        for q in others {
             positions.extend([q.label_box[k] - CLEAR - width, q.label_box[k + 2] + CLEAR]);
             for [a, b] in &q.lines {
                 positions.extend([a[k].min(b[k]) - CLEAR - width, a[k].max(b[k]) + CLEAR]);
@@ -216,9 +507,8 @@ fn alternatives(p: &Placed, drawable: [f64; 4], others: &[&PlannedDimension]) ->
     positions
         .into_iter()
         .chain(tail)
-        .filter(|at| *at >= drawable[k] && at + width <= drawable[k + 2])
-        .map(|at| label_at(p, at))
-        .collect()
+        .filter(move |at| *at >= drawable[k] && at + width <= drawable[k + 2])
+        .map(move |at| label_at(p, at))
 }
 
 fn promote(p: &Placed, amount: f64) -> Placed {
@@ -242,6 +532,49 @@ fn promote(p: &Placed, amount: f64) -> Placed {
 }
 
 pub(crate) fn settle_inventory(
+    analysis: &Analysis,
+    spec: &Spec,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    inventory: &mut [PlannedDimension],
+    fixed: &[PlannedDimension],
+) {
+    // Only resolved ink, ownership/chain semantics and pinning affect this
+    // pass. Presentation metadata remains on the caller's fresh inventory.
+    let geometry = |items: &[PlannedDimension]| {
+        items
+            .iter()
+            .map(|d| {
+                (
+                    d.id.clone(),
+                    d.kind.clone(),
+                    d.view.clone(),
+                    d.region,
+                    d.measurements.clone(),
+                    d.placed.clone(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    let pins: Vec<_> = spec
+        .dimensions
+        .iter()
+        .filter_map(|(id, d)| d.place.as_ref().is_some_and(|p| p.pinned).then_some(id))
+        .collect();
+    let page = Page::new(analysis, sheet, views);
+    let key = serde_json::to_vec(&(pins, page, geometry(inventory), geometry(fixed)))
+        .expect("label settlement inputs serialize");
+    let next: Vec<_> = crate::planning::memo(analysis, "settled-label-inventory", key, || {
+        let mut next = inventory.to_vec();
+        settle_inventory_uncached(analysis, spec, sheet, views, &mut next, fixed);
+        next.into_iter().map(|d| d.placed).collect::<Vec<_>>()
+    });
+    for (d, placed) in inventory.iter_mut().zip(next) {
+        d.placed = placed;
+    }
+}
+
+fn settle_inventory_uncached(
     analysis: &Analysis,
     spec: &Spec,
     sheet: &PlannedSheet,
@@ -280,6 +613,7 @@ pub(crate) fn settle_inventory(
             .filter(|(j, _)| *j != i)
             .map(|(_, q)| q)
             .chain(fixed)
+            .filter(|q| q.placed.is_some())
             .collect();
         // Promotion uses room already occupied by this view's dimensions or reserved by
         // its bands; it never grows a dense tower past that footprint.
@@ -296,7 +630,22 @@ pub(crate) fn settle_inventory(
                     b[3].max(q[1]),
                 ]
             });
-        let old: Vec<_> = others.iter().map(|q| contacts(p, q)).collect();
+        let peer_bounds: Vec<_> = others
+            .iter()
+            .map(|q| ink_bounds(q.placed.as_ref().expect("placed peer")))
+            .collect();
+        let original_bounds = contact_bounds(p);
+        let old: Vec<_> = others
+            .iter()
+            .zip(&peer_bounds)
+            .map(|(q, b)| {
+                if boxes_overlap(original_bounds, *b) {
+                    contacts(p, q)
+                } else {
+                    0
+                }
+            })
+            .collect();
         let count: usize = old.iter().map(|hits| hits.count_ones() as usize).sum();
         let span_bad = |c: &Placed| {
             off_span(
@@ -307,42 +656,89 @@ pub(crate) fn settle_inventory(
                     .filter_map(|q| q.placed.as_ref()),
             )
         };
-        if count == 0 && !span_bad(p) {
+        let original_span_bad = span_bad(p);
+        if count == 0 && !original_span_bad {
             continue;
         }
-        let allowed = |c: &Placed| {
-            page.fits(c, view)
-                && !outside(c, region)
-                && (!outside(c, area) || outside(p, area))
-                && others.iter().zip(&old).all(|(q, before)| {
-                    let contact = contacts(c, q);
-                    contact & (1 << 4) == 0 && contact & !before == 0 && clears_with_margin(p, c, q)
+        // Whether the original ink already detached a peer's text is constant
+        // throughout every slide and lane trial for this one dimension.
+        let protected_spans: Vec<_> = others
+            .iter()
+            .filter(|q| q.kind == "linear" && q.view == d.view)
+            .filter_map(|q| q.placed.as_ref())
+            .filter(|q| !off_span(q, std::iter::once(p)))
+            .collect();
+        let clearance: Vec<_> = others.iter().map(|_| std::cell::OnceCell::new()).collect();
+        let allowed = |c: &Placed, prepared: &[LabelContacts]| {
+            if !page.fits(c, view) || outside(c, region) || (outside(c, area) && !outside(p, area))
+            {
+                return false;
+            }
+            let bounds = contact_bounds(c);
+            others
+                .iter()
+                .zip(&old)
+                .zip(&peer_bounds)
+                .zip(prepared)
+                .zip(&clearance)
+                .all(|((((q, before), peer), cached), margin)| {
+                    if !boxes_overlap(bounds, *peer) {
+                        return true;
+                    }
+                    let contact = cached.contacts(c);
+                    contact & (1 << 4) == 0
+                        && contact & !before == 0
+                        && margin
+                            .get_or_init(|| {
+                                LabelClearance::new(p, q.placed.as_ref().expect("placed peer"))
+                            })
+                            .clears(c)
                 })
-                && others
+                && protected_spans
                     .iter()
-                    .filter(|q| q.kind == "linear" && q.view == d.view)
-                    .filter_map(|q| q.placed.as_ref())
-                    .all(|q| !off_span(q, std::iter::once(c)) || off_span(q, std::iter::once(p)))
+                    .all(|q| !off_span(q, std::iter::once(c)))
         };
-        let better = |c: &Placed| {
+        let better = |c: &Placed, prepared: &[LabelContacts]| {
+            let bounds = contact_bounds(c);
             let hits: usize = others
                 .iter()
-                .map(|q| contacts(c, q).count_ones() as usize)
+                .zip(&peer_bounds)
+                .zip(prepared)
+                .filter(|((_, b), _)| boxes_overlap(bounds, **b))
+                .map(|((_, _), cached)| cached.contacts(c).count_ones() as usize)
                 .sum();
-            (hits, span_bad(c)) < (count, span_bad(p))
+            // The caller still requires !span_bad(c), so a retained candidate's
+            // span tier is false; evaluate that guard once after scoring.
+            (hits, false) < (count, original_span_bad)
         };
         // A single occupied rung may be skipped; fixed-ink obstructions never justify
         // a farther search. Two paper lanes is the absolute movement bound.
-        let next_occupied = others
-            .iter()
-            .any(|q| contacts(&promote(p, LANE), q) & (1 << 4) != 0);
-        let found = (0..=if next_occupied { 2 } else { 1 })
+        let next = promote(p, LANE);
+        let next_occupied = others.iter().any(|q| shared_span_contact(&next, q));
+        let chained = others.iter().any(|q| {
+            q.view == d.view
+                && super::placement::slot_chain_claims(&d.measurements, &q.measurements)
+                && q.placed
+                    .as_ref()
+                    .is_some_and(|q| super::placement::forms_chain(p, q))
+        });
+        let found = (0..=if chained {
+            0
+        } else if next_occupied {
+            2
+        } else {
+            1
+        })
             .take_while(|n| !outside(&promote(p, *n as f64 * LANE), region))
             .find_map(|n| {
                 let lane = promote(p, n as f64 * LANE);
+                let prepared: Vec<_> = others
+                    .iter()
+                    .map(|q| LabelContacts::new(&lane, q))
+                    .collect();
                 alternatives(&lane, page.drawable(), &others)
                     .into_iter()
-                    .find(|c| allowed(c) && better(c) && !span_bad(c))
+                    .find(|c| allowed(c, &prepared) && better(c, &prepared) && !span_bad(c))
             });
         if let Some(c) = found {
             inventory[i].placed = Some(c);
@@ -365,6 +761,105 @@ mod tests {
             "state": {"kind": "shown"}, "placed": p
         }))
         .unwrap()
+    }
+
+    #[test]
+    fn separated_ink_bounds_exclude_every_contact_and_clearance_constraint() {
+        let original = Placed {
+            lines: vec![
+                [[0., 0.], [0., 20.]],
+                [[12., 0.], [12., 20.]],
+                [[0., 18.], [12., 18.]],
+            ],
+            arrows: vec![[[0., 18.], [2.7, 18.]], [[12., 18.], [9.3, 18.]]],
+            label_at: [2., 19.],
+            label_box: [2., 19., 10., 22.],
+            rotation: 0.,
+        };
+        for vertical in [false, true] {
+            for arrows in 0..=2 {
+                for n in -15..=15 {
+                    let mut peer = original.clone();
+                    for p in peer.lines.iter_mut().chain(&mut peer.arrows).flatten() {
+                        p[0] += f64::from(n) * 3.;
+                        p[1] += f64::from(n) * 0.7;
+                        if vertical {
+                            p.swap(0, 1);
+                        }
+                    }
+                    let at = [f64::from(n) * 3., f64::from(n) * 0.7];
+                    peer.label_box = [at[0] + 2., at[1] + 19., at[0] + 10., at[1] + 22.];
+                    peer.arrows.truncate(arrows);
+                    peer.rotation = if vertical { 90. } else { 0. };
+                    let kind = if arrows == 2 { "linear" } else { "callout" };
+                    let q = dimension("peer", kind, 12., peer);
+                    let bounds = ink_bounds(q.placed.as_ref().unwrap());
+                    for n in 0..=2 {
+                        let lane = promote(&original, f64::from(n) * LANE);
+                        let prepared = LabelContacts::new(&lane, &q);
+                        let clearance = LabelClearance::new(&original, q.placed.as_ref().unwrap());
+                        for at in -20..=20 {
+                            let c = label_at(&lane, f64::from(at));
+                            assert_eq!(prepared.contacts(&c), contacts(&c, &q));
+                            assert_eq!(clearance.clears(&c), clears_with_margin(&original, &c, &q));
+                        }
+                    }
+                    for m in -20..=20 {
+                        let mut moved = original.clone();
+                        let shift = f64::from(m) * 2.;
+                        for p in moved.lines.iter_mut().chain(&mut moved.arrows).flatten() {
+                            p[0] += shift;
+                        }
+                        moved.label_box[0] += shift;
+                        moved.label_box[2] += shift;
+                        if !boxes_overlap(contact_bounds(&moved), bounds) {
+                            assert_eq!(contacts(&moved, &q), 0);
+                            assert!(clears_with_margin(&original, &moved, &q));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_linear_move_preserves_the_full_leader_extension_corridor() {
+        let p = Placed {
+            lines: vec![
+                [[20.0, 10.0], [20.0, 32.0]],
+                [[40.0, 10.0], [40.0, 32.0]],
+                [[20.0, 30.0], [40.0, 30.0]],
+            ],
+            arrows: vec![[[20.0, 30.0], [22.7, 30.0]], [[40.0, 30.0], [37.3, 30.0]]],
+            label_at: [25.0, 31.0],
+            label_box: [25.0, 31.0, 35.0, 33.0],
+            rotation: 0.0,
+        };
+        let q = dimension(
+            "d:leader",
+            "callout",
+            1.0,
+            Placed {
+                lines: vec![
+                    [[20.75, 11.0], [23.75, 25.0]],
+                    [[23.75, 25.0], [26.75, 25.0]],
+                ],
+                arrows: vec![],
+                label_at: [28.0, 24.0],
+                label_box: [28.0, 24.0, 34.0, 27.0],
+                rotation: 0.0,
+            },
+        );
+        let near = contacts(&p, &q);
+        assert_eq!(near & (1 << 3), 0, "the strokes themselves do not cross");
+        assert_ne!(
+            near & (1 << 5),
+            0,
+            "a 0.75 mm gap is inside the reserved corridor"
+        );
+        let mut clear = p.clone();
+        clear.lines[0] = [[18.0, 10.0], [18.0, 32.0]];
+        assert_eq!(contacts(&clear, &q) & (1 << 5), 0);
     }
 
     #[test]
