@@ -8,6 +8,13 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Added
 
+- Spec label wording under `dimensions/<id>/text` and prose `annotations/<id>/text`:
+  prefix/suffix or one `{value}` template retain every generated measured term. Explicit
+  dimension `style: reference | basic` draws parentheses or a box. Full ink drives placement;
+  plans expose the overrides and lint still reads live measured text (#76, item 5).
+- Session/editor text and style options use existing Spec operations, preview and history;
+  saved Specs round-trip and stale/merged label IDs are refused with a correction.
+  Large MCP option replies retain full structured data and a lossless text-channel resource.
 - Recognition corrections in the Spec (#76 item 2): reclassify supported cylindrical and
   rectangular features, group holes as a linear/grid/bolt-circle pattern, split recognised
   patterns, suppress spurious recognitions, and declare missed features from face fingerprints.
@@ -37,6 +44,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   ceiling, and warning-only cross-package quiddity pin checks in CI and release notes.
 - Additive Spec line-work switches and optional Plan view `line_style`/`from_spec`
   fields, shared with native sessions; no binding method changes.
+- Additive Spec text/style fields and annotation/note `from_spec` JSON provenance
+  through the existing session methods; no new JavaScript methods or signatures.
 - Spec JSON accepts authored dimension fields; Analysis/7 exposes optional exact
   dimension-reference evidence. Engine method signatures are unchanged.
 

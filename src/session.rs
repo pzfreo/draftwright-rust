@@ -1273,7 +1273,20 @@ fn settable(
             format!("{base}/place/pinned"),
             choices(json!([false, true])),
         );
+        if item.item.kind == "dimension"
+            || item.item.kind == "label"
+            || id.starts_with("n:f:blend:")
+        {
+            fields.insert(
+                format!("{base}/text"),
+                json!({"fields":["prefix","suffix","template"],"forms":["{value} AFTER PLATING"]}),
+            );
+        }
         if item.item.kind == "dimension" {
+            fields.insert(
+                format!("{base}/style"),
+                choices(json!(["reference", "basic"])),
+            );
             fields.insert(
                 format!("{base}/view"),
                 fields[&format!("{base}/place/view")].clone(),
@@ -1557,7 +1570,7 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                         a.anchors.extend(refs.split('|').map(String::from));
                     }
                 }
-                a.operations = ["omit", "tolerance", "place", "pin"]
+                a.operations = ["omit", "tolerance", "text", "style", "place", "pin"]
                     .map(String::from)
                     .into();
                 if d.from_spec.iter().any(|field| field == "between") {
@@ -1598,6 +1611,9 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                     .map(|f| f.id.clone())
                     .collect();
                 a.operations = ["omit", "place", "pin"].map(String::from).into();
+                if g.kind == "label" {
+                    a.operations.push("text".into());
+                }
             }
             if let Some(c) = plan.captions.iter().find(|c| &c.id == id) {
                 a.basis = c.basis.clone();
@@ -1609,7 +1625,7 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                 a.placement = n.placed.as_ref().map(|p| Placement::Box(p.cells));
                 a.features = n.measurements.iter().map(|m| m.feature.clone()).collect();
                 if n.id.starts_with("n:f:blend:") {
-                    a.operations = ["omit", "place"].map(String::from).into();
+                    a.operations = ["omit", "text", "place"].map(String::from).into();
                 }
             }
             if let Some(r) = plan.requirements.iter().find(|r| &r.id == id) {

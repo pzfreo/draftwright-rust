@@ -1,15 +1,17 @@
 """Equivalence checks for schema compaction; use the check_mcp_schemas.py Python environment."""
 import ast
+import re
 from pathlib import Path
 import unittest
 
 from jsonschema import Draft202012Validator
 
 source = ast.parse(Path(__file__).with_name('generate_mcp_schemas.py').read_text())
-namespace = {}
-function = next(node for node in source.body if isinstance(node, ast.FunctionDef)
-                and node.name == 'hoist_objects')
-exec(compile(ast.Module(body=[function], type_ignores=[]), '<hoist_objects>', 'exec'), namespace)
+namespace = {'re': re}
+for name in ('hoist_objects', 'name_choices'):
+    function = next(node for node in source.body if isinstance(node, ast.FunctionDef)
+                    and node.name == name)
+    exec(compile(ast.Module(body=[function], type_ignores=[]), '<compaction>', 'exec'), namespace)
 hoist = namespace['hoist_objects']
 
 
@@ -44,6 +46,18 @@ class Hoisting(unittest.TestCase):
         for value in [None, [], [{}], [{'a': 1}], [{'b': 1}], ['a']]:
             self.assertEqual(Draft202012Validator(schema).is_valid(value),
                              Draft202012Validator(compact).is_valid(value), value)
+
+
+class PropertyNames(unittest.TestCase):
+    def test_prefix_and_suffix_groups_match_only_the_original_names(self):
+        names = ['hidden', 'centre_marks', 'centre_lines', 'thread_depiction', 'knurl_depiction']
+        pattern = '^(' + namespace['name_choices'](names) + ')$(?!\\n)'
+        old = Draft202012Validator({'type': 'object', 'properties': {n: {'type': 'boolean'} for n in names}, 'additionalProperties': False})
+        new = Draft202012Validator({'type': 'object', 'patternProperties': {pattern: {'type': 'boolean'}}, 'additionalProperties': False})
+        self.assertLess(len(pattern), len('^(' + '|'.join(names) + ')$(?!\\n)'))
+        for name in names + ['centre_depiction', 'thread_marks', 'knurl_lines', 'depiction', '', 'thread_depiction_extra'] + [n + '\n' for n in names]:
+            for value in [True, False, None, 1, 'false', {}, []]:
+                self.assertEqual(old.is_valid({name: value}), new.is_valid({name: value}), (name, value))
 
 
 if __name__ == '__main__':

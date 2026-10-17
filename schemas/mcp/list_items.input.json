@@ -71,7 +71,7 @@
           },
           "additionalProperties": false,
           "patternProperties": {
-            "^(hidden|thread_depiction|knurl_depiction|fit_(limits|deviations)|centre_(marks|lines))$(?!\n)": {
+            "^(hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
               "$ref": "#/A"
             },
             "^(size|scale)$(?!\n)": {
@@ -82,7 +82,7 @@
         "views": {
           "additionalProperties": {
             "patternProperties": {
-              "^(hidden|thread_depiction|knurl_depiction|centre_(marks|lines))$(?!\n)": {
+              "^(hidden|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "$ref": "#/A"
               }
             }

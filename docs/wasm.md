@@ -17,6 +17,7 @@ wasm-pack build crates/draftwright-wasm --target web --profile wasm-release --lo
 python3 tools/check_wasm_api.py
 cargo build --locked --release --example wasm_reference
 node --test tools/wasm-parity.test.mjs
+python3 tools/check_wasm_label_text.py
 python3 tools/wasm_size.py crates/draftwright-wasm/pkg/draftwright_wasm_bg.wasm
 python3 tools/check_quiddity_pin.py
 ```

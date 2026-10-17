@@ -411,13 +411,15 @@ fn compact_nullable_schema_types_keep_validation_strict() {
 }
 
 #[test]
-fn compact_prefix_choices_and_authored_dimension_outputs_stay_strict() {
+fn compact_prefix_suffix_choices_and_authored_dimension_outputs_stay_strict() {
     let input = mcp::schema("inspect_part", false).unwrap();
     for name in [
         "fit_limits",
         "fit_deviations",
         "centre_marks",
         "centre_lines",
+        "thread_depiction",
+        "knurl_depiction",
     ] {
         for value in [json!(true), json!(false), Value::Null] {
             mcp::validate(
@@ -439,6 +441,20 @@ fn compact_prefix_choices_and_authored_dimension_outputs_stay_strict() {
             mcp::validate(
                 &input,
                 &json!({"part_ref":"part","spec":{"sheet":{name:"yes"}}})
+            )
+            .is_err()
+        );
+    }
+    for name in [
+        "thread_lines",
+        "knurl_marks",
+        "centre_depiction",
+        "_depiction",
+    ] {
+        assert!(
+            mcp::validate(
+                &input,
+                &json!({"part_ref":"part","spec":{"sheet":{name:true}}})
             )
             .is_err()
         );

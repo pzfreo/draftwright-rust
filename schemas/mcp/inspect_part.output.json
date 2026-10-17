@@ -229,7 +229,7 @@
       ],
       "additionalProperties": false,
       "patternProperties": {
-        "^(part_ref|part|spec_version|plan_ref)$(?!\n)": {
+        "^(part|spec_version|(part|plan)_ref)$(?!\n)": {
           "$ref": "#/D"
         },
         "^(face_count|items|problems)$(?!\n)": {

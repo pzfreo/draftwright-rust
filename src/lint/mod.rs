@@ -173,12 +173,19 @@ pub fn marks(drawing: &Drawing) -> Vec<Mark> {
         .annotations
         .iter()
         .map(|a| {
-            let text = schedule_evidence::text(drawing, a);
-            let claims = if schedule_evidence::verified(a, &text) {
-                a.claims.clone()
-            } else {
-                Vec::new()
-            };
+            let drawn_text = schedule_evidence::text(drawing, a);
+            let body = drawing
+                .sheet
+                .label_text
+                .get(&a.name)
+                .map(|wording| wording.body(&drawn_text));
+            let claims =
+                if !matches!(body, Some(None)) && schedule_evidence::verified(a, &drawn_text) {
+                    a.claims.clone()
+                } else {
+                    Vec::new()
+                };
+            let text = body.flatten().unwrap_or(drawn_text);
             Mark {
                 name: a.name.clone(),
                 view: a.view.clone(),
@@ -263,13 +270,9 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
         .iter()
         .filter(|a| !a.satisfies.is_empty())
         .filter(|a| {
-            let text = a
-                .runs
-                .iter()
-                .filter_map(|&i| drawing.text.get(i))
-                .map(|r| r.text.as_str())
-                .collect::<Vec<_>>()
-                .join(" ");
+            let Some(text) = crate::output::drawn_body(drawing, a) else {
+                return false;
+            };
             let Some((_, radius)) = text.split_once("ALL UNSPECIFIED RADII R") else {
                 return false;
             };
@@ -305,13 +308,7 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
                     })
         })
         .flat_map(|a| {
-            let text = a
-                .runs
-                .iter()
-                .filter_map(|&i| drawing.text.get(i))
-                .map(|r| r.text.as_str())
-                .collect::<Vec<_>>()
-                .join(" ");
+            let text = crate::output::drawn_body(drawing, a).expect("verified note wrapper");
             let radius = text
                 .split_once("ALL UNSPECIFIED RADII R")
                 .unwrap()

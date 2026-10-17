@@ -26,8 +26,9 @@ problem=obj({'id':S,'code':S,'severity':S,'message':S,'subjects':arr(S),'refs':a
 rectangle=arr(N,minItems=4,maxItems=4)
 filter_=obj({'sheet':nullable(SHEET),'view':nullable(S),'kind':nullable(S),'state':nullable(ref('state')),'feature':nullable(S),'region':nullable(rectangle),'near':nullable(S),'radius':nullable({'type':'number','minimum':0})})
 problem_filter=obj({'code':nullable(S),'severity':nullable({'enum':['info','warning','error']}),'subject':nullable(S),'feature':nullable(S)})
+label_text=obj({'prefix':S,'suffix':S,'template':S})
 # Inputs retain the established sparse per-ID map; get_spec describes authored forms once.
-dimension=obj({'kind':nullable({'enum':['linear','diameter','radius','angle']}),'between':nullable(arr(S,minItems=1,maxItems=2)),'along':nullable({'enum':['x','y','z','true']})},extra=True)
+dimension=obj({'text':ref('x'),'style':{'enum':['reference','basic']},'kind':nullable({'enum':['linear','diameter','radius','angle']}),'between':nullable(arr(S,minItems=1,maxItems=2)),'along':nullable({'enum':['x','y','z','true']})},extra=True)
 spec=obj({'schema':{'enum':['draftwright.spec/1','draftwright.spec/2']},'binding':nullable({'type':'object'}),'sheets':nullable(obj({'max':nullable(SHEET),'smallest_scale':nullable(S),'keep_together':arr(arr(S)),'hole_table':nullable(SHEET),'gdt_on_sheet_1':B})),'sheet':obj({'size':nullable(S),'scale':nullable(S),'title':{'type':'object','additionalProperties':S},'fit_limits':nullable({'type':'boolean'}),'fit_deviations':nullable({'type':'boolean'}),'projection':nullable({'enum':['first','third']}),'default_finish':nullable({'type':'object'})}),'views':{'type':'object','additionalProperties':{'type':'object'}},'dimensions':{'type':'object','additionalProperties':{'type':'object'}},'annotations':{'type':'object','additionalProperties':{'type':'object'}},'features':{'type':'object','additionalProperties':{'type':'object'}},'faces':{'type':'object','additionalProperties':{'type':'object'}},'dimension_source':{'enum':['auto','authored']},'hole_table':{'enum':['auto','always','never']},'notes':arr({'type':'object'}),'tables':arr({'type':'object'}),'gears':arr({'type':'object'}),'feature_declarations':arr(obj({'id':S,'kind':S,'faces':arr(S)},['id','kind','faces']))})
 # Line-work intent is typed in both scopes; other view fields retain their existing schema.
 line_fields = {name: nullable(B) for name in
@@ -48,8 +49,8 @@ del spec['properties']['views']['additionalProperties']['type']
 del spec['properties']['feature_declarations']['type']
 del spec['properties']['feature_declarations']['items']['type']
 # The shared map pattern already requires dimensions and every entry to be objects.
-spec_read={**spec,'properties':{**spec['properties'],'dimensions':{'additionalProperties':{k:v for k,v in dimension.items() if k != 'type'}}}}
-defs={'state':state,'spec':spec,'spec_read':spec_read,'op':op,'item':item,'compact':compact,'problem':problem,'error':obj({'code':{'enum':['invalid','failed']},'message':S,'choices':arr(S)},['code','message'])}
+spec_read={**spec,'properties':{**spec['properties'],'dimensions':{'additionalProperties':{k:v for k,v in dimension.items() if k != 'type'}},'annotations':{'additionalProperties':{'properties':{'text':ref('x')}}}}}
+defs={'x':label_text,'state':state,'spec':spec,'spec_read':spec_read,'op':op,'item':item,'compact':compact,'problem':problem,'error':obj({'code':{'enum':['invalid','failed']},'message':S,'choices':arr(S)},['code','message'])}
 stub=obj({'id':nullable(S),'detail_ref':S},['id','detail_ref'])
 problem_small=obj({'id':S,'code':S,'severity':S,'subjects':arr(S),'fix':arr(ref('op'))},['id','code','severity','subjects'])
 defs.update({'stub':stub, 'problem_small':problem_small})
@@ -161,7 +162,7 @@ def compact_size(value):
     return len(json.dumps(value, separators=(',', ':')).encode())
 
 def name_choices(names):
-    """Factor literal underscore prefixes within a finite set of property names."""
+    """Factor literal underscore prefixes and suffixes within a finite set of property names."""
     from collections import defaultdict
     prefixes = defaultdict(list)
     for name in names:
@@ -173,6 +174,17 @@ def name_choices(names):
         if len(suffixes) < 2: continue
         originals = [prefix + '_' + suffix for suffix in suffixes]
         grouped = prefix + '_(' + '|'.join(suffixes) + ')'
+        if len(grouped) < len('|'.join(originals)):
+            choices = [n for n in choices if n not in originals] + [grouped]
+    suffixes = defaultdict(list)
+    for name in choices:
+        if re.fullmatch(r'[A-Za-z0-9_]+', name) and '_' in name:
+            prefix, suffix = name.rsplit('_', 1)
+            suffixes[suffix].append(prefix)
+    for suffix, prefixes in suffixes.items():
+        if len(prefixes) < 2: continue
+        originals = [prefix + '_' + suffix for prefix in prefixes]
+        grouped = '(' + '|'.join(prefixes) + ')_' + suffix
         if len(grouped) < len('|'.join(originals)):
             choices = [n for n in choices if n not in originals] + [grouped]
     return '|'.join(choices)

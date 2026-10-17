@@ -83,7 +83,7 @@
               },
               "additionalProperties": false,
               "patternProperties": {
-                "^(hidden|thread_depiction|knurl_depiction|fit_(limits|deviations)|centre_(marks|lines))$(?!\n)": {
+                "^(hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                   "type": [
                     "boolean",
                     "null"
@@ -97,7 +97,7 @@
             "views": {
               "additionalProperties": {
                 "patternProperties": {
-                  "^(hidden|thread_depiction|knurl_depiction|centre_(marks|lines))$(?!\n)": {
+                  "^(hidden|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                     "type": [
                       "boolean",
                       "null"
@@ -140,6 +140,15 @@
             "dimensions": {
               "additionalProperties": {
                 "properties": {
+                  "text": {
+                    "$ref": "#/x"
+                  },
+                  "style": {
+                    "enum": [
+                      "reference",
+                      "basic"
+                    ]
+                  },
                   "kind": {
                     "enum": [
                       null,
@@ -168,6 +177,15 @@
                       "z",
                       "true"
                     ]
+                  }
+                }
+              }
+            },
+            "annotations": {
+              "additionalProperties": {
+                "properties": {
+                  "text": {
+                    "$ref": "#/x"
                   }
                 }
               }
@@ -222,6 +240,19 @@
       "maxProperties": 1
     }
   ],
+  "x": {
+    "type": "object",
+    "additionalProperties": {
+      "type": "string"
+    },
+    "propertyNames": {
+      "enum": [
+        "prefix",
+        "suffix",
+        "template"
+      ]
+    }
+  },
   "A": {
     "items": {
       "type": "string"

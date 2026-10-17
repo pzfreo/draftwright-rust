@@ -61,10 +61,14 @@ with tempfile.TemporaryDirectory(prefix='s7-schema-') as cache:
         return {'spec_version': 'v', 'spec': {'dimensions': {'d:authored:test': dimension},
                 'feature_declarations': [declaration]}}
     for dimension in ({}, {'kind': 'linear', 'between': ['a', 'b'], 'along': 'true'},
-                      {'kind': None, 'between': None, 'along': None}):
+                      {'kind': None, 'between': None, 'along': None},
+                      {'kind': 'linear', 'between': ['a', 'b'], 'along': 'x',
+                       'text': {'prefix': 'TYP', 'suffix': 'AFTER PLATING'}, 'style': 'basic'}):
         read_spec.validate(dimension_result(dimension))
     for dimension in ([], None, {'kind': 'bad'}, {'between': []},
-                      {'between': ['a', 'b', 'c']}, {'between': [1]}, {'along': 'bad'}):
+                      {'between': ['a', 'b', 'c']}, {'between': [1]}, {'along': 'bad'},
+                      {'text': {'prefix': 1}}, {'text': {'unknown': 'bad'}},
+                      {'text': {'prefix\n': 'bad'}}, {'style': 'bad'}):
         assert not read_spec.is_valid(dimension_result(dimension)), dimension
     def call(name, args):
         validators[name, 'input'].validate(args)

@@ -129,6 +129,22 @@ pub(super) fn check(drawing: &Drawing) -> Vec<LintIssue> {
                 let Some(scale) = scale(*view) else {
                     continue;
                 };
+                let body = drawing
+                    .sheet
+                    .label_text
+                    .get(&d.name)
+                    .map(|wording| wording.body(text));
+                let text = match &body {
+                    Some(Some(body)) if label_value(body).is_some() => {
+                        body.trim_start_matches('(').trim_end_matches(')')
+                    }
+                    Some(_) => {
+                        issues.push(issue(format!("l:label_vs_measured:{}", d.name), "label_vs_measured", Severity::Error,
+                            "Authored wording or its measured value is missing or damaged; restore the generated value and wording wrapper.".into(), Some(d)));
+                        continue;
+                    }
+                    None => text.as_str(),
+                };
                 if let Some(l) = linear_ink(&d.lines) {
                     let measured = l.span[1] - l.span[0];
                     issues.extend(label_vs_measured(

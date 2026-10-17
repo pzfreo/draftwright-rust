@@ -68,6 +68,8 @@ use crate::text::Segment;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PlannedGdt {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub from_spec: Vec<String>,
     /// `pmi:<identity>`, the record's semantic identity ([`crate::pmi::identity`]), never its
     /// Part 21 instance (that is `source`).
     pub id: String,
@@ -864,7 +866,16 @@ const PRINCIPALS: [(&str, [f64; 3], [f64; 3]); 3] = [
 /// extents as [`plan`] places it (the leader and shelf of a frame or label, a datum's frame
 /// centred on its line), with the room [`first_tier`] leaves for the arrowhead or triangle.
 pub fn demand(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> Vec<crate::layout::Gdt> {
-    let (items, _) = crate::pmi_lowering::lower(analysis, shown);
+    demand_with_spec(analysis, &Spec::default(), shown)
+}
+
+pub(crate) fn demand_with_spec(
+    analysis: &Analysis,
+    spec: &Spec,
+    shown: &dyn Fn(&str) -> bool,
+) -> Vec<crate::layout::Gdt> {
+    let (mut items, _) = crate::pmi_lowering::lower(analysis, shown);
+    crate::label_text::annotations(&mut items, spec).expect("validated annotation wording");
     let frames: BTreeMap<&str, Frame> = PRINCIPALS
         .iter()
         .map(|(name, toward, up)| (*name, Frame::looking(analysis, *toward, *up, [0.0; 2], 1.0)))
@@ -1031,6 +1042,7 @@ fn plan_search(
     let compact = search != Search::Seed;
     let shown = |name: &str| views.iter().any(|v| v.id == format!("v:{name}"));
     let (mut items, mut problems) = crate::pmi_lowering::lower(analysis, &shown);
+    crate::label_text::annotations(&mut items, spec).expect("validated annotation wording");
     if items.is_empty() {
         return Some((Vec::new(), problems));
     }
@@ -1155,6 +1167,15 @@ fn plan_search(
             Glyph::Datum { .. } | Glyph::Label { .. } | Glyph::Finish { .. } => Vec::new(),
         };
         let mut planned = PlannedGdt {
+            from_spec: if spec
+                .annotations
+                .get(&item.id)
+                .is_some_and(|a| a.text.is_some())
+            {
+                vec!["text".into()]
+            } else {
+                Vec::new()
+            },
             id: item.id.clone(),
             kind: match item.glyph {
                 Glyph::Datum { .. } => "datum_feature",

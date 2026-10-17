@@ -288,6 +288,10 @@ impl DimensionSource {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct DimensionSpec {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<crate::label_text::Text>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub style: Option<crate::label_text::Style>,
     /// Authored quantity; absent means an edit of an automatic dimension.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<String>,
@@ -1699,7 +1703,7 @@ pub(crate) fn dimension_text_edited(spec: &Spec) -> bool {
         && spec
             .dimensions
             .values()
-            .filter(|d| d.tolerance.is_some())
+            .filter(|d| d.tolerance.is_some() || d.text.is_some() || d.style.is_some())
             .count()
             + spec.features.values().filter(|f| f.fit.is_some()).count()
             == 1
@@ -2479,6 +2483,7 @@ fn plan_with_presentation(
     crate::spec_notes::check_claims(analysis, spec)?;
     crate::dims::check_views(spec)?;
     crate::placement_intent::check(spec)?;
+    crate::label_text::check(spec)?;
     title_block::check(&spec.sheet.title)?;
     crate::notes::check(&spec.notes)?;
     crate::tables::check(&spec.tables)?;
@@ -2502,6 +2507,8 @@ fn plan_with_presentation(
                 d.view = None;
                 d.tolerance = None;
                 d.fit = None;
+                d.text = None;
+                d.style = None;
             }
         }
         Some(if complete_views {
@@ -2510,12 +2517,14 @@ fn plan_with_presentation(
             plan(analysis, &base)?
         })
     } else if complete_views && dimension_text_edited(spec) {
-        // Tolerance/fit edits change annotation ink, not the part projections.
+        // Tolerance, fit and wording edits change annotation ink, not the part projections.
         // Keep authored geometry in the complete unedited frame too.
         let mut base = spec.clone();
         for d in base.dimensions.values_mut() {
             d.tolerance = None;
             d.fit = None;
+            d.text = None;
+            d.style = None;
         }
         for f in base.features.values_mut() {
             f.fit = None;
@@ -2675,17 +2684,22 @@ fn plan_with_presentation(
         });
     }
     if !effective.annotations.is_empty() {
-        let mut annotation_ids: Vec<String> = crate::pmi_lowering::lower(analysis, &|_| true)
-            .0
-            .into_iter()
-            .map(|i| i.id)
-            .collect();
+        let mut lowered = crate::pmi_lowering::lower(analysis, &|_| true).0;
+        crate::label_text::annotations(&mut lowered, &effective)?;
+        let mut annotation_ids: Vec<String> = lowered.into_iter().map(|i| i.id).collect();
         annotation_ids.extend(crate::dims::blends::note_ids(analysis));
         for id in effective.annotations.keys() {
             if !annotation_ids.contains(id) {
                 return Err(Invalid {
-                    message: format!("There is no annotation {id:?} on this part."),
-                    choices: annotation_ids.clone(),
+                    message: format!(
+                        "There is no annotation {id:?} on this part. Choose a current annotation ID, or remove annotations/{}.",
+                        crate::items::key(id)
+                    ),
+                    choices: if annotation_ids.is_empty() {
+                        vec![format!("remove annotations/{}", crate::items::key(id))]
+                    } else {
+                        annotation_ids.clone()
+                    },
                 });
             }
         }
@@ -2710,6 +2724,12 @@ fn plan_with_presentation(
         }
     }
     let mut demand = crate::demand::read(analysis);
+    if spec.annotations.values().any(|a| a.text.is_some()) {
+        demand.gdt = [
+            crate::dims::gdt::demand_with_spec(analysis, spec, &|_| true),
+            crate::dims::gdt::demand_with_spec(analysis, spec, &|v| v != "side"),
+        ];
+    }
     demand.gdt_beyond_lanes = gdt_beyond_lanes;
     demand.callout_bands = crate::dims::callout_bands(analysis, spec)?;
     // A turned part drops the view that repeats its profile, unless the spec asks for it, or
@@ -2749,10 +2769,16 @@ fn plan_with_presentation(
     // Full printed extents reserve ink, but an authored linear tolerance must not recenter
     // every projection and its unrelated dimensions (ARCH0003-2). Keep the established
     // linear anchor bands separately; the placed blocks below still use the full extents.
-    let linear_anchor_lanes = if spec.dimensions.values().any(|d| d.tolerance.is_some()) {
+    let linear_anchor_lanes = if spec
+        .dimensions
+        .values()
+        .any(|d| d.tolerance.is_some() || d.text.is_some() || d.style.is_some())
+    {
         let mut nominal = spec.clone();
         for d in nominal.dimensions.values_mut() {
             d.tolerance = None;
+            d.text = None;
+            d.style = None;
         }
         let (before, _) =
             crate::dims::lanes_excluding(analysis, &shown_views, &excluded, &nominal)?;
@@ -2920,6 +2946,13 @@ fn plan_with_presentation(
             }),
     );
     let mut radius_notes = crate::dims::blends::notes(analysis);
+    for (note, _) in &mut radius_notes {
+        if let Some(text) = spec.annotations.get(&note.id).and_then(|a| a.text.as_ref()) {
+            note.text = text
+                .terms(&note.id, std::slice::from_ref(&note.text))?
+                .join(" ");
+        }
+    }
     if spec.dimension_source == DimensionSource::Authored {
         radius_notes.retain(|(n, _)| spec.annotations.contains_key(&n.id));
     }
@@ -3532,7 +3565,10 @@ fn plan_with_presentation(
     }
     let reserved: Vec<_> = gdt.iter().filter_map(crate::dims::gdt::proxy).collect();
     let mut label_spec = spec.clone();
-    if spec.dimensions.values().any(|d| d.tolerance.is_some())
+    if spec
+        .dimensions
+        .values()
+        .any(|d| d.tolerance.is_some() || d.text.is_some() || d.style.is_some())
         || spec.features.values().any(|f| f.fit.is_some())
     {
         // Text edits retain unaffected peers' canonical settlement, just as lane assignment
@@ -3829,7 +3865,7 @@ fn plan_with_presentation(
                 || (exceptions_unstated && matches!(n.state, ItemState::OmittedByUser)))
                 && !spec.annotations.get(&n.id).is_some_and(|e| e.omit)
                 && !n.measurements.is_empty()
-                && n.text.starts_with("ALL UNSPECIFIED RADII")
+                && crate::label_text::note_body(spec, n).starts_with("ALL UNSPECIFIED RADII")
         }) {
             note.placed = None;
             note.state = ItemState::NotDrawable {
@@ -4236,6 +4272,7 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
     crate::dims::authored::check(&spec)?;
     crate::dims::check_views(&spec)?;
     crate::placement_intent::check(&spec)?;
+    crate::label_text::check(&spec)?;
     title_block::check(&spec.sheet.title)?;
     crate::notes::check(&spec.notes)?;
     crate::tables::check(&spec.tables)?;
@@ -5887,6 +5924,7 @@ fn render_annotations_with_cuts(
             items: ink,
         });
     }
+    crate::label_text::capture(plan, &mut sheet);
     if !plan.spec.precision.is_empty() {
         for d in &plan.dimensions {
             let role = d.id.rsplit_once('/').map_or("", |(_, p)| p);
