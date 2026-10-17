@@ -2308,3 +2308,120 @@ Large MCP `item_options` replies keep the complete descriptor map in `structured
 When repeating it as text would exceed the existing 4,096-byte reply cap, the text channel
 contains an `id`/`detail_ref` stub. Text-only clients read the identical complete JSON with
 `resources/read {"uri":"draftwright:<detail_ref>"}`. Native/session options keep every field.
+
+### Front frame, explicit principals, auxiliary and partial views (#76, item 3)
+
+View set-up uses the existing `views` map in `draftwright.spec/2`. The front
+entry owns the orthographic frame and the explicit principal set:
+
+```json
+{
+  "views": {
+    "front": {
+      "orientation": {"from": "z", "rotation": 90},
+      "principal_views": ["front", "plan", "side"]
+    }
+  }
+}
+```
+
+`orientation.from` is a signed part-frame principal axis (`x`, `y`, `z`, `+x`,
+`+y`, `+z`, `-x`, `-y`, `-z`), a unique planar face fingerprint, or a feature ID.
+Face keys are either the recognition-correction `face:sha256:…` fingerprints
+returned by `item_options face:<index>`, or planar `face:v1:…` keys in
+`Analysis.edge_ink.references`. Traversal indices and page coordinates are refused.
+The face's outward normal points towards the viewer. A feature supplies its unique
+planar normal or its recognised axis; choose a face when the feature has several
+incompatible normals and no axis. Feature references acquire the existing
+`features/<id>/anchor` face fingerprints in the saved Spec and rebind with the
+ordinary recognition-correction transaction. Missing and ambiguous references fail
+with the path, the reason and an instruction to reattach or remove the override.
+
+`rotation` defaults to zero, in degrees counterclockwise on the drawing, from
+−360 through 360. Up starts with part Z projected into the front plane; when
+parallel, part Y supplies up. The plan looks along that up direction, its own up
+opposite the front direction. The side looks along the front's right direction
+and shares its up. Orthographic packing measures the part's envelope in this
+frame. The existing first/third-angle placement policy still applies. Measurements
+keep their stable IDs, model-space endpoints, values and tolerances; their
+carriers follow the chosen cameras. Rotated in-plane spans use aligned dimensions.
+A quantity with no true-size carrier remains undrawn with its ordinary diagnostic
+and independent completeness findings. Rotation never authorises a foreshortened
+size. The isometric retains its own automatic camera and scaling policy.
+
+`principal_views` is a nonempty, duplicate-free set of `front`, `plan`, `side`.
+Its order has no placement meaning. It overrides automatic principal reduction,
+so the full set restores a normally redundant turned profile. An included view
+cannot also be omitted. Placement or a sheet assignment for an excluded principal
+is refused; other unmentioned views continue through their normal rules. Remove
+`principal_views` to resume automatic selection. Both fields belong only under
+`views/front`.
+
+Derived views use the existing eight letter slots `detail_a`–`detail_h`, and
+therefore the stable IDs `v:detail_a`–`v:detail_h`. Each slot accepts exactly one
+of `detail`, `auxiliary` and `partial`; it shares its letter namespace with sections.
+For example (replace the fingerprint and feature ID with current discovery keys):
+
+```json
+{
+  "views": {
+    "detail_b": {
+      "auxiliary": {
+        "face": "face:sha256:<inclined-planar-face-fingerprint>",
+        "from": "side",
+        "scale_factor": 1
+      },
+      "hidden": false
+    },
+    "detail_c": {
+      "partial": {"from": "detail_b", "around": "f:slot:1", "scale_factor": 2},
+      "place": {"relative_to": "detail_b", "side": "right", "gap": 10}
+    }
+  }
+}
+```
+
+An auxiliary is a projection normal to its planar face, showing its true shape
+with the rest of the part for context. `from` names the shown principal view in
+which that face is edge-on (normal perpendicular to the parent's viewing
+direction within 1e-6). An unsuitable, missing or omitted source is refused with
+a correction. The auxiliary camera unfolds the parent through a quarter turn about the face's
+edge direction, preserving that common edge's paper angle. A lettered viewing arrow identifies the face in
+the parent; the caption is `AUXILIARY B (1:1)` at the reserved caption row.
+
+A partial retains its principal or authored auxiliary parent's camera and crops
+to `around`: a feature ID, a unique face fingerprint, or a nonempty list whose
+model-space regions are united. Feature regions use the same context bounds as
+authored details. Every member must resolve, the region must have a nondegenerate
+projection, and the source must exist. Bounds are computed from the part's
+Analysis, never supplied as page coordinates. Exact projected curves are clipped
+and broken at the region's boundary just as details are. The caption is
+`PARTIAL C (2:1)`; its lettered region marker identifies it in the parent. Eligible
+measurements can move into the partial through the existing single-owner detail
+pipeline. Automatic and authored dimensions remain subject to independent lint.
+
+Both forms default `scale_factor` to 1, relative to the sheet scale, and require
+a finite positive value. A detail retains its existing greater-than-one scale
+rule. Derived views reserve their complete geometry, annotation and caption
+blocks during sheet composition. Their `omit`, `place`, `sheet`, line-work
+switches and placement pins are the ordinary view fields; `sheets.max` enables
+later sheets and `keep_together` can include their letter slots. Requested scale
+factors remain authored intent when the allocator moves them. The paper ranking
+is unchanged by these fields. A derived source may be on another sheet; the
+source ID and camera remain in the Plan even when rendering a page alone.
+
+Sections retain their physical cutting plane when the front frame changes. The
+cut is marked on an available principal view that sees the plane edge-on, with
+its cutting line and arrow furniture rotated into that view. If no such principal
+exists, the automatic section is withheld with a `section_not_shown` diagnostic
+and a corrective operation, and lint still reports any uncovered internal detail.
+Section and derived-view letter allocation remain shared.
+
+Plans expose `views/front/orientation`, `views/front/principal_views` and each
+`views/<slot>/{detail,auxiliary,partial}` path in view `from_spec`, alongside the
+existing line-work provenance. Basis text records the chosen source and scale.
+Absent setup fields retain the automatic cameras, principal reduction, details,
+sections and layout. Existing `items::Op` set/remove operations, transactional
+session previews, replay, undo/redo and MCP use these same nested fields; sheet
+and front item options advertise the forms. `tools/mcp_spec.py` publishes their
+full definitions through `spec_schema`, without adding nested context to tools/list.

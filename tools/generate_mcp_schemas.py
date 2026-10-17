@@ -37,7 +37,10 @@ spec=obj({'schema':{'enum':['draftwright.spec/1','draftwright.spec/2']},'binding
 line_fields = {name: nullable(B) for name in
                ('hidden', 'centre_marks', 'centre_lines', 'thread_depiction', 'knurl_depiction')}
 spec['properties']['sheet']['properties'].update(line_fields)
-spec['properties']['views']['additionalProperties'] = obj({**line_fields, 'detail':nullable(detail)}, extra=True)
+spec['properties']['views']['additionalProperties'] = obj({**line_fields, 'detail':nullable(detail), **{k: document()['$defs']['view']['properties'][k] for k in ('orientation', 'principal_views', 'auxiliary', 'partial')}}, extra=True)
+# Dereference the small new author forms in the standalone validation input.
+for k in ('orientation', 'auxiliary', 'partial'):
+    spec['properties']['views']['additionalProperties']['properties'][k] = nullable(document()['$defs'][k])
 # Share the base map/list shapes while retaining each view/declaration constraint.
 # The common pattern and the named property both apply (draft 2020-12).
 # Scheme entries share the sparse per-ID object map; Rust validates complete entries.

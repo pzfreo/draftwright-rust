@@ -8,6 +8,13 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Added
 
+- View set-up overrides (#76 item 3): front direction by signed principal axis, planar
+  face fingerprint or anchored feature ID, in-plane rotation, and explicit principal view
+  sets. Authored auxiliary true-shape projections and partial feature regions share the
+  existing lettered detail IDs, captions, scale, placement, line work and sheet allocation.
+  Session operations/history, strict reference validation, independent lint and on-demand
+  MCP Spec schemas cover the new forms; automatic defaults and paper ranking are retained.
+
 - Authored detail `from` selects an existing principal or section parent; `around` accepts
   a feature/face ID or a nonempty list whose crops are united. Missing members and
   degenerate projections in an explicit parent are refused. Mixed natural sources choose
@@ -61,6 +68,10 @@ All notable changes to draftwright-rust are recorded here, in the style of
   before escalating the sheet.
 
 ### WASM API
+
+- Additive view Spec `orientation`, `principal_views`, `auxiliary` and `partial` forms,
+  and optional derived-view `camera` evidence in Plan JSON, shared with native sessions.
+  Engine method signatures are unchanged.
 
 - Additive Spec `dimension_schemes` map and scheme measurement claims; native and browser
   sessions share the same JSON vocabulary. Scheme fragment edits refresh placement options.

@@ -1190,12 +1190,27 @@ fn settable(
         choices(json!(["auto", "always", "never"])),
     );
     if id == "sheet" {
+        fields.insert("views/front/orientation".into(), json!({"forms":["{from:signed-axis|face-fingerprint|feature-id,rotation?:degrees}"],"consequences":["Defines the principal camera frame; remove for automatic cameras"]}));
+        fields.insert("views/front/principal_views".into(), json!({"forms":["[front|plan|side,...]"],"consequences":["A nonempty explicit set; replaces automatic principal reduction"]}));
+        fields.insert("views/detail_<a-h>/auxiliary".into(), json!({"forms":["{face:fingerprint,from:principal-view,scale_factor?:positive-number}"],"consequences":["Face must be planar and edge-on in its parent; shares section/detail letters"]}));
+        fields.insert("views/detail_<a-h>/partial".into(), json!({"forms":["{around:feature-id|face-fingerprint|[ids],from:principal-or-auxiliary-view,scale_factor?:positive-number}"],"consequences":["Crops the source by model-space feature region; shares section/detail letters"]}));
         fields.insert("dimension_schemes/<name>".into(), json!({"forms":["{scheme:chain|baseline|ordinate,axis:x|y|z,view?:front|plan|side,targets?:[ID|fingerprint],from?:min|max|reference}"],"consequences":["Requires targets or view; rejects overlapping owners. Remove for auto."]}));
         fields.insert("dimensions/d:authored:<name>".into(), json!({"forms":["{between:[reference,reference],along:x|y|z|true,kind:linear}","{kind:diameter|radius,between:[face reference]}","{kind:angle,between:[reference,reference]}"],"consequences":["References are stable keys from Analysis.edge_ink.references; duplicate quantities are refused with their existing owner ID"]}));
     }
     if !base.is_empty() {
         fields.insert(format!("{base}/omit"), choices(json!([false, true])));
         if item.item.kind == "view" {
+            if id == "v:front" {
+                fields.insert(format!("{base}/orientation"), json!({"forms":["{from:signed-axis|face-fingerprint|feature-id,rotation?:degrees}"]}));
+                fields.insert(
+                    format!("{base}/principal_views"),
+                    choices(json!([
+                        ["front"],
+                        ["front", "plan"],
+                        ["front", "plan", "side"]
+                    ])),
+                );
+            }
             for field in crate::linework::FIELDS {
                 fields.insert(format!("{base}/{field}"), choices(json!([false, true])));
             }

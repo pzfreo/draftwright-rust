@@ -48,6 +48,7 @@ spec['properties']['sheet']['properties']['future_setting'] = {'type': 'string'}
             'model': {'Binding': 'binding', 'SheetSpec': 'sheet', 'ViewSpec': 'view',
                       'DimensionSpec': 'dimension', 'FeatureSpec': 'feature'},
             'sheets': {'SheetsSpec': 'sheets'},
+            'view_setup': {'Orientation': 'orientation', 'AuxiliarySpec': 'auxiliary', 'PartialSpec': 'partial'},
             'placement_intent': {'Place': 'place', 'ViewPlace': 'view_place', 'AnnotationSpec': 'annotation'},
             'label_text': {'Text': 'text'},
             'spec_gdt': {'ControlSpec': 'control', 'FaceSpec': 'face'},

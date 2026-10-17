@@ -766,7 +766,12 @@ pub(crate) fn configure(spec: &crate::model::Spec, views: &mut [crate::model::Pl
             continue;
         }
         v.line_style = settings;
-        v.from_spec = paths;
+        v.from_spec.retain(|p| {
+            !FIELDS
+                .iter()
+                .any(|f| p == &format!("views/{name}/{f}") || p == &format!("sheet/{f}"))
+        });
+        v.from_spec.extend(paths);
         v.default = false;
         let basis = v
             .basis

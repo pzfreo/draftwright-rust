@@ -2433,14 +2433,7 @@ pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selectio
             .filter_map(|v| v.cut.as_ref())
             .filter(|c| c.marked_in == view.id)
         {
-            let [lo, hi] = analysis.envelope;
-            let a = frame.page([lo[0], cut.origin[1], lo[2]]);
-            let b = frame.page([hi[0], cut.origin[1], hi[2]]);
-            let (ink, letters) = crate::section::cutting_plane(
-                a[0].min(b[0]) - crate::section::OVERRUN,
-                a[0].max(b[0]) + crate::section::OVERRUN,
-                frame.page(cut.origin)[1],
-            );
+            let (ink, letters) = crate::model::cutting_plane_furniture(analysis, view, cut);
             labels.extend(
                 ink.iter()
                     .filter_map(|i| crate::output::items_bbox(std::slice::from_ref(i))),

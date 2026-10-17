@@ -173,6 +173,40 @@ pub fn cutting_plane(x0: f64, x1: f64, y: f64) -> (Vec<Item>, [P; 2]) {
     (items, [[x0 - 3.0, y + lift], [x1 + 3.0, y + lift]])
 }
 
+/// The same plane furniture in any projected line direction; the canonical path is unchanged.
+pub(crate) fn cutting_plane_between(a: P, b: P) -> (Vec<Item>, [P; 2]) {
+    if (a[1] - b[1]).abs() < 1e-8 && a[0] < b[0] {
+        cutting_plane(a[0], b[0], a[1])
+    } else {
+        cutting_plane_segment(a, b)
+    }
+}
+
+/// Rotate cutting-plane furniture with an authored principal camera.
+pub(crate) fn cutting_plane_segment(a: P, b: P) -> (Vec<Item>, [P; 2]) {
+    let length = (b[0] - a[0]).hypot(b[1] - a[1]);
+    let x = [(b[0] - a[0]) / length, (b[1] - a[1]) / length];
+    let map = |p: P| {
+        [
+            a[0] + p[0] * x[0] - p[1] * x[1],
+            a[1] + p[0] * x[1] + p[1] * x[0],
+        ]
+    };
+    let (mut ink, letters) = cutting_plane(0., length, 0.);
+    for item in &mut ink {
+        // Cutting-plane furniture consists entirely of straight filled outlines.
+        if let Item::Face(loops) = item {
+            for c in loops.iter_mut().flatten() {
+                if let Curve::Line(a, b) = c {
+                    *a = map(*a);
+                    *b = map(*b);
+                }
+            }
+        }
+    }
+    (ink, letters.map(map))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

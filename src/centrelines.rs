@@ -550,13 +550,20 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
             let p = page(a, v, [lo[0], c.origin[1], lo[2]]);
             let q = page(a, v, [hi[0], c.origin[1], hi[2]]);
             let y = page(a, v, c.origin)[1];
+            let camera = haecceity::hlr::View::new(v.direction, v.up).expect("planned view");
+            let n = camera.map(c.normal);
+            let ends = if n[0].abs() > 1e-8 || n[1] < 0. {
+                crate::view_setup::cutting_segment(a, v, &c)
+            } else {
+                [
+                    [p[0].min(q[0]) - crate::section::OVERRUN, y],
+                    [p[0].max(q[0]) + crate::section::OVERRUN, y],
+                ]
+            };
             v.line_work.push(LineWork {
                 id: format!("ink:{}:cut:{}", v.id, c.label),
                 kind: "cutting_plane".into(),
-                curves: vec![Curve::Line(
-                    [p[0].min(q[0]) - crate::section::OVERRUN, y],
-                    [p[0].max(q[0]) + crate::section::OVERRUN, y],
-                )],
+                curves: vec![Curve::Line(ends[0], ends[1])],
                 centre: None,
                 radial: false,
                 global_axis: false,
@@ -781,9 +788,12 @@ pub(crate) fn obstacles(views: &[PlannedView]) -> Vec<PlannedDimension> {
                     // A remote section's carrier is absent, but its planned line keeps the label.
                     .or_else(|| w.id.strip_prefix(&format!("ink:{}:cut:", v.id)))
             {
-                let (_, letters) = crate::section::cutting_plane(a[0], b[0], a[1]);
-                // Use the renderer's own wing and filled arrow outlines.
-                let ends = crate::section::cutting_plane_ends(a[0], b[0], a[1]);
+                let (ink, letters) = crate::section::cutting_plane_between(a, b);
+                // The last four outlines are the two wing/head pairs in either orientation.
+                let start = ink.len() - 4;
+                let ends: [[crate::output::Item; 2]; 2] = std::array::from_fn(|k| {
+                    [ink[start + 2 * k].clone(), ink[start + 2 * k + 1].clone()]
+                });
                 for item in ends.iter().flatten() {
                     if let crate::output::Item::Face(loops) = item {
                         obstacle

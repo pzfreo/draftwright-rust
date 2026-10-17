@@ -188,7 +188,7 @@ fn section_text_obstacles(
             && let Some(work) = marker.line_work.iter().find(|w| w.kind == "cutting_plane")
             && let Some(crate::output::Curve::Line(a, b)) = work.curves.first()
         {
-            let (ink, letters) = crate::section::cutting_plane(a[0], b[0], a[1]);
+            let (ink, letters) = crate::section::cutting_plane_between(*a, *b);
             out.extend(crate::output::items_bbox(&ink));
             out.extend(letters.map(|at| text_box(&cut.label, at)));
             if let Some(r) = &cut.xref {

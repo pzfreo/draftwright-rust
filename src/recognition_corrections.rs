@@ -104,7 +104,9 @@ fn authored(f: &FeatureSpec) -> bool {
     f.suppress || f.split || f.reclassify.is_some() || f.pattern.is_some()
 }
 pub fn authors(s: &Spec) -> bool {
-    !s.feature_declarations.is_empty() || s.features.values().any(authored)
+    !s.feature_declarations.is_empty()
+        || s.features.values().any(authored)
+        || !crate::view_setup::feature_ids(s).is_empty()
 }
 fn unique(values: &[String]) -> bool {
     values.iter().collect::<BTreeSet<_>>().len() == values.len()
@@ -388,6 +390,7 @@ pub fn bind(a: &Analysis, s: Spec) -> Result<Spec, Invalid> {
                 .then(|| feature.to_string())
             }),
     );
+    ids.extend(crate::view_setup::feature_ids(&s));
     let mut renamed = BTreeMap::new();
     for id in ids {
         let resolved = resolved_id(a, &s, &id)?;
@@ -442,6 +445,7 @@ pub fn bind(a: &Analysis, s: Spec) -> Result<Spec, Invalid> {
         out.binding = Some(a.binding.clone());
     }
     if !renamed.is_empty() {
+        crate::view_setup::remap(&mut out, &renamed);
         out.features = remap_keys(
             std::mem::take(&mut out.features),
             |id| renamed.get(id).cloned().unwrap_or_else(|| id.into()),

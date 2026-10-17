@@ -23,7 +23,7 @@ type Strips<'a> = BTreeMap<(&'a str, Side), Vec<(u8, i64, usize)>>;
 
 /// A view as the dimensions see it: world to page, and the part's box on the page.
 pub(super) struct Frame {
-    view: View,
+    pub(super) view: View,
     at: P2,
     s: f64,
     centre: P2,

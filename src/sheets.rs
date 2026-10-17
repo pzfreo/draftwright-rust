@@ -102,6 +102,12 @@ fn groups(spec: &Spec) -> Vec<Vec<String>> {
         .into_iter()
         .map(|s| vec![s.into()])
         .collect();
+    out.extend(
+        spec.views
+            .iter()
+            .filter(|(_, v)| crate::view_setup::authored(v))
+            .map(|(n, _)| vec![n.clone()]),
+    );
     let mut links = spec
         .sheets
         .as_ref()
@@ -203,6 +209,7 @@ pub(crate) fn validate(spec: &Spec) -> Result<(), Invalid> {
                 || group.iter().any(|n| {
                     !["front", "plan", "side", "iso", "section_aa", "hole_table"]
                         .contains(&n.as_str())
+                        && !spec.views.get(n).is_some_and(crate::view_setup::authored)
                 })
             {
                 return Err(refuse(
@@ -265,14 +272,26 @@ fn available(analysis: &Analysis, spec: &Spec, name: &str, long: bool) -> bool {
                 && crate::demand::read(analysis).section.is_some()
         }
         "hole_table" => long,
-        _ => false,
+        _ => spec
+            .views
+            .get(name)
+            .is_some_and(|v| !v.omit && crate::view_setup::authored(v)),
     }
 }
 
 fn candidates(analysis: &Analysis, spec: &Spec, long: bool) -> Vec<Vec<String>> {
     let assigned = assignments(spec);
     let mut out = Vec::new();
-    for name in ["iso", "section_aa", "hole_table"] {
+    let names: Vec<_> = ["iso", "section_aa", "hole_table"]
+        .into_iter()
+        .chain(
+            spec.views
+                .iter()
+                .filter(|(_, v)| crate::view_setup::authored(v))
+                .map(|(n, _)| n.as_str()),
+        )
+        .collect();
+    for name in names {
         let group = groups(spec)
             .into_iter()
             .find(|g| g.iter().any(|n| n == name))
@@ -629,7 +648,7 @@ pub(crate) fn line_work(analysis: &Analysis, spec: &Spec, views: &mut Vec<Planne
         .get("section_aa")
         .is_some_and(|v| v.omit && v.sheet.is_some_and(|n| n > 1));
     let marker = moved
-        .then(|| auxiliary(analysis, "section_aa", 1., 2, 1.))
+        .then(|| auxiliary(analysis, spec, "section_aa", 1., 2, 1.))
         .flatten();
     if let Some(marker) = marker.as_ref() {
         views.push(marker.clone());
@@ -643,11 +662,49 @@ pub(crate) fn line_work(analysis: &Analysis, spec: &Spec, views: &mut Vec<Planne
 
 fn auxiliary(
     analysis: &Analysis,
+    spec: &Spec,
     name: &str,
     scale: f64,
     sheet: u32,
     parent_scale: f64,
 ) -> Option<PlannedView> {
+    if spec
+        .views
+        .get(name)
+        .is_some_and(crate::view_setup::authored)
+    {
+        let (_, mut d) = crate::detail::requests(analysis, spec, scale)
+            .into_iter()
+            .find(|(n, _)| n == name)?;
+        let c = d.camera.or_else(|| {
+            crate::view_setup::camera(analysis, spec, d.source_view.trim_start_matches("v:")).ok()
+        })?;
+        d.camera = Some(c);
+        let [w, h] = crate::detail::size(&d);
+        let [l, r, b, t] = crate::detail::pads(&d);
+        let area = [0., 0., (w + l + r).max(65.), h + b + t];
+        let mut v = PlannedView {
+            id: format!("v:{name}"),
+            sheet,
+            scale_note: None,
+            xref: None,
+            direction: c.direction,
+            up: c.up,
+            at: crate::detail::at(&d, area),
+            scale: d.scale,
+            area,
+            default: false,
+            basis: crate::detail::basis(analysis, spec, name, &d),
+            state: State::Shown,
+            cut: None,
+            line_work: Vec::new(),
+            line_style: Default::default(),
+            from_spec: Vec::new(),
+            detail: Some(d),
+        };
+        crate::view_setup::report(spec, std::slice::from_mut(&mut v));
+        return Some(v);
+    }
     let section = if name == "section_aa" {
         Some(crate::demand::read(analysis).section?)
     } else {
@@ -896,7 +953,11 @@ fn pack_with_overflow(
                                 .filter_map(|b| b.placed.as_ref().map(|p| p.cells))
                         }),
                 );
-                let scales: Vec<_> = if shrink {
+                let scales: Vec<_> = if shrink
+                    && !names
+                        .iter()
+                        .any(|n| spec.views.get(*n).is_some_and(crate::view_setup::authored))
+                {
                     layout::SCALES
                         .into_iter()
                         .filter(|s| *s < plan.sheet.scale_factor)
@@ -909,6 +970,7 @@ fn pack_with_overflow(
                     trial.extend(names.iter().filter_map(|name| {
                         auxiliary(
                             analysis,
+                            spec,
                             name,
                             if *name == "iso" {
                                 spec.iso_scale_factor
@@ -988,6 +1050,7 @@ fn pack_with_overflow(
             for name in &names {
                 if let Some(mut view) = auxiliary(
                     analysis,
+                    spec,
                     name,
                     if *name == "iso" {
                         spec.iso_scale_factor
@@ -1089,6 +1152,23 @@ fn pack_with_overflow(
         for sheet in &mut plan.sheets {
             sheet.zones = Some(zones(sheet.page));
         }
+        for sheet in &plan.sheets {
+            let local: Vec<_> = plan
+                .views
+                .iter()
+                .filter(|v| v.sheet == sheet.number)
+                .cloned()
+                .collect();
+            if local.iter().any(|v| v.detail.is_some())
+                && let Ok((dimensions, _, _)) = crate::dims::plan(analysis, spec, sheet, &local)
+            {
+                for d in dimensions.into_iter().filter(|d| d.placed.is_some()) {
+                    if let Some(old) = plan.dimensions.iter_mut().find(|old| old.id == d.id) {
+                        *old = d;
+                    }
+                }
+            }
+        }
         crate::linework::configure(&plan.spec, &mut plan.views);
         let mut generated = plan.views.clone();
         crate::centrelines::plan(analysis, &mut generated);
@@ -1182,10 +1262,7 @@ fn cross_references(analysis: &Analysis, plan: &mut Plan) {
                 .iter()
                 .find(|w| w.kind == "cutting_plane")
                 .and_then(|w| w.curves.first())
-                .map(|c| {
-                    let b = c.bbox();
-                    crate::section::cutting_plane(b[0], b[2], b[1]).1
-                })
+                .map(|c| crate::section::cutting_plane_between(c.start(), c.end()).1)
                 .unwrap_or([parent.at; 2]);
             let projection =
                 crate::haecceity::hlr::View::new(v.direction, v.up).expect("section view");
@@ -1292,8 +1369,7 @@ fn reference_position(
                 .find(|w| w.kind == "cutting_plane")
                 .and_then(|w| w.curves.first())
         {
-            let b = curve.bbox();
-            let (ink, letters) = crate::section::cutting_plane(b[0], b[2], b[1]);
+            let (ink, letters) = crate::section::cutting_plane_between(curve.start(), curve.end());
             obstacles.extend(crate::output::items_bbox(&ink));
             let label = font.text(&cut.label, crate::section::FONT_SIZE);
             obstacles.extend(letters.map(|at| {

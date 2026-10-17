@@ -2584,7 +2584,12 @@ pub fn clear_routes(
         })
         .collect();
     super::detail_routes(analysis, &mut wants, views);
-    super::route(&mut wants, &frames, analysis);
+    super::route(
+        &mut wants,
+        &frames,
+        analysis,
+        &crate::model::Spec::default(),
+    );
     let w = wants.iter().find(|w| w.id == id)?;
     let Shape::Callout { sites } = &w.shape else {
         return None;

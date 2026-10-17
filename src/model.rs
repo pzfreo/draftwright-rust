@@ -473,6 +473,14 @@ pub struct ViewSpec {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detail: Option<crate::detail::DetailSpec>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub auxiliary: Option<crate::view_setup::AuxiliarySpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub partial: Option<crate::view_setup::PartialSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub orientation: Option<crate::view_setup::Orientation>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub principal_views: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sheet: Option<u32>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub omit: bool,
@@ -718,7 +726,7 @@ fn invalid(message: impl Into<String>, choices: &[&str]) -> Invalid {
 }
 
 /// The standard views, third-angle (draftwright's default projection): towards the viewer, up.
-const VIEWS: [(&str, [f64; 3], [f64; 3]); 4] = [
+pub(crate) const VIEWS: [(&str, [f64; 3], [f64; 3]); 4] = [
     ("front", [0.0, -1.0, 0.0], [0.0, 0.0, 1.0]),
     ("plan", [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]),
     ("side", [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
@@ -2081,6 +2089,10 @@ fn recover_candidates(
                             tried.push(format!("{name} {} ({})", scale_name(scale), e.message));
                             continue;
                         }
+                        Err(e) if crate::view_setup::unplaceable(&e) => {
+                            tried.push(format!("{name} {} ({})", scale_name(scale), e.message));
+                            continue;
+                        }
                         Err(e) => return Err(e),
                     }
                 };
@@ -2122,6 +2134,7 @@ fn recover_candidates(
                             {
                                 continue;
                             }
+                            Err(e) if crate::view_setup::unplaceable(&e) => continue,
                             Err(e) => return Err(e),
                         };
                         if quality(&alternative) < quality(&p) {
@@ -2773,6 +2786,7 @@ fn plan_with_presentation(
     let merged = crate::spec_gdt::effective(analysis, spec)?;
     let analysis = merged.as_ref();
     crate::sheets::validate(spec)?;
+    crate::view_setup::validate(analysis, spec)?;
     crate::detail::check(analysis, spec)?;
     crate::spec_notes::check_claims(analysis, spec)?;
     crate::dims::check_views(spec)?;
@@ -2793,6 +2807,7 @@ fn plan_with_presentation(
         base.sheet.fit_limits = spec.sheet.fit_limits;
         base.hole_table = spec.hole_table;
         base.iso_scale_factor = spec.iso_scale_factor;
+        crate::view_setup::copy_setup(spec, &mut base);
         base.dimension_schemes = spec.dimension_schemes.clone();
         if spec.dimensions.values().any(|d| d.between.is_some()) {
             base.dimension_source = spec.dimension_source;
@@ -3061,7 +3076,9 @@ fn plan_with_presentation(
     let omitted = |name: &str| spec.views.get(name).is_some_and(|v| v.omit);
     let pmi_views = crate::pmi_lowering::views(analysis);
     let reduction = crate::demand::turned_views(&demand).filter(|(kept, dropped, _)| {
-        !spec.views.contains_key(*dropped)
+        !crate::view_setup::oriented(spec)
+            && crate::view_setup::requested(spec, dropped).is_none()
+            && !spec.views.contains_key(*dropped)
             && !omitted(kept[0])
             && !pmi_views.contains(dropped)
             && !(demand.section.is_some() && *dropped == "plan")
@@ -3071,17 +3088,30 @@ fn plan_with_presentation(
             && (!complete_views
                 || crate::dims::reduction_preserves_requirements(analysis, spec, kept, &excluded))
     });
-    let shown = |name: &str| match spec.views.get(name) {
-        Some(v) => !v.omit,
-        None => !reduction.as_ref().is_some_and(|r| r.1 == name),
+    let shown = |name: &str| {
+        if matches!(name, "front" | "plan" | "side")
+            && let Some(show) = crate::view_setup::requested(spec, name)
+        {
+            return show;
+        }
+        match spec.views.get(name) {
+            Some(v) => !v.omit,
+            None => !reduction.as_ref().is_some_and(|r| r.1 == name),
+        }
     };
+    let cameras = crate::view_setup::cameras(analysis, spec)?;
+    let configured_views: [_; 4] = std::array::from_fn(|k| {
+        let (name, d, u) = VIEWS[k];
+        let (d, u) = cameras.get(k).map_or((d, u), |c| (c.direction, c.up));
+        (name, d, u)
+    });
     let principals = Principals {
         front: shown("front"),
         plan: shown("plan"),
         side: shown("side"),
     };
     // The bands hold the lanes the dimensions will take in the views shown (review M3).
-    let shown_views: Vec<(&str, [f64; 3], [f64; 3])> = VIEWS
+    let shown_views: Vec<(&str, [f64; 3], [f64; 3])> = configured_views
         .iter()
         .filter(|(name, ..)| shown(name))
         .copied()
@@ -3192,10 +3222,19 @@ fn plan_with_presentation(
     let scale = presentation.map(|p| p.scale).or(scale);
     let [lo, hi] = analysis.envelope;
     // Section A-A is marked on the plan and sits in the front's row.
-    let section = demand
-        .section
-        .clone()
-        .filter(|_| shown(SECTION) && principals.plan && (principals.front || principals.side));
+    let section_parent = if crate::view_setup::oriented(spec) {
+        crate::view_setup::section_parent(spec, &cameras)
+    } else {
+        None
+    };
+    let section = demand.section.clone().filter(|_| {
+        shown(SECTION)
+            && if crate::view_setup::oriented(spec) {
+                section_parent.is_some()
+            } else {
+                principals.plan && (principals.front || principals.side)
+            }
+    });
     // A section left out is said, with why and what would bring it back (draftwright records
     // every section decision: ISSUE-1190-b); one the author omits needs no saying.
     let section_not_shown = |why: String, fix: Vec<crate::items::Op>| Problem {
@@ -3208,7 +3247,9 @@ fn plan_with_presentation(
         fix,
     };
     match &demand.section {
-        Some(_) if section.is_none() && shown(SECTION) => problems.push(if !principals.plan {
+        Some(_) if section.is_none() && shown(SECTION) => problems.push(if crate::view_setup::oriented(spec) && section_parent.is_none() {
+            section_not_shown("the authored principal cameras have no edge-on view of the physical cutting plane; choose a principal direction perpendicular to its normal, or remove views/front/orientation".into(), vec![crate::items::Op::remove("views/front/orientation")])
+        } else if !principals.plan {
             let (how, fix) = if omitted("plan") {
                 (
                     "the spec omits it; remove views/plan/omit to show it",
@@ -3239,7 +3280,7 @@ fn plan_with_presentation(
         _ => {}
     }
     let mut request = Request::new(
-        [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]],
+        crate::view_setup::layout_size(analysis, spec, &cameras),
         principals,
         shown("iso"),
     );
@@ -3325,7 +3366,7 @@ fn plan_with_presentation(
         scale,
         page,
         lo[2],
-        spec.views.values().any(|v| v.detail.is_some()),
+        spec.views.values().any(crate::view_setup::authored),
         &|s| crate::detail::scaled(analysis, spec, s),
     );
     if !request.required_tables.is_empty() && pick.fallback.is_some() {
@@ -3337,7 +3378,7 @@ fn plan_with_presentation(
             scale,
             page,
             lo[2],
-            spec.views.values().any(|v| v.detail.is_some()),
+            spec.views.values().any(crate::view_setup::authored),
             &|s| crate::detail::scaled(analysis, spec, s),
         );
         if p.fallback.is_none() {
@@ -3424,7 +3465,7 @@ fn plan_with_presentation(
         (None, Some(_), Some(_)) => "as the spec asks".into(),
     };
 
-    let authored_details = spec.views.values().any(|v| v.detail.is_some());
+    let authored_details = spec.views.values().any(crate::view_setup::authored);
     let mut scaled_details = if pick.fallback.is_some() && !authored_details {
         // The demand search refused optional details at this pair. Do not compose them
         // again against the smaller bare reservation and displace established furniture.
@@ -3527,7 +3568,7 @@ fn plan_with_presentation(
         }
         _ => String::new(),
     };
-    let mut views: Vec<PlannedView> = VIEWS
+    let mut views: Vec<PlannedView> = configured_views
         .iter()
         .filter(|(name, ..)| shown(name))
         .map(|(name, direction, up)| {
@@ -3619,7 +3660,7 @@ fn plan_with_presentation(
                 label,
                 origin: [0.5 * (lo[0] + hi[0]), cut.cut_y, 0.5 * (lo[2] + hi[2])],
                 normal: [0.0, 1.0, 0.0],
-                marked_in: "v:plan".into(),
+                marked_in: section_parent.clone().unwrap_or_else(||"v:plan".into()),
             }),
         });
     } else if section.is_some() {
@@ -3629,13 +3670,29 @@ fn plan_with_presentation(
         ));
     }
     for (name, mut detail) in crate::detail::requests(analysis, spec, pick.scale) {
-        let source = views.iter().find(|v| v.id == detail.source_view);
+        let source = views
+            .iter()
+            .find(|v| v.id == detail.source_view)
+            .cloned()
+            .or_else(|| {
+                let parent = spec
+                    .views
+                    .get(detail.source_view.trim_start_matches("v:"))?;
+                if parent.sheet.is_some_and(|n| n > 1) && parent.auxiliary.is_some() {
+                    let mut v = views.first()?.clone();
+                    v.id = detail.source_view.clone();
+                    v.cut = None;
+                    v.detail = None;
+                    Some(v)
+                } else {
+                    None
+                }
+            });
         if detail.authored && source.is_none() {
             return Err(invalid(
                 format!(
                     "Authored detail {name}: source view {} does not exist in the plan for {}.",
-                    detail.source_view,
-                    spec.views[&name].detail.as_ref().unwrap().around_ids()
+                    detail.source_view, name
                 ),
                 &[],
             ));
@@ -3645,15 +3702,18 @@ fn plan_with_presentation(
             .iter()
             .find(|(id, _)| *id == name)
             .map(|(_, b)| *b);
-        if let (Some(source), Some(area)) = (source, area) {
-            detail.source_cut = source.cut.clone();
+        if let (Some(source), Some(area)) = (source.as_ref(), area) {
+            detail.source_cut = source
+                .cut
+                .clone()
+                .or_else(|| source.detail.as_ref().and_then(|d| d.source_cut.clone()));
             views.push(PlannedView {
                 sheet: 1,
                 scale_note: None,
                 xref: None,
                 id: format!("v:{name}"),
-                direction: source.direction,
-                up: source.up,
+                direction: detail.camera.map_or(source.direction, |c| c.direction),
+                up: detail.camera.map_or(source.up, |c| c.up),
                 at: crate::detail::at(&detail, area),
                 scale: detail.scale,
                 area,
@@ -3669,7 +3729,7 @@ fn plan_with_presentation(
         } else if detail.authored {
             return Err(invalid(
                 format!(
-                    "Authored detail {name} needs its source view and room for its crop at the requested scale."
+                    "Authored derived view {name} has no room for its crop at the requested scale; reduce its scale_factor, change placement or allow another sheet."
                 ),
                 &[],
             ));
@@ -3684,6 +3744,7 @@ fn plan_with_presentation(
     {
         return Err(invalid(NO_AUTOMATIC_DETAIL, &[]));
     }
+    crate::view_setup::report(spec, &mut views);
     let mut title = spec.sheet.title.clone();
     title
         .entry("title".into())
@@ -4922,6 +4983,7 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
     crate::spec_gdt::check(&spec)?;
     crate::dims::authored::check(&spec)?;
     crate::dimension_scheme::check(&spec)?;
+    crate::view_setup::check(&spec)?;
     crate::dims::check_views(&spec)?;
     crate::placement_intent::check(&spec)?;
     crate::label_text::check(&spec)?;
@@ -5372,7 +5434,9 @@ fn render_sheet_with(
         .views
         .iter()
         .filter(|v| {
-            v.sheet != sheet.number && v.cut.as_ref().is_some_and(|c| carries(&c.marked_in))
+            v.sheet != sheet.number
+                && (v.cut.as_ref().is_some_and(|c| carries(&c.marked_in))
+                    || v.detail.as_ref().is_some_and(|d| carries(&d.source_view)))
         })
         .collect();
     render_annotations_with_cuts(
@@ -5478,7 +5542,11 @@ pub(crate) fn render_annotations_on_sheet(
     let remote = plan
         .views
         .iter()
-        .filter(|v| v.sheet != number && v.cut.as_ref().is_some_and(|c| local(&c.marked_in)))
+        .filter(|v| {
+            v.sheet != number
+                && (v.cut.as_ref().is_some_and(|c| local(&c.marked_in))
+                    || v.detail.as_ref().is_some_and(|d| local(&d.source_view)))
+        })
         .collect::<Vec<_>>();
     render_annotations_with_cuts(
         part,
@@ -5639,10 +5707,12 @@ fn render_annotations_with_cuts(
         layers[0].items.extend(geometry.visible);
         layers[1].items.extend(geometry.hidden);
     }
-    for v in &plan.views {
+    for v in plan.views.iter().chain(remote_sections.iter().copied()) {
         let Some(d) = &v.detail else { continue };
-        captions.push((crate::detail::caption(d), crate::detail::caption_at(v)));
-        caption_names.push(format!("detail_caption_{}", d.label));
+        if v.sheet == plan.sheet.number {
+            captions.push((crate::detail::caption(d), crate::detail::caption_at(v)));
+            caption_names.push(format!("detail_caption_{}", d.label));
+        }
         if let Some(source) = plan.views.iter().find(|s| s.id == d.source_view) {
             let labels: Vec<_> = plan
                 .dimensions
@@ -5670,8 +5740,8 @@ fn render_annotations_with_cuts(
                         ]
                     }),
             );
-            let (circle, at) =
-                crate::detail::marker(analysis, d, source, &plan.views, plan.sheet.page, &avoid);
+            let (markers, at) =
+                crate::detail::markers(analysis, d, source, &plan.views, plan.sheet.page, &avoid);
             let [pw, ph] = plan.sheet.page;
             let drawable = [
                 layout::MARGIN,
@@ -5679,8 +5749,9 @@ fn render_annotations_with_cuts(
                 pw - layout::MARGIN,
                 ph - layout::MARGIN,
             ];
-            let curves = crate::detail::clip(circle, drawable)
+            let curves = markers
                 .into_iter()
+                .flat_map(|c| crate::detail::clip(c, drawable))
                 .flat_map(|arc| crate::detail::marker_ink(arc, &labels))
                 .collect::<Vec<_>>();
             let lines = curves
@@ -5703,7 +5774,14 @@ fn render_annotations_with_cuts(
                 });
             }
             layers[3].items.extend(ink);
-            captions.push((d.label.clone(), at));
+            captions.push((
+                if v.sheet != plan.sheet.number {
+                    format!("{} (SHEET {})", d.label, v.sheet)
+                } else {
+                    d.label.clone()
+                },
+                at,
+            ));
             caption_names.push(format!("detail_marker_label_{}", d.label));
         }
     }
@@ -6988,7 +7066,6 @@ fn section_furniture(
 }
 
 fn cutting_furniture(plan: &Plan, cut: &Cut, out: &mut Furniture) {
-    use crate::section::cutting_plane;
     let l = &cut.label;
     if let Some(w) = plan
         .views
@@ -6997,7 +7074,7 @@ fn cutting_furniture(plan: &Plan, cut: &Cut, out: &mut Furniture) {
         .and_then(|v| v.line_work.iter().find(|w| w.kind == "cutting_plane"))
         && let Curve::Line(a, b) = w.curves[0]
     {
-        let (ink, letters) = cutting_plane(a[0], b[0], a[1]);
+        let (ink, letters) = crate::section::cutting_plane_between(a, b);
         out.ink.extend(ink);
         out.chain = Some([a, b]);
         out.text.extend(letters.map(|at| (l.clone(), at)));
@@ -7032,6 +7109,23 @@ pub(crate) fn cutting_line(
         a[0].max(b[0]) + overrun,
         to_page(cut.origin)[1],
     )
+}
+
+/// Shared cutting-plane furniture for reservation and rendering after camera overrides.
+pub(crate) fn cutting_plane_furniture(
+    a: &Analysis,
+    v: &PlannedView,
+    cut: &Cut,
+) -> (Vec<Item>, [[f64; 2]; 2]) {
+    let view = View::new(v.direction, v.up).expect("planned view");
+    let n = view.map(cut.normal);
+    if n[0].abs() > 1e-8 || n[1] < 0. {
+        let [a, b] = crate::view_setup::cutting_segment(a, v, cut);
+        crate::section::cutting_plane_between(a, b)
+    } else {
+        let (x0, x1, y) = cutting_line(a, v, &view, cut);
+        crate::section::cutting_plane(x0, x1, y)
+    }
 }
 
 /// A projected curve scaled by *s* about *centre* and moved to *at*.

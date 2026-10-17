@@ -169,7 +169,7 @@ pub(crate) fn furniture_bounds(
                 crate::detail::caption_at(v),
             ));
             if let Some(source) = views.iter().find(|s| s.id == d.source_view) {
-                let (_, at) = crate::detail::marker(analysis, d, source, views, sheet.page, &[]);
+                let (_, at) = crate::detail::markers(analysis, d, source, views, sheet.page, &[]);
                 out.push(text_box(&d.label, crate::section::FONT_SIZE, at));
             }
         }
@@ -187,23 +187,7 @@ pub(crate) fn furniture_bounds(
             [v.at[0], v.at[1] - half - 7.0],
         ));
         if let Some(m) = views.iter().find(|m| m.id == cut.marked_in) {
-            let view = haecceity::hlr::View::new(m.direction, m.up).expect("planned view");
-            let centre = crate::model::extent(analysis, &view).1;
-            let at = |p| {
-                let q = view.map(p);
-                [
-                    m.at[0] + m.scale * (q[0] - centre[0]),
-                    m.at[1] + m.scale * (q[1] - centre[1]),
-                ]
-            };
-            let [lo, hi] = analysis.envelope;
-            let a = at([lo[0], cut.origin[1], lo[2]]);
-            let b = at([hi[0], cut.origin[1], hi[2]]);
-            let (ink, letters) = crate::section::cutting_plane(
-                a[0].min(b[0]) - crate::section::OVERRUN,
-                a[0].max(b[0]) + crate::section::OVERRUN,
-                at(cut.origin)[1],
-            );
+            let (ink, letters) = crate::model::cutting_plane_furniture(analysis, m, cut);
             if let Some(b) = crate::output::items_bbox(&ink) {
                 out.push(b);
             }
@@ -369,7 +353,7 @@ fn correct_sections(analysis: &Analysis, plan: &mut Plan) {
             include(&mut groups[i], [at[0] + laid.min[0], at[1] + laid.min[1]]);
             include(&mut groups[i], [at[0] + laid.max[0], at[1] + laid.max[1]]);
             if let Some(j) = plan.views.iter().position(|p| p.id == detail.source_view) {
-                let (circle, at) = crate::detail::marker(
+                let (markers, at) = crate::detail::markers(
                     analysis,
                     detail,
                     &plan.views[j],
@@ -377,9 +361,11 @@ fn correct_sections(analysis: &Analysis, plan: &mut Plan) {
                     plan.sheet.page,
                     &[],
                 );
-                let b = circle.bbox();
-                include(&mut groups[j], [b[0], b[1]]);
-                include(&mut groups[j], [b[2], b[3]]);
+                for marker in markers {
+                    let b = marker.bbox();
+                    include(&mut groups[j], [b[0], b[1]]);
+                    include(&mut groups[j], [b[2], b[3]]);
+                }
                 let laid = crate::dims::font().text(&detail.label, crate::section::FONT_SIZE);
                 include(&mut groups[j], [at[0] + laid.min[0], at[1] + laid.min[1]]);
                 include(&mut groups[j], [at[0] + laid.max[0], at[1] + laid.max[1]]);
@@ -397,10 +383,7 @@ fn correct_sections(analysis: &Analysis, plan: &mut Plan) {
             include(&mut groups[i], [at[0] + laid.max[0], at[1] + laid.max[1]]);
             if let Some(j) = plan.views.iter().position(|w| w.id == cut.marked_in) {
                 let parent = &plan.views[j];
-                let projection =
-                    haecceity::hlr::View::new(parent.direction, parent.up).expect("parent view");
-                let (x0, x1, y) = crate::model::cutting_line(analysis, parent, &projection, cut);
-                let (ink, letters) = crate::section::cutting_plane(x0, x1, y);
+                let (ink, letters) = crate::model::cutting_plane_furniture(analysis, parent, cut);
                 if let Some(b) = crate::output::items_bbox(&ink) {
                     include(&mut groups[j], [b[0], b[1]]);
                     include(&mut groups[j], [b[2], b[3]]);
