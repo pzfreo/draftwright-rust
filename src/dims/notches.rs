@@ -18,7 +18,23 @@ pub(super) fn id(feature: &str, parameter: &str) -> String {
 pub(super) const PLANNER: Planner = Planner { kinds: &[], wants };
 fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let mut out = Vec::new();
-    for n in crate::notches::requirements(cx.analysis) {
+    let notches = crate::notches::requirements(cx.analysis);
+    // Keep the existing front corridor when it also carries GD&T. Splitting
+    // these stations across views removes a front tier and can displace a
+    // control frame into a datum's otherwise clear compact route.
+    let front_gdt = !notches.is_empty()
+        && crate::pmi_lowering::lower(cx.analysis, &|_| true)
+            .0
+            .iter()
+            .any(|d| {
+                d.view == "front"
+                    && matches!(
+                        &d.glyph,
+                        crate::pmi_lowering::Glyph::ControlFrame { .. }
+                            | crate::pmi_lowering::Glyph::Datum { .. }
+                    )
+            });
+    for n in notches {
         let view = end_on(n.axis);
         let value = n.angle.degrees();
         out.push(Want {
@@ -53,7 +69,9 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 // Keep the plan's angular sector free of long datum witnesses; an
                 // explicit scheme or placement can still choose the normal view.
                 views: if n.axis == 2 && k == 0 {
-                    if n.mouth[k] < 0.5 * (cx.analysis.envelope[0][k] + cx.analysis.envelope[1][k])
+                    if !front_gdt
+                        && n.mouth[k]
+                            < 0.5 * (cx.analysis.envelope[0][k] + cx.analysis.envelope[1][k])
                     {
                         vec![view, "front"]
                     } else {

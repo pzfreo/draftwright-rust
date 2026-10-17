@@ -1075,10 +1075,14 @@ basis, placed, reference?, determined_by?}`:
   The sheet reserves the minimum exterior angular footprint before packing, so an acute
   notch does not have to extend beyond a band estimated only from linear lanes. Added
   vertical notch statements reserve their own datum lanes; a silhouette-mouth station
-  leaves its witness on that free side. Mouth stations distribute their ink between true aligned projections: left-half X
+  leaves its witness on that free side. Mouth stations distribute their ink between
+  true aligned projections: left-half X
   stations prefer the normal view, right-half X stations prefer front, and Y stations
   prefer side. This keeps the plan's notch arcs and bore-leader bands clear without
-  stacking every X witness in front. A notch angle may use blank exterior space within its view's
+  stacking every X witness in front. When front carries GD&T, both X stations stay
+  there so its existing shared dimension/frame band is retained; removing one tier
+  must not push a control frame into a datum's compact route. A notch angle may use
+  blank exterior space within its view's
   envelope only after projected-face containment and edge/arrow clearance prove it empty.
   Every planar projection counts; curved faces use their full covers. Radius leaders displaced
   by these new bands consider model strokes before their joint solve. This preserves short
