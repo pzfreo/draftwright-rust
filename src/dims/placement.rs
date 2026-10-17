@@ -2334,6 +2334,7 @@ fn clear_linear_ordered(
         let model = models
             .entry(view)
             .or_insert_with(|| cache.model(analysis, v));
+        let extension_counter = footprint.extension_counter(&items[i].measurements);
         let measured_features = std::cell::RefCell::new(BTreeMap::new());
         let measured_geometry = std::cell::RefCell::new(BTreeMap::new());
         let feature_crossings = |c: &Placed| {
@@ -2345,9 +2346,7 @@ fn clear_linear_ordered(
                     if let Some(hits) = measured_features.borrow().get(&key) {
                         return *hits;
                     }
-                    let hits = footprint
-                        .crossed_extension(*line, &items[i].measurements)
-                        .len();
+                    let hits = extension_counter.count(*line);
                     measured_features.borrow_mut().insert(key, hits);
                     hits
                 })
