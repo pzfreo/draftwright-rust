@@ -63,12 +63,16 @@ fn sha256(bytes: &[u8]) -> String {
 }
 
 /// The AP242 fixtures: `(file name as captured, stem, bytes)`.
-fn inputs() -> Vec<(String, String, Vec<u8>)> {
+fn inputs(only: &str) -> Vec<(String, String, Vec<u8>)> {
     let mut paths: Vec<PathBuf> = std::fs::read_dir(fixtures().join("step"))
         .unwrap()
         .map(|e| e.unwrap().path())
         .filter(|p| p.extension().is_some_and(|x| x == "gz"))
         .collect();
+    paths.retain(|path| {
+        let name = path.file_name().unwrap().to_string_lossy();
+        name.strip_suffix(".gz") == Some(only) || name.split('.').next() == Some(only)
+    });
     paths.sort();
     paths
         .into_iter()
@@ -397,7 +401,7 @@ fn pmi_dimensions_match_draftwright_or_are_known(only: &str) {
     }
     let mut diffs = Vec::new();
     let mut records = 0;
-    for (file, stem, bytes) in inputs().into_iter().filter(|(file, _, _)| file == only) {
+    for (file, stem, bytes) in inputs(only).into_iter().filter(|(file, _, _)| file == only) {
         let py = json_gz(&fixtures().join(format!("dimensions/{stem}.json.gz")));
         let reading = json_gz(&fixtures().join(format!("{stem}.json.gz")));
         assert_eq!(py["file"], file.as_str());
@@ -460,7 +464,7 @@ fn pmi_dimensions_match_draftwright_or_are_known(only: &str) {
 
 /// A fixture by stem: its file name and bytes.
 fn fixture(stem: &str) -> (String, Vec<u8>) {
-    inputs()
+    inputs(stem)
         .into_iter()
         .find(|(_, s, _)| s == stem)
         .map(|(f, _, b)| (f, b))
@@ -490,7 +494,7 @@ const REFUSALS: [&str; 3] = [
 
 pmi_cases!(every_dimension_is_drawn_or_reported_never_both);
 fn every_dimension_is_drawn_or_reported_never_both(only: &str) {
-    for (file, _, bytes) in inputs().into_iter().filter(|(file, _, _)| file == only) {
+    for (file, _, bytes) in inputs(only).into_iter().filter(|(file, _, _)| file == only) {
         let (_, a) = analysed(&file, &bytes);
         let plan = cache::default_plan(&a, false);
         for r in records(&a)

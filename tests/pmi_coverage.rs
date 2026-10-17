@@ -86,12 +86,16 @@ fn json_gz(path: &Path) -> Value {
 }
 
 /// The AP242 fixtures: `(file name as captured, stem, bytes)`.
-fn inputs() -> Vec<(String, String, Vec<u8>)> {
+fn inputs(only: &str) -> Vec<(String, String, Vec<u8>)> {
     let mut paths: Vec<PathBuf> = std::fs::read_dir(fixtures().join("pmi/step"))
         .unwrap()
         .map(|e| e.unwrap().path())
         .filter(|p| p.extension().is_some_and(|x| x == "gz"))
         .collect();
+    paths.retain(|path| {
+        let name = path.file_name().unwrap().to_string_lossy();
+        name.strip_suffix(".gz") == Some(only) || name.split('.').next() == Some(only)
+    });
     paths.sort();
     paths
         .into_iter()
@@ -426,7 +430,7 @@ fn pmi_coverage_matches_draftwright_or_is_known(only: &str) {
         );
     }
     let mut diffs = Vec::new();
-    for (file, stem, bytes) in inputs().into_iter().filter(|(file, _, _)| file == only) {
+    for (file, stem, bytes) in inputs(only).into_iter().filter(|(file, _, _)| file == only) {
         let py = json_gz(&fixtures().join(format!("pmi_coverage/{stem}.json.gz")));
         let reading = json_gz(&fixtures().join(format!("pmi/{stem}.json.gz")));
         assert_eq!(py["file"], file.as_str());
@@ -539,7 +543,7 @@ fn pmi_coverage_matches_draftwright_or_is_known(only: &str) {
 
 /// A fixture by stem: its file name and bytes.
 fn fixture(stem: &str) -> (String, Vec<u8>) {
-    inputs()
+    inputs(stem)
         .into_iter()
         .find(|(_, s, _)| s == stem)
         .map(|(f, _, b)| (f, b))

@@ -45,7 +45,7 @@ fn root() -> PathBuf {
 }
 
 /// The AP242 fixtures, by stem: (file name, bytes).
-fn fixtures() -> BTreeMap<String, (String, Vec<u8>)> {
+fn fixtures(only: &str) -> BTreeMap<String, (String, Vec<u8>)> {
     let mut out = BTreeMap::new();
     for e in std::fs::read_dir(root().join("tests/fixtures/pmi/step")).unwrap() {
         let p = e.unwrap().path();
@@ -54,6 +54,9 @@ fn fixtures() -> BTreeMap<String, (String, Vec<u8>)> {
         }
         let name = p.file_name().unwrap().to_string_lossy().into_owned();
         let file = name.strip_suffix(".gz").unwrap().to_string();
+        if file != only && file.split('.').next() != Some(only) {
+            continue;
+        }
         let stem = file.split('.').next().unwrap().to_string();
         let mut bytes = Vec::new();
         flate2::read::GzDecoder::new(std::fs::File::open(&p).unwrap())
@@ -113,7 +116,10 @@ fn material_unreported(a: &Analysis, d: &Drawing) -> bool {
 pmi_cases!(the_title_block_states_the_files_material_as_draftwright_does);
 fn the_title_block_states_the_files_material_as_draftwright_does(only: &str) {
     let python: BTreeMap<&str, &str> = PYTHON.into_iter().collect();
-    for (stem, (file, bytes)) in fixtures().into_iter().filter(|(_, (file, _))| file == only) {
+    for (stem, (file, bytes)) in fixtures(only)
+        .into_iter()
+        .filter(|(_, (file, _))| file == only)
+    {
         let (_, a) = analysed(&file, &bytes);
         let plan = model::plan(&a, &Spec::default()).unwrap();
         assert_eq!(
@@ -126,7 +132,9 @@ fn the_title_block_states_the_files_material_as_draftwright_does(only: &str) {
 
 #[test]
 fn a_material_the_spec_states_wins_even_blank() {
-    let (file, bytes) = fixtures().remove("bolt_thread_knurl").unwrap();
+    let (file, bytes) = fixtures("bolt_thread_knurl")
+        .remove("bolt_thread_knurl")
+        .unwrap();
     let (part, a) = analysed(&file, &bytes);
     let plan = model::plan(&a, &Spec::default()).unwrap();
     let d = render(&part, &a, &plan);
@@ -156,7 +164,9 @@ fn a_material_the_spec_states_wins_even_blank() {
 
 #[test]
 fn several_materials_fill_nothing() {
-    let (file, bytes) = fixtures().remove("assembly_plate_pin").unwrap();
+    let (file, bytes) = fixtures("assembly_plate_pin")
+        .remove("assembly_plate_pin")
+        .unwrap();
     let (_, a) = analysed(&file, &bytes);
     let Some(draftwright::pmi::Reading::Read(r)) = &a.pmi else {
         panic!("assembly_plate_pin's PMI is read")
@@ -169,7 +179,9 @@ fn several_materials_fill_nothing() {
 
 #[test]
 fn a_spec_material_contradiction_warns_with_both_values_and_keeps_the_spec() {
-    let (file, bytes) = fixtures().remove("bolt_thread_knurl").unwrap();
+    let (file, bytes) = fixtures("bolt_thread_knurl")
+        .remove("bolt_thread_knurl")
+        .unwrap();
     let (_, a) = analysed(&file, &bytes);
     for value in ["Brass CW614N", "", "  "] {
         let plan = model::plan(&a, &spec_with_material(value)).unwrap();
@@ -203,7 +215,9 @@ fn a_spec_material_contradiction_warns_with_both_values_and_keeps_the_spec() {
                 .any(|p| p.code == "step_material_disagreement")
         );
     }
-    let (file, bytes) = fixtures().remove("assembly_plate_pin").unwrap();
+    let (file, bytes) = fixtures("assembly_plate_pin")
+        .remove("assembly_plate_pin")
+        .unwrap();
     let (_, a) = analysed(&file, &bytes);
     let plan = model::plan(&a, &spec_with_material("Steel C45")).unwrap();
     assert!(

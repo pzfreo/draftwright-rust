@@ -59,12 +59,16 @@ fn sha256(bytes: &[u8]) -> String {
 }
 
 /// The AP242 fixtures: `(file name as captured, stem, bytes)`.
-fn inputs() -> Vec<(String, String, Vec<u8>)> {
+fn inputs(only: &str) -> Vec<(String, String, Vec<u8>)> {
     let mut paths: Vec<PathBuf> = std::fs::read_dir(fixtures().join("pmi/step"))
         .unwrap()
         .map(|e| e.unwrap().path())
         .filter(|p| p.extension().is_some_and(|x| x == "gz"))
         .collect();
+    paths.retain(|path| {
+        let name = path.file_name().unwrap().to_string_lossy();
+        name.strip_suffix(".gz") == Some(only) || name.split('.').next() == Some(only)
+    });
     paths.sort();
     paths
         .into_iter()
@@ -763,7 +767,7 @@ fn pmi_on_the_drawing_matches_draftwright_or_is_known(only: &str) {
             "{k:?}"
         );
     }
-    let (file, stem, bytes) = inputs()
+    let (file, stem, bytes) = inputs(only)
         .into_iter()
         .find(|(file, _, _)| file == only)
         .unwrap();
