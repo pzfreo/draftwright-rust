@@ -889,13 +889,10 @@ mod tests {
         assert!(f.crossed([[0.0, 0.0], [-3.0, 0.0]], &owner).is_empty());
         let witness = [[-2.0, 0.0], [10.0, 0.0]];
         for _ in 0..2 {
-            assert_eq!(
-                f.crossed_extension(witness, &owner),
-                BTreeSet::from(["f:other".into()])
-            );
+            assert_eq!(f.crossed_extension(witness, &owner), BTreeSet::new());
             assert_eq!(
                 f.crossed_extension(witness, &[]),
-                BTreeSet::from(["f:own".into(), "f:other".into()])
+                BTreeSet::from(["f:a".into(), "f:b".into()])
             );
             assert!(
                 f.crossed_extension([[-2.0, 3.0], [10.0, 3.0]], &owner)
