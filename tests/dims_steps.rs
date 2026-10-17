@@ -455,36 +455,61 @@ fn m10127_through_step_and_ladder_match_draftwrights_sheet() {
         return;
     };
     let a = sheet_part(&corpus, "m10127");
-    let plan = model::plan(&a, &Spec::default()).unwrap();
     let f = facts::load("m10127");
-    let steps = items(&plan, &STEPS);
-    assert_eq!(
-        steps,
-        strs(&[
-            ("through_step_leg.length.x", "plan", "18.7"),
-            ("through_step_leg.length.y", "plan", "11.5"),
-        ])
-    );
-    assert_eq!(shown(&steps), python(&f, &["through_step"]));
-    let ladder = items(&plan, &LADDER);
-    let mut recovered = shown(&ladder);
-    for (view, _) in &mut recovered {
-        if let Some(d) = plan
-            .views
-            .iter()
-            .find(|v| v.id == format!("v:{view}"))
-            .and_then(|v| v.detail.as_ref())
-        {
-            *view = d.source_view.trim_start_matches("v:").into();
+    let constrained: Spec = serde_json::from_value(serde_json::json!({
+        "sheet": {"size": "A3", "scale": "1:1"}
+    }))
+    .unwrap();
+    for (spec, enlarged) in [(Spec::default(), false), (constrained, true)] {
+        let plan = model::plan(&a, &spec).unwrap();
+        let steps = items(&plan, &STEPS);
+        assert_eq!(
+            steps,
+            strs(&[
+                ("through_step_leg.length.x", "plan", "18.7"),
+                ("through_step_leg.length.y", "plan", "11.5"),
+            ])
+        );
+        assert_eq!(shown(&steps), python(&f, &["through_step"]));
+        let ladder = items(&plan, &LADDER);
+        let mut recovered = shown(&ladder);
+        for (view, _) in &mut recovered {
+            if let Some(d) = plan
+                .views
+                .iter()
+                .find(|v| v.id == format!("v:{view}"))
+                .and_then(|v| v.detail.as_ref())
+            {
+                *view = d.source_view.trim_start_matches("v:").into();
+            }
+        }
+        recovered.sort();
+        assert_eq!(recovered, python(&f, &["step_level"]));
+        if enlarged {
+            assert!(plan.views.iter().any(|v| {
+                v.detail
+                    .as_ref()
+                    .is_some_and(|d| d.dimensions.iter().any(|id| id.contains("step_height")))
+            }));
+        } else {
+            // Complete larger principals take precedence over an unnecessary
+            // crop: both approved rungs have readable paper between them.
+            assert_eq!(
+                (plan.sheet.size.as_str(), plan.sheet.scale.as_str()),
+                ("A3", "2:1")
+            );
+            assert!(plan.views.iter().all(|v| v.detail.is_none()));
+            let separation = (32.367634118959_f64 - 28.287611643996) * plan.sheet.scale_factor;
+            assert!(separation >= draftwright::layout::MIN_STEP_SEP);
+            assert!(plan.problems.iter().all(|p| !matches!(
+                p.code.as_str(),
+                "annotation_overlap"
+                    | "annotation_ink_overlap"
+                    | "annotation_off_sheet"
+                    | "annotation_outside_area"
+            )));
         }
     }
-    recovered.sort();
-    assert_eq!(recovered, python(&f, &["step_level"]));
-    assert!(plan.views.iter().any(|v| {
-        v.detail
-            .as_ref()
-            .is_some_and(|d| d.dimensions.iter().any(|id| id.contains("step_height")))
-    }));
 }
 
 /// nist_ftc_06: the shoulders between its levels, from Rust quiddity's risers in the part's frame,

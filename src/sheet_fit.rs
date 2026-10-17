@@ -775,6 +775,208 @@ fn optimistic_steps_after_crops(
     illegible_steps(analysis, &probe) + baseline_step_failures(&probe)
 }
 
+/// Bounded paper-space repairs for an otherwise settled exterior dimension.
+/// Keep witnesses on their measured geometry and move only the free lane/text.
+/// The complete drawing must improve readability without buying any finding.
+pub(crate) fn repair_readability(analysis: &Analysis, plan: &mut Plan) {
+    let initial = readability(analysis, plan);
+    if initial.lanes == 0 && initial.text_arrows == 0 {
+        return;
+    }
+    for i in 0..plan.dimensions.len() {
+        let d = &plan.dimensions[i];
+        if d.kind != "linear"
+            || d.region == Some(crate::dims::CandidateRegion::Interior)
+            || plan
+                .spec
+                .dimensions
+                .get(&d.id)
+                .is_some_and(|s| s.place.is_some())
+        {
+            continue;
+        }
+        let Some(p) = &d.placed else { continue };
+        if p.lines.len() < 3
+            || p.arrows.len() != 2
+            || !(p.rotation == 0.0 || p.rotation.abs() == 90.0)
+        {
+            continue;
+        }
+        let axis = usize::from(p.rotation != 0.0);
+        let normal = 1 - axis;
+        let lo = p.arrows[0][0][axis].min(p.arrows[1][0][axis]);
+        let hi = p.arrows[0][0][axis].max(p.arrows[1][0][axis]);
+        let row = p.arrows[0][0][normal];
+        let near = p.lines[..2]
+            .iter()
+            .any(|s| (row - s[0][normal]).abs() + 1.1 < crate::dims::FIRST);
+        let inward = p
+            .arrows
+            .iter()
+            .all(|[tip, tail]| (tail[axis] - tip[axis]) * ((lo + hi) * 0.5 - tip[axis]) > 0.0);
+        let inset = if inward { crate::dims::ARROW } else { 0.0 };
+        let text_bad = (inward && hi - lo + 0.1 < 2.0 * crate::dims::ARROW)
+            || !((p.label_box[axis] >= lo + inset - 0.1
+                && p.label_box[axis + 2] <= hi - inset + 0.1)
+                || p.label_box[axis + 2] <= lo - crate::dims::ARROW + 0.1
+                || p.label_box[axis] >= hi + crate::dims::ARROW - 0.1);
+        let parallel = plan.dimensions.iter().enumerate().any(|(j, peer)| {
+            j != i
+                && peer.kind == "linear"
+                && peer.view == d.view
+                && peer.region != Some(crate::dims::CandidateRegion::Interior)
+                && peer.placed.as_ref().is_some_and(|q| {
+                    q.rotation == p.rotation
+                        && q.lines.len() >= 3
+                        && q.arrows.len() == 2
+                        && (q.arrows[0][0][normal] - row).abs() + 0.1 < crate::dims::LANE
+                        && q.arrows[0][0][axis].min(q.arrows[1][0][axis]) < hi
+                        && lo < q.arrows[0][0][axis].max(q.arrows[1][0][axis])
+                })
+        });
+        if !near && !text_bad && !parallel {
+            continue;
+        }
+        let before = readability(analysis, plan);
+        let original = p.clone();
+        let outward = if row < (p.lines[0][0][normal] + p.lines[1][0][normal]) * 0.5 {
+            -1.0
+        } else {
+            1.0
+        };
+        let width = p.label_box[axis + 2] - p.label_box[axis];
+        let positions = [
+            p.label_box[axis],
+            hi + crate::dims::ARROW + 1.0,
+            lo - crate::dims::ARROW - 1.0 - width,
+        ];
+        let required_shift = p.lines[..2]
+            .iter()
+            .map(|s| (crate::dims::FIRST - 1.0 - (row - s[0][normal]).abs()).max(0.0))
+            .fold(0.0, f64::max);
+        let view = d.view.clone();
+        let rotation = p.rotation;
+        let mut accepted = None;
+        'lanes: for lanes in 0..=2 {
+            if (near || parallel) && lanes == 0 {
+                continue;
+            }
+            if !near && !parallel && lanes != 0 {
+                break;
+            }
+            for at in positions {
+                let mut trial = plan.clone();
+                let shift = if lanes == 0 {
+                    0.0
+                } else {
+                    outward
+                        * (required_shift.max(if parallel { crate::dims::LANE } else { 0.0 })
+                            + f64::from(lanes - 1) * crate::dims::LANE)
+                };
+                if shift.abs() > 2.0 * crate::dims::LANE + 1e-6 {
+                    continue;
+                }
+                // Keep the existing seven-millimetre stack intact while moving
+                // its innermost lane just far enough away from the outline.
+                for (j, peer) in trial.dimensions.iter_mut().enumerate() {
+                    if peer.view != view
+                        || peer.kind != "linear"
+                        || peer.region == Some(crate::dims::CandidateRegion::Interior)
+                        || trial
+                            .spec
+                            .dimensions
+                            .get(&peer.id)
+                            .is_some_and(|s| s.place.is_some())
+                    {
+                        continue;
+                    }
+                    let Some(q) = peer.placed.as_mut() else {
+                        continue;
+                    };
+                    if q.rotation != rotation || q.lines.len() < 3 || q.arrows.len() != 2 {
+                        continue;
+                    }
+                    let qlo = q.arrows[0][0][axis].min(q.arrows[1][0][axis]);
+                    let qhi = q.arrows[0][0][axis].max(q.arrows[1][0][axis]);
+                    if (j != i && parallel && (q.arrows[0][0][normal] - row) * outward <= 1e-6)
+                        || (q.arrows[0][0][normal] - row) * outward < -1e-6
+                        || qlo >= hi
+                        || lo >= qhi
+                    {
+                        continue;
+                    }
+                    for line in &mut q.lines[..2] {
+                        line[1][normal] += shift;
+                    }
+                    for line in &mut q.lines[2..] {
+                        for point in line {
+                            point[normal] += shift;
+                        }
+                    }
+                    for point in q.arrows.iter_mut().flatten() {
+                        point[normal] += shift;
+                    }
+                    q.label_at[normal] += shift;
+                    q.label_box[normal] += shift;
+                    q.label_box[normal + 2] += shift;
+                }
+                let p = trial.dimensions[i]
+                    .placed
+                    .as_mut()
+                    .expect("placed dimension");
+                if text_bad {
+                    let delta = at - original.label_box[axis];
+                    p.label_at[axis] += delta;
+                    p.label_box[axis] += delta;
+                    p.label_box[axis + 2] += delta;
+                    if hi - lo + 0.1 < 2.0 * crate::dims::ARROW {
+                        for [tip, tail] in &mut p.arrows {
+                            tail[axis] = tip[axis]
+                                + if tip[axis] < (lo + hi) * 0.5 {
+                                    -crate::dims::ARROW
+                                } else {
+                                    crate::dims::ARROW
+                                };
+                        }
+                        p.lines[2][0][axis] = lo - crate::dims::ARROW - 2.0;
+                        p.lines[2][1][axis] = hi + crate::dims::ARROW + 2.0;
+                    }
+                }
+                let after = readability(analysis, &trial);
+                if after.failures() >= before.failures()
+                    || after.lanes > before.lanes
+                    || after.text_arrows > before.text_arrows
+                    || after.steps > before.steps
+                    || after.openings > before.openings
+                    || after.depiction > before.depiction
+                {
+                    continue;
+                }
+                let checked = crate::dims::recheck(analysis, &trial);
+                let codes: std::collections::BTreeSet<_> = crate::dims::recheck(analysis, plan)
+                    .into_iter()
+                    .chain(checked.iter().cloned())
+                    .map(|p| p.code)
+                    .collect();
+                trial.problems.retain(|p| !codes.contains(&p.code));
+                trial.problems.extend(checked);
+                enclose_free_ink(analysis, &mut trial);
+                if crate::model::no_new_drawing_issues(plan, &trial)
+                    && routes_no_worse(analysis, plan, &trial)
+                    && crate::model::drawn_sheets_fit(analysis, &trial)
+                {
+                    trial.status = crate::completeness::status(&trial.problems);
+                    accepted = Some(trial);
+                    break 'lanes;
+                }
+            }
+        }
+        if let Some(trial) = accepted {
+            *plan = trial;
+        }
+    }
+}
+
 /// Usable-paper fill target. The lower bound triggers enlargement on the same
 /// paper (including allocation); it never buys a larger sheet (2026-10-17).
 pub const FILL_BAND: [f64; 2] = [0.60, 0.85];
@@ -818,7 +1020,8 @@ fn scale_floor(analysis: &Analysis, opening_floor: f64, depiction_floor: f64) ->
     let needed = (opening_floor / opening)
         .max(20.0 / longest.max(1e-12))
         .max(depiction_floor)
-        .max(ABSOLUTE_FLOOR);
+        .max(ABSOLUTE_FLOOR)
+        .max(crate::dims::recess_chain_scale(analysis));
     crate::layout::SCALES
         .into_iter()
         .rev()
@@ -1691,6 +1894,15 @@ fn correct_sections(analysis: &Analysis, plan: &mut Plan) {
         iso.basis = "orientation view fitted around settled projection and section blocks".into();
     }
     if crate::model::drawn_sheets_fit(analysis, &candidate) {
+        // Packing moved the section and its centre lines together. Replace
+        // their old page-bound findings with checks of the actual final ink.
+        candidate
+            .problems
+            .retain(|p| !p.id.starts_with("p:annotation_off_sheet:ink:"));
+        candidate.problems.extend(crate::model::line_work_problems(
+            &candidate.sheet,
+            &candidate.views,
+        ));
         *plan = candidate;
     }
 }
@@ -1795,6 +2007,28 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
             include(&mut groups[i], *q);
         }
     }
+    // The projections share one column reservation, including its unused paper.
+    // Keep their area edges aligned so a zero-gap relative pin is a true no-op.
+    if plan.dimensions.iter().any(|d| {
+        d.measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:section_recess:"))
+    }) && let (Some(front), Some(plan_view)) = (
+        plan.views.iter().position(|v| v.id == "v:front"),
+        plan.views.iter().position(|v| v.id == "v:plan"),
+    ) {
+        let left = groups[front][0].min(groups[plan_view][0]);
+        let right = groups[front][2].max(groups[plan_view][2]);
+        for i in [front, plan_view] {
+            groups[i][0] = left;
+            groups[i][2] = right;
+        }
+        if groups[plan_view][1] - groups[front][3] >= 2.0 {
+            let boundary = 0.5 * (groups[front][3] + groups[plan_view][1]);
+            groups[front][3] = boundary - 1.0;
+            groups[plan_view][1] = boundary + 1.0;
+        }
+    }
     let top = groups
         .iter()
         .enumerate()
@@ -1874,15 +2108,36 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
     );
 }
 
-/// Pack already settled annotated view blocks onto a page without re-routing witnesses or
-/// leaders. The template is built at the same scale on A0; only owned paper geometry moves.
+/// Pack settled annotated view blocks without re-routing their witnesses or leaders. The template is built at the same scale on A0; only owned paper geometry moves.
 /// Page-anchored blocks and authored view relations stay with the existing planner.
 pub(crate) fn pack_settled_views(
     analysis: &Analysis,
     template: &Plan,
     recipient: &Plan,
 ) -> Option<Plan> {
+    pack_reserved(analysis, template, recipient, template)
+}
+
+/// Omission edits reserve the complete inventory, keeping unaffected items fixed.
+pub(crate) fn pack_inventory(
+    analysis: &Analysis,
+    plan: &Plan,
+    recipient: &Plan,
+    inventory: &[crate::dims::PlannedDimension],
+) -> Option<Plan> {
+    let mut reservation = plan.clone();
+    reservation.dimensions = inventory.to_vec();
+    pack_reserved(analysis, plan, recipient, &reservation)
+}
+
+fn pack_reserved(
+    analysis: &Analysis,
+    template: &Plan,
+    recipient: &Plan,
+    reservation: &Plan,
+) -> Option<Plan> {
     if template.spec.iso_scale_factor.is_some()
+        || template.spec.sheet.projection.as_deref() == Some("first")
         || template.hole_table.is_some()
         || !template.balloons.is_empty()
         || !template.notes.is_empty()
@@ -1898,10 +2153,10 @@ pub(crate) fn pack_settled_views(
     }
     let mut p = template.clone();
     p.sheet = recipient.sheet.clone();
-    let footprints = footprints(analysis, template);
+    let footprints = footprints(analysis, reservation);
     let count = template.views.len();
     let mut groups = footprints[..count].to_vec();
-    let owners = template
+    let owners = reservation
         .dimensions
         .iter()
         .filter(|d| d.placed.is_some())
@@ -1930,6 +2185,16 @@ pub(crate) fn pack_settled_views(
         .iter()
         .map(|i| groups[*i][0])
         .fold(f64::INFINITY, f64::min);
+    let right = column
+        .iter()
+        .map(|i| groups[*i][2])
+        .fold(f64::NEG_INFINITY, f64::max);
+    // Keep the aligned projection column's reservation aligned too. Relative
+    // view pins then describe the same zero-gap relationship as ordinary packing.
+    for i in &column {
+        groups[*i][0] = left;
+        groups[*i][2] = right;
+    }
     let root = column
         .iter()
         .copied()
@@ -1953,7 +2218,8 @@ pub(crate) fn pack_settled_views(
         .find(|i| template.views[*i].id == "v:plan")
         && i != root
     {
-        shifts[i][1] += groups[root][3] + 6.0 - groups[i][1];
+        // Each measured block already receives 1 mm of padding below.
+        shifts[i][1] += groups[root][3] + 2.0 - groups[i][1];
     }
     if let Some(i) = template.views.iter().position(|v| v.id == "v:side") {
         let right = column
@@ -2115,6 +2381,9 @@ pub(crate) fn pack_settled_views(
             }
         );
     }
+    // The isometric was fitted again on the recipient sheet. Its scale
+    // disclaimer must follow the settled view before grading the packed plan.
+    crate::iso_caption::refresh(analysis, &mut p);
     let checked = crate::dims::recheck(analysis, &p);
     let checked_codes: std::collections::BTreeSet<_> = crate::dims::recheck(analysis, template)
         .into_iter()
@@ -2229,6 +2498,188 @@ pub(crate) fn retained_refusal_choice(
         .min_by(|a, b| retained_refusal_rank(key(a.1), key(b.1)))
         .map(|(i, _)| i);
     Some((chosen, smallest))
+}
+
+/// Claim unused paper for final annotation bounds, transferring only vacant neighbouring
+/// reservation while protecting every view and its ink, the title block and drawing border.
+/// The full inventory includes
+/// omitted dimensions, so withdrawing one item does not move its neighbours' bands.
+pub(crate) fn reserve_annotation_bounds(
+    analysis: &Analysis,
+    sheet: &crate::model::PlannedSheet,
+    views: &mut [crate::model::PlannedView],
+    inventory: &[crate::dims::PlannedDimension],
+    gdt: &[crate::dims::gdt::PlannedGdt],
+) {
+    if !inventory.iter().any(|d| {
+        d.measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:section_recess:"))
+    }) {
+        return;
+    }
+    let mut bounds: Vec<(&str, Rect, bool)> = inventory
+        .iter()
+        .filter_map(|d| Some((d.view.as_str(), crate::dims::ink_box(d)?, true)))
+        .collect();
+    let mut protected: Vec<Rect> = views
+        .iter()
+        .map(|v| {
+            let mut b = if v.id == "v:iso" {
+                [
+                    v.at[0] + v.scale * analysis.iso_bounds[0],
+                    v.at[1] + v.scale * analysis.iso_bounds[1],
+                    v.at[0] + v.scale * analysis.iso_bounds[2],
+                    v.at[1] + v.scale * analysis.iso_bounds[3],
+                ]
+            } else {
+                let size = if v.detail.is_some() {
+                    // A crop owns only its enlarged local outline. Reserving the
+                    // whole part at the detail scale strands neighbouring bands.
+                    crate::detail::crop_extent(analysis, v).0
+                } else {
+                    let camera =
+                        haecceity::hlr::View::new(v.direction, v.up).expect("planned view");
+                    crate::model::extent(analysis, &camera).0
+                };
+                [
+                    v.at[0] - v.scale * size[0] / 2.0,
+                    v.at[1] - v.scale * size[1] / 2.0,
+                    v.at[0] + v.scale * size[0] / 2.0,
+                    v.at[1] + v.scale * size[1] / 2.0,
+                ]
+            };
+            for c in v.line_work.iter().flat_map(|w| &w.curves) {
+                let r = c.bbox();
+                include(&mut b, [r[0], r[1]]);
+                include(&mut b, [r[2], r[3]]);
+            }
+            b
+        })
+        .collect();
+    // Caption paper belongs to the crop too; a neighbouring annotation may
+    // reclaim empty detail bands, but never its caption or readable gap.
+    for caption in crate::detail::caption_obstacles(views) {
+        if let (Some(i), Some(p)) = (
+            views.iter().position(|v| v.id == caption.view),
+            caption.placed.as_ref(),
+        ) {
+            include(&mut protected[i], [p.label_box[0], p.label_box[1]]);
+            include(&mut protected[i], [p.label_box[2], p.label_box[3]]);
+        }
+    }
+    for (view, b, _) in &bounds {
+        if let Some(i) = views.iter().position(|v| v.id == *view) {
+            include(&mut protected[i], [b[0], b[1]]);
+            include(&mut protected[i], [b[2], b[3]]);
+        }
+    }
+    for g in gdt {
+        if let (Some(i), Some(p)) = (views.iter().position(|v| v.id == g.view), g.placed.as_ref()) {
+            include(&mut protected[i], [p.label_box[0], p.label_box[1]]);
+            include(&mut protected[i], [p.label_box[2], p.label_box[3]]);
+            for q in p
+                .lines
+                .iter()
+                .chain(&p.strokes)
+                .chain(&p.arrows)
+                .flatten()
+                .chain(p.fills.iter().flatten())
+            {
+                include(&mut protected[i], *q);
+            }
+        }
+    }
+    bounds.extend(
+        gdt.iter()
+            .filter(|g| g.kind != "control_frame")
+            .filter_map(|g| {
+                let p = g.placed.as_ref()?;
+                let mut b = p.label_box;
+                for q in p
+                    .lines
+                    .iter()
+                    .chain(&p.strokes)
+                    .chain(&p.arrows)
+                    .flatten()
+                    .chain(p.fills.iter().flatten())
+                {
+                    include(&mut b, *q);
+                }
+                Some((g.view.as_str(), b, true))
+            }),
+    );
+    let overlap = |a: Rect, b: Rect| {
+        a[0] < b[2] - 1e-9 && b[0] < a[2] - 1e-9 && a[1] < b[3] - 1e-9 && b[1] < a[3] - 1e-9
+    };
+    for (view, b, reclaim) in bounds {
+        let Some(i) = views.iter().position(|v| v.id == view) else {
+            continue;
+        };
+        let area = views[i].area;
+        let mut candidate = [
+            area[0].min(b[0] - 0.5),
+            area[1].min(b[1] - 0.5),
+            area[2].max(b[2] + 0.5),
+            area[3].max(b[3] + 0.5),
+        ];
+        if b[0] < MARGIN - 1e-6
+            || b[1] < MARGIN - 1e-6
+            || b[2] > sheet.page[0] - MARGIN + 1e-6
+            || b[3] > sheet.page[1] - MARGIN + 1e-6
+            || overlap(candidate, sheet.title_block)
+        {
+            continue;
+        }
+        candidate[0] = candidate[0].max(MARGIN);
+        candidate[1] = candidate[1].max(MARGIN);
+        candidate[2] = candidate[2].min(sheet.page[0] - MARGIN);
+        candidate[3] = candidate[3].min(sheet.page[1] - MARGIN);
+        let mut areas: Vec<_> = views.iter().map(|v| v.area).collect();
+        let mut clear = true;
+        for j in 0..views.len() {
+            if i == j || !overlap(candidate, areas[j]) {
+                continue;
+            }
+            if !reclaim || views[j].id == "v:iso" {
+                clear = false;
+                break;
+            }
+            // Transfer only unused reservation. Every neighbouring view, mark,
+            // leader, witness and glyph remains within its original paper.
+            let old = areas[j];
+            let ink = protected[j];
+            let mut choices = Vec::new();
+            if ink[2] <= candidate[0] && old[0] < candidate[0] {
+                choices.push([old[0], old[1], candidate[0], old[3]]);
+            }
+            if ink[0] >= candidate[2] && candidate[2] < old[2] {
+                choices.push([candidate[2], old[1], old[2], old[3]]);
+            }
+            if ink[3] <= candidate[1] && old[1] < candidate[1] {
+                choices.push([old[0], old[1], old[2], candidate[1]]);
+            }
+            if ink[1] >= candidate[3] && candidate[3] < old[3] {
+                choices.push([old[0], candidate[3], old[2], old[3]]);
+            }
+            let size = |b: Rect| (b[2] - b[0]) * (b[3] - b[1]);
+            if let Some(b) = choices
+                .into_iter()
+                .max_by(|a, b| size(*a).total_cmp(&size(*b)))
+            {
+                areas[j] = b;
+            } else {
+                clear = false;
+                break;
+            }
+        }
+        if clear {
+            areas[i] = candidate;
+            for (v, area) in views.iter_mut().zip(areas) {
+                v.area = area;
+            }
+        }
+    }
 }
 
 /// Final compose-then-pack pass for settled linear ink (ISSUE-563-b). Use the

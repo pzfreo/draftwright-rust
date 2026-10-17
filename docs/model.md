@@ -62,8 +62,8 @@ edited.
   (absent when the document does not carry the family at all). Empty, and left out, for Python
   quiddity's JSON, which the bridge reads in full; for Rust quiddity's recognition
   (`model::analyse_native`, the command line's default) the families its document has that
-  `bridge::native` does not read (oriented chamfers among them), and section recesses, which it
-  does not carry. `plan` reports them as one `features_not_recognised` warning. `plan` reads older
+  `bridge::native` does not read (oriented chamfers among them). Unified recesses and
+  their patterns are represented by recognition/3. `plan` reports unread families as one `features_not_recognised` warning. `plan` reads older
   analyses with none; `render` and `review` draw only from this version.
 - **Principal profiles** (`draftwright.analysis/6`, `principal_profiles`): for each solid of a
   part of several (else the whole part), its box and each principal boundary face (a plane flat
@@ -916,6 +916,16 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   authored frames and details are left intact.
   Optional details are tried only when an ordinary drawing cannot provide the
   smaller readable paper; authored details remain explicit intent.
+
+  Native-recess integration preserves the established scale cap for fill-driven
+  growth; a measured readability failure may still request necessary enlargement.
+  A fallback cannot buy larger paper without reducing its readability failures.
+  Before spending paper, bounded free-dimension trials can separate overlapping
+  parallel spans, move an exterior stack just far enough to meet its first-line
+  clearance while preserving seven-millimetre gaps, and put text cleanly outside
+  its arrows. Movement is limited to two existing lanes (14 mm). Authored placements
+  stay fixed. Every accepted repair strictly improves readability, retains all
+  measurements, fits the drawing, and adds no drawing or leader-route finding.
 
   Readability is measured in the owning view's paper millimetres:
   `MIN_OPENING = 2.0` for a dimensioned hole/slot; `MIN_STEP_SPAN = 2.1` (the
@@ -1898,12 +1908,12 @@ fingerprints with complete keys from the Analysis):
   it, for example `{"op":"set","path":"dimensions/d:authored:corner","value":{...}}`;
   remove the entry to delete it. Session/MCP item answers expose its reference anchors,
   placement options and editable fields. Sheet options describe the creation forms. MCP
-  schemas describe the new fields without adding a tool. `get_spec` output declares the authored
-  fields once; inputs retain the established sparse per-ID object maps and use the same Spec
-  and geometry validators. Equivalent shared object-type constraints keep the 26 standalone
-  schemas at 42,681 bytes: dimension schemes add 216 bytes over main after sharing the sparse
-  map constraint. The session ceiling is exactly 42,681 bytes; validation is unchanged. Browser bindings accept the same
-  Spec and operations; their method signatures are unchanged.
+  schemas carry a compact top-level Spec outline. Call MCP `spec_schema {}` for the full
+  draft-2020-12 Spec schema and its named `spec_read` shape; `item_options` supplies valid
+  paths and choices. The 28 advertised schemas total 34,389 compact UTF-8 bytes; nested
+  Spec fields do not grow this budget. Server preflight and model/geometry validation
+  are unchanged. Browser bindings accept the same Spec and operations; their method
+  signatures are unchanged.
 
 ## The five operations
 

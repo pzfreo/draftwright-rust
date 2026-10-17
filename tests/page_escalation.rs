@@ -329,7 +329,7 @@ fn readable_a4_precedes_fill_but_unreadable_steps_require_enlargement() {
     let Some(dir) = corpus::dir() else { return };
     for (file, expected) in [
         ("mfcadpp/10060.step", ("A4", "1:1")),
-        ("mfcadpp/10000.step", ("A1", "5:1")),
+        ("mfcadpp/10000.step", ("A3", "2:1")),
     ] {
         let path = dir.join(file);
         let plan = api::plan_from(&path, Features::Native, &Spec::default()).unwrap();
@@ -530,7 +530,26 @@ fn composed_corridors_clear_a_previously_overlapping_off_part_fixture() {
         eprintln!("SKIPPED: the corpus is not found");
         return;
     };
-    let analysis = api::analyse_from(&dir.join("mfcadpp/1004.step"), Features::Native).unwrap();
+    let current = api::analyse_from(&dir.join("mfcadpp/1004.step"), Features::Native).unwrap();
+    // Keep the historical stand-in fixed while native recognition adds more
+    // dimensions. The current recognition/3 unsafe proposal is also replayed
+    // through the production recovery in model::recovery_tests.
+    use std::io::Read as _;
+    let mut bytes = Vec::new();
+    flate2::read::GzDecoder::new(
+        std::fs::File::open(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/sheet-policy/1004-view-gate.analysis.json.gz"),
+        )
+        .unwrap(),
+    )
+    .read_to_end(&mut bytes)
+    .unwrap();
+    let analysis: Analysis = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(
+        analysis.binding.source_sha256,
+        current.binding.source_sha256
+    );
     let mut json = serde_json::to_value(&analysis).unwrap();
     let hole = json["features"]
         .as_array_mut()
@@ -608,13 +627,13 @@ fn a_fitted_route_reference_keeps_pair_identity_without_restoring_raw_crossings(
     let a = api::analyse_from(&dir.join("mfcadpp_holdout/419.step"), Features::Native).unwrap();
     let reference = api::plan_analysed(&a, &spec(json!({"size":"A3", "scale":"2:1"}))).unwrap();
     let p = api::plan_analysed(&a, &Spec::default()).unwrap();
-    assert_eq!(sheet(&p), ("A3", "2:1"));
+    assert_eq!(sheet(&p), ("A4", "1:1"));
     assert_eq!(
         pairs(&reference)
             .iter()
             .filter(|(code, _, _)| code == "annotation_leader_crossing")
             .count(),
-        1
+        0
     );
     assert!(pairs(&p).is_subset(&pairs(&reference)));
     assert!(measurements(&reference).is_subset(&measurements(&p)));

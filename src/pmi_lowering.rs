@@ -140,6 +140,24 @@ fn axis_index(a: &str) -> Option<usize> {
 /// The Analysis's PMI lowered: the items to draw, and the problems met (none when the part has
 /// no PMI). *shown* says whether a principal view (`front`, `plan`, `side`) is on the sheet.
 pub fn lower(analysis: &Analysis, shown: &dyn Fn(&str) -> bool) -> (Vec<Lowered>, Vec<Problem>) {
+    // Lowering reads only immutable Analysis and which principal views are shown.
+    // Demand, placement and recovery otherwise repeat the same geometric reading.
+    let names = ["front", "plan", "side"];
+    let mask = names.map(shown);
+    crate::planning::memo(analysis, "lowered-pmi", mask.map(u8::from).to_vec(), || {
+        lower_uncached(analysis, &|name| {
+            names
+                .iter()
+                .zip(mask)
+                .any(|(n, visible)| *n == name && visible)
+        })
+    })
+}
+
+fn lower_uncached(
+    analysis: &Analysis,
+    shown: &dyn Fn(&str) -> bool,
+) -> (Vec<Lowered>, Vec<Problem>) {
     let mut items = Vec::new();
     let mut problems = Vec::new();
     let report = match &analysis.pmi {
@@ -3336,6 +3354,38 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cached_lowering_retains_all_principal_view_variants_and_diagnostics() {
+        use std::io::Read;
+        let compressed = include_bytes!("../tests/fixtures/pmi/step/hw_every_kind.step.gz");
+        let mut bytes = Vec::new();
+        flate2::read::GzDecoder::new(compressed.as_slice())
+            .read_to_end(&mut bytes)
+            .unwrap();
+        let path = std::env::temp_dir().join(format!(
+            "draftwright-pmi-lowering-cache-{}.stp",
+            std::process::id()
+        ));
+        std::fs::write(&path, bytes).unwrap();
+        let analysis = crate::model::analyse(&path).unwrap().1;
+        std::fs::remove_file(path).unwrap();
+        let shown = |mask: usize, name: &str| {
+            ["front", "plan", "side"]
+                .iter()
+                .enumerate()
+                .any(|(i, n)| *n == name && mask & (1 << i) != 0)
+        };
+        let expected: Vec<_> = (0..8)
+            .map(|mask| lower_uncached(&analysis, &|name| shown(mask, name)))
+            .collect();
+        assert!(expected.iter().any(|(items, _)| !items.is_empty()));
+        crate::planning::with(&analysis, || {
+            for mask in (0..8).chain((0..8).rev()) {
+                assert_eq!(lower(&analysis, &|name| shown(mask, name)), expected[mask]);
+            }
+        });
+    }
 
     /// draftwright's default finish statement (`Ra <value> µm unless otherwise specified`), and
     /// what is not one.

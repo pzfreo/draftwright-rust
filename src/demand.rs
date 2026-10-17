@@ -573,7 +573,7 @@ pub(crate) fn size_with_details(
             strips: strips.clone(),
             ..request.clone()
         };
-        let bare = layout::choose(
+        let mut bare = layout::choose(
             &req,
             &|_| Scaled::default(),
             scale,
@@ -581,13 +581,31 @@ pub(crate) fn size_with_details(
             &layout::AUTOMATIC_ARRANGEMENTS,
             None,
         );
+        if scale.is_none() && page.is_none() && bare.scale < d.lanes.recess_chain_scale {
+            let readable = layout::SCALES
+                .iter()
+                .copied()
+                .rev()
+                .find(|s| *s >= d.lanes.recess_chain_scale)
+                .unwrap_or(layout::SCALES[0]);
+            bare = layout::choose(
+                &req,
+                &|_| Scaled::default(),
+                Some(readable),
+                None,
+                &layout::AUTOMATIC_ARRANGEMENTS,
+                None,
+            );
+        }
         if !allow_larger && details(bare.scale).derived.is_empty() {
             return bare;
         }
         let detailed = layout::choose(
             &req,
             details,
-            if allow_larger {
+            if allow_larger
+                && !(scale.is_none() && page.is_none() && d.lanes.recess_chain_scale > 0.0)
+            {
                 scale
             } else {
                 Some(bare.scale)

@@ -22,11 +22,8 @@
 //!
 //! Python follows a Z pocket's two locations through one structured fact that covers both
 //! (`location_pocket.location`); here each is a requirement its claiming annotation must print.
-//! Not ported: a pocket that is a member of a recognised pocket pattern belongs to the pattern,
-//! not to this family; the bridge drops quiddity's derived `section_recess_patterns`, so
-//! membership cannot be read, and every pocket is judged as a lone one (no corpus recognition has
-//! a recess pattern). Not reached: `_suppressed` and `dropped` (lint cannot read the author's
-//! omissions or the placement's drops) and the assembly severity.
+//! Pattern members belong to [`super::pocket_patterns`]. Rounded pockets retain four
+//! independent corner-radius requirements, including pattern members.
 //!
 //! Hexagonal pockets (Python's `lint_hex_pocket_coverage` in `linting/section_recess_coverage.py`,
 //! LINT-section_recess_coverage-hex_pocket): each section recess the grammar reads as a regular
@@ -60,6 +57,7 @@ pub struct Placed {
     pub edge_anchored: bool,
     /// Its mouth is a cylinder, so its depth is its greatest.
     pub mouth: bool,
+    pub corner_radius: Option<f64>,
 }
 
 /// The Analysis's pockets in quiddity's order, each read in the part's frame or why it cannot be.
@@ -125,6 +123,7 @@ pub fn placed(analysis: &Analysis) -> Vec<(&Feature, Result<Placed, String>)> {
                     w_center: centre[width_axis],
                     edge_anchored: p.edge_anchored,
                     mouth: p.mouth.is_some(),
+                    corner_radius: p.corner_radius,
                 }),
             )
         })
@@ -162,6 +161,9 @@ pub fn locations(p: &Placed, datum: [f64; 3]) -> Vec<(String, f64)> {
 pub fn wanted(analysis: &Analysis) -> Vec<Wanted<'_>> {
     let mut out = Vec::new();
     for (f, p) in placed(analysis) {
+        if super::pocket_patterns::member(analysis, &f.id) {
+            continue;
+        }
         let p = match p {
             Ok(p) => p,
             Err(why) => {
@@ -314,6 +316,80 @@ pub fn hex_coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         marks,
         noun,
         "the hex pocket's callout (size across flats and depth), in the view along its axis",
+    )
+}
+
+/// Four independently recognised vertical corner blends already own the rounded profile's
+/// radius requirements. Match by constituent faces, axis and radius, never by a label alone.
+pub fn corner_blends<'a>(analysis: &'a Analysis, pocket: &Feature, p: &Placed) -> Vec<&'a Feature> {
+    let Some(radius) = p.corner_radius else {
+        return Vec::new();
+    };
+    let frame = frame(analysis);
+    let mut owners: Vec<_> = analysis
+        .features
+        .iter()
+        .filter(|f| {
+            f.kind == "blend"
+                && !super::blends::is_relief(analysis, f)
+                && !f.faces.is_empty()
+                && f.faces.iter().all(|face| pocket.faces.contains(face))
+                && f.parameters
+                    .get("radius")
+                    .and_then(serde_json::Value::as_f64)
+                    .is_some_and(|r| (r - radius).abs() <= 1e-6)
+                && f.parameters
+                    .get("path")
+                    .and_then(|path| super::parameters::direction(&frame, path.get("direction")))
+                    .and_then(principal)
+                    == Some(p.depth_axis)
+        })
+        .collect();
+    owners.sort_by(|a, b| a.faces.cmp(&b.faces));
+    if owners.len() == 4 && owners.windows(2).all(|w| w[0].faces != w[1].faces) {
+        owners
+    } else {
+        Vec::new()
+    }
+}
+
+/// Pattern corner radii have an explicit counted carrier, independent of whether a blanket
+/// radius note can be printed. These aliases must not also generate a blanket statement.
+pub(crate) fn pattern_corner_blends(a: &Analysis) -> std::collections::BTreeSet<String> {
+    placed(a)
+        .into_iter()
+        .filter(|(f, _)| super::pocket_patterns::member(a, &f.id))
+        .flat_map(|(f, p)| p.ok().map(|p| corner_blends(a, f, &p)).unwrap_or_default())
+        .map(|f| f.id.clone())
+        .collect()
+}
+
+/// Four physical corner requirements survive removal of their shared radius annotation.
+pub fn corner_coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
+    let mut wanted = Vec::new();
+    for (f, p) in placed(a) {
+        if let Ok(p) = p
+            && let Some(r) = p.corner_radius
+        {
+            if !corner_blends(a, f, &p).is_empty() {
+                continue;
+            }
+            for corner in 0..4 {
+                wanted.push(Wanted {
+                    feature: f,
+                    parameter: format!("pocket_corner_radius.radius.{corner}"),
+                    values: Ok(vec![r]),
+                    callout: format!("R{}", fmt(r)),
+                });
+            }
+        }
+    }
+    parameters::coverage(
+        "pocket_corner",
+        &wanted,
+        marks,
+        |f| format!("pocket {}", f.id),
+        "a radius callout identifying each equal tangent corner",
     )
 }
 

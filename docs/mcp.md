@@ -29,7 +29,7 @@ computation. Cold computation runs synchronously here; production jobs are below
 
 ## Tools and documents
 
-Every query carries `part_ref` and either `spec` or `spec_version`. An absent Spec means
+Drawing queries carry `part_ref` and either `spec` or `spec_version`. An absent Spec means
 the deterministic default Spec, rather than an implicit remembered edit. `get_spec` without
 either loads the explicitly named drawing's head; `drawing_ref` defaults to `default`.
 Use different drawing references for independent branches/tasks.
@@ -46,6 +46,7 @@ Use different drawing references for independent branches/tasks.
 | `view_sheet` | `sheet`, `region`, `overlay_ids`, `dpi` | PNG artifact metadata plus MCP image content for vision clients |
 | `render_pdf` | `sheet` | PDF artifact metadata |
 | `get_spec` | Optional version/Spec, or drawing head | Spec and its immutable version hash |
+| `spec_schema` | None (`{}`), no part needed | Full draft-2020-12 Spec schema and fragment naming the `get_spec` read shape |
 | `analyse` | `step`, optional `features` | One-shot full Analysis document |
 | `render` | `step`/`part_ref`, optional `features`, `format` (`png`/`pdf`), `sheet`, PNG region/overlay/dpi | One-shot render artifact metadata |
 | `parts` | `step` | The file's distinct parts: `{parts: [{part, name, product_id, faces, instances}]}` |
@@ -62,7 +63,17 @@ tool and a `part` argument too (docs/model.md, "Assemblies: one chosen part").
 Tool input and output schemas are standalone draft-2020-12 files under `schemas/mcp/`.
 Both adapters serve exactly those documents in `tools/list`, with `outputSchema` and
 `structuredContent`. Regenerate with `python3 tools/generate_mcp_schemas.py`.
-The shared operation shape is each apply/preview schema's `$defs/op`: `set`, `remove`, `add`,
+Spec values in `tools/list` are compact typed outlines: explicit top-level keys,
+basic types and short enums, with `additionalProperties: false` as before. Nested
+fields are described once on demand: call `spec_schema {}` and use the returned
+`spec` schema document (`schemas/spec.json`). Its `spec_read` result is the fragment
+`#/$defs/spec_read` within that same document, describing `get_spec`'s Spec value.
+Fetch it once before authoring unfamiliar fields; `item_options` supplies valid edit
+paths and geometry-specific choices. The full schema describes structure; reference,
+geometry and engineering checks still run in the model. Private generated preflight
+schemas (`schemas/mcp-validation.json`) preserve main's validation and refusal messages.
+Neither private nor full schemas are loaded into `tools/list`.
+The shared operation shape is each apply/preview schema's `op` (local `#/op` reference): `set`, `remove`, `add`,
 using the existing RFC 6901 escaped Spec paths (a slash within an ID is `~1`). S5 can consume
 that definition for its typed operation wrapper. The model performs semantic validation.
 Every tool's output also describes structured refusals (`error.code`, `message`, `choices`).
@@ -83,6 +94,7 @@ Lossless JSON artifacts use `resources/read {uri: "draftwright:<artifact_ref>"}`
 PNG/PDF artifacts return base64 blobs. These explicit detail reads can exceed the default budget.
 The PNG image content is also intentionally outside the text budget. `get_spec` returns the
 complete author document, which grows with authored intent rather than projected geometry.
+`spec_schema` is also an explicit, unpaged full-document read outside the default list budget.
 
 ## Library, cache and handle model
 
@@ -98,7 +110,7 @@ request ID does not conflict with the item's ID. Existing live Session operation
 
 `part_ref` is `<STEP SHA-256>-<engine SHA-256>`. `build.rs` derives `ENGINE_VERSION` from
 sorted, length-delimited relative paths and contents of `src/**/*.rs`, Cargo.lock, Cargo.toml,
-the build scripts, MCP `*.json` schemas and bundled `*.ttf`/`*.otf` fonts. Stray files
+the build scripts, all `schemas/**/*.json` documents and bundled `*.ttf`/`*.otf` fonts. Stray files
 (such as `.DS_Store`, swap files and backups) are excluded. Cargo watches files and
 directories, so edits, additions and removals of relevant inputs invalidate the key
 automatically; no manual suffix bump is needed.
@@ -201,9 +213,10 @@ here covers the complete shared S4B S0 op sequence on all four slice parts.
 D1 adds the real-model call client and finished-task checker; see
 [`tools/mcp-eval/README.md`](../tools/mcp-eval/README.md) for starting HTTP, listing tools,
 calling, logging bytes/tokens and scoring. Served descriptions explain each tool without
-requiring source access. Schemas factor repeated shapes through local `$defs` while
+requiring source access. Schemas factor repeated shapes through local JSON Pointer targets while
 remaining standalone. `cargo test --release --test engine_version` checks the source hash,
-cache namespace, tool descriptions and a 39,500-byte per-session schema budget.
+cache namespace, tool descriptions and the exact 34,389-byte per-session schema total (28 documents, 14 tools).
+See [the measurement](mcp-schema-budget.md) for baseline attribution and per-tool sizes.
 
 `inspect_part.key_items` is a deterministic, 700-byte index: envelope dimensions and
 representative feature sizes/dimensions. Use `list_items` for the complete list.
@@ -213,7 +226,7 @@ all associated item subjects and the feature itself; `subject` remains exact and
 filter fields combine. Default problem rows now carry `fix` ops. A `page_fit_uncertain` row's fix
 sets the nearest sheet size and/or scale that fit (`docs/model.md`); `sheet/projection` (`first`
 or `third`) is a spec path like `sheet/size` and `sheet/scale`, and the regenerated schemas
-(`schemas/mcp/`) list it.
+(the `spec_schema` response / `schemas/spec.json`) list it.
 
 `item_options.settable` maps escaped Spec paths to accepted `choices`, numeric `range`
 (inclusive, with `integer` where needed), tolerance `forms`, or title `fields`. A
@@ -223,7 +236,7 @@ are strings (`±T` or `+U -L`); fits use `features/<id>/fit`. A feature's item a
 `features/<id>/datum` (`forms`: a letter) and `features/<id>/controls` (`fields`; the 14
 characteristics are in `docs/model.md`) for the feature its ID names; a face takes the
 same at `faces/<bottom|top|left|right|front|back|face:n>/…` (`docs/model.md`, "Datums and
-controls authored in the Spec"; the Spec schema's `faces` in `schemas/mcp/`). It also lists
+controls authored in the Spec"; the full Spec schema's `faces` in `schemas/spec.json`). It also lists
 `features/<id>/finish` (`fields` `ra`, `removal`), `/note` (`forms`: text), `/thread` (`fields`
 `designation`, `length`) on a hole, hole pattern or turned diameter and `/knurl` (`fields`
 `pattern`, `pitch`) on a turned diameter; the sheet item lists `sheet/default_finish`
@@ -234,7 +247,7 @@ and the drawing number is `sheet/title/number`. Compatible view/side pairs remai
 A callout also lists `place/offset` (`range` per component of the pair): its bend's `[dx, dy]`
 from its automatic leader tip in paper mm, which can put the label inside the view. It is a
 pinned form of its own: set `{"offset":[dx,dy],"pinned":true}` with no side, lane or along
-(`docs/model.md`, Placement). The `place` schema in `schemas/mcp/` lists it.
+(`docs/model.md`, Placement). The full Spec schema's `$defs/place` in `schemas/spec.json` lists it.
 
 Common unambiguous vocabulary errors include valid choices and an explicit
 `Corrected op: {JSON}` in the refusal message. They keep the invalid edit unapplied;
@@ -409,8 +422,10 @@ invocations; blocked preflight prefixes do not count. Previews leave Stats untou
 Schemas inline one-use definitions and use equivalent nullable types and enums.
 They omit redundant canonical `$id` URLs and the dialect annotation, using MCP's
 [default JSON Schema 2020-12 dialect](https://modelcontextprotocol.io/specification/2025-11-25/basic#schema-dialect).
-`$defs/op` remains published by apply/preview input schemas. This keeps the existing
-39,500-byte schema budget without loosening any validation constraint.
+`op` remains published by apply/preview input schemas with local reference `#/op`.
+The context budget is 34,389 bytes after replacing repeated nested Spec definitions
+with the typed outline. Nested Spec fields no longer increase that total; generated
+private schemas retain the existing server validation constraints.
 
 `cargo test --release --test sheets_mcp` covers addressing, filtering, move/replay,
 render selection and schema controls. `cargo test --release --test multi_sheet_latency

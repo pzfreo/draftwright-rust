@@ -103,14 +103,16 @@ fn without_features_the_command_line_recognises_with_rust_quiddity() {
 
         let (code, plan) = run(&["plan", step]);
         assert_eq!(code, Some(0), "{name}: {plan}");
-        let p = not_recognised(&plan["problems"])
-            .unwrap_or_else(|| panic!("{name}: the unrecognised families are not reported"));
-        assert_eq!(p["severity"], "warning");
-        assert_eq!(p["refs"], serde_json::to_value(unrecognised(&a)).unwrap());
-        assert!(
-            p["message"].as_str().unwrap().contains(recogniser(&a)),
-            "{name}: {p}"
-        );
+        let warning = not_recognised(&plan["problems"]);
+        assert_eq!(warning.is_some(), !unrecognised(&a).is_empty(), "{name}");
+        if let Some(p) = warning {
+            assert_eq!(p["severity"], "warning");
+            assert_eq!(p["refs"], serde_json::to_value(unrecognised(&a)).unwrap());
+            assert!(
+                p["message"].as_str().unwrap().contains(recogniser(&a)),
+                "{name}: {p}"
+            );
+        }
     }
     // The plate's four holes and their grid, as Python's recognition has them.
     let (_, a) = run(&["analyse", fixture("parts/plate.step").to_str().unwrap()]);
@@ -251,7 +253,7 @@ fn corpus_parts_render_natively_naming_what_is_not_recognised() {
         for r in doc
             .records
             .iter()
-            .filter(|r| !native::READ.contains(&r.family.as_str()))
+            .filter(|r| !native::represented(&r.family))
         {
             *counted.entry(r.family.clone()).or_default() += 1;
         }
@@ -264,7 +266,10 @@ fn corpus_parts_render_natively_naming_what_is_not_recognised() {
         assert!(recogniser(&a).starts_with("quiddity-rust "), "{name}");
         assert!(!a["features"].as_array().unwrap().is_empty(), "{name}");
         assert_eq!(unrecognised(&a), expected, "{name}");
-        for u in a["unrecognised"].as_array().unwrap() {
+        if expected.is_empty() {
+            assert!(a.get("unrecognised").is_none(), "{name}: {a}");
+        }
+        for u in a["unrecognised"].as_array().into_iter().flatten() {
             let family = u["family"].as_str().unwrap();
             assert_eq!(
                 u.get("records").and_then(Value::as_u64),
@@ -277,8 +282,11 @@ fn corpus_parts_render_natively_naming_what_is_not_recognised() {
         let (code, r) = run(&["render", step, "-o", out.to_str().unwrap()]);
         assert_eq!(code, Some(0), "{name}: {r}");
         assert_eq!(r["written"].as_array().unwrap().len(), 2, "{name}");
-        let p = not_recognised(&r["problems"]).unwrap();
-        assert_eq!(p["refs"], serde_json::to_value(&expected).unwrap());
+        let warning = not_recognised(&r["problems"]);
+        assert_eq!(warning.is_some(), !expected.is_empty(), "{name}");
+        if let Some(p) = warning {
+            assert_eq!(p["refs"], serde_json::to_value(&expected).unwrap());
+        }
 
         // With Python's JSON, its own features and no such problem.
         if let Some(json) = sheet_recognition(name) {

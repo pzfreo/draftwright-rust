@@ -1382,7 +1382,7 @@
   status: pending
   rust_note: "Partly ported (src/hole_table.rs, model::plan_escalated): a hole callout or location placed off the sheet is dropped, reported with draftwright's code (callout_dropped, location_ref_dropped; off_axis_location_dropped at info), and a callout or plan-view location drop escalates to the pattern balloon or the hole table with balloons under draftwright's gates (at least 16 holes outside a pattern), the table transactional; unresolved drops are required losses the layout recovery (model::recover) tries a scale or sheet for; the Plan item's basis records a table's replacement. Detail views now recover approved crowded axial chains, heads and prismatic rungs (src/detail.rs); exact owned IDs move through the normal dimension planner. Still pending: the general Escalation remedies list and non-detail collision remedies. Stage H1 adds the table rung before any drop (tests/planned_hole_tables.rs::crowding_selects_a_schedule_before_any_item_is_dropped). Stage J detail views now reserve space during sheet choice, before iso fitting."
   port_note: "triage 2026-10-16: PORT, value medium, size L, stream detail-views"
-  rust_test: "tests/hole_tables.rs::ftc09_drops_and_reports_its_off_sheet_hole_items; tests/hole_tables.rs::ftc08_drops_and_reports_its_off_sheet_hole_items"
+  rust_test: "tests/hole_tables.rs::ftc09_keeps_every_hole_item_with_the_reserved_recess_lanes; tests/hole_tables.rs::ftc08_keeps_every_hole_item_with_the_reserved_recess_lanes; tests/hole_tables.rs::a_starved_dense_sheet_reports_every_dropped_hole_item"
 
 - id: ARCH0009-3
   statement: "A central hole's callout on a prismatic part stays on the view-centre row; on a turned part a coaxial bore's callout is pushed off the centre-line instead."
@@ -1603,8 +1603,8 @@
     issues: [724, 725, 726, 727, 728, 1382, 1392, 1421, 1433]
     tests: []
   status: ported
-  rust_note: "Compact approved-value callout grammars are implemented for chamfers and fillets (src/dims/edges.rs; tests/dims_edges.rs), flats and grooves (tests/dims_grooves_flats.rs), steps and ramps (tests/dims_steps.rs), pockets (tests/dims_recesses.rs), blends (tests/dims_blends.rs), blind slots including ROUND-BOTTOM OPEN SLOT (tests/dims_slots.rs), and raised pads with footprint, HIGH height and location (src/dims/pads.rs; tests/completeness_rules.rs::each_raised_pad_states_its_footprint_height_and_location)."
-  rust_test: "tests/completeness_rules.rs::each_raised_pad_states_its_footprint_height_and_location"
+  rust_note: "Compact approved-value callout grammars remain implemented by the existing planners. Recess pockets, curved MAX DEEP pockets, channels and blind slots now receive their records on the native default path as well as the bridge. tests/native_recesses.rs checks native recess grammar and ownership; the existing pad, edge, step, slot and blend tests remain in force."
+  rust_test: "tests/completeness_rules.rs::each_raised_pad_states_its_footprint_height_and_location; tests/native_recesses.rs::native_recess_grammars_and_unsupported_dispositions_are_preserved"
   port_note: "Keep: callout text templates in the Plan's display-text formatter."
 
 - id: ARCH0015-2

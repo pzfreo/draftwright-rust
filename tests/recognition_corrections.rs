@@ -1,4 +1,7 @@
 //! Issue #76 item 2: author intent changes the inventory, never the measuring/rendering path.
+#[path = "common/mcp_schema.rs"]
+mod mcp_schema;
+
 use std::borrow::Cow;
 use std::path::Path;
 
@@ -262,19 +265,35 @@ fn split_and_regroup_use_the_ordinary_grid_planner_and_saved_ids() {
 }
 
 #[test]
-fn split_grid_prefers_clean_readable_a4_over_marginal_a3_fill() {
+fn split_grid_keeps_short_leaders_when_a4_cannot_preserve_association() {
     let (part, a) = plate();
     let pattern = &a.recognition.as_ref().unwrap().patterns[0];
     let split = spec(json!({"features":{&pattern.id:{"split":true}}}));
     let automatic = model::plan_recovered(&a, &split).unwrap();
     assert_eq!(automatic.dimensions.len(), 13);
-    assert!(automatic.sheet.basis.contains("smallest fit A4 at 1:1"));
-    assert!(automatic.sheet.basis.contains(
-        "A4 1:1 fill 52.2% (valid and complete, 0 additional view conflicts, 0 additional material crossings"
-    ), "{}", automatic.sheet.basis);
+    // Main's centre-line furniture makes one A4 callout 31.7 mm long.
+    // The A3 reference keeps it near 10 mm; the existing 2 mm route-growth
+    // allowance forbids buying a smaller sheet with worse association.
+    assert!(
+        automatic.sheet.basis.contains("A4 1:1 fill 52.2%"),
+        "{}",
+        automatic.sheet.basis
+    );
+    assert!(
+        automatic
+            .sheet
+            .basis
+            .contains("leader length exceeds retained route by more than 2 mm"),
+        "{}",
+        automatic.sheet.basis
+    );
     assert_eq!(
         (&*automatic.sheet.size, &*automatic.sheet.scale),
-        ("A4", "1:1")
+        ("A3", "2:1")
+    );
+    assert_eq!(
+        draftwright::sheet_fit::readability(&a, &automatic).failures(),
+        0
     );
 
     let mut pinned = split;
@@ -608,11 +627,65 @@ fn an_authored_linear_pair_replaces_its_automatic_grid_membership() {
         json!({"features":{"f:hole_pattern:pair":{"pattern":{"arrangement":"linear","members":[first.feature.id,second.feature.id]}}}}),
     );
     let p = model::plan_recovered(&a, &s).unwrap();
-    assert!(
-        p.dimensions
+    if !p
+        .dimensions
+        .iter()
+        .any(|d| d.id == "d:f:hole_pattern:pair/pitch.length" && !d.default)
+    {
+        // A readable smaller sheet may carry the pair in its schedule. Its
+        // absolute member coordinates must still convey the exact authored pitch.
+        let pitch = (0..3)
+            .map(|k| (first.at[k] - second.at[k]).powi(2))
+            .sum::<f64>()
+            .sqrt();
+        let table = p
+            .hole_tables
             .iter()
-            .any(|d| d.id == "d:f:hole_pattern:pair/pitch.length" && !d.default)
-    );
+            .find(|t| {
+                t.covered.iter().any(|m| {
+                    m.feature == "f:hole_pattern:pair"
+                        && m.parameter == "pitch.length"
+                        && (m.value - pitch).abs() < 1e-6
+                })
+            })
+            .expect("the schedule retains the authored pitch");
+        let row = |id: &str| {
+            table
+                .rows
+                .iter()
+                .find(|r| r.feature == id)
+                .expect("both authored members retain coordinate rows")
+        };
+        for hole in [first, second] {
+            let r = row(&hole.feature.id);
+            for k in (0..3).filter(|&j| j != hole.principal.unwrap().0) {
+                let name = format!("location.length.{}", ["x", "y", "z"][k]);
+                assert!(
+                    r.measurements
+                        .iter()
+                        .any(|m| m.feature == hole.feature.id && m.parameter == name)
+                );
+            }
+        }
+        for k in (0..3).filter(|&j| j != first.principal.unwrap().0) {
+            let name = format!("location.length.{}", ["x", "y", "z"][k]);
+            let coordinate = |id: &str| {
+                row(id)
+                    .measurements
+                    .iter()
+                    .find(|m| m.parameter == name)
+                    .unwrap()
+                    .value
+            };
+            assert!(
+                ((coordinate(&first.feature.id) - coordinate(&second.feature.id))
+                    - (first.at[k] - second.at[k]))
+                    .abs()
+                    < 1e-6
+            );
+        }
+        assert!(p.omitted.iter().any(|d| d.id == "d:f:hole_pattern:pair/pitch.length" && matches!(&d.state, draftwright::items::State::Covered{by} if by == &table.id)));
+    }
     let effective = corrections::effective(&a, &p.spec).unwrap();
     let patterns = &effective.recognition.as_ref().unwrap().patterns;
     assert_eq!(patterns.len(), 1);
@@ -676,7 +749,7 @@ fn a_bolt_circle_derives_its_pcd_and_lint_still_requires_its_position() {
 
 #[test]
 fn published_mcp_schema_and_common_model_accept_corrections_and_refuse_bad_shapes() {
-    let input = draftwright::mcp::schema("inspect_part", false).unwrap();
+    let input = mcp_schema::with_full_spec("inspect_part", false);
     assert!(
         draftwright::mcp::validate(&input, &json!({"part_ref":"part","part_ref\n":"bad"})).is_err()
     );

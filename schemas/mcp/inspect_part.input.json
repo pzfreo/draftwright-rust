@@ -16,125 +16,41 @@
             "null"
           ]
         },
+        "sheet": {
+          "$ref": "#/A"
+        },
+        "iso_scale_factor": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "sheets": {
           "type": [
             "object",
             "null"
-          ],
-          "properties": {
-            "smallest_scale": {
-              "$ref": "#/A"
-            },
-            "keep_together": {
-              "type": "array",
-              "items": {
-                "$ref": "#/B"
-              }
-            },
-            "gdt_on_sheet_1": {
-              "type": "boolean"
-            }
-          },
-          "additionalProperties": false,
-          "patternProperties": {
-            "^(max|hole_table)$(?!\n)": {
-              "enum": [
-                null,
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-                8,
-                9
-              ]
-            }
-          }
-        },
-        "sheet": {
-          "type": "object",
-          "properties": {
-            "title": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "string"
-              }
-            },
-            "projection": {
-              "enum": [
-                null,
-                "first",
-                "third"
-              ]
-            },
-            "default_finish": {
-              "type": [
-                "object",
-                "null"
-              ]
-            }
-          },
-          "additionalProperties": false,
-          "patternProperties": {
-            "^(hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
-            "^(size|scale)$(?!\n)": {
-              "$ref": "#/A"
-            }
-          }
+          ]
         },
         "views": {
-          "additionalProperties": {
-            "properties": {
-              "detail": {
-                "type": [
-                  "object",
-                  "null"
-                ],
-                "properties": {
-                  "around": {
-                    "type": [
-                      "string",
-                      "array"
-                    ],
-                    "items": {
-                      "type": "string"
-                    },
-                    "minItems": 1
-                  },
-                  "from": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "pattern": "^(front|plan|side|section_([a-h])\\2)(?![\\s\\S])"
-                  },
-                  "scale_factor": {
-                    "type": "number",
-                    "exclusiveMinimum": 1
-                  }
-                },
-                "required": [
-                  "around"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "patternProperties": {
-              "^(hidden|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
-                "type": [
-                  "boolean",
-                  "null"
-                ]
-              }
-            }
-          }
+          "$ref": "#/A"
+        },
+        "dimensions": {
+          "$ref": "#/A"
+        },
+        "annotations": {
+          "$ref": "#/A"
+        },
+        "features": {
+          "$ref": "#/A"
+        },
+        "faces": {
+          "$ref": "#/A"
+        },
+        "dimension_schemes": {
+          "$ref": "#/A"
+        },
+        "precision": {
+          "$ref": "#/A"
         },
         "dimension_source": {
           "enum": [
@@ -149,40 +65,27 @@
             "never"
           ]
         },
+        "envelope_tolerance": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notes": {
+          "type": "array"
+        },
+        "tables": {
+          "type": "array"
+        },
+        "gears": {
+          "type": "array"
+        },
         "feature_declarations": {
-          "items": {
-            "properties": {
-              "faces": {
-                "$ref": "#/B"
-              }
-            },
-            "additionalProperties": {
-              "type": "string"
-            },
-            "required": [
-              "id",
-              "kind",
-              "faces"
-            ],
-            "maxProperties": 3
-          }
+          "type": "array"
         }
       },
       "additionalProperties": false,
-      "patternProperties": {
-        "^(views|dimensions|annotations|features|faces|dimension_schemes)$(?!\n)": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object"
-          }
-        },
-        "^(notes|tables|gears|feature_declarations)$(?!\n)": {
-          "type": "array",
-          "items": {
-            "type": "object"
-          }
-        }
-      }
+      "description": "Typed outline only. Call spec_schema {} for the full Spec and get_spec spec_read schemas; item_options gives valid edit paths and choices."
     },
     "part": {
       "type": "integer",
@@ -206,7 +109,10 @@
       "additionalProperties": false,
       "patternProperties": {
         "^(code|subject|feature)$(?!\n)": {
-          "$ref": "#/A"
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     }
@@ -230,15 +136,6 @@
     }
   },
   "A": {
-    "type": [
-      "string",
-      "null"
-    ]
-  },
-  "B": {
-    "items": {
-      "type": "string"
-    },
-    "type": "array"
+    "type": "object"
   }
 }

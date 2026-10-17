@@ -1,4 +1,7 @@
 //! Authored quantities use exact B-rep evidence and the ordinary editing and ink pipeline.
+#[path = "common/mcp_schema.rs"]
+mod mcp_schema;
+
 use draftwright::{
     api,
     items::Op,
@@ -679,7 +682,7 @@ fn authored_dimensions_keep_label_overrides_geometry_schema_and_live_lint() {
         .iter()
         .find(|d| d.id == "d:authored:width")
         .unwrap();
-    let schema = draftwright::mcp::schema("get_spec", true).unwrap();
+    let schema = mcp_schema::with_full_spec("get_spec", true);
     for style in ["basic", "reference"] {
         let mut value = serde_json::to_value(&base).unwrap();
         let entry = &mut value["dimensions"]["d:authored:width"];

@@ -892,7 +892,7 @@ fn declining_optional_details_does_not_buy_new_annotation_crossings() {
     );
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A3", "1:1"),
+        ("A3", "2:1"),
         "{}",
         p.sheet.basis
     );

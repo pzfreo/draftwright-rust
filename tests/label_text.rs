@@ -1,3 +1,6 @@
+#[path = "common/mcp_schema.rs"]
+mod mcp_schema;
+
 use draftwright::{
     Session, dims,
     items::{Op, key},
@@ -446,7 +449,7 @@ fn quantity_prefix_stays_visible_to_lint_and_cannot_double_an_existing_count() {
 
 #[test]
 fn mcp_saved_spec_shape_and_closed_object_cardinality_remain_strict() {
-    let schema = draftwright::mcp::schema("get_spec", true).unwrap();
+    let schema = mcp_schema::with_full_spec("get_spec", true);
     for value in [
         json!({"prefix":"2×","suffix":"TYP"}),
         json!({"template":"{value} AFTER PLATING"}),

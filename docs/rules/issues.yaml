@@ -340,9 +340,9 @@
       - "tests/test_issue_885_prismatic_coverage.py::test_auto_drawing_defines_pad_footprints_and_pocket_locations"
       - "tests/test_issue_885_prismatic_coverage.py::test_side_opening_pocket_gets_two_in_plane_location_dimensions"
     corpus_parts: []
-  status: pending
-  rust_test: "tests/completeness_rules.rs::each_raised_pad_states_its_footprint_height_and_location"
-  rust_note: "Stream K5 (src/dims/pads.rs): each raised pad is dimensioned on its own, footprint width and length between its own edges, its height as a HIGH callout, and its centre located from the part's corner in both directions across it (a direction on the datum left out, location_on_datum), in the view that looks down on it; equal pads at distinct sites keep their own items (draftwright's pad-compound-equal.step, pad-z-positive.step, pad-x-positive.step: every requirement drawn and lint finds none missing). Rust quiddity reads draftwright's pad-full-span-ledge-negative.step as through steps and pad-nested-staircase-negative.step with no pad, so neither is a pad. Not ported: side-opening pockets' two in-plane locations (the native path reads no pockets yet: pocket-side.step reports features_not_recognised). Rules-text blocker (2026-10-16): Native READ still omits pockets/section recesses, so the Python side-opening-pocket case has no two-location drawing on the native path."
+  status: ported
+  rust_test: "tests/completeness_rules.rs::each_raised_pad_states_its_footprint_height_and_location; tests/native_recesses.rs::native_side_pockets_state_size_depth_and_both_locations"
+  rust_note: "The native default path now reads unified recesses and plans side-opening pockets with size/depth and both in-plane datum locations in the view looking into the pocket. Existing pad footprint, local height and location tests remain in force."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream recess-reader"
 
 - id: ISSUE-885-b
@@ -421,8 +421,8 @@
       - "tests/test_issue_917_open_channel.py::test_wrong_channel_identity_cannot_clear_the_physical_transition_warning"
     corpus_parts: []
   status: ported
-  rust_test: "tests/issue_regressions.rs::an_open_channel_is_one_feature_with_one_width"
-  rust_note: "An open U-channel has one channel-width item and its plates' thicknesses are stated once or covered as derived (src/dims/plates.rs, src/lint/channels.rs). tests/issue_regressions.rs::an_open_channel_is_one_feature_with_one_width checks symmetric and asymmetric channels, clean lint, loss of coverage when thickness claims are severed, and bounded-pocket and centred-rebate exclusions."
+  rust_test: "tests/issue_regressions.rs::an_open_channel_is_one_feature_with_one_width; tests/native_recesses.rs::native_recess_grammars_and_unsupported_dispositions_are_preserved"
+  rust_note: "The native default path reads the unified open U-channel and states its width once, alongside the existing plateau/step and ownership rules. Bounded pockets retain their own grammar."
   port_note: "Keep: scenario test on synthetic channel parts -> plan has one channel chain without redundant wall dimension."
 
 - id: ISSUE-924-a
@@ -1516,9 +1516,9 @@
       - "tests/test_issue_1245_passage_disposition.py::test_passage_profile_correlation_fails_closed"
     corpus_parts: []
   status: translated
-  rust_test: "src/lint/section_recesses.rs::tests::a_recess_no_grammar_reads_is_reported_unsupported"
+  rust_test: "src/lint/section_recesses.rs::tests::a_recess_no_grammar_reads_is_reported_unsupported; tests/native_recesses.rs::native_passages_pockets_and_source_refusals_reach_lint"
   rust_rule: "src/lint/section_recesses.rs reports an unreadable passage as passage_requirement_unsupported at warning severity, with the reason and (k of N), regardless of the marks (src/lint/section_recesses.rs::tests::a_recess_no_grammar_reads_is_reported_unsupported)."
-  rust_note: "src/lint/section_recesses.rs reports an unreadable passage as passage_requirement_unsupported at warning severity, with the reason and (k of N), regardless of the marks (src/lint/section_recesses.rs::tests::a_recess_no_grammar_reads_is_reported_unsupported). No depth is invented. The plan also reports dimensions_not_ported; src/completeness.rs sets its final severity to warning for a single-part drawing or info for multiple solids."
+  rust_note: "Native recognition/3 carries unsupported passages into the same grammar disposition and lint as the bridge; no dimensions are invented. Source projection refusals remain explicit lint findings."
   port_note: "Keep: plan problem 'unsupported feature' per recognised-but-undrawable feature."
 
 - id: ISSUE-1246-a
@@ -1532,9 +1532,9 @@
       - "tests/test_issue_1246_prismatic_pocket_disposition.py::test_a_four_sided_survivor_is_unsupported_not_misclassified_as_non_rectangular"
     corpus_parts: []
   status: translated
-  rust_test: "tests/lint.rs"
+  rust_test: "tests/lint.rs; tests/native_recesses.rs::native_passages_pockets_and_source_refusals_reach_lint"
   rust_rule: "src/lint/section_recesses.rs reports every recess no grammar reads as prismatic_pocket_requirement_unsupported, passage_requirement_unsupported or section_recess_requirement_unsupported, with a reason (tests/lint.rs and tests/fixtures/known_lint.json)."
-  rust_note: "src/lint/section_recesses.rs reports every recess no grammar reads as prismatic_pocket_requirement_unsupported, passage_requirement_unsupported or section_recess_requirement_unsupported, with a reason (tests/lint.rs and tests/fixtures/known_lint.json). The plan reports an unclaimed feature as dimensions_not_ported, with final severity warning on a single part or info on multiple solids (src/completeness.rs); it invents no pocket dimensions."
+  rust_note: "Native recognition/3 carries unsupported prismatic pockets into the same disposition and lint as the bridge (including the K3 triangular pocket on 14052). No depth or footprint grammar is invented."
   port_note: "Keep."
 
 - id: ISSUE-1247-a
@@ -2583,9 +2583,9 @@
       - "tests/test_issue_1485_curved_pockets.py::test_curved_source_rejects_a_floor_that_breaks_through_the_mouth"
       - "tests/test_issue_1485_curved_pockets.py::test_repeated_curved_pockets_keep_one_group_and_every_original_occurrence"
     corpus_parts: []
-  status: pending
-  rust_test: "tests/issue_regressions.rs::a_cylindrical_mouth_states_its_greatest_depth"
-  rust_note: "Partial: on draftwright's pocket cut into a cylinder (centred, offset, turned over, moved and turned to stand along z), the callout claims pocket_max_depth.length, never pocket_depth.length, prints MAX DEEP and states draftwright's depth (12, or √364 − 8) to 0.001 mm (src/dims/recesses.rs, through lint::section_recesses::grammar); five broken records (a floor through the mouth, a mouth off its centroid intersection, an unknown end surface, two cylindrical ends, a mouth opening towards its floor) are refused with draftwright's reasons and not dimensioned, the recess reported (dimensions_not_ported, whose message is out of date). A planar reading cannot certify it: a drawn callout claiming a uniform pocket_depth.length (DEEP in place of MAX DEEP) leaves pocket_max_depth.length reported by lint::pockets and credits nothing (tests/issue_regressions.rs::a_planar_reading_cannot_certify_a_curved_pocket; draftwright substitutes a planar declared feature and finds the five requirements unverifiable, the port having no declared features: equivalent in what it guards). Not ported: repeated curved pockets as one N× group (quiddity's section_recess_patterns are not read). Difference: the centred depth prints 12.0 where draftwright prints 12, because the document rounds the floor's run interval to 0.001 mm and gives the mouth's axis to the micrometre (12.000483; rust-wrong in what is printed, from the input). Rules-text blocker (2026-10-16): Native READ still omits section_recesses/pocket patterns, and no original-occurrence grouping for repeated curved pockets reaches Analysis."
+  status: ported
+  rust_test: "tests/issue_regressions.rs::a_cylindrical_mouth_states_its_greatest_depth; tests/native_recesses.rs::native_patterns_have_one_grouped_callout_pitches_and_absolute_location"
+  rust_note: "Native repeated curved pockets retain every occurrence, one grouped count/size/MAX DEEP callout, pitch and absolute location. Existing planar-substitution and inconsistent-mouth refusal tests remain in force. The prior bridge record precision limitation remains documented in tests/issue_regressions.rs."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream recess-reader"
 
 - id: ISSUE-1485-b
@@ -2615,8 +2615,9 @@
       - "tests/test_issue_1485_rounded_pockets.py::test_valid_unequal_tangent_corners_cannot_be_reported_as_one_radius"
       - "tests/test_issue_1485_rounded_pockets.py::test_removing_pattern_pitch_reopens_the_member_location_warning"
     corpus_parts: ["tuner_jig_blind_obround_pockets.step"]
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): partial. The rounded-pocket grammar reads a corner radius only from four equal tangent quarter arcs and refuses unequal or mixed corners as unsupported, never reporting them as one radius (src/lint/section_recesses.rs::rounded_pocket). Not ported: the corner radius as a requirement (the pocket callout and lint::pockets state and check width, length, depth and location, not the radius), and pitch plus absolute locations for repeated pockets (pocket patterns are not read, LINT-pocket_pattern_coverage-requirements). Rules-text blocker (2026-10-16): Native READ takes neither pocket patterns nor section recesses; no pattern location/individual-corner ownership contract reaches Analysis."
+  status: ported
+  rust_test: "tests/native_recesses.rs::rounded_pocket_corner_radius_reaches_native_ink_and_lint"
+  rust_note: "The tuner fixture retains five rounded profiles, their 3.94 mm corner radius, one grouped pocket callout, pitch and absolute locations. The explicit counted pattern-corner callout carries matching blend claims, and those blends do not also generate a blanket radius note. Lone pockets reuse matching blend carriers; without blend evidence the callout owns four corner measurements per occurrence. Removing the carrier reopens all twenty physical corner requirements, on both the recognised-blend and fallback paths. Removing pitch reopens the member location warning. Unequal or mixed tangent corners remain unsupported by the existing grammar."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream recess-reader"
 
 - id: ISSUE-1505-a

@@ -21,8 +21,21 @@ All notable changes to draftwright-rust are recorded here, in the style of
   independently without changing their thresholds or baselines.
   Exhausted searches retain fitted geometry and report all measured readability
   failures; optional capacity cannot buy larger paper for an incomplete result.
+  Native recesses retain their established scale for fill-driven growth while
+  permitting necessary readable enlargement. Bounded free-lane/text repairs
+  precede larger paper and retain every measurement and existing quality limit.
 
 ### Added
+
+- Read native recognition/3 unified section recesses, source refusals, face levels
+  and risers. The default path now uses the existing pocket/channel/blind-slot/
+  passage drafting grammars and no longer warns that section recesses are absent
+  from the document. Native and Python 0.4 readers retain unified pocket patterns: grouped count
+  and size/depth callouts, pitch and absolute locations, independent coverage
+  outcomes, and four retained radius requirements per rounded pocket. Five pending
+  recess-reader rules and four formerly bridge-only rules have native regressions.
+  The kernel is pinned to quiddity-rust release `v0.1.0-alpha.5` (`6494e07f`).
+  See docs/native-recesses.md for reader and drafting details.
 
 - Authored detail `from` selects an existing principal or section parent; `around` accepts
   a feature/face ID or a nonempty list whose crops are united. Missing members and
@@ -35,6 +48,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
   planning, carry stable view IDs and their own scale, and draw parent circles, letters,
   captions and relocated dimensions. A fitting iso keeps sheet scale beside a detail.
   Verification and Python differences: [detail views](docs/detail-verification.md).
+- MCP `spec_schema {}` returns the full draft-2020-12 author Spec schema and its
+  named `get_spec` read shape on demand. Tool schemas retain explicit typed top-level
+  outlines, reducing session schema context from 42,681 to 34,389 bytes (19.43%).
+  Nested Spec additions no longer grow tools/list; server validation and corrective
+  guidance are unchanged.
+
 - Spec dimensioning schemes by feature pattern, station set or principal view axis: chain,
   chosen-datum baseline and signed running ordinate, with stable references, session edits,
   one-owner networks and independent printed-link lint (#76 item 4).
@@ -61,6 +80,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
   Session options/edits support them; effective paths are reported in view `from_spec`.
 
 ### Fixed
+
+- Preserve archived Python 0.3.9 pocket callouts and individual datum locations.
+- Repair displaced location witnesses through foreign features and overlapping
+  callout text with bounded route moves that retain the existing physical guards.
+
+- Avoid repeated projection and collision work during complete sheet searches with native
+  recesses, retaining the original native and WASM release settings.
+
 
 - Automatic sheet candidates require dimensioned turned-step intervals to span at least
   the printed annotation capital height in their owning view, including baseline replacements.

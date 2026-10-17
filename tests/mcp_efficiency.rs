@@ -384,18 +384,21 @@ fn batch_refusal_corrects_the_named_failure_and_reports_its_index() {
 
 #[test]
 fn compact_nullable_schema_types_keep_validation_strict() {
-    let schema = mcp::schema("inspect_part", false).unwrap();
+    // Published inputs are shallow; server preflight retains the original strict shape.
+    let preflight: Value =
+        serde_json::from_str(include_str!("../schemas/mcp-validation.json")).unwrap();
+    let schema = &preflight["inspect_part"];
     for spec in [
         json!({"sheet":{"size":null,"fit_limits":null}}),
         json!({"sheet":{"size":"A4","fit_limits":true}}),
     ] {
-        mcp::validate(&schema, &json!({"part_ref":"part","spec":spec})).unwrap();
+        mcp::validate(schema, &json!({"part_ref":"part","spec":spec})).unwrap();
     }
     for spec in [
         json!({"sheet":{"size":42}}),
         json!({"sheet":{"fit_limits":"yes"}}),
     ] {
-        assert!(mcp::validate(&schema, &json!({"part_ref":"part","spec":spec})).is_err());
+        assert!(mcp::validate(schema, &json!({"part_ref":"part","spec":spec})).is_err());
     }
     for (types, accepted, refused) in [
         (json!(["string", "null"]), json!("A4"), json!(42)),
@@ -454,7 +457,9 @@ fn shared_schema_types_preserve_state_alternatives_and_detail_placements() {
 
 #[test]
 fn compact_prefix_suffix_choices_and_authored_dimension_outputs_stay_strict() {
-    let input = mcp::schema("inspect_part", false).unwrap();
+    let preflight: Value =
+        serde_json::from_str(include_str!("../schemas/mcp-validation.json")).unwrap();
+    let input = &preflight["inspect_part"];
     for name in [
         "fit_limits",
         "fit_deviations",
@@ -465,7 +470,7 @@ fn compact_prefix_suffix_choices_and_authored_dimension_outputs_stay_strict() {
     ] {
         for value in [json!(true), json!(false), Value::Null] {
             mcp::validate(
-                &input,
+                input,
                 &json!({"part_ref":"part","spec":{"sheet":{name:value}}}),
             )
             .unwrap();
@@ -473,7 +478,7 @@ fn compact_prefix_suffix_choices_and_authored_dimension_outputs_stay_strict() {
         for bad_name in [format!("{name}\n"), format!("{name}_extra")] {
             assert!(
                 mcp::validate(
-                    &input,
+                    input,
                     &json!({"part_ref":"part","spec":{"sheet":{bad_name:true}}})
                 )
                 .is_err()
@@ -481,7 +486,7 @@ fn compact_prefix_suffix_choices_and_authored_dimension_outputs_stay_strict() {
         }
         assert!(
             mcp::validate(
-                &input,
+                input,
                 &json!({"part_ref":"part","spec":{"sheet":{name:"yes"}}})
             )
             .is_err()
@@ -495,13 +500,17 @@ fn compact_prefix_suffix_choices_and_authored_dimension_outputs_stay_strict() {
     ] {
         assert!(
             mcp::validate(
-                &input,
+                input,
                 &json!({"part_ref":"part","spec":{"sheet":{name:true}}})
             )
             .is_err()
         );
     }
-    let output = mcp::schema("get_spec", true).unwrap();
+    let discovered = mcp::call(&Cache::new("unused"), "spec_schema", &json!({})).unwrap();
+    let output = json!({"type":"object", "properties":{
+        "spec_version":{"type":"string"}, "spec":{"$ref":discovered["spec_read"]}},
+        "required":["spec_version","spec"], "additionalProperties":false,
+        "$defs":discovered["spec"]["$defs"]});
     let result = |dimension| {
         json!({"spec_version":"v","spec":{
             "dimensions":{"d:authored:test":dimension},

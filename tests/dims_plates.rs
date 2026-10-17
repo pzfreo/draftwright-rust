@@ -350,7 +350,13 @@ fn captured_m1000_seat_callout_stays_inside_its_front_band() {
         .iter()
         .filter(|p| p.code == "annotation_outside_area")
         .collect();
-    assert_eq!(overruns.len(), 3, "{overruns:#?}");
+    assert!(overruns.is_empty(), "{overruns:#?}");
+    assert!(
+        plan.dimensions
+            .iter()
+            .any(|d| d.id.ends_with("/seat_diameter.diameter") && d.placed.is_some()),
+        "the seat remains drawn, with every band overrun removed"
+    );
     assert!(
         overruns
             .iter()
