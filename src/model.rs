@@ -1654,7 +1654,12 @@ pub(crate) fn undrawn_gdt(p: &Plan) -> usize {
 /// Exhaust each paper size and its R5 allocation before larger paper. Pins keep
 /// their canonical sheet; explicit choices override.
 pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
-    let bound = crate::recognition_corrections::canonical(analysis, spec)?;
+    let mut bound = crate::recognition_corrections::canonical(analysis, spec)?;
+    // Recovery later removes temporary search controls by restoring user intent.
+    // Keep that intent in current-schema keys, including saved version-1 Specs.
+    if bound.schema != SPEC_SCHEMA {
+        bound = std::borrow::Cow::Owned(migrate(bound.as_ref(), analysis)?);
+    }
     let spec = bound.as_ref();
     // The Spec's datums and controls merged into the PMI reading, once, so every later use of the
     // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).
@@ -2801,7 +2806,12 @@ fn recover_candidates(
 /// caller (the library's [`crate::api`], so the command line, the JSON-lines service and MCP)
 /// is given. A plan that cannot be made is refused as [`plan`] refuses it.
 pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
-    let bound = crate::recognition_corrections::canonical(analysis, spec)?;
+    let mut bound = crate::recognition_corrections::canonical(analysis, spec)?;
+    // Recovery later removes temporary search controls by restoring user intent.
+    // Keep that intent in current-schema keys, including saved version-1 Specs.
+    if bound.schema != SPEC_SCHEMA {
+        bound = std::borrow::Cow::Owned(migrate(bound.as_ref(), analysis)?);
+    }
     let spec = bound.as_ref();
     // The Spec's datums and controls merged into the PMI reading, once, so every later use of the
     // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).

@@ -901,8 +901,10 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   paper size in this order before A2/A1/A0. Larger paper requires a failed smaller
   paper fit/readability test; a marginal fill gain never purchases larger paper.
   Candidate histories record actual fit, measurement retention and separate
-  readability counts. The material-crossing ratchet against a valid readable seed
+  readability counts. The material-crossing ratchet against a valid fitted seed
   remains. Explicit paper, scale, sheet limits, assignments and pins retain priority.
+  Version-1 Spec keys are migrated before recovery; restoring user intent after
+  temporary search controls preserves canonical keys and revision bindings.
   Optional details are tried only when an ordinary drawing cannot provide the
   smaller readable paper; authored details remain explicit intent.
 

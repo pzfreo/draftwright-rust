@@ -12,7 +12,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   A4 multi-sheet allocation before larger paper. Fill triggers same-paper
   enlargement instead of ranking paper sizes. Readability measures dimensioned
   openings (2 mm), turned intervals (2.1 mm), text/arrows, 10/7 mm dimension lanes,
-  and repetitive/thread ink (0.7 mm). Explicit Spec paper and scale remain authoritative.
+  and repetitive/thread ink (0.7 mm). Explicit Spec paper and scale remain authoritative;
+  migrated legacy dimension keys and revision bindings survive recovery.
   An identical unsupported-source-PMI refusal remains reported without forcing
   larger paper when the complete allocated drawing otherwise fits and reads cleanly.
 
