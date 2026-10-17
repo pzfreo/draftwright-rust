@@ -1772,7 +1772,19 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                         }
                     }
                 }
-                if !p.gdt.is_empty() {
+                // A new recess witness can strand an existing datum ladder even
+                // without GD&T. Compare complete movable annotation blocks
+                // before rejecting otherwise usable paper.
+                if !p.gdt.is_empty()
+                    || (findings(&p).hard > 0
+                        && crate::dims::has_new_native_recess_dimensions(analysis)
+                        && p.problems.iter().any(|q| q.code == "dimension_line_shared")
+                        && p.notes_block.is_none()
+                        && p.radius_notes_block.is_none()
+                        && p.radius_table.is_none()
+                        && p.hole_table.is_none()
+                        && p.hole_tables.is_empty())
+                {
                     let recipe = recipes.entry(scale.to_bits()).or_insert_with(|| {
                         let mut roomy = spec.clone();
                         roomy.sheet.size = Some("A0".into());
