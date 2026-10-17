@@ -2185,6 +2185,39 @@ mod complete_candidate_tests {
 
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
+    fn historical_reference_keeps_the_ordinary_drawing_and_material_ratchet() {
+        use super::*;
+        let (_, a) = analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/pmi/step/bracket_positions.step.gz"),
+        )
+        .unwrap();
+        let seed = plan_escalated(&a, &Spec::default()).unwrap();
+        assert!(drawn_quality_reference(&a, &seed));
+        let p = plan_recovered(&a, &Spec::default()).unwrap();
+        assert!(no_new_drawing_issues(&seed, &p));
+        assert!(carries_required(&seed, &p));
+        assert_eq!(crate::sheet_fit::readability(&a, &p).failures(), 0);
+        if let Some(root) = std::env::var_os("DRAFTWRIGHT_CORPUS") {
+            let (_, a) =
+                analyse_native(&std::path::Path::new(&root).join("cadgenbench_inputs/cgb207.step"))
+                    .unwrap();
+            let p = plan_recovered(&a, &Spec::default()).unwrap();
+            assert_eq!(
+                (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+                ("A3", "1:2")
+            );
+            assert!(!p.problems.iter().any(|q| q.code == "detail_unplaceable"));
+            assert!(
+                p.problems
+                    .iter()
+                    .any(|q| q.code == "layout_recovery_exhausted")
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn inactive_sheet_search_controls_preserve_candidate_ink() {
         use super::*;
         let Some(root) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
@@ -2489,14 +2522,38 @@ fn recover_uncached(
     first: Plan,
     minimum: Option<f64>,
 ) -> Result<Plan, Invalid> {
+    recover_uncached_with(analysis, spec, first, minimum, false)
+}
+
+// Reconstruct the established ordinary-before-optional drawing independently.
+// Historical qualification uses its original capital-height and preparation
+// floor; only the ordinary screen-first mode qualifies a new readable drawing.
+fn recover_uncached_with(
+    analysis: &Analysis,
+    spec: &Spec,
+    first: Plan,
+    minimum: Option<f64>,
+    reference_only: bool,
+) -> Result<Plan, Invalid> {
+    let legibility = |p: &Plan| {
+        if reference_only {
+            crate::sheet_fit::primary_illegible_steps(analysis, p)
+        } else {
+            crate::sheet_fit::readability(analysis, p).failures()
+        }
+    };
     if spec.sheet.scale.is_some() || crate::placement_intent::has_pins(spec) {
-        return recover_candidates(analysis, spec, first, true, false, minimum, false);
+        return recover_candidates(analysis, spec, first, true, false, minimum, reference_only);
     }
     // Optional details are a last resort for unreadable features or smaller paper.
     // Search the complete ordinary drawing first, including the small-sheet allocation.
     let request_floor = crate::sheets::floor(spec)
         .unwrap_or(0.0)
-        .max(crate::sheet_fit::min_legible_scale(analysis))
+        .max(if reference_only {
+            crate::sheet_fit::preparation_scale(analysis)
+        } else {
+            crate::sheet_fit::min_legible_scale(analysis)
+        })
         .max(minimum.unwrap_or(0.0));
     let has_optional = first
         .views
@@ -2515,19 +2572,27 @@ fn recover_uncached(
         // scale, so pairs with no optional crop share their expensive planning memo.
         // The original seed supplies requirements; suppressed geometry is never reused.
         let required = carried(&first);
-        let mut ordinary =
-            recover_candidates(analysis, spec, first.clone(), false, false, minimum, false)?;
+        let mut ordinary = recover_candidates(
+            analysis,
+            spec,
+            first.clone(),
+            false,
+            false,
+            minimum,
+            reference_only,
+        )?;
         let complete = !ordinary
             .views
             .iter()
             .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
             && findings(&ordinary).clean()
             && ordinary.sheet.scale_factor + 1e-6 >= request_floor
-            && crate::sheet_fit::readability(analysis, &ordinary).failures() == 0
+            && legibility(&ordinary) == 0
             && undrawn_gdt(&ordinary) == 0
             && drawn_sheets_fit(analysis, &ordinary)
             && required.is_subset(&carried(&ordinary));
-        let small_paper = ordinary.sheet.size == "A4";
+        let small_paper =
+            ordinary.sheet.size == "A4" || (reference_only && ordinary.sheet.size == "A3");
         if complete
             && (small_paper
                 || spec.sheet.size.is_some()
@@ -2539,10 +2604,11 @@ fn recover_uncached(
         // The ordinary pass already exhausted candidates with no automatic crop.
         // Repeating those solves cannot rescue it: this pass must actually carry
         // an automatic detail, including when the ordinary search was refused.
-        let mut detailed = recover_candidates(analysis, spec, first, true, true, minimum, false)?;
+        let mut detailed =
+            recover_candidates(analysis, spec, first, true, true, minimum, reference_only)?;
         let detailed_complete = findings(&detailed).clean()
             && detailed.sheet.scale_factor + 1e-6 >= request_floor
-            && crate::sheet_fit::readability(analysis, &detailed).failures() == 0
+            && legibility(&detailed) == 0
             && undrawn_gdt(&detailed) == 0
             && drawn_sheets_fit(analysis, &detailed)
             && required.is_subset(&carried(&detailed));
@@ -2570,13 +2636,13 @@ fn recover_uncached(
             && (
                 ordinary_findings.hard,
                 ordinary_findings.dropped,
-                crate::sheet_fit::readability(analysis, &ordinary).failures(),
+                legibility(&ordinary),
                 feature_crossings(&ordinary),
                 ink_findings(&ordinary),
             ) <= (
                 detailed_findings.hard,
                 detailed_findings.dropped,
-                crate::sheet_fit::readability(analysis, &detailed).failures(),
+                legibility(&detailed),
                 feature_crossings(&detailed),
                 ink_findings(&detailed),
             )
@@ -2609,7 +2675,7 @@ fn recover_uncached(
         }
         return Ok(detailed);
     }
-    recover_candidates(analysis, spec, first, true, false, minimum, false)
+    recover_candidates(analysis, spec, first, true, false, minimum, reference_only)
 }
 
 /// A non-pinned side hint must not force a long oblique witness when the
@@ -2775,7 +2841,8 @@ fn recover_candidates(
                     .views
                     .get(v.id.trim_start_matches("v:"))
                     .is_some_and(|v| v.omit))
-    }) || (!allow_automatic
+    }) || (!reference_only
+        && !allow_automatic
         && crate::detail::requests(analysis, spec, first.sheet.scale_factor)
             .iter()
             .any(|(_, d)| !d.authored));
@@ -2810,7 +2877,7 @@ fn recover_candidates(
             analysis,
             "sheet-route-reference",
             key,
-            || recover_candidates(analysis, spec, first.clone(), true, false, None, true),
+            || recover_uncached_with(analysis, spec, first.clone(), None, true),
         )?)
     };
     // Below preparation_scale a candidate can qualify neither the readable
@@ -2847,7 +2914,7 @@ fn recover_candidates(
     // An unresolved small-part fallback must not buy large paper for a partial
     // improvement. Complete readable candidates remain eligible on every size.
     let practical_fallback = spec.sheet.size.is_none() && fits_a3_at_full_size(analysis, &first);
-    let legacy_seed_kept = seed_kept
+    let mut legacy_seed_kept = seed_kept
         && !suppressed_detail
         && crate::sheet_fit::primary_illegible_steps(analysis, &first) == 0
         && !(seed_paper >= LARGE_SHEET && practical_fallback);
@@ -2855,6 +2922,11 @@ fn recover_candidates(
     for (i, (name, _, _)) in layout::PAGES.iter().enumerate() {
         if spec.sheet.size.as_ref().is_some_and(|n| n != name) {
             continue;
+        }
+        if reference_only && i >= LARGE_SHEET && practical_fallback && smallest.is_none() {
+            // The established ladder reinstates a fitted seed's material
+            // ratchet after practical paper and its allocation cannot carry it.
+            legacy_seed_kept = seed_clean;
         }
         if reference_only
             && smallest.is_some_and(|(paper, _)| {

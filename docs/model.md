@@ -1008,6 +1008,10 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   schedule more cleanly. Failed presentation trials retain the original rows and
   tags and report the refusal. Exact selector inputs key per-call candidate
   preparation so repeated allocation prefixes do not repeat the same planning.
+  Historical reconstruction includes the original ordinary-before-optional
+  detail choice and reinstates a fitted seed's material-crossing veto after
+  practical paper is exhausted. A declined automatic crop must not change the
+  published reference's diagnostics or introduce new crossing pairs.
   R5 exhausts paper and standard scales outside its main-sheet solver: each
   prefix solves that trial's exact scale, rather than starting another scale
   ladder or historical-reference search. The complete assembled drawing still
