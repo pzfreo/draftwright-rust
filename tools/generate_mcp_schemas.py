@@ -26,13 +26,16 @@ problem=obj({'id':S,'code':S,'severity':S,'message':S,'subjects':arr(S),'refs':a
 rectangle=arr(N,minItems=4,maxItems=4)
 filter_=obj({'sheet':nullable(SHEET),'view':nullable(S),'kind':nullable(S),'state':nullable(ref('state')),'feature':nullable(S),'region':nullable(rectangle),'near':nullable(S),'radius':nullable({'type':'number','minimum':0})})
 problem_filter=obj({'code':nullable(S),'severity':nullable({'enum':['info','warning','error']}),'subject':nullable(S),'feature':nullable(S)})
+# Inputs retain the established sparse per-ID map; get_spec describes authored forms once.
+dimension=obj({'kind':nullable({'enum':['linear','diameter','radius','angle']}),'between':nullable(arr(S,minItems=1,maxItems=2)),'along':nullable({'enum':['x','y','z','true']})},extra=True)
 spec=obj({'schema':{'enum':['draftwright.spec/1','draftwright.spec/2']},'binding':nullable({'type':'object'}),'sheets':nullable(obj({'max':nullable(SHEET),'smallest_scale':nullable(S),'keep_together':arr(arr(S)),'hole_table':nullable(SHEET),'gdt_on_sheet_1':B})),'sheet':obj({'size':nullable(S),'scale':nullable(S),'title':{'type':'object','additionalProperties':S},'fit_limits':nullable({'type':'boolean'}),'fit_deviations':nullable({'type':'boolean'}),'projection':nullable({'enum':['first','third']}),'default_finish':nullable({'type':'object'})}),'views':{'type':'object','additionalProperties':{'type':'object'}},'dimensions':{'type':'object','additionalProperties':{'type':'object'}},'annotations':{'type':'object','additionalProperties':{'type':'object'}},'features':{'type':'object','additionalProperties':{'type':'object'}},'faces':{'type':'object','additionalProperties':{'type':'object'}},'dimension_source':{'enum':['auto','authored']},'hole_table':{'enum':['auto','always','never']},'notes':arr({'type':'object'}),'tables':arr({'type':'object'}),'gears':arr({'type':'object'})})
 # Line-work intent is typed in both scopes; other view fields retain their existing schema.
 line_fields = {name: nullable(B) for name in
                ('hidden', 'centre_marks', 'centre_lines', 'thread_depiction', 'knurl_depiction')}
 spec['properties']['sheet']['properties'].update(line_fields)
 spec['properties']['views']['additionalProperties'] = obj(line_fields, extra=True)
-defs={'state':state,'spec':spec,'op':op,'item':item,'compact':compact,'problem':problem,'error':obj({'code':{'enum':['invalid','failed']},'message':S,'choices':arr(S)},['code','message'])}
+spec_read={**spec,'properties':{**spec['properties'],'dimensions':{'type':'object','additionalProperties':dimension}}}
+defs={'state':state,'spec':spec,'spec_read':spec_read,'op':op,'item':item,'compact':compact,'problem':problem,'error':obj({'code':{'enum':['invalid','failed']},'message':S,'choices':arr(S)},['code','message'])}
 stub=obj({'id':nullable(S),'detail_ref':S},['id','detail_ref'])
 problem_small=obj({'id':S,'code':S,'severity':S,'subjects':arr(S),'fix':arr(ref('op'))},['id','code','severity','subjects'])
 defs.update({'stub':stub, 'problem_small':problem_small})
@@ -55,7 +58,7 @@ tools={
 'apply_ops':(obj({**common,**paging,'ops':arr(ref('op'),maxItems=MAX_OPS),'parent':S},['part_ref','ops','parent']),obj({'spec_version':S,'delta':delta},['spec_version','delta'])),
 'view_sheet':(obj({**common,'region':rectangle,'overlay_ids':{'type':['boolean','array'],'items':S},'sheet':SHEET,'dpi':{'type':'number','exclusiveMinimum':0,'maximum':400}},['part_ref']),artifact),
 'render_pdf':(obj({**common,'sheet':SHEET},['part_ref']),artifact),
-'get_spec':(obj(common,['part_ref']),obj({'spec_version':S,'spec':ref('spec')},['spec_version','spec'])),
+'get_spec':(obj(common,['part_ref']),obj({'spec_version':S,'spec':ref('spec_read')},['spec_version','spec'])),
 'analyse':(obj({'step':S,'features':S,'part':I},['step']),obj({'schema':{'const':'draftwright.analysis/7'},'binding':obj({'source_sha256':S,'part':S,'face_count':I,'loader':S,'part_index':I},['source_sha256','part','face_count','loader']),'envelope':arr(arr(N,minItems=3,maxItems=3),minItems=2,maxItems=2),'features':arr({'type':'object'}),'iso_bounds':rectangle},['schema','binding','envelope','iso_bounds'],True)),
 'render':(obj({**common,'step':S,'features':S,'part':I,'format':{'enum':['png','pdf']},'region':rectangle,'overlay_ids':{'type':['boolean','array'],'items':S},'sheet':SHEET,'dpi':{'type':'number','exclusiveMinimum':0,'maximum':400}}),artifact),
 'parts':(obj({'step':S},['step']),obj({'parts':arr(obj({'part':I,'name':S,'product_id':S,'faces':I,'instances':I},['part','name','product_id','faces','instances']))},['parts'])),
@@ -121,6 +124,24 @@ def share_repeated(schema):
         schema = best[1]
     return schema
 
+def hoist_objects(schema):
+    """Move a type shared by every anyOf branch to their parent, preserving accepted values."""
+    from copy import deepcopy
+    schema = deepcopy(schema)
+    def visit(value):
+        if isinstance(value, list):
+            for child in value: visit(child)
+        elif isinstance(value, dict):
+            for child in list(value.values()): visit(child)
+            branches = value.get('anyOf', [])
+            if branches and all(branch.get('type') == 'object' for branch in branches):
+                if 'type' not in value and len(branches) > 1:
+                    value['type'] = 'object'
+                if value.get('type') == 'object':
+                    for branch in branches: branch.pop('type')
+    visit(schema)
+    return schema
+
 def group_properties(schema, top=True):
     """Use anchored name alternatives for equal property shapes, only when smaller.
 
@@ -148,7 +169,7 @@ def group_properties(schema, top=True):
     return schema
 
 def short_names(schema):
-    names = {'state':'t','spec':'s','op':'op','item':'i','compact':'c',
+    names = {'state':'t','spec':'s','spec_read':'d','op':'op','item':'i','compact':'c',
              'problem':'p','error':'e','stub':'u','problem_small':'r'}
     if isinstance(schema, dict):
         result = {k: short_names(v) for k, v in schema.items()}
@@ -186,6 +207,6 @@ for tool,(inp,out) in tools.items():
         for branch in schema.get('anyOf', []):
             if branch.get('type') == schema.get('type'):
                 branch.pop('type', None)
-        schema = short_names(share_repeated(group_properties(inline_single_use(schema, keep))))
+        schema = short_names(share_repeated(group_properties(inline_single_use(hoist_objects(schema), keep))))
         if not schema['$defs']: del schema['$defs']
         Path(f'schemas/mcp/{tool}.{kind}.json').write_text(json.dumps(schema,indent=2)+'\n')

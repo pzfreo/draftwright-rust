@@ -117,6 +117,43 @@
                 }
               }
             },
+            "dimensions": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      null,
+                      "linear",
+                      "diameter",
+                      "radius",
+                      "angle"
+                    ]
+                  },
+                  "between": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "maxItems": 2
+                  },
+                  "along": {
+                    "enum": [
+                      null,
+                      "x",
+                      "y",
+                      "z",
+                      "true"
+                    ]
+                  }
+                }
+              }
+            },
             "dimension_source": {
               "enum": [
                 "auto",
@@ -133,7 +170,7 @@
           },
           "additionalProperties": false,
           "patternProperties": {
-            "^(dimensions|annotations|features|faces)$": {
+            "^(annotations|features|faces)$": {
               "additionalProperties": {
                 "type": "object"
               },

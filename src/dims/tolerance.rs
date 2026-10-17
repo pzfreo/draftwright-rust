@@ -232,10 +232,16 @@ pub(crate) fn check(spec: &Spec) -> Result<(), Invalid> {
                 message: why,
                 choices: vec![],
             })?;
-            if !id.starts_with("d:envelope/") || entry.tolerance.is_some() {
+            let authored_size = id.starts_with("d:authored:")
+                && entry.between.is_some()
+                && matches!(
+                    entry.kind.as_deref().unwrap_or("linear"),
+                    "linear" | "diameter"
+                );
+            if (!id.starts_with("d:envelope/") && !authored_size) || entry.tolerance.is_some() {
                 return Err(Invalid {
                     message: format!(
-                        "The fit of {id} belongs to an overall extent with no per-extent tolerance."
+                        "The fit of {id} belongs to an overall extent or an authored linear size/diameter with no explicit tolerance."
                     ),
                     choices: vec![],
                 });

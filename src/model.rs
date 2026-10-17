@@ -285,6 +285,14 @@ impl DimensionSource {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct DimensionSpec {
+    /// Authored quantity; absent means an edit of an automatic dimension.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub between: Option<Vec<String>>,
+    /// x, y, z, or true (the default for an authored linear dimension).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub along: Option<String>,
     /// Leave it off the sheet (in `auto` only; an authored set leaves out by not listing).
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub omit: bool,
@@ -1545,6 +1553,7 @@ fn fit_fix(
             .any(|q| matches!(q.code.as_str(), "page_fit_uncertain" | "views_do_not_fit"));
         let fits = !doubted || drawn_items_fit(analysis, &p) || {
             crate::sheet_fit::correct_estimate(analysis, &mut p);
+            compact_authored_row(analysis, &mut p);
             drawn_items_fit(analysis, &p)
         };
         if !fits {
@@ -1560,6 +1569,76 @@ fn fit_fix(
         return Ok(Some((ops, pair.0, pair.1)));
     }
     Ok(None)
+}
+
+/// Spend free row space against measured ink before escalating an oblique authored quantity.
+fn compact_authored_row(analysis: &Analysis, plan: &mut Plan) {
+    if crate::dims::authored_placement_clear(&plan.spec, &plan.dimensions)
+        || crate::placement_intent::has_pins(&plan.spec)
+        || plan.spec.views.values().any(|v| v.place.is_some())
+        || !plan.gdt.is_empty()
+        || plan.hole_table.is_some()
+        || !plan.hole_tables.is_empty()
+        || plan.views.iter().any(|v| v.cut.is_some())
+    {
+        return;
+    }
+    let before = findings(plan);
+    for step in 1..=plan.sheet.page[1].ceil() as usize {
+        let mut trial = plan.clone();
+        let dy = if plan.spec.sheet.projection.as_deref() == Some("first") {
+            step as f64
+        } else {
+            -(step as f64)
+        };
+        for v in trial
+            .views
+            .iter_mut()
+            .filter(|v| matches!(v.id.as_str(), "v:front" | "v:side"))
+        {
+            v.at[1] += dy;
+            v.area[1] += dy;
+            v.area[3] += dy;
+        }
+        if !drawn_items_fit(analysis, &trial) {
+            continue;
+        }
+        crate::sheets::line_work(analysis, &trial.spec, &mut trial.views);
+        let furniture = crate::centrelines::obstacles(&trial.views);
+        let Ok((dims, omitted, problems)) = crate::dims::plan_with_obstacles(
+            analysis,
+            &trial.spec,
+            &trial.sheet,
+            &trial.views,
+            &furniture,
+            &[],
+            &crate::dims::footprints::Cache::default(),
+        ) else {
+            continue;
+        };
+        trial.dimensions = dims;
+        trial.omitted = omitted;
+        trial.problems.retain(|p| {
+            !p.code.starts_with("annotation_")
+                && !matches!(
+                    p.code.as_str(),
+                    "leader_through_feature" | "extension_through_feature" | "dimension_text_stray"
+                )
+        });
+        for p in problems {
+            trial.problems.retain(|old| old.id != p.id);
+            trial.problems.push(p);
+        }
+        if crate::dims::authored_placement_clear(&trial.spec, &trial.dimensions)
+            && drawn_items_fit(analysis, &trial)
+            && findings(&trial).hard <= before.hard
+            && findings(&trial).dropped <= before.dropped
+            && over_views(&trial) <= over_views(plan)
+        {
+            *plan = trial;
+            break;
+        }
+    }
 }
 
 /// The first of the large sheets ([`layout::PAGES`]): A2 and larger are for parts that need
@@ -1614,6 +1693,7 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
             let mut corrected = first.clone();
             if !drawn_items_fit(analysis, &corrected) {
                 crate::sheet_fit::correct_estimate(analysis, &mut corrected);
+                compact_authored_row(analysis, &mut corrected);
             }
             if drawn_items_fit(analysis, &corrected) {
                 first = corrected;
@@ -1815,6 +1895,7 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
                     iso.basis += "; the smallest fit's orientation scale kept while dimensioned views enlarge";
                 }
                 crate::sheet_fit::correct_estimate(analysis, &mut p);
+                compact_authored_row(analysis, &mut p);
                 crate::iso_caption::refresh(analysis, &mut p);
                 // An estimate's iso budget can refuse a sheet whose finished drawing fits.
                 // Only discharge that estimate when all actual item bounds and reserved views fit.
@@ -2240,6 +2321,7 @@ fn plan_with_presentation(
         ));
     }
     let spec = &migrate(spec, analysis)?;
+    crate::dims::authored::check(spec)?;
     if spec
         .iso_scale_factor
         .is_some_and(|s| !s.is_finite() || s <= 0.0)
@@ -2270,6 +2352,16 @@ fn plan_with_presentation(
         base.sheet.fit_limits = spec.sheet.fit_limits;
         base.hole_table = spec.hole_table;
         base.iso_scale_factor = spec.iso_scale_factor;
+        if spec.dimensions.values().any(|d| d.between.is_some()) {
+            base.dimension_source = spec.dimension_source;
+            base.dimensions = spec.dimensions.clone();
+            for d in base.dimensions.values_mut() {
+                d.place = None;
+                d.view = None;
+                d.tolerance = None;
+                d.fit = None;
+            }
+        }
         Some(plan_recovered(analysis, &base)?)
     } else {
         None
@@ -3907,6 +3999,7 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
     crate::sheets::validate(&spec)?;
     crate::dims::check_tolerances(&spec)?;
     crate::spec_gdt::check(&spec)?;
+    crate::dims::authored::check(&spec)?;
     crate::dims::check_views(&spec)?;
     crate::placement_intent::check(&spec)?;
     title_block::check(&spec.sheet.title)?;
@@ -5938,4 +6031,5 @@ fn pdf_spec(text: &str) -> Result<Option<String>, String> {
 
 mod projection_store;
 
+pub mod dimension_geometry;
 pub mod projected_ink;

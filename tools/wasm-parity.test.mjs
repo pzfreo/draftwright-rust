@@ -150,3 +150,36 @@ for (const part of ['prismatic', 'polygonal']) {
 test('bad STEP is thrown as a JSON api::Error string', () => {
   invalid(() => new Engine('bad.step', new Uint8Array([0, 1, 2])));
 });
+
+test('geometry-authored dimensions replay with identical native/WASM references and ink', () => {
+  const replay = JSON.parse(readFileSync(new URL('../tests/fixtures/wasm/prismatic.json', import.meta.url)));
+  const engine = new Engine(replay.name, readFileSync(new URL(`../${replay.part}`, import.meta.url)));
+  try {
+    const refs = Object.entries(JSON.parse(engine.snapshot()).analysis.edge_ink.references)
+      .filter(([, records]) => records.length === 1 && records[0].kind === 'vertex');
+    const pair = refs.flatMap(p => refs.map(q => [p, q])).find(([[, [p]], [, [q]]]) =>
+      Math.abs(p.point[1] - q.point[1]) < 1e-7 && Math.abs(p.point[0] - q.point[0]) > 1e-3 && Math.abs(p.point[2] - q.point[2]) > 1e-3);
+    assert.ok(pair, 'principal-plane vertex diagonal');
+    const ops = [{ op: 'set', path: 'dimensions/d:authored:diagonal', value: {
+      between: pair.map(([key]) => key), along: 'true', view: 'front', tolerance: '±0.1',
+    } }];
+    replay.steps = [{ edit: 'author diagonal', action: 'apply', ops },
+      { edit: 'undo authored', action: 'undo' }, { edit: 'redo authored', action: 'redo' }];
+    const actual = [documents(engine, 'open')];
+    for (const step of replay.steps) {
+      if (step.action === 'undo') engine.undo();
+      else if (step.action === 'redo') engine.redo();
+      else engine.apply(JSON.stringify(step.ops), true);
+      actual.push(documents(engine, step.edit));
+    }
+    const native = spawnSync(process.env.DRAFTWRIGHT_WASM_REFERENCE ?? 'target/release/examples/wasm_reference', [], {
+      cwd: root, input: JSON.stringify(replay), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
+    });
+    assert.equal(native.status, 0, native.error?.message ?? native.stderr);
+    const expected = native.stdout.trim().split('\n').map(line => JSON.parse(line));
+    assert.equal(actual.length, expected.length);
+    for (let i = 0; i < actual.length; i++) {
+      for (const document of ['spec', 'plan', 'svg']) equalBytes(actual[i][document], expected[i][document], `authored ${i} ${document}`);
+    }
+  } finally { engine.free(); }
+});
