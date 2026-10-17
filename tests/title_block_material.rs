@@ -10,6 +10,10 @@
 //! bracket_positions (its projection raises), so its entry is what its rule takes from its reading
 //! (`read_material_properties`: one fact, #31503, with no reason).
 
+#[path = "common/support.rs"]
+#[macro_use]
+mod support;
+
 use std::collections::BTreeMap;
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
@@ -106,10 +110,10 @@ fn material_unreported(a: &Analysis, d: &Drawing) -> bool {
         .any(|i| i.code == "pmi_not_extracted" && i.sources.iter().any(|s| s == "material:0:0"))
 }
 
-#[test]
-fn the_title_block_states_the_files_material_as_draftwright_does() {
+pmi_cases!(the_title_block_states_the_files_material_as_draftwright_does);
+fn the_title_block_states_the_files_material_as_draftwright_does(only: &str) {
     let python: BTreeMap<&str, &str> = PYTHON.into_iter().collect();
-    for (stem, (file, bytes)) in fixtures() {
+    for (stem, (file, bytes)) in fixtures().into_iter().filter(|(_, (file, _))| file == only) {
         let (_, a) = analysed(&file, &bytes);
         let plan = model::plan(&a, &Spec::default()).unwrap();
         assert_eq!(

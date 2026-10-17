@@ -540,34 +540,37 @@ fn every_dimension_is_drawn_or_reported_never_both(only: &str) {
     }
 }
 
-#[test]
-fn the_open_questions_stay_refused() {
-    // stc_10's ⌀3 holes are dimensioned on supplemental geometry; ftc_10's ⌀3.5 G6 states its
-    // class without limits. Both are open maintainer questions.
-    for (stem, needle) in [
-        ("nist_stc_10_asme1_ap242-e2", "supplemental geometry"),
-        ("nist_ftc_10_asme1_ap242-e2", "stated without limits"),
-    ] {
-        let (_, a, plan) = planned(stem);
-        let open: Vec<&Record> = records(&a)
+part_cases!(the_open_questions_stay_refused;
+    nist_stc_10_asme1_ap242_e2 => "nist_stc_10_asme1_ap242-e2",
+    nist_ftc_10_asme1_ap242_e2 => "nist_ftc_10_asme1_ap242-e2",
+);
+fn the_open_questions_stay_refused(stem: &str) {
+    // stc_10's supplemental geometry and ftc_10's fit without limits stay open questions.
+    let needle = match stem {
+        "nist_stc_10_asme1_ap242-e2" => "supplemental geometry",
+        "nist_ftc_10_asme1_ap242-e2" => "stated without limits",
+        _ => unreachable!(),
+    };
+
+    let (_, a, plan) = planned(stem);
+    let open: Vec<&Record> = records(&a)
+        .iter()
+        .filter(|r| r.category == Category::Dimension)
+        .filter(|r| r.blockers.iter().any(|b| b.contains(needle)))
+        .collect();
+    assert!(!open.is_empty(), "{stem}: {needle}");
+    for r in open {
+        assert!(stating(&plan, &a, r).is_none(), "{}", r.source_id);
+        let p = plan
+            .problems
             .iter()
-            .filter(|r| r.category == Category::Dimension)
-            .filter(|r| r.blockers.iter().any(|b| b.contains(needle)))
-            .collect();
-        assert!(!open.is_empty(), "{stem}: {needle}");
-        for r in open {
-            assert!(stating(&plan, &a, r).is_none(), "{}", r.source_id);
-            let p = plan
-                .problems
-                .iter()
-                .find(|p| p.code == "pmi_not_lowered" && p.refs == [r.source_id.clone()])
-                .unwrap();
-            assert!(
-                p.message.contains("open question for the maintainer"),
-                "{}",
-                p.message
-            );
-        }
+            .find(|p| p.code == "pmi_not_lowered" && p.refs == [r.source_id.clone()])
+            .unwrap();
+        assert!(
+            p.message.contains("open question for the maintainer"),
+            "{}",
+            p.message
+        );
     }
 }
 
