@@ -2591,12 +2591,12 @@ fn recover_uncached_with(
             && undrawn_gdt(&ordinary) == 0
             && drawn_sheets_fit(analysis, &ordinary)
             && required.is_subset(&carried(&ordinary));
-        let small_paper =
-            ordinary.sheet.size == "A4" || (reference_only && ordinary.sheet.size == "A3");
+        let small_paper = (ordinary.sheet.size == "A4" && ordinary.sheets.is_empty())
+            || (reference_only && matches!(ordinary.sheet.size.as_str(), "A4" | "A3"));
         if complete
             && (small_paper
-                || spec.sheet.size.is_some()
-                || !fits_a3_at_full_size(analysis, &ordinary))
+                || (spec.sheet.size.is_some() && (reference_only || ordinary.sheets.is_empty()))
+                || (reference_only && !fits_a3_at_full_size(analysis, &ordinary)))
         {
             restore_search_spec(&mut ordinary, spec);
             return Ok(ordinary);
@@ -2604,9 +2604,32 @@ fn recover_uncached_with(
         // The ordinary pass already exhausted candidates with no automatic crop.
         // Repeating those solves cannot rescue it: this pass must actually carry
         // an automatic detail, including when the ordinary search was refused.
-        let mut detailed =
-            recover_candidates(analysis, spec, first, true, true, minimum, reference_only)?;
-        let detailed_complete = findings(&detailed).clean()
+        let paper = |p: &Plan| {
+            layout::PAGES
+                .iter()
+                .position(|(name, ..)| *name == p.sheet.size)
+        };
+        let before_paper = if complete && !reference_only {
+            paper(&ordinary).map(|p| p + usize::from(!ordinary.sheets.is_empty()))
+        } else {
+            None
+        };
+        let mut detailed = recover_candidates_before(
+            analysis,
+            spec,
+            first,
+            true,
+            true,
+            minimum,
+            reference_only,
+            before_paper,
+        )?;
+        let detailed_complete = (before_paper.is_none()
+            || detailed
+                .views
+                .iter()
+                .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored)))
+            && findings(&detailed).clean()
             && detailed.sheet.scale_factor + 1e-6 >= request_floor
             && legibility(&detailed) == 0
             && undrawn_gdt(&detailed) == 0
@@ -2614,12 +2637,8 @@ fn recover_uncached_with(
             && required.is_subset(&carried(&detailed));
         // A refused detail search may return the invalid seed. A complete ordinary
         // drawing always wins over that fallback, irrespective of paper size.
-        let paper = |p: &Plan| {
-            layout::PAGES
-                .iter()
-                .position(|(name, ..)| *name == p.sheet.size)
-        };
-        if complete && (!detailed_complete || paper(&ordinary) <= paper(&detailed)) {
+        let cost = |p: &Plan| (paper(p), if reference_only { 0 } else { p.sheets.len() });
+        if complete && (!detailed_complete || cost(&ordinary) <= cost(&detailed)) {
             restore_search_spec(&mut ordinary, spec);
             return Ok(ordinary);
         }
@@ -2766,11 +2785,34 @@ fn shorten_authored_witnesses(
 fn recover_candidates(
     analysis: &Analysis,
     spec: &Spec,
+    first: Plan,
+    allow_automatic: bool,
+    require_automatic: bool,
+    minimum: Option<f64>,
+    reference_only: bool,
+) -> Result<Plan, Invalid> {
+    recover_candidates_before(
+        analysis,
+        spec,
+        first,
+        allow_automatic,
+        require_automatic,
+        minimum,
+        reference_only,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn recover_candidates_before(
+    analysis: &Analysis,
+    spec: &Spec,
     mut first: Plan,
     allow_automatic: bool,
     require_automatic: bool,
     minimum: Option<f64>,
     reference_only: bool,
+    before_paper: Option<usize>,
 ) -> Result<Plan, Invalid> {
     use crate::sheet_fit::FILL_BAND;
     let min_legible_scale = crate::sheets::floor(spec).map_or_else(
@@ -2920,6 +2962,11 @@ fn recover_candidates(
         && !(seed_paper >= LARGE_SHEET && practical_fallback);
     // Exhaust each paper and its existing R5 allocation before opening the next.
     for (i, (name, _, _)) in layout::PAGES.iter().enumerate() {
+        // A complete ordinary drawing bounds optional work: cheaper paper,
+        // or the same paper when a crop can reduce an existing allocation.
+        if before_paper.is_some_and(|limit| i >= limit) {
+            break;
+        }
         if spec.sheet.size.as_ref().is_some_and(|n| n != name) {
             continue;
         }

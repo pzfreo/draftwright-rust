@@ -1008,6 +1008,11 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   schedule more cleanly. Failed presentation trials retain the original rows and
   tags and report the refusal. Exact selector inputs key per-call candidate
   preparation so repeated allocation prefixes do not repeat the same planning.
+  A complete ordinary single-sheet A4 keeps optional details out. A larger
+  ordinary drawing or an existing allocation still allows a necessary crop to
+  reach cheaper paper or fewer sheets. That comparison exhausts only the paper
+  sizes that can improve this cost; details never justify a same-cost drawing
+  solely for scale or fill.
   Historical reconstruction includes the original ordinary-before-optional
   detail choice and reinstates a fitted seed's material-crossing veto after
   practical paper is exhausted. A declined automatic crop must not change the
