@@ -6,10 +6,10 @@ pzfreo/draftwright at `586628b96db6779454d499c7d92d37f1aa8f1df9`.
 
 | File | Source | Entries | Drafting | Trust | Spec | Machinery |
 | --- | --- | --- | --- | --- | --- | --- |
-| `adr.yaml` | 5 | 68 | 61 | 26 |
-| `lint.yaml` | 7 | 125 | 14 | 19 |
-| `issues.yaml` | 20 | 93 | 51 | 26 |
-| **All** | **32** | **286** | **126** | **71** |
+| `adr.yaml` | live ADRs 1–5 (invariants, decisions, unguarded rules) and archived ADRs (rules not already live) | 160 | 57 | 61 | 13 | 29 |
+| `lint.yaml` | `linting/`: per-feature coverage requirements and every issue code | 165 | 121 | 33 | 0 | 11 |
+| `issues.yaml` | the 142 issue-numbered regression test files (`test_issue_*.py`) | 190 | 93 | 85 | 3 | 9 |
+| **All** | | **515** | **271** | **179** | **16** | **49** |
 
 Status after the maintainer-approved triage of 2026-10-16, including the earlier Stage G/H
 and K1b/K4/K5/K7 integrations, merged with PR #56 (datum placement) and PR #57

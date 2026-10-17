@@ -543,12 +543,17 @@ pub fn read(part: &Part, sha256: &str, json: &str) -> Result<(Recognition, Vec<F
             f
         })
         .collect();
-    recess_patterns::append(
-        part,
-        &frame,
-        &mut features,
-        &derived.section_recess_patterns,
-    )?;
+    // The released 0.3.9 bridge draws these occurrences independently. Keep
+    // their individual size and datum-location owners when replaying archived
+    // documents; the 0.4 contract and native reader use unified patterns.
+    if doc.package.version != "0.3.9" {
+        recess_patterns::append(
+            part,
+            &frame,
+            &mut features,
+            &derived.section_recess_patterns,
+        )?;
+    }
     let patterns = hole_patterns(&derived.hole_patterns, &features)?;
     // Records with no ID are ordered by everything they carry.
     let key = |r: &Record| {
