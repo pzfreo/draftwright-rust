@@ -14,6 +14,8 @@
 
 #[path = "common/corpus.rs"]
 mod corpus;
+#[path = "common/support.rs"]
+mod support;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read as _;
@@ -275,18 +277,25 @@ fn consistent(what: &str, plan: &Plan, a: &Analysis, spec: &Spec) -> usize {
 /// parts under each of their specs and on every AP242 fixture.
 #[test]
 fn every_plan_item_has_a_state_and_every_problem_subject_is_a_live_item() {
-    let mut checked = 0;
-    let mut states = BTreeSet::new();
-    for (part, a) in slice() {
-        for (name, spec) in specs(&a) {
-            let plan = model::plan_recovered(&a, &spec).unwrap();
-            checked += consistent(&format!("{part}, {name}"), &plan, &a, &spec);
+    let results = support::parallel(&slice(), |(part, a)| {
+        let mut checked = 0;
+        let mut states = BTreeSet::new();
+        for (name, spec) in specs(a) {
+            let plan = model::plan_recovered(a, &spec).unwrap();
+            checked += consistent(&format!("{part}, {name}"), &plan, a, &spec);
             states.extend(items::items(&plan).into_iter().map(|i| match i.state {
                 State::Covered { .. } => "covered".to_string(),
                 State::NotDrawable { reason_code } => format!("not_drawable {reason_code}"),
                 s => format!("{s:?}"),
             }));
         }
+        (checked, states)
+    });
+    let mut checked = 0;
+    let mut states = BTreeSet::new();
+    for (n, found) in results {
+        checked += n;
+        states.extend(found);
     }
     eprintln!("states met: {states:?}");
     for s in [
@@ -298,15 +307,18 @@ fn every_plan_item_has_a_state_and_every_problem_subject_is_a_live_item() {
     ] {
         assert!(states.contains(s), "no item was {s}: {states:?}");
     }
-    for entry in std::fs::read_dir(fixture("pmi/step")).unwrap() {
-        let name = entry.unwrap().file_name().into_string().unwrap();
-        let Some(file) = name.strip_suffix(".gz") else {
-            continue;
-        };
+    let files: Vec<_> = std::fs::read_dir(fixture("pmi/step"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .filter_map(|name| name.strip_suffix(".gz").map(str::to_owned))
+        .collect();
+    checked += support::parallel(&files, |file| {
         let a = ap242(file);
         let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
-        checked += consistent(file, &plan, &a, &Spec::default());
-    }
+        consistent(file, &plan, &a, &Spec::default())
+    })
+    .into_iter()
+    .sum::<usize>();
     assert!(checked > 500, "{checked} items checked");
 }
 
@@ -323,8 +335,8 @@ fn on_the_quality_parts_too() {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("tools/quality_parts.txt"),
     )
     .unwrap();
-    let mut dropped = 0;
-    for file in list.lines().filter(|l| !l.trim().is_empty()) {
+    let files: Vec<_> = list.lines().filter(|l| !l.trim().is_empty()).collect();
+    let mut dropped: usize = support::parallel(&files, |&file| {
         let a = model::analyse_native(&dir.join(file)).unwrap().1;
         let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
         consistent(file, &plan, &a, &Spec::default());
@@ -335,12 +347,13 @@ fn on_the_quality_parts_too() {
         };
         let plan = model::plan_recovered(&a, &ladder).unwrap();
         consistent(file, &plan, &a, &ladder);
-        dropped += plan
-            .dimensions
+        plan.dimensions
             .iter()
             .filter(|d| matches!(d.state, State::NotDrawable { .. }))
-            .count();
-    }
+            .count()
+    })
+    .into_iter()
+    .sum();
     assert_eq!(dropped, 0, "the default quality drawings retain every item");
     let a = model::analyse_native(&dir.join("nist/nist_ftc_08_asme1_rc.stp"))
         .unwrap()
@@ -361,16 +374,17 @@ fn on_the_quality_parts_too() {
         "sheet": {"size": "A4", "scale": "10:1"}, "hole_table": "never"
     }))
     .unwrap();
-    for file in list.lines().filter(|l| !l.trim().is_empty()) {
+    dropped += support::parallel(&files, |&file| {
         let a = model::analyse_native(&dir.join(file)).unwrap().1;
         let p = model::plan_recovered(&a, &forced).unwrap();
         consistent(file, &p, &a, &forced);
-        dropped += p
-            .dimensions
+        p.dimensions
             .iter()
             .filter(|d| matches!(d.state, State::NotDrawable { .. }))
-            .count();
-    }
+            .count()
+    })
+    .into_iter()
+    .sum::<usize>();
     assert!(dropped > 0, "no item was dropped");
 }
 
@@ -466,10 +480,10 @@ fn by_state(plan: &Plan, spec: &Spec) -> BTreeMap<String, Review> {
 /// basis sentences: drawn, hidden, unplaced, or combined into the item that states it.
 #[test]
 fn the_drawing_review_reads_typed_states_and_classifies_as_from_prose() {
-    let mut compared = BTreeMap::new();
-    for (part, a) in slice() {
-        for (name, spec) in specs(&a) {
-            let plan = model::plan_recovered(&a, &spec).unwrap();
+    let results = support::parallel(&slice(), |(part, a)| {
+        let mut compared = BTreeMap::new();
+        for (name, spec) in specs(a) {
+            let plan = model::plan_recovered(a, &spec).unwrap();
             let (prose, typed) = (by_prose(&plan, &spec), by_state(&plan, &spec));
             assert_eq!(
                 prose.keys().collect::<Vec<_>>(),
@@ -490,6 +504,13 @@ fn the_drawing_review_reads_typed_states_and_classifies_as_from_prose() {
                 );
                 *compared.entry(format!("{t:?}")).or_insert(0) += 1;
             }
+        }
+        compared
+    });
+    let mut compared = BTreeMap::new();
+    for found in results {
+        for (kind, count) in found {
+            *compared.entry(kind).or_insert(0) += count;
         }
     }
     eprintln!("compared: {compared:?}");
@@ -512,8 +533,8 @@ fn the_drawing_review_reads_typed_states_and_classifies_as_from_prose() {
 /// it is not.
 #[test]
 fn every_item_is_labelled_as_it_is_drawn() {
-    for (part, a) in slice() {
-        let base = model::plan_recovered(&a, &Spec::default()).unwrap();
+    support::parallel(&slice(), |(part, a)| {
+        let base = model::plan_recovered(a, &Spec::default()).unwrap();
         for d in &base.dimensions {
             assert_eq!(
                 items::label(&base, &d.id).as_deref(),
@@ -528,7 +549,7 @@ fn every_item_is_labelled_as_it_is_drawn() {
         // Each drawn dimension omitted in turn (the first five) keeps its label.
         for d in base.dimensions.iter().take(5) {
             let s = spec(json!({ "dimensions": { d.id.clone(): { "omit": true } } }));
-            let less = model::plan_recovered(&a, &s).unwrap();
+            let less = model::plan_recovered(a, &s).unwrap();
             let o = less.omitted.iter().find(|o| o.id == d.id).unwrap();
             assert_eq!(o.state, State::OmittedByUser, "{part}: {}", d.id);
             assert_eq!(
@@ -538,7 +559,7 @@ fn every_item_is_labelled_as_it_is_drawn() {
                 d.id
             );
         }
-    }
+    });
 }
 
 /// A problem's fix is an edit that resolves it: applied with `edit`, the problem is gone from

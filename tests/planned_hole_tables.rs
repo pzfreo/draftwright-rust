@@ -1,4 +1,8 @@
 //! Plan-time schedules replace crowded hole ladders, while the rescue remains independent.
+#[path = "common/support.rs"]
+#[macro_use]
+mod support;
+
 use draftwright::{
     model::{self, Analysis, Plan, Spec},
     text::Font,
@@ -106,73 +110,72 @@ fn rows_and_tags_credit_hole_size_count_and_both_locations() {
         );
     }
 }
-#[test]
-fn the_dense_acceptance_parts_have_no_hole_location_tower() {
+part_cases!(the_dense_acceptance_parts_have_no_hole_location_tower;
+    nist_ctc_02_asme1_rc => "nist_ctc_02_asme1_rc",
+    nist_ctc_04_asme1_rd => "nist_ctc_04_asme1_rd",
+    nist_ftc_06_asme1_rd => "nist_ftc_06_asme1_rd",
+);
+fn the_dense_acceptance_parts_have_no_hole_location_tower(name: &str) {
     let Some(corpus) = corpus::dir() else { return };
-    for name in [
-        "nist_ctc_02_asme1_rc",
-        "nist_ctc_04_asme1_rd",
-        "nist_ftc_06_asme1_rd",
-    ] {
-        let (_, analysis) =
-            model::analyse_native(&Path::new(&corpus).join(format!("nist/{name}.stp"))).unwrap();
-        let p = model::plan_escalated(&analysis, &Spec::default()).unwrap();
+
+    let (_, analysis) =
+        model::analyse_native(&Path::new(&corpus).join(format!("nist/{name}.stp"))).unwrap();
+    let p = model::plan_escalated(&analysis, &Spec::default()).unwrap();
+    assert!(
+        tables(&p).as_array().is_some_and(|t| !t.is_empty()),
+        "{name}"
+    );
+    let read = draftwright::bridge::holes::read(&analysis);
+    for tag in p.balloons.iter().filter(|b| b.certifying) {
+        let h = read
+            .iter()
+            .find(|(f, _)| tag.features.contains(&f.id))
+            .unwrap()
+            .1
+            .as_ref()
+            .unwrap();
+        let v = p.views.iter().find(|v| v.id == tag.view).unwrap();
+        let frame = haecceity::hlr::View::new(v.direction, v.up).unwrap();
+        let centre = frame.map(std::array::from_fn(|k| {
+            (analysis.envelope[0][k] + analysis.envelope[1][k]) * 0.5
+        }));
+        let at = frame.map(h.at);
+        let hole = [
+            v.at[0] + v.scale * (at[0] - centre[0]),
+            v.at[1] + v.scale * (at[1] - centre[1]),
+        ];
+        let width = tag.tag.len() as f64 * draftwright::dims::TEXT * 0.6;
+        let clearance = ((tag.at[0] - hole[0]).abs() - width * 0.5)
+            .max(0.0)
+            .hypot(((tag.at[1] - hole[1]).abs() - draftwright::dims::TEXT * 0.5).max(0.0));
+        let opening = [
+            h.diameter,
+            h.counterbore.map_or(0.0, |r| r.diameter),
+            h.spotface.map_or(0.0, |r| r.diameter),
+            h.countersink.map_or(0.0, |r| r.diameter),
+        ]
+        .into_iter()
+        .fold(0.0, f64::max);
         assert!(
-            tables(&p).as_array().is_some_and(|t| !t.is_empty()),
-            "{name}"
+            clearance > opening * v.scale * 0.5,
+            "{name} {} crosses its hole's outer seat",
+            tag.tag
         );
-        let read = draftwright::bridge::holes::read(&analysis);
-        for tag in p.balloons.iter().filter(|b| b.certifying) {
-            let h = read
-                .iter()
-                .find(|(f, _)| tag.features.contains(&f.id))
-                .unwrap()
-                .1
-                .as_ref()
-                .unwrap();
-            let v = p.views.iter().find(|v| v.id == tag.view).unwrap();
-            let frame = haecceity::hlr::View::new(v.direction, v.up).unwrap();
-            let centre = frame.map(std::array::from_fn(|k| {
-                (analysis.envelope[0][k] + analysis.envelope[1][k]) * 0.5
-            }));
-            let at = frame.map(h.at);
-            let hole = [
-                v.at[0] + v.scale * (at[0] - centre[0]),
-                v.at[1] + v.scale * (at[1] - centre[1]),
-            ];
-            let width = tag.tag.len() as f64 * draftwright::dims::TEXT * 0.6;
-            let clearance = ((tag.at[0] - hole[0]).abs() - width * 0.5)
-                .max(0.0)
-                .hypot(((tag.at[1] - hole[1]).abs() - draftwright::dims::TEXT * 0.5).max(0.0));
-            let opening = [
-                h.diameter,
-                h.counterbore.map_or(0.0, |r| r.diameter),
-                h.spotface.map_or(0.0, |r| r.diameter),
-                h.countersink.map_or(0.0, |r| r.diameter),
-            ]
-            .into_iter()
-            .fold(0.0, f64::max);
-            assert!(
-                clearance > opening * v.scale * 0.5,
-                "{name} {} crosses its hole's outer seat",
-                tag.tag
-            );
-        }
-        for v in ["v:front", "v:plan", "v:side"] {
-            let n = p
-                .dimensions
-                .iter()
-                .filter(|d| {
-                    d.view == v
-                        && d.placed.is_some()
-                        && d.measurements.iter().any(|m| {
-                            m.feature.starts_with("f:hole")
-                                && m.parameter.starts_with("location.length.")
-                        })
-                })
-                .count();
-            assert!(n <= 8, "{name} {v}: {n} location tiers");
-        }
+    }
+    for v in ["v:front", "v:plan", "v:side"] {
+        let n = p
+            .dimensions
+            .iter()
+            .filter(|d| {
+                d.view == v
+                    && d.placed.is_some()
+                    && d.measurements.iter().any(|m| {
+                        m.feature.starts_with("f:hole")
+                            && m.parameter.starts_with("location.length.")
+                    })
+            })
+            .count();
+        assert!(n <= 8, "{name} {v}: {n} location tiers");
     }
 }
 
@@ -534,50 +537,48 @@ fn the_cgb245_view_pin_reproducer_keeps_its_schedule() {
     }
 }
 
-#[test]
-fn rounded_datums_and_stacked_openings_are_unambiguous() {
+part_cases!(rounded_datums_and_stacked_openings_are_unambiguous;
+    nist_ctc_02_asme1_rc => "nist_ctc_02_asme1_rc",
+    nist_ctc_04_asme1_rd => "nist_ctc_04_asme1_rd",
+    nist_ctc_05_asme1_rd => "nist_ctc_05_asme1_rd",
+);
+fn rounded_datums_and_stacked_openings_are_unambiguous(name: &str) {
     let Some(corpus) = corpus::dir() else { return };
-    for name in [
-        "nist_ctc_02_asme1_rc",
-        "nist_ctc_04_asme1_rd",
-        "nist_ctc_05_asme1_rd",
-    ] {
-        let (_, analysis) =
-            model::analyse_native(&corpus.join(format!("nist/{name}.stp"))).unwrap();
-        let plan = model::plan_recovered(&analysis, &Spec::default()).unwrap();
-        assert!(!plan.hole_tables.is_empty(), "{name}");
-        for table in &plan.hole_tables {
-            assert_eq!(table.origin, Some(analysis.envelope[0]));
-            for row in &table.rows {
-                assert!(
-                    row.cells[1]
-                        .split_whitespace()
-                        .all(|t| !(t.parse::<f64>().is_ok() && t.ends_with(".0"))),
-                    "{name}: redundant native size precision"
-                );
-                assert!(
-                    row.cells[2..4].iter().all(|c| !c.ends_with(".0")),
-                    "{name}: redundant coordinate precision"
-                );
-                assert!(
-                    row.measurements
-                        .iter()
-                        .filter(|m| m.parameter.starts_with("location.length."))
-                        .all(|m| m.value >= -1e-6)
-                );
-                for other in &table.rows {
-                    if row.feature != other.feature && row.cells[2..4] == other.cells[2..4] {
-                        assert_ne!(
-                            row.cells[4], other.cells[4],
-                            "{name}: indistinguishable entry faces"
-                        );
-                        assert!(
-                            plan.balloons
-                                .iter()
-                                .any(|b| b.features.contains(&row.feature)
-                                    && b.features.contains(&other.feature))
-                        );
-                    }
+
+    let (_, analysis) = model::analyse_native(&corpus.join(format!("nist/{name}.stp"))).unwrap();
+    let plan = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    assert!(!plan.hole_tables.is_empty(), "{name}");
+    for table in &plan.hole_tables {
+        assert_eq!(table.origin, Some(analysis.envelope[0]));
+        for row in &table.rows {
+            assert!(
+                row.cells[1]
+                    .split_whitespace()
+                    .all(|t| !(t.parse::<f64>().is_ok() && t.ends_with(".0"))),
+                "{name}: redundant native size precision"
+            );
+            assert!(
+                row.cells[2..4].iter().all(|c| !c.ends_with(".0")),
+                "{name}: redundant coordinate precision"
+            );
+            assert!(
+                row.measurements
+                    .iter()
+                    .filter(|m| m.parameter.starts_with("location.length."))
+                    .all(|m| m.value >= -1e-6)
+            );
+            for other in &table.rows {
+                if row.feature != other.feature && row.cells[2..4] == other.cells[2..4] {
+                    assert_ne!(
+                        row.cells[4], other.cells[4],
+                        "{name}: indistinguishable entry faces"
+                    );
+                    assert!(
+                        plan.balloons
+                            .iter()
+                            .any(|b| b.features.contains(&row.feature)
+                                && b.features.contains(&other.feature))
+                    );
                 }
             }
         }
@@ -619,40 +620,39 @@ fn an_incomplete_bolt_circle_states_pcd_and_each_angle() {
     );
 }
 
-#[test]
-fn schedule_labels_clear_the_rendered_part_and_other_annotations() {
+part_cases!(schedule_labels_clear_the_rendered_part_and_other_annotations;
+    nist_ctc_02_asme1_rc => "nist/nist_ctc_02_asme1_rc.stp",
+    nist_ctc_05_asme1_rd => "nist/nist_ctc_05_asme1_rd.stp",
+    cgb245 => "cadgenbench_inputs/cgb245.step",
+);
+fn schedule_labels_clear_the_rendered_part_and_other_annotations(file: &str) {
     let Some(corpus) = corpus::dir() else { return };
     let font = Font::new(
         std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
             .unwrap(),
     )
     .unwrap();
-    for file in [
-        "nist/nist_ctc_02_asme1_rc.stp",
-        "nist/nist_ctc_05_asme1_rd.stp",
-        "cadgenbench_inputs/cgb245.step",
-    ] {
-        let (part, analysis) = model::analyse_native(&corpus.join(file)).unwrap();
-        let plan = model::plan_recovered(&analysis, &Spec::default()).unwrap();
-        let drawing = model::render(&part, &analysis, &plan, &font).unwrap();
-        for issue in draftwright::lint::structural::check(&drawing) {
-            if issue
-                .annotation
-                .as_ref()
-                .is_some_and(|a| a.starts_with("hole_schedule_"))
-                || issue
-                    .related
-                    .iter()
-                    .any(|a| a.starts_with("hole_schedule_"))
-            {
-                assert!(
-                    !matches!(
-                        issue.code.as_str(),
-                        "view_annotation_overlap" | "annotation_overlap" | "annotation_ink_overlap"
-                    ),
-                    "{file}: {issue:?}"
-                );
-            }
+
+    let (part, analysis) = model::analyse_native(&corpus.join(file)).unwrap();
+    let plan = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    let drawing = model::render(&part, &analysis, &plan, &font).unwrap();
+    for issue in draftwright::lint::structural::check(&drawing) {
+        if issue
+            .annotation
+            .as_ref()
+            .is_some_and(|a| a.starts_with("hole_schedule_"))
+            || issue
+                .related
+                .iter()
+                .any(|a| a.starts_with("hole_schedule_"))
+        {
+            assert!(
+                !matches!(
+                    issue.code.as_str(),
+                    "view_annotation_overlap" | "annotation_overlap" | "annotation_ink_overlap"
+                ),
+                "{file}: {issue:?}"
+            );
         }
     }
 }
@@ -692,8 +692,13 @@ fn a_changed_entry_cell_is_reported_even_when_xy_is_correct() {
 /// cells and its drawn origin, as a reader would find them. A tag without a leader is nearer
 /// its own rim (and centre) than any other scheduled hole's; a leadered tag's arrow touches its
 /// own rim and no other.
-#[test]
-fn each_tag_is_beside_or_leadered_to_its_own_hole() {
+part_cases!(each_tag_is_beside_or_leadered_to_its_own_hole;
+    nist_ctc_02_asme1_rc => "nist_ctc_02_asme1_rc",
+    nist_ctc_04_asme1_rd => "nist_ctc_04_asme1_rd",
+    nist_ctc_05_asme1_rd => "nist_ctc_05_asme1_rd",
+    nist_ftc_06_asme1_rd => "nist_ftc_06_asme1_rd",
+);
+fn each_tag_is_beside_or_leadered_to_its_own_hole(name: &str) {
     let Some(corpus) = corpus::dir() else { return };
     let number = |cell: &str| -> f64 {
         cell.split_whitespace()
@@ -706,80 +711,74 @@ fn each_tag_is_beside_or_leadered_to_its_own_hole() {
             .filter_map(|t| t.split_whitespace().next()?.parse::<f64>().ok())
             .fold(0.0, f64::max)
     };
-    for name in [
-        "nist_ctc_02_asme1_rc",
-        "nist_ctc_04_asme1_rd",
-        "nist_ctc_05_asme1_rd",
-        "nist_ftc_06_asme1_rd",
-    ] {
-        let (_, analysis) =
-            model::analyse_native(&Path::new(&corpus).join(format!("nist/{name}.stp"))).unwrap();
-        let p = model::plan_recovered(&analysis, &Spec::default()).unwrap();
-        assert!(!p.hole_tables.is_empty(), "{name}");
-        for t in &p.hole_tables {
-            let view = p
-                .views
+
+    let (_, analysis) =
+        model::analyse_native(&Path::new(&corpus).join(format!("nist/{name}.stp"))).unwrap();
+    let p = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    assert!(!p.hole_tables.is_empty(), "{name}");
+    for t in &p.hole_tables {
+        let view = p
+            .views
+            .iter()
+            .find(|v| Some(&v.id) == t.view.as_ref())
+            .unwrap();
+        let origin = p
+            .balloons
+            .iter()
+            .find(|b| b.id == format!("{}/origin", t.id))
+            .and_then(|b| b.leader)
+            .unwrap()[0];
+        let holes: Vec<(&str, [f64; 2], f64)> = t
+            .rows
+            .iter()
+            .map(|r| {
+                (
+                    r.feature.as_str(),
+                    [
+                        origin[0] + view.scale * number(&r.cells[2]),
+                        origin[1] + view.scale * number(&r.cells[3]),
+                    ],
+                    opening(&r.cells[1]) * view.scale * 0.5,
+                )
+            })
+            .collect();
+        let dist = |a: [f64; 2], b: [f64; 2]| (a[0] - b[0]).hypot(a[1] - b[1]);
+        for tag in p
+            .balloons
+            .iter()
+            .filter(|b| b.id.starts_with(&format!("{}/tag/", t.id)))
+        {
+            let own: Vec<_> = holes
                 .iter()
-                .find(|v| Some(&v.id) == t.view.as_ref())
-                .unwrap();
-            let origin = p
-                .balloons
-                .iter()
-                .find(|b| b.id == format!("{}/origin", t.id))
-                .and_then(|b| b.leader)
-                .unwrap()[0];
-            let holes: Vec<(&str, [f64; 2], f64)> = t
-                .rows
-                .iter()
-                .map(|r| {
-                    (
-                        r.feature.as_str(),
-                        [
-                            origin[0] + view.scale * number(&r.cells[2]),
-                            origin[1] + view.scale * number(&r.cells[3]),
-                        ],
-                        opening(&r.cells[1]) * view.scale * 0.5,
-                    )
-                })
+                .filter(|h| tag.features.iter().any(|f| f == h.0))
                 .collect();
-            let dist = |a: [f64; 2], b: [f64; 2]| (a[0] - b[0]).hypot(a[1] - b[1]);
-            for tag in p
-                .balloons
+            let others: Vec<_> = holes
                 .iter()
-                .filter(|b| b.id.starts_with(&format!("{}/tag/", t.id)))
-            {
-                let own: Vec<_> = holes
-                    .iter()
-                    .filter(|h| tag.features.iter().any(|f| f == h.0))
-                    .collect();
-                let others: Vec<_> = holes
-                    .iter()
-                    .filter(|h| own.iter().all(|o| dist(o.1, h.1) > 1e-3))
-                    .collect();
-                let (_, centre, radius) = *own[0];
-                if let Some([tip, _]) = tag.leader {
+                .filter(|h| own.iter().all(|o| dist(o.1, h.1) > 1e-3))
+                .collect();
+            let (_, centre, radius) = *own[0];
+            if let Some([tip, _]) = tag.leader {
+                assert!(
+                    (dist(tip, centre) - radius).abs() < 0.3,
+                    "{name} {}: its leader does not end on its own rim",
+                    tag.tag
+                );
+                for (_, c, r) in &others {
                     assert!(
-                        (dist(tip, centre) - radius).abs() < 0.3,
-                        "{name} {}: its leader does not end on its own rim",
+                        dist(tip, *c) - r > 1.0,
+                        "{name} {}: its leader ends at another hole",
                         tag.tag
                     );
-                    for (_, c, r) in &others {
-                        assert!(
-                            dist(tip, *c) - r > 1.0,
-                            "{name} {}: its leader ends at another hole",
-                            tag.tag
-                        );
-                    }
-                } else {
-                    let gap = dist(tag.at, centre) - radius;
-                    assert!(gap < 8.0, "{name} {}: {gap:.1} mm from its hole", tag.tag);
-                    for (_, c, r) in &others {
-                        assert!(
-                            dist(tag.at, *c) - r > gap * 1.15 + 0.5,
-                            "{name} {}: as near another hole as its own",
-                            tag.tag
-                        );
-                    }
+                }
+            } else {
+                let gap = dist(tag.at, centre) - radius;
+                assert!(gap < 8.0, "{name} {}: {gap:.1} mm from its hole", tag.tag);
+                for (_, c, r) in &others {
+                    assert!(
+                        dist(tag.at, *c) - r > gap * 1.15 + 0.5,
+                        "{name} {}: as near another hole as its own",
+                        tag.tag
+                    );
                 }
             }
         }
@@ -788,65 +787,67 @@ fn each_tag_is_beside_or_leadered_to_its_own_hole() {
 
 /// The entry column is in the view's frame (X right, Y up, Z out of the page), as X and Y
 /// are: a side or front view never states a part-frame axis there, and lint rejects one.
-#[test]
-fn entry_cells_use_the_view_frame_and_lint_checks_it() {
+part_cases!(entry_cells_use_the_view_frame_and_lint_checks_it;
+    nist_ctc_02_asme1_rc => "nist_ctc_02_asme1_rc",
+    nist_ftc_06_asme1_rd => "nist_ftc_06_asme1_rd",
+);
+fn entry_cells_use_the_view_frame_and_lint_checks_it(name: &str) {
     let Some(corpus) = corpus::dir() else { return };
     let font = Font::new(
         std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
             .unwrap(),
     )
     .unwrap();
-    for name in ["nist_ctc_02_asme1_rc", "nist_ftc_06_asme1_rd"] {
-        let (part, analysis) =
-            model::analyse_native(&Path::new(&corpus).join(format!("nist/{name}.stp"))).unwrap();
-        let p = model::plan_recovered(&analysis, &Spec::default()).unwrap();
-        let off_plan: Vec<_> = p
-            .hole_tables
-            .iter()
-            .filter(|t| t.view.as_deref() != Some("v:plan"))
-            .collect();
-        assert!(!off_plan.is_empty(), "{name}");
-        for t in &p.hole_tables {
-            assert_eq!(t.blocks[0].rows[1][4], "Z OUT / DIR");
-            for r in &t.rows {
-                assert!(
-                    r.cells[4].ends_with("/ +Z") || r.cells[4].ends_with("/ −Z"),
-                    "{name} {} {}",
-                    r.tag,
-                    r.cells[4]
-                );
-            }
+
+    let (part, analysis) =
+        model::analyse_native(&Path::new(&corpus).join(format!("nist/{name}.stp"))).unwrap();
+    let p = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    let off_plan: Vec<_> = p
+        .hole_tables
+        .iter()
+        .filter(|t| t.view.as_deref() != Some("v:plan"))
+        .collect();
+    assert!(!off_plan.is_empty(), "{name}");
+    for t in &p.hole_tables {
+        assert_eq!(t.blocks[0].rows[1][4], "Z OUT / DIR");
+        for r in &t.rows {
+            assert!(
+                r.cells[4].ends_with("/ +Z") || r.cells[4].ends_with("/ −Z"),
+                "{name} {} {}",
+                r.tag,
+                r.cells[4]
+            );
         }
-        let mut drawing = model::render(&part, &analysis, &p, &font).unwrap();
-        assert!(
-            !draftwright::lint::lint(&analysis, &drawing)
-                .iter()
-                .any(|i| i.code == "hole_table_entry_invalid"),
-            "{name}"
-        );
-        // The same number with the part-frame axis letter is wrong in this view's frame.
-        let entry = drawing
-            .annotations
-            .iter()
-            .find(|a| a.name.starts_with(&off_plan[0].id) && a.name.ends_with("/entry"))
-            .unwrap()
-            .clone();
-        let row = off_plan[0]
-            .rows
-            .iter()
-            .find(|r| entry.claims[0].feature == r.feature)
-            .unwrap();
-        let part_frame = row.cells[4].replace("Z", if name.contains("ctc_02") { "X" } else { "Y" });
-        for &run in &entry.runs {
-            drawing.text[run].text = part_frame.clone();
-        }
-        assert!(
-            draftwright::lint::lint(&analysis, &drawing)
-                .iter()
-                .any(|i| i.code == "hole_table_entry_invalid"),
-            "{name}: {part_frame}"
-        );
     }
+    let mut drawing = model::render(&part, &analysis, &p, &font).unwrap();
+    assert!(
+        !draftwright::lint::lint(&analysis, &drawing)
+            .iter()
+            .any(|i| i.code == "hole_table_entry_invalid"),
+        "{name}"
+    );
+    // The same number with the part-frame axis letter is wrong in this view's frame.
+    let entry = drawing
+        .annotations
+        .iter()
+        .find(|a| a.name.starts_with(&off_plan[0].id) && a.name.ends_with("/entry"))
+        .unwrap()
+        .clone();
+    let row = off_plan[0]
+        .rows
+        .iter()
+        .find(|r| entry.claims[0].feature == r.feature)
+        .unwrap();
+    let part_frame = row.cells[4].replace("Z", if name.contains("ctc_02") { "X" } else { "Y" });
+    for &run in &entry.runs {
+        drawing.text[run].text = part_frame.clone();
+    }
+    assert!(
+        draftwright::lint::lint(&analysis, &drawing)
+            .iter()
+            .any(|i| i.code == "hole_table_entry_invalid"),
+        "{name}: {part_frame}"
+    );
 }
 
 #[test]

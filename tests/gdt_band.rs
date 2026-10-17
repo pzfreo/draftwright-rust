@@ -14,6 +14,10 @@
 //!   (reported, never dropped); its room is reserved beyond every dimension lane, as within
 //!   draftwright's estimate the dimensions below the front run on and leave 13 frames no place.
 
+#[path = "common/support.rs"]
+#[macro_use]
+mod support;
+
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
@@ -88,27 +92,25 @@ fn ctc_02_frames_and_datum_symbols_are_inside_their_bands_and_on_the_sheet() {
     }
 }
 
-#[test]
-fn frames_datum_symbols_and_labels_are_on_the_sheet_and_off_the_other_views() {
-    for stem in [
-        "nist_ctc_02_asme1_ap242-e2",
-        "nist_stc_09_asme1_ap242-e4",
-        "spool_fits",
-        "thumbwheel_thread_knurl",
+part_cases!(frames_datum_symbols_and_labels_are_on_the_sheet_and_off_the_other_views;
+    nist_ctc_02_asme1_ap242_e2 => "nist_ctc_02_asme1_ap242-e2",
+    nist_stc_09_asme1_ap242_e4 => "nist_stc_09_asme1_ap242-e4",
+    spool_fits => "spool_fits",
+    thumbwheel_thread_knurl => "thumbwheel_thread_knurl",
+);
+fn frames_datum_symbols_and_labels_are_on_the_sheet_and_off_the_other_views(stem: &str) {
+    let plan = model::plan_recovered(&analysed(stem), &Spec::default()).unwrap();
+    assert!(!plan.gdt.is_empty(), "{stem} has GD&T");
+    for code in [
+        "annotation_off_sheet",
+        "annotation_over_view",
+        "annotation_line_over_view",
     ] {
-        let plan = model::plan_recovered(&analysed(stem), &Spec::default()).unwrap();
-        assert!(!plan.gdt.is_empty(), "{stem} has GD&T");
-        for code in [
-            "annotation_off_sheet",
-            "annotation_over_view",
-            "annotation_line_over_view",
-        ] {
-            let ids: Vec<&str> = reported(&plan, code)
-                .iter()
-                .map(|g| g.id.as_str())
-                .collect();
-            assert!(ids.is_empty(), "{stem}: {code} {ids:?}");
-        }
+        let ids: Vec<&str> = reported(&plan, code)
+            .iter()
+            .map(|g| g.id.as_str())
+            .collect();
+        assert!(ids.is_empty(), "{stem}: {code} {ids:?}");
     }
 }
 

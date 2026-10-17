@@ -9,6 +9,9 @@
 //! and `samples/specify-sample-spindle.step.gz` its turned spindle (draftwright-editor
 //! `public/samples/specify-sample-spindle.step`).
 
+#[path = "common/support.rs"]
+mod support;
+
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
@@ -184,34 +187,6 @@ fn the_spindles_bracketed_length_is_a_reference_with_what_determines_it() {
     );
 }
 
-/// *f* of each of *items*, in their order, on four threads taking the next item as each frees.
-fn parallel<T: Sync, U: Send>(items: &[T], f: impl Fn(&T) -> U + Sync) -> Vec<U> {
-    let next = std::sync::atomic::AtomicUsize::new(0);
-    let (f, next) = (&f, &next);
-    let mut out: Vec<(usize, U)> = std::thread::scope(|s| {
-        let handles: Vec<_> = (0..4)
-            .map(|_| {
-                s.spawn(move || {
-                    let mut done = Vec::new();
-                    loop {
-                        let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                        let Some(item) = items.get(i) else {
-                            return done;
-                        };
-                        done.push((i, f(item)));
-                    }
-                })
-            })
-            .collect();
-        handles
-            .into_iter()
-            .flat_map(|h| h.join().unwrap())
-            .collect()
-    });
-    out.sort_by_key(|(i, _)| *i);
-    out.into_iter().map(|(_, u)| u).collect()
-}
-
 /// The specs a part is planned under, beside the defaults, to raise the spec's own problems:
 /// one dimension omitted and toleranced; one given a band of nothing; an authored pair; each
 /// principal view omitted; and, on the editor's plate, its grid pitch placed above and a fit on
@@ -298,13 +273,13 @@ fn plans() -> &'static [(String, Plan)] {
             })
             .collect();
         files.sort();
-        parts.extend(parallel(&files, |file| {
+        parts.extend(support::parallel(&files, |file| {
             (
                 file.clone(),
                 gz(&format!("pmi/step/{file}"), file.trim_end_matches(".gz")),
             )
         }));
-        let bases = parallel(&parts, |(_, a)| {
+        let bases = support::parallel(&parts, |(_, a)| {
             model::plan_recovered(a, &Spec::default()).unwrap()
         });
         let jobs: Vec<(String, String, &Analysis, Spec)> = parts
@@ -323,7 +298,7 @@ fn plans() -> &'static [(String, Plan)] {
             .zip(bases.iter().cloned())
             .collect();
         out.extend(
-            parallel(&jobs, |(part, name, a, s)| {
+            support::parallel(&jobs, |(part, name, a, s)| {
                 model::plan_recovered(a, s)
                     .ok()
                     .map(|plan| (format!("{part}, {name}"), plan))

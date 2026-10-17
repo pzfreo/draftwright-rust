@@ -212,14 +212,16 @@ fn interior_provenance_does_not_hide_a_rendered_ink_overlap() {
 mod corpus;
 #[path = "common/interior_ink.rs"]
 mod interior_ink;
+#[path = "common/support.rs"]
+mod support;
 
 #[test]
 fn all_quality_parts_interior_lines_arrows_and_tips_clear_rendered_ink() {
     let Some(root) = corpus::dir() else {
         return;
     };
-    let mut count = 0;
-    for file in include_str!("../tools/quality_parts.txt").lines() {
+    let files: Vec<_> = include_str!("../tools/quality_parts.txt").lines().collect();
+    let count: usize = support::parallel(&files, |&file| {
         let (part, a) = model::analyse_native(&root.join(file)).unwrap();
         let p = model::plan(&a, &Spec::default()).unwrap();
         let interior: Vec<_> = p
@@ -228,14 +230,18 @@ fn all_quality_parts_interior_lines_arrows_and_tips_clear_rendered_ink() {
             .filter(|d| d.region == Some(draftwright::dims::CandidateRegion::Interior))
             .collect();
         if interior.is_empty() {
-            continue;
+            return 0;
         }
         let drawing = model::render(&part, &a, &p, &font()).unwrap();
+        let mut count = 0;
         for d in interior {
             interior_ink::assert_clear(&drawing, d);
             count += 1;
         }
-    }
+        count
+    })
+    .into_iter()
+    .sum();
     assert!(count > 0);
 }
 

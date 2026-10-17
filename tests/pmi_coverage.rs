@@ -18,6 +18,10 @@
 //! `tests/fixtures/known_pmi_coverage.json`; a listed difference that has gone away must be taken
 //! off.
 
+#[path = "common/support.rs"]
+#[macro_use]
+mod support;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
@@ -373,8 +377,8 @@ fn gate(file: &str, a: &Analysis, drawing: &Drawing, found: &[LintIssue]) {
     }
 }
 
-#[test]
-fn pmi_coverage_matches_draftwright_or_is_known() {
+pmi_cases!(pmi_coverage_matches_draftwright_or_is_known);
+fn pmi_coverage_matches_draftwright_or_is_known(only: &str) {
     let known: Vec<Known> = serde_json::from_str(
         &std::fs::read_to_string(fixtures().join("known_pmi_coverage.json")).unwrap(),
     )
@@ -388,12 +392,17 @@ fn pmi_coverage_matches_draftwright_or_is_known() {
     ];
     for k in &known {
         assert!(
+            support::PMI_FILES.contains(&k.file.as_str()),
+            "unknown fixture: {}",
+            k.file
+        );
+        assert!(
             verdicts.contains(&k.verdict.as_str()) && !k.evidence.trim().is_empty(),
             "{k:?}"
         );
     }
     let mut diffs = Vec::new();
-    for (file, stem, bytes) in inputs() {
+    for (file, stem, bytes) in inputs().into_iter().filter(|(file, _, _)| file == only) {
         let py = json_gz(&fixtures().join(format!("pmi_coverage/{stem}.json.gz")));
         let reading = json_gz(&fixtures().join(format!("pmi/{stem}.json.gz")));
         assert_eq!(py["file"], file.as_str());
@@ -470,6 +479,7 @@ fn pmi_coverage_matches_draftwright_or_is_known() {
     }
     let listed: Vec<Diff> = known
         .iter()
+        .filter(|k| k.file == only)
         .map(|k| Diff {
             file: k.file.clone(),
             code: k.code.clone(),

@@ -21,6 +21,10 @@
 #[path = "common/pdf.rs"]
 mod pdf;
 
+#[path = "common/support.rs"]
+#[macro_use]
+mod support;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
@@ -360,8 +364,8 @@ fn compare(file: &str, py: &Value, reading: &Value, a: &Analysis, plan: &Plan) -
     diffs
 }
 
-#[test]
-fn pmi_dimensions_match_draftwright_or_are_known() {
+pmi_cases!(pmi_dimensions_match_draftwright_or_are_known);
+fn pmi_dimensions_match_draftwright_or_are_known(only: &str) {
     let known: Vec<Known> = serde_json::from_str(
         &std::fs::read_to_string(root().join("tests/fixtures/known_pmi_dimensions.json")).unwrap(),
     )
@@ -375,13 +379,18 @@ fn pmi_dimensions_match_draftwright_or_are_known() {
     ];
     for k in &known {
         assert!(
+            support::PMI_FILES.contains(&k.file.as_str()),
+            "unknown fixture: {}",
+            k.file
+        );
+        assert!(
             verdicts.contains(&k.verdict.as_str()) && !k.evidence.trim().is_empty(),
             "{k:?}"
         );
     }
     let mut diffs = Vec::new();
     let mut records = 0;
-    for (file, stem, bytes) in inputs() {
+    for (file, stem, bytes) in inputs().into_iter().filter(|(file, _, _)| file == only) {
         let py = json_gz(&fixtures().join(format!("dimensions/{stem}.json.gz")));
         let reading = json_gz(&fixtures().join(format!("{stem}.json.gz")));
         assert_eq!(py["file"], file.as_str());
@@ -403,6 +412,7 @@ fn pmi_dimensions_match_draftwright_or_are_known() {
     }
     let listed: Vec<Diff> = known
         .iter()
+        .filter(|k| k.file == only)
         .map(|k| Diff {
             file: k.file.clone(),
             record: k.record.clone(),
@@ -464,9 +474,9 @@ const REFUSALS: [&str; 3] = [
     "pmi_not_drawn",
 ];
 
-#[test]
-fn every_dimension_is_drawn_or_reported_never_both() {
-    for (file, _, bytes) in inputs() {
+pmi_cases!(every_dimension_is_drawn_or_reported_never_both);
+fn every_dimension_is_drawn_or_reported_never_both(only: &str) {
+    for (file, _, bytes) in inputs().into_iter().filter(|(file, _, _)| file == only) {
         let (_, a) = analysed(&file, &bytes);
         let plan = model::plan(&a, &Spec::default()).unwrap();
         for r in records(&a)
@@ -1099,35 +1109,35 @@ fn a_shaft_fit_prints_its_class_by_default_and_stacked_deviations_on_request() {
     );
 }
 
-#[test]
-fn the_same_part_gives_the_same_plan_and_bytes() {
-    for stem in ["assembly_plate_pin", "nist_ftc_10_asme1_ap242-e2"] {
-        let (part, a, plan) = planned(stem);
-        let again = model::plan(&a, &Spec::default()).unwrap();
-        assert_eq!(
-            serde_json::to_string(&plan).unwrap(),
-            serde_json::to_string(&again).unwrap(),
-            "{stem}"
-        );
-        let font =
-            draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT))
-                .unwrap();
-        let one = model::render(&part, &a, &plan, &font).unwrap();
-        let two = model::render(&part, &a, &again, &font).unwrap();
-        assert_eq!(one.svg(), two.svg(), "{stem}");
-        assert_eq!(one.dxf(), two.dxf(), "{stem}");
-        // The Analysis round-trips through JSON with its dimensions' geometry, and plans the
-        // same.
-        let text = serde_json::to_string(&a).unwrap();
-        let back: Analysis = serde_json::from_str(&text).unwrap();
-        assert_eq!(serde_json::to_string(&back).unwrap(), text, "{stem}");
-        let replanned = model::plan(&back, &Spec::default()).unwrap();
-        assert_eq!(
-            serde_json::to_string(&replanned).unwrap(),
-            serde_json::to_string(&plan).unwrap(),
-            "{stem}"
-        );
-    }
+part_cases!(the_same_part_gives_the_same_plan_and_bytes;
+    assembly_plate_pin => "assembly_plate_pin",
+    nist_ftc_10_asme1_ap242_e2 => "nist_ftc_10_asme1_ap242-e2",
+);
+fn the_same_part_gives_the_same_plan_and_bytes(stem: &str) {
+    let (part, a, plan) = planned(stem);
+    let again = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        serde_json::to_string(&plan).unwrap(),
+        serde_json::to_string(&again).unwrap(),
+        "{stem}"
+    );
+    let font =
+        draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
+    let one = model::render(&part, &a, &plan, &font).unwrap();
+    let two = model::render(&part, &a, &again, &font).unwrap();
+    assert_eq!(one.svg(), two.svg(), "{stem}");
+    assert_eq!(one.dxf(), two.dxf(), "{stem}");
+    // The Analysis round-trips through JSON with its dimensions' geometry, and plans the
+    // same.
+    let text = serde_json::to_string(&a).unwrap();
+    let back: Analysis = serde_json::from_str(&text).unwrap();
+    assert_eq!(serde_json::to_string(&back).unwrap(), text, "{stem}");
+    let replanned = model::plan(&back, &Spec::default()).unwrap();
+    assert_eq!(
+        serde_json::to_string(&replanned).unwrap(),
+        serde_json::to_string(&plan).unwrap(),
+        "{stem}"
+    );
 }
 
 /// One span, one dimension for PMI (`share_pmi`): the plate states each grid hole's basic

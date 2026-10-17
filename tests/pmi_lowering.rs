@@ -21,6 +21,10 @@ mod corpus;
 #[path = "common/pdf.rs"]
 mod pdf;
 
+#[path = "common/support.rs"]
+#[macro_use]
+mod support;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
@@ -474,8 +478,8 @@ fn compare(file: &str, py: &Value, reading: &Value, a: &Analysis, plan: &Plan) -
     diffs
 }
 
-#[test]
-fn pmi_lowering_matches_draftwright_or_is_known() {
+pmi_cases!(pmi_lowering_matches_draftwright_or_is_known);
+fn pmi_lowering_matches_draftwright_or_is_known(only: &str) {
     let known: Vec<Known> = serde_json::from_str(
         &std::fs::read_to_string(root().join("tests/fixtures/known_pmi_lowering.json")).unwrap(),
     )
@@ -489,13 +493,18 @@ fn pmi_lowering_matches_draftwright_or_is_known() {
     ];
     for k in &known {
         assert!(
+            support::PMI_FILES.contains(&k.file.as_str()),
+            "unknown fixture: {}",
+            k.file
+        );
+        assert!(
             verdicts.contains(&k.verdict.as_str()) && !k.evidence.trim().is_empty(),
             "{k:?}"
         );
     }
     let mut diffs = Vec::new();
     let mut items = 0;
-    for (file, stem, bytes) in inputs() {
+    for (file, stem, bytes) in inputs().into_iter().filter(|(file, _, _)| file == only) {
         let py = json_gz(&fixtures().join(format!("lowering/{stem}.json.gz")));
         let reading = json_gz(&fixtures().join(format!("{stem}.json.gz")));
         assert_eq!(py["file"], file.as_str());
@@ -518,6 +527,7 @@ fn pmi_lowering_matches_draftwright_or_is_known() {
     }
     let listed: Vec<Diff> = known
         .iter()
+        .filter(|k| k.file == only)
         .map(|k| Diff {
             file: k.file.clone(),
             record: k.record.clone(),
@@ -573,9 +583,9 @@ fn planned(stem: &str) -> (draftwright::haecceity::Part, Analysis, Plan) {
     (part, a, plan)
 }
 
-#[test]
-fn every_record_and_source_is_drawn_or_reported() {
-    for (file, _, bytes) in inputs() {
+pmi_cases!(every_record_and_source_is_drawn_or_reported);
+fn every_record_and_source_is_drawn_or_reported(only: &str) {
+    for (file, _, bytes) in inputs().into_iter().filter(|(file, _, _)| file == only) {
         let (_, a) = analysed(&file, &bytes);
         let plan = model::plan(&a, &Spec::default()).unwrap();
         let Some(Reading::Read(report)) = &a.pmi else {
@@ -877,34 +887,34 @@ fn lint_reads_a_frame_as_no_measurement() {
     assert_eq!(codes(&with), codes(&without));
 }
 
-#[test]
-fn the_same_part_gives_the_same_plan_and_bytes() {
-    for stem in ["nist_ctc_01_asme1_ap242-e1", "nist_ftc_07_asme1_ap242-e2"] {
-        let (part, a, plan) = planned(stem);
-        let again = model::plan(&a, &Spec::default()).unwrap();
-        assert_eq!(
-            serde_json::to_string(&plan).unwrap(),
-            serde_json::to_string(&again).unwrap(),
-            "{stem}"
-        );
-        let font =
-            draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT))
-                .unwrap();
-        let one = model::render(&part, &a, &plan, &font).unwrap();
-        let two = model::render(&part, &a, &again, &font).unwrap();
-        assert_eq!(one.svg(), two.svg(), "{stem}");
-        assert_eq!(one.dxf(), two.dxf(), "{stem}");
-        // The Analysis round-trips through JSON with its PMI, and plans the same.
-        let text = serde_json::to_string(&a).unwrap();
-        let back: Analysis = serde_json::from_str(&text).unwrap();
-        assert_eq!(serde_json::to_string(&back).unwrap(), text, "{stem}");
-        let replanned = model::plan(&back, &Spec::default()).unwrap();
-        assert_eq!(
-            serde_json::to_string(&replanned).unwrap(),
-            serde_json::to_string(&plan).unwrap(),
-            "{stem}"
-        );
-    }
+part_cases!(the_same_part_gives_the_same_plan_and_bytes;
+    nist_ctc_01_asme1_ap242_e1 => "nist_ctc_01_asme1_ap242-e1",
+    nist_ftc_07_asme1_ap242_e2 => "nist_ftc_07_asme1_ap242-e2",
+);
+fn the_same_part_gives_the_same_plan_and_bytes(stem: &str) {
+    let (part, a, plan) = planned(stem);
+    let again = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        serde_json::to_string(&plan).unwrap(),
+        serde_json::to_string(&again).unwrap(),
+        "{stem}"
+    );
+    let font =
+        draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
+    let one = model::render(&part, &a, &plan, &font).unwrap();
+    let two = model::render(&part, &a, &again, &font).unwrap();
+    assert_eq!(one.svg(), two.svg(), "{stem}");
+    assert_eq!(one.dxf(), two.dxf(), "{stem}");
+    // The Analysis round-trips through JSON with its PMI, and plans the same.
+    let text = serde_json::to_string(&a).unwrap();
+    let back: Analysis = serde_json::from_str(&text).unwrap();
+    assert_eq!(serde_json::to_string(&back).unwrap(), text, "{stem}");
+    let replanned = model::plan(&back, &Spec::default()).unwrap();
+    assert_eq!(
+        serde_json::to_string(&replanned).unwrap(),
+        serde_json::to_string(&plan).unwrap(),
+        "{stem}"
+    );
 }
 
 #[test]

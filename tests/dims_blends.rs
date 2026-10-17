@@ -2,6 +2,10 @@
 #[path = "common/corpus.rs"]
 mod corpus;
 
+#[path = "common/support.rs"]
+#[macro_use]
+mod support;
+
 use draftwright::items::State;
 use draftwright::model::{self, Spec};
 use serde_json::json;
@@ -22,58 +26,57 @@ fn missing(a: &model::Analysis, p: &model::Plan, part: &draftwright::haecceity::
 }
 
 /// ISSUE-1433-a, ARCH0015-1: numerous equal radii use notes with one exact credit per blend.
-#[test]
-fn many_blends_are_stated_without_counted_radius_clutter() {
+part_cases!(many_blends_are_stated_without_counted_radius_clutter;
+    cgb245 => "cadgenbench_inputs/cgb245.step",
+    nist_ctc_01_asme1_rd => "nist/nist_ctc_01_asme1_rd.stp",
+);
+fn many_blends_are_stated_without_counted_radius_clutter(file: &str) {
     let Some(dir) = corpus::dir() else { return };
-    for file in [
-        "cadgenbench_inputs/cgb245.step",
-        "nist/nist_ctc_01_asme1_rd.stp",
-    ] {
-        let (part, a) = model::analyse_native(&dir.join(file)).unwrap();
-        let p = model::plan(&a, &Spec::default()).unwrap();
-        let n = a.features.iter().filter(|f| f.kind == "blend").count();
-        assert!(n > 20);
-        if file.contains("cgb245") {
-            assert_eq!(missing(&a, &p, &part), 0, "{file}");
-            assert!(p.notes.iter().any(|n| n.placed.is_some()));
-        } else {
-            assert_eq!(
-                missing(&a, &p, &part),
-                0,
-                "real CTC-01 radii are stated and geometric relief is excluded"
-            );
-            assert!(p.notes.iter().all(|n| n.placed.is_some()));
-        }
-        assert!(
-            p.notes
-                .iter()
-                .all(|n| !n.text.contains("REF SITE") && !n.text.contains("UNSTATED"))
-        );
-        for note in p
-            .notes
-            .iter()
-            .filter(|n| n.placed.is_some() && !n.measurements.is_empty())
-        {
-            for d in p.dimensions.iter().filter(|d| d.placed.is_some()) {
-                assert!(!d.measurements.iter().any(|m| matches!(
-                    m.parameter.as_str(),
-                    "blend.radius" | "fillet.radius"
-                )
-                    && (m.value - note.measurements[0].value).abs() < 0.05));
-            }
-        }
-        assert!(p.notes.iter().any(|n| n.text.contains("RADII R")), "{file}");
-        assert!(
-            p.dimensions
-                .iter()
-                .all(|d| !d.label.contains("31× R") && !d.label.contains("82× R"))
-        );
-        let again = model::plan(&a, &Spec::default()).unwrap();
+
+    let (part, a) = model::analyse_native(&dir.join(file)).unwrap();
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    let n = a.features.iter().filter(|f| f.kind == "blend").count();
+    assert!(n > 20);
+    if file.contains("cgb245") {
+        assert_eq!(missing(&a, &p, &part), 0, "{file}");
+        assert!(p.notes.iter().any(|n| n.placed.is_some()));
+    } else {
         assert_eq!(
-            serde_json::to_value(&p).unwrap(),
-            serde_json::to_value(again).unwrap()
+            missing(&a, &p, &part),
+            0,
+            "real CTC-01 radii are stated and geometric relief is excluded"
         );
+        assert!(p.notes.iter().all(|n| n.placed.is_some()));
     }
+    assert!(
+        p.notes
+            .iter()
+            .all(|n| !n.text.contains("REF SITE") && !n.text.contains("UNSTATED"))
+    );
+    for note in p
+        .notes
+        .iter()
+        .filter(|n| n.placed.is_some() && !n.measurements.is_empty())
+    {
+        for d in p.dimensions.iter().filter(|d| d.placed.is_some()) {
+            assert!(!d.measurements.iter().any(|m| matches!(
+                m.parameter.as_str(),
+                "blend.radius" | "fillet.radius"
+            ) && (m.value - note.measurements[0].value).abs()
+                < 0.05));
+        }
+    }
+    assert!(p.notes.iter().any(|n| n.text.contains("RADII R")), "{file}");
+    assert!(
+        p.dimensions
+            .iter()
+            .all(|d| !d.label.contains("31× R") && !d.label.contains("82× R"))
+    );
+    let again = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        serde_json::to_value(&p).unwrap(),
+        serde_json::to_value(again).unwrap()
+    );
     let (part, a) = model::analyse_native(&dir.join("nist/nist_ctc_02_asme1_rc.stp")).unwrap();
     let p = model::plan(&a, &Spec::default()).unwrap();
     assert_eq!(
@@ -446,73 +449,75 @@ fn ctc01_states_real_corners_and_the_radius_default_without_logo_callouts() {
 }
 
 /// The same geometric relief decision works on different carriers and preserves real radii.
-#[test]
-fn grouped_relief_radii_are_excluded_on_several_parts_with_explicit_evidence() {
+part_cases!(grouped_relief_radii_are_excluded_on_several_parts_with_explicit_evidence;
+    nist_ctc_01_asme1_rd => "nist/nist_ctc_01_asme1_rd.stp",
+    nist_ctc_04_asme1_rd => "nist/nist_ctc_04_asme1_rd.stp",
+    nist_ctc_02_asme1_rc => "nist/nist_ctc_02_asme1_rc.stp",
+    nist_ftc_06_asme1_rd => "nist/nist_ftc_06_asme1_rd.stp",
+    nist_ftc_08_asme1_rc => "nist/nist_ftc_08_asme1_rc.stp",
+);
+fn grouped_relief_radii_are_excluded_on_several_parts_with_explicit_evidence(file: &str) {
     let Some(dir) = corpus::dir() else { return };
-    for file in [
-        "nist/nist_ctc_01_asme1_rd.stp",
-        "nist/nist_ctc_04_asme1_rd.stp",
-        "nist/nist_ctc_02_asme1_rc.stp",
-        "nist/nist_ftc_06_asme1_rd.stp",
-        "nist/nist_ftc_08_asme1_rc.stp",
-    ] {
-        let (part, a) = model::analyse_native(&dir.join(file)).unwrap();
-        let p = model::plan(&a, &Spec::default()).unwrap();
-        let evidence = serde_json::to_value(&a).unwrap();
-        let reliefs = evidence["radius_reliefs"]
-            .as_array()
-            .expect("geometry-owned relief evidence");
-        assert!(!reliefs.is_empty(), "{file}");
-        let faces: Vec<_> = reliefs
+
+    let (part, a) = model::analyse_native(&dir.join(file)).unwrap();
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    let evidence = serde_json::to_value(&a).unwrap();
+    let reliefs = evidence["radius_reliefs"]
+        .as_array()
+        .expect("geometry-owned relief evidence");
+    assert!(!reliefs.is_empty(), "{file}");
+    let faces: Vec<_> = reliefs
+        .iter()
+        .flat_map(|r| r["faces"].as_array().unwrap())
+        .filter_map(|v| v.as_u64())
+        .collect();
+    let excluded: Vec<_> = a
+        .features
+        .iter()
+        .filter(|f| {
+            matches!(f.kind.as_str(), "blend" | "fillet")
+                && !f.faces.is_empty()
+                && f.faces.iter().all(|f| faces.contains(&(*f as u64)))
+        })
+        .collect();
+    assert!(excluded.len() >= 4, "{file}");
+    assert!(
+        !p.dimensions
             .iter()
-            .flat_map(|r| r["faces"].as_array().unwrap())
-            .filter_map(|v| v.as_u64())
-            .collect();
-        let excluded: Vec<_> = a
-            .features
-            .iter()
-            .filter(|f| {
-                matches!(f.kind.as_str(), "blend" | "fillet")
-                    && !f.faces.is_empty()
-                    && f.faces.iter().all(|f| faces.contains(&(*f as u64)))
-            })
-            .collect();
-        assert!(excluded.len() >= 4, "{file}");
-        assert!(
-            !p.dimensions
-                .iter()
-                .flat_map(|d| &d.measurements)
-                .chain(p.notes.iter().flat_map(|n| &n.measurements))
-                .any(|m| excluded.iter().any(|f| f.id == m.feature)),
-            "{file}: relief has no radius claims"
-        );
-        let drawing = model::render(
-            &part,
-            &a,
-            &p,
-            &draftwright::text::Font::new(
-                include_bytes!("../fonts/IBMPlexMono-Regular.ttf").to_vec(),
-            )
+            .flat_map(|d| &d.measurements)
+            .chain(p.notes.iter().flat_map(|n| &n.measurements))
+            .any(|m| excluded.iter().any(|f| f.id == m.feature)),
+        "{file}: relief has no radius claims"
+    );
+    let drawing = model::render(
+        &part,
+        &a,
+        &p,
+        &draftwright::text::Font::new(include_bytes!("../fonts/IBMPlexMono-Regular.ttf").to_vec())
             .unwrap(),
-        )
-        .unwrap();
-        assert!(
-            !draftwright::lint::lint(&a, &drawing)
+    )
+    .unwrap();
+    assert!(
+        !draftwright::lint::lint(&a, &drawing)
+            .iter()
+            .any(|i| matches!(
+                i.code.as_str(),
+                "blend_requirement_missing" | "fillet_requirement_missing"
+            ) && excluded.iter().any(|f| i.subjects.contains(&f.id))),
+        "{file}: relief is an explicit exclusion, never fabricated radius credit"
+    );
+    assert!(
+        p.dimensions.iter().any(|d| d.placed.is_some()
+            && d.measurements
                 .iter()
-                .any(|i| matches!(
-                    i.code.as_str(),
-                    "blend_requirement_missing" | "fillet_requirement_missing"
-                ) && excluded.iter().any(|f| i.subjects.contains(&f.id))),
-            "{file}: relief is an explicit exclusion, never fabricated radius credit"
-        );
-        assert!(
-            p.dimensions.iter().any(|d| d.placed.is_some()
-                && d.measurements
-                    .iter()
-                    .any(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))),
-            "{file}: real radii survive"
-        );
-    }
+                .any(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))),
+        "{file}: real radii survive"
+    );
+}
+
+#[test]
+fn real_corners_have_no_relief_exclusions() {
+    let Some(dir) = corpus::dir() else { return };
     for file in ["cadgenbench_inputs/cgb245.step", "gramel/string_post.step"] {
         let (_, a) = model::analyse_native(&dir.join(file)).unwrap();
         let evidence = serde_json::to_value(&a).unwrap();
@@ -643,94 +648,92 @@ fn deep_profiles_are_not_exempted_as_shallow_relief() {
 
 /// Every row locates one occurrence; changing or deleting its locator loses that occurrence
 /// and the dependent default. Copying another row cannot replace its exact identity.
-#[test]
-fn radius_centre_table_credits_every_occurrence_and_rejects_wrong_locators() {
+part_cases!(radius_centre_table_credits_every_occurrence_and_rejects_wrong_locators;
+    nist_ctc_01_asme1_rd => "nist/nist_ctc_01_asme1_rd.stp",
+    nist_ctc_02_asme1_rc => "nist/nist_ctc_02_asme1_rc.stp",
+    nist_ftc_08_asme1_rc => "nist/nist_ftc_08_asme1_rc.stp",
+);
+fn radius_centre_table_credits_every_occurrence_and_rejects_wrong_locators(file: &str) {
     let Some(dir) = corpus::dir() else { return };
-    for file in [
-        "nist/nist_ctc_01_asme1_rd.stp",
-        "nist/nist_ctc_02_asme1_rc.stp",
-        "nist/nist_ftc_08_asme1_rc.stp",
-    ] {
-        let (part, a) = model::analyse_native(&dir.join(file)).unwrap();
-        let p = model::plan(&a, &Spec::default()).unwrap();
-        let doc = serde_json::to_value(&p).unwrap();
-        let table = doc["radius_table"]
-            .as_object()
-            .expect("located radius table");
-        let rows = table["rows"].as_array().unwrap();
-        assert!(rows.len() >= 4);
-        assert!(table["table"].get("placed").is_some());
-        let table_features: Vec<_> = rows
-            .iter()
-            .map(|r| r["feature"].as_str().unwrap())
-            .collect();
-        let covered: Vec<_> = rows
-            .iter()
-            .filter(|r| {
-                p.omitted.iter().any(|d| {
-                    d.id == r["dimension"].as_str().unwrap()
-                        && matches!(&d.state, State::Covered { by } if by == "t:radius-centres")
-                })
+
+    let (part, a) = model::analyse_native(&dir.join(file)).unwrap();
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    let doc = serde_json::to_value(&p).unwrap();
+    let table = doc["radius_table"]
+        .as_object()
+        .expect("located radius table");
+    let rows = table["rows"].as_array().unwrap();
+    assert!(rows.len() >= 4);
+    assert!(table["table"].get("placed").is_some());
+    let table_features: Vec<_> = rows
+        .iter()
+        .map(|r| r["feature"].as_str().unwrap())
+        .collect();
+    let covered: Vec<_> = rows
+        .iter()
+        .filter(|r| {
+            p.omitted.iter().any(|d| {
+                d.id == r["dimension"].as_str().unwrap()
+                    && matches!(&d.state, State::Covered { by } if by == "t:radius-centres")
             })
-            .map(|r| r["feature"].as_str().unwrap())
-            .collect();
-        assert_eq!(table_features.len(), covered.len());
-        assert!(
-            covered
-                .iter()
-                .all(|f| table_features.iter().filter(|g| *g == f).count() == 1)
-        );
-        assert_eq!(missing(&a, &p, &part), 0, "{file}");
-        let font = draftwright::text::Font::new(
-            include_bytes!("../fonts/IBMPlexMono-Regular.ttf").to_vec(),
-        )
-        .unwrap();
-        let drawing = model::render(&part, &a, &p, &font).unwrap();
-        let index = drawing
-            .annotations
+        })
+        .map(|r| r["feature"].as_str().unwrap())
+        .collect();
+    assert_eq!(table_features.len(), covered.len());
+    assert!(
+        covered
             .iter()
-            .position(|n| n.name.starts_with("t:radius-centres/"))
+            .all(|f| table_features.iter().filter(|g| *g == f).count() == 1)
+    );
+    assert_eq!(missing(&a, &p, &part), 0, "{file}");
+    let font =
+        draftwright::text::Font::new(include_bytes!("../fonts/IBMPlexMono-Regular.ttf").to_vec())
             .unwrap();
-        let default_count = p
-            .notes
+    let drawing = model::render(&part, &a, &p, &font).unwrap();
+    let index = drawing
+        .annotations
+        .iter()
+        .position(|n| n.name.starts_with("t:radius-centres/"))
+        .unwrap();
+    let default_count = p
+        .notes
+        .iter()
+        .filter(|n| n.placed.is_some())
+        .flat_map(|n| &n.measurements)
+        .filter(|m| m.parameter == "blend.radius")
+        .count();
+    let mut wrong = drawing.clone();
+    let x = wrong.annotations[index].runs[1];
+    wrong.text[x].text = "99999".into();
+    assert_eq!(
+        draftwright::lint::lint(&a, &wrong)
             .iter()
-            .filter(|n| n.placed.is_some())
-            .flat_map(|n| &n.measurements)
-            .filter(|m| m.parameter == "blend.radius")
-            .count();
-        let mut wrong = drawing.clone();
-        let x = wrong.annotations[index].runs[1];
-        wrong.text[x].text = "99999".into();
-        assert_eq!(
-            draftwright::lint::lint(&a, &wrong)
-                .iter()
-                .filter(|i| i.code == "blend_requirement_missing")
-                .count(),
-            1 + default_count,
-            "{file}: wrong centre cannot state the radius"
-        );
-        let mut lost = drawing.clone();
-        lost.annotations.remove(index);
-        lost.annotations.push(
-            lost.annotations
-                .iter()
-                .find(|n| n.name.starts_with("t:radius-centres/"))
-                .unwrap()
-                .clone(),
-        );
-        assert_eq!(
-            draftwright::lint::lint(&a, &lost)
-                .iter()
-                .filter(|i| i.code == "blend_requirement_missing")
-                .count(),
-            1 + default_count,
-            "{file}: duplicate row cannot borrow occurrence credit"
-        );
-        let restored: model::Analysis =
-            serde_json::from_value(serde_json::to_value(&a).unwrap()).unwrap();
-        assert_eq!(
-            serde_json::to_value(model::plan(&restored, &Spec::default()).unwrap()).unwrap(),
-            doc
-        );
-    }
+            .filter(|i| i.code == "blend_requirement_missing")
+            .count(),
+        1 + default_count,
+        "{file}: wrong centre cannot state the radius"
+    );
+    let mut lost = drawing.clone();
+    lost.annotations.remove(index);
+    lost.annotations.push(
+        lost.annotations
+            .iter()
+            .find(|n| n.name.starts_with("t:radius-centres/"))
+            .unwrap()
+            .clone(),
+    );
+    assert_eq!(
+        draftwright::lint::lint(&a, &lost)
+            .iter()
+            .filter(|i| i.code == "blend_requirement_missing")
+            .count(),
+        1 + default_count,
+        "{file}: duplicate row cannot borrow occurrence credit"
+    );
+    let restored: model::Analysis =
+        serde_json::from_value(serde_json::to_value(&a).unwrap()).unwrap();
+    assert_eq!(
+        serde_json::to_value(model::plan(&restored, &Spec::default()).unwrap()).unwrap(),
+        doc
+    );
 }

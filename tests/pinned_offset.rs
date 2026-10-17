@@ -9,6 +9,9 @@ use std::path::{Path, PathBuf};
 
 #[path = "common/corpus.rs"]
 mod corpus;
+#[path = "common/support.rs"]
+#[macro_use]
+mod support;
 
 const ID: &str = "d:f:hole_pattern:1/bore.diameter";
 
@@ -188,17 +191,21 @@ fn offset_is_a_pinned_callout_form_of_its_own() {
 /// reports: its ink is the automatic ink, the whole plan is the bare pin's, and the reported
 /// offset is unchanged. One callout per part is then dragged, and its bend lands where it was
 /// put. GRM-03's views move after packing, the frame the review found the reported tip in.
-#[test]
-fn pinning_every_callout_at_its_reported_offset_moves_nothing() {
+part_cases!(pinning_every_callout_at_its_reported_offset_moves_nothing;
+    editor_plate => "editor-plate",
+    grm03 => "gramel/GRM-03_thumbwheel_drive_screw.step",
+    cgb203 => "cadgenbench_inputs/cgb203.step",
+    ftc06 => "nist/nist_ftc_06_asme1_rd.stp",
+);
+fn pinning_every_callout_at_its_reported_offset_moves_nothing(file: &str) {
     let Some(dir) = corpus::dir() else {
         return;
     };
-    let parts: Vec<PathBuf> = vec![
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/samples/editor-plate.step"),
-        dir.join("gramel/GRM-03_thumbwheel_drive_screw.step"),
-        dir.join("cadgenbench_inputs/cgb203.step"),
-        dir.join("nist/nist_ftc_06_asme1_rd.stp"),
-    ];
+    let part = if file == "editor-plate" {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/samples/editor-plate.step")
+    } else {
+        dir.join(file)
+    };
     let open = |part: &Path| Session::open(part, api::Features::Native, Spec::default()).unwrap();
     let placed = |s: &Session, id: &str| -> Placed {
         s.plan()
@@ -215,7 +222,8 @@ fn pinning_every_callout_at_its_reported_offset_moves_nothing() {
         )
         .unwrap();
     };
-    for part in &parts {
+    {
+        let part = &part;
         let base = open(part);
         let ids: Vec<String> = base
             .plan()
@@ -225,7 +233,8 @@ fn pinning_every_callout_at_its_reported_offset_moves_nothing() {
             .map(|d| d.id.clone())
             .collect();
         assert!(!ids.is_empty(), "{part:?}");
-        for (n, id) in ids.iter().enumerate() {
+        let jobs: Vec<_> = ids.iter().enumerate().collect();
+        support::parallel(&jobs, |&(n, id)| {
             let at = base.callout_offset(id).unwrap();
             assert_eq!(at.bend, placed(&base, id).lines[0][1], "{part:?} {id}");
             let mut s = open(part);
@@ -250,6 +259,6 @@ fn pinning_every_callout_at_its_reported_offset_moves_nothing() {
                 );
                 assert_eq!(s.callout_offset(id).unwrap().offset, drag, "{part:?} {id}");
             }
-        }
+        });
     }
 }

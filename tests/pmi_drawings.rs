@@ -17,6 +17,10 @@
 //! `tests/fixtures/pmi_drawings/known_pmi_drawings.json`; a listed difference that has gone away
 //! must be taken off.
 
+#[path = "common/support.rs"]
+#[macro_use]
+mod support;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
@@ -726,8 +730,8 @@ fn one(file: &str, stem: &str, bytes: &[u8]) -> (Vec<Diff>, usize, String) {
     (d, n, summary)
 }
 
-#[test]
-fn pmi_on_the_drawing_matches_draftwright_or_is_known() {
+pmi_cases!(pmi_on_the_drawing_matches_draftwright_or_is_known);
+fn pmi_on_the_drawing_matches_draftwright_or_is_known(only: &str) {
     let known: Vec<Known> = serde_json::from_str(
         &std::fs::read_to_string(fixtures().join("pmi_drawings/known_pmi_drawings.json")).unwrap(),
     )
@@ -741,38 +745,24 @@ fn pmi_on_the_drawing_matches_draftwright_or_is_known() {
     ];
     for k in &known {
         assert!(
+            support::PMI_FILES.contains(&k.file.as_str()),
+            "unknown fixture: {}",
+            k.file
+        );
+        assert!(
             verdicts.contains(&k.verdict.as_str()) && !k.evidence.trim().is_empty(),
             "{k:?}"
         );
     }
-    // One part per worker (four, as the other streams share the machine), reported in file
-    // order.
-    let inputs = inputs();
-    let next = std::sync::atomic::AtomicUsize::new(0);
-    let done = std::sync::Mutex::new(BTreeMap::new());
-    std::thread::scope(|scope| {
-        for _ in 0..4 {
-            scope.spawn(|| {
-                loop {
-                    let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    let Some((file, stem, bytes)) = inputs.get(i) else {
-                        break;
-                    };
-                    let out = one(file, stem, bytes);
-                    done.lock().unwrap().insert(i, out);
-                }
-            });
-        }
-    });
-    let mut diffs = Vec::new();
-    let mut items = 0;
-    for (_, (d, n, summary)) in done.into_inner().unwrap() {
-        eprintln!("{summary}");
-        items += n;
-        diffs.extend(d);
-    }
+    let (file, stem, bytes) = inputs()
+        .into_iter()
+        .find(|(file, _, _)| file == only)
+        .unwrap();
+    let (diffs, items, summary) = one(&file, &stem, &bytes);
+    eprintln!("{summary}");
     let listed: Vec<Diff> = known
         .iter()
+        .filter(|k| k.file == only)
         .map(|k| Diff {
             file: k.file.clone(),
             record: k.record.clone(),
