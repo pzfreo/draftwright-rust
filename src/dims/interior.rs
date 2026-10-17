@@ -345,7 +345,7 @@ impl Proof {
             && self.boxes.iter().all(|x| !near_box(s, *x, c))
     }
 
-    fn touches(&self, v: &PlannedView, tip: P2) -> bool {
+    pub(super) fn touches(&self, v: &PlannedView, tip: P2) -> bool {
         let q = self.model_point(v, tip);
         let c = 0.05 / v.scale + SLACK;
         self.touches_model(q, c)
@@ -436,6 +436,20 @@ impl Proof {
                 let q = p.lines[0][1];
                 self.blank(v, [q[0], q[1], q[0], q[1]])
             })
+    }
+
+    /// A visible profile attachment and its complete exterior ink. Unlike an
+    /// interior label, this label does not need a containing planar face.
+    pub(super) fn profile_clear(&self, v: &PlannedView, p: &Placed) -> bool {
+        let lo = self.model_point(v, [p.label_box[0], p.label_box[1]]);
+        let hi = self.model_point(v, [p.label_box[2], p.label_box[3]]);
+        self.box_clear([lo[0], lo[1], hi[0], hi[1]], 0.3 / v.scale + SLACK)
+            && self.touches(v, p.lines[0][0])
+            && p.lines
+                .iter()
+                .enumerate()
+                .all(|(i, s)| self.segment_clear(v, *s, i == 0))
+            && p.arrows.iter().all(|s| self.arrow_clear(v, *s, true))
     }
 
     /// Whole-label containment in one planar face square to the view, clear of all projected

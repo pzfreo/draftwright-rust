@@ -475,6 +475,15 @@ pub(super) fn head(arrow: [P2; 2]) -> [[P2; 2]; 3] {
     [[tip, a], [a, b], [b, tip]]
 }
 
+fn boss_profile(w: &Want) -> bool {
+    w.views.len() > 1
+        && !w.measurements.is_empty()
+        && w.measurements
+            .iter()
+            .all(|m| m.parameter == "boss.diameter")
+        && matches!(&w.shape, Shape::Callout { sites } if !sites.is_empty() && sites.iter().all(|(_, r)| *r == 0.0))
+}
+
 /// One callout's job: its view's outline, its sites on the page (centre, radius), its label's ink
 /// box about its baseline origin, and how far past each edge the strip's dimensions reach.
 struct Job<'a> {
@@ -493,6 +502,7 @@ struct Job<'a> {
     corridors: bool,
     directed: bool,
     short_profile: bool,
+    profile_proof: Option<(&'a crate::model::PlannedView, &'a super::interior::Proof)>,
     /// Once [`inventory`] steers the callout off its silhouette: the most model lines and
     /// features an angled route may cross, the grazing route's ([`astray`]).
     steer: std::cell::Cell<Option<(usize, usize)>>,
@@ -640,6 +650,11 @@ pub(super) fn place_with_obstacles(
     let semantic_pmi = !crate::pmi_lowering::lower(analysis, &|name| frames.contains_key(name))
         .0
         .is_empty();
+    let profile_proofs = if items.iter().any(boss_profile) {
+        super::interior::proofs(analysis, views)
+    } else {
+        BTreeMap::new()
+    };
     let mut jobs: Vec<(usize, Job)> = Vec::new();
     for (i, w) in items.iter().enumerate() {
         let (Shape::Callout { sites }, Some(view)) = (&w.shape, views_of[i]) else {
@@ -665,18 +680,20 @@ pub(super) fn place_with_obstacles(
                 sites: page_sites(f, sites),
                 silhouette: grazing(f, w),
                 model: models.get(view).map(Vec::as_slice),
-                short_profile: w.views.len() > 1
-                    && w.measurements
-                        .iter()
-                        .all(|m| m.parameter == "boss.diameter"),
+                short_profile: boss_profile(w),
+                profile_proof: boss_profile(w)
+                    .then(|| {
+                        let v = views
+                            .iter()
+                            .find(|v| v.id.trim_start_matches("v:") == view)?;
+                        Some((v, profile_proofs.get(&v.id)?.as_ref()))
+                    })
+                    .flatten(),
                 directed: recess_context
                     && !semantic_pmi
                     && !crate::planning::lookup::<bool>(analysis, "established-route-policy", &[])
                         .unwrap_or(false),
-                corridors: (w.views.len() > 1
-                    && w.measurements
-                        .iter()
-                        .all(|m| m.parameter == "boss.diameter"))
+                corridors: boss_profile(w)
                     || w.measurements
                         .iter()
                         .any(|m| m.feature.starts_with("f:section_recess:")),
@@ -1262,18 +1279,20 @@ pub(super) fn refine(
             sites: page_sites.clone(),
             silhouette: grazing(frame, w),
             model: None,
-            short_profile: w.views.len() > 1
-                && w.measurements
-                    .iter()
-                    .all(|m| m.parameter == "boss.diameter"),
+            short_profile: boss_profile(w),
+            profile_proof: boss_profile(w)
+                .then(|| {
+                    let v = views
+                        .iter()
+                        .find(|v| v.id.trim_start_matches("v:") == view)?;
+                    Some((v, proofs.get(&v.id)?.as_ref()))
+                })
+                .flatten(),
             directed: !repair_models.is_empty()
                 && crate::pmi_lowering::lower(analysis, &|name| frames.contains_key(name))
                     .0
                     .is_empty(),
-            corridors: (w.views.len() > 1
-                && w.measurements
-                    .iter()
-                    .all(|m| m.parameter == "boss.diameter"))
+            corridors: boss_profile(w)
                 || w.measurements
                     .iter()
                     .any(|m| m.feature.starts_with("f:section_recess:")),
@@ -2783,6 +2802,14 @@ fn measure_at_bounds(
         conflict_ink: OnceCell::new(),
     };
     c.astray = astray(job, &c);
+    if let Some((view, proof)) = job.profile_proof {
+        // An invented or hidden station is never a diameter attachment, even
+        // when every available real route has another reported obstruction.
+        if !proof.touches(view, tip) {
+            return None;
+        }
+        c.hard += u32::from(!proof.profile_clear(view, &c.placed()));
+    }
     Some(c)
 }
 
@@ -3012,6 +3039,7 @@ pub fn clear_routes(
         silhouette: grazing(f, w),
         model: None,
         short_profile: false,
+        profile_proof: None,
         directed: false,
         corridors: false,
         steer: std::cell::Cell::new(None),
