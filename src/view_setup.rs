@@ -533,6 +533,8 @@ pub(crate) fn report(s: &Spec, views: &mut [crate::model::PlannedView]) {
 pub(crate) fn copy_setup(s: &Spec, base: &mut Spec) {
     for (name, v) in &s.views {
         if v.orientation.is_some() || v.principal_views.is_some() || authored(v) {
+            // A pin's canonical plan must admit the authored view's assigned sheet.
+            base.sheets.clone_from(&s.sheets);
             let mut v = v.clone();
             v.place = None;
             base.views.insert(name.clone(), v);

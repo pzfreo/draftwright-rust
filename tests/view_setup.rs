@@ -610,3 +610,20 @@ fn suggestions_restore_an_explicitly_excluded_principal_in_the_set() {
             .any(|v| v.cut.is_some())
     );
 }
+
+#[test]
+fn pinning_a_dimension_keeps_an_authored_partial_on_its_assigned_sheet() {
+    let (_, a) = plate();
+    let mut s = fixed();
+    s["sheets"] = json!({"max":2});
+    s["views"]["detail_b"] =
+        json!({"partial":{"from":"plan","around":"f:hole:1","scale_factor":2},"sheet":2});
+    s["dimensions"] = json!({"d:envelope/width.length":{"place":{"pinned":true}}});
+    let p = model::plan_recovered(&a, &spec(s)).unwrap();
+    assert_eq!(view(&p, "detail_b").sheet, 2);
+    assert!(
+        p.dimensions
+            .iter()
+            .any(|d| d.id == "d:envelope/width.length" && d.placed.is_some())
+    );
+}
