@@ -4539,11 +4539,11 @@ fn plan_with_presentation(
                     (d.placed.as_ref(), settled.and_then(|d| d.placed.as_ref()))
             {
                 // Restoring an unchanged peer must not put it through newly grown
-                // text or a moved witness. Keep the current solved callout in that case.
+                // text or a moved witness. Keep the current solved geometry in that case.
                 if bounded_notches
-                    && d.kind == "callout"
                     && linear_ink.iter().any(|(id, p)| {
-                        crate::dims::text_contact(c, p)
+                        *id != d.id
+                            && crate::dims::text_contact(c, p)
                             && natural
                                 .iter()
                                 .find(|n| n.id == *id)
