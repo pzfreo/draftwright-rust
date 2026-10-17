@@ -2261,10 +2261,14 @@ fn clear_linear_ordered(
         };
         let before = crossings(p);
 
-        let recess_corridor = items[i]
-            .measurements
-            .iter()
-            .any(|m| m.feature.starts_with("f:section_recess:"))
+        // Expanded native inventories can displace an established hole's
+        // witness onto another hole even when neither is a recess. Give that
+        // physical crossing the same bounded corridor repair as new witnesses.
+        let recess_corridor = (recess_context && before.0 > 0)
+            || items[i]
+                .measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:section_recess:"))
             || p.lines.iter().take(2).any(|line| {
                 footprint
                     .crossed_extension(*line, &items[i].measurements)

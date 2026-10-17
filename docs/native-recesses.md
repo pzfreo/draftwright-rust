@@ -8,9 +8,10 @@ are retained as evidence. Source pocket, channel, blind-slot and passage familie
 are represented by their unified projection and no longer produce duplicate
 unrecognised-family warnings.
 
-Both readers retain `section_recess_patterns`, resolving their occurrence indices
+The native and Python 0.4 readers retain `section_recess_patterns`, resolving their occurrence indices
 to member feature IDs. Missing, repeated, multiply-owned, ambiguous and non-pocket
-members are refused. The drawing verifies member sizes and the lattice before
+members are refused. Archived Python 0.3.9 documents retain the released individual
+pocket callouts and datum locations. The drawing verifies member sizes and the lattice before
 crediting a grouped callout, count, pitch and absolute centre locations. Pattern
 members retain their source records and share one requirement set. Missing pitch
 reopens the member-location finding. Rounded pockets retain four corner-radius
@@ -30,33 +31,25 @@ LINT-code-pocket_pattern_requirement_state, ISSUE-885-a, ISSUE-1485-a and
 ISSUE-1485-c. The default-path tests also exercise ISSUE-1245-a, ISSUE-1246-a,
 ISSUE-917-a and ARCH0015-1. Existing bridge oracle tests stay in place.
 
-The dependency tag in Cargo.toml remains v0.1.0-alpha.4. Development uses an
-uncommitted .cargo/config.toml path override for both quiddity and haecceity.
-Merge quiddity first, release it (or use its final commit), then move both pins
-together and regenerate Cargo.lock before merging draftwright. This branch
-requires the new document and cannot merge against the old release pin.
-
-For this quiddity commit, the exact development-to-merge change for **both**
-dependencies is:
+Both kernel dependencies now pin the merged recognition/3 implementation from
+quiddity-rust PR #14, `0fdf5dcbdf4cf675e1b7f690b349069704e77a82`:
 
 ```toml
-haecceity = { git = "https://github.com/pzfreo/quiddity-rust", rev = "2709a331a7c0e3d80734768834ff12e36caf92f5" }
-quiddity = { git = "https://github.com/pzfreo/quiddity-rust", rev = "2709a331a7c0e3d80734768834ff12e36caf92f5" }
+haecceity = { git = "https://github.com/pzfreo/quiddity-rust", rev = "0fdf5dcbdf4cf675e1b7f690b349069704e77a82" }
+quiddity = { git = "https://github.com/pzfreo/quiddity-rust", rev = "0fdf5dcbdf4cf675e1b7f690b349069704e77a82" }
 ```
 
-Alternatively pin both to the release tag containing that commit. Remove the
-local override and run `cargo update -p quiddity -p haecceity`, then commit the two
-pin changes and Cargo.lock together. The released tag pin is intentionally kept
-in this branch until that upstream commit is available; neither repository is
-pushed by this task.
+The local `.cargo/config.toml` path override has been removed. Cargo.lock changes
+only the two kernel Git sources relative to merged draftwright main; registry
+packages retain main's resolution.
 
 All required families are published. Families still published but not consumed by
 this drawing reader are `oriented_chamfers`, `circular_face_patterns`,
 `thin_wall_bodies`, `interior_voids`, `sheet_metal_bodies`,
-`repeating_radial_profiles`, and `freeform_surfaces`. Their per-part records remain
+and `freeform_surfaces`. Their per-part records remain
 reported; this change does not imply drafting grammars for them.
 
 The initial verification is retained in [native-recesses-qa.md](native-recesses-qa.md).
 The fourteen-part attribution, layout repair, final checks and render comparisons
 are recorded in [native-recess-layout-review.md](native-recess-layout-review.md).
-The upstream publication and dependency-pin prerequisite above still applies.
+The merged-kernel verification is recorded in [native-recess-merge-validation.md](native-recess-merge-validation.md).

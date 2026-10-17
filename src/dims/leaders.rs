@@ -1529,6 +1529,7 @@ fn refine_uncached(
                         || longer_than_established(i, p)
                         || added_material_crossing(i, p)
                         || bad_run(p, views_of[i].unwrap())
+                        || text_conflict(i, p, placed, obstacles)
                         || (items[i]
                             .measurements
                             .iter()
@@ -1596,8 +1597,13 @@ fn refine_uncached(
         } else {
             old_length + 2.0
         });
-        let established = legacy(i).and_then(|d| translated(reference.as_ref()?, d, views, w));
-        let repair_text = new_recess && text_conflict(i, &old, placed, obstacles);
+        let repair_text = text_conflict(i, &old, placed, obstacles);
+        // A longer authored label may overlap a peer while its shaft is clear.
+        // Include slides along that exact shaft, preserving its real attachment
+        // and the normal material, length and witness gates.
+        let established = legacy(i)
+            .and_then(|d| translated(reference.as_ref()?, d, views, w))
+            .or_else(|| repair_text.then(|| old.clone()));
         let clear_new_text = repair_text
             && !w.measurements.is_empty()
             && w.measurements
@@ -2074,7 +2080,9 @@ fn refine_uncached(
                 return None;
             }
             let p = c.placed();
-            if clear_new_text && (!page.fits(&p, view) || text_conflict(i, &p, placed, obstacles)) {
+            if (clear_new_text && !page.fits(&p, view))
+                || (repair_text && text_conflict(i, &p, placed, obstacles))
+            {
                 return None;
             }
             if interior.is_some_and(|(v, proof)| !proof.annotation_clear(v, &p, true))

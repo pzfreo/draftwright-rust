@@ -3573,11 +3573,27 @@ pub(crate) fn refine_inventory(
     obstacles: &[PlannedDimension],
     cache: &footprints::Cache,
 ) -> BTreeMap<String, Vec<Problem>> {
-    if !inventory.iter().any(|d| {
+    let recesses = inventory.iter().any(|d| {
         d.measurements
             .iter()
             .any(|m| m.feature.starts_with("f:section_recess:"))
-    }) {
+    });
+    // Restoring an unaffected peer after label edits can expose a callout
+    // overlap which was absent in the initial joint solve. Recheck that final
+    // ink even on drawings without new recess dimensions.
+    let overlapping_text = !recesses
+        && inventory.iter().enumerate().any(|(i, d)| {
+            d.kind == "callout"
+                && d.placed.as_ref().is_some_and(|p| {
+                    inventory.iter().enumerate().any(|(j, q)| {
+                        i != j
+                            && q.placed
+                                .as_ref()
+                                .is_some_and(|q| placement::boxes_overlap(p.label_box, q.label_box))
+                    })
+                })
+        });
+    if !recesses && !overlapping_text {
         return BTreeMap::new();
     }
     let (raw, ..) = wants(analysis);
@@ -3670,21 +3686,23 @@ pub(crate) fn refine_inventory(
             }
         }
     }
-    placement::clear_linear(
-        analysis,
-        cache,
-        views,
-        &frames,
-        &items,
-        &chosen,
-        &mut sides,
-        &mut lanes,
-        &mut placed,
-        obstacles,
-        &[],
-        &page,
-        true,
-    );
+    if recesses {
+        placement::clear_linear(
+            analysis,
+            cache,
+            views,
+            &frames,
+            &items,
+            &chosen,
+            &mut sides,
+            &mut lanes,
+            &mut placed,
+            obstacles,
+            &[],
+            &page,
+            true,
+        );
+    }
     let proofs = interior::proofs(analysis, views);
     let reports = leaders::refine(
         analysis,

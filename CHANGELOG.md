@@ -11,7 +11,7 @@ All notable changes to draftwright-rust are recorded here, in the style of
 - Read native recognition/3 unified section recesses, source refusals, face levels
   and risers. The default path now uses the existing pocket/channel/blind-slot/
   passage drafting grammars and no longer warns that section recesses are absent
-  from the document. Both readers retain unified pocket patterns: grouped count
+  from the document. Native and Python 0.4 readers retain unified pocket patterns: grouped count
   and size/depth callouts, pitch and absolute locations, independent coverage
   outcomes, and four retained radius requirements per rounded pocket. Five pending
   recess-reader rules and four formerly bridge-only rules have native regressions.
@@ -40,6 +40,10 @@ All notable changes to draftwright-rust are recorded here, in the style of
   Session options/edits support them; effective paths are reported in view `from_spec`.
 
 ### Fixed
+
+- Preserve archived Python 0.3.9 pocket callouts and individual datum locations.
+- Repair displaced location witnesses through foreign features and overlapping
+  callout text with bounded route moves that retain the existing physical guards.
 
 - Avoid repeated projection and collision work during complete sheet searches with native
   recesses, retaining the original native and WASM release settings.
