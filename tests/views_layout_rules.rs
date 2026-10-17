@@ -260,13 +260,20 @@ fn internal_stations_require_three_details_of_two_kinds() {
             required,
             "section allocation lost a required slot measurement"
         );
-        let drawing = model::render(
+        let drawings = model::render_sheets(
             &part,
             &a,
             &p,
             &draftwright::text::Font::new(draftwright::api::MONO.to_vec()).unwrap(),
         )
         .unwrap();
+        let section_sheet = p
+            .views
+            .iter()
+            .find(|v| v.id == "v:section_aa")
+            .unwrap()
+            .sheet;
+        let drawing = &drawings[section_sheet.saturating_sub(1) as usize];
         assert!(
             drawing
                 .sheet
@@ -545,7 +552,31 @@ fn reserved_location_corridors_choose_witnesses_clear_of_foreign_holes() {
         let a = model::analyse_native(&corpus::dir().unwrap().join(file))
             .unwrap()
             .1;
-        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        let automatic = model::plan_recovered(&a, &Spec::default()).unwrap();
+        if !automatic.dimensions.iter().any(|d| d.id == id) {
+            let (feature, parameter) = id.strip_prefix("d:").unwrap().rsplit_once('/').unwrap();
+            assert!(
+                automatic
+                    .hole_table
+                    .iter()
+                    .chain(&automatic.hole_tables)
+                    .any(|t| {
+                        t.rows
+                            .iter()
+                            .flat_map(|r| &r.measurements)
+                            .chain(&t.covered)
+                            .any(|m| m.feature == feature && m.parameter == parameter)
+                    }),
+                "{file}: the schedule lost {id}"
+            );
+        }
+        // A schedule legitimately removes local witnesses. Disable it to keep
+        // exercising the original witness/foreign-hole clearance geometry.
+        let no_tables = Spec {
+            hole_table: draftwright::hole_table::Setting::Never,
+            ..Spec::default()
+        };
+        let p = model::plan_recovered(&a, &no_tables).unwrap();
         let d = p.dimensions.iter().find(|d| d.id == id).unwrap();
         corridor(&p, d);
         assert!(

@@ -461,7 +461,13 @@ fn leaders_do_not_run_beside_centre_lines() {
 #[test]
 fn a_label_across_an_axis_end_trims_the_overrun() {
     let Some(dir) = corpus::dir() else { return };
-    let (analysis, p, _) = drawing(&dir.join("nist/nist_ftc_10_asme1_rb.stp"));
+    // Keep the former 1:1 axis/label encounter explicit; the readable default
+    // now enlarges to 2:1 and places the label elsewhere.
+    let spec: Spec = serde_json::from_value(serde_json::json!({
+        "sheet": {"size": "A1", "scale": "1:1"}
+    }))
+    .unwrap();
+    let (analysis, p, _) = drawing_with(&dir.join("nist/nist_ftc_10_asme1_rb.stp"), &spec);
     let d = p
         .dimensions
         .iter()

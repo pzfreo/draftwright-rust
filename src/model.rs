@@ -1407,25 +1407,28 @@ pub(crate) fn no_new_drawing_issues(first: &Plan, candidate: &Plan) -> bool {
 }
 
 fn no_new_issues(first: &Plan, candidate: &Plan, material: bool) -> bool {
-    let counts = |p: &Plan| {
-        let mut counts = BTreeMap::<String, usize>::new();
-        for q in p.problems.iter().filter(|q| {
-            q.severity != "info"
-                && (q.code.starts_with("annotation_")
-                    || (material
-                        && matches!(
-                            q.code.as_str(),
-                            "leader_through_feature" | "extension_through_feature"
-                        )))
-        }) {
-            *counts.entry(q.code.clone()).or_default() += 1;
+    let relevant = |q: &&Problem| {
+        q.severity != "info"
+            && (q.code.starts_with("annotation_")
+                || (material
+                    && matches!(
+                        q.code.as_str(),
+                        "leader_through_feature" | "extension_through_feature"
+                    )))
+    };
+    let identities = |p: &Plan| {
+        let mut counts = BTreeMap::new();
+        for q in p.problems.iter().filter(relevant) {
+            *counts
+                .entry((q.code.clone(), q.subjects.clone(), q.refs.clone()))
+                .or_insert(0usize) += 1;
         }
         counts
     };
-    let before = counts(first);
-    counts(candidate)
+    let before = identities(first);
+    identities(candidate)
         .into_iter()
-        .all(|(code, n)| n <= before.get(&code).copied().unwrap_or(0))
+        .all(|(identity, n)| n <= before.get(&identity).copied().unwrap_or(0))
 }
 
 fn longer_callouts(candidate: &Plan, baseline: &Plan) -> bool {
@@ -1510,7 +1513,12 @@ fn carried(plan: &Plan) -> BTreeSet<(String, String)> {
     // Concentricity is stated by the drawn common axis, not redundant half-OD
     // box coordinates. Require the bore number, end-on mark and global axis.
     if out.contains(&("envelope".into(), "od.diameter".into())) {
-        for v in &plan.views {
+        // A detail's centre belongs to its crop, not the whole part envelope.
+        for v in plan
+            .views
+            .iter()
+            .filter(|v| v.detail.is_none() && v.id != "v:iso")
+        {
             for mark in &v.line_work {
                 let Some(feature) = mark.id.strip_prefix(&format!("ink:{}:", v.id)) else {
                     continue;
@@ -1891,6 +1899,57 @@ fn complete_candidate(findings: layout::Findings, extra_view_conflicts: usize) -
 mod complete_candidate_tests {
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
+    fn a_crop_centre_does_not_prove_a_bores_global_location() {
+        use super::*;
+        use std::io::Read as _;
+        let mut bytes = Vec::new();
+        flate2::read::GzDecoder::new(
+            include_bytes!("../tests/fixtures/pmi/step/spool_fits.step.gz").as_slice(),
+        )
+        .read_to_end(&mut bytes)
+        .unwrap();
+        let (_, a) = analyse_native_step(std::path::Path::new("spool_fits.step"), &bytes).unwrap();
+        let mut p = plan_recovered(&a, &Spec::default()).unwrap();
+        let is_size = |m: &crate::dims::Measurement| {
+            (m.feature == "envelope" && m.parameter == "od.diameter")
+                || (m.feature == "f:hole:7" && m.parameter == "bore.diameter")
+        };
+        p.dimensions.retain(|d| d.measurements.iter().any(is_size));
+        for d in &mut p.dimensions {
+            d.measurements.retain(is_size);
+        }
+        p.notes.clear();
+        p.hole_tables.clear();
+        p.hole_table = None;
+        p.omitted.clear();
+        let view = p
+            .dimensions
+            .iter()
+            .find(|d| d.measurements.iter().any(|m| m.feature == "f:hole:7"))
+            .unwrap()
+            .view
+            .clone();
+        let x = ("f:hole:7".into(), "location.length.x".into());
+        let y = ("f:hole:7".into(), "location.length.y".into());
+        assert!(carried(&p).contains(&x) && carried(&p).contains(&y));
+        p.views.iter_mut().find(|v| v.id == view).unwrap().detail = Some(crate::detail::Detail {
+            label: "A".into(),
+            axis: 2,
+            source_view: "v:front".into(),
+            source_cut: None,
+            kind: "authored-feature".into(),
+            bounds: a.envelope,
+            marked_bounds: a.envelope,
+            dimensions: vec![],
+            scale: p.sheet.scale_factor,
+            authored: true,
+            partial_profile: false,
+        });
+        assert!(!carried(&p).contains(&x) && !carried(&p).contains(&y));
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn a_located_counted_pattern_carries_member_stations_only_while_its_pitch_is_drawn() {
         use super::*;
         let (_, a) = analyse_native(
@@ -1922,6 +1981,30 @@ mod complete_candidate_tests {
             .unwrap()
             .placed = None;
         assert!(!carried(&p).contains(&(member, "location.length.x".into())));
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn removing_crossings_does_not_pay_for_a_new_crossing_pair() {
+        use super::*;
+        let (_, a) = analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/mounting_plate.step"),
+        )
+        .unwrap();
+        let mut first = plan(&a, &Spec::default()).unwrap();
+        let crossing = |a: &str, b: &str| Problem {
+            code: "annotation_leader_crossing".into(),
+            severity: "warning".into(),
+            subjects: vec![a.into(), b.into()],
+            ..Default::default()
+        };
+        first.problems = vec![crossing("a", "b"), crossing("c", "d")];
+        let mut candidate = first.clone();
+        candidate.problems.pop();
+        assert!(no_new_drawing_issues(&first, &candidate));
+        candidate.problems = vec![crossing("a", "c")];
+        assert!(!no_new_drawing_issues(&first, &candidate));
     }
 
     #[test]
@@ -2413,7 +2496,7 @@ fn recover_candidates(
                         .filter(|q| findings(q).clean())
                 });
                 if let Some(recipe) = recipe
-                    && let Some(packed) = crate::sheet_fit::pack_gdt(analysis, recipe, &p)
+                    && let Some(packed) = crate::sheet_fit::pack_settled_views(analysis, recipe, &p)
                     && carried(&p).is_subset(&carried(&packed))
                     && (
                         findings(&packed).hard,
@@ -2473,6 +2556,9 @@ fn recover_candidates(
             f.dropped += undrawn_gdt(&p);
             let over = over_views(&p).saturating_sub(over_views(&first));
             let crossings = feature_crossings(&p).saturating_sub(feature_crossings(&first));
+            if complete_candidate(f, over) {
+                crate::sheet_fit::enclose_free_ink(analysis, &mut p);
+            }
             p.sheet.fill = crate::sheet_fit::fill(analysis, &p);
             // A declined optional crop leaves an ordinary drawing. The refusal
             // itself cannot veto a fitting candidate, while a fitted seed still

@@ -218,7 +218,7 @@ fn stc09_without_a_complete_fit_keeps_its_first_drawing_and_reports_the_floor() 
         .find(|q| q.code == "layout_recovery_exhausted")
         .expect("the exhausted search is said");
     assert_eq!(said.severity, "warning");
-    assert!(said.message.contains("below 1:2"), "{}", said.message);
+    assert!(said.message.contains("below 1:1"), "{}", said.message);
     assert_eq!(p.status, draftwright::completeness::Status::NeedsAttention);
     assert_eq!(
         p.sheet.basis.matches("drawn-item fill").count(),

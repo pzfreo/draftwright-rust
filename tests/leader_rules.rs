@@ -487,7 +487,13 @@ fn the_plan_and_lint_agree_on_a_leader_cutting_back_into_the_material() {
     let path = dir.join("assembly_plate_pin.step");
     std::fs::write(&path, bytes).unwrap();
     let reports = |offset: [f64; 2]| -> (Vec<model::Problem>, Vec<LintIssue>) {
-        let mut s = Session::open(&path, api::Features::Native, Spec::default()).unwrap();
+        // The ±15 mm pins describe the former 1:5 encounter. Keep that
+        // geometry explicit now that readable automatic recovery uses A2 1:1.
+        let spec: Spec = serde_json::from_value(json!({
+            "sheet": {"size": "A4", "scale": "1:5"}
+        }))
+        .unwrap();
+        let mut s = Session::open(&path, api::Features::Native, spec).unwrap();
         s.apply(
             &[Op::set(
                 format!("dimensions/{}/place", key(ID)),

@@ -2127,7 +2127,11 @@ fn grm03_locates_every_turned_shoulder_and_keeps_the_isometric() {
             recovered.sheet.size.as_str(),
             recovered.sheet.scale.as_str()
         ),
-        ("A3", "10:1")
+        ("A4", "5:1")
+    );
+    assert_eq!(
+        draftwright::sheet_fit::readability(analysis, &recovered).failures(),
+        0
     );
     assert!(recovered.views.iter().all(|v| v.detail.is_none()));
     assert!(recovered.views.iter().any(|v| v.id == "v:iso"));
@@ -2222,11 +2226,85 @@ fn hole_and_shoulder_outcomes(analysis: &Analysis, plan: &Plan) -> BTreeSet<(Str
     outcomes
 }
 
-/// H6 replaces the old recovery order (ISSUE-1338-a's same-page-first ladder) with the
-/// maintainer's rule of 2026-10-12, checked by an independent oracle over the candidates each
-/// basis records (`common/sheet_rule.rs`): smallest complete fit, at most one paper step and only
-/// with an enlargement, then fill. Every hole and turned-shoulder outcome the first plan placed
-/// survives the choice. A plan with no valid complete candidate keeps its first sheet and scale.
+fn assert_reported_refusal(name: &str, analysis: &Analysis, first: &Plan, after: &Plan) {
+    let said = after
+        .problems
+        .iter()
+        .find(|p| p.code == "layout_recovery_exhausted")
+        .unwrap();
+    let readable = draftwright::sheet_fit::readability(analysis, after);
+    let warning = readable.failures() > 0
+        || after.sheet.scale_factor < draftwright::sheet_fit::min_legible_scale(analysis)
+        || after.sheet.basis.starts_with("readability refusal on ");
+    assert_eq!(
+        said.severity,
+        if warning { "warning" } else { "info" },
+        "{name}: {}",
+        said.message
+    );
+    assert!(
+        said.message.contains("Tried ") || after.sheet.basis.contains("candidates: "),
+        "{name}: no candidate evidence"
+    );
+    assert!(
+        hole_and_shoulder_outcomes(analysis, first)
+            .is_subset(&hole_and_shoulder_outcomes(analysis, after)),
+        "{name}: lost printed outcomes"
+    );
+    assert!(
+        readable.failures() <= draftwright::sheet_fit::readability(analysis, first).failures(),
+        "{name}: readability worsened"
+    );
+    let counts = |p: &Plan| {
+        let mut out = BTreeMap::new();
+        for q in p
+            .problems
+            .iter()
+            .filter(|q| HARD_LAYOUT.contains(&q.code.as_str()) && q.severity != "info")
+        {
+            *out.entry(q.code.clone()).or_insert(0usize) += 1;
+        }
+        out
+    };
+    let before = counts(first);
+    let after_counts = counts(after);
+    let ink =
+        |p: &Plan| serde_json::to_value((&p.views, &p.dimensions, &p.gdt, &p.hole_tables)).unwrap();
+    if ink(first) == ink(after) {
+        assert_eq!(
+            after_counts, before,
+            "{name}: unchanged ink lost a hard finding"
+        );
+    }
+    for (code, count) in &after_counts {
+        assert!(
+            *count <= before.get(code).copied().unwrap_or(0),
+            "{name}: new hard finding {code}"
+        );
+    }
+    if (after.sheet.size.as_str(), after.sheet.scale.as_str())
+        != (first.sheet.size.as_str(), first.sheet.scale.as_str())
+        || after_counts != before
+    {
+        // A replacement may fix reported overflow; it must actually fit, rather
+        // than merely remove the first estimate's warning or a required quantity.
+        let [w, h] = after.sheet.page;
+        let margin = draftwright::layout::MARGIN;
+        for b in draftwright::sheet_fit::footprints(analysis, after) {
+            assert!(
+                b[0] >= margin - 1e-6
+                    && b[1] >= margin - 1e-6
+                    && b[2] <= w - margin + 1e-6
+                    && b[3] <= h - margin + 1e-6,
+                "{name}: unfitted refusal replacement {b:?}"
+            );
+        }
+    }
+}
+
+/// The screen-first rule is checked independently for complete candidates.
+/// An exhausted search keeps the first ink or an established physically fitting
+/// drawing, with every printed outcome and its unresolved readability reported.
 #[test]
 fn sheet_selection_is_bounded_and_keeps_every_outcome() {
     // Keep the exhausted-ladder fixture explicit; auto tables now resolve these losses.
@@ -2249,28 +2327,24 @@ fn sheet_selection_is_bounded_and_keeps_every_outcome() {
             "{name}: {:?}",
             hole_and_shoulder_outcomes(analysis, first).difference(&kept)
         );
-        if after.sheet.basis.starts_with("smallest fit ") {
+        if codes(after).contains("layout_recovery_exhausted") {
+            assert_reported_refusal(name, analysis, first, after);
+        } else {
             sheet_rule::assert_follows(
                 name,
                 after,
                 (first.sheet.size.as_str(), first.sheet.scale.as_str()),
             );
-        } else {
-            assert!(codes(after).contains("layout_recovery_exhausted"), "{name}");
-            assert_eq!(
-                (&after.sheet.size, &after.sheet.scale),
-                (&first.sheet.size, &first.sheet.scale),
-                "{name}"
-            );
         }
     }
 }
 
-/// Selection is honest: either a valid complete candidate is justified by measured fill,
-/// or the first drawing and its hard findings survive with an exhausted-search explanation.
+/// Selection is honest: a qualified drawing keeps its hard findings empty.
+/// A refusal preserves unchanged-ink findings, or proves a fitted replacement
+/// retains every outcome without worse hard findings or readability.
 #[test]
 fn fill_selection_preserves_hard_findings_when_no_complete_candidate_exists() {
-    for ((name, _, first), (_, after)) in planned().iter().zip(recovered()) {
+    for ((name, analysis, first), (_, after)) in planned().iter().zip(recovered()) {
         let hard: BTreeSet<_> = after
             .problems
             .iter()
@@ -2278,25 +2352,7 @@ fn fill_selection_preserves_hard_findings_when_no_complete_candidate_exists() {
             .map(|p| p.code.as_str())
             .collect();
         if codes(after).contains("layout_recovery_exhausted") {
-            assert_eq!(
-                (&after.sheet.size, &after.sheet.scale),
-                (&first.sheet.size, &first.sheet.scale),
-                "{name}"
-            );
-            let said = after
-                .problems
-                .iter()
-                .find(|p| p.code == "layout_recovery_exhausted")
-                .unwrap();
-            assert_eq!(said.severity, "info");
-            assert!(said.message.contains("Tried "), "{name}");
-            let before: BTreeSet<_> = first
-                .problems
-                .iter()
-                .filter(|p| HARD_LAYOUT.contains(&p.code.as_str()) && p.severity != "info")
-                .map(|p| p.code.as_str())
-                .collect();
-            assert_eq!(hard, before, "{name}");
+            assert_reported_refusal(name, analysis, first, after);
         } else {
             assert!(hard.is_empty(), "{name}: {hard:?}");
             assert!(after.sheet.basis.contains("fill"), "{name}");

@@ -1,7 +1,7 @@
-//! Finished-sheet policy (maintainer 2026-10-12, H6), with Python recovery replay.
+//! Finished-sheet policy (maintainer 2026-10-17), with Python recovery replay.
 //! The low-level layout::recover stand-ins retain the historical bounded retry contract;
-//! model::recover now selects the smallest complete fit and at most one enlarged paper step,
-//! by measured fill. Corpus tests protect complete measurements, explicit overrides and
+//! model::recover exhausts clean readable A4 and its allocation before larger paper.
+//! Corpus tests protect complete measurements, explicit overrides and
 //! the veto on extra ink over other views. Deliberate Python differences are recorded in
 //! tests/fixtures/known_sheet_policy.json. model::plan remains the unrecovered estimate.
 
@@ -268,15 +268,22 @@ fn a_try_with_hole_locations_too_close_to_read_is_not_taken() {
         .iter()
         .find(|p| p.code == "layout_recovery_exhausted")
         .unwrap_or_else(|| panic!("{:?}", codes(&plan)));
-    assert_eq!(said.severity, "info");
+    assert_eq!(said.severity, "warning");
+    let readability = draftwright::sheet_fit::readability(&analysis, &plan);
+    assert_eq!(readability.lanes, 2);
+    assert!(readability.steps > 0);
     assert!(
-        said.message
-            .starts_with("A2 at 1:2 has 2 hole locations too close to read"),
+        said.message.contains(&readability.to_string()),
         "{}",
         said.message
     );
+    assert!(said.message.contains("physically fitting drawing is kept"));
     for tried in ["A3 1:5 fill", "A2 1:2 fill", "A0 2:1 fill"] {
-        assert!(said.message.contains(tried), "{tried}: {}", said.message);
+        assert!(
+            plan.sheet.basis.contains(tried),
+            "{tried}: {}",
+            plan.sheet.basis
+        );
     }
     assert!(!plan.sheet.basis.contains("layout recovery"));
 }
@@ -311,24 +318,34 @@ fn a_valid_plan_is_reconsidered_for_fill() {
     }
 }
 
-/// H6 review (2026-10-12): below the fill band the fullest valid allowed pair wins, so a valid
-/// A4 drawing is not traded for an emptier A3 one with one annotation conflict fewer. Measured:
-/// 10060 A4 1:1 17.0% against A3 2:1 14.9%; 10063 A4 1:1 22.6% against A3 2:1 20.8%; 10000
-/// A4 1:1 24.0% against A3 2:1 23.8%; string_post_tapped (AP242) A4 2:1 against A3 5:1.
+/// A4 wins when it is readable. A low-fill A4 whose steps are too small must
+/// enlarge (including allocation); a smaller readable paper precedes a fill gain.
 #[test]
-fn below_the_band_the_fullest_valid_pair_wins_on_real_candidates() {
-    let Some(dir) = corpus::dir() else {
-        eprintln!("SKIPPED: the corpus is not found");
-        return;
-    };
+fn readable_a4_precedes_fill_but_unreadable_steps_require_enlargement() {
+    let Some(dir) = corpus::dir() else { return };
     for (file, expected) in [
         ("mfcadpp/10060.step", ("A4", "1:1")),
-        ("mfcadpp/10063.step", ("A4", "1:1")),
-        ("mfcadpp/10000.step", ("A4", "1:1")),
+        ("mfcadpp/10063.step", ("A2", "5:1")),
+        ("mfcadpp/10000.step", ("A3", "2:1")),
     ] {
-        let plan = api::plan_from(&dir.join(file), Features::Native, &Spec::default()).unwrap();
+        let path = dir.join(file);
+        let plan = api::plan_from(&path, Features::Native, &Spec::default()).unwrap();
         sheet_rule::assert_rule(file, &plan);
         assert_eq!(sheet(&plan), expected, "{file}: {}", plan.sheet.basis);
+        let analysis = api::analyse_from(&path, Features::Native).unwrap();
+        assert_eq!(
+            draftwright::sheet_fit::readability(&analysis, &plan).failures(),
+            0
+        );
+        if expected.0 != "A4" {
+            let compressed =
+                api::plan_analysed(&analysis, &spec(json!({"size":"A4", "scale":"1:1"}))).unwrap();
+            assert!(
+                draftwright::sheet_fit::readability(&analysis, &compressed).steps > 0,
+                "{file}"
+            );
+            assert!(plan.sheet.basis.contains("A4 multi-sheet:"));
+        }
     }
 }
 
@@ -410,12 +427,11 @@ fn every_planning_entry_point_applies_the_recovery() {
     assert_eq!(named.sheet.size, "A2");
 }
 
-/// Native FTC-07's smallest complete fit is A2 at 1:2. A1 at 1:1 would be allowed only
-/// because it is its immediate neighbour and enlarges the dimensioned views; since the Stage H
-/// chain rules (h-chains) its A1 1:1 drawing lays a pitch line through a hole callout (a hard
-/// finding), so it is no candidate and the smallest fit is kept.
+/// FTC-07 retains its established fitting A2 1:2 drawing when no supported
+/// standard sheet meets the stronger readability floor. Larger partial trials
+/// must not replace its measurements or buy paper without a clean readable result.
 #[test]
-fn ftc07_uses_one_paper_step_only_with_enlargement() {
+fn ftc07_reports_its_readability_refusal_on_the_established_fitted_sheet() {
     let Some(dir) = corpus::dir() else {
         return;
     };
@@ -430,13 +446,25 @@ fn ftc07_uses_one_paper_step_only_with_enlargement() {
     };
     let chosen = api::plan_analysed(&analysis, &never).unwrap();
     assert_eq!(sheet(&chosen), ("A2", "1:2"));
-    assert!(chosen.sheet.basis.contains("smallest fit A2 at 1:2"));
+    assert!(
+        chosen
+            .sheet
+            .basis
+            .starts_with("readability refusal on A2 at 1:2")
+    );
+    assert!(draftwright::sheet_fit::readability(&analysis, &chosen).failures() > 0);
+    assert!(
+        chosen
+            .problems
+            .iter()
+            .any(|p| p.code == "layout_recovery_exhausted" && p.severity == "warning")
+    );
     sheet_rule::assert_rule("ftc07", &chosen);
     let a1 = chosen
         .sheet
         .basis
-        .split("; ")
-        .find(|c| c.starts_with("A1 1:1 "))
+        .split_once("A1 1:1 fill ")
+        .map(|(_, tail)| tail.split(");").next().unwrap())
         .unwrap_or_else(|| panic!("{}", chosen.sheet.basis));
     assert!(a1.contains("hard layout finding"), "{a1}");
     let first =

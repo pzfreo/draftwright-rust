@@ -68,6 +68,30 @@ pub fn tried(basis: &str) -> Vec<Tried> {
 /// precede larger paper; their individual sheets are checked by sheets tests.
 pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, String) {
     let basis = &plan.sheet.basis;
+    if basis.starts_with("readability refusal on ") {
+        assert!(basis.contains("established fitted geometry retained"));
+        assert!(
+            plan.problems
+                .iter()
+                .any(|p| p.code == "layout_recovery_exhausted" && p.severity == "warning")
+        );
+        assert!(
+            tried(basis).iter().all(|t| !t.valid || t.over > 0),
+            "{name}: a qualified candidate was refused: {basis}"
+        );
+        if plan.spec.sheet.size.is_none() {
+            for paper in draftwright::layout::PAGES
+                .iter()
+                .take(sheet_index(&plan.sheet.size))
+            {
+                assert!(
+                    basis.contains(&format!("{} multi-sheet:", paper.0)),
+                    "{name}: {basis}"
+                );
+            }
+        }
+        return (plan.sheet.size.clone(), plan.sheet.scale.clone());
+    }
     if basis.starts_with("screen-first scheduled-row recovery:") {
         let trials = basis.rsplit_once("; schedule trials: ").unwrap().1;
         let completed: Vec<_> = trials

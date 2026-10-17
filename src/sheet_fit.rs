@@ -873,6 +873,29 @@ fn correct_sections(analysis: &Analysis, plan: &mut Plan) {
     }
 }
 
+/// Reuse settled-block packing when an ordinary drawing's reserved bands
+/// underestimate its annotation ink. Move whole carriers, never reroute a leader.
+pub(crate) fn enclose_free_ink(analysis: &Analysis, plan: &mut Plan) {
+    if !plan.sheets.is_empty()
+        || plan.views.iter().any(|v| v.detail.is_some())
+        || !plan
+            .problems
+            .iter()
+            .any(|q| q.code == "annotation_outside_area")
+    {
+        return;
+    }
+    if let Some(candidate) = pack_settled_views(analysis, plan, plan)
+        && crate::model::drawn_sheets_fit(analysis, &candidate)
+        && crate::model::carries_required(plan, &candidate)
+        && crate::model::no_new_drawing_issues(plan, &candidate)
+        && crate::model::ink_findings(&candidate) < crate::model::ink_findings(plan)
+        && readability(analysis, &candidate).failures() <= readability(analysis, plan).failures()
+    {
+        *plan = candidate;
+    }
+}
+
 pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
     // Wider label shelves can push an unused edge of the final section's generic band
     // past the border. The complete rendered footprints prove whether it is empty paper;
@@ -1029,12 +1052,15 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
     );
 }
 
-/// Pack already settled GD&T view blocks onto a smaller page without re-routing witnesses or
+/// Pack already settled annotated view blocks onto a page without re-routing witnesses or
 /// leaders. The template is built at the same scale on A0; only owned paper geometry moves.
 /// Page-anchored blocks and authored view relations stay with the existing planner.
-pub(crate) fn pack_gdt(analysis: &Analysis, template: &Plan, recipient: &Plan) -> Option<Plan> {
+pub(crate) fn pack_settled_views(
+    analysis: &Analysis,
+    template: &Plan,
+    recipient: &Plan,
+) -> Option<Plan> {
     if template.spec.iso_scale_factor.is_some()
-        || template.gdt.is_empty()
         || template.hole_table.is_some()
         || !template.balloons.is_empty()
         || !template.notes.is_empty()
@@ -1183,7 +1209,7 @@ pub(crate) fn pack_gdt(analysis: &Analysis, template: &Plan, recipient: &Plan) -
         move_point(&mut v.at, shifts[i]);
         crate::centrelines::shift(v, shifts[i]);
         v.area = moved(groups[i], shifts[i]);
-        v.basis += "; settled annotations and GD&T packed as one measured view block";
+        v.basis += "; settled annotations packed as one measured view block";
     }
     for d in &mut p.dimensions {
         if let Some(q) = &mut d.placed {
@@ -1820,6 +1846,104 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn settled_band_repacking_preserves_every_owned_route_and_measurement() {
+        let (_, a) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/mounting_plate.step"),
+        )
+        .unwrap();
+        let spec = serde_json::from_value(serde_json::json!({
+            "sheet":{"size":"A4","scale":"1:1"},
+            "views":{"plan":{"omit":true},"side":{"omit":true},"iso":{"omit":true}}
+        }))
+        .unwrap();
+        let mut p = crate::model::plan_recovered(&a, &spec).unwrap();
+        assert_eq!(p.views.len(), 1);
+        let b = p
+            .dimensions
+            .iter()
+            .filter_map(crate::dims::ink_box)
+            .max_by(|a, b| a[3].total_cmp(&b[3]))
+            .unwrap();
+        p.views[0].area[3] = b[3] - 0.25;
+        p.problems.retain(|q| q.code != "annotation_outside_area");
+        p.problems.extend(
+            crate::dims::recheck_cached(&a, &p, &crate::dims::footprints::Cache::default())
+                .into_iter()
+                .filter(|q| q.code == "annotation_outside_area"),
+        );
+        assert!(
+            p.problems
+                .iter()
+                .any(|q| q.code == "annotation_outside_area")
+        );
+        let relative = |p: &Plan| {
+            p.dimensions
+                .iter()
+                .filter(|d| d.placed.is_some())
+                .map(|d| {
+                    let v = p.views.iter().find(|v| v.id == d.view).unwrap();
+                    let mut d = d.clone();
+                    if let Some(q) = &mut d.placed {
+                        for pt in q
+                            .lines
+                            .iter_mut()
+                            .chain(&mut q.arrows)
+                            .flatten()
+                            .chain(std::iter::once(&mut q.label_at))
+                        {
+                            pt[0] -= v.at[0];
+                            pt[1] -= v.at[1];
+                        }
+                        for (k, x) in q.label_box.iter_mut().enumerate() {
+                            *x -= v.at[k % 2];
+                        }
+                    }
+                    d
+                })
+                .collect::<Vec<_>>()
+        };
+        let before = relative(&p);
+        enclose_free_ink(&a, &mut p);
+        let after = relative(&p);
+        assert_eq!(before.len(), after.len());
+        for (a, b) in before.iter().zip(&after) {
+            assert_eq!(a.measurements, b.measurements);
+            let (a, b) = (a.placed.as_ref().unwrap(), b.placed.as_ref().unwrap());
+            assert!(
+                a.label_box
+                    .iter()
+                    .zip(b.label_box)
+                    .all(|(a, b)| (a - b).abs() < 1e-6)
+            );
+            for (a, b) in a
+                .lines
+                .iter()
+                .chain(&a.arrows)
+                .flatten()
+                .chain(std::iter::once(&a.label_at))
+                .zip(
+                    b.lines
+                        .iter()
+                        .chain(&b.arrows)
+                        .flatten()
+                        .chain(std::iter::once(&b.label_at)),
+                )
+            {
+                assert!((a[0] - b[0]).abs() < 1e-6 && (a[1] - b[1]).abs() < 1e-6);
+            }
+        }
+        assert!(
+            !p.problems
+                .iter()
+                .any(|q| q.code == "annotation_outside_area")
+        );
+        assert!(crate::model::drawn_sheets_fit(&a, &p));
+        assert_eq!(readability(&a, &p).failures(), 0);
+    }
+
+    #[test]
     fn foreign_sheet_details_do_not_reserve_local_furniture() {
         let (_, a) = crate::model::analyse_native(
             &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -1853,7 +1977,7 @@ mod tests {
         }
     }
     #[test]
-    fn paper_cost_precedes_marginal_fill_and_scale() {
+    fn band_prefers_scale_then_smaller_paper_otherwise_fullest() {
         let a4 = candidate(1.0, 297.0, 0.52);
         assert!(rank(a4, candidate(2.0, 420.0, 0.55)).is_lt());
         assert!(rank(a4, candidate(10.0, 420.0, 0.80)).is_lt());

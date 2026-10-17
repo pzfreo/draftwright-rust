@@ -294,7 +294,16 @@ fn fixed_paper_typography_survives_scale_and_sheet_fit() {
                     serde_json::from_value(json!({"sheet":{"size":"A4","scale":scale}})).unwrap()
                 }
             };
-            let p = model::plan_recovered(&a, &s).unwrap();
+            let p = if scale.is_none() && file == "grm04_drive_plate.step" {
+                // These defaults now already fit cheap paper. Exercise actual
+                // recovery from a deliberately larger estimate as well.
+                let seed_spec: Spec =
+                    serde_json::from_value(json!({"sheet":{"size":"A3","scale":"2:1"}})).unwrap();
+                let first = model::plan_escalated(&a, &seed_spec).unwrap();
+                model::recover(&a, &s, first).unwrap()
+            } else {
+                model::plan_recovered(&a, &s).unwrap()
+            };
             escalated |= p.problems.iter().any(|p| p.code == "layout_replanned");
             fitted_iso |= p
                 .views
