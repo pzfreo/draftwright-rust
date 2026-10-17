@@ -2841,7 +2841,19 @@ fn plan_with_presentation(
                 crate::detail::requests(analysis, &effective, base.sheet.scale_factor)
             {
                 if !detail.authored && !base.views.iter().any(|v| v.id == format!("v:{name}")) {
-                    effective.views.entry(name).or_default().omit = true;
+                    effective.views.entry(name.clone()).or_default().omit = true;
+                    // A refused crop is still a request the drawing could not satisfy.
+                    // Keep its canonical diagnostic, so releasing a pin cannot appear to
+                    // introduce a new refusal that was already present before the edit.
+                    problems.extend(
+                        base.problems
+                            .iter()
+                            .filter(|p| {
+                                p.code == "detail_unplaceable"
+                                    && p.refs.contains(&format!("v:{name}"))
+                            })
+                            .cloned(),
+                    );
                 }
             }
         }
