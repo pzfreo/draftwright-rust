@@ -175,6 +175,17 @@ fn label_at(p: &Placed, at: f64) -> Placed {
     c
 }
 
+/// One extra paper clearance from its own dimension line, without changing the span.
+fn lift_label(p: &Placed) -> Placed {
+    let k = 1 - axis(p);
+    let delta = (p.label_at[k] - p.arrows[0][0][k]).signum() * CLEAR;
+    let mut c = p.clone();
+    c.label_at[k] += delta;
+    c.label_box[k] += delta;
+    c.label_box[k + 2] += delta;
+    c
+}
+
 fn alternatives(p: &Placed, drawable: [f64; 4], others: &[&PlannedDimension]) -> Vec<Placed> {
     let k = axis(p);
     let (lo, hi) = tips(p);
@@ -343,9 +354,15 @@ pub(crate) fn settle_inventory(
                 let lane = promote(p, n as f64 * LANE);
                 // Keep the settled along-span station when a new notch lane
                 // lets the whole dimension move clear of a callout.
-                std::iter::once(lane.clone())
-                    .filter(|_| bounded_notches)
-                    .chain(alternatives(&lane, page.drawable(), &others))
+                let alternatives = alternatives(&lane, page.drawable(), &others);
+                // If new bands displaced short text, restore its own span before
+                // accepting a contact-only improvement at the old detached station.
+                alternatives
+                    .iter()
+                    .filter(|c| bounded_notches && span_bad(p) && !span_bad(c))
+                    .flat_map(|c| [c.clone(), lift_label(c)])
+                    .chain(std::iter::once(lane).filter(|_| bounded_notches))
+                    .chain(alternatives.iter().cloned())
                     // A longer tolerance may already stand beyond a neighbouring
                     // witness. New notch lanes may clear its text contacts while
                     // retaining that existing span relation; never introduce one.

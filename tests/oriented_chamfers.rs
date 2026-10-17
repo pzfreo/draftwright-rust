@@ -82,6 +82,19 @@ fn ctc01_consumes_bevel_faces_and_sizes_both_notches_without_duplicate_c50() {
         p.dimensions.iter().filter(|d| d.label == "6× C5").count(),
         1
     );
+    for id in [
+        "d:f:slot:1/slot_width.length",
+        "d:f:slot:2/slot_width.length",
+    ] {
+        let d = p.dimensions.iter().find(|d| d.id == id).unwrap();
+        let ink = d.placed.as_ref().unwrap();
+        let lo = ink.arrows[0][0][1].min(ink.arrows[1][0][1]);
+        let hi = ink.arrows[0][0][1].max(ink.arrows[1][0][1]);
+        assert!(
+            ink.label_box[1] >= lo && ink.label_box[3] <= hi,
+            "the new notch bands must leave the existing slot widths on their own spans: {id}"
+        );
+    }
     let mut seen = std::collections::BTreeSet::new();
     for d in &p.dimensions {
         for m in &d.measurements {
