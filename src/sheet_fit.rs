@@ -161,12 +161,12 @@ pub(crate) fn furniture_bounds(
             out.push(b);
         }
     }
-    for v in views {
+    for v in views.iter().filter(|v| v.sheet == sheet.number) {
         if let Some(d) = &v.detail {
             out.push(text_box(
                 &crate::detail::caption(d),
                 crate::section::FONT_SIZE,
-                crate::detail::caption_at(v, None),
+                crate::detail::caption_at(v),
             ));
             if let Some(source) = views.iter().find(|s| s.id == d.source_view) {
                 let (_, at) = crate::detail::marker(analysis, d, source, views, sheet.page, &[]);
@@ -365,7 +365,7 @@ fn correct_sections(analysis: &Analysis, plan: &mut Plan) {
         if let Some(detail) = &v.detail {
             let laid = crate::dims::font()
                 .text(&crate::detail::caption(detail), crate::section::FONT_SIZE);
-            let at = crate::detail::caption_at(v, None);
+            let at = crate::detail::caption_at(v);
             include(&mut groups[i], [at[0] + laid.min[0], at[1] + laid.min[1]]);
             include(&mut groups[i], [at[0] + laid.max[0], at[1] + laid.max[1]]);
             if let Some(j) = plan.views.iter().position(|p| p.id == detail.source_view) {
@@ -1430,6 +1430,25 @@ pub(crate) fn reserve_linear_corridors(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn foreign_sheet_details_do_not_reserve_local_furniture() {
+        let (_, a) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/mounting_plate.step"),
+        )
+        .unwrap();
+        let spec = serde_json::from_value(serde_json::json!({"sheet":{"size":"A2","scale":"1:2"},"views":{"detail_c":{"detail":{"around":"f:hole:1","from":"plan","scale_factor":2}}}})).unwrap();
+        let mut p = crate::model::plan(&a, &spec).unwrap();
+
+        for v in &mut p.views {
+            v.sheet = 2;
+        }
+        let with = furniture_bounds(&a, &p.sheet, &p.views);
+        p.views.retain(|v| v.detail.is_none());
+        assert_eq!(with, furniture_bounds(&a, &p.sheet, &p.views));
+    }
+
     fn candidate(scale: f64, width: f64, fill: f64) -> (f64, f64, f64) {
         (scale, width, fill)
     }

@@ -701,19 +701,11 @@ pub(crate) fn caption(d: &Detail) -> String {
         }
     )
 }
-/// Match Python's real projected-ink anchor: centred, eight paper mm below ink.
-/// Before projection, reserve the same row below the crop's geometric footprint.
-pub(crate) fn caption_at(v: &PlannedView, ink: Option<Rect>) -> [f64; 2] {
-    let b = ink.unwrap_or_else(|| {
-        let [w, h] = size(v.detail.as_ref().expect("detail caption"));
-        [
-            v.at[0] - w / 2.0,
-            v.at[1] - h / 2.0,
-            v.at[0] + w / 2.0,
-            v.at[1] + h / 2.0,
-        ]
-    });
-    [(b[0] + b[2]) / 2.0, b[1] - 8.0]
+/// Use the crop's reserved row for both placement and drawing, even when the
+/// projected silhouette leaves blank space inside the crop.
+pub(crate) fn caption_at(v: &PlannedView) -> [f64; 2] {
+    let [_, h] = size(v.detail.as_ref().expect("detail caption"));
+    [v.at[0], v.at[1] - h / 2.0 - 8.0]
 }
 
 /// Reserve the caption before solving dimensions, including its half-text-height gap.
@@ -726,7 +718,7 @@ pub(crate) fn caption_obstacles(views: &[PlannedView]) -> Vec<crate::dims::Plann
             let text = caption(d);
             let height = crate::section::FONT_SIZE;
             let laid = crate::dims::font().text(&text, height);
-            let at = caption_at(v, None);
+            let at = caption_at(v);
             let gap = height / 2.0;
             let mut obstacle = crate::iso_caption::proxy(&crate::iso_caption::PlannedCaption {
                 id: format!("detail_caption_{}", d.label),

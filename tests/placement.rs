@@ -378,7 +378,6 @@ fn omitting_one_dimension_moves_no_other() {
                 ("left out of the authored set", authored(&listed), vec![]),
             ] {
                 let plan = model::plan(analysis, &spec).unwrap();
-                eprintln!("checking locality: {name}, {gone}, {how}");
                 let mut promoted = promoted.clone();
                 // A correlated set (ARCH0015-2) is approved or omitted whole: in this test it is
                 // one item. Omitting a rung omits the rest of its ladder (each named by a

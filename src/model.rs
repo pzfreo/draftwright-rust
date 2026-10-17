@@ -5084,7 +5084,7 @@ impl Projections {
         self.stats.bounds += 1;
         geometry.bbox = items_bbox(&geometry.visible);
         // Breaks are owned visible ink too; their short end strokes can extend
-        // past a clipped silhouette. Captions must sit below that actual ink.
+        // past a clipped silhouette and must count toward the drawn view bounds.
         for curve in &geometry.breaks {
             let b = curve.bbox();
             geometry.bbox = Some(geometry.bbox.map_or(b, |a| {
@@ -5616,17 +5616,7 @@ fn render_annotations_with_cuts(
     }
     for v in &plan.views {
         let Some(d) = &v.detail else { continue };
-        captions.push((
-            crate::detail::caption(d),
-            crate::detail::caption_at(
-                v,
-                sheet
-                    .views
-                    .iter()
-                    .find(|drawn| drawn.name == v.id)
-                    .map(|drawn| drawn.bbox),
-            ),
-        ));
+        captions.push((crate::detail::caption(d), crate::detail::caption_at(v)));
         caption_names.push(format!("detail_caption_{}", d.label));
         if let Some(source) = plan.views.iter().find(|s| s.id == d.source_view) {
             let labels: Vec<_> = plan

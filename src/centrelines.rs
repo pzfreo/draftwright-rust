@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::bridge::holes;
 use crate::dims::{Placed, PlannedDimension};
-use crate::model::{Analysis, PlannedView, extent};
+use crate::model::{Analysis, PlannedView};
 use crate::output::{Curve, P};
 use haecceity::hlr::View;
 
@@ -44,7 +44,7 @@ pub fn overrun(radius: f64) -> f64 {
 
 fn page(a: &Analysis, v: &PlannedView, p: [f64; 3]) -> P {
     let view = View::new(v.direction, v.up).expect("planned view");
-    let centre = extent(a, &view).1;
+    let centre = crate::detail::crop_extent(a, v).1;
     let q = view.map(p);
     [0, 1].map(|k| v.at[k] + v.scale * (q[k] - centre[k]))
 }
@@ -521,6 +521,28 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
             });
         }
         merge(&mut v.line_work);
+        if v.detail.is_some() {
+            let (size, _) = crate::detail::crop_extent(a, v);
+            let rect = [
+                v.at[0] - size[0] * v.scale / 2.0,
+                v.at[1] - size[1] * v.scale / 2.0,
+                v.at[0] + size[0] * v.scale / 2.0,
+                v.at[1] + size[1] * v.scale / 2.0,
+            ];
+            for work in &mut v.line_work {
+                let curves = std::mem::take(&mut work.curves);
+                work.curves = curves
+                    .iter()
+                    .cloned()
+                    .flat_map(|c| crate::detail::clip(c, rect))
+                    .collect();
+                // A crop edge is not a feature's overrun; don't trim it further.
+                if work.curves != curves {
+                    work.overrun = 0.0;
+                }
+            }
+            v.line_work.retain(|w| !w.curves.is_empty());
+        }
     }
     let cuts: Vec<_> = views.iter().filter_map(|v| v.cut.clone()).collect();
     for c in cuts {
@@ -961,6 +983,21 @@ pub(crate) fn leader_conflict(line: [P; 2], fixed: [P; 2], global: bool, shaft: 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn detail_page_mapping_centres_the_crop() {
+        let (_, a) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/mounting_plate.step"),
+        )
+        .unwrap();
+        let spec = serde_json::from_value(serde_json::json!({"sheet":{"size":"A2","scale":"1:2"},"views":{"detail_c":{"detail":{"around":"f:hole:1","from":"plan","scale_factor":2}}}})).unwrap();
+        let p = crate::model::plan(&a, &spec).unwrap();
+        let v = p.views.iter().find(|v| v.id == "v:detail_c").unwrap();
+        let bounds = v.detail.as_ref().unwrap().bounds;
+        let middle = [0, 1, 2].map(|k| (bounds[0][k] + bounds[1][k]) / 2.);
+        assert_eq!(page(&a, v, middle), v.at);
+    }
 
     fn axis_of(a: P, b: P, overrun: f64) -> LineWork {
         LineWork {

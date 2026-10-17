@@ -665,7 +665,7 @@ fn section_parent_reuses_the_section_projection_without_duplicating_furniture() 
             let ink = g.bbox.expect("a break is visible owned ink");
             assert!(
                 b[0] >= ink[0] && b[1] >= ink[1] && b[2] <= ink[2] && b[3] <= ink[3],
-                "break outside the ink bounds used to anchor its caption: {b:?} / {ink:?}"
+                "break outside its owned visible ink bounds: {b:?} / {ink:?}"
             );
         }
     }
@@ -702,5 +702,83 @@ fn section_parent_reuses_the_section_projection_without_duplicating_furniture() 
     assert_eq!(
         serde_json::to_value(&isolated_geometry.views[0]).unwrap(),
         serde_json::to_value(&explicit.views[0]).unwrap()
+    );
+}
+
+#[test]
+fn sheet_centre_lines_in_a_head_detail_are_aligned_and_clipped() {
+    let Some(a) = string_post() else { return };
+    for settings in [
+        json!({"sheet":{"size":"A3","scale":"2:1","centre_lines":true},
+               "views":{"detail_a":{"detail":{"around":"f:turned_step:3","scale_factor":5}}}}),
+        json!({"sheet":{"size":"A3","scale":"2:1"},
+               "views":{"detail_a":{"centre_lines":true,"detail":{"around":"f:turned_step:3","scale_factor":5}}}}),
+    ] {
+        let p = model::plan(&a, &serde_json::from_value(settings).unwrap()).unwrap();
+        let v = p.views.iter().find(|v| v.id == "v:detail_a").unwrap();
+        let d = v.detail.as_ref().unwrap();
+        let camera = haecceity::hlr::View::new(v.direction, v.up).unwrap();
+        let corners: Vec<_> = (0..8)
+            .map(|i| camera.map([0, 1, 2].map(|k| d.bounds[(i >> k) & 1][k])))
+            .collect();
+        let lo = [0, 1].map(|k| corners.iter().map(|p| p[k]).fold(f64::INFINITY, f64::min));
+        let hi = [0, 1].map(|k| {
+            corners
+                .iter()
+                .map(|p| p[k])
+                .fold(f64::NEG_INFINITY, f64::max)
+        });
+        let crop = [
+            v.at[0] - v.scale * (hi[0] - lo[0]) / 2.,
+            v.at[1] - v.scale * (hi[1] - lo[1]) / 2.,
+            v.at[0] + v.scale * (hi[0] - lo[0]) / 2.,
+            v.at[1] + v.scale * (hi[1] - lo[1]) / 2.,
+        ];
+        let axes: Vec<_> = v.line_work.iter().filter(|w| w.kind == "axis").collect();
+        assert!(
+            !axes.is_empty(),
+            "sheet/view centre_lines reaches the detail"
+        );
+        for c in axes.iter().flat_map(|w| &w.curves) {
+            let b = c.bbox();
+            assert!(
+                (0..2).all(|k| b[k] >= crop[k] - 1e-6 && b[k + 2] <= crop[k + 2] + 1e-6),
+                "axis {b:?} outside crop {crop:?}"
+            );
+            // string_post turns about z; its projected vertical axis is through x = 0.
+            let axis_x = v.at[0] - v.scale * (lo[0] + hi[0]) / 2.;
+            assert!((b[0] - axis_x).abs() < 1e-6 && (b[2] - axis_x).abs() < 1e-6);
+        }
+    }
+}
+
+#[test]
+fn a_detail_caption_is_drawn_in_its_reserved_crop_slot() {
+    let (part, a) = fixture("mounting_plate");
+    let mut p = model::plan(&a, &authored(json!("f:hole:1"), Some("plan"))).unwrap();
+    let v = p.views.iter_mut().find(|v| v.id == "v:detail_c").unwrap();
+    let d = v.detail.as_mut().unwrap();
+    // Include blank paper below the silhouette, so the ink and crop anchors differ.
+    d.bounds = a.envelope;
+    for k in 0..3 {
+        d.bounds[0][k] -= 10.;
+        d.bounds[1][k] += 10.;
+    }
+    let expected = [
+        v.at[0],
+        v.at[1] - (d.bounds[1][1] - d.bounds[0][1]) * d.scale / 2. - 8.,
+    ];
+    let font =
+        draftwright::text::Font::new(include_bytes!("../fonts/IBMPlexMono-Regular.ttf").to_vec())
+            .unwrap();
+    let drawing = model::render(&part, &a, &p, &font).unwrap();
+    let caption = drawing
+        .text
+        .iter()
+        .find(|t| t.text.starts_with("DETAIL C ("))
+        .unwrap();
+    assert_eq!(
+        caption.at, expected,
+        "drawing must use the row protected during placement"
     );
 }

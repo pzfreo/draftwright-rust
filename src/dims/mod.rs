@@ -850,12 +850,12 @@ pub(crate) fn inspection_datum(a: &Analysis) -> Option<(usize, f64)> {
     turned::axial_datum(a)
 }
 
-pub(crate) fn detail_levels(a: &Analysis) -> Vec<(String, f64, P3)> {
+pub(crate) fn detail_levels(a: &Analysis) -> Vec<(String, f64)> {
     wants(a)
         .0
         .into_iter()
         .filter_map(|w| match w.shape {
-            Shape::Linear { b, .. } => Some((w.id, w.value, b)),
+            Shape::Linear { .. } => Some((w.id, w.value)),
             _ => None,
         })
         .collect()
@@ -902,8 +902,9 @@ fn detail_routes(a: &Analysis, wants: &mut [Want], views: &[PlannedView]) {
                     b_edge,
                     ..
                 } => {
-                    // Recover the physical shoulder on the positive rim when the detail
-                    // intentionally shows only a narrow radial profile strip.
+                    // Dimension an x-turned head at its positive silhouette. Try the
+                    // rim witnesses on copies: a rejected crop keeps the parent's ink.
+                    let (mut next_a, mut next_b) = (*pa, *pb);
                     if w.id.ends_with("/step.length")
                         && d.kind == "turned-head"
                         && *axis == 0
@@ -915,12 +916,13 @@ fn detail_routes(a: &Analysis, wants: &mut [Want], views: &[PlannedView]) {
                                 crate::lint::turned::band(&crate::bridge::holes::frame(a), f).ok()
                             })
                     {
-                        pa[2] = band.on[2] + band.diameter / 2.0;
-                        pb[2] = pa[2];
+                        next_a[2] = band.on[2] + band.diameter / 2.0;
+                        next_b[2] = next_a[2];
                     }
-                    if !inside(*pa) || !inside(*pb) {
+                    if !inside(next_a) || !inside(next_b) {
                         continue;
                     }
+                    (*pa, *pb) = (next_a, next_b);
                     if w.id.ends_with("/step.length") && *axis == 0 {
                         *a_edge = false;
                         *b_edge = false;
@@ -2296,17 +2298,7 @@ fn plan_inventory_uncached(
     // Explicit tolerances can revive local band lengths conveyed by a baseline. Settle
     // their combined ink once more: the outer overall witness must not run through a
     // toleranced local label. Keep the measured quantities and all pins intact.
-    if all.iter().any(|w| w.id.ends_with("/step_position.length"))
-        && all.iter().enumerate().any(|(i, w)| {
-            owner[i].is_some()
-                && drawn[i]
-                && w.id.ends_with("/step.length")
-                && spec
-                    .dimensions
-                    .get(&w.id)
-                    .is_some_and(|d| d.tolerance.is_some())
-        })
-    {
+    if !local_tolerances.is_empty() {
         placement::settle_fixed(&mut placed, &fixed, obstacles, analysis, sheet, views);
     }
     // Merged automatic items now have their final ink. Resolve oblique authored
@@ -3293,6 +3285,51 @@ pub(crate) fn measurement_ids(analysis: &Analysis) -> BTreeSet<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rejected_head_routes_leave_parent_witnesses_untouched() {
+        let (_, mut a) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/turned.step"),
+        )
+        .unwrap();
+        let p = crate::model::plan(&a, &Spec::default()).unwrap();
+        let mut v = p.views.iter().find(|v| v.id == "v:front").unwrap().clone();
+        a.recognition = None;
+        let f = &mut a.features[0];
+        f.kind = "turned_step".into();
+        f.parameters = serde_json::json!({"axis":"x","lo":0.,"hi":10.,"diameter":8.,"profile":{"axis_origin":[0.,0.,0.]}}).as_object().unwrap().clone();
+        let feature = f.id.clone();
+        v.id = "v:detail_a".into();
+        v.detail = Some(serde_json::from_value(serde_json::json!({
+            "label":"A","axis":0,"source_view":"v:front","kind":"turned-head",
+            "bounds":[[0.,-5.,-5.],[5.,5.,5.]],"marked_bounds":[[0.,-5.,-5.],[5.,5.,5.]],
+            "dimensions":[want_id(&feature,"step.length")],"scale":2.,"authored":false,"partial_profile":false
+        })).unwrap());
+        let mut w = size(&feature, "step.length", 0., 10., &["10"]).0;
+        if let Shape::Linear { a, b, .. } = &mut w.shape {
+            a[1] = 0.;
+            b[1] = 0.;
+        }
+        let original = w.clone();
+        detail_routes(&a, std::slice::from_mut(&mut w), std::slice::from_ref(&v));
+        let witnesses = |w: &Want| match w.shape {
+            Shape::Linear { a, b, .. } => [a, b],
+            _ => unreachable!(),
+        };
+        assert_eq!(w.views, original.views);
+        assert_eq!(w.basis, original.basis);
+        assert_eq!(
+            witnesses(&w),
+            witnesses(&original),
+            "a rejected crop must not change the parent's shoulders"
+        );
+        // A full shoulder crop still recovers the length at the positive silhouette.
+        v.detail.as_mut().unwrap().bounds = [[0., -5., 3.], [10., 5., 5.]];
+        detail_routes(&a, std::slice::from_mut(&mut w), &[v]);
+        assert_eq!(w.views[0], "detail_a");
+        assert_eq!(witnesses(&w), [[0., 0., 4.], [10., 0., 4.]]);
+    }
 
     #[test]
     fn side_only_callout_corridors_grow_with_authored_precision() {
