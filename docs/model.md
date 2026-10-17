@@ -405,7 +405,8 @@ Each entry owns a station network on a **part-frame** axis. For example:
 }
 ```
 
-These are independent examples; overlapping entries on the same view axis are refused.
+These are independent examples. Entries can meet at a shared datum; their combined network
+must remain acyclic, and a target cannot have two owners.
 The same named target cannot be dimensioned twice across different views either.
 `scheme` and `axis` are required. `targets` names a feature pattern, feature IDs or exact
 fingerprint references from `Analysis.edge_ink.references`; omitted/empty targets applies to
@@ -413,6 +414,7 @@ all automatic locations and turned-profile shoulders on the named `view` axis. A
 required for that whole-axis form. Otherwise the first compatible automatic location's view
 is preferred, falling back to front (plan for Y). `view` is a bare principal view name and
 must show the measuring axis across the page. It constrains the generated owners' carrier.
+An incompatible carrier for an already located target is refused with its compatible views.
 
 A hole or slot pattern expands to its physical members. A turned step expands to both its
 shoulders. Other feature IDs select their position; a feature proving one transverse planar
@@ -428,7 +430,10 @@ select its feature ID or face fingerprint here instead of inventing another datu
 Chain orders distinct stations along the axis and dimensions adjacent pairs. Baseline
 measures every station from the chosen datum. Ordinate uses signed coordinates from that
 datum, with an origin circle and one endpoint arrow per running coordinate. Coincident
-stations share one owner; a controlling overall that would close the chain is covered.
+stations share one owner; a controlling overall that would close the combined network is
+covered. Remaining automatic controls are retained only when they add an independent interval.
+A counted pitch or grouped length is atomic: a partial replacement that would drop other
+intervals is refused; select the whole pattern, every member station, or the whole view axis.
 Circular patterns retain their PCD convention: to request Cartesian dimensions explicitly,
 name their individual members. Multi-solid analyses are refused for schemes; select a single
 part first, so one station cannot accidentally borrow another body's ownership.

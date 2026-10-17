@@ -79,7 +79,7 @@ pub(super) fn apply(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<Cov
     }
     crate::dimension_scheme::check(s)?;
     let old = wants.clone();
-    let mut occupied: Vec<(usize, &'static str, f64, String)> = Vec::new();
+    let mut occupied: Vec<(usize, &'static str, f64, bool, String)> = Vec::new();
     let mut named_owners = BTreeMap::new();
     for (name, d) in &s.dimension_schemes {
         let fail = |why: String| {
@@ -124,9 +124,10 @@ pub(super) fn apply(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<Cov
         if d.targets.is_empty() {
             for w in &selected {
                 for m in &w.measurements {
-                    if a.recognition
-                        .as_ref()
-                        .is_some_and(|r| r.patterns.iter().any(|p| p.id == m.feature))
+                    if m.parameter == "step.length"
+                        || a.recognition
+                            .as_ref()
+                            .is_some_and(|r| r.patterns.iter().any(|p| p.id == m.feature))
                         || a.features
                             .iter()
                             .any(|f| f.id == m.feature && f.kind == "slot_pattern")
@@ -138,6 +139,18 @@ pub(super) fn apply(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<Cov
                             refs.extend(members);
                         }
                     }
+                }
+                if w.measurements.iter().any(|m| {
+                    m.parameter.starts_with("location")
+                        && (a
+                            .recognition
+                            .as_ref()
+                            .is_some_and(|r| r.patterns.iter().any(|p| p.id == m.feature))
+                            || a.features
+                                .iter()
+                                .any(|f| f.id == m.feature && f.kind == "slot_pattern"))
+                }) {
+                    continue;
                 }
                 if let Shape::Linear { a: p, b: q, .. } = w.shape {
                     let ends: &[[f64; 3]] = if w.measurements.iter().any(|m| {
@@ -212,14 +225,14 @@ pub(super) fn apply(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<Cov
             ));
         }
         for (_, p) in &sites {
-            if let Some((_, _, _, other)) = occupied.iter().find(|(j, v, x, _)| {
-                *j == k && *v == view && (*x - p[k]).abs() < 1e-6 && (*x - origin[k]).abs() > 1e-6
+            if let Some((_, _, _, _, other)) = occupied.iter().find(|(j, _, x, was_datum, _)| {
+                *j == k && (*x - p[k]).abs() < 1e-6 && (*x - origin[k]).abs() > 1e-6 && !was_datum
             }) {
                 return Err(fail(format!(
                     "This location is already owned by scheme {other}; combine the entries or remove the overlap."
                 )));
             }
-            occupied.push((k, view, p[k], name.clone()));
+            occupied.push((k, view, p[k], (p[k] - origin[k]).abs() < 1e-6, name.clone()));
         }
         let mut pairs = Vec::new();
         if d.scheme == "chain" {
@@ -271,83 +284,65 @@ pub(super) fn apply(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<Cov
                 turning:None
             });
         }
-        let on = |x: f64| sites.iter().any(|(_, p)| (p[k] - x).abs() < 1e-6);
-        // Any existing interval determined by this network yields its ownership, including
-        // coincident locations outside the named set and the overall that would close it.
+        // A parent pattern centre is constructed from its fully located physical members.
+        // Keep the established requirement vocabulary without inventing a centre station.
         for w in &old {
-            let Shape::Linear {
-                a: p, b: q, axis, ..
-            } = w.shape
-            else {
+            let Shape::Linear { axis, .. } = w.shape else {
                 continue;
             };
-            // An internal feature datum still needs its own one location to the part;
-            // otherwise the entire network could float within the envelope.
-            if eligible(w, k) && (q[k] - origin[k]).abs() < 1e-6 && !on(p[k]) {
+            if axis != k || !w.views.contains(&view) {
                 continue;
             }
-            let pattern_centre = w.measurements.iter().any(|m| {
-                (m.parameter.starts_with("location.length.")
-                    || m.parameter.starts_with("location_slot_pattern.length."))
-                    && d.targets.contains(&m.feature)
-                    && (a
-                        .recognition
-                        .as_ref()
-                        .is_some_and(|r| r.patterns.iter().any(|p| p.id == m.feature))
-                        || a.features
+            let parent = w.measurements.iter().any(|m| {
+                m.parameter.starts_with("location")
+                    && (d.targets.is_empty() || d.targets.contains(&m.feature))
+                    && (a.recognition.as_ref().is_some_and(|r| {
+                        r.patterns
                             .iter()
-                            .any(|f| f.id == m.feature && f.kind == "slot_pattern"))
+                            .any(|p| p.id == m.feature && p.arrangement != "bolt_circle")
+                    }) || a
+                        .features
+                        .iter()
+                        .any(|f| f.id == m.feature && f.kind == "slot_pattern"))
             });
-            if (!eligible(w, k) && !w.id.starts_with("d:envelope/") && !w.id.starts_with("d:pmi:"))
-                || axis != k
-                || !w.views.contains(&view)
-                || !(on(p[k]) && on(q[k])
-                    || eligible(w, k) && (p[k] - a.envelope[0][k]).abs() < 1e-6 && on(q[k])
-                    || pattern_centre)
-            {
-                continue;
+            if parent {
+                check_edits(s, w)?;
+                covered.insert(w.id.clone(), generated.last().unwrap().id.clone());
             }
-            if w.turning.is_some()
-                || w.measurements
-                    .iter()
-                    .any(|m| m.parameter.contains("diameter"))
-            {
-                continue;
-            }
-            if w.id.starts_with("d:authored:") || w.id.starts_with("d:pmi:") {
-                return Err(fail(format!(
-                    "{} already owns an interval in this network; retain that authored/PMI owner and choose disjoint targets.",
-                    w.id
-                )));
-            }
-            if s.precision.contains_key(&w.id) {
-                return Err(fail(format!(
-                    "{} has explicit precision; remove that policy before replacing its owner, then apply precision to the generated ID.",
-                    w.id
-                )));
-            }
-            if let Some(e) = s.dimensions.get(&w.id)
-                && (e.tolerance.is_some()
-                    || e.fit.is_some()
-                    || e.place.is_some()
-                    || e.view.is_some()
-                    || e.omit)
-            {
-                return Err(fail(format!(
-                    "{} has explicit dimension intent; remove that edit before replacing its ownership, then apply tolerance/place to the generated owner.",
-                    w.id
-                )));
-            }
-            if covered.contains_key(&w.id) {
-                return Err(fail(format!(
-                    "{} is already owned by another scheme; combine the schemes.",
-                    w.id
-                )));
-            }
-            covered.insert(w.id.clone(), generated.last().unwrap().id.clone());
         }
         wants.extend(generated);
     }
+    // An explicit carrier must not leave an automatic owner on a different view.
+    for (name, d) in &s.dimension_schemes {
+        let Some(view) = d.view.as_deref() else {
+            continue;
+        };
+        if d.targets.is_empty() {
+            continue;
+        }
+        let k = AXES.iter().position(|&k| k == d.axis).unwrap();
+        let mut refs = BTreeSet::new();
+        for r in &d.targets {
+            expand(a, r, &mut refs)?;
+        }
+        for w in &old {
+            if eligible(w, k)
+                && !w.views.contains(&view)
+                && w.measurements.iter().any(|m| {
+                    d.targets.contains(&m.feature)
+                        || refs.contains(&m.feature)
+                        || refs.contains(&format!("start:{}", m.feature))
+                })
+            {
+                return Err(invalid(format!(
+                    "dimension_schemes/{name}: {} already locates the target on {}; choose that compatible view or remove the conflicting target.",
+                    w.id,
+                    w.views.join(" or ")
+                )));
+            }
+        }
+    }
+    complete_ownership(a, s, &old, wants, &mut covered)?;
     Ok(covered)
 }
 
@@ -427,23 +422,170 @@ pub(super) fn check_authored(s: &Spec, wants: &[Want]) -> Result<(), Invalid> {
         let Some((k, lo, hi)) = interval(&w.shape) else {
             continue;
         };
-        for (name, d) in &s.dimension_schemes {
-            let edges: Vec<_> = wants
-                .iter()
-                .enumerate()
-                .filter(|(_, o)| o.id.starts_with(&format!("d:scheme:{name}/")))
-                .filter_map(|(i, o)| {
-                    let (axis, a, b) = interval(&o.shape)?;
-                    (axis == k).then_some((crate::lint::redundancy::Span::new(k, a, b), i))
-                })
-                .collect();
-            if crate::lint::redundancy::path(&edges, crate::lint::redundancy::Span::new(k, lo, hi))
-                .is_some()
+        let edges: Vec<_> = wants
+            .iter()
+            .enumerate()
+            .filter(|(_, o)| o.id.starts_with("d:scheme:"))
+            .filter_map(|(i, o)| {
+                let (axis, a, b) = interval(&o.shape)?;
+                (axis == k).then_some((crate::lint::redundancy::Span::new(k, a, b), i))
+            })
+            .collect();
+        if crate::lint::redundancy::path(&edges, crate::lint::redundancy::Span::new(k, lo, hi))
+            .is_some()
+        {
+            return Err(invalid(format!(
+                "{} closes the dimension_schemes station network; remove that authored dimension or choose disjoint scheme targets.",
+                w.id
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn check_edits(s: &Spec, w: &Want) -> Result<(), Invalid> {
+    if s.precision.contains_key(&w.id)
+        || s.dimensions.get(&w.id).is_some_and(|d| {
+            d.tolerance.is_some()
+                || d.fit.is_some()
+                || d.place.is_some()
+                || d.view.is_some()
+                || d.omit
+        })
+    {
+        return Err(invalid(format!(
+            "{} has explicit dimension intent; remove that edit before replacing its owner, then edit the generated scheme owner.",
+            w.id
+        )));
+    }
+    Ok(())
+}
+
+/// Give authored links priority, then retain automatic controllers only while they
+/// add a new interval. This considers the union of every named scheme on a view axis.
+fn complete_ownership(
+    a: &Analysis,
+    s: &Spec,
+    old: &[Want],
+    wants: &mut [Want],
+    covered: &mut Covered,
+) -> Result<(), Invalid> {
+    use crate::lint::redundancy::{Span, path};
+    type Edges = Vec<(Span, usize)>;
+    let mut graphs: BTreeMap<(usize, &'static str), Edges> = BTreeMap::new();
+    for (i, w) in wants.iter().enumerate().skip(old.len()) {
+        let Shape::Linear {
+            a: p, b: q, axis, ..
+        } = w.shape
+        else {
+            continue;
+        };
+        let span = Span::new(axis, p[axis], q[axis]);
+        let edges = graphs.entry((axis, w.views[0])).or_default();
+        if path(edges, span).is_some() {
+            return Err(invalid(format!(
+                "{} closes a chain across dimension_schemes; combine the entries or remove the redundant scheme.",
+                w.id
+            )));
+        }
+        edges.push((span, i));
+    }
+    for ((k, view), mut edges) in graphs {
+        let mut order: Vec<_> = (0..old.len()).collect();
+        order.sort_by_key(|&i| {
+            let w = &old[i];
+            (
+                if w.id.starts_with("d:pmi:") {
+                    0
+                } else if w.id.starts_with("d:envelope/") {
+                    1
+                } else if w
+                    .measurements
+                    .iter()
+                    .any(|m| m.parameter.contains("pitch.length"))
+                {
+                    2
+                } else {
+                    3
+                },
+                w.id.clone(),
+            )
+        });
+        for i in order {
+            let w = &old[i];
+            if covered.contains_key(&w.id)
+                || !w.views.contains(&view)
+                || s.dimensions.get(&w.id).is_some_and(|d| d.omit)
+                || s.dimension_source == crate::model::DimensionSource::Authored
+                    && !s.dimensions.contains_key(&w.id)
             {
-                return Err(invalid(format!(
-                    "{} closes the station network dimension_schemes/{name} ({}); remove that authored dimension or choose disjoint scheme targets.",
-                    w.id, d.scheme
-                )));
+                continue;
+            }
+            let Shape::Linear {
+                a: p, b: q, axis, ..
+            } = w.shape
+            else {
+                continue;
+            };
+            if axis != k
+                || w.turning.is_some()
+                || w.measurements
+                    .iter()
+                    .any(|m| m.parameter.contains("diameter"))
+            {
+                continue;
+            }
+            let span = Span::new(k, p[k], q[k]);
+            let text = w.terms.join(" ");
+            let mut spans: Vec<_> = w
+                .measurements
+                .iter()
+                .flat_map(|m| crate::lint::schemes::supports(a, &m.feature, &m.parameter, &text))
+                .filter(|s| s.axis == k)
+                .collect();
+            spans.sort_by(|p, q| p.lo.total_cmp(&q.lo).then(p.hi.total_cmp(&q.hi)));
+            spans.dedup_by(|p, q| p.same(*q));
+            if spans.is_empty()
+                && (eligible(w, k) || w.id.starts_with("d:envelope/") || w.id.starts_with("d:pmi:"))
+            {
+                spans.push(span);
+            }
+            if spans.is_empty() {
+                continue;
+            }
+            let routes: Vec<_> = spans.iter().map(|&span| path(&edges, span)).collect();
+            let authored = routes
+                .iter()
+                .flatten()
+                .flatten()
+                .copied()
+                .find(|&j| j >= old.len());
+            if let Some(owner) = authored {
+                if routes.iter().any(Option::is_none) {
+                    return Err(invalid(format!(
+                        "{} is a counted pattern with only some intervals replaced by dimension_schemes; target the whole pattern or all its member stations, or remove the overlapping scheme.",
+                        w.id
+                    )));
+                }
+                if w.id.starts_with("d:pmi:")
+                    || w.measurements.iter().any(|m| m.feature.starts_with("pmi:"))
+                {
+                    return Err(invalid(format!(
+                        "{} already states semantic PMI across the scheme network; choose disjoint targets or remove the conflicting scheme.",
+                        w.id
+                    )));
+                }
+                check_edits(s, w)?;
+                covered.insert(w.id.clone(), wants[owner].id.clone());
+                for m in &w.measurements {
+                    wants[owner].measurements.push(Measurement {
+                        feature: format!("scheme_owns:{}", m.feature),
+                        parameter: m.parameter.clone(),
+                        value: m.value,
+                    });
+                }
+            } else {
+                edges.extend(spans.into_iter().map(|s| (s, i)));
             }
         }
     }

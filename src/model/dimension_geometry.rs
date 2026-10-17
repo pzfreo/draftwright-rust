@@ -244,6 +244,12 @@ impl Analysis {
             if matches!(f.kind.as_str(), "slot" | "slot_pattern") {
                 return Ok(f.fingerprint.position);
             }
+            // Trimmed cylindrical bounds need not be centred on the analytic feature axis.
+            let axis_key = format!("axis:{key}");
+            if matches!(a.dimension_reference(&axis_key),Ok(Reference::Cylinder {axis,..}) if axis[k].abs()<1e-8)
+            {
+                return a.scheme_station(&axis_key, k);
+            }
             // A planar datum feature must prove one plane perpendicular to the measuring axis.
             let planes: Vec<_> = f
                 .faces

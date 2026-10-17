@@ -7,7 +7,7 @@ use super::{
 use crate::{model::Analysis, output::Claim};
 use std::collections::BTreeMap;
 
-type Graph = (String, usize, Option<String>, String);
+type Graph = (usize, Option<String>);
 
 pub(crate) fn evidence(a: &Analysis, marks: &[Mark]) -> (Vec<Mark>, Vec<LintIssue>) {
     if !marks
@@ -58,15 +58,13 @@ pub(crate) fn evidence(a: &Analysis, marks: &[Mark]) -> (Vec<Mark>, Vec<LintIssu
                     Span::new(k, p[k], q[k]),
                 ))
             })();
-            let Some((name, datum, span)) = measured else {
+            let Some((_, _, span)) = measured else {
                 issues.push(LintIssue {id:format!("l:dimension_scheme_invalid:{}",m.name), code:"dimension_scheme_invalid".into(),severity:Severity::Error,
                     message:format!("{} does not state the measured distance between its scheme references; restore its nominal or correct the references and regenerate.",m.name),
                     annotation:Some(m.name.clone()), subjects:vec![m.name.clone()], view:m.view.clone(), sheet:None, at:None, requirements:vec![], measurements:vec![], sources:vec![],stage:None,related:vec![],evidence:None,fix:Some("Correct the scheme references or regenerate its measured ink.".into()) });
                 continue;
             };
-            let edges = graphs
-                .entry((name, span.axis, m.view.clone(), datum))
-                .or_default();
+            let edges = graphs.entry((span.axis, m.view.clone())).or_default();
             if let Some(route) = path(edges, span) {
                 issues.push(LintIssue {id:format!("l:closed_dimension_chain:{}",m.name),code:"closed_dimension_chain".into(),severity:Severity::Warning,
                     message:"The printed scheme closes an already dimensioned station chain; remove its redundant link.".into(),annotation:Some(m.name.clone()),
@@ -76,7 +74,7 @@ pub(crate) fn evidence(a: &Analysis, marks: &[Mark]) -> (Vec<Mark>, Vec<LintIssu
         }
     }
     let mut extra = Vec::new();
-    for ((_, k, view, datum), mut edges) in graphs {
+    for ((k, view), mut edges) in graphs {
         // A different chosen datum remains related to the minimum end by the ordinary
         // controlling overall, or another truthful support-plane interval on the sheet.
         for (i, m) in marks.iter().enumerate() {
@@ -84,11 +82,26 @@ pub(crate) fn evidence(a: &Analysis, marks: &[Mark]) -> (Vec<Mark>, Vec<LintIssu
                 continue;
             }
             for c in &m.claims {
-                if let Some(s) = super::redundancy::span(a, &c.feature, &c.parameter)
-                    && s.axis == k
-                    && holes::states(m.text.split_whitespace().next().unwrap_or(""), s.hi - s.lo)
+                for s in supports(a, &c.feature, &c.parameter, &m.text)
+                    .into_iter()
+                    .filter(|s| s.axis == k)
                 {
-                    edges.push((s, i));
+                    if !edges.iter().any(|(p, j)| *j == i && p.same(s)) {
+                        if let Some(route) = path(&edges, s)
+                            && route.iter().any(|&j| {
+                                marks[j]
+                                    .claims
+                                    .iter()
+                                    .any(|c| c.feature.starts_with("scheme:"))
+                            })
+                        {
+                            let mut issue=super::uncovered(a,"closed_dimension_chain",&c.feature,&c.parameter,"A printed dimension closes the authored station network; remove a redundant controller.".into());
+                            issue.annotation = Some(m.name.clone());
+                            issue.related = route.iter().map(|&j| marks[j].name.clone()).collect();
+                            issues.push(issue);
+                        }
+                        edges.push((s, i));
+                    }
                 }
             }
         }
@@ -123,6 +136,14 @@ pub(crate) fn evidence(a: &Analysis, marks: &[Mark]) -> (Vec<Mark>, Vec<LintIssu
                 }
             }
         }
+        for c in marks.iter().flat_map(|m| &m.claims) {
+            if let Some(feature) = c.feature.strip_prefix("scheme_owns:")
+                && let Some(span) = super::redundancy::span(a, feature, &c.parameter)
+                && span.axis == k
+            {
+                roles.push((feature.to_string(), c.parameter.clone(), span));
+            }
+        }
         // Slot-pattern requirements retain their vocabulary, but their location and pitch
         // can be determined by independently verified physical-member coordinates.
         for f in a.features.iter().filter(|f| f.kind == "slot_pattern") {
@@ -135,7 +156,7 @@ pub(crate) fn evidence(a: &Analysis, marks: &[Mark]) -> (Vec<Mark>, Vec<LintIssu
                 .filter_map(|v| v.as_str())
                 .filter_map(|id| a.scheme_station(id, k).ok())
                 .collect();
-            let origin = a.scheme_station(&datum, k).expect("verified datum");
+            let origin = a.envelope[0];
             if members.len() < 2
                 || !members
                     .iter()
@@ -170,12 +191,7 @@ pub(crate) fn evidence(a: &Analysis, marks: &[Mark]) -> (Vec<Mark>, Vec<LintIssu
             }
         }
         for (feature, parameter, span) in roles {
-            let target = if parameter.starts_with("location") {
-                let origin = a.scheme_station(&datum, k).expect("verified datum");
-                Span::new(k, origin[k], span.hi)
-            } else {
-                span
-            };
+            let target = span;
             if let Some(route) = path(&edges, target)
                 && !route.is_empty()
                 && route.iter().any(|&i| {
@@ -190,6 +206,20 @@ pub(crate) fn evidence(a: &Analysis, marks: &[Mark]) -> (Vec<Mark>, Vec<LintIssu
                         .any(|c| c.feature == feature && c.parameter == parameter)
                 })
             {
+                if parameter.starts_with("location.length.")
+                    && a.recognition.as_ref().is_some_and(|r| {
+                        r.patterns.iter().any(|p| {
+                            p.members.contains(&feature)
+                                && route.iter().any(|&i| {
+                                    marks[i].claims.iter().any(|c| {
+                                        c.feature == p.id && c.parameter.contains("pitch.length")
+                                    })
+                                })
+                        })
+                    })
+                {
+                    continue;
+                }
                 extra.push(Mark {
                     name: format!("derived:{feature}/{parameter}"),
                     view: view.clone(),
@@ -200,4 +230,116 @@ pub(crate) fn evidence(a: &Analysis, marks: &[Mark]) -> (Vec<Mark>, Vec<LintIssu
         }
     }
     (extra, issues)
+}
+
+/// Physical supports actually certified by one printed claim. Counted pitches certify
+/// every interval of the established pattern, rather than only the representative span.
+pub(crate) fn supports(a: &Analysis, feature: &str, parameter: &str, text: &str) -> Vec<Span> {
+    let text = text.trim();
+    if text.starts_with('(') {
+        return Vec::new();
+    }
+    let (count, nominal) = text
+        .split_once('×')
+        .and_then(|(n, rest)| {
+            n.trim()
+                .parse::<usize>()
+                .ok()
+                .map(|n| (n, rest.trim_start()))
+        })
+        .unwrap_or((1, text));
+    let nominal = nominal.split_whitespace().next().unwrap_or("");
+    if let Some(s) = super::redundancy::span(a, feature, parameter) {
+        return holes::states(nominal, s.hi - s.lo)
+            .then_some(s)
+            .into_iter()
+            .collect();
+    }
+    let f = a.features.iter().find(|f| f.id == feature);
+    let pattern = a
+        .recognition
+        .as_ref()
+        .and_then(|r| r.patterns.iter().find(|p| p.id == feature));
+    let ids: Vec<&str> = if let Some(p) = pattern {
+        p.members.iter().map(String::as_str).collect()
+    } else {
+        f.and_then(|f| f.parameters.get("slots"))
+            .and_then(|v| v.as_array())
+            .into_iter()
+            .flatten()
+            .filter_map(|v| v.as_str())
+            .collect()
+    };
+    let members: Option<Vec<_>> = ids
+        .iter()
+        .map(|id| a.features.iter().find(|f| f.id == *id))
+        .collect();
+    let members = members.unwrap_or_default();
+    if parameter.starts_with("location.length.") {
+        let Some(k) = ["x", "y", "z"]
+            .iter()
+            .position(|axis| parameter == format!("location.length.{axis}"))
+        else {
+            return Vec::new();
+        };
+        let stations: Vec<_> = if pattern.is_some_and(|p| p.arrangement == "linear") {
+            members.iter().map(|f| f.fingerprint.position[k]).collect()
+        } else {
+            f.map(|f| vec![f.fingerprint.position[k]])
+                .unwrap_or_default()
+        };
+        let mut spans: Vec<_> = stations
+            .into_iter()
+            .map(|x| Span::new(k, a.envelope[0][k], x))
+            .filter(|s| holes::states(nominal, s.hi - s.lo))
+            .collect();
+        spans.sort_by(|p, q| p.hi.total_cmp(&q.hi));
+        spans.dedup_by(|p, q| p.same(*q));
+        return if spans.len() == 1 { spans } else { Vec::new() };
+    }
+    if !parameter.contains("pitch.length")
+        || members.len() < 2
+        || pattern.is_some_and(|p| p.arrangement == "bolt_circle")
+    {
+        return Vec::new();
+    }
+    let normal = members[0]
+        .fingerprint
+        .axis
+        .and_then(crate::bridge::holes::principal);
+    let Some(normal) = normal else {
+        return Vec::new();
+    };
+    let axes: Vec<_> = (0..3).filter(|&k| k != normal).collect();
+    let stations = |k: usize| {
+        let mut xs: Vec<_> = members.iter().map(|f| f.fingerprint.position[k]).collect();
+        xs.sort_by(f64::total_cmp);
+        xs.dedup_by(|x, y| (*x - *y).abs() < 1e-6);
+        xs
+    };
+    let k = if parameter.ends_with(".col") {
+        Some(axes[0])
+    } else if parameter.ends_with(".row") {
+        Some(axes[1])
+    } else if stations(axes[0]).len() > 1 && stations(axes[1]).len() == 1 {
+        Some(axes[0])
+    } else if stations(axes[1]).len() > 1 && stations(axes[0]).len() == 1 {
+        Some(axes[1])
+    } else {
+        None
+    };
+    let Some(k) = k else { return Vec::new() };
+    let xs = stations(k);
+    if xs.len() < 2 || count != xs.len() - 1 {
+        return Vec::new();
+    }
+    let pitch = xs[1] - xs[0];
+    if !holes::states(nominal, pitch)
+        || xs
+            .windows(2)
+            .any(|p| ((p[1] - p[0]) - pitch).abs() > super::redundancy::TOL)
+    {
+        return Vec::new();
+    }
+    xs.windows(2).map(|p| Span::new(k, p[0], p[1])).collect()
 }

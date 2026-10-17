@@ -407,3 +407,97 @@ fn generated_feature_edits_cannot_rebind_silently_or_duplicate_a_target_across_v
             .contains("already dimensioned")
     );
 }
+
+#[test]
+fn separately_named_schemes_do_not_close_the_automatic_overall() {
+    use model::dimension_geometry::Reference;
+    let (part, a) = part("turned");
+    let band = draftwright::lint::turned::band(
+        &draftwright::bridge::holes::frame(&a),
+        a.features.iter().find(|f| f.kind == "turned_step").unwrap(),
+    )
+    .unwrap();
+    let k = band.axis;
+    let shoulder = a
+        .dimension_references()
+        .iter()
+        .find_map(|(id, rs)| match rs.as_slice() {
+            [Reference::Plane { normal, origin, .. }]
+                if normal[k].abs() > 0.999999
+                    && origin[k] > a.envelope[0][k] + 1e-6
+                    && origin[k] < a.envelope[1][k] - 1e-6 =>
+            {
+                Some(id.clone())
+            }
+            _ => None,
+        })
+        .unwrap();
+    let view = if k == 1 { "side" } else { "front" };
+    let s = spec(json!({"dimension_schemes":{
+        "near":{"scheme":"baseline","axis":(["x","y","z"][k]),"view":view,"targets":[shoulder]},
+        "far":{"scheme":"baseline","axis":(["x","y","z"][k]),"view":view,"from":shoulder,"targets":["max"]}
+    }}));
+    let p = model::plan_recovered(&a, &s).unwrap();
+    let overall = format!("d:envelope/{}", draftwright::lint::envelope::PARAMETERS[k]);
+    assert!(
+        p.omitted
+            .iter()
+            .any(|o| o.id == overall && matches!(o.state, State::Covered { .. }))
+    );
+    let font = draftwright::text::Font::new(api::MONO.to_vec()).unwrap();
+    let drawing = model::render(&part, &a, &p, &font).unwrap();
+    assert!(!draftwright::lint::lint(&a, &drawing).iter().any(|i| {
+        [
+            "closed_dimension_chain",
+            "dimension_scheme_invalid",
+            "missing_principal_dimension",
+            "axial_length_missing",
+        ]
+        .contains(&i.code.as_str())
+    }));
+}
+
+#[test]
+fn partial_counted_pitch_is_refused_instead_of_losing_its_far_interval() {
+    let (_, a) = part("mounting_plate");
+    let pattern = &a.recognition.as_ref().unwrap().patterns[0];
+    let mut members: Vec<_> = pattern
+        .members
+        .iter()
+        .map(|id| a.features.iter().find(|f| f.id == *id).unwrap())
+        .collect();
+    members.sort_by(|p, q| p.fingerprint.position[0].total_cmp(&q.fingerprint.position[0]));
+    members.dedup_by(|p, q| (p.fingerprint.position[0] - q.fingerprint.position[0]).abs() < 1e-6);
+    assert!(members.len() > 2);
+    let s = spec(
+        json!({"dimension_schemes":{"partial":{"scheme":"baseline","axis":"x","view":"plan","from":members[0].id,"targets":[members[1].id]}}}),
+    );
+    let e = model::plan_recovered(&a, &s).unwrap_err();
+    assert!(e.message.contains("whole pattern"), "{}", e.message);
+}
+
+#[test]
+fn whole_axis_keeps_every_shoulder_of_counted_turned_lengths() {
+    let (part, a) = part("k5/turned-step-repeated-lengths");
+    let f = a.features.iter().find(|f| f.kind == "turned_step").unwrap();
+    let b = draftwright::lint::turned::band(&draftwright::bridge::holes::frame(&a), f).unwrap();
+    let s = whole(
+        "chain",
+        ["x", "y", "z"][b.axis],
+        if b.axis == 1 { "side" } else { "front" },
+        "min",
+    );
+    let p = model::plan_recovered(&a, &s).unwrap();
+    let font = draftwright::text::Font::new(api::MONO.to_vec()).unwrap();
+    let drawing = model::render(&part, &a, &p, &font).unwrap();
+    let issues = draftwright::lint::lint(&a, &drawing);
+    assert!(
+        !issues.iter().any(|i| [
+            "axial_length_missing",
+            "closed_dimension_chain",
+            "dimension_scheme_invalid"
+        ]
+        .contains(&i.code.as_str())),
+        "{issues:#?}"
+    );
+}
