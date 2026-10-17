@@ -1261,14 +1261,21 @@ pub(crate) fn plan_inventory(
             (length * 1000.0).round() as u64,
         )
     };
+    let native = analysis
+        .recognition
+        .as_ref()
+        .is_some_and(|r| r.recogniser.starts_with("quiddity-rust "));
+    let new_crossing = |plan: &Planned| {
+        plan.2.iter().any(|p| {
+            (p.code == "leader_through_feature"
+                || (native && p.code == "extension_through_feature"))
+                && p.subjects
+                    .first()
+                    .is_some_and(|id| plan.0.iter().any(|d| &d.id == id && new(d)))
+        })
+    };
     let a = score(&first.0);
-    let new_crossing = first.0.2.iter().any(|p| {
-        p.code == "leader_through_feature"
-            && p.subjects
-                .first()
-                .is_some_and(|id| first.0.0.iter().any(|d| &d.id == id && new(d)))
-    });
-    if a.0 == 0 && a.1 == 0 && !new_crossing {
+    if a.0 == 0 && a.1 == 0 && !new_crossing(&first.0) {
         return Ok(first);
     }
     let alternative = plan_inventory_ordered(
@@ -1279,14 +1286,7 @@ pub(crate) fn plan_inventory(
     } else {
         first
     };
-    if score(&best.0).0 > 0
-        || best.0.2.iter().any(|p| {
-            p.code == "leader_through_feature"
-                && p.subjects
-                    .first()
-                    .is_some_and(|id| best.0.0.iter().any(|d| &d.id == id && new(d)))
-        })
-    {
+    if score(&best.0).0 > 0 || new_crossing(&best.0) {
         let mut joint_held = held.to_vec();
         joint_held.extend(
             best.0
@@ -1322,6 +1322,26 @@ pub(crate) fn plan_inventory(
         )?;
         if score(&joint.0) < score(&best.0) {
             best = joint;
+        }
+    }
+    if native
+        && !excluded.is_empty()
+        && score(&best.0).0 == 0
+        && best.0.2.iter().any(|p| {
+            p.code == "extension_through_feature"
+                && p.subjects
+                    .first()
+                    .is_some_and(|id| best.0.0.iter().any(|d| &d.id == id && new(d)))
+        })
+    {
+        // A schedule removes its old hole locations. Compare preserving the
+        // remaining existing corridors while new witnesses claim theirs first.
+        // This avoids buying a short new form leader with a blocked datum leg.
+        let preserved = plan_inventory_ordered(
+            analysis, spec, sheet, views, obstacles, held, cache, excluded, 3,
+        )?;
+        if score(&preserved.0) < score(&best.0) {
+            best = preserved;
         }
     }
     Ok(best)
@@ -1789,7 +1809,7 @@ fn plan_inventory_ordered(
             .iter()
             .any(|m| m.feature.starts_with("f:section_recess:"))
     });
-    if stage == 0 && recess_context && intended.iter().all(Option::is_none) {
+    if matches!(stage, 0 | 3) && recess_context && intended.iter().all(Option::is_none) {
         leaders::seed_established(analysis, spec, views, &all, &chosen, &mut placed, &page);
     }
     if recess_context
@@ -1809,6 +1829,7 @@ fn plan_inventory_ordered(
             obstacles,
             &locked,
             &page,
+            stage != 3,
         );
     }
     let shared_owner: Vec<_> = owner
@@ -1950,12 +1971,23 @@ fn plan_inventory_ordered(
             placed[*i] = p.clone();
         }
         placement::clear_linear(
-            analysis, cache, views, &frames, &all, &chosen, sides, lane, placed, obstacles,
-            &locked, &page,
+            analysis,
+            cache,
+            views,
+            &frames,
+            &all,
+            &chosen,
+            sides,
+            lane,
+            placed,
+            obstacles,
+            &locked,
+            &page,
+            stage != 3,
         );
         placement::share_lanes(&shared_owner, sides, lane);
     };
-    if stage == 1 {
+    if matches!(stage, 1 | 3) {
         restore(&mut placed, &mut sides, &mut lane);
     }
     // A bounded joint trial lets movable linear ink yield to a clear new
@@ -2008,7 +2040,7 @@ fn plan_inventory_ordered(
     for (i, p) in witnesses {
         placed[i] = Some(p);
     }
-    if stage != 1 {
+    if !matches!(stage, 1 | 3) {
         restore(&mut placed, &mut sides, &mut lane);
     }
     placement::place_merged(
@@ -3030,6 +3062,7 @@ pub(crate) fn refine_inventory(
         obstacles,
         &[],
         &page,
+        true,
     );
     let proofs = interior::proofs(analysis, views);
     let reports = leaders::refine(

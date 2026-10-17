@@ -760,3 +760,44 @@ fn recess_locations_do_not_send_an_existing_ramp_leader_through_extra_hidden_edg
         );
     }
 }
+
+/// A short new form leader must not strand its location witness across a hole.
+/// Both statements participate in the joint corridor solve, with every seat claim retained.
+#[test]
+fn native_seat_locations_share_the_joint_solve_with_their_form_leader() {
+    let Some(root) = corpus::dir() else { return };
+    let (_, a) = model::analyse_native(&root.join("nist/nist_ftc_09_asme1_rd.stp")).unwrap();
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let location = "d:f:section_recess:2/seat_location.location.x";
+    let d = p.dimensions.iter().find(|d| d.id == location).unwrap();
+    assert!(d.placed.is_some());
+    assert!((d.value - 39.6).abs() < 1e-9);
+    assert!(
+        !p.problems
+            .iter()
+            .any(|q| q.code == "extension_through_feature"
+                && q.subjects.first().is_some_and(|id| id == location)),
+        "{:?}",
+        p.problems
+    );
+    let claims: Vec<_> = p
+        .dimensions
+        .iter()
+        .filter(|d| d.placed.is_some())
+        .flat_map(|d| &d.measurements)
+        .filter(|m| m.feature == "f:section_recess:2")
+        .collect();
+    for parameter in [
+        "seat_diameter.diameter",
+        "seat_run.length",
+        "seat_sweep.angle",
+        "seat_location.location.x",
+        "seat_location.location.y",
+        "seat_location.location.z",
+    ] {
+        assert!(
+            claims.iter().any(|m| m.parameter == parameter),
+            "lost {parameter}"
+        );
+    }
+}

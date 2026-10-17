@@ -1310,11 +1310,24 @@ pub(super) fn clear_linear(
     obstacles: &[PlannedDimension],
     locked: &[bool],
     page: &Page,
+    yield_locations: bool,
 ) {
     let initial = (sides.to_vec(), lanes.to_vec(), placed.to_vec());
     clear_linear_ordered(
-        analysis, cache, views, frames, items, chosen, sides, lanes, placed, obstacles, locked,
-        page, 0,
+        analysis,
+        cache,
+        views,
+        frames,
+        items,
+        chosen,
+        sides,
+        lanes,
+        placed,
+        obstacles,
+        locked,
+        page,
+        0,
+        yield_locations,
     );
     let recess = |w: &Want| {
         !w.measurements.is_empty()
@@ -1381,8 +1394,20 @@ pub(super) fn clear_linear(
         lanes.copy_from_slice(&initial.1);
         placed.clone_from_slice(&initial.2);
         clear_linear_ordered(
-            analysis, cache, views, frames, items, chosen, sides, lanes, placed, obstacles, locked,
-            page, rotation,
+            analysis,
+            cache,
+            views,
+            frames,
+            items,
+            chosen,
+            sides,
+            lanes,
+            placed,
+            obstacles,
+            locked,
+            page,
+            rotation,
+            yield_locations,
         );
         let now = rank(placed);
         if now < score {
@@ -1413,6 +1438,7 @@ fn clear_linear_ordered(
     locked: &[bool],
     page: &Page,
     rotation: usize,
+    yield_locations: bool,
 ) {
     // Semantic PMI leaders may cross a witness transversely. Their text,
     // arrowheads and parallel runs remain obstacles, and final adjudication
@@ -1464,6 +1490,31 @@ fn clear_linear_ordered(
     if end > 0 {
         order[..end].rotate_left(rotation % end);
     }
+    // Re-seat existing locations from the datum outward. A new recess witness
+    // must not invert a settled location ladder while clearing its own corridor.
+    let new_native = analysis
+        .recognition
+        .as_ref()
+        .is_some_and(|r| r.recogniser.starts_with("quiddity-rust "));
+    let location = |i: usize| {
+        new_native && recess_context && matches!(items[i].shape, Shape::Linear { order: 1, .. })
+    };
+    let old_location = |i: usize| !recess(i) && location(i);
+    let slots: Vec<_> = order
+        .iter()
+        .enumerate()
+        .filter(|(_, i)| old_location(**i))
+        .map(|(n, _)| n)
+        .collect();
+    let mut locations: Vec<_> = slots.iter().map(|&n| order[n]).collect();
+    locations.sort_by(|&a, &b| items[a].value.total_cmp(&items[b].value));
+    for (slot, item) in slots.into_iter().zip(locations) {
+        order[slot] = item;
+    }
+    let mut positions = vec![0; items.len()];
+    for (n, &i) in order.iter().enumerate() {
+        positions[i] = n;
+    }
     // In the held-ink retry, later new items have not claimed a corridor yet.
     // Their failed template positions must not block the current item. Restore
     // each before its own solve, so no dimension disappears from the result.
@@ -1471,6 +1522,20 @@ fn clear_linear_ordered(
     if locked.iter().any(|p| *p) && obstacles.iter().any(|d| d.id.starts_with("pmi:")) {
         for &i in order.iter().take(end) {
             if !chained[i]
+                && let Some(p) = placed[i].take()
+            {
+                pending.insert(i, p);
+            }
+        }
+    }
+    // Reinsert outer locations in datum order after the new witnesses claim
+    // their corridors. Otherwise an abandoned outer position can prevent the
+    // entire ladder from moving together onto a valid neighbouring sheet.
+    if yield_locations {
+        for &i in order.iter().skip(end) {
+            if old_location(i)
+                && !chained[i]
+                && !locked.get(i).copied().unwrap_or(false)
                 && let Some(p) = placed[i].take()
             {
                 pending.insert(i, p);
@@ -1487,7 +1552,32 @@ fn clear_linear_ordered(
         {
             continue;
         }
-        let (Some(p), Some(view), Some(side)) = (&placed[i], chosen[i], sides[i]) else {
+        let (Some(view), Some(side)) = (chosen[i], sides[i]) else {
+            continue;
+        };
+        let location_order_conflict = |target: Side, c: &Placed, ink: &[Option<Placed>]| {
+            // New recess witnesses choose their physical corridor first.
+            // Repair the existing ladder around them, rather than constraining
+            // new coordinates against one another before their routes settle.
+            if !old_location(i) {
+                return false;
+            }
+            let normal = usize::from(matches!(target, Side::Above | Side::Below));
+            let outline = frames[view].outline();
+            let centre = (outline[normal] + outline[normal + 2]) / 2.0;
+            let distance = |q: &Placed| (q.arrows[0][0][normal] - centre).abs();
+            ink.iter().enumerate().any(|(j, q)| {
+                location(j)
+                    && positions[j] < positions[i]
+                    && chosen[j] == Some(view)
+                    && sides[j] == Some(target)
+                    && items[j].value < items[i].value - 1e-9
+                    && q.as_ref().is_some_and(|q| {
+                        !q.arrows.is_empty() && distance(c) < distance(q) + super::LANE - 1e-6
+                    })
+            })
+        };
+        let Some(p) = &placed[i] else {
             continue;
         };
         let conflict = |a: &Placed, b: &Placed| {
@@ -1540,7 +1630,8 @@ fn clear_linear_ordered(
             .filter_map(|(_, p)| p.as_ref())
             .chain(obstacles.iter().filter_map(|d| d.placed.as_ref()))
             .collect();
-        let label_conflict = !page.fits(p, view)
+        let label_conflict = location_order_conflict(side, p, placed)
+            || !page.fits(p, view)
             || others.iter().any(|q| conflict(p, q))
             || (recess_context && super::label_lanes::off_span(p, others.iter().copied()));
         let Some(v) = views.iter().find(|v| v.id.strip_prefix("v:") == Some(view)) else {
@@ -1584,6 +1675,7 @@ fn clear_linear_ordered(
                 .fold((0usize, 0usize), |a, b| (a.0 + b.0, a.1 + b.1))
         };
         let before = crossings(p);
+
         let recess_corridor = items[i]
             .measurements
             .iter()
@@ -1813,6 +1905,7 @@ fn clear_linear_ordered(
                     return Vec::new();
                 }
                 let hits = crossings(&stroke);
+
                 if (hits > before && !(recess(i) && label_conflict))
                     || (!label_conflict && hits >= before)
                 {
@@ -1839,7 +1932,7 @@ fn clear_linear_ordered(
                     .collect::<Vec<_>>()
             })
             .filter_map(|(target, lane, c)| {
-                if !page.fits(&c, view) {
+                if location_order_conflict(target, &c, placed) || !page.fits(&c, view) {
                     return None;
                 }
                 let hits = crossings(&c);
@@ -1965,6 +2058,7 @@ fn clear_linear_ordered(
                 break;
             }
         }
+
         if let Some((_, target, lane, c, repairs)) = found {
             sides[i] = Some(target);
             lanes[i] = lane;
