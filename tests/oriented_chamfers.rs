@@ -722,3 +722,84 @@ fn an_existing_physical_bevel_leg_owns_the_same_notch_depth_once() {
         "with the original callout hidden the explicit notch depth returns"
     );
 }
+
+#[test]
+fn notch_dimensions_leave_the_boss_leader_clear_of_hidden_ink_and_witnesses() {
+    use draftwright::output::{Curve, Item};
+    type Point = [f64; 2];
+    fn crosses([a, b]: [Point; 2], [c, d]: [Point; 2]) -> bool {
+        let side = |p: Point, q: Point, r: Point| {
+            (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+        };
+        side(a, b, c) * side(a, b, d) < -1e-12 && side(c, d, a) * side(c, d, b) < -1e-12
+    }
+    fn touches([a, b]: [Point; 2], bounds: [f64; 4]) -> bool {
+        let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
+        for k in 0..2 {
+            let delta = b[k] - a[k];
+            if delta.abs() < 1e-12 {
+                if a[k] < bounds[k] || a[k] > bounds[k + 2] {
+                    return false;
+                }
+            } else {
+                let x = (bounds[k] - a[k]) / delta;
+                let y = (bounds[k + 2] - a[k]) / delta;
+                lo = lo.max(x.min(y));
+                hi = hi.min(x.max(y));
+            }
+        }
+        lo <= hi
+    }
+    let (part, a) =
+        model::analyse_native(&corpus::dir().unwrap().join("mfcadpp/10020.step")).unwrap();
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let boss = p
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:boss:1/boss.diameter")
+        .unwrap();
+    let route = &boss.placed.as_ref().unwrap().lines;
+    let geometry = model::render_geometry(&part, &a, &p, &mut Default::default()).unwrap();
+    for (_, view) in geometry.views {
+        for item in view.hidden {
+            let Item::Edge(curve) = item else {
+                panic!("hidden edge")
+            };
+            let n = if matches!(curve, Curve::Line(..)) {
+                1
+            } else {
+                2048
+            };
+            for i in 0..n {
+                let edge = [
+                    curve.at(i as f64 / n as f64),
+                    curve.at((i + 1) as f64 / n as f64),
+                ];
+                assert!(
+                    route.iter().all(|s| !crosses(*s, edge)),
+                    "boss crosses hidden ink: {edge:?}"
+                );
+            }
+        }
+    }
+    let ink = model::render_item(model::AnnotationItem::Dimension(boss));
+    for d in &p.dimensions {
+        let Some(placed) = &d.placed else { continue };
+        if placed.arrows.len() != 2 || placed.lines.len() < 3 {
+            continue;
+        }
+        for [a, b] in &placed.lines[..2] {
+            let bounds = [
+                a[0].min(b[0]) - 0.2,
+                a[1].min(b[1]) - 0.2,
+                a[0].max(b[0]) + 0.2,
+                a[1].max(b[1]) + 0.2,
+            ];
+            assert!(
+                ink.drawn[0].heads.iter().all(|s| !touches(*s, bounds)),
+                "boss arrow touches {}",
+                d.id
+            );
+        }
+    }
+}
