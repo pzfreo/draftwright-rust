@@ -140,3 +140,56 @@ DRAFTWRIGHT_CORPUS=/Users/paul/repos/quiddity/tests/corpus \
 `--no-fail-fast` runs every test target even if a latency gate fails. The source stayed
 unchanged through the final verification sequence. Render and check artifacts are ignored
 build outputs; the review and reproducible example are committed.
+
+## Main integration — 2026-10-17
+
+Merge `ae544a80` incorporates `origin/main` at `923bab69`, including #77's Spec
+line-work switches. The generator retains main's anchored name alternatives and both
+features' fields; the branch's separate `minProperties` compaction is removed. All MCP
+schemas were regenerated, without merging generated JSON by hand. Explicit required
+fields and additional-property checks retain the label-text strictness regressions.
+The session schema total is **42,490 bytes**, below main's unchanged **42,500-byte** cap.
+
+Both sides' Unreleased notes are retained, with API entries under `### WASM API`.
+Main's `tools/check_wasm_api.py` snapshot gate is unchanged; the earlier browser behavior
+check is preserved as `tools/check_wasm_label_text.py`. The prismatic parity fixture
+replays line-work edits, preview and history as well as label wording and both styles.
+
+Integration logs and command results are retained in `target/merge-main-checks/`.
+
+- `cargo fmt --all --check`: passed.
+- `cargo clippy --workspace --all-targets --release -- -D warnings`: passed.
+- `wasm-pack build crates/draftwright-wasm --target web --profile wasm-release --locked`:
+  passed with wasm-opt and the existing writable `/tmp` tool cache.
+- `python3 tools/check_wasm_api.py --base-ref origin/main`: passed; declarations match
+  the reviewed snapshot. The sixteen WASM safeguard tests also passed.
+- `cargo build --locked --release --bins --example wasm_reference`: passed.
+- Independent MCP validation: all thirteen tools' inputs, outputs and refusals passed;
+  all twenty-six published and served schemas agree. The exact requested uv command
+  passed with `UV_CACHE_DIR=/tmp/cx-steer-text-uv-cache` after its default cache was denied
+  by the sandbox. No dependency or repository configuration was changed.
+- Label-text tests: **17/17 passed**. Line-work tests: **6/6 passed**. The native engine
+  schema-budget test passed and reported **42,490 bytes**.
+- `python3 tools/check_wasm_label_text.py`: passed. Node/native WASM parity: **3/3 passed**.
+- WASM size gate: passed with **13,674,074 raw bytes**, **4,512,643 gzip bytes** and
+  **3,011,100 Brotli bytes**; main's **15,700,000-byte** raw ceiling is unchanged.
+
+The unchanged `multi_sheet_latency::r5_multi_sheet_latency` wall-clock gate failed:
+MCP p90 was **224.994 ms** against **150 ms** (p50 **125.138 ms**, maximum **236.370 ms**).
+Native p90 was **72.891 ms**. No latency threshold, assertion or baseline was changed.
+The unchanged `session::nist_benchmark_deltas` wall-clock gate also failed: native p90
+was **601.115 ms** against **150 ms** for `nist/nist_ctc_01_asme1_rd.stp`.
+
+The full corpus-required workspace release suite completed: **1,137 passed,
+2 failed, 0 ignored**, across 116 test groups, with exit status **101**.
+The two failures above were the only failures. Every target ran with `--no-fail-fast`:
+
+```sh
+CARGO_BUILD_JOBS=4 RUST_TEST_THREADS=4 \
+DRAFTWRIGHT_CORPUS=/Users/paul/repos/quiddity/tests/corpus \
+DRAFTWRIGHT_CORPUS_REQUIRED=1 \
+  cargo test --workspace --release --no-fail-fast
+```
+
+No source changed during these checks. The follow-up corrects the documented browser
+check command and records these results; generated binaries and logs remain ignored.
