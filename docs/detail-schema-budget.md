@@ -24,7 +24,7 @@ These are marginal removal measurements with the same generator and optimizers;
 removing all three fields leaves the 95-byte structural cost per schema. Retain main's
 `spec_read`, `hoist_objects`, `group_properties`, `inline_single_use`, `share_repeated`
 and short local definitions. The disjoint string/array type avoids union branches;
-the section-name pattern avoids an enumerated list. A 42,500 limit leaves only 376
+the section-name pattern avoids an enumerated list. The strict 42,500 limit leaves only 375 usable
 bytes beyond main, while the typed record alone costs 4,116. Replacing typed input
 records with permissive sparse objects would fit better but would discard validation
 that the detail schema regressions require, so the exact measured bound is retained.

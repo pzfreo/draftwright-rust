@@ -1,5 +1,7 @@
 # Detail views and turned inspection baseline — verification, 2026-10-17
 
+Latest review: [connector legibility, main integration, schema bytes and final checks](detail-final-review.md). Earlier results below are historical.
+
 ## Maintainer decision and requested revisions — 2026-10-16
 
 This is the authoritative current verification; earlier merge reports below are historical.

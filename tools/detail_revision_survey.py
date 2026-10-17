@@ -47,9 +47,12 @@ def main():
                 inputs[key] = {'name': name, 'aliases': [], 'path': str(target)}
     if args.manifest:
         inputs = json.loads(args.manifest.read_text())
-        for source in inputs.values():
-            if not Path(source['path']).is_file():
-                raise FileNotFoundError(source['path'])
+        for key, source in inputs.items():
+            path = Path(source['path'])
+            if not path.is_file():
+                raise FileNotFoundError(path)
+            if hashlib.sha256(path.read_bytes()).hexdigest() != key:
+                raise ValueError(f'survey input changed: {path}')
     (args.out / 'manifest.json').write_text(json.dumps(inputs, indent=2) + '\n')
     def run(item):
         key, source = item
