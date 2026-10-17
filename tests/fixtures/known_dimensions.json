@@ -1278,5 +1278,75 @@
     "count": 1,
     "verdict": "equivalent",
     "reason": "The same supported 65 mm height is placed on Python's detail A and Rust's front view. The clean ordinary A3 1:2 drawing takes precedence under the 2026-10-16 paper/detail decision; the physical quantity and its printed value remain unchanged."
+  },
+  {
+    "part": "ctc01",
+    "side": "python",
+    "family": "chamfer",
+    "view": "front",
+    "label": "2× C5",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Python defers the four oriented 5 x 5 mm bevels on the hex boss's top edges. Rust consumes their true normal-section geometry and includes them with these two principal bevels as one 6× C5 callout, retaining its principal owner. The independent C50 remains unchanged."
+  },
+  {
+    "part": "ctc01",
+    "side": "rust",
+    "family": "chamfer",
+    "view": "front",
+    "label": "6× C5",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The consumer adds four oriented 5 x 5 mm, 45-degree boss-top bevels (run 51.96 mm, virtual corner z=50) to the two principal C5 bevels. Their equal true-section sizes warrant one counted callout; Python's deferred family leaves only 2× C5."
+  },
+  {
+    "part": "ctc01",
+    "side": "rust",
+    "family": "callout",
+    "view": "plan",
+    "label": "60°",
+    "count": 2,
+    "verdict": "rust-correct",
+    "reason": "The bounded symmetric V-notch grammar dimensions each plate notch's true included angle from its ordered supports. Python's general profile-angle rule selects only the foremost hex top, whose corners the HEX callout defines, and does not visit the plate. These are two distinct physical notch angles, not duplicated boss bevel angles."
+  },
+  {
+    "part": "ctc01",
+    "side": "rust",
+    "family": "callout",
+    "view": "plan",
+    "label": "2× 50",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Both symmetric V-notches have 50 mm depth from their mouth to the theoretical sharp apex, extending the tangent rounded roots. One counted depth retains both physical measurements; the two included angles plus depth define the mouth widths. Python does not dimension these notches."
+  },
+  {
+    "part": "ctc01",
+    "side": "rust",
+    "family": "location.x",
+    "view": "plan",
+    "label": "290",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The first plate notch's mouth centre is 290 mm from the minimum X datum. The bounded notch grammar adds this station to locate its angle-and-depth definition; Python's foremost hex-top rule does not reach the plate notches."
+  },
+  {
+    "part": "ctc01",
+    "side": "rust",
+    "family": "location.x",
+    "view": "plan",
+    "label": "510",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "The second plate notch's mouth centre is 510 mm from the minimum X datum. The bounded notch grammar adds this separate physical station to locate its angle-and-depth definition; Python's foremost hex-top rule does not reach the plate notches."
+  },
+  {
+    "part": "ctc01",
+    "side": "rust",
+    "family": "location.y",
+    "view": "plan",
+    "label": "100",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Both plate notches share a mouth plane 100 mm from the minimum Y datum. One span carries both notch claims; it locates their 50 mm theoretical-sharp depths and 60-degree angles. Python's foremost hex-top rule does not reach these plate notches."
   }
 ]
