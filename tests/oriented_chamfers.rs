@@ -42,6 +42,22 @@ fn ctc01_consumes_bevel_faces_and_sizes_both_notches_without_duplicate_c50() {
     );
     let p = plan(&Spec::default());
     assert!(p.completeness.claimed_faces > 77, "{:?}", p.completeness);
+    assert_eq!(p.sheet.size, "A3");
+    assert_eq!(p.sheet.scale, "1:5");
+    let radii = p
+        .radius_table
+        .as_ref()
+        .expect("retain the existing radius-centre table");
+    assert_eq!(radii.rows.len(), 4);
+    assert!(radii.rows.iter().all(|r| (r.radius - 25.).abs() < 1e-6));
+    assert_eq!(
+        a.features
+            .iter()
+            .filter(|f| f.kind == "section_recess")
+            .count(),
+        4
+    );
+
     let angles: Vec<_> = p
         .dimensions
         .iter()
@@ -467,7 +483,51 @@ fn bounded_notches_reserve_acute_arcs_and_leave_dense_general_profiles_alone() {
                     .iter()
                     .any(|p| p.code == "annotation_outside_area")
             );
-            assert_eq!(p.sheet.size, "A4");
+            // Native recesses add two complete pocket callouts, their four datum
+            // locations and the hex-pocket depth. Keep main's enlarged drawing
+            // rather than dropping those requirements to regain the old A4.
+            assert_eq!(p.sheet.size, "A3");
+            assert_eq!(p.sheet.scale, "2:1");
+            for (feature, parameters) in [
+                (
+                    "f:section_recess:1",
+                    &[
+                        "pocket_width.length",
+                        "pocket_length.length",
+                        "pocket_depth.length",
+                        "location_pocket.z",
+                        "location_pocket.y",
+                    ][..],
+                ),
+                (
+                    "f:section_recess:5",
+                    &[
+                        "pocket_width.length",
+                        "pocket_length.length",
+                        "pocket_depth.length",
+                        "location_pocket.z",
+                        "location_pocket.y",
+                    ][..],
+                ),
+                (
+                    "f:section_recess:2",
+                    &["polygon_across_flats.length", "pocket_depth.length"][..],
+                ),
+            ] {
+                for parameter in parameters {
+                    assert_eq!(
+                        p.dimensions
+                            .iter()
+                            .filter(|d| d.placed.is_some()
+                                && d.measurements
+                                    .iter()
+                                    .any(|m| m.feature == feature && m.parameter == *parameter))
+                            .count(),
+                        1,
+                        "one native recess owner for {feature}/{parameter}"
+                    );
+                }
+            }
             let angle = p
                 .dimensions
                 .iter()

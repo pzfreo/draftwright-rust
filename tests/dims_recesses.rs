@@ -52,10 +52,28 @@ fn stating(plan: &Plan, a: &Analysis) -> Vec<(String, String, String)> {
                 .iter()
                 .any(|m| ids.contains(&m.feature.as_str()))
         })
-        .map(|d| {
-            let (_, parameter) = d.id.split_once('/').unwrap();
-            let view = d.view.trim_start_matches("v:");
-            (parameter.to_string(), view.to_string(), d.label.clone())
+        .flat_map(|d| {
+            let parameters = if d.id.starts_with("d:f:section_recess:") {
+                vec![d.id.split_once('/').unwrap().1.to_string()]
+            } else {
+                // A coincident overall span can carry a recess location. Check the same
+                // physical statement even when its drawing-owned carrier has another ID.
+                d.measurements
+                    .iter()
+                    .filter(|m| ids.contains(&m.feature.as_str()))
+                    .map(|m| m.parameter.clone())
+                    .collect()
+            };
+            parameters
+                .into_iter()
+                .map(|parameter| {
+                    (
+                        parameter,
+                        d.view.trim_start_matches("v:").to_string(),
+                        d.label.clone(),
+                    )
+                })
+                .collect::<Vec<_>>()
         })
         .collect();
     out.sort();
@@ -174,6 +192,21 @@ fn m10046_pocket_is_called_out_and_located_in_the_view_that_looks_into_it() {
             ("pocket_width.length", "front", "5.0 × 11.7 × 10.6 DEEP"),
         ])
     );
+    // A sloping witness still passes through its arrow tip, including the
+    // two-millimetre overshoot beyond the dimension line.
+    for d in &plan.dimensions {
+        if let Some(p) = &d.placed
+            && p.arrows.len() == 2
+            && p.lines.len() >= 3
+        {
+            for (witness, arrow) in p.lines[..2].iter().zip(&p.arrows) {
+                let [a, b] = *witness;
+                let t = arrow[0];
+                let cross = (t[0] - a[0]) * (b[1] - a[1]) - (t[1] - a[1]) * (b[0] - a[0]);
+                assert!(cross.abs() < 1e-6, "{}: arrow misses witness", d.id);
+            }
+        }
+    }
     drawn_and_claimed(&plan, &a);
     assert_eq!(not_ported(&plan, &a).len(), recesses(&a).len() - 1);
 }
@@ -227,19 +260,25 @@ fn ftc06_channels_state_their_widths_in_the_view_along_them() {
     let a = analysed(&corpus, "ftc06");
     let plan = model::plan(&a, &Spec::default()).unwrap();
     // A base and walls (quiddity's plates along two axes): each open channel's width, as
-    // draftwright's seven dim_channel_* dimensions.
+    // draftwright's seven dim_channel_* measurements, explicitly counted per projection.
     assert_eq!(
         stating(&plan, &a),
         strs(&[
+            ("channel_width.length", "front", "2× 3.1"),
             ("channel_width.length", "front", "3.1"),
-            ("channel_width.length", "front", "3.1"),
-            ("channel_width.length", "front", "3.1"),
-            ("channel_width.length", "plan", "12.7"),
-            ("channel_width.length", "plan", "12.7"),
-            ("channel_width.length", "side", "3.1"),
-            ("channel_width.length", "side", "3.1"),
+            ("channel_width.length", "plan", "2× 12.7"),
+            ("channel_width.length", "side", "2× 3.1"),
         ])
     );
+    let claims: Vec<_> = plan
+        .dimensions
+        .iter()
+        .flat_map(|d| &d.measurements)
+        .filter(|m| m.parameter == "channel_width.length")
+        .collect();
+    assert_eq!(claims.len(), 7, "counting must retain every physical width");
+    let owners: std::collections::BTreeSet<_> = claims.iter().map(|m| &m.feature).collect();
+    assert_eq!(owners.len(), 7, "one independent width claim per channel");
     for d in plan.dimensions.iter().filter(|d| d.id.contains("channel")) {
         assert_eq!(d.kind, "linear", "{d:?}");
     }
@@ -326,8 +365,20 @@ fn identical_hex_pockets_and_coaxial_seats_are_counted_once() {
     let located: Vec<(String, usize)> = plan
         .dimensions
         .iter()
-        .filter(|d| d.id.contains("/seat_location."))
-        .map(|d| (d.label.clone(), d.measurements.len()))
+        .filter(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.parameter.starts_with("seat_location."))
+        })
+        .map(|d| {
+            (
+                d.label.clone(),
+                d.measurements
+                    .iter()
+                    .filter(|m| m.parameter.starts_with("seat_location."))
+                    .count(),
+            )
+        })
         .collect();
     assert_eq!(
         located,
@@ -353,8 +404,21 @@ fn recess_items_can_be_omitted_by_id_and_planning_is_deterministic() {
         .iter()
         .filter(|d| d.id.starts_with("d:f:section_recess:"))
         .map(|d| d.id.clone())
+        .chain(
+            plan.omitted
+                .iter()
+                .filter(|o| {
+                    o.id.starts_with("d:f:section_recess:")
+                        && matches!(o.state, draftwright::items::State::Covered { .. })
+                })
+                .map(|o| o.id.clone()),
+        )
         .collect();
-    assert_eq!(ids.len(), 8, "{ids:?}");
+    assert_eq!(
+        ids.len(),
+        8,
+        "all eight recess items remain addressable, including the location conveyed by the overall span: {ids:?}"
+    );
     for id in &ids {
         let mut spec = Spec::default();
         spec.dimensions.insert(
@@ -378,4 +442,74 @@ fn recess_items_can_be_omitted_by_id_and_planning_is_deterministic() {
         serde_json::to_string(&plan).unwrap(),
         serde_json::to_string(&model::plan(&a, &Spec::default()).unwrap()).unwrap()
     );
+}
+
+/// A counted form must retain separately located seats, including when its
+/// carrier is omitted and a remaining seat has to carry its own full form.
+#[test]
+fn identical_located_seats_keep_all_claims_and_promote_a_survivor() {
+    let Some(corpus) = corpus::dir() else { return };
+    let (mut a, _, original) = twinned(&corpus);
+    let twin = a
+        .features
+        .iter_mut()
+        .find(|f| f.id == "f:section_recess:99")
+        .unwrap();
+    let run = twin.parameters["geometry"]["frame"]["run"]
+        .as_array()
+        .unwrap();
+    let across = run
+        .iter()
+        .position(|c| c.as_f64().unwrap().abs() < 0.5)
+        .unwrap();
+    let x = &mut twin.parameters["geometry"]["frame"]["origin"][across];
+    *x = serde_json::json!(x.as_f64().unwrap() + 5.0);
+    let full = model::plan(&a, &Spec::default()).unwrap();
+    let carrier = full
+        .dimensions
+        .iter()
+        .find(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.feature == original && m.parameter == "seat_diameter.diameter")
+        })
+        .unwrap();
+    assert_eq!(carrier.label, "2× ø2 × 12.6 LONG × 180° ARC");
+    for feature in [&original[..], "f:section_recess:99"] {
+        for parameter in [
+            "seat_diameter.diameter",
+            "seat_run.length",
+            "seat_sweep.angle",
+        ] {
+            assert_eq!(
+                carrier
+                    .measurements
+                    .iter()
+                    .filter(|m| m.feature == feature && m.parameter == parameter)
+                    .count(),
+                1
+            );
+        }
+        assert!(full.dimensions.iter().any(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.feature == feature && m.parameter.starts_with("seat_location."))
+        }));
+    }
+    assert!(full.omitted.iter().any(|o| o.id == "d:f:section_recess:99/seat_diameter.diameter"
+        && matches!(&o.state, draftwright::items::State::Covered { by } if by == &carrier.id)));
+    let mut spec = Spec::default();
+    spec.dimensions.entry(carrier.id.clone()).or_default().omit = true;
+    let edited = model::plan(&a, &spec).unwrap();
+    let promoted = edited
+        .dimensions
+        .iter()
+        .find(|d| {
+            d.measurements.iter().any(|m| {
+                m.feature == "f:section_recess:99" && m.parameter == "seat_diameter.diameter"
+            })
+        })
+        .unwrap();
+    assert_eq!(promoted.label, "ø2 × 12.6 LONG × 180° ARC");
+    assert!(promoted.placed.is_some());
 }

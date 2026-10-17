@@ -210,13 +210,6 @@
   "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features (holes, patterns, slots) and run through the view to the lanes above and beside it (every location from the datum, in the end-on view, ADR1-6); this callout's sites lie among them, so every route out of the view crosses some. The joint assignment took the fewest crossings its bounded inventory offers. draftwright's own ctc04 sheet has 24 leader-line crossings by this test's predicate (measured by stream d-callout-leaders on its drawing; docs/next-session.md), its locations laid out differently. The cause is the ladders' extension lines through the view; reported as annotation_leader_crossing. Moved by stream d-quality-lanes: the layout now reserves the band right of the front and the plan for the front's height-ladder lanes (layout::Strips::reserve), so the column's right band widens, the views shift and the joint assignment finds another set of as many crossings (12 came, 12 went; 42 in all, as before)."
  },
  {
-  "part": "ftc06",
-  "callout": "d:f:hole:11/bore.diameter",
-  "crossing": "line:d:f:boss:5/boss.diameter",
-  "verdict": "rust-wrong",
-  "reason": "G6 fixed centre furniture reroutes boss:5, removing its directional leader contact with hole:11. The reverse contact from hole:11 to boss:5 remains rust-wrong. The rebase verification measures 39 exact contacts across 106 callouts on 14 parts and rejects the stale boss:5 entry; its inventory-equality assertion is unchanged. Native quality is checked separately. Evidence: target/g6-carry/rebase-tests.log."
- },
- {
   "part": "ctc04 (native)",
   "callout": "d:f:hole_pattern:11/bore.diameter",
   "crossing": "line:d:f:hole:10/location.length.x",

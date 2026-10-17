@@ -283,3 +283,20 @@ fn a_hidden_edge_in_an_arrow_wing_refuses_the_old_interior_placement() {
         d.id
     );
 }
+
+#[test]
+fn an_occluded_native_boss_diameter_uses_its_visible_profile() {
+    let Some(root) = corpus::dir() else { return };
+    let (part, a) = model::analyse_native(&root.join("nist/nist_ftc_06_asme1_rd.stp")).unwrap();
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    let d = p
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:boss:1/boss.diameter")
+        .unwrap();
+    assert_eq!(d.view, "v:front");
+    assert_eq!(d.label, "4× ø44.5");
+    assert_eq!(d.measurements.len(), 4);
+    let drawing = model::render(&part, &a, &p, &font()).unwrap();
+    interior_ink::assert_clear(&drawing, d);
+}

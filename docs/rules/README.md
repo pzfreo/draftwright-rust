@@ -36,9 +36,9 @@ Counts are computed from the merged YAML entries:
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
 | `adr.yaml` | 5 | 68 | 61 | 26 |
-| `lint.yaml` | 8 | 124 | 14 | 19 |
-| `issues.yaml` | 22 | 92 | 50 | 26 |
-| **All** | **35** | **284** | **125** | **71** |
+| `lint.yaml` | 6 | 126 | 14 | 19 |
+| `issues.yaml` | 19 | 95 | 50 | 26 |
+| **All** | **30** | **289** | **125** | **71** |
 
 The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
 The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE
@@ -130,3 +130,6 @@ H7 (2026-10-12) revived ADR2-17 and LINT-code-interior_label_on_narrow_material
 with tests for the implemented portion; both were retired only because the port formerly
 placed no interior labels. The 2026-10-16 triage translates ADR2-17's placement rule;
 the independent narrow-material lint check remains pending.
+
+The native recess-reader batch ports five pending recess rules and verifies four
+previously bridge-only rules on recognition/3. See `tests/native_recesses.rs`.

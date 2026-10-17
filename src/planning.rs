@@ -159,6 +159,14 @@ pub(crate) fn enabled(analysis: &Analysis) -> bool {
     })
 }
 
+/// Placement policies held in the planning scope are inputs to exact result caches too.
+pub(crate) fn policy_key(analysis: &Analysis) -> (bool, bool) {
+    (
+        lookup::<bool>(analysis, "canonical-circular-recipes", &[]).unwrap_or(false),
+        lookup::<bool>(analysis, "established-route-policy", &[]).unwrap_or(false),
+    )
+}
+
 type SharedValues<T> = VecDeque<([u8; 32], Arc<T>)>;
 
 /// Bounded exact results across immutable calls. Only reference/queue updates hold

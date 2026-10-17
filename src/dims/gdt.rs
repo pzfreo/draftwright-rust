@@ -1040,6 +1040,11 @@ fn plan_search(
     allowed: Option<&BTreeSet<(String, Vec<String>)>>,
 ) -> Option<(Vec<PlannedGdt>, Vec<Problem>)> {
     let compact = search != Search::Seed;
+    let recess_frames = dims.iter().any(|d| {
+        d.measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:section_recess:"))
+    });
     let shown = |name: &str| views.iter().any(|v| v.id == format!("v:{name}"));
     let (mut items, mut problems) = crate::pmi_lowering::lower(analysis, &shown);
     crate::label_text::annotations(&mut items, spec).expect("validated annotation wording");
@@ -1358,7 +1363,9 @@ fn plan_search(
         let mut best: Option<Choice<'_>> = None;
         // Exhaust the compact, face-to-first-lane choices before trying any outer tier.
         'search: for inside in [true, false] {
-            if inside && (!compact || !datum || authored) {
+            if inside
+                && (!compact || !(datum || recess_frames && shape == Shape::Frame) || authored)
+            {
                 continue;
             }
             for (n, (tip, site_side, extension)) in sites.iter().enumerate() {
@@ -1368,8 +1375,21 @@ fn plan_search(
                     sides.clone()
                 };
                 for side in choices {
-                    let positions = if inside {
+                    let positions = if inside && datum {
                         inside_tiers(side, *tip, frame.outline(), laid.size, &ink)
+                    } else if inside {
+                        // Frame ink can fit between the face and the first
+                        // dimension lane too. Exact obstacle grading, including
+                        // every label and witness, still decides whether it fits.
+                        let d = outward(side);
+                        let sign = d[0] + d[1];
+                        let first = first_tier(shape, side, *tip, frame.outline(), &[], laid.size);
+                        let outer =
+                            first_tier(shape, side, *tip, frame.outline(), &ink, laid.size) * sign;
+                        (0..TIERS)
+                            .map(|k| first + sign * k as f64 * step(shape, side, laid.size))
+                            .take_while(|p| p * sign < outer - 1e-6)
+                            .collect()
                     } else {
                         tiers(side, *tip)
                     };

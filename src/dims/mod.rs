@@ -61,6 +61,8 @@ pub(crate) mod blends;
 mod bosses;
 mod edges;
 mod envelope;
+mod established;
+pub(crate) use established::retain as retain_established;
 mod flats;
 pub(crate) mod footprints;
 pub mod gdt;
@@ -407,7 +409,7 @@ pub fn end_on(k: usize) -> &'static str {
 }
 
 /// What a dimension measures, before it is placed.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 enum Shape {
     /// From *a* to *b* along world axis *axis*; an `edge` end extends from the view's outline.
     Linear {
@@ -427,7 +429,7 @@ enum Shape {
     Angular { angle: angular::Angle },
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 struct Want {
     id: String,
     /// The views that can carry it, preferred first.
@@ -555,7 +557,38 @@ fn wants(
     Vec<Problem>,
     BTreeMap<String, pmi_dimensions::Note>,
 ) {
-    crate::planning::memo(analysis, "wants", Vec::new(), || wants_uncached(analysis))
+    let mut result =
+        crate::planning::memo(analysis, "wants", Vec::new(), || wants_uncached(analysis));
+    bosses::prefer_established(analysis, &mut result.0);
+    result
+}
+
+/// Captured bridge documents already carried their recess inventory. Only a
+/// native reading adds that information relative to the released reader.
+pub(crate) fn has_new_native_recess_dimensions(analysis: &Analysis) -> bool {
+    analysis
+        .recognition
+        .as_ref()
+        .is_some_and(|r| r.recogniser.starts_with("quiddity-rust "))
+        && has_recess_dimensions(analysis)
+}
+
+pub(crate) fn has_recess_dimensions(analysis: &Analysis) -> bool {
+    let (canonical, established) = crate::planning::policy_key(analysis);
+    crate::planning::memo(
+        analysis,
+        "recess-presence",
+        vec![u8::from(canonical), u8::from(established)],
+        || has_recess_dimensions_uncached(analysis),
+    )
+}
+
+fn has_recess_dimensions_uncached(analysis: &Analysis) -> bool {
+    wants(analysis).0.iter().any(|w| {
+        w.measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:section_recess:"))
+    })
 }
 
 fn wants_uncached(
@@ -865,6 +898,16 @@ pub(crate) fn inspection_datum(a: &Analysis) -> Option<(usize, f64)> {
 }
 
 pub(crate) fn detail_levels(a: &Analysis) -> Vec<(String, f64)> {
+    let (canonical, established) = crate::planning::policy_key(a);
+    crate::planning::memo(
+        a,
+        "detail-linear-levels",
+        vec![u8::from(canonical), u8::from(established)],
+        || detail_levels_uncached(a),
+    )
+}
+
+fn detail_levels_uncached(a: &Analysis) -> Vec<(String, f64)> {
     wants(a)
         .0
         .into_iter()
@@ -994,6 +1037,9 @@ fn route(
             }
             view = Some(v);
             break;
+        }
+        if let Some(v) = view {
+            bosses::route_profile(analysis, w, v);
         }
         if let Some(v) = view
             && v != w.views[0]
@@ -1126,9 +1172,31 @@ pub(crate) fn lanes_excluding(
     excluded: &BTreeSet<String>,
     spec: &Spec,
 ) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
-    let key = serde_json::to_vec(&(views, excluded, spec)).expect("lane inputs serialize");
+    lane_policy(analysis, views, excluded, spec, true)
+}
+
+/// A captured bridge drawing's first estimate precedes measured callout columns.
+/// The complete recovery candidates always reserve those columns.
+pub(crate) fn initial_lanes(
+    analysis: &Analysis,
+    views: &[(&str, P3, P3)],
+    excluded: &BTreeSet<String>,
+    spec: &Spec,
+) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
+    lane_policy(analysis, views, excluded, spec, false)
+}
+
+fn lane_policy(
+    analysis: &Analysis,
+    views: &[(&str, P3, P3)],
+    excluded: &BTreeSet<String>,
+    spec: &Spec,
+    callout_columns: bool,
+) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
+    let key = serde_json::to_vec(&(views, excluded, spec, callout_columns))
+        .expect("lane inputs serialize");
     crate::planning::memo(analysis, "lanes", key, || {
-        lanes_uncached(analysis, views, excluded, spec)
+        lanes_uncached(analysis, views, excluded, spec, callout_columns)
     })
 }
 
@@ -1137,6 +1205,7 @@ fn lanes_uncached(
     views: &[(&str, P3, P3)],
     excluded: &BTreeSet<String>,
     spec: &Spec,
+    callout_columns: bool,
 ) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
     let (mut wants, mut problems, notes) = wants(analysis);
     let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
@@ -1178,13 +1247,18 @@ fn lanes_uncached(
         .iter()
         .any(|w| w.id.ends_with("/step_position.length"));
     let conveyed = |w: &Want| baseline && w.id.ends_with("/step.length");
-    let owner = if wants.iter().any(plate) || baseline {
+    let shared_bands = wants.iter().any(|w| {
+        w.measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:section_recess:"))
+    });
+    let owner = if wants.iter().any(plate) || baseline || shared_bands {
         let merged = placement::owners(analysis, &wants, &chosen);
         wants
             .iter()
             .enumerate()
             .map(|(i, w)| {
-                if plate(w) || conveyed(w) {
+                if shared_bands || plate(w) || conveyed(w) {
                     merged[i]
                 } else {
                     None
@@ -1234,7 +1308,10 @@ fn lanes_uncached(
             .zip(sides.iter().copied())
             .zip(lane.iter().copied())
             .enumerate()
-            .filter(|(i, _)| owner[*i].is_none())
+            .filter(|(i, _)| {
+                owner[*i].is_none()
+                    && (!shared_bands || matches!(wants[*i].shape, Shape::Linear { .. }))
+            })
             .map(|(_, item)| item),
     );
     let front_linear = wants
@@ -1340,6 +1417,107 @@ fn lanes_uncached(
             as usize
             + 1;
         bands.authored_plan_left = bands.authored_plan_left.max(base + notch_lanes);
+    }
+    bands.recess_lanes = wants.iter().any(|w| {
+        w.measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:section_recess:"))
+    });
+    if bands.recess_lanes {
+        // A recess carried by another view can still obstruct this view's
+        // existing datum witnesses. Reserve their opposite strips before the
+        // views and the iso are packed; a later corridor retry cannot create
+        // paper between two views that were already placed against each other.
+        let footprints: BTreeMap<_, _> = frames
+            .iter()
+            .map(|(name, f)| (*name, footprints::Footprints::new(analysis, f, name)))
+            .collect();
+        let mut extra = BTreeMap::new();
+        for (i, w) in wants.iter().enumerate() {
+            if owner[i].is_some() || !matches!(w.shape, Shape::Linear { .. }) {
+                continue;
+            }
+            let (Some(view), Some(side)) = (chosen[i], sides[i]) else {
+                continue;
+            };
+            let Some(p) = placement::place(&frames[view], w, side, lane[i]) else {
+                continue;
+            };
+            if p.lines.iter().take(2).any(|line| {
+                footprints[view]
+                    .crossed_extension(*line, &w.measurements)
+                    .iter()
+                    .any(|id| id.starts_with("f:section_recess:"))
+            }) {
+                *extra.entry((view, side)).or_insert(0) += 1;
+            }
+        }
+        for ((view, side), count) in extra {
+            let target = match (view, side) {
+                ("front", placement::Side::Below) => &mut bands.plate_front_above,
+                ("front", placement::Side::Above) => &mut bands.front_below,
+                ("front", placement::Side::Left) => &mut bands.front_right,
+                ("front", placement::Side::Right) => &mut bands.plate_front_left,
+                ("plan", placement::Side::Below) => &mut bands.plan_above,
+                ("plan", placement::Side::Above) => &mut bands.plate_plan_below,
+                ("plan", placement::Side::Left) => &mut bands.plate_plan_right,
+                ("plan", placement::Side::Right) => &mut bands.plan_left,
+                ("side", placement::Side::Below) => &mut bands.side_above,
+                ("side", placement::Side::Above) => &mut bands.side_below,
+                ("side", placement::Side::Left) => &mut bands.side_right,
+                ("side", placement::Side::Right) => &mut bands.plate_side_left_lanes,
+                _ => continue,
+            };
+            *target += count;
+        }
+    }
+    for (i, w) in wants.iter().enumerate() {
+        if callout_columns
+            && matches!(w.shape, Shape::Callout { .. })
+            && w.measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:section_recess:"))
+            && let Some(view) = chosen[i]
+            && let Some(k) = NAMES.iter().position(|v| *v == view)
+        {
+            let ink = label_ink(&w.terms, font());
+            bands.recess_callouts[k] =
+                bands.recess_callouts[k].max(FIRST + SHOULDER + ink.max[0] - ink.min[0] + 2.0);
+        }
+    }
+    for (i, w) in wants.iter().enumerate() {
+        if callout_columns
+            && owner[i].is_none()
+            && matches!(w.shape, Shape::Linear { .. })
+            && w.measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:section_recess:"))
+            && let Some(k) = chosen[i].and_then(|view| NAMES.iter().position(|v| *v == view))
+        {
+            let ink = label_ink(&w.terms, font());
+            bands.recess_callouts[k] =
+                bands.recess_callouts[k].max(ink.max[0] - ink.min[0] + ARROW + 3.0);
+        }
+    }
+    if shared_bands
+        && !excluded.is_empty()
+        && wants.iter().enumerate().any(|(i, w)| {
+            chosen[i] == Some("front")
+                && matches!(w.shape, Shape::Linear { axis: 0, .. })
+                && w.measurements
+                    .iter()
+                    .any(|m| m.parameter.contains("location"))
+        })
+    {
+        // A table removes many plan ladders, but a front datum leg may need
+        // the opposite corridor around the newly recognised recess footprint.
+        // Reserve that real row before packing the aligned plan above it.
+        bands.plate_front_above = bands.plate_front_above.max(1);
+    }
+    if shared_bands {
+        bands.recess_chain_scale = recess_chain_scale(analysis);
+        bands.plate_front_below = bands.plate_front_below.max(front_linear);
+        bands.plate_plan_above = bands.plate_plan_above.max(plan_linear);
     }
     let mut aligned = Vec::new();
     for (i, w) in wants.iter().enumerate() {
@@ -1535,6 +1713,80 @@ pub(crate) fn authored_placement_clear(spec: &Spec, dims: &[PlannedDimension]) -
         })
 }
 
+/// A slot chain must have room for its arrows and its own text between its ends.
+/// New recess annotations reserve extra paper rather than reducing these existing chains.
+pub(crate) fn recess_chain_scale(analysis: &Analysis) -> f64 {
+    let (canonical, established) = crate::planning::policy_key(analysis);
+    crate::planning::memo(
+        analysis,
+        "recess-readable-scale",
+        vec![u8::from(canonical), u8::from(established)],
+        || recess_chain_scale_uncached(analysis),
+    )
+}
+
+fn recess_chain_scale_uncached(analysis: &Analysis) -> f64 {
+    if !gdt::demand(analysis, &|_| true).is_empty() {
+        return 0.0;
+    }
+    let (items, ..) = wants(analysis);
+    let native = analysis
+        .recognition
+        .as_ref()
+        .is_some_and(|r| r.recogniser.starts_with("quiddity-rust "));
+    if !items.iter().any(|w| {
+        w.measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:section_recess:"))
+    }) {
+        return 0.0;
+    }
+    items
+        .iter()
+        .filter_map(|w| {
+            if w.value > 0.0
+                && w.measurements.iter().any(|m| {
+                    m.feature.starts_with("f:section_recess:")
+                        && m.parameter == "channel_width.length"
+                })
+            {
+                // Legacy bridged documents already carried these channels and
+                // keep their established scale policy. This additional mouth
+                // reservation is for the newly native recess information.
+                return native.then_some(crate::sheet_fit::MIN_OPENING / w.value);
+            }
+            let feature = w.id.strip_suffix("/slot_length.length")?;
+            if !items
+                .iter()
+                .any(|other| other.id == format!("{feature}/location_slot.length"))
+                || w.value <= 0.0
+            {
+                return None;
+            }
+            let ink = label_ink(&w.terms, font());
+            Some((ink.max[0] - ink.min[0] + 2.0 * ARROW + 2.0) / w.value)
+        })
+        .fold(0.0, f64::max)
+}
+
+/// The finite 1 mm leader/extension corridors used by the shared solve and QA.
+pub(crate) fn extension_contacts(dims: &[PlannedDimension]) -> usize {
+    let extensions: Vec<_> = dims
+        .iter()
+        .enumerate()
+        .filter_map(|(i, d)| {
+            let p = d.placed.as_ref()?;
+            (d.kind == "linear" && p.arrows.len() == 2 && p.lines.len() >= 3).then_some((i, p))
+        })
+        .flat_map(|(i, p)| p.lines[..2].iter().map(move |e| (i, *e)))
+        .collect();
+    dims.iter()
+        .filter(|d| d.kind == "callout")
+        .filter_map(|d| d.placed.as_ref())
+        .map(|p| leaders::extension_contacts(&extensions, &p.lines, p.label_box).0)
+        .sum()
+}
+
 /// The planned dimensions under *spec*, placed around *views* on *sheet*, with what the spec
 /// left out and the problems found. A spec naming a dimension the part does not have is refused
 /// with the nearest IDs.
@@ -1615,15 +1867,40 @@ pub(crate) fn plan_inventory(
     // Table selection happens after this stage; retain every placement input, but do
     // not solve again solely for that presentation policy or a frame's explanation.
     let mut geometry_spec = spec.clone();
-    geometry_spec.hole_table = crate::hole_table::Setting::Auto;
+    if !has_recess_dimensions(analysis) {
+        geometry_spec.hole_table = crate::hole_table::Setting::Auto;
+    }
     // The placer reads the title block rectangle, never its cells or their text.
     // Keep the actual rectangle below: an expanded title block still invalidates ink.
     geometry_spec.sheet.title.clear();
+    // Placement reads the resolved sheet and frames below, not whether the caller
+    // selected that same size/scale or the allocator selected it automatically.
+    geometry_spec.sheet.size = None;
+    geometry_spec.sheet.scale = None;
+    geometry_spec.views.retain(|name, view| {
+        let inactive = crate::detail::NAMES.contains(&name.as_str())
+            && *view
+                == crate::model::ViewSpec {
+                    omit: true,
+                    ..Default::default()
+                }
+            && !views.iter().any(|v| v.id.strip_prefix("v:") == Some(name));
+        let named = spec.dimensions.values().any(|d| {
+            d.view.as_ref() == Some(name)
+                || d.place.as_ref().and_then(|p| p.view.as_ref()) == Some(name)
+        }) || spec
+            .annotations
+            .values()
+            .any(|d| d.place.as_ref().and_then(|p| p.view.as_ref()) == Some(name));
+        !inactive || named
+    });
     let mut geometry_sheet = sheet.clone();
     geometry_sheet.title.clear();
     geometry_sheet.title_cells.clear();
     geometry_sheet.basis.clear();
     geometry_sheet.arrangement.clear();
+    geometry_sheet.default = false;
+    geometry_sheet.fill = 0.0;
     let mut geometry_views = views.to_vec();
     for view in &mut geometry_views {
         view.basis.clear();
@@ -1635,6 +1912,7 @@ pub(crate) fn plan_inventory(
         });
     let key = serde_json::to_vec(&(
         analysis_key,
+        crate::planning::policy_key(analysis),
         geometry_spec,
         geometry_sheet,
         geometry_views,
@@ -1672,6 +1950,205 @@ fn plan_inventory_uncached(
     held: &[PlannedDimension],
     cache: &footprints::Cache,
     excluded: &BTreeSet<String>,
+) -> Result<(Planned, Vec<PlannedDimension>), Invalid> {
+    let first = plan_inventory_ordered(
+        analysis, spec, sheet, views, obstacles, held, cache, excluded, 0,
+    )?;
+    let new = |d: &PlannedDimension| {
+        !d.measurements.is_empty()
+            && d.measurements
+                .iter()
+                .all(|m| m.feature.starts_with("f:section_recess:"))
+    };
+    if !first.0.0.iter().any(|d| d.kind == "linear" && new(d))
+        || !first.0.0.iter().any(|d| d.kind == "callout" && new(d))
+        || spec.dimensions.values().any(|d| d.place.is_some())
+    {
+        return Ok(first);
+    }
+    let score = |plan: &Planned| {
+        let (dims, _, problems) = plan;
+        let hard = problems
+            .iter()
+            .filter(|p| {
+                matches!(
+                    p.code.as_str(),
+                    "annotation_off_sheet"
+                        | "annotation_over_title_block"
+                        | "annotation_overlap"
+                        | "annotation_ink_overlap"
+                        | "annotation_over_view"
+                        | "annotation_line_over_view"
+                        | "dimension_line_shared"
+                        | "dimension_text_stray"
+                )
+            })
+            .count();
+        let extensions: Vec<_> = dims
+            .iter()
+            .enumerate()
+            .filter_map(|(i, d)| {
+                d.placed
+                    .as_ref()
+                    .filter(|p| d.kind == "linear" && p.lines.len() >= 3)
+                    .map(|p| (i, p))
+            })
+            .flat_map(|(i, p)| p.lines[..2].iter().map(move |e| (i, *e)))
+            .collect();
+        let contacts: usize = dims
+            .iter()
+            .filter(|d| d.kind == "callout")
+            .filter_map(|d| d.placed.as_ref())
+            .map(|p| leaders::extension_contacts(&extensions, &p.lines, p.label_box).0)
+            .sum();
+        let span = dims
+            .iter()
+            .filter(|d| d.kind == "linear")
+            .filter_map(|d| d.placed.as_ref().map(|p| (d, p)))
+            .filter(|(d, p)| {
+                label_lanes::off_span(
+                    p,
+                    dims.iter()
+                        .filter(|q| q.id != d.id && q.view == d.view && q.kind == "linear")
+                        .filter_map(|q| q.placed.as_ref()),
+                )
+            })
+            .count();
+        let mut crossings = BTreeSet::new();
+        for p in problems {
+            if p.code == "leader_through_feature" {
+                crossings.insert((p.code.clone(), p.subjects.join("|")));
+            }
+            if p.code == "extension_through_feature" {
+                crossings.insert((
+                    p.subjects[0].clone(),
+                    p.id.rsplit(":line:").next().unwrap_or_default().into(),
+                ));
+            }
+        }
+        let ink = problems
+            .iter()
+            .filter(|p| {
+                matches!(
+                    p.code.as_str(),
+                    "annotation_leader_crossing" | "annotation_outside_area"
+                )
+            })
+            .count();
+        let length: f64 = dims
+            .iter()
+            .filter(|d| d.kind == "callout")
+            .filter_map(|d| d.placed.as_ref())
+            .flat_map(|p| &p.lines)
+            .map(|[a, b]| (a[0] - b[0]).hypot(a[1] - b[1]))
+            .sum();
+        (
+            hard,
+            span,
+            contacts,
+            crossings.len(),
+            ink,
+            (length * 1000.0).round() as u64,
+        )
+    };
+    let native = analysis
+        .recognition
+        .as_ref()
+        .is_some_and(|r| r.recogniser.starts_with("quiddity-rust "));
+    let new_crossing = |plan: &Planned| {
+        plan.2.iter().any(|p| {
+            (p.code == "leader_through_feature"
+                || (native && p.code == "extension_through_feature"))
+                && p.subjects
+                    .first()
+                    .is_some_and(|id| plan.0.iter().any(|d| &d.id == id && new(d)))
+        })
+    };
+    let a = score(&first.0);
+    if a.0 == 0 && a.1 == 0 && !new_crossing(&first.0) {
+        return Ok(first);
+    }
+    let alternative = plan_inventory_ordered(
+        analysis, spec, sheet, views, obstacles, held, cache, excluded, 1,
+    )?;
+    let mut best = if score(&alternative.0) < a {
+        alternative
+    } else {
+        first
+    };
+    if score(&best.0).0 > 0 || new_crossing(&best.0) {
+        let mut joint_held = held.to_vec();
+        joint_held.extend(
+            best.0
+                .0
+                .iter()
+                .filter(|d| {
+                    d.kind == "callout"
+                        && new(d)
+                        && !best.0.2.iter().any(|p| {
+                            p.subjects.contains(&d.id)
+                                && matches!(
+                                    p.code.as_str(),
+                                    "annotation_ink_overlap"
+                                        | "annotation_overlap"
+                                        | "annotation_over_view"
+                                        | "annotation_off_sheet"
+                                        | "leader_through_feature"
+                                )
+                        })
+                })
+                .cloned(),
+        );
+        let joint = plan_inventory_ordered(
+            analysis,
+            spec,
+            sheet,
+            views,
+            obstacles,
+            &joint_held,
+            cache,
+            excluded,
+            2,
+        )?;
+        if score(&joint.0) < score(&best.0) {
+            best = joint;
+        }
+    }
+    if native
+        && !excluded.is_empty()
+        && score(&best.0).0 == 0
+        && best.0.2.iter().any(|p| {
+            p.code == "extension_through_feature"
+                && p.subjects
+                    .first()
+                    .is_some_and(|id| best.0.0.iter().any(|d| &d.id == id && new(d)))
+        })
+    {
+        // A schedule removes its old hole locations. Compare preserving the
+        // remaining existing corridors while new witnesses claim theirs first.
+        // This avoids buying a short new form leader with a blocked datum leg.
+        let preserved = plan_inventory_ordered(
+            analysis, spec, sheet, views, obstacles, held, cache, excluded, 3,
+        )?;
+        if score(&preserved.0) < score(&best.0) {
+            best = preserved;
+        }
+    }
+    Ok(best)
+}
+
+#[allow(clippy::too_many_arguments)]
+#[inline(never)]
+fn plan_inventory_ordered(
+    analysis: &Analysis,
+    spec: &Spec,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    obstacles: &[PlannedDimension],
+    held: &[PlannedDimension],
+    cache: &footprints::Cache,
+    excluded: &BTreeSet<String>,
+    stage: u8,
 ) -> Result<(Planned, Vec<PlannedDimension>), Invalid> {
     let (mut wants, mut problems, notes) = wants(analysis);
     let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
@@ -1830,6 +2307,7 @@ fn plan_inventory_uncached(
         bosses::consolidate(analysis, &mut defaults, &mut unused);
         let mut nominal = vec![Vec::new(); defaults.len()];
         holes::consolidate(analysis, &mut defaults, &mut nominal, &mut unused);
+        recesses::consolidate(&mut defaults, &mut nominal, &mut unused);
         plates::share(analysis, &mut defaults, &mut nominal, &mut unused);
         share_statements(&mut defaults, &mut nominal, &mut unused, true);
         share_pmi(analysis, &mut defaults, &mut nominal, &mut unused);
@@ -1915,6 +2393,7 @@ fn plan_inventory_uncached(
     precision::labels(spec, kept.iter_mut().map(|(w, ..)| w))?;
     let mut given = tolerance::apply(analysis, spec, &mut kept, &omitted, &mut problems)?;
     holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
+    recesses::consolidate(&mut kept, &mut given, &mut omitted);
     plates::share(analysis, &mut kept, &mut given, &mut omitted);
     share_statements(&mut kept, &mut given, &mut omitted, true);
     share_pmi(analysis, &mut kept, &mut given, &mut omitted);
@@ -1950,6 +2429,16 @@ fn plan_inventory_uncached(
     let all: Vec<Want> = all
         .into_iter()
         .map(|mut w| {
+            if let Some((statement, ..)) = kept.iter().find(|(statement, ..)| statement.id == w.id)
+            {
+                w.measurements = statement.measurements.clone();
+                if w.measurements
+                    .first()
+                    .is_some_and(|m| m.parameter == "seat_diameter.diameter")
+                {
+                    w.shape = statement.shape.clone();
+                }
+            }
             if spec
                 .dimensions
                 .get(&w.id)
@@ -2078,6 +2567,7 @@ fn plan_inventory_uncached(
         &mut intended,
     );
     let prescribed = intended.clone();
+    let locked: Vec<_> = intended.iter().map(Option::is_some).collect();
     let pin_ink: Vec<_> = all
         .iter()
         .zip(&prescribed)
@@ -2186,6 +2676,15 @@ fn plan_inventory_uncached(
                 .and_then(|(v, side)| placement::place(&frames[v], w, side, *lane))
         })
         .collect();
+    // A tolerance can separate a counted carrier from an alias. Both already
+    // occupy their distinct lanes during the corridor solve, before leaders move.
+    for i in 0..all.len() {
+        if alone[i]
+            && let (Some(view), Some(side)) = (chosen[i], sides[i])
+        {
+            placed[i] = placement::place(&frames[view], &all[i], side, lane[i]);
+        }
+    }
     for (i, p) in intended.iter().enumerate() {
         if p.is_some() {
             placed[i] = p.clone();
@@ -2225,10 +2724,19 @@ fn plan_inventory_uncached(
     placement::settle_fixed(&mut placed, &fixed, obstacles, analysis, sheet, views);
     // Edited text can outgrow the canonical lanes. Keep the canonical layout stable
     // for pins and omission edits; their avoidance pass above owns that geometry.
-    if (spec
-        .dimensions
-        .values()
-        .any(|d| d.tolerance.is_some() || d.text.is_some() || d.style.is_some())
+    let recess_context = all.iter().any(|w| {
+        w.measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:section_recess:"))
+    });
+    if matches!(stage, 0 | 3) && recess_context && intended.iter().all(Option::is_none) {
+        leaders::seed_established(analysis, spec, views, &all, &chosen, &mut placed, &page);
+    }
+    if (recess_context
+        || spec
+            .dimensions
+            .values()
+            .any(|d| d.tolerance.is_some() || d.text.is_some() || d.style.is_some())
         || spec.features.values().any(|f| f.fit.is_some()))
         && intended.iter().all(Option::is_none)
     {
@@ -2243,9 +2751,17 @@ fn plan_inventory_uncached(
             &mut lane,
             &mut placed,
             obstacles,
+            &locked,
             &page,
+            stage != 3,
         );
     }
+    let shared_owner: Vec<_> = owner
+        .iter()
+        .zip(&alone)
+        .map(|(owner, alone)| if *alone { None } else { *owner })
+        .collect();
+    placement::share_lanes(&shared_owner, &mut sides, &mut lane);
     let body_fixed: Vec<bool> = all
         .iter()
         .enumerate()
@@ -2302,12 +2818,47 @@ fn plan_inventory_uncached(
     );
     // Radius exceptions are placed around the existing drawing ink. Their addition must not
     // reroute unrelated approved callouts into clutter.
-    let mut prior = chosen.clone();
+    let mut callout_views = chosen.clone();
     for (i, w) in all.iter().enumerate() {
-        if w.measurements.iter().any(|m| m.parameter == "blend.radius") {
+        if owner[i].is_some()
+            && !drawn[i]
+            && matches!(w.shape, Shape::Callout { .. })
+            && w.measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:section_recess:"))
+        {
+            callout_views[i] = None;
+        }
+    }
+    let mut prior = callout_views.clone();
+    for (i, w) in all.iter().enumerate() {
+        if w.measurements.iter().any(|m| m.parameter == "blend.radius")
+            || matches!(w.shape, Shape::Callout { .. })
+                && w.measurements
+                    .iter()
+                    .any(|m| m.feature.starts_with("f:section_recess:"))
+        {
             prior[i] = None;
         }
     }
+    // Existing leaders claim their corridors before new recess witnesses. Restore
+    // those witnesses into the shared solve around the established leader ink.
+    let recess_linear: Vec<_> = if recess_context {
+        all.iter()
+            .enumerate()
+            .filter(|(i, w)| {
+                !locked[*i]
+                    && matches!(w.shape, Shape::Linear { .. })
+                    && !w.measurements.is_empty()
+                    && w.measurements
+                        .iter()
+                        .all(|m| m.feature.starts_with("f:section_recess:"))
+            })
+            .map(|(i, _)| (i, placed[i].take()))
+            .collect()
+    } else {
+        Vec::new()
+    };
     let mut leader_problems = if obstacles.is_empty() {
         leaders::place(
             analysis,
@@ -2336,7 +2887,16 @@ fn plan_inventory_uncached(
             obstacles,
         )
     };
-    if prior != chosen {
+    if !recess_linear.is_empty() {
+        let mut established = chosen.clone();
+        for (i, w) in all.iter().enumerate() {
+            if w.measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:section_recess:"))
+            {
+                established[i] = None;
+            }
+        }
         leader_problems.extend(leaders::place_with_obstacles(
             analysis,
             spec,
@@ -2344,12 +2904,125 @@ fn plan_inventory_uncached(
             views,
             &frames,
             &all,
-            &chosen,
+            &established,
             &sides,
             &mut placed,
             &page,
             obstacles,
         ));
+    }
+    // Settle the established interior leaders before new witnesses claim their
+    // corridors. Otherwise a new datum leg can evict a short radius leader and
+    // force it all the way out to the view envelope.
+    let mut interior = if !recess_linear.is_empty() {
+        let mut existing = chosen.clone();
+        for (i, w) in all.iter().enumerate() {
+            if !matches!(w.shape, Shape::Callout { .. })
+                || w.measurements
+                    .iter()
+                    .any(|m| m.feature.starts_with("f:section_recess:"))
+            {
+                existing[i] = None;
+            }
+        }
+        interior::place(
+            analysis,
+            spec,
+            views,
+            &frames,
+            &all,
+            &existing,
+            &sides,
+            &mut placed,
+            &page,
+            obstacles,
+            cache,
+        )
+    } else {
+        BTreeSet::new()
+    };
+    let restore = |placed: &mut [Option<Placed>],
+                   sides: &mut [Option<placement::Side>],
+                   lane: &mut [usize]| {
+        if recess_linear.is_empty() {
+            return;
+        }
+        for (i, p) in &recess_linear {
+            placed[*i] = p.clone();
+        }
+        placement::clear_linear(
+            analysis,
+            cache,
+            views,
+            &frames,
+            &all,
+            &chosen,
+            sides,
+            lane,
+            placed,
+            obstacles,
+            &locked,
+            &page,
+            stage != 3,
+        );
+        placement::share_lanes(&shared_owner, sides, lane);
+    };
+    if matches!(stage, 1 | 3) {
+        restore(&mut placed, &mut sides, &mut lane);
+    }
+    // A bounded joint trial lets movable linear ink yield to a clear new
+    // leader. Restore every dimension before repairing its lanes and witnesses;
+    // only the complete, independently adjudicated result can win.
+    if stage == 2 {
+        for (i, w) in all.iter().enumerate() {
+            if matches!(w.shape, Shape::Callout { .. })
+                && w.measurements
+                    .iter()
+                    .any(|m| m.feature.starts_with("f:section_recess:"))
+                && let Some(d) = held.iter().find(|d| {
+                    d.id == w.id
+                        && d.terms == w.terms
+                        && chosen[i].is_some_and(|v| d.view == format!("v:{v}"))
+                })
+            {
+                placed[i] = d.placed.clone();
+            }
+        }
+    }
+    let witnesses: Vec<_> = if stage == 2 {
+        placed
+            .iter_mut()
+            .enumerate()
+            .filter_map(|(i, p)| {
+                if !matches!(all[i].shape, Shape::Linear { .. }) {
+                    return None;
+                }
+                Some((i, p.take()?))
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    if prior != callout_views {
+        leader_problems.extend(leaders::place_with_obstacles(
+            analysis,
+            spec,
+            cache,
+            views,
+            &frames,
+            &all,
+            &callout_views,
+            &sides,
+            &mut placed,
+            &page,
+            obstacles,
+        ));
+    }
+    for (i, p) in witnesses {
+        placed[i] = Some(p);
+    }
+    if !matches!(stage, 1 | 3) {
+        restore(&mut placed, &mut sides, &mut lane);
     }
     placement::place_merged(
         &frames,
@@ -2357,6 +3030,7 @@ fn plan_inventory_uncached(
         &chosen,
         &owner,
         &alone,
+        &drawn,
         &sides,
         &lane,
         &mut placed,
@@ -2402,7 +3076,7 @@ fn plan_inventory_uncached(
         &page,
         &notch_void,
     );
-    let interior = interior::place(
+    interior.extend(interior::place(
         analysis,
         spec,
         views,
@@ -2414,11 +3088,12 @@ fn plan_inventory_uncached(
         &page,
         obstacles,
         cache,
-    );
+    ));
     let refined = leaders::refine(
         analysis,
         spec,
         cache,
+        sheet,
         views,
         &frames,
         &all,
@@ -2447,7 +3122,10 @@ fn plan_inventory_uncached(
         .iter()
         .enumerate()
         .filter_map(|(i, w)| {
-            if owner[i].is_some() && !alone[i] {
+            if owner[i].is_some()
+                && !alone[i]
+                && !(drawn[i] && matches!(w.shape, Shape::Callout { .. }))
+            {
                 return None;
             }
             let view = format!("v:{}", chosen[i]?);
@@ -2885,6 +3563,16 @@ fn share_statements(
     let level = |p: &str| p.starts_with("step_height.length.");
     let span = |(w, _, view, _): &(Want, bool, Option<&'static str>, Vec<&'static str>)| {
         let parameter = &w.measurements.first()?.parameter;
+        // The recess consolidator owns these spans, including claims transferred to a
+        // level or envelope carrier. Keep them out of point-location sharing so a hole's
+        // table cells and a slot's independent datum identity remain intact.
+        if w.measurements.iter().any(|m| {
+            m.parameter.starts_with("seat_location.")
+                || m.parameter.starts_with("location_pocket.")
+                || m.parameter.starts_with("location_pocket_pattern.")
+        }) {
+            return None;
+        }
         if !(SHARED.iter().any(|(p, _)| p == parameter)
             || cross_family && (coordinate(parameter) || diameter(parameter)))
         {
@@ -3335,6 +4023,169 @@ pub(crate) fn placement_options_with_spec(
 /// cylinders, or a shaft class on proven external ones (#30).
 pub(crate) fn symbolic_bore(r: &crate::pmi::Record) -> bool {
     pmi_dimensions::symbolic_bore(r)
+}
+
+/// Recheck free leaders after the linear labels and GD&T have settled together.
+/// The full inventory keeps omission edits local; frames remain fixed obstacles.
+pub(crate) fn refine_inventory(
+    analysis: &Analysis,
+    spec: &Spec,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    inventory: &mut [PlannedDimension],
+    obstacles: &[PlannedDimension],
+    cache: &footprints::Cache,
+) -> BTreeMap<String, Vec<Problem>> {
+    let recesses = inventory.iter().any(|d| {
+        d.measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:section_recess:"))
+    });
+    // Restoring an unaffected peer after label edits can expose a callout
+    // overlap which was absent in the initial joint solve. Recheck that final
+    // ink even on drawings without new recess dimensions.
+    let overlapping_text = !recesses
+        && leaders::edited_labels(spec)
+        && inventory.iter().enumerate().any(|(i, d)| {
+            d.kind == "callout"
+                && d.placed.as_ref().is_some_and(|p| {
+                    inventory.iter().enumerate().any(|(j, q)| {
+                        i != j
+                            && q.placed
+                                .as_ref()
+                                .is_some_and(|q| placement::boxes_overlap(p.label_box, q.label_box))
+                    })
+                })
+        });
+    if !recesses && !overlapping_text {
+        return BTreeMap::new();
+    }
+    let (raw, ..) = wants(analysis);
+    let frames: BTreeMap<_, _> = views
+        .iter()
+        .filter_map(|v| {
+            let name = v.id.strip_prefix("v:")?;
+            NAMES
+                .contains(&name)
+                .then(|| (name, Frame::new(analysis, v)))
+        })
+        .collect();
+    let mut items = Vec::new();
+    let mut indices = Vec::new();
+    let mut chosen = Vec::new();
+    let mut placed = Vec::new();
+    for (i, d) in inventory.iter().enumerate() {
+        let Some(w) = raw.iter().find(|w| w.id == d.id) else {
+            continue;
+        };
+        let mut w = w.clone();
+        w.terms = d.terms.clone();
+        w.measurements = d.measurements.clone();
+        if w.measurements
+            .first()
+            .is_some_and(|m| m.parameter == "seat_diameter.diameter")
+            && let Shape::Callout { sites } = &mut w.shape
+        {
+            for peer in raw.iter().filter(|peer| {
+                peer.id != w.id && peer.measurements.iter().any(|m| w.measurements.contains(m))
+            }) {
+                if let Shape::Callout { sites: more } = &peer.shape {
+                    sites.extend(more.iter().copied());
+                }
+            }
+        }
+        let name = d.view.trim_start_matches("v:");
+        bosses::route_profile(analysis, &mut w, name);
+        let view = NAMES
+            .iter()
+            .copied()
+            .find(|v| *v == name && frames.contains_key(v));
+        items.push(w);
+        indices.push(i);
+        chosen.push(view);
+        placed.push(d.placed.clone());
+    }
+    let page = placement::Page::new(analysis, sheet, views);
+    let mut sides = Vec::new();
+    let mut lanes = Vec::new();
+    for ((i, view), p) in indices.iter().zip(&chosen).zip(&placed) {
+        let side = view.and_then(|v| {
+            let p = p.as_ref()?;
+            if inventory[*i].region == Some(CandidateRegion::Interior)
+                || p.arrows.len() != 2
+                || spec
+                    .dimensions
+                    .get(&inventory[*i].id)
+                    .is_some_and(|d| d.place.is_some())
+            {
+                return None;
+            }
+            let o = frames[v].outline();
+            Some(if p.rotation == 0.0 {
+                if p.arrows[0][0][1] < o[1] {
+                    placement::Side::Below
+                } else {
+                    placement::Side::Above
+                }
+            } else if p.arrows[0][0][0] < o[0] {
+                placement::Side::Left
+            } else {
+                placement::Side::Right
+            })
+        });
+        sides.push(side);
+        lanes.push(0);
+    }
+    // New linear items get a final chance around the settled leaders and GD&T.
+    // Every candidate clears that fixed ink and cannot add a feature crossing.
+    if obstacles.iter().any(|d| d.kind == "callout") {
+        for (i, w) in items.iter().enumerate() {
+            if w.measurements.is_empty()
+                || !w
+                    .measurements
+                    .iter()
+                    .all(|m| m.feature.starts_with("f:section_recess:"))
+            {
+                sides[i] = None;
+            }
+        }
+    }
+    if recesses {
+        placement::clear_linear(
+            analysis,
+            cache,
+            views,
+            &frames,
+            &items,
+            &chosen,
+            &mut sides,
+            &mut lanes,
+            &mut placed,
+            obstacles,
+            &[],
+            &page,
+            true,
+        );
+    }
+    let proofs = interior::proofs(analysis, views);
+    let reports = leaders::refine(
+        analysis,
+        spec,
+        cache,
+        sheet,
+        views,
+        &frames,
+        &items,
+        &chosen,
+        &mut placed,
+        &page,
+        obstacles,
+        &proofs,
+    );
+    for (i, p) in indices.into_iter().zip(placed) {
+        inventory[i].placed = p;
+    }
+    reports
 }
 
 /// Rejudge settled paper geometry after moving complete view blocks to another sheet.

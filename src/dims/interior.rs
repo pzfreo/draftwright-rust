@@ -72,14 +72,24 @@ pub(super) struct Proof {
     /// Every chord, with the edge each belongs to at `edges[e]..edges[e + 1]`.
     segments: Vec<[P2; 2]>,
     edges: Vec<usize>,
+    /// Toward-viewer coordinates of the actual edge chords' endpoints.
+    depths: Vec<[f64; 2]>,
+    require_visible_attachment: bool,
     /// Boxes a curved face's silhouette may lie anywhere within.
     boxes: Vec<[f64; 4]>,
     /// Planar faces square to the view: their box and their chords.
-    faces: Vec<([f64; 4], Vec<usize>)>,
+    faces: Vec<Face>,
     /// All planar projections and full curved-face covers, for proving exterior voids.
     exterior_faces: Vec<([f64; 4], Vec<usize>)>,
     curved_cover: Vec<[f64; 4]>,
     grid: Grid,
+}
+
+#[derive(Clone)]
+struct Face {
+    bounds: [f64; 4],
+    chords: Vec<usize>,
+    depth: f64,
 }
 
 /// A uniform bucket grid over a view's chords: queries visit only nearby chords.
@@ -154,10 +164,18 @@ pub(super) fn proofs(
         .filter_map(|v| {
             let view = haecceity::hlr::View::new(v.direction, v.up)?;
             let centre = crate::model::extent(analysis, &view).1;
-            let key =
-                serde_json::to_vec(&(v.direction, v.up)).expect("projection inputs serialize");
+            let canonical =
+                crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[])
+                    .unwrap_or(false);
+            let key = serde_json::to_vec(&(v.direction, v.up, canonical))
+                .expect("projection inputs serialize");
             let mut proof = crate::planning::memo(analysis, "interior", key, || {
-                build(ink, v, centre).map(std::rc::Rc::new)
+                build(ink, v, centre).map(|mut p| {
+                    // Replay the established comparison's old attachment recipe.
+                    // Actual drawings always require visible physical attachments.
+                    p.require_visible_attachment = !canonical;
+                    std::rc::Rc::new(p)
+                })
             })?;
             // A cutting-plane line this view marks is fixed ink; its letters are boxes.
             for cut in views.iter().filter_map(|q| q.cut.as_ref()) {
@@ -193,39 +211,32 @@ pub(super) fn proofs(
 }
 
 fn build(ink: &crate::model::projected_ink::EdgeInk, v: &PlannedView, centre: P2) -> Option<Proof> {
-    let view = haecceity::hlr::View::new(v.direction, v.up)?;
-    let d = v.direction;
+    build_camera(ink, v.direction, v.up, centre)
+}
+
+fn build_camera(
+    ink: &crate::model::projected_ink::EdgeInk,
+    direction: [f64; 3],
+    up: [f64; 3],
+    centre: P2,
+) -> Option<Proof> {
+    let view = haecceity::hlr::View::new(direction, up)?;
+    let d = direction;
     let n = d.iter().map(|x| x * x).sum::<f64>().sqrt();
     let d = d.map(|x| x / n);
     let dot = |a: [f64; 3]| a[0] * d[0] + a[1] * d[1] + a[2] * d[2];
     let mut segments = Vec::new();
+    let mut depths = Vec::new();
     let mut edges = vec![0];
     for e in &ink.edges {
         let points: Vec<P2> = e.iter().map(|p| view.map(*p)).collect();
         segments.extend(points.windows(2).map(|w| [w[0], w[1]]));
+        depths.extend(e.windows(2).map(|w| [dot(w[0]), dot(w[1])]));
         edges.push(segments.len());
     }
-    let exterior_faces: Vec<_> = ink
+    let exterior_faces = ink
         .planes
         .iter()
-        .map(|f| {
-            let chords: Vec<usize> = f
-                .edges
-                .iter()
-                .filter(|&&e| e + 1 < edges.len())
-                .flat_map(|&e| edges[e]..edges[e + 1])
-                .collect();
-            (bounds_of(chords.iter().flat_map(|&i| segments[i])), chords)
-        })
-        .filter(|(_, chords)| !chords.is_empty())
-        .collect();
-    let faces = ink
-        .planes
-        .iter()
-        .filter(|f| {
-            let m = f.normal.iter().map(|x| x * x).sum::<f64>().sqrt();
-            dot(f.normal).abs() / m.max(1e-12) > 1.0 - 1e-9
-        })
         .map(|f| {
             let chords: Vec<usize> = f
                 .edges
@@ -237,6 +248,35 @@ fn build(ink: &crate::model::projected_ink::EdgeInk, v: &PlannedView, centre: P2
         })
         .filter(|(_, chords)| !chords.is_empty())
         .collect::<Vec<_>>();
+    let faces: Vec<_> = ink
+        .planes
+        .iter()
+        .filter(|f| {
+            let m = f.normal.iter().map(|x| x * x).sum::<f64>().sqrt();
+            (dot(f.normal).abs() / m.max(1e-12)) > 1.0 - 1e-9
+        })
+        .map(|f| {
+            let chords: Vec<usize> = f
+                .edges
+                .iter()
+                .filter(|&&e| e + 1 < edges.len())
+                .flat_map(|&e| edges[e]..edges[e + 1])
+                .collect();
+            let depth = f
+                .edges
+                .iter()
+                .filter_map(|&e| ink.edges.get(e))
+                .flatten()
+                .next()
+                .map_or(0.0, |p| dot(*p));
+            Face {
+                bounds: bounds_of(chords.iter().flat_map(|&i| segments[i])),
+                chords,
+                depth,
+            }
+        })
+        .filter(|face| !face.chords.is_empty())
+        .collect();
     if faces.is_empty() {
         return None;
     }
@@ -285,6 +325,8 @@ fn build(ink: &crate::model::projected_ink::EdgeInk, v: &PlannedView, centre: P2
         centre,
         segments,
         edges,
+        depths,
+        require_visible_attachment: true,
         boxes,
         faces,
         exterior_faces,
@@ -324,12 +366,44 @@ impl Proof {
             && self.boxes.iter().all(|x| !near_box(s, *x, c))
     }
 
-    fn touches(&self, v: &PlannedView, tip: P2) -> bool {
+    pub(super) fn touches(&self, v: &PlannedView, tip: P2) -> bool {
         let q = self.model_point(v, tip);
         let c = 0.05 / v.scale + SLACK;
+        self.touches_model(q, c)
+    }
+
+    fn touches_model(&self, q: P2, c: f64) -> bool {
         self.grid
             .near(padded([q[0], q[1], q[0], q[1]], c))
-            .any(|i| distance(q, self.segments[i]) <= c)
+            .any(|i| {
+                // A conservative silhouette generator is an obstacle, not
+                // evidence that the trimmed face has a physical rim here.
+                if i >= self.depths.len() || distance(q, self.segments[i]) > c {
+                    return false;
+                }
+                let [a, z] = self.segments[i];
+                let d = [z[0] - a[0], z[1] - a[1]];
+                let n = d[0] * d[0] + d[1] * d[1];
+                let t = if n > 1e-18 {
+                    (((q[0] - a[0]) * d[0] + (q[1] - a[1]) * d[1]) / n).clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
+                let [from, to] = self.depths[i];
+                let depth = if n > 1e-18 {
+                    from + t * (to - from)
+                } else {
+                    from.max(to)
+                };
+                !self.require_visible_attachment
+                    || !self.faces.iter().any(|f| {
+                        f.depth > depth + 2.0 * SLACK
+                            && self.face_contains(f, q)
+                            && f.chords
+                                .iter()
+                                .all(|&j| distance(q, self.segments[j]) > SLACK)
+                    })
+            })
     }
 
     fn segment_clear(&self, v: &PlannedView, [a, b]: [P2; 2], attachment: bool) -> bool {
@@ -418,6 +492,20 @@ impl Proof {
             && p.arrows.iter().all(|s| self.arrow_clear(v, *s, false))
     }
 
+    /// A visible profile attachment and its complete exterior ink. Unlike an
+    /// interior label, this label does not need a containing planar face.
+    pub(super) fn profile_clear(&self, v: &PlannedView, p: &Placed) -> bool {
+        let lo = self.model_point(v, [p.label_box[0], p.label_box[1]]);
+        let hi = self.model_point(v, [p.label_box[2], p.label_box[3]]);
+        self.box_clear([lo[0], lo[1], hi[0], hi[1]], 0.3 / v.scale + SLACK)
+            && self.touches(v, p.lines[0][0])
+            && p.lines
+                .iter()
+                .enumerate()
+                .all(|(i, s)| self.segment_clear(v, *s, i == 0))
+            && p.arrows.iter().all(|s| self.arrow_clear(v, *s, true))
+    }
+
     /// Whole-label containment in one planar face square to the view, clear of all projected
     /// edges and silhouettes by 0.5 paper mm.
     pub(super) fn blank(&self, v: &PlannedView, label: [f64; 4]) -> bool {
@@ -427,26 +515,38 @@ impl Proof {
         let b = [lo[0], lo[1], hi[0], hi[1]];
         let middle = [(b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0];
         self.box_clear(b, c)
-            && self.faces.iter().any(|(fb, chords)| {
-                contains(*fb, middle)
-                    && chords
-                        .iter()
-                        .filter(|&&i| {
-                            let [a, z] = self.segments[i];
-                            (a[1] > middle[1]) != (z[1] > middle[1])
-                                && middle[0]
-                                    < a[0] + (middle[1] - a[1]) * (z[0] - a[0]) / (z[1] - a[1])
-                        })
-                        .count()
-                        % 2
-                        == 1
-            })
+            && self
+                .faces
+                .iter()
+                .any(|face| self.face_contains(face, middle))
+    }
+
+    fn face_contains(&self, face: &Face, q: P2) -> bool {
+        contains(face.bounds, q)
+            && face
+                .chords
+                .iter()
+                .filter(|&&i| {
+                    let [a, z] = self.segments[i];
+                    (a[1] > q[1]) != (z[1] > q[1])
+                        && q[0] < a[0] + (q[1] - a[1]) * (z[0] - a[0]) / (z[1] - a[1])
+                })
+                .count()
+                % 2
+                == 1
     }
 
     /// Points on the arcs of the circle about *centre* (page) of *radius* (model mm), a quarter,
     /// half and three quarters along each: physical attachments for a radius callout.
     fn arc_stations(&self, v: &PlannedView, centre: P2, radius: f64) -> Vec<P2> {
         let c = self.model_point(v, centre);
+        self.arc_model_stations(c, radius)
+            .into_iter()
+            .map(|p| self.page_point(v, p))
+            .collect()
+    }
+
+    fn arc_model_stations(&self, c: P2, radius: f64) -> Vec<P2> {
         let mut out = Vec::new();
         for e in self.edges.windows(2) {
             let chords = &self.segments[e[0]..e[1]];
@@ -468,13 +568,10 @@ impl Proof {
                 for (s, l) in chords.iter().zip(&lengths) {
                     if left <= *l || std::ptr::eq(s, chords.last().unwrap()) {
                         let t = if *l > 0.0 { (left / l).min(1.0) } else { 0.0 };
-                        out.push(self.page_point(
-                            v,
-                            [
-                                s[0][0] + t * (s[1][0] - s[0][0]),
-                                s[0][1] + t * (s[1][1] - s[0][1]),
-                            ],
-                        ));
+                        out.push([
+                            s[0][0] + t * (s[1][0] - s[0][0]),
+                            s[0][1] + t * (s[1][1] - s[0][1]),
+                        ]);
                         break;
                     }
                     left -= l;
@@ -483,6 +580,37 @@ impl Proof {
         }
         out
     }
+}
+
+/// Visibility of physical circular rims before layout. Missing evidence leaves
+/// the established presentation unchanged; proven occlusion can select a profile.
+pub(super) fn visible_circular_rims(
+    analysis: &Analysis,
+    name: &str,
+    sites: &[(super::P3, f64)],
+) -> Option<bool> {
+    let ink = analysis.edge_ink.as_ref()?;
+    let direction = super::TOWARD.iter().find(|(n, _)| *n == name)?.1;
+    let up = if direction[2].abs() > 0.9 {
+        [0., 1., 0.]
+    } else {
+        [0., 0., 1.]
+    };
+    let camera = haecceity::hlr::View::new(direction, up)?;
+    let key = serde_json::to_vec(&(direction, up)).ok()?;
+    let proof = crate::planning::memo(analysis, "routing-visibility", key, || {
+        build_camera(ink, direction, up, [0., 0.]).map(std::rc::Rc::new)
+    })?;
+    let mut found = false;
+    for (centre, radius) in sites {
+        for q in proof.arc_model_stations(camera.map(*centre), *radius) {
+            found = true;
+            if proof.touches_model(q, 2.0 * SLACK) {
+                return Some(true);
+            }
+        }
+    }
+    found.then_some(false)
 }
 
 fn text_conflict(a: &Placed, b: &Placed) -> bool {
@@ -529,15 +657,15 @@ fn callouts(
     old: &Placed,
     proof: &Proof,
     v: &PlannedView,
+    recess_context: bool,
     centre_row: bool,
 ) -> Vec<Placed> {
     let Shape::Callout { sites } = &w.shape else {
         return Vec::new();
     };
-    let radial = w
-        .measurements
-        .iter()
-        .any(|m| m.parameter == "bore.diameter");
+    let radial = w.measurements.iter().any(|m| {
+        m.parameter == "bore.diameter" || recess_context && m.parameter == "slot_end_radius.radius"
+    });
     let ink = label_ink(&w.terms, font());
     let ray = old
         .lines
@@ -583,10 +711,19 @@ fn callouts(
         rotations[left] = 180.0 - angle;
     }
     // Share Python's 64 alternatives round-robin over anchors; grouping cannot multiply work.
-    for (rotation, lane) in rotations
-        .into_iter()
-        .flat_map(|a| (1..=8).map(move |n| (a, n)))
-    {
+    let stations: Vec<_> = if radial && recess_context {
+        // Short radial routes round both physical end caps get first claim.
+        // Finer directions can pass between a new centre mark and a slot wall.
+        (1..=8)
+            .flat_map(|n| (0..32).map(move |a| (f64::from(a) * 11.25, n)))
+            .collect()
+    } else {
+        rotations
+            .into_iter()
+            .flat_map(|a| (1..=8).map(move |n| (a, n)))
+            .collect()
+    };
+    for (rotation, lane) in stations {
         let (s, c) = rotation.to_radians().sin_cos();
         let d = [u[0] * c - u[1] * s, u[0] * s + u[1] * c];
         let tips: Vec<_> = if radial {
@@ -674,6 +811,13 @@ pub(super) fn place(
     cache: &super::footprints::Cache,
 ) -> BTreeSet<String> {
     let mut moved = BTreeSet::new();
+    // Extra recess footprints can force radius retries. Retain the established routes on
+    // drawings whose feature inventory is unaffected by this reader change.
+    let recess_context = items.iter().any(|w| {
+        w.measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:section_recess:"))
+    });
     // Python excludes both a rotational envelope and a stepped turning profile. A plain
     // cylinder need not publish a turned_step record, so use the scanned analytic faces too:
     // an exterior surface of revolution spans the envelope in both transverse directions.
@@ -726,6 +870,17 @@ pub(super) fn place(
         .chain((0..items.len()).filter(|&i| !matches!(items[i].shape, Shape::Linear { .. })))
         .collect();
     for i in order {
+        // A plate thickness witnesses its two faces at the silhouette. An
+        // interior lane can move the dimension line across the view while
+        // leaving its witnesses attached to the far edge, reversing their
+        // physical meaning even when the face has blank room for its text.
+        if items[i]
+            .measurements
+            .iter()
+            .any(|m| m.parameter == "thickness.length")
+        {
+            continue;
+        }
         if spec
             .dimensions
             .get(&items[i].id)
@@ -736,6 +891,20 @@ pub(super) fn place(
         let (Some(name), Some(old)) = (chosen[i], placed[i].as_ref()) else {
             continue;
         };
+        if matches!(items[i].shape, Shape::Linear { .. })
+            && placed.iter().enumerate().any(|(j, q)| {
+                i != j
+                    && chosen[j] == chosen[i]
+                    && super::placement::slot_chain_claims(
+                        &items[i].measurements,
+                        &items[j].measurements,
+                    )
+                    && q.as_ref()
+                        .is_some_and(|q| super::placement::forms_chain(old, q))
+            })
+        {
+            continue;
+        }
         let Some(v) = views.iter().find(|v| v.id.trim_start_matches("v:") == name) else {
             continue;
         };
@@ -747,7 +916,9 @@ pub(super) fn place(
         let centre_row = prefers_centre_row(frame, &items[i], v, prismatic);
         let candidates =
             match &items[i].shape {
-                Shape::Callout { .. } => callouts(frame, &items[i], old, proof, v, centre_row),
+                Shape::Callout { .. } => {
+                    callouts(frame, &items[i], old, proof, v, recess_context, centre_row)
+                }
                 Shape::Linear { .. }
                     if !page.fits(old, name)
                         || old.lines.iter().take(2).any(|s| {
@@ -1010,6 +1181,34 @@ mod tests {
     }
 
     #[test]
+    fn a_silhouette_bound_cannot_prove_a_physical_attachment() {
+        let mut evidence = ink(vec![]);
+        evidence.curved.push(CurvedFace {
+            bounds: [[-10., -2., -2.], [10., 2., 2.]],
+            cylinder: Some(Cylinder {
+                origin: [0., 0., 0.],
+                axis: [1., 0., 0.],
+                radius: 2.,
+            }),
+        });
+        let p = proof(&evidence);
+        assert!(!p.touches(&view(), [0., 2.]));
+        assert!(p.touches(&view(), [-50., 0.]));
+        assert!(!p.blank(&view(), [-3., 1., 3., 3.]));
+    }
+
+    #[test]
+    fn an_edge_behind_a_front_face_is_not_a_visible_attachment() {
+        let mut hidden = ink(vec![semicircle()]);
+        for p in &mut hidden.edges[4] {
+            p[2] = -5.0;
+        }
+        assert!(!proof(&hidden).touches(&view(), [0., 5.]));
+        assert!(proof(&ink(vec![semicircle()])).touches(&view(), [0., 5.]));
+        assert!(proof(&hidden).touches(&view(), [-50., 0.]));
+    }
+
+    #[test]
     fn partial_arc_tip_and_complete_leader_must_clear_ink() {
         let v = view();
         let p = Placed {
@@ -1128,7 +1327,7 @@ mod tests {
         };
         let mut old = dimension();
         old.lines = vec![[[0., 5.], [0., 12.]], [[0., 12.], [3., 12.]]];
-        let candidates = callouts(&frame, &w, &old, &proof, &v, true);
+        let candidates = callouts(&frame, &w, &old, &proof, &v, false, true);
         assert!(
             !candidates.is_empty(),
             "a preferred row is not a hard constraint"
@@ -1170,7 +1369,7 @@ mod tests {
         };
         let mut old = dimension();
         old.lines = vec![[[0., -5.], [0., -12.]], [[0., -12.], [3., -12.]]];
-        let candidates = callouts(&frame, &w, &old, &proof, &v, false);
+        let candidates = callouts(&frame, &w, &old, &proof, &v, false, false);
         assert!(!candidates.is_empty());
         for p in candidates {
             assert!(p.lines[0][0][1] >= 0.0);

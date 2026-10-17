@@ -17,12 +17,13 @@ pub(crate) use crate::lint::blends::{RADIUS_TABLE, RELIEF_NOTE};
 type ViewSites<'a> = BTreeMap<(&'static str, usize), Vec<([f64; 3], &'a Feature)>>;
 
 fn groups(a: &Analysis) -> Vec<Vec<&Feature>> {
+    let pocket_corners = crate::lint::pockets::pattern_corner_blends(a);
     let mut groups = BTreeMap::<String, Vec<&Feature>>::new();
-    for f in a
-        .features
-        .iter()
-        .filter(|f| f.kind == "blend" && !crate::lint::blends::is_relief(a, f))
-    {
+    for f in a.features.iter().filter(|f| {
+        f.kind == "blend"
+            && !crate::lint::blends::is_relief(a, f)
+            && !pocket_corners.contains(&f.id)
+    }) {
         if let Some(r) = radius(f) {
             groups.entry(fmt(r)).or_default().push(f);
         }
@@ -301,10 +302,11 @@ pub(crate) fn consolidate(
     given: &crate::model::Spec,
 ) {
     for i in 0..dimensions.len() {
-        if !dimensions[i]
-            .measurements
-            .iter()
-            .any(|m| m.parameter == "blend.radius")
+        if dimensions[i].measurements.is_empty()
+            || !dimensions[i]
+                .measurements
+                .iter()
+                .all(|m| m.parameter == "blend.radius")
             || overridden(spec, given, &dimensions[i].id)
         {
             continue;
@@ -487,6 +489,11 @@ pub(crate) fn tabulate_obstructed(
     gdt: &[crate::dims::gdt::PlannedGdt],
     problems: &mut Vec<Problem>,
 ) -> Option<RadiusTable> {
+    let recesses = dimensions.iter().any(|d| {
+        d.measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:section_recess:"))
+    });
     let mut indices = Vec::new();
     let mut rows = Vec::new();
     for (i, d) in dimensions.iter().enumerate() {
@@ -496,9 +503,12 @@ pub(crate) fn tabulate_obstructed(
             || spec.dimensions.get(&d.id).is_some_and(|s| {
                 s.place.is_some() || s.tolerance.is_some() || s.text.is_some() || s.style.is_some()
             })
-            || !problems
-                .iter()
-                .any(|p| p.subjects.contains(&d.id) && leader_problem(&p.code))
+            || !problems.iter().any(|p| {
+                p.subjects.contains(&d.id) && leader_problem(&p.code)
+                    // A clear leader beyond an estimated band stays visible. A
+                    // reservation warning alone does not justify a radius table.
+                    && (!recesses || p.code != "annotation_outside_area")
+            })
         {
             continue;
         }

@@ -462,7 +462,26 @@ fn composed_corridors_clear_a_previously_overlapping_off_part_fixture() {
         eprintln!("SKIPPED: the corpus is not found");
         return;
     };
-    let analysis = api::analyse_from(&dir.join("mfcadpp/1004.step"), Features::Native).unwrap();
+    let current = api::analyse_from(&dir.join("mfcadpp/1004.step"), Features::Native).unwrap();
+    // Keep the historical stand-in fixed while native recognition adds more
+    // dimensions. The current recognition/3 unsafe proposal is also replayed
+    // through the production recovery in model::recovery_tests.
+    use std::io::Read as _;
+    let mut bytes = Vec::new();
+    flate2::read::GzDecoder::new(
+        std::fs::File::open(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/sheet-policy/1004-view-gate.analysis.json.gz"),
+        )
+        .unwrap(),
+    )
+    .read_to_end(&mut bytes)
+    .unwrap();
+    let analysis: Analysis = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(
+        analysis.binding.source_sha256,
+        current.binding.source_sha256
+    );
     let mut json = serde_json::to_value(&analysis).unwrap();
     let hole = json["features"]
         .as_array_mut()

@@ -134,6 +134,27 @@ pub fn unlocated_pockets<'a>(
     let [lo, hi] = analysis.envelope;
     let mut out = Vec::new();
     for (f, p) in pockets::placed(analysis) {
+        if super::pocket_patterns::member(analysis, &f.id) {
+            // Pattern location and every pitch together locate its members. Reopen their
+            // location warning when any physical pattern requirement loses its outcome.
+            let pattern = analysis.features.iter().find(|g| {
+                g.kind == "pocket_pattern"
+                    && g.parameters["members"]
+                        .as_array()
+                        .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some(&f.id)))
+            });
+            if let Some(pattern) = pattern {
+                let missing = super::pocket_patterns::coverage(analysis, marks)
+                    .iter()
+                    .filter(|i| i.subjects.contains(&pattern.id))
+                    .map(|i| i.requirements[0].parameter.clone())
+                    .collect::<Vec<_>>();
+                if !missing.is_empty() {
+                    out.push((f.id.as_str(), missing));
+                }
+            }
+            continue;
+        }
         let Ok(p) = p else {
             // Reported by the pocket ledger as unverifiable; nothing to locate here.
             continue;
