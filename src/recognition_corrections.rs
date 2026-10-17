@@ -393,7 +393,8 @@ pub fn bind(a: &Analysis, s: Spec) -> Result<Spec, Invalid> {
     ids.extend(crate::view_setup::feature_ids(&s));
     let mut renamed = BTreeMap::new();
     for id in ids {
-        let resolved = resolved_id(a, &s, &id)?;
+        let resolved =
+            resolved_id(a, &s, &id).map_err(|e| crate::view_setup::reference_error(&s, &id, e))?;
         if id != resolved {
             renamed.insert(id.clone(), resolved.clone());
         }

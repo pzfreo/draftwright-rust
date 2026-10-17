@@ -3250,7 +3250,9 @@ fn plan_with_presentation(
         Some(_) if section.is_none() && shown(SECTION) => problems.push(if crate::view_setup::oriented(spec) && section_parent.is_none() {
             section_not_shown("the authored principal cameras have no edge-on view of the physical cutting plane; choose a principal direction perpendicular to its normal, or remove views/front/orientation".into(), vec![crate::items::Op::remove("views/front/orientation")])
         } else if !principals.plan {
-            let (how, fix) = if omitted("plan") {
+            let (how, fix) = if crate::view_setup::requested(spec,"plan")==Some(false) {
+                ("the explicit principal set excludes plan; include plan in views/front/principal_views",vec![crate::view_setup::include_principal(spec,"plan")])
+            } else if omitted("plan") {
                 (
                     "the spec omits it; remove views/plan/omit to show it",
                     vec![crate::items::Op::remove("views/plan/omit")],

@@ -239,11 +239,19 @@ fn bad_references_sources_conflicts_and_degenerate_regions_are_refused_with_reme
     ] {
         let mut s = fixed();
         s["views"]["detail_b"] = value;
-        let e = model::plan(&a, &spec(s)).unwrap_err();
+        let authored = spec(s);
+        let e = model::plan(&a, &authored).unwrap_err();
         assert!(
             e.message.contains("remove") || e.message.contains("reattach"),
             "{e:?}"
         );
+        for choice in &e.choices {
+            if let Some(path) = choice.strip_prefix("remove ") {
+                let repaired =
+                    model::edit(&authored, &json!([{"op":"remove","path":path}])).unwrap();
+                model::plan(&a, &repaired).expect("the suggested removal leaves a valid Spec");
+            }
+        }
     }
     let mut s = fixed();
     s["views"]["front"]["principal_views"] = json!(["front", "plan"]);
@@ -541,5 +549,64 @@ fn physical_sections_follow_a_rotated_marking_view_and_keep_their_cut_plane() {
             .items
             .iter()
             .any(|i| i.name == "section_arrow_left")
+    );
+}
+
+#[test]
+fn invalid_feature_references_name_the_view_edit_that_can_be_removed() {
+    let (_, a) = plate();
+    let s = spec(json!({"views":{"front":{"orientation":{"from":"f:hole:999"}}}}));
+    let e = model::plan(&a, &s).unwrap_err();
+    assert!(e.message.contains("remove views/front/orientation"));
+    assert!(
+        e.choices
+            .iter()
+            .any(|c| c == "remove views/front/orientation")
+    );
+    let mut duplicate = a.clone();
+    let i = duplicate
+        .face_attachments
+        .iter()
+        .position(|f| f.surface.as_deref() == Some("plane"))
+        .unwrap();
+    let key = draftwright::recognition_corrections::face_fingerprint(&duplicate, i).unwrap();
+    duplicate
+        .face_attachments
+        .push(duplicate.face_attachments[i].clone());
+    let e = model::plan(
+        &duplicate,
+        &spec(json!({"views":{"front":{"orientation":{"from":key}}}})),
+    )
+    .unwrap_err();
+    assert!(
+        e.message.contains("ambiguous") && e.message.contains("remove views/front/orientation")
+    );
+}
+
+#[test]
+fn suggestions_restore_an_explicitly_excluded_principal_in_the_set() {
+    let (_, a) = fixture("recognition/issues/counterbored_block.step");
+    let s = spec(json!({"views":{"front":{"principal_views":["front","side"]}}}));
+    let p = model::plan(&a, &s).unwrap();
+    let problem = p
+        .problems
+        .iter()
+        .find(|p| p.code == "section_not_shown")
+        .unwrap();
+    assert!(problem.message.contains("explicit principal set"));
+    let repaired = model::edit(&s, &serde_json::to_value(&problem.fix).unwrap()).unwrap();
+    assert!(
+        repaired.views["front"]
+            .principal_views
+            .as_ref()
+            .unwrap()
+            .contains(&"plan".into())
+    );
+    assert!(
+        model::plan(&a, &repaired)
+            .unwrap()
+            .views
+            .iter()
+            .any(|v| v.cut.is_some())
     );
 }

@@ -199,7 +199,15 @@ fn chosen_views(
             if pinned {
                 w.views.retain(|c| *c == v);
             }
-            let (why, how, fix) = if spec.views.get(v).is_some_and(|s| s.omit) {
+            let (why, how, fix) = if crate::view_setup::requested(spec, v) == Some(false) {
+                (
+                    "excluded by the explicit principal set",
+                    format!(
+                        "Include {v} in views/front/principal_views or remove the dimension's view."
+                    ),
+                    vec![crate::view_setup::include_principal(spec, v)],
+                )
+            } else if spec.views.get(v).is_some_and(|s| s.omit) {
                 (
                     "omitted",
                     format!(
@@ -975,6 +983,7 @@ fn route(
     spec: &Spec,
 ) -> (Vec<Option<&'static str>>, Vec<Vec<&'static str>>) {
     let [lo, hi] = analysis.envelope;
+    let oriented = crate::view_setup::oriented(spec);
     let mut chosen: Vec<Option<&'static str>> = Vec::new();
     let mut end_on: Vec<Vec<&'static str>> = Vec::new();
     for w in wants.iter_mut() {
@@ -982,7 +991,7 @@ fn route(
         let mut along = Vec::new();
         for v in w.views.clone() {
             let Some(f) = frames.get(v) else { continue };
-            let custom_camera = crate::view_setup::oriented(spec)
+            let custom_camera = oriented
                 || spec
                     .views
                     .get(v)

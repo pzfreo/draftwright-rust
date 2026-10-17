@@ -40,11 +40,16 @@ pub struct Camera {
 }
 
 fn fail(path: &str, message: impl std::fmt::Display) -> Invalid {
+    // Required members cannot be removed alone: remove their authored view form.
+    let remove = path
+        .strip_suffix("/around")
+        .or_else(|| path.strip_suffix("/from"))
+        .unwrap_or(path);
     Invalid {
         message: format!(
-            "{path}: {message}; choose a current feature ID / unique planar face fingerprint, correct the source view, or remove {path}."
+            "{path}: {message}; choose a current feature ID / unique planar face fingerprint, correct the source view, or remove {remove}."
         ),
-        choices: vec![format!("remove {path}")],
+        choices: vec![format!("remove {remove}")],
     }
 }
 pub(crate) fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
@@ -256,9 +261,15 @@ pub(crate) fn cameras(a: &Analysis, s: &Spec) -> Result<[Camera; 3], Invalid> {
     };
     let up = unit(std::array::from_fn(|k| seed[k] - dot(seed, d) * d[k]), path)?;
     let right = cross(up, d);
-    let theta = o.rotation.to_radians();
+    let (sin, cos) = match o.rotation.rem_euclid(360.) {
+        0. => (0., 1.),
+        90. => (1., 0.),
+        180. => (0., -1.),
+        270. => (-1., 0.),
+        _ => o.rotation.to_radians().sin_cos(),
+    };
     // Positive rotation turns the drawing counterclockwise on the page.
-    let up = std::array::from_fn(|k| up[k] * theta.cos() + right[k] * theta.sin());
+    let up = std::array::from_fn(|k| up[k] * cos + right[k] * sin);
     let right = cross(up, d);
     Ok([
         Camera { direction: d, up },
@@ -656,4 +667,37 @@ pub(crate) fn auxiliary_marker(
 
 pub(crate) fn unplaceable(e: &Invalid) -> bool {
     e.message.starts_with("Authored derived view ") && e.message.contains("has no room")
+}
+
+/// Recovery suggestions edit the explicit set rather than an ineffective omit flag.
+pub(crate) fn include_principal(s: &Spec, name: &str) -> crate::items::Op {
+    let names: Vec<_> = ["front", "plan", "side"]
+        .into_iter()
+        .filter(|n| *n == name || requested(s, n) == Some(true))
+        .collect();
+    crate::items::Op::set("views/front/principal_views", serde_json::json!(names))
+}
+pub(crate) fn reference_error(s: &Spec, id: &str, original: Invalid) -> Invalid {
+    for (name, v) in &s.views {
+        let field = if v.orientation.as_ref().is_some_and(|o| o.from == id) {
+            "orientation"
+        } else if v
+            .partial
+            .as_ref()
+            .is_some_and(|p| p.around.members().iter().any(|m| m == id))
+        {
+            "partial"
+        } else {
+            continue;
+        };
+        let path = format!("views/{name}/{field}");
+        return Invalid {
+            message: format!(
+                "{path}: {} Reattach {id:?} to a current feature ID, or remove {path}.",
+                original.message
+            ),
+            choices: vec![format!("remove {path}")],
+        };
+    }
+    original
 }
