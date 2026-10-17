@@ -2055,17 +2055,14 @@ fn a_shoulder_on_the_box_is_reported_not_drawn() {
     }
 }
 
-/// ISSUE-443-a, in part: on GRM-03's automatic sheet every turned shoulder is located along the
-/// axis, and the isometric is kept. The default plan states draftwright's four step lengths
-/// (0.5, 2, 3 and 18), each placed, keeps the isometric and stays on A4, as draftwright's sheet
-/// does, with no turned step left undimensioned. Not ported: draftwright gets there by re-planning
-/// (its captured sheet is A4 at 5:1, after A4 at 2:1 needed a detail view for the short
-/// shoulders); the port's first fit is A4 at 2:1 and draws the 0.5 shoulder there, 1 mm on the
-/// page, as it has no legibility gate (a maintainer question in docs/next-session.md), so
-/// whether its step lengths are legible at that scale is undetermined.
+/// ISSUE-443-a: every GRM-03 shoulder is determined by actual printed ink and the
+/// isometric remains. Python states four local lengths; the raw Rust estimate
+/// uses the inspection-end baseline, with one local length and two shoulder
+/// stations. Prove all eight band quantities independently, including after
+/// recovery enlarges the complete main views instead of adding a partial head.
 #[test]
 fn grm03_locates_every_turned_shoulder_and_keeps_the_isometric() {
-    let Some((_, _, plan)) = planned().iter().find(|p| p.0 == "grm03") else {
+    let Some((_, analysis, plan)) = planned().iter().find(|p| p.0 == "grm03") else {
         return;
     };
     let facts = facts::load("grm03");
@@ -2082,7 +2079,58 @@ fn grm03_locates_every_turned_shoulder_and_keeps_the_isometric() {
         .filter(|d| d.id.ends_with("/step.length") && d.placed.is_some())
         .map(|d| d.label.as_str())
         .collect();
-    assert_eq!(ours, BTreeSet::from(["0.5", "2"]));
+    assert_eq!(ours, BTreeSet::from(["0.5"]));
+    assert_eq!(
+        plan.dimensions
+            .iter()
+            .filter(|d| d.id.ends_with("/step_position.length") && d.placed.is_some())
+            .map(|d| d.label.as_str())
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from(["2.5", "5.5"])
+    );
+    let printed: Vec<_> = marks(plan)
+        .into_iter()
+        .filter(|m| {
+            plan.dimensions
+                .iter()
+                .any(|d| d.id == m.name && d.placed.is_some())
+        })
+        .collect();
+    let outcomes = lint::turned::outcomes(analysis, &printed);
+    assert_eq!(outcomes.len(), 8);
+    assert!(
+        outcomes
+            .iter()
+            .all(|o| o.state == lint::turned::State::Placed),
+        "{outcomes:?}"
+    );
+    for station in printed
+        .iter()
+        .filter(|m| m.name.ends_with("/step_position.length"))
+    {
+        let kept: Vec<_> = printed
+            .iter()
+            .filter(|m| m.name != station.name)
+            .cloned()
+            .collect();
+        assert!(
+            lint::turned::outcomes(analysis, &kept)
+                .iter()
+                .any(|o| o.parameter == "step.length" && o.state != lint::turned::State::Placed),
+            "{} did not control a physical interval",
+            station.name
+        );
+    }
+    let recovered = model::recover(analysis, &Spec::default(), plan.clone()).unwrap();
+    assert_eq!(
+        (
+            recovered.sheet.size.as_str(),
+            recovered.sheet.scale.as_str()
+        ),
+        ("A3", "10:1")
+    );
+    assert!(recovered.views.iter().all(|v| v.detail.is_none()));
+    assert!(recovered.views.iter().any(|v| v.id == "v:iso"));
     assert_eq!(
         plan.dimensions
             .iter()
