@@ -16,10 +16,10 @@
           ],
           "additionalProperties": false,
           "patternProperties": {
-            "^(source_sha256|part|loader)$": {
+            "^(source_sha256|part|loader)$(?!\n)": {
               "type": "string"
             },
-            "^(face_count|part_index)$": {
+            "^(face_count|part_index)$(?!\n)": {
               "minimum": 0,
               "type": "integer"
             }
@@ -61,37 +61,35 @@
       ]
     },
     {
-      "properties": {
-        "error": {
-          "type": "object",
-          "properties": {
-            "code": {
-              "enum": [
-                "invalid",
-                "failed"
-              ]
-            },
-            "message": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "choices": {
+            "items": {
               "type": "string"
             },
-            "choices": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
+            "type": "array"
           },
-          "required": [
-            "code",
-            "message"
-          ],
-          "additionalProperties": false
-        }
+          "code": {
+            "enum": [
+              "invalid",
+              "failed"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
       },
       "required": [
         "error"
       ],
-      "additionalProperties": false
+      "maxProperties": 1
     }
   ]
 }

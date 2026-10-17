@@ -248,6 +248,9 @@ pub struct Spec {
     /// Per feature, by its ID (`f:<kind>:<n>`).
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub features: BTreeMap<String, FeatureSpec>,
+    /// Features authored from stable face fingerprints; sizes are read from Analysis evidence.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub feature_declarations: Vec<crate::recognition_corrections::Declaration>,
     /// Datums and feature control frames on faces, by the side of the part's box the face is
     /// on (`bottom`, `top`, `left`, `right`, `front`, `back`) or its index (`face:<n>`)
     /// ([`crate::spec_gdt`]).
@@ -317,6 +320,21 @@ pub struct DimensionSpec {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct FeatureSpec {
+    /// Stable defining-face fingerprints, filled when a correction is saved.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<crate::recognition_corrections::Anchor>,
+    /// Author's geometric interpretation; uses the ordinary feature planners.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reclassify: Option<crate::recognition_corrections::Kind>,
+    /// Remove a spurious recognition, including its feature requirements.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub suppress: bool,
+    /// Dissolve a recognised hole or slot pattern, retaining its members.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub split: bool,
+    /// Group existing holes under this stable, author-chosen pattern ID.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<crate::recognition_corrections::PatternSpec>,
     /// An ISO 286 fit class on a hole's bore or a cylindrical boss's diameter (`H7`, `g6`),
     /// printed after the diameter of the callout that states it.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -364,6 +382,7 @@ impl Default for Spec {
             envelope_tolerance: None,
             precision: BTreeMap::new(),
             features: BTreeMap::new(),
+            feature_declarations: Vec::new(),
             faces: BTreeMap::new(),
             annotations: BTreeMap::new(),
             notes: Vec::new(),
@@ -454,6 +473,9 @@ pub struct ViewSpec {
 /// What the sheet will say.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Plan {
+    /// Authored recognition changes, including suppression with no resulting annotation.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recognition_corrections: Vec<crate::recognition_corrections::Applied>,
     pub schema: String,
     pub binding: Binding,
     /// Digest of the complete Analysis, including the supplied recognition, that determined
@@ -1472,6 +1494,8 @@ pub(crate) fn undrawn_gdt(p: &Plan) -> usize {
 /// Find the smallest fit and its largest scale; only its immediate larger sheet, with an
 /// enlargement, may compete. Pins keep their canonical sheet; explicit choices override.
 pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
+    let bound = crate::recognition_corrections::canonical(analysis, spec)?;
+    let spec = bound.as_ref();
     // The Spec's datums and controls merged into the PMI reading, once, so every later use of the
     // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).
     let merged = crate::spec_gdt::effective(analysis, spec)?;
@@ -2147,6 +2171,8 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, mut first: Plan) -> Result
 /// caller (the library's [`crate::api`], so the command line, the JSON-lines service and MCP)
 /// is given. A plan that cannot be made is refused as [`plan`] refuses it.
 pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    let bound = crate::recognition_corrections::canonical(analysis, spec)?;
+    let spec = bound.as_ref();
     // The Spec's datums and controls merged into the PMI reading, once, so every later use of the
     // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).
     let merged = crate::spec_gdt::effective(analysis, spec)?;
@@ -2229,6 +2255,8 @@ fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan,
 /// the dimensions, which on most parts keeps a larger scale, but where the dimensions run on
 /// past it an item can find no place (nist_stc_09 e4 at 1:1: 13 frames across the plan).
 pub fn plan_escalated(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    let bound = crate::recognition_corrections::canonical(analysis, spec)?;
+    let spec = bound.as_ref();
     // The Spec's datums and controls merged into the PMI reading, once, so every later use of the
     // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).
     let merged = crate::spec_gdt::effective(analysis, spec)?;
@@ -2434,7 +2462,7 @@ fn plan_with_presentation(
             &ANALYSIS_SCHEMAS,
         ));
     }
-    let spec = &migrate(spec, analysis)?;
+    let spec = &crate::recognition_corrections::bind(analysis, migrate(spec, analysis)?)?;
     crate::dims::authored::check(spec)?;
     if spec
         .iso_scale_factor
@@ -3921,6 +3949,7 @@ fn plan_with_presentation(
         }
     }
     let mut plan = Plan {
+        recognition_corrections: Vec::new(),
         schema: PLAN_SCHEMA.into(),
         binding: analysis.binding.clone(),
         analysis_sha256: Some(crate::planning::memo(
@@ -3971,6 +4000,7 @@ fn plan_with_presentation(
         problems,
         spec,
     };
+    crate::recognition_corrections::report(analysis, &mut plan);
     if complete_views {
         crate::sheet_fit::reserve_linear_corridors(
             analysis,
@@ -4210,6 +4240,7 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
     crate::notes::check(&spec.notes)?;
     crate::tables::check(&spec.tables)?;
     crate::gears::check(&spec.gears)?;
+    crate::recognition_corrections::check(&spec)?;
     Ok(spec)
 }
 

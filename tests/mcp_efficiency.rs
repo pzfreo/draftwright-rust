@@ -409,3 +409,61 @@ fn compact_nullable_schema_types_keep_validation_strict() {
         assert!(mcp::validate(&schema, &refused).is_err());
     }
 }
+
+#[test]
+fn compact_prefix_choices_and_authored_dimension_outputs_stay_strict() {
+    let input = mcp::schema("inspect_part", false).unwrap();
+    for name in [
+        "fit_limits",
+        "fit_deviations",
+        "centre_marks",
+        "centre_lines",
+    ] {
+        for value in [json!(true), json!(false), Value::Null] {
+            mcp::validate(
+                &input,
+                &json!({"part_ref":"part","spec":{"sheet":{name:value}}}),
+            )
+            .unwrap();
+        }
+        for bad_name in [format!("{name}\n"), format!("{name}_extra")] {
+            assert!(
+                mcp::validate(
+                    &input,
+                    &json!({"part_ref":"part","spec":{"sheet":{bad_name:true}}})
+                )
+                .is_err()
+            );
+        }
+        assert!(
+            mcp::validate(
+                &input,
+                &json!({"part_ref":"part","spec":{"sheet":{name:"yes"}}})
+            )
+            .is_err()
+        );
+    }
+    let output = mcp::schema("get_spec", true).unwrap();
+    let result = |dimension| {
+        json!({"spec_version":"v","spec":{
+            "dimensions":{"d:authored:test":dimension},
+            "feature_declarations":[{"id":"f:declared:test","kind":"hole","faces":[]}]
+        }})
+    };
+    mcp::validate(
+        &output,
+        &result(json!({"kind":"linear","between":["a","b"],"along":"true"})),
+    )
+    .unwrap();
+    for dimension in [
+        json!([]),
+        Value::Null,
+        json!({"kind":"bad"}),
+        json!({"between":[]}),
+        json!({"between":["a","b","c"]}),
+        json!({"between":[1]}),
+        json!({"along":"bad"}),
+    ] {
+        assert!(mcp::validate(&output, &result(dimension)).is_err());
+    }
+}

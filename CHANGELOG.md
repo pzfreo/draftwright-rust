@@ -8,6 +8,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Added
 
+- Recognition corrections in the Spec (#76 item 2): reclassify supported cylindrical and
+  rectangular features, group holes as a linear/grid/bolt-circle pattern, split recognised
+  patterns, suppress spurious recognitions, and declare missed features from face fingerprints.
+  Geometry supplies every size; saved face anchors and authored IDs survive re-analysis.
+  Corrections share ordinary dimensions, schedules and independent lint, with `from_spec`
+  provenance, transactional editor operations and MCP schemas inside the existing byte budget.
 - Geometry-authored dimensions (`dimensions/d:authored:<name>`): principal or true distances,
   cylindrical/spherical diameters and radii, and planar-face/straight-edge angles, with stable
   fingerprint references, ordinary tolerance/placement, editor/session operations and independent
@@ -23,6 +29,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
   before escalating the sheet.
 
 ### WASM API
+
+- Additive recognition-correction Spec fields and Plan provenance use the shared native
+  session model; binding methods and TypeScript signatures are unchanged.
 
 - Establish the reviewed TypeScript API snapshot and changelog gate, a measured WASM size
   ceiling, and warning-only cross-package quiddity pin checks in CI and release notes.

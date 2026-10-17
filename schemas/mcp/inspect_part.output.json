@@ -11,18 +11,15 @@
         },
         "completeness": {
           "type": "object",
+          "additionalProperties": {
+            "$ref": "#/C"
+          },
           "required": [
             "claimed_faces",
             "faces",
             "unplanned_features"
           ],
-          "additionalProperties": false,
-          "patternProperties": {
-            "^(claimed_faces|faces|unplanned_features)$": {
-              "minimum": 0,
-              "type": "integer"
-            }
-          }
+          "maxProperties": 3
         },
         "envelope": {
           "type": "array",
@@ -40,22 +37,19 @@
         "sheet": {
           "type": "object",
           "properties": {
-            "size": {
-              "type": "string"
-            },
-            "scale": {
-              "type": "string"
-            },
             "page": {
-              "$ref": "#/$defs/A"
+              "$ref": "#/B"
             }
+          },
+          "additionalProperties": {
+            "$ref": "#/D"
           },
           "required": [
             "size",
             "scale",
             "page"
           ],
-          "additionalProperties": false
+          "maxProperties": 3
         },
         "sheets": {
           "enum": [
@@ -89,26 +83,21 @@
                 ]
               },
               "size": {
-                "type": "string"
+                "$ref": "#/D"
               },
               "scale": {
-                "type": "string"
+                "$ref": "#/D"
               },
               "page": {
-                "$ref": "#/$defs/A"
+                "$ref": "#/B"
               }
             },
-            "required": [
-              "number",
-              "size",
-              "scale",
-              "page"
-            ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "minProperties": 4
           }
         },
         "views": {
-          "$ref": "#/$defs/B"
+          "$ref": "#/A"
         },
         "key_items": {
           "type": "array",
@@ -116,7 +105,7 @@
             "type": "object",
             "properties": {
               "id": {
-                "type": "string"
+                "$ref": "#/D"
               },
               "label": {
                 "type": [
@@ -125,11 +114,8 @@
                 ]
               }
             },
-            "required": [
-              "id",
-              "label"
-            ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "minProperties": 2
           }
         },
         "problem_page": {
@@ -140,10 +126,9 @@
               "items": {
                 "anyOf": [
                   {
-                    "type": "object",
                     "properties": {
                       "subjects": {
-                        "$ref": "#/$defs/B"
+                        "$ref": "#/A"
                       },
                       "fix": {
                         "type": "array",
@@ -158,16 +143,12 @@
                                   ]
                                 },
                                 "path": {
-                                  "type": "string"
+                                  "$ref": "#/D"
                                 },
                                 "value": {}
                               },
-                              "required": [
-                                "op",
-                                "path",
-                                "value"
-                              ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "minProperties": 3
                             },
                             {
                               "properties": {
@@ -175,14 +156,11 @@
                                   "const": "remove"
                                 },
                                 "path": {
-                                  "type": "string"
+                                  "$ref": "#/D"
                                 }
                               },
-                              "required": [
-                                "op",
-                                "path"
-                              ],
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "minProperties": 2
                             }
                           ],
                           "type": "object"
@@ -197,13 +175,12 @@
                     ],
                     "additionalProperties": false,
                     "patternProperties": {
-                      "^(id|code|severity)$": {
-                        "type": "string"
+                      "^(id|code|severity)$(?!\n)": {
+                        "$ref": "#/D"
                       }
                     }
                   },
                   {
-                    "type": "object",
                     "properties": {
                       "id": {
                         "type": [
@@ -212,21 +189,18 @@
                         ]
                       },
                       "detail_ref": {
-                        "type": "string"
+                        "$ref": "#/D"
                       }
                     },
-                    "required": [
-                      "id",
-                      "detail_ref"
-                    ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "minProperties": 2
                   }
-                ]
+                ],
+                "type": "object"
               }
             },
             "total": {
-              "type": "integer",
-              "minimum": 0
+              "$ref": "#/C"
             },
             "next_cursor": {
               "type": [
@@ -236,12 +210,8 @@
               "minimum": 0
             }
           },
-          "required": [
-            "items",
-            "total",
-            "next_cursor"
-          ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "minProperties": 3
         }
       },
       "required": [
@@ -259,60 +229,62 @@
       ],
       "additionalProperties": false,
       "patternProperties": {
-        "^(part_ref|part|spec_version|plan_ref)$": {
-          "type": "string"
+        "^(part_ref|part|spec_version|plan_ref)$(?!\n)": {
+          "$ref": "#/D"
         },
-        "^(face_count|items|problems)$": {
-          "minimum": 0,
-          "type": "integer"
+        "^(face_count|items|problems)$(?!\n)": {
+          "$ref": "#/C"
         }
       }
     },
     {
-      "properties": {
-        "error": {
-          "type": "object",
-          "properties": {
-            "code": {
-              "enum": [
-                "invalid",
-                "failed"
-              ]
-            },
-            "message": {
-              "type": "string"
-            },
-            "choices": {
-              "$ref": "#/$defs/B"
-            }
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "choices": {
+            "$ref": "#/A"
           },
-          "required": [
-            "code",
-            "message"
-          ],
-          "additionalProperties": false
-        }
+          "code": {
+            "enum": [
+              "invalid",
+              "failed"
+            ]
+          },
+          "message": {
+            "$ref": "#/D"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
       },
       "required": [
         "error"
       ],
-      "additionalProperties": false
+      "maxProperties": 1
     }
   ],
-  "$defs": {
-    "A": {
-      "items": {
-        "type": "number"
-      },
-      "maxItems": 2,
-      "minItems": 2,
-      "type": "array"
+  "A": {
+    "items": {
+      "$ref": "#/D"
     },
-    "B": {
-      "items": {
-        "type": "string"
-      },
-      "type": "array"
-    }
+    "type": "array"
+  },
+  "B": {
+    "items": {
+      "type": "number"
+    },
+    "maxItems": 2,
+    "minItems": 2,
+    "type": "array"
+  },
+  "C": {
+    "minimum": 0,
+    "type": "integer"
+  },
+  "D": {
+    "type": "string"
   }
 }
