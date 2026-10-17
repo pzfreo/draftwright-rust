@@ -137,23 +137,13 @@ fn route_refusal_for(
         {
             let ink = current_ink
                 .entry(sheet)
-                .or_insert_with(|| route_ink(analysis, after, sheet));
+                .or_insert_with(|| indexed_route_ink(analysis, after, sheet, &a));
             let old_ink = reference_ink
                 .entry(old_sheet)
-                .or_insert_with(|| route_ink(analysis, before, old_sheet));
-            let ink: Vec<_> = ink
-                .iter()
-                .copied()
-                .chain(a.iter().map(|(_, s)| *s))
-                .collect();
-            let old_ink: Vec<_> = old_ink
-                .iter()
-                .copied()
-                .chain(b.iter().map(|(_, s)| *s))
-                .collect();
+                .or_insert_with(|| indexed_route_ink(analysis, before, old_sheet, &b));
             if p.lines.iter().enumerate().any(|(i, s)| {
-                let run = route_run(*s, &ink);
-                run > 2.0 + 1e-6 && (!same || run > route_run(q.lines[i], &old_ink) + 1e-6)
+                let run = ink.run(*s);
+                run > 2.0 + 1e-6 && (!same || run > old_ink.run(q.lines[i]) + 1e-6)
             }) {
                 return Some(
                     "moved leader runs for more than 2 mm within 0.3 mm of model/extension ink",
@@ -333,6 +323,97 @@ fn route_touches(s: [[f64; 2]; 2], b: Rect) -> bool {
     }
     lo <= hi
 }
+// Index only accelerates the existing finite-strip calculation. Long lines and
+// wide query boxes use the exhaustive path, bounding memory without omitting ink.
+struct RouteInk {
+    segments: Vec<[[f64; 2]; 2]>,
+    cells: std::collections::BTreeMap<[i32; 2], Vec<usize>>,
+    long: Vec<usize>,
+}
+impl RouteInk {
+    const CELL: f64 = 10.0;
+    const MAX_CELLS: i64 = 256;
+
+    fn cells(b: [f64; 4]) -> ([i32; 2], [i32; 2], i64) {
+        let lo = [0, 1].map(|k| (b[k] / Self::CELL).floor() as i32);
+        let hi = [0, 1].map(|k| (b[k + 2] / Self::CELL).floor() as i32);
+        let count = (i64::from(hi[0]) - i64::from(lo[0]) + 1)
+            .saturating_mul(i64::from(hi[1]) - i64::from(lo[1]) + 1);
+        (lo, hi, count)
+    }
+
+    fn new(segments: Vec<[[f64; 2]; 2]>) -> Self {
+        let mut ink = Self {
+            segments,
+            cells: Default::default(),
+            long: Vec::new(),
+        };
+        for (i, s) in ink.segments.iter().enumerate() {
+            let (lo, hi, count) = Self::cells(route_bounds(*s));
+            if count > Self::MAX_CELLS {
+                ink.long.push(i);
+                continue;
+            }
+            for x in lo[0]..=hi[0] {
+                for y in lo[1]..=hi[1] {
+                    ink.cells.entry([x, y]).or_default().push(i);
+                }
+            }
+        }
+        ink
+    }
+
+    fn run(&self, route: [[f64; 2]; 2]) -> f64 {
+        let (lo, hi, count) = Self::cells(grow_route_box(route_bounds(route), 0.3));
+        if count > Self::MAX_CELLS {
+            return route_run(route, &self.segments);
+        }
+        let mut indices: std::collections::BTreeSet<_> = self.long.iter().copied().collect();
+        for x in lo[0]..=hi[0] {
+            for y in lo[1]..=hi[1] {
+                if let Some(cell) = self.cells.get(&[x, y]) {
+                    indices.extend(cell);
+                }
+            }
+        }
+        let nearby: Vec<_> = indices.into_iter().map(|i| self.segments[i]).collect();
+        route_run(route, &nearby)
+    }
+}
+
+fn indexed_route_ink(
+    analysis: &Analysis,
+    plan: &Plan,
+    sheet: u32,
+    extensions: &[(String, [[f64; 2]; 2])],
+) -> std::sync::Arc<RouteInk> {
+    // The Analysis owns all model evidence. Only these view transforms/crops and
+    // actual extension strokes can change this sheet's projected route obstacle.
+    let views: Vec<_> = plan
+        .views
+        .iter()
+        .filter(|v| v.sheet == sheet)
+        .map(|v| {
+            (
+                &v.id,
+                v.sheet,
+                v.direction,
+                v.up,
+                v.at,
+                v.scale,
+                &v.cut,
+                &v.detail,
+            )
+        })
+        .collect();
+    let key = serde_json::to_vec(&(sheet, views, extensions)).expect("route ink inputs serialize");
+    crate::planning::memo(analysis, "indexed-sheet-route-ink", key, || {
+        let mut segments = route_ink(analysis, plan, sheet);
+        segments.extend(extensions.iter().map(|(_, s)| *s));
+        std::sync::Arc::new(RouteInk::new(segments))
+    })
+}
+
 fn route_ink(analysis: &Analysis, plan: &Plan, sheet: u32) -> Vec<[[f64; 2]; 2]> {
     let Some(ink) = &analysis.edge_ink else {
         return Vec::new();
@@ -2400,6 +2481,30 @@ pub(crate) fn reserve_linear_corridors(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn indexed_route_strips_equal_exhaustive_runs() {
+        let mut segments = Vec::new();
+        for i in -40..=40 {
+            let x = f64::from(i) * 0.5;
+            segments.push([[x, -20.0], [x, 20.0]]);
+            segments.push([[-20.0, x], [20.0, x]]);
+            segments.push([[x, -20.0], [x + 20.0, 20.0]]);
+        }
+        // Wide geometry and wide queries must retain the exhaustive fallback.
+        segments.push([[-10000.0, -10000.0], [10000.0, 10000.0]]);
+        let ink = RouteInk::new(segments);
+        for route in [
+            [[-10.3, -12.0], [-10.3, 15.0]],
+            [[-10.30001, -12.0], [-10.30001, 15.0]],
+            [[-20.0, -20.0], [20.0, 20.0]],
+            [[-1000.0, -1000.0], [1000.0, 1000.0]],
+            [[-20.0, -0.3], [20.0, -0.3]],
+            [[10.0, 10.0], [10.0, 10.0]],
+        ] {
+            assert!((ink.run(route) - route_run(route, &ink.segments)).abs() < 1e-9);
+        }
+    }
 
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
