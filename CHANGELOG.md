@@ -41,6 +41,10 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- Avoid repeated projection and collision work during complete sheet searches with native
+  recesses. Native release builds use ThinLTO and one codegen unit to keep the original
+  plan-cost budget; the separate WASM profile retains its settings.
+
 - Keep geometry-authored angle arcs local to their support intersection and place aligned
   dimensions at a clear parallel offset, moving unpinned linear dimensions out of their way
   before escalating the sheet.

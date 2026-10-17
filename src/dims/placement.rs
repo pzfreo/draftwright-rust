@@ -32,6 +32,20 @@ pub(super) struct Frame {
 }
 
 impl Frame {
+    pub(super) fn memo_geometry(&self) -> Vec<u64> {
+        self.view
+            .x
+            .iter()
+            .chain(&self.view.y)
+            .chain(&self.view.toward)
+            .chain(&self.at)
+            .chain(std::iter::once(&self.s))
+            .chain(&self.centre)
+            .chain(&self.outline)
+            .map(|n| n.to_bits())
+            .collect()
+    }
+
     pub(super) fn new(analysis: &Analysis, v: &PlannedView) -> Frame {
         Frame::looking(analysis, v.direction, v.up, v.at, v.scale)
     }
@@ -309,7 +323,7 @@ pub(super) fn arrow(tip: P2, from: P2) -> [P2; 2] {
 }
 
 /// A strip beside a view's outline, where its annotations stack outward in lanes.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize)]
 pub(super) enum Side {
     Below,
     Above,
@@ -1275,6 +1289,174 @@ pub(super) fn interior_lanes(frame: &Frame, w: &Want, side: Side) -> Vec<Placed>
         .collect()
 }
 
+fn linear_pair_contact(a: &Placed, b: &Placed, allow_transverse: bool) -> bool {
+    boxes_overlap(a.label_box, b.label_box)
+        || a.lines.iter().any(|l| crosses(*l, b.label_box))
+        || b.lines.iter().any(|l| crosses(*l, a.label_box))
+        || a.arrows
+            .iter()
+            .flat_map(|h| super::leaders::head(*h))
+            .any(|l| crosses(l, b.label_box))
+        || b.arrows
+            .iter()
+            .flat_map(|h| super::leaders::head(*h))
+            .any(|l| crosses(l, a.label_box))
+        || (a.arrows.len() == 2
+            && a.lines.len() >= 3
+            && b.arrows.len() == 1
+            && !(allow_transverse)
+            && super::leaders::meets_extensions(&a.lines[..2], &b.lines, b.label_box))
+        || (a.arrows.len() == 2
+            && a.lines.len() >= 3
+            && b.arrows.len() == 1
+            && a.lines[..2].iter().any(|e| {
+                b.arrows
+                    .iter()
+                    .flat_map(|h| super::leaders::head(*h))
+                    .any(|h| touches_witness(h, *e, 0.2))
+            }))
+        || (a.arrows.len() == 2
+            && b.arrows.len() == 1
+            && allow_transverse
+            && a.lines
+                .iter()
+                .take(2)
+                .any(|e| super::leaders::runs_beside(*e, &b.lines)))
+        || (a.arrows.len() == 2 && b.arrows.len() == 2 && shared_dimension_line(&a.lines, &b.lines))
+}
+
+fn linear_witness_contact(a: &Placed, b: &Placed, allow_transverse: bool) -> bool {
+    a.lines.iter().take(2).any(|l| crosses(*l, b.label_box))
+        || a.arrows
+            .iter()
+            .flat_map(|h| super::leaders::head(*h))
+            .any(|l| crosses(l, b.label_box))
+        || (a.arrows.len() == 2
+            && a.lines.len() >= 3
+            && b.arrows.len() == 1
+            && (!(allow_transverse)
+                && super::leaders::meets_extensions(&a.lines[..2], &b.lines, b.label_box)
+                || a.lines[..2].iter().any(|e| {
+                    b.arrows
+                        .iter()
+                        .flat_map(|h| super::leaders::head(*h))
+                        .any(|h| touches_witness(h, *e, 0.2))
+                })
+                || allow_transverse
+                    && a.lines[..2]
+                        .iter()
+                        .any(|e| super::leaders::runs_beside(*e, &b.lines))))
+        || (a.arrows.len() == 2 && b.arrows.len() == 2 && shared_dimension_line(&a.lines, &b.lines))
+}
+
+// Broad phase for fixed witness contacts. Bounds include rendered peer heads
+// and labels; query padding exceeds the largest head, corridor and shared-line
+// tolerance. Every surviving pair still uses the complete original predicate.
+struct WitnessPeers<'a>(Vec<(&'a Placed, [f64; 4])>);
+impl<'a> WitnessPeers<'a> {
+    fn new(peers: impl Iterator<Item = &'a Placed>) -> Self {
+        Self(
+            peers
+                .map(|p| {
+                    let b = ink_points(p).fold(
+                        [
+                            f64::INFINITY,
+                            f64::INFINITY,
+                            f64::NEG_INFINITY,
+                            f64::NEG_INFINITY,
+                        ],
+                        |b, q| {
+                            [
+                                b[0].min(q[0]),
+                                b[1].min(q[1]),
+                                b[2].max(q[0]),
+                                b[3].max(q[1]),
+                            ]
+                        },
+                    );
+                    (p, b)
+                })
+                .collect(),
+        )
+    }
+    fn contact(&self, p: &Placed, exact: impl Fn(&Placed, &Placed) -> bool) -> bool {
+        let b = p.lines.iter().chain(&p.arrows).flatten().fold(
+            [
+                f64::INFINITY,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+                f64::NEG_INFINITY,
+            ],
+            |b, q| {
+                [
+                    b[0].min(q[0]),
+                    b[1].min(q[1]),
+                    b[2].max(q[0]),
+                    b[3].max(q[1]),
+                ]
+            },
+        );
+        let pad = 2.0 + ARROW_HALF;
+        let b = [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad];
+        self.0
+            .iter()
+            .any(|(q, bounds)| boxes_overlap(b, *bounds) && exact(p, q))
+    }
+}
+
+// Text alternatives retain their witness strokes and heads. Once those
+// constant contacts have been measured, query only the changing label/run-on.
+struct PeerInk {
+    labels: Vec<[f64; 4]>,
+    lines: super::leaders::SegmentIndex,
+}
+impl PeerInk {
+    fn new<'a>(peers: impl Iterator<Item = &'a Placed>) -> Self {
+        let peers: Vec<_> = peers.collect();
+        let labels = peers.iter().map(|q| q.label_box).collect();
+        let lines = super::leaders::SegmentIndex::new(
+            peers
+                .iter()
+                .flat_map(|q| {
+                    q.lines
+                        .iter()
+                        .copied()
+                        .chain(q.arrows.iter().flat_map(|a| super::leaders::head(*a)))
+                })
+                .collect(),
+        );
+        Self { labels, lines }
+    }
+    fn mutable_contact(&self, p: &Placed) -> bool {
+        self.labels
+            .iter()
+            .any(|label| boxes_overlap(p.label_box, *label) || crosses(p.lines[2], *label))
+            || self.lines.crosses_box(p.label_box)
+    }
+}
+
+// Lane and witness alternatives change geometry, not printed text. Retain only
+// the immutable standard-font bounds rather than outlining the same label for
+// every candidate. The bounded cache is private to each planning thread.
+fn linear_label_bounds(terms: &[String]) -> (P2, P2) {
+    thread_local! {
+        static BOUNDS: std::cell::RefCell<BTreeMap<Vec<String>, (P2, P2)>> = const { std::cell::RefCell::new(BTreeMap::new()) };
+    }
+    BOUNDS.with(|bounds| {
+        if let Some(&value) = bounds.borrow().get(terms) {
+            return value;
+        }
+        let ink = label_ink(terms, font());
+        let value = (ink.min, ink.max);
+        let mut bounds = bounds.borrow_mut();
+        if bounds.len() >= 256 {
+            bounds.clear();
+        }
+        bounds.insert(terms.to_vec(), value);
+        value
+    })
+}
+
 fn place_linear_at(
     frame: &Frame,
     shape: &Shape,
@@ -1293,7 +1475,13 @@ fn place_linear_at(
         return None;
     };
     let horizontal = matches!(side, Side::Below | Side::Above);
-    let ink = label_ink(terms, font());
+    let (min, max) = linear_label_bounds(terms);
+    let ink = LabelInk {
+        min,
+        max,
+        glyphs: Vec::new(),
+        strokes: Vec::new(),
+    };
     let w = ink.max[0] - ink.min[0];
     let o = frame.outline;
     let (pa, pb) = (frame.page(*a), frame.page(*b));
@@ -1546,6 +1734,81 @@ fn touches_witness(s: [P2; 2], witness: [P2; 2], pad: f64) -> bool {
 /// keeps canonical and authored placements; every candidate clears the full inventory.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn clear_linear(
+    analysis: &Analysis,
+    cache: &super::footprints::Cache,
+    views: &[PlannedView],
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    chosen: &[Option<&str>],
+    sides: &mut [Option<Side>],
+    lanes: &mut [usize],
+    placed: &mut [Option<Placed>],
+    obstacles: &[PlannedDimension],
+    locked: &[bool],
+    page: &Page,
+    yield_locations: bool,
+) {
+    // The same settled solve recurs in candidate and furniture retries. Every
+    // mutable input and resolved frame belongs to this Analysis-scoped key.
+    let geometry: Vec<_> = views
+        .iter()
+        .map(|v| (&v.id, v.direction, v.up, v.at, v.scale, v.cut.is_some()))
+        .collect();
+    let quantities: Vec<_> = items
+        .iter()
+        .map(|w| (&w.id, w.value, &w.shape, &w.measurements, &w.terms))
+        .collect();
+    let frame_geometry: Vec<_> = frames
+        .iter()
+        .map(|(name, f)| (name, f.memo_geometry()))
+        .collect();
+    let furniture: Vec<_> = obstacles
+        .iter()
+        .map(|d| (&d.id, &d.kind, &d.placed))
+        .collect();
+    let key = serde_json::to_vec(&(
+        quantities,
+        chosen,
+        &*sides,
+        &*lanes,
+        &*placed,
+        furniture,
+        locked,
+        page,
+        geometry,
+        frame_geometry,
+        yield_locations,
+    ))
+    .expect("linear solve inputs serialize");
+    let (next_sides, next_lanes, next_placed) =
+        crate::planning::memo(analysis, "settled-linear-solve", key, || {
+            let mut next_sides = sides.to_vec();
+            let mut next_lanes = lanes.to_vec();
+            let mut next_placed = placed.to_vec();
+            clear_linear_uncached(
+                analysis,
+                cache,
+                views,
+                frames,
+                items,
+                chosen,
+                &mut next_sides,
+                &mut next_lanes,
+                &mut next_placed,
+                obstacles,
+                locked,
+                page,
+                yield_locations,
+            );
+            (next_sides, next_lanes, next_placed)
+        });
+    sides.copy_from_slice(&next_sides);
+    lanes.copy_from_slice(&next_lanes);
+    placed.clone_from_slice(&next_placed);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn clear_linear_uncached(
     analysis: &Analysis,
     cache: &super::footprints::Cache,
     views: &[PlannedView],
@@ -1829,47 +2092,11 @@ fn clear_linear_ordered(
             continue;
         };
         let conflict = |a: &Placed, b: &Placed| {
-            boxes_overlap(a.label_box, b.label_box)
-                || a.lines.iter().any(|l| crosses(*l, b.label_box))
-                || b.lines.iter().any(|l| crosses(*l, a.label_box))
-                || a.arrows
-                    .iter()
-                    .flat_map(|h| super::leaders::head(*h))
-                    .any(|l| crosses(l, b.label_box))
-                || b.arrows
-                    .iter()
-                    .flat_map(|h| super::leaders::head(*h))
-                    .any(|l| crosses(l, a.label_box))
-                || (a.arrows.len() == 2
-                    && a.lines.len() >= 3
-                    && b.arrows.len() == 1
-                    && !(recess(i) && (semantic_frame(b) || locked.iter().any(|p| *p)))
-                    && super::leaders::extension_contacts(
-                        &a.lines[..2].iter().map(|e| (0, *e)).collect::<Vec<_>>(),
-                        &b.lines,
-                        b.label_box,
-                    )
-                    .0 > 0)
-                || (a.arrows.len() == 2
-                    && a.lines.len() >= 3
-                    && b.arrows.len() == 1
-                    && a.lines[..2].iter().any(|e| {
-                        b.arrows
-                            .iter()
-                            .flat_map(|h| super::leaders::head(*h))
-                            .any(|h| touches_witness(h, *e, 0.2))
-                    }))
-                || (a.arrows.len() == 2
-                    && b.arrows.len() == 1
-                    && recess(i)
-                    && (semantic_frame(b) || locked.iter().any(|p| *p))
-                    && a.lines
-                        .iter()
-                        .take(2)
-                        .any(|e| super::leaders::runs_beside(*e, &b.lines)))
-                || (a.arrows.len() == 2
-                    && b.arrows.len() == 2
-                    && shared_dimension_line(&a.lines, &b.lines))
+            linear_pair_contact(
+                a,
+                b,
+                recess(i) && (semantic_frame(b) || locked.iter().any(|p| *p)),
+            )
         };
         let others: Vec<_> = placed
             .iter()
@@ -1889,38 +2116,53 @@ fn clear_linear_ordered(
         // The Analysis projects a conservative superset of visible edges, including
         // cylinder silhouettes. Own-view ink is not a Page::fits obstacle: witnesses
         // normally start there, but must not traverse the body to reach another strip.
-        let model = models.entry(view).or_insert_with(|| {
-            analysis.edge_ink.as_ref().map(|ink| {
-                let (edges, bounds) = super::leaders::view_ink(analysis, ink, v);
-                (super::leaders::SegmentIndex::new(edges), bounds)
-            })
-        });
-        let measured = std::cell::RefCell::new(BTreeMap::new());
-        let crossings = |c: &Placed| {
+        let model = models
+            .entry(view)
+            .or_insert_with(|| cache.model(analysis, v));
+        let measured_features = std::cell::RefCell::new(BTreeMap::new());
+        let measured_geometry = std::cell::RefCell::new(BTreeMap::new());
+        let feature_crossings = |c: &Placed| {
             c.lines
                 .iter()
                 .take(2)
                 .map(|line| {
                     let key = line.map(|p| p.map(f64::to_bits));
-                    if let Some(hits) = measured.borrow().get(&key) {
+                    if let Some(hits) = measured_features.borrow().get(&key) {
                         return *hits;
                     }
-                    let features = footprint
+                    let hits = footprint
                         .crossed_extension(*line, &items[i].measurements)
                         .len();
-                    let geometry = model.as_ref().map_or(0, |(edges, boxes)| {
+                    measured_features.borrow_mut().insert(key, hits);
+                    hits
+                })
+                .sum::<usize>()
+        };
+        let crossings = |c: &Placed| {
+            let features = feature_crossings(c);
+            let geometry = c
+                .lines
+                .iter()
+                .take(2)
+                .map(|line| {
+                    let key = line.map(|p| p.map(f64::to_bits));
+                    if let Some(hits) = measured_geometry.borrow().get(&key) {
+                        return *hits;
+                    }
+                    let hits = model.as_ref().map_or(0, |projection| {
+                        let (edges, boxes) = projection.as_ref();
                         edges.crossings(*line)
                             + boxes.iter().filter(|b| crosses(*line, **b)).count()
                     });
-                    let hits = if recess_context {
-                        (features, geometry)
-                    } else {
-                        (0, features + geometry)
-                    };
-                    measured.borrow_mut().insert(key, hits);
+                    measured_geometry.borrow_mut().insert(key, hits);
                     hits
                 })
-                .fold((0usize, 0usize), |a, b| (a.0 + b.0, a.1 + b.1))
+                .sum::<usize>();
+            if recess_context {
+                (features, geometry)
+            } else {
+                (0, features + geometry)
+            }
         };
         let before = crossings(p);
 
@@ -1949,6 +2191,66 @@ fn clear_linear_ordered(
         } else {
             (0..8).map(|lane| (opposite(side), lane)).collect()
         };
+        let repair_witnesses: Vec<_> = placed
+            .iter()
+            .map(|q| q.as_ref().is_some_and(|q| page.witnesses_fit(q, view)))
+            .collect();
+        let immovable: Vec<_> = obstacles
+            .iter()
+            .filter_map(|d| d.placed.as_ref())
+            .chain(
+                placed
+                    .iter()
+                    .enumerate()
+                    .filter(|(j, _)| {
+                        *j != i
+                            && (sides[*j].is_none()
+                                || locked.get(*j).copied().unwrap_or(false)
+                                || chosen[*j] != Some(view)
+                                || !repair_witnesses[*j]
+                                || placed[*j].as_ref().is_some_and(|q| q.arrows.len() != 2))
+                    })
+                    .filter_map(|(_, p)| p.as_ref()),
+            )
+            .collect();
+        // Sliding this label cannot repair its witness or head crossing fixed
+        // text, nor a fixed leader's forbidden contact with those witnesses.
+        let fixed_witness_conflict = |a: &Placed, b: &Placed| {
+            linear_witness_contact(
+                a,
+                b,
+                recess(i) && (semantic_frame(b) || locked.iter().any(|p| *p)),
+            )
+        };
+        let fixed_witnesses = WitnessPeers::new(immovable.iter().copied());
+        let all_witnesses = WitnessPeers::new(others.iter().copied());
+        let all_peer_ink = PeerInk::new(others.iter().copied());
+        let fixed_peer_ink = PeerInk::new(immovable.iter().copied());
+        let peer_witnesses = super::leaders::SegmentIndex::new(
+            placed
+                .iter()
+                .enumerate()
+                .filter(|(j, _)| *j != i)
+                .filter_map(|(_, q)| q.as_ref())
+                .flat_map(|q| q.lines.iter().take(2).copied())
+                .collect(),
+        );
+        let repair_peers: Vec<Vec<_>> = (0..placed.len())
+            .map(|j| {
+                placed
+                    .iter()
+                    .enumerate()
+                    .filter(|(t, _)| *t != i && *t != j)
+                    .filter_map(|(_, q)| q.as_ref())
+                    .chain(obstacles.iter().filter_map(|d| d.placed.as_ref()))
+                    .collect()
+            })
+            .collect();
+        let repair_static: Vec<_> = (0..placed.len())
+            .map(|_| std::cell::OnceCell::new())
+            .collect();
+        let repair_clearance = std::cell::RefCell::new(std::collections::HashMap::new());
+        let best_rank = std::cell::Cell::new(None);
         let candidates = choices
             .into_iter()
             .flat_map(|(target, lane)| {
@@ -2091,6 +2393,22 @@ fn clear_linear_ordered(
                     for base in bases {
                         let k = usize::from(base.rotation != 0.0);
                         let normal = 1 - k;
+                        // Skew moves only along the measured axis. A head already
+                        // outside the paper in the normal axis cannot be repaired
+                        // by any of these alternatives.
+                        let paper = page.drawable();
+                        if base
+                            .arrows
+                            .iter()
+                            .flat_map(|a| super::leaders::head(*a))
+                            .flatten()
+                            .any(|q| {
+                                q[normal] < paper[normal] - 1e-6
+                                    || q[normal] > paper[normal + 2] + 1e-6
+                            })
+                        {
+                            continue;
+                        }
                         let mut aligned = base;
                         if let Shape::Linear { a_edge, b_edge, .. } = items[i].shape {
                             if a_edge && !b_edge {
@@ -2149,8 +2467,24 @@ fn clear_linear_ordered(
                 // Visit strokes in exactly the original order, but do not prepare
                 // every later stroke's labels before the first one can win.
                 // Label slides cannot repair an invalid physical witness.
-                if !page.witnesses_fit(&stroke, view) {
+                if !page.witnesses_fit(&stroke, view)
+                    || fixed_witnesses.contact(&stroke, fixed_witness_conflict)
+                {
                     return Vec::new();
+                }
+                // Feature crossings precede dense model-edge crossings in
+                // the unchanged rank. With nonnegative remaining counts, an
+                // already losing feature tier needs no model measurement.
+                if recess_context {
+                    let bound = (feature_crossings(&stroke), 0);
+                    if (bound > before && !(recess(i) && label_conflict))
+                        || (!label_conflict && bound >= before)
+                        || best_rank
+                            .get()
+                            .is_some_and(|best| best <= (bound, 0, target != side, lane))
+                    {
+                        return Vec::new();
+                    }
                 }
                 let hits = crossings(&stroke);
 
@@ -2159,9 +2493,18 @@ fn clear_linear_ordered(
                 {
                     return Vec::new();
                 }
+                // Text moves cannot change the two witness crossing tiers. Even
+                // with zero peer repairs this stroke cannot improve the first
+                // accepted candidate, so retain the original tie order cheaply.
+                let lower_bound = (hits, 0, target != side, lane);
+                if best_rank.get().is_some_and(|best| best <= lower_bound) {
+                    return Vec::new();
+                }
+                let constant_contact = all_witnesses.contact(&stroke, fixed_witness_conflict);
                 let mut choices = vec![stroke.clone()];
                 let needs_text = !page.fits(&stroke, view)
-                    || others.iter().any(|q| conflict(&stroke, q))
+                    || constant_contact
+                    || all_peer_ink.mutable_contact(&stroke)
                     || super::label_lanes::off_span(&stroke, others.iter().copied())
                     || others.iter().any(|q| {
                         super::label_lanes::off_span(q, std::iter::once(&stroke))
@@ -2176,10 +2519,10 @@ fn clear_linear_ordered(
                 }
                 choices
                     .into_iter()
-                    .map(|c| (target, lane, c))
+                    .map(|c| (target, lane, c, constant_contact))
                     .collect::<Vec<_>>()
             })
-            .filter_map(|(target, lane, c)| {
+            .filter_map(|(target, lane, c, constant_contact)| {
                 if location_order_conflict(target, &c, placed) || !page.fits(&c, view) {
                     return None;
                 }
@@ -2189,20 +2532,7 @@ fn clear_linear_ordered(
                 {
                     return None;
                 }
-                if obstacles
-                    .iter()
-                    .filter_map(|d| d.placed.as_ref())
-                    .any(|q| conflict(&c, q))
-                    || placed
-                        .iter()
-                        .enumerate()
-                        .filter(|(j, _)| *j != i)
-                        .filter_map(|(j, q)| q.as_ref().map(|q| (j, q)))
-                        .any(|(j, q)| {
-                            (sides[j].is_none() && conflict(&c, q))
-                                || q.lines.iter().take(2).any(|l| crosses(*l, c.label_box))
-                        })
-                {
+                if fixed_peer_ink.mutable_contact(&c) || peer_witnesses.crosses_box(c.label_box) {
                     return None;
                 }
                 let mut repairs: Vec<(usize, Placed)> = Vec::new();
@@ -2230,21 +2560,76 @@ fn clear_linear_ordered(
                         if chosen[j] != Some(view) || sides[j].is_none() || q.arrows.len() != 2 {
                             continue;
                         }
-                        let rest: Vec<_> = placed
-                            .iter()
-                            .enumerate()
-                            .filter(|(t, _)| *t != i && *t != j)
-                            .filter_map(|(_, q)| q.as_ref())
-                            .chain(obstacles.iter().filter_map(|d| d.placed.as_ref()))
-                            .chain(std::iter::once(&c))
-                            .collect();
+                        if !repair_witnesses[j] {
+                            return None;
+                        }
+                        let peers = &repair_peers[j];
+                        let rest: Vec<_> =
+                            peers.iter().copied().chain(std::iter::once(&c)).collect();
                         let repaired =
                             super::label_lanes::alternatives_placed(q, page.drawable(), &rest)
                                 .find(|r| {
-                                    page.fits(r, view)
-                                        && !conflict(r, &c)
-                                        && !super::label_lanes::off_span(r, rest.iter().copied())
-                                        && rest.iter().all(|t| !conflict(r, t) || conflict(q, t))
+                                    if !page.fits(r, view)
+                                        || conflict(r, &c)
+                                        || super::label_lanes::off_span(r, std::iter::once(&c))
+                                    {
+                                        return false;
+                                    }
+
+                                    // Only the current witness varies during this search.
+                                    // A peer label's clearance against the unchanged drawing
+                                    // is identical at each repeated label/line position.
+                                    let bits: [u64; 8] = r
+                                        .label_box
+                                        .iter()
+                                        .copied()
+                                        .chain(r.lines[2].into_iter().flatten())
+                                        .map(f64::to_bits)
+                                        .collect::<Vec<_>>()
+                                        .try_into()
+                                        .expect("repair geometry");
+                                    let key = (j, bits);
+                                    let cached = repair_clearance.borrow().get(&key).copied();
+                                    cached.unwrap_or_else(|| {
+                                        let (labels, lines) = repair_static[j].get_or_init(|| {
+                                            // Original contacts are allowed. A pure text slide
+                                            // changes only the label and line run-on against
+                                            // every remaining fixed peer.
+                                            let constraints: Vec<_> = peers
+                                                .iter()
+                                                .copied()
+                                                .filter(|t| !conflict(q, t))
+                                                .collect();
+                                            let labels: Vec<_> =
+                                                constraints.iter().map(|t| t.label_box).collect();
+                                            let lines = super::leaders::SegmentIndex::new(
+                                                constraints
+                                                    .iter()
+                                                    .flat_map(|t| {
+                                                        t.lines.iter().copied().chain(
+                                                            t.arrows.iter().flat_map(|a| {
+                                                                super::leaders::head(*a)
+                                                            }),
+                                                        )
+                                                    })
+                                                    .collect(),
+                                            );
+                                            (labels, lines)
+                                        });
+                                        let clear =
+                                            !super::label_lanes::off_span(r, peers.iter().copied())
+                                                && labels.iter().all(|label| {
+                                                    !boxes_overlap(r.label_box, *label)
+                                                        && !crosses(r.lines[2], *label)
+                                                })
+                                                && !lines.crosses_box(r.label_box);
+                                        let mut saved = repair_clearance.borrow_mut();
+                                        if saved.len() >= 4096 {
+                                            saved.clear();
+                                        }
+                                        saved.insert(key, clear);
+                                        clear
+                                    })
                                 });
                         if let Some(r) = repaired {
                             repairs.push((j, r));
@@ -2264,7 +2649,12 @@ fn clear_linear_ordered(
                     })
                     .chain(obstacles.iter().filter_map(|d| d.placed.as_ref()))
                     .collect();
-                if final_peers.iter().any(|q| conflict(&c, q))
+                let pair_contact = if repairs.is_empty() {
+                    constant_contact || all_peer_ink.mutable_contact(&c)
+                } else {
+                    final_peers.iter().any(|q| conflict(&c, q))
+                };
+                if pair_contact
                     || (recess_context
                         && (super::label_lanes::off_span(&c, final_peers.iter().copied())
                             || final_peers.iter().any(|q| {
@@ -2286,7 +2676,6 @@ fn clear_linear_ordered(
                 Some((hits, target, lane, c, repairs))
             });
         let mut found = None;
-        let mut best_rank = None;
         for candidate in candidates {
             let score = (
                 candidate.0,
@@ -2295,8 +2684,8 @@ fn clear_linear_ordered(
                 candidate.2,
             );
             let optimal = candidate.0 == (0, 0) && candidate.4.is_empty() && candidate.1 == side;
-            if best_rank.is_none_or(|best| score < best) {
-                best_rank = Some(score);
+            if best_rank.get().is_none_or(|best| score < best) {
+                best_rank.set(Some(score));
                 found = Some(candidate);
             }
             // Lanes are generated in increasing order on the current strip.
@@ -2879,6 +3268,7 @@ fn outlines<'a>(analysis: &Analysis, views: &'a [PlannedView]) -> Vec<(&'a str, 
 
 /// What a placed item's ink must stay inside or off on the page: the drawing area, each view's
 /// drawn box ([`outlines`]) and the title block.
+#[derive(serde::Serialize)]
 pub(super) struct Page<'a> {
     drawable: [f64; 4],
     views: Vec<(&'a str, [f64; 4])>,
@@ -3775,6 +4165,69 @@ pub(crate) fn collisions_cached(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn indexed_peer_ink_matches_the_complete_linear_collision_predicate() {
+        for peer_arrows in 0..=2 {
+            for allow_transverse in [false, true] {
+                for shift in -12..=12 {
+                    let a = Placed {
+                        lines: vec![
+                            [[0., 0.], [0., 10.]],
+                            [[10., 0.], [10., 10.]],
+                            [[0., 10.], [10., 10.]],
+                        ],
+                        arrows: vec![arrow([0., 10.], [1., 10.]), arrow([10., 10.], [9., 10.])],
+                        label_at: [0., 12.],
+                        rotation: 0.,
+                        label_box: [0., 11., 8., 14.],
+                    };
+                    let mut b = a.clone();
+                    for p in b.lines.iter_mut().chain(&mut b.arrows).flatten() {
+                        p[0] += f64::from(shift);
+                        p[1] += 3.;
+                    }
+                    b.label_box = [f64::from(shift), 14., f64::from(shift) + 8., 17.];
+                    b.arrows.truncate(peer_arrows);
+                    let indexed = PeerInk::new(std::iter::once(&b));
+                    for x in -20..=20 {
+                        let mut moved = a.clone();
+                        moved.label_box[0] += f64::from(x);
+                        moved.label_box[2] += f64::from(x);
+                        moved.lines[2][0][0] = moved.lines[2][0][0].min(moved.label_box[0]);
+                        moved.lines[2][1][0] = moved.lines[2][1][0].max(moved.label_box[2]);
+                        assert_eq!(
+                            WitnessPeers::new(std::iter::once(&b)).contact(&moved, |p, q| {
+                                linear_witness_contact(p, q, allow_transverse)
+                            }),
+                            linear_witness_contact(&moved, &b, allow_transverse)
+                        );
+                        assert_eq!(
+                            linear_pair_contact(&moved, &b, allow_transverse),
+                            linear_witness_contact(&moved, &b, allow_transverse)
+                                || indexed.mutable_contact(&moved)
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn repeated_linear_label_bounds_match_the_full_standard_font_ink() {
+        for terms in [
+            vec!["21.0"],
+            vec!["⌀10 H7", "+0.015\n0"],
+            vec!["4×", "R3.94"],
+            vec!["(25.0)"],
+            vec!["WIDTH", "12 ±0.1"],
+        ] {
+            let terms: Vec<_> = terms.into_iter().map(str::to_owned).collect();
+            let full = label_ink(&terms, font());
+            for _ in 0..2 {
+                assert_eq!(linear_label_bounds(&terms), (full.min, full.max));
+            }
+        }
+    }
     /// ARCH0009-5: deliberately scramble input order and make the size longer than a
     /// location: category precedes distance; datum locations alone nest by distance.
     #[test]

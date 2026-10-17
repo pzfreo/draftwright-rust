@@ -38,7 +38,12 @@ members = ["crates/draftwright-wasm"]
 default-members = ["."]
 resolver = "3"
 
-# Keep the native release build's compile time and behaviour unchanged.
+# The complete drawing search shares geometry across crates; optimise the
+# native release binary as a whole while retaining the independent WASM profile.
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
 [profile.wasm-release]
 inherits = "release"
 lto = true

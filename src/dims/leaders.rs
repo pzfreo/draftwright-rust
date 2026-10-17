@@ -306,6 +306,7 @@ struct Fixed {
     segments: Vec<(usize, [P2; 2])>,
     labels: Vec<(usize, [f64; 4])>,
     extensions: Vec<(usize, [P2; 2])>,
+    extension_index: ExtensionIndex,
     /// The arrowheads' outlines as `dims::render` draws them ([`head`]), which must stay out of
     /// the label: a flare can reach into it beside a shaft that does not.
     heads: Vec<(usize, [P2; 2])>,
@@ -324,7 +325,7 @@ impl Fixed {
             .flat_map(|(i, p)| p.lines.iter().chain(&p.arrows).map(move |s| (i, *s)))
             .collect();
         let labels: Vec<(usize, [f64; 4])> = on.clone().map(|(i, p)| (i, p.label_box)).collect();
-        let extensions = on
+        let extensions: Vec<_> = on
             .clone()
             .filter(|(_, p)| p.arrows.len() == 2 && p.lines.len() >= 3)
             .flat_map(|(i, p)| p.lines[..2].iter().map(move |s| (i, *s)))
@@ -346,15 +347,85 @@ impl Fixed {
             labels.iter().map(|l| l.1).collect(),
             heads.iter().map(line_box).collect(),
         ]);
+        let extension_index = ExtensionIndex::new(extensions.clone());
         Fixed {
             segments,
             labels,
             extensions,
+            extension_index,
             heads,
             grid,
             furniture: BTreeMap::new(),
             crosses: Default::default(),
         }
+    }
+}
+
+// An owner may have two witnesses. Dense inventories usually fit in one
+// integer; unusual larger owner IDs retain the general set semantics.
+#[derive(Default)]
+struct ContactOwners {
+    small: u128,
+    large: std::collections::BTreeSet<usize>,
+}
+impl ContactOwners {
+    fn insert(&mut self, owner: usize) {
+        if owner < 128 {
+            self.small |= 1u128 << owner;
+        } else {
+            self.large.insert(owner);
+        }
+    }
+    fn len(&self) -> usize {
+        self.small.count_ones() as usize + self.large.len()
+    }
+}
+
+struct ExtensionIndex {
+    ink: Vec<(usize, [P2; 2])>,
+    bounds: Vec<[f64; 4]>,
+    grid: Option<Grid>,
+}
+impl ExtensionIndex {
+    fn new(ink: Vec<(usize, [P2; 2])>) -> Self {
+        let bounds: Vec<_> = ink
+            .iter()
+            .map(|(_, e)| grow(segment_bounds(*e), LABEL_PAD))
+            .collect();
+        let grid = (ink.len() > 64).then(|| Grid::new([bounds.clone(), Vec::new(), Vec::new()]));
+        Self { ink, bounds, grid }
+    }
+    fn contacts(&self, lines: &[[P2; 2]], label: [f64; 4]) -> (usize, usize) {
+        let pad = grow(label, LABEL_PAD);
+        let reach = lines.iter().flatten().fold(pad, |b, p| {
+            [
+                b[0].min(p[0]),
+                b[1].min(p[1]),
+                b[2].max(p[0]),
+                b[3].max(p[1]),
+            ]
+        });
+        let (mut pairs, mut text) = (ContactOwners::default(), ContactOwners::default());
+        let mut measure = |n: usize| {
+            let (owner, e) = self.ink[n];
+            let on_text = touches_box(e, pad);
+            if on_text {
+                text.insert(owner);
+            }
+            if on_text || lines.iter().any(|s| touches_box(*s, self.bounds[n])) {
+                pairs.insert(owner);
+            }
+        };
+        if let Some(grid) = &self.grid {
+            grid.near(0, reach, measure);
+        } else {
+            for (n, b) in self.bounds.iter().enumerate() {
+                if boxes_meet(*b, reach) {
+                    measure(n);
+                }
+            }
+        }
+        (pairs.len(), text.len())
     }
 }
 
@@ -511,7 +582,7 @@ struct Job<'a> {
     silhouette: Option<P2>,
     /// For such a callout, its view's model line-work ([`view_ink`]): a route across it is
     /// what an angle off the silhouette may not buy ([`Candidate::astray`]).
-    model: Option<&'a [[P2; 2]]>,
+    model: Option<&'a SegmentIndex>,
     corridors: bool,
     directed: bool,
     short_profile: bool,
@@ -603,6 +674,62 @@ pub(super) fn place_with_obstacles(
     page: &Page,
     obstacles: &[PlannedDimension],
 ) -> Vec<Problem> {
+    if !items.iter().enumerate().any(|(i, w)| {
+        matches!(w.shape, Shape::Callout { .. }) && views_of[i].is_some() && placed[i].is_none()
+    }) {
+        return Vec::new();
+    }
+    // Candidate retries can reach the same settled inventory. Retain the exact
+    // solve only within this immutable Analysis, with every routing input in
+    // the key. Frames are derived from these planned views and the Analysis.
+    let route_policy =
+        crate::planning::lookup::<bool>(analysis, "established-route-policy", &[]).unwrap_or(false);
+    let frame_geometry: Vec<_> = frames
+        .iter()
+        .map(|(name, f)| (name, f.memo_geometry()))
+        .collect();
+    let canonical = crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[])
+        .unwrap_or(false);
+    let key = serde_json::to_vec(&(
+        &spec.dimensions,
+        views,
+        frame_geometry,
+        canonical,
+        items,
+        views_of,
+        sides,
+        &*placed,
+        page,
+        obstacles,
+        route_policy,
+    ))
+    .expect("leader solve inputs serialize");
+    let (next, problems) = crate::planning::memo(analysis, "settled-leader-solve", key, || {
+        let mut next = placed.to_vec();
+        let problems = place_with_obstacles_uncached(
+            analysis, spec, cache, views, frames, items, views_of, sides, &mut next, page,
+            obstacles,
+        );
+        (next, problems)
+    });
+    placed.clone_from_slice(&next);
+    problems
+}
+
+#[allow(clippy::too_many_arguments)]
+fn place_with_obstacles_uncached(
+    analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
+    cache: &super::footprints::Cache,
+    views: &[crate::model::PlannedView],
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    views_of: &[Option<&'static str>],
+    sides: &[Option<Side>],
+    placed: &mut [Option<Placed>],
+    page: &Page,
+    obstacles: &[PlannedDimension],
+) -> Vec<Problem> {
     let on = || {
         placed
             .iter()
@@ -658,27 +785,21 @@ pub(super) fn place_with_obstacles(
             .iter()
             .any(|m| m.feature.starts_with("f:section_recess:"))
     });
-    let models: BTreeMap<&str, Vec<[P2; 2]>> = analysis
-        .edge_ink
-        .as_ref()
-        .map(|ink| {
-            views
-                .iter()
-                .filter(|v| {
-                    let id = v.id.trim_start_matches("v:");
-                    items.iter().enumerate().any(|(i, w)| {
-                        views_of[i] == Some(id)
-                            && placed[i].is_none()
-                            && (frames.get(id).is_some_and(|f| grazing(f, w).is_some())
-                                || w.measurements
-                                    .iter()
-                                    .any(|m| m.feature.starts_with("f:section_recess:")))
-                    })
-                })
-                .map(|v| (v.id.trim_start_matches("v:"), view_ink(analysis, ink, v).0))
-                .collect()
+    let models: BTreeMap<_, _> = views
+        .iter()
+        .filter(|v| {
+            let id = v.id.trim_start_matches("v:");
+            items.iter().enumerate().any(|(i, w)| {
+                views_of[i] == Some(id)
+                    && placed[i].is_none()
+                    && (frames.get(id).is_some_and(|f| grazing(f, w).is_some())
+                        || w.measurements
+                            .iter()
+                            .any(|m| m.feature.starts_with("f:section_recess:")))
+            })
         })
-        .unwrap_or_default();
+        .filter_map(|v| Some((v.id.trim_start_matches("v:"), cache.model(analysis, v)?)))
+        .collect();
     // Semantic PMI uses the legacy floor; its unused footprint-aware baseline need not be
     // sorted. The furniture-aware inventory and the legacy survivors stay fully measured.
     let semantic_pmi = !crate::pmi_lowering::lower(analysis, &|name| frames.contains_key(name))
@@ -718,7 +839,7 @@ pub(super) fn place_with_obstacles(
                 area: page.area(view),
                 sites: page_sites(f, sites),
                 silhouette: grazing(f, w),
-                model: models.get(view).map(Vec::as_slice),
+                model: models.get(view).map(|m| &m.as_ref().0),
                 short_profile: boss_profile(w),
                 profile_proof: boss_profile(w)
                     .then(|| {
@@ -1022,11 +1143,11 @@ pub(crate) fn settle_after_furniture(
         let view = v.id.trim_start_matches("v:");
         let ink = label_ink(&d.terms, font());
         let footprint = cache.get(analysis, v);
-        let model = analysis
-            .edge_ink
-            .as_ref()
-            .filter(|_| grazing(&frame, w).is_some())
-            .map(|ink| view_ink(analysis, ink, v).0);
+        let model = if grazing(&frame, w).is_some() {
+            cache.model(analysis, v)
+        } else {
+            None
+        };
         let job = Job {
             side: spec
                 .dimensions
@@ -1043,7 +1164,7 @@ pub(crate) fn settle_after_furniture(
             short_profile: boss_profile(w),
             profile_proof: None,
             silhouette: grazing(&frame, w),
-            model: model.as_deref(),
+            model: model.as_ref().map(|m| &m.as_ref().0),
             steer: std::cell::Cell::new(None),
             ink_min: ink.min,
             ink_max: ink.max,
@@ -1198,8 +1319,74 @@ fn translated(
     Some(p)
 }
 
+// Exact refinement rank, movement and immutable route geometry.
+type RouteStation = ((usize, usize), f64, P2, P2, P2, bool, [f64; 4]);
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn refine(
+    analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
+    cache: &super::footprints::Cache,
+    sheet: &crate::model::PlannedSheet,
+    views: &[crate::model::PlannedView],
+    frames: &BTreeMap<&str, Frame>,
+    items: &[Want],
+    views_of: &[Option<&str>],
+    placed: &mut [Option<Placed>],
+    page: &Page,
+    obstacles: &[PlannedDimension],
+    proofs: &BTreeMap<String, std::rc::Rc<super::interior::Proof>>,
+) -> BTreeMap<String, Vec<Problem>> {
+    if analysis.edge_ink.is_none() {
+        return BTreeMap::new();
+    }
+    let reference_key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
+        .expect("presentation inputs serialize");
+    // The reference is immutable for this key within the Analysis scope.
+    let has_reference =
+        crate::planning::lookup::<Result<crate::model::Plan, crate::model::Invalid>>(
+            analysis,
+            "established-drawing",
+            &reference_key,
+        )
+        .is_some();
+    let frame_geometry: Vec<_> = frames
+        .iter()
+        .map(|(name, f)| (name, f.memo_geometry()))
+        .collect();
+    let canonical = crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[])
+        .unwrap_or(false);
+    let proof_views: Vec<_> = proofs.keys().collect();
+    let key = serde_json::to_vec(&(
+        &spec.dimensions,
+        proof_views,
+        reference_key,
+        has_reference,
+        sheet,
+        views,
+        frame_geometry,
+        canonical,
+        items,
+        views_of,
+        &*placed,
+        page,
+        obstacles,
+    ))
+    .expect("leader refinement inputs serialize");
+    let (next, reports) = crate::planning::memo(analysis, "settled-leader-refinement", key, || {
+        let mut next = placed.to_vec();
+        let reports = refine_uncached(
+            analysis, spec, cache, sheet, views, frames, items, views_of, &mut next, page,
+            obstacles, proofs,
+        );
+        (next, reports)
+    });
+    placed.clone_from_slice(&next);
+    reports
+}
+
+#[allow(clippy::too_many_arguments)]
+fn refine_uncached(
     analysis: &crate::model::Analysis,
     spec: &crate::model::Spec,
     cache: &super::footprints::Cache,
@@ -1226,6 +1413,7 @@ pub(super) fn refine(
         .filter(|(_, p)| p.arrows.len() == 2 && p.lines.len() >= 3)
         .flat_map(|(j, p)| p.lines[..2].iter().map(move |s| (j, *s)))
         .collect();
+    let extension_index = ExtensionIndex::new(extensions.clone());
     // Runs beside newly recognised edges need the same bounded repair as extension
     // contacts. Gather each projection once, then test only routes that need repair.
     let repair_models: BTreeMap<_, _> = if items.iter().any(|w| {
@@ -1235,7 +1423,7 @@ pub(super) fn refine(
     }) {
         views
             .iter()
-            .map(|v| (v.id.trim_start_matches("v:"), view_ink(analysis, ink, v).0))
+            .filter_map(|v| Some((v.id.trim_start_matches("v:"), cache.model(analysis, v)?)))
             .collect()
     } else {
         BTreeMap::new()
@@ -1245,7 +1433,7 @@ pub(super) fn refine(
         repair_models.get(view).is_some_and(|model| {
             p.lines
                 .iter()
-                .any(|s| runs_beside(*s, model) || runs_beside(*s, &extension_ink))
+                .any(|s| model.as_ref().0.runs_beside(*s) || runs_beside(*s, &extension_ink))
         })
     };
     let centre_lines = |lines: &[[P2; 2]]| {
@@ -1310,12 +1498,7 @@ pub(super) fn refine(
         legacy(i)
             .and_then(|d| translated(reference.as_ref()?, d, views, &items[i]))
             .zip(views_of[i].and_then(|view| repair_models.get(view)))
-            .is_some_and(|(old, model)| {
-                model.iter().any(|e| {
-                    p.lines.iter().any(|s| segments_cross(*s, *e))
-                        && !old.lines.iter().any(|s| segments_cross(*s, *e))
-                })
-            })
+            .is_some_and(|(old, model)| model.as_ref().0.new_crossing(&p.lines, &old.lines))
     };
     let callout_crossing = |i: usize, p: &Placed, placed: &[Option<Placed>]| {
         bare && !repair_models.is_empty()
@@ -1341,7 +1524,7 @@ pub(super) fn refine(
                     .get(&items[i].id)
                     .is_some_and(|d| d.place.is_some())
                 && placed[i].as_ref().is_some_and(|p| {
-                    extension_contacts(&extensions, &p.lines, p.label_box).0 > 0
+                    extension_index.contacts(&p.lines, p.label_box).0 > 0
                         || callout_crossing(i, p, placed)
                         || longer_than_established(i, p)
                         || added_material_crossing(i, p)
@@ -1432,7 +1615,7 @@ pub(super) fn refine(
                 .any(|m| m.feature.starts_with("f:section_recess:"))
                 && centre_run(&old));
         let label = label_ink(&w.terms, font());
-        let before = extension_contacts(&extensions, &old.lines, old.label_box);
+        let before = extension_index.contacts(&old.lines, old.label_box);
         // Every station of the local row, shoulder-only changes first, kept only while it is
         // no longer than the old route by 2 mm and lowers the contacts without the text gaining
         // one: text on an extension line is worse than a leader across it.
@@ -1507,7 +1690,7 @@ pub(super) fn refine(
                         continue;
                     }
                     let (_, lb) = label_geometry(q, e, right, label.min, label.max);
-                    let now = extension_contacts(&extensions, &lines, lb);
+                    let now = extension_index.contacts(&lines, lb);
                     if now.0 > before.0 || (!repair_run && now.0 == before.0) || now.1 > before.1 {
                         continue;
                     }
@@ -1525,7 +1708,7 @@ pub(super) fn refine(
             let e = p.lines[1][1];
             let right = e[0] >= q[0];
             let (_, lb) = label_geometry(q, e, right, label.min, label.max);
-            let now = extension_contacts(&extensions, &p.lines, lb);
+            let now = extension_index.contacts(&p.lines, lb);
             // Extend or trim the established shaft along its exact supporting
             // line, then keep the standard horizontal shelf. Only ink outside
             // the uncertain material can be new; the route gate proves this.
@@ -1544,7 +1727,7 @@ pub(super) fn refine(
                                 continue;
                             }
                             let (_, lb) = label_geometry(q, e, right, label.min, label.max);
-                            let contacts = extension_contacts(&extensions, &lines, lb);
+                            let contacts = extension_index.contacts(&lines, lb);
                             if contacts.0 <= before.0 && contacts.1 <= before.1 {
                                 let moved = (q[0] - elbow[0]).hypot(q[1] - elbow[1])
                                     + (e[0] - end[0]).hypot(e[1] - end[1]);
@@ -1564,7 +1747,7 @@ pub(super) fn refine(
                 // real baseline and bounding-box movement, never a fake box.
                 for lift in [0.25, -0.25, 0.5, -0.5] {
                     let lifted = [lb[0], lb[1] + lift, lb[2], lb[3] + lift];
-                    let contacts = extension_contacts(&extensions, &p.lines, lifted);
+                    let contacts = extension_index.contacts(&p.lines, lifted);
                     if contacts.0 <= before.0 && contacts.1 <= before.1 {
                         candidates.push((contacts, moved + lift.abs(), t, q, e, right, lifted));
                     }
@@ -1585,7 +1768,7 @@ pub(super) fn refine(
                 continue;
             }
             let (_, lb) = label_geometry(q, e, right, label.min, label.max);
-            let now = extension_contacts(&extensions, &lines, lb);
+            let now = extension_index.contacts(&lines, lb);
             if now.0 > before.0 || (!repair_run && now.0 == before.0) || now.1 > before.1 {
                 continue;
             }
@@ -1613,7 +1796,7 @@ pub(super) fn refine(
                             continue;
                         }
                         let (_, lb) = label_geometry(q, e, right, label.min, label.max);
-                        let now = extension_contacts(&extensions, &lines, lb);
+                        let now = extension_index.contacts(&lines, lb);
                         if now.0 > before.0 || now.1 > before.1 {
                             continue;
                         }
@@ -1638,7 +1821,7 @@ pub(super) fn refine(
                         let e = [q[0] + if right { shoulder } else { -shoulder }, q[1]];
                         let lines = [[t, q], [q, e]];
                         let (_, lb) = label_geometry(q, e, right, label.min, label.max);
-                        let now = extension_contacts(&extensions, &lines, lb);
+                        let now = extension_index.contacts(&lines, lb);
                         if length(&lines) <= max_length + 1e-6
                             && now.0 <= before.0
                             && now.1 <= before.1
@@ -1756,19 +1939,13 @@ pub(super) fn refine(
                     .iter()
                     .any(|b| lines.iter().any(|s| adds_unknown_path(*s, *b, historical))))
                 && !lines.iter().any(|s| line_index.runs_beside(*s))
-                && (clear_new_text
-                    || !lines.iter().any(|line| {
-                        model_index
-                            .near(segment_bounds(*line))
-                            .into_iter()
-                            .any(|s| crossed(lines, *s) && !crossed(historical, *s))
-                    }))
+                && (clear_new_text || !model_index.new_crossing(lines, historical))
                 && !near_cuts
                     .iter()
                     .any(|s| crossed(lines, *s) && !crossed(historical, *s))
         };
 
-        candidates.retain(|(_, _, t, q, e, right, lb)| {
+        let route_allowed = |(_, _, t, q, e, right, lb): &RouteStation| {
             if clear_new_text {
                 let (label_at, _) = label_geometry(*q, *e, *right, label.min, label.max);
                 let p = Placed {
@@ -1796,7 +1973,10 @@ pub(super) fn refine(
                 && (!elbow_model || old_elbow_model)
                 && head_on(*t, *q) <= old_head
                 && route_safe(&[[*t, *q], [*q, *e]])
-        });
+        };
+        if clear_new_text {
+            candidates.retain(route_allowed);
+        }
         if candidates.is_empty() {
             continue;
         }
@@ -1877,12 +2057,9 @@ pub(super) fn refine(
             // gate above. A new callout may clear real text blockers while
             // retaining fewer such crossings; every physical hard blocker
             // (sheet, view, material re-entry, length and furniture) stays zero.
-            let corridors = extension_contacts(
-                &extensions,
-                &[[c.tip, c.elbow], [c.elbow, c.end]],
-                c.label_box,
-            )
-            .0 as u32;
+            let corridors = extension_index
+                .contacts(&[[c.tip, c.elbow], [c.elbow, c.end]], c.label_box)
+                .0 as u32;
             if c.hard > prior.hard
                 || (clear_new_text && c.hard > corridors)
                 || c.crossings > prior.crossings
@@ -1908,27 +2085,31 @@ pub(super) fn refine(
             Some(p)
         };
         // Measuring a station against the placed ink is the expensive tier, so it runs last.
-        let chosen = candidates.iter().find_map(|&(_, _, t, q, e, right, lb)| {
-            let mut c = measure_at_bounds(&job, t, q, e, right, page)?;
-            let shift = [lb[0] - c.label_box[0], lb[1] - c.label_box[1]];
-            if shift != [0.0; 2] {
-                c.label_at[0] += shift[0];
-                c.label_at[1] += shift[1];
-                c.label_box = lb;
-                c.bounds = [
-                    c.bounds[0].min(lb[0]),
-                    c.bounds[1].min(lb[1]),
-                    c.bounds[2].max(lb[2]),
-                    c.bounds[3].max(lb[3]),
-                ];
-                if !page.fits(&c.placed(), view) {
-                    return None;
+        // Filtering after this stable sort retains the original selected route.
+        let chosen = candidates
+            .iter()
+            .filter(|c| clear_new_text || route_allowed(c))
+            .find_map(|&(_, _, t, q, e, right, lb)| {
+                let mut c = measure_at_bounds(&job, t, q, e, right, page)?;
+                let shift = [lb[0] - c.label_box[0], lb[1] - c.label_box[1]];
+                if shift != [0.0; 2] {
+                    c.label_at[0] += shift[0];
+                    c.label_at[1] += shift[1];
+                    c.label_box = lb;
+                    c.bounds = [
+                        c.bounds[0].min(lb[0]),
+                        c.bounds[1].min(lb[1]),
+                        c.bounds[2].max(lb[2]),
+                        c.bounds[3].max(lb[3]),
+                    ];
+                    if !page.fits(&c.placed(), view) {
+                        return None;
+                    }
                 }
-            }
-            measure_fixed(&mut c, &job, &fixed);
-            c.measure_features(&job);
-            acceptable(&c)
-        });
+                measure_fixed(&mut c, &job, &fixed);
+                c.measure_features(&job);
+                acceptable(&c)
+            });
         if let Some(p) = chosen {
             updated.insert(
                 w.id.clone(),
@@ -2060,6 +2241,8 @@ pub(super) struct SegmentIndex {
     bounds: [f64; 4],
     ink: Vec<[P2; 2]>,
     children: Option<Box<[SegmentIndex; 2]>>,
+    counts: std::cell::RefCell<std::collections::HashMap<[u64; 4], usize>>,
+    routes: std::cell::RefCell<std::collections::HashMap<[u64; 8], usize>>,
 }
 
 impl SegmentIndex {
@@ -2097,6 +2280,8 @@ impl SegmentIndex {
             bounds,
             ink,
             children,
+            counts: std::cell::RefCell::default(),
+            routes: std::cell::RefCell::default(),
         }
     }
 
@@ -2107,10 +2292,131 @@ impl SegmentIndex {
     }
 
     pub(super) fn crossings(&self, line: [P2; 2]) -> usize {
-        self.near(segment_bounds(line))
-            .into_iter()
-            .filter(|s| segments_cross(line, **s))
-            .count()
+        let key = [
+            line[0][0].to_bits(),
+            line[0][1].to_bits(),
+            line[1][0].to_bits(),
+            line[1][1].to_bits(),
+        ];
+        if let Some(&count) = self.counts.borrow().get(&key) {
+            return count;
+        }
+        let count = self.crossings_uncached(line);
+        let mut saved = self.counts.borrow_mut();
+        if saved.len() >= 8192 {
+            saved.clear();
+        }
+        saved.insert(key, count);
+        count
+    }
+
+    fn meets_line(&self, line: [P2; 2]) -> bool {
+        self.meets_padded_line(line, 1e-9)
+    }
+
+    fn meets_padded_line(&self, line: [P2; 2], pad: f64) -> bool {
+        // A diagonal witness's bounding rectangle can cover most of a dense
+        // view. Clip the actual shaft against each tree node instead; keep
+        // closed, slightly widened bounds so even degenerate leaves survive.
+        // The final segment crossing predicate is unchanged.
+        let bounds = grow(self.bounds, pad);
+        let mut interval = [0.0_f64, 1.0_f64];
+        for k in 0..2 {
+            let d = line[1][k] - line[0][k];
+            if d == 0.0 {
+                if line[0][k] < bounds[k] || line[0][k] > bounds[k + 2] {
+                    return false;
+                }
+            } else {
+                let a = (bounds[k] - line[0][k]) / d;
+                let b = (bounds[k + 2] - line[0][k]) / d;
+                interval[0] = interval[0].max(a.min(b));
+                interval[1] = interval[1].min(a.max(b));
+                if interval[0] > interval[1] {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    fn crossings_uncached(&self, line: [P2; 2]) -> usize {
+        if !self.meets_line(line) {
+            return 0;
+        }
+        if let Some(children) = &self.children {
+            children
+                .iter()
+                .map(|child| child.crossings_uncached(line))
+                .sum()
+        } else {
+            self.ink
+                .iter()
+                .filter(|s| segments_cross(line, **s))
+                .count()
+        }
+    }
+
+    // Count each projected edge once, even when both legs cross it. This is
+    // the router's original full-scan predicate, queried through the same tree.
+    fn route_crossings(&self, lines: [[P2; 2]; 2]) -> usize {
+        let key = std::array::from_fn(|i| lines[i / 4][i / 2 % 2][i % 2].to_bits());
+        if let Some(&n) = self.routes.borrow().get(&key) {
+            return n;
+        }
+        let n = self.route_crossings_uncached(lines);
+        let mut saved = self.routes.borrow_mut();
+        if saved.len() >= 8192 {
+            saved.clear();
+        }
+        saved.insert(key, n);
+        n
+    }
+
+    fn route_crossings_uncached(&self, lines: [[P2; 2]; 2]) -> usize {
+        if !lines.iter().any(|line| self.meets_line(*line)) {
+            return 0;
+        }
+        if let Some(children) = &self.children {
+            children
+                .iter()
+                .map(|child| child.route_crossings_uncached(lines))
+                .sum()
+        } else {
+            self.ink
+                .iter()
+                .filter(|edge| lines.iter().any(|line| segments_cross(*line, **edge)))
+                .count()
+        }
+    }
+
+    // A refinement must not buy a shorter route by crossing a different
+    // original edge. Preserve edge identity and the exact leaf predicates.
+    fn new_crossing(&self, next: &[[P2; 2]], old: &[[P2; 2]]) -> bool {
+        if !next.iter().any(|line| self.meets_line(*line)) {
+            return false;
+        }
+        if let Some(children) = &self.children {
+            children.iter().any(|child| child.new_crossing(next, old))
+        } else {
+            self.ink.iter().any(|edge| {
+                next.iter().any(|line| segments_cross(*line, *edge))
+                    && !old.iter().any(|line| segments_cross(*line, *edge))
+            })
+        }
+    }
+
+    pub(super) fn crosses_box(&self, bounds: [f64; 4]) -> bool {
+        if !boxes_meet(self.bounds, bounds) {
+            return false;
+        }
+        if let Some(children) = &self.children {
+            children.iter().any(|child| child.crosses_box(bounds))
+        } else {
+            self.ink
+                .iter()
+                .any(|line| crate::dims::placement::crosses(*line, bounds))
+        }
     }
 
     fn collect<'a>(&'a self, bounds: [f64; 4], found: &mut Vec<&'a [P2; 2]>) {
@@ -2130,14 +2436,38 @@ impl SegmentIndex {
         }
     }
 
+    fn collect_beside(&self, line: [P2; 2], found: &mut Vec<[P2; 2]>) {
+        // Any interval within the 0.3 mm perpendicular band must meet
+        // these expanded closed bounds, including a nearly diagonal run.
+        if !self.meets_padded_line(line, 0.3 + 1e-9) {
+            return;
+        }
+        if let Some(children) = &self.children {
+            for child in children.iter() {
+                child.collect_beside(line, found);
+            }
+        } else {
+            found.extend(&self.ink);
+        }
+    }
+
     fn runs_beside(&self, line: [P2; 2]) -> bool {
-        let ink: Vec<_> = self
-            .near(grow(segment_bounds(line), 0.3))
-            .into_iter()
-            .copied()
-            .collect();
+        let mut ink = Vec::new();
+        self.collect_beside(line, &mut ink);
         runs_beside(line, &ink)
     }
+}
+
+// The boolean form needs no distinct-owner bookkeeping. A positive owner
+// count is exactly one of these unchanged finite-corridor predicates passing.
+pub(super) fn meets_extensions(extensions: &[[P2; 2]], lines: &[[P2; 2]], label: [f64; 4]) -> bool {
+    let label = grow(label, LABEL_PAD);
+    extensions.iter().any(|e| {
+        touches_box(*e, label)
+            || lines
+                .iter()
+                .any(|s| touches_box(*s, grow(segment_bounds(*e), LABEL_PAD)))
+    })
 }
 
 /// A callout's contacts with the extension lines of linear dimensions (decision (iii)):
@@ -2717,13 +3047,8 @@ fn inventory(job: &Job, fixed: &Fixed, page: &Page, semantic_pmi: bool) -> Inven
 
 /// How many of its view's model lines a route crosses ([`Job::model`]).
 fn model_crossings(job: &Job, c: &Candidate) -> usize {
-    let segs = c.segments();
-    job.model.map_or(0, |model| {
-        model
-            .iter()
-            .filter(|m| segs.iter().any(|s| segments_cross(*s, **m)))
-            .count()
-    })
+    job.model
+        .map_or(0, |model| model.route_crossings(c.segments()))
 }
 
 /// How many features a route's shaft passes through.
@@ -3129,7 +3454,7 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
     if job.corridors {
         // The same finite 1 mm extension corridor used by the route acceptance
         // check participates in the initial solve, before a route becomes fixed.
-        hard += extension_contacts(&fixed.extensions, &segs, lb).0 as u32;
+        hard += fixed.extension_index.contacts(&segs, lb).0 as u32;
         if job.short_profile {
             hard += fixed
                 .extensions
@@ -3142,7 +3467,7 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
         }
         if job
             .model
-            .is_some_and(|model| segs.iter().any(|s| runs_beside(*s, model)))
+            .is_some_and(|model| segs.iter().any(|s| model.runs_beside(*s)))
         {
             hard += 1;
         }
@@ -3948,6 +4273,46 @@ mod tests {
     }
 
     #[test]
+    fn indexed_extension_contacts_match_full_scans_and_count_distinct_owners() {
+        let mut seed = 7919;
+        let ink: Vec<_> = (0..300)
+            .map(|n| {
+                (
+                    if n % 3 == 0 { n + 150 } else { n / 2 },
+                    std::array::from_fn(|_| std::array::from_fn(|_| 200. * lcg(&mut seed) - 100.)),
+                )
+            })
+            .collect();
+        let indexed = ExtensionIndex::new(ink.clone());
+        for _ in 0..500 {
+            let route: [[P2; 2]; 2] = std::array::from_fn(|_| {
+                std::array::from_fn(|_| std::array::from_fn(|_| 200. * lcg(&mut seed) - 100.))
+            });
+            let at = [200. * lcg(&mut seed) - 100., 200. * lcg(&mut seed) - 100.];
+            let label = [at[0], at[1], at[0] + 12., at[1] + 4.];
+            assert_eq!(
+                indexed.contacts(&route, label),
+                extension_contacts(&ink, &route, label)
+            );
+            assert_eq!(
+                meets_extensions(
+                    &ink.iter().map(|(_, e)| *e).collect::<Vec<_>>(),
+                    &route,
+                    label
+                ),
+                extension_contacts(&ink, &route, label).0 > 0
+            );
+            assert_eq!(
+                indexed.contacts(&[], label),
+                extension_contacts(&ink, &[], label)
+            );
+        }
+        let ink = vec![(4, [[0., 0.], [0., 20.]]), (4, [[2., 0.], [2., 20.]])];
+        let index = ExtensionIndex::new(ink.clone());
+        assert_eq!(index.contacts(&[], [0., 5., 2., 10.]), (1, 1));
+    }
+
+    #[test]
     fn indexed_route_checks_match_full_edge_scans() {
         let mut seed = 7919;
         let mut ink: Vec<_> = (0..300)
@@ -3967,6 +4332,11 @@ mod tests {
             assert_eq!(index.runs_beside(line), runs_beside(line, &ink));
             let bounds = grow(segment_bounds(line), 1.0);
             assert_eq!(
+                index.crosses_box(bounds),
+                ink.iter()
+                    .any(|line| crate::dims::placement::crosses(*line, bounds))
+            );
+            assert_eq!(
                 index
                     .near(bounds)
                     .into_iter()
@@ -3977,6 +4347,66 @@ mod tests {
             assert_eq!(
                 index.crossings(line),
                 ink.iter().filter(|s| segments_cross(line, **s)).count()
+            );
+        }
+    }
+
+    #[test]
+    fn diagonal_crossing_queries_retain_thin_and_boundary_leaves() {
+        let ink: Vec<_> = (0..2048)
+            .map(|n| {
+                let x = (n % 64) as f64;
+                let y = (n / 64) as f64;
+                [[x, y], [x, y + 0.75]]
+            })
+            .collect();
+        let index = SegmentIndex::new(ink.clone());
+        for line in [
+            [[-1., -1.], [65., 33.]],
+            [[0., 0.], [63., 31.]],
+            [[0., 0.375], [63., 0.375]],
+            [[63., -1.], [63., 33.]],
+            [[-1., 31.375], [65., 31.375]],
+        ] {
+            for _ in 0..2 {
+                assert_eq!(
+                    index.crossings(line),
+                    ink.iter().filter(|s| segments_cross(line, **s)).count()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn indexed_leader_routes_match_full_scans_and_count_double_crossings_once() {
+        let edge = [[-1., 0.5], [3., 0.5]];
+        let route = [[[0., 0.], [1., 1.]], [[1., 1.], [2., 0.]]];
+        let index = SegmentIndex::new(vec![edge]);
+        assert!(route.iter().all(|s| segments_cross(*s, edge)));
+        assert_eq!(index.route_crossings(route), 1);
+        assert_eq!(index.route_crossings(route), 1);
+        let mut seed = 7919;
+        let ink: Vec<_> = (0..300)
+            .map(|_| std::array::from_fn(|_| std::array::from_fn(|_| 200. * lcg(&mut seed) - 100.)))
+            .collect();
+        let index = SegmentIndex::new(ink.clone());
+        for _ in 0..200 {
+            let points: [P2; 3] =
+                std::array::from_fn(|_| std::array::from_fn(|_| 200. * lcg(&mut seed) - 100.));
+            let route = [[points[0], points[1]], [points[1], points[2]]];
+            let full = ink
+                .iter()
+                .filter(|edge| route.iter().any(|line| segments_cross(*line, **edge)))
+                .count();
+            assert_eq!(index.route_crossings(route), full);
+            assert_eq!(index.route_crossings(route), full);
+            let old = [[[0., 0.], [25., -30.]], [[25., -30.], [-20., 15.]]];
+            assert_eq!(
+                index.new_crossing(&route, &old),
+                ink.iter().any(|edge| {
+                    route.iter().any(|line| segments_cross(*line, *edge))
+                        && !old.iter().any(|line| segments_cross(*line, *edge))
+                })
             );
         }
     }

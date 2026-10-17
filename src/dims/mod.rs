@@ -403,7 +403,7 @@ pub fn end_on(k: usize) -> &'static str {
 }
 
 /// What a dimension measures, before it is placed.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 enum Shape {
     /// From *a* to *b* along world axis *axis*; an `edge` end extends from the view's outline.
     Linear {
@@ -423,7 +423,7 @@ enum Shape {
     Angular { angle: angular::Angle },
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 struct Want {
     id: String,
     /// The views that can carry it, preferred first.

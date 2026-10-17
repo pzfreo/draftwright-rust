@@ -26,7 +26,8 @@ The generated, ignored directory is `crates/draftwright-wasm/pkg/`: JS glue,
 `draftwright_wasm_bg.wasm`, TypeScript `.d.ts` files and `package.json` (plus README and
 wasm-pack metadata). No generated binaries are checked in. The dedicated `wasm-release`
 profile inherits `release` and sets `lto = true`, `codegen-units = 1`, `opt-level = 3`;
-native `release` settings are unchanged. wasm-pack also runs its default wasm-opt pass.
+native `release` uses ThinLTO and one codegen unit for the complete drawing search.
+wasm-pack also runs its default wasm-opt pass.
 
 The build enables `uuid/js` and `getrandom` 0.3's `wasm_js` only on WASM. The browser opens
 bytes through `model::analyse_native_bytes(name, bytes)`, which never treats the name as a

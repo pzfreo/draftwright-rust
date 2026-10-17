@@ -38,7 +38,10 @@ pub(super) struct Footprints {
     // Exact bits keep near-equal candidates distinct; no cache survives a changed frame.
     counts: RefCell<HashMap<[u64; 4], usize>>,
     index: OnceCell<Index>,
+    extensions: RefCell<HashMap<ExtensionKey, BTreeSet<String>>>,
 }
+
+type ExtensionKey = ([u64; 4], Vec<(String, String, u64)>);
 
 // A conservative broad phase only: surviving shapes use the unchanged crossing predicate.
 struct Index {
@@ -47,14 +50,50 @@ struct Index {
 }
 
 type Projections = BTreeMap<(String, Vec<u64>), Rc<Footprints>>;
+type ModelInk = Rc<(super::leaders::SegmentIndex, Vec<[f64; 4]>)>;
+type Models = BTreeMap<(String, Vec<u64>, bool), ModelInk>;
 
 /// Plan-local projections, keyed by the resolved frame so a repacked view cannot reuse stale ink.
 #[derive(Default)]
 pub(crate) struct Cache {
     views: RefCell<Projections>,
+    models: RefCell<Models>,
 }
 
 impl Cache {
+    pub(super) fn model(
+        &self,
+        analysis: &Analysis,
+        view: &crate::model::PlannedView,
+    ) -> Option<ModelInk> {
+        let ink = analysis.edge_ink.as_ref()?;
+        let geometry = view
+            .direction
+            .iter()
+            .chain(&view.up)
+            .chain(&view.at)
+            .chain(std::iter::once(&view.scale))
+            .map(|v| v.to_bits())
+            .collect();
+        let key = (view.id.clone(), geometry, view.cut.is_some());
+        let mut models = self.models.borrow_mut();
+        if models.len() >= 128 && !models.contains_key(&key) {
+            models.clear();
+        }
+        let frame_key = serde_json::to_vec(&key).expect("model frame serializes");
+        Some(
+            models
+                .entry(key)
+                .or_insert_with(|| {
+                    crate::planning::memo(analysis, "projected-model-index", frame_key, || {
+                        let (edges, bounds) = super::leaders::view_ink(analysis, ink, view);
+                        Rc::new((super::leaders::SegmentIndex::new(edges), bounds))
+                    })
+                })
+                .clone(),
+        )
+    }
+
     pub(super) fn get(
         &self,
         analysis: &Analysis,
@@ -68,15 +107,18 @@ impl Cache {
             .chain(std::iter::once(&view.scale))
             .map(|v| v.to_bits())
             .collect();
+        let frame_key = serde_json::to_vec(&(&view.id, &key)).expect("footprint frame serializes");
         self.views
             .borrow_mut()
             .entry((view.id.clone(), key))
             .or_insert_with(|| {
-                Rc::new(Footprints::new(
-                    analysis,
-                    &Frame::new(analysis, view),
-                    view.id.trim_start_matches("v:"),
-                ))
+                crate::planning::memo(analysis, "projected-feature-footprints", frame_key, || {
+                    Rc::new(Footprints::new(
+                        analysis,
+                        &Frame::new(analysis, view),
+                        view.id.trim_start_matches("v:"),
+                    ))
+                })
             })
             .clone()
     }
@@ -519,6 +561,7 @@ impl Footprints {
             members,
             counts: RefCell::default(),
             index: OnceCell::new(),
+            extensions: RefCell::new(HashMap::new()),
         }
     }
 
@@ -633,15 +676,41 @@ impl Footprints {
         shaft: [P2; 2],
         owners: &[Measurement],
     ) -> BTreeSet<String> {
+        // Witnesses recur across solve orders and furniture retries in this exact
+        // projected frame. Ownership is part of the key; no other feature's
+        // crossing can be forgiven by a previously measured owner's result.
+        let key = (
+            shaft
+                .into_iter()
+                .flatten()
+                .map(f64::to_bits)
+                .collect::<Vec<_>>()
+                .try_into()
+                .expect("two witness endpoints"),
+            owners
+                .iter()
+                .map(|m| (m.feature.clone(), m.parameter.clone(), m.value.to_bits()))
+                .collect(),
+        );
+        if let Some(hits) = self.extensions.borrow().get(&key) {
+            return hits.clone();
+        }
         let len = (shaft[1][0] - shaft[0][0]).hypot(shaft[1][1] - shaft[0][1]);
-        self.near(shaft)
+        let hits: BTreeSet<_> = self
+            .near(shaft)
             .filter(|f| {
                 f.id != self.view
                     && !self.owned(&f.id, owners)
                     && f.shape.crossed_with_length(shaft, len)
             })
             .map(|f| f.id.clone())
-            .collect()
+            .collect();
+        let mut saved = self.extensions.borrow_mut();
+        if saved.len() >= 8192 {
+            saved.clear();
+        }
+        saved.insert(key, hits.clone());
+        hits
     }
     /// The view's material: each solid's box on the page ([`crate::material::solids`]).
     pub(super) fn solids(&self) -> &[[f64; 4]] {
@@ -754,6 +823,7 @@ mod tests {
             members: BTreeMap::new(),
             counts: RefCell::default(),
             index: OnceCell::new(),
+            extensions: RefCell::new(HashMap::new()),
             features: vec![
                 footprint("f:own", [0.0, 0.0]),
                 footprint("f:other", [5.0, 0.0]),
@@ -771,6 +841,21 @@ mod tests {
             BTreeSet::from(["f:own".into(), "f:other".into()])
         );
         assert!(f.crossed([[0.0, 0.0], [-3.0, 0.0]], &owner).is_empty());
+        let witness = [[-2.0, 0.0], [10.0, 0.0]];
+        for _ in 0..2 {
+            assert_eq!(
+                f.crossed_extension(witness, &owner),
+                BTreeSet::from(["f:other".into()])
+            );
+            assert_eq!(
+                f.crossed_extension(witness, &[]),
+                BTreeSet::from(["f:own".into(), "f:other".into()])
+            );
+            assert!(
+                f.crossed_extension([[-2.0, 3.0], [10.0, 3.0]], &owner)
+                    .is_empty()
+            );
+        }
     }
 
     #[test]
@@ -780,6 +865,7 @@ mod tests {
             solids: vec![],
             counts: RefCell::default(),
             index: OnceCell::new(),
+            extensions: RefCell::new(HashMap::new()),
             members: BTreeMap::from([(
                 "f:pattern".into(),
                 BTreeSet::from(["f:a".into(), "f:b".into()]),
@@ -801,6 +887,22 @@ mod tests {
             value: 5.0,
         }];
         assert!(f.crossed([[0.0, 0.0], [-3.0, 0.0]], &owner).is_empty());
+        let witness = [[-2.0, 0.0], [10.0, 0.0]];
+        for _ in 0..2 {
+            assert_eq!(
+                f.crossed_extension(witness, &owner),
+                BTreeSet::from(["f:other".into()])
+            );
+            assert_eq!(
+                f.crossed_extension(witness, &[]),
+                BTreeSet::from(["f:own".into(), "f:other".into()])
+            );
+            assert!(
+                f.crossed_extension([[-2.0, 3.0], [10.0, 3.0]], &owner)
+                    .is_empty()
+            );
+        }
+
         assert_eq!(
             f.crossed([[0.0, 0.0], [8.0, 0.0]], &owner),
             BTreeSet::from(["f:b".into()])
@@ -889,15 +991,27 @@ mod tests {
 
     #[test]
     fn plan_cache_reuses_a_projection_but_rebuilds_after_view_repacking() {
-        let a = analysis();
+        let mut a = analysis();
+        a.edge_ink = Some(
+            serde_json::from_value(serde_json::json!({
+                "edges": [[[0., 0., 0.], [10., 0., 0.]]], "planes": [], "curved": []
+            }))
+            .unwrap(),
+        );
         let mut view: crate::model::PlannedView = serde_json::from_value(serde_json::json!({
             "id":"v:plan","direction":[0.0,0.0,1.0],"up":[0.0,1.0,0.0],"at":[50.0,50.0],
             "scale":1.0,"area":[20.0,20.0,100.0,100.0],"default":true,"basis":"","state":{"kind":"shown"}})).unwrap();
         let cache = Cache::default();
+        let first_model = cache.model(&a, &view).unwrap();
+        assert!(Rc::ptr_eq(&first_model, &cache.model(&a, &view).unwrap()));
         let first = cache.get(&a, &view);
         assert!(Rc::ptr_eq(&first, &cache.get(&a, &view)));
         view.at[0] += 10.0;
         let moved = cache.get(&a, &view);
+        let moved_model = cache.model(&a, &view).unwrap();
+        assert!(!Rc::ptr_eq(&first_model, &moved_model));
+        view.scale *= 2.;
+        assert!(!Rc::ptr_eq(&moved_model, &cache.model(&a, &view).unwrap()));
         assert!(!Rc::ptr_eq(&first, &moved));
         assert_eq!(first.features.len(), moved.features.len());
         for (a, b) in first.features.iter().zip(&moved.features) {
@@ -931,6 +1045,7 @@ mod tests {
             members: BTreeMap::new(),
             counts: RefCell::default(),
             index: OnceCell::new(),
+            extensions: RefCell::new(HashMap::new()),
         };
         let exit = [[1.0, 2.0], [-1.0, 2.0]];
         let reentry = [[1.0, 2.0], [7.0, 2.0]];
@@ -990,6 +1105,7 @@ mod tests {
             members: BTreeMap::new(),
             counts: RefCell::default(),
             index: OnceCell::new(),
+            extensions: RefCell::new(HashMap::new()),
             features: vec![
                 Footprint {
                     id: "f:own".into(),
