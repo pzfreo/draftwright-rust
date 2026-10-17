@@ -175,7 +175,11 @@ fn label_at(p: &Placed, at: f64) -> Placed {
     c
 }
 
-fn alternatives(p: &Placed, drawable: [f64; 4], others: &[&PlannedDimension]) -> Vec<Placed> {
+fn alternatives<'a>(
+    p: &'a Placed,
+    drawable: [f64; 4],
+    others: &[&PlannedDimension],
+) -> impl Iterator<Item = Placed> + 'a {
     let k = axis(p);
     let (lo, hi) = tips(p);
     let width = p.label_box[k + 2] - p.label_box[k];
@@ -216,9 +220,8 @@ fn alternatives(p: &Placed, drawable: [f64; 4], others: &[&PlannedDimension]) ->
     positions
         .into_iter()
         .chain(tail)
-        .filter(|at| *at >= drawable[k] && at + width <= drawable[k + 2])
-        .map(|at| label_at(p, at))
-        .collect()
+        .filter(move |at| *at >= drawable[k] && at + width <= drawable[k + 2])
+        .map(move |at| label_at(p, at))
 }
 
 fn promote(p: &Placed, amount: f64) -> Placed {
@@ -333,15 +336,15 @@ pub(crate) fn settle_inventory(
         };
         // A single occupied rung may be skipped; fixed-ink obstructions never justify
         // a farther search. Two paper lanes is the absolute movement bound.
+        let next_lane = promote(p, LANE);
         let next_occupied = others
             .iter()
-            .any(|q| contacts(&promote(p, LANE), q) & (1 << 4) != 0);
+            .any(|q| contacts(&next_lane, q) & (1 << 4) != 0);
         let found = (0..=if next_occupied { 2 } else { 1 })
             .take_while(|n| !outside(&promote(p, *n as f64 * LANE), region))
             .find_map(|n| {
                 let lane = promote(p, n as f64 * LANE);
                 alternatives(&lane, page.drawable(), &others)
-                    .into_iter()
                     .find(|c| allowed(c) && better(c) && !span_bad(c))
             });
         if let Some(c) = found {
@@ -443,8 +446,7 @@ mod tests {
         ));
         assert!(
             alternatives(p, [10.0, 10.0, 287.0, 200.0], &[&fixed[0]])
-                .iter()
-                .all(|c| contacts(c, &fixed[0]) != 0),
+                .all(|c| contacts(&c, &fixed[0]) != 0),
             "no along-span alternative is clear"
         );
         let mut items = original.clone();
