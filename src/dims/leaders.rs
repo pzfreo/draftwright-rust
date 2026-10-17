@@ -625,7 +625,9 @@ pub(super) fn place_with_obstacles(
         .iter()
         .map(|v| (v.id.trim_start_matches("v:"), cache.get(analysis, v)))
         .collect();
-    // The model line-work of each view with a turned step's diameter callout to place.
+    // New notch bands can displace radius leaders onto adjacent host outlines.
+    // Include model ink before their joint solve, not only in the later local retry.
+    let bounded_notches = !crate::notches::requirements(analysis).is_empty();
     let models: BTreeMap<&str, Vec<[P2; 2]>> = analysis
         .edge_ink
         .as_ref()
@@ -637,7 +639,11 @@ pub(super) fn place_with_obstacles(
                     items.iter().enumerate().any(|(i, w)| {
                         views_of[i] == Some(id)
                             && placed[i].is_none()
-                            && frames.get(id).is_some_and(|f| grazing(f, w).is_some())
+                            && (frames.get(id).is_some_and(|f| grazing(f, w).is_some())
+                                || (bounded_notches
+                                    && w.measurements
+                                        .iter()
+                                        .any(|m| m.parameter == "blend.radius")))
                     })
                 })
                 .map(|v| (v.id.trim_start_matches("v:"), view_ink(analysis, ink, v).0))
@@ -677,7 +683,13 @@ pub(super) fn place_with_obstacles(
                 steer: std::cell::Cell::new(None),
                 ink_min: ink.min,
                 ink_max: ink.max,
-                stroke_pad: stroke_clearance(&w.terms),
+                stroke_pad: if bounded_notches
+                    && w.measurements.iter().any(|m| m.parameter == "blend.radius")
+                {
+                    stroke_clearance(&w.terms).max(LABEL_PAD)
+                } else {
+                    stroke_clearance(&w.terms)
+                },
                 beyond,
             },
         ));
@@ -700,7 +712,10 @@ pub(super) fn place_with_obstacles(
         let mut count = 0;
         for (k, &c) in selected.iter().enumerate() {
             let a = &inv[k][c];
-            count += a.hard - a.furniture_hard + a.crossings - a.furniture_text + a.outside;
+            count += a.hard - a.furniture_hard + a.crossings - a.furniture_text + a.outside
+                // New notch bands must not preserve an ordinary-ink floor by
+                // replacing one dimension crossing with a route through a bore.
+                + if bounded_notches { a.feature_crossings } else { 0 };
             for (j, &other) in selected.iter().enumerate().take(k) {
                 count += conflict(a, &inv[j][other]);
             }
@@ -803,7 +818,13 @@ pub(super) fn place_with_obstacles(
                 continue;
             }
             let ordinary = |c: &Candidate| {
-                c.hard - c.furniture_hard + c.crossings - c.furniture_text + c.outside
+                c.hard - c.furniture_hard + c.crossings - c.furniture_text
+                    + c.outside
+                    + if bounded_notches {
+                        c.feature_crossings
+                    } else {
+                        0
+                    }
             };
             let local = |c: &Candidate| {
                 ordinary(c)
@@ -2292,6 +2313,9 @@ fn measure_at_bounds(
     right: bool,
     page: &Page,
 ) -> Option<Candidate> {
+    if (end[0] - elbow[0]) * if right { 1.0 } else { -1.0 } <= 1e-9 {
+        return None;
+    }
     let shaft = (elbow[0] - tip[0]).hypot(elbow[1] - tip[1]);
     if shaft < MIN_LEADER {
         return None;
@@ -2523,7 +2547,13 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
     c.furniture = furniture.len() as u32;
     c.furniture_hard = furniture_hard;
     c.furniture_text = furniture_text.len() as u32;
-    c.beside = besides.len() as u32;
+    c.beside = besides.len() as u32
+        + u32::from(
+            job.silhouette.is_none()
+                && job
+                    .model
+                    .is_some_and(|model| c.segments().iter().any(|s| runs_beside(*s, model))),
+        );
     c.text = text.len() as u32;
     c.clearance = clearance.len() as u32;
     c.fixed_measured = true;

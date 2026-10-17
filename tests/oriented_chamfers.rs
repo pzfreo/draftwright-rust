@@ -52,6 +52,7 @@ fn ctc01_consumes_bevel_faces_and_sizes_both_notches_without_duplicate_c50() {
         assert_eq!(d.view, "v:plan");
         assert!((d.value - 60.).abs() < 1e-6);
         assert!(d.placed.is_some());
+        assert_eq!(d.region, Some(draftwright::dims::CandidateRegion::Interior));
     }
     let depths: Vec<_> = p
         .dimensions
@@ -146,9 +147,18 @@ fn notch_dimensions_accept_omit_tolerance_place_and_label_text() {
         ));
         let changed = placed.dimensions.iter().find(|d| &d.id == id).unwrap();
         assert!(changed.placed.is_some());
+        let other_lane = plan(&parse(
+            json!({"dimensions":{id:{"place":{"view":original.view.trim_start_matches("v:"),"lane":6,"pinned":true}}}}),
+        ));
         assert_ne!(
             changed.placed,
-            p.dimensions.iter().find(|d| &d.id == id).unwrap().placed
+            other_lane
+                .dimensions
+                .iter()
+                .find(|d| &d.id == id)
+                .unwrap()
+                .placed,
+            "two distinct requested lanes must produce distinct ink for {id}"
         );
         let labelled = plan(&parse(
             json!({"dimensions":{id:{"text":{"suffix":"INCLUDED"}}}}),

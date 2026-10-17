@@ -493,6 +493,7 @@ pub(super) fn place(
     obstacles: &[super::PlannedDimension],
     placed: &mut [Option<Placed>],
     page: &Page,
+    notch_void: &dyn Fn(&str, &Placed) -> bool,
 ) {
     for i in 0..items.len() {
         if placed[i].is_some() {
@@ -538,12 +539,19 @@ pub(super) fn place(
             .measurements
             .iter()
             .any(|m| m.feature.starts_with("geometry:"));
+        let in_void = |c: &Placed| {
+            items[i]
+                .measurements
+                .iter()
+                .any(|m| m.parameter == "notch.angle")
+                && notch_void(view, c)
+        };
         let furniture = |c: &Placed| {
             !boxes_overlap(c.label_box, page.title_block())
                 && page
                     .views()
                     .iter()
-                    .all(|(_, b)| !boxes_overlap(c.label_box, *b))
+                    .all(|(id, b)| (*id == own && in_void(c)) || !boxes_overlap(c.label_box, *b))
                 && !c.lines.iter().any(|l| crosses(*l, page.title_block()))
                 && (!exterior
                     || c.lines
@@ -576,7 +584,8 @@ pub(super) fn place(
                 return false;
             }
             fallback.get_or_insert_with(|| c.clone());
-            if !on_sheet(c) || !page.fits(c, view) {
+            if !on_sheet(c) || !(page.fits(c, view) || (in_void(c) && page.fits_interior(c, view)))
+            {
                 return false;
             }
             if clear(c) {

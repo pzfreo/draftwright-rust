@@ -1323,30 +1323,30 @@
     "part": "ctc01",
     "side": "rust",
     "family": "location.x",
-    "view": "plan",
+    "view": "front",
     "label": "290",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "The first plate notch's mouth centre is 290 mm from the minimum X datum. The bounded notch grammar adds this station to locate its angle-and-depth definition; Python's foremost hex-top rule does not reach the plate notches."
+    "reason": "The first plate notch's mouth centre is 290 mm from the minimum X datum. The bounded notch grammar adds this station to locate its angle-and-depth definition; Python's foremost hex-top rule does not reach the plate notches. The aligned front projection shows the same true X coordinate while leaving the plan notch angles clear of the datum witnesses."
   },
   {
     "part": "ctc01",
     "side": "rust",
     "family": "location.x",
-    "view": "plan",
+    "view": "front",
     "label": "510",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "The second plate notch's mouth centre is 510 mm from the minimum X datum. The bounded notch grammar adds this separate physical station to locate its angle-and-depth definition; Python's foremost hex-top rule does not reach the plate notches."
+    "reason": "The second plate notch's mouth centre is 510 mm from the minimum X datum. The bounded notch grammar adds this separate physical station to locate its angle-and-depth definition; Python's foremost hex-top rule does not reach the plate notches. The aligned front projection shows the same true X coordinate while leaving the plan notch angles clear of the datum witnesses."
   },
   {
     "part": "ctc01",
     "side": "rust",
     "family": "location.y",
-    "view": "plan",
+    "view": "side",
     "label": "100",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "Both plate notches share a mouth plane 100 mm from the minimum Y datum. One span carries both notch claims; it locates their 50 mm theoretical-sharp depths and 60-degree angles. Python's foremost hex-top rule does not reach these plate notches."
+    "reason": "Both plate notches share a mouth plane 100 mm from the minimum Y datum. One span carries both notch claims; it locates their 50 mm theoretical-sharp depths and 60-degree angles. The aligned side projection shows the true Y coordinate without carrying a witness through the plan bore-leader band. Python's foremost hex-top rule does not reach these plate notches."
   }
 ]

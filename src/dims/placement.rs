@@ -576,6 +576,13 @@ pub(super) fn lanes<'a>(
                         .any(|m| m.parameter == "thickness.length")
                     {
                         plate_strip(f, view, &w.shape, horizontal)
+                    } else if matches!(view, "front" | "side")
+                        && horizontal
+                        && w.measurements.iter().any(|m| {
+                            m.feature.starts_with("notch:") && m.parameter.starts_with("location.")
+                        })
+                    {
+                        Side::Above
                     } else if let Some(side) = body_strip(f, w, horizontal) {
                         side
                     } else if w.measurements.iter().any(|m| {
@@ -2853,9 +2860,11 @@ pub(crate) fn collisions_cached(
             if boxes_overlap(lb, *b)
                 && !(*view == d.view
                     && views.iter().find(|v| v.id == d.view).is_some_and(|v| {
-                        interior_proofs
-                            .get(&v.id)
-                            .is_some_and(|proof| proof.blank(v, lb))
+                        interior_proofs.get(&v.id).is_some_and(|proof| {
+                            proof.blank(v, lb)
+                                || (d.measurements.iter().any(|m| m.parameter == "notch.angle")
+                                    && proof.exterior_annotation_clear(v, p))
+                        })
                     }))
             {
                 problem(

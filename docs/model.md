@@ -1073,7 +1073,15 @@ basis, placed, reference?, determined_by?}`:
   drafting projection of provider evidence, not another recognition family. Back profiles,
   asymmetric sections, inner wires and arbitrary sloping edge pairs grant no notch authority.
   The sheet reserves the minimum exterior angular footprint before packing, so an acute
-  notch does not have to extend beyond a band estimated only from linear lanes.
+  notch does not have to extend beyond a band estimated only from linear lanes. Added
+  vertical notch statements reserve their own datum lanes; a silhouette-mouth station
+  leaves its witness on that free side. Mouth X/Y stations can use the aligned
+  front/side projections, keeping long datum witnesses away from the plan's notch arcs
+  and existing bore-leader bands. A notch angle may use blank exterior space within its view's
+  envelope only after projected-face containment and edge/arrow clearance prove it empty.
+  Every planar projection counts; curved faces use their full covers. Radius leaders displaced
+  by these new bands consider model strokes before their joint solve. This preserves short
+  existing leaders without enabling general interior angular placement.
   Python's general profile-angle rule chooses only the foremost camera-facing planar
   face per body/view: on CTC-01 that is the hex top, whose 120° corners the HEX callout
   defines. It never reaches the plate notches. This bounded notch grammar deliberately

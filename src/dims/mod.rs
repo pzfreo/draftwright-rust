@@ -1318,7 +1318,8 @@ fn lanes_uncached(
         let base = ((crate::layout::DIM_PAD - crate::layout::lane_band(1)).max(0.) / LANE).ceil()
             as usize
             + 1;
-        bands.authored_plan_left = bands.authored_plan_left.max(base + notch_lanes);
+        // One outer text corridor keeps rotated ordinate text inside the border.
+        bands.authored_plan_left = bands.authored_plan_left.max(base + notch_lanes + 1);
     }
     let mut aligned = Vec::new();
     for (i, w) in wants.iter().enumerate() {
@@ -2019,7 +2020,12 @@ fn plan_inventory_uncached(
                 .filter_map(|d| d.placed.as_ref())
                 .map(|p| p.label_box[2] - p.label_box[0])
                 .fold(0.0, f64::max);
-            placement::intent(&frames[v], w, p, sides[i]?, lane[i], callout_width)
+            // Angular ink has no strip. Its intent handler measures the requested
+            // radius directly and does not use this linear/callout side argument.
+            let side = sides[i].or_else(|| {
+                matches!(w.shape, Shape::Angular { .. }).then_some(placement::Side::Below)
+            })?;
+            placement::intent(&frames[v], w, p, side, lane[i], callout_width)
         })
         .collect();
     // #32: an explicit side/lane (as a proposed fix sets) re-runs its side's stack spacing, so
@@ -2240,6 +2246,17 @@ fn plan_inventory_uncached(
         &mut placed,
         &page,
     ));
+    let interior_proofs = interior::proofs(analysis, views);
+    let notch_void = |view: &str, p: &Placed| {
+        views
+            .iter()
+            .find(|v| v.id == format!("v:{view}"))
+            .is_some_and(|v| {
+                interior_proofs
+                    .get(&v.id)
+                    .is_some_and(|proof| proof.exterior_annotation_clear(v, p))
+            })
+    };
     angular::place(
         &frames,
         &all,
@@ -2249,6 +2266,7 @@ fn plan_inventory_uncached(
         obstacles,
         &mut placed,
         &page,
+        &notch_void,
     );
     // Radius exceptions are placed around the existing drawing ink. Their addition must not
     // reroute unrelated approved callouts into clutter.
@@ -2350,6 +2368,7 @@ fn plan_inventory_uncached(
         obstacles,
         &mut placed,
         &page,
+        &notch_void,
     );
     let interior = interior::place(
         analysis,
@@ -2364,7 +2383,6 @@ fn plan_inventory_uncached(
         obstacles,
         cache,
     );
-    let interior_proofs = interior::proofs(analysis, views);
     let refined = leaders::refine(
         analysis,
         spec,
@@ -2408,6 +2426,8 @@ fn plan_inventory_uncached(
                     views.iter().find(|v| v.id == view).is_some_and(|v| {
                         interior_proofs.get(&v.id).is_some_and(|proof| {
                             proof.annotation_clear(v, p, matches!(w.shape, Shape::Callout { .. }))
+                                || (w.measurements.iter().any(|m| m.parameter == "notch.angle")
+                                    && proof.exterior_annotation_clear(v, p))
                         })
                     })
                 })
@@ -2533,6 +2553,8 @@ fn plan_inventory_uncached(
                     .is_some_and(|v| {
                         interior_proofs.get(&v.id).is_some_and(|proof| {
                             proof.annotation_clear(v, p, matches!(w.shape, Shape::Callout { .. }))
+                                || (w.measurements.iter().any(|m| m.parameter == "notch.angle")
+                                    && proof.exterior_annotation_clear(v, p))
                         })
                     })
             })

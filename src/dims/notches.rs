@@ -35,7 +35,16 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             let parameter = format!("location.length.{}", AXES[k]);
             out.push(Want {
                 id: want_id(&n.id, &parameter),
-                views: vec![view],
+                // An X station is equally true in the aligned front projection.
+                // Keep the plan's angular sector free of long datum witnesses; an
+                // explicit scheme or placement can still choose the normal view.
+                views: if n.axis == 2 && k == 0 {
+                    vec!["front", view]
+                } else if n.axis == 2 && k == 1 {
+                    vec!["side", view]
+                } else {
+                    vec![view]
+                },
                 value,
                 terms: vec![fmt(value)],
                 measurements: vec![Measurement {

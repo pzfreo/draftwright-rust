@@ -436,7 +436,59 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                     members
                         .iter()
                         .flat_map(|&m| match &bosses[m].section {
-                            Section::Polygon { flats, .. } => flats.clone(),
+                            Section::Polygon {
+                                flats,
+                                sides,
+                                across_flats,
+                                ..
+                            } => {
+                                let boss = &bosses[m];
+                                let mut sites = flats.clone();
+                                // The newly dimensioned notch bands may obstruct the flat
+                                // centres of a bevelled polygonal host. Exact shared edges
+                                // prove that host; quarter points remain on its proven flats.
+                                let bevel_edges: Vec<_> = analysis
+                                    .outer_profiles
+                                    .iter()
+                                    .filter(|p| {
+                                        analysis.features.iter().any(|f| {
+                                            f.kind == "oriented_chamfer"
+                                                && f.faces.contains(&p.face)
+                                        })
+                                    })
+                                    .flat_map(|p| &p.edges)
+                                    .collect();
+                                let bevelled = analysis
+                                    .outer_profiles
+                                    .iter()
+                                    .filter(|p| boss.feature.faces.contains(&p.face))
+                                    .any(|p| p.edges.iter().any(|e| bevel_edges.contains(&e)));
+                                if bevelled && !crate::notches::requirements(analysis).is_empty() {
+                                    let normals = boss.feature.parameters["flat_directions"]
+                                        .as_array()
+                                        .unwrap();
+                                    let step = 0.25
+                                        * across_flats
+                                        * (std::f64::consts::PI / *sides as f64).tan();
+                                    let mut axis = [0.; 3];
+                                    axis[boss.axis] = 1.;
+                                    for (c, n) in flats.iter().zip(normals) {
+                                        let n = holes::dir_to_part(
+                                            &cx.frame.0,
+                                            point(Some(n)).unwrap(),
+                                        );
+                                        let t = [0, 1, 2].map(|k| {
+                                            axis[(k + 1) % 3] * n[(k + 2) % 3]
+                                                - axis[(k + 2) % 3] * n[(k + 1) % 3]
+                                        });
+                                        for sign in [-1., 1.] {
+                                            sites
+                                                .push([0, 1, 2].map(|k| c[k] + sign * step * t[k]));
+                                        }
+                                    }
+                                }
+                                sites
+                            }
                             Section::Round(_) => unreachable!("grouped by side count"),
                         })
                         .map(|c| (c, 0.0))
