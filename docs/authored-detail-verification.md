@@ -29,13 +29,19 @@ edge-on faces (including one invalid member in an otherwise visible union), miss
 and omitted parents, exact union bounds, a groove and adjoining shoulder, mixed-source
 selection independent of list order, unknown members, empty lists, saved string/list
 Specs and drawing metadata, and a section detail compared with an explicitly cut
-projection. The complete detail target contains 18 tests.
+projection. The extension initially contained 18 detail tests; the revision adds constrained
+main-scale geometry, complete X-head profiles and omitted-seed recovery regressions,
+bringing that target to 21.
 
 All 26 MCP schemas for 13 served tools validate independently and match the served
-schemas. Typed detail records add 5,376 compact UTF-8 bytes across twelve Spec-carrying
-schemas: 42,356 → 47,732 bytes per session. The generator and Rust guard now enforce
-`< 48,000` bytes, replacing the previous `< 42,500` budget. Existing schema constraints
-remain in place; the new detail object also rejects authored crop coordinates.
+schemas. The initial extension introduced a typed description of the entire detail object
+in twelve standalone Spec schemas; previously each view was an opaque object. That accounts
+for the 5,376-byte growth from 42,356 to 47,732, rather than two fields alone. There are no
+redundant copies within a standalone schema. The revision uses a disjoint string/array type
+and an exact compact source pattern, preserving nulls, list item types, minimum length,
+source choices and strict detail properties. The total is **46,868 bytes**, 864 fewer, with
+a strict **<46,869** cap in both generator and Rust guard. Final revision evidence and the
+current default drawing policy are in [detail verification](detail-verification.md).
 
 ## Inspected PNG examples
 
@@ -49,7 +55,7 @@ Both PNGs were opened and visually inspected. The input Specs and extracted PNG 
 are beside the images. Check logs and the 30-part results are in
 `/private/tmp/detail-extension/`.
 
-## Checks
+## Original extension checks
 
 Commands loaded `$HOME/.cargo/env` and used `CARGO_BUILD_JOBS=4` and
 `RUST_TEST_THREADS=4`. Corpus tests set

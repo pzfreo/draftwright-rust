@@ -1,6 +1,284 @@
-# Detail views and turned inspection baseline — verification, 2026-10-16
+# Detail views and turned inspection baseline — verification, 2026-10-17
 
-## Merge onto main `0af1323e` (PRs #67–#72), 2026-10-16
+## Maintainer decision and requested revisions — 2026-10-16
+
+This is the authoritative current verification; earlier merge reports below are historical.
+The base is PR #72/main `0af1323e`; the pre-fix head is `0d8b2381`. No push, baseline
+re-recording, quality/instruction/latency threshold changes, ignored tests or latency override
+was used. Evidence is under
+`target/detail-review/`. The content survey preserves original STEP basenames, including
+when decompressing or deduplicating, since title text participates in layout. The final
+survey archives its executable; all delivered renders and performance counts use the same
+final native executable (`binary-final.json`).
+
+### Drawing fixes and deliberate choices
+
+* Recovery searches ordinary complete drawings first under the existing sheet rules, including
+  practical-paper multi-sheet allocation. Optional details cannot cap a valid principal scale.
+  The head caps are removed; detail quality is assessed only when the candidate actually has a
+  detail. Thus an earlier detail cannot veto a later ordinary drawing. Required measurement
+  retention includes compiler-proven baseline intervals only while their controlling owner is
+  drawn; independent toleranced lengths retain their own IDs and statements.
+* Rectangular crops use **continuous thin zigzag break lines** at cut geometry, rather than
+  fabricated solid cap edges. Each cut endpoint meets the boundary. This preserves dimension
+  witnesses and the existing semantic crop; a circular crop could remove those witnesses.
+  The parent circle still identifies the region. Exact curve intervals remain exact, and line
+  intersections are calculated directly. The same convention covers clipped thread/knurl ink.
+* Captions are centred on the real visible detail ink and sit **8 paper mm below its bottom**,
+  matching Python's `dvb.min.Y - cap_h`. Planning reserves the corresponding crop-footprint
+  row. The `issue_trust` test now asserts that real rendered anchor; this is a correction of
+  the reservation-bottom assertion, not a weakened test. The former automatic-head bounds,
+  owned-dimension, marker and sheet-scale iso assertions remain exercised at an explicit
+  constrained main scale, alongside the new exact default sheet/scale/no-detail assertions.
+  The caption row and its half-text-height clearance now participate in initial dimension
+  solving and later settlement. The complete run caught this missing reservation on the
+  unrecovered GRM-03 seed; all 214 unit tests and 115 focused integration regressions pass after the fixes
+  (`whole-head-regressions.log`, `whole-head-final-regressions.log`). X-profile top padding counts every owned horizontal length row;
+  the 0.5 mm GRM-03 head length consequently stays inside its reserved band. Break-line
+  strokes belong to the visible ink bounds used for the caption anchor. The strict structural catalogue and caption anchor remain unchanged.
+* Prismatic crops keep the whole feature width rather than a support-centred strip. They start
+  at Python's preferred 2/5/10 scale multiple, not its 1.2× fallback floor. A crop that cannot
+  fit at that enlargement is withheld. 10103 returns to larger complete principal views.
+  X-axis heads keep complete selected radial profiles rather than thin strips around their
+  positive rims. On constrained GRM-03 the full head is withheld at A4 2:1 and fits at A3 2:1
+  with detail A 10:1. Both outcomes are tested against actual visible geometry and owned
+  dimensions. Default GRM-03 remains A3 10:1 without a detail. A shoulder exactly on a
+  crop boundary retains its break contacts even if adjoining edges have zero retained length.
+* `crop_extent` maps only the eight envelope corners; it clones no `Analysis`. Geometry computes
+  it once per view, including the cache key, and reuses its rectangle for every curve. Parent
+  marker bounds also avoid clones. Larger-paper optional omissions are decided before planning,
+  eliminating the previous plan-then-omit-and-plan-again sequence. Both searches share the
+  same candidate cache and original seed. The optional search refuses candidates without an
+  actual surviving automatic detail before solving annotation ink; it still tries its alternate
+  detail lane. The ordinary fallback remains authoritative when detail recovery is invalid. When both
+  searches refuse, the diagnostic retains both actual candidate histories instead of
+  replacing the ordinary search with the shorter optional-search refusal.
+* The inspection-end baseline, PMI precedence, isometric visible-edge precedence, saved-spec
+  resolution, authored `from`/string-or-list `around`, section-source planes, and K5 body-local
+  chains remain. All 14 saved string-post tolerances remain individually drawn.
+* Plate-chain coverage also accepts independently proven turned-band baseline intervals. It
+  reuses the unchanged turned linter, filters suppressed ink, and retains same-body, axis-line
+  and contiguous-span requirements. Forward/reverse baseline regressions remove every
+  controlling mark in turn and reject wrong values, unrelated claims, other bodies and other
+  axis lines. The GRM-03 chain test now checks both complete parent and detail representations
+  and independently proves all eight band requirements; it does not demand a redundant local
+  2 mm label in the baseline-only drawing. All 31 plate/chain focused tests pass
+  (`plate-baseline-regressions.log`).
+
+The Python sm-hanger report was checked: detail A needs 1.75 and is placed at 2.0. The Rust
+ordinary A3 1:2 drawing retains its required dimensions and wins under the practical-paper
+rule. The smaller A4 string_post_tapped 2:1 trial is not clean: its position-control leader
+crosses the ø7.5 label. A fresh final-binary trial explicitly omitting every automatic detail
+confirms both the ink overlap and leader crossing
+([PNG](../target/detail-review/tapped-a4.png), `tapped-a4.plan.json`). It therefore remains on A3 5:1. The pre-existing
+unsupported 1.2 PMI location remains reported; no PMI is silently discarded. The explicitly
+requested threaded_connector_109 check remains a limitation: A4 1:10 has densely modelled
+thread ink and crowded left-hand callouts. It is not a satisfactory thread drawing, even
+though its bounded layout checks pass; no thread pitch/type was invented or lint suppressed.
+
+### MCP schema size
+
+The extension introduced the *entire typed detail record* into twelve standalone Spec schemas;
+the previous view values were opaque objects. That explains **42,356 → 47,732 bytes**, rather
+than two optional fields alone. There are no redundant copies inside a standalone schema.
+A disjoint string/array type replaces the inlined union and an exact compact pattern replaces
+the repeated source enum. Nulls, nonempty typed lists, source vocabulary, scale bounds and
+strict detail properties are retained, including rejection of trailing newlines and mismatched
+section letters. The final total is **46,868 bytes**, **864 fewer**, with the minimum honest
+strict cap **<46,869** in the generator and Rust guard.
+
+### Actual output and visual inspection
+
+Every PNG below was opened and inspected. Final rerenders are byte-identical to that inspected
+set, and the live, archived and survey executables have the same SHA-256
+(`final-integrity.json`). SVG, Plan JSON and render review JSON are beside each PNG.
+The drawing check distinguishes preserved layout findings from claims of manufacturing readiness.
+
+| Drawing | Sheet and mains | Details | PNG under `target/detail-review/renders/` |
+| --- | --- | --- | --- |
+| string_post | A4 5:1 | — | [string_post.png](../target/detail-review/renders/string_post.png) |
+| string_post_spec | A4 5:1 | — | [string_post_spec.png](../target/detail-review/renders/string_post_spec.png) |
+| GRM-03 | A3 10:1 | — | [GRM-03.png](../target/detail-review/renders/GRM-03.png) |
+| sm-hanger | A3 1:2 | — | [sm-hanger.png](../target/detail-review/renders/sm-hanger.png) |
+| ctc01 | A3 1:5 | — | [ctc01.png](../target/detail-review/renders/ctc01.png) |
+| 10060 | A4 1:1 | — | [10060.png](../target/detail-review/renders/10060.png) |
+| ftc10 | A1 1:1 | — | [ftc10.png](../target/detail-review/renders/ftc10.png) |
+| 10103 | A3 5:1 | — | [10103.png](../target/detail-review/renders/10103.png) |
+| 10170 | A3 1:1 | B 2:1 | [10170.png](../target/detail-review/renders/10170.png) |
+| threaded_connector_109 | A4 1:10 | — | [threaded_connector_109.png](../target/detail-review/renders/threaded_connector_109.png) |
+| GRM03_constrained | A3 2:1 | A 10:1 | [GRM03_constrained.png](../target/detail-review/renders/GRM03_constrained.png) |
+| GRM03_constrained_a4 | A4 2:1 | — | [GRM03_constrained_a4.png](../target/detail-review/renders/GRM03_constrained_a4.png) |
+| ctc02_pmi | A1 1:5 | B 1:2.5 | [ctc02_pmi.png](../target/detail-review/renders/ctc02_pmi.png) |
+| string_post_tapped | A3 5:1 | — | [string_post_tapped.png](../target/detail-review/renders/string_post_tapped.png) |
+| crowded_prism | A3 1:1 | A 5:1 | [crowded_prism.png](../target/detail-review/renders/crowded_prism.png) |
+
+10170 is a useful default-detail fallback: B at 2:1 enlarges the 5.1/10.4 mm height
+group, widening the adjacent paper gap from 5.3 to 10.5 mm across the 7 mm parent spacing
+floor on A3. It uses a readable full-width feature and an explicit break line. Forced
+detail-free recovery retains the height claims but finds no clean candidate:
+two hole locations remain too close to read. The detail improves the step group; it does not
+resolve those unrelated findings. The constrained crowded_prism example demonstrates the
+same convention on close steps. The AP242 CTC02 detail B at 1:2.5 doubles the principal
+scale for the 8/30 mm steps, widening their paper gap from 4.4 to 8.8 mm across the same
+7 mm spacing floor without moving the already-required large sheet up again.
+Its forced ordinary recovery also retains the claims but exhausts the legal candidates with
+hard layout and hole-legibility findings. Both drawings honestly remain `needs_attention`;
+neither detail is presented as curing all pre-existing whole-drawing findings. The comparison
+Plans are in `detail-reasons/` and `detail-reasons.json`.
+Authored details remain explicit user intent; constrained-scale head and chain tests continue to exercise their geometry and ownership.
+
+### 227-part base/head survey
+
+227 drawable unique STEP contents were compared, plus the intentionally unresolved fixture. There are **2 sheet/scale changes**, **0 new error findings**, **0 lost placed PMI items**, **0 altered PMI labels/values/claims**, and **0 new A2+ moves** from A4/A3. Full Plans, source aliases, findings and provenance are retained in `base/`, `final/` and `comparison/comparison.json`.
+
+| Part | Base | Final |
+| --- | --- | --- |
+| corpus/cadgenbench/threaded_connector_109.step | A2 1:2 / 1 sheet(s) | A4 1:10 / 1 sheet(s) |
+| fixtures/pmi/step/string_post_tapped.step.gz | A4 2:1 / 1 sheet(s) | A3 5:1 / 1 sheet(s) |
+
+Compared with the reviewed pre-fix head, the following sheets/scales change (unchanged rows are omitted):
+
+| Part | Reviewed head | Final |
+| --- | --- | --- |
+| corpus/gramel/GRM-03_thumbwheel_drive_screw.step | A4 2:1 / 1 sheet(s) | A3 10:1 / 1 sheet(s) |
+| corpus/gramel/string_post.step | A4 2:1 / 1 sheet(s) | A4 5:1 / 1 sheet(s) |
+| corpus/inventory_refusal/13975.step.gz | A3 2:1 / 1 sheet(s) | A4 1:1 / 1 sheet(s) |
+| corpus/mfcadpp/10103.step | A4 1:1 / 1 sheet(s) | A3 5:1 / 1 sheet(s) |
+| corpus/mfcadpp_holdout/257.step | A4 1:1 / 1 sheet(s) | A4 2:1 / 1 sheet(s) |
+| corpus/ttt_inputs/sm-hanger.step | A1 2:1 / 1 sheet(s) | A3 1:2 / 1 sheet(s) |
+| fixtures/recognition/issues/curved_rotated.step | A4 1:2 / 1 sheet(s) | A3 1:1 / 1 sheet(s) |
+| fixtures/rule_pins/framed.step.gz | A4 1:1 / 1 sheet(s) | A3 2:1 / 1 sheet(s) |
+
+Default automatic detail-bearing parts drop from **30 at the reviewed head to two**. Details retained:
+
+* `corpus/mfcadpp/10170.step`: B 2:1 (prismatic-steps, 2 owned requirements).
+* `fixtures/pmi/step/nist_ctc_02_asme1_ap242-e2.stp.gz`: B 1:2.5 (prismatic-steps, 2 owned requirements).
+
+All 39 saved sm-hanger Specs were replayed against main, the pre-fix binary and final. 17 prior small-to-large regressions return to A4/A3 (Spec indices [3, 5, 6, 7, 9, 10, 13, 14, 15, 16, 17, 21, 23, 26, 33, 34, 37]). The final distribution is 21 A3, 15 A4, two explicitly requested A0, and the same unknown-`rear` refusal as main. Findings remain in `hanger-*/summary.json` and `hanger-comparison.json`.
+
+### Thirty quality parts: regenerated current Rust comparison
+
+Rust values are regenerated from the final `quality/*.plan.json`. Python values retain the
+previously inspected reports; they are not a claim of a fresh Python rebuild.
+
+| Part | Retained Python details | Current Rust details | Current Rust mains |
+| --- | --- | --- | --- |
+| cadgenbench_inputs/cgb203.step | — | — | A4 1:5 |
+| cadgenbench_inputs/cgb207.step | FAILED: empty plan | — | A4 1:2 |
+| cadgenbench_inputs/cgb241.step | — | — | A3 1:5 |
+| cadgenbench_inputs/cgb245.step | — | — | A2 1:2 |
+| gramel/GRM-03_thumbwheel_drive_screw.step | — | — | A3 10:1 |
+| gramel/GRM-05_depth_lock_bolt.step | — | — | A3 5:1 |
+| gramel/string_post.step | — | — | A4 5:1 |
+| nist/nist_ctc_01_asme1_rd.stp | — | — | A3 1:5 |
+| nist/nist_ctc_02_asme1_rc.stp | — | — | A1 1:5 |
+| nist/nist_ctc_03_asme1_rc.stp | — | — | A3 1:5 |
+| nist/nist_ctc_04_asme1_rd.stp | — | — | A1 1:5 |
+| nist/nist_ctc_05_asme1_rd.stp | — | — | A2 1:5 |
+| nist/nist_ftc_06_asme1_rd.stp | — | — | A1 1:2 |
+| nist/nist_ftc_07_asme1_rd.stp | — | — | A2 1:2 |
+| nist/nist_ftc_08_asme1_rc.stp | — | — | A2 1:2 |
+| nist/nist_ftc_09_asme1_rd.stp | — | — | A1 1:1 |
+| nist/nist_ftc_10_asme1_rb.stp | B 4.5:1 | — | A1 1:1 |
+| ttt_inputs/sm-hanger.step | A 2:1 | — | A3 1:2 |
+| mfcadpp/1000.step | — | — | A4 2:1 |
+| mfcadpp/10000.step | — | — | A4 1:1 |
+| mfcadpp/10007.step | A 6:1 | — | A3 2:1 |
+| mfcadpp/10020.step | — | — | A4 2:1 |
+| mfcadpp/10033.step | A 1.454:1 | — | A3 2:1 |
+| mfcadpp/10038.step | — | — | A4 2:1 |
+| mfcadpp/1004.step | — | — | A4 1:1 |
+| mfcadpp/10046.step | — | — | A3 2:1 |
+| mfcadpp/10047.step | — | — | A4 1:1 |
+| mfcadpp/10049.step | — | — | A4 1:1 |
+| mfcadpp/10060.step | A 4:1 | — | A4 1:1 |
+| mfcadpp/10063.step | — | — | A4 1:1 |
+
+### Retired instructions
+
+Counts are Darwin `proc_pid_rusage` instructions, not load-dependent wall time. The before executable is the untouched `0d8b2381` build.
+
+| Part | Before | After | Change |
+| --- | ---: | ---: | ---: |
+| sm-hanger | 4,066,886,339 | 3,072,782,457 | -24.4% |
+| ctc01 | 14,708,894,153 | 12,041,734,944 | -18.1% |
+| ftc10 | 31,538,538,914 | 27,148,068,327 | -13.9% |
+| 10060 | 1,428,472,512 | 1,372,016,081 | -4.0% |
+| ctc02 | 230,524,717,241 | 227,797,385,798 | -1.2% |
+| string_post | 4,747,377,929 | 4,786,218,344 | +0.8% |
+
+Full unchanged 65-part `check_plan_time`: **2,922,881,614,872 instructions**, limit **3,165,755,533,285**, 242.3 s wall time: **PASS**. Per-part counts and platform/budget are in `plan-time.json`.
+The first full measurement failed at 3,651,346,847,255 instructions; shared candidate work and
+early refusal brought it under the unchanged gate. Earlier measurements and the interrupted
+caption-reservation diagnostic are retained in `perf-diagnostic/` and `caption-diagnostic/`.
+
+### Required checks
+
+Commands source `$HOME/.cargo/env` and set `CARGO_BUILD_JOBS=4 RUST_TEST_THREADS=4`; corpus tests set both required corpus variables. Each requested check ran one at a time.
+
+| Check | Exit | Log under `target/detail-review/` |
+| --- | ---: | --- |
+| fmt | 0 | `fmt.log` |
+| clippy | 0 | `clippy.log` |
+| quality | 0 | `quality.log` |
+| quality-acceptance | 0 | `quality-acceptance.log` |
+| leader-routes | 0 | `leader-routes.log` |
+| plan-time | 0 | `plan-time.log` |
+| wasm-build | 0 | `wasm-build.log` |
+| wasm-native | 0 | `wasm-native.log` |
+| wasm-parity | 0 | `wasm-parity.log` |
+| wasm-size | 0 | `wasm-size.log` |
+| comparison | 0 | `comparison.log` |
+| before-comparison | 0 | `before-comparison.log` |
+| mcp-schemas | 0 | `mcp-schemas.log` |
+| fmt-final | 0 | `fmt-final.log` |
+| clippy-final | 0 | `clippy-final.log` |
+| tests-issue-drafting | 0 | `corrected-grm-regressions.log` |
+| tests | 0 | `tests.log` |
+
+Final required-corpus release run: **1,132 passed, 0 failed, 0 ignored across 112 targets** (`test-summary.json`, `tests.log`).
+
+The earlier full run is retained in `stale-grm-diagnostic/tests.log`: 1,130 passed, two failed,
+none ignored. One test still demanded a redundant local GRM-03 2 mm label. Its correction
+keeps exact printed-label, isometric and raw-sheet assertions, independently proves all eight
+physical band quantities from actual placed ink, removes each controlling baseline station in
+turn, and checks the recovered A3 10:1 drawing without a detail. All 36 drafting tests then
+passed, followed by the complete 1,132-test release rerun above.
+
+The other earlier failure was the unchanged NIST session wall-clock gate: p90/max **428.290 ms**
+against **150 ms**, with the other eight samples at 7.8–37.2 ms. It passes on the final full
+rerun. No gate, test-thread setting or latency override was changed. Both outcomes are
+reported rather than replacing the failed measurement.
+
+An earlier diagnostic also exposed a direct-claims-only sheet-selection oracle: GRM-03's
+2 mm shoulder is now determined by the printed 0.5 and 2.5 mm baseline stations. The corrected
+oracle independently reads placed annotations and checks real shoulder geometry through
+`lint::turned::outcomes`; it does not trust the planner's `Covered` ledger. The same strict
+before/after physical-outcome subset and independent sheet-rule assertions remain. The exact
+Rust/Python dimension catalogue also now records five moved labels under their actual parent
+view, and both sides of sm-hanger's 65 mm view equivalence. The comparison still checks every stated label and count bidirectionally; none of
+its matching assertions is relaxed. The repeated-label catalogue restores main’s exact CTC01
+verdict: the two 50 mm quantities span 100–150 and 0–50 respectively. Stale view-difference
+entries are removed only when the compared views now agree or cease to be common; the
+hanger view-set difference records the deliberate full-width crop refusal. Three rule
+citations point to the replacement default/constrained tests; rule statuses stay unchanged. With the full head withheld on the small estimate, five GRM-03 dimension exceptions and
+one view exception disappear because the parent statements match directly. This reduces
+the exception catalogue; the strict comparison and placed-quantity checks remain.
+Caption anchoring was corrected as described above.
+
+All **300 quality cells across 30 parts pass** the unchanged acceptance baseline: ink
+**52 → 51**, material crossings **73 → 73**, repeated labels **7 → 7**, hidden-on-visible
+**2,231 → 0**, all other gated totals remain zero. The leader check passes **119 callouts on
+30 parts**, with 14 unchanged pre-existing long runs. WASM builds with `wasm-opt`; parity
+passes all **3** replay tests. Final WASM size: raw **13,718,899**, gzip **4,532,165**, Brotli
+**3,002,822 bytes**. All 26 published and served schemas for 13 tools validate independently.
+`gate-integrity.json` records the six unchanged rule/gate hashes and checks all 14 tolerance
+labels; `visual-inspection.json` records the opened final PNG hashes and observations.
+`final-integrity.json` confirms those checks again against the final archived executables and
+all fifteen delivered rerenders; `visual-inspection-a4-trial.json` records the separate tapped
+A4 trial.
+
+## Historical merge onto main `0af1323e` (PRs #67–#72), 2026-10-16
 
 This section supersedes earlier verification below. The merge parents are `2348ce47`
 and `0af1323e`. Both prior merge commits (`7b39ab9e`, `2348ce47`) and incoming changes
@@ -562,50 +840,7 @@ The controlled A4 1:1 prismatic replays use the same explicit sheet spec in both
 | crowded_prism | [PNG](/private/tmp/claude-501/-Users-paul-repos-quiddity-rust/4f6aac0c-d5a0-4c82-bc67-2d2552947882/scratchpad/detail-work/before/crowded_prism_a4.png) | [Detail A 2.333:1](/private/tmp/claude-501/-Users-paul-repos-quiddity-rust/4f6aac0c-d5a0-4c82-bc67-2d2552947882/scratchpad/detail-work/after/crowded_prism_a4.png) |
 | unequal_prism | [PNG](/private/tmp/claude-501/-Users-paul-repos-quiddity-rust/4f6aac0c-d5a0-4c82-bc67-2d2552947882/scratchpad/detail-work/before/unequal_prism_a4.png) | [Detail A 3.5:1](/private/tmp/claude-501/-Users-paul-repos-quiddity-rust/4f6aac0c-d5a0-4c82-bc67-2d2552947882/scratchpad/detail-work/after/unequal_prism_a4.png) |
 
-## Thirty quality parts: Rust versus Python
-
-All 30 Rust plans/reviews/SVGs were regenerated. Python completed 29 corresponding builds.
-Six slow Python cases completed on SVG-only retries; cgb207 fails in Python before producing
-a drawing. The machine-readable survey retains every Python request/refusal and Rust owner.
-Python reports are under `python/` and `python-retry/` in the scratch root;
-Rust final reports are under `quality-final-10/`.
-
-Scale values below are absolute paper/model ratios. `—` means no placed detail.
-
-| Part | Python details | Rust details | Rust mains | Explanation |
-| --- | --- | --- | --- | --- |
-| cadgenbench_inputs/cgb203.step | — | — | A4 1:5 | Both finish without a detail; request/refusal evidence is retained in the machine-readable survey. |
-| cadgenbench_inputs/cgb207.step | FAILED: empty plan | — | A4 1:2 | Python fails with an empty plan projection (ValueError); no completed Python drawing is available. Rust completes without a detail. |
-| cadgenbench_inputs/cgb241.step | — | — | A3 1:5 | Both finish without a detail; request/refusal evidence is retained in the machine-readable survey. |
-| cadgenbench_inputs/cgb245.step | — | — | A2 1:2 | Both finish without a detail; request/refusal evidence is retained in the machine-readable survey. |
-| gramel/GRM-03_thumbwheel_drive_screw.step | — | A 10:1 | A4 2:1 | Rust chooses 2:1 mains and recovers the crowded X head at 10:1; Python enlarges the mains instead. |
-| gramel/GRM-05_depth_lock_bolt.step | — | — | A3 5:1 | Both finish without a detail; request/refusal evidence is retained in the machine-readable survey. |
-| gramel/string_post.step | — | B 10:1 | A4 2:1 | Intentional Z-axis terminal-head extension; Python has no automatic vertical-head request. |
-| nist/nist_ctc_01_asme1_rd.stp | — | A 0.24:1 | A3 1:5 | Rust already approved the supported 50 mm rung that Python withholds. It now moves to its own readable crop. |
-| nist/nist_ctc_02_asme1_rc.stp | — | — | A1 1:5 | Both finish without a detail; request/refusal evidence is retained in the machine-readable survey. |
-| nist/nist_ctc_03_asme1_rc.stp | — | — | A3 1:5 | Both finish without a detail; request/refusal evidence is retained in the machine-readable survey. |
-| nist/nist_ctc_04_asme1_rd.stp | — | — | A1 1:5 | Both finish without a detail; request/refusal evidence is retained in the machine-readable survey. |
-| nist/nist_ctc_05_asme1_rd.stp | — | — | A2 1:5 | Both finish without a detail; request/refusal evidence is retained in the machine-readable survey. |
-| nist/nist_ftc_06_asme1_rd.stp | — | — | A1 1:2 | Both finish without a detail; request/refusal evidence is retained in the machine-readable survey. |
-| nist/nist_ftc_07_asme1_rd.stp | — | — | A2 1:2 | Both finish without a detail; request/refusal evidence is retained in the machine-readable survey. |
-| nist/nist_ftc_08_asme1_rc.stp | — | — | A2 1:2 | Both finish without a detail; request/refusal evidence is retained in the machine-readable survey. |
-| nist/nist_ftc_09_asme1_rd.stp | — | — | A1 1:1 | Both finish without a detail; request/refusal evidence is retained in the machine-readable survey. |
-| nist/nist_ftc_10_asme1_rb.stp | B 4.5:1 | B 3.5:1 | A1 1:1 | Same prismatic recovery; Rust uses the minimum readable 3.5 rather than Python’s preferred fitted 4.5. |
-| ttt_inputs/sm-hanger.step | A 2:1 | A 1.75:1 | A2 1:1 | Same supported height recovery; Rust uses required 1.75, Python fits a preferred 2.0. Rust retains 1:1 mains on A2 to keep the established leaders clear. |
-| mfcadpp/1000.step | — | — | A4 2:1 | Both finish without a detail; request/refusal evidence is retained in the machine-readable survey. |
-| mfcadpp/10000.step | — | — | A4 1:1 | Both finish without a detail; request/refusal evidence is retained in the machine-readable survey. |
-| mfcadpp/10007.step | A 6:1 | — | A4 1:1 | Rust requests the crop but cannot reserve its minimum footprint in the current principal/annotation layout. Python’s different packing fits 6:1. Source requirements remain drawn; this is a remaining layout difference. |
-| mfcadpp/10020.step | — | — | A4 2:1 | Both finish without a detail. Python refuses minimum-footprint fit; Rust declines trials that lengthen leaders or conflict with annotations. |
-| mfcadpp/10033.step | A 1.454:1 | — | A3 2:1 | Rust retains A3 mains at 2:1, where these rungs pass the source gate and the original short leader survives. Its smaller-paper detail trial needed a 17 mm leader versus the established 10 mm route. Python fits its 1.454 detail on A4. |
-| mfcadpp/10038.step | — | — | A4 2:1 | Both finish without a detail; request/refusal evidence is retained in the machine-readable survey. |
-| mfcadpp/1004.step | — | — | A4 1:1 | Both finish without a detail; request/refusal evidence is retained in the machine-readable survey. |
-| mfcadpp/10046.step | — | A 1.2:1 | A4 1:1 | Native Rust approval retains a supported 1.8 mm height that Python does not queue. Its detail moves that same original requirement. |
-| mfcadpp/10047.step | — | — | A4 1:1 | Both finish without a detail; request/refusal evidence is retained in the machine-readable survey. |
-| mfcadpp/10049.step | — | — | A4 1:1 | Both finish without a detail; request/refusal evidence is retained in the machine-readable survey. |
-| mfcadpp/10060.step | A 4:1 | A 3.5:1 | A4 1:1 | Same prismatic recovery; minimum 3.5 in Rust versus fitted preferred 4.0 in Python. |
-| mfcadpp/10063.step | — | — | A4 1:1 | Both finish without a detail; request/refusal evidence is retained in the machine-readable survey. |
-
-## Quality and route gates
+## Historical quality and route gates
 
 No cell among the 30 × 10 CI metrics is worse than `tools/ci-quality-baseline.json`.
 The unchanged pre-change executable reproduced all 300 baseline cells before the port.
