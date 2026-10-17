@@ -715,6 +715,17 @@ pub(crate) fn paper_fallback(
             1 + p.sheets.len(), p.sheet.scale, f.hard, route_reason.unwrap_or("annotation/feature association"), blockers.into_iter().collect::<Vec<_>>().join(", ")
         ));
         if clean {
+            // Naming paper internally must not lose a warning about the user's
+            // explicit scale. Auxiliary allocation cannot enlarge that scale.
+            for warning in required
+                .problems
+                .iter()
+                .filter(|q| q.code == "legibility_floor_breached")
+            {
+                if !p.problems.iter().any(|q| q.id == warning.id) {
+                    p.problems.push(warning.clone());
+                }
+            }
             let binding = p.spec.binding.clone();
             p.spec = spec.clone();
             p.spec.schema = model::SPEC_SCHEMA.into();

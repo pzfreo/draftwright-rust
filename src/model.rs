@@ -1508,6 +1508,8 @@ fn protect_retained_routes(
             .iter()
             .position(|(name, ..)| *name == p.sheet.size)
     };
+    let worse_readability = crate::sheet_fit::readability(analysis, &candidate).failures()
+        > crate::sheet_fit::readability(analysis, reference).failures();
     let unjustified_paper = spec.sheet.size.is_none()
         && paper(&candidate) > paper(reference)
         && carries_required(&candidate, reference)
@@ -1515,6 +1517,7 @@ fn protect_retained_routes(
             >= crate::sheet_fit::readability(analysis, reference).failures();
     if !drawn_quality_reference(analysis, reference)
         || (!unjustified_paper
+            && !worse_readability
             && no_new_drawing_issues(reference, &candidate)
             && crate::sheet_fit::routes_no_worse(analysis, reference, &candidate)
             && drawn_sheets_fit(analysis, &candidate)
@@ -1544,8 +1547,14 @@ fn protect_retained_routes(
         )
     };
     kept.sheet.basis = format!(
-        "{outcome}; retained readability [{readable}]; no new crossing pairs are allowed; rejected drawing {} at {}; candidates: {}",
-        candidate.sheet.size, candidate.sheet.scale, candidate.sheet.basis
+        "{outcome}; retained readability [{readable}]; retained basis: {}; no new crossing pairs are allowed; rejected drawing {} at {}; candidates: {}",
+        kept.sheet.basis,
+        candidate.sheet.size,
+        candidate.sheet.scale,
+        candidate
+            .sheet
+            .basis
+            .replace("drawn-item fill", "candidate coverage")
     );
     if !qualified {
         kept.problems.push(Problem {
@@ -3039,6 +3048,36 @@ fn recover_candidates_before(
         || crate::placement_intent::has_pins(spec)
         || dimension_text_edited(spec)
     {
+        // A tolerance edit retains its recovered paper and scale, but an
+        // internally compacted frame can leave an authored angle off paper.
+        // Try that same pair through the ordinary named-frame solve before
+        // keeping an infeasible edited drawing. No paper or scale is changed.
+        if spec.sheet.size.is_none()
+            && spec.sheet.scale.is_none()
+            && !crate::placement_intent::has_pins(spec)
+            && spec.dimensions.values().any(|d| d.between.is_some())
+            && (!drawn_items_fit(analysis, &first)
+                || !crate::dims::authored_placement_clear(spec, &first.dimensions))
+        {
+            let mut named = spec.clone();
+            named.sheet.size = Some(first.sheet.size.clone());
+            named.sheet.scale = Some(first.sheet.scale.clone());
+            let mut settled = plan_recovered(analysis, &named)?;
+            if drawn_sheets_fit(analysis, &settled)
+                && carries_required(&first, &settled)
+                && no_new_drawing_issues(&first, &settled)
+                && crate::sheet_fit::readability(analysis, &settled).failures()
+                    <= crate::sheet_fit::readability(analysis, &first).failures()
+            {
+                restore_search_spec(&mut settled, spec);
+                settled.sheet.default = true;
+                settled.sheet.basis = format!(
+                    "{}; authored ink settled in the same named paper/scale frame",
+                    first.sheet.basis
+                );
+                first = settled;
+            }
+        }
         // A pinned sheet and scale are judged as the automatic search judges its candidates
         // (#13): the packed estimate's doubt is withdrawn when the finished drawing's items and
         // views all fit the sheet, so the pair the engine would choose itself raises nothing.
@@ -3079,6 +3118,7 @@ fn recover_candidates_before(
                 p.fix = fix;
             }
         }
+        compact_authored_row(analysis, &mut first);
         shorten_authored_witnesses(analysis, spec, &mut first)?;
         return Ok(first);
     }
@@ -3825,6 +3865,18 @@ fn recover_candidates_before(
     .unwrap_or(&first)
     .clone();
     let route_reference = historical.unwrap_or(route_reference);
+    // Public recover also accepts an unfitted template. If that input already
+    // physically fits and is more readable than the reconstructed historical
+    // fallback, retain its stronger measurement reference rather than shrinking it.
+    let route_reference = if !reference_only
+        && crate::sheet_fit::readability(analysis, &first).failures()
+            < crate::sheet_fit::readability(analysis, &route_reference).failures()
+        && drawn_quality_reference(analysis, &first)
+    {
+        first.clone()
+    } else {
+        route_reference
+    };
     let keys: Vec<_> = candidates.iter().map(|(c, _)| *c).collect();
     let Some((choice, (i, s))) =
         crate::sheet_fit::choose(&keys, spec.sheet.size.is_some(), seed_kept)
@@ -3842,10 +3894,13 @@ fn recover_candidates_before(
             restore_search_spec(&mut kept, spec);
             kept.sheet.default = true;
             kept.sheet.basis = format!(
-                "readability refusal on {} at {}; established fitted geometry retained; candidates: {}",
+                "readability refusal on {} at {}; established fitted geometry retained; retained basis: {}; candidates: {}",
                 kept.sheet.size,
                 kept.sheet.scale,
-                tried.join("; ")
+                kept.sheet.basis,
+                tried
+                    .join("; ")
+                    .replace("drawn-item fill", "candidate coverage")
             );
             if kept.sheet.size != first.sheet.size || kept.sheet.scale != first.sheet.scale {
                 kept.problems.push(Problem { id:"p:layout_replanned:sheet".into(),code:"layout_replanned".into(),severity:"info".into(),message:format!("Sheet choice changed from {} at {} to {} at {} to retain the established fitted geometry.", first.sheet.size,first.sheet.scale,kept.sheet.size,kept.sheet.scale),subjects:vec!["sheet".into()],..Default::default() });
@@ -3910,10 +3965,13 @@ fn recover_candidates_before(
         let fitted = drawn_quality_reference(analysis, &first);
         if fitted {
             first.sheet.basis = format!(
-                "readability refusal on {} at {}; established fitted geometry retained; retained readability [{readability}]; candidates: {}",
+                "readability refusal on {} at {}; established fitted geometry retained; retained readability [{readability}]; retained basis: {}; candidates: {}",
                 first.sheet.size,
                 first.sheet.scale,
-                tried.join("; ")
+                first.sheet.basis,
+                tried
+                    .join("; ")
+                    .replace("drawn-item fill", "candidate coverage")
             );
         } else {
             first.sheet.basis += &format!(
@@ -3927,12 +3985,21 @@ fn recover_candidates_before(
         } else {
             "The drawing and its findings are kept"
         };
+        let shortfall = if first.sheet.scale_factor < min_legible_scale {
+            format!(
+                " The retained scale {} is below {}.",
+                first.sheet.scale,
+                scale_name(min_legible_scale)
+            )
+        } else {
+            String::new()
+        };
         first.problems.push(Problem {
             id: "p:layout_recovery_exhausted:sheet".into(),
             code: "layout_recovery_exhausted".into(),
             severity: if illegible { "warning" } else { "info" }.into(),
             message: format!(
-                "No standard sheet and legible scale yields a valid complete drawing. {retained}: {readability}. Its minimum feature/extent/depiction scale is {}. Tried {}.",
+                "No standard sheet and legible scale yields a valid complete drawing. {retained}: {readability}. Its minimum feature/extent/depiction scale is {}.{shortfall} Tried {}.",
                 scale_name(min_legible_scale), tried.join("; ")
             ),
             subjects: vec!["sheet".into()],
@@ -4447,6 +4514,9 @@ fn plan_escalated_with(
     candidate_arrangement: Option<layout::Arrangement>,
     require_automatic: bool,
 ) -> Result<Plan, Invalid> {
+    // Authored witnesses use the established frame of each named trial;
+    // automatic carrier compaction must not change their chosen quadrant.
+    let automatic_pair = automatic_pair && !spec.dimensions.values().any(|d| d.between.is_some());
     let analysis_key: [u8; 32] =
         crate::planning::memo(analysis, "analysis_digest", Vec::new(), || {
             Sha256::digest(serde_json::to_vec(analysis).expect("Analysis serializes")).into()
@@ -4589,6 +4659,7 @@ fn plan_escalated_uncached(
             if let Some(stable) = crate::dims::retain_established(analysis, spec, &p) {
                 p = stable;
             }
+            crate::sheet_fit::order_location_rows(analysis, &mut p);
             crate::completeness::report(analysis, &mut p);
             p.sheet.fill = crate::sheet_fit::fill(analysis, &p);
             if let Some((basis, _)) = p.sheet.basis.rsplit_once("; drawn-item fill ") {

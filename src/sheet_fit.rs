@@ -2990,11 +2990,15 @@ pub(crate) fn reserve_linear_corridors(
             }
         }
     }
-    for d in inventory
-        .iter()
-        .chain(&plan.dimensions)
-        .filter(|d| d.kind == "linear")
-    {
+    for d in inventory.iter().chain(&plan.dimensions).filter(|d| {
+        d.kind == "linear"
+            || (d.kind == "angular"
+                && plan
+                    .spec
+                    .dimensions
+                    .get(&d.id)
+                    .is_some_and(|s| s.between.is_some()))
+    }) {
         let Some(b) = crate::dims::ink_box(d) else {
             continue;
         };
@@ -3377,6 +3381,128 @@ pub(crate) fn reserve_linear_corridors(
     plan.problems
         .retain(|p| p.code != "annotation_outside_area" && !ids.contains(&p.id));
     plan.problems.extend(checked);
+}
+
+/// Keep located quantities nested from their datum outwards when a larger
+/// readable trial exposes a greedy corridor inversion. Exchange only occupied
+/// rows; physical witness origins, measured spans and every label remain intact.
+pub(crate) fn order_location_rows(analysis: &Analysis, plan: &mut Plan) {
+    use std::collections::BTreeMap;
+    type Strip = (String, usize, bool);
+    type Row = (usize, f64, f64);
+    let mut groups: BTreeMap<Strip, Vec<Row>> = BTreeMap::new();
+    for (i, d) in plan.dimensions.iter().enumerate() {
+        let parameter = d.id.rsplit_once('/').map_or("", |(_, p)| p);
+        if d.kind != "linear"
+            || !(parameter.starts_with("location")
+                || parameter.starts_with("step_height")
+                || parameter.starts_with("step_position"))
+            || plan
+                .spec
+                .dimensions
+                .get(&d.id)
+                .is_some_and(|s| s.place.is_some() || s.between.is_some())
+        {
+            continue;
+        }
+        let Some(p) = &d.placed else {
+            continue;
+        };
+        if p.arrows.len() != 2 || p.lines.len() != 3 {
+            continue;
+        }
+        let Some(v) = plan.views.iter().find(|v| v.id == d.view) else {
+            continue;
+        };
+        let [a, b] = [p.arrows[0][0], p.arrows[1][0]];
+        let normal = if (a[1] - b[1]).abs() < 1e-6 {
+            1
+        } else if (a[0] - b[0]).abs() < 1e-6 {
+            0
+        } else {
+            continue;
+        };
+        if p.lines[..2]
+            .iter()
+            .any(|line| (line[0][1 - normal] - line[1][1 - normal]).abs() > 1e-6)
+        {
+            continue;
+        }
+        groups
+            .entry((d.view.clone(), normal, a[normal] > v.at[normal]))
+            .or_default()
+            .push((i, (a[normal] - v.at[normal]).abs(), d.value));
+    }
+    groups.retain(|_, g| {
+        g.sort_by(|a, b| a.1.total_cmp(&b.1));
+        g.windows(2).any(|w| w[0].2 > w[1].2 + 1e-9)
+    });
+    if groups.is_empty() {
+        return;
+    }
+    let mut trial = plan.clone();
+    for ((_, normal, _), g) in groups {
+        let mut sorted = g.clone();
+        sorted.sort_by(|a, b| a.2.total_cmp(&b.2).then(a.1.total_cmp(&b.1)));
+        for ((i, _, _), (slot, _, _)) in sorted.into_iter().zip(g) {
+            let row = plan.dimensions[slot].placed.as_ref().unwrap().arrows[0][0][normal];
+            let p = trial.dimensions[i].placed.as_mut().unwrap();
+            let delta = row - p.arrows[0][0][normal];
+            p.label_at[normal] += delta;
+            p.label_box[normal] += delta;
+            p.label_box[normal + 2] += delta;
+            for arrow in &mut p.arrows {
+                for point in arrow {
+                    point[normal] += delta;
+                }
+            }
+            for line in &mut p.lines[..2] {
+                line[1][normal] += delta;
+            }
+            for point in &mut p.lines[2] {
+                point[normal] += delta;
+            }
+        }
+    }
+    let before = readability(analysis, plan);
+    let after = readability(analysis, &trial);
+    if after.steps > before.steps
+        || after.openings > before.openings
+        || after.native_openings > before.native_openings
+        || after.text_arrows > before.text_arrows
+        || after.depiction > before.depiction
+        || after.lanes > before.lanes
+    {
+        return;
+    }
+    let cache = crate::dims::footprints::Cache::default();
+    let old = crate::dims::recheck_cached(analysis, plan, &cache);
+    let checked = crate::dims::recheck_cached(analysis, &trial, &cache);
+    let codes: std::collections::BTreeSet<_> =
+        old.iter().chain(&checked).map(|q| q.code.clone()).collect();
+    trial.problems.retain(|q| !codes.contains(&q.code));
+    trial.problems.extend(checked);
+    let identities = |p: &Plan| {
+        let mut counts = BTreeMap::new();
+        for q in &p.problems {
+            *counts
+                .entry((q.id.clone(), q.severity.clone()))
+                .or_insert(0usize) += 1;
+        }
+        counts
+    };
+    let old = identities(plan);
+    if identities(&trial)
+        .into_iter()
+        .any(|(q, n)| n > old.get(&q).copied().unwrap_or(0))
+    {
+        return;
+    }
+    if crate::model::no_new_drawing_issues(plan, &trial) && routes_no_worse(analysis, plan, &trial)
+    {
+        trial.status = crate::completeness::status(&trial.problems);
+        *plan = trial;
+    }
 }
 
 #[cfg(test)]
