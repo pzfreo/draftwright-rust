@@ -3066,7 +3066,11 @@ fn recover_candidates_before(
         && (!reference_only || crate::sheet_fit::primary_illegible_steps(analysis, &first) == 0);
     // Omitting an optional detail changes candidate construction, never the
     // route-quality reference supplied by a physically complete first estimate.
-    let seed_kept = seed_clean;
+    let seed_kept = seed_clean
+        && (readability_recovery
+            || established_scale.is_none_or(|cap| first.sheet.scale_factor <= cap))
+        && extra_corridors(&first) == 0
+        && extra_existing_crossings(&first) == 0;
     let quality_kept = drawn_quality_reference(analysis, &first);
     // Reconstruct the established choice before qualifying any new paper. A
     // successful A4 candidate must never become its own historical route reference.
@@ -3146,7 +3150,8 @@ fn recover_candidates_before(
         if reference_only && i >= LARGE_SHEET && practical_fallback && smallest.is_none() {
             // The established ladder reinstates a fitted seed's material
             // ratchet after practical paper and its allocation cannot carry it.
-            legacy_seed_kept = seed_clean;
+            legacy_seed_kept =
+                seed_clean && extra_corridors(&first) == 0 && extra_existing_crossings(&first) == 0;
         }
         if reference_only
             && smallest.is_some_and(|(paper, _)| {
@@ -3282,6 +3287,10 @@ fn recover_candidates_before(
             // A failed seed must not restrict the complete drawing to its first arrangement.
             // Try the other established arrangement, with no new leader-routing strategy.
             if !seed_clean
+                || (established_scale.is_some()
+                    && (!findings(&p).clean()
+                        || extra_corridors(&p) > 0
+                        || extra_existing_crossings(&p) > 0))
                 || (!reference_only
                     && (!findings(&p).clean()
                         || ink_findings(&first) > 0

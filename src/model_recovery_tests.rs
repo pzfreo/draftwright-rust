@@ -253,3 +253,75 @@ fn recess_scale_reference_uses_the_established_fitted_choice_before_a4_ranking()
     assert_eq!(crate::sheet_fit::preparation_scale(&channels), 0.5);
     assert_eq!(crate::sheet_fit::min_legible_scale(&channels), 1.0);
 }
+
+#[test]
+fn native_corridor_violations_in_the_seed_cannot_veto_the_fitted_reference() {
+    let evidence: serde_json::Value = serde_json::from_str(include_str!(
+        "../tests/fixtures/sheet_policy_native_routes.json"
+    ))
+    .unwrap();
+    let corpus = std::env::var_os("DRAFTWRIGHT_CORPUS")
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME")
+                .map(|h| std::path::PathBuf::from(h).join("repos/quiddity/tests/corpus"))
+        })
+        .filter(|p| p.is_dir());
+    for row in evidence["parts"].as_array().unwrap() {
+        let name = row["name"].as_str().unwrap();
+        let path = if let Some(name) = name.strip_prefix("corpus/") {
+            let Some(root) = &corpus else {
+                assert!(
+                    std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"),
+                    "required corpus missing"
+                );
+                continue;
+            };
+            root.join(name)
+        } else {
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures")
+                .join(name.strip_prefix("fixtures/").unwrap())
+        };
+        let (_, a) = analyse_native(&path).unwrap();
+        assert_eq!(a.binding.source_sha256, row["sha256"].as_str().unwrap());
+        let p = plan_recovered(&a, &Spec::default()).unwrap();
+        let r = crate::sheet_fit::readability(&a, &p);
+        for (key, value) in [
+            ("steps", r.steps),
+            ("openings", r.openings),
+            ("text_arrows", r.text_arrows),
+            ("depiction", r.depiction),
+            ("lanes", r.lanes),
+        ] {
+            assert!(
+                value as u64 <= row["readability"][key].as_u64().unwrap(),
+                "{name}: {key}: {r}"
+            );
+        }
+        let expected: Vec<(String, Vec<String>, Vec<String>)> =
+            serde_json::from_value(row["findings"].clone()).unwrap();
+        let mut counts = BTreeMap::new();
+        for item in expected {
+            *counts.entry(item).or_insert(0usize) += 1;
+        }
+        for q in p
+            .problems
+            .iter()
+            .filter(|q| q.severity != "info" && q.code != "layout_recovery_exhausted")
+        {
+            let key = (q.code.clone(), q.subjects.clone(), q.refs.clone());
+            let remaining = counts
+                .get_mut(&key)
+                .unwrap_or_else(|| panic!("{name}: new finding {key:?}"));
+            assert!(*remaining > 0, "{name}: extra finding {key:?}");
+            *remaining -= 1;
+        }
+        let required: BTreeSet<(String, String)> =
+            serde_json::from_value(row["claims"].clone()).unwrap();
+        assert!(
+            required.is_subset(&carried(&p)),
+            "{name}: lost a measurement"
+        );
+    }
+}

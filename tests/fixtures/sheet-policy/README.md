@@ -25,3 +25,11 @@ analysis, checks its source SHA against a fresh native reading, and makes its
 original two coordinate edits. Every original gate assertion is retained. The
 separate recognition/3 replay above retains all newly recognised recesses and
 verifies the same veto against an otherwise valid, complete unsafe candidate.
+
+`../sheet_policy_native_routes.json` records the exact finding identities,
+measurement claims and five readability measures of main `0e393afc` for three
+native recess regression cases. A raw estimate with extra established-corridor
+or material contacts must not veto its fitted reference. The regression reads
+the native STEP again and permits no new finding identity, no lost claim, and
+no worse readability component; the recorded paper is context, not a forced
+choice for future readable improvements.

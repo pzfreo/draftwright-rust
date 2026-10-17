@@ -932,6 +932,10 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   of the new paper ranking. Its 0.8 mm channel/opening preparation heuristic has
   a separate memo input from the 2 mm acceptance floor; frame preparation cannot
   silently become a new readability threshold or change the protected drawing.
+  A raw native estimate that exceeds the established corridor/material budget
+  cannot veto the fitted reference merely because its ink is on the sheet.
+  Reference reconstruction compares the same native arrangement alternatives
+  and retains these eligibility guards when it reaches larger paper.
 
   Readability is measured in the owning view's paper millimetres:
   `MIN_OPENING = 2.0` for a dimensioned hole/slot; `MIN_STEP_SPAN = 2.1` (the
