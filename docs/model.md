@@ -926,6 +926,12 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   its arrows. Movement is limited to two existing lanes (14 mm). Authored placements
   stay fixed. Every accepted repair strictly improves readability, retains all
   measurements, fits the drawing, and adds no drawing or leader-route finding.
+  Oblique witnesses keep their original rays: moving a lane transports both
+  arrow tips equally along those rays, preserving the measured span.
+  The native pre-recess comparison uses the legacy fitted scale independently
+  of the new paper ranking. Its 0.8 mm channel/opening preparation heuristic has
+  a separate memo input from the 2 mm acceptance floor; frame preparation cannot
+  silently become a new readability threshold or change the protected drawing.
 
   Readability is measured in the owning view's paper millimetres:
   `MIN_OPENING = 2.0` for a dimensioned hole/slot; `MIN_STEP_SPAN = 2.1` (the

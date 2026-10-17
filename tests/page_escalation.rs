@@ -329,7 +329,7 @@ fn readable_a4_precedes_fill_but_unreadable_steps_require_enlargement() {
     let Some(dir) = corpus::dir() else { return };
     for (file, expected) in [
         ("mfcadpp/10060.step", ("A4", "1:1")),
-        ("mfcadpp/10000.step", ("A3", "2:1")),
+        ("mfcadpp/10000.step", ("A1", "1:1")),
     ] {
         let path = dir.join(file);
         let plan = api::plan_from(&path, Features::Native, &Spec::default()).unwrap();
@@ -638,6 +638,26 @@ fn a_fitted_route_reference_keeps_pair_identity_without_restoring_raw_crossings(
     assert!(pairs(&p).is_subset(&pairs(&reference)));
     assert!(measurements(&reference).is_subset(&measurements(&p)));
     assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
+
+    for d in p.dimensions.iter().filter(|d| d.kind == "linear") {
+        let Some(placed) = &d.placed else { continue };
+        if placed.lines.len() < 3 || placed.arrows.len() != 2 {
+            continue;
+        }
+        // Witnesses keep source endpoint order; heads are sorted along the
+        // measured span. Match their geometry rather than array positions.
+        for [tip, _] in &placed.arrows {
+            assert!(
+                placed.lines[..2].iter().any(|[a, b]| {
+                    let vector = [b[0] - a[0], b[1] - a[1]];
+                    let cross = (tip[0] - a[0]) * vector[1] - (tip[1] - a[1]) * vector[0];
+                    cross.abs() / vector[0].hypot(vector[1]) < 1e-6
+                }),
+                "{}: arrow must stay on its witness",
+                d.id
+            );
+        }
+    }
 
     use std::io::Read as _;
     let mut data = Vec::new();

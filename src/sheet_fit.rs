@@ -905,20 +905,43 @@ pub(crate) fn repair_readability(analysis: &Analysis, plan: &mut Plan) {
                     {
                         continue;
                     }
+                    let along = if shift == 0.0 {
+                        0.0
+                    } else {
+                        let slopes: Vec<_> = q.lines[..2]
+                            .iter()
+                            .filter_map(|[a, b]| {
+                                let across = b[normal] - a[normal];
+                                (across.abs() > 1e-9).then_some((b[axis] - a[axis]) / across)
+                            })
+                            .collect();
+                        if slopes.len() != 2 || (slopes[0] - slopes[1]).abs() > 1e-6 {
+                            continue;
+                        }
+                        shift * 0.5 * (slopes[0] + slopes[1])
+                    };
+                    // Keep oblique witnesses on their original rays. Both
+                    // arrow tips translate equally, preserving the measured span.
                     for line in &mut q.lines[..2] {
                         line[1][normal] += shift;
+                        line[1][axis] += along;
                     }
                     for line in &mut q.lines[2..] {
                         for point in line {
                             point[normal] += shift;
+                            point[axis] += along;
                         }
                     }
                     for point in q.arrows.iter_mut().flatten() {
                         point[normal] += shift;
+                        point[axis] += along;
                     }
                     q.label_at[normal] += shift;
+                    q.label_at[axis] += along;
                     q.label_box[normal] += shift;
                     q.label_box[normal + 2] += shift;
+                    q.label_box[axis] += along;
+                    q.label_box[axis + 2] += along;
                 }
                 let p = trial.dimensions[i]
                     .placed
@@ -938,8 +961,9 @@ pub(crate) fn repair_readability(analysis: &Analysis, plan: &mut Plan) {
                                     crate::dims::ARROW
                                 };
                         }
-                        p.lines[2][0][axis] = lo - crate::dims::ARROW - 2.0;
-                        p.lines[2][1][axis] = hi + crate::dims::ARROW + 2.0;
+                        let along = p.arrows[0][0][axis] - original.arrows[0][0][axis];
+                        p.lines[2][0][axis] = lo + along - crate::dims::ARROW - 2.0;
+                        p.lines[2][1][axis] = hi + along + crate::dims::ARROW + 2.0;
                     }
                 }
                 let after = readability(analysis, &trial);
@@ -985,6 +1009,8 @@ pub const FILL_CLEARANCE: f64 = 1.0;
 /// Minimum visible opening across a hole or slot, page mm. Small edge treatments do
 /// not set the whole-sheet scale; their sizes are stated by callouts.
 pub const MIN_OPENING: f64 = 2.0;
+// Historical frame construction is separate from final readable acceptance.
+pub(crate) const PREPARATION_MIN_OPENING: f64 = 0.8;
 /// The smallest scale the automatic choice offers, whatever the part (1:10).
 pub const ABSOLUTE_FLOOR: f64 = 0.1;
 
@@ -995,7 +1021,7 @@ pub fn min_legible_scale(analysis: &Analysis) -> f64 {
 // Preserve the established frame preparation at explicit and refused scales.
 // This historical layout heuristic never qualifies a drawing as readable.
 pub(crate) fn preparation_scale(analysis: &Analysis) -> f64 {
-    scale_floor(analysis, 0.8, 0.0)
+    scale_floor(analysis, PREPARATION_MIN_OPENING, 0.0)
 }
 
 fn scale_floor(analysis: &Analysis, opening_floor: f64, depiction_floor: f64) -> f64 {
@@ -1021,7 +1047,7 @@ fn scale_floor(analysis: &Analysis, opening_floor: f64, depiction_floor: f64) ->
         .max(20.0 / longest.max(1e-12))
         .max(depiction_floor)
         .max(ABSOLUTE_FLOOR)
-        .max(crate::dims::recess_chain_scale(analysis));
+        .max(crate::dims::recess_chain_scale(analysis, opening_floor));
     crate::layout::SCALES
         .into_iter()
         .rev()

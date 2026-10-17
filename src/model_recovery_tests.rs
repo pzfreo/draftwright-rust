@@ -217,3 +217,39 @@ fn covered_aliases_follow_a_location_into_a_drawn_schedule_only() {
         "a cycle without drawn ink is not coverage"
     );
 }
+
+#[test]
+fn recess_scale_reference_uses_the_established_fitted_choice_before_a4_ranking() {
+    let root = std::env::var_os("DRAFTWRIGHT_CORPUS")
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME")
+                .map(|h| std::path::PathBuf::from(h).join("repos/quiddity/tests/corpus"))
+        })
+        .filter(|p| p.is_dir());
+    let Some(root) = root else {
+        assert!(
+            std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"),
+            "required corpus missing"
+        );
+        return;
+    };
+    let (_, a) = analyse_native(&root.join("mfcadpp/10033.step")).unwrap();
+    let reference =
+        crate::planning::with(&a, || established_drawing(&a, &Spec::default())).unwrap();
+    assert_eq!(reference.sheet.scale, "2:1");
+    let mut earlier = a.clone();
+    earlier.features.retain(|f| f.kind != "section_recess");
+    let screen_first = plan_recovered(&earlier, &Spec::default()).unwrap();
+    assert_eq!(
+        (
+            screen_first.sheet.size.as_str(),
+            screen_first.sheet.scale.as_str()
+        ),
+        ("A4", "1:1")
+    );
+    assert!(carried(&screen_first).is_subset(&carried(&reference)));
+    let (_, channels) = analyse_native(&root.join("nist/nist_ftc_08_asme1_rc.stp")).unwrap();
+    assert_eq!(crate::sheet_fit::preparation_scale(&channels), 0.5);
+    assert_eq!(crate::sheet_fit::min_legible_scale(&channels), 1.0);
+}

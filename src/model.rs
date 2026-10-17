@@ -2037,7 +2037,11 @@ pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Pl
             // The actual drawing may move an occluded circular statement to its
             // visible profile after those other routes have claimed their ink.
             crate::planning::store(&reference, "canonical-circular-recipes", Vec::new(), true);
-            plan_recovered(&reference, &base)
+            // This is the pre-recess fitted drawing, not a new screen-first
+            // selection. Otherwise A4 ranking shrinks the reference before its
+            // scale and established routes can protect the full native solve.
+            let first = plan_escalated(&reference, &base)?;
+            recover_uncached_with(&reference, &base, first, None, true)
         })
     });
     if let Ok(plan) = &reference {
@@ -3693,14 +3697,35 @@ fn recover_candidates_before(
     }
     if reference_only {
         let keys: Vec<_> = candidates.iter().map(|(c, _)| *c).collect();
-        let mut chosen = crate::sheet_fit::retained_refusal_choice(
+        let selected = crate::sheet_fit::retained_refusal_choice(
             &keys,
             spec.sheet.size.is_some(),
             legacy_seed_kept,
-        )
-        .and_then(|(choice, _)| choice.map(|i| candidates[i].1.clone()))
-        .or_else(|| historical_fitting.map(|(_, p)| p))
-        .unwrap_or_else(|| first.clone());
+        );
+        let selected = selected.and_then(|(choice, smallest)| {
+            let retained = established_scale.and_then(|scale| {
+                if choice.is_some_and(|j| keys[j].scale >= scale) {
+                    return None;
+                }
+                candidates
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, (c, _))| {
+                        c.scale == scale
+                            && (!legacy_seed_kept || c.extra_crossings == 0)
+                            && (spec.sheet.size.is_some()
+                                || (c.sheet == smallest.0 && c.scale == smallest.1)
+                                || (c.sheet == smallest.0 + 1 && c.scale > smallest.1))
+                    })
+                    .min_by_key(|(_, (c, p))| (c.sheet, ink_findings(p), feature_crossings(p)))
+                    .map(|(j, _)| j)
+            });
+            retained.or(choice)
+        });
+        let mut chosen = selected
+            .map(|i| candidates[i].1.clone())
+            .or_else(|| historical_fitting.map(|(_, p)| p))
+            .unwrap_or_else(|| first.clone());
         restore_search_spec(&mut chosen, spec);
         if chosen.sheet.size != first.sheet.size || chosen.sheet.scale != first.sheet.scale {
             chosen.problems.push(Problem {

@@ -1477,7 +1477,8 @@ fn lanes_uncached(
         bands.plate_front_above = bands.plate_front_above.max(1);
     }
     if shared_bands {
-        bands.recess_chain_scale = recess_chain_scale(analysis);
+        bands.recess_chain_scale =
+            recess_chain_scale(analysis, crate::sheet_fit::PREPARATION_MIN_OPENING);
         bands.plate_front_below = bands.plate_front_below.max(front_linear);
         bands.plate_plan_above = bands.plate_plan_above.max(plan_linear);
     }
@@ -1677,17 +1678,18 @@ pub(crate) fn authored_placement_clear(spec: &Spec, dims: &[PlannedDimension]) -
 
 /// A slot chain must have room for its arrows and its own text between its ends.
 /// New recess annotations reserve extra paper rather than reducing these existing chains.
-pub(crate) fn recess_chain_scale(analysis: &Analysis) -> f64 {
+pub(crate) fn recess_chain_scale(analysis: &Analysis, opening_floor: f64) -> f64 {
     let (canonical, established) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "recess-readable-scale",
-        vec![u8::from(canonical), u8::from(established)],
-        || recess_chain_scale_uncached(analysis),
+        serde_json::to_vec(&(canonical, established, opening_floor))
+            .expect("recess floor inputs serialize"),
+        || recess_chain_scale_uncached(analysis, opening_floor),
     )
 }
 
-fn recess_chain_scale_uncached(analysis: &Analysis) -> f64 {
+fn recess_chain_scale_uncached(analysis: &Analysis, opening_floor: f64) -> f64 {
     if !gdt::demand(analysis, &|_| true).is_empty() {
         return 0.0;
     }
@@ -1715,7 +1717,7 @@ fn recess_chain_scale_uncached(analysis: &Analysis) -> f64 {
                 // Legacy bridged documents already carried these channels and
                 // keep their established scale policy. This additional mouth
                 // reservation is for the newly native recess information.
-                return native.then_some(crate::sheet_fit::MIN_OPENING / w.value);
+                return native.then_some(opening_floor / w.value);
             }
             let feature = w.id.strip_suffix("/slot_length.length")?;
             if !items
