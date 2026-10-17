@@ -1,4 +1,8 @@
 use draftwright::lint::{self, Mark, Severity};
+#[path = "common/support.rs"]
+#[macro_use]
+mod support;
+
 use draftwright::model::{self, Analysis, Spec};
 use draftwright::output::Claim;
 use serde_json::{Value, json};
@@ -286,8 +290,11 @@ fn one_member_anchor_and_printed_pitches_locate_a_grid() {
 #[path = "common/corpus.rs"]
 mod corpus;
 
-#[test]
-fn nist_member_ordinates_leave_no_false_pattern_findings() {
+part_cases!(nist_member_ordinates_leave_no_false_pattern_findings;
+    nist_ctc_02_asme1_rc => "nist_ctc_02_asme1_rc",
+    nist_ctc_05_asme1_rd => "nist_ctc_05_asme1_rd",
+);
+fn nist_member_ordinates_leave_no_false_pattern_findings(name: &str) {
     let Some(dir) = corpus::dir() else { return };
     let font = draftwright::text::Font::new(
         std::fs::read(
@@ -296,13 +303,11 @@ fn nist_member_ordinates_leave_no_false_pattern_findings() {
         .unwrap(),
     )
     .unwrap();
-    for name in ["nist_ctc_02_asme1_rc", "nist_ctc_05_asme1_rd"] {
-        let (part, a) = model::analyse_native(&dir.join(format!("nist/{name}.stp"))).unwrap();
-        let plan = model::plan(&a, &Spec::default()).unwrap();
-        let drawing = model::render(&part, &a, &plan, &font).unwrap();
-        let issues = lint::hole_patterns::coverage(&a, &lint::marks(&drawing));
-        assert!(issues.is_empty(), "{name}: {issues:?}");
-    }
+    let (part, a) = model::analyse_native(&dir.join(format!("nist/{name}.stp"))).unwrap();
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let drawing = model::render(&part, &a, &plan, &font).unwrap();
+    let issues = lint::hole_patterns::coverage(&a, &lint::marks(&drawing));
+    assert!(issues.is_empty(), "{name}: {issues:?}");
 }
 
 #[test]

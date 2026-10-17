@@ -17,11 +17,18 @@
 //! `tests/fixtures/pmi_drawings/known_pmi_drawings.json`; a listed difference that has gone away
 //! must be taken off.
 
+#[path = "common/support.rs"]
+#[macro_use]
+mod support;
+
+#[path = "common/cache.rs"]
+mod cache;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
-use draftwright::model::{self, Analysis, Plan, Spec};
+use draftwright::model::{self, Analysis, Plan};
 use draftwright::output::Drawing;
 use draftwright::pmi::{Category, Reading, Record};
 use serde::Deserialize;
@@ -52,12 +59,16 @@ fn sha256(bytes: &[u8]) -> String {
 }
 
 /// The AP242 fixtures: `(file name as captured, stem, bytes)`.
-fn inputs() -> Vec<(String, String, Vec<u8>)> {
+fn inputs(only: &str) -> Vec<(String, String, Vec<u8>)> {
     let mut paths: Vec<PathBuf> = std::fs::read_dir(fixtures().join("pmi/step"))
         .unwrap()
         .map(|e| e.unwrap().path())
         .filter(|p| p.extension().is_some_and(|x| x == "gz"))
         .collect();
+    paths.retain(|path| {
+        let name = path.file_name().unwrap().to_string_lossy();
+        name.strip_suffix(".gz") == Some(only) || name.split('.').next() == Some(only)
+    });
     paths.sort();
     paths
         .into_iter()
@@ -76,14 +87,20 @@ fn json_gz(path: &Path) -> Value {
 
 /// The part and its Analysis with Rust quiddity's features, from *bytes* (written to a scratch
 /// file of its own, as `analyse` reads a path).
-fn analysed(file: &str, bytes: &[u8]) -> (draftwright::haecceity::Part, Analysis) {
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("pmi_drawings");
+fn analysed_uncached(file: &str, bytes: &[u8]) -> (draftwright::haecceity::Part, Analysis) {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("pmi_drawings")
+        .join(std::process::id().to_string());
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join(file);
     std::fs::write(&path, bytes).unwrap();
     let out = model::analyse_native(&path).unwrap();
     std::fs::remove_file(&path).unwrap();
     out
+}
+
+fn analysed(file: &str, bytes: &[u8]) -> (std::sync::Arc<draftwright::haecceity::Part>, Analysis) {
+    cache::analysed(file, bytes, true, || analysed_uncached(file, bytes))
 }
 
 fn records(a: &Analysis) -> &[Record] {
@@ -700,7 +717,7 @@ fn one(file: &str, stem: &str, bytes: &[u8]) -> (Vec<Diff>, usize, String) {
     };
     assert_eq!(ids(&py, "items"), ids(&reading, "records"), "{file}");
     let (part, a) = analysed(file, bytes);
-    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let plan = cache::default_plan(&a, true);
     let drawing = drawn(&part, &a, &plan);
     let d = compare(file, &py, &reading, &a, &plan, &drawing);
     let n = py["items"].as_array().unwrap().len();
@@ -726,8 +743,8 @@ fn one(file: &str, stem: &str, bytes: &[u8]) -> (Vec<Diff>, usize, String) {
     (d, n, summary)
 }
 
-#[test]
-fn pmi_on_the_drawing_matches_draftwright_or_is_known() {
+pmi_cases!(pmi_on_the_drawing_matches_draftwright_or_is_known);
+fn pmi_on_the_drawing_matches_draftwright_or_is_known(only: &str) {
     let known: Vec<Known> = serde_json::from_str(
         &std::fs::read_to_string(fixtures().join("pmi_drawings/known_pmi_drawings.json")).unwrap(),
     )
@@ -741,38 +758,24 @@ fn pmi_on_the_drawing_matches_draftwright_or_is_known() {
     ];
     for k in &known {
         assert!(
+            support::PMI_FILES.contains(&k.file.as_str()),
+            "unknown fixture: {}",
+            k.file
+        );
+        assert!(
             verdicts.contains(&k.verdict.as_str()) && !k.evidence.trim().is_empty(),
             "{k:?}"
         );
     }
-    // One part per worker (four, as the other streams share the machine), reported in file
-    // order.
-    let inputs = inputs();
-    let next = std::sync::atomic::AtomicUsize::new(0);
-    let done = std::sync::Mutex::new(BTreeMap::new());
-    std::thread::scope(|scope| {
-        for _ in 0..4 {
-            scope.spawn(|| {
-                loop {
-                    let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    let Some((file, stem, bytes)) = inputs.get(i) else {
-                        break;
-                    };
-                    let out = one(file, stem, bytes);
-                    done.lock().unwrap().insert(i, out);
-                }
-            });
-        }
-    });
-    let mut diffs = Vec::new();
-    let mut items = 0;
-    for (_, (d, n, summary)) in done.into_inner().unwrap() {
-        eprintln!("{summary}");
-        items += n;
-        diffs.extend(d);
-    }
+    let (file, stem, bytes) = inputs(only)
+        .into_iter()
+        .find(|(file, _, _)| file == only)
+        .unwrap();
+    let (diffs, items, summary) = one(&file, &stem, &bytes);
+    eprintln!("{summary}");
     let listed: Vec<Diff> = known
         .iter()
+        .filter(|k| k.file == only)
         .map(|k| Diff {
             file: k.file.clone(),
             record: k.record.clone(),
