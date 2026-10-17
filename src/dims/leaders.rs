@@ -2518,10 +2518,10 @@ impl SegmentIndex {
     // its exact count, so later thresholds cannot reuse an incomplete result.
     fn touching_at_most(&self, bounds: [f64; 4], maximum: usize) -> bool {
         let key = bounds.map(f64::to_bits);
-        if let Some(&(count, complete)) = self.touching.borrow().get(&key) {
-            if complete || count > maximum {
-                return count <= maximum;
-            }
+        if let Some(&(count, complete)) = self.touching.borrow().get(&key)
+            && (complete || count > maximum)
+        {
+            return count <= maximum;
         }
         let result = self.touching_bounded(bounds, maximum);
         let mut saved = self.touching.borrow_mut();
@@ -4778,7 +4778,7 @@ mod tests {
         let ink: Vec<_> = (0..300)
             .map(|n| {
                 (
-                    if n % 3 == 0 { n + 150 } else { n / 2 },
+                    (if n % 3 == 0 { n + 150 } else { n / 2 }) * 1_000_003 + 500,
                     std::array::from_fn(|_| std::array::from_fn(|_| 200. * lcg(&mut seed) - 100.)),
                 )
             })
@@ -4833,6 +4833,15 @@ mod tests {
         let ink = vec![(4, [[0., 0.], [0., 20.]]), (4, [[2., 0.], [2., 20.]])];
         let index = ExtensionIndex::new(ink.clone());
         assert_eq!(index.contacts(&[], [0., 5., 2., 10.]), (1, 1));
+        let sparse = vec![
+            (usize::MAX, [[0., 0.], [0., 20.]]),
+            (usize::MAX, [[2., 0.], [2., 20.]]),
+            (1_000_007, [[1., 0.], [1., 20.]]),
+        ];
+        assert_eq!(
+            ExtensionIndex::new(sparse.clone()).contacts(&[], [0., 5., 2., 10.]),
+            extension_contacts(&sparse, &[], [0., 5., 2., 10.])
+        );
     }
 
     #[test]
