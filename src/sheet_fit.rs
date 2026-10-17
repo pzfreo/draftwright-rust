@@ -339,22 +339,109 @@ fn route_ink(analysis: &Analysis, plan: &Plan, sheet: u32) -> Vec<[[f64; 2]; 2]>
     };
     plan.views
         .iter()
-        .filter(|v| v.sheet == sheet && v.id != "v:iso" && v.cut.is_none())
+        .filter(|v| {
+            v.sheet == sheet
+                && v.id != "v:iso"
+                && v.cut.is_none()
+                && v.detail.as_ref().is_none_or(|d| d.source_cut.is_none())
+        })
         .flat_map(|v| {
             let frame = haecceity::hlr::View::new(v.direction, v.up).expect("planned view");
-            let centre = if v.detail.is_some() {
-                crate::detail::crop_extent(analysis, v).1
+            let direction_norm = v.direction.iter().map(|x| x * x).sum::<f64>().sqrt();
+            let toward = v.direction.map(|x| x / direction_norm);
+            let (size, centre) = if v.detail.is_some() {
+                crate::detail::crop_extent(analysis, v)
             } else {
-                crate::model::extent(analysis, &frame).1
+                crate::model::extent(analysis, &frame)
             };
             let page = |p| {
                 let q = frame.map(p);
                 [0, 1].map(|k| v.at[k] + v.scale * (q[k] - centre[k]))
             };
-            ink.edges
+            let mut lines: Vec<_> = ink
+                .edges
                 .iter()
                 .flat_map(|e| e.windows(2).map(|s| [page(s[0]), page(s[1])]))
-                .collect::<Vec<_>>()
+                .collect();
+            // A cylinder's side generators are silhouettes, not B-rep edges. Use
+            // the same square-on evidence as the existing callout route refiner.
+            for face in &ink.curved {
+                let Some(c) = &face.cylinder else { continue };
+                let norm = c.axis.iter().map(|x| x * x).sum::<f64>().sqrt();
+                if norm < 1e-12 {
+                    continue;
+                }
+                let axis = c.axis.map(|x| x / norm);
+                let along: f64 = (0..3).map(|k| axis[k] * toward[k]).sum();
+                if along.abs() >= 1e-9 {
+                    continue;
+                }
+                let [lo, hi] = face.bounds;
+                let heights = (0..8)
+                    .map(|i| {
+                        (0..3)
+                            .map(|k| {
+                                ((if i >> k & 1 == 0 { lo[k] } else { hi[k] }) - c.origin[k])
+                                    * axis[k]
+                            })
+                            .sum::<f64>()
+                    })
+                    .collect::<Vec<_>>();
+                let h0 = heights.iter().copied().fold(f64::INFINITY, f64::min);
+                let h1 = heights.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+                let normal = [
+                    axis[1] * toward[2] - axis[2] * toward[1],
+                    axis[2] * toward[0] - axis[0] * toward[2],
+                    axis[0] * toward[1] - axis[1] * toward[0],
+                ];
+                for sign in [-1.0, 1.0] {
+                    let at = |h| {
+                        [0, 1, 2].map(|k| c.origin[k] + h * axis[k] + sign * c.radius * normal[k])
+                    };
+                    let a = at(h0);
+                    let b = at(h1);
+                    let (mut t0, mut t1) = (0.0_f64, 1.0_f64);
+                    // Trimmed cylinders need not include both generators. Clip
+                    // to their evidence box, allowing only its rounding grid.
+                    for k in 0..3 {
+                        let delta = b[k] - a[k];
+                        let min = lo[k] - crate::model::projected_ink::GRID;
+                        let max = hi[k] + crate::model::projected_ink::GRID;
+                        if delta.abs() < 1e-12 {
+                            if a[k] < min || a[k] > max {
+                                t1 = -1.0;
+                                break;
+                            }
+                        } else {
+                            let x = (min - a[k]) / delta;
+                            let y = (max - a[k]) / delta;
+                            t0 = t0.max(x.min(y));
+                            t1 = t1.min(x.max(y));
+                        }
+                    }
+                    if t0 <= t1 {
+                        let point = |t| page([0, 1, 2].map(|k| a[k] + t * (b[k] - a[k])));
+                        lines.push([point(t0), point(t1)]);
+                    }
+                }
+            }
+            if v.detail.is_some() {
+                let rect = [
+                    v.at[0] - size[0] * v.scale / 2.0,
+                    v.at[1] - size[1] * v.scale / 2.0,
+                    v.at[0] + size[0] * v.scale / 2.0,
+                    v.at[1] + size[1] * v.scale / 2.0,
+                ];
+                lines = lines
+                    .into_iter()
+                    .flat_map(|s| crate::detail::clip(crate::output::Curve::Line(s[0], s[1]), rect))
+                    .filter_map(|c| match c {
+                        crate::output::Curve::Line(a, b) => Some([a, b]),
+                        _ => None,
+                    })
+                    .collect();
+            }
+            lines
         })
         .collect()
 }
@@ -2304,6 +2391,50 @@ pub(crate) fn reserve_linear_corridors(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn cylindrical_silhouettes_also_guard_parallel_leaders() {
+        let (_, mut a) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/mounting_plate.step"),
+        )
+        .unwrap();
+        let mut p = crate::model::plan(&a, &crate::model::Spec::default()).unwrap();
+        a.envelope = [[-1.0, -1.0, 0.0], [1.0, 1.0, 10.0]];
+        a.edge_ink = Some(crate::model::projected_ink::EdgeInk {
+            references: Default::default(),
+            edges: Vec::new(),
+            planes: Vec::new(),
+            curved: vec![crate::model::projected_ink::CurvedFace {
+                bounds: a.envelope,
+                cylinder: Some(crate::model::projected_ink::Cylinder {
+                    origin: [0.0; 3],
+                    axis: [0.0, 0.0, 1.0],
+                    radius: 1.0,
+                }),
+            }],
+        });
+        p.views.retain(|v| v.id == "v:front");
+        let v = &mut p.views[0];
+        v.direction = [0.0, -1.0, 0.0];
+        v.up = [0.0, 0.0, 1.0];
+        v.scale = 1.0;
+        v.at = [50.0, 50.0];
+        let ink = route_ink(&a, &p, 1);
+        assert!((route_run([[49.2, 46.0], [49.2, 49.0]], &ink) - 3.0).abs() < 1e-6);
+        assert_eq!(route_run([[49.31, 46.0], [49.31, 49.0]], &ink), 0.0);
+        p.views[0].direction = [0.0, -2.0, 0.0];
+        assert!(
+            (route_run([[49.2, 46.0], [49.2, 49.0]], &route_ink(&a, &p, 1)) - 3.0).abs() < 1e-6
+        );
+        // A face which never reaches x = -radius has no left generator.
+        a.edge_ink.as_mut().unwrap().curved[0].bounds[0][0] = 0.0;
+        assert_eq!(
+            route_run([[49.2, 46.0], [49.2, 49.0]], &route_ink(&a, &p, 1)),
+            0.0
+        );
+    }
 
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
