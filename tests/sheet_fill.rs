@@ -719,3 +719,45 @@ fn step_legibility_uses_the_owning_view_and_keeps_baseline_intervals() {
     p.views.last_mut().unwrap().scale = 0.1;
     assert_eq!(draftwright::sheet_fit::illegible_steps(&a, &p), 1);
 }
+
+#[test]
+fn declining_optional_details_does_not_buy_new_annotation_crossings() {
+    for (file, crossings) in [
+        ("hw_thumbwheel_notes_add.step", 4),
+        ("thumbwheel_thread_knurl.step", 1),
+    ] {
+        let a = gz_part(file);
+        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        assert_eq!(p.sheet.size, "A3", "{file}: {}", p.sheet.basis);
+        assert!(
+            p.problems
+                .iter()
+                .filter(|q| q.code == "annotation_leader_crossing")
+                .count()
+                <= crossings,
+            "{file}: {:?}",
+            p.problems
+        );
+        assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
+        assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
+        assert!(p.gdt.iter().all(|g| g.placed.is_some()));
+    }
+    let Some(dir) = corpus::dir() else { return };
+    let (_, a) = model::analyse_native(&dir.join("mfcadpp/1013.step")).unwrap();
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert!(
+        !p.problems
+            .iter()
+            .any(|q| q.code == "annotation_leader_crossing")
+    );
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        ("A4", "1:1")
+    );
+    assert!(draftwright::sheet_fit::readability(&a, &p).failures() > 0);
+    assert!(
+        p.problems
+            .iter()
+            .any(|q| q.code == "layout_recovery_exhausted" && q.severity == "warning")
+    );
+}

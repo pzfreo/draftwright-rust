@@ -954,6 +954,8 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   failures rather than returning an off-paper raw estimate.
 
   Optional crops keep the existing annotation/material-crossing quality veto.
+  Every qualified automatic candidate preserves each seed annotation limit,
+  including when an optional crop is omitted, declined or never requested.
   Incomplete and scheduled-row recovery trials compare each annotation/material
   finding type independently; fewer crossings do not pay for a new long leader.
   A complete readable ordinary layout keeps the established placement pipeline,

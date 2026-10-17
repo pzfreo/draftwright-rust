@@ -258,3 +258,23 @@ fn aligned_dimensions_measure_text_and_lanes_in_their_rotated_frame() {
     ink.lines[0][0] = [3.0 * h, -3.0 * h];
     assert!(sheet_fit::readability(&a, &p).lanes > before.lanes);
 }
+
+#[test]
+fn outside_text_does_not_excuse_colliding_inward_arrowheads() {
+    let (a, mut p) = plate();
+    let mut d = p
+        .dimensions
+        .iter()
+        .find(|d| d.kind == "linear")
+        .unwrap()
+        .clone();
+    let ink = d.placed.as_mut().unwrap();
+    ink.arrows = vec![[[0.0, 0.0], [2.7, 0.0]], [[2.0, 0.0], [-0.7, 0.0]]];
+    ink.label_box = [10.0, 0.0, 20.0, 3.5];
+    p.dimensions = vec![d];
+    assert_eq!(sheet_fit::readability(&a, &p).text_arrows, 1);
+    let ink = p.dimensions[0].placed.as_mut().unwrap();
+    ink.arrows[0][1] = [-2.7, 0.0];
+    ink.arrows[1][1] = [4.7, 0.0];
+    assert_eq!(sheet_fit::readability(&a, &p).text_arrows, 0);
+}

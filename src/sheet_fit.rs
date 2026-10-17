@@ -392,7 +392,7 @@ pub fn readability(analysis: &Analysis, plan: &Plan) -> Readability {
         let inside = text[0] >= lo + inset - 0.1 && text[1] <= hi - inset + 0.1;
         let outside =
             text[1] <= lo - crate::dims::ARROW + 0.1 || text[0] >= hi + crate::dims::ARROW - 0.1;
-        if !inside && !outside {
+        if (inward && hi - lo + 0.1 < 2.0 * crate::dims::ARROW) || (!inside && !outside) {
             result.text_arrows += 1;
         }
         // Interior dimensions deliberately use internal material space. Exterior

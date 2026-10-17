@@ -2469,18 +2469,23 @@ fn recover_candidates(
             let over = over_views(&p).saturating_sub(over_views(&first));
             let crossings = feature_crossings(&p).saturating_sub(feature_crossings(&first));
             p.sheet.fill = crate::sheet_fit::fill(analysis, &p);
-            // A declined optional crop leaves an ordinary drawing. Its refusal must
-            // not veto the small-sheet candidates that F1 would otherwise accept.
-            // An invalid seed's refused crop cannot block a complete ordinary drawing;
-            // main's material-crossing gate already protects valid first estimates.
+            // A declined optional crop leaves an ordinary drawing. The refusal
+            // itself cannot veto a fitting candidate, while a fitted seed still
+            // protects its annotation quality when the optional crop is omitted.
+            // The ordinary-layout material ratchet remains independent.
             let detail_context = p.views.iter().any(|v| v.detail.is_some());
-            let quality_veto = crate::sheets::floor(spec).is_none()
+            let detail_quality_veto = crate::sheets::floor(spec).is_none()
                 && detail_context
                 && (ink_findings(&p) > ink_findings(&first)
                     || feature_crossings(&p) > feature_crossings(&first)
                     || longer_callouts(&p, &first));
+            // A clean candidate cannot buy any new annotation finding type.
+            // Keep material routing's established independent ratchet: enlarging
+            // an ordinary layout must not be compared with compressed raw ink.
+            let quality_veto = detail_quality_veto
+                || (crate::sheets::floor(spec).is_none() && !no_new_issues(&first, &p, false));
             let verdict = if quality_veto {
-                format!("detail quality veto; {}", said(f, drops(&p)))
+                format!("drawing quality veto; {}", said(f, drops(&p)))
             } else {
                 said(f, drops(&p))
             };
@@ -2498,7 +2503,7 @@ fn recover_candidates(
             };
             if scale >= crate::sheet_fit::preparation_scale(analysis)
                 && complete_candidate(retained_findings, over)
-                && !quality_veto
+                && !detail_quality_veto
             {
                 if retained_thumbnail.is_none() {
                     retained_thumbnail = p
