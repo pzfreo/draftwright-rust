@@ -610,7 +610,7 @@ pub(super) fn consolidate(
     let extents: Vec<(String, (usize, f64, f64))> = kept
         .iter()
         .filter(|(w, ..)| {
-            w.id.starts_with("d:envelope/")
+            crate::dims::is_envelope_extent(&w.id)
                 && parameter(w).is_some_and(|p| {
                     ["width.length", "depth.length", "height.length"].contains(&p.as_str())
                 })

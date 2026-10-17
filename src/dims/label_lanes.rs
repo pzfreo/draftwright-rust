@@ -250,6 +250,7 @@ pub(crate) fn settle_inventory(
     fixed: &[PlannedDimension],
 ) {
     let page = Page::new(analysis, sheet, views);
+    let bounded_notches = !crate::notches::requirements(analysis).is_empty();
     // One traversal: the next lane, or one rung further if a peer occupies that lane.
     for i in 0..inventory.len() {
         let d = &inventory[i];
@@ -340,9 +341,19 @@ pub(crate) fn settle_inventory(
             .take_while(|n| !outside(&promote(p, *n as f64 * LANE), region))
             .find_map(|n| {
                 let lane = promote(p, n as f64 * LANE);
-                alternatives(&lane, page.drawable(), &others)
-                    .into_iter()
-                    .find(|c| allowed(c) && better(c) && !span_bad(c))
+                // Keep the settled along-span station when a new notch lane
+                // lets the whole dimension move clear of a callout.
+                std::iter::once(lane.clone())
+                    .filter(|_| bounded_notches)
+                    .chain(alternatives(&lane, page.drawable(), &others))
+                    // A longer tolerance may already stand beyond a neighbouring
+                    // witness. New notch lanes may clear its text contacts while
+                    // retaining that existing span relation; never introduce one.
+                    .find(|c| {
+                        allowed(c)
+                            && better(c)
+                            && (!span_bad(c) || (bounded_notches && span_bad(p)))
+                    })
             });
         if let Some(c) = found {
             inventory[i].placed = Some(c);

@@ -1,6 +1,20 @@
 //! A V is specified by included angle, theoretical sharp depth, and mouth position.
 use super::{AXES, Context, Measurement, Planner, Problem, Shape, Want, end_on, fmt, want_id};
 
+/// Profile requirements belong to the part envelope; the support stamp distinguishes
+/// physical corners without pretending that the provider published a notch feature.
+pub(super) fn id(feature: &str, parameter: &str) -> String {
+    let role = parameter.strip_prefix("location.length.").map_or_else(
+        || parameter.to_owned(),
+        |axis| format!("notch_location_{axis}.length"),
+    );
+    let support = feature
+        .strip_prefix("notch:")
+        .expect("source-proven notch")
+        .replace(':', "_");
+    want_id("envelope", &format!("{role}.{support}"))
+}
+
 pub(super) const PLANNER: Planner = Planner { kinds: &[], wants };
 fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let mut out = Vec::new();
@@ -8,7 +22,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         let view = end_on(n.axis);
         let value = n.angle.degrees();
         out.push(Want {
-            id: want_id(&n.id,"notch.angle"), views:vec![view], value,
+            id: id(&n.id,"notch.angle"), views:vec![view], value,
             terms:vec![format!("{}°",fmt(value))],
             measurements:vec![Measurement {feature:n.id.clone(),parameter:"notch.angle".into(),value}],
             basis:"a V-notch's included angle, in the normal view that shows it true; rounded roots extend to the theoretical sharp apex".into(),
@@ -17,7 +31,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         let k = n.depth_axis;
         let value = n.depth();
         out.push(Want {
-            id:want_id(&n.id,"notch_depth.length"),views:vec![view],value,terms:vec![fmt(value)],
+            id:id(&n.id,"notch_depth.length"),views:vec![view],value,terms:vec![fmt(value)],
             measurements:vec![Measurement {feature:n.id.clone(),parameter:"notch_depth.length".into(),value}],
             basis:"V-notch depth from the mouth to the theoretical sharp apex; the included angle and depth define the mouth width".into(),
             shape:Shape::Linear {a:n.mouth,b:n.angle.vertex,axis:k,a_edge:false,b_edge:false,order:0},turning:None,
@@ -34,12 +48,17 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             }
             let parameter = format!("location.length.{}", AXES[k]);
             out.push(Want {
-                id: want_id(&n.id, &parameter),
+                id: id(&n.id, &parameter),
                 // An X station is equally true in the aligned front projection.
                 // Keep the plan's angular sector free of long datum witnesses; an
                 // explicit scheme or placement can still choose the normal view.
                 views: if n.axis == 2 && k == 0 {
-                    vec!["front", view]
+                    if n.mouth[k] < 0.5 * (cx.analysis.envelope[0][k] + cx.analysis.envelope[1][k])
+                    {
+                        vec![view, "front"]
+                    } else {
+                        vec!["front", view]
+                    }
                 } else if n.axis == 2 && k == 1 {
                     vec!["side", view]
                 } else {

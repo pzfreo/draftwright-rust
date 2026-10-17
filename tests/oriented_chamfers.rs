@@ -175,6 +175,22 @@ fn notch_dimensions_accept_omit_tolerance_place_and_label_text() {
     }
 }
 #[test]
+fn overall_tolerances_do_not_change_profile_requirement_labels() {
+    let p = plan(&Spec::default());
+    let q = plan(&parse(json!({"envelope_tolerance":"±1"})));
+    for d in p.dimensions.iter().filter(|d| {
+        d.measurements
+            .iter()
+            .any(|m| m.feature.starts_with("notch:"))
+    }) {
+        assert_eq!(
+            q.dimensions.iter().find(|e| e.id == d.id).unwrap().label,
+            d.label
+        );
+    }
+}
+
+#[test]
 fn lint_remeasures_new_dimensions_and_rejects_wrong_nominals_and_tolerance_digits() {
     let (part, a) = ctc();
     let p = plan(&Spec::default());
@@ -231,6 +247,17 @@ fn datum_scheme_takes_the_notch_station_once() {
         .unwrap()
         .feature
         .clone();
+    let station = p
+        .dimensions
+        .iter()
+        .find(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.feature == id && m.parameter == "location.length.x")
+        })
+        .unwrap()
+        .id
+        .clone();
     let s = parse(
         json!({"dimension_schemes":{"notch":{"scheme":"baseline","axis":"x","view":"plan","targets":[id],"from":"max"}}}),
     );
@@ -240,9 +267,11 @@ fn datum_scheme_takes_the_notch_station_once() {
             .iter()
             .any(|d| d.id.starts_with("d:scheme:notch/"))
     );
-    assert!(q.omitted.iter().any(|d| d.id.contains(&id)
-        && d.id.ends_with("location.length.x")
-        && matches!(d.state, State::Covered { .. })));
+    assert!(
+        q.omitted
+            .iter()
+            .any(|d| d.id == station && matches!(d.state, State::Covered { .. }))
+    );
     let drawing = model::render(
         &ctc().0,
         &ctc().1,
@@ -288,7 +317,7 @@ fn authored_notch_angle_transfers_ownership_and_auto_mode_names_the_existing_own
     let s = parse(json!({"dimensions":{"d:authored:notch":{"kind":"angle","between":refs}}}));
     let error = model::plan(a, &s).unwrap_err();
     assert!(error.message.contains("duplicates"));
-    assert!(error.choices.iter().any(|id| id.ends_with("/notch.angle")));
+    assert!(error.choices.iter().any(|id| id.contains("/notch.angle.")));
     let mut s = s;
     s.dimension_source = model::DimensionSource::Authored;
     let q = plan(&s);
@@ -303,7 +332,7 @@ fn authored_notch_angle_transfers_ownership_and_auto_mode_names_the_existing_own
             .iter()
             .any(|m| m.parameter == "notch.angle")
     );
-    assert!(q.omitted.iter().any(|d| d.id.ends_with("/notch.angle")
+    assert!(q.omitted.iter().any(|d| d.id.contains("/notch.angle.")
         && matches!(&d.state,State::Covered{by} if by=="d:authored:notch")));
 }
 
@@ -416,7 +445,7 @@ fn bounded_notches_reserve_acute_arcs_and_leave_dense_general_profiles_alone() {
             assert_eq!(
                 p.dimensions
                     .iter()
-                    .filter(|d| d.id.ends_with("/notch.angle"))
+                    .filter(|d| d.id.contains("/notch.angle."))
                     .count(),
                 1
             );
@@ -426,8 +455,21 @@ fn bounded_notches_reserve_acute_arcs_and_leave_dense_general_profiles_alone() {
                     .any(|p| p.code == "annotation_outside_area")
             );
             assert_eq!(p.sheet.size, "A4");
+            let angle = p
+                .dimensions
+                .iter()
+                .find(|d| d.id.contains("/notch.angle."))
+                .unwrap();
+            assert_eq!(
+                angle.region, None,
+                "the exterior acute sector is not an interior candidate"
+            );
         } else {
-            assert!(!p.dimensions.iter().any(|d| d.id.starts_with("d:notch:")));
+            assert!(!p.dimensions.iter().any(|d| {
+                d.measurements
+                    .iter()
+                    .any(|m| m.feature.starts_with("notch:"))
+            }));
         }
     }
 }

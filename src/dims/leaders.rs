@@ -701,7 +701,20 @@ pub(super) fn place_with_obstacles(
         .is_empty();
     let measured: Vec<_> = jobs
         .iter()
-        .map(|(_, job)| inventory(job, &fixed, page, semantic_pmi))
+        .map(|(i, job)| {
+            inventory(
+                job,
+                &fixed,
+                page,
+                semantic_pmi,
+                bounded_notches
+                    && job.stroke_pad > 0.0
+                    && items[*i]
+                        .measurements
+                        .iter()
+                        .any(|m| m.parameter == "polygon_across_flats.length"),
+            )
+        })
         .collect();
     let mut inventories: Vec<_> = measured.iter().map(|v| v.0.clone()).collect();
     let mut baseline: Vec<_> = measured.iter().map(|v| v.1.clone()).collect();
@@ -923,14 +936,10 @@ pub(crate) fn settle_after_furniture(
     obstacles: &[PlannedDimension],
     cache: &super::footprints::Cache,
 ) -> BTreeMap<String, Vec<Problem>> {
-    let contact = |a: &Placed, b: &Placed| {
-        boxes_overlap(a.label_box, b.label_box)
-            || super::placement::ink_through(a, b.label_box)
-            || super::placement::ink_through(b, a.label_box)
-    };
     let mut updated = BTreeMap::new();
     let mut wants = None;
     let page = Page::new(analysis, sheet, views);
+    let bounded_notches = !crate::notches::requirements(analysis).is_empty();
     for i in 0..items.len() {
         let d = &items[i];
         if d.kind != "callout"
@@ -944,8 +953,13 @@ pub(crate) fn settle_after_furniture(
         let Some(old) = &d.placed else { continue };
         if !obstacles
             .iter()
+            .chain(
+                items
+                    .iter()
+                    .filter(|d| bounded_notches && d.kind == "linear"),
+            )
             .filter_map(|d| d.placed.as_ref())
-            .any(|p| contact(old, p))
+            .any(|p| super::text_contact(old, p))
         {
             continue;
         }
@@ -1007,7 +1021,17 @@ pub(crate) fn settle_after_furniture(
         else {
             continue;
         };
-        let (candidates, ..) = inventory(&job, &fixed, &page, false);
+        let (candidates, ..) = inventory(
+            &job,
+            &fixed,
+            &page,
+            false,
+            job.stroke_pad > 0.0
+                && !crate::notches::requirements(analysis).is_empty()
+                && w.measurements
+                    .iter()
+                    .any(|m| m.parameter == "polygon_across_flats.length"),
+        );
         let Some(next) = candidates
             .into_iter()
             .filter(|c| {
@@ -2013,7 +2037,13 @@ fn nearest(sites: &[(P2, f64)], elbow: P2) -> (P2, f64) {
 /// then crossings, length and generation order), near-duplicates dropped.
 type Inventories = (Vec<Candidate>, Vec<Candidate>, Vec<Candidate>);
 
-fn inventory(job: &Job, fixed: &Fixed, page: &Page, semantic_pmi: bool) -> Inventories {
+fn inventory(
+    job: &Job,
+    fixed: &Fixed,
+    page: &Page,
+    semantic_pmi: bool,
+    short_shoulders: bool,
+) -> Inventories {
     let o = job.outline;
     let d = page.drawable();
     let mut raw: Vec<(P2, P2, Option<bool>)> = Vec::new(); // (tip, elbow, label right?)
@@ -2097,6 +2127,19 @@ fn inventory(job: &Job, fixed: &Fixed, page: &Page, semantic_pmi: bool) -> Inven
         for &right in options {
             if let Some(c) = measure_bounds(job, tip, elbow, right, page) {
                 measured.push(c);
+            }
+            // Qualified polygon labels may need a shorter shelf between a new
+            // notch station and an existing pitch witness. Keep every ink gate.
+            if short_shoulders {
+                for shoulder in SHOULDER_STEPS.map(|f| f * SHOULDER) {
+                    let end = [
+                        elbow[0] + if right { shoulder } else { -shoulder },
+                        elbow[1],
+                    ];
+                    if let Some(c) = measure_at_bounds(job, tip, elbow, end, right, page) {
+                        measured.push(c);
+                    }
+                }
             }
         }
     }

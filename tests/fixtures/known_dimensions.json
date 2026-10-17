@@ -1302,7 +1302,7 @@
   {
     "part": "ctc01",
     "side": "rust",
-    "family": "callout",
+    "family": "envelope",
     "view": "plan",
     "label": "60°",
     "count": 2,
@@ -1312,7 +1312,7 @@
   {
     "part": "ctc01",
     "side": "rust",
-    "family": "callout",
+    "family": "envelope",
     "view": "plan",
     "label": "2× 50",
     "count": 1,
@@ -1322,17 +1322,17 @@
   {
     "part": "ctc01",
     "side": "rust",
-    "family": "location.x",
-    "view": "front",
+    "family": "envelope",
+    "view": "plan",
     "label": "290",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "The first plate notch's mouth centre is 290 mm from the minimum X datum. The bounded notch grammar adds this station to locate its angle-and-depth definition; Python's foremost hex-top rule does not reach the plate notches. The aligned front projection shows the same true X coordinate while leaving the plan notch angles clear of the datum witnesses."
+    "reason": "The first plate notch's mouth centre is 290 mm from the minimum X datum. The bounded notch grammar adds this station to locate its angle-and-depth definition; Python's foremost hex-top rule does not reach the plate notches. The true X coordinate is stated in plan, with the datum witness ending above its angle sector."
   },
   {
     "part": "ctc01",
     "side": "rust",
-    "family": "location.x",
+    "family": "envelope",
     "view": "front",
     "label": "510",
     "count": 1,
@@ -1342,7 +1342,7 @@
   {
     "part": "ctc01",
     "side": "rust",
-    "family": "location.y",
+    "family": "envelope",
     "view": "side",
     "label": "100",
     "count": 1,

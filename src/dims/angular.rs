@@ -428,7 +428,7 @@ pub(crate) fn notch_reservations(
 ) -> Vec<(String, crate::layout::Rect)> {
     let mut out = Vec::new();
     for n in crate::notches::requirements(a) {
-        let id = super::want_id(&n.id, "notch.angle");
+        let id = super::notches::id(&n.id, "notch.angle");
         if spec.dimensions.get(&id).is_some_and(|d| d.omit) {
             continue;
         }

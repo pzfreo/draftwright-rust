@@ -238,7 +238,8 @@ pub(crate) fn check(spec: &Spec) -> Result<(), Invalid> {
                     entry.kind.as_deref().unwrap_or("linear"),
                     "linear" | "diameter"
                 );
-            if (!id.starts_with("d:envelope/") && !authored_size) || entry.tolerance.is_some() {
+            if (!crate::dims::is_envelope_extent(id) && !authored_size) || entry.tolerance.is_some()
+            {
                 return Err(Invalid {
                     message: format!(
                         "The fit of {id} belongs to an overall extent or an authored linear size/diameter with no explicit tolerance."
@@ -422,7 +423,7 @@ pub(super) fn apply(
             .get(&w.id)
             .and_then(|e| e.tolerance.clone())
             .or_else(|| {
-                (w.id.starts_with("d:envelope/") && extent_fit.is_none())
+                (crate::dims::is_envelope_extent(&w.id) && extent_fit.is_none())
                     .then(|| spec.envelope_tolerance.clone())
                     .flatten()
             });
@@ -600,7 +601,7 @@ pub(super) fn authored(spec: &Spec, w: &Want) -> Option<(&'static str, bool)> {
     if spec.dimensions.get(&w.id).is_some_and(|e| e.fit.is_some()) {
         return Some(("fit", true));
     }
-    if w.id.starts_with("d:envelope/")
+    if crate::dims::is_envelope_extent(&w.id)
         && spec
             .dimensions
             .get(&w.id)

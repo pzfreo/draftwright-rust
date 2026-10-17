@@ -449,8 +449,25 @@ fn wording_of(w: &Want) -> String {
     crate::wording::item(&w.id, "", &w.terms.join(" "))
 }
 
-/// A dimension's ID, `d:<feature>/<parameter>`: what it measures, never the view that carries
-/// it, so routing it to another view (an omitted view, a sheet or scale change) keeps it.
+/// Contact between annotation text and the other annotation's rendered ink.
+pub(crate) fn text_contact(a: &Placed, b: &Placed) -> bool {
+    placement::boxes_overlap(a.label_box, b.label_box)
+        || placement::ink_through(a, b.label_box)
+        || placement::ink_through(b, a.label_box)
+}
+
+/// The four overall sizes, excluding source-stamped profile requirements.
+pub(crate) fn is_envelope_extent(id: &str) -> bool {
+    matches!(
+        id,
+        "d:envelope/width.length"
+            | "d:envelope/depth.length"
+            | "d:envelope/height.length"
+            | "d:envelope/od.diameter"
+    )
+}
+
+/// A dimension's ID names what it measures, independently of the carrying view.
 fn want_id(feature: &str, parameter: &str) -> String {
     format!("d:{feature}/{parameter}")
 }
@@ -1247,7 +1264,7 @@ fn lanes_uncached(
     // A controlling overall adds a lane to the turned axial chain.
     if wants
         .iter()
-        .any(|w| w.id.starts_with("d:envelope/") && w.id.ends_with(".length"))
+        .any(|w| crate::dims::is_envelope_extent(&w.id) && w.id.ends_with(".length"))
         && turned::turned(analysis, &QFrame(crate::bridge::holes::frame(analysis))).is_some()
     {
         bands.plate_front_below = bands.plate_front_below.max(front_linear);
@@ -1300,13 +1317,17 @@ fn lanes_uncached(
             _ => {}
         }
     }
-    // Add only the new vertical notch statements to the established plan-left
-    // allowance. Reserving every historical lane would enlarge otherwise readable
+    // Reserve canonical physical notch statements, independent of printed sharing.
+    // A tolerance may split a counted depth without changing this plan-left allowance.
+    // Reserving every historical lane would enlarge otherwise readable
     // sheets; omitting these new lanes can strand an existing centre ordinate.
-    let notch_lanes = kept
+    let notch_lanes = wants
         .iter()
-        .filter(|(w, _, view, _)| {
-            *view == Some("plan")
+        .zip(&chosen)
+        .filter(|(w, view)| {
+            **view == Some("plan")
+                && (spec.dimension_source == DimensionSource::Auto
+                    || spec.dimensions.contains_key(&w.id))
                 && w.measurements
                     .iter()
                     .any(|m| m.feature.starts_with("notch:"))
@@ -1318,8 +1339,7 @@ fn lanes_uncached(
         let base = ((crate::layout::DIM_PAD - crate::layout::lane_band(1)).max(0.) / LANE).ceil()
             as usize
             + 1;
-        // One outer text corridor keeps rotated ordinate text inside the border.
-        bands.authored_plan_left = bands.authored_plan_left.max(base + notch_lanes + 1);
+        bands.authored_plan_left = bands.authored_plan_left.max(base + notch_lanes);
     }
     let mut aligned = Vec::new();
     for (i, w) in wants.iter().enumerate() {
@@ -2248,6 +2268,18 @@ fn plan_inventory_uncached(
     ));
     let interior_proofs = interior::proofs(analysis, views);
     let notch_void = |view: &str, p: &Placed| {
+        let Some(frame) = frames.get(view) else {
+            return false;
+        };
+        let b = frame.outline();
+        // Interior provenance covers the whole annotation, inside its own view.
+        // An ordinary exterior sector must not inherit an own-view-only proof.
+        if !page.fits_interior(p, view)
+            || !placement::ink_points(p)
+                .all(|q| q[0] >= b[0] && q[0] <= b[2] && q[1] >= b[1] && q[1] <= b[3])
+        {
+            return false;
+        }
         views
             .iter()
             .find(|v| v.id == format!("v:{view}"))
@@ -2427,7 +2459,7 @@ fn plan_inventory_uncached(
                         interior_proofs.get(&v.id).is_some_and(|proof| {
                             proof.annotation_clear(v, p, matches!(w.shape, Shape::Callout { .. }))
                                 || (w.measurements.iter().any(|m| m.parameter == "notch.angle")
-                                    && proof.exterior_annotation_clear(v, p))
+                                    && notch_void(v.id.trim_start_matches("v:"), p))
                         })
                     })
                 })
@@ -2554,7 +2586,7 @@ fn plan_inventory_uncached(
                         interior_proofs.get(&v.id).is_some_and(|proof| {
                             proof.annotation_clear(v, p, matches!(w.shape, Shape::Callout { .. }))
                                 || (w.measurements.iter().any(|m| m.parameter == "notch.angle")
-                                    && proof.exterior_annotation_clear(v, p))
+                                    && notch_void(v.id.trim_start_matches("v:"), p))
                         })
                     })
             })

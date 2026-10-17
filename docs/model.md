@@ -1075,23 +1075,30 @@ basis, placed, reference?, determined_by?}`:
   The sheet reserves the minimum exterior angular footprint before packing, so an acute
   notch does not have to extend beyond a band estimated only from linear lanes. Added
   vertical notch statements reserve their own datum lanes; a silhouette-mouth station
-  leaves its witness on that free side. Mouth X/Y stations can use the aligned
-  front/side projections, keeping long datum witnesses away from the plan's notch arcs
-  and existing bore-leader bands. A notch angle may use blank exterior space within its view's
+  leaves its witness on that free side. Mouth stations distribute their ink between true aligned projections: left-half X
+  stations prefer the normal view, right-half X stations prefer front, and Y stations
+  prefer side. This keeps the plan's notch arcs and bore-leader bands clear without
+  stacking every X witness in front. A notch angle may use blank exterior space within its view's
   envelope only after projected-face containment and edge/arrow clearance prove it empty.
   Every planar projection counts; curved faces use their full covers. Radius leaders displaced
   by these new bands consider model strokes before their joint solve. This preserves short
   existing leaders without enabling general interior angular placement.
-  Before packing new notch bands, the layout reserves an existing automatic radius-centre
-  schedule when at least four exact, end-on centres share a view. Principal fillet owners
-  and authored radius presentations are excluded; the late table still requires genuine
-  leader obstruction and states every occurrence's own centre. This keeps the added notch
+  Within the chosen sheet and scale, the layout tries reserving an existing automatic
+  concave radius-centre schedule when at least four exact, end-on centres share a view.
+  It may use another existing arrangement but cannot enlarge the chosen page or change
+  its scale for this optional table. Principal fillet owners and authored radius
+  presentations are excluded; the late table still requires genuine leader obstruction
+  and states every occurrence's own centre. This keeps the added notch
   information from displacing CTC-01's four-row R25 schedule.
   Python's general profile-angle rule chooses only the foremost camera-facing planar
   face per body/view: on CTC-01 that is the hex top, whose 120° corners the HEX callout
   defines. It never reaches the plate notches. This bounded notch grammar deliberately
   adds that information; it does not enable general profile-angle planning.
-  The ordinary dimension IDs accept omit, tolerance, placement and label-text intent.
+  Profile dimensions use ordinary envelope IDs, for example
+  `d:envelope/notch.angle.f3_e88_e90`, with support stamps distinguishing physical
+  corners. Their measurement claims retain the source notch identity. Overall-extent
+  policies match the four extent IDs exactly, so a profile dimension never inherits
+  an overall tolerance or fit. The IDs accept omit, tolerance, placement and label-text intent.
   Authored angles compare the same projected supports even when their normal-section stations
   differ; authored mode transfers the automatic role, and auto mode names the existing owner.
   Dimension schemes may own mouth stations. Lint re-reads the provider supports and rejects

@@ -438,6 +438,9 @@ pub(crate) fn reservations(
         let id = want_id(&group[0].id, "blend.radius");
         if Some(i) == general
             || group.len() < 4
+            || group.iter().any(|f| {
+                f.parameters.get("side").and_then(serde_json::Value::as_str) != Some("concave")
+            })
             || overridden(spec, spec, &id)
             || a.features
                 .iter()

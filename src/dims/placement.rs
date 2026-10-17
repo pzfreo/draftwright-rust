@@ -872,7 +872,7 @@ pub(super) fn fall_through(
         let first = *held.get(&(view, across)).unwrap_or(&0);
         // An overall extent has first claim on the free lanes (draftwright falls through only
         // the extent, ISSUE-1215-e); the others follow in their order.
-        let extent = |i: usize| items[i].id.starts_with("d:envelope/");
+        let extent = |i: usize| crate::dims::is_envelope_extent(&items[i].id);
         let (mut order, rest): (Vec<usize>, Vec<usize>) =
             list.into_iter().partition(|&i| extent(i));
         order.extend(rest);

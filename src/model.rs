@@ -3308,11 +3308,6 @@ fn plan_with_presentation(
     request.required_tables = crate::tables::sizes(&spec.tables);
     request
         .required_tables
-        .extend(crate::tables::sizes(&crate::dims::blends::reservations(
-            analysis, spec,
-        )));
-    request
-        .required_tables
         .extend(crate::tables::sizes(&crate::gears::tables(analysis)));
     if let Some(p) = presentation {
         request.required_tables.extend(p.sizes());
@@ -3350,6 +3345,28 @@ fn plan_with_presentation(
         );
         if p.fallback.is_none() {
             (request, pick, strips) = (bare, p, s);
+        }
+    }
+    // An automatic radius schedule is a presentation choice. Reserve it around
+    // the existing sheet/scale pair only when it fits; it cannot spend more paper
+    // or shrink a user-requested scale while its ordinary callout remains valid.
+    let radius_sizes = crate::tables::sizes(&crate::dims::blends::reservations(analysis, spec));
+    if !radius_sizes.is_empty() {
+        let mut with_radii = request.clone();
+        with_radii.required_tables.extend(radius_sizes);
+        with_radii.automatic_pair = true;
+        let (p, s, _) = crate::demand::size_with_details(
+            &demand,
+            &with_radii,
+            Some(pick.scale),
+            Some(pick.page),
+            lo[2],
+            false,
+            &|scale| crate::detail::scaled(analysis, spec, scale),
+        );
+        if p.fallback.is_none() && p.page == pick.page && (p.scale - pick.scale).abs() < 1e-12 {
+            with_radii.automatic_pair = request.automatic_pair;
+            (request, pick, strips) = (with_radii, p, s);
         }
     }
     if complete_views && given.sheet.scale.is_some() && !automatic_pair {
@@ -4082,6 +4099,12 @@ fn plan_with_presentation(
         )?;
         let before = natural.clone();
         crate::dims::settle_inventory(analysis, &base, &sheet, &views, &mut natural, &reserved);
+        let bounded_notches = !crate::notches::requirements(analysis).is_empty();
+        let linear_ink: Vec<_> = inventory
+            .iter()
+            .filter(|d| d.kind == "linear")
+            .filter_map(|d| Some((d.id.clone(), d.placed.clone()?)))
+            .collect();
         for d in &mut inventory {
             if spec
                 .dimensions
@@ -4120,6 +4143,21 @@ fn plan_with_presentation(
                 && let (Some(_), Some(c)) =
                     (d.placed.as_ref(), settled.and_then(|d| d.placed.as_ref()))
             {
+                // Restoring an unchanged peer must not put it through newly grown
+                // text or a moved witness. Keep the current solved callout in that case.
+                if bounded_notches
+                    && d.kind == "callout"
+                    && linear_ink.iter().any(|(id, p)| {
+                        crate::dims::text_contact(c, p)
+                            && natural
+                                .iter()
+                                .find(|n| n.id == *id)
+                                .and_then(|n| n.placed.as_ref())
+                                .is_none_or(|old| !crate::dims::text_contact(c, old))
+                    })
+                {
+                    continue;
+                }
                 label_spec
                     .dimensions
                     .entry(d.id.clone())
