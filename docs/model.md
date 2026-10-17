@@ -406,6 +406,7 @@ Each entry owns a station network on a **part-frame** axis. For example:
 ```
 
 These are independent examples; overlapping entries on the same view axis are refused.
+The same named target cannot be dimensioned twice across different views either.
 `scheme` and `axis` are required. `targets` names a feature pattern, feature IDs or exact
 fingerprint references from `Analysis.edge_ink.references`; omitted/empty targets applies to
 all automatic locations and turned-profile shoulders on the named `view` axis. A view is
@@ -445,9 +446,11 @@ the scheme does not bypass the authored set. Missing or omitted links lose lint 
 Set/remove uses ordinary `items::Op` and session transactions, for example
 `set dimension_schemes/inspection` with a complete entry, or
 `set dimension_schemes/inspection/from` to change its datum. Remove the entry to restore
-automatic planning. Preview, undo/redo and saved Specs retain the same references. A Spec
-bound to another revision cannot reuse feature IDs here: replace them with matching current
-fingerprints or explicitly rebind. Unknown, ambiguous or incompatible references and
+automatic planning. Preview, undo/redo and saved Specs retain the same references. Browser fragment edits
+refresh placement options when a scheme changes its dimension inventory. A Spec
+bound to another revision cannot reuse feature IDs here, including edits on generated
+feature-based whole-view owners: replace them with matching current fingerprints, remove
+the stale generated edits, or explicitly rebind. Unknown, ambiguous or incompatible references and
 misspelled fields are refused with an explanation and correction/removal instruction.
 
 Without entries the existing automatic choice, including the turned inspection-end baseline,

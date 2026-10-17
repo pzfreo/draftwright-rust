@@ -35,10 +35,10 @@ impl Session {
         {
             patch["present"] = serde_json::Value::Bool(plan.get(name.as_str()).is_some());
         }
-        if ops
-            .iter()
-            .any(|op| op.path.trim_start_matches('/').starts_with("views"))
-        {
+        if ops.iter().any(|op| {
+            let path = op.path.trim_start_matches('/');
+            path.starts_with("views") || path.starts_with("dimension_schemes")
+        }) {
             packet["placementOptions"] =
                 serde_json::from_str(&self.placement_options_json()?).unwrap();
         }

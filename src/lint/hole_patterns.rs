@@ -134,6 +134,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 })
             })
             .collect();
+        let all_members_located = member_locations.iter().all(|axes| axes.iter().all(|b| *b));
         let member_anchor_with_pitch = member_locations.iter().any(|axes| axes.iter().all(|b| *b))
             && requirements.iter().all(|(parameter, value)| {
                 value.is_some_and(|d| {
@@ -269,7 +270,9 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 _ => None,
             };
             if member_spacing
-                && pitch_axis.is_some_and(|axis| member_locations.iter().all(|axes| axes[axis]))
+                && (all_members_located
+                    || pitch_axis
+                        .is_some_and(|axis| member_locations.iter().all(|axes| axes[axis])))
             {
                 continue;
             }

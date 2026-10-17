@@ -106,7 +106,7 @@ for (const part of ['prismatic', 'polygonal', 'schemes']) {
           for (const [id, svg] of Object.entries(packet.fragments)) {
             assert.equal(svg, complete[id], `changed fragment ${id}`);
           }
-          if (step.ops.some(op => op.path.startsWith('views'))) {
+          if (step.ops.some(op => op.path.startsWith('views') || op.path.startsWith('dimension_schemes'))) {
             assert.deepEqual(packet.placementOptions, JSON.parse(engine.placementOptions()));
           }
           for (const [name, patch] of Object.entries(packet.delta.plan.collections)) {

@@ -1,7 +1,7 @@
 //! Replace automatic location ownership with an authored, acyclic station network.
 use super::{AXES, Measurement, Shape, Want, fmt};
 use crate::{
-    dimension_scheme::{invalid, station},
+    dimension_scheme::invalid,
     model::{Analysis, Invalid, Spec},
 };
 use sha2::{Digest, Sha256};
@@ -31,8 +31,10 @@ fn anchor(a: &Analysis, w: &Want, p: [f64; 3], k: usize) -> Option<String> {
     }
     keys.extend(["min".into(), "max".into()]);
     keys.extend(a.dimension_references().keys().cloned());
-    keys.into_iter()
-        .find(|r| station(a, r, k).is_ok_and(|q| (p[k] - q[k]).abs() < 1e-6))
+    keys.into_iter().find(|r| {
+        a.scheme_station(r, k)
+            .is_ok_and(|q| (p[k] - q[k]).abs() < 1e-6)
+    })
 }
 fn expand(a: &Analysis, r: &str, out: &mut BTreeSet<String>) -> Result<(), Invalid> {
     if let Some(p) = a
@@ -78,6 +80,7 @@ pub(super) fn apply(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<Cov
     crate::dimension_scheme::check(s)?;
     let old = wants.clone();
     let mut occupied: Vec<(usize, &'static str, f64, String)> = Vec::new();
+    let mut named_owners = BTreeMap::new();
     for (name, d) in &s.dimension_schemes {
         let fail = |why: String| {
             invalid(format!(
@@ -85,10 +88,16 @@ pub(super) fn apply(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<Cov
             ))
         };
         let k = AXES.iter().position(|&k| k == d.axis).unwrap();
+        let generated_prefix = format!("d:scheme:{name}/");
+        let generated_edits = d.targets.is_empty()
+            && s.dimensions
+                .keys()
+                .chain(s.precision.keys())
+                .any(|id| id.starts_with(&generated_prefix));
         if s.binding
             .as_ref()
             .is_some_and(|b| b.source_sha256 != a.binding.source_sha256)
-            && d.targets.iter().chain(&d.from).any(|r| r.contains("f:"))
+            && (generated_edits || d.targets.iter().chain(&d.from).any(|r| r.contains("f:")))
         {
             return Err(fail("Feature IDs belong to another STEP revision; replace them with current fingerprint references or explicitly rebind the Spec.".into()));
         }
@@ -148,7 +157,7 @@ pub(super) fn apply(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<Cov
             return Err(fail("This view axis has no location dimensions; name feature or fingerprint targets instead.".into()));
         }
         let datum = d.from.as_deref().unwrap_or("min");
-        let origin = station(a, datum, k).map_err(fail)?;
+        let origin = a.scheme_station(datum, k).map_err(fail)?;
         let view = d
             .view
             .as_deref()
@@ -163,8 +172,17 @@ pub(super) fn apply(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<Cov
         }
         let mut sites: Vec<_> = refs
             .iter()
-            .map(|r| station(a, r, k).map(|p| (r.clone(), p)).map_err(fail))
+            .map(|r| a.scheme_station(r, k).map(|p| (r.clone(), p)).map_err(fail))
             .collect::<Result<_, _>>()?;
+        for (reference, p) in &sites {
+            if (p[k] - origin[k]).abs() > 1e-6
+                && let Some(other) = named_owners.insert((k, reference.clone()), name.clone())
+            {
+                return Err(fail(format!(
+                    "Target {reference} is already dimensioned by scheme {other}, including across views; remove the duplicate target or combine the entries."
+                )));
+            }
+        }
         sites.push((datum.into(), origin));
         // Coincident stations share one witness: use the member nearest the ordinary
         // exterior strip, so an extension does not traverse another row of the pattern.
@@ -358,10 +376,33 @@ pub(super) fn ink(w: &Want, mut p: super::Placed) -> super::Placed {
     let distance = |q: [f64; 2]| (q[0] - near[0]).powi(2) + (q[1] - near[1]).powi(2);
     let i = usize::from(distance(p.arrows[1][0]) < distance(p.arrows[0][0]));
     let origin = p.arrows.remove(i)[0];
-    for n in 0..16 {
+    const C: f64 = 0.9238795325112867;
+    const S: f64 = 0.3826834323650898;
+    const D: f64 = std::f64::consts::FRAC_1_SQRT_2;
+    const RING: [[f64; 2]; 16] = [
+        [1., 0.],
+        [C, S],
+        [D, D],
+        [S, C],
+        [0., 1.],
+        [-S, C],
+        [-D, D],
+        [-C, S],
+        [-1., 0.],
+        [-C, -S],
+        [-D, -D],
+        [-S, -C],
+        [0., -1.],
+        [S, -C],
+        [D, -D],
+        [C, -S],
+    ];
+    for n in 0..RING.len() {
         let at = |j: usize| {
-            let t = j as f64 * std::f64::consts::TAU / 16.;
-            [origin[0] + 0.7 * t.cos(), origin[1] + 0.7 * t.sin()]
+            [
+                origin[0] + 0.7 * RING[j % RING.len()][0],
+                origin[1] + 0.7 * RING[j % RING.len()][1],
+            ]
         };
         p.lines.push([at(n), at(n + 1)]);
     }

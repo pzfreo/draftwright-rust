@@ -4,7 +4,7 @@ use super::{
     LintIssue, Mark, Severity, holes,
     redundancy::{Span, path},
 };
-use crate::{dimension_scheme::station, model::Analysis, output::Claim};
+use crate::{model::Analysis, output::Claim};
 use std::collections::BTreeMap;
 
 type Graph = (String, usize, Option<String>, String);
@@ -33,9 +33,9 @@ pub(crate) fn evidence(a: &Analysis, marks: &[Mark]) -> (Vec<Mark>, Vec<LintIssu
                     return None;
                 }
                 let k = ["x", "y", "z"].iter().position(|&a| a == axis)?;
-                station(a, datum, k).ok()?;
-                let p = station(a, from, k).ok()?;
-                let q = station(a, to, k).ok()?;
+                a.scheme_station(datum, k).ok()?;
+                let p = a.scheme_station(from, k).ok()?;
+                let q = a.scheme_station(to, k).ok()?;
                 let value = if style == "ordinate" {
                     q[k] - p[k]
                 } else {
@@ -133,9 +133,9 @@ pub(crate) fn evidence(a: &Analysis, marks: &[Mark]) -> (Vec<Mark>, Vec<LintIssu
                 .into_iter()
                 .flatten()
                 .filter_map(|v| v.as_str())
-                .filter_map(|id| station(a, id, k).ok())
+                .filter_map(|id| a.scheme_station(id, k).ok())
                 .collect();
-            let origin = station(a, &datum, k).expect("verified datum");
+            let origin = a.scheme_station(&datum, k).expect("verified datum");
             if members.len() < 2
                 || !members
                     .iter()
@@ -157,7 +157,7 @@ pub(crate) fn evidence(a: &Analysis, marks: &[Mark]) -> (Vec<Mark>, Vec<LintIssu
                             view: view.clone(),
                             text: values
                                 .into_iter()
-                                .map(crate::dims::fmt)
+                                .map(super::parameters::fmt)
                                 .collect::<Vec<_>>()
                                 .join(" "),
                             claims: vec![Claim {
@@ -171,7 +171,7 @@ pub(crate) fn evidence(a: &Analysis, marks: &[Mark]) -> (Vec<Mark>, Vec<LintIssu
         }
         for (feature, parameter, span) in roles {
             let target = if parameter.starts_with("location") {
-                let origin = station(a, &datum, k).expect("verified datum");
+                let origin = a.scheme_station(&datum, k).expect("verified datum");
                 Span::new(k, origin[k], span.hi)
             } else {
                 span
@@ -193,7 +193,7 @@ pub(crate) fn evidence(a: &Analysis, marks: &[Mark]) -> (Vec<Mark>, Vec<LintIssu
                 extra.push(Mark {
                     name: format!("derived:{feature}/{parameter}"),
                     view: view.clone(),
-                    text: crate::dims::fmt(span.hi - span.lo),
+                    text: super::parameters::fmt(span.hi - span.lo),
                     claims: vec![Claim { feature, parameter }],
                 });
             }

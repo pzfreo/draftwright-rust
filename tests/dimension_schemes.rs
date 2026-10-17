@@ -367,3 +367,43 @@ fn whole_view_expands_all_intervals_of_a_counted_grid_pitch() {
         "{issues:#?}"
     );
 }
+
+#[test]
+fn generated_feature_edits_cannot_rebind_silently_or_duplicate_a_target_across_views() {
+    let (_, a) = part("scattered_holes");
+    let mut s = whole("baseline", "x", "plan", "min");
+    let p = model::plan_recovered(&a, &s).unwrap();
+    let id = p
+        .dimensions
+        .iter()
+        .find(|d| d.id.starts_with("d:scheme:"))
+        .unwrap()
+        .id
+        .clone();
+    s.dimensions.insert(id, Default::default());
+    s.binding = Some(a.binding.clone());
+    s.binding.as_mut().unwrap().source_sha256 = "another-revision".into();
+    assert!(
+        model::plan_recovered(&a, &s)
+            .unwrap_err()
+            .message
+            .contains("rebind")
+    );
+    let id = a
+        .features
+        .iter()
+        .find(|f| f.kind == "hole")
+        .unwrap()
+        .id
+        .clone();
+    let s = spec(json!({"dimension_schemes":{
+        "first":{"scheme":"baseline","axis":"x","view":"front","targets":[id]},
+        "second":{"scheme":"baseline","axis":"x","view":"plan","targets":[id]}
+    }}));
+    assert!(
+        model::plan_recovered(&a, &s)
+            .unwrap_err()
+            .message
+            .contains("already dimensioned")
+    );
+}
