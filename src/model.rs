@@ -1461,6 +1461,12 @@ fn protect_retained_routes(
     reference: &Plan,
     mut candidate: Plan,
 ) -> Plan {
+    // An automatic drawing must never regain a sub-floor scale through the
+    // historical route reference, even when no paper can fit the huge part.
+    if spec.sheet.scale.is_none() && reference.sheet.scale_factor < crate::sheet_fit::ABSOLUTE_FLOOR
+    {
+        return candidate;
+    }
     if drawn_quality_reference(analysis, reference) {
         crate::sheet_fit::retain_callouts(analysis, reference, &mut candidate);
     }
@@ -1475,18 +1481,34 @@ fn protect_retained_routes(
     let mut kept = reference.clone();
     restore_search_spec(&mut kept, spec);
     kept.sheet.default = true;
+    let readable = crate::sheet_fit::readability(analysis, &kept);
+    let qualified = findings(&kept).clean()
+        && readable.failures() == 0
+        && kept.sheet.scale_factor
+            >= crate::sheet_fit::min_legible_scale(analysis)
+                .max(crate::sheets::floor(spec).unwrap_or(0.0))
+        && carries_required(&candidate, &kept);
+    let outcome = if qualified {
+        format!(
+            "screen-first fitted-reference retention on {} at {}; established clean readable drawing retained",
+            kept.sheet.size, kept.sheet.scale
+        )
+    } else {
+        format!(
+            "readability refusal on {} at {}; established fitted geometry retained",
+            kept.sheet.size, kept.sheet.scale
+        )
+    };
     kept.sheet.basis = format!(
-        "readability refusal on {} at {}; established fitted geometry retained; no new crossing pairs are allowed; rejected drawing {} at {}; candidates: {}",
-        kept.sheet.size,
-        kept.sheet.scale,
-        candidate.sheet.size,
-        candidate.sheet.scale,
-        candidate.sheet.basis
+        "{outcome}; no new crossing pairs are allowed; rejected drawing {} at {}; candidates: {}",
+        candidate.sheet.size, candidate.sheet.scale, candidate.sheet.basis
     );
-    kept.problems.push(Problem {
-        id: "p:layout_recovery_exhausted:sheet".into(), code: "layout_recovery_exhausted".into(), severity: "warning".into(),
-        message: format!("No clean readable drawing preserves the established annotation/feature associations. The fitted drawing and every measurement are retained without new crossing pairs. Readability: {}.", crate::sheet_fit::readability(analysis, &kept)), subjects: vec!["sheet".into()], ..Default::default()
-    });
+    if !qualified {
+        kept.problems.push(Problem {
+            id: "p:layout_recovery_exhausted:sheet".into(), code: "layout_recovery_exhausted".into(), severity: "warning".into(),
+            message: format!("No clean readable drawing preserves the established annotation/feature associations. The fitted drawing and every measurement are retained without new crossing pairs. Readability: {readable}."), subjects: vec!["sheet".into()], ..Default::default()
+        });
+    }
     if (kept.sheet.size.as_str(), kept.sheet.scale.as_str())
         != (
             candidate.sheet.size.as_str(),

@@ -372,10 +372,14 @@ pub(crate) fn allocate_counted(
         let mut plan = allocate_inner(analysis, spec, None, None)?;
         // Finish forced allocations and table presentation before checking paths that
         // bypassed ordinary recovery (fixed scale, pins, or a rebuilt hole schedule).
+        let fixed_scale_search = spec.sheet.scale.is_some()
+            && !crate::placement_intent::has_pins(spec)
+            && plan.sheet.size != "A4";
         if spec.sheet.size.is_none()
             && spec.sheets.as_ref().and_then(|s| s.max) != Some(1)
-            && ["A2", "A1", "A0"].contains(&plan.sheet.size.as_str())
-            && model::fits_a3_at_full_size(analysis, &plan)
+            && (fixed_scale_search
+                || (["A2", "A1", "A0"].contains(&plan.sheet.size.as_str())
+                    && model::fits_a3_at_full_size(analysis, &plan)))
             && (spec.sheet.scale.is_some()
                 || crate::placement_intent::has_pins(spec)
                 || !plan.hole_tables.is_empty()

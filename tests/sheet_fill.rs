@@ -678,19 +678,19 @@ fn small_overflow_respects_explicit_auxiliary_assignment() {
 }
 
 #[test]
-fn an_exhausted_step_and_lane_search_retains_the_fitted_drawing() {
+fn a_readable_fitted_drawing_is_not_replaced_by_a_compressed_seed() {
     let Some(dir) = corpus::dir() else { return };
     let a = model::analyse_native(&dir.join("mfcadpp/10190.step"))
         .unwrap()
         .1;
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
-    assert_eq!(p.sheet.size, "A4");
-    assert!(draftwright::sheet_fit::readability(&a, &p).failures() > 0);
-    assert!(
-        p.problems
-            .iter()
-            .any(|q| q.code == "layout_recovery_exhausted" && q.severity == "warning")
-    );
+    assert_eq!(p.sheet.size, "A1");
+    assert_eq!(p.sheet.scale_factor, 10.0);
+    assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
+    assert!(!p.problems.iter().any(|q| matches!(
+        q.code.as_str(),
+        "annotation_off_sheet" | "annotation_over_title_block" | "layout_recovery_exhausted"
+    )));
     assert!(p.sheets.is_empty());
     for paper in ["A4", "A3"] {
         assert!(
@@ -731,6 +731,25 @@ fn a_crowded_plain_ladder_keeps_the_fitted_baseline_for_its_schedule() {
             v.area
         );
     }
+}
+
+#[test]
+fn a_requested_scale_still_tries_multisheet_a4_before_a3() {
+    let a = gz_part("hw_string_post_tapped_intent.step");
+    let spec: Spec = serde_json::from_value(json!({"sheet":{"scale":"5:1"}})).unwrap();
+    let p = model::plan_recovered(&a, &spec).unwrap();
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        ("A4", "5:1"),
+        "{}",
+        p.sheet.basis
+    );
+    assert_eq!(p.sheets.len(), 1);
+    assert_eq!(p.spec.sheet.scale, spec.sheet.scale);
+    assert_eq!(p.spec.sheet.size, spec.sheet.size);
+    assert_eq!(p.spec.sheets, spec.sheets);
+    assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
+    assert!(p.gdt.iter().all(|g| g.placed.is_some()));
 }
 
 #[test]
