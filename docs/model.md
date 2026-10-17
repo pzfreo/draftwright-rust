@@ -1018,7 +1018,10 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   Settled readability and route comparisons are memoized by actual dimensions,
   balloons, view transforms, crops, depiction style and scale-floor inputs;
   diagnostic history never substitutes for geometry. Scale and stroke edits
-  invalidate these measurements. Internal candidates share only inert capacity
+  invalidate these measurements. A step-floor preflight grants each potentially
+  owned measurement an independent crop at the largest available requested
+  scale; an unrelated crop cannot defer that step's test. The historical
+  reference and authored crops retain their established handling. Internal candidates share only inert capacity
   and unrequested crop controls; authored placements and text edits retain their
   complete canonical inputs. An already optimal arrangement or packing rank
   cannot improve through another identical solve.

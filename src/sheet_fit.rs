@@ -655,36 +655,118 @@ pub(crate) fn unavoidable_steps_at_scale(
     primary_only: bool,
 ) -> usize {
     let requests = crate::detail::requests(analysis, spec, scale);
-    if !requests.is_empty() {
-        // Keep the historical reference and authored crops unchanged. An
-        // automatic crop whose bare model ink exceeds this paper cannot own a
-        // step on any auxiliary page either; packing cannot make it smaller.
-        let paper = spec
-            .sheet
-            .size
-            .as_ref()
-            .and_then(|name| crate::layout::PAGES.iter().find(|p| p.0 == name));
-        if primary_only
-            || requests.iter().any(|(_, d)| d.authored)
-            || paper.is_none_or(|(_, w, h)| {
-                requests.iter().any(|(_, d)| {
-                    let [x, y] = crate::detail::size(d);
-                    x <= w - 2.0 * MARGIN && y <= h - 2.0 * MARGIN
-                })
-            })
-        {
+    if primary_only {
+        // Reconstruct the historical reference without changing its crop policy.
+        if !requests.is_empty() {
             return 0;
         }
+        let mut probe = plan.clone();
+        for v in probe.views.iter_mut().filter(|v| v.detail.is_none()) {
+            v.scale = scale;
+        }
+        return primary_illegible_steps(analysis, &probe);
     }
+    optimistic_steps_after_crops(analysis, spec, plan, scale, &requests)
+}
+
+/// A lower bound on remaining failures: give every eligible measurement its own
+/// enlarged carrier at the largest available crop scale. This is deliberately
+/// more freedom than the finished layout has. A failure even under that
+/// assignment cannot be repaired by packing or by an unrelated detail.
+fn optimistic_steps_after_crops(
+    analysis: &Analysis,
+    spec: &crate::model::Spec,
+    plan: &Plan,
+    scale: f64,
+    requests: &[(String, crate::detail::Detail)],
+) -> usize {
+    if requests.iter().any(|(_, d)| d.authored)
+        || plan
+            .views
+            .iter()
+            .any(|v| v.detail.as_ref().is_some_and(|d| d.authored))
+    {
+        return 0;
+    }
+    let paper = spec
+        .sheet
+        .size
+        .as_ref()
+        .and_then(|name| crate::layout::PAGES.iter().find(|p| p.0 == name));
+    let available: Vec<_> = requests
+        .iter()
+        .filter(|(_, d)| {
+            paper.is_none_or(|(_, w, h)| {
+                let [x, y] = crate::detail::size(d);
+                x <= w - 2.0 * MARGIN && y <= h - 2.0 * MARGIN
+            })
+        })
+        .collect();
+    // Unknown authored/custom identities cannot prove a failed owner assignment.
+    if available.iter().any(|(_, d)| {
+        d.dimensions
+            .iter()
+            .any(|id| !id.starts_with("d:") || id.rsplit_once('/').is_none())
+    }) {
+        return 0;
+    }
+    let parents: std::collections::BTreeMap<_, _> = plan
+        .views
+        .iter()
+        .filter_map(|v| {
+            v.detail
+                .as_ref()
+                .map(|d| (v.id.clone(), d.source_view.clone()))
+        })
+        .collect();
+    let Some(mut template) = plan.views.first().cloned() else {
+        return 0;
+    };
+    template.line_work.clear();
+    template.detail = None;
+    template.basis.clear();
     let mut probe = plan.clone();
-    for view in probe.views.iter_mut().filter(|v| v.detail.is_none()) {
-        view.scale = scale;
+    // The seed's old automatic crop may disappear or use another scale in this
+    // trial. It cannot lend its former enlargement to an unowned measurement.
+    for v in &mut probe.views {
+        v.scale = scale;
     }
-    if primary_only {
-        primary_illegible_steps(analysis, &probe)
-    } else {
-        readability(analysis, &probe).steps
+    for d in &mut probe.dimensions {
+        if let Some(parent) = parents.get(&d.view) {
+            d.view = parent.clone();
+        }
     }
+    for (i, d) in probe.dimensions.iter_mut().enumerate() {
+        if d.placed.is_none() {
+            continue;
+        }
+        let best = available
+            .iter()
+            .filter(|(_, detail)| {
+                detail.dimensions.iter().any(|id| {
+                    id == &d.id
+                        || id
+                            .strip_prefix("d:")
+                            .and_then(|s| s.rsplit_once('/'))
+                            .is_some_and(|(feature, parameter)| {
+                                d.measurements.iter().any(|m| {
+                                    m.feature == feature
+                                        && (!matches!(feature, "step_level" | "envelope")
+                                            || m.parameter == parameter)
+                                })
+                            })
+                })
+            })
+            .max_by(|a, b| a.1.scale.total_cmp(&b.1.scale));
+        if let Some((_, detail)) = best {
+            let mut view = template.clone();
+            view.id = format!("preflight:{i}");
+            view.scale = detail.scale.max(scale);
+            d.view = view.id.clone();
+            probe.views.push(view);
+        }
+    }
+    illegible_steps(analysis, &probe) + baseline_step_failures(&probe)
 }
 
 /// Usable-paper fill target. The lower bound triggers enlargement on the same
@@ -799,6 +881,38 @@ fn illegible_spans(analysis: &Analysis, plan: &Plan, primary_only: bool) -> usiz
         })
         .filter(|feature| checked.insert(*feature))
         .count()
+}
+
+fn baseline_step_failures(plan: &Plan) -> usize {
+    let mut levels = std::collections::BTreeMap::<&str, Vec<f64>>::new();
+    for d in plan.dimensions.iter().filter(|d| d.placed.is_some()) {
+        let Some(v) = plan.views.iter().find(|v| v.id == d.view) else {
+            continue;
+        };
+        for m in &d.measurements {
+            if (m.feature == "step_level" && m.parameter.starts_with("step_height.length"))
+                || (m.feature == "envelope" && m.parameter == "height.length")
+            {
+                levels
+                    .entry(v.id.as_str())
+                    .or_default()
+                    .push(m.value.abs() * v.scale);
+            }
+        }
+    }
+    levels
+        .values_mut()
+        .filter(|v| v.len() > 1)
+        .map(|values| {
+            values.push(0.0);
+            values.sort_by(f64::total_cmp);
+            values.dedup_by(|a, b| (*a - *b).abs() < 1e-6);
+            values
+                .windows(2)
+                .filter(|w| w[1] - w[0] + 1e-6 < MIN_OPENING)
+                .count()
+        })
+        .sum()
 }
 
 /// Thin depiction strokes need visible white between them on an ordinary printer.
@@ -934,7 +1048,7 @@ pub fn readability(analysis: &Analysis, plan: &Plan) -> Readability {
 
 fn readability_uncached(analysis: &Analysis, plan: &Plan) -> Readability {
     let mut result = Readability {
-        steps: illegible_steps(analysis, plan),
+        steps: illegible_steps(analysis, plan) + baseline_step_failures(plan),
         ..Default::default()
     };
     let mut openings = std::collections::BTreeSet::new();
@@ -960,7 +1074,6 @@ fn readability_uncached(analysis: &Analysis, plan: &Plan) -> Readability {
         }
     }
     let mut rows = Vec::new();
-    let mut levels = std::collections::BTreeMap::<&str, Vec<f64>>::new();
     let mut locations = std::collections::BTreeMap::<(&str, &str), Vec<f64>>::new();
     let modelled = modelled_line_scale(analysis);
     let manufacturing = crate::planning::memo(analysis, "sheet-depictions", vec![], || {
@@ -1011,18 +1124,6 @@ fn readability_uncached(analysis: &Analysis, plan: &Plan) -> Readability {
                 .push(d.value);
         }
         for m in &d.measurements {
-            if m.feature == "step_level" && m.parameter.starts_with("step_height.length") {
-                levels
-                    .entry(v.id.as_str())
-                    .or_default()
-                    .push(m.value.abs() * v.scale);
-            }
-            if m.feature == "envelope" && m.parameter == "height.length" {
-                levels
-                    .entry(v.id.as_str())
-                    .or_default()
-                    .push(m.value.abs() * v.scale);
-            }
             let Some(feature) = analysis.features.iter().find(|f| f.id == m.feature) else {
                 continue;
             };
@@ -1104,15 +1205,6 @@ fn readability_uncached(analysis: &Analysis, plan: &Plan) -> Readability {
             }
             rows.push((d.view.as_str(), u, row, lo, hi));
         }
-    }
-    for values in levels.values_mut().filter(|v| v.len() > 1) {
-        values.push(0.0);
-        values.sort_by(f64::total_cmp);
-        values.dedup_by(|a, b| (*a - *b).abs() < 1e-6);
-        result.steps += values
-            .windows(2)
-            .filter(|w| w[1] - w[0] + 1e-6 < MIN_OPENING)
-            .count();
     }
     for ((view, _), values) in locations {
         let scale = plan
@@ -2568,6 +2660,75 @@ pub(crate) fn reserve_linear_corridors(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn only_a_crop_that_can_carry_the_step_defers_its_floor() {
+        let Some(root) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
+            return;
+        };
+        let (_, a) =
+            crate::model::analyse_native(&std::path::Path::new(&root).join("mfcadpp/10046.step"))
+                .unwrap();
+        let mut spec = crate::model::Spec::default();
+        spec.sheet.size = Some("A4".into());
+        spec.sheet.scale = Some("1:1".into());
+        for name in crate::detail::NAMES {
+            spec.views.entry(name.into()).or_default().omit = true;
+        }
+        let p = crate::model::plan(&a, &spec).unwrap();
+        let detail = crate::detail::Detail {
+            label: "A".into(),
+            axis: 2,
+            source_view: "v:front".into(),
+            source_cut: None,
+            kind: "prismatic-steps".into(),
+            bounds: [[0.0; 3], [10.0; 3]],
+            marked_bounds: [[0.0; 3], [10.0; 3]],
+            dimensions: p.dimensions.iter().map(|d| d.id.clone()).collect(),
+            scale: 2.0,
+            authored: false,
+            partial_profile: false,
+        };
+        assert!(optimistic_steps_after_crops(&a, &spec, &p, 1.0, &[]) > 0);
+        assert_eq!(
+            optimistic_steps_after_crops(
+                &a,
+                &spec,
+                &p,
+                1.0,
+                &[("detail_a".into(), detail.clone())]
+            ),
+            0
+        );
+        let mut unrelated = detail.clone();
+        unrelated.dimensions = vec!["d:f:unrelated/step.length".into()];
+        assert!(
+            optimistic_steps_after_crops(&a, &spec, &p, 1.0, &[("detail_a".into(), unrelated)]) > 0
+        );
+        let mut other_station = detail.clone();
+        other_station.dimensions = vec!["d:step_level/step_height.length.unrelated".into()];
+        assert!(
+            optimistic_steps_after_crops(&a, &spec, &p, 1.0, &[("detail_a".into(), other_station)])
+                > 0
+        );
+        let mut too_large = detail;
+        too_large.bounds[1] = [10000.0; 3];
+        assert!(
+            optimistic_steps_after_crops(
+                &a,
+                &spec,
+                &p,
+                1.0,
+                &[("detail_a".into(), too_large.clone())]
+            ) > 0
+        );
+        too_large.authored = true;
+        assert_eq!(
+            optimistic_steps_after_crops(&a, &spec, &p, 1.0, &[("detail_a".into(), too_large)]),
+            0
+        );
+    }
 
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
