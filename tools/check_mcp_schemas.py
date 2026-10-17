@@ -29,7 +29,25 @@ with tempfile.TemporaryDirectory(prefix='s7-schema-') as cache:
             assert published.get('type') == 'object', 'MCP schema roots are objects'
             Draft202012Validator.check_schema(published)
             validators[tool['name'], direction] = Draft202012Validator(published)
-    nullable = validators['inspect_part', 'input']
+    # Nested constraints now arrive on demand, never in tools/list.
+    validators['spec_schema', 'input'].validate({})
+    discovery = rpc('tools/call', {'name': 'spec_schema', 'arguments': {}})
+    assert not discovery['isError'], discovery
+    discovered = discovery['structuredContent']
+    validators['spec_schema', 'output'].validate(discovered)
+    full = discovered['spec']
+    assert full == json.loads((root / 'schemas/spec.json').read_text())
+    assert discovered['spec_read'] == '#/$defs/spec_read'
+    Draft202012Validator.check_schema(full)
+    full_validator = Draft202012Validator(full)
+    body = {k: v for k, v in full.items() if k != '$defs'}
+    nullable = Draft202012Validator({
+        'type': 'object', 'properties': {'part_ref': {'type': 'string'}, 'spec': body},
+        'additionalProperties': False, '$defs': full['$defs']})
+    shallow = validators['inspect_part', 'input']
+    shallow.validate({'part_ref': 'part', 'spec': {'sheet': {'size': 42}}})
+    assert not shallow.is_valid({'part_ref': 'part', 'spec': {'sheet': []}})
+    assert not shallow.is_valid({'part_ref': 'part', 'spec': {'unknown_field': True}})
     assert not nullable.is_valid({'part_ref': 'part', 'part_ref\n': 'bad'}), 'literal property names stay strict at a final newline'
     for spec in ({'dimensions\n': {}}, {'sheet': {'centre_marks\n': True}},
                  {'sheet': {'fit_limits\n': True}}):
@@ -38,6 +56,19 @@ with tempfile.TemporaryDirectory(prefix='s7-schema-') as cache:
         nullable.validate({'part_ref': 'part', 'spec': {'sheet': sheet}})
     for sheet in [{'size': 42}, {'fit_limits': 'yes'}]:
         assert not nullable.is_valid({'part_ref': 'part', 'spec': {'sheet': sheet}})
+    for around in ['f:turned_step:3', ['f:groove:1', 'face:4']]:
+        for source in ['front', 'plan', 'side', 'section_aa', 'section_bb', None]:
+            nullable.validate({'part_ref': 'part', 'spec': {'views': {'detail_c': {
+                'detail': {'around': around, 'from': source, 'scale_factor': 3}}}}})
+    for detail in [{'around': []}, {'around': 12}, {'around': ['face:1', 3]},
+                   {'around': 'face:1', 'from': 'iso'},
+                   {'around': 'face:1', 'from': 'front\n'},
+                   {'around': 'face:1', 'from': 'section_ab'},
+                   {'around': 'face:1', 'from': 3},
+                   {'around': 'face:1', 'scale_factor': 1},
+                   {'around': 'face:1', 'bounds': [[0, 0, 0], [1, 1, 1]]}]:
+        assert not nullable.is_valid({'part_ref': 'part', 'spec': {'views': {
+            'detail_c': {'detail': detail}}}})
     for field in ('hidden', 'centre_marks', 'centre_lines', 'thread_depiction', 'knurl_depiction'):
         for scope in ('sheet', 'views'):
             def authored(value):
@@ -56,7 +87,14 @@ with tempfile.TemporaryDirectory(prefix='s7-schema-') as cache:
     # Named view constraints and the common object-map shape must both apply.
     assert not nullable.is_valid({'part_ref': 'part', 'spec': {'views': {'side': []}}})
     assert not nullable.is_valid({'part_ref': 'part', 'spec': {'feature_declarations': 'bad'}})
-    read_spec = validators['get_spec', 'output']
+    for bad in (None, [], 'bad', {'locations': []}, {'locations': None}):
+        assert not nullable.is_valid({'part_ref': 'part', 'spec': {'dimension_schemes': bad}}), bad
+    assert not nullable.is_valid({'part_ref': 'part', 'spec': {'dimension_schemes\n': {}}})
+    read_spec = Draft202012Validator({
+        'type': 'object', 'properties': {'spec_version': {'type': 'string'},
+            'spec': {'$ref': discovered['spec_read']}},
+        'required': ['spec_version', 'spec'], 'additionalProperties': False,
+        '$defs': full['$defs']})
     def dimension_result(dimension):
         return {'spec_version': 'v', 'spec': {'dimensions': {'d:authored:test': dimension},
                 'feature_declarations': [declaration]}}
@@ -123,4 +161,53 @@ with tempfile.TemporaryDirectory(prefix='s7-schema-') as cache:
         'part_ref': part, 'spec': sheets, 'id': 'sheet:1/v:iso'}})
     assert wrong['isError'] and 'sheet:2/v:iso' in wrong['structuredContent']['error']['choices']
     validators['get_item', 'output'].validate(wrong['structuredContent'])
+    schemes = {'dimension_schemes': {'locations': {
+        'scheme': 'chain', 'axis': 'x', 'view': 'plan'}}}
+    call('inspect_part', {'part_ref': part, 'spec': schemes})
+    saved = call('get_spec', {'part_ref': part, 'spec': schemes})
+    assert saved['spec']['dimension_schemes'] == schemes['dimension_schemes']
+    assert not nullable.is_valid({
+        'part_ref': part, 'spec': {'dimension_schemes': {'locations': False}}})
+    bad_scheme = rpc('tools/call', {'name': 'inspect_part', 'arguments': {
+        'part_ref': part, 'spec': {'dimension_schemes': {'locations': {
+            'scheme': 'baseline', 'axis': 'x', 'view': 'plan', 'from': 'face:missing'}}}}})
+    assert bad_scheme['isError']
+    refusal = bad_scheme['structuredContent']
+    validators['inspect_part', 'output'].validate(refusal)
+    assert refusal['error']['code'] == 'invalid'
+    assert 'dimension_schemes/locations' in refusal['error']['message']
+    assert 'remove' in refusal['error']['message']
+    # Every checked-in Spec example, including embedded Specs in recorded fixtures.
+    examples = 0
+    rejected_examples = set()
+    # These seven recorded negative examples exercise structural defects; the
+    # other recorded refusals depend on engineering intent or part geometry.
+    bad_group = 'e980c12943dcfe9dbf7e7c47e2a6a5741cf6b9a371ba35e7436ebfe9d858e361'
+    known_bad = {f'known_single_sheet_specs.json/{bad_group}/{i}' for i in (0, 31, 39, 75, 84, 126, 182)}
+    def examples_in(value, location):
+        global examples
+        if isinstance(value, dict):
+            if str(value.get('schema', '')).startswith('draftwright.spec/'):
+                if location in known_bad:
+                    assert not full_validator.is_valid(value), location
+                    rejected_examples.add(location)
+                else:
+                    full_validator.validate(value)
+                    read_spec.validate({'spec_version': 'v', 'spec': value})
+                    examples += 1
+            for key, child in value.items(): examples_in(child, location + '/' + key)
+        elif isinstance(value, list):
+            for i, child in enumerate(value): examples_in(child, location + '/' + str(i))
+    for path in sorted((root / 'tests/fixtures').rglob('*.json')):
+        examples_in(json.loads(path.read_text()), path.name)
+    assert examples >= 1800, examples
+    assert rejected_examples == known_bad
+    # A known bad nested Spec still receives exactly the private main preflight guidance.
+    private = json.loads((root / 'schemas/mcp-validation.json').read_text())
+    for bad in ({'sheet': {'size': 42}}, {'dimensions\n': {}},
+                {'sheet': {'centre_marks': 'false'}}):
+        refused = rpc('tools/call', {'name': 'inspect_part', 'arguments': {'part_ref': part, 'spec': bad}})
+        assert refused['isError']
+        assert not Draft202012Validator(private['inspect_part']).is_valid({'part_ref': part, 'spec': bad})
+    print(f'{examples} checked-in Spec examples validated against the on-demand schema')
     print(f'{len(tools)} tool inputs, outputs and refusals validated; {len(validators)} published and served schemas agree')

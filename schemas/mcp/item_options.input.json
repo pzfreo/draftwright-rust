@@ -16,90 +16,41 @@
             "null"
           ]
         },
+        "sheet": {
+          "$ref": "#/A"
+        },
+        "iso_scale_factor": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "sheets": {
           "type": [
             "object",
             "null"
-          ],
-          "properties": {
-            "smallest_scale": {
-              "$ref": "#/B"
-            },
-            "keep_together": {
-              "type": "array",
-              "items": {
-                "$ref": "#/A"
-              }
-            },
-            "gdt_on_sheet_1": {
-              "type": "boolean"
-            }
-          },
-          "additionalProperties": false,
-          "patternProperties": {
-            "^(max|hole_table)$(?!\n)": {
-              "enum": [
-                null,
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-                8,
-                9
-              ]
-            }
-          }
-        },
-        "sheet": {
-          "type": "object",
-          "properties": {
-            "title": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "string"
-              }
-            },
-            "projection": {
-              "enum": [
-                null,
-                "first",
-                "third"
-              ]
-            },
-            "default_finish": {
-              "type": [
-                "object",
-                "null"
-              ]
-            }
-          },
-          "additionalProperties": false,
-          "patternProperties": {
-            "^(hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
-            "^(size|scale)$(?!\n)": {
-              "$ref": "#/B"
-            }
-          }
+          ]
         },
         "views": {
-          "additionalProperties": {
-            "patternProperties": {
-              "^(hidden|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
-                "type": [
-                  "boolean",
-                  "null"
-                ]
-              }
-            }
-          }
+          "$ref": "#/A"
+        },
+        "dimensions": {
+          "$ref": "#/A"
+        },
+        "annotations": {
+          "$ref": "#/A"
+        },
+        "features": {
+          "$ref": "#/A"
+        },
+        "faces": {
+          "$ref": "#/A"
+        },
+        "dimension_schemes": {
+          "$ref": "#/A"
+        },
+        "precision": {
+          "$ref": "#/A"
         },
         "dimension_source": {
           "enum": [
@@ -114,40 +65,27 @@
             "never"
           ]
         },
+        "envelope_tolerance": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notes": {
+          "type": "array"
+        },
+        "tables": {
+          "type": "array"
+        },
+        "gears": {
+          "type": "array"
+        },
         "feature_declarations": {
-          "items": {
-            "properties": {
-              "faces": {
-                "$ref": "#/A"
-              }
-            },
-            "additionalProperties": {
-              "type": "string"
-            },
-            "required": [
-              "id",
-              "kind",
-              "faces"
-            ],
-            "maxProperties": 3
-          }
+          "type": "array"
         }
       },
       "additionalProperties": false,
-      "patternProperties": {
-        "^(views|dimensions|annotations|features|faces)$(?!\n)": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object"
-          }
-        },
-        "^(notes|tables|gears|feature_declarations)$(?!\n)": {
-          "type": "array",
-          "items": {
-            "type": "object"
-          }
-        }
-      }
+      "description": "Typed outline only. Call spec_schema {} for the full Spec and get_spec spec_read schemas; item_options gives valid edit paths and choices."
     }
   },
   "required": [
@@ -167,15 +105,6 @@
     ]
   },
   "A": {
-    "items": {
-      "type": "string"
-    },
-    "type": "array"
-  },
-  "B": {
-    "type": [
-      "string",
-      "null"
-    ]
+    "type": "object"
   }
 }

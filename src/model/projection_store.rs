@@ -99,8 +99,18 @@ impl Projections {
         })
     }
     pub fn from_disk(bytes: &[u8]) -> Result<Self, serde_json::Error> {
+        // Warm stateless requests read the same immutable file. Key successful parses
+        // by every byte; changed or damaged files must still be parsed and checked.
+        // Limit both entry count and input size rather than retaining large assemblies.
+        static MEMO: crate::planning::BoundedMemo<Projections> =
+            crate::planning::BoundedMemo::new(4);
+        let key: Option<[u8; 32]> =
+            (bytes.len() <= 8 * 1024 * 1024).then(|| Sha256::digest(bytes).into());
+        if let Some(projections) = key.and_then(|key| MEMO.get(&key)) {
+            return Ok(projections);
+        }
         let p: Pairs = serde_json::from_slice(bytes)?;
-        Ok(Self {
+        let projections = Self {
             binding: p.binding,
             views: p
                 .views
@@ -124,6 +134,57 @@ impl Projections {
             cut_material: p.cut_material.into_iter().collect(),
             hatches: p.hatches.into_iter().collect(),
             stats: ProjectionStats::default(),
-        })
+            dirty: false,
+        };
+        if let Some(key) = key {
+            MEMO.insert(key, projections.clone());
+        }
+        Ok(projections)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::Features;
+    use crate::items::Op;
+    use crate::session::Session;
+
+    #[test]
+    fn a_loaded_cache_stays_clean_for_title_edits_and_tracks_changed_geometry() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/parts/turned.step");
+        let initial = Session::open(&path, Features::Native, Spec::default()).unwrap();
+        assert!(initial.projections().dirty);
+        let bytes = initial.projections().disk_bytes().unwrap();
+        let loaded = Projections::from_disk(&bytes).unwrap();
+        assert!(!loaded.dirty);
+        let mut session = Session::with_projections(
+            haecceity::read_step(&std::fs::read(&path).unwrap()).unwrap(),
+            initial.analysis().clone(),
+            initial.spec().clone(),
+            loaded,
+        )
+        .unwrap();
+        assert!(!session.projections().dirty);
+        session
+            .apply(
+                &[Op::set("sheet/title/material", serde_json::json!("Steel"))],
+                true,
+            )
+            .unwrap();
+        assert!(!session.projections().dirty);
+        assert_eq!(session.projections().disk_bytes().unwrap(), bytes);
+        session
+            .apply(&[Op::set("sheet/scale", serde_json::json!("1:1"))], true)
+            .unwrap();
+        assert!(session.projections().dirty);
+        assert_ne!(session.projections().disk_bytes().unwrap(), bytes);
+        let fresh = Session::open(&path, Features::Native, session.spec().clone()).unwrap();
+        assert_eq!(session.drawing().svg(), fresh.drawing().svg());
+        let again = Projections::from_disk(&bytes).unwrap();
+        assert!(!again.dirty);
+        assert_eq!(again.stats(), ProjectionStats::default());
+        assert_eq!(again.disk_bytes().unwrap(), bytes);
     }
 }

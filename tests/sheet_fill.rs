@@ -87,7 +87,7 @@ mod corpus;
 mod sheet_rule;
 
 #[test]
-fn grm03_enlarges_into_the_fill_band_without_losing_measurements() {
+fn grm03_prefers_larger_principals_without_losing_measurements() {
     let Some(dir) = corpus::dir() else {
         return;
     };
@@ -95,18 +95,20 @@ fn grm03_enlarges_into_the_fill_band_without_losing_measurements() {
         .unwrap()
         .1;
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
-    let fill = serde_json::to_value(&p).unwrap()["sheet"]["fill"]
-        .as_f64()
-        .unwrap();
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
         ("A3", "10:1")
     );
-    assert!((0.60..=0.85).contains(&fill), "{fill}");
+    // Remeasured A3 10:1 crop-free drawing: 60.95% of usable paper.
+    let fill = draftwright::sheet_fit::fill(&a, &p);
+    assert!((0.60..=0.85).contains(&fill), "GRM-03 fill {fill:.4}");
+    assert!(p.views.iter().all(|v| v.detail.is_none()));
+    assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
     sheet_rule::assert_rule("grm03", &p);
     assert!(!p.problems.iter().any(|p| matches!(
         p.code.as_str(),
         "annotation_off_sheet"
+            | "annotation_outside_area"
             | "annotation_overlap"
             | "annotation_ink_overlap"
             | "page_fit_uncertain"
@@ -359,6 +361,7 @@ fn toleranced_string_post_is_complete_on_a4_without_hard_layout_findings() {
         "{}",
         plan.sheet.basis
     );
+    assert!(plan.views.iter().all(|v| v.detail.is_none()));
     let hard = [
         "annotation_off_sheet",
         "annotation_over_title_block",
@@ -582,4 +585,76 @@ fn fixed_scale_can_use_a_valid_smaller_sheet_without_changing_scale() {
     assert_eq!(p.sheet.scale, "10:1");
     assert!(p.sheets.is_empty());
     assert_eq!(p.spec.sheet.scale, spec.sheet.scale);
+}
+
+/// A fit is readable only when the dimensioned profile intervals survive its scale.
+/// This formerly selected A4 1:10: the 420 mm profile was 42 mm tall and its 20 mm
+/// shoulder bands were shorter than the 2.1 mm printed capitals, despite no hard collision.
+#[test]
+fn connector109_uses_a3_at_one_to_five_for_readable_steps() {
+    let Some(dir) = corpus::dir() else { return };
+    let a = model::analyse_native(&dir.join("cadgenbench/threaded_connector_109.step"))
+        .unwrap()
+        .1;
+    let tiny = model::plan_recovered(&a, &named("A4", "1:10")).unwrap();
+    assert!(draftwright::sheet_fit::illegible_steps(&a, &tiny) > 0);
+    assert!(
+        tiny.problems
+            .iter()
+            .any(|p| p.code == "legibility_floor_breached")
+    );
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        ("A3", "1:5"),
+        "{}",
+        p.sheet.basis
+    );
+    assert_eq!(draftwright::sheet_fit::illegible_steps(&a, &p), 0);
+    assert!(p.views.iter().all(|v| v.detail.is_none()));
+    assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
+    sheet_rule::assert_rule("connector109", &p);
+}
+
+#[test]
+fn step_legibility_uses_the_owning_view_and_keeps_baseline_intervals() {
+    let mut a = model::analyse_native(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/turned.step"),
+    )
+    .unwrap()
+    .1;
+    let mut p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let mut d = p
+        .dimensions
+        .iter()
+        .find(|d| d.placed.is_some())
+        .unwrap()
+        .clone();
+    let f = &mut a.features[0];
+    f.kind = "turned_step".into();
+    f.parameters = json!({"lo": 0.0, "hi": 20.0}).as_object().unwrap().clone();
+    d.measurements = vec![draftwright::dims::Measurement {
+        feature: f.id.clone(),
+        parameter: "step.length".into(),
+        value: 20.0,
+    }];
+    p.dimensions = vec![d];
+    let mut detail = p
+        .views
+        .iter()
+        .find(|v| v.id == p.dimensions[0].view)
+        .unwrap()
+        .clone();
+    for v in &mut p.views {
+        v.scale = 0.1;
+    }
+    assert_eq!(draftwright::sheet_fit::illegible_steps(&a, &p), 1);
+    detail.id = "v:detail_a".into();
+    detail.scale = 0.2;
+    p.dimensions[0].view = detail.id.clone();
+    p.views.push(detail);
+    assert_eq!(draftwright::sheet_fit::illegible_steps(&a, &p), 0);
+    p.dimensions[0].measurements[0].parameter = "step_position.length".into();
+    p.views.last_mut().unwrap().scale = 0.1;
+    assert_eq!(draftwright::sheet_fit::illegible_steps(&a, &p), 1);
 }

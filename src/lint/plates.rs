@@ -545,11 +545,36 @@ fn nominal(text: &str) -> &str {
 
 pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let mut out = Vec::new();
+    // A proven same-body band chain also works when its lengths are independently
+    // determined by printed baseline stations. A missing local label is not a
+    // missing physical interval; the turned linter verifies both actual endpoints.
+    let turned = std::cell::LazyCell::new(|| {
+        let printed = if marks.iter().any(|m| m.name.starts_with("suppressed:")) {
+            std::borrow::Cow::Owned(
+                marks
+                    .iter()
+                    .filter(|m| !m.name.starts_with("suppressed:"))
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            )
+        } else {
+            std::borrow::Cow::Borrowed(marks)
+        };
+        super::turned::outcomes(a, &printed)
+    });
     for f in a.features.iter().filter(|f| f.kind == "plate") {
         if exclusion(a, f).is_some()
-            || alternatives(a, f)
-                .iter()
-                .any(|terms| terms.iter().all(|t| t.stated(marks)))
+            || alternatives(a, f).iter().any(|terms| {
+                terms.iter().all(|t| {
+                    t.stated(marks)
+                        || (t.parameter == "step.length"
+                            && turned.iter().any(|o| {
+                                o.feature == t.feature
+                                    && o.parameter == t.parameter
+                                    && o.state == super::turned::State::Placed
+                            }))
+                })
+            })
         {
             continue;
         }

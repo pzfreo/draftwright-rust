@@ -48,6 +48,65 @@ fn one_body(a: &mut Analysis) {
 }
 
 #[test]
+fn a_same_body_band_chain_can_be_proved_by_printed_baseline_stations() {
+    let slab = plate("x", 0.0, 3.0);
+    let key = slab.parameters["body_key"].clone();
+    let mut features = vec![slab];
+    for (i, (lo, hi)) in [(0.0, 1.0), (1.0, 3.0), (3.0, 6.0), (6.0, 10.0)]
+        .into_iter()
+        .enumerate()
+    {
+        features.push(feature(
+            &format!("f:turned_step:{}", i + 1),
+            "turned_step",
+            json!({"axis":"x","lo":lo,"hi":hi,"diameter":10,
+                "profile":{"axis":"x","axis_origin":[0,5,5],"body_key":key}}),
+        ));
+    }
+    let a = part(features);
+    let forward = [
+        mark("f:turned_step:1", "step.length", "1"),
+        mark("f:turned_step:2", "step_position.length", "3"),
+    ];
+    assert!(codes(&a, &forward).is_empty());
+    for kept in [&forward[..1], &forward[1..]] {
+        assert_eq!(codes(&a, kept), ["plate_requirement_missing"]);
+    }
+    let reverse = [
+        mark("f:turned_step:1", "step_position.length", "10"),
+        mark("f:turned_step:2", "step_position.length", "9"),
+        mark("f:turned_step:3", "step_position.length", "7"),
+    ];
+    assert!(codes(&a, &reverse).is_empty());
+    for missing in 0..reverse.len() {
+        let kept: Vec<_> = reverse
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| *i != missing)
+            .map(|(_, m)| m.clone())
+            .collect();
+        assert_eq!(codes(&a, &kept), ["plate_requirement_missing"]);
+    }
+    let mut wrong = forward.clone();
+    wrong[1].text = "99".into();
+    assert_eq!(codes(&a, &wrong), ["plate_requirement_missing"]);
+    wrong[1] = mark("unrelated", "step_position.length", "3");
+    assert_eq!(codes(&a, &wrong), ["plate_requirement_missing"]);
+    let mut suppressed = forward.clone();
+    suppressed[1].name = "suppressed:baseline".into();
+    assert_eq!(codes(&a, &suppressed), ["plate_requirement_missing"]);
+    let mut other_body = a.clone();
+    other_body.features[2].parameters["profile"]["body_key"] = json!(["other"]);
+    assert_eq!(codes(&other_body, &forward), ["plate_requirement_missing"]);
+    let mut other_axis_line = a.clone();
+    other_axis_line.features[2].parameters["profile"]["axis_origin"] = json!([0, 5, 8]);
+    assert_eq!(
+        codes(&other_axis_line, &forward),
+        ["plate_requirement_missing"]
+    );
+}
+
+#[test]
 fn plate_evidence_is_claimed_printed_and_typed() {
     let a = part(vec![plate("z", 0.0, 3.0)]);
     assert_eq!(codes(&a, &[]), ["plate_requirement_missing"]);

@@ -1898,7 +1898,7 @@ pub(crate) struct LinearInk {
 }
 
 pub(crate) fn linear_ink(lines: &[[P; 2]]) -> Option<LinearInk> {
-    let [e0, e1, d] = lines else {
+    let [e0, e1, d, decoration @ ..] = lines else {
         return None;
     };
     let k = (0..2)
@@ -1913,6 +1913,23 @@ pub(crate) fn linear_ink(lines: &[[P; 2]]) -> Option<LinearInk> {
     let (a, b) = (station(e0)?, station(e1)?);
     if (a - b).abs() < 1e-6 {
         return None;
+    }
+    // Running ordinates add a closed 0.7 mm origin ring at the first witness.
+    // Recognise that actual ink; arbitrary trailing strokes remain non-linear.
+    if !decoration.is_empty() {
+        let mut origin = d[0];
+        origin[k] = a;
+        if decoration.len() != 16
+            || decoration.iter().enumerate().any(|(i, line)| {
+                let next = decoration[(i + 1) % decoration.len()][0];
+                (0..2).any(|j| (line[1][j] - next[j]).abs() > 1e-6)
+                    || line
+                        .iter()
+                        .any(|p| ((p[0] - origin[0]).hypot(p[1] - origin[1]) - 0.7).abs() > 1e-6)
+            })
+        {
+            return None;
+        }
     }
     Some(LinearInk {
         k,

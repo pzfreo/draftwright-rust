@@ -9,7 +9,7 @@
     "part": "connector109",
     "fact": "left",
     "verdict": "rust-wrong",
-    "reason": "Not ported: draftwright widens the left and right bands to its widest hole callout (`_est_planned_bore_callout_width`: the callout's glyphs measured in IBM Plex Mono, plus elbow and gap, 22.579 mm here). The callout labels come with the hole callouts (stream A); until the plan carries them the port reserves only the base corridor (20 mm), so the band is too narrow and the views pack closer than draftwright's."
+    "reason": "Not ported: draftwright widens the left and right bands to its widest hole callout (`_est_planned_bore_callout_width`: the callout's glyphs measured in IBM Plex Mono, plus elbow and gap, 22.579 mm here). The callout labels come with the hole callouts (stream A); until the plan carries them the port reserves only the base corridor (20 mm), so the band is too narrow and the views pack closer than draftwright's. The inspection-baseline change now reserves 30 mm on the left for its independent diameter/hole leaders; it still does not implement the general glyph-measured hole band."
   },
   {
     "part": "connector109",
@@ -123,7 +123,7 @@
     "part": "spool132",
     "fact": "left",
     "verdict": "rust-wrong",
-    "reason": "Not ported: draftwright widens the left and right bands to its widest hole callout (`_est_planned_bore_callout_width`: the callout's glyphs measured in IBM Plex Mono, plus elbow and gap, 67.609 mm here). The callout labels come with the hole callouts (stream A); until the plan carries them the port reserves only the base corridor (20 mm), so the band is too narrow and the views pack closer than draftwright's."
+    "reason": "Not ported: draftwright widens the left and right bands to its widest hole callout (`_est_planned_bore_callout_width`: the callout's glyphs measured in IBM Plex Mono, plus elbow and gap, 67.609 mm here). The callout labels come with the hole callouts (stream A); until the plan carries them the port reserves only the base corridor (20 mm), so the band is too narrow and the views pack closer than draftwright's. The inspection-baseline change now reserves 30 mm on the left for its independent diameter/hole leaders; it still does not implement the general glyph-measured hole band."
   },
   {
     "part": "spool132",
@@ -135,6 +135,36 @@
     "part": "string_post",
     "fact": "left",
     "verdict": "rust-wrong",
-    "reason": "Not ported: draftwright widens the left and right bands to its widest hole callout (`_est_planned_bore_callout_width`: the callout's glyphs measured in IBM Plex Mono, plus elbow and gap, 26.851 mm here). The callout labels come with the hole callouts (stream A); until the plan carries them the port reserves only the base corridor (20 mm), so the band is too narrow and the views pack closer than draftwright's."
+    "reason": "Not ported: draftwright widens the left and right bands to its widest hole callout (`_est_planned_bore_callout_width`: the callout's glyphs measured in IBM Plex Mono, plus elbow and gap, 26.851 mm here). The callout labels come with the hole callouts (stream A); until the plan carries them the port reserves only the base corridor (20 mm), so the band is too narrow and the views pack closer than draftwright's. The inspection-baseline change now reserves 30 mm on the left for its independent diameter/hole leaders; it still does not implement the general glyph-measured hole band."
+  },
+  {
+    "part": "connector109",
+    "fact": "fv_top",
+    "verdict": "rust-correct",
+    "reason": "The default whole-profile inspection baseline needs 3.7 mm above the profile for its datum-end outside arrow (2.7 mm arrow plus 1 mm clearance). Python's original chain reserves no top band. The baseline clearance and source/detail scales are checked by tests/detail_views.rs."
+  },
+  {
+    "part": "grm05",
+    "fact": "fv_top",
+    "verdict": "rust-correct",
+    "reason": "The default whole-profile inspection baseline needs 3.7 mm above the profile for its datum-end outside arrow (2.7 mm arrow plus 1 mm clearance). Python's original chain reserves no top band. The baseline clearance and source/detail scales are checked by tests/detail_views.rs."
+  },
+  {
+    "part": "grm05",
+    "fact": "left",
+    "verdict": "rust-correct",
+    "reason": "The default inspection baseline claims the right column. Rust reserves a 30 mm left column for diameter and cross-hole leaders, so their text and arrowheads stay off the baseline extensions; Python's local chain keeps the original 20 mm band. This is the deliberate datum-layout improvement, checked against the rendered leader-route guard."
+  },
+  {
+    "part": "spool132",
+    "fact": "fv_top",
+    "verdict": "rust-correct",
+    "reason": "The default whole-profile inspection baseline needs 3.7 mm above the profile for its datum-end outside arrow (2.7 mm arrow plus 1 mm clearance). Python's original chain reserves no top band. The baseline clearance and source/detail scales are checked by tests/detail_views.rs."
+  },
+  {
+    "part": "string_post",
+    "fact": "fv_top",
+    "verdict": "rust-correct",
+    "reason": "The default whole-profile inspection baseline needs 3.7 mm above the profile for its datum-end outside arrow (2.7 mm arrow plus 1 mm clearance). Python's original chain reserves no top band. The baseline clearance and source/detail scales are checked by tests/detail_views.rs."
   }
 ]

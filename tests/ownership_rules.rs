@@ -315,19 +315,19 @@ fn a_pattern_pitch_beside_every_members_location_is_reported() {
 /// #33 and #26: reference dimensions are only for redundant, untoleranced ones. Lint reports a
 /// bracketed label that prints a tolerance or a fit (`toleranced_reference`), and the planner
 /// never draws one: on GRM-03-shaped chains a toleranced member stays controlling. Here the
-/// turned fixture's reference member, given a tolerance by the spec, is controlling and lint
+/// boss fixture's reference member, given a tolerance by the spec, is controlling and lint
 /// finds no toleranced reference; the same label forced into brackets is reported.
 #[test]
 fn no_toleranced_dimension_is_drawn_as_reference() {
-    let (part, mut a) = model::analyse(&fixture("parts/turned.step")).unwrap();
-    let json = std::fs::read_to_string(fixture("recognition/turned.json")).unwrap();
+    let (part, mut a) = model::analyse(&fixture("parts/boss_circle.step")).unwrap();
+    let json = std::fs::read_to_string(fixture("recognition/boss_circle.json")).unwrap();
     model::recognise(&part, &mut a, &json).unwrap();
     let plan = model::plan(&a, &Spec::default()).unwrap();
     let reference = plan
         .dimensions
         .iter()
         .find(|d| d.reference)
-        .expect("the turned fixture's closed chain has a reference member");
+        .expect("the boss height closes the level-to-overall chain");
     let spec: Spec = serde_json::from_value(
         json!({"dimensions": {reference.id.clone(): {"tolerance": "±0.05"}}}),
     )

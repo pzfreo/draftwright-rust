@@ -640,66 +640,6 @@
     "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
   },
   {
-    "part": "ctc01",
-    "side": "rust",
-    "family": "step_height",
-    "view": "front",
-    "label": "50",
-    "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
-  },
-  {
-    "part": "hanger",
-    "side": "rust",
-    "family": "step_height",
-    "view": "front",
-    "label": "4",
-    "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
-  },
-  {
-    "part": "m1000",
-    "side": "rust",
-    "family": "step_height",
-    "view": "front",
-    "label": "6.9",
-    "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
-  },
-  {
-    "part": "m1000",
-    "side": "rust",
-    "family": "step_height",
-    "view": "front",
-    "label": "8.9",
-    "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
-  },
-  {
-    "part": "m1000",
-    "side": "rust",
-    "family": "step_height",
-    "view": "front",
-    "label": "10.9",
-    "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
-  },
-  {
-    "part": "m10046",
-    "side": "rust",
-    "family": "step_height",
-    "view": "front",
-    "label": "1.8",
-    "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung (StepLevelFeature level, base to level) and then withholds it at the sheet's scale because its span on the page is shorter than a dimension's arrows and label; its own lint says so (step_dim_withheld, info: 'approved step height(s) span less than 12.4 mm on the page from the ladder's datum and are not dimensioned at this scale'). The port plans and places every rung and reports what then collides."
-  },
-  {
     "part": "ftc06",
     "side": "rust",
     "family": "step_height",
@@ -718,26 +658,6 @@
     "count": 1,
     "verdict": "undetermined",
     "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate (_core._classify_steps, a placement decision: the port's planners do not see the scale). draftwright plans this rung and drops it because it lies too close above the last rung kept at the sheet's scale (1:5), asking for a detail view; its lint reports the detail unplaceable (detail_unplaceable, warning), so its sheet leaves the height unstated. The port plans and places every rung and reports what then collides."
-  },
-  {
-    "part": "hanger",
-    "side": "python",
-    "family": "step_height",
-    "view": "detail_a",
-    "label": "65",
-    "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate and on detail views (the port has none). The level 65 above the base lies 4 mm above the level 61 at 1:1, too close for draftwright's front-view ladder (_core._classify_steps), so draftwright states it in a detail view (detail_a, dim_detail_a_step0); the port states it in the front view. Same measurement, other view."
-  },
-  {
-    "part": "hanger",
-    "side": "rust",
-    "family": "step_height",
-    "view": "front",
-    "label": "65",
-    "count": 1,
-    "verdict": "undetermined",
-    "reason": "Pending the maintainer's decision on draftwright's step-height legibility gate and on detail views (the port has none). The level 65 above the base lies 4 mm above the level 61 at 1:1, too close for draftwright's front-view ladder (_core._classify_steps), so draftwright states it in a detail view (detail_a, dim_detail_a_step0); the port states it in the front view. Same measurement, other view."
   },
   {
     "part": "m10046",
@@ -1051,26 +971,6 @@
   },
   {
     "part": "grm03",
-    "side": "python",
-    "family": "turned_step",
-    "view": "front",
-    "label": "0.5",
-    "count": 1,
-    "verdict": "rust-correct",
-    "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 0.5 + 2 + 3 + 18 = 23.5 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (0.5) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
-  },
-  {
-    "part": "grm03",
-    "side": "rust",
-    "family": "turned_step",
-    "view": "front",
-    "label": "(0.5)",
-    "count": 1,
-    "verdict": "rust-correct",
-    "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 0.5 + 2 + 3 + 18 = 23.5 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (0.5) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
-  },
-  {
-    "part": "grm03",
     "side": "rust",
     "family": "envelope",
     "view": "front",
@@ -1092,42 +992,12 @@
   {
     "part": "grm05",
     "side": "rust",
-    "family": "turned_step",
-    "view": "front",
-    "label": "(5)",
-    "count": 1,
-    "verdict": "rust-correct",
-    "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 14 + 5 + 13 = 32 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (5) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
-  },
-  {
-    "part": "grm05",
-    "side": "rust",
     "family": "envelope",
     "view": "front",
     "label": "32",
     "count": 1,
     "verdict": "rust-correct",
     "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 14 + 5 + 13 = 32 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (5) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
-  },
-  {
-    "part": "string_post",
-    "side": "python",
-    "family": "turned_step",
-    "view": "front",
-    "label": "1",
-    "count": 1,
-    "verdict": "rust-correct",
-    "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 7.2 + 1.1 + 5.5 + 1 = 14.8 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (1) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
-  },
-  {
-    "part": "string_post",
-    "side": "rust",
-    "family": "turned_step",
-    "view": "front",
-    "label": "(1)",
-    "count": 1,
-    "verdict": "rust-correct",
-    "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 7.2 + 1.1 + 5.5 + 1 = 14.8 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (1) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
   },
   {
     "part": "string_post",
@@ -1138,6 +1008,276 @@
     "count": 1,
     "verdict": "rust-correct",
     "reason": "The coaxial profile's contiguous Analysis support-plane intervals cover its whole axial envelope: 7.2 + 1.1 + 5.5 + 1 = 14.8 mm. Python withholds the overall when the chain reaches both ends. The maintainer's 2026-10-12 general rule requires the overall and exactly one reference member; Rust keeps the shortest undecorated member (1) in parentheses. All other functional lengths keep their claims and controlling labels; this is geometric station evidence, not a label-value rewrite. tests/h5_chains.rs and tests/dims_turned.rs guard the rule and eccentric/tolerance controls."
+  },
+  {
+    "part": "ctc01",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "50",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The 2026-10-16 maintainer decision prefers a complete clean principal drawing to an optional crop. This same approved height is now drawn once in the front view, with its original requirement identity, support and value. The comparison continues to assert the exact view, label, identity and count; no tolerance is transferred."
+  },
+  {
+    "part": "grm03",
+    "side": "python",
+    "family": "turned_step",
+    "view": "front",
+    "label": "18",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "grm03",
+    "side": "python",
+    "family": "turned_step",
+    "view": "front",
+    "label": "2",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "grm03",
+    "side": "python",
+    "family": "turned_step",
+    "view": "front",
+    "label": "3",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "grm03",
+    "side": "rust",
+    "family": "step_position",
+    "view": "front",
+    "label": "2.5",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "grm03",
+    "side": "rust",
+    "family": "step_position",
+    "view": "front",
+    "label": "5.5",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "grm05",
+    "side": "python",
+    "family": "turned_step",
+    "view": "front",
+    "label": "13",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "grm05",
+    "side": "rust",
+    "family": "step_position",
+    "view": "front",
+    "label": "19",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "hanger",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "4",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The 2026-10-16 maintainer decision prefers a complete clean principal drawing to an optional crop. This same approved height is now drawn once in the front view, with its original requirement identity, support and value. The comparison continues to assert the exact view, label, identity and count; no tolerance is transferred."
+  },
+  {
+    "part": "m1000",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "10.9",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The 2026-10-16 maintainer decision prefers a complete clean principal drawing to an optional crop. This same approved height is now drawn once in the front view, with its original requirement identity, support and value. The comparison continues to assert the exact view, label, identity and count; no tolerance is transferred."
+  },
+  {
+    "part": "m1000",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "6.9",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The 2026-10-16 maintainer decision prefers a complete clean principal drawing to an optional crop. This same approved height is now drawn once in the front view, with its original requirement identity, support and value. The comparison continues to assert the exact view, label, identity and count; no tolerance is transferred."
+  },
+  {
+    "part": "m1000",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "8.9",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The 2026-10-16 maintainer decision prefers a complete clean principal drawing to an optional crop. This same approved height is now drawn once in the front view, with its original requirement identity, support and value. The comparison continues to assert the exact view, label, identity and count; no tolerance is transferred."
+  },
+  {
+    "part": "m10046",
+    "side": "rust",
+    "family": "step_height",
+    "view": "detail_a",
+    "label": "1.8",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+  },
+  {
+    "part": "m10127",
+    "side": "python",
+    "family": "step_height",
+    "view": "front",
+    "label": "32.4",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+  },
+  {
+    "part": "m10127",
+    "side": "rust",
+    "family": "step_height",
+    "view": "detail_a",
+    "label": "32.4",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+  },
+  {
+    "part": "spool132",
+    "side": "python",
+    "family": "turned_step",
+    "view": "front",
+    "label": "5",
+    "count": 2,
+    "verdict": "equivalent",
+    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+  },
+  {
+    "part": "spool132",
+    "side": "rust",
+    "family": "turned_step",
+    "view": "detail_a",
+    "label": "5",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+  },
+  {
+    "part": "spool132",
+    "side": "rust",
+    "family": "turned_step",
+    "view": "detail_b",
+    "label": "5",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
+  },
+  {
+    "part": "string_post",
+    "side": "python",
+    "family": "location.z",
+    "view": "front",
+    "label": "11.1",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "string_post",
+    "side": "python",
+    "family": "turned_step",
+    "view": "front",
+    "label": "1.1",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "string_post",
+    "side": "python",
+    "family": "turned_step",
+    "view": "front",
+    "label": "5.5",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "string_post",
+    "side": "python",
+    "family": "turned_step",
+    "view": "front",
+    "label": "7.2",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "string_post",
+    "side": "rust",
+    "family": "location.z",
+    "view": "front",
+    "label": "3.8",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "string_post",
+    "side": "rust",
+    "family": "step_position",
+    "view": "front",
+    "label": "6.5",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "string_post",
+    "side": "rust",
+    "family": "step_position",
+    "view": "front",
+    "label": "7.6",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "Maintainer-requested inspection baseline: the connected whole turned profile locates shoulders and axial hole positions from one flat end, instead of Python's local chain. Exact saved step.length IDs remain valid through J4 coverage. Short local head sizes and their diameters move to the enlarged detail with their original feature identities; the head flange is controlling rather than a redundant reference. tests/detail_views.rs, tests/dims_turned.rs and tests/issue_drafting.rs check span, ownership and one origin."
+  },
+  {
+    "part": "hanger",
+    "side": "python",
+    "family": "step_height",
+    "view": "detail_a",
+    "label": "65",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same supported 65 mm height is placed on Python's detail A and Rust's front view. The clean ordinary A3 1:2 drawing takes precedence under the 2026-10-16 paper/detail decision; the physical quantity and its printed value remain unchanged."
+  },
+  {
+    "part": "hanger",
+    "side": "rust",
+    "family": "step_height",
+    "view": "front",
+    "label": "65",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same supported 65 mm height is placed on Python's detail A and Rust's front view. The clean ordinary A3 1:2 drawing takes precedence under the 2026-10-16 paper/detail decision; the physical quantity and its printed value remain unchanged."
   },
   {
     "part": "m1000",

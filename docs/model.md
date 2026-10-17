@@ -152,6 +152,74 @@ edited.
   families, family/record-type pairs (`bridge::RECORDS`) and derived collections it knows.
   Anything else is refused with the mismatch named, never read past.
 
+### Enlarged details and turned inspection dimensions
+
+Automatic details recover a crowded X head, a Y axial chain, or approved prismatic height
+rungs that fail the parent-view spacing gate. A thin terminal flange on a Z turned part also
+gets a head detail. Repeated pitches stay counted on the parent. Details reserve rectangles
+in the sheet search before the isometric is fitted. An automatic detail that cannot fit on
+the parent sheet is reported as `detail_unplaceable`; it cannot alone force a larger sheet.
+A complete turned-head drawing with a defining enlargement keeps its smallest sheet. Prismatic
+layouts may still use the normal fill search, provided it preserves clear leaders.
+
+Details are ordinary planned views with stable IDs `v:detail_a` through `v:detail_h`. Their
+optional `detail` record carries the source view, letter, kind, model-space crop and marker
+bounds, scale and recovered dimension IDs. The renderer clips exact projected curves to the
+crop, then uses the normal dimension renderer at the recorded view scale. It draws a circular
+parent marker, letter and `DETAIL B (10:1)` caption. The kernel currently has no solid Boolean
+crop: a crop does not introduce new cut-face edges. A Y chain or X head may show a supported
+strip of the profile. View-scale fidelity and pairwise lint still compare all annotations in
+one pass; detail captions also have their own text-clearance check.
+
+An authored detail is a view entry, for example:
+
+```json
+{"views":{"detail_c":{"detail":{"around":"f:turned_step:3","scale_factor":5}}}}
+```
+
+`scale_factor` is an exact multiple of sheet scale (default 2, greater than 1). Without
+`from`, a single feature keeps its existing source camera, crop and context margins.
+`around` also accepts a nonempty list of feature IDs and/or face IDs, using the same face
+names as `faces/<face>` (`face:<n>`, `top`, `bottom`, `left`, `right`, `front`, `back`).
+Its crop is the union of the members' model-space crops, retaining each feature's existing
+context margins. Face crops use the faces' attachment bounds. The Spec contains intent
+only: no crop coordinates are authored.
+
+```json
+{"views":{"detail_c":{"detail":{"from":"side","around":["f:groove:1","f:turned_step:2"],"scale_factor":3}}}}
+```
+
+Optional `from` selects an existing principal or section view ID without the `v:` prefix,
+for example `front`, `plan`, `side` or `section_aa`. The detail uses that parent's camera,
+projected crop and section plane, and the parent carries its marker. Every named member
+must exist. Each member's crop must project to a non-degenerate region in an explicit
+`from` view; an edge-on planar face is refused, even if other members would give the union
+area. Visibility here means non-degenerate crop projection, rather than an occlusion test.
+An omitted, automatically dropped or absent source view is refused; explicitly retain a
+principal view with e.g. `"side":{}` if needed.
+
+When a list's natural source views differ and `from` is absent, choose the available view
+where the most members' crops have non-degenerate projections. Ties prefer front, plan,
+side, then section. The detail's basis records the chosen view and visible member count.
+A shared natural source retains existing behavior. Single-string and list forms survive
+saving and reopening unchanged.
+
+Authored crops survive with no annotations. Omitting the view removes the detail. Missing
+members, source views, or space for the exact scale are errors. An automatic iso that fits
+stays at sheet scale when a defining detail claims space; an explicitly authored iso scale
+remains exact. The typed MCP detail schemas total 47,732 compact UTF-8 bytes per session
+(previously 42,356); the measured budget is 48,000 bytes. See the
+[authored-detail verification](authored-detail-verification.md) for regressions and inspected PNGs.
+
+A whole connected multi-step turned profile uses one inspection end by default. PMI datums
+and PMI baseline lengths retain precedence. Otherwise the larger flat end supplies the
+origin (end diameter is the available proxy for face size), with the low station breaking a
+tie. Shoulder positions, the overall length and
+cross-hole axial positions use that origin, shortest nearest the part. The old `step.length`
+IDs remain valid: J4's coverage records connect conveyed band lengths to their baseline
+positions. Explicitly toleranced band lengths remain independent controlling requirements;
+their tolerances are never silently transferred to a cumulative position.
+
 ### Spec: what the author decided
 
 The spec is the source of truth. It is small, edited, and stored beside the STEP file as
@@ -188,7 +256,7 @@ mention takes its default.
 The design also includes `views/sections` (for example `"sections": [{"id": "A", "through": "f:hole:3"}]`). Feature `anchor` is read for recognition corrections, below; a feature's `note` is read since K1b (below).
 
 - **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`),
-  `iso_scale_factor`, `dimension_source`, `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `fit`, `text`, `style`, `place`, `kind`, `between`, `along`, and the earlier `view`
+  `iso_scale_factor`, `dimension_source`, `dimension_schemes/<name>` (`scheme`, `axis`, `targets`, `view`, `from`), `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `fit`, `text`, `style`, `place`, `kind`, `between`, `along`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`, `text` for prose callouts and automatic notes), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`, `anchor`, `reclassify`, `suppress`, `split`, `pattern`), `feature_declarations`,
   `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
   knurls and notes authored in the Spec", below), `notes` and `tables`.
@@ -201,7 +269,7 @@ The design also includes `views/sections` (for example `"sections": [{"id": "A",
 through automatic fitting and recovery. An infeasible authored iso scale is refused rather
 than reduced. Without an override the orientation view fills its available space, retaining
 the sheet scale within Python's strict 5% no-op band. A fitting sheet-scale iso stays at that
-scale when a detail claims space; detail-view generation itself is not yet ported.
+scale when a detail claims space (see enlarged details above).
 
 When the drawn iso differs from its sheet scale, `Plan.captions` carries `note_iso_nts`,
 text `ISO VIEW (NTS)` at 3 mm, with its view, sheet, resolved position and ink bounds. It is
@@ -516,6 +584,85 @@ address reaches its rendered target in the printed grid. MCP sheet
 operations are I3's scope. The plan and spec schema versions stay the same;
 old documents read with single-sheet defaults.
 
+#### Dimensioning schemes (#76 item 4)
+
+`dimension_schemes` is a map keyed by a stable author name (letters, digits, `_`, `-`).
+Each entry owns a station network on a **part-frame** axis. For example:
+
+```json
+{
+  "dimension_schemes": {
+    "inspection": {"scheme": "baseline", "axis": "z", "view": "front", "from": "max"},
+    "mounts": {"scheme": "chain", "axis": "x", "targets": ["f:hole_pattern:1"], "view": "plan"},
+    "drilling": {"scheme": "ordinate", "axis": "y", "targets": ["f:hole:1", "f:hole:3"],
+                 "view": "plan", "from": "face:v1:<fingerprint>"}
+  }
+}
+```
+
+These are independent examples. Entries can meet at a shared datum; their combined network
+must remain acyclic, and a target cannot have two owners.
+The same named target cannot be dimensioned twice across different views either.
+`scheme` and `axis` are required. `targets` names a feature pattern, feature IDs or exact
+fingerprint references from `Analysis.edge_ink.references`; omitted/empty targets applies to
+all automatic locations and turned-profile shoulders on the named `view` axis. A view is
+required for that whole-axis form. Otherwise the first compatible automatic location's view
+is preferred, falling back to front (plan for Y). `view` is a bare principal view name and
+must show the measuring axis across the page. It constrains the generated owners' carrier.
+An incompatible carrier for an already located target is refused with its compatible views.
+
+A hole or slot pattern expands to its physical members. A turned step expands to both its
+shoulders. Other feature IDs select their position; a feature proving one transverse planar
+face can also name that datum plane. `start:f:turned_step:1` and `end:f:turned_step:1`
+select a band's low and high shoulder. `from` accepts the same station references, or
+`min`/`max` for the two ends of the part along the chosen axis; absent means `min`.
+A face must be planar and perpendicular to the measuring axis; a cylinder axis or straight
+edge must have one constant coordinate on that axis. A vertex is a station too.
+No face/edge traversal indices, page coordinates or nominal distances are accepted.
+A datum authored through `features/<id>/datum` or `faces` remains the existing GD&T intent;
+select its feature ID or face fingerprint here instead of inventing another datum symbol.
+
+Chain orders distinct stations along the axis and dimensions adjacent pairs. Baseline
+measures every station from the chosen datum. Ordinate uses signed coordinates from that
+datum, with an origin circle and one endpoint arrow per running coordinate. Coincident
+stations share one owner; a controlling overall that would close the combined network is
+covered. Remaining automatic controls are retained only when they add an independent interval.
+A counted pitch or grouped length is atomic: a partial replacement that would drop other
+intervals is refused; select the whole pattern, every member station, or the whole view axis.
+Circular patterns retain their PCD convention: to request Cartesian dimensions explicitly,
+name their individual members. Multi-solid analyses are refused for schemes; select a single
+part first, so one station cannot accidentally borrow another body's ownership.
+
+New owners have deterministic `d:scheme:<name>/<reference-hash>` IDs. Retired automatic IDs
+stay in `omitted` as `covered`, naming the network owner. Generated items record
+`dimension_schemes/<name>` in `from_spec`, `default: false`, measured values and endpoint
+references. They use the ordinary dimension placement, tolerancing, precision and layout
+pipeline. Inspect the generated IDs, then set `dimensions/<id>/{tolerance,place,...}` as
+usual. A conflicting explicit omission/tolerance/placement on a retired automatic ID, or
+an overlapping #78 authored dimension or semantic PMI owner, is refused with its ID and a
+remedy. In `dimension_source: authored`, generated IDs must also be listed to draw them;
+the scheme does not bypass the authored set. Missing or omitted links lose lint coverage.
+
+Set/remove uses ordinary `items::Op` and session transactions, for example
+`set dimension_schemes/inspection` with a complete entry, or
+`set dimension_schemes/inspection/from` to change its datum. Remove the entry to restore
+automatic planning. Preview, undo/redo and saved Specs retain the same references. Browser fragment edits
+refresh placement options when a scheme changes its dimension inventory. A Spec
+bound to another revision cannot reuse feature IDs here, including edits on generated
+feature-based whole-view owners: replace them with matching current fingerprints, remove
+the stale generated edits, or explicitly rebind. Unknown, ambiguous or incompatible references and
+misspelled fields are refused with an explanation and correction/removal instruction.
+
+Without entries the existing automatic choice, including the turned inspection-end baseline,
+is unchanged. Scheme resolution returns immediately for an empty map. Lint independently
+re-measures the printed links from Analysis references and checks their connectivity before
+crediting inferred locations or band lengths. Wrong text, removed links, closed chains,
+placement collisions and manufacturing omissions remain findings. Sheet size, scale,
+second-sheet recovery, details, datum placement and class-only fit defaults remain the
+ordinary policies. An automatic hole schedule cannot replace a view carrying an explicit scheme;
+the full-part coordinate-table rescue is disabled while a scheme is authored. MCP retains its sparse per-ID object map; Rust validates each complete
+scheme entry and session options describe its forms.
+
 #### Placement (`place`, S3)
 
 Dimensions (linear dimensions and callouts, including holes, fillets and chamfers) and PMI
@@ -563,7 +710,7 @@ Existing angular PMI keeps its measured sector: `lane` increases the radius in p
 `placement_side_not_applicable`, with a fix removing that field; it cannot change the sector.
 
 Views use `{relative_to, side, gap?, align?, pinned?}`. `relative_to` names another view
-(`front`, `plan`, `side`, `iso`, `section_aa`); the page is never an anchor, so a view's place
+(`front`, `plan`, `side`, `iso`, `section_aa`, `detail_a`–`detail_h`); the page is never an anchor, so a view's place
 is always relative to another view (ADR R1 invariant 1), typically its projection partner.
 `gap` is the clear paper distance between view footprints (default 10 mm, 0–1000);
 `align` is `start`, `middle` (default) or `end` along the other axis (`outside` also aligns
@@ -854,10 +1001,11 @@ basis, placed, reference?, determined_by?}`:
   its view is omitted). A part turned whole states `od.diameter` (printed `ø…`) and its length along
   the axis instead, in either profile view; the diameter is drawn across whichever radial axis
   that view shows. A view that looks along a dimension never carries it.
-- **Turned step lengths** are a chain of `d:f:turned_step:<n>/step.length`, except on a part
-  turned whole whose PMI measures the profile from one end (#33): a planar datum feature on that
-  end face, or PMI lengths from it to the profile's shoulders. The profile is then a baseline from
-  that end: the band at the datum keeps its `step.length`, each further shoulder is
+- **Turned step lengths** on a whole connected multi-step profile use a baseline from one
+  inspection end. A PMI planar datum or PMI shoulder lengths retain precedence (#33);
+  otherwise the larger end diameter selects the end, with the low station breaking a tie.
+  Independent profiles retain a chain of `d:f:turned_step:<n>/step.length`.
+  In a baseline the band at the datum keeps its `step.length`, each further shoulder is
   `d:f:turned_step:<n>/step_position.length` (the distance from the datum to the shoulder that
   ends band `n`), and the overall length is the last rung (it also claims the last band's
   `step_position.length`), so no rung is reference. The other bands' `step.length` items stay
@@ -890,7 +1038,8 @@ basis, placed, reference?, determined_by?}`:
   hole with both a counterbore and a spotface states both (`⌴ ⌀11 ↧ 6.4 ⌴SF ⌀20 ↧ 1`, counterbore
   first), where draftwright prints only the counterbore and loses the spotface its own lint
   requires.
-- **Locations** (`location.length.<axis>`) from the part's box, in the hole's view, one
+- **Locations** (`location.length.<axis>`) from the part's box, or the same inspection end
+  for an axial location on a whole turned profile, in the hole's view, one
   dimension per distance; patterns by their centre (or a linear pattern by its first member), with
   their pitches (`grid_pitch.length.row|col`, `pitch.length`). A hole or bolt circle on a turned
   part's axis is not located across it.
@@ -1615,11 +1764,12 @@ fingerprints with complete keys from the Analysis):
   it, for example `{"op":"set","path":"dimensions/d:authored:corner","value":{...}}`;
   remove the entry to delete it. Session/MCP item answers expose its reference anchors,
   placement options and editable fields. Sheet options describe the creation forms. MCP
-  schemas describe the new fields without adding a tool. `get_spec` output declares the authored
-  fields once; inputs retain the established sparse per-ID object maps and use the same Spec
-  and geometry validators. Equivalent shared object-type constraints keep the 26 standalone
-  schemas within the unchanged 42,500-byte session budget. Browser bindings accept the same
-  Spec and operations; their method signatures are unchanged.
+  schemas carry a compact top-level Spec outline. Call MCP `spec_schema {}` for the full
+  draft-2020-12 Spec schema and its named `spec_read` shape; `item_options` supplies valid
+  paths and choices. The 28 advertised schemas total 34,389 compact UTF-8 bytes; nested
+  Spec fields do not grow this budget. Server preflight and model/geometry validation
+  are unchanged. Browser bindings accept the same Spec and operations; their method
+  signatures are unchanged.
 
 ## The five operations
 
@@ -1709,6 +1859,7 @@ reads it back from any of the three.
 | Dimension | `d:<feature>/<parameter>`; never the view, which is the item's `view` | the same file, whichever view carries it and whatever the sheet or scale; carried to revisions through its feature |
 | Sheet | `sheet` | always |
 | View | `v:<name>` | always |
+| Detail view | `v:detail_a`–`v:detail_h` | its allocated identifier, including authored omissions; automatic presence depends on scale and readable source requirements |
 | Note, table, section | `n:<k>`, `t:<k>`, `s:<letter>` | always (set in the spec) |
 | PMI frame, symbol, label, drawing-wide requirement, thread or knurl (and the feature of a PMI dimension's claim) | `pmi:<identity>`: the record's semantic identity, below; never its Part 21 instance (that is the item's `source`, e.g. `geometric_tolerance:#123`) | the same requirements on the same faces: the intent written again (new Part 21 numbers) keeps it |
 | Problem | `p:<code>:<subject>` | the same plan |

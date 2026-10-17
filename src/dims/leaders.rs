@@ -1521,35 +1521,6 @@ fn refine_uncached(
                     })
             })
     };
-    // Only a free callout already in contact is refined; most sheets have none, and then the
-    // view ink below is never gathered.
-    let edited_text = edited_labels(spec);
-    let todo: Vec<usize> = (0..items.len())
-        .filter(|&i| {
-            matches!(items[i].shape, Shape::Callout { .. })
-                && views_of[i].is_some()
-                && !spec
-                    .dimensions
-                    .get(&items[i].id)
-                    .is_some_and(|d| d.place.is_some())
-                && placed[i].as_ref().is_some_and(|p| {
-                    extension_index.contacts(&p.lines, p.label_box).0 > 0
-                        || callout_crossing(i, p, placed)
-                        || longer_than_established(i, p)
-                        || added_material_crossing(i, p)
-                        || bad_run(p, views_of[i].unwrap())
-                        || (edited_text && text_conflict(i, p, placed, obstacles))
-                        || (items[i]
-                            .measurements
-                            .iter()
-                            .any(|m| m.feature.starts_with("f:section_recess:"))
-                            && (centre_run(p) || text_conflict(i, p, placed, obstacles)))
-                })
-        })
-        .collect();
-    if todo.is_empty() {
-        return updated;
-    }
     // Each view's line-work for the route gates, gathered only once a candidate reaches it.
     let view_ink = |v: &crate::model::PlannedView| view_ink(analysis, ink, v);
     let view_reach: Vec<[f64; 4]> = views
@@ -1571,6 +1542,63 @@ fn refine_uncached(
         .collect();
     let gathered: Vec<std::cell::OnceCell<ViewInk>> =
         views.iter().map(|_| std::cell::OnceCell::new()).collect();
+    let model_run = |w: &Want, p: &Placed| {
+        let label = label_ink(&w.terms, font());
+        let span = ROW * STEP
+            + length(&p.lines)
+            + 2.0
+            + (label.max[0] - label.min[0])
+            + (label.max[1] - label.min[1])
+            + 4.0 * LABEL_PAD;
+        let elbow = p.lines[0][1];
+        let probe = grow([elbow[0], elbow[1], elbow[0], elbow[1]], span);
+        let chamfer = w
+            .measurements
+            .iter()
+            .any(|m| m.parameter == "chamfer.length");
+        p.lines.iter().any(|s| runs_beside(*s, &extension_ink))
+            || views.iter().enumerate().any(|(k, v)| {
+                if !boxes_meet(view_reach[k], probe) {
+                    return false;
+                }
+                let (model, uncertain) = gathered[k].get_or_init(|| view_ink(v));
+                p.lines.iter().any(|s| runs_beside(*s, model))
+                    || (chamfer
+                        && uncertain
+                            .iter()
+                            .any(|b| p.lines.iter().any(|s| buried(*s, *b) > 2.0)))
+            })
+    };
+    // Only a free callout already in contact is refined; most sheets have none, and then the
+    // view ink below is never gathered.
+    let edited_text = edited_labels(spec);
+    let todo: Vec<usize> = (0..items.len())
+        .filter(|&i| {
+            matches!(items[i].shape, Shape::Callout { .. })
+                && views_of[i].is_some()
+                && !spec
+                    .dimensions
+                    .get(&items[i].id)
+                    .is_some_and(|d| d.place.is_some())
+                && placed[i].as_ref().is_some_and(|p| {
+                    extension_index.contacts(&p.lines, p.label_box).0 > 0
+                        || callout_crossing(i, p, placed)
+                        || longer_than_established(i, p)
+                        || added_material_crossing(i, p)
+                        || bad_run(p, views_of[i].unwrap())
+                        || model_run(&items[i], p)
+                        || (edited_text && text_conflict(i, p, placed, obstacles))
+                        || (items[i]
+                            .measurements
+                            .iter()
+                            .any(|m| m.feature.starts_with("f:section_recess:"))
+                            && (centre_run(p) || text_conflict(i, p, placed, obstacles)))
+                })
+        })
+        .collect();
+    if todo.is_empty() {
+        return updated;
+    }
     let cuts: Vec<_> = views
         .iter()
         .flat_map(|v| &v.line_work)
@@ -1619,7 +1647,9 @@ fn refine_uncached(
                 .iter()
                 .all(|m| m.feature.starts_with("f:section_recess:"));
         let repair_cross = callout_crossing(i, &old, placed);
-        let repair_run = repair_cross
+        let old_run = model_run(w, &old);
+        let repair_run = old_run
+            || repair_cross
             || repair_text
             || longer_than_established(i, &old)
             || added_material_crossing(i, &old)
@@ -1671,16 +1701,26 @@ fn refine_uncached(
             beyond: [CLEAR; 4],
         };
         let mut candidates = Vec::new();
-        let reach = ROW as i32;
+        let reach = (if old_run { 3.0 * ROW } else { ROW }) as i32;
         let shifts = std::iter::once([0, 0]).chain((-reach..=reach).flat_map(|x| {
             (-reach..=reach)
                 .filter(move |y| x != 0 || *y != 0)
                 .map(move |y| [x, y])
         }));
         let shelf = (end[0] - elbow[0]).abs();
-        for shift in shifts {
-            let q = [0, 1].map(|k| elbow[k] + f64::from(shift[k]) * STEP);
-            let t = if shift == [0, 0] {
+        let mut elbows: Vec<P2> = shifts
+            .map(|shift| [0, 1].map(|k| elbow[k] + f64::from(shift[k]) * STEP))
+            .collect();
+        if super::turned::axial_datum(analysis).is_some_and(|(k, _)| k == 2) {
+            // A new inspection baseline can occupy the old diameter column. The opposite
+            // silhouette is the same diameter; try its mirrored column under every existing
+            // length, feature, arrowhead and text-clearance gate.
+            let outline = frame.outline();
+            let mirror = outline[0] + outline[2] - elbow[0];
+            elbows.extend((-reach..=reach).map(|dy| [mirror, elbow[1] + f64::from(dy) * STEP]));
+        }
+        for q in elbows {
+            let t = if q == elbow {
                 tip
             } else {
                 let site = nearest(&page_sites, q);
@@ -1689,7 +1729,8 @@ fn refine_uncached(
                 }
                 rim_tip(site, q)
             };
-            if (q[0] - t[0]).hypot(q[1] - t[1]) < MIN_LEADER {
+            let shaft = (q[0] - t[0]).hypot(q[1] - t[1]);
+            if shaft < MIN_LEADER || shaft + shelf > old_length + 2.0 + 1e-5 {
                 continue;
             }
             for right in [right, !right] {
@@ -2005,6 +2046,18 @@ fn refine_uncached(
                 a.0.cmp(&b.0).then(na.cmp(nb)).then(a.1.total_cmp(&b.1))
             });
             candidates = graded.into_iter().map(|(_, c)| c).collect();
+        } else if old_run {
+            let mut ranked: Vec<_> = candidates
+                .into_iter()
+                .map(|c| (head_on(c.2, c.3), length(&[[c.2, c.3], [c.3, c.4]]), c))
+                .collect();
+            ranked.sort_by(|a, b| {
+                a.2.0
+                    .cmp(&b.2.0)
+                    .then(a.0.cmp(&b.0))
+                    .then(a.1.total_cmp(&b.1))
+            });
+            candidates = ranked.into_iter().map(|(_, _, c)| c).collect();
         } else {
             candidates.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
         }
@@ -2241,15 +2294,6 @@ fn boxes_meet(a: [f64; 4], b: [f64; 4]) -> bool {
 
 fn grow(b: [f64; 4], d: f64) -> [f64; 4] {
     [b[0] - d, b[1] - d, b[2] + d, b[3] + d]
-}
-
-fn segment_bounds(s: [P2; 2]) -> [f64; 4] {
-    [
-        s[0][0].min(s[1][0]),
-        s[0][1].min(s[1][1]),
-        s[0][0].max(s[1][0]),
-        s[0][1].max(s[1][1]),
-    ]
 }
 
 /// A conservative broad phase for the final route checks. Dense models have
@@ -2513,6 +2557,17 @@ pub(super) fn extension_contacts(
     lines: &[[P2; 2]],
     label: [f64; 4],
 ) -> (usize, usize) {
+    extension_contacts_bounded(extensions, lines, label, None).expect("an unbounded count")
+}
+
+/// Contacts only accumulate. Stop a candidate once it cannot pass the existing gates;
+/// every surviving candidate retains its exact unique-owner counts for the stable ranking.
+fn extension_contacts_bounded(
+    extensions: &[(usize, [P2; 2])],
+    lines: &[[P2; 2]],
+    label: [f64; 4],
+    maximum: Option<(usize, usize)>,
+) -> Option<(usize, usize)> {
     let pad = grow(label, LABEL_PAD);
     let mut pairs = std::collections::BTreeSet::new();
     let mut text = std::collections::BTreeSet::new();
@@ -2533,8 +2588,37 @@ pub(super) fn extension_contacts(
         if on_text || lines.iter().any(|s| touches_box(*s, b)) {
             pairs.insert(*j);
         }
+        if maximum.is_some_and(|(p, t)| pairs.len() > p || text.len() > t) {
+            return None;
+        }
     }
-    (pairs.len(), text.len())
+    Some((pairs.len(), text.len()))
+}
+
+/// Bounds for broad-phase lookup. Non-finite geometry must remain an always-tested item.
+fn segment_bounds(s: [P2; 2]) -> [f64; 4] {
+    if s.iter().flatten().any(|v| !v.is_finite()) {
+        return [f64::NAN; 4];
+    }
+    [
+        s[0][0].min(s[1][0]),
+        s[0][1].min(s[1][1]),
+        s[0][0].max(s[1][0]),
+        s[0][1].max(s[1][1]),
+    ]
+}
+
+/// The grid changes only the candidate set: preserve the exact per-stroke predicate,
+/// duplicate-stroke counts, inclusive boundaries and non-finite fallback of the full scan.
+#[cfg(test)]
+fn model_contacts(model: &[[P2; 2]], grid: &Grid, q: P2, label: [f64; 4]) -> (usize, bool) {
+    let pad = grow(label, LABEL_PAD);
+    let at = grow([q[0], q[1], q[0], q[1]], LABEL_PAD);
+    let mut text = 0;
+    grid.near(0, pad, |i| text += usize::from(touches_box(model[i], pad)));
+    let mut elbow = false;
+    grid.near(0, at, |i| elbow |= !elbow && touches_box(model[i], at));
+    (text, elbow)
 }
 
 /// Whether a leader segment runs within 0.3 mm of the given line-work for over 2 mm.
@@ -2576,6 +2660,24 @@ pub(super) fn touches_box(s: [P2; 2], b: [f64; 4]) -> bool {
 /// Whether the candidate introduces any path inside an uncertain material box.
 /// Collinear extension in empty paper is safe only when its entire clipped
 /// material segment was already covered by one established straight segment.
+fn buried(s: [P2; 2], b: [f64; 4]) -> f64 {
+    let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
+    for k in 0..2 {
+        let d = s[1][k] - s[0][k];
+        if d.abs() < 1e-12 {
+            if s[0][k] < b[k] || s[0][k] > b[k + 2] {
+                return 0.0;
+            }
+        } else {
+            let p = (b[k] - s[0][k]) / d;
+            let q = (b[k + 2] - s[0][k]) / d;
+            lo = lo.max(p.min(q));
+            hi = hi.min(p.max(q));
+        }
+    }
+    (hi - lo).max(0.0) * (s[1][0] - s[0][0]).hypot(s[1][1] - s[0][1])
+}
+
 fn adds_unknown_path(s: [P2; 2], b: [f64; 4], old: &[[P2; 2]]) -> bool {
     let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
     for k in 0..2 {
@@ -3568,11 +3670,11 @@ pub fn clear_routes(
         .iter()
         .filter_map(|v| {
             let name = v.id.strip_prefix("v:")?;
-            super::NAMES
-                .contains(&name)
+            (super::NAMES.contains(&name) || crate::detail::NAMES.contains(&name))
                 .then(|| (name, Frame::new(analysis, v)))
         })
         .collect();
+    super::detail_routes(analysis, &mut wants, views);
     super::route(&mut wants, &frames, analysis);
     let w = wants.iter().find(|w| w.id == id)?;
     let Shape::Callout { sites } = &w.shape else {
@@ -4138,6 +4240,81 @@ impl Search {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn refinement_grid_keeps_duplicate_strokes_and_boundary_contacts() {
+        use super::*;
+        let mut lines = vec![
+            [[0.0, 0.0], [10.0, 0.0]],
+            [[0.0, 0.0], [10.0, 0.0]],
+            [[4.0, -20.0], [4.0, 20.0]],
+            [[f64::NAN, -2.0], [3.0, 4.0]],
+        ];
+        let mut seed = 82;
+        for _ in 0..128 {
+            lines.push(std::array::from_fn(|_| {
+                std::array::from_fn(|_| 100.0 * lcg(&mut seed) - 50.0)
+            }));
+        }
+        let grid = Grid::new([
+            lines.iter().map(|s| segment_bounds(*s)).collect(),
+            Vec::new(),
+            Vec::new(),
+        ]);
+        let mut queries = vec![
+            ([0.0, 0.0], [2.0, 1.0, 4.0, 2.0]),
+            ([10.0, 0.0], [10.0, 0.0, 10.0, 0.0]),
+            ([200.0, -200.0], [199.0, -201.0, 201.0, -199.0]),
+            ([f64::NAN, 0.0], [f64::NAN, 0.0, 5.0, 5.0]),
+        ];
+        for _ in 0..100 {
+            let q = std::array::from_fn(|_| 200.0 * lcg(&mut seed) - 100.0);
+            queries.push((q, [q[0], q[1], q[0] + 5.0, q[1] + 5.0]));
+        }
+        for (q, label) in queries {
+            let pad = grow(label, LABEL_PAD);
+            let at = grow([q[0], q[1], q[0], q[1]], LABEL_PAD);
+            let exhaustive = (
+                lines.iter().filter(|s| touches_box(**s, pad)).count(),
+                lines.iter().any(|s| touches_box(*s, at)),
+            );
+            assert_eq!(
+                model_contacts(&lines, &grid, q, label),
+                exhaustive,
+                "{q:?} {label:?}"
+            );
+        }
+    }
+    #[test]
+    fn contact_limits_preserve_unique_owners_and_boundary_touches() {
+        use super::*;
+        let extensions = [
+            (7, [[0.0, -2.0], [0.0, 2.0]]),
+            (3, [[4.0, -2.0], [4.0, 2.0]]),
+            (7, [[0.0, -2.0], [0.0, 2.0]]),
+        ];
+        let lines = [[[-2.0, 0.0], [6.0, 0.0]]];
+        // Owner 3 touches the padded text's boundary; repeated owner 7 counts once.
+        let label = [2.0, -0.5, 3.0, 0.5];
+        assert_eq!(extension_contacts(&extensions, &lines, label), (2, 1));
+        assert_eq!(
+            extension_contacts_bounded(&extensions, &lines, label, Some((2, 1))),
+            Some((2, 1))
+        );
+        assert_eq!(
+            extension_contacts_bounded(&extensions, &lines, label, Some((1, 1))),
+            None
+        );
+        assert_eq!(
+            extension_contacts_bounded(&extensions, &lines, label, Some((2, 0))),
+            None
+        );
+        assert!(touches_box([[2.0, 2.0], [3.0, 3.0]], [0.0, 0.0, 2.0, 2.0]));
+        assert!(touches_box([[3.0, 3.0], [2.0, 2.0]], [0.0, 0.0, 2.0, 2.0]));
+        assert!(!touches_box(
+            [[2.0 + 1e-10, 2.0], [3.0, 3.0]],
+            [0.0, 0.0, 2.0, 2.0]
+        ));
+    }
     use super::*;
 
     /// The tip lies on the rim, radial towards the elbow (`holes._rim_tip`): the leader points at
@@ -4290,7 +4467,7 @@ mod tests {
             .flat_map(|(j, p)| p.lines[..2].iter().map(move |s| (j, *s)))
             .collect();
         for (id, contacts) in [
-            ("d:f:turned_step:1/step.diameter", (1, 0)),
+            ("d:f:turned_step:1/step.diameter", (0, 0)),
             ("d:f:turned_step:2/step.diameter", (0, 0)),
         ] {
             let callout = plan

@@ -121,8 +121,12 @@ if args.current:
     peer = dimensions['d:f:slot:1/slot_length.length']['placed']
     assert abs(slot['arrows'][0][0][1] - peer['arrows'][0][0][1]) <= 14 + 1e-6, 'slot skipped its next lane'
     assert all(abs(a[1] - b[1]) < 60 for a, b in slot['lines'][:2]), 'slot witnesses cross the tower'
+    # string_post's inspection-end baseline replaces the old 1.1 mm chain link.
+    # Its retained 1 mm terminal-band length (turned_step:3/step.length) is now
+    # the short local span: its outside-arrow label must stay beside its own tips,
+    # rather than migrating along the neighbouring baseline's longer stations.
     for part, labels in [('1000', ['6.9', '8.9', '10.9']), ('10020', ['4.5', '1.2']),
-                         ('10007', ['14.0']), ('string_post', ['1.1'])]:
+                         ('10007', ['14.0']), ('string_post', ['1'])]:
         plan = json.loads((after / f'{part}.plan.json').read_text())
         for label in labels:
             items = [d for d in plan['dimensions'] if d['kind'] == 'linear' and d['label'] == label and d.get('placed')]

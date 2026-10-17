@@ -69,12 +69,17 @@ fn engine_inputs_ignore_stray_files_but_include_source_and_assets() {
         "build_support.rs",
         "src/nested/a.rs",
         "schemas/mcp/a.json",
+        "schemas/spec.json",
+        "schemas/mcp-validation.json",
         "fonts/a.ttf",
         "fonts/b.otf",
     ] {
         std::fs::write(scratch.join(file), "input").unwrap();
     }
     let before = build_support::inputs(&scratch).unwrap();
+    for file in ["schemas/spec.json", "schemas/mcp-validation.json"] {
+        assert!(before.iter().any(|path| path == Path::new(file)), "{file}");
+    }
     let hash = build_support::fingerprint(&scratch, &before).unwrap();
     for file in [
         "src/.DS_Store",
@@ -137,15 +142,24 @@ fn tools_explain_their_operations_without_source_and_fit_schema_budget() {
                 + serde_json::to_vec(&tool["outputSchema"]).unwrap().len()
         })
         .sum();
-    // 38,500 after D1 trimmed them; sheet/fit_limits added about 500 bytes across the tools.
-    // G3 added the `parts` tool (about 850 bytes) and a `part` argument on four tools
-    // (about 150 bytes), bringing the total to 40,501. F4's sheet/projection (#13) added about
-    // 540 bytes across the twelve tools that carry a spec: 41,041. K1's spec `faces` (datums
-    // and controls on faces, #43) added about 400 bytes the same way: 41,444. K1b's
-    // sheet/default_finish (#43) added about 530 bytes the same way: 41,972.
-    // Authored gears add 32 bytes to each of twelve Spec-carrying schemas: 42,356.
-    // Line-work switches plus equivalent patternProperties compaction: 42,113 bytes.
-    // Authored geometry, recognition corrections and label text with shared name suffixes: 42,465.
-    assert!(schema_bytes < 42500, "schemas: {schema_bytes} bytes");
+    // Exact compact total after moving nested Spec vocabulary out of tools/list.
+    // The generator asserts the same ceiling; nested Spec additions cost no context.
+    assert_eq!(schema_bytes, 34477, "schemas: {schema_bytes} bytes");
     eprintln!("schema bytes per session: {schema_bytes}");
+}
+
+#[test]
+fn nested_spec_growth_does_not_change_advertised_schemas() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let output = std::process::Command::new("python3")
+        .arg(root.join("tools/test_mcp_spec_outline.py"))
+        .current_dir(root)
+        .output()
+        .expect("Python 3 runs the standard-library schema generator guards");
+    assert!(
+        output.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
 }

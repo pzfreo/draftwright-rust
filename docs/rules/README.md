@@ -26,14 +26,16 @@ ports and pending blockers ([merge report](text-main-merge-2026-10-16.md)).
 The views-and-layout batch retains six verified ports: ARCH0004-3, ARCH0018-1,
 ISSUE-563-b, ISSUE-1262-a, ISSUE-1530-a and ISSUE-1604-a. ISSUE-563-b includes the
 maintainer-approved reservation of every linear corridor, permitting smaller scales.
+The detail-view integration also ports ISSUE-443-a, ISSUE-1216-b and
+LINT-code-detail_caption_clearance with executable tests.
 Counts are computed from the merged YAML entries:
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
 | `adr.yaml` | 5 | 68 | 61 | 26 |
-| `lint.yaml` | 7 | 125 | 14 | 19 |
-| `issues.yaml` | 20 | 93 | 51 | 26 |
-| **All** | **32** | **286** | **126** | **71** |
+| `lint.yaml` | 6 | 126 | 14 | 19 |
+| `issues.yaml` | 19 | 95 | 50 | 26 |
+| **All** | **30** | **289** | **125** | **71** |
 
 The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
 The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE

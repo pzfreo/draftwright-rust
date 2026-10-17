@@ -1,37 +1,37 @@
 [
- {
-  "part": "cgb245",
-  "code": "annotation_outside_area",
-  "count": 4,
-  "verdict": "rust-wrong",
-  "reason": "The plan's band above is draftwright's estimate (layout::Strips::reserve reserves the side's bands and the band right of the front and the plan, not the bands facing open paper): three x locations (297.9, 308.4, 372) and a slot location (286.0) above the plan run 5.6 to 26.6 mm past it, into open paper. Since stream d-quality-lanes the band right of the front and the plan holds the front's height-ladder lanes, so the rungs, the overall height and the y locations that fell through to the strip right of the plan (dims::placement::fall_through, ISSUE-1215-e) lie inside it, the side view moved clear of them, and 18× R4 stands inside the front's area (17 before; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json). 30 before stream d-placement-fit, 24 before d-callout-leaders."
- },
- {
-  "part": "cgb245",
-  "code": "annotation_leader_crossing",
-  "count": 2,
-  "verdict": "rust-wrong",
-  "reason": "The leader of d:f:hole:3/bore.diameter (2× ⌀6 THRU) crosses an extension line of d:f:hole:1/location.length.y (156.4). Before drawing quality 3 (the layout keeps the isometric off the views' bands, docs/quality-2026-10-09.md) that location fitted on neither side of the plan (its next lane on the right ran across the isometric) and kept its lane off the sheet (annotation_off_sheet); it now falls through to the strip right of the plan, and its extension line from the hole near the plan's left edge runs across the whole view to it, through the callout's leader. A location drawn on the side away from its feature: a placement residual (dims::placement::fall_through), one off-sheet error traded for one crossing. Since stream d-quality-merged-lanes (items merged away share their survivor's lane, as draftwright's corridor dedup places no displaced duplicate) also the leader of d:f:slot:2/slot_end_radius.radius (2× R3) crosses an extension line of d:f:slot:3/slot_width.length (7.0): with the merged items' lanes freed, that vertical slot width stays in its own strip left of the plan instead of falling through to the right, nearer its slot, and its extension lines run across the view (known_leaders.json)."
- },
- {
-  "part": "connector109",
-  "code": "annotation_leader_crossing",
-  "count": 5,
-  "verdict": "rust-wrong",
-  "reason": "A check stream d-callout-leaders adds. The turned bosses' diameters ø118, ø122 and ø130.9 (d:f:boss:2, :3, :4/boss.diameter@front, dims::bosses) are linear dimensions below the front whose extension lines run up the profile's silhouette, so the leaders of the grooves (d:f:groove:1, :2, :3), the fillet R1 and the chamfer 4.5 × 42.1°, leaving the profile beside it, cross them where they leave the outline; the leader solver found no route clear of them within its bounds (the left column holds the step diameters, and rows above or below the 420 mm profile are longer than its 75 mm limit). draftwright states those boss diameters as callouts in its column left of the front, so its sheet has no such extension lines. The cause is the bosses' presentation, not the leaders. E3 consolidates boss:4's ø130.9 into the overall diameter at the same radial stations. The three crossings against its removed extension line (fillet:1, groove:1, groove:3) disappear; known_leaders.json still requires all five remaining crossings against boss:2 and boss:3."
- },
- {
-  "part": "ctc01",
-  "code": "annotation_outside_area",
-  "count": 8,
-  "verdict": "rust-wrong",
-  "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side's bands and the band right of the front and the plan only): plan items above and beside the plan (locations, pitches) and front items below the front run past them; the front's polygonal boss height (6.9 mm) past the front's band. No callout is left past its band: the front callouts (2× ⌀20 ↧ 45, 2× C5) that stood 2.1 mm below the front now stand inside its area. Since stream d-quality-ink a callout prefers a place inside its view's area (below crossings, above length, src/dims/leaders.rs). A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 20 before stream d-placement-fit, 15 before d-callout-leaders. 11 before drawing quality 3 (the layout keeps the isometric off the views' bands, docs/quality-2026-10-09.md): the location that ran off the sheet now has a lane on it."
- },
- {
-  "part": "string_post",
-  "code": "annotation_outside_area",
-  "count": 2,
-  "verdict": "rust-wrong",
-  "reason": "Two step lengths below the front (d:f:turned_step:1 and :3/step.length@front, dims::turned) run along their lanes past the front's band (draftwright's estimate); the cross hole's callout d:f:hole:1/bore.diameter, 2.0 mm below the front's band before, now stands inside the front's area. Since stream d-quality-ink a callout prefers a place inside its view's area (below crossings, above length, src/dims/leaders.rs). A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 5 before stream d-callout-leaders, with the turned steps' diameter callouts stacked in the lanes below the front; they now stand beside the view."
- }
+  {
+    "part": "cgb245",
+    "code": "annotation_outside_area",
+    "count": 4,
+    "verdict": "rust-wrong",
+    "reason": "The plan's band above is draftwright's estimate (layout::Strips::reserve reserves the side's bands and the band right of the front and the plan, not the bands facing open paper): three x locations (297.9, 308.4, 372) and a slot location (286.0) above the plan run 5.6 to 26.6 mm past it, into open paper. Since stream d-quality-lanes the band right of the front and the plan holds the front's height-ladder lanes, so the rungs, the overall height and the y locations that fell through to the strip right of the plan (dims::placement::fall_through, ISSUE-1215-e) lie inside it, the side view moved clear of them, and 18× R4 stands inside the front's area (17 before; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json). 30 before stream d-placement-fit, 24 before d-callout-leaders."
+  },
+  {
+    "part": "cgb245",
+    "code": "annotation_leader_crossing",
+    "count": 2,
+    "verdict": "rust-wrong",
+    "reason": "The leader of d:f:hole:3/bore.diameter (2× ⌀6 THRU) crosses an extension line of d:f:hole:1/location.length.y (156.4). Before drawing quality 3 (the layout keeps the isometric off the views' bands, docs/quality-2026-10-09.md) that location fitted on neither side of the plan (its next lane on the right ran across the isometric) and kept its lane off the sheet (annotation_off_sheet); it now falls through to the strip right of the plan, and its extension line from the hole near the plan's left edge runs across the whole view to it, through the callout's leader. A location drawn on the side away from its feature: a placement residual (dims::placement::fall_through), one off-sheet error traded for one crossing. Since stream d-quality-merged-lanes (items merged away share their survivor's lane, as draftwright's corridor dedup places no displaced duplicate) also the leader of d:f:slot:2/slot_end_radius.radius (2× R3) crosses an extension line of d:f:slot:3/slot_width.length (7.0): with the merged items' lanes freed, that vertical slot width stays in its own strip left of the plan instead of falling through to the right, nearer its slot, and its extension lines run across the view (known_leaders.json)."
+  },
+  {
+    "part": "ctc01",
+    "code": "annotation_outside_area",
+    "count": 8,
+    "verdict": "rust-wrong",
+    "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side's bands and the band right of the front and the plan only): plan items above and beside the plan (locations, pitches) and front items below the front run past them; the front's polygonal boss height (6.9 mm) past the front's band. No callout is left past its band: the front callouts (2× ⌀20 ↧ 45, 2× C5) that stood 2.1 mm below the front now stand inside its area. Since stream d-quality-ink a callout prefers a place inside its view's area (below crossings, above length, src/dims/leaders.rs). A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 20 before stream d-placement-fit, 15 before d-callout-leaders. 11 before drawing quality 3 (the layout keeps the isometric off the views' bands, docs/quality-2026-10-09.md): the location that ran off the sheet now has a lane on it."
+  },
+  {
+    "part": "string_post",
+    "code": "annotation_outside_area",
+    "count": 1,
+    "verdict": "rust-wrong",
+    "reason": "The captured Python recognition turns this profile about X. Its remaining 1 mm local head length runs 1.5 mm beyond the original estimated front band; the other former chain overrun is removed by the default inspection baseline. Native recognition turns the post about Z and the head length belongs to its enlarged detail. This retains the one pre-existing estimate overrun while requiring the eliminated second finding to stay absent."
+  },
+  {
+    "part": "connector109",
+    "code": "annotation_leader_search_capped",
+    "count": 1,
+    "verdict": "undetermined",
+    "reason": "The default inspection baseline removes the five previously recorded leader crossings. The changed fixed ink joins nine callouts in one bounded search, which reaches its existing 200000-step cap; every callout remains drawn and the best assignment is retained, but optimality is not proven. This is the truthful search-budget warning, not a waiver of ink crossings: the previous crossing allowance is removed and all geometry checks remain active."
+  }
 ]

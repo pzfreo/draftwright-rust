@@ -285,7 +285,7 @@ struct Frame {
 impl Frame {
     fn new(analysis: &Analysis, v: &PlannedView) -> Frame {
         let view = View::new(v.direction, v.up).expect("a planned view");
-        let (size, centre) = crate::model::extent(analysis, &view);
+        let (size, centre) = crate::detail::crop_extent(analysis, v);
         let (at, s) = (v.at, v.scale);
         Frame {
             view,
@@ -323,6 +323,10 @@ pub enum TableOutcome {
 /// Drops what has no place and escalates as draftwright does (the module's doc). Applied to
 /// every plan the recovery judges.
 pub fn escalate(analysis: &Analysis, plan: &mut Plan, table_sheet: Option<u32>) -> TableOutcome {
+    // A full-part rescue must not introduce coordinate owners beside an authored network.
+    if !plan.spec.dimension_schemes.is_empty() {
+        return TableOutcome::None;
+    }
     let mut outcome = TableOutcome::None;
     let restore = table_sheet
         .filter(|n| *n > 1)
@@ -1661,6 +1665,27 @@ mod tests {
     use super::*;
 
     #[test]
+    fn detail_obstacle_equals_its_crop_footprint() {
+        let (_, a) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/mounting_plate.step"),
+        )
+        .unwrap();
+        let spec = serde_json::from_value(serde_json::json!({"sheet":{"size":"A2","scale":"1:2"},"views":{"detail_c":{"detail":{"around":"f:hole:1","from":"plan","scale_factor":2}}}})).unwrap();
+        let p = crate::model::plan(&a, &spec).unwrap();
+
+        let v = p.views.iter().find(|v| v.id == "v:detail_c").unwrap();
+        let mut crop_only = p.clone();
+        crop_only.views = vec![v.clone()];
+        let footprint = crate::sheet_fit::footprints(&a, &crop_only)[0];
+        let frame = Frame::new(&a, v);
+        assert_eq!(frame.outline, footprint);
+        let bounds = v.detail.as_ref().unwrap().bounds;
+        let middle = [0, 1, 2].map(|k| (bounds[0][k] + bounds[1][k]) / 2.);
+        assert_eq!(frame.page(middle), v.at);
+    }
+
+    #[test]
     fn balloon_band_assignment_maximises_cardinality_before_leader_length() {
         // Greedy nearest puts the flexible first hole on the only band the second can use.
         let costs = vec![vec![Some(1.), Some(3.)], vec![Some(2.), None]];
@@ -1986,6 +2011,14 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
         .filter_map(|(f, h)| Some((f.id.as_str(), h.ok()?)))
         .collect();
     for view in &plan.views {
+        if !plan.spec.dimension_schemes.is_empty()
+            && plan
+                .dimensions
+                .iter()
+                .any(|d| d.view == view.id && d.id.starts_with("d:scheme:"))
+        {
+            continue;
+        }
         let Some(axis) = view.direction.iter().position(|d| d.abs() > 0.999) else {
             continue;
         };

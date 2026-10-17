@@ -160,8 +160,7 @@ fn grm05_states_its_step_diameters_and_lengths_as_draftwright_does() {
             ("d:f:turned_step:2/step.diameter", "ø6.2"),
             ("d:f:turned_step:3/step.diameter", "ø6"),
             ("d:f:turned_step:1/step.length", "14"),
-            ("d:f:turned_step:2/step.length", "(5)"),
-            ("d:f:turned_step:3/step.length", "13"),
+            ("d:f:turned_step:2/step_position.length", "19"),
         ])
     );
     let od = plan
@@ -214,9 +213,17 @@ fn turned_corpus_parts_state_their_steps_as_draftwright_does() {
             .filter(|d| {
                 d.measurements
                     .iter()
-                    .any(|m| m.parameter.starts_with("step."))
+                    .any(|m| m.parameter == "step.diameter")
             })
-            .map(|d| (d.view.trim_start_matches("v:").to_string(), d.label.clone()))
+            .map(|d| {
+                let source = plan
+                    .views
+                    .iter()
+                    .find(|v| v.id == d.view)
+                    .and_then(|v| v.detail.as_ref())
+                    .map_or(d.view.as_str(), |r| r.source_view.as_str());
+                (source.trim_start_matches("v:").to_string(), d.label.clone())
+            })
             .collect();
         rust.sort();
         let f = facts::load(name);
@@ -227,7 +234,7 @@ fn turned_corpus_parts_state_their_steps_as_draftwright_does() {
             .filter(|n| {
                 n.measurements
                     .iter()
-                    .any(|m| m.parameter == "step.diameter" || m.parameter == "step.length")
+                    .any(|m| m.parameter == "step.diameter")
             })
             .map(|n| {
                 (
@@ -239,15 +246,13 @@ fn turned_corpus_parts_state_their_steps_as_draftwright_does() {
         if name == "grm03" {
             python.retain(|(_, l)| l != "ø10");
         }
-        // Maintainer H5: the overall remains controlling; the shortest link is reference.
-        if matches!(name, "grm03" | "string_post") {
-            let shortest = if name == "grm03" { "0.5" } else { "1" };
-            for (_, label) in &mut python {
-                if label == shortest {
-                    *label = format!("({label})");
-                }
-            }
-        }
+        // Axial positions now follow the inspection datum; compare physical diameter
+        // statements with Python and prove every band length through lint's baseline ledger.
+        assert!(
+            ledger(&a, &plan).iter().all(|o| o.ends_with("Placed")),
+            "{name}: {:?}",
+            ledger(&a, &plan)
+        );
         python.sort();
         assert_eq!(rust, python, "{name}");
         let label = |id: &str| {
@@ -280,7 +285,7 @@ fn turned_corpus_parts_state_their_steps_as_draftwright_does() {
 /// size, and the chain (40 + 30) the overall 70, which is not stated again. With a band taken
 /// away the chain no longer runs end to end, so the overall length is stated.
 #[test]
-fn the_overall_is_stated_and_a_closed_chain_has_one_reference_member() {
+fn the_overall_finishes_the_default_baseline_and_a_partial_profile_keeps_its_length() {
     let plan = model::plan(&turned(), &Spec::default()).unwrap();
     assert_eq!(
         turned_items(&plan),
@@ -289,7 +294,6 @@ fn the_overall_is_stated_and_a_closed_chain_has_one_reference_member() {
             ("d:envelope/height.length", "70"),
             ("d:f:turned_step:2/step.diameter", "ø16"),
             ("d:f:turned_step:1/step.length", "40"),
-            ("d:f:turned_step:2/step.length", "(30)"),
         ])
     );
     let a = with_bands(&[(q(0.0), q(40.0), 30.0)]);
@@ -333,7 +337,12 @@ fn repeated_lengths_and_twin_flanges_are_stated_once() {
         .filter(|d| d.id.ends_with("/step.length"))
         .map(|d| d.label.clone())
         .collect();
-    assert_eq!(lengths, ["(23)", "23.3", "23.7"]);
+    assert_eq!(lengths, ["23"]);
+    assert!(
+        plan.dimensions
+            .iter()
+            .any(|d| d.id.ends_with("/step_position.length") && (d.value - 46.3).abs() < 1e-6)
+    );
     let a = with_bands(&[
         (q(0.0), q(23.34), 30.0),
         (q(23.34), q(46.66), 20.0),
@@ -347,8 +356,7 @@ fn repeated_lengths_and_twin_flanges_are_stated_once() {
             ("d:envelope/height.length", "70"),
             ("d:f:turned_step:2/step.diameter", "ø20"),
             ("d:f:turned_step:1/step.length", "23.3"),
-            ("d:f:turned_step:2/step.length", "(23.3)"),
-            ("d:f:turned_step:3/step.length", "23.3"),
+            ("d:f:turned_step:2/step_position.length", "46.7"),
         ])
     );
     let chain = plan
@@ -386,7 +394,6 @@ fn repeated_lengths_and_twin_flanges_are_stated_once() {
             ("d:envelope/height.length", "70"),
             ("d:f:turned_step:1/step.diameter", "2× ø30"),
             ("d:f:turned_step:1/step.length", "40"),
-            ("d:f:turned_step:2/step.length", "(30)"),
         ])
     );
 }
@@ -467,10 +474,9 @@ fn a_part_turned_about_y_reads_its_diameters_end_on() {
             ("d:f:turned_step:1/step.diameter", "ø20"),
             ("d:f:turned_step:2/step.diameter", "ø24"),
             ("d:f:turned_step:3/step.diameter", "ø20"),
-            ("d:f:turned_step:1/step.length", "10"),
-            ("d:f:turned_step:2/step.length", "10"),
-            ("d:f:turned_step:3/step.length", "(10)"),
             ("d:f:turned_step:4/step.length", "40"),
+            ("d:f:turned_step:3/step_position.length", "50"),
+            ("d:f:turned_step:2/step_position.length", "60"),
         ])
     );
 }
@@ -586,11 +592,10 @@ fn spec_tolerances_and_omissions_reach_the_step_items() {
     );
 }
 
-/// ISSUE-1505-b (stream K6, a regression pin: it already holds on the base): a short shoulder
-/// never erases its neighbours' axial measurements. A 1 mm shoulder between a ø30 band 30 long
-/// and a ø16 band 39 long: each band's length keeps its own item (its own ID, claiming that band
-/// alone, printing its own value), every one drawn, and the neighbours' lengths print as they do
-/// with a 10 mm shoulder in its place.
+/// ISSUE-1505-b and K6 with the inspection baseline: a 1 mm shoulder never erases its
+/// neighbours' measurements. Defaults convey every band through live baseline owners;
+/// explicitly toleranced lengths keep their own IDs, claims and values. Compare a 10 mm
+/// shoulder too: both neighbouring lengths remain 30 and 39 in either representation.
 #[test]
 fn a_short_shoulder_never_erases_its_neighbours_lengths() {
     let lengths = |plan: &Plan| -> Vec<(String, String, Vec<String>)> {
@@ -604,7 +609,12 @@ fn a_short_shoulder_never_erases_its_neighbours_lengths() {
                     .iter()
                     .map(|m| format!("{} {}", m.feature, m.parameter))
                     .collect();
-                (d.id.clone(), d.label.clone(), claims)
+                assert!(d.label.contains("±0.1") && !d.reference, "{}", d.label);
+                (
+                    d.id.clone(),
+                    d.label.strip_suffix(" ±0.1").unwrap().into(),
+                    claims,
+                )
             })
             .collect()
     };
@@ -613,7 +623,67 @@ fn a_short_shoulder_never_erases_its_neighbours_lengths() {
         (q(30.0), q(31.0), 24.0),
         (q(31.0), q(70.0), 16.0),
     ]);
-    let plan = model::plan(&short, &Spec::default()).unwrap();
+    let mut long = with_bands(&[
+        (q(0.0), q(30.0), 30.0),
+        (q(30.0), q(40.0), 24.0),
+        (q(40.0), q(79.0), 16.0),
+    ]);
+    // The longer synthetic profile is a whole part too, with its far end at 79.
+    long.envelope[1][2] += 9.0;
+    for (a, expected) in [(&short, [30., 31., 70.]), (&long, [30., 40., 79.])] {
+        let default = model::plan(a, &Spec::default()).unwrap();
+        assert!(
+            ledger(a, &default).iter().all(|o| o.ends_with("Placed")),
+            "{:?}",
+            ledger(a, &default)
+        );
+        for (i, value) in expected.iter().enumerate() {
+            let feature = format!("f:turned_step:{}", i + 1);
+            let parameter = if i == 0 {
+                "step.length"
+            } else {
+                "step_position.length"
+            };
+            let owners: Vec<_> = default
+                .dimensions
+                .iter()
+                .filter(|d| {
+                    d.measurements
+                        .iter()
+                        .any(|m| m.feature == feature && m.parameter == parameter)
+                })
+                .collect();
+            assert_eq!(owners.len(), 1, "{feature}: {owners:?}");
+            let owner = owners[0];
+            assert!(owner.placed.is_some());
+            assert_eq!(owner.label, draftwright::dims::fmt(*value));
+            if i > 0 {
+                let covered = default
+                    .omitted
+                    .iter()
+                    .find(|o| o.id == format!("d:{feature}/step.length"))
+                    .unwrap();
+                assert_eq!(
+                    covered.state,
+                    draftwright::items::State::Covered {
+                        by: owner.id.clone()
+                    }
+                );
+            }
+        }
+        assert_eq!([expected[0], expected[2] - expected[1]], [30., 39.]);
+    }
+    let mut spec = Spec::default();
+    for i in 1..=3 {
+        spec.dimensions.insert(
+            format!("d:f:turned_step:{i}/step.length"),
+            DimensionSpec {
+                tolerance: Some("±0.1".into()),
+                ..Default::default()
+            },
+        );
+    }
+    let plan = model::plan(&short, &spec).unwrap();
     let got = lengths(&plan);
     let ids: Vec<&str> = got.iter().map(|(id, _, _)| id.as_str()).collect();
     assert_eq!(
@@ -643,12 +713,7 @@ fn a_short_shoulder_never_erases_its_neighbours_lengths() {
         ledger(&short, &plan)
     );
 
-    let long = with_bands(&[
-        (q(0.0), q(30.0), 30.0),
-        (q(30.0), q(40.0), 24.0),
-        (q(40.0), q(79.0), 16.0),
-    ]);
-    let wide = lengths(&model::plan(&long, &Spec::default()).unwrap());
+    let wide = lengths(&model::plan(&long, &spec).unwrap());
     for i in [0, 2] {
         assert_eq!(
             (&got[i].0, &got[i].1),

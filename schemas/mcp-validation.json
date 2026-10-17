@@ -1,0 +1,2734 @@
+{
+  "inspect_part": {
+    "type": "object",
+    "properties": {
+      "spec": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "enum": [
+              "draftwright.spec/1",
+              "draftwright.spec/2"
+            ]
+          },
+          "binding": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "sheets": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "smallest_scale": {
+                "$ref": "#/A"
+              },
+              "keep_together": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/B"
+                }
+              },
+              "gdt_on_sheet_1": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(max|hole_table)$(?!\n)": {
+                "enum": [
+                  null,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9
+                ]
+              }
+            }
+          },
+          "sheet": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "projection": {
+                "enum": [
+                  null,
+                  "first",
+                  "third"
+                ]
+              },
+              "default_finish": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "^(size|scale)$(?!\n)": {
+                "$ref": "#/A"
+              }
+            }
+          },
+          "views": {
+            "additionalProperties": {
+              "properties": {
+                "detail": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "around": {
+                      "type": [
+                        "string",
+                        "array"
+                      ],
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1
+                    },
+                    "from": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "pattern": "^(front|plan|side|section_([a-h])\\2)(?![\\s\\S])"
+                    },
+                    "scale_factor": {
+                      "type": "number",
+                      "exclusiveMinimum": 1
+                    }
+                  },
+                  "required": [
+                    "around"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "patternProperties": {
+                "^(hidden|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "dimension_source": {
+            "enum": [
+              "auto",
+              "authored"
+            ]
+          },
+          "hole_table": {
+            "enum": [
+              "auto",
+              "always",
+              "never"
+            ]
+          },
+          "feature_declarations": {
+            "items": {
+              "properties": {
+                "faces": {
+                  "$ref": "#/B"
+                }
+              },
+              "additionalProperties": {
+                "type": "string"
+              },
+              "required": [
+                "id",
+                "kind",
+                "faces"
+              ],
+              "maxProperties": 3
+            }
+          }
+        },
+        "additionalProperties": false,
+        "patternProperties": {
+          "^(views|dimensions|annotations|features|faces|dimension_schemes)$(?!\n)": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object"
+            }
+          },
+          "^(notes|tables|gears|feature_declarations)$(?!\n)": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "part": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "detail": {
+        "type": "boolean"
+      },
+      "problem_filter": {
+        "type": "object",
+        "properties": {
+          "severity": {
+            "enum": [
+              null,
+              "info",
+              "warning",
+              "error"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "patternProperties": {
+          "^(code|subject|feature)$(?!\n)": {
+            "$ref": "#/A"
+          }
+        }
+      }
+    },
+    "additionalProperties": false,
+    "anyOf": [
+      {
+        "required": [
+          "step"
+        ]
+      },
+      {
+        "required": [
+          "part_ref"
+        ]
+      }
+    ],
+    "patternProperties": {
+      "^(spec_version|step|features|(part|drawing)_ref)$(?!\n)": {
+        "type": "string"
+      }
+    },
+    "A": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "B": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "list_items": {
+    "type": "object",
+    "properties": {
+      "part_ref": {
+        "$ref": "#/D"
+      },
+      "spec": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "enum": [
+              "draftwright.spec/1",
+              "draftwright.spec/2"
+            ]
+          },
+          "binding": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "sheets": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "max": {
+                "$ref": "#/C"
+              },
+              "smallest_scale": {
+                "$ref": "#/B"
+              },
+              "keep_together": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/E"
+                }
+              },
+              "hole_table": {
+                "$ref": "#/C"
+              },
+              "gdt_on_sheet_1": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          },
+          "sheet": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/D"
+                }
+              },
+              "projection": {
+                "enum": [
+                  null,
+                  "first",
+                  "third"
+                ]
+              },
+              "default_finish": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                "$ref": "#/A"
+              },
+              "^(size|scale)$(?!\n)": {
+                "$ref": "#/B"
+              }
+            }
+          },
+          "views": {
+            "additionalProperties": {
+              "properties": {
+                "detail": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "around": {
+                      "type": [
+                        "string",
+                        "array"
+                      ],
+                      "items": {
+                        "$ref": "#/D"
+                      },
+                      "minItems": 1
+                    },
+                    "from": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "pattern": "^(front|plan|side|section_([a-h])\\2)(?![\\s\\S])"
+                    },
+                    "scale_factor": {
+                      "type": "number",
+                      "exclusiveMinimum": 1
+                    }
+                  },
+                  "required": [
+                    "around"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "patternProperties": {
+                "^(hidden|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                  "$ref": "#/A"
+                }
+              }
+            }
+          },
+          "dimension_source": {
+            "enum": [
+              "auto",
+              "authored"
+            ]
+          },
+          "hole_table": {
+            "enum": [
+              "auto",
+              "always",
+              "never"
+            ]
+          },
+          "feature_declarations": {
+            "items": {
+              "properties": {
+                "id": {
+                  "$ref": "#/D"
+                },
+                "kind": {
+                  "$ref": "#/D"
+                },
+                "faces": {
+                  "$ref": "#/E"
+                }
+              },
+              "additionalProperties": false,
+              "minProperties": 3
+            }
+          }
+        },
+        "additionalProperties": false,
+        "patternProperties": {
+          "^(views|dimensions|annotations|features|faces|dimension_schemes)$(?!\n)": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object"
+            }
+          },
+          "^(notes|tables|gears|feature_declarations)$(?!\n)": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "spec_version": {
+        "$ref": "#/D"
+      },
+      "drawing_ref": {
+        "$ref": "#/D"
+      },
+      "cursor": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "limit": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "detail": {
+        "type": "boolean"
+      },
+      "filter": {
+        "type": "object",
+        "properties": {
+          "sheet": {
+            "$ref": "#/C"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "enum": [
+                      {
+                        "kind": "shown"
+                      },
+                      {
+                        "kind": "omitted_by_user"
+                      },
+                      {
+                        "kind": "not_authored"
+                      }
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "kind": {
+                        "const": "covered"
+                      },
+                      "by": {
+                        "$ref": "#/D"
+                      }
+                    },
+                    "additionalProperties": false,
+                    "minProperties": 2
+                  },
+                  {
+                    "properties": {
+                      "kind": {
+                        "const": "not_drawable"
+                      },
+                      "reason_code": {
+                        "$ref": "#/D"
+                      }
+                    },
+                    "additionalProperties": false,
+                    "minProperties": 2
+                  }
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "region": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "number"
+            },
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "radius": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false,
+        "patternProperties": {
+          "^(view|kind|feature|near)$(?!\n)": {
+            "$ref": "#/B"
+          }
+        }
+      }
+    },
+    "required": [
+      "part_ref"
+    ],
+    "additionalProperties": false,
+    "A": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "B": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "C": {
+      "enum": [
+        null,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    "D": {
+      "type": "string"
+    },
+    "E": {
+      "items": {
+        "$ref": "#/D"
+      },
+      "type": "array"
+    }
+  },
+  "get_item": {
+    "type": "object",
+    "properties": {
+      "spec": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "enum": [
+              "draftwright.spec/1",
+              "draftwright.spec/2"
+            ]
+          },
+          "binding": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "sheets": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "smallest_scale": {
+                "$ref": "#/B"
+              },
+              "keep_together": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/A"
+                }
+              },
+              "gdt_on_sheet_1": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(max|hole_table)$(?!\n)": {
+                "enum": [
+                  null,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9
+                ]
+              }
+            }
+          },
+          "sheet": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "projection": {
+                "enum": [
+                  null,
+                  "first",
+                  "third"
+                ]
+              },
+              "default_finish": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "^(size|scale)$(?!\n)": {
+                "$ref": "#/B"
+              }
+            }
+          },
+          "views": {
+            "additionalProperties": {
+              "properties": {
+                "detail": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "around": {
+                      "type": [
+                        "string",
+                        "array"
+                      ],
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1
+                    },
+                    "from": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "pattern": "^(front|plan|side|section_([a-h])\\2)(?![\\s\\S])"
+                    },
+                    "scale_factor": {
+                      "type": "number",
+                      "exclusiveMinimum": 1
+                    }
+                  },
+                  "required": [
+                    "around"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "patternProperties": {
+                "^(hidden|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "dimension_source": {
+            "enum": [
+              "auto",
+              "authored"
+            ]
+          },
+          "hole_table": {
+            "enum": [
+              "auto",
+              "always",
+              "never"
+            ]
+          },
+          "feature_declarations": {
+            "items": {
+              "properties": {
+                "faces": {
+                  "$ref": "#/A"
+                }
+              },
+              "additionalProperties": {
+                "type": "string"
+              },
+              "required": [
+                "id",
+                "kind",
+                "faces"
+              ],
+              "maxProperties": 3
+            }
+          }
+        },
+        "additionalProperties": false,
+        "patternProperties": {
+          "^(views|dimensions|annotations|features|faces|dimension_schemes)$(?!\n)": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object"
+            }
+          },
+          "^(notes|tables|gears|feature_declarations)$(?!\n)": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "detail": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "part_ref",
+      "id"
+    ],
+    "additionalProperties": {
+      "type": "string"
+    },
+    "propertyNames": {
+      "enum": [
+        "part_ref",
+        "spec",
+        "spec_version",
+        "drawing_ref",
+        "id",
+        "detail"
+      ]
+    },
+    "A": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "B": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "list_problems": {
+    "type": "object",
+    "properties": {
+      "part_ref": {
+        "type": "string"
+      },
+      "spec": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "enum": [
+              "draftwright.spec/1",
+              "draftwright.spec/2"
+            ]
+          },
+          "binding": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "sheets": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "smallest_scale": {
+                "$ref": "#/A"
+              },
+              "keep_together": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/B"
+                }
+              },
+              "gdt_on_sheet_1": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(max|hole_table)$(?!\n)": {
+                "enum": [
+                  null,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9
+                ]
+              }
+            }
+          },
+          "sheet": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "projection": {
+                "enum": [
+                  null,
+                  "first",
+                  "third"
+                ]
+              },
+              "default_finish": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "^(size|scale)$(?!\n)": {
+                "$ref": "#/A"
+              }
+            }
+          },
+          "views": {
+            "additionalProperties": {
+              "properties": {
+                "detail": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "around": {
+                      "type": [
+                        "string",
+                        "array"
+                      ],
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1
+                    },
+                    "from": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "pattern": "^(front|plan|side|section_([a-h])\\2)(?![\\s\\S])"
+                    },
+                    "scale_factor": {
+                      "type": "number",
+                      "exclusiveMinimum": 1
+                    }
+                  },
+                  "required": [
+                    "around"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "patternProperties": {
+                "^(hidden|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "dimension_source": {
+            "enum": [
+              "auto",
+              "authored"
+            ]
+          },
+          "hole_table": {
+            "enum": [
+              "auto",
+              "always",
+              "never"
+            ]
+          },
+          "feature_declarations": {
+            "items": {
+              "properties": {
+                "faces": {
+                  "$ref": "#/B"
+                }
+              },
+              "additionalProperties": {
+                "type": "string"
+              },
+              "required": [
+                "id",
+                "kind",
+                "faces"
+              ],
+              "maxProperties": 3
+            }
+          }
+        },
+        "additionalProperties": false,
+        "patternProperties": {
+          "^(views|dimensions|annotations|features|faces|dimension_schemes)$(?!\n)": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object"
+            }
+          },
+          "^(notes|tables|gears|feature_declarations)$(?!\n)": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "spec_version": {
+        "type": "string"
+      },
+      "drawing_ref": {
+        "type": "string"
+      },
+      "cursor": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "limit": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "detail": {
+        "type": "boolean"
+      },
+      "filter": {
+        "type": "object",
+        "properties": {
+          "severity": {
+            "enum": [
+              null,
+              "info",
+              "warning",
+              "error"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "patternProperties": {
+          "^(code|subject|feature)$(?!\n)": {
+            "$ref": "#/A"
+          }
+        }
+      }
+    },
+    "required": [
+      "part_ref"
+    ],
+    "additionalProperties": false,
+    "A": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "B": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "item_options": {
+    "type": "object",
+    "properties": {
+      "spec": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "enum": [
+              "draftwright.spec/1",
+              "draftwright.spec/2"
+            ]
+          },
+          "binding": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "sheets": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "smallest_scale": {
+                "$ref": "#/B"
+              },
+              "keep_together": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/A"
+                }
+              },
+              "gdt_on_sheet_1": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(max|hole_table)$(?!\n)": {
+                "enum": [
+                  null,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9
+                ]
+              }
+            }
+          },
+          "sheet": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "projection": {
+                "enum": [
+                  null,
+                  "first",
+                  "third"
+                ]
+              },
+              "default_finish": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "^(size|scale)$(?!\n)": {
+                "$ref": "#/B"
+              }
+            }
+          },
+          "views": {
+            "additionalProperties": {
+              "properties": {
+                "detail": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "around": {
+                      "type": [
+                        "string",
+                        "array"
+                      ],
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1
+                    },
+                    "from": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "pattern": "^(front|plan|side|section_([a-h])\\2)(?![\\s\\S])"
+                    },
+                    "scale_factor": {
+                      "type": "number",
+                      "exclusiveMinimum": 1
+                    }
+                  },
+                  "required": [
+                    "around"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "patternProperties": {
+                "^(hidden|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "dimension_source": {
+            "enum": [
+              "auto",
+              "authored"
+            ]
+          },
+          "hole_table": {
+            "enum": [
+              "auto",
+              "always",
+              "never"
+            ]
+          },
+          "feature_declarations": {
+            "items": {
+              "properties": {
+                "faces": {
+                  "$ref": "#/A"
+                }
+              },
+              "additionalProperties": {
+                "type": "string"
+              },
+              "required": [
+                "id",
+                "kind",
+                "faces"
+              ],
+              "maxProperties": 3
+            }
+          }
+        },
+        "additionalProperties": false,
+        "patternProperties": {
+          "^(views|dimensions|annotations|features|faces|dimension_schemes)$(?!\n)": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object"
+            }
+          },
+          "^(notes|tables|gears|feature_declarations)$(?!\n)": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "required": [
+      "part_ref",
+      "id"
+    ],
+    "additionalProperties": {
+      "type": "string"
+    },
+    "propertyNames": {
+      "enum": [
+        "part_ref",
+        "spec",
+        "spec_version",
+        "drawing_ref",
+        "id"
+      ]
+    },
+    "A": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "B": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "preview_ops": {
+    "type": "object",
+    "properties": {
+      "part_ref": {
+        "$ref": "#/B"
+      },
+      "spec": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "enum": [
+              "draftwright.spec/1",
+              "draftwright.spec/2"
+            ]
+          },
+          "binding": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "sheets": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "smallest_scale": {
+                "$ref": "#/C"
+              },
+              "keep_together": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/A"
+                }
+              },
+              "gdt_on_sheet_1": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(max|hole_table)$(?!\n)": {
+                "enum": [
+                  null,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9
+                ]
+              }
+            }
+          },
+          "sheet": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/B"
+                }
+              },
+              "projection": {
+                "enum": [
+                  null,
+                  "first",
+                  "third"
+                ]
+              },
+              "default_finish": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "^(size|scale)$(?!\n)": {
+                "$ref": "#/C"
+              }
+            }
+          },
+          "views": {
+            "additionalProperties": {
+              "properties": {
+                "detail": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "around": {
+                      "type": [
+                        "string",
+                        "array"
+                      ],
+                      "items": {
+                        "$ref": "#/B"
+                      },
+                      "minItems": 1
+                    },
+                    "from": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "pattern": "^(front|plan|side|section_([a-h])\\2)(?![\\s\\S])"
+                    },
+                    "scale_factor": {
+                      "type": "number",
+                      "exclusiveMinimum": 1
+                    }
+                  },
+                  "required": [
+                    "around"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "patternProperties": {
+                "^(hidden|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "dimension_source": {
+            "enum": [
+              "auto",
+              "authored"
+            ]
+          },
+          "hole_table": {
+            "enum": [
+              "auto",
+              "always",
+              "never"
+            ]
+          },
+          "feature_declarations": {
+            "items": {
+              "properties": {
+                "faces": {
+                  "$ref": "#/A"
+                }
+              },
+              "additionalProperties": {
+                "$ref": "#/B"
+              },
+              "required": [
+                "id",
+                "kind",
+                "faces"
+              ],
+              "maxProperties": 3
+            }
+          }
+        },
+        "additionalProperties": false,
+        "patternProperties": {
+          "^(views|dimensions|annotations|features|faces|dimension_schemes)$(?!\n)": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object"
+            }
+          },
+          "^(notes|tables|gears|feature_declarations)$(?!\n)": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "spec_version": {
+        "$ref": "#/B"
+      },
+      "drawing_ref": {
+        "$ref": "#/B"
+      },
+      "cursor": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "limit": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "detail": {
+        "type": "boolean"
+      },
+      "ops": {
+        "type": "array",
+        "items": {
+          "$ref": "#/op"
+        },
+        "maxItems": 32
+      }
+    },
+    "required": [
+      "part_ref",
+      "ops"
+    ],
+    "additionalProperties": false,
+    "op": {
+      "anyOf": [
+        {
+          "properties": {
+            "op": {
+              "enum": [
+                "set",
+                "add"
+              ]
+            },
+            "path": {
+              "$ref": "#/B"
+            },
+            "value": {}
+          },
+          "additionalProperties": false,
+          "minProperties": 3
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "remove"
+            },
+            "path": {
+              "$ref": "#/B"
+            }
+          },
+          "additionalProperties": false,
+          "minProperties": 2
+        }
+      ],
+      "type": "object"
+    },
+    "A": {
+      "items": {
+        "$ref": "#/B"
+      },
+      "type": "array"
+    },
+    "B": {
+      "type": "string"
+    },
+    "C": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "apply_ops": {
+    "type": "object",
+    "properties": {
+      "part_ref": {
+        "$ref": "#/A"
+      },
+      "spec": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "enum": [
+              "draftwright.spec/1",
+              "draftwright.spec/2"
+            ]
+          },
+          "binding": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "sheets": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "smallest_scale": {
+                "$ref": "#/C"
+              },
+              "keep_together": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/B"
+                }
+              },
+              "gdt_on_sheet_1": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(max|hole_table)$(?!\n)": {
+                "enum": [
+                  null,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9
+                ]
+              }
+            }
+          },
+          "sheet": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/A"
+                }
+              },
+              "projection": {
+                "enum": [
+                  null,
+                  "first",
+                  "third"
+                ]
+              },
+              "default_finish": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "^(size|scale)$(?!\n)": {
+                "$ref": "#/C"
+              }
+            }
+          },
+          "views": {
+            "additionalProperties": {
+              "properties": {
+                "detail": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "around": {
+                      "type": [
+                        "string",
+                        "array"
+                      ],
+                      "items": {
+                        "$ref": "#/A"
+                      },
+                      "minItems": 1
+                    },
+                    "from": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "pattern": "^(front|plan|side|section_([a-h])\\2)(?![\\s\\S])"
+                    },
+                    "scale_factor": {
+                      "type": "number",
+                      "exclusiveMinimum": 1
+                    }
+                  },
+                  "required": [
+                    "around"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "patternProperties": {
+                "^(hidden|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "dimension_source": {
+            "enum": [
+              "auto",
+              "authored"
+            ]
+          },
+          "hole_table": {
+            "enum": [
+              "auto",
+              "always",
+              "never"
+            ]
+          },
+          "feature_declarations": {
+            "items": {
+              "properties": {
+                "faces": {
+                  "$ref": "#/B"
+                }
+              },
+              "additionalProperties": {
+                "$ref": "#/A"
+              },
+              "required": [
+                "id",
+                "kind",
+                "faces"
+              ],
+              "maxProperties": 3
+            }
+          }
+        },
+        "additionalProperties": false,
+        "patternProperties": {
+          "^(views|dimensions|annotations|features|faces|dimension_schemes)$(?!\n)": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object"
+            }
+          },
+          "^(notes|tables|gears|feature_declarations)$(?!\n)": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "spec_version": {
+        "$ref": "#/A"
+      },
+      "drawing_ref": {
+        "$ref": "#/A"
+      },
+      "cursor": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "limit": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "detail": {
+        "type": "boolean"
+      },
+      "ops": {
+        "type": "array",
+        "items": {
+          "$ref": "#/op"
+        },
+        "maxItems": 32
+      },
+      "parent": {
+        "$ref": "#/A"
+      }
+    },
+    "required": [
+      "part_ref",
+      "ops",
+      "parent"
+    ],
+    "additionalProperties": false,
+    "op": {
+      "anyOf": [
+        {
+          "properties": {
+            "op": {
+              "enum": [
+                "set",
+                "add"
+              ]
+            },
+            "path": {
+              "$ref": "#/A"
+            },
+            "value": {}
+          },
+          "additionalProperties": false,
+          "minProperties": 3
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "remove"
+            },
+            "path": {
+              "$ref": "#/A"
+            }
+          },
+          "additionalProperties": false,
+          "minProperties": 2
+        }
+      ],
+      "type": "object"
+    },
+    "A": {
+      "type": "string"
+    },
+    "B": {
+      "items": {
+        "$ref": "#/A"
+      },
+      "type": "array"
+    },
+    "C": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "view_sheet": {
+    "type": "object",
+    "properties": {
+      "part_ref": {
+        "$ref": "#/C"
+      },
+      "spec": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "enum": [
+              "draftwright.spec/1",
+              "draftwright.spec/2"
+            ]
+          },
+          "binding": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "sheets": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "smallest_scale": {
+                "$ref": "#/B"
+              },
+              "keep_together": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/A"
+                }
+              },
+              "gdt_on_sheet_1": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(max|hole_table)$(?!\n)": {
+                "enum": [
+                  null,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9
+                ]
+              }
+            }
+          },
+          "sheet": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/C"
+                }
+              },
+              "projection": {
+                "enum": [
+                  null,
+                  "first",
+                  "third"
+                ]
+              },
+              "default_finish": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "^(size|scale)$(?!\n)": {
+                "$ref": "#/B"
+              }
+            }
+          },
+          "views": {
+            "additionalProperties": {
+              "properties": {
+                "detail": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "around": {
+                      "type": [
+                        "string",
+                        "array"
+                      ],
+                      "items": {
+                        "$ref": "#/C"
+                      },
+                      "minItems": 1
+                    },
+                    "from": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "pattern": "^(front|plan|side|section_([a-h])\\2)(?![\\s\\S])"
+                    },
+                    "scale_factor": {
+                      "type": "number",
+                      "exclusiveMinimum": 1
+                    }
+                  },
+                  "required": [
+                    "around"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "patternProperties": {
+                "^(hidden|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "dimension_source": {
+            "enum": [
+              "auto",
+              "authored"
+            ]
+          },
+          "hole_table": {
+            "enum": [
+              "auto",
+              "always",
+              "never"
+            ]
+          },
+          "feature_declarations": {
+            "items": {
+              "properties": {
+                "faces": {
+                  "$ref": "#/A"
+                }
+              },
+              "additionalProperties": {
+                "$ref": "#/C"
+              },
+              "required": [
+                "id",
+                "kind",
+                "faces"
+              ],
+              "maxProperties": 3
+            }
+          }
+        },
+        "additionalProperties": false,
+        "patternProperties": {
+          "^(views|dimensions|annotations|features|faces|dimension_schemes)$(?!\n)": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object"
+            }
+          },
+          "^(notes|tables|gears|feature_declarations)$(?!\n)": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "spec_version": {
+        "$ref": "#/C"
+      },
+      "drawing_ref": {
+        "$ref": "#/C"
+      },
+      "region": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 4,
+        "maxItems": 4
+      },
+      "overlay_ids": {
+        "type": [
+          "boolean",
+          "array"
+        ],
+        "items": {
+          "$ref": "#/C"
+        }
+      },
+      "sheet": {
+        "enum": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+        ]
+      },
+      "dpi": {
+        "type": "number",
+        "exclusiveMinimum": 0,
+        "maximum": 400
+      }
+    },
+    "required": [
+      "part_ref"
+    ],
+    "additionalProperties": false,
+    "A": {
+      "items": {
+        "$ref": "#/C"
+      },
+      "type": "array"
+    },
+    "B": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "C": {
+      "type": "string"
+    }
+  },
+  "render_pdf": {
+    "type": "object",
+    "properties": {
+      "part_ref": {
+        "type": "string"
+      },
+      "spec": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "enum": [
+              "draftwright.spec/1",
+              "draftwright.spec/2"
+            ]
+          },
+          "binding": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "sheets": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "smallest_scale": {
+                "$ref": "#/B"
+              },
+              "keep_together": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/A"
+                }
+              },
+              "gdt_on_sheet_1": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(max|hole_table)$(?!\n)": {
+                "enum": [
+                  null,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9
+                ]
+              }
+            }
+          },
+          "sheet": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "projection": {
+                "enum": [
+                  null,
+                  "first",
+                  "third"
+                ]
+              },
+              "default_finish": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "^(size|scale)$(?!\n)": {
+                "$ref": "#/B"
+              }
+            }
+          },
+          "views": {
+            "additionalProperties": {
+              "properties": {
+                "detail": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "around": {
+                      "type": [
+                        "string",
+                        "array"
+                      ],
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1
+                    },
+                    "from": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "pattern": "^(front|plan|side|section_([a-h])\\2)(?![\\s\\S])"
+                    },
+                    "scale_factor": {
+                      "type": "number",
+                      "exclusiveMinimum": 1
+                    }
+                  },
+                  "required": [
+                    "around"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "patternProperties": {
+                "^(hidden|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "dimension_source": {
+            "enum": [
+              "auto",
+              "authored"
+            ]
+          },
+          "hole_table": {
+            "enum": [
+              "auto",
+              "always",
+              "never"
+            ]
+          },
+          "feature_declarations": {
+            "items": {
+              "properties": {
+                "faces": {
+                  "$ref": "#/A"
+                }
+              },
+              "additionalProperties": {
+                "type": "string"
+              },
+              "required": [
+                "id",
+                "kind",
+                "faces"
+              ],
+              "maxProperties": 3
+            }
+          }
+        },
+        "additionalProperties": false,
+        "patternProperties": {
+          "^(views|dimensions|annotations|features|faces|dimension_schemes)$(?!\n)": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object"
+            }
+          },
+          "^(notes|tables|gears|feature_declarations)$(?!\n)": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "spec_version": {
+        "type": "string"
+      },
+      "drawing_ref": {
+        "type": "string"
+      },
+      "sheet": {
+        "enum": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+        ]
+      }
+    },
+    "required": [
+      "part_ref"
+    ],
+    "additionalProperties": false,
+    "A": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "B": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "get_spec": {
+    "type": "object",
+    "properties": {
+      "spec": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "enum": [
+              "draftwright.spec/1",
+              "draftwright.spec/2"
+            ]
+          },
+          "binding": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "sheets": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "smallest_scale": {
+                "$ref": "#/B"
+              },
+              "keep_together": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/A"
+                }
+              },
+              "gdt_on_sheet_1": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(max|hole_table)$(?!\n)": {
+                "enum": [
+                  null,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9
+                ]
+              }
+            }
+          },
+          "sheet": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "projection": {
+                "enum": [
+                  null,
+                  "first",
+                  "third"
+                ]
+              },
+              "default_finish": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "^(size|scale)$(?!\n)": {
+                "$ref": "#/B"
+              }
+            }
+          },
+          "views": {
+            "additionalProperties": {
+              "properties": {
+                "detail": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "around": {
+                      "type": [
+                        "string",
+                        "array"
+                      ],
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1
+                    },
+                    "from": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "pattern": "^(front|plan|side|section_([a-h])\\2)(?![\\s\\S])"
+                    },
+                    "scale_factor": {
+                      "type": "number",
+                      "exclusiveMinimum": 1
+                    }
+                  },
+                  "required": [
+                    "around"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "patternProperties": {
+                "^(hidden|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "dimension_source": {
+            "enum": [
+              "auto",
+              "authored"
+            ]
+          },
+          "hole_table": {
+            "enum": [
+              "auto",
+              "always",
+              "never"
+            ]
+          },
+          "feature_declarations": {
+            "items": {
+              "properties": {
+                "faces": {
+                  "$ref": "#/A"
+                }
+              },
+              "additionalProperties": {
+                "type": "string"
+              },
+              "required": [
+                "id",
+                "kind",
+                "faces"
+              ],
+              "maxProperties": 3
+            }
+          }
+        },
+        "additionalProperties": false,
+        "patternProperties": {
+          "^(views|dimensions|annotations|features|faces|dimension_schemes)$(?!\n)": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object"
+            }
+          },
+          "^(notes|tables|gears|feature_declarations)$(?!\n)": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "required": [
+      "part_ref"
+    ],
+    "additionalProperties": {
+      "type": "string"
+    },
+    "propertyNames": {
+      "enum": [
+        "part_ref",
+        "spec",
+        "spec_version",
+        "drawing_ref"
+      ]
+    },
+    "A": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "B": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "render": {
+    "type": "object",
+    "properties": {
+      "spec": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "enum": [
+              "draftwright.spec/1",
+              "draftwright.spec/2"
+            ]
+          },
+          "binding": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "sheets": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "smallest_scale": {
+                "$ref": "#/B"
+              },
+              "keep_together": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/A"
+                }
+              },
+              "gdt_on_sheet_1": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(max|hole_table)$(?!\n)": {
+                "enum": [
+                  null,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9
+                ]
+              }
+            }
+          },
+          "sheet": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "projection": {
+                "enum": [
+                  null,
+                  "first",
+                  "third"
+                ]
+              },
+              "default_finish": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "patternProperties": {
+              "^(hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "^(size|scale)$(?!\n)": {
+                "$ref": "#/B"
+              }
+            }
+          },
+          "views": {
+            "additionalProperties": {
+              "properties": {
+                "detail": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "around": {
+                      "type": [
+                        "string",
+                        "array"
+                      ],
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1
+                    },
+                    "from": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "pattern": "^(front|plan|side|section_([a-h])\\2)(?![\\s\\S])"
+                    },
+                    "scale_factor": {
+                      "type": "number",
+                      "exclusiveMinimum": 1
+                    }
+                  },
+                  "required": [
+                    "around"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "patternProperties": {
+                "^(hidden|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "dimension_source": {
+            "enum": [
+              "auto",
+              "authored"
+            ]
+          },
+          "hole_table": {
+            "enum": [
+              "auto",
+              "always",
+              "never"
+            ]
+          },
+          "feature_declarations": {
+            "items": {
+              "properties": {
+                "faces": {
+                  "$ref": "#/A"
+                }
+              },
+              "additionalProperties": {
+                "type": "string"
+              },
+              "required": [
+                "id",
+                "kind",
+                "faces"
+              ],
+              "maxProperties": 3
+            }
+          }
+        },
+        "additionalProperties": false,
+        "patternProperties": {
+          "^(views|dimensions|annotations|features|faces|dimension_schemes)$(?!\n)": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object"
+            }
+          },
+          "^(notes|tables|gears|feature_declarations)$(?!\n)": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "part": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "format": {
+        "enum": [
+          "png",
+          "pdf"
+        ]
+      },
+      "region": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 4,
+        "maxItems": 4
+      },
+      "overlay_ids": {
+        "type": [
+          "boolean",
+          "array"
+        ],
+        "items": {
+          "type": "string"
+        }
+      },
+      "sheet": {
+        "enum": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+        ]
+      },
+      "dpi": {
+        "type": "number",
+        "exclusiveMinimum": 0,
+        "maximum": 400
+      }
+    },
+    "additionalProperties": false,
+    "anyOf": [
+      {
+        "required": [
+          "step"
+        ]
+      },
+      {
+        "required": [
+          "part_ref"
+        ]
+      }
+    ],
+    "patternProperties": {
+      "^(spec_version|step|features|(part|drawing)_ref)$(?!\n)": {
+        "type": "string"
+      }
+    },
+    "A": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "B": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

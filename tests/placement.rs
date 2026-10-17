@@ -493,6 +493,22 @@ fn omitting_one_dimension_moves_no_other() {
                     sheet_geometry(&full.sheet),
                     "{name}: {gone} {how}"
                 );
+                for old in full
+                    .views
+                    .iter()
+                    .filter(|v| !plan.views.iter().any(|n| n.id == v.id))
+                {
+                    let d = old
+                        .detail
+                        .as_ref()
+                        .expect("only optional recovery furniture may disappear");
+                    assert!(
+                        !d.authored
+                            && d.dimensions
+                                .iter()
+                                .all(|id| plan.dimensions.iter().all(|dim| dim.id != *id))
+                    );
+                }
                 assert_eq!(
                     plan.views
                         .iter()
@@ -500,6 +516,7 @@ fn omitting_one_dimension_moves_no_other() {
                         .collect::<Vec<_>>(),
                     full.views
                         .iter()
+                        .filter(|v| plan.views.iter().any(|n| n.id == v.id))
                         .map(|v| (&v.id, v.at, v.area))
                         .collect::<Vec<_>>(),
                     "{name}: {gone} {how}"
@@ -767,7 +784,7 @@ fn view_boxes(plan: &Plan, analysis: &Analysis) -> Vec<(String, [f64; 4])> {
                 ]
             } else {
                 let view = haecceity::hlr::View::new(v.direction, v.up).unwrap();
-                let [lo, hi] = analysis.envelope;
+                let [lo, hi] = v.detail.as_ref().map_or(analysis.envelope, |d| d.bounds);
                 let (mut min, mut max) = ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]);
                 for i in 0..8 {
                     let corner = [0, 1, 2].map(|k| if i >> k & 1 == 0 { lo[k] } else { hi[k] });

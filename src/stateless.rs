@@ -308,6 +308,11 @@ impl Cache {
         Session::with_projections(part, analysis, spec.clone(), projections)
     }
     fn save(&self, dir: &Path, session: &Session) -> Result<(), Error> {
+        // A disk-loaded cache whose entries did not change already has this exact
+        // representation on disk. Avoid serializing and rereading all warm geometry.
+        if !session.projections().dirty && dir.join("projections.json").is_file() {
+            return Ok(());
+        }
         let bytes = session
             .projections()
             .disk_bytes()
@@ -656,17 +661,39 @@ impl Cache {
         let version = hash(&encode(
             &json!({"parent":parent,"spec":applied.spec,"ops":ops}),
         ));
-        atomic(
-            &self.root.join("specs").join(format!("{version}.json")),
-            &encode(&applied.spec),
-        )?;
-        // Immutable history edge records the parent, ops and lossless delta, including no-op edits.
-        let edge=self.artifact(&encode(&json!({"part_ref":part_ref,"drawing_ref":drawing_ref,"parent":parent,"version":version,"ops":ops,"delta":applied.delta})), "json")?;
-        self.artifact(&encode(&applied.delta), "json")?;
-        atomic(
-            &dir.join(format!("edge-{drawing_ref}-{version}.json")),
-            &encode(&edge),
-        )?;
+        let spec_bytes = encode(&applied.spec);
+        let delta_bytes = encode(&applied.delta);
+        let edge_bytes = encode(
+            &json!({"part_ref":part_ref,"drawing_ref":drawing_ref,"parent":parent,"version":version,"ops":ops,"delta":applied.delta}),
+        );
+        let edge = format!("{}.json", hash(&edge_bytes));
+        // These immutable files are independent. Flush them concurrently, then publish
+        // the head only after every write succeeds. A failure leaves the old head live;
+        // a crash before publication can leave only unreachable immutable artifacts.
+        std::thread::scope(|scope| {
+            let writes = [
+                scope.spawn(|| {
+                    atomic(
+                        &self.root.join("specs").join(format!("{version}.json")),
+                        &spec_bytes,
+                    )
+                }),
+                scope.spawn(|| self.artifact(&edge_bytes, "json").map(|_| ())),
+                scope.spawn(|| self.artifact(&delta_bytes, "json").map(|_| ())),
+                scope.spawn(|| {
+                    atomic(
+                        &dir.join(format!("edge-{drawing_ref}-{version}.json")),
+                        &encode(&edge),
+                    )
+                }),
+            ];
+            for write in writes {
+                write.join().map_err(|_| {
+                    Error::failed("immutable history writer failed; retry the edit")
+                })??;
+            }
+            Ok::<_, Error>(())
+        })?;
         atomic(
             &dir.join(format!("head-{drawing_ref}.json")),
             &encode(&version),

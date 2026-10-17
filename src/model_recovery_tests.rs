@@ -116,7 +116,7 @@ fn new_recess_locations_clear_established_pmi_ink() {
         let spec: Spec =
             serde_json::from_value(serde_json::json!({"sheet":{"size":"A1","scale":"1:5"}}))
                 .unwrap();
-        let trial = plan_escalated_with(&a, &spec, true, None).unwrap();
+        let trial = plan_escalated_with(&a, &spec, true, None, false).unwrap();
         let hard = |p: &Plan| -> BTreeSet<_> {
             p.problems
                 .iter()
@@ -147,7 +147,7 @@ fn new_recess_locations_clear_established_pmi_ink() {
                 .map(|d| (&d.id, &d.placed))
                 .collect::<Vec<_>>()
         );
-        let auto = plan_escalated_with(&a, &Spec::default(), false, None).unwrap();
+        let auto = plan_escalated_with(&a, &Spec::default(), false, None, false).unwrap();
         assert!(
             carried(&auto).is_subset(&carried(&trial)),
             "reduction loses {:?}",

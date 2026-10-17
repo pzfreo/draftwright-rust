@@ -1891,10 +1891,10 @@
     module: "linting/structural.py"
     issues: [2181]
     tests: [tests/test_layout_safety.py]
-  status: pending
-  rust_note: "Obsolete until detail views exist (rules assessment of 2026-10-11); kept pending to revive with them."
+  status: ported
+  rust_note: "src/lint/structural.rs compares detail-caption text with every other label, across view scales, at a half-text-height gap. tests/detail_views.rs covers rendered caption separation."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream detail-views"
-
+  rust_test: "tests/detail_views.rs::a_constrained_main_scale_keeps_the_complete_head_crop_and_sheet_scale_iso"
 - id: LINT-code-derived_view_identifier_reused
   statement: "Each derived-view identifier (section or detail letter) names only one view."
   detail: "Error; read from structured view keys, not caption text."
@@ -1905,7 +1905,7 @@
     tests: [tests/test_detail_views.py, tests/test_lint_structural.py]
   status: ported
   rust_test: one_identifier_names_one_derived_view
-  rust_note: "src/lint/structural.rs: identifiers decoded from the drawn views' names as draftwright's derived_view_identifier does (section_aa is A, detail_b is B). The port draws at most one section and no detail view, so it cannot fire on its own drawings yet."
+  rust_note: "src/lint/structural.rs checks section/detail letters from stable drawn view keys. Automatic detail allocation reserves the section letter and authored detail names."
   port_note: "Keep."
 
 - id: LINT-code-title_field_overflow

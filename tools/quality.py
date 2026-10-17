@@ -465,7 +465,9 @@ def footprint_fill(a, p, furniture=()):
             up, toward = v['up'], v['direction']
             right = [up[1]*toward[2]-up[2]*toward[1], up[2]*toward[0]-up[0]*toward[2],
                      up[0]*toward[1]-up[1]*toward[0]]
-            w, h = (sum(abs(d[k])*size[k] for k in range(3))*s for d in (right, up))
+            bounds = v.get('detail', {}).get('bounds', a['envelope'])
+            view_size = [hi-lo for lo,hi in zip(*bounds)]
+            w, h = (sum(abs(d[k])*view_size[k] for k in range(3))*s for d in (right, up))
             add([x-w/2, y-h/2, x+w/2, y+h/2])
     def arrow_points(arrows):
         result=[]

@@ -65,6 +65,8 @@ pub struct Demand {
     pub turning_axis: Option<usize>,
     /// The number of turned profiles.
     pub profiles: usize,
+    /// A whole turned profile uses a common inspection end.
+    pub inspection_baseline: bool,
     /// The step levels (z, part frame) the height ladder may dimension.
     pub step_zs: Vec<f64>,
     pub holes: Vec<Hole>,
@@ -163,6 +165,7 @@ fn read_uncached(analysis: &Analysis) -> Demand {
             None => profiles.push((key, axis, zs.to_vec())),
         }
     }
+    d.inspection_baseline = crate::dims::inspection_datum(analysis).is_some();
     d.profiles = profiles.len();
     if profiles.len() == 1 {
         d.turning_axis = profiles[0].1;
@@ -476,6 +479,14 @@ pub fn strips(d: &Demand, n_steps: usize, plan_shown: bool) -> Strips {
         ..Strips::without_features()
     };
     strips.reserve(&d.lanes);
+    if d.turning_axis == Some(2) && d.inspection_baseline {
+        // A short baseline ordinate can keep its label inside using outside arrows.
+        // Its datum-end arrow must still fit above the profile, before the plan band.
+        strips.fv_top = strips.fv_top.max(crate::dims::ARROW + 1.0);
+        // The inspection baseline occupies the right column. Keep a usable exterior
+        // column for diameter and cross-hole leaders on the other silhouette.
+        strips.left = strips.left.max(30.0);
+    }
     strips.reserve_callouts(&d.callout_bands);
     strips
 }
@@ -544,38 +555,69 @@ pub fn size(
     page: Option<[f64; 2]>,
     base: f64,
 ) -> (Pick, Strips, usize) {
-    let none = |_: f64| Scaled::default();
+    size_with_details(d, request, scale, page, base, true, &|_| Scaled::default())
+}
+
+pub(crate) fn size_with_details(
+    d: &Demand,
+    request: &Request,
+    scale: Option<f64>,
+    page: Option<[f64; 2]>,
+    base: f64,
+    allow_larger: bool,
+    details: &impl Fn(f64) -> Scaled,
+) -> (Pick, Strips, usize) {
     let measure = |n: usize| strips(d, n, request.views.plan);
     let choose = |strips: &Strips| {
         let req = Request {
             strips: strips.clone(),
             ..request.clone()
         };
-        let pick = layout::choose(
+        let mut bare = layout::choose(
             &req,
-            &none,
+            &|_| Scaled::default(),
             scale,
             page,
             &layout::AUTOMATIC_ARRANGEMENTS,
             None,
         );
-        if scale.is_none() && page.is_none() && pick.scale < d.lanes.recess_chain_scale {
+        if scale.is_none() && page.is_none() && bare.scale < d.lanes.recess_chain_scale {
             let readable = layout::SCALES
                 .iter()
                 .copied()
                 .rev()
                 .find(|s| *s >= d.lanes.recess_chain_scale)
                 .unwrap_or(layout::SCALES[0]);
-            layout::choose(
+            bare = layout::choose(
                 &req,
-                &none,
+                &|_| Scaled::default(),
                 Some(readable),
                 None,
                 &layout::AUTOMATIC_ARRANGEMENTS,
                 None,
-            )
+            );
+        }
+        if !allow_larger && details(bare.scale).derived.is_empty() {
+            return bare;
+        }
+        let detailed = layout::choose(
+            &req,
+            details,
+            if allow_larger
+                && !(scale.is_none() && page.is_none() && d.lanes.recess_chain_scale > 0.0)
+            {
+                scale
+            } else {
+                Some(bare.scale)
+            },
+            if allow_larger { page } else { Some(bare.page) },
+            &layout::AUTOMATIC_ARRANGEMENTS,
+            None,
+        );
+        if detailed.fallback.is_some() && !allow_larger {
+            bare
         } else {
-            pick
+            detailed
         }
     };
     let count = |s: f64| legible(d, base, s);

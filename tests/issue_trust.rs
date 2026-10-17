@@ -548,6 +548,40 @@ fn every_number_on_the_sheet_carries_a_claim() {
             if annotated.contains(&i) || !run.text.chars().any(|c| c.is_ascii_digit()) {
                 continue;
             }
+            if run.text.starts_with("DETAIL ") {
+                let v = plan
+                    .views
+                    .iter()
+                    .find(|v| {
+                        v.detail
+                            .as_ref()
+                            .is_some_and(|d| run.text.starts_with(&format!("DETAIL {} (", d.label)))
+                    })
+                    .expect("detail scale furniture has a planned view");
+                let ratio = run
+                    .text
+                    .split_once('(')
+                    .unwrap()
+                    .1
+                    .split_once(')')
+                    .unwrap()
+                    .0;
+                let (n, d) = ratio.split_once(':').unwrap();
+                let scale = n.parse::<f64>().unwrap() / d.parse::<f64>().unwrap();
+                assert!(
+                    (scale - v.scale).abs() <= 0.001 * v.scale,
+                    "{name}: detail scale must state its actual view scale"
+                );
+                let ink = drawing
+                    .sheet
+                    .views
+                    .iter()
+                    .find(|drawn| drawn.name == v.id)
+                    .expect("detail has real projected ink")
+                    .bbox;
+                assert_eq!(run.at, [(ink[0] + ink[2]) / 2.0, ink[1] - 8.0]);
+                continue;
+            }
             let [x, y] = run.at;
             assert!(
                 (x0..=x1).contains(&x) && (y0..=y1).contains(&y),

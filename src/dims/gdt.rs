@@ -1791,6 +1791,7 @@ pub(crate) fn validate_placements(
     let all: Vec<_> = PRINCIPALS
         .iter()
         .map(|(name, direction, up)| PlannedView {
+            detail: None,
             sheet: 1,
             scale_note: None,
             xref: None,

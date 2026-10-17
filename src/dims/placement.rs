@@ -27,6 +27,7 @@ pub(super) struct Frame {
     at: P2,
     s: f64,
     centre: P2,
+    inspection: Option<(usize, f64)>,
     /// The projected envelope's box on the page.
     outline: [f64; 4],
 }
@@ -47,7 +48,18 @@ impl Frame {
     }
 
     pub(super) fn new(analysis: &Analysis, v: &PlannedView) -> Frame {
-        Frame::looking(analysis, v.direction, v.up, v.at, v.scale)
+        let mut f = Frame::looking(analysis, v.direction, v.up, v.at, v.scale);
+        if v.detail.is_some() {
+            let (size, centre) = crate::detail::crop_extent(analysis, v);
+            f.centre = centre;
+            f.outline = [
+                v.at[0] - size[0] * v.scale / 2.0,
+                v.at[1] - size[1] * v.scale / 2.0,
+                v.at[0] + size[0] * v.scale / 2.0,
+                v.at[1] + size[1] * v.scale / 2.0,
+            ];
+        }
+        f
     }
 
     /// The view looking along *direction* with *up*, the part's box centred at *at*, at scale *s*.
@@ -59,6 +71,7 @@ impl Frame {
             at,
             s,
             centre,
+            inspection: super::turned::axial_datum(analysis),
             outline: [
                 at[0] - 0.5 * s * size[0],
                 at[1] - 0.5 * s * size[1],
@@ -558,10 +571,11 @@ pub(super) fn lanes<'a>(
     items: impl ExactSizeIterator<Item = (&'a Want, Option<&'static str>)>,
     owner: &[Option<usize>],
 ) -> (Vec<Option<Side>>, Vec<usize>) {
+    let items: Vec<_> = items.collect();
     let n = items.len();
     let mut strips: Strips = BTreeMap::new();
     let mut sides: Vec<Option<Side>> = vec![None; n];
-    for (i, (w, view)) in items.enumerate() {
+    for (i, &(w, view)) in items.iter().enumerate() {
         let Some(view) = view else { continue };
         let f = &frames[view];
         let (side, rank) = match &w.shape {
@@ -615,14 +629,85 @@ pub(super) fn lanes<'a>(
         }
     }
     let mut lane = vec![0usize; n];
-    for list in strips.values_mut() {
+    for ((view, _), list) in &mut strips {
         list.sort();
-        for (n, (_, _, _, i)) in list.iter().enumerate() {
+        let links: Vec<_> = list.iter().map(|(_, _, _, i)| items[*i].0).collect();
+        for ((_, _, _, i), n) in list.iter().zip(chain_lanes(&frames[view], &links)) {
             lane[*i] = n;
         }
     }
     share_lanes(owner, &mut sides, &mut lane);
     (sides, lane)
+}
+
+/// Connected, nonoverlapping linear links share a dimension line when their labels fit
+/// between the arrows. Baselines overlap and keep separate lanes. Short links retain their
+/// own lane so their outside arrows/text cannot run into the next link. This is geometric,
+/// so authored and automatic chains use the same rule, at the actual drawing scale.
+fn chain_lanes(frame: &Frame, items: &[&Want]) -> Vec<usize> {
+    let spans: Vec<_> = items
+        .iter()
+        .map(|w| {
+            let Shape::Linear {
+                a, b, axis, order, ..
+            } = w.shape
+            else {
+                return None;
+            };
+            let horizontal = across(frame, axis)?;
+            let along = usize::from(!horizontal);
+            let length = (frame.page(b)[along] - frame.page(a)[along]).abs();
+            let ink = label_ink(&w.terms, font());
+            (length >= ink.max[0] - ink.min[0] + 2.0 * ARROW + 2.0).then_some((
+                axis,
+                order,
+                a[axis].min(b[axis]),
+                a[axis].max(b[axis]),
+            ))
+        })
+        .collect();
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+    for i in 0..items.len() {
+        let mut group = vec![i];
+        let mut j = 0;
+        while j < groups.len() {
+            let compatible = |&a: &usize, &b: &usize| match (spans[a], spans[b]) {
+                (Some((ka, oa, la, ha)), Some((kb, ob, lb, hb))) => {
+                    ka == kb && oa == ob && ha.min(hb) - la.max(lb) <= 1e-6
+                }
+                _ => false,
+            };
+            let touches = |&a: &usize, &b: &usize| match (spans[a], spans[b]) {
+                (Some((_, _, la, ha)), Some((_, _, lb, hb))) => {
+                    (ha - lb).abs() < 1e-6 || (hb - la).abs() < 1e-6
+                }
+                _ => false,
+            };
+            if group
+                .iter()
+                .all(|a| groups[j].iter().all(|b| compatible(a, b)))
+                && group
+                    .iter()
+                    .any(|a| groups[j].iter().any(|b| touches(a, b)))
+            {
+                group.extend(groups.remove(j));
+                // A newly joined link can bridge to an earlier group.
+                j = 0;
+            } else {
+                j += 1;
+            }
+        }
+        groups.push(group);
+    }
+    // Preserve the original priority of the first link in each chain.
+    groups.sort_by_key(|g| *g.iter().min().unwrap());
+    let mut lanes = vec![0; items.len()];
+    for (lane, group) in groups.iter().enumerate() {
+        for &i in group {
+            lanes[i] = lane;
+        }
+    }
+    lanes
 }
 
 /// Gives each item merged away its survivor's lane number and a parallel strip.
@@ -1140,7 +1225,8 @@ pub(super) fn body_chains(
             };
             let mut candidates = Vec::new();
             let mut clear = true;
-            for (lane, &i) in group.iter().enumerate() {
+            let links: Vec<_> = group.iter().map(|&i| &items[i]).collect();
+            for (&i, lane) in group.iter().zip(chain_lanes(f, &links)) {
                 let mut w = items[i].clone();
                 if let Shape::Linear {
                     a,
@@ -1605,6 +1691,13 @@ fn place_linear_at(
         arrows.push(arrow(map(lo, t_line), map(lo + 1.0, t_line)));
         arrows.push(arrow(map(hi, t_line), map(hi - 1.0, t_line)));
         0.5 * (lo + hi) - 0.5 * w - ink.min[0]
+    } else if hi-lo>=w+2.0 && frame.inspection.is_some_and(|(k,datum)| matches!(shape,Shape::Linear {a,b,axis,..} if *axis==k && ((a[k]-datum).abs()<1e-6 || (b[k]-datum).abs()<1e-6))) {
+        // A baseline ordinate can keep its text within the measured span with outside arrows.
+        // This avoids putting a short ordinate's text above the datum in the next view's band.
+        lines.push([map(lo,t_line),map(hi,t_line)]);
+        arrows.push(arrow(map(lo,t_line),map(lo-1.0,t_line)));
+        arrows.push(arrow(map(hi,t_line),map(hi+1.0,t_line)));
+        0.5*(lo+hi)-0.5*w-ink.min[0]
     } else {
         // Too short for the label between the arrows: the arrows point in from outside, and the
         // label sits beyond the far end.
@@ -4399,6 +4492,66 @@ mod tests {
         assert!(touches_witness([[4., 4.1], [6., 6.1]], witness, 0.2));
         assert!(touches_witness([[10., 10.1], [10.1, 10.1]], witness, 0.2));
         assert!(!touches_witness([[4., 4.4], [6., 6.4]], witness, 0.2));
+    }
+
+    #[test]
+    fn automatic_chains_share_lanes_in_both_page_directions() {
+        let a: Analysis = serde_json::from_value(serde_json::json!({
+            "schema": crate::model::ANALYSIS_SCHEMA,
+            "binding": {"source_sha256":"", "part":"plate", "face_count":0, "loader":"test"},
+            "envelope":[[0,0,0],[100,60,100]], "iso_bounds":[0,0,100,100]
+        }))
+        .unwrap();
+        let frames = BTreeMap::from([(
+            "front",
+            Frame::looking(&a, [0., -1., 0.], [0., 0., 1.], [0., 0.], 1.),
+        )]);
+        for axis in [0, 2] {
+            let want = |lo: f64, hi: f64, text: &str| {
+                let (mut a, mut b) = ([0.; 3], [0.; 3]);
+                a[axis] = lo;
+                b[axis] = hi;
+                Want {
+                    id: format!("{lo}-{hi}"),
+                    views: vec!["front"],
+                    value: (hi - lo).abs(),
+                    terms: vec![text.into()],
+                    measurements: vec![],
+                    basis: String::new(),
+                    turning: None,
+                    shape: Shape::Linear {
+                        a,
+                        b,
+                        axis,
+                        a_edge: false,
+                        b_edge: false,
+                        order: 1,
+                    },
+                }
+            };
+            // The middle link arrives last and must join both halves. Reversed endpoints
+            // are equivalent; overlapping baselines and a short, outside-text link are not.
+            let items = [
+                want(0., 20., "20"),
+                want(80., 50., "30"),
+                want(20., 50., "30"),
+                want(0., 80., "80"),
+                want(80., 82., "2"),
+            ];
+            let (_, lane) = lanes(
+                &frames,
+                items.iter().map(|w| (w, Some("front"))),
+                &[None; 5],
+            );
+            assert_eq!(lane[0], lane[1]);
+            assert_eq!(lane[0], lane[2]);
+            assert_ne!(lane[0], lane[3]);
+            assert_ne!(lane[0], lane[4]);
+            assert_eq!(
+                chain_lanes(&frames["front"], &items.iter().collect::<Vec<_>>()),
+                [0, 0, 0, 1, 2]
+            );
+        }
     }
 
     #[test]
