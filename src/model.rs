@@ -2832,6 +2832,19 @@ fn plan_with_presentation(
     if let Some(base) = &canonical {
         effective.sheet.size = Some(base.sheet.size.clone());
         effective.sheet.scale = Some(base.sheet.scale.clone());
+        if crate::placement_intent::has_pins(spec) {
+            // Recovery may reject an optional crop in favour of complete principal views.
+            // Pins keep those recovered frames, so they must also keep that detail choice:
+            // adding the seed's crop back would place it in space the canonical iso owns.
+            // Explicitly authored details still enter through their own requests.
+            for (name, detail) in
+                crate::detail::requests(analysis, &effective, base.sheet.scale_factor)
+            {
+                if !detail.authored && !base.views.iter().any(|v| v.id == format!("v:{name}")) {
+                    effective.views.entry(name).or_default().omit = true;
+                }
+            }
+        }
         for (id, d) in &mut effective.dimensions {
             // #12: an offset that puts the bend where the canonical plan has it pins the
             // automatic placement, so it is planned as a bare pin: the ink stays as it is.

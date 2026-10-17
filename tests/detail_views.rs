@@ -160,6 +160,57 @@ fn an_omitted_detail_seed_cannot_leak_into_an_ordinary_candidate() {
     );
 }
 
+#[test]
+fn bare_dimension_pins_keep_recoverys_detail_selection_and_ink() {
+    let Some(dir) = corpus::dir() else { return };
+    let (_, a) = model::analyse_native(&dir.join("mfcadpp/10046.step")).unwrap();
+    let base = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert!(base.views.iter().all(|v| v.detail.is_none()));
+    assert!(base.problems.iter().all(|p| !matches!(
+        p.code.as_str(),
+        "annotation_over_view" | "annotation_line_over_view"
+    )));
+    let dimensions = |plan: &model::Plan| {
+        let mut dims = plan.dimensions.clone();
+        for d in &mut dims {
+            // The pin changes provenance; all measurements and drawn ink must stay equal.
+            d.default = true;
+            d.from_spec.clear();
+            d.basis.clear();
+        }
+        dims
+    };
+    for pinned in &base.dimensions {
+        let spec: Spec = serde_json::from_value(json!({
+            "dimensions": {&pinned.id: {"place": {"pinned": true}}}
+        }))
+        .unwrap();
+        let plan = model::plan_recovered(&a, &spec).unwrap();
+        assert_eq!(dimensions(&plan), dimensions(&base), "pin {}", pinned.id);
+        assert_eq!(
+            plan.views
+                .iter()
+                .map(|v| (&v.id, v.at, v.area, v.scale))
+                .collect::<Vec<_>>(),
+            base.views
+                .iter()
+                .map(|v| (&v.id, v.at, v.area, v.scale))
+                .collect::<Vec<_>>(),
+            "pin {}",
+            pinned.id
+        );
+        assert!(
+            plan.problems.iter().all(|p| !matches!(
+                p.code.as_str(),
+                "annotation_over_view" | "annotation_line_over_view"
+            )),
+            "pin {}: {:?}",
+            pinned.id,
+            plan.problems
+        );
+    }
+}
+
 fn crosses(line: [[f64; 2]; 2], b: [f64; 4]) -> bool {
     let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
     for k in 0..2 {
