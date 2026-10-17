@@ -46,38 +46,64 @@ fn marks(p: &Plan) -> Vec<Mark> {
 #[test]
 fn grm03_has_an_overall_and_baseline_without_plate_thickness() {
     let a = native("gramel/GRM-03_thumbwheel_drive_screw.step");
-    let p = model::plan(&a, &Spec::default()).unwrap();
-    assert!(
-        p.dimensions
+    // The small estimate withholds the full head; its 2 mm interval is determined
+    // by the printed 0.5 and 2.5 stations. A roomy constrained sheet retains both
+    // local head lengths in a complete detail. Check both representations and use
+    // the independent geometric linter to prove every physical band quantity.
+    for (spec, local_lengths) in [
+        (Spec::default(), 1),
+        (
+            serde_json::from_value(json!({"sheet":{"size":"A3","scale":"2:1"}})).unwrap(),
+            2,
+        ),
+    ] {
+        let p = model::plan(&a, &spec).unwrap();
+        assert!(
+            p.dimensions
+                .iter()
+                .any(|d| d.id == "d:envelope/width.length" && d.label == "23.5")
+        );
+        let links: Vec<_> = p
+            .dimensions
             .iter()
-            .any(|d| d.id == "d:envelope/width.length" && d.label == "23.5")
-    );
-    let links: Vec<_> = p
-        .dimensions
-        .iter()
-        .filter(|d| d.id.ends_with("/step.length"))
-        .collect();
-    assert_eq!(links.len(), 2);
-    assert_eq!(
-        p.dimensions
-            .iter()
-            .filter(|d| d.id.ends_with("/step_position.length"))
-            .count(),
-        2
-    );
-    assert_eq!(
-        links
-            .iter()
-            .filter(|d| d.label.starts_with('(') && d.label.ends_with(')'))
-            .count(),
-        0
-    );
-    assert!(!p.dimensions.iter().any(|d| d.id.contains("f:plate:")));
-    assert!(
-        !lint::check(&a, &marks(&p))
-            .iter()
-            .any(|i| i.code == "closed_dimension_chain" || i.code == "plate_requirement_missing")
-    );
+            .filter(|d| d.id.ends_with("/step.length"))
+            .collect();
+        assert_eq!(links.len(), local_lengths);
+        assert_eq!(
+            p.dimensions
+                .iter()
+                .filter(|d| d.id.ends_with("/step_position.length"))
+                .count(),
+            2
+        );
+        assert_eq!(
+            links
+                .iter()
+                .filter(|d| d.label.starts_with('(') && d.label.ends_with(')'))
+                .count(),
+            0
+        );
+        assert!(!p.dimensions.iter().any(|d| d.id.contains("f:plate:")));
+        let issues = lint::check(&a, &marks(&p));
+        assert!(
+            !issues.iter().any(
+                |i| i.code == "closed_dimension_chain" || i.code == "plate_requirement_missing"
+            ),
+            "{spec:?}: {issues:?} / {:?}",
+            p.dimensions
+                .iter()
+                .map(|d| (&d.id, &d.label, &d.measurements))
+                .collect::<Vec<_>>()
+        );
+        let outcomes = lint::turned::outcomes(&a, &marks(&p));
+        assert_eq!(outcomes.len(), 8);
+        assert!(
+            outcomes
+                .iter()
+                .all(|o| o.state == lint::turned::State::Placed),
+            "{outcomes:?}"
+        );
+    }
 }
 #[test]
 fn ctc05_states_its_od_and_across_flats_once() {
