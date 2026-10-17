@@ -8,9 +8,19 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Added
 
+- Geometry-authored dimensions (`dimensions/d:authored:<name>`): principal or true distances,
+  cylindrical/spherical diameters and radii, and planar-face/straight-edge angles, with stable
+  fingerprint references, ordinary tolerance/placement, editor/session operations and independent
+  geometry lint (#76 item 1). Duplicate drawn quantities are refused with their existing owner.
 - Spec line-work switches per view and drawing-wide sheet defaults: hidden lines,
   centre marks, centre lines, thread depiction and knurl depiction (#76 item 6).
   Session options/edits support them; effective paths are reported in view `from_spec`.
+
+### Fixed
+
+- Keep geometry-authored angle arcs local to their support intersection and place aligned
+  dimensions at a clear parallel offset, moving unpinned linear dimensions out of their way
+  before escalating the sheet.
 
 ### WASM API
 
@@ -18,6 +28,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   ceiling, and warning-only cross-package quiddity pin checks in CI and release notes.
 - Additive Spec line-work switches and optional Plan view `line_style`/`from_spec`
   fields, shared with native sessions; no binding method changes.
+- Spec JSON accepts authored dimension fields; Analysis/7 exposes optional exact
+  dimension-reference evidence. Engine method signatures are unchanged.
 
 ## 0.1.0-alpha.4 (2026-10-16)
 

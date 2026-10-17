@@ -150,7 +150,6 @@
                         "items": {
                           "anyOf": [
                             {
-                              "type": "object",
                               "properties": {
                                 "op": {
                                   "enum": [
@@ -171,7 +170,6 @@
                               "additionalProperties": false
                             },
                             {
-                              "type": "object",
                               "properties": {
                                 "op": {
                                   "const": "remove"
@@ -186,7 +184,8 @@
                               ],
                               "additionalProperties": false
                             }
-                          ]
+                          ],
+                          "type": "object"
                         }
                       }
                     },

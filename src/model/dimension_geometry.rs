@@ -1,0 +1,496 @@
+//! Exact, model-space references for dimensions independent of recognition.
+//! Reference keys are versioned fingerprints, never traversal indices or paper positions.
+use std::collections::BTreeMap;
+
+use haecceity::{
+    Part,
+    geom::{Curve, Surface},
+};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+
+use super::Analysis;
+
+type P = [f64; 3];
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum Reference {
+    Plane {
+        origin: P,
+        normal: P,
+        bounds: [P; 2],
+    },
+    Cylinder {
+        origin: P,
+        axis: P,
+        radius: f64,
+        bounds: [P; 2],
+        sites: Vec<P>,
+    },
+    Sphere {
+        centre: P,
+        radius: f64,
+        bounds: [P; 2],
+        sites: Vec<P>,
+    },
+    Edge {
+        ends: [P; 2],
+    },
+    Vertex {
+        point: P,
+    },
+}
+
+pub(super) fn evidence(part: &Part) -> BTreeMap<String, Vec<Reference>> {
+    // Multiple coincident entities deliberately remain ambiguous instead of picking an index.
+    let mut out: BTreeMap<String, Vec<Reference>> = BTreeMap::new();
+    let mut insert = |prefix: &str, r: Reference, boundary: Vec<String>| {
+        let mut value = serde_json::to_value((&r, boundary)).expect("finite geometry");
+        fn quantize(v: &mut serde_json::Value) {
+            match v {
+                serde_json::Value::Number(n) => {
+                    if let Some(f) = n.as_f64() {
+                        *v = serde_json::json!((f * 1e6).round() / 1e6 + 0.0);
+                    }
+                }
+                serde_json::Value::Array(a) => a.iter_mut().for_each(quantize),
+                serde_json::Value::Object(o) => o.values_mut().for_each(quantize),
+                _ => {}
+            }
+        }
+        quantize(&mut value);
+        let hash = Sha256::digest(serde_json::to_vec(&value).expect("geometry serializes"));
+        let hash: String = hash.iter().map(|b| format!("{b:02x}")).collect();
+        let key = format!("{prefix}:v1:{hash}");
+        out.entry(key).or_default().push(r);
+    };
+    let vertices: BTreeMap<_, _> = part
+        .edges
+        .iter()
+        .flat_map(|e| [(e.vertices.0, e.start), (e.vertices.1, e.end)])
+        .collect();
+    for p in vertices.values() {
+        insert("vertex", Reference::Vertex { point: *p }, vec![]);
+    }
+    for e in &part.edges {
+        if matches!(e.curve, Curve::Line { .. }) {
+            let mut ends = [e.start, e.end];
+            ends.sort_by(|a, b| a.partial_cmp(b).expect("finite endpoints"));
+            insert("edge", Reference::Edge { ends }, vec![]);
+        }
+    }
+    for (i, f) in part.faces.iter().enumerate() {
+        if !matches!(
+            f.surface,
+            Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Sphere { .. }
+        ) {
+            continue;
+        }
+        let needs_sites = !matches!(f.surface, Surface::Plane { .. });
+        let b = part.face_bounds(i);
+        let bounds = [b.min, b.max];
+        let mut boundary = Vec::new();
+        let mut sites = Vec::new();
+        for (e, _) in f.loops.iter().flat_map(|l| &l.edges) {
+            let edge = &part.edges[*e];
+            let mut ends = [edge.start, edge.end];
+            ends.sort_by(|a, b| a.partial_cmp(b).expect("finite endpoints"));
+            boundary.push(
+                serde_json::to_string(&ends.map(|p| p.map(|v| (v * 1e6).round() / 1e6 + 0.0)))
+                    .unwrap(),
+            );
+            if needs_sites {
+                sites.extend(ends);
+                if !matches!(edge.curve, Curve::Line { .. }) {
+                    // Sample in a canonical direction too: reversed traversal of a circle
+                    // otherwise visits equivalent parameters with different last-bit sines.
+                    let sense = if edge.is_closed() {
+                        true
+                    } else if ends[0] == edge.start {
+                        edge.same_sense
+                    } else {
+                        !edge.same_sense
+                    };
+                    let (a, b) = haecceity::sampling::edge_interval(
+                        &edge.curve,
+                        ends[0],
+                        ends[1],
+                        sense,
+                        edge.is_closed(),
+                    );
+                    sites.extend((1..16).map(|j| edge.curve.value(a + (b - a) * j as f64 / 16.0)));
+                }
+            }
+        }
+        boundary.sort();
+        sites.sort_by(|a, b| a.partial_cmp(b).expect("finite sites"));
+        sites.dedup();
+        // A boundaryless sphere still has exact surface sites.
+        let r = match &f.surface {
+            Surface::Plane { frame } => {
+                let normal = unit(frame.z).expect("plane normal");
+                let normal = canonical(normal);
+                let origin = mul(normal, dot(frame.origin, normal));
+                Reference::Plane {
+                    origin,
+                    normal,
+                    bounds,
+                }
+            }
+            Surface::Cylinder { frame, radius } => {
+                let axis = canonical(unit(frame.z).expect("cylinder axis"));
+                let origin = sub(frame.origin, mul(axis, dot(frame.origin, axis)));
+                Reference::Cylinder {
+                    origin,
+                    axis,
+                    radius: *radius,
+                    bounds,
+                    sites,
+                }
+            }
+            Surface::Sphere { frame, radius } => {
+                if sites.is_empty() {
+                    sites.extend((0..3).flat_map(|k| {
+                        [-1.0, 1.0].map(move |s| {
+                            let mut p = frame.origin;
+                            p[k] += s * radius;
+                            p
+                        })
+                    }));
+                }
+                Reference::Sphere {
+                    centre: frame.origin,
+                    radius: *radius,
+                    bounds,
+                    sites,
+                }
+            }
+            _ => continue,
+        };
+        insert("face", r, boundary);
+    }
+    out
+}
+
+pub(crate) fn sub(a: P, b: P) -> P {
+    [0, 1, 2].map(|k| a[k] - b[k])
+}
+fn add(a: P, b: P) -> P {
+    [0, 1, 2].map(|k| a[k] + b[k])
+}
+fn mul(a: P, s: f64) -> P {
+    a.map(|v| v * s)
+}
+pub(crate) fn dot(a: P, b: P) -> f64 {
+    (0..3).map(|k| a[k] * b[k]).sum()
+}
+pub(crate) fn unit(a: P) -> Option<P> {
+    let n = dot(a, a).sqrt();
+    (n > 1e-10).then(|| mul(a, 1.0 / n))
+}
+fn canonical(a: P) -> P {
+    if a.iter().find(|v| v.abs() > 1e-10).is_some_and(|v| *v < 0.0) {
+        mul(a, -1.0)
+    } else {
+        a
+    }
+}
+fn midpoint(b: [P; 2]) -> P {
+    mul(add(b[0], b[1]), 0.5)
+}
+
+#[derive(Clone, Debug)]
+pub struct Measurement {
+    pub value: f64,
+    pub witnesses: Option<[P; 2]>,
+    pub angle: Option<crate::dims::angular::Angle>,
+    pub sites: Vec<P>,
+}
+
+impl Analysis {
+    /// Inventory to copy into an authored dimension. Empty in older Analyses: analyse again.
+    pub fn dimension_references(&self) -> &BTreeMap<String, Vec<Reference>> {
+        static EMPTY: std::sync::OnceLock<BTreeMap<String, Vec<Reference>>> =
+            std::sync::OnceLock::new();
+        self.edge_ink
+            .as_ref()
+            .map(|e| &e.references)
+            .unwrap_or_else(|| EMPTY.get_or_init(BTreeMap::new))
+    }
+    pub fn dimension_reference(&self, key: &str) -> Result<Reference, String> {
+        if self.dimension_references().is_empty() {
+            return Err("This Analysis records no dimension references; analyse the STEP again, then copy stable keys from Analysis.edge_ink.references.".into());
+        }
+        if let Some(id) = key.strip_prefix("axis:") {
+            let candidates: Vec<_> = if id.starts_with("face:") {
+                vec![self.dimension_reference(id)?]
+            } else {
+                let f=self.features.iter().find(|f| f.id==id).ok_or_else(|| format!("Unknown axis feature {id}; choose axis:face:<fingerprint> from Analysis.edge_ink.references."))?;
+                f.faces
+                    .iter()
+                    .filter_map(|&i| {
+                        let a = self.face_attachments.get(i)?;
+                        let bounds = a.bounds?;
+                        self.dimension_references()
+                            .values()
+                            .flatten()
+                            .find(|r| match r {
+                                Reference::Cylinder { bounds: b, .. } => (0..3).all(|k| {
+                                    (b[0][k] - bounds[k]).abs() < 1e-6
+                                        && (b[1][k] - bounds[k + 3]).abs() < 1e-6
+                                }),
+                                _ => false,
+                            })
+                            .cloned()
+                    })
+                    .collect()
+            };
+            let mut lines = Vec::new();
+            for r in candidates {
+                if let Reference::Cylinder {
+                    origin,
+                    axis,
+                    bounds,
+                    ..
+                } = r
+                {
+                    let c = midpoint(bounds);
+                    let p = add(origin, mul(axis, dot(sub(c, origin), axis)));
+                    lines.push(Reference::Edge {
+                        ends: [sub(p, axis), add(p, axis)],
+                    });
+                }
+            }
+            let first = lines
+                .first()
+                .ok_or("An axis needs a cylindrical face; choose axis:face:<fingerprint>.")?;
+            if lines.iter().any(|r| !coaxial(first, r)) {
+                return Err("The feature has several cylinder axes; choose axis:face:<fingerprint> for one cylinder.".into());
+            }
+            return Ok(first.clone());
+        }
+        match self.dimension_references().get(key).map(Vec::as_slice) {
+            Some([r]) => Ok(r.clone()),
+            Some(_) => Err(format!(
+                "Reference {key} is ambiguous (coincident entities); choose a unique face, edge or vertex fingerprint."
+            )),
+            None => Err(format!(
+                "Unknown reference {key}; copy a face:v1:…, edge:v1:… or vertex:v1:… key from Analysis.edge_ink.references; analyse the STEP again if absent."
+            )),
+        }
+    }
+    /// Measure only geometry and a quantity request. Used independently by lint from ink claims.
+    pub fn measure_references(
+        &self,
+        refs: &[String],
+        kind: &str,
+        along: Option<&str>,
+    ) -> Result<Measurement, String> {
+        let r: Vec<_> = refs
+            .iter()
+            .map(|s| self.dimension_reference(s))
+            .collect::<Result<_, _>>()?;
+        let mut out = Measurement {
+            value: 0.0,
+            witnesses: None,
+            angle: None,
+            sites: vec![],
+        };
+        if along.is_some_and(|v| kind != "linear" || !["x", "y", "z", "true"].contains(&v)) {
+            return Err("along is x, y, z or true for a linear distance only.".into());
+        }
+        match (kind, r.as_slice()) {
+            ("diameter" | "radius", [Reference::Cylinder { radius, sites, .. } | Reference::Sphere { radius, sites, .. }]) => {
+                out.value = radius * if kind == "diameter" { 2.0 } else { 1.0 };
+                out.sites = sites.clone();
+            }
+            ("angle", [a, b]) => {
+                let (pa, da) = direction(a)?;
+                let (pb, db) = direction(b)?;
+                if matches!(a, Reference::Plane { .. }) != matches!(b, Reference::Plane { .. }) {
+                    return Err("An angle needs two planar faces or two straight edges.".into());
+                }
+                let angle = if matches!(a, Reference::Plane { .. }) {
+                    crate::dims::angular::from_planes([(pa, da), (pb, db)], [pa, pb])
+                        .map_err(String::from)?
+                } else {
+                    let coupling = dot(da, db);
+                    let determinant = 1.0 - coupling * coupling;
+                    if determinant <= 1e-12 {
+                        return Err("Parallel edges have no angular sector; choose nonparallel straight edges.".into());
+                    }
+                    let delta = sub(pb, pa);
+                    let first = (dot(delta, da) - coupling * dot(delta, db)) / determinant;
+                    let second = coupling * first - dot(delta, db);
+                    let vertex = add(pa, mul(da, first));
+                    if dot(sub(vertex, add(pb, mul(db, second))), sub(vertex, add(pb, mul(db, second)))) > 1e-12 {
+                        return Err("Skew edges do not meet; choose coplanar straight edges.".into());
+                    }
+                    let witness = |r: &Reference| {
+                        let Reference::Edge { ends } = r else { unreachable!() };
+                        *ends.iter().max_by(|a, b| {
+                            dot(sub(**a, vertex), sub(**a, vertex)).total_cmp(&dot(sub(**b, vertex), sub(**b, vertex)))
+                        }).expect("two endpoints")
+                    };
+                    crate::dims::angular::Angle { vertex, first: witness(a), second: witness(b) }
+                };
+                out.value = angle.degrees().ok_or("The angular supports are degenerate; choose distinct half-rays.")?;
+                out.angle = Some(angle);
+            }
+            ("linear", [a, b]) => {
+                let axis = ["x", "y", "z"].iter().position(|s| Some(*s) == along);
+                let points = if let Some(k) = axis {
+                    let pa = station(a, k)?;
+                    let pb = station(b, k)?;
+                    [pa, pb]
+                } else {
+                    closest(a, b)?
+                };
+                out.value = if let Some(k) = axis {
+                    (points[1][k] - points[0][k]).abs()
+                } else {
+                    let delta = sub(points[1], points[0]);
+                    dot(delta, delta).sqrt()
+                };
+                out.witnesses = Some(points);
+            }
+            _ => return Err("Use linear/angle with two references, or diameter/radius with one cylindrical or spherical face.".into()),
+        }
+        if !out.value.is_finite() || out.value <= 1e-7 {
+            return Err("The requested quantity is zero or degenerate; choose distinct, nonintersecting supports (or nonparallel angular references).".into());
+        }
+        Ok(out)
+    }
+}
+fn direction(r: &Reference) -> Result<(P, P), String> {
+    match r {
+        Reference::Plane {
+            origin,
+            normal,
+            bounds,
+        } => {
+            let c = midpoint(*bounds);
+            Ok((sub(c, mul(*normal, dot(sub(c, *origin), *normal))), *normal))
+        }
+        Reference::Edge { ends } => Ok((
+            ends[0],
+            unit(sub(ends[1], ends[0])).ok_or("Degenerate edge")?,
+        )),
+        _ => Err(
+            "Use planar faces or straight edges for an angle; use axis: for a cylinder's axis."
+                .into(),
+        ),
+    }
+}
+fn coaxial(a: &Reference, b: &Reference) -> bool {
+    let (Ok((pa, da)), Ok((pb, db))) = (direction(a), direction(b)) else {
+        return false;
+    };
+    dot(da, db).abs() > 1.0 - 1e-8
+        && dot(
+            sub(sub(pb, pa), mul(da, dot(sub(pb, pa), da))),
+            sub(sub(pb, pa), mul(da, dot(sub(pb, pa), da))),
+        ) < 1e-10
+}
+fn station(r: &Reference, k: usize) -> Result<P, String> {
+    match r {
+        Reference::Vertex { point } => Ok(*point),
+        Reference::Edge { ends } if (ends[0][k] - ends[1][k]).abs() < 1e-7 => Ok(midpoint(*ends)),
+        Reference::Plane {
+            origin,
+            normal,
+            bounds,
+        } if normal[k].abs() > 1.0 - 1e-8 => {
+            let mut p = midpoint(*bounds);
+            p[k] = origin[k];
+            Ok(p)
+        }
+        _ => Err(format!(
+            "This reference has no unique {} station; choose a perpendicular plane, edge, vertex or axis, or use along: true.",
+            ["x", "y", "z"][k]
+        )),
+    }
+}
+fn closest(a: &Reference, b: &Reference) -> Result<[P; 2], String> {
+    if let Reference::Plane { origin, normal, .. } = a {
+        let p = match b {
+            Reference::Vertex { point } => *point,
+            Reference::Edge { ends } if dot(sub(ends[1], ends[0]), *normal).abs() < 1e-8 => midpoint(*ends),
+            Reference::Plane { normal: n, bounds, .. } if dot(*n, *normal).abs() > 1.0-1e-8 => midpoint(*bounds),
+            _ => return Err("Intersecting or unsupported supports have no nonzero true distance; use parallel planes, points, straight edges or axes.".into()),
+        };
+        return Ok([sub(p, mul(*normal, dot(sub(p, *origin), *normal))), p]);
+    }
+    if matches!(b, Reference::Plane { .. }) {
+        let [p, q] = closest(b, a)?;
+        return Ok([q, p]);
+    }
+    let line = |r: &Reference| -> Result<(P, Option<P>), String> {
+        match r {
+            Reference::Vertex { point } => Ok((*point, None)),
+            Reference::Edge { ends } => Ok((midpoint(*ends), unit(sub(ends[1], ends[0])))),
+            _ => Err(
+                "Use axis:face:<fingerprint> for a cylinder, or a plane, straight edge or vertex."
+                    .into(),
+            ),
+        }
+    };
+    let (pa, da) = line(a)?;
+    let (pb, db) = line(b)?;
+    let d = sub(pb, pa);
+    Ok(match (da, db) {
+        (None, None) => [pa, pb],
+        (Some(u), None) => [add(pa, mul(u, dot(d, u))), pb],
+        (None, Some(v)) => [pa, sub(pb, mul(v, dot(d, v)))],
+        (Some(u), Some(v)) => {
+            let c = dot(u, v);
+            let det = 1.0 - c * c;
+            let s = if det < 1e-10 {
+                dot(d, u)
+            } else {
+                (dot(d, u) - c * dot(d, v)) / det
+            };
+            let t = c * s - dot(d, v);
+            [add(pa, mul(u, s)), add(pb, mul(v, t))]
+        }
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn reference_fingerprints_ignore_topology_enumeration_and_edge_sense() {
+        let mut p =
+            haecceity::read_step(include_bytes!("../../tests/fixtures/parts/plate.step")).unwrap();
+        let before = super::evidence(&p);
+        p.faces.reverse();
+        let n = p.edges.len();
+        let faces = p.faces.len();
+        for solid in &mut p.solids {
+            for face in &mut solid.faces {
+                *face = faces - 1 - *face;
+            }
+        }
+        p.edges.reverse();
+        for f in &mut p.faces {
+            for (edge, _) in &mut f.pcurves {
+                *edge = n - 1 - *edge;
+            }
+            for l in &mut f.loops {
+                for (e, sense) in &mut l.edges {
+                    *e = n - 1 - *e;
+                    *sense = !*sense;
+                }
+            }
+        }
+        for e in &mut p.edges {
+            std::mem::swap(&mut e.start, &mut e.end);
+            e.vertices = (e.vertices.1, e.vertices.0);
+            e.same_sense = !e.same_sense;
+            e.samples.reverse();
+        }
+        // Part is immutable after its first query; rebuilding also discards all topology caches.
+        let reordered = haecceity::Part::new(p.faces, p.edges, p.solids);
+        assert_eq!(before, super::evidence(&reordered));
+    }
+}
