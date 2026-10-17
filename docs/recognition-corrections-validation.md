@@ -59,7 +59,7 @@ Without corrections the resolver borrows the original Analysis without face hash
 face lookup or geometry scans. R4 remains intact: analysis never manufactures Spec
 declarations; these declarations are authored intent over the one analysed part.
 
-## Checks
+## Checks before merging #77
 
 All checks used the final source, jobs/threads set to four, and the required corpus.
 Logs and reports are under `target/recognition-corrections/` (ignored build artifacts).
@@ -77,8 +77,9 @@ Logs and reports are under `target/recognition-corrections/` (ignored build arti
 | WASM build and native parity | Passed: locked `wasm-release` web package build, locked native reference build and all three Node tests. The two session replays cover 19 states, 53 byte comparisons and four structured preview comparisons, including correction edits and undo/redo. |
 
 WASM size is 13,797,666 bytes raw, 4,556,177 bytes gzip and 3,016,029 bytes Brotli.
-Existing `Engine` exports and signatures are unchanged, so the conditional WASM API
-check/migration does not apply. `tools/check_wasm_api.py` is not present in this checkout.
+At that pre-merge checkpoint, `Engine` exports and signatures were unchanged and
+`tools/check_wasm_api.py` was not present. The #77 merge adds that gate; its result is
+recorded below.
 The package build reported the existing wrapper-directory LICENSE-file notice; it
 completed successfully. Nothing was published.
 
@@ -113,3 +114,58 @@ remain visible: missing general tolerance and recognition status, plus three
 uncorrected pocket. The corrected pocket removes its unclaimed-geometry warning.
 These examples use only A4/A3; no A2+, forced detail, sheet policy, datum rule or fit
 formatting change was introduced.
+
+## Merge of #77 and split-grid investigation (2026-10-17)
+
+Merged `origin/main` without rebasing. Both Unreleased feature entries and the WASM
+API notes are retained. MCP schemas were regenerated, preserving the typed line-work
+switches and recognition declarations. Main's anchored-name compactor is the only
+property-grouping implementation; exact end-of-name checks remain necessary because
+JSON Schema's `$` can match before a final newline. Common map/list constraints apply
+alongside named view/declaration constraints. Closed-object cardinalities and short
+local JSON Pointer targets keep the 26 standalone schemas at **42,413 bytes**, below
+main's unchanged **42,500-byte** limit. Native validation covers the emitted object
+cardinalities and property-name whitelists. Independent validation checks simultaneous
+named/pattern constraints, missing/replaced declaration keys and malformed types.
+An additional 13,863 original/compact schema comparisons agreed.
+
+The premise that A4 1:1 was rejected is false. With all **13 dimensions**, the automatic
+candidate report says:
+
+```text
+A4 1:1 fill 52.2% (valid and complete, 0 additional view conflicts,
+0 additional material crossings, 4 annotation conflicts, stacked-iso)
+A3 2:1 fill 55.1% (valid and complete, 0 additional view conflicts,
+0 additional material crossings, 3 annotation conflicts, columns)
+```
+
+No A4 fit check, hard finding, missing ordinate or dropped item failed. The four
+annotation entries are informational `annotation_outside_area` notices, not ink
+collisions: one thickness dimension extends 2.7 mm past its reserved band, and three
+X locations extend 0.1, 7.1 and 14.1 mm past theirs. These do not leave the usable
+sheet. The pinned A4 1:1 plan places every dimension and passes independent drawing
+lint. Its two warning-level notifications concern absent general tolerance and the
+native recognizer's unsupported recess family, neither caused by splitting.
+
+A3 wins the existing fill comparison after A4 is accepted. The unsplit example keeps
+A4 despite A3's 54.4% fill because its A3 candidate adds one material crossing; the
+split A3 candidate adds none. No split-location placement fault was found. The new
+`split_grid_a4_is_a_complete_fit_and_a3_is_selected_only_by_fill` regression proves
+both the accepted automatic A4 candidate and the fully placed, independently linted
+pinned A4 drawing. Sheet selection, thresholds and placement code are unchanged.
+
+Merge validation uses logs in `target/recognition-corrections/merge-validation/`:
+
+| Check | Result |
+| --- | --- |
+| `cargo fmt --all --check` | Passed. |
+| `cargo clippy --workspace --all-targets --release -- -D warnings` | Passed on the final test source. |
+| MCP schemas | Passed: all 13 tools / 26 published and served schemas agree, including refusal outputs and strict line-work/declaration shapes. Clean regeneration reproduces every file. |
+| Recognition regressions | All 20 passed: the original 19 plus the A4 acceptance/fill regression. |
+| `tests/linework_spec.rs` | All six passed. |
+| Schema budget / engine version | All three tests passed; 42,413 compact schema bytes. |
+| WASM | The exact CI `wasm-pack build crates/draftwright-wasm --target web --profile wasm-release --locked` build passed, then `python3 tools/check_wasm_api.py --base-ref origin/main` matched the reviewed snapshot. |
+
+The WASM tool cache and uv cache were placed under `/private/tmp` because the default
+user caches are outside this run's writable roots. WASM retained the existing wrapper
+LICENSE-file notice. No build setting, gate or threshold was disabled or changed.

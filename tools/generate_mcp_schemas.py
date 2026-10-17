@@ -155,12 +155,15 @@ def group_properties(schema, top=True):
             for branch in branches: del branch['type']
     props = schema.get('properties', {})
     required_original = schema.get('required', [])
-    if (schema.get('additionalProperties') is False and not schema.get('patternProperties') and props
+    if (schema.get('type') == 'object' and schema.get('additionalProperties') is False
+            and not schema.get('patternProperties') and props
             and set(required_original) == set(props)
-            and all('const' in v or 'enum' in v for v in props.values())):
+            and set(schema) <= {'type', 'properties', 'required', 'additionalProperties'}
+            and all(set(v) in ({'const'}, {'enum'}) for v in props.values())):
         from itertools import product
+        from math import prod
         choices = [v.get('enum', [v.get('const')]) for v in props.values()]
-        if all(len(c) <= 16 for c in choices):
+        if prod(map(len, choices)) <= 16:
             values = [dict(zip(props, vs)) for vs in product(*choices)]
             trial = {'type': 'object', 'enum': values}
             if len(json.dumps(trial)) < len(json.dumps(schema)): return trial

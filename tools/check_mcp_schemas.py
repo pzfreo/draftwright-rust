@@ -44,6 +44,15 @@ with tempfile.TemporaryDirectory(prefix='s7-schema-') as cache:
                 nullable.validate(authored(value))
             for value in ('false', 0, [], {}):
                 assert not nullable.is_valid(authored(value)), (scope, field, value)
+    declaration = {'id': 'f:declared:x', 'kind': 'hole', 'faces': []}
+    nullable.validate({'part_ref': 'part', 'spec': {'feature_declarations': [declaration]}})
+    for bad in ({'kind': 'hole', 'faces': [], 'replacement': 'x'},
+                {**declaration, 'extra': 'x'}, {'id': 'f:declared:x', 'faces': []},
+                {**declaration, 'faces': 'not-a-list'}, None, [], 'bad'):
+        assert not nullable.is_valid({'part_ref': 'part', 'spec': {'feature_declarations': [bad]}}), bad
+    # Named view constraints and the common object-map shape must both apply.
+    assert not nullable.is_valid({'part_ref': 'part', 'spec': {'views': {'side': []}}})
+    assert not nullable.is_valid({'part_ref': 'part', 'spec': {'feature_declarations': 'bad'}})
     def call(name, args):
         validators[name, 'input'].validate(args)
         result = rpc('tools/call', {'name': name, 'arguments': args})

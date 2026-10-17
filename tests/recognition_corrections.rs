@@ -216,6 +216,42 @@ fn split_and_regroup_use_the_ordinary_grid_planner_and_saved_ids() {
 }
 
 #[test]
+fn split_grid_a4_is_a_complete_fit_and_a3_is_selected_only_by_fill() {
+    let (part, a) = plate();
+    let pattern = &a.recognition.as_ref().unwrap().patterns[0];
+    let split = spec(json!({"features":{&pattern.id:{"split":true}}}));
+    let automatic = model::plan_recovered(&a, &split).unwrap();
+    assert_eq!(automatic.dimensions.len(), 13);
+    assert!(automatic.sheet.basis.contains("smallest fit A4 at 1:1"));
+    assert!(automatic.sheet.basis.contains(
+        "A4 1:1 fill 52.2% (valid and complete, 0 additional view conflicts, 0 additional material crossings"
+    ), "{}", automatic.sheet.basis);
+    assert_eq!(
+        (&*automatic.sheet.size, &*automatic.sheet.scale),
+        ("A3", "2:1")
+    );
+
+    let mut pinned = split;
+    pinned.sheet.size = Some("A4".into());
+    pinned.sheet.scale = Some("1:1".into());
+    let p = model::plan_recovered(&a, &pinned).unwrap();
+    assert_eq!(p.dimensions.len(), 13);
+    assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
+    assert!(
+        p.problems.iter().all(|problem| problem.severity == "info"
+            || matches!(
+                problem.code.as_str(),
+                "features_not_recognised" | "general_tolerance_missing"
+            )),
+        "{:?}",
+        p.problems
+    );
+    let drawing = model::render(&part, &a, &p, &font()).unwrap();
+    let effective = corrections::effective(&a, &p.spec).unwrap();
+    assert!(lint::lint(&effective, &drawing).is_empty());
+}
+
+#[test]
 fn bad_references_conflicting_actions_and_false_patterns_are_refused() {
     let (_, a) = plate();
     for value in [
@@ -603,6 +639,8 @@ fn published_mcp_schema_and_common_model_accept_corrections_and_refuse_bad_shape
     for bad in [
         json!({"id":"f:declared:x","kind":"hole","faces":"face:bad"}),
         json!({"id":"f:declared:x","kind":"hole","faces":[],"diameter":20}),
+        json!({"kind":"hole","faces":[],"replacement":"x"}),
+        json!({"id":"f:declared:x","faces":[]}),
     ] {
         assert!(
             draftwright::mcp::validate(
