@@ -211,3 +211,10 @@ for tool,(inp,out) in tools.items():
         schema = short_names(share_repeated(group_properties(inline_single_use(hoist_objects(schema), keep))))
         if not schema['$defs']: del schema['$defs']
         Path(f'schemas/mcp/{tool}.{kind}.json').write_text(json.dumps(schema,indent=2)+'\n')
+
+# Exact strict bound, shared with tests/engine_version.rs. Count compact UTF-8,
+# as tools/list serves it, rather than pretty-printed files on disk.
+schema_bytes = sum(len(json.dumps(json.loads(p.read_text()), separators=(',', ':')).encode())
+                   for p in Path('schemas/mcp').glob('*.json'))
+assert schema_bytes < 46329, f'MCP schema budget exceeded: {schema_bytes} bytes'
+print(f'MCP schemas: {schema_bytes} bytes per session (budget < 46329)')

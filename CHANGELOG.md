@@ -12,7 +12,7 @@ All notable changes to draftwright-rust are recorded here, in the style of
   a feature/face ID or a nonempty list whose crops are united. Missing members and
   degenerate projections in an explicit parent are refused. Mixed natural sources choose
   the view with most visible members and explain the choice in the basis. Saved strings
-  remain compatible. Typed MCP schemas measure 46,868 bytes (strict budget below 46,869).
+  remain compatible. Typed MCP schemas measure 46,328 bytes (strict budget below 46,329).
 
 - Enlarged orthographic detail views for crowded turned chains and heads, thin terminal
   flanges, prismatic height ladders and authored feature crops. Details participate in sheet
@@ -39,6 +39,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   ceiling, and warning-only cross-package quiddity pin checks in CI and release notes.
 - Additive Spec line-work switches and optional Plan view `line_style`/`from_spec`
   fields, shared with native sessions; no binding method changes.
+- Spec JSON accepts authored feature crops (`detail`, `around`, `from`, `scale_factor`)
+  and optional Plan view `detail` records; engine method signatures are unchanged.
 - Spec JSON accepts authored dimension fields; Analysis/7 exposes optional exact
   dimension-reference evidence. Engine method signatures are unchanged.
 
