@@ -30,7 +30,7 @@ All notable changes to draftwright-rust are recorded here, in the style of
 ### Fixed
 
 - Automatic sheet candidates require dimensioned turned-step intervals to span at least
-  the annotation text height in their owning view, including baseline replacements.
+  the printed annotation capital height in their owning view, including baseline replacements.
   Explicit scales retain their geometry and warn below this floor. A complete, legible
   A3 drawing keeps practical paper instead of growing to A2 solely for fill.
 - Keep geometry-authored angle arcs local to their support intersection and place aligned

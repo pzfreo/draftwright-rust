@@ -248,7 +248,7 @@ pub const LANE: f64 = 7.0;
 /// dimension line, the middle of a capital above its baseline, and a leader's shoulder.
 const TOKEN_GAP: f64 = 0.45 * TEXT;
 const LIFT: f64 = 1.0;
-const CAP: f64 = 0.7 * TEXT;
+pub(crate) const CAP: f64 = 0.7 * TEXT;
 const SHOULDER: f64 = 3.0;
 /// The font labels are measured and drawn with (ARCH0006-1: one file for both).
 pub const FONT: &str = "IBMPlexMono-Regular.ttf";

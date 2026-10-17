@@ -1,6 +1,7 @@
 """Compare all unique corpus/fixture STEP contents against an archived executable.
 
-Exactly 227 drawable parts, plus the intentionally unresolved fixture, at this revision.
+The review manifest has 227 drawable parts plus the intentionally unresolved fixture.
+Use --manifest to replay that exact set after additional fixtures are merged.
 The contents manifest, complete Plans, errors and PMI requirement states are retained.
 """
 import argparse
@@ -8,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 import gzip
 import hashlib
 import json
+import math
 import shutil
 from pathlib import Path
 import subprocess
@@ -73,10 +75,12 @@ def main():
                         if m['parameter'] not in ('step.length', 'step_position.length') or f.get('kind') != 'turned_step': continue
                         size = f['parameters']['hi'] - f['parameters']['lo']
                         drawn = size * views[d['view']]['scale']
-                        if size > 0 and drawn + 1e-6 < 3:
+                        if size > 0 and drawn + 1e-6 < 2.1:  # dims::CAP = 0.7 * TEXT
                             short[m['feature']] = {'dimension': d['id'], 'view': d['view'], 'drawn_mm': drawn}
-                opening = min((f['parameters'].get('diameter' if f['kind'] == 'hole' else 'width', float('inf'))
-                               for f in a['features'] if f['kind'] in ('hole', 'slot')), default=float('inf'))
+                openings = [f['parameters'].get('diameter' if f['kind'] == 'hole' else 'width')
+                            for f in a['features'] if f['kind'] in ('hole', 'slot')]
+                opening = min((v for v in openings if isinstance(v, (int, float))
+                               and math.isfinite(v) and v > 0), default=float('inf'))
                 longest = max(hi-lo for lo,hi in zip(*a['envelope']))
                 floor = max(0.8/opening, 20/max(longest, 1e-12), 0.1)
                 audit = {'unreadable_steps': short, 'geometric_floor': floor,

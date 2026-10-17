@@ -41,7 +41,11 @@ pub fn min_legible_scale(analysis: &Analysis) -> f64 {
         .unwrap_or(needed)
 }
 
-/// Primary axial step spans need at least one text em on paper. A collision-free
+/// Minimum primary step span: the dimension font's printed capital height, mm.
+/// The 3 mm em includes unused font space; a 2.5 mm flange can still exceed its ink.
+pub const MIN_STEP_SPAN: f64 = crate::dims::CAP;
+
+/// Primary axial step spans need at least one capital height on paper. A collision-free
 /// label alone does not make a compressed profile readable. Small treatments
 /// stated by notes (grooves, chamfers and radii) do not set this floor. Baseline
 /// stations still owe the physical interval they replace; enlarged detail owners
@@ -67,7 +71,7 @@ pub fn illegible_steps(analysis: &Analysis, plan: &Plan) -> usize {
                     .find(|f| f.id == m.feature && f.kind == "turned_step")?;
                 let length =
                     f.parameters.get("hi")?.as_f64()? - f.parameters.get("lo")?.as_f64()?;
-                (length.is_finite() && length > 0.0 && length * scale + 1e-6 < crate::dims::TEXT)
+                (length.is_finite() && length > 0.0 && length * scale + 1e-6 < MIN_STEP_SPAN)
                     .then_some(m.feature.as_str())
             })
         })

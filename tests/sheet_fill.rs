@@ -586,7 +586,7 @@ fn fixed_scale_can_use_a_valid_smaller_sheet_without_changing_scale() {
 
 /// A fit is readable only when the dimensioned profile intervals survive its scale.
 /// This formerly selected A4 1:10: the 420 mm profile was 42 mm tall and its 20 mm
-/// shoulder bands were shorter than their 3 mm labels, despite no hard collision.
+/// shoulder bands were shorter than the 2.1 mm printed capitals, despite no hard collision.
 #[test]
 fn connector109_uses_a3_at_one_to_five_for_readable_steps() {
     let Some(dir) = corpus::dir() else { return };

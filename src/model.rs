@@ -1813,6 +1813,23 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Pla
             ordinary.spec = spec.clone();
             return Ok(ordinary);
         }
+        // Main's measured-corridor fallback can be physically fitting yet still
+        // incomplete. A refused optional detail must not replace that retained
+        // drawing with an off-sheet seed. Keep every seed measurement and every
+        // remaining finding; this is recovery, never a claim of completeness.
+        let ordinary_findings = findings(&ordinary);
+        let detailed_findings = findings(&detailed);
+        if !detailed_complete
+            && drawn_sheets_fit(analysis, &ordinary)
+            && crate::sheet_fit::illegible_steps(analysis, &ordinary) == 0
+            && required.is_subset(&carried(&ordinary))
+            && undrawn_gdt(&ordinary) <= undrawn_gdt(&detailed)
+            && ordinary_findings.hard < detailed_findings.hard
+            && ordinary_findings.dropped <= detailed_findings.dropped
+        {
+            ordinary.spec = spec.clone();
+            return Ok(ordinary);
+        }
         // A refused optional search keeps the seed. Keep the ordinary search's
         // evidence too: its real candidates must not disappear from the diagnostic.
         if !complete
@@ -2141,7 +2158,8 @@ fn recover_candidates(
                 p.status = crate::completeness::status(&p.problems);
                 let mut f = findings(&p);
                 f.hard += usize::from(!actual_fit);
-                f.hard += crate::sheet_fit::illegible_steps(analysis, &p);
+                let unreadable_steps = crate::sheet_fit::illegible_steps(analysis, &p);
+                f.hard += unreadable_steps;
                 f.dropped += required.difference(&carried(&p)).count();
                 f.dropped += undrawn_gdt(&p);
                 let over = over_views(&p).saturating_sub(over_views(&first));
@@ -2164,7 +2182,7 @@ fn recover_candidates(
                     said(f, drops(&p))
                 };
                 tried.push(format!(
-                    "{name} {} fill {:.1}% ({}, {over} additional view conflicts, {crossings} additional material crossings, {} annotation conflicts, {})",
+                    "{name} {} fill {:.1}% ({}, {over} additional view conflicts, {crossings} additional material crossings, {} annotation conflicts, {unreadable_steps} unreadable step spans, {})",
                     p.sheet.scale,
                     p.sheet.fill * 100.0,
                     verdict,
@@ -2293,7 +2311,7 @@ fn recover_candidates(
         );
         let below = if illegible {
             format!(
-                "; it is below {}, the opening legibility floor, or has dimensioned steps shorter than the text height",
+                "; it is below {}, the opening legibility floor, or has dimensioned steps shorter than the printed capital height",
                 scale_name(min_legible_scale)
             )
         } else {
@@ -4416,7 +4434,7 @@ fn plan_with_presentation(
             id: "p:legibility_floor_breached:steps".into(),
             code: "legibility_floor_breached".into(),
             severity: "warning".into(),
-            message: format!("{unreadable} dimensioned step spans project below the {:.1} mm text height at the requested scale; enlarge their owning view or omit sheet/scale for automatic selection.", crate::dims::TEXT),
+            message: format!("{unreadable} dimensioned step spans project below the {:.1} mm printed capital height at the requested scale; enlarge their owning view or omit sheet/scale for automatic selection.", crate::sheet_fit::MIN_STEP_SPAN),
             subjects: vec!["sheet".into()],
             fix: vec![crate::items::Op::remove("sheet/scale")],
             ..Default::default()
