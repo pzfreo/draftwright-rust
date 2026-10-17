@@ -501,3 +501,34 @@ fn whole_axis_keeps_every_shoulder_of_counted_turned_lengths() {
         "{issues:#?}"
     );
 }
+
+#[test]
+fn fitting_authored_chain_links_share_one_dimension_line() {
+    let (_, a) = part("mounting_plate");
+    for scale in ["1:1", "2:1"] {
+        let mut s = whole("chain", "x", "plan", "min");
+        s.sheet.scale = Some(scale.into());
+        let p = model::plan_recovered(&a, &s).unwrap();
+        let mut links: Vec<_> = p
+            .dimensions
+            .iter()
+            .filter(|d| d.id.starts_with("d:scheme:"))
+            .collect();
+        links.sort_by(|a, b| a.value.total_cmp(&b.value));
+        assert_eq!(
+            links.iter().map(|d| d.value).collect::<Vec<_>>(),
+            [15., 20., 30., 30.]
+        );
+        let line = links[0].placed.as_ref().unwrap().arrows[0][0][1];
+        for link in links {
+            let placed = link.placed.as_ref().unwrap();
+            assert_eq!(placed.arrows.len(), 2);
+            for arrow in &placed.arrows {
+                assert!((arrow[0][1] - line).abs() < 1e-6, "{}: {placed:?}", link.id);
+            }
+            let (lo, hi) = (placed.arrows[0][0][0], placed.arrows[1][0][0]);
+            assert!(placed.label_box[0] > lo.min(hi));
+            assert!(placed.label_box[2] < lo.max(hi));
+        }
+    }
+}
