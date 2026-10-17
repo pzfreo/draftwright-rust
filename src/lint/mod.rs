@@ -63,6 +63,7 @@ pub mod gussets;
 pub mod hole_patterns;
 pub mod holes;
 pub mod leaders;
+mod notches;
 pub mod oriented_slots;
 pub mod pads;
 pub mod paired_ramp_steps;
@@ -486,6 +487,7 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(flats::coverage(analysis, marks));
     issues.extend(grooves::coverage(analysis, marks));
     issues.extend(chamfers::coverage(analysis, marks));
+    issues.extend(notches::coverage(analysis, marks));
     issues.extend(fillets::coverage(analysis, marks));
     issues.extend(blends::coverage(analysis, marks));
     issues.extend(paired_ramp_steps::coverage(analysis, marks));

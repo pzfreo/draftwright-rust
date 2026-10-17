@@ -711,6 +711,11 @@ const NAMED: [&str; 3] = ["slot position", "boss location", "hole or pattern loc
 /// states it as well, and it is a located feature rather than a slot's position line.
 fn rank(analysis: &Analysis, w: &Want) -> Option<u8> {
     let lead = w.measurements.first()?;
+    // These requirements retain every role through share_statements, including shared
+    // mouth datums. The historical hole-location survivor keeps only its own claim.
+    if lead.feature.starts_with("notch:") || lead.feature.starts_with("f:oriented_chamfer:") {
+        return None;
+    }
     let p = lead.parameter.as_str();
     if p.starts_with("location.length.") {
         let boss = analysis

@@ -75,6 +75,7 @@ pub(crate) use label_lanes::settle_inventory;
 pub(crate) use leaders::settle_after_furniture;
 pub(crate) use placement::collisions_cached as label_collisions;
 pub(crate) mod levels;
+mod notches;
 mod oriented_slots;
 mod pads;
 mod placement;
@@ -507,7 +508,7 @@ struct Planner {
 }
 
 /// The planners, in the order their items are planned.
-const PLANNERS: [Planner; 17] = [
+const PLANNERS: [Planner; 18] = [
     turned::PLANNER,
     envelope::PLANNER,
     stock::PLANNER,
@@ -515,6 +516,7 @@ const PLANNERS: [Planner; 17] = [
     slots::PLANNER,
     bosses::PLANNER,
     edges::PLANNER,
+    notches::PLANNER,
     blends::PLANNER,
     grooves::PLANNER,
     flats::PLANNER,
@@ -670,11 +672,6 @@ const UNDRAFTED: &[(&str, Disposition, DispositionReason)] = &[
     ),
     (
         "ObliqueThroughStep",
-        Disposition::Deferred,
-        DispositionReason::ConsumerSemanticsDeferred,
-    ),
-    (
-        "OrientedChamfer",
         Disposition::Deferred,
         DispositionReason::ConsumerSemanticsDeferred,
     ),
@@ -2638,7 +2635,8 @@ fn plan_inventory_uncached(
 }
 /// The sizes that one dimension states for every feature it spans ([`share`]), and whether its
 /// label then counts them (`n×`).
-const SHARED: [(&str, bool); 4] = [
+const SHARED: [(&str, bool); 5] = [
+    ("notch_depth.length", true),
     // draftwright's `_coalesce_aligned_linear_pitch_dims`: parallel rows with the same stations
     // show one pitch, its label unchanged, claiming every row's.
     ("pitch.length", false),

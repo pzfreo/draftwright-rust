@@ -4,7 +4,7 @@
 //! fillets, chamfers, countersinks, bosses and turned steps, then grooves, flats, the steps
 //! (angled, paired-ramp, circular blind, through and oblique through) and blends, then through
 //! slots and slot patterns, polygonal bosses and stock, double-D bores, plates, gusset ribs and
-//! their patterns, oriented slots and their patterns, and raised pads. Face levels and risers
+//! their patterns, oriented slots and their patterns, and raised pads, plus oblique-edge chamfers. Face levels and risers
 //! are evidence Rust quiddity finds (`features::levels`) but its document does not carry, so they
 //! still come through the bridge.
 //!
@@ -19,7 +19,7 @@
 //! records and `SectionRecessRefusal`s, an additive family of the same schema); it is known and
 //! not yet read here, so draftwright's section recesses come through the bridge as before
 //! (reading them is the G7b reader stream). The other families draftwright neither draws
-//! nor lints (oriented chamfers, circular face patterns, thin-wall bodies, interior voids,
+//! nor lints (circular face patterns, thin-wall bodies, interior voids,
 //! sheet-metal bodies, freeform surfaces) are known and not read
 //! either. Repeating radial profiles are read only as full-wire correspondence evidence;
 //! they never populate a normative gear feature.
@@ -153,11 +153,12 @@ pub const FAMILIES: &[(&str, &[&str])] = &[
 
 /// The families read here: each record is a feature, except an oriented slot pattern's, which is
 /// checked and not kept (see the module docs).
-pub const READ: [&str; 26] = [
+pub const READ: [&str; 27] = [
     "holes",
     "hole_patterns",
     "fillets",
     "chamfers",
+    "oriented_chamfers",
     "countersinks",
     "bosses",
     "turned_steps",
@@ -233,6 +234,21 @@ pub enum Field {
 /// so a change to it does not refuse a read that would not use it. `a.b` is field `b` of object
 /// field `a`, checked when `a` is not null (`a` is listed first).
 pub const FIELDS: &[(&str, &[(&str, Field)])] = &[
+    (
+        "OrientedChamfer",
+        &[
+            ("run", Field::Point),
+            ("length", Field::Number),
+            ("at", Field::Point),
+            ("corner", Field::Point),
+            ("leg1", Field::Number),
+            ("leg2", Field::Number),
+            ("leg1_direction", Field::Point),
+            ("leg2_direction", Field::Point),
+            ("support_spans", Field::Section(2)),
+            ("angle", Field::Number),
+        ],
+    ),
     (
         "RepeatingRadialProfile",
         &[

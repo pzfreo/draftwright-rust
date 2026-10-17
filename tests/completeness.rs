@@ -411,7 +411,6 @@ fn ownerless_occurrences_have_closed_policy_reasons() {
         "FreeformSurface",
         "InteriorVoid",
         "ObliqueThroughStep",
-        "OrientedChamfer",
         "OrientedSlotArray",
         "OrientedSlotGrid",
         "SheetMetalBody",
