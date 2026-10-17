@@ -1466,7 +1466,9 @@ fn protect_retained_routes(
     }
     if !drawn_quality_reference(analysis, reference)
         || (no_new_issue_pairs(reference, &candidate)
-            && crate::sheet_fit::routes_no_worse(analysis, reference, &candidate))
+            && crate::sheet_fit::routes_no_worse(analysis, reference, &candidate)
+            && drawn_sheets_fit(analysis, &candidate)
+            && carries_required(reference, &candidate))
     {
         return candidate;
     }
@@ -2482,6 +2484,9 @@ fn recover_candidates(
     let mut retained_thumbnail = None;
     type FittingRank = (usize, usize, usize, usize, usize, usize);
     let mut fitting_incomplete: Option<(FittingRank, Plan)> = None;
+    let historical_salvage =
+        reference_only && first.gdt.is_empty() && !drawn_items_fit(analysis, &first);
+    let mut historical_fitting: Option<((usize, usize, usize), Plan)> = None;
     let mut smallest = None;
     let mut smallest_iso: Option<f64> = None;
     let mut recipes = BTreeMap::new();
@@ -2502,9 +2507,6 @@ fn recover_candidates(
                 i > paper + 1 || (i >= LARGE_SHEET && paper < LARGE_SHEET)
             })
         {
-            break;
-        }
-        if reference_only && i >= LARGE_SHEET && practical_fallback && smallest.is_none() {
             break;
         }
         for scale in layout::SCALES.into_iter().filter(|s| {
@@ -2757,6 +2759,24 @@ fn recover_candidates(
             f.dropped += undrawn_gdt(&p);
             let over = over_views(&p).saturating_sub(over_views(&first));
             let crossings = feature_crossings(&p).saturating_sub(feature_crossings(&first));
+            // The established no-table recovery may fit physically while its
+            // crowded ordinates still need a schedule. Preserve that baseline:
+            // returning the raw off-sheet estimate prevents table installation.
+            if historical_salvage
+                && actual_fit
+                && carried(&first).is_subset(&carried(&p))
+                && undrawn_gdt(&p) <= undrawn_gdt(&first)
+                && over == 0
+                && f.hard == 0
+            {
+                let rank = (f.hard, f.dropped, i);
+                if historical_fitting
+                    .as_ref()
+                    .is_none_or(|(old, _)| rank < *old)
+                {
+                    historical_fitting = Some((rank, p.clone()));
+                }
+            }
             if !reference_only && complete_candidate(f, over) {
                 crate::sheet_fit::enclose_free_ink(analysis, &mut p);
             }
@@ -2973,6 +2993,7 @@ fn recover_candidates(
             legacy_seed_kept,
         )
         .and_then(|(choice, _)| choice.map(|i| candidates[i].1.clone()))
+        .or_else(|| historical_fitting.map(|(_, p)| p))
         .unwrap_or_else(|| first.clone());
         restore_search_spec(&mut chosen, spec);
         if chosen.sheet.size != first.sheet.size || chosen.sheet.scale != first.sheet.scale {
@@ -3110,7 +3131,12 @@ fn recover_candidates(
         });
         first.status = crate::completeness::status(&first.problems);
         restore_search_spec(&mut first, spec);
-        return Ok(first);
+        return Ok(protect_retained_routes(
+            analysis,
+            spec,
+            &route_reference,
+            first,
+        ));
     };
     let estimate = format!(
         "first estimate {} at {} ({})",

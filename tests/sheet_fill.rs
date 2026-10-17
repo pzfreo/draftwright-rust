@@ -703,6 +703,37 @@ fn an_exhausted_step_and_lane_search_retains_the_fitted_drawing() {
 }
 
 #[test]
+fn a_crowded_plain_ladder_keeps_the_fitted_baseline_for_its_schedule() {
+    let Some(dir) = corpus::dir() else { return };
+    let (_, a) = model::analyse_native(&dir.join("nist/nist_ftc_09_asme1_rd.stp")).unwrap();
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert!(p.hole_table.is_some() || !p.hole_tables.is_empty());
+    assert!(
+        !p.problems.iter().any(|q| matches!(
+            q.code.as_str(),
+            "annotation_off_sheet" | "pinned_view_off_sheet" | "annotation_over_title_block"
+        )),
+        "{:?}",
+        p.problems
+    );
+    for v in &p.views {
+        let sheet = std::iter::once(&p.sheet)
+            .chain(&p.sheets)
+            .find(|s| s.number == v.sheet)
+            .unwrap();
+        assert!(
+            v.area[0] >= 10.0 - 1e-6
+                && v.area[1] >= 10.0 - 1e-6
+                && v.area[2] <= sheet.page[0] - 10.0 + 1e-6
+                && v.area[3] <= sheet.page[1] - 10.0 + 1e-6,
+            "{}: {:?}",
+            v.id,
+            v.area
+        );
+    }
+}
+
+#[test]
 fn fixed_scale_can_use_a_valid_smaller_sheet_without_changing_scale() {
     let Some(dir) = corpus::dir() else { return };
     let a = model::analyse_native(&dir.join("gramel/GRM-03_thumbwheel_drive_screw.step"))
