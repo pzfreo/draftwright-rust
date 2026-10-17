@@ -3057,10 +3057,12 @@ fn recover_candidates_before(
         && crate::detail::requests(analysis, spec, first.sheet.scale_factor)
             .iter()
             .any(|(_, d)| !d.authored));
-    let seed_clean = findings(&first).clean()
-        && undrawn_gdt(&first) == 0
-        && drawn_items_fit(analysis, &first)
-        && (!reference_only || crate::sheet_fit::primary_illegible_steps(analysis, &first) == 0);
+    // Keep main's physical seed test independent of scale qualification. A
+    // short step cannot be repaired by changing arrangements at the same scale;
+    // marking its fitted seed corrupt repeats every native inventory solve.
+    // Candidate and retained-reference legibility remain checked separately.
+    let seed_clean =
+        findings(&first).clean() && undrawn_gdt(&first) == 0 && drawn_items_fit(analysis, &first);
     // Omitting an optional detail changes candidate construction, never the
     // route-quality reference supplied by a physically complete first estimate.
     let seed_kept = seed_clean
