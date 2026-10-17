@@ -116,6 +116,20 @@ for (const part of ['prismatic', 'polygonal', 'schemes']) {
         assert.equal(engine.planCount() - before, 1, step.edit);
         actual.push(documents(engine, step.edit));
       }
+      if (part === 'schemes') {
+        // Two distinct analytic feature stations exercise real chains, baselines and
+        // signed running coordinates. Keep every native/WASM byte comparison below.
+        for (const state of actual.slice(1, -1)) {
+          const plan = JSON.parse(state.plan);
+          const generated = plan.dimensions.filter(d => d.id.startsWith('d:scheme:'));
+          assert.equal(generated.length, state.edit === 'undo scheme' ? 0 : 2, `${state.edit}: both feature stations remain owned unless undone`);
+          assert.ok(generated.every(d => d.from_spec.includes('dimension_schemes/inspection')));
+          if (state.edit === 'signed ordinates') {
+            assert.ok(generated.every(d => d.value < 0 && d.placed.arrows.length === 1));
+          }
+        }
+        assert.ok(!JSON.parse(actual.at(-1).plan).dimensions.some(d => d.id.startsWith('d:scheme:')));
+      }
       const native = spawnSync(process.env.DRAFTWRIGHT_WASM_REFERENCE ?? 'target/release/examples/wasm_reference', [], {
         cwd: root, input: JSON.stringify(replay), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
       });
