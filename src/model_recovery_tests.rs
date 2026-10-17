@@ -270,7 +270,7 @@ fn native_pocket_mouths_require_readable_ordinary_ink_and_short_proven_routes() 
         );
         return;
     };
-    let (_, a) = analyse_native(&root.join("mfcadpp/10000.step")).unwrap();
+    let (part, a) = analyse_native(&root.join("mfcadpp/10000.step")).unwrap();
     assert_eq!(crate::sheet_fit::preparation_scale(&a), 0.5);
     assert_eq!(crate::sheet_fit::min_legible_scale(&a), 2.0);
     let mut forced = Spec::default();
@@ -288,6 +288,20 @@ fn native_pocket_mouths_require_readable_ordinary_ink_and_short_proven_routes() 
         "../tests/fixtures/sheet-policy/10000-main85-callouts.json"
     ))
     .unwrap();
+    let drawing = render(&part, &a, &recovered, crate::dims::font()).unwrap();
+    let structural = crate::lint::structural::check(&drawing);
+    for issue in &structural {
+        assert!(
+            recorded["structural"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|old| old["code"] == issue.code
+                    && old["id"] == issue.id
+                    && old["severity"] == serde_json::to_value(issue.severity).unwrap()),
+            "new rendered finding: {issue:?}"
+        );
+    }
     for (id, before) in recorded["lengths"].as_object().unwrap() {
         let after = recovered
             .dimensions

@@ -5,5 +5,12 @@
     "d:f:hole:2/bore.diameter": 9.218177232418615,
     "d:f:section_recess:2/pocket_width.length": 10.483000000000004
   },
-  "source": "0e393afcda459277deecf78dff5fce1d3758e599"
+  "source": "0e393afcda459277deecf78dff5fce1d3758e599",
+  "structural": [
+    {
+      "code": "nominal_rounded",
+      "id": "l:nominal_rounded",
+      "severity": "info"
+    }
+  ]
 }

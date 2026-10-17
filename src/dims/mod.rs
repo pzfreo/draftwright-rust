@@ -1786,6 +1786,34 @@ pub(crate) fn extension_contacts(dims: &[PlannedDimension]) -> usize {
         .sum()
 }
 
+/// Reuse ordinary placement's whole-annotation proof for an interior exit.
+/// Unproven labels inside any view remain ineligible; a blank rectangle alone
+/// cannot bypass the rendered structural finding.
+pub(crate) fn short_callout_region(
+    analysis: &Analysis,
+    views: &[PlannedView],
+    own: &PlannedView,
+    placed: &Placed,
+) -> Result<Option<CandidateRegion>, ()> {
+    let proven = interior::proofs(analysis, views)
+        .get(&own.id)
+        .is_some_and(|proof| proof.annotation_clear(own, placed, true));
+    if views.iter().filter(|v| v.sheet == own.sheet).any(|v| {
+        placement::boxes_overlap(
+            [
+                placed.label_box[0] - 1.0,
+                placed.label_box[1] - 1.0,
+                placed.label_box[2] + 1.0,
+                placed.label_box[3] + 1.0,
+            ],
+            Frame::new(analysis, v).outline(),
+        ) && (v.id != own.id || !proven)
+    }) {
+        return Err(());
+    }
+    Ok(proven.then_some(CandidateRegion::Interior))
+}
+
 pub(crate) fn annotation_pair_clear(a: &Placed, b: &Placed) -> bool {
     placement::annotations_clear(a, b)
 }

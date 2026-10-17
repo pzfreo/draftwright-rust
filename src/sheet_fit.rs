@@ -271,10 +271,6 @@ pub(crate) fn retain_callouts(analysis: &Analysis, reference: &Plan, plan: &mut 
             let (centre, radius) =
                 crate::dims::circular_callout_site(analysis, d, view).unwrap_or((first[0], 0.0));
             let budget = q.lines.iter().map(|s| distance(s[0], s[1])).sum::<f64>() + 2.0 - 1e-6;
-            let shaft = budget - 3.0;
-            if shaft < crate::dims::ARROW {
-                continue;
-            }
             // A contact absent from settled ink would fail the exact finding
             // gate. Reject it before cloning and rechecking the entire Plan.
             let clear_peers: Vec<_> = plan
@@ -291,70 +287,138 @@ pub(crate) fn retain_callouts(analysis: &Analysis, reference: &Plan, plan: &mut 
                 .filter_map(|(_, peer)| peer.placed.as_ref())
                 .filter(|p| crate::dims::annotation_pair_clear(current, p))
                 .collect();
+            let chains: Vec<_> = plan
+                .views
+                .iter()
+                .filter(|v| v.sheet == view.sheet)
+                .flat_map(|v| &v.line_work)
+                .filter(|w| w.kind != "cutting_plane")
+                .flat_map(|w| &w.curves)
+                .filter_map(|curve| match curve {
+                    crate::output::Curve::Line(a, b) => Some([*a, *b]),
+                    _ => None,
+                })
+                .collect();
             let before_codes = std::cell::OnceCell::new();
-            'directions: for angle in (0..24).map(|i| f64::from(i) * std::f64::consts::TAU / 24.0) {
-                let direction = [angle.sin(), angle.cos()];
-                let tip = [0, 1].map(|k| centre[k] + radius * direction[k]);
-                if radius > 0.0 && !crate::dims::callout_tip_visible(analysis, view, tip) {
+            'directions: for shoulder in [3.0, 0.5, 0.0] {
+                let shaft = budget - shoulder;
+                if shaft < crate::dims::ARROW {
                     continue;
                 }
-                let elbow = [0, 1].map(|k| tip[k] + shaft * direction[k]);
-                for side in [1., -1.] {
-                    let mut placed = q.clone();
-                    placed.lines = vec![[tip, elbow], [elbow, [elbow[0] + side * 3.0, elbow[1]]]];
-                    placed.arrows = vec![[
-                        tip,
-                        [0, 1].map(|k| tip[k] + crate::dims::ARROW * direction[k]),
-                    ]];
-                    let width = q.label_box[2] - q.label_box[0];
-                    let left = if side > 0.0 {
-                        elbow[0] + 4.0
-                    } else {
-                        elbow[0] - 4.0 - width
-                    };
-                    let bottom = elbow[1] + q.label_box[1] - q.lines[0][1][1];
-                    placed.label_box = [
-                        left,
-                        bottom,
-                        left + width,
-                        bottom + q.label_box[3] - q.label_box[1],
-                    ];
-                    placed.label_at = [
-                        left + q.label_at[0] - q.label_box[0],
-                        bottom + q.label_at[1] - q.label_box[1],
-                    ];
-                    if clear_peers
-                        .iter()
-                        .any(|peer| !crate::dims::annotation_pair_clear(&placed, peer))
-                    {
+                let axes = [0.0_f64, 90.0, 180.0, 270.0];
+                let angles = (0..32)
+                    .map(|i| f64::from(i) * std::f64::consts::TAU / 32.0)
+                    .chain(
+                        axes.into_iter()
+                            .flat_map(|a| [a - 5.0, a + 5.0])
+                            .map(f64::to_radians),
+                    );
+                for angle in angles {
+                    let direction = [angle.sin(), angle.cos()];
+                    let tip = [0, 1].map(|k| centre[k] + radius * direction[k]);
+                    if radius > 0.0 && !crate::dims::callout_tip_visible(analysis, view, tip) {
                         continue;
                     }
-                    let mut trial = plan.clone();
-                    trial.dimensions[i].placed = Some(placed);
-                    if !routes_no_worse_for(analysis, reference, &trial, Some(&d.id)) {
-                        continue;
-                    }
-                    let checked = crate::dims::recheck_cached(analysis, &trial, &cache);
-                    let mut codes = before_codes
-                        .get_or_init(|| {
-                            crate::dims::recheck_cached(analysis, plan, &cache)
-                                .into_iter()
-                                .map(|p| p.code)
-                                .collect::<std::collections::BTreeSet<_>>()
-                        })
-                        .clone();
-                    codes.extend(checked.iter().map(|p| p.code.clone()));
-                    trial.problems.retain(|p| !codes.contains(&p.code));
-                    trial.problems.extend(checked);
-                    if crate::model::no_new_drawing_issues(reference, &trial)
-                        && crate::model::no_new_drawing_issues(plan, &trial)
-                        && crate::model::drawn_sheets_fit(analysis, &trial)
-                        && crate::model::carries_required(plan, &trial)
-                        && readability(analysis, &trial) == readability(analysis, plan)
-                    {
-                        trial.status = crate::completeness::status(&trial.problems);
-                        *plan = trial;
-                        break 'directions;
+                    let elbow = [0, 1].map(|k| tip[k] + shaft * direction[k]);
+                    for side in [1., -1.] {
+                        let mut placed = q.clone();
+                        placed.lines = if shoulder == 0.0 {
+                            vec![[tip, elbow]]
+                        } else {
+                            vec![
+                                [tip, elbow],
+                                [elbow, [elbow[0] + side * shoulder, elbow[1]]],
+                            ]
+                        };
+                        placed.arrows = vec![[
+                            tip,
+                            [0, 1].map(|k| tip[k] + crate::dims::ARROW * direction[k]),
+                        ]];
+                        let width = q.label_box[2] - q.label_box[0];
+                        let left = if side > 0.0 {
+                            elbow[0] + shoulder + 1.0
+                        } else {
+                            elbow[0] - shoulder - 1.0 - width
+                        };
+                        let bottom = elbow[1] + q.label_box[1] - q.lines[0][1][1];
+                        placed.label_box = [
+                            left,
+                            bottom,
+                            left + width,
+                            bottom + q.label_box[3] - q.label_box[1],
+                        ];
+                        placed.label_at = [
+                            left + q.label_at[0] - q.label_box[0],
+                            bottom + q.label_at[1] - q.label_box[1],
+                        ];
+                        if clear_peers
+                            .iter()
+                            .any(|peer| !crate::dims::annotation_pair_clear(&placed, peer))
+                        {
+                            continue;
+                        }
+                        // Same collinear 0.5 mm gate as rendered structural QA.
+                        if placed.lines.iter().any(|line| {
+                            chains.iter().any(|chain| {
+                                let delta = [0, 1].map(|k| line[1][k] - line[0][k]);
+                                let length = delta[0].hypot(delta[1]);
+                                if length <= 0.5 {
+                                    return false;
+                                }
+                                let distance = |p: [f64; 2]| {
+                                    ((p[0] - line[0][0]) * delta[1]
+                                        - (p[1] - line[0][1]) * delta[0])
+                                        .abs()
+                                        / length
+                                };
+                                if chain.iter().any(|p| distance(*p) > 1e-6) {
+                                    return false;
+                                }
+                                let at = |p: [f64; 2]| {
+                                    ((p[0] - line[0][0]) * delta[0]
+                                        + (p[1] - line[0][1]) * delta[1])
+                                        / length
+                                };
+                                at(chain[0]).max(at(chain[1])).min(length)
+                                    - at(chain[0]).min(at(chain[1])).max(0.0)
+                                    > 0.5
+                            })
+                        }) {
+                            continue;
+                        }
+                        let Ok(region) =
+                            crate::dims::short_callout_region(analysis, &plan.views, view, &placed)
+                        else {
+                            continue;
+                        };
+                        let mut trial = plan.clone();
+                        trial.dimensions[i].region = region;
+                        trial.dimensions[i].placed = Some(placed);
+                        if !routes_no_worse_for(analysis, reference, &trial, Some(&d.id)) {
+                            continue;
+                        }
+                        let checked = crate::dims::recheck_cached(analysis, &trial, &cache);
+                        let mut codes = before_codes
+                            .get_or_init(|| {
+                                crate::dims::recheck_cached(analysis, plan, &cache)
+                                    .into_iter()
+                                    .map(|p| p.code)
+                                    .collect::<std::collections::BTreeSet<_>>()
+                            })
+                            .clone();
+                        codes.extend(checked.iter().map(|p| p.code.clone()));
+                        trial.problems.retain(|p| !codes.contains(&p.code));
+                        trial.problems.extend(checked);
+                        if crate::model::no_new_drawing_issues(reference, &trial)
+                            && crate::model::no_new_drawing_issues(plan, &trial)
+                            && crate::model::drawn_sheets_fit(analysis, &trial)
+                            && crate::model::carries_required(plan, &trial)
+                            && readability(analysis, &trial) == readability(analysis, plan)
+                        {
+                            trial.status = crate::completeness::status(&trial.problems);
+                            *plan = trial;
+                            break 'directions;
+                        }
                     }
                 }
             }
