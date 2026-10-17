@@ -55,14 +55,18 @@ fn analysed(stem: &str) -> (draftwright::haecceity::Part, Analysis) {
 fn analysed_bytes(name: &str, bytes: &[u8]) -> (draftwright::haecceity::Part, Analysis) {
     static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    // nextest runs each test in its own process, with its own counter starting at zero.
+    let thread = std::thread::current();
+    let test = thread.name().unwrap_or("unnamed");
     let scratch = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join("pmi_thread_knurl")
-        .join(n.to_string());
+        .join(format!("{}-{test}-{n}", std::process::id()));
     std::fs::create_dir_all(&scratch).unwrap();
     let path = scratch.join(name);
     std::fs::write(&path, bytes).unwrap();
     let out = model::analyse_native(&path).unwrap();
     std::fs::remove_file(&path).unwrap();
+    std::fs::remove_dir(&scratch).unwrap();
     out
 }
 
