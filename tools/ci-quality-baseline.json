@@ -15,7 +15,7 @@
   ],
   "parts": {
     "1000": {
-      "hidden_on_visible": 20,
+      "hidden_on_visible": 0,
       "ink": 0,
       "line_through_feature": 0,
       "off_sheet": 0,
@@ -27,8 +27,8 @@
       "views_overlap": 0
     },
     "10000": {
-      "hidden_on_visible": 7,
-      "ink": 5,
+      "hidden_on_visible": 0,
+      "ink": 2,
       "line_through_feature": 0,
       "off_sheet": 0,
       "repeated_label": 0,
@@ -39,7 +39,7 @@
       "views_overlap": 0
     },
     "10007": {
-      "hidden_on_visible": 20,
+      "hidden_on_visible": 0,
       "ink": 0,
       "line_through_feature": 0,
       "off_sheet": 0,
@@ -51,7 +51,7 @@
       "views_overlap": 0
     },
     "10020": {
-      "hidden_on_visible": 31,
+      "hidden_on_visible": 0,
       "ink": 1,
       "line_through_feature": 0,
       "off_sheet": 0,
@@ -63,7 +63,7 @@
       "views_overlap": 0
     },
     "10033": {
-      "hidden_on_visible": 15,
+      "hidden_on_visible": 0,
       "ink": 0,
       "line_through_feature": 0,
       "off_sheet": 0,
@@ -75,7 +75,7 @@
       "views_overlap": 0
     },
     "10038": {
-      "hidden_on_visible": 26,
+      "hidden_on_visible": 0,
       "ink": 0,
       "line_through_feature": 0,
       "off_sheet": 0,
@@ -87,7 +87,7 @@
       "views_overlap": 0
     },
     "1004": {
-      "hidden_on_visible": 16,
+      "hidden_on_visible": 0,
       "ink": 0,
       "line_through_feature": 2,
       "off_sheet": 0,
@@ -99,7 +99,7 @@
       "views_overlap": 0
     },
     "10046": {
-      "hidden_on_visible": 22,
+      "hidden_on_visible": 0,
       "ink": 0,
       "line_through_feature": 0,
       "off_sheet": 0,
@@ -111,7 +111,7 @@
       "views_overlap": 0
     },
     "10047": {
-      "hidden_on_visible": 18,
+      "hidden_on_visible": 0,
       "ink": 0,
       "line_through_feature": 0,
       "off_sheet": 0,
@@ -123,7 +123,7 @@
       "views_overlap": 0
     },
     "10049": {
-      "hidden_on_visible": 21,
+      "hidden_on_visible": 0,
       "ink": 0,
       "line_through_feature": 0,
       "off_sheet": 0,
@@ -135,7 +135,7 @@
       "views_overlap": 0
     },
     "10060": {
-      "hidden_on_visible": 17,
+      "hidden_on_visible": 0,
       "ink": 6,
       "line_through_feature": 0,
       "off_sheet": 0,
@@ -147,8 +147,8 @@
       "views_overlap": 0
     },
     "10063": {
-      "hidden_on_visible": 17,
-      "ink": 1,
+      "hidden_on_visible": 0,
+      "ink": 0,
       "line_through_feature": 0,
       "off_sheet": 0,
       "repeated_label": 0,
@@ -159,7 +159,7 @@
       "views_overlap": 0
     },
     "GRM-03_thumbwheel_drive_screw": {
-      "hidden_on_visible": 14,
+      "hidden_on_visible": 0,
       "ink": 0,
       "line_through_feature": 0,
       "off_sheet": 0,
@@ -171,7 +171,7 @@
       "views_overlap": 0
     },
     "GRM-05_depth_lock_bolt": {
-      "hidden_on_visible": 7,
+      "hidden_on_visible": 0,
       "ink": 0,
       "line_through_feature": 0,
       "off_sheet": 0,
@@ -183,7 +183,7 @@
       "views_overlap": 0
     },
     "cgb203": {
-      "hidden_on_visible": 61,
+      "hidden_on_visible": 0,
       "ink": 0,
       "line_through_feature": 0,
       "off_sheet": 0,
@@ -195,8 +195,8 @@
       "views_overlap": 0
     },
     "cgb207": {
-      "hidden_on_visible": 195,
-      "ink": 2,
+      "hidden_on_visible": 0,
+      "ink": 0,
       "line_through_feature": 4,
       "off_sheet": 0,
       "repeated_label": 0,
@@ -207,8 +207,8 @@
       "views_overlap": 0
     },
     "cgb241": {
-      "hidden_on_visible": 46,
-      "ink": 2,
+      "hidden_on_visible": 0,
+      "ink": 0,
       "line_through_feature": 0,
       "off_sheet": 0,
       "repeated_label": 0,
@@ -219,7 +219,7 @@
       "views_overlap": 0
     },
     "cgb245": {
-      "hidden_on_visible": 172,
+      "hidden_on_visible": 0,
       "ink": 1,
       "line_through_feature": 3,
       "off_sheet": 0,
@@ -231,8 +231,8 @@
       "views_overlap": 0
     },
     "nist_ctc_01_asme1_rd": {
-      "hidden_on_visible": 55,
-      "ink": 11,
+      "hidden_on_visible": 0,
+      "ink": 3,
       "line_through_feature": 5,
       "off_sheet": 0,
       "repeated_label": 1,
@@ -243,7 +243,7 @@
       "views_overlap": 0
     },
     "nist_ctc_02_asme1_rc": {
-      "hidden_on_visible": 426,
+      "hidden_on_visible": 0,
       "ink": 2,
       "line_through_feature": 6,
       "off_sheet": 0,
@@ -255,8 +255,8 @@
       "views_overlap": 0
     },
     "nist_ctc_03_asme1_rc": {
-      "hidden_on_visible": 148,
-      "ink": 3,
+      "hidden_on_visible": 0,
+      "ink": 0,
       "line_through_feature": 1,
       "off_sheet": 0,
       "repeated_label": 0,
@@ -267,8 +267,8 @@
       "views_overlap": 0
     },
     "nist_ctc_04_asme1_rd": {
-      "hidden_on_visible": 205,
-      "ink": 3,
+      "hidden_on_visible": 0,
+      "ink": 0,
       "line_through_feature": 22,
       "off_sheet": 0,
       "repeated_label": 2,
@@ -279,7 +279,7 @@
       "views_overlap": 0
     },
     "nist_ctc_05_asme1_rd": {
-      "hidden_on_visible": 66,
+      "hidden_on_visible": 0,
       "ink": 0,
       "line_through_feature": 0,
       "off_sheet": 0,
@@ -291,8 +291,8 @@
       "views_overlap": 0
     },
     "nist_ftc_06_asme1_rd": {
-      "hidden_on_visible": 32,
-      "ink": 5,
+      "hidden_on_visible": 0,
+      "ink": 0,
       "line_through_feature": 3,
       "off_sheet": 0,
       "repeated_label": 0,
@@ -303,8 +303,8 @@
       "views_overlap": 0
     },
     "nist_ftc_07_asme1_rd": {
-      "hidden_on_visible": 136,
-      "ink": 1,
+      "hidden_on_visible": 0,
+      "ink": 0,
       "line_through_feature": 3,
       "off_sheet": 0,
       "repeated_label": 0,
@@ -315,8 +315,8 @@
       "views_overlap": 0
     },
     "nist_ftc_08_asme1_rc": {
-      "hidden_on_visible": 218,
-      "ink": 1,
+      "hidden_on_visible": 0,
+      "ink": 0,
       "line_through_feature": 11,
       "off_sheet": 0,
       "repeated_label": 1,
@@ -327,8 +327,8 @@
       "views_overlap": 0
     },
     "nist_ftc_09_asme1_rd": {
-      "hidden_on_visible": 17,
-      "ink": 6,
+      "hidden_on_visible": 0,
+      "ink": 2,
       "line_through_feature": 2,
       "off_sheet": 0,
       "repeated_label": 1,
@@ -339,8 +339,8 @@
       "views_overlap": 0
     },
     "nist_ftc_10_asme1_rb": {
-      "hidden_on_visible": 121,
-      "ink": 1,
+      "hidden_on_visible": 0,
+      "ink": 0,
       "line_through_feature": 11,
       "off_sheet": 0,
       "repeated_label": 0,
@@ -351,7 +351,7 @@
       "views_overlap": 0
     },
     "sm-hanger": {
-      "hidden_on_visible": 57,
+      "hidden_on_visible": 0,
       "ink": 0,
       "line_through_feature": 0,
       "off_sheet": 0,
@@ -363,8 +363,8 @@
       "views_overlap": 0
     },
     "string_post": {
-      "hidden_on_visible": 25,
-      "ink": 1,
+      "hidden_on_visible": 0,
+      "ink": 0,
       "line_through_feature": 0,
       "off_sheet": 0,
       "repeated_label": 0,

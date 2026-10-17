@@ -228,6 +228,21 @@ pub(crate) fn check(s: &Spec) -> Result<(), Invalid> {
     Ok(())
 }
 
+fn unconventional(s: &Spec, name: &str, p: &ViewPlace) -> bool {
+    let first = s.sheet.projection.as_deref() == Some("first");
+    let expected = match (name, p.relative_to.as_str(), first) {
+        ("plan", "front", false) | ("front", "plan", true) => Some(Side::Above),
+        ("plan", "front", true) | ("front", "plan", false) => Some(Side::Below),
+        ("side", "front", false) | ("front", "side", true) => Some(Side::Right),
+        ("side", "front", true) | ("front", "side", false) => Some(Side::Left),
+        _ => None,
+    };
+    matches!(
+        (name, p.relative_to.as_str()),
+        ("side", "plan") | ("plan", "side")
+    ) || expected.is_some_and(|side| p.side != side || p.align != Slot::Middle)
+}
+
 fn overlap(a: [f64; 4], b: [f64; 4]) -> bool {
     a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]
 }
@@ -271,6 +286,31 @@ pub(crate) fn views(
     problems: &mut Vec<Problem>,
 ) {
     let page = sheet.page;
+    for (name, requested) in &s.views {
+        if let Some(p) = &requested.place
+            && views.iter().any(|v| v.id == format!("v:{name}"))
+            && unconventional(s, name, p)
+        {
+            let mut finding = problem(
+                &format!("v:{name}"),
+                "projection_relation_infeasible",
+                format!(
+                    "The authored {name} relation is infeasible in {}-angle projection; principal views must keep their conventional side and aligned projection origins.",
+                    if s.sheet.projection.as_deref() == Some("first") {
+                        "first"
+                    } else {
+                        "third"
+                    }
+                ),
+                &format!("views/{name}/place"),
+            );
+            finding.severity = "error".into();
+            finding.refs = vec!["sheet/projection".into()];
+            if !problems.iter().any(|q| q.id == finding.id) {
+                problems.push(finding);
+            }
+        }
+    }
     if let Some(c) = canonical {
         for v in views.iter_mut() {
             if let Some(base) = c.views.iter().find(|b| b.id == v.id) {
@@ -308,10 +348,18 @@ pub(crate) fn views(
             let a = views[i].area;
             let horizontal = matches!(p.side, Side::Left | Side::Right);
             let k = usize::from(horizontal);
-            let offset = match p.align {
-                Slot::Start => b[k] - a[k],
-                Slot::Middle => 0.5 * (b[k] + b[k + 2] - a[k] - a[k + 2]),
-                Slot::End | Slot::Outside => b[k + 2] - a[k + 2],
+            let principal_pair = matches!(
+                (name.as_str(), p.relative_to.as_str()),
+                ("front", "plan" | "side") | ("plan" | "side", "front")
+            );
+            let offset = if principal_pair && p.align == Slot::Middle {
+                anchor.at[k] - views[i].at[k]
+            } else {
+                match p.align {
+                    Slot::Start => b[k] - a[k],
+                    Slot::Middle => 0.5 * (b[k] + b[k + 2] - a[k] - a[k + 2]),
+                    Slot::End | Slot::Outside => b[k + 2] - a[k + 2],
+                }
             };
             let out = match p.side {
                 Side::Above => b[3] + p.gap - a[1],
@@ -319,6 +367,7 @@ pub(crate) fn views(
                 Side::Right => b[2] + p.gap - a[0],
                 Side::Left => b[0] - p.gap - a[2],
             };
+            let previous = views[i].at;
             shift(
                 &mut views[i],
                 if horizontal {
@@ -327,6 +376,38 @@ pub(crate) fn views(
                     [offset, out]
                 },
             );
+            if name == "front" {
+                let delta = [0, 1].map(|k| views[i].at[k] - previous[k]);
+                for partner in views
+                    .iter_mut()
+                    .filter(|v| matches!(v.id.as_str(), "v:plan" | "v:side"))
+                {
+                    let is_plan = partner.id == "v:plan";
+                    let key = partner.id.trim_start_matches("v:");
+                    let pinned = s.views.get(key).is_some_and(|v| v.place.is_some())
+                        || canonical.is_some_and(|p| {
+                            s.dimensions
+                                .iter()
+                                .filter_map(|(id, d)| {
+                                    d.place.as_ref().filter(|place| place.pinned).map(|_| id)
+                                })
+                                .chain(s.annotations.iter().filter_map(|(id, d)| {
+                                    d.place.as_ref().filter(|place| place.pinned).map(|_| id)
+                                }))
+                                .any(|id| carrier(p, id).as_deref() == Some(partner.id.as_str()))
+                        });
+                    if !pinned {
+                        shift(
+                            partner,
+                            if is_plan {
+                                [delta[0], 0.0]
+                            } else {
+                                [0.0, delta[1]]
+                            },
+                        );
+                    }
+                }
+            }
             // The isometric's area is a reserved region, not a dimensioned projection frame.
             // Resolve its ink inside that region before fixing it, as the automatic fitter does.
             if name == "iso"
@@ -411,6 +492,66 @@ pub(crate) fn views(
             problems.push(p);
         }
     }
+    // Relative view pins have a free root when no annotation carrier is held.
+    // Translate the connected orthographic group to fit a roomy named sheet,
+    // preserving every gap and alignment, rather than centring its root so high
+    // that a feasible relation is incorrectly reported off-sheet.
+    if s.views.values().any(|v| v.place.is_some())
+        && !s
+            .dimensions
+            .values()
+            .any(|d| d.place.as_ref().is_some_and(|p| p.pinned))
+        && !s
+            .annotations
+            .values()
+            .any(|a| a.place.as_ref().is_some_and(|p| p.pinned))
+    {
+        let mut group: BTreeSet<String> = ["front", "plan", "side", "section_aa"]
+            .map(String::from)
+            .into_iter()
+            .collect();
+        for _ in 0..s.views.len() {
+            for (name, v) in &s.views {
+                if v.place
+                    .as_ref()
+                    .is_some_and(|p| group.contains(&p.relative_to))
+                {
+                    group.insert(name.clone());
+                }
+            }
+        }
+        let members: Vec<_> = views
+            .iter()
+            .filter(|v| group.contains(v.id.trim_start_matches("v:")))
+            .collect();
+        let margin = crate::layout::MARGIN;
+        let mut delta = [0.0; 2];
+        for k in 0..2 {
+            let lo = members
+                .iter()
+                .map(|v| v.area[k])
+                .fold(f64::INFINITY, f64::min);
+            let hi = members
+                .iter()
+                .map(|v| v.area[k + 2])
+                .fold(f64::NEG_INFINITY, f64::max);
+            if hi - lo <= page[k] - 2.0 * margin {
+                delta[k] = if hi > page[k] - margin {
+                    page[k] - margin - hi
+                } else if lo < margin {
+                    margin - lo
+                } else {
+                    0.0
+                };
+            }
+        }
+        for v in views
+            .iter_mut()
+            .filter(|v| group.contains(v.id.trim_start_matches("v:")))
+        {
+            shift(v, delta);
+        }
+    }
     let mut fixed: BTreeSet<String> = s
         .views
         .iter()
@@ -458,6 +599,20 @@ pub(crate) fn views(
         }
     }
     let margin = crate::layout::MARGIN;
+    // A constrained principal arrangement may consume the orientation budget.
+    // Prefer the sheet scale whenever it fits; keep the existing five-percent
+    // snapping rule and honour an authored isometric scale exactly.
+    if s.iso_scale_factor.is_none()
+        && !s.views.contains_key("iso")
+        && s.views.iter().any(|(name, v)| {
+            ["front", "plan", "side"].contains(&name.as_str())
+                && v.place.as_ref().is_some_and(|p| p.pinned)
+        })
+        && let Some(iso) = views.iter_mut().find(|v| v.id == "v:iso")
+        && iso.scale > sheet.scale_factor
+    {
+        iso.scale = sheet.scale_factor;
+    }
     let mut occupied: Vec<[f64; 4]> = views
         .iter()
         .filter(|v| fixed.contains(&v.id))
@@ -540,6 +695,41 @@ pub(crate) fn views(
             }
         }
         occupied.push(v.area);
+    }
+    if let Some(front) = views.iter().find(|v| v.id == "v:front") {
+        let first = s.sheet.projection.as_deref() == Some("first");
+        for v in views
+            .iter()
+            .filter(|v| matches!(v.id.as_str(), "v:plan" | "v:side"))
+        {
+            let align_axis = usize::from(v.id == "v:side");
+            let outward_axis = 1 - align_axis;
+            let outward =
+                (v.at[outward_axis] - front.at[outward_axis]) * if first { -1.0 } else { 1.0 };
+            if (v.at[align_axis] - front.at[align_axis]).abs() > 1e-6 || outward <= 0.0 {
+                let mut finding = problem(
+                    &v.id,
+                    "projection_relation_infeasible",
+                    format!(
+                        "The authored layout is infeasible in {}-angle projection: {} must keep its conventional side and projection-origin alignment with front.",
+                        if first { "first" } else { "third" },
+                        crate::wording::view(&v.id)
+                    ),
+                    &format!("views/{}/place", v.id.trim_start_matches("v:")),
+                );
+                if s.views
+                    .get(v.id.trim_start_matches("v:"))
+                    .is_none_or(|v| v.place.is_none())
+                {
+                    finding.fix.clear();
+                }
+                finding.severity = "error".into();
+                finding.refs = vec!["sheet/projection".into()];
+                if !problems.iter().any(|q| q.id == finding.id) {
+                    problems.push(finding);
+                }
+            }
+        }
     }
     for v in views.iter().filter(|v| fixed.contains(&v.id)) {
         let a = v.area;
