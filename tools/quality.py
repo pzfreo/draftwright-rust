@@ -517,6 +517,40 @@ def footprint_fill(a, p, furniture=()):
     return (union_area(clipped)-union_area(in_title))/((w-20)*(h-20)-(tb[2]-tb[0])*(tb[3]-tb[1]))
 
 
+def page_plans(plan):
+    """Independent page coordinates; retain the same tests on every allocated sheet."""
+    if not plan.get('sheets'):
+        yield plan
+        return
+    for sheet in [plan['sheet'], *plan.get('sheets', [])]:
+        number = sheet.get('number', 1)
+        views = [v for v in plan['views'] if v.get('sheet', 1) == number]
+        ids = {v['id'] for v in views}
+        page = dict(plan, sheet=sheet, sheets=[], views=views)
+        for key in ('dimensions', 'gdt', 'balloons', 'hole_tables'):
+            page[key] = [item for item in plan.get(key, []) if item.get('view') in ids]
+        for key in ('tables', 'captions'):
+            page[key] = [item for item in plan.get(key, []) if item.get('sheet', 1) == number]
+        if number != 1:
+            for key in ('notes', 'requirements'):
+                page[key] = []
+            for key in ('notes_block', 'radius_notes_block', 'radius_table'):
+                page[key] = None
+        if plan.get('hole_table') and plan['hole_table'].get('view') not in ids:
+            page['hole_table'] = None
+        yield page
+
+
+def view_conflicts(plan):
+    overlapping = title = 0
+    for page in page_plans(plan):
+        views = [v['area'] for v in page['views'] if v.get('area')]
+        overlapping += sum(overlap(a, b) for i, a in enumerate(views) for b in views[i+1:])
+        tb = page['sheet'].get('title_block')
+        title += sum(overlap(v, tb) for v in views) if tb else 0
+    return overlapping, title
+
+
 def one(f, dw, out, spec=None, timeout=600, review=True):
     name = os.path.basename(f).split(".")[0]
     os.makedirs(out, exist_ok=True)
@@ -543,7 +577,8 @@ def one(f, dw, out, spec=None, timeout=600, review=True):
         a = json.loads(analysis.stdout)
         with open(f"{out}/{name}.analysis.json", "w") as output:
             json.dump(a, output, indent=1, sort_keys=True)
-        fill = footprint_fill(a, plan, furniture_boxes(a, plan))
+        first_page = next(page_plans(plan))
+        fill = footprint_fill(a, first_page, furniture_boxes(a, first_page))
     else:
         fill = 0.0
     codes = collections.Counter(x["code"] for x in rend.get("problems", []))
@@ -584,11 +619,13 @@ def one(f, dw, out, spec=None, timeout=600, review=True):
     rep_meas = sum(n - 1 for n in meas.values() if n > 1)
     rep_span = sum(n - 1 for n in spans.values() if n > 1)
     repeated = repeated_spans(plan)
-    views = [v["area"] for v in plan["views"] if v.get("area")]
-    tb = plan["sheet"].get("title_block")
-    view_over = sum(overlap(views[i], views[j]) for i in range(len(views)) for j in range(i + 1, len(views)))
-    view_tb = sum(overlap(v, tb) for v in views) if tb else 0
-    linework = svg_linework(f"{out}/{name}.svg", plan)
+    view_over, view_tb = view_conflicts(plan)
+    pages = list(page_plans(plan))
+    linework = collections.Counter()
+    for page in pages:
+        number = page['sheet'].get('number', 1)
+        suffix = '' if number == 1 else f'.sheet{number}'
+        linework.update(svg_linework(f"{out}/{name}{suffix}.svg", page))
     return name, {
         "off_sheet": codes.get("annotation_off_sheet", 0) + codes.get("pinned_view_off_sheet", 0),
         "off_sheet_items": sorted({subject for problem in rend.get("problems", [])
@@ -602,7 +639,7 @@ def one(f, dw, out, spec=None, timeout=600, review=True):
         "ink": sum(codes[c] for c in INK) + linework.get("schedule_ink", 0), "ink_by_code": {**{c: codes[c] for c in INK if codes[c]},
                          **({"schedule_ink": linework["schedule_ink"]} if linework.get("schedule_ink") else {})},
         "line_through_feature": line_through_features(plan),
-        "leader_on_extension": leader_on_extension(plan),
+        "leader_on_extension": sum(leader_on_extension(page) for page in pages),
         "dimensions": len(plan["dimensions"]),
         "sheet": plan["sheet"].get("size"), "scale": plan["sheet"].get("scale"),
         "fill": round(100 * fill, 2),
