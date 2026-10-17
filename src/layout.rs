@@ -1212,6 +1212,39 @@ fn geometry_with(
     }
     let drawable: Rect = [left, bottom, page_w - right, page_h - top];
 
+    // Required lower-corner blocks need their paper before the views claim it.
+    // Keep the aligned row together and retain its scale; when there is no
+    // height for the lift, the ordinary auxiliary placement remains available.
+    let mut fixed = vec![tb_rect];
+    let mut lower_tables = Vec::new();
+    for (size, corner) in &req.required_tables {
+        if !matches!(corner, Corner::BottomLeft | Corner::BottomRight) {
+            continue;
+        }
+        if let Some([x, y]) = fit_auxiliary_box(*size, drawable, &fixed, *corner, 2.0) {
+            let b = [x, y, x + size[0], y + size[1]];
+            fixed.push(b);
+            lower_tables.push(b);
+        }
+    }
+    if !lower_tables.is_empty() {
+        let boxes = placed_boxes(fv_y, pv_y, sv_y, section_y);
+        let mut lift = 0.0_f64;
+        for b in &boxes {
+            for t in &lower_tables {
+                if b[0] < t[2] + PREFERRED_BLOCK_GUTTER && t[0] - PREFERRED_BLOCK_GUTTER < b[2] {
+                    lift = lift.max(t[3] + PREFERRED_BLOCK_GUTTER - b[1]);
+                }
+            }
+        }
+        if lift > 0.0 && boxes.iter().all(|b| b[3] + lift.next_up() <= page_h - top) {
+            fv_y += lift.next_up();
+            pv_y += lift.next_up();
+            sv_y += lift.next_up();
+            section_y += lift.next_up();
+        }
+    }
+
     // The pinned title block, and the isometric in the largest gap left.
     let title_block = Block {
         top: DIM_PAD,
