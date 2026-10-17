@@ -24,6 +24,12 @@ filter = '''
 '''
 threads-required = 2
 
+# Whole-corpus wording audits are still long even with bounded workers. Start them before
+# individual NIST cases so their final part does not become the shard's last task.
+[[profile.default.overrides]]
+filter = 'test(=only_sheet_problems_have_the_sheet_as_subject) | test(=no_problem_message_carries_an_internal_id)'
+priority = 100
+
 [profile.ci]
 default-filter = 'not (binary(issue_drafting) | binary(issue_trust))'
 fail-fast = false
@@ -56,4 +62,4 @@ filter = '''
     | test(=corpus_parts_render_natively_naming_what_is_not_recognised)
     | test(=a_turned_parts_coaxial_bosses_are_profile_bands_and_a_groove_floor_is_the_grooves)
 '''
-priority = 100
+priority = 80
