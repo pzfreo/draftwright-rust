@@ -1,5 +1,5 @@
 //! Maintainer sheet policy, 2026-10-17: paper cost, readability and measured content.
-use draftwright::model::{self, Analysis, Spec};
+use draftwright::model::{self, Analysis, Plan, Spec};
 use serde_json::json;
 use std::path::Path;
 
@@ -363,8 +363,60 @@ fn small_parts_exhaust_readability_and_allocation_before_large_paper() {
             "annotation_ink_overlap" | "annotation_off_sheet" | "page_fit_uncertain"
         )));
         let first = model::plan_escalated(&a, &named("A2", "1:1")).unwrap();
-        let p = model::recover(&a, &Spec::default(), first).unwrap();
-        assert_eq!(p.sheet.size, size, "{name}: {}", p.sheet.basis);
+        let p = model::recover(&a, &Spec::default(), first.clone()).unwrap();
+        // This explicitly framed seed has different established routes from the
+        // automatic estimate. Its readable A2 drawing may remain when smaller
+        // paper cannot preserve those routes; the old blanket A3 cap is gone.
+        let seeded_size = if name == "assembly_plate_pin.step" {
+            "A2"
+        } else {
+            size
+        };
+        assert_eq!(p.sheet.size, seeded_size, "{name}: {}", p.sheet.basis);
+        assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
+        let issues = |p: &Plan| {
+            let mut out = std::collections::BTreeMap::new();
+            for q in p.problems.iter().filter(|q| {
+                q.severity != "info"
+                    && (q.code.starts_with("annotation_")
+                        || matches!(
+                            q.code.as_str(),
+                            "leader_through_feature" | "extension_through_feature"
+                        ))
+            }) {
+                *out.entry((q.code.clone(), q.subjects.clone(), q.refs.clone()))
+                    .or_insert(0usize) += 1;
+            }
+            out
+        };
+        let before = issues(&first);
+        for (key, count) in issues(&p) {
+            assert!(
+                count <= before.get(&key).copied().unwrap_or(0),
+                "{name}: new seeded finding {key:?}"
+            );
+        }
+        assert!(
+            first
+                .gdt
+                .iter()
+                .filter(|g| g.placed.is_some())
+                .all(|g| p.gdt.iter().any(|q| q.id == g.id && q.placed.is_some()))
+        );
+        if name == "assembly_plate_pin.step" {
+            assert!(
+                p.sheet.basis.contains("A4 multi-sheet:")
+                    && p.sheet.basis.contains("A3 multi-sheet:")
+            );
+            let saved: serde_json::Value =
+                serde_json::from_str(include_str!("fixtures/sheet_policy_routes.json")).unwrap();
+            let original: std::collections::BTreeSet<(String, Vec<String>, Vec<String>)> =
+                serde_json::from_value(saved["pairs"].clone()).unwrap();
+            assert!(
+                issues(&first).keys().any(|key| !original.contains(key)),
+                "the supplied seed must exercise a different fitted route reference"
+            );
+        }
     }
     let a = part();
     let first = model::plan_escalated(&a, &named("A2", "1:1")).unwrap();
