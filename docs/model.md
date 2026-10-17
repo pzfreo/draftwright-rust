@@ -902,8 +902,9 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   paper fit/readability test; a marginal fill gain never purchases larger paper.
   Candidate histories record actual fit, measurement retention and separate
   readability counts. The material-crossing ratchet against a valid fitted seed
-  remains. Enlargements cannot exchange existing annotation crossings for new
-  subject pairs merely because their total count decreases. Explicit paper, scale, sheet limits, assignments and pins retain priority.
+  remains. The established fitted drawing also supplies the exact crossing-pair
+  reference: improving the raw seed cannot restore its worse routes, and fewer
+  crossings cannot pay for a newly obstructed dimension or feature association. Explicit paper, scale, sheet limits, assignments and pins retain priority.
   Version-1 Spec keys are migrated before recovery; restoring user intent after
   temporary search controls preserves canonical keys and revision bindings.
   Underestimated annotation bands reuse the existing settled-block packing,

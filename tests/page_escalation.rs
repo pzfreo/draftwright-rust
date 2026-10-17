@@ -537,3 +537,82 @@ fn composed_corridors_clear_a_previously_overlapping_off_part_fixture() {
     );
     sheet_rule::assert_follows("1004 stand-in", &plan, ("A4", "2:1"));
 }
+
+/// A raw seed can have worse routes than its established fitted drawing. The
+/// quality comparison must use the fitted reference, preserving exact pairs.
+#[test]
+fn a_fitted_route_reference_keeps_pair_identity_without_restoring_raw_crossings() {
+    fn pairs(p: &Plan) -> std::collections::BTreeSet<(String, Vec<String>, Vec<String>)> {
+        p.problems
+            .iter()
+            .filter(|q| {
+                q.severity != "info"
+                    && (q.code.starts_with("annotation_")
+                        || matches!(
+                            q.code.as_str(),
+                            "leader_through_feature" | "extension_through_feature"
+                        ))
+            })
+            .map(|q| (q.code.clone(), q.subjects.clone(), q.refs.clone()))
+            .collect()
+    }
+    fn measurements(p: &Plan) -> std::collections::BTreeSet<(String, String)> {
+        p.dimensions
+            .iter()
+            .filter(|d| d.placed.is_some())
+            .flat_map(|d| &d.measurements)
+            .map(|m| (m.feature.clone(), m.parameter.clone()))
+            .collect()
+    }
+    let Some(dir) = corpus::dir() else { return };
+    let a = api::analyse_from(&dir.join("mfcadpp_holdout/419.step"), Features::Native).unwrap();
+    let reference = api::plan_analysed(&a, &spec(json!({"size":"A3", "scale":"2:1"}))).unwrap();
+    let p = api::plan_analysed(&a, &Spec::default()).unwrap();
+    assert_eq!(sheet(&p), ("A3", "2:1"));
+    assert_eq!(
+        pairs(&reference)
+            .iter()
+            .filter(|(code, _, _)| code == "annotation_leader_crossing")
+            .count(),
+        1
+    );
+    assert!(pairs(&p).is_subset(&pairs(&reference)));
+    assert!(measurements(&reference).is_subset(&measurements(&p)));
+    assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
+
+    use std::io::Read as _;
+    let mut data = Vec::new();
+    flate2::read::GzDecoder::new(
+        include_bytes!("fixtures/pmi/step/assembly_plate_pin.step.gz").as_slice(),
+    )
+    .read_to_end(&mut data)
+    .unwrap();
+    let (_, a) =
+        model::analyse_native_step(std::path::Path::new("assembly_plate_pin.step"), &data).unwrap();
+    let reference = api::plan_analysed(&a, &spec(json!({"size":"A4", "scale":"1:5"}))).unwrap();
+    let p = api::plan_analysed(&a, &Spec::default()).unwrap();
+    assert_eq!(sheet(&p), ("A4", "1:5"));
+    // A fully pinned pair deliberately keeps a different frame. The route
+    // reference is the actual fitted drawing archived from the pre-policy base.
+    let saved: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/sheet_policy_routes.json")).unwrap();
+    assert_eq!(
+        a.binding.source_sha256,
+        saved["source_sha256"].as_str().unwrap()
+    );
+    let expected: std::collections::BTreeSet<(String, Vec<String>, Vec<String>)> =
+        serde_json::from_value(saved["pairs"].clone()).unwrap();
+    assert_eq!(pairs(&p), expected);
+    assert!(measurements(&reference).is_subset(&measurements(&p)));
+    assert_eq!(
+        p.gdt.iter().filter(|g| g.placed.is_some()).count(),
+        reference.gdt.iter().filter(|g| g.placed.is_some()).count()
+    );
+    assert!(draftwright::sheet_fit::readability(&a, &p).failures() > 0);
+    assert!(
+        p.problems
+            .iter()
+            .any(|q| q.code == "layout_recovery_exhausted"
+                && q.message.contains("without new crossing pairs"))
+    );
+}

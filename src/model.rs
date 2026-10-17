@@ -1403,22 +1403,42 @@ pub(crate) fn drawn_quality_reference(analysis: &Analysis, plan: &Plan) -> bool 
 /// Existing annotation/material findings are separate quality limits, not a
 /// weighted score: fewer crossings cannot pay for a new long or obstructed leader.
 pub(crate) fn no_new_drawing_issues(first: &Plan, candidate: &Plan) -> bool {
-    no_new_issues(first, candidate, true)
+    no_new_issues(first, candidate, true) && no_new_issue_pairs(first, candidate)
 }
 
 fn no_new_issues(first: &Plan, candidate: &Plan, material: bool) -> bool {
-    let relevant = |q: &&Problem| {
-        q.severity != "info"
-            && (q.code.starts_with("annotation_")
-                || (material
-                    && matches!(
-                        q.code.as_str(),
-                        "leader_through_feature" | "extension_through_feature"
-                    )))
+    let counts = |p: &Plan| {
+        let mut counts = BTreeMap::<String, usize>::new();
+        for q in p.problems.iter().filter(|q| {
+            q.severity != "info"
+                && (q.code.starts_with("annotation_")
+                    || (material
+                        && matches!(
+                            q.code.as_str(),
+                            "leader_through_feature" | "extension_through_feature"
+                        )))
+        }) {
+            *counts.entry(q.code.clone()).or_default() += 1;
+        }
+        counts
     };
+    let before = counts(first);
+    counts(candidate)
+        .into_iter()
+        .all(|(code, n)| n <= before.get(&code).copied().unwrap_or(0))
+}
+
+fn no_new_issue_pairs(first: &Plan, candidate: &Plan) -> bool {
     let identities = |p: &Plan| {
         let mut counts = BTreeMap::new();
-        for q in p.problems.iter().filter(relevant) {
+        for q in p.problems.iter().filter(|q| {
+            q.severity != "info"
+                && (q.code.starts_with("annotation_")
+                    || matches!(
+                        q.code.as_str(),
+                        "leader_through_feature" | "extension_through_feature"
+                    ))
+        }) {
             *counts
                 .entry((q.code.clone(), q.subjects.clone(), q.refs.clone()))
                 .or_insert(0usize) += 1;
@@ -1429,6 +1449,38 @@ fn no_new_issues(first: &Plan, candidate: &Plan, material: bool) -> bool {
     identities(candidate)
         .into_iter()
         .all(|(identity, n)| n <= before.get(&identity).copied().unwrap_or(0))
+}
+
+/// The established fitted drawing is the route reference, rather than the raw
+/// seed whose routes recovery can already improve. A changed crossing pair is
+/// not paid for by removing other pairs. Refuse explicitly when readability and
+/// the retained routes cannot both be delivered; never discard measurements.
+fn protect_retained_routes(
+    analysis: &Analysis,
+    spec: &Spec,
+    reference: &Plan,
+    candidate: Plan,
+) -> Plan {
+    if !drawn_quality_reference(analysis, reference) || no_new_issue_pairs(reference, &candidate) {
+        return candidate;
+    }
+    let mut kept = reference.clone();
+    restore_search_spec(&mut kept, spec);
+    kept.sheet.default = true;
+    kept.sheet.basis = format!(
+        "readability refusal on {} at {}; established fitted geometry retained; no new crossing pairs are allowed; rejected drawing {} at {}; candidates: {}",
+        kept.sheet.size,
+        kept.sheet.scale,
+        candidate.sheet.size,
+        candidate.sheet.scale,
+        candidate.sheet.basis
+    );
+    kept.problems.push(Problem {
+        id: "p:layout_recovery_exhausted:sheet".into(), code: "layout_recovery_exhausted".into(), severity: "warning".into(),
+        message: format!("No clean readable drawing preserves the established annotation/feature associations. The fitted drawing and every measurement are retained without new crossing pairs. Readability: {}.", crate::sheet_fit::readability(analysis, &kept)), subjects: vec!["sheet".into()], ..Default::default()
+    });
+    kept.status = crate::completeness::status(&kept.problems);
+    kept
 }
 
 fn longer_callouts(candidate: &Plan, baseline: &Plan) -> bool {
@@ -2729,6 +2781,20 @@ fn recover_candidates(
             break;
         }
     }
+    // Reconstruct the established fitted comparison only as a route-quality
+    // reference. Qualified readable candidates still rank by paper then scale.
+    let retained_keys: Vec<_> = retained_candidates.iter().map(|(c, _)| *c).collect();
+    let route_reference = crate::sheet_fit::retained_refusal_choice(
+        &retained_keys,
+        spec.sheet.size.is_some(),
+        seed_kept
+            && !suppressed_detail
+            && crate::sheet_fit::primary_illegible_steps(analysis, &first) == 0
+            && !(seed_paper >= LARGE_SHEET && practical_fallback),
+    )
+    .and_then(|(choice, _)| choice.map(|index| &retained_candidates[index].1))
+    .unwrap_or(&first)
+    .clone();
     let keys: Vec<_> = candidates.iter().map(|(c, _)| *c).collect();
     let Some((choice, (i, s))) =
         crate::sheet_fit::choose(&keys, spec.sheet.size.is_some(), seed_kept)
@@ -2773,7 +2839,12 @@ fn recover_candidates(
                 });
                 fitting.status = crate::completeness::status(&fitting.problems);
             }
-            return Ok(fitting);
+            return Ok(protect_retained_routes(
+                analysis,
+                spec,
+                &route_reference,
+                fitting,
+            ));
         }
         // No valid complete pair: keep the initial drawing and its findings, on its own paper.
         // Only a seed below the absolute floor (1:10, the smallest scale the automatic choice
@@ -2885,7 +2956,12 @@ fn recover_candidates(
             chosen.status = crate::completeness::status(&chosen.problems);
         }
     }
-    Ok(chosen)
+    Ok(protect_retained_routes(
+        analysis,
+        spec,
+        &route_reference,
+        chosen,
+    ))
 }
 
 /// [`plan`] with draftwright's bounded layout recovery applied ([`recover`]): the plan every

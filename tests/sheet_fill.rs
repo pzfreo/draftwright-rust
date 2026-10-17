@@ -318,25 +318,39 @@ fn gz_part(name: &str) -> Analysis {
 }
 
 /// The former full-size-only cap accepted 1:5 holes below the new 2 mm
-/// readability floor. The first assembly needs A2; retaining the related fixture's
-/// schedule at 1:2 fits A3. Both exhaust readable A4 allocation first.
+/// readability floor. Its larger readable trial changes crossing pairs, so the
+/// fitted A4 is kept with an explicit refusal. The related intent fixture fits
+/// cleanly on A3. Both exhaust readable A4 allocation first.
 #[test]
 fn small_parts_exhaust_readability_and_allocation_before_large_paper() {
     for (name, size) in [
-        ("assembly_plate_pin.step", "A2"),
+        ("assembly_plate_pin.step", "A4"),
         ("hw_assembly_plate_pin_intent.step", "A3"),
     ] {
         let a = gz_part(name);
         let p = model::plan_recovered(&a, &Spec::default()).unwrap();
         assert_eq!(p.sheet.size, size, "{name}: {}", p.sheet.basis);
-        assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
+        let readable = draftwright::sheet_fit::readability(&a, &p);
+        if name == "assembly_plate_pin.step" {
+            assert_eq!(p.sheet.scale, "1:5");
+            assert_eq!(readable.openings, 8);
+            assert_eq!(readable.failures(), 8);
+            assert!(
+                p.problems
+                    .iter()
+                    .any(|q| q.code == "layout_recovery_exhausted"
+                        && q.message.contains("without new crossing pairs"))
+            );
+        } else {
+            assert_eq!(readable.failures(), 0);
+        }
         sheet_rule::assert_rule(name, &p);
         assert!(
             p.sheet.basis.contains("A4 multi-sheet:"),
             "{name}: {}",
             p.sheet.basis
         );
-        if size == "A2" {
+        if name == "assembly_plate_pin.step" {
             assert!(
                 p.sheet.basis.contains("A3 multi-sheet:"),
                 "{}",
