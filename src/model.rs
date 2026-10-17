@@ -2479,11 +2479,14 @@ fn recover_candidates(
                 && (ink_findings(&p) > ink_findings(&first)
                     || feature_crossings(&p) > feature_crossings(&first)
                     || longer_callouts(&p, &first));
-            // A clean candidate cannot buy any new annotation finding type.
-            // Keep material routing's established independent ratchet: enlarging
-            // an ordinary layout must not be compared with compressed raw ink.
+            // Enlarging the seed must not buy a new annotation finding type.
+            // A readable reduction keeps the ordinary-layout quality ratchet:
+            // it can remove a raw estimate's obstructed routes without being
+            // forced back onto that larger, worse sheet by one crossing type.
             let quality_veto = detail_quality_veto
-                || (crate::sheets::floor(spec).is_none() && !no_new_issues(&first, &p, false));
+                || (crate::sheets::floor(spec).is_none()
+                    && scale > first.sheet.scale_factor + 1e-6
+                    && !no_new_issues(&first, &p, false));
             let verdict = if quality_veto {
                 format!("drawing quality veto; {}", said(f, drops(&p)))
             } else {

@@ -761,3 +761,61 @@ fn declining_optional_details_does_not_buy_new_annotation_crossings() {
             .any(|q| q.code == "layout_recovery_exhausted" && q.severity == "warning")
     );
 }
+
+#[test]
+fn readable_reductions_do_not_return_to_a_larger_obstructed_estimate() {
+    for file in ["assembly.step", "assembly_pin_pmi.step.gz"] {
+        let mut path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/assembly")
+            .join(file);
+        if let Some(name) = file.strip_suffix(".gz") {
+            use std::io::Read as _;
+            let mut bytes = Vec::new();
+            flate2::read::GzDecoder::new(std::fs::File::open(&path).unwrap())
+                .read_to_end(&mut bytes)
+                .unwrap();
+            let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+                .join("readable-reductions")
+                .join(std::process::id().to_string());
+            std::fs::create_dir_all(&dir).unwrap();
+            path = dir.join(name);
+            std::fs::write(&path, bytes).unwrap();
+        }
+        let (_, a) = model::analyse_native(&path).unwrap();
+        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        assert_eq!(
+            (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+            ("A4", "1:2"),
+            "{file}: {}",
+            p.sheet.basis
+        );
+        assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
+        assert!(!p.problems.iter().any(|q| q.code == "annotation_over_view"));
+        assert!(
+            p.problems
+                .iter()
+                .filter(|q| q.code == "leader_through_feature")
+                .count()
+                <= 2
+        );
+    }
+    for file in ["hw_spool_fits_intent.step", "spool_fits.step"] {
+        let a = gz_part(file);
+        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        assert_eq!(
+            (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+            ("A3", "1:2"),
+            "{file}: {}",
+            p.sheet.basis
+        );
+        assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
+        assert!(
+            p.problems
+                .iter()
+                .filter(|q| q.code == "leader_through_feature")
+                .count()
+                <= 8
+        );
+        assert!(!p.hole_tables.is_empty());
+    }
+}
