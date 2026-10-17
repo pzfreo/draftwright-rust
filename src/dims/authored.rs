@@ -201,7 +201,7 @@ pub(super) fn append(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<()
         }
         wants.push(w);
     }
-    Ok(())
+    super::schemes::check_authored(s, wants)
 }
 
 fn duplicate(a: &Analysis, w: &Want, o: &Want, refs: &[String], kind: &str) -> bool {

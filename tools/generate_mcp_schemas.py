@@ -37,8 +37,9 @@ spec['properties']['sheet']['properties'].update(line_fields)
 spec['properties']['views']['additionalProperties'] = obj(line_fields, extra=True)
 # Share the base map/list shapes while retaining each view/declaration constraint.
 # The common pattern and the named property both apply (draft 2020-12).
+# Scheme entries share the sparse per-ID object map; Rust validates complete entries.
 spec['patternProperties'] = {
-    '^(views|dimensions|annotations|features|faces)$(?!\n)':
+    '^(views|dimensions|annotations|features|faces|dimension_schemes)$(?!\n)':
         {'type':'object', 'additionalProperties':{'type':'object'}},
     '^(notes|tables|gears|feature_declarations)$(?!\n)': arr({'type':'object'}),
 }

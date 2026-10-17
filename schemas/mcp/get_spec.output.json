@@ -193,7 +193,7 @@
           },
           "additionalProperties": false,
           "patternProperties": {
-            "^(views|dimensions|annotations|features|faces)$(?!\n)": {
+            "^(views|dimensions|annotations|features|faces|dimension_schemes)$(?!\n)": {
               "type": "object",
               "additionalProperties": {
                 "type": "object"

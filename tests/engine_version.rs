@@ -146,6 +146,8 @@ fn tools_explain_their_operations_without_source_and_fit_schema_budget() {
     // Authored gears add 32 bytes to each of twelve Spec-carrying schemas: 42,356.
     // Line-work switches plus equivalent patternProperties compaction: 42,113 bytes.
     // Authored geometry, recognition corrections and label text with shared name suffixes: 42,465.
-    assert!(schema_bytes < 42500, "schemas: {schema_bytes} bytes");
+    // Schemes add 18 literal-name bytes in each of 12 shared map patterns: +216.
+    // Raise only to the compacted total; equality fits the byte budget.
+    assert!(schema_bytes <= 42681, "schemas: {schema_bytes} bytes");
     eprintln!("schema bytes per session: {schema_bytes}");
 }

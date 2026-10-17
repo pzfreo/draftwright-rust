@@ -77,6 +77,7 @@ pub mod profiled_bores;
 pub mod profiles;
 pub mod redundancy;
 pub mod schedule_evidence;
+pub(crate) mod schemes;
 pub mod section_recesses;
 pub mod slots;
 pub mod steps;
@@ -457,8 +458,17 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         .filter(|m| blends::verified_row(analysis, m))
         .cloned()
         .collect();
-    let marks = &verified;
+    let printed = &verified;
+    let (extra, scheme_issues) = schemes::evidence(analysis, printed);
+    let expanded;
+    let marks = if extra.is_empty() {
+        printed
+    } else {
+        expanded = printed.iter().cloned().chain(extra).collect::<Vec<_>>();
+        &expanded
+    };
     let mut issues = coverage::feature_coverage(analysis, marks);
+    issues.extend(scheme_issues);
     issues.extend(authored::check(analysis, marks));
     issues.extend(bosses::coverage(analysis, marks));
     issues.extend(coverage::located(analysis, marks));
@@ -495,8 +505,8 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(hole_patterns::coverage(analysis, marks));
     assembly_coverage(analysis, &mut issues);
     issues.extend(pmi_coverage::coverage(analysis, marks));
-    issues.extend(redundancy::coverage(analysis, marks));
-    issues.extend(redundancy::references(analysis, marks));
+    issues.extend(redundancy::coverage(analysis, printed));
+    issues.extend(redundancy::references(analysis, printed));
     issues
 }
 

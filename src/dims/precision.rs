@@ -88,6 +88,16 @@ pub(super) fn labels<'a>(
         return Err(bad("precision must be an integer from 0 to 15".into()));
     }
     for w in wants {
+        if w.id.starts_with("d:scheme:") {
+            if let Some(&places) = spec.precision.get(&w.id)
+                && let Some(term) = w.terms.first_mut()
+                && let Some(nominal) = term.split_whitespace().next()
+                && nominal.parse::<f64>().is_ok()
+            {
+                *term = format!("{}{}", format(w.value, places), &term[nominal.len()..]);
+            }
+            continue;
+        }
         // ISO thread designations replace the numeric diameter. Their lengths and table
         // references are different quantities, even when they happen to equal that diameter.
         if super::tolerance::thread_designated(w) {

@@ -12,6 +12,7 @@ pub mod centrelines;
 pub mod completeness;
 pub mod cosmetic;
 pub mod demand;
+pub mod dimension_scheme;
 pub mod dims;
 pub mod evaluation;
 pub mod gears;
