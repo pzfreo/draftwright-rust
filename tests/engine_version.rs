@@ -147,3 +147,19 @@ fn tools_explain_their_operations_without_source_and_fit_schema_budget() {
     assert_eq!(schema_bytes, 34389, "schemas: {schema_bytes} bytes");
     eprintln!("schema bytes per session: {schema_bytes}");
 }
+
+#[test]
+fn nested_spec_growth_does_not_change_advertised_schemas() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let output = std::process::Command::new("python3")
+        .arg(root.join("tools/test_mcp_spec_outline.py"))
+        .current_dir(root)
+        .output()
+        .expect("Python 3 runs the standard-library schema generator guards");
+    assert!(
+        output.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
