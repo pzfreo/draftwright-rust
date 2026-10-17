@@ -8,6 +8,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Added
 
+- Consume oriented chamfers from native recognition, claim their faces, and include equal
+  oblique and principal bevels in one counted true-section C/size-and-angle callout.
+- Dimension symmetric V-notches from ordered profile evidence with true included angles,
+  theoretical sharp depths and datum locations. Their ordinary IDs support dimension edits,
+  authored ownership and location schemes; lint verifies live values against source geometry
+  and printed scheme links. Reserve acute-notch arcs before layout; bevel run midpoints do
+  not introduce artificial automatic datum stations.
+
 - Authored detail `from` selects an existing principal or section parent; `around` accepts
   a feature/face ID or a nonempty list whose crops are united. Missing members and
   degenerate projections in an explicit parent are refused. Mixed natural sources choose
