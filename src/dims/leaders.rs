@@ -2242,6 +2242,7 @@ pub(super) struct SegmentIndex {
     ink: Vec<[P2; 2]>,
     children: Option<Box<[SegmentIndex; 2]>>,
     counts: std::cell::RefCell<std::collections::HashMap<[u64; 4], usize>>,
+    besides: std::cell::RefCell<std::collections::HashMap<[u64; 4], bool>>,
     routes: std::cell::RefCell<std::collections::HashMap<[u64; 8], usize>>,
 }
 
@@ -2281,6 +2282,7 @@ impl SegmentIndex {
             ink,
             children,
             counts: std::cell::RefCell::default(),
+            besides: std::cell::RefCell::default(),
             routes: std::cell::RefCell::default(),
         }
     }
@@ -2452,9 +2454,24 @@ impl SegmentIndex {
     }
 
     fn runs_beside(&self, line: [P2; 2]) -> bool {
+        let key = [
+            line[0][0].to_bits(),
+            line[0][1].to_bits(),
+            line[1][0].to_bits(),
+            line[1][1].to_bits(),
+        ];
+        if let Some(&result) = self.besides.borrow().get(&key) {
+            return result;
+        }
         let mut ink = Vec::new();
         self.collect_beside(line, &mut ink);
-        runs_beside(line, &ink)
+        let result = runs_beside(line, &ink);
+        let mut saved = self.besides.borrow_mut();
+        if saved.len() >= 8192 {
+            saved.clear();
+        }
+        saved.insert(key, result);
+        result
     }
 }
 
@@ -4329,6 +4346,7 @@ mod tests {
             } else {
                 std::array::from_fn(|_| std::array::from_fn(|_| 200.0 * lcg(&mut seed) - 100.0))
             };
+            assert_eq!(index.runs_beside(line), runs_beside(line, &ink));
             assert_eq!(index.runs_beside(line), runs_beside(line, &ink));
             let bounds = grow(segment_bounds(line), 1.0);
             assert_eq!(

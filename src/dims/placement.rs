@@ -1349,10 +1349,95 @@ fn linear_witness_contact(a: &Placed, b: &Placed, allow_transverse: bool) -> boo
         || (a.arrows.len() == 2 && b.arrows.len() == 2 && shared_dimension_line(&a.lines, &b.lines))
 }
 
+// Candidate witnesses do not change while testing their peers. Prepare
+// their local axes and rendered heads once, retaining the original arithmetic.
+struct WitnessFrame {
+    from: P2,
+    delta: P2,
+    length: f64,
+}
+impl WitnessFrame {
+    fn new(line: [P2; 2]) -> Self {
+        let delta = [line[1][0] - line[0][0], line[1][1] - line[0][1]];
+        Self {
+            from: line[0],
+            delta,
+            length: delta[0].hypot(delta[1]),
+        }
+    }
+    fn touches(&self, s: [P2; 2], pad: f64) -> bool {
+        let (from, d, n) = (self.from, self.delta, self.length);
+        if n < 1e-12 {
+            return super::leaders::touches_box(
+                s,
+                [from[0] - pad, from[1] - pad, from[0] + pad, from[1] + pad],
+            );
+        }
+        let local = s.map(|p| {
+            let w = [p[0] - from[0], p[1] - from[1]];
+            [
+                (w[0] * d[0] + w[1] * d[1]) / n,
+                (w[1] * d[0] - w[0] * d[1]) / n,
+            ]
+        });
+        super::leaders::touches_box(local, [-pad, -pad, n + pad, pad])
+    }
+}
+struct WitnessStroke<'a> {
+    placed: &'a Placed,
+    heads: [[[P2; 2]; 3]; 2],
+    frames: std::cell::OnceCell<[WitnessFrame; 2]>,
+}
+impl<'a> WitnessStroke<'a> {
+    fn new(placed: &'a Placed) -> Option<Self> {
+        (placed.arrows.len() == 2 && placed.lines.len() >= 3).then(|| Self {
+            placed,
+            heads: [
+                super::leaders::head(placed.arrows[0]),
+                super::leaders::head(placed.arrows[1]),
+            ],
+            frames: std::cell::OnceCell::new(),
+        })
+    }
+    fn contact(&self, peer: &WitnessPeer, transverse: bool) -> bool {
+        let (a, b) = (self.placed, peer.placed);
+        a.lines
+            .iter()
+            .take(2)
+            .any(|line| crosses(*line, b.label_box))
+            || self
+                .heads
+                .iter()
+                .flatten()
+                .any(|line| crosses(*line, b.label_box))
+            || peer.head.as_ref().is_some_and(|head| {
+                (!transverse
+                    && super::leaders::meets_extensions(&a.lines[..2], &b.lines, b.label_box))
+                    || self
+                        .frames
+                        .get_or_init(|| {
+                            [WitnessFrame::new(a.lines[0]), WitnessFrame::new(a.lines[1])]
+                        })
+                        .iter()
+                        .any(|frame| head.iter().any(|h| frame.touches(*h, 0.2)))
+                    || (transverse
+                        && a.lines[..2]
+                            .iter()
+                            .any(|e| super::leaders::runs_beside(*e, &b.lines)))
+            })
+            || (b.arrows.len() == 2 && shared_dimension_line(&a.lines, &b.lines))
+    }
+}
+struct WitnessPeer<'a> {
+    placed: &'a Placed,
+    bounds: [f64; 4],
+    head: Option<[[P2; 2]; 3]>,
+}
+
 // Broad phase for fixed witness contacts. Bounds include rendered peer heads
 // and labels; query padding exceeds the largest head, corridor and shared-line
 // tolerance. Every surviving pair still uses the complete original predicate.
-struct WitnessPeers<'a>(Vec<(&'a Placed, [f64; 4])>);
+struct WitnessPeers<'a>(Vec<WitnessPeer<'a>>);
 impl<'a> WitnessPeers<'a> {
     fn new(peers: impl Iterator<Item = &'a Placed>) -> Self {
         Self(
@@ -1374,12 +1459,16 @@ impl<'a> WitnessPeers<'a> {
                             ]
                         },
                     );
-                    (p, b)
+                    WitnessPeer {
+                        placed: p,
+                        bounds: b,
+                        head: (p.arrows.len() == 1).then(|| super::leaders::head(p.arrows[0])),
+                    }
                 })
                 .collect(),
         )
     }
-    fn contact(&self, p: &Placed, exact: impl Fn(&Placed, &Placed) -> bool) -> bool {
+    fn contact(&self, p: &Placed, transverse: impl Fn(&Placed) -> bool) -> bool {
         let b = p.lines.iter().chain(&p.arrows).flatten().fold(
             [
                 f64::INFINITY,
@@ -1398,9 +1487,17 @@ impl<'a> WitnessPeers<'a> {
         );
         let pad = 2.0 + ARROW_HALF;
         let b = [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad];
-        self.0
-            .iter()
-            .any(|(q, bounds)| boxes_overlap(b, *bounds) && exact(p, q))
+        let prepared = std::cell::OnceCell::new();
+        self.0.iter().any(|peer| {
+            boxes_overlap(b, peer.bounds)
+                && prepared
+                    .get_or_init(|| WitnessStroke::new(p))
+                    .as_ref()
+                    .map_or_else(
+                        || linear_witness_contact(p, peer.placed, transverse(peer.placed)),
+                        |a| a.contact(peer, transverse(peer.placed)),
+                    )
+        })
     }
 }
 
@@ -1951,6 +2048,7 @@ fn clear_linear_ordered(
     rotation: usize,
     yield_locations: bool,
 ) {
+    let held = locked.iter().any(|p| *p);
     // Semantic PMI leaders may cross a witness transversely. Their text,
     // arrowheads and parallel runs remain obstacles, and final adjudication
     // still reports each crossing. Ordinary free solves retain their complete
@@ -2030,7 +2128,7 @@ fn clear_linear_ordered(
     // Their failed template positions must not block the current item. Restore
     // each before its own solve, so no dimension disappears from the result.
     let mut pending = BTreeMap::new();
-    if locked.iter().any(|p| *p) && obstacles.iter().any(|d| d.id.starts_with("pmi:")) {
+    if held && obstacles.iter().any(|d| d.id.starts_with("pmi:")) {
         for &i in order.iter().take(end) {
             if !chained[i]
                 && let Some(p) = placed[i].take()
@@ -2054,6 +2152,7 @@ fn clear_linear_ordered(
         }
     }
     for i in order {
+        let new_recess = recess(i);
         if let Some(p) = pending.remove(&i) {
             placed[i] = Some(p);
         }
@@ -2092,11 +2191,7 @@ fn clear_linear_ordered(
             continue;
         };
         let conflict = |a: &Placed, b: &Placed| {
-            linear_pair_contact(
-                a,
-                b,
-                recess(i) && (semantic_frame(b) || locked.iter().any(|p| *p)),
-            )
+            linear_pair_contact(a, b, new_recess && (semantic_frame(b) || held))
         };
         let others: Vec<_> = placed
             .iter()
@@ -2191,6 +2286,7 @@ fn clear_linear_ordered(
         } else {
             (0..8).map(|lane| (opposite(side), lane)).collect()
         };
+        let leader_corridor = others.iter().any(|q| q.arrows.len() == 1 && conflict(p, q));
         let repair_witnesses: Vec<_> = placed
             .iter()
             .map(|q| q.as_ref().is_some_and(|q| page.witnesses_fit(q, view)))
@@ -2215,13 +2311,7 @@ fn clear_linear_ordered(
             .collect();
         // Sliding this label cannot repair its witness or head crossing fixed
         // text, nor a fixed leader's forbidden contact with those witnesses.
-        let fixed_witness_conflict = |a: &Placed, b: &Placed| {
-            linear_witness_contact(
-                a,
-                b,
-                recess(i) && (semantic_frame(b) || locked.iter().any(|p| *p)),
-            )
-        };
+        let transverse_allowed = |b: &Placed| new_recess && (semantic_frame(b) || held);
         let fixed_witnesses = WitnessPeers::new(immovable.iter().copied());
         let all_witnesses = WitnessPeers::new(others.iter().copied());
         let all_peer_ink = PeerInk::new(others.iter().copied());
@@ -2319,7 +2409,7 @@ fn clear_linear_ordered(
                         }
                     }
                 }
-                if recess(i)
+                if new_recess
                     && items[i]
                         .measurements
                         .iter()
@@ -2339,7 +2429,6 @@ fn clear_linear_ordered(
                         }
                     }
                 }
-                let leader_corridor = others.iter().any(|q| q.arrows.len() == 1 && conflict(p, q));
                 if recess_context
                     && before.0 > 0
                     && items[i].measurements.iter().any(|m| {
@@ -2381,9 +2470,9 @@ fn clear_linear_ordered(
                     }
                 }
                 if recess_context
-                    && (before.0 > 0 || leader_corridor || (recess(i) && label_conflict))
+                    && (before.0 > 0 || leader_corridor || (new_recess && label_conflict))
                 {
-                    let bases = if recess(i) && locked.iter().any(|p| *p) {
+                    let bases = if new_recess && held {
                         strokes.clone()
                     } else {
                         vec![c.clone()]
@@ -2468,7 +2557,7 @@ fn clear_linear_ordered(
                 // every later stroke's labels before the first one can win.
                 // Label slides cannot repair an invalid physical witness.
                 if !page.witnesses_fit(&stroke, view)
-                    || fixed_witnesses.contact(&stroke, fixed_witness_conflict)
+                    || fixed_witnesses.contact(&stroke, transverse_allowed)
                 {
                     return Vec::new();
                 }
@@ -2477,7 +2566,7 @@ fn clear_linear_ordered(
                 // already losing feature tier needs no model measurement.
                 if recess_context {
                     let bound = (feature_crossings(&stroke), 0);
-                    if (bound > before && !(recess(i) && label_conflict))
+                    if (bound > before && !(new_recess && label_conflict))
                         || (!label_conflict && bound >= before)
                         || best_rank
                             .get()
@@ -2488,7 +2577,7 @@ fn clear_linear_ordered(
                 }
                 let hits = crossings(&stroke);
 
-                if (hits > before && !(recess(i) && label_conflict))
+                if (hits > before && !(new_recess && label_conflict))
                     || (!label_conflict && hits >= before)
                 {
                     return Vec::new();
@@ -2500,7 +2589,7 @@ fn clear_linear_ordered(
                 if best_rank.get().is_some_and(|best| best <= lower_bound) {
                     return Vec::new();
                 }
-                let constant_contact = all_witnesses.contact(&stroke, fixed_witness_conflict);
+                let constant_contact = all_witnesses.contact(&stroke, transverse_allowed);
                 let mut choices = vec![stroke.clone()];
                 let needs_text = !page.fits(&stroke, view)
                     || constant_contact
@@ -2527,7 +2616,7 @@ fn clear_linear_ordered(
                     return None;
                 }
                 let hits = crossings(&c);
-                if (hits > before && !(recess(i) && label_conflict))
+                if (hits > before && !(new_recess && label_conflict))
                     || (!label_conflict && hits >= before)
                 {
                     return None;
@@ -4170,7 +4259,7 @@ mod tests {
         for peer_arrows in 0..=2 {
             for allow_transverse in [false, true] {
                 for shift in -12..=12 {
-                    let a = Placed {
+                    let mut a = Placed {
                         lines: vec![
                             [[0., 0.], [0., 10.]],
                             [[10., 0.], [10., 10.]],
@@ -4181,6 +4270,16 @@ mod tests {
                         rotation: 0.,
                         label_box: [0., 11., 8., 14.],
                     };
+                    let skew = f64::from(shift) * 0.3;
+                    for line in a.lines.iter_mut().take(2) {
+                        line[1][0] += skew;
+                    }
+                    for p in a.lines.iter_mut().skip(2).chain(&mut a.arrows).flatten() {
+                        p[0] += skew;
+                    }
+                    a.label_box[0] += skew;
+                    a.label_box[2] += skew;
+                    a.label_at[0] += skew;
                     let mut b = a.clone();
                     for p in b.lines.iter_mut().chain(&mut b.arrows).flatten() {
                         p[0] += f64::from(shift);
@@ -4196,9 +4295,8 @@ mod tests {
                         moved.lines[2][0][0] = moved.lines[2][0][0].min(moved.label_box[0]);
                         moved.lines[2][1][0] = moved.lines[2][1][0].max(moved.label_box[2]);
                         assert_eq!(
-                            WitnessPeers::new(std::iter::once(&b)).contact(&moved, |p, q| {
-                                linear_witness_contact(p, q, allow_transverse)
-                            }),
+                            WitnessPeers::new(std::iter::once(&b))
+                                .contact(&moved, |_| allow_transverse),
                             linear_witness_contact(&moved, &b, allow_transverse)
                         );
                         assert_eq!(
