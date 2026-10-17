@@ -2047,6 +2047,61 @@ mod complete_candidate_tests {
 
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
+    fn absent_crop_sharing_restores_the_exact_request_and_diagnostics() {
+        use super::*;
+        for (file, paper, scale) in [
+            ("tests/fixtures/parts/mounting_plate.step", "A4", "1:1"),
+            ("tests/fixtures/rule_pins/framed.step.gz", "A4", "2:1"),
+            (
+                "tests/fixtures/recognition/issues/curved_rotated.step",
+                "A4",
+                "1:2",
+            ),
+            (
+                "tests/fixtures/pmi/step/hw_string_post_tapped_intent.step.gz",
+                "A3",
+                "5:1",
+            ),
+        ] {
+            let (_, a) =
+                analyse_native(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(file))
+                    .unwrap();
+            let base: Spec = serde_json::from_value(serde_json::json!({
+                "sheet": {"size": paper, "scale": scale}
+            }))
+            .unwrap();
+            for reverse in [false, true] {
+                crate::planning::with(&a, || {
+                    for omit in if reverse {
+                        [true, false]
+                    } else {
+                        [false, true]
+                    } {
+                        let mut spec = base.clone();
+                        if omit {
+                            for name in crate::detail::NAMES {
+                                spec.views.entry(name.into()).or_default().omit = true;
+                            }
+                        }
+                        let cached = plan_with(&a, &spec, false, true, None, true, false).unwrap();
+                        let fresh_analysis = a.clone();
+                        let fresh = crate::planning::with(&fresh_analysis, || {
+                            plan_with(&fresh_analysis, &spec, false, true, None, true, false)
+                                .unwrap()
+                        });
+                        assert_eq!(
+                            serde_json::to_value(cached).unwrap(),
+                            serde_json::to_value(fresh).unwrap(),
+                            "{file} {reverse} {omit}"
+                        );
+                    }
+                });
+            }
+        }
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn inactive_sheet_search_controls_preserve_candidate_ink() {
         use super::*;
         let Some(root) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
@@ -4089,6 +4144,62 @@ struct ViewPolicy {
     require_detail: bool,
 }
 
+/// The final sheet-label passes read dimension placement intent, physical page
+/// bounds, view geometry and fixed ink. Source diagnostics and schedule/crop
+/// policy have already done their work; they cannot change this settlement.
+#[allow(clippy::too_many_arguments)]
+fn settle_sheet_inventory(
+    analysis: &Analysis,
+    spec: &Spec,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    inventory: Vec<crate::dims::PlannedDimension>,
+    fixed: &[crate::dims::PlannedDimension],
+    cache: &crate::dims::footprints::Cache,
+    reroute: bool,
+) -> (
+    Vec<crate::dims::PlannedDimension>,
+    BTreeMap<String, Vec<Problem>>,
+) {
+    let prepare = || {
+        let mut settled = inventory.clone();
+        crate::dims::settle_inventory(analysis, spec, sheet, views, &mut settled, fixed);
+        let reports = if reroute {
+            crate::dims::settle_after_furniture(
+                analysis,
+                spec,
+                sheet,
+                views,
+                &mut settled,
+                fixed,
+                cache,
+            )
+        } else {
+            BTreeMap::new()
+        };
+        (settled, reports)
+    };
+    if !crate::planning::enabled(analysis) {
+        return prepare();
+    }
+    let mut geometry_views = views.to_vec();
+    for view in &mut geometry_views {
+        view.basis.clear();
+    }
+    let key = serde_json::to_vec(&(
+        &spec.dimensions,
+        sheet.page,
+        sheet.title_block,
+        sheet.number,
+        &geometry_views,
+        &inventory,
+        fixed,
+        reroute,
+    ))
+    .expect("sheet label settlement inputs serialize");
+    crate::planning::memo(analysis, "sheet-label-settlement", key, prepare)
+}
+
 fn plan_with_presentation(
     analysis: &Analysis,
     spec: &Spec,
@@ -5139,6 +5250,7 @@ fn plan_with_presentation(
     let reusable = canonical.is_none()
         && crate::planning::enabled(analysis)
         && !crate::placement_intent::has_pins(spec);
+    let initial_problems = problems.clone();
     let key = if reusable {
         // Presentation policy is read by the selector/installer after this
         // preparation. It cannot change these settled dimensions or GD&T.
@@ -5161,6 +5273,36 @@ fn plan_with_presentation(
                 }
             }
         }
+        // Once no automatic crop has a carrier, a pure omission of one of
+        // those absent names cannot affect preparation. Its refusal is still
+        // part of this request's diagnostic prefix, restored below on a hit.
+        let absent_details: BTreeSet<_> = if views
+            .iter()
+            .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
+        {
+            BTreeSet::new()
+        } else {
+            crate::detail::NAMES
+                .into_iter()
+                .filter(|name| !views.iter().any(|v| v.id == format!("v:{name}")))
+                .collect()
+        };
+        for input in [&mut geometry_spec, &mut geometry_given] {
+            input.views.retain(|name, v| {
+                let mut bare = v.clone();
+                bare.omit = false;
+                !(absent_details.contains(name.as_str()) && bare == ViewSpec::default())
+            });
+        }
+        let geometry_problems: Vec<_> = problems
+            .iter()
+            .filter(|p| {
+                !(p.code == "detail_unplaceable"
+                    && absent_details
+                        .iter()
+                        .any(|name| p.id == format!("p:detail_unplaceable:v:{name}")))
+            })
+            .collect();
         let mut geometry_sheet = sheet.clone();
         geometry_sheet.basis.clear();
         geometry_sheet.arrangement.clear();
@@ -5179,7 +5321,7 @@ fn plan_with_presentation(
                 .then_some((gdt_beyond_lanes, candidate_arrangement.map(|a| a.name()))),
             &geometry_sheet,
             &geometry_views,
-            &problems,
+            &geometry_problems,
             &excluded,
             &requirements,
             &notes_given,
@@ -5216,7 +5358,11 @@ fn plan_with_presentation(
         }
         // A cache hit owns the current presentation intent just as a freshly
         // prepared Plan does. The outer selector and installer still execute.
-        plan.spec.hole_table = given.hole_table;
+        restore_search_spec(&mut plan, given);
+        let mut current_problems = initial_problems.clone();
+        current_problems.append(&mut plan.problems);
+        plan.problems = current_problems;
+        plan.status = crate::completeness::status(&plan.problems);
         crate::linework::configure(spec, &mut plan.views);
         return Ok(plan);
     }
@@ -5450,7 +5596,17 @@ fn plan_with_presentation(
             &excluded,
         )?;
         let before = natural.clone();
-        crate::dims::settle_inventory(analysis, &base, &sheet, &views, &mut natural, &reserved);
+        natural = settle_sheet_inventory(
+            analysis,
+            &base,
+            &sheet,
+            &views,
+            natural,
+            &reserved,
+            &footprint_cache,
+            false,
+        )
+        .0;
         for d in &mut inventory {
             if spec
                 .dimensions
@@ -5504,23 +5660,17 @@ fn plan_with_presentation(
     // a contact with a centre or cutting-plane stroke.
     let mut settle_fixed = reserved.clone();
     settle_fixed.extend(furniture_ink);
-    crate::dims::settle_inventory(
+    let (settled, rerouted) = settle_sheet_inventory(
         analysis,
         &label_spec,
         &sheet,
         &views,
-        &mut inventory,
-        &settle_fixed,
-    );
-    let rerouted = crate::dims::settle_after_furniture(
-        analysis,
-        &label_spec,
-        &sheet,
-        &views,
-        &mut inventory,
+        inventory,
         &settle_fixed,
         &footprint_cache,
+        true,
     );
+    inventory = settled;
     for d in &mut dimensions {
         if let Some(settled) = inventory.iter().find(|settled| settled.id == d.id) {
             d.placed = settled.placed.clone();
@@ -6039,8 +6189,13 @@ fn plan_with_presentation(
         plan.sheet.basis = format!("{basis}; drawn-item fill {:.1}%", plan.sheet.fill * 100.0);
     }
     plan.status = crate::completeness::status(&plan.problems);
-    if reusable {
-        crate::planning::store(analysis, "resolved_candidate", key, plan.clone());
+    if reusable && plan.problems.starts_with(&initial_problems) {
+        // Only share a result whose incoming diagnostic prefix survived
+        // unchanged. Generated findings remain attached to the prepared ink;
+        // source and absent-crop explanations belong to the current request.
+        let mut prepared = plan.clone();
+        prepared.problems.drain(..initial_problems.len());
+        crate::planning::store(analysis, "resolved_candidate", key, prepared);
     }
     Ok(plan)
 }

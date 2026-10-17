@@ -1029,7 +1029,12 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   binding; the selected policy is restored before schedule selection. Foreign
   bindings, automatic versus authored trials, crops, reservations and fallback
   inputs remain distinct. Automatic R5 schedule seeds use the same exact-scale
-  preparation as other automatic candidates.
+  preparation as other automatic candidates. Absent automatic crop controls share
+  preparation only after their carrier is absent; each request keeps its own Spec
+  and diagnostic prefix. Such a result is cached only when that prefix survived
+  unchanged. Final label settlement separately keys on dimension placement intent,
+  actual ink and fixed obstacles, physical paper/title bounds, sheet number and
+  view geometry; source diagnostics never enter that geometric operation.
 
   An unpinned oblique-dimension side hint may yield to shorter clean witnesses
   in the same sheet, scale and view frames. All measurements, control frames,
