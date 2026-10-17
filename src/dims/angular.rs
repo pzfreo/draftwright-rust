@@ -409,6 +409,67 @@ pub(super) fn intent(
     )
 }
 
+/// Reserve only the bounded notch grammar's minimum exterior arc. General profile
+/// corners remain disabled; ordinary linear lane estimates cannot size acute arcs.
+pub(crate) fn notch_reservations(
+    a: &crate::model::Analysis,
+    spec: &crate::model::Spec,
+    scale: f64,
+) -> Vec<(String, crate::layout::Rect)> {
+    let mut out = Vec::new();
+    for n in crate::notches::requirements(a) {
+        let id = super::want_id(&n.id, "notch.angle");
+        if spec.dimensions.get(&id).is_some_and(|d| d.omit) {
+            continue;
+        }
+        let (view, direction, up) = match n.axis {
+            0 => ("side", [1., 0., 0.], [0., 0., 1.]),
+            1 => ("front", [0., -1., 0.], [0., 0., 1.]),
+            _ => ("plan", [0., 0., 1.], [0., 1., 0.]),
+        };
+        let frame = Frame::looking(a, direction, up, [0.; 2], scale);
+        let terms = vec![format!("{}°", super::fmt(n.angle.degrees().unwrap()))];
+        let ink = label_ink(&terms, font());
+        let size = [ink.max[0] - ink.min[0], ink.max[1] - ink.min[1]];
+        let physical = Ink::new(&frame, &n.angle, size).unwrap();
+        let mut extended = Ink::new(
+            &frame,
+            &Angle {
+                vertex: n.angle.vertex,
+                first: [0, 1, 2].map(|k| 2. * n.angle.vertex[k] - n.angle.first[k]),
+                second: [0, 1, 2].map(|k| 2. * n.angle.vertex[k] - n.angle.second[k]),
+            },
+            size,
+        )
+        .unwrap();
+        extended.lengths = [0.; 2];
+        let terms_ref = &terms;
+        if let Some(p) = (0..TRIES)
+            .flat_map(|i| {
+                [&physical, &extended]
+                    .into_iter()
+                    .filter_map(move |g| g.placed(g.minimum + i as f64 * STEP, terms_ref))
+            })
+            .find(|p| !boxes_overlap(p.label_box, frame.outline()))
+        {
+            let mut bounds = [
+                f64::INFINITY,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+                f64::NEG_INFINITY,
+            ];
+            for q in ink_points(&p) {
+                for k in 0..2 {
+                    bounds[k] = bounds[k].min(q[k] - 1.);
+                    bounds[k + 2] = bounds[k + 2].max(q[k] + 1.);
+                }
+            }
+            out.push((view.into(), bounds));
+        }
+    }
+    out
+}
+
 /// Places each angular item of *items* in its carrying view (*views_of*) about its vertex (see
 /// the module's notes), clear of what *placed* already holds where it can be; *placed* takes
 /// its ink.

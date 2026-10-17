@@ -101,46 +101,58 @@ fn ctc01_consumes_bevel_faces_and_sizes_both_notches_without_duplicate_c50() {
 #[test]
 fn notch_dimensions_accept_omit_tolerance_place_and_label_text() {
     let p = plan(&Spec::default());
-    let id = &p
-        .dimensions
-        .iter()
-        .find(|d| d.id.ends_with("/notch.angle"))
-        .unwrap()
-        .id;
-    let omitted = plan(&parse(json!({"dimensions":{id:{"omit":true}}})));
-    assert!(!omitted.dimensions.iter().any(|d| &d.id == id));
-    assert!(omitted.omitted.iter().any(|d| &d.id == id));
-    let tolerance = plan(&parse(json!({"dimensions":{id:{"tolerance":"±0.5"}}})));
-    assert!(
-        tolerance
+    for parameter in [
+        "notch.angle",
+        "notch_depth.length",
+        "location.length.x",
+        "oriented_chamfer.length",
+    ] {
+        let original = p
             .dimensions
             .iter()
-            .find(|d| &d.id == id)
-            .unwrap()
-            .label
-            .contains("±0.5")
-    );
-    let placed = plan(&parse(
-        json!({"dimensions":{id:{"place":{"view":"plan","lane":3,"pinned":true}}}}),
-    ));
-    let changed = placed.dimensions.iter().find(|d| &d.id == id).unwrap();
-    assert!(changed.placed.is_some());
-    assert_ne!(
-        changed.placed,
-        p.dimensions.iter().find(|d| &d.id == id).unwrap().placed
-    );
-    let labelled = plan(&parse(
-        json!({"dimensions":{id:{"text":{"suffix":"INCLUDED"}}}}),
-    ));
-    assert_eq!(
-        labelled
-            .dimensions
-            .iter()
-            .find(|d| &d.id == id)
-            .unwrap()
-            .label,
-        "60° INCLUDED"
-    );
+            .find(|d| {
+                d.measurements.iter().any(|m| {
+                    m.parameter == parameter
+                        && (parameter != "location.length.x" || m.feature.starts_with("notch:"))
+                })
+            })
+            .unwrap();
+        let id = &original.id;
+        let omitted = plan(&parse(json!({"dimensions":{id:{"omit":true}}})));
+        assert!(!omitted.dimensions.iter().any(|d| &d.id == id));
+        assert!(omitted.omitted.iter().any(|d| &d.id == id));
+        let tolerance = plan(&parse(json!({"dimensions":{id:{"tolerance":"±0.5"}}})));
+        assert!(
+            tolerance
+                .dimensions
+                .iter()
+                .find(|d| &d.id == id)
+                .unwrap()
+                .label
+                .contains("±0.5")
+        );
+        let placed = plan(&parse(
+            json!({"dimensions":{id:{"place":{"view":original.view.trim_start_matches("v:"),"lane":3,"pinned":true}}}}),
+        ));
+        let changed = placed.dimensions.iter().find(|d| &d.id == id).unwrap();
+        assert!(changed.placed.is_some());
+        assert_ne!(
+            changed.placed,
+            p.dimensions.iter().find(|d| &d.id == id).unwrap().placed
+        );
+        let labelled = plan(&parse(
+            json!({"dimensions":{id:{"text":{"suffix":"INCLUDED"}}}}),
+        ));
+        assert_eq!(
+            labelled
+                .dimensions
+                .iter()
+                .find(|d| &d.id == id)
+                .unwrap()
+                .label,
+            format!("{} INCLUDED", original.label)
+        );
+    }
 }
 #[test]
 fn lint_remeasures_new_dimensions_and_rejects_wrong_nominals_and_tolerance_digits() {
@@ -211,6 +223,27 @@ fn datum_scheme_takes_the_notch_station_once() {
     assert!(q.omitted.iter().any(|d| d.id.contains(&id)
         && d.id.ends_with("location.length.x")
         && matches!(d.state, State::Covered { .. })));
+    let drawing = model::render(
+        &ctc().0,
+        &ctc().1,
+        &q,
+        &draftwright::text::Font::new(api::MONO.to_vec()).unwrap(),
+    )
+    .unwrap();
+    let mut marks = lint::marks(&drawing);
+    assert!(
+        !lint::check(&ctc().1, &marks)
+            .iter()
+            .any(|i| i.code.starts_with("notch_requirement_"))
+    );
+    let link = marks
+        .iter_mut()
+        .find(|m| m.name.starts_with("d:scheme:notch/"))
+        .unwrap();
+    link.text = "999 ±290".into();
+    let issues = lint::check(&ctc().1, &marks);
+    assert!(issues.iter().any(|i| i.code == "dimension_scheme_invalid"));
+    assert!(issues.iter().any(|i| i.code == "notch_requirement_missing"));
 }
 
 #[test]
@@ -318,4 +351,63 @@ fn native_oriented_records_are_checked_and_non45_callouts_state_both_values() {
             .any(|i| i.code == "chamfer_requirement_unverifiable"
                 && i.annotation.as_deref() == Some(&d.id))
     );
+}
+
+#[test]
+fn bevel_run_midpoints_do_not_invent_locations_or_force_sheet_enlargement() {
+    for (file, count, label) in [
+        ("mfcadpp/1007.step", 1, "C0.1"),
+        ("nist/nist_ctc_04_asme1_rd.stp", 4, "12× C5"),
+    ] {
+        let (_, a) = model::analyse_native(&corpus::dir().unwrap().join(file)).unwrap();
+        assert_eq!(
+            a.features
+                .iter()
+                .filter(|f| f.kind == "oriented_chamfer")
+                .count(),
+            count
+        );
+        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        assert_eq!(p.dimensions.iter().filter(|d| d.label == label).count(), 1);
+        assert!(
+            !p.dimensions
+                .iter()
+                .flat_map(|d| &d.measurements)
+                .any(|m| m.feature.starts_with("f:oriented_chamfer:")
+                    && m.parameter.starts_with("location."))
+        );
+        if count == 1 {
+            assert_eq!(p.sheet.size, "A4");
+            assert_eq!(p.sheet.scale, "1:1");
+        }
+    }
+}
+
+#[test]
+fn bounded_notches_reserve_acute_arcs_and_leave_dense_general_profiles_alone() {
+    for file in [
+        "mfcadpp/10020.step",
+        "mfcadpp/10046.step",
+        "nist/nist_ftc_08_asme1_rc.stp",
+    ] {
+        let (_, a) = model::analyse_native(&corpus::dir().unwrap().join(file)).unwrap();
+        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        if file.contains("10020") {
+            assert_eq!(
+                p.dimensions
+                    .iter()
+                    .filter(|d| d.id.ends_with("/notch.angle"))
+                    .count(),
+                1
+            );
+            assert!(
+                !p.problems
+                    .iter()
+                    .any(|p| p.code == "annotation_outside_area")
+            );
+            assert_eq!(p.sheet.size, "A4");
+        } else {
+            assert!(!p.dimensions.iter().any(|d| d.id.starts_with("d:notch:")));
+        }
+    }
 }

@@ -56,53 +56,8 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             });
         }
     }
-    // Standalone oblique bevels are located by their virtual corner. An exact shared edge
-    // with a dimensioned polygonal host already locates its treatment.
-    for f in cx
-        .analysis
-        .features
-        .iter()
-        .filter(|f| f.kind == "oriented_chamfer")
-    {
-        let Ok(r) = crate::oriented_chamfers::read(cx.analysis, f) else {
-            continue;
-        };
-        let bevel_edges: Vec<_> = cx
-            .analysis
-            .outer_profiles
-            .iter()
-            .filter(|p| f.faces.contains(&p.face))
-            .flat_map(|p| &p.edges)
-            .collect();
-        let hosted = cx
-            .analysis
-            .features
-            .iter()
-            .filter(|p| matches!(p.kind.as_str(), "polygonal_boss" | "polygonal_stock"))
-            .any(|host| {
-                cx.analysis
-                    .outer_profiles
-                    .iter()
-                    .filter(|p| host.faces.contains(&p.face))
-                    .any(|p| p.edges.iter().any(|e| bevel_edges.contains(&e)))
-            });
-        if hosted {
-            continue;
-        }
-        for k in (0..3).filter(|&k| k != r.view_axis) {
-            let b = r.corner;
-            let mut a = b;
-            a[k] = cx.analysis.envelope[0][k];
-            let value = (b[k] - a[k]).abs();
-            if value < 1e-6 {
-                continue;
-            }
-            let parameter = format!("location.length.{}", AXES[k]);
-            out.push(Want {id:want_id(&f.id,&parameter),views:vec![end_on(r.view_axis)],value,terms:vec![fmt(value)],
-                measurements:vec![Measurement{feature:f.id.clone(),parameter,value}],
-                basis:"the oblique bevel's virtual sharp corner located from the minimum datum in its carrying view".into(),
-                shape:Shape::Linear{a,b,axis:k,a_edge:true,b_edge:false,order:1},turning:None});
-        }
-    }
+    // A bevel is an edge treatment: its C/size-and-angle callout offsets the drawn
+    // supports. Its provider corner is the midpoint of a run, not a design datum;
+    // do not invent a station requirement there. Explicit schemes can still name it.
     (out, vec![])
 }

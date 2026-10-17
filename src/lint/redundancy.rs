@@ -118,7 +118,18 @@ pub(crate) fn span(a: &Analysis, feature: &str, parameter: &str) -> Option<Span>
         return level_span(a, parameter).or_else(|| position_span(a, parameter));
     }
     if parameter.starts_with("location.length.") {
-        return None;
+        if !feature.starts_with("notch:") {
+            return None;
+        }
+        let n = crate::notches::requirements(a)
+            .into_iter()
+            .find(|n| n.id == feature)?;
+        let k = ["x", "y", "z"]
+            .iter()
+            .position(|axis| parameter == format!("location.length.{axis}"))?;
+        return [n.width_axis, n.depth_axis]
+            .contains(&k)
+            .then(|| Span::new(k, a.envelope[0][k], n.mouth[k]));
     }
     let f = a.features.iter().find(|f| f.id == feature)?;
     if f.kind == "turned_step" && parameter == "step.length" && coaxial(a) {

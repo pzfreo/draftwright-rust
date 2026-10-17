@@ -662,6 +662,7 @@ pub(crate) fn at(d: &Detail, area: Rect) -> [f64; 2] {
 }
 pub(crate) fn scaled(a: &Analysis, spec: &Spec, sheet: f64) -> Scaled {
     Scaled {
+        angular: crate::dims::angular::notch_reservations(a, spec, sheet),
         derived: requests(a, spec, sheet)
             .iter()
             .map(|(id, d)| {
@@ -670,7 +671,6 @@ pub(crate) fn scaled(a: &Analysis, spec: &Spec, sheet: f64) -> Scaled {
                 (id.clone(), (w + left + right).max(65.0), h + bottom + top)
             })
             .collect(),
-        ..Scaled::default()
     }
 }
 pub(crate) fn section_label(spec: &Spec) -> String {
