@@ -1,0 +1,277 @@
+{
+  "budget": {
+    "format": "draftwright.plan-instructions-budget/1",
+    "instructions": {
+      "darwin-arm64": 3166420524176
+    }
+  },
+  "gated": true,
+  "instructions_total": 2250225983533,
+  "limit": 3641383602802.4,
+  "parts": {
+    "1000": {
+      "instructions": 2137942652,
+      "seconds": 0.17918300000019372
+    },
+    "10000": {
+      "instructions": 1974317407,
+      "seconds": 0.17991554108448327
+    },
+    "10007": {
+      "instructions": 1198943141,
+      "seconds": 0.1225093329558149
+    },
+    "10020": {
+      "instructions": 3174454230,
+      "seconds": 0.23709404200781137
+    },
+    "10033": {
+      "instructions": 516836270,
+      "seconds": 0.06269558297935873
+    },
+    "10038": {
+      "instructions": 1016392850,
+      "seconds": 0.12300958298146725
+    },
+    "1004": {
+      "instructions": 1065032824,
+      "seconds": 0.12300058302935213
+    },
+    "10046": {
+      "instructions": 936098917,
+      "seconds": 0.114462458062917
+    },
+    "10047": {
+      "instructions": 3563014825,
+      "seconds": 0.23972666694317013
+    },
+    "10049": {
+      "instructions": 1652228772,
+      "seconds": 0.12240529200062156
+    },
+    "10060": {
+      "instructions": 2039021522,
+      "seconds": 0.17137491691391915
+    },
+    "10063": {
+      "instructions": 1307924923,
+      "seconds": 0.11522554198745638
+    },
+    "1007": {
+      "instructions": 617374213,
+      "seconds": 0.06342291599139571
+    },
+    "10092": {
+      "instructions": 827318396,
+      "seconds": 0.12051079201046377
+    },
+    "10127": {
+      "instructions": 1420446920,
+      "seconds": 0.16856662509962916
+    },
+    "10190": {
+      "instructions": 22568984872,
+      "seconds": 1.4845580420223996
+    },
+    "10224": {
+      "instructions": 4115407186,
+      "seconds": 0.3296491669025272
+    },
+    "10245": {
+      "instructions": 2939274504,
+      "seconds": 0.709441417013295
+    },
+    "10255": {
+      "instructions": 6501730074,
+      "seconds": 0.4963811670895666
+    },
+    "11512": {
+      "instructions": 1794247217,
+      "seconds": 0.548854082939215
+    },
+    "205": {
+      "instructions": 538454387,
+      "seconds": 0.06481945898849517
+    },
+    "238": {
+      "instructions": 543362341,
+      "seconds": 0.06301100004930049
+    },
+    "363": {
+      "instructions": 1508141312,
+      "seconds": 0.16576395893935114
+    },
+    "467": {
+      "instructions": 1066606526,
+      "seconds": 0.1138400420313701
+    },
+    "GRM-03_thumbwheel_drive_screw": {
+      "instructions": 1296208982,
+      "seconds": 0.11628841597121209
+    },
+    "GRM-05_depth_lock_bolt": {
+      "instructions": 688471674,
+      "seconds": 0.4956490839831531
+    },
+    "assembly_plate_pin": {
+      "instructions": 5761531303,
+      "seconds": 0.4561228749807924
+    },
+    "bolt_thread_knurl": {
+      "instructions": 865436075,
+      "seconds": 0.6020640829810873
+    },
+    "bracket_positions": {
+      "instructions": 85829611525,
+      "seconds": 10.46342512499541
+    },
+    "cgb203": {
+      "instructions": 182007610322,
+      "seconds": 23.014219457982108
+    },
+    "cgb207": {
+      "instructions": 64080512332,
+      "seconds": 7.9960979169700295
+    },
+    "cgb241": {
+      "instructions": 36988381583,
+      "seconds": 1.6617966250050813
+    },
+    "cgb245": {
+      "instructions": 25679172825,
+      "seconds": 1.5108048749389127
+    },
+    "flanged_spool_132": {
+      "instructions": 12093618827,
+      "seconds": 0.703345000045374
+    },
+    "hw_assembly_plate_pin_intent": {
+      "instructions": 5606433281,
+      "seconds": 0.40961962495930493
+    },
+    "hw_every_kind": {
+      "instructions": 26391232715,
+      "seconds": 1.5029929579468444
+    },
+    "hw_spool_fits_intent": {
+      "instructions": 14991155035,
+      "seconds": 0.8108382079517469
+    },
+    "hw_string_post_tapped_intent": {
+      "instructions": 5985541703,
+      "seconds": 0.3024453331017867
+    },
+    "hw_thread_removed": {
+      "instructions": 12126699224,
+      "seconds": 0.6570210000500083
+    },
+    "hw_thread_replaced": {
+      "instructions": 12186510235,
+      "seconds": 0.6429341660114005
+    },
+    "hw_thumbwheel_notes_add": {
+      "instructions": 2099526243,
+      "seconds": 0.1734722909750417
+    },
+    "hw_thumbwheel_thread_knurl_intent": {
+      "instructions": 1872613229,
+      "seconds": 0.17339087498839945
+    },
+    "nist_ctc_01_asme1_ap242-e1": {
+      "instructions": 16300948319,
+      "seconds": 0.8809795839479193
+    },
+    "nist_ctc_01_asme1_rd": {
+      "instructions": 11748106385,
+      "seconds": 0.6461643750080839
+    },
+    "nist_ctc_01_merge": {
+      "instructions": 18860447504,
+      "seconds": 1.1069221659563482
+    },
+    "nist_ctc_02_asme1_ap242-e2": {
+      "instructions": 604086550395,
+      "seconds": 98.02039979200345
+    },
+    "nist_ctc_02_asme1_rc": {
+      "instructions": 232873730361,
+      "seconds": 23.84900933399331
+    },
+    "nist_ctc_03_asme1_rc": {
+      "instructions": 9375392888,
+      "seconds": 0.4684746660059318
+    },
+    "nist_ctc_04_asme1_rd": {
+      "instructions": 51540685069,
+      "seconds": 2.7706684169825166
+    },
+    "nist_ctc_05_asme1_rd": {
+      "instructions": 26146125021,
+      "seconds": 1.288442249991931
+    },
+    "nist_ftc_06_asme1_rd": {
+      "instructions": 17404595970,
+      "seconds": 0.8872214159928262
+    },
+    "nist_ftc_07_asme1_ap242-e2": {
+      "instructions": 62815316335,
+      "seconds": 3.156926166964695
+    },
+    "nist_ftc_07_asme1_rd": {
+      "instructions": 22252741127,
+      "seconds": 1.115152750047855
+    },
+    "nist_ftc_08_asme1_rc": {
+      "instructions": 93200020483,
+      "seconds": 4.654769165907055
+    },
+    "nist_ftc_09_asme1_rd": {
+      "instructions": 40508387071,
+      "seconds": 1.9877271249424666
+    },
+    "nist_ftc_10_asme1_ap242-e2": {
+      "instructions": 82738061141,
+      "seconds": 4.7759843749227
+    },
+    "nist_ftc_10_asme1_rb": {
+      "instructions": 24384290111,
+      "seconds": 1.4137961670057848
+    },
+    "nist_stc_06_asme1_ap242-e3": {
+      "instructions": 70699469428,
+      "seconds": 4.836174041032791
+    },
+    "nist_stc_09_asme1_ap242-e4": {
+      "instructions": 189650828535,
+      "seconds": 14.695500917034224
+    },
+    "nist_stc_10_asme1_ap242-e2": {
+      "instructions": 82414391681,
+      "seconds": 10.062990374979563
+    },
+    "sm-hanger": {
+      "instructions": 3109165593,
+      "seconds": 0.23966329102404416
+    },
+    "spool_fits": {
+      "instructions": 15200891837,
+      "seconds": 1.1086694160476327
+    },
+    "string_post": {
+      "instructions": 4811052609,
+      "seconds": 0.35515120800118893
+    },
+    "string_post_tapped": {
+      "instructions": 6496250099,
+      "seconds": 0.5069776659365743
+    },
+    "thumbwheel_thread_knurl": {
+      "instructions": 2034712177,
+      "seconds": 0.1833910410059616
+    }
+  },
+  "passed": true,
+  "platform": "darwin-arm64",
+  "ratio_to_budget": 0.7106529174985619,
+  "total_seconds": 236.82310482859612
+}
