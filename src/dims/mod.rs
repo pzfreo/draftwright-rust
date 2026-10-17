@@ -1774,6 +1774,52 @@ pub(crate) fn extension_contacts(dims: &[PlannedDimension]) -> usize {
         .sum()
 }
 
+/// A new point on a parameterised rim must also meet visible physical edge
+/// evidence; a trimmed or hidden arc is not a valid replacement attachment.
+pub(crate) fn callout_tip_visible(analysis: &Analysis, view: &PlannedView, tip: P2) -> bool {
+    interior::proofs(analysis, std::slice::from_ref(view))
+        .get(&view.id)
+        .is_some_and(|proof| proof.touches(view, tip))
+}
+
+pub(crate) fn circular_callout_site(
+    analysis: &Analysis,
+    dimension: &PlannedDimension,
+    view: &PlannedView,
+) -> Option<([f64; 2], f64)> {
+    if view.detail.is_some() || view.cut.is_some() {
+        return None;
+    }
+    let measurement = dimension.measurements.first()?;
+    if measurement.parameter != "bore.diameter" {
+        return None;
+    }
+    let feature = analysis
+        .features
+        .iter()
+        .find(|f| f.id == measurement.feature && f.kind == "hole")?;
+    if ["cbore", "spotface", "csink"]
+        .iter()
+        .any(|key| feature.parameters.get(*key).is_some_and(|v| !v.is_null()))
+    {
+        return None;
+    }
+    let at = crate::bridge::holes::point(feature.parameters.get("location"))?;
+    let axis = crate::bridge::holes::point(feature.parameters.get("axis"))?;
+    let norm = axis.iter().map(|v| v * v).sum::<f64>().sqrt();
+    let dot = axis
+        .iter()
+        .zip(view.direction)
+        .map(|(a, b)| a * b)
+        .sum::<f64>()
+        .abs();
+    if norm == 0.0 || dot / norm < 1.0 - 1e-6 {
+        return None;
+    }
+    let frame = Frame::new(analysis, view);
+    Some((frame.page(at), measurement.value * view.scale / 2.0))
+}
+
 /// The planned dimensions under *spec*, placed around *views* on *sheet*, with what the spec
 /// left out and the problems found. A spec naming a dimension the part does not have is refused
 /// with the nearest IDs.

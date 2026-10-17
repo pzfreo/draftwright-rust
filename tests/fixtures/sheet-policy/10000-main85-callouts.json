@@ -1,0 +1,9 @@
+{
+  "lengths": {
+    "d:f:circular_blind_step:1/circular_step_radius.radius": 9.401743303030944,
+    "d:f:hole:1/bore.diameter": 21.294458184976538,
+    "d:f:hole:2/bore.diameter": 9.218177232418615,
+    "d:f:section_recess:2/pocket_width.length": 10.483000000000004
+  },
+  "source": "0e393afcda459277deecf78dff5fce1d3758e599"
+}

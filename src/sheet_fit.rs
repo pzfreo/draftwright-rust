@@ -92,7 +92,6 @@ fn route_refusal_uncached(
 ) -> Option<&'static str> {
     let length =
         |p: &crate::dims::Placed| p.lines.iter().map(|s| distance(s[0], s[1])).sum::<f64>();
-    let global_floor_recovery = std::cell::OnceCell::new();
     let mut changed = Vec::new();
     for d in after
         .dimensions
@@ -104,27 +103,7 @@ fn route_refusal_uncached(
             continue;
         };
         let Some(q) = &old.placed else { continue };
-        if length(p) > length(q) + 2.0 + 1e-6
-            && !*global_floor_recovery.get_or_init(|| {
-                // The global feature/depiction floor requires the whole model
-                // to grow: a detail cannot open repetitive ink in every principal
-                // view. Clear travel to the enlarged exterior can then grow too.
-                // Every contact/crossing/run gate remains independent.
-                let floor = min_legible_scale(analysis)
-                    .max(crate::sheets::floor(&after.spec).unwrap_or(0.0));
-                let old = readability(analysis, before);
-                let new = readability(analysis, after);
-                before.sheet.scale_factor + 1e-6 < floor
-                    && after.sheet.scale_factor + 1e-6 >= floor
-                    && new.failures() < old.failures()
-                    && new.depiction <= old.depiction
-                    && new.steps <= old.steps
-                    && new.openings <= old.openings
-                    && new.native_openings <= old.native_openings
-                    && new.text_arrows <= old.text_arrows
-                    && new.lanes <= old.lanes
-            })
-        {
+        if length(p) > length(q) + 2.0 + 1e-6 {
             return Some("leader length exceeds retained route by more than 2 mm");
         }
         let (Some(v), Some(w)) = (
@@ -220,11 +199,130 @@ fn route_refusal_uncached(
 /// Preserve a short proven paper-space leader when its feature grows. The new
 /// proven attachment maps into the new ordinary view; the old elbow/label offset
 /// is transported in paper millimetres. This is a bounded alternative, accepted only after all ordinary
-/// placement, information and route gates are repeated.
+/// placement, information and route gates are repeated. A final bounded search
+/// rotates short exits around the retained tip, or around a visible circular bore
+/// rim, with the original +2 mm length allowance.
 pub(crate) fn retain_callouts(analysis: &Analysis, reference: &Plan, plan: &mut Plan) {
     retain_callouts_with(analysis, reference, plan, true);
     if !routes_no_worse(analysis, reference, plan) {
         retain_callouts_with(analysis, reference, plan, false);
+        retain_short_callouts(analysis, reference, plan);
+    }
+
+    fn retain_short_callouts(analysis: &Analysis, reference: &Plan, plan: &mut Plan) {
+        // This bounded alternative replaces the former length exemption only
+        // when the global opening/depiction floor requires the whole model to
+        // grow. Ordinary reductions keep their established placement ratchet.
+        let floor =
+            min_legible_scale(analysis).max(crate::sheets::floor(&plan.spec).unwrap_or(0.0));
+        if reference.sheet.scale_factor + 1e-6 >= floor
+            || plan.sheet.scale_factor + 1e-6 < floor
+            || routes_no_worse(analysis, reference, plan)
+        {
+            return;
+        }
+        let cache = crate::dims::footprints::Cache::default();
+        for i in 0..plan.dimensions.len() {
+            let d = &plan.dimensions[i];
+            if d.kind != "callout"
+                || routes_no_worse_for(analysis, reference, plan, Some(&d.id))
+                || plan
+                    .spec
+                    .dimensions
+                    .get(&d.id)
+                    .is_some_and(|e| e.place.is_some())
+            {
+                continue;
+            }
+            let Some(old) = reference
+                .dimensions
+                .iter()
+                .find(|q| q.id == d.id && q.terms == d.terms)
+            else {
+                continue;
+            };
+            let Some(q) = &old.placed else { continue };
+            if q.lines.len() != 2 || q.rotation != 0.0 {
+                continue;
+            }
+            let Some(view) = plan.views.iter().find(|v| v.id == d.view) else {
+                continue;
+            };
+            // Keep the proven attachment for non-circular features. A simple
+            // end-on bore can also select another point on its actual rim.
+            let Some(current) = &d.placed else { continue };
+            let Some(first) = current.lines.first() else {
+                continue;
+            };
+            let (centre, radius) =
+                crate::dims::circular_callout_site(analysis, d, view).unwrap_or((first[0], 0.0));
+            let budget = q.lines.iter().map(|s| distance(s[0], s[1])).sum::<f64>() + 2.0 - 1e-6;
+            let shaft = budget - 3.0;
+            if shaft < crate::dims::ARROW {
+                continue;
+            }
+            let before_codes = std::cell::OnceCell::new();
+            'directions: for angle in (0..24).map(|i| f64::from(i) * std::f64::consts::TAU / 24.0) {
+                let direction = [angle.sin(), angle.cos()];
+                let tip = [0, 1].map(|k| centre[k] + radius * direction[k]);
+                if radius > 0.0 && !crate::dims::callout_tip_visible(analysis, view, tip) {
+                    continue;
+                }
+                let elbow = [0, 1].map(|k| tip[k] + shaft * direction[k]);
+                for side in [1., -1.] {
+                    let mut placed = q.clone();
+                    placed.lines = vec![[tip, elbow], [elbow, [elbow[0] + side * 3.0, elbow[1]]]];
+                    placed.arrows = vec![[
+                        tip,
+                        [0, 1].map(|k| tip[k] + crate::dims::ARROW * direction[k]),
+                    ]];
+                    let width = q.label_box[2] - q.label_box[0];
+                    let left = if side > 0.0 {
+                        elbow[0] + 4.0
+                    } else {
+                        elbow[0] - 4.0 - width
+                    };
+                    let bottom = elbow[1] + q.label_box[1] - q.lines[0][1][1];
+                    placed.label_box = [
+                        left,
+                        bottom,
+                        left + width,
+                        bottom + q.label_box[3] - q.label_box[1],
+                    ];
+                    placed.label_at = [
+                        left + q.label_at[0] - q.label_box[0],
+                        bottom + q.label_at[1] - q.label_box[1],
+                    ];
+                    let mut trial = plan.clone();
+                    trial.dimensions[i].placed = Some(placed);
+                    if !routes_no_worse_for(analysis, reference, &trial, Some(&d.id)) {
+                        continue;
+                    }
+                    let checked = crate::dims::recheck_cached(analysis, &trial, &cache);
+                    let mut codes = before_codes
+                        .get_or_init(|| {
+                            crate::dims::recheck_cached(analysis, plan, &cache)
+                                .into_iter()
+                                .map(|p| p.code)
+                                .collect::<std::collections::BTreeSet<_>>()
+                        })
+                        .clone();
+                    codes.extend(checked.iter().map(|p| p.code.clone()));
+                    trial.problems.retain(|p| !codes.contains(&p.code));
+                    trial.problems.extend(checked);
+                    if crate::model::no_new_drawing_issues(reference, &trial)
+                        && crate::model::no_new_drawing_issues(plan, &trial)
+                        && crate::model::drawn_sheets_fit(analysis, &trial)
+                        && crate::model::carries_required(plan, &trial)
+                        && readability(analysis, &trial) == readability(analysis, plan)
+                    {
+                        trial.status = crate::completeness::status(&trial.problems);
+                        *plan = trial;
+                        break 'directions;
+                    }
+                }
+            }
+        }
     }
 }
 

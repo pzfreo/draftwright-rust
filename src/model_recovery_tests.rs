@@ -307,6 +307,26 @@ fn native_pocket_mouths_and_oversized_automatic_details_obey_the_paper_trial() {
     assert_eq!(crate::sheet_fit::readability(&a, &recovered).failures(), 0);
     assert!(carried(&first).is_subset(&carried(&recovered)));
     assert!(no_new_drawing_issues(&first, &recovered));
+    // Enlarging a native mouth must preserve the independently recorded leader
+    // allowance, even though the historical drawing was below the new floor.
+    let recorded: serde_json::Value = serde_json::from_str(include_str!(
+        "../tests/fixtures/sheet-policy/10000-main85-callouts.json"
+    ))
+    .unwrap();
+    for (id, before) in recorded["lengths"].as_object().unwrap() {
+        let after = recovered
+            .dimensions
+            .iter()
+            .find(|d| &d.id == id)
+            .and_then(|d| d.placed.as_ref())
+            .expect("retained callout");
+        let length: f64 = after
+            .lines
+            .iter()
+            .map(|s| ((s[1][0] - s[0][0]).powi(2) + (s[1][1] - s[0][1]).powi(2)).sqrt())
+            .sum();
+        assert!(length <= before.as_f64().unwrap() + 2.0 + 1e-6, "{id}");
+    }
     assert!(
         recovered.views.iter().all(|v| v.detail.is_none()),
         "a readable ordinary drawing must not buy an oversized detail"
