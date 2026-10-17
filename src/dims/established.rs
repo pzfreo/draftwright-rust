@@ -105,7 +105,15 @@ pub(crate) fn retain(analysis: &Analysis, spec: &Spec, current: &Plan) -> Option
         || !spec.annotations.is_empty()
         || !spec.features.is_empty()
         || !spec.faces.is_empty()
-        || !spec.views.is_empty()
+        || spec.views.iter().any(|(name, view)| {
+            !crate::detail::NAMES.contains(&name.as_str())
+                || *view
+                    != crate::model::ViewSpec {
+                        omit: true,
+                        ..Default::default()
+                    }
+        })
+        || current.views.iter().any(|view| view.detail.is_some())
         || current.hole_table.is_some()
         || !current.hole_tables.is_empty()
         || !current.sheets.is_empty()

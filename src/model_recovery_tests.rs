@@ -62,7 +62,17 @@ fn a_valid_candidate_crossing_two_views_is_rejected_even_when_the_planner_return
             Some("stacked-iso"),
             Some("staggered-side"),
         ] {
-            let key = serde_json::to_vec(&(&named, true, arrangement)).unwrap();
+            let analysis_key: [u8; 32] =
+                Sha256::digest(serde_json::to_vec(&analysis).unwrap()).into();
+            let key = serde_json::to_vec(&(
+                analysis_key,
+                crate::planning::policy_key(&analysis),
+                &named,
+                true,
+                arrangement,
+                false,
+            ))
+            .unwrap();
             crate::planning::store(
                 &analysis,
                 "candidate",
@@ -156,4 +166,55 @@ fn new_recess_locations_clear_established_pmi_ink() {
                 .collect::<Vec<_>>()
         );
     });
+}
+
+#[test]
+fn covered_aliases_follow_a_location_into_a_drawn_schedule_only() {
+    let mut plan = recorded("1004-view-gate-first.plan.json.gz");
+    let alias = "d:f:slot:extra/location_slot_across.length";
+    let owner = "d:f:hole:extra/location.length.y";
+    for (id, by) in [(alias, owner), (owner, "schedule")] {
+        plan.omitted.push(crate::dims::Omitted {
+            id: id.into(),
+            label: "20".into(),
+            basis: "same physical span".into(),
+            state: ItemState::Covered { by: by.into() },
+        });
+    }
+    let claim = ("f:slot:extra".into(), "location_slot_across.length".into());
+    assert!(!carried(&plan).contains(&claim));
+    let rows = vec![vec!["20".into()]];
+    plan.hole_tables.push(crate::hole_table::HoleTable {
+        sheet: 1,
+        id: "schedule".into(),
+        view: Some("v:plan".into()),
+        origin: None,
+        pcd: None,
+        covered: vec![],
+        rows: vec![],
+        default: true,
+        basis: String::new(),
+        state: ItemState::Shown,
+        blocks: vec![crate::tables::PlannedTable {
+            sheet: 1,
+            id: "schedule".into(),
+            rows: rows.clone(),
+            row_claims: vec![],
+            default: true,
+            basis: String::new(),
+            state: ItemState::Shown,
+            placed: Some(crate::tables::lay(&rows, &[10.0], [10.0, 10.0])),
+        }],
+    });
+    assert!(carried(&plan).contains(&claim));
+    plan.hole_tables[0].blocks[0].placed = None;
+    assert!(
+        !carried(&plan).contains(&claim),
+        "an unplaced table carries no alias"
+    );
+    plan.omitted.last_mut().unwrap().state = ItemState::Covered { by: alias.into() };
+    assert!(
+        !carried(&plan).contains(&claim),
+        "a cycle without drawn ink is not coverage"
+    );
 }

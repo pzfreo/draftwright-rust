@@ -1458,15 +1458,38 @@ fn carried(plan: &Plan) -> BTreeSet<(String, String)> {
         )
         .map(|m| (m.feature.clone(), m.parameter.clone()))
         .collect();
-    // The compiler can replace a local interval with its proven baseline stations.
-    // Keep that physical coverage across detail-free and detail-bearing candidates;
-    // a covered ledger entry counts only while its controlling owner is actually drawn.
-    for omitted in &plan.omitted {
-        if let ItemState::Covered { by } = &omitted.state
-            && plan
-                .dimensions
+    // Coverage follows its controlling ink through presentation changes too: a
+    // coincident slot location can be owned by a hole location, then by its schedule.
+    // Only drawn dimensions and fully placed tables can root that ownership chain.
+    let mut live: BTreeSet<&str> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.placed.is_some())
+        .map(|d| d.id.as_str())
+        .chain(
+            plan.hole_table
                 .iter()
-                .any(|d| d.id == *by && d.placed.is_some())
+                .chain(&plan.hole_tables)
+                .filter(|t| !t.blocks.is_empty() && t.blocks.iter().all(|b| b.placed.is_some()))
+                .map(|t| t.id.as_str()),
+        )
+        .collect();
+    loop {
+        let mut changed = false;
+        for omitted in &plan.omitted {
+            if let ItemState::Covered { by } = &omitted.state
+                && live.contains(by.as_str())
+            {
+                changed |= live.insert(omitted.id.as_str());
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    for omitted in &plan.omitted {
+        if matches!(omitted.state, ItemState::Covered { .. })
+            && live.contains(omitted.id.as_str())
             && let Some((feature, parameter)) = omitted
                 .id
                 .strip_prefix("d:")

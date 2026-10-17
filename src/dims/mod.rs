@@ -1805,11 +1805,17 @@ pub(crate) fn plan_inventory(
     // The placer reads the title block rectangle, never its cells or their text.
     // Keep the actual rectangle below: an expanded title block still invalidates ink.
     geometry_spec.sheet.title.clear();
+    // Placement reads the resolved sheet and frames below, not whether the caller
+    // selected that same size/scale or the allocator selected it automatically.
+    geometry_spec.sheet.size = None;
+    geometry_spec.sheet.scale = None;
     let mut geometry_sheet = sheet.clone();
     geometry_sheet.title.clear();
     geometry_sheet.title_cells.clear();
     geometry_sheet.basis.clear();
     geometry_sheet.arrangement.clear();
+    geometry_sheet.default = false;
+    geometry_sheet.fill = 0.0;
     let mut geometry_views = views.to_vec();
     for view in &mut geometry_views {
         view.basis.clear();

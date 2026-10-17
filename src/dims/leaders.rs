@@ -395,6 +395,42 @@ impl ExtensionIndex {
         let grid = (ink.len() > 64).then(|| Grid::new([bounds.clone(), Vec::new(), Vec::new()]));
         Self { ink, bounds, grid }
     }
+    /// Count physical witness strokes touched by the arrow flare (not distinct owners).
+    /// The contact grid's 1 mm boxes conservatively include the exact 0.2 mm test.
+    fn head_contacts(&self, flare: &[[P2; 2]]) -> usize {
+        let reach = flare.iter().map(|s| segment_bounds(*s)).fold(
+            [
+                f64::INFINITY,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+                f64::NEG_INFINITY,
+            ],
+            |a, b| {
+                [
+                    a[0].min(b[0]),
+                    a[1].min(b[1]),
+                    a[2].max(b[2]),
+                    a[3].max(b[3]),
+                ]
+            },
+        );
+        let mut count = 0;
+        let mut measure = |i: usize| {
+            let bounds = grow(segment_bounds(self.ink[i].1), 0.2);
+            count += usize::from(flare.iter().any(|s| touches_box(*s, bounds)));
+        };
+        if let Some(grid) = &self.grid {
+            grid.near(0, reach, measure);
+        } else {
+            for (i, b) in self.bounds.iter().enumerate() {
+                if boxes_meet(*b, reach) {
+                    measure(i);
+                }
+            }
+        }
+        count
+    }
+
     fn contacts(&self, lines: &[[P2; 2]], label: [f64; 4]) -> (usize, usize) {
         let pad = grow(label, LABEL_PAD);
         let reach = lines.iter().flatten().fold(pad, |b, p| {
@@ -1540,9 +1576,16 @@ fn refine_uncached(
             grow(b, 1.0)
         })
         .collect();
-    let gathered: Vec<std::cell::OnceCell<ViewInk>> =
+    let gathered: Vec<std::cell::OnceCell<(SegmentIndex, Vec<[f64; 4]>)>> =
         views.iter().map(|_| std::cell::OnceCell::new()).collect();
+    let canonical = crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[])
+        .unwrap_or(false);
     let model_run = |w: &Want, p: &Placed| {
+        // The comparison recipe retains its original routes. Main's new inspection
+        // repair belongs to the final drawing, which is checked against that recipe.
+        if canonical {
+            return false;
+        }
         let label = label_ink(&w.terms, font());
         let span = ROW * STEP
             + length(&p.lines)
@@ -1561,8 +1604,11 @@ fn refine_uncached(
                 if !boxes_meet(view_reach[k], probe) {
                     return false;
                 }
-                let (model, uncertain) = gathered[k].get_or_init(|| view_ink(v));
-                p.lines.iter().any(|s| runs_beside(*s, model))
+                let (model, uncertain) = gathered[k].get_or_init(|| {
+                    let (lines, unknown) = view_ink(v);
+                    (SegmentIndex::new(lines), unknown)
+                });
+                p.lines.iter().any(|s| model.runs_beside(*s))
                     || (chamfer
                         && uncertain
                             .iter()
@@ -1925,8 +1971,16 @@ fn refine_uncached(
             if !boxes_meet(view_reach[k], region) {
                 continue;
             }
-            let (m, u) = gathered[k].get_or_init(|| view_ink(v));
-            near_model.extend(m.iter().filter(|s| touches_box(**s, region)));
+            let (m, u) = gathered[k].get_or_init(|| {
+                let (lines, unknown) = view_ink(v);
+                (SegmentIndex::new(lines), unknown)
+            });
+            near_model.extend(
+                m.near(region)
+                    .into_iter()
+                    .filter(|s| touches_box(**s, region))
+                    .copied(),
+            );
             uncertain.extend(u);
         }
         let near_cuts: Vec<[P2; 2]> = cuts
@@ -1967,23 +2021,20 @@ fn refine_uncached(
         let (old_text_model, old_elbow_model) = on_model(elbow, old.label_box);
         // The arrowhead keeps out of the extension lines it was clear of: a flare over the
         // start of one reads as a contact whatever the shaft does.
+        let arrow_contacts = std::cell::RefCell::new(std::collections::HashMap::new());
         let head_on = |t: P2, q: P2| {
-            let flare = head(arrow(t, q));
-            extensions
-                .iter()
-                .filter(|(_, e)| {
-                    let b = grow(
-                        [
-                            e[0][0].min(e[1][0]),
-                            e[0][1].min(e[1][1]),
-                            e[0][0].max(e[1][0]),
-                            e[0][1].max(e[1][1]),
-                        ],
-                        0.2,
-                    );
-                    flare.iter().any(|s| touches_box(*s, b))
-                })
-                .count()
+            let key = [
+                t[0].to_bits(),
+                t[1].to_bits(),
+                q[0].to_bits(),
+                q[1].to_bits(),
+            ];
+            if let Some(&count) = arrow_contacts.borrow().get(&key) {
+                return count;
+            }
+            let count = extension_index.head_contacts(&head(arrow(t, q)));
+            arrow_contacts.borrow_mut().insert(key, count);
+            count
         };
         let old_head = head_on(tip, elbow);
         let historical = established
@@ -1991,9 +2042,18 @@ fn refine_uncached(
             .map_or(old.lines.as_slice(), |p| p.lines.as_slice());
         let route_safe = |lines: &[[P2; 2]]| {
             (clear_new_text
-                || !uncertain
-                    .iter()
-                    .any(|b| lines.iter().any(|s| adds_unknown_path(*s, *b, historical))))
+                || !uncertain.iter().any(|b| {
+                    if old_run && repair_models.is_empty() && !edited_text {
+                        // Ordinary inspection repairs retain main's bounded uncertain-ink
+                        // test; recess and edited-label repairs prove the historical path.
+                        lines
+                            .iter()
+                            .enumerate()
+                            .any(|(i, s)| buried(*s, *b) > buried(old.lines[i], *b) + 1e-6)
+                    } else {
+                        lines.iter().any(|s| adds_unknown_path(*s, *b, historical))
+                    }
+                }))
                 && !lines.iter().any(|s| line_index.runs_beside(*s))
                 && (clear_new_text || !model_index.new_crossing(lines, historical))
                 && !near_cuts
@@ -4502,6 +4562,16 @@ mod tests {
             });
             let at = [200. * lcg(&mut seed) - 100., 200. * lcg(&mut seed) - 100.];
             let label = [at[0], at[1], at[0] + 12., at[1] + 4.];
+            let flare = head(arrow(route[0][0], route[0][1]));
+            assert_eq!(
+                indexed.head_contacts(&flare),
+                ink.iter()
+                    .filter(|(_, e)| {
+                        let bounds = grow(segment_bounds(*e), 0.2);
+                        flare.iter().any(|s| touches_box(*s, bounds))
+                    })
+                    .count()
+            );
             assert_eq!(
                 indexed.contacts(&route, label),
                 extension_contacts(&ink, &route, label)
