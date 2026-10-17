@@ -2644,6 +2644,17 @@ fn recover_uncached_with(
     minimum: Option<f64>,
     reference_only: bool,
 ) -> Result<Plan, Invalid> {
+    recover_with_reference(analysis, spec, first, minimum, reference_only, None)
+}
+
+fn recover_with_reference(
+    analysis: &Analysis,
+    spec: &Spec,
+    first: Plan,
+    minimum: Option<f64>,
+    reference_only: bool,
+    route_reference: Option<&Plan>,
+) -> Result<Plan, Invalid> {
     let legibility = |p: &Plan| {
         if reference_only {
             crate::sheet_fit::primary_illegible_steps(analysis, p)
@@ -2652,7 +2663,17 @@ fn recover_uncached_with(
         }
     };
     if spec.sheet.scale.is_some() || crate::placement_intent::has_pins(spec) {
-        return recover_candidates(analysis, spec, first, true, false, minimum, reference_only);
+        return recover_candidates_before(
+            analysis,
+            spec,
+            first,
+            true,
+            false,
+            minimum,
+            reference_only,
+            None,
+            route_reference,
+        );
     }
     // Optional details are a last resort for unreadable features or smaller paper.
     // Search the complete ordinary drawing first, including the small-sheet allocation.
@@ -2681,7 +2702,7 @@ fn recover_uncached_with(
         // scale, so pairs with no optional crop share their expensive planning memo.
         // The original seed supplies requirements; suppressed geometry is never reused.
         let required = carried(&first);
-        let mut ordinary = recover_candidates(
+        let mut ordinary = recover_candidates_before(
             analysis,
             spec,
             first.clone(),
@@ -2689,6 +2710,8 @@ fn recover_uncached_with(
             false,
             minimum,
             reference_only,
+            None,
+            route_reference,
         )?;
         let complete = !ordinary
             .views
@@ -2732,6 +2755,7 @@ fn recover_uncached_with(
             minimum,
             reference_only,
             before_paper,
+            route_reference,
         )?;
         let detailed_complete = (before_paper.is_none()
             || detailed
@@ -2803,7 +2827,17 @@ fn recover_uncached_with(
         }
         return Ok(detailed);
     }
-    recover_candidates(analysis, spec, first, true, false, minimum, reference_only)
+    recover_candidates_before(
+        analysis,
+        spec,
+        first,
+        true,
+        false,
+        minimum,
+        reference_only,
+        None,
+        route_reference,
+    )
 }
 
 /// A non-pinned side hint must not force a long oblique witness when the
@@ -2909,6 +2943,7 @@ fn recover_candidates(
         minimum,
         reference_only,
         None,
+        None,
     )
 }
 
@@ -2922,6 +2957,7 @@ fn recover_candidates_before(
     minimum: Option<f64>,
     reference_only: bool,
     before_paper: Option<usize>,
+    route_reference: Option<&Plan>,
 ) -> Result<Plan, Invalid> {
     use crate::sheet_fit::FILL_BAND;
     // Adding a recess must not enlarge all existing witnesses and leaders merely
@@ -3078,6 +3114,11 @@ fn recover_candidates_before(
         // independently fitted reference. Reconstructing a separate historical
         // ladder for each partial allocation adds no acceptance guarantee.
         None
+    } else if let Some(reference) = route_reference {
+        // A table trial already owns the actual installed drawing. Rebuilding
+        // an inline historical ladder adds work and protects different ink.
+        // Apply the same candidate gates directly to that retained reference.
+        Some(reference.clone())
     } else if spec.sheet.size.is_none()
         && spec.sheet.scale.is_none()
         && drawn_quality_reference(analysis, &first)
@@ -3100,6 +3141,11 @@ fn recover_candidates_before(
     // exists those solves cannot improve recovery; keep them only for physical
     // salvage when the seed itself does not fit.
     let mut physical_fit_seen = quality_kept
+        // An installed schedule is already a fitted physical fallback. The
+        // hypothetical inline seed can introduce different representation
+        // claims, but cannot make below-floor trials readable. The outer table
+        // recovery still requires every actual installed measurement and route.
+        || route_reference.is_some_and(|p| drawn_quality_reference(analysis, p))
         || historical
             .as_ref()
             .is_some_and(|p| drawn_quality_reference(analysis, p) && carries_required(&first, p));
@@ -4165,14 +4211,23 @@ fn recover_tables_inner(
             true,
         )?
     } else if minimum.is_some() {
-        recover_uncached(
+        recover_with_reference(
             analysis,
             &baseline_spec,
             plan_escalated_with(analysis, &seed, true, None, false)?,
             minimum,
+            false,
+            Some(&first),
         )?
     } else {
-        recover(analysis, &baseline_spec, plan_escalated(analysis, &seed)?)?
+        recover_with_reference(
+            analysis,
+            &baseline_spec,
+            plan_escalated(analysis, &seed)?,
+            None,
+            false,
+            Some(&first),
+        )?
     };
     restore_search_spec(&mut baseline, spec);
     let mut selection = crate::hole_table::select(analysis, &baseline);
