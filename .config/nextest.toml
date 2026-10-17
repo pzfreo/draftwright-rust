@@ -5,15 +5,40 @@
 # nextest (CI run 37848776092) against 57 s for the binary under its own harness (CI run
 # 37851506194), and issue_trust's 314 s against 90 s. The profile leaves those binaries out, and
 # the workflow's `harness` job runs whatever binaries it leaves out whole.
+# Aggregate audits retain their global assertions and use at most four scoped workers.
+# Account for those workers in nextest's budget (also inherited by the ci profile).
+[[profile.default.overrides]]
+filter = '''
+    binary(items) & not test(=a_problems_fix_resolves_it)
+    | test(=only_sheet_problems_have_the_sheet_as_subject)
+    | test(=no_problem_message_carries_an_internal_id)
+    | test(=all_quality_parts_interior_lines_arrows_and_tips_clear_rendered_ink)
+    | test(pinning_every_callout_at_its_reported_offset_moves_nothing::)
+'''
+threads-required = 4
+
 [profile.ci]
 default-filter = 'not (binary(issue_drafting) | binary(issue_trust))'
 fail-fast = false
 
 # A shard's wall clock is bounded below by its longest test, so the tests that take most of a
-# minute or more on CI start first rather than last.
+# minute or more on CI start first rather than last. Named NIST cases replace the long
+# all-fixture PMI loops; reserve early slots for the remaining aggregate audits too.
 [[profile.ci.overrides]]
 filter = '''
-    test(=the_drawings_problems_reach_review_and_render)
+    test(=on_the_quality_parts_too)
+    | test(=every_plan_item_has_a_state_and_every_problem_subject_is_a_live_item)
+    | test(=only_sheet_problems_have_the_sheet_as_subject)
+    | test(=no_problem_message_carries_an_internal_id)
+    | test(=all_quality_parts_interior_lines_arrows_and_tips_clear_rendered_ink)
+    | test(=common_labels_are_drawn_with_leaders_and_searchable)
+    | test(=pmi_callout_wording_is_reserved_drawn_searchable_and_structured_symbols_refuse_it)
+    | test(=ctc_02_frames_and_datum_symbols_are_inside_their_bands_and_on_the_sheet)
+    | test(nist_ctc_02_asme1_ap242_e2)
+    | test(nist_ftc_10_asme1_ap242_e2)
+    | test(nist_stc_09_asme1_ap242_e4)
+    | test(pinning_every_callout_at_its_reported_offset_moves_nothing::)
+    | test(=the_drawings_problems_reach_review_and_render)
     | test(=cgb242_is_drawn_whole)
     | test(=lint_on_the_ports_own_drawings_is_known)
     | test(=native_features_match_the_bridge_or_are_listed)
