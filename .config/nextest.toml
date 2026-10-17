@@ -12,7 +12,8 @@ filter = 'test(=r5_multi_sheet_latency) | (binary(=session) & test(_benchmark_de
 threads-required = "num-cpus"
 
 # Aggregate audits retain their global assertions and use at most four scoped workers.
-# Account for those workers in nextest's budget (also inherited by the ci profile).
+# Reserve two slots: keep concurrency bounded while other cases fill uneven worker tails.
+# The ci profile inherits the same reservation.
 [[profile.default.overrides]]
 filter = '''
     binary(items) & not test(=a_problems_fix_resolves_it)
@@ -21,7 +22,7 @@ filter = '''
     | test(=all_quality_parts_interior_lines_arrows_and_tips_clear_rendered_ink)
     | test(pinning_every_callout_at_its_reported_offset_moves_nothing::)
 '''
-threads-required = 4
+threads-required = 2
 
 [profile.ci]
 default-filter = 'not (binary(issue_drafting) | binary(issue_trust))'
