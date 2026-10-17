@@ -1,6 +1,8 @@
 """Regenerate the standalone MCP input/output JSON Schemas (draft 2020-12)."""
 import json
 import re
+from copy import deepcopy
+from mcp_spec import document, outline
 from pathlib import Path
 MAX_OPS = int(re.search(r'pub const MAX_OPS: usize = (\d+);', (Path(__file__).resolve().parent.parent / 'src/stateless.rs').read_text())[1])
 S = {'type': 'string'}
@@ -78,6 +80,7 @@ tools={
 'get_spec':(obj(common,['part_ref']),obj({'spec_version':S,'spec':ref('spec_read')},['spec_version','spec'])),
 'analyse':(obj({'step':S,'features':S,'part':I},['step']),obj({'schema':{'const':'draftwright.analysis/7'},'binding':obj({'source_sha256':S,'part':S,'face_count':I,'loader':S,'part_index':I},['source_sha256','part','face_count','loader']),'envelope':arr(arr(N,minItems=3,maxItems=3),minItems=2,maxItems=2),'features':arr({'type':'object'}),'iso_bounds':rectangle},['schema','binding','envelope','iso_bounds'],True)),
 'render':(obj({**common,'step':S,'features':S,'part':I,'format':{'enum':['png','pdf']},'region':rectangle,'overlay_ids':{'type':['boolean','array'],'items':S},'sheet':SHEET,'dpi':{'type':'number','exclusiveMinimum':0,'maximum':400}}),artifact),
+'spec_schema':(obj({}),obj({'spec':{'type':'object'},'spec_read':{'type':'string'}},['spec','spec_read'])),
 'parts':(obj({'step':S},['step']),obj({'parts':arr(obj({'part':I,'name':S,'product_id':S,'faces':I,'instances':I},['part','name','product_id','faces','instances']))},['parts'])),
 }
 def inline_single_use(schema, keep=()):
@@ -161,7 +164,7 @@ def hoist_objects(schema):
     return schema
 
 def compact_size(value):
-    return len(json.dumps(value, separators=(',', ':')).encode())
+    return len(json.dumps(value, separators=(',', ':'), ensure_ascii=False).encode())
 
 def name_choices(names):
     """Factor literal underscore prefixes and suffixes within a finite set of property names."""
@@ -226,6 +229,9 @@ def group_properties(schema, top=True, inherited_type=None):
         full = {k: v for k, v in schema.items() if k != 'required'}
         full['minProperties'] = len(props)
         if compact_size(full) < compact_size(schema): schema = full
+    # Keep Spec's shallow keys explicit for client models.
+    if schema.get('description', '').startswith('Typed outline only.'):
+        return schema
     original, original_props = schema, props
     groups = defaultdict(list)
     for name, value in props.items():
@@ -272,47 +278,60 @@ def short_names(schema):
     if isinstance(schema, list): return [short_names(v) for v in schema]
     return schema
 
-for tool,(inp,out) in tools.items():
-    if tool in ['inspect_part','render']:
-        inp['anyOf']=[{'required':['step']},{'required':['part_ref']}]
+# Keep preflight validation identical to main, including its corrective shape messages.
+# These private schemas are never advertised in tools/list.
+validation = {}
+full_spec = document()
+Path('schemas/spec.json').write_text(json.dumps(full_spec, indent=2) + '\n')
+total = 0
+for mode in ('validation', 'published'):
+    if mode == 'published':
+        defs['spec'] = outline()
+        defs['spec_read'] = outline()
+    for tool,(inp,out) in deepcopy(tools).items():
+        if tool in ['inspect_part','render']:
+            inp['anyOf']=[{'required':['step']},{'required':['part_ref']}]
 
-    # Refusals are also structured results described by each tool's output schema.
-    for kind,schema in [('input',inp),('output',{'type':'object','anyOf':[out,obj({'error':ref('error')},['error'])]})]:
-        used={}
-        def collect(s):
-            if isinstance(s,dict):
-                if '$ref' in s:
-                    name=s['$ref'].split('/')[-1]
-                    if name not in used:
-                        used[name]=defs[name]; collect(defs[name])
-                for value in s.values(): collect(value)
-            elif isinstance(s,list):
-                for value in s: collect(value)
-        collect(schema)
-        # MCP defaults to 2020-12; local refs need no repeated canonical $id URL.
-        schema={**schema,'$defs':used}
-        keep = ('op',) if kind == 'input' and tool in ('apply_ops', 'preview_ops') else ()
-        # An anyOf branch inherits its parent's type. Keep the existing session byte
-        # budget as sheet vocabulary grows, without changing any accepted value.
-        for branch in schema.get('anyOf', []):
-            if branch.get('type') == schema.get('type'):
-                branch.pop('type', None)
-        schema = inline_single_use(hoist_objects(schema), keep)
-        for _ in range(10):
-            trial = min((inline_single_use(share_repeated(group_properties(hoist_objects(schema))), keep),
-                         inline_single_use(group_properties(share_repeated(hoist_objects(schema))), keep)),
-                        key=lambda value: compact_size(short_names(value)))
-            if compact_size(short_names(trial)) >= compact_size(short_names(schema)): break
-            schema = trial
-        schema = short_names(schema)
-        # JSON Pointers may reference schema-valued extension keys at the root.
-        # Short local targets keep each tool standalone without repeating $defs paths.
-        schema.update(schema.pop('$defs'))
-        Path(f'schemas/mcp/{tool}.{kind}.json').write_text(json.dumps(schema,indent=2)+'\n')
-
-# Exact strict bound, shared with tests/engine_version.rs. Count compact UTF-8,
-# as tools/list serves it, rather than pretty-printed files on disk.
-schema_bytes = sum(len(json.dumps(json.loads(p.read_text()), separators=(',', ':')).encode())
-                   for p in Path('schemas/mcp').glob('*.json'))
-assert schema_bytes <= 46872, f'MCP schema budget exceeded: {schema_bytes} bytes'
-print(f'MCP schemas: {schema_bytes} bytes per session (budget <= 46872)')
+        # Refusals are also structured results described by each tool's output schema.
+        for kind,schema in [('input',inp),('output',{'type':'object','anyOf':[out,obj({'error':ref('error')},['error'])]})]:
+            used={}
+            def collect(s):
+                if isinstance(s,dict):
+                    if '$ref' in s:
+                        name=s['$ref'].split('/')[-1]
+                        if name not in used:
+                            used[name]=defs[name]; collect(defs[name])
+                    for value in s.values(): collect(value)
+                elif isinstance(s,list):
+                    for value in s: collect(value)
+            collect(schema)
+            # MCP defaults to 2020-12; local refs need no repeated canonical $id URL.
+            schema={**schema,'$defs':used}
+            keep = ('op',) if kind == 'input' and tool in ('apply_ops', 'preview_ops') else ()
+            # An anyOf branch inherits its parent's type; omit only redundant types.
+            for branch in schema.get('anyOf', []):
+                if branch.get('type') == schema.get('type'):
+                    branch.pop('type', None)
+            schema = inline_single_use(hoist_objects(schema), keep)
+            for _ in range(10):
+                trial = min((inline_single_use(share_repeated(group_properties(hoist_objects(schema))), keep),
+                             inline_single_use(group_properties(share_repeated(hoist_objects(schema))), keep)),
+                            key=lambda value: compact_size(short_names(value)))
+                if compact_size(short_names(trial)) >= compact_size(short_names(schema)): break
+                schema = trial
+            schema = short_names(schema)
+            # JSON Pointers may reference schema-valued extension keys at the root.
+            # Short local targets keep each tool standalone without repeating $defs paths.
+            schema.update(schema.pop('$defs'))
+            if mode == 'validation':
+                if kind == 'input' and tool not in ('spec_schema', 'analyse', 'parts'):
+                    validation[tool] = schema
+            else:
+                total += compact_size(schema)
+                Path(f'schemas/mcp/{tool}.{kind}.json').write_text(json.dumps(schema,indent=2)+'\n')
+Path('schemas/mcp-validation.json').write_text(json.dumps(validation, indent=2) + '\n')
+# Exact measured ceiling, shared with tests/engine_version.rs. Nested Spec growth is free;
+# detail placement view names (detail_a…) add 88 bytes to item_options.
+SCHEMA_BUDGET = 34477
+assert total <= SCHEMA_BUDGET, f'schemas: {total} bytes (budget {SCHEMA_BUDGET})'
+print(f'{len(tools)} tools; {total} compact schema bytes')

@@ -1,4 +1,7 @@
 //! Issue #76 item 6: author line-work intent without weakening independent drawing checks.
+#[path = "common/mcp_schema.rs"]
+mod mcp_schema;
+
 use draftwright::{
     Session, api,
     items::Op,
@@ -285,12 +288,12 @@ fn mcp_switch_shapes_remain_strict_after_schema_compaction() {
                     json!({"part_ref":"part","spec":{"views":{"side":{field:v}}}})
                 }
             };
-            let schema = mcp::schema("get_spec", false).unwrap();
+            let schema = mcp_schema::with_full_spec("get_spec", false);
             assert!(mcp::validate(&schema, &value(json!(true))).is_ok());
             assert!(mcp::validate(&schema, &value(json!("true"))).is_err());
         }
     }
-    let schema = mcp::schema("get_spec", false).unwrap();
+    let schema = mcp_schema::with_full_spec("get_spec", false);
     assert!(mcp::validate(&schema, &json!({"part_ref":3})).is_err());
     assert!(mcp::validate(&schema, &json!({"part_ref":"part","bogus":true})).is_err());
     assert!(

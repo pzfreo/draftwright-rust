@@ -5,6 +5,8 @@ from pathlib import Path
 import unittest
 
 from jsonschema import Draft202012Validator
+# Keep this command's existing coverage while allowing Cargo to run the stdlib guards.
+from test_mcp_spec_outline import SpecContextBudget
 
 source = ast.parse(Path(__file__).with_name('generate_mcp_schemas.py').read_text())
 namespace = {'re': re}

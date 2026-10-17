@@ -2,7 +2,7 @@
   "type": "object",
   "properties": {
     "part_ref": {
-      "$ref": "#/D"
+      "type": "string"
     },
     "spec": {
       "type": "object",
@@ -19,109 +19,41 @@
             "null"
           ]
         },
+        "sheet": {
+          "$ref": "#/A"
+        },
+        "iso_scale_factor": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "sheets": {
           "type": [
             "object",
             "null"
-          ],
-          "properties": {
-            "max": {
-              "$ref": "#/C"
-            },
-            "smallest_scale": {
-              "$ref": "#/B"
-            },
-            "keep_together": {
-              "type": "array",
-              "items": {
-                "$ref": "#/E"
-              }
-            },
-            "hole_table": {
-              "$ref": "#/C"
-            },
-            "gdt_on_sheet_1": {
-              "type": "boolean"
-            }
-          },
-          "additionalProperties": false
-        },
-        "sheet": {
-          "type": "object",
-          "properties": {
-            "title": {
-              "type": "object",
-              "additionalProperties": {
-                "$ref": "#/D"
-              }
-            },
-            "projection": {
-              "enum": [
-                null,
-                "first",
-                "third"
-              ]
-            },
-            "default_finish": {
-              "type": [
-                "object",
-                "null"
-              ]
-            }
-          },
-          "additionalProperties": false,
-          "patternProperties": {
-            "^(hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
-              "$ref": "#/A"
-            },
-            "^(size|scale)$(?!\n)": {
-              "$ref": "#/B"
-            }
-          }
+          ]
         },
         "views": {
-          "additionalProperties": {
-            "properties": {
-              "detail": {
-                "type": [
-                  "object",
-                  "null"
-                ],
-                "properties": {
-                  "around": {
-                    "type": [
-                      "string",
-                      "array"
-                    ],
-                    "items": {
-                      "$ref": "#/D"
-                    },
-                    "minItems": 1
-                  },
-                  "from": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "pattern": "^(front|plan|side|section_([a-h])\\2)(?![\\s\\S])"
-                  },
-                  "scale_factor": {
-                    "type": "number",
-                    "exclusiveMinimum": 1
-                  }
-                },
-                "required": [
-                  "around"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "patternProperties": {
-              "^(hidden|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
-                "$ref": "#/A"
-              }
-            }
-          }
+          "$ref": "#/A"
+        },
+        "dimensions": {
+          "$ref": "#/A"
+        },
+        "annotations": {
+          "$ref": "#/A"
+        },
+        "features": {
+          "$ref": "#/A"
+        },
+        "faces": {
+          "$ref": "#/A"
+        },
+        "dimension_schemes": {
+          "$ref": "#/A"
+        },
+        "precision": {
+          "$ref": "#/A"
         },
         "dimension_source": {
           "enum": [
@@ -136,45 +68,33 @@
             "never"
           ]
         },
+        "envelope_tolerance": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notes": {
+          "type": "array"
+        },
+        "tables": {
+          "type": "array"
+        },
+        "gears": {
+          "type": "array"
+        },
         "feature_declarations": {
-          "items": {
-            "properties": {
-              "id": {
-                "$ref": "#/D"
-              },
-              "kind": {
-                "$ref": "#/D"
-              },
-              "faces": {
-                "$ref": "#/E"
-              }
-            },
-            "additionalProperties": false,
-            "minProperties": 3
-          }
+          "type": "array"
         }
       },
       "additionalProperties": false,
-      "patternProperties": {
-        "^(views|dimensions|annotations|features|faces|dimension_schemes)$(?!\n)": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object"
-          }
-        },
-        "^(notes|tables|gears|feature_declarations)$(?!\n)": {
-          "type": "array",
-          "items": {
-            "type": "object"
-          }
-        }
-      }
+      "description": "Typed outline only. Call spec_schema {} for the full Spec and get_spec spec_read schemas; item_options gives valid edit paths and choices."
     },
     "spec_version": {
-      "$ref": "#/D"
+      "type": "string"
     },
     "drawing_ref": {
-      "$ref": "#/D"
+      "type": "string"
     },
     "cursor": {
       "type": "integer",
@@ -192,7 +112,18 @@
       "type": "object",
       "properties": {
         "sheet": {
-          "$ref": "#/C"
+          "enum": [
+            null,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+          ]
         },
         "state": {
           "anyOf": [
@@ -217,7 +148,7 @@
                       "const": "covered"
                     },
                     "by": {
-                      "$ref": "#/D"
+                      "type": "string"
                     }
                   },
                   "additionalProperties": false,
@@ -229,7 +160,7 @@
                       "const": "not_drawable"
                     },
                     "reason_code": {
-                      "$ref": "#/D"
+                      "type": "string"
                     }
                   },
                   "additionalProperties": false,
@@ -265,7 +196,10 @@
       "additionalProperties": false,
       "patternProperties": {
         "^(view|kind|feature|near)$(?!\n)": {
-          "$ref": "#/B"
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     }
@@ -275,38 +209,6 @@
   ],
   "additionalProperties": false,
   "A": {
-    "type": [
-      "boolean",
-      "null"
-    ]
-  },
-  "B": {
-    "type": [
-      "string",
-      "null"
-    ]
-  },
-  "C": {
-    "enum": [
-      null,
-      1,
-      2,
-      3,
-      4,
-      5,
-      6,
-      7,
-      8,
-      9
-    ]
-  },
-  "D": {
-    "type": "string"
-  },
-  "E": {
-    "items": {
-      "$ref": "#/D"
-    },
-    "type": "array"
+    "type": "object"
   }
 }
