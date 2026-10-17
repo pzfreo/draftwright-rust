@@ -582,9 +582,16 @@ pub(super) fn place(
             if clear(c) {
                 return true;
             }
-            if let Some(room) = super::placement::make_room(
-                i, c, frames, items, views_of, sides, fixed, placed, obstacles, page,
-            ) {
+            // A newly supplied notch must fit around established dimensions. It cannot
+            // evict a previously readable datum or short leader to acquire its arc.
+            if !items[i]
+                .measurements
+                .iter()
+                .any(|m| m.parameter == "notch.angle")
+                && let Some(room) = super::placement::make_room(
+                    i, c, frames, items, views_of, sides, fixed, placed, obstacles, page,
+                )
+            {
                 moves = room;
                 return true;
             }

@@ -118,6 +118,16 @@ fn notch_dimensions_accept_omit_tolerance_place_and_label_text() {
             })
             .unwrap();
         let id = &original.id;
+        let options = draftwright::dims::placement_options(&ctc().1, &p.views);
+        assert!(
+            options[id]["views"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|v| v["view"] == original.view.trim_start_matches("v:")),
+            "{id}: {:?}",
+            options[id]
+        );
         let omitted = plan(&parse(json!({"dimensions":{id:{"omit":true}}})));
         assert!(!omitted.dimensions.iter().any(|d| &d.id == id));
         assert!(omitted.omitted.iter().any(|d| &d.id == id));

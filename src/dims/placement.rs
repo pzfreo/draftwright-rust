@@ -578,6 +578,13 @@ pub(super) fn lanes<'a>(
                         plate_strip(f, view, &w.shape, horizontal)
                     } else if let Some(side) = body_strip(f, w, horizontal) {
                         side
+                    } else if w.measurements.iter().any(|m| {
+                        m.feature.starts_with("notch:") && m.parameter.starts_with("location.")
+                    }) && silhouette_gap(f, *b, horizontal).1 <= ON_SILHOUETTE
+                    {
+                        // A notch mouth on the silhouette is located on that free side,
+                        // keeping its witnesses out of the existing opposite-side callouts.
+                        silhouette_gap(f, *b, horizontal).0
                     } else {
                         strip(view, horizontal)
                     },

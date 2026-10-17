@@ -2626,7 +2626,10 @@ fn plan_escalated_uncached(
                 }
                 if installed {
                     p = scheduled;
-                } else {
+                } else if spec.hole_table == crate::hole_table::Setting::Always || findings(&p).dropped > 0 {
+                    // A failed optional compaction is not a new drawing problem when
+                    // every original hole requirement remains legible. Explicit requests
+                    // and actual losses still report the failed schedule transaction.
                     p.problems.push(Problem { id:"p:hole_table_unavailable:sheet".into(), code:"hole_table_unavailable".into(), severity:if spec.hole_table == crate::hole_table::Setting::Always { "warning" } else { "info" }.into(), message:"The selected hole table or one of its tags has no clear place; the original dimensions are kept.".into(), subjects:vec!["sheet".into()], ..Default::default() });
                 }
             }

@@ -1300,6 +1300,26 @@ fn lanes_uncached(
             _ => {}
         }
     }
+    // Add only the new vertical notch statements to the established plan-left
+    // allowance. Reserving every historical lane would enlarge otherwise readable
+    // sheets; omitting these new lanes can strand an existing centre ordinate.
+    let notch_lanes = kept
+        .iter()
+        .filter(|(w, _, view, _)| {
+            *view == Some("plan")
+                && w.measurements
+                    .iter()
+                    .any(|m| m.feature.starts_with("notch:"))
+                && matches!(w.shape, Shape::Linear { axis, .. }
+                if placement::across(&frames["plan"], axis) == Some(false))
+        })
+        .count();
+    if notch_lanes > 0 {
+        let base = ((crate::layout::DIM_PAD - crate::layout::lane_band(1)).max(0.) / LANE).ceil()
+            as usize
+            + 1;
+        bands.authored_plan_left = bands.authored_plan_left.max(base + notch_lanes);
+    }
     let mut aligned = Vec::new();
     for (i, w) in wants.iter().enumerate() {
         if !matches!(w.shape, Shape::Aligned { .. }) || owner[i].is_some() {
@@ -3232,7 +3252,15 @@ pub(crate) fn placement_options_with_spec(
                         Shape::Callout { .. } | Shape::Aligned { .. } => {
                             vec!["above", "below", "left", "right"]
                         }
-                        Shape::Angular { .. } if probe.id.starts_with("d:authored:") => Vec::new(),
+                        Shape::Angular { .. }
+                            if probe.id.starts_with("d:authored:")
+                                || probe
+                                    .measurements
+                                    .iter()
+                                    .any(|m| m.parameter == "notch.angle") =>
+                        {
+                            Vec::new()
+                        }
                         Shape::Angular { .. } => return None,
                     };
                     Some(serde_json::json!({"view": name, "sides": sides}))
