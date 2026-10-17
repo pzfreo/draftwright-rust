@@ -14,7 +14,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
   theoretical sharp depths and datum locations. Their ordinary IDs support dimension edits,
   authored ownership and location schemes; lint verifies live values against source geometry
   and printed scheme links. Reserve acute-notch arcs before layout; bevel run midpoints do
-  not introduce artificial automatic datum stations.
+  not introduce artificial automatic datum stations. Existing PMI angles on the same
+  physical flank faces own the notch angle across normal-section heights, retaining their
+  tolerance and implicit degree notation without a duplicate automatic arc.
 
 - Authored detail `from` selects an existing principal or section parent; `around` accepts
   a feature/face ID or a nonempty list whose crops are united. Missing members and

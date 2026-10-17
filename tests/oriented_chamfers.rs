@@ -473,3 +473,118 @@ fn bounded_notches_reserve_acute_arcs_and_leave_dense_general_profiles_alone() {
         }
     }
 }
+
+#[test]
+fn source_pmi_owns_a_notch_angle_at_another_normal_section_without_duplicate_ink() {
+    use std::io::Read as _;
+    let mut bytes = Vec::new();
+    flate2::read::GzDecoder::new(
+        &include_bytes!("fixtures/pmi/step/nist_ctc_01_asme1_ap242-e1.stp.gz")[..],
+    )
+    .read_to_end(&mut bytes)
+    .unwrap();
+    let (part, a) =
+        model::analyse_native_step(std::path::Path::new("notch-pmi.stp"), &bytes).unwrap();
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    let owner = p
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:pmi:dimension.angular:f15,17/angular")
+        .unwrap();
+    assert_eq!(owner.label, "60 ±0.5");
+    assert_eq!(
+        p.dimensions.iter().filter(|d| d.kind == "angular").count(),
+        2,
+        "one automatic angle and the existing PMI angle specify the two physical notches"
+    );
+    assert_eq!(
+        p.dimensions
+            .iter()
+            .filter(|d| d.measurements.iter().any(|m| m.parameter == "notch.angle"))
+            .count(),
+        2
+    );
+    assert!(
+        owner
+            .measurements
+            .iter()
+            .any(|m| m.parameter == "notch.angle")
+    );
+    assert!(p.omitted.iter().any(|d| d.id.contains("/notch.angle.")
+        && matches!(&d.state,State::Covered{by} if by==&owner.id)));
+    let drawing = model::render(
+        &part,
+        &a,
+        &p,
+        &draftwright::text::Font::new(api::MONO.to_vec()).unwrap(),
+    )
+    .unwrap();
+    let marks = lint::marks(&drawing);
+    assert!(
+        !lint::check(&a, &marks)
+            .iter()
+            .any(|i| i.code.starts_with("notch_requirement_"))
+    );
+    let alias = p
+        .omitted
+        .iter()
+        .find(|d| {
+            d.id.contains("/notch.angle.")
+                && matches!(&d.state, State::Covered { by } if by == &owner.id)
+        })
+        .unwrap();
+    let hidden_alias = model::plan(
+        &a,
+        &parse(json!({"dimensions":{(alias.id.clone()):{"omit":true}}})),
+    )
+    .unwrap();
+    let hidden_drawing = model::render(
+        &part,
+        &a,
+        &hidden_alias,
+        &draftwright::text::Font::new(api::MONO.to_vec()).unwrap(),
+    )
+    .unwrap();
+    assert!(
+        !lint::check(&a, &lint::marks(&hidden_drawing))
+            .iter()
+            .any(|i| i.code.starts_with("notch_requirement_")),
+        "the still-drawn source angle retains its independently proved notch claim"
+    );
+    let mut bad = marks.clone();
+    bad.iter_mut().find(|m| m.name == owner.id).unwrap().text = "999 ±60".into();
+    assert!(
+        lint::check(&a, &bad)
+            .iter()
+            .any(|i| i.code == "notch_requirement_unverifiable"
+                && i.annotation.as_deref() == Some(owner.id.as_str()))
+    );
+    let mut untyped = marks;
+    untyped
+        .iter_mut()
+        .find(|m| m.name == owner.id)
+        .unwrap()
+        .claims
+        .retain(|c| !c.feature.starts_with("pmi:"));
+    assert!(
+        lint::check(&a, &untyped)
+            .iter()
+            .any(|i| i.code == "notch_requirement_unverifiable"
+                && i.annotation.as_deref() == Some(owner.id.as_str()))
+    );
+    let q = model::plan(
+        &a,
+        &parse(json!({"dimensions":{(owner.id.clone()):{"omit":true}}})),
+    )
+    .unwrap();
+    assert_eq!(
+        q.dimensions.iter().filter(|d| d.kind == "angular").count(),
+        2
+    );
+    assert!(
+        q.dimensions
+            .iter()
+            .filter(|d| d.kind == "angular")
+            .all(|d| d.id.contains("/notch.angle."))
+    );
+}

@@ -1105,6 +1105,11 @@ basis, placed, reference?, determined_by?}`:
   an overall tolerance or fit. The IDs accept omit, tolerance, placement and label-text intent.
   Authored angles compare the same projected supports even when their normal-section stations
   differ; authored mode transfers the automatic role, and auto mode names the existing owner.
+  An existing source PMI angle on the exact same flank faces also owns the bounded
+  angle across normal-section heights: AP242 CTC-01 keeps its `60 ±0.5` and omits the
+  duplicate automatic `60°`. Its PMI ID and tolerance remain, with both claims.
+  Independent lint remeasures the source supports before accepting PMI's implicit
+  degree notation; removing the typed source claim or changing the nominal loses credit.
   Dimension schemes may own mouth stations. Lint re-reads the provider supports and rejects
   wrong nominal angle, depth and location claims, without taking tolerance digits as proof.
 

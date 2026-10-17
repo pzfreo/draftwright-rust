@@ -1218,7 +1218,7 @@ fn lanes_uncached(
         holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
         plates::share(analysis, &mut kept, &mut given, &mut omitted);
         share_statements(&mut kept, &mut given, &mut omitted, true);
-        share_pmi(&mut kept, &mut given, &mut omitted);
+        share_pmi(analysis, &mut kept, &mut given, &mut omitted);
         redundancy::consolidate(analysis, &mut kept, &mut given, &mut omitted);
         wording::apply(spec, &mut kept, &mut given)?;
     }
@@ -1832,7 +1832,7 @@ fn plan_inventory_uncached(
         holes::consolidate(analysis, &mut defaults, &mut nominal, &mut unused);
         plates::share(analysis, &mut defaults, &mut nominal, &mut unused);
         share_statements(&mut defaults, &mut nominal, &mut unused, true);
-        share_pmi(&mut defaults, &mut nominal, &mut unused);
+        share_pmi(analysis, &mut defaults, &mut nominal, &mut unused);
         redundancy::consolidate(analysis, &mut defaults, &mut nominal, &mut unused);
         (defaults, unused)
     });
@@ -1917,7 +1917,7 @@ fn plan_inventory_uncached(
     holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
     plates::share(analysis, &mut kept, &mut given, &mut omitted);
     share_statements(&mut kept, &mut given, &mut omitted, true);
-    share_pmi(&mut kept, &mut given, &mut omitted);
+    share_pmi(analysis, &mut kept, &mut given, &mut omitted);
     let references = redundancy::consolidate(analysis, &mut kept, &mut given, &mut omitted);
     problems.extend(pmi_dimensions::omitted(analysis, &all, &kept, &omitted));
 
@@ -3003,10 +3003,12 @@ fn share_statements(
 /// Each one that gives way moves to *omitted*, `conveyed by` the survivor. *given* stays aligned
 /// with *kept*.
 fn share_pmi(
+    analysis: &Analysis,
     kept: &mut Vec<(Want, bool, Option<&'static str>, Vec<&'static str>)>,
     given: &mut Vec<Vec<String>>,
     omitted: &mut Vec<Omitted>,
 ) {
+    notches::share_pmi(analysis, kept, given, omitted);
     const SAME_SPAN: f64 = 1e-6;
     let pmi = |w: &Want| {
         w.measurements

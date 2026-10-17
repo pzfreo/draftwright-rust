@@ -107,3 +107,72 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     // do not invent a station requirement there. Explicit schemes can still name it.
     (out, vec![])
 }
+
+/// Only bounded profile angles yield to their source PMI, retaining its tolerance
+/// and implicit degree notation. Other angular planning keeps its existing policy.
+pub(super) fn share_pmi(
+    analysis: &crate::model::Analysis,
+    kept: &mut Vec<(Want, bool, Option<&'static str>, Vec<&'static str>)>,
+    given: &mut Vec<Vec<String>>,
+    omitted: &mut Vec<super::Omitted>,
+) {
+    let mut gone = std::collections::BTreeSet::new();
+    for n in crate::notches::requirements(analysis) {
+        let sources = crate::lint::notch_evidence::pmi_angles(analysis, &n);
+        let Some(p) = kept.iter().position(|(w, ..)| {
+            matches!(w.shape, Shape::Angular { .. })
+                && w.measurements.iter().any(|m| {
+                    sources.contains(&m.feature)
+                        && matches!(m.parameter.as_str(), "angular" | "angular.basic")
+                })
+        }) else {
+            continue;
+        };
+        if kept[p].2 != Some(end_on(n.axis)) {
+            continue;
+        }
+        // The live source statement proves the role even when the user has
+        // omitted its automatic alias. Only a live, true-view PMI can own it.
+        if !kept[p]
+            .0
+            .measurements
+            .iter()
+            .any(|m| m.feature == n.id && m.parameter == "notch.angle")
+        {
+            kept[p].0.measurements.push(Measurement {
+                feature: n.id.clone(),
+                parameter: "notch.angle".into(),
+                value: n.angle.degrees(),
+            });
+            kept[p].0.basis +=
+                "; also states the bounded V-notch angle on its source support faces";
+        }
+        let Some(i) = kept.iter().position(|(w, default, view, _)| {
+            *default && *view == kept[p].2 && w.id == id(&n.id, "notch.angle")
+        }) else {
+            continue;
+        };
+        if !given[i].is_empty() {
+            continue;
+        }
+        let owner = kept[p].0.id.clone();
+        omitted.push(super::Omitted {
+            id: kept[i].0.id.clone(), label: kept[i].0.terms.join(" "),
+            basis: format!("conveyed by {owner}: the source PMI states this bounded notch angle on the same physical support faces in the true normal view"),
+            state: crate::items::State::Covered { by: owner },
+        });
+        gone.insert(i);
+    }
+    let mut i = 0;
+    kept.retain(|_| {
+        let keep = !gone.contains(&i);
+        i += 1;
+        keep
+    });
+    let mut i = 0;
+    given.retain(|_| {
+        let keep = !gone.contains(&i);
+        i += 1;
+        keep
+    });
+}

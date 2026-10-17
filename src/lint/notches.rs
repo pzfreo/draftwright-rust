@@ -4,6 +4,8 @@ use crate::model::Analysis;
 pub(super) fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let mut out = Vec::new();
     for n in super::notch_evidence::requirements(a) {
+        let source_angles = super::notch_evidence::pmi_angles(a, &n);
+        let normal_view = ["side", "front", "plan"][n.axis];
         let values = [
             ("notch.angle".to_string(), n.angle.degrees()),
             ("notch_depth.length".to_string(), n.depth()),
@@ -36,7 +38,15 @@ pub(super) fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 } else {
                     first
                 };
-                (parameter != "notch.angle" || nominal.ends_with('°'))
+                (parameter != "notch.angle"
+                    || nominal.ends_with('°')
+                    || m.claims.iter().any(|c| {
+                        source_angles.contains(&c.feature)
+                            && matches!(c.parameter.as_str(), "angular" | "angular.basic")
+                            && m.view
+                                .as_deref()
+                                .is_some_and(|v| v.trim_start_matches("v:") == normal_view)
+                    }))
                     && holes::states(nominal, value)
             }) {
                 continue;

@@ -37,6 +37,64 @@ impl Notch {
         (self.angle.vertex[self.depth_axis] - self.mouth[self.depth_axis]).abs()
     }
 }
+/// Source PMI angles on these exact flank faces may state the same normal-section
+/// angle at another height. Face identity prevents credit across overlapping bodies.
+pub(crate) fn pmi_angles(a: &Analysis, n: &Notch) -> Vec<String> {
+    let Some(crate::pmi::Reading::Read(report)) = &a.pmi else {
+        return Vec::new();
+    };
+    let ids = report.identities();
+    report
+        .records
+        .iter()
+        .filter_map(|r| {
+            if r.category != crate::pmi::Category::Dimension
+                || r.kind != "angular"
+                || r.faces.len() != 2
+                || !r.faces.iter().all(|f| n.faces.contains(f))
+                || !r
+                    .value
+                    .is_some_and(|v| (v - n.angle.degrees()).abs() < 1e-6)
+            {
+                return None;
+            }
+            let g = r.geometry.as_ref()?;
+            if !g.reasons.is_empty() {
+                return None;
+            }
+            let p = g.angle.as_ref()?;
+            let rays = [
+                unit(sub(p.first, p.vertex))?,
+                unit(sub(p.second, p.vertex))?,
+            ];
+            let normal = unit(cross(rays[0], rays[1]))?;
+            if normal[n.axis].abs() < 1.0 - 1e-6
+                || (0..3).any(|k| k != n.axis && (p.vertex[k] - n.angle.vertex[k]).abs() > 1e-6)
+                || (dot(cross(rays[0], rays[1]), cross(rays[0], rays[1]))
+                    .sqrt()
+                    .atan2(dot(rays[0], rays[1]))
+                    .to_degrees()
+                    - n.angle.degrees())
+                .abs()
+                    > 1e-6
+            {
+                return None;
+            }
+            let own = [
+                unit(sub(n.angle.first, n.angle.vertex))?,
+                unit(sub(n.angle.second, n.angle.vertex))?,
+            ];
+            if !own
+                .iter()
+                .all(|u| rays.iter().any(|v| dot(*u, *v).abs() > 1.0 - 1e-6))
+            {
+                return None;
+            }
+            ids.id(&r.source_id).ok().map(str::to_owned)
+        })
+        .collect()
+}
+
 fn line(s: &Support) -> Option<[[f64; 3]; 2]> {
     if let Support::Line { start, end } = s {
         Some([*start, *end])
