@@ -1241,6 +1241,13 @@ fn text_conflict(
         })
 }
 
+pub(super) fn edited_labels(spec: &crate::model::Spec) -> bool {
+    spec.dimensions
+        .values()
+        .any(|d| d.tolerance.is_some() || d.text.is_some() || d.style.is_some())
+        || spec.features.values().any(|f| f.fit.is_some())
+}
+
 /// Claim an established exterior route before the new witnesses settle. These
 /// are trial preferences, not pins: the complete layout is still adjudicated,
 /// interior placement and refinement may repair them, and the other schedules
@@ -1359,6 +1366,7 @@ pub(super) fn refine(
     let proof_views: Vec<_> = proofs.keys().collect();
     let key = serde_json::to_vec(&(
         &spec.dimensions,
+        edited_labels(spec),
         proof_views,
         reference_key,
         has_reference,
@@ -1515,6 +1523,7 @@ fn refine_uncached(
     };
     // Only a free callout already in contact is refined; most sheets have none, and then the
     // view ink below is never gathered.
+    let edited_text = edited_labels(spec);
     let todo: Vec<usize> = (0..items.len())
         .filter(|&i| {
             matches!(items[i].shape, Shape::Callout { .. })
@@ -1529,7 +1538,7 @@ fn refine_uncached(
                         || longer_than_established(i, p)
                         || added_material_crossing(i, p)
                         || bad_run(p, views_of[i].unwrap())
-                        || text_conflict(i, p, placed, obstacles)
+                        || (edited_text && text_conflict(i, p, placed, obstacles))
                         || (items[i]
                             .measurements
                             .iter()
@@ -1597,13 +1606,13 @@ fn refine_uncached(
         } else {
             old_length + 2.0
         });
-        let repair_text = text_conflict(i, &old, placed, obstacles);
+        let repair_text = (new_recess || edited_text) && text_conflict(i, &old, placed, obstacles);
         // A longer authored label may overlap a peer while its shaft is clear.
         // Include slides along that exact shaft, preserving its real attachment
         // and the normal material, length and witness gates.
         let established = legacy(i)
             .and_then(|d| translated(reference.as_ref()?, d, views, w))
-            .or_else(|| repair_text.then(|| old.clone()));
+            .or_else(|| (edited_text && repair_text).then(|| old.clone()));
         let clear_new_text = repair_text
             && !w.measurements.is_empty()
             && w.measurements

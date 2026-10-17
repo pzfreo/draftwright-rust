@@ -3582,6 +3582,7 @@ pub(crate) fn refine_inventory(
     // overlap which was absent in the initial joint solve. Recheck that final
     // ink even on drawings without new recess dimensions.
     let overlapping_text = !recesses
+        && leaders::edited_labels(spec)
         && inventory.iter().enumerate().any(|(i, d)| {
             d.kind == "callout"
                 && d.placed.as_ref().is_some_and(|p| {

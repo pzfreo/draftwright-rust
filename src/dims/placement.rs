@@ -1863,6 +1863,12 @@ pub(super) fn clear_linear(
         .iter()
         .map(|d| (&d.id, &d.kind, &d.placed))
         .collect();
+    let established_clear = crate::planning::lookup::<std::collections::BTreeSet<String>>(
+        analysis,
+        "established-clear-witnesses",
+        &[],
+    )
+    .unwrap_or_default();
     let key = serde_json::to_vec(&(
         quantities,
         chosen,
@@ -1875,6 +1881,7 @@ pub(super) fn clear_linear(
         geometry,
         frame_geometry,
         yield_locations,
+        established_clear,
     ))
     .expect("linear solve inputs serialize");
     let (next_sides, next_lanes, next_placed) =
@@ -2049,6 +2056,12 @@ fn clear_linear_ordered(
     yield_locations: bool,
 ) {
     let held = locked.iter().any(|p| *p);
+    let established_clear = crate::planning::lookup::<std::collections::BTreeSet<String>>(
+        analysis,
+        "established-clear-witnesses",
+        &[],
+    )
+    .unwrap_or_default();
     // Semantic PMI leaders may cross a witness transversely. Their text,
     // arrowheads and parallel runs remain obstacles, and final adjudication
     // still reports each crossing. Ordinary free solves retain their complete
@@ -2261,20 +2274,22 @@ fn clear_linear_ordered(
         };
         let before = crossings(p);
 
-        // Expanded native inventories can displace an established hole's
+        // Expanded native inventories can displace an established location's
         // witness onto another hole even when neither is a recess. Give that
-        // physical crossing the same bounded corridor repair as new witnesses.
-        let recess_corridor = (recess_context && before.0 > 0)
-            || items[i]
-                .measurements
-                .iter()
-                .any(|m| m.feature.starts_with("f:section_recess:"))
-            || p.lines.iter().take(2).any(|line| {
-                footprint
-                    .crossed_extension(*line, &items[i].measurements)
+        // physical crossing the same bounded corridor repair as new witnesses
+        // when the established drawing proves it was clear before expansion.
+        let recess_corridor =
+            (old_location(i) && before.0 > 0 && established_clear.contains(&items[i].id))
+                || items[i]
+                    .measurements
                     .iter()
-                    .any(|id| id.starts_with("f:section_recess:"))
-            });
+                    .any(|m| m.feature.starts_with("f:section_recess:"))
+                || p.lines.iter().take(2).any(|line| {
+                    footprint
+                        .crossed_extension(*line, &items[i].measurements)
+                        .iter()
+                        .any(|id| id.starts_with("f:section_recess:"))
+                });
         if (recess_context && !recess_corridor && !label_conflict)
             || (!label_conflict && (!recess_corridor || before == (0, 0)))
         {

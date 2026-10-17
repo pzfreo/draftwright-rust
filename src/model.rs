@@ -1732,6 +1732,19 @@ pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Pl
     });
     if let Ok(plan) = &reference {
         crate::planning::store(analysis, "established-route-policy", Vec::new(), true);
+        let clear: BTreeSet<_> = plan
+            .dimensions
+            .iter()
+            .filter(|d| {
+                d.kind == "linear"
+                    && d.placed.is_some()
+                    && !plan.problems.iter().any(|p| {
+                        p.code == "extension_through_feature" && p.subjects.contains(&d.id)
+                    })
+            })
+            .map(|d| d.id.clone())
+            .collect();
+        crate::planning::store(analysis, "established-clear-witnesses", Vec::new(), clear);
         let interior: BTreeSet<_> = plan
             .dimensions
             .iter()
