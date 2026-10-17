@@ -276,11 +276,11 @@ fn retain_callouts_with(
             if wanted >= 2.7 && wanted < shaft - 1e-6 {
                 let delta =
                     [0, 1].map(|k| (p.lines[0][1][k] - p.lines[0][0][k]) * (wanted / shaft - 1.0));
-                for k in 0..2 {
-                    p.lines[0][1][k] += delta[k];
-                    p.label_at[k] += delta[k];
-                    p.label_box[k] += delta[k];
-                    p.label_box[k + 2] += delta[k];
+                for (k, shift) in delta.iter().enumerate() {
+                    p.lines[0][1][k] += shift;
+                    p.label_at[k] += shift;
+                    p.label_box[k] += shift;
+                    p.label_box[k + 2] += shift;
                 }
                 for at in &mut p.lines[1] {
                     for k in 0..2 {
@@ -322,10 +322,10 @@ fn retain_callouts_with(
                 at[k] += delta[k];
             }
         }
-        for k in 0..2 {
-            p.label_at[k] += delta[k];
-            p.label_box[k] += delta[k];
-            p.label_box[k + 2] += delta[k];
+        for (k, shift) in delta.iter().enumerate() {
+            p.label_at[k] += shift;
+            p.label_box[k] += shift;
+            p.label_box[k + 2] += shift;
         }
         changed = true;
     }
