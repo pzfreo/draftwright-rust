@@ -843,6 +843,9 @@ fn pack_reserved(
             }
         );
     }
+    // The isometric was fitted again on the recipient sheet. Its scale
+    // disclaimer must follow the settled view before grading the packed plan.
+    crate::iso_caption::refresh(analysis, &mut p);
     let checked = crate::dims::recheck(analysis, &p);
     let checked_codes: std::collections::BTreeSet<_> = crate::dims::recheck(analysis, template)
         .into_iter()
