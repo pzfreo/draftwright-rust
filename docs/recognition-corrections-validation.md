@@ -169,3 +169,26 @@ Merge validation uses logs in `target/recognition-corrections/merge-validation/`
 The WASM tool cache and uv cache were placed under `/private/tmp` because the default
 user caches are outside this run's writable roots. WASM retained the existing wrapper
 LICENSE-file notice. No build setting, gate or threshold was disabled or changed.
+
+The final full run used:
+
+```sh
+DRAFTWRIGHT_CORPUS=/Users/paul/repos/quiddity/tests/corpus \
+DRAFTWRIGHT_CORPUS_REQUIRED=1 CARGO_BUILD_JOBS=4 RUST_TEST_THREADS=4 \
+cargo test --workspace --release --no-fail-fast
+```
+
+It completed **1,140 passed, two failed, zero ignored** across 116 test/doc-test
+harnesses, including all **110 integration targets**. Both documentation-test
+harnesses completed. The two failures were retained and reported:
+
+| Full-run failure | Evidence / recheck |
+| --- | --- |
+| `session::turned_benchmark_deltas` | GRM-03 native p90 **540.969 ms**, above the unchanged **150 ms** gate. The eight samples were 7.342, 7.383, 7.592, 8.120, 10.480, 12.666, 13.654 and 540.969 ms. No gate, threshold or latency environment override was changed. |
+| `stateless::http_slow_body_shares_head_deadline_and_serves_queued_ping` | `read_to_end` returned macOS `ConnectionReset` (OS error 54) before the test reached its timing assertion. The exact test passed unchanged in isolation in **10.64 s**, including its 408 response, 9–12 second deadline assertion and queued ping. This is reported separately from the latency gate; HTTP implementation and test timing remain unchanged. |
+
+The isolated recheck used the same corpus-required workspace release command with
+`--test stateless http_slow_body_shares_head_deadline_and_serves_queued_ping -- --exact --nocapture`
+and one test thread. Its log is `http-slow-body-recheck.log`. The original full-run
+failure remains in `full-suite.log`; the successful recheck does not replace it.
+No other full-suite target failed. Nothing was pushed.
