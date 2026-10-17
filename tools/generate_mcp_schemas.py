@@ -29,6 +29,11 @@ problem_filter=obj({'code':nullable(S),'severity':nullable({'enum':['info','warn
 # Inputs retain the established sparse per-ID map; get_spec describes authored forms once.
 dimension=obj({'kind':nullable({'enum':['linear','diameter','radius','angle']}),'between':nullable(arr(S,minItems=1,maxItems=2)),'along':nullable({'enum':['x','y','z','true']})},extra=True)
 spec=obj({'schema':{'enum':['draftwright.spec/1','draftwright.spec/2']},'binding':nullable({'type':'object'}),'sheets':nullable(obj({'max':nullable(SHEET),'smallest_scale':nullable(S),'keep_together':arr(arr(S)),'hole_table':nullable(SHEET),'gdt_on_sheet_1':B})),'sheet':obj({'size':nullable(S),'scale':nullable(S),'title':{'type':'object','additionalProperties':S},'fit_limits':nullable({'type':'boolean'}),'fit_deviations':nullable({'type':'boolean'}),'projection':nullable({'enum':['first','third']}),'default_finish':nullable({'type':'object'})}),'views':{'type':'object','additionalProperties':{'type':'object'}},'dimensions':{'type':'object','additionalProperties':{'type':'object'}},'annotations':{'type':'object','additionalProperties':{'type':'object'}},'features':{'type':'object','additionalProperties':{'type':'object'}},'faces':{'type':'object','additionalProperties':{'type':'object'}},'dimension_source':{'enum':['auto','authored']},'hole_table':{'enum':['auto','always','never']},'notes':arr({'type':'object'}),'tables':arr({'type':'object'}),'gears':arr({'type':'object'})})
+# Line-work intent is typed in both scopes; other view fields retain their existing schema.
+line_fields = {name: nullable(B) for name in
+               ('hidden', 'centre_marks', 'centre_lines', 'thread_depiction', 'knurl_depiction')}
+spec['properties']['sheet']['properties'].update(line_fields)
+spec['properties']['views']['additionalProperties'] = obj(line_fields, extra=True)
 spec_read={**spec,'properties':{**spec['properties'],'dimensions':{'type':'object','additionalProperties':dimension}}}
 defs={'state':state,'spec':spec,'spec_read':spec_read,'op':op,'item':item,'compact':compact,'problem':problem,'error':obj({'code':{'enum':['invalid','failed']},'message':S,'choices':arr(S)},['code','message'])}
 stub=obj({'id':nullable(S),'detail_ref':S},['id','detail_ref'])
@@ -137,6 +142,32 @@ def hoist_objects(schema):
     visit(schema)
     return schema
 
+def group_properties(schema, top=True):
+    """Use anchored name alternatives for equal property shapes, only when smaller.
+
+    This preserves object types, required fields and additionalProperties checks.
+    """
+    from collections import defaultdict
+    if isinstance(schema, list): return [group_properties(v, False) for v in schema]
+    if not isinstance(schema, dict): return schema
+    schema = {k: group_properties(v, False) for k, v in schema.items()}
+    props = schema.get('properties', {})
+    groups = defaultdict(list)
+    for name, value in props.items():
+        if (not top or name not in schema.get('required', [])) and re.fullmatch(r'[A-Za-z0-9_]+', name):
+            groups[json.dumps(value, sort_keys=True, separators=(',', ':'))].append(name)
+    for shape, names in groups.items():
+        if len(names) < 2: continue
+        pattern = '^(' + '|'.join(names) + ')$'
+        before = len(json.dumps(schema, separators=(',', ':')))
+        trial = {**schema, 'properties': {k:v for k,v in props.items() if k not in names},
+                 'patternProperties': {**schema.get('patternProperties', {}), pattern: json.loads(shape)}}
+        if not trial['properties']: del trial['properties']
+        if len(json.dumps(trial, separators=(',', ':'))) < before:
+            schema = trial
+            props = schema.get('properties', {})
+    return schema
+
 def short_names(schema):
     names = {'state':'t','spec':'s','spec_read':'d','op':'op','item':'i','compact':'c',
              'problem':'p','error':'e','stub':'u','problem_small':'r'}
@@ -176,6 +207,6 @@ for tool,(inp,out) in tools.items():
         for branch in schema.get('anyOf', []):
             if branch.get('type') == schema.get('type'):
                 branch.pop('type', None)
-        schema = short_names(share_repeated(inline_single_use(hoist_objects(schema), keep)))
+        schema = short_names(share_repeated(group_properties(inline_single_use(hoist_objects(schema), keep))))
         if not schema['$defs']: del schema['$defs']
         Path(f'schemas/mcp/{tool}.{kind}.json').write_text(json.dumps(schema,indent=2)+'\n')

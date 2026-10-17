@@ -43,18 +43,6 @@
                               "kind": {
                                 "type": "string"
                               },
-                              "label": {
-                                "type": [
-                                  "string",
-                                  "null"
-                                ]
-                              },
-                              "view": {
-                                "type": [
-                                  "string",
-                                  "null"
-                                ]
-                              },
                               "state": {
                                 "anyOf": [
                                   {
@@ -113,7 +101,15 @@
                               "view",
                               "state"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "patternProperties": {
+                              "^(label|view)$": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            }
                           },
                           {
                             "type": "object",
@@ -139,17 +135,8 @@
                                   "null"
                                 ]
                               },
-                              "anchors": {
-                                "$ref": "#/$defs/A"
-                              },
-                              "features": {
-                                "$ref": "#/$defs/A"
-                              },
                               "basis": {
                                 "type": "string"
-                              },
-                              "operations": {
-                                "$ref": "#/$defs/A"
                               }
                             },
                             "required": [
@@ -162,7 +149,12 @@
                               "basis",
                               "operations"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "patternProperties": {
+                              "^(anchors|features|operations)$": {
+                                "$ref": "#/$defs/A"
+                              }
+                            }
                           },
                           {
                             "$ref": "#/$defs/u"
@@ -206,24 +198,6 @@
                           {
                             "type": "object",
                             "properties": {
-                              "id": {
-                                "type": "string"
-                              },
-                              "code": {
-                                "type": "string"
-                              },
-                              "severity": {
-                                "type": "string"
-                              },
-                              "message": {
-                                "type": "string"
-                              },
-                              "subjects": {
-                                "$ref": "#/$defs/A"
-                              },
-                              "refs": {
-                                "$ref": "#/$defs/A"
-                              },
                               "fix": {
                                 "$ref": "#/$defs/B"
                               }
@@ -235,20 +209,19 @@
                               "message",
                               "subjects"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "patternProperties": {
+                              "^(id|code|severity|message)$": {
+                                "type": "string"
+                              },
+                              "^(subjects|refs)$": {
+                                "$ref": "#/$defs/A"
+                              }
+                            }
                           },
                           {
                             "type": "object",
                             "properties": {
-                              "id": {
-                                "type": "string"
-                              },
-                              "code": {
-                                "type": "string"
-                              },
-                              "severity": {
-                                "type": "string"
-                              },
                               "subjects": {
                                 "$ref": "#/$defs/A"
                               },
@@ -262,7 +235,12 @@
                               "severity",
                               "subjects"
                             ],
-                            "additionalProperties": false
+                            "additionalProperties": false,
+                            "patternProperties": {
+                              "^(id|code|severity)$": {
+                                "type": "string"
+                              }
+                            }
                           },
                           {
                             "$ref": "#/$defs/u"
