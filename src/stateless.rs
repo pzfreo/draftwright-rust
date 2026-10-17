@@ -392,7 +392,7 @@ impl Cache {
         });
         items.sort_by_key(|i| {
             (
-                !i.item.id.starts_with("d:envelope/"),
+                !crate::dims::is_envelope_extent(&i.item.id),
                 !i.item.id.ends_with(".diameter"),
                 i.item.id.clone(),
             )
@@ -400,7 +400,7 @@ impl Cache {
         let mut features = std::collections::BTreeSet::new();
         let mut keys = Vec::new();
         for item in &items {
-            if !item.item.id.starts_with("d:envelope/")
+            if !crate::dims::is_envelope_extent(&item.item.id)
                 && !item.features.iter().any(|f| !features.contains(f))
             {
                 continue;

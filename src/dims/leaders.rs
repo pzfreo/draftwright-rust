@@ -864,7 +864,8 @@ fn place_with_obstacles_uncached(
         .iter()
         .map(|v| (v.id.trim_start_matches("v:"), cache.get(analysis, v)))
         .collect();
-    // The model line-work of each view with a turned step's diameter callout to place.
+    // Include model ink for recesses and bevel/notch-displaced radius leaders.
+    let bounded_notches = !crate::notches::requirements(analysis).is_empty();
     let recess_context = items.iter().any(|w| {
         w.measurements
             .iter()
@@ -878,6 +879,8 @@ fn place_with_obstacles_uncached(
                 views_of[i] == Some(id)
                     && placed[i].is_none()
                     && (frames.get(id).is_some_and(|f| grazing(f, w).is_some())
+                        || (bounded_notches
+                            && w.measurements.iter().any(|m| m.parameter == "blend.radius"))
                         || w.measurements
                             .iter()
                             .any(|m| m.feature.starts_with("f:section_recess:")))
@@ -943,14 +946,33 @@ fn place_with_obstacles_uncached(
                 steer: std::cell::Cell::new(None),
                 ink_min: ink.min,
                 ink_max: ink.max,
-                stroke_pad: stroke_clearance(&w.terms),
+                stroke_pad: if bounded_notches
+                    && w.measurements.iter().any(|m| m.parameter == "blend.radius")
+                {
+                    stroke_clearance(&w.terms).max(LABEL_PAD)
+                } else {
+                    stroke_clearance(&w.terms)
+                },
                 beyond,
             },
         ));
     }
     let measured: Vec<_> = jobs
         .iter()
-        .map(|(_, job)| inventory(job, &fixed, page, semantic_pmi))
+        .map(|(i, job)| {
+            inventory(
+                job,
+                &fixed,
+                page,
+                semantic_pmi,
+                bounded_notches
+                    && job.stroke_pad > 0.0
+                    && items[*i]
+                        .measurements
+                        .iter()
+                        .any(|m| m.parameter == "polygon_across_flats.length"),
+            )
+        })
         .collect();
     let mut inventories: Vec<_> = measured.iter().map(|v| v.0.clone()).collect();
     let mut baseline: Vec<_> = measured.iter().map(|v| v.1.clone()).collect();
@@ -1185,14 +1207,10 @@ pub(crate) fn settle_after_furniture(
     obstacles: &[PlannedDimension],
     cache: &super::footprints::Cache,
 ) -> BTreeMap<String, Vec<Problem>> {
-    let contact = |a: &Placed, b: &Placed| {
-        boxes_overlap(a.label_box, b.label_box)
-            || super::placement::ink_through(a, b.label_box)
-            || super::placement::ink_through(b, a.label_box)
-    };
     let mut updated = BTreeMap::new();
     let mut wants = None;
     let page = Page::new(analysis, sheet, views);
+    let bounded_notches = !crate::notches::requirements(analysis).is_empty();
     for i in 0..items.len() {
         let d = &items[i];
         if d.kind != "callout"
@@ -1206,8 +1224,13 @@ pub(crate) fn settle_after_furniture(
         let Some(old) = &d.placed else { continue };
         if !obstacles
             .iter()
+            .chain(
+                items
+                    .iter()
+                    .filter(|d| bounded_notches && d.kind == "linear"),
+            )
             .filter_map(|d| d.placed.as_ref())
-            .any(|p| contact(old, p))
+            .any(|p| super::text_contact(old, p))
         {
             continue;
         }
@@ -1273,7 +1296,17 @@ pub(crate) fn settle_after_furniture(
         else {
             continue;
         };
-        let (candidates, ..) = inventory(&job, &fixed, &page, false);
+        let (candidates, ..) = inventory(
+            &job,
+            &fixed,
+            &page,
+            false,
+            job.stroke_pad > 0.0
+                && !crate::notches::requirements(analysis).is_empty()
+                && w.measurements
+                    .iter()
+                    .any(|m| m.parameter == "polygon_across_flats.length"),
+        );
         let Some(next) = candidates
             .into_iter()
             .filter(|c| {
@@ -3325,7 +3358,13 @@ fn nearest(sites: &[(P2, f64)], elbow: P2) -> (P2, f64) {
 /// then crossings, length and generation order), near-duplicates dropped.
 type Inventories = (Vec<Candidate>, Vec<Candidate>, Vec<Candidate>);
 
-fn inventory(job: &Job, fixed: &Fixed, page: &Page, semantic_pmi: bool) -> Inventories {
+fn inventory(
+    job: &Job,
+    fixed: &Fixed,
+    page: &Page,
+    semantic_pmi: bool,
+    short_shoulders: bool,
+) -> Inventories {
     let o = job.outline;
     let d = page.drawable();
     let mut raw: Vec<(P2, P2, Option<bool>)> = Vec::new(); // (tip, elbow, label right?)
@@ -3424,6 +3463,19 @@ fn inventory(job: &Job, fixed: &Fixed, page: &Page, semantic_pmi: bool) -> Inven
         for &right in options {
             if let Some(c) = measure_bounds(job, tip, elbow, right, page) {
                 measured.push(c);
+            }
+            // Qualified polygon labels may need a shorter shelf between a new
+            // notch station and an existing pitch witness. Keep every ink gate.
+            if short_shoulders {
+                for shoulder in SHOULDER_STEPS.map(|f| f * SHOULDER) {
+                    let end = [
+                        elbow[0] + if right { shoulder } else { -shoulder },
+                        elbow[1],
+                    ];
+                    if let Some(c) = measure_at_bounds(job, tip, elbow, end, right, page) {
+                        measured.push(c);
+                    }
+                }
             }
         }
     }
@@ -3638,6 +3690,9 @@ fn measure_at_bounds(
     right: bool,
     page: &Page,
 ) -> Option<Candidate> {
+    if (end[0] - elbow[0]) * if right { 1.0 } else { -1.0 } <= 1e-9 {
+        return None;
+    }
     let shaft = (elbow[0] - tip[0]).hypot(elbow[1] - tip[1]);
     if shaft < MIN_LEADER {
         return None;
@@ -3902,7 +3957,13 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
     c.furniture = furniture.len() as u32;
     c.furniture_hard = furniture_hard;
     c.furniture_text = furniture_text.len() as u32;
-    c.beside = besides.len() as u32;
+    c.beside = besides.len() as u32
+        + u32::from(
+            job.silhouette.is_none()
+                && job
+                    .model
+                    .is_some_and(|model| c.segments().iter().any(|s| model.runs_beside(*s))),
+        );
     c.text = text.len() as u32;
     c.clearance = clearance.len() as u32;
     c.fixed_measured = true;

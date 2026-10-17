@@ -136,9 +136,28 @@ fn ctc_01s_angle_is_drawn_true_in_the_plan() {
     assert_eq!(d.label, "60 ±0.5");
     assert_eq!(d.terms, ["60", "±0.5"]);
     assert_eq!(d.value, 60.0);
-    assert_eq!(d.measurements.len(), 1);
+    // The source annotation owns both its PMI requirement and the same physical
+    // V-notch angle; the automatic duplicate must not print a second arc.
+    assert_eq!(d.measurements.len(), 2);
     assert_eq!(d.measurements[0].feature, FEATURE);
     assert_eq!(d.measurements[0].parameter, "angular");
+    assert_eq!(d.measurements[0].value, 60.0);
+    assert_eq!(d.measurements[1].feature, "notch:f97:e104:e108");
+    assert_eq!(d.measurements[1].parameter, "notch.angle");
+    assert!((d.measurements[1].value - 60.0).abs() < 1e-9);
+    assert_eq!(
+        plan.dimensions
+            .iter()
+            .filter(|d| d.kind == "angular")
+            .count(),
+        2
+    );
+    assert!(
+        plan.omitted
+            .iter()
+            .any(|d| d.id == "d:envelope/notch.angle.f97_e104_e108"
+                && matches!(&d.state, draftwright::items::State::Covered { by } if by == ID))
+    );
     assert!(
         !plan.problems.iter().any(|p| p
             .subjects

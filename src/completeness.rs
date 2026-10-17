@@ -47,6 +47,15 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
         .filter(|&i| i < analysis.binding.face_count)
         .collect();
     let feature_claims = claimed.len();
+    for n in crate::notches::requirements(analysis) {
+        if plan
+            .dimensions
+            .iter()
+            .any(|d| d.placed.is_some() && d.measurements.iter().any(|m| m.feature == n.id))
+        {
+            claimed.extend(n.faces);
+        }
+    }
     let marks: Vec<_> = plan
         .dimensions
         .iter()

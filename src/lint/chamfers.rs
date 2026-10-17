@@ -10,7 +10,8 @@
 //! printing the angle is the port's reading of what the callout must state.)
 //!
 //! quiddity's `OrientedChamfer` (a bevel along an oblique edge) is another family, which Python's
-//! lint does not judge either; it is not read here.
+//! lint does not judge either. Rust reads it with the same true-section callout grammar,
+//! using `oriented_chamfer.length` (and an angle rider for unequal legs).
 
 use super::parameters::{self, Wanted, fmt, fmt3};
 use super::{LintIssue, Mark};
@@ -28,9 +29,12 @@ pub fn wanted(analysis: &Analysis) -> Vec<Wanted<'_>> {
     analysis
         .features
         .iter()
-        .filter(|f| f.kind == "chamfer")
+        .filter(|f| matches!(f.kind.as_str(), "chamfer" | "oriented_chamfer"))
         .map(|f| {
             let sizes = (|| {
+                if f.kind == "oriented_chamfer" {
+                    super::oriented_chamfers::read(analysis, f)?;
+                }
                 let leg1 = parameters::size(f, "leg1")?;
                 let leg2 = parameters::size(f, "leg2")?;
                 let angle = parameters::size(f, "angle")?;
@@ -48,7 +52,12 @@ pub fn wanted(analysis: &Analysis) -> Vec<Wanted<'_>> {
             };
             Wanted {
                 feature: f,
-                parameter: "chamfer.length".into(),
+                parameter: if f.kind == "oriented_chamfer" {
+                    "oriented_chamfer.length"
+                } else {
+                    "chamfer.length"
+                }
+                .into(),
                 values,
                 callout,
             }
@@ -77,10 +86,23 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         }
         s
     };
+    // Only the nominal callout proves its size/angle; tolerance digits cannot
+    // rescue a false bevel value. Wording is already stripped by lint::marks.
+    let nominal: Vec<_> = marks
+        .iter()
+        .cloned()
+        .map(|mut m| {
+            m.text = m.text.split(['±', '+']).next().unwrap_or("").to_string();
+            if let Some((before, _)) = m.text.split_once(" -") {
+                m.text = before.to_string();
+            }
+            m
+        })
+        .collect();
     parameters::coverage(
         "chamfer",
         &wanted(analysis),
-        marks,
+        &nominal,
         noun,
         "a chamfer callout, in a view that sees the bevel edge-on",
     )

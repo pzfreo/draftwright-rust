@@ -89,7 +89,7 @@ pub(super) fn consolidate(
     // A functional outside diameter or A/F statement owns an equal overall span only
     // when its actual support planes reach both ends of that axis.
     for i in 0..kept.len() {
-        if !given[i].is_empty() || !kept[i].0.id.starts_with("d:envelope/") {
+        if !given[i].is_empty() || !crate::dims::is_envelope_extent(&kept[i].0.id) {
             continue;
         }
         let Some(s) = interval(a, &kept[i].0) else {
@@ -122,7 +122,7 @@ pub(super) fn consolidate(
     order.sort_by(|&i, &j| {
         let rank = |i: usize| {
             let w = &kept[i].0;
-            if w.id.starts_with("d:envelope/") {
+            if crate::dims::is_envelope_extent(&w.id) {
                 0
             } else if w.id.contains("step_level") || w.id.contains("/location") {
                 3

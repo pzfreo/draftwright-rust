@@ -79,6 +79,9 @@ pub(super) struct Proof {
     boxes: Vec<[f64; 4]>,
     /// Planar faces square to the view: their box and their chords.
     faces: Vec<Face>,
+    /// All planar projections and full curved-face covers, for proving exterior voids.
+    exterior_faces: Vec<([f64; 4], Vec<usize>)>,
+    curved_cover: Vec<[f64; 4]>,
     grid: Grid,
 }
 
@@ -231,6 +234,20 @@ fn build_camera(
         depths.extend(e.windows(2).map(|w| [dot(w[0]), dot(w[1])]));
         edges.push(segments.len());
     }
+    let exterior_faces = ink
+        .planes
+        .iter()
+        .map(|f| {
+            let chords: Vec<usize> = f
+                .edges
+                .iter()
+                .filter(|&&e| e + 1 < edges.len())
+                .flat_map(|&e| edges[e]..edges[e + 1])
+                .collect();
+            (bounds_of(chords.iter().flat_map(|&i| segments[i])), chords)
+        })
+        .filter(|(_, chords)| !chords.is_empty())
+        .collect::<Vec<_>>();
     let faces: Vec<_> = ink
         .planes
         .iter()
@@ -264,10 +281,12 @@ fn build_camera(
         return None;
     }
     let mut boxes = Vec::new();
+    let mut curved_cover = Vec::new();
     for f in &ink.curved {
         let [lo, hi] = f.bounds;
         let corners =
             (0..8).map(|i| [0, 1, 2].map(|k| if i >> k & 1 == 0 { lo[k] } else { hi[k] }));
+        curved_cover.push(bounds_of(corners.clone().map(|p| view.map(p))));
         if let Some(c) = &f.cylinder {
             let m = c.axis.iter().map(|x| x * x).sum::<f64>().sqrt();
             let axis = c.axis.map(|x| x / m.max(1e-12));
@@ -310,6 +329,8 @@ fn build_camera(
         require_visible_attachment: true,
         boxes,
         faces,
+        exterior_faces,
+        curved_cover,
         grid,
     })
 }
@@ -436,6 +457,39 @@ impl Proof {
                 let q = p.lines[0][1];
                 self.blank(v, [q[0], q[1], q[0], q[1]])
             })
+    }
+
+    /// A bounded notch may carry its angle in the open recess within the view's
+    /// rectangular envelope. Prove the whole label outside every projected face,
+    /// with the same ink margins as face-interior labels. Curved faces use their
+    /// full bounds (including end-on cylinders), so this fails closed near them.
+    pub(super) fn exterior_annotation_clear(&self, v: &PlannedView, p: &Placed) -> bool {
+        let lo = self.model_point(v, [p.label_box[0], p.label_box[1]]);
+        let hi = self.model_point(v, [p.label_box[2], p.label_box[3]]);
+        let b = [lo[0], lo[1], hi[0], hi[1]];
+        let c = 0.5 / v.scale + SLACK;
+        let middle = [(b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0];
+        self.box_clear(b, c)
+            && self
+                .curved_cover
+                .iter()
+                .all(|x| !boxes_overlap(*x, padded(b, c)))
+            && self.exterior_faces.iter().all(|(fb, chords)| {
+                !contains(*fb, middle)
+                    || chords
+                        .iter()
+                        .filter(|&&i| {
+                            let [a, z] = self.segments[i];
+                            (a[1] > middle[1]) != (z[1] > middle[1])
+                                && middle[0]
+                                    < a[0] + (middle[1] - a[1]) * (z[0] - a[0]) / (z[1] - a[1])
+                        })
+                        .count()
+                        % 2
+                        == 0
+            })
+            && p.lines.iter().all(|s| self.segment_clear(v, *s, false))
+            && p.arrows.iter().all(|s| self.arrow_clear(v, *s, false))
     }
 
     /// A visible profile attachment and its complete exterior ink. Unlike an
@@ -1051,6 +1105,42 @@ mod tests {
         let mut tilted = ink(vec![]);
         tilted.planes[0].normal = [0., 1., 1.];
         assert!(build(&tilted, &v, [0., 0.]).is_none());
+    }
+
+    #[test]
+    fn exterior_notch_space_excludes_every_projected_face_and_curved_cover() {
+        let v = view();
+        let p = dimension();
+        let hole = vec![
+            [-20., -20.],
+            [20., -20.],
+            [20., 20.],
+            [-20., 20.],
+            [-20., -20.],
+        ];
+        let mut recessed = ink(vec![hole]);
+        recessed.planes[0].edges.push(4);
+        assert!(proof(&recessed).exterior_annotation_clear(&v, &p));
+        assert!(!proof(&ink(vec![])).exterior_annotation_clear(&v, &p));
+        // Another face can cover the recess without crossing the annotation ink.
+        // Oblique faces count too, even though they cannot prove face-interior labels.
+        let mut covered = recessed.clone();
+        covered.planes.push(PlanarFace {
+            normal: [0., 1., 1.],
+            edges: vec![4],
+        });
+        assert!(!proof(&covered).exterior_annotation_clear(&v, &p));
+        // End-on cylinders have no silhouette through their centre; their full
+        // projected surface bounds must nevertheless exclude exterior authority.
+        recessed.curved.push(CurvedFace {
+            bounds: [[-20., -20., -5.], [20., 20., 0.]],
+            cylinder: Some(Cylinder {
+                origin: [0., 0., 0.],
+                axis: [0., 0., 1.],
+                radius: 20.,
+            }),
+        });
+        assert!(!proof(&recessed).exterior_annotation_clear(&v, &p));
     }
 
     #[test]

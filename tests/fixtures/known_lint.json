@@ -259,6 +259,46 @@
       "rust": "hole_requirement_missing",
       "verdict": "not-applicable",
       "reason": "hc_side0 prints \"2× ⌀10 THRU\" and claims bore.diameter of one draftwright hole feature that owns all 2 holes of this group (draftwright origin/main, build_drawing on the corpus part, run 2026-10-08: the feature's count 2, the callout's covers_count 2, members (-24, 0, 80), (28, 0, 80)), so the sheet counts every member and draftwright's lint places the quantity. The sheet facts name the feature by one member's origin only (hole@(-24.000,0.000,80.000)), so the comparison joins the claim to that hole, and the port's lint, given a claim on one member, counts that member only, as it must (ISSUE-1143-b: draftwright's test_one_singleton_cannot_claim_an_entire_multi_owner_group). An artifact of the facts, which do not record a feature's members (tools/capture_sheet_facts.py records its key alone), not a difference of the rule."
+    },
+    {
+      "part": "ctc01",
+      "subject": "f:oriented_chamfer:1",
+      "group": "oriented_chamfer [angle=45, leg1=5, leg2=5, length=51.962] at (-25.000, -41.858, 47.500)",
+      "parameter": "oriented_chamfer.length",
+      "python": null,
+      "rust": "chamfer_requirement_missing",
+      "verdict": "rust-correct",
+      "reason": "The source document proves this 5 x 5 mm, 45-degree hex-boss top bevel. Python defers oriented chamfers and its sheet counts only the two principal C5 bevels. Rust lint independently requires the four additional bevels; the unchanged Python sheet has no claim or counted callout covering this record. The Rust consumer states all six in one 6× C5 callout."
+    },
+    {
+      "part": "ctc01",
+      "subject": "f:oriented_chamfer:2",
+      "group": "oriented_chamfer [angle=45, leg1=5, leg2=5, length=51.962] at (25.000, -41.858, 47.500)",
+      "parameter": "oriented_chamfer.length",
+      "python": null,
+      "rust": "chamfer_requirement_missing",
+      "verdict": "rust-correct",
+      "reason": "The source document proves this 5 x 5 mm, 45-degree hex-boss top bevel. Python defers oriented chamfers and its sheet counts only the two principal C5 bevels. Rust lint independently requires the four additional bevels; the unchanged Python sheet has no claim or counted callout covering this record. The Rust consumer states all six in one 6× C5 callout."
+    },
+    {
+      "part": "ctc01",
+      "subject": "f:oriented_chamfer:3",
+      "group": "oriented_chamfer [angle=45, leg1=5, leg2=5, length=51.962] at (-25.000, 41.858, 47.500)",
+      "parameter": "oriented_chamfer.length",
+      "python": null,
+      "rust": "chamfer_requirement_missing",
+      "verdict": "rust-correct",
+      "reason": "The source document proves this 5 x 5 mm, 45-degree hex-boss top bevel. Python defers oriented chamfers and its sheet counts only the two principal C5 bevels. Rust lint independently requires the four additional bevels; the unchanged Python sheet has no claim or counted callout covering this record. The Rust consumer states all six in one 6× C5 callout."
+    },
+    {
+      "part": "ctc01",
+      "subject": "f:oriented_chamfer:4",
+      "group": "oriented_chamfer [angle=45, leg1=5, leg2=5, length=51.962] at (25.000, 41.858, 47.500)",
+      "parameter": "oriented_chamfer.length",
+      "python": null,
+      "rust": "chamfer_requirement_missing",
+      "verdict": "rust-correct",
+      "reason": "The source document proves this 5 x 5 mm, 45-degree hex-boss top bevel. Python defers oriented chamfers and its sheet counts only the two principal C5 bevels. Rust lint independently requires the four additional bevels; the unchanged Python sheet has no claim or counted callout covering this record. The Rust consumer states all six in one 6× C5 callout."
     }
   ],
   "own_drawings": [

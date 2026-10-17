@@ -14,11 +14,9 @@
 //!   about the turning axis onto the profile its view shows, as draftwright's
 //!   `_turned_profile_site` does about the nearest external shaft (ISSUE-1276-a, in part: the
 //!   port knows only the whole part's axis, so on any other part the physical site is kept).
-//! - **Oriented chamfers** (quiddity's `OrientedChamfer`) are not dimensioned. quiddity records
-//!   one only along an oblique edge (`oriented_chamfers.py` rejects a run within
-//!   `AXIS_ALIGNED_COS` of an axis), which no standard view sees edge-on, and draftwright has no
-//!   reviewed callout for it (`detect.py`'s `_UNCONSUMED_RECORDS`, #1365); the kind stays in
-//!   `dims::UNDRAFTED`.
+//! - **Oriented chamfers** state the true support-plane leg and section angle in a leader
+//!   callout. No projected angle is measured. Equal treatments share the existing C callout;
+//!   a principal-edge member retains presentation ownership when both families occur.
 //!
 //! A record whose sizes or direction cannot be read is reported (`feature_not_dimensioned`),
 //! never dropped.
@@ -34,7 +32,7 @@ use crate::bridge::Feature;
 use crate::bridge::holes::{point, principal};
 
 pub(super) const PLANNER: Planner = Planner {
-    kinds: &["chamfer", "fillet"],
+    kinds: &["chamfer", "fillet", "oriented_chamfer"],
     wants,
 };
 
@@ -51,6 +49,7 @@ struct Edge<'a> {
     /// The world axis of its edge, or of its shaft when it is turned.
     axis: usize,
     turned: bool,
+    oriented: bool,
     /// Its record's `at`, in the part's frame.
     at: P3,
     /// The radius, or the first leg.
@@ -94,9 +93,14 @@ fn edge<'a>(cx: &Context, f: &'a Feature) -> Result<Edge<'a>, String> {
         .map(|l| frame.point(l))
         .ok_or("its record gives no point on it (at)")?;
     let turned = f.parameters.get("turned").and_then(Value::as_bool) == Some(true);
-    let letter = f.parameters.get("axis").ok_or("its record gives no axis")?;
-    let d = frame.letter(letter).ok_or("its axis is not x, y or z")?;
-    let axis = principal(d).ok_or("its axis is not along x, y or z in the part's frame")?;
+    let oriented = f.kind == "oriented_chamfer";
+    let axis = if oriented {
+        crate::oriented_chamfers::read(cx.analysis, f)?.view_axis
+    } else {
+        let letter = f.parameters.get("axis").ok_or("its record gives no axis")?;
+        let d = frame.letter(letter).ok_or("its axis is not x, y or z")?;
+        principal(d).ok_or("its axis is not along x, y or z in the part's frame")?
+    };
     let m = |parameter: &str, value: f64| Measurement {
         feature: f.id.clone(),
         parameter: parameter.into(),
@@ -110,6 +114,7 @@ fn edge<'a>(cx: &Context, f: &'a Feature) -> Result<Edge<'a>, String> {
             parameter: "fillet.radius",
             axis,
             turned,
+            oriented,
             at,
             value: r,
             same: label.bytes().map(i64::from).collect(),
@@ -118,18 +123,31 @@ fn edge<'a>(cx: &Context, f: &'a Feature) -> Result<Edge<'a>, String> {
         });
     }
     let (leg1, leg2, angle) = (size(f, "leg1")?, size(f, "leg2")?, size(f, "angle")?);
-    let mut measurements = vec![m("chamfer.length", leg1)];
+    let parameter = if oriented {
+        "oriented_chamfer.length"
+    } else {
+        "chamfer.length"
+    };
+    let mut measurements = vec![m(parameter, leg1)];
     let terms = if c_form(leg1, leg2, angle) {
         vec![format!("C{}", fmt(leg1))]
     } else {
-        measurements.push(m("chamfer.angle", angle));
+        measurements.push(m(
+            if oriented {
+                "oriented_chamfer.angle"
+            } else {
+                "chamfer.angle"
+            },
+            angle,
+        ));
         vec![fmt(leg1), "×".into(), format!("{}°", fmt(angle))]
     };
     Ok(Edge {
         feature: f,
-        parameter: "chamfer.length",
+        parameter,
         axis,
         turned,
+        oriented,
         at,
         value: leg1,
         // draftwright's key: the legs to 1e-3 mm and the angle to 0.01°.
@@ -178,7 +196,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         .filter(|f| !crate::lint::blends::is_relief(analysis, f))
     {
         let family = match f.kind.as_str() {
-            "chamfer" => 0,
+            "chamfer" | "oriented_chamfer" => 0,
             "fillet" => 1,
             _ => continue,
         };
@@ -210,7 +228,8 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     for ((family, _), members) in groups {
         // The presentation the leader points into: the most populous axis and view.
         let mut by: BTreeMap<(&str, &str), Vec<&Edge>> = BTreeMap::new();
-        for e in &members {
+        let has_principal = members.iter().any(|e| !e.oriented);
+        for e in members.iter().filter(|e| !has_principal || !e.oriented) {
             by.entry((AXES[e.axis], e.views()[0])).or_default().push(e);
         }
         let (_, visible) = by
@@ -252,6 +271,9 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         };
         if family == 0 && first.terms.len() > 1 {
             basis += "; its legs differ or its angle is not 45°, so it states its first leg and its angle";
+        }
+        if members.iter().any(|e| e.oriented) {
+            basis += "; oblique-edge bevels use their true support-plane size and angle, not a foreshortened projection";
         }
         let elsewhere = n - visible.len();
         if elsewhere > 0 {

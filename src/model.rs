@@ -1791,6 +1791,17 @@ pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Pl
         };
         base.sheet.projection = spec.sheet.projection.clone();
         crate::planning::with(&reference, || {
+            // This recipe precedes the added notch bands as well as native recesses.
+            // Otherwise a displaced leader becomes its own established route, and
+            // refinement cannot detect the new model-edge or arrowhead contact.
+            // Only the comparison scope omits these annotations; the final solve
+            // retains the original source evidence and every notch requirement.
+            crate::planning::store(
+                &reference,
+                "v_notches",
+                Vec::new(),
+                Vec::<crate::lint::notch_evidence::Notch>::new(),
+            );
             // Preserve the established presentation when reserving old routes.
             // The actual drawing may move an occluded circular statement to its
             // visible profile after those other routes have claimed their ink.
@@ -2881,7 +2892,10 @@ fn plan_escalated_uncached(
                 }
                 if installed {
                     p = scheduled;
-                } else {
+                } else if spec.hole_table == crate::hole_table::Setting::Always || findings(&p).dropped > 0 {
+                    // A failed optional compaction is not a new drawing problem when
+                    // every original hole requirement remains legible. Explicit requests
+                    // and actual losses still report the failed schedule transaction.
                     p.problems.push(Problem { id:"p:hole_table_unavailable:sheet".into(), code:"hole_table_unavailable".into(), severity:if spec.hole_table == crate::hole_table::Setting::Always { "warning" } else { "info" }.into(), message:"The selected hole table or one of its tags has no clear place; the original dimensions are kept.".into(), subjects:vec!["sheet".into()], ..Default::default() });
                 }
             }
@@ -3679,6 +3693,28 @@ fn plan_with_presentation(
         );
         if p.fallback.is_none() {
             (request, pick, strips) = (bare, p, s);
+        }
+    }
+    // An automatic radius schedule is a presentation choice. Reserve it around
+    // the existing sheet/scale pair only when it fits; it cannot spend more paper
+    // or shrink a user-requested scale while its ordinary callout remains valid.
+    let radius_sizes = crate::tables::sizes(&crate::dims::blends::reservations(analysis, spec));
+    if !radius_sizes.is_empty() {
+        let mut with_radii = request.clone();
+        with_radii.required_tables.extend(radius_sizes);
+        with_radii.automatic_pair = true;
+        let (p, s, _) = crate::demand::size_with_details(
+            &demand,
+            &with_radii,
+            Some(pick.scale),
+            Some(pick.page),
+            lo[2],
+            false,
+            &|scale| crate::detail::scaled(analysis, spec, scale),
+        );
+        if p.fallback.is_none() && p.page == pick.page && (p.scale - pick.scale).abs() < 1e-12 {
+            with_radii.automatic_pair = request.automatic_pair;
+            (request, pick, strips) = (with_radii, p, s);
         }
     }
     if complete_views && given.sheet.scale.is_some() && !automatic_pair {
@@ -4479,6 +4515,12 @@ fn plan_with_presentation(
             );
             (before, natural)
         };
+        let bounded_notches = !crate::notches::requirements(analysis).is_empty();
+        let linear_ink: Vec<_> = inventory
+            .iter()
+            .filter(|d| d.kind == "linear")
+            .filter_map(|d| Some((d.id.clone(), d.placed.clone()?)))
+            .collect();
         for d in &mut inventory {
             if spec
                 .dimensions
@@ -4507,6 +4549,21 @@ fn plan_with_presentation(
                 && let (Some(_), Some(c)) =
                     (d.placed.as_ref(), settled.and_then(|d| d.placed.as_ref()))
             {
+                // Restoring an unchanged peer must not put it through newly grown
+                // text or a moved witness. Keep the current solved geometry in that case.
+                if bounded_notches
+                    && linear_ink.iter().any(|(id, p)| {
+                        *id != d.id
+                            && crate::dims::text_contact(c, p)
+                            && natural
+                                .iter()
+                                .find(|n| n.id == *id)
+                                .and_then(|n| n.placed.as_ref())
+                                .is_none_or(|old| !crate::dims::text_contact(c, old))
+                    })
+                {
+                    continue;
+                }
                 label_spec
                     .dimensions
                     .entry(d.id.clone())

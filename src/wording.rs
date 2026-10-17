@@ -180,6 +180,7 @@ pub fn dimension_id(a: &Analysis, id: &str) -> String {
     };
     let role = parameter.split('.').next().unwrap_or(parameter);
     match feature {
+        "envelope" if role.starts_with("notch") => format!("the {}", words(role)),
         "envelope" => format!("the overall {}", words(role)),
         "step_level" => format!("the {}", words(role)),
         f if f.starts_with("pmi:") => "the PMI dimension".into(),

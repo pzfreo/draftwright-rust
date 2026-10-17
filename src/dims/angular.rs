@@ -48,6 +48,16 @@ pub struct Angle {
     pub second: [f64; 3],
 }
 
+impl From<&crate::lint::profile_angles::Corner> for Angle {
+    fn from(c: &crate::lint::profile_angles::Corner) -> Self {
+        Self {
+            vertex: c.vertex,
+            first: c.first,
+            second: c.second,
+        }
+    }
+}
+
 fn sub(a: P3, b: P3) -> P3 {
     [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
 }
@@ -409,6 +419,67 @@ pub(super) fn intent(
     )
 }
 
+/// Reserve only the bounded notch grammar's minimum exterior arc. General profile
+/// corners remain disabled; ordinary linear lane estimates cannot size acute arcs.
+pub(crate) fn notch_reservations(
+    a: &crate::model::Analysis,
+    spec: &crate::model::Spec,
+    scale: f64,
+) -> Vec<(String, crate::layout::Rect)> {
+    let mut out = Vec::new();
+    for n in crate::notches::requirements(a) {
+        let id = super::notches::id(&n.id, "notch.angle");
+        if spec.dimensions.get(&id).is_some_and(|d| d.omit) {
+            continue;
+        }
+        let (view, direction, up) = match n.axis {
+            0 => ("side", [1., 0., 0.], [0., 0., 1.]),
+            1 => ("front", [0., -1., 0.], [0., 0., 1.]),
+            _ => ("plan", [0., 0., 1.], [0., 1., 0.]),
+        };
+        let frame = Frame::looking(a, direction, up, [0.; 2], scale);
+        let terms = vec![format!("{}°", super::fmt(n.angle.degrees()))];
+        let ink = label_ink(&terms, font());
+        let size = [ink.max[0] - ink.min[0], ink.max[1] - ink.min[1]];
+        let physical = Ink::new(&frame, &(&n.angle).into(), size).unwrap();
+        let mut extended = Ink::new(
+            &frame,
+            &Angle {
+                vertex: n.angle.vertex,
+                first: [0, 1, 2].map(|k| 2. * n.angle.vertex[k] - n.angle.first[k]),
+                second: [0, 1, 2].map(|k| 2. * n.angle.vertex[k] - n.angle.second[k]),
+            },
+            size,
+        )
+        .unwrap();
+        extended.lengths = [0.; 2];
+        let terms_ref = &terms;
+        if let Some(p) = (0..TRIES)
+            .flat_map(|i| {
+                [&physical, &extended]
+                    .into_iter()
+                    .filter_map(move |g| g.placed(g.minimum + i as f64 * STEP, terms_ref))
+            })
+            .find(|p| !boxes_overlap(p.label_box, frame.outline()))
+        {
+            let mut bounds = [
+                f64::INFINITY,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+                f64::NEG_INFINITY,
+            ];
+            for q in ink_points(&p) {
+                for k in 0..2 {
+                    bounds[k] = bounds[k].min(q[k] - 1.);
+                    bounds[k + 2] = bounds[k + 2].max(q[k] + 1.);
+                }
+            }
+            out.push((view.into(), bounds));
+        }
+    }
+    out
+}
+
 /// Places each angular item of *items* in its carrying view (*views_of*) about its vertex (see
 /// the module's notes), clear of what *placed* already holds where it can be; *placed* takes
 /// its ink.
@@ -422,6 +493,7 @@ pub(super) fn place(
     obstacles: &[super::PlannedDimension],
     placed: &mut [Option<Placed>],
     page: &Page,
+    notch_void: &dyn Fn(&str, &Placed) -> bool,
 ) {
     for i in 0..items.len() {
         if placed[i].is_some() {
@@ -467,12 +539,19 @@ pub(super) fn place(
             .measurements
             .iter()
             .any(|m| m.feature.starts_with("geometry:"));
+        let in_void = |c: &Placed| {
+            items[i]
+                .measurements
+                .iter()
+                .any(|m| m.parameter == "notch.angle")
+                && notch_void(view, c)
+        };
         let furniture = |c: &Placed| {
             !boxes_overlap(c.label_box, page.title_block())
                 && page
                     .views()
                     .iter()
-                    .all(|(_, b)| !boxes_overlap(c.label_box, *b))
+                    .all(|(id, b)| (*id == own && in_void(c)) || !boxes_overlap(c.label_box, *b))
                 && !c.lines.iter().any(|l| crosses(*l, page.title_block()))
                 && (!exterior
                     || c.lines
@@ -505,15 +584,23 @@ pub(super) fn place(
                 return false;
             }
             fallback.get_or_insert_with(|| c.clone());
-            if !on_sheet(c) || !page.fits(c, view) {
+            if !on_sheet(c) || !(page.fits(c, view) || (in_void(c) && page.fits_interior(c, view)))
+            {
                 return false;
             }
             if clear(c) {
                 return true;
             }
-            if let Some(room) = super::placement::make_room(
-                i, c, frames, items, views_of, sides, fixed, placed, obstacles, page,
-            ) {
+            // A newly supplied notch must fit around established dimensions. It cannot
+            // evict a previously readable datum or short leader to acquire its arc.
+            if !items[i]
+                .measurements
+                .iter()
+                .any(|m| m.parameter == "notch.angle")
+                && let Some(room) = super::placement::make_room(
+                    i, c, frames, items, views_of, sides, fixed, placed, obstacles, page,
+                )
+            {
                 moves = room;
                 return true;
             }

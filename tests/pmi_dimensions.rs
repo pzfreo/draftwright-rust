@@ -86,7 +86,8 @@ fn analysed(file: &str, bytes: &[u8]) -> (draftwright::haecceity::Part, Analysis
     let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join("pmi_dimensions")
-        .join(n.to_string());
+        // nextest processes each start their local counter at zero.
+        .join(format!("{}-{n}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join(file);
     std::fs::write(&path, bytes).unwrap();

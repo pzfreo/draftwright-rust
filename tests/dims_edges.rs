@@ -183,12 +183,9 @@ fn chamfers_are_called_out_c_or_leg_and_angle() {
     assert!(problems(&plan, "dimensions_not_ported").is_empty());
 }
 
-/// Oriented chamfers are left undimensioned, as draftwright leaves them (#1365): quiddity records
-/// one only along an oblique edge, which no standard view sees edge-on. They are not claimed by
-/// the edge planner, not folded into a chamfer callout, and not reported as unported (the kind is
-/// in `dims::UNDRAFTED`).
+/// An oblique record with non-perpendicular run and support legs is refused visibly.
 #[test]
-fn oriented_chamfers_are_left_undimensioned() {
+fn an_oriented_chamfer_with_inconsistent_directions_is_reported() {
     let json = prismatic_with(|i, f| {
         chamfer(f, 1.0, 1.0, 45.0);
         if i < 2 {
@@ -212,7 +209,7 @@ fn oriented_chamfers_are_left_undimensioned() {
             .iter()
             .all(|m| !m.feature.starts_with("f:oriented_chamfer:"))
     );
-    assert!(problems(&plan, "feature_not_dimensioned").is_empty());
+    assert_eq!(problems(&plan, "feature_not_dimensioned").len(), 2);
     assert!(problems(&plan, "dimensions_not_ported").is_empty());
 }
 
