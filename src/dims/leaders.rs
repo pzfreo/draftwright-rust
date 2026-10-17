@@ -2082,6 +2082,7 @@ fn refine_uncached(
                 || (!clear_new_text && c.feature_crossings > prior.feature_crossings)
                 || (!clear_new_text && c.outside > prior.outside)
                 || c.text > prior.text
+                || c.clearance > prior.clearance
                 || (!clear_new_text && c.furniture > prior.furniture)
                 || c.beside > prior.beside
                 || c.grazing > prior.grazing
