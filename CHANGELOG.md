@@ -19,6 +19,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   Paper changes retain short, unobstructed leader associations; failed alternatives
   keep their explicit refusal. Quality and leader checks inspect allocated pages
   independently without changing their thresholds or baselines.
+  Exhausted searches retain fitted geometry and report all measured readability
+  failures; optional capacity cannot buy larger paper for an incomplete result.
 
 ### Added
 

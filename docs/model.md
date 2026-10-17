@@ -1015,6 +1015,13 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   route ink is cached under its complete view/crop/extension inputs; a bounded
   spatial index accelerates the same finite-strip calculation, with exhaustive
   fallbacks for long segments and wide queries.
+  Settled readability and route comparisons are memoized by actual dimensions,
+  balloons, view transforms, crops, depiction style and scale-floor inputs;
+  diagnostic history never substitutes for geometry. Scale and stroke edits
+  invalidate these measurements. Internal candidates share only inert capacity
+  and unrequested crop controls; authored placements and text edits retain their
+  complete canonical inputs. An already optimal arrangement or packing rank
+  cannot improve through another identical solve.
 
   An unpinned oblique-dimension side hint may yield to shorter clean witnesses
   in the same sheet, scale and view frames. All measurements, control frames,

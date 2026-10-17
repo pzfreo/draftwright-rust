@@ -28,7 +28,63 @@ pub(crate) fn route_refusal(
     route_refusal_for(analysis, before, after, None)
 }
 
+// These measures depend on settled carriers and strokes, not diagnostic history.
+// Hash the complete dimension records, balloon records and relevant view fields;
+// Analysis evidence is immutable for the planning scope. Never key on addresses
+// of Plans, which recovery may mutate between measurements.
+fn settled_geometry_key(plan: &Plan) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    let views: Vec<_> = plan
+        .views
+        .iter()
+        .map(|v| {
+            (
+                &v.id,
+                v.sheet,
+                v.direction,
+                v.up,
+                v.at,
+                v.scale,
+                &v.cut,
+                &v.detail,
+                &v.line_style,
+            )
+        })
+        .collect();
+    Sha256::digest(
+        serde_json::to_vec(&(
+            views,
+            &plan.dimensions,
+            &plan.balloons,
+            plan.sheet.scale_factor,
+            crate::sheets::floor(&plan.spec),
+        ))
+        .expect("settled geometry serializes"),
+    )
+    .into()
+}
+
 fn route_refusal_for(
+    analysis: &Analysis,
+    before: &Plan,
+    after: &Plan,
+    only: Option<&str>,
+) -> Option<&'static str> {
+    if !crate::planning::enabled(analysis) {
+        return route_refusal_uncached(analysis, before, after, only);
+    }
+    let key = serde_json::to_vec(&(
+        settled_geometry_key(before),
+        settled_geometry_key(after),
+        only,
+    ))
+    .expect("route comparison inputs serialize");
+    crate::planning::memo(analysis, "settled-sheet-route-comparison", key, || {
+        route_refusal_uncached(analysis, before, after, only)
+    })
+}
+
+fn route_refusal_uncached(
     analysis: &Analysis,
     before: &Plan,
     after: &Plan,
@@ -865,6 +921,18 @@ impl std::fmt::Display for Readability {
 /// labels are valid when they clear their own extension lines. Existing hard ink
 /// checks supply clearance from other annotations, borders and foreign views.
 pub fn readability(analysis: &Analysis, plan: &Plan) -> Readability {
+    if !crate::planning::enabled(analysis) {
+        return readability_uncached(analysis, plan);
+    }
+    crate::planning::memo(
+        analysis,
+        "settled-sheet-readability",
+        settled_geometry_key(plan).to_vec(),
+        || readability_uncached(analysis, plan),
+    )
+}
+
+fn readability_uncached(analysis: &Analysis, plan: &Plan) -> Readability {
     let mut result = Readability {
         steps: illegible_steps(analysis, plan),
         ..Default::default()
@@ -2500,6 +2568,44 @@ pub(crate) fn reserve_linear_corridors(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn settled_measure_cache_follows_scale_and_stroke_edits() {
+        let (_, a) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/mounting_plate.step"),
+        )
+        .unwrap();
+        let p = crate::model::plan(&a, &crate::model::Spec::default()).unwrap();
+        crate::planning::with(&a, || {
+            let original = readability(&a, &p);
+            assert_eq!(route_refusal_for(&a, &p, &p, None), None);
+            let mut changed = p.clone();
+            for v in &mut changed.views {
+                v.scale = 0.01;
+            }
+            assert!(readability(&a, &changed).openings > original.openings);
+            assert_eq!(
+                readability(&a, &changed),
+                readability_uncached(&a, &changed)
+            );
+            assert_eq!(readability(&a, &p), original);
+            let mut changed = p.clone();
+            let d = changed
+                .dimensions
+                .iter_mut()
+                .find(|d| d.kind == "callout" && d.placed.is_some())
+                .unwrap();
+            d.placed.as_mut().unwrap().lines[0][1][0] += 50.0;
+            assert!(route_refusal_for(&a, &p, &changed, None).is_some());
+            assert_eq!(
+                route_refusal_for(&a, &p, &changed, None),
+                route_refusal_uncached(&a, &p, &changed, None)
+            );
+            assert_eq!(route_refusal_for(&a, &p, &p, None), None);
+        });
+    }
 
     #[test]
     fn indexed_route_strips_equal_exhaustive_runs() {

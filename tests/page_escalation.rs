@@ -278,7 +278,11 @@ fn a_try_with_hole_locations_too_close_to_read_is_not_taken() {
         said.message
     );
     assert!(said.message.contains("physically fitting drawing is kept"));
-    for tried in ["A3 1:5 fill", "A2 1:2 fill", "A0 2:1 fill"] {
+    for tried in [
+        "A3 1:5 (below minimum readable feature/extent/depiction scale",
+        "A2 1:2 (dimensioned step span fails its paper-space floor",
+        "A0 2:1 (dimensioned step span fails its paper-space floor",
+    ] {
         assert!(
             plan.sheet.basis.contains(tried),
             "{tried}: {}",
@@ -325,8 +329,7 @@ fn readable_a4_precedes_fill_but_unreadable_steps_require_enlargement() {
     let Some(dir) = corpus::dir() else { return };
     for (file, expected) in [
         ("mfcadpp/10060.step", ("A4", "1:1")),
-        ("mfcadpp/10063.step", ("A2", "5:1")),
-        ("mfcadpp/10000.step", ("A3", "2:1")),
+        ("mfcadpp/10000.step", ("A1", "5:1")),
     ] {
         let path = dir.join(file);
         let plan = api::plan_from(&path, Features::Native, &Spec::default()).unwrap();
@@ -347,6 +350,42 @@ fn readable_a4_precedes_fill_but_unreadable_steps_require_enlargement() {
             assert!(plan.sheet.basis.contains("A4 multi-sheet:"));
         }
     }
+}
+
+/// A newly measured step failure cannot buy a long or obstructed callout. The
+/// established A4 drawing remains a reported refusal when all readable
+/// enlargements violate the independent, unchanged leader quality limits.
+#[test]
+fn an_exhausted_step_search_reports_its_retained_a4_failure() {
+    let Some(dir) = corpus::dir() else { return };
+    let path = dir.join("mfcadpp/10063.step");
+    let plan = api::plan_from(&path, Features::Native, &Spec::default()).unwrap();
+    let analysis = api::analyse_from(&path, Features::Native).unwrap();
+    assert_eq!(sheet(&plan), ("A4", "1:1"));
+    assert!(draftwright::sheet_fit::readability(&analysis, &plan).steps > 0);
+    assert!(
+        plan.problems
+            .iter()
+            .any(|p| p.code == "layout_recovery_exhausted" && p.severity == "warning")
+    );
+    assert!(!plan.problems.iter().any(|p| p.code.ends_with("_dropped")
+        || matches!(
+            p.code.as_str(),
+            "annotation_off_sheet" | "annotation_over_title_block"
+        )));
+    for paper in ["A4", "A3", "A2", "A1", "A0"] {
+        assert!(
+            plan.sheet.basis.contains(&format!("{paper} multi-sheet:")),
+            "{}",
+            plan.sheet.basis
+        );
+    }
+    assert!(
+        plan.sheet
+            .basis
+            .contains("leader length exceeds retained route by more than 2 mm")
+    );
+    sheet_rule::assert_rule("10063", &plan);
 }
 
 /// The non-veto case of `test_recovery_does_not_trade_a_required_drop_for_unreadable_ink`: an
@@ -460,13 +499,14 @@ fn ftc07_reports_its_readability_refusal_on_the_established_fitted_sheet() {
             .any(|p| p.code == "layout_recovery_exhausted" && p.severity == "warning")
     );
     sheet_rule::assert_rule("ftc07", &chosen);
-    let a1 = chosen
-        .sheet
-        .basis
-        .split_once("A1 1:1 fill ")
-        .map(|(_, tail)| tail.split(");").next().unwrap())
-        .unwrap_or_else(|| panic!("{}", chosen.sheet.basis));
-    assert!(a1.contains("hard layout finding"), "{a1}");
+    assert!(
+        chosen
+            .sheet
+            .basis
+            .contains("A1 1:1 (dimensioned step span fails its paper-space floor"),
+        "{}",
+        chosen.sheet.basis
+    );
     let first =
         model::plan_escalated(&analysis, &spec(json!({"size":"A3", "scale":"1:5"}))).unwrap();
     let again = model::recover(&analysis, &Spec::default(), first).unwrap();
