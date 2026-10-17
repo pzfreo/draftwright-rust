@@ -414,12 +414,6 @@
     "reason": "Detail views are now planned with stable IDs and exact per-view scales. Approved local dimensions move to their own crop; supported crop bounds and rectangular late-furniture placement differ from Python's captured drawing. The isometric keeps sheet scale when its detail reservation allows it. Compare docs/detail-verification.md and tests/detail_views.rs; tests/views.rs compares the same physical point across crop-centred camera transforms."
   },
   {
-    "part": "m10127",
-    "fact": "views",
-    "verdict": "equivalent",
-    "reason": "Detail views are now planned with stable IDs and exact per-view scales. Approved local dimensions move to their own crop; supported crop bounds and rectangular late-furniture placement differ from Python's captured drawing. The isometric keeps sheet scale when its detail reservation allows it. Compare docs/detail-verification.md and tests/detail_views.rs; tests/views.rs compares the same physical point across crop-centred camera transforms."
-  },
-  {
     "part": "spool132",
     "fact": "scale:iso",
     "verdict": "equivalent",

@@ -1840,6 +1840,13 @@ pub(crate) fn dimension_text_edited(spec: &Spec) -> bool {
             == 1
 }
 
+fn annotation_text_edited(spec: &Spec) -> bool {
+    spec.dimensions
+        .values()
+        .any(|d| d.tolerance.is_some() || d.text.is_some() || d.style.is_some())
+        || spec.features.values().any(|f| f.fit.is_some())
+}
+
 fn complete_candidate(findings: layout::Findings, extra_view_conflicts: usize) -> bool {
     findings.clean() && extra_view_conflicts == 0
 }
@@ -3124,7 +3131,7 @@ fn plan_with_presentation(
         } else {
             plan(analysis, &base)?
         })
-    } else if complete_views && dimension_text_edited(spec) {
+    } else if spec.sheet.scale.is_none() && annotation_text_edited(spec) {
         // Tolerance, fit and wording edits change annotation ink, not the part projections.
         // Keep authored geometry in the complete unedited frame too.
         let mut base = spec.clone();
@@ -3137,7 +3144,11 @@ fn plan_with_presentation(
         for f in base.features.values_mut() {
             f.fit = None;
         }
-        Some(plan_recovered(analysis, &base)?)
+        Some(if complete_views {
+            plan_recovered(analysis, &base)?
+        } else {
+            plan(analysis, &base)?
+        })
     } else {
         None
     };
@@ -3145,9 +3156,10 @@ fn plan_with_presentation(
     if let Some(base) = &canonical {
         effective.sheet.size = Some(base.sheet.size.clone());
         effective.sheet.scale = Some(base.sheet.scale.clone());
-        if crate::placement_intent::has_pins(spec) {
+        {
+            // Pins and annotation text edits retain the recovered detail choice.
             // Recovery may reject an optional crop in favour of complete principal views.
-            // Pins keep those recovered frames, so they must also keep that detail choice:
+            // These edits keep recovered frames, so they must also keep that detail choice:
             // adding the seed's crop back would place it in space the canonical iso owns.
             // Explicitly authored details still enter through their own requests.
             for (name, detail) in
@@ -4428,45 +4440,45 @@ fn plan_with_presentation(
     }
     let reserved: Vec<_> = gdt.iter().filter_map(crate::dims::gdt::proxy).collect();
     let mut label_spec = spec.clone();
-    if spec
-        .dimensions
-        .values()
-        .any(|d| d.tolerance.is_some() || d.text.is_some() || d.style.is_some())
-        || spec.features.values().any(|f| f.fit.is_some())
-    {
-        // Text edits retain unaffected peers' canonical settlement, just as lane assignment
-        // does. Fix peers on identical witnesses before solving the edited/restored items.
-        let base = Spec::default();
-        let (_, mut natural) = crate::dims::plan_inventory(
-            analysis,
-            &base,
-            &sheet,
-            &views,
-            &furniture_ink,
-            &[],
-            &footprint_cache,
-            &excluded,
-        )?;
-        let before = natural.clone();
-        let mut natural_fixed = reserved.clone();
-        natural_fixed.extend(furniture_ink.iter().cloned());
-        crate::dims::settle_inventory(
-            analysis,
-            &base,
-            &sheet,
-            &views,
-            &mut natural,
-            &natural_fixed,
-        );
-        crate::dims::refine_inventory(
-            analysis,
-            &base,
-            &sheet,
-            &views,
-            &mut natural,
-            &natural_fixed,
-            &footprint_cache,
-        );
+    if annotation_text_edited(spec) || crate::placement_intent::automatic_pins_only(spec) {
+        // The canonical plan has already settled against its own trimmed furniture.
+        // Re-solving the same peers against the edited furniture can move them again.
+        let (before, natural) = if canonical.is_some() {
+            (held.clone(), held.clone())
+        } else {
+            let base = Spec::default();
+            let (_, mut natural) = crate::dims::plan_inventory(
+                analysis,
+                &base,
+                &sheet,
+                &views,
+                &furniture_ink,
+                &[],
+                &footprint_cache,
+                &excluded,
+            )?;
+            let before = natural.clone();
+            let mut natural_fixed = reserved.clone();
+            natural_fixed.extend(furniture_ink.iter().cloned());
+            crate::dims::settle_inventory(
+                analysis,
+                &base,
+                &sheet,
+                &views,
+                &mut natural,
+                &natural_fixed,
+            );
+            crate::dims::refine_inventory(
+                analysis,
+                &base,
+                &sheet,
+                &views,
+                &mut natural,
+                &natural_fixed,
+                &footprint_cache,
+            );
+            (before, natural)
+        };
         for d in &mut inventory {
             if spec
                 .dimensions
@@ -5038,43 +5050,92 @@ fn plan_with_presentation(
             && plan.views.iter().all(|v| v.cut.is_none())
             && ink_findings(&plan) > 0
         {
-            let mut roomy = plan.spec.clone();
-            roomy.sheet.size = Some("A0".into());
-            roomy.sheet.scale = Some(plan.sheet.scale.clone());
-            let template = plan_with(
-                analysis,
-                &roomy,
-                false,
-                true,
-                candidate_arrangement,
-                complete_views,
-                false,
-            )?;
-            let inventory: Vec<crate::dims::PlannedDimension> = crate::planning::lookup(
-                analysis,
-                "complete-annotation-inventory",
-                &serde_json::to_vec(&template.views).expect("views serialize"),
-            )
-            .unwrap_or_default();
-            if let Some(mut packed) =
-                crate::sheet_fit::pack_inventory(analysis, &template, &plan, &inventory)
-                && !inventory.is_empty()
-                && drawn_sheets_fit(analysis, &packed)
-                && findings(&packed).hard <= findings(&plan).hard
-                && ink_findings(&packed) < ink_findings(&plan)
-                && carries_required(&plan, &packed)
-            {
-                packed.spec = plan.spec.clone();
-                let basis = plan
-                    .sheet
-                    .basis
-                    .rsplit_once("; drawn-item fill ")
-                    .map_or(plan.sheet.basis.as_str(), |(b, _)| b);
-                packed.sheet.basis = format!(
-                    "{basis}; complete annotation blocks packed at the same scale; drawn-item fill {:.1}%",
-                    packed.sheet.fill * 100.0
-                );
-                plan = packed;
+            // An optional crop consumes real columns. First try the complete
+            // annotation reservation on this same paper and scale; this avoids
+            // discarding a clean enlargement merely because the legacy estimate
+            // reserved only narrow callout bands.
+            if plan.views.iter().any(|v| v.detail.is_some()) {
+                let mut complete = plan.spec.clone();
+                complete.sheet.size = Some(plan.sheet.size.clone());
+                complete.sheet.scale = Some(plan.sheet.scale.clone());
+                let mut candidate = plan_with(
+                    analysis,
+                    &complete,
+                    false,
+                    true,
+                    candidate_arrangement,
+                    complete_views,
+                    require_automatic,
+                )?;
+                if drawn_sheets_fit(analysis, &candidate)
+                    && findings(&candidate).hard <= findings(&plan).hard
+                    && ink_findings(&candidate) < ink_findings(&plan)
+                    && feature_crossings(&candidate) <= feature_crossings(&plan)
+                    && carries_required(&plan, &candidate)
+                {
+                    candidate.spec = plan.spec.clone();
+                    candidate.sheet.default = plan.sheet.default;
+                    let basis = plan
+                        .sheet
+                        .basis
+                        .rsplit_once("; drawn-item fill ")
+                        .map_or(plan.sheet.basis.as_str(), |(b, _)| b);
+                    candidate.sheet.basis = format!(
+                        "{basis}; complete annotation columns fitted at the same scale; drawn-item fill {:.1}%",
+                        candidate.sheet.fill * 100.0
+                    );
+                    plan = candidate;
+                }
+            }
+            if ink_findings(&plan) > 0 {
+                let mut roomy = plan.spec.clone();
+                roomy.sheet.size = Some("A0".into());
+                roomy.sheet.scale = Some(plan.sheet.scale.clone());
+                // A template must keep the recipient's actual view inventory. A0
+                // may fit a crop the recipient declined; adding it makes packing
+                // impossible before any measured annotation block is considered.
+                for (name, detail) in
+                    crate::detail::requests(analysis, &roomy, plan.sheet.scale_factor)
+                {
+                    if !detail.authored && !plan.views.iter().any(|v| v.id == format!("v:{name}")) {
+                        roomy.views.entry(name).or_default().omit = true;
+                    }
+                }
+                let template = plan_with(
+                    analysis,
+                    &roomy,
+                    false,
+                    true,
+                    candidate_arrangement,
+                    complete_views,
+                    false,
+                )?;
+                let inventory: Vec<crate::dims::PlannedDimension> = crate::planning::lookup(
+                    analysis,
+                    "complete-annotation-inventory",
+                    &serde_json::to_vec(&template.views).expect("views serialize"),
+                )
+                .unwrap_or_default();
+                if let Some(mut packed) =
+                    crate::sheet_fit::pack_inventory(analysis, &template, &plan, &inventory)
+                    && !inventory.is_empty()
+                    && drawn_sheets_fit(analysis, &packed)
+                    && findings(&packed).hard <= findings(&plan).hard
+                    && ink_findings(&packed) < ink_findings(&plan)
+                    && carries_required(&plan, &packed)
+                {
+                    packed.spec = plan.spec.clone();
+                    let basis = plan
+                        .sheet
+                        .basis
+                        .rsplit_once("; drawn-item fill ")
+                        .map_or(plan.sheet.basis.as_str(), |(b, _)| b);
+                    packed.sheet.basis = format!(
+                        "{basis}; complete annotation blocks packed at the same scale; drawn-item fill {:.1}%",
+                        packed.sheet.fill * 100.0
+                    );
+                    plan = packed;
+                }
             }
         }
     }

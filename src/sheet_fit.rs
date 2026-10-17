@@ -1094,8 +1094,15 @@ pub(crate) fn reserve_annotation_bounds(
                     v.at[1] + v.scale * analysis.iso_bounds[3],
                 ]
             } else {
-                let camera = haecceity::hlr::View::new(v.direction, v.up).expect("planned view");
-                let size = crate::model::extent(analysis, &camera).0;
+                let size = if v.detail.is_some() {
+                    // A crop owns only its enlarged local outline. Reserving the
+                    // whole part at the detail scale strands neighbouring bands.
+                    crate::detail::crop_extent(analysis, v).0
+                } else {
+                    let camera =
+                        haecceity::hlr::View::new(v.direction, v.up).expect("planned view");
+                    crate::model::extent(analysis, &camera).0
+                };
                 [
                     v.at[0] - v.scale * size[0] / 2.0,
                     v.at[1] - v.scale * size[1] / 2.0,
@@ -1111,6 +1118,17 @@ pub(crate) fn reserve_annotation_bounds(
             b
         })
         .collect();
+    // Caption paper belongs to the crop too; a neighbouring annotation may
+    // reclaim empty detail bands, but never its caption or readable gap.
+    for caption in crate::detail::caption_obstacles(views) {
+        if let (Some(i), Some(p)) = (
+            views.iter().position(|v| v.id == caption.view),
+            caption.placed.as_ref(),
+        ) {
+            include(&mut protected[i], [p.label_box[0], p.label_box[1]]);
+            include(&mut protected[i], [p.label_box[2], p.label_box[3]]);
+        }
+    }
     for (view, b, _) in &bounds {
         if let Some(i) = views.iter().position(|v| v.id == *view) {
             include(&mut protected[i], [b[0], b[1]]);

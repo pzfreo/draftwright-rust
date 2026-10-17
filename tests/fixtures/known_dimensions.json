@@ -1140,26 +1140,6 @@
     "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
   },
   {
-    "part": "m10127",
-    "side": "python",
-    "family": "step_height",
-    "view": "front",
-    "label": "32.4",
-    "count": 1,
-    "verdict": "equivalent",
-    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
-  },
-  {
-    "part": "m10127",
-    "side": "rust",
-    "family": "step_height",
-    "view": "detail_a",
-    "label": "32.4",
-    "count": 1,
-    "verdict": "equivalent",
-    "reason": "The same approved physical measurement is now owned once by the enlarged detail, with its original requirement ID, support and value. Python's captured view ownership differs; the Rust detail recovers only approved rungs omitted by the source spacing gate (or the Y profile's approved local length). The native and captured-recognition cases and their views are checked independently by tests/detail_views.rs, tests/dims_steps.rs, tests/issue_drafting.rs and lint. No tolerance or measurement is transferred to another quantity."
-  },
-  {
     "part": "spool132",
     "side": "python",
     "family": "turned_step",
