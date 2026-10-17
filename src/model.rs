@@ -1500,7 +1500,7 @@ fn protect_retained_routes(
         )
     };
     kept.sheet.basis = format!(
-        "{outcome}; no new crossing pairs are allowed; rejected drawing {} at {}; candidates: {}",
+        "{outcome}; retained readability [{readable}]; no new crossing pairs are allowed; rejected drawing {} at {}; candidates: {}",
         candidate.sheet.size, candidate.sheet.scale, candidate.sheet.basis
     );
     if !qualified {
@@ -2124,9 +2124,10 @@ mod complete_candidate_tests {
     }
 }
 
-/// Allocation's minimum scale is search state, never Spec intent. In particular
-/// it must not switch off the ordinary detail quality ratchet.
-pub(crate) fn recover_at_least(
+/// One R5 paper/scale trial. The caller already exhausts standard scales from
+/// largest downwards and checks the assembled drawing against its fitted route
+/// reference. Search controls never become explicit Spec intent.
+pub(crate) fn recover_at_scale(
     analysis: &Analysis,
     spec: &Spec,
     minimum: f64,
@@ -2136,13 +2137,12 @@ pub(crate) fn recover_at_least(
     // inputs. Cache only that main solve; the allocator still executes and
     // validates every prefix and capacity on each invocation.
     let key = serde_json::to_vec(&(spec, minimum)).expect("main-sheet search inputs serialize");
-    crate::planning::memo(analysis, "recovered-main-at-least", key, || {
-        recover_uncached(
-            analysis,
-            spec,
-            plan_escalated(analysis, spec)?,
-            Some(minimum),
-        )
+    crate::planning::memo(analysis, "recovered-main-at-scale", key, || {
+        let mut named = spec.clone();
+        named.sheet.scale = Some(scale_name(minimum));
+        let mut first = plan_escalated_with(analysis, &named, true, None, false)?;
+        restore_search_spec(&mut first, spec);
+        recover_uncached(analysis, spec, first, Some(minimum))
     })
 }
 
@@ -2462,7 +2462,11 @@ fn recover_candidates(
     // Reconstruct the established choice before qualifying any new paper. A
     // successful A4 candidate must never become its own historical route reference.
     // This pass shares candidate planning memos, but never ranks the new choices.
-    let historical = if reference_only {
+    let allocation_trial = minimum.is_some() && spec.sheet.size.is_some();
+    let historical = if reference_only || allocation_trial {
+        // R5's outer trial checks its complete assembled drawing against the
+        // independently fitted reference. Reconstructing a separate historical
+        // ladder for each partial allocation adds no acceptance guarantee.
         None
     } else if spec.sheet.size.is_none()
         && spec.sheet.scale.is_none()
@@ -2533,6 +2537,7 @@ fn recover_candidates(
         }
         for scale in layout::SCALES.into_iter().filter(|s| {
             *s >= search_floor
+                && (!allocation_trial || Some(*s) == minimum)
                 && (!reference_only || *s >= min_legible_scale)
                 && crate::sheets::floor(spec).is_none_or(|floor| *s >= floor)
                 && minimum.is_none_or(|floor| *s >= floor)
@@ -2545,6 +2550,14 @@ fn recover_candidates(
                 continue;
             }
             if physical_fit_seen && scale < preparation_floor {
+                continue;
+            }
+            if !reference_only && physical_fit_seen && scale < min_legible_scale {
+                // These scales cannot qualify even with a detail: the global
+                // feature/extent/depiction floor is a separate acceptance gate.
+                // The independent fitted reference already preserves physical
+                // salvage, so solving them again cannot change paper selection.
+                tried.push(format!("{name} {} (below minimum readable feature/extent/depiction scale {}; established fitted reference available)", scale_name(scale), scale_name(min_legible_scale)));
                 continue;
             }
             // A view larger than the usable paper cannot be repaired by annotation placement.
@@ -3290,7 +3303,9 @@ fn recover_scheduled_rows(
         if spec.sheet.size.as_ref().is_some_and(|s| *s != name) {
             continue;
         }
-        for scale in layout::SCALES.into_iter().filter(|s| *s >= floor) {
+        for scale in layout::SCALES.into_iter().filter(|s| {
+            *s >= floor && (spec.sheet.size.is_none() || minimum.is_none_or(|scale| *s == scale))
+        }) {
             if first
                 .views
                 .iter()
@@ -3393,6 +3408,11 @@ fn recover_tables(
     if reference_only {
         return recover_tables_inner(analysis, spec, first, minimum, true);
     }
+    if minimum.is_some() && spec.sheet.size.is_some() {
+        // As for an ordinary R5 main trial, the assembled outer drawing owns
+        // the fitted route comparison. Keep this schedule solve at its scale.
+        return recover_tables_inner(analysis, spec, first, minimum, false);
+    }
     let key = serde_json::to_vec(&(spec, &first)).expect("table route reference inputs serialize");
     let reference = crate::planning::memo(analysis, "sheet-table-route-reference", key, || {
         recover_tables_inner(analysis, spec, first.clone(), None, true)
@@ -3417,6 +3437,9 @@ fn recover_tables_inner(
     baseline_spec.hole_table = crate::hole_table::Setting::Never;
     let mut seed = first.spec.clone();
     seed.hole_table = crate::hole_table::Setting::Never;
+    if let Some(scale) = minimum {
+        seed.sheet.scale = Some(scale_name(scale));
+    }
     let mut baseline = if reference_only {
         recover_candidates(
             analysis,

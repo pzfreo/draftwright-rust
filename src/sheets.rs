@@ -347,7 +347,7 @@ fn run(analysis: &Analysis, spec: &Spec, minimum: Option<f64>) -> Result<Plan, I
                     main.sheets = None;
                 }
             }
-            let mut p = model::recover_at_least(analysis, &main, minimum)?;
+            let mut p = model::recover_at_scale(analysis, &main, minimum)?;
             p.spec.sheets = spec.sheets.clone();
             Ok(p)
         } else {
@@ -433,6 +433,11 @@ fn allocate_inner(
     if !first.sheets.is_empty() && moved.is_empty() {
         return Ok(first);
     }
+    let fitted_seed = (spec.sheet.size.is_none()
+        && spec.sheet.scale.is_none()
+        && assigned.is_empty()
+        && model::drawn_quality_reference(analysis, &first))
+    .then(|| first.clone());
     let long = first.table_outcome == hole_table::TableOutcome::NoPlace;
     let possible = candidates(analysis, spec, long);
     let mut tried = Vec::new();
@@ -494,6 +499,15 @@ fn allocate_inner(
         }
     }
     let (_, mut p) = best.expect("step zero was packed");
+    if let Some(seed) = fitted_seed
+        && p.sheet.page[0] > seed.sheet.page[0]
+        && crate::sheet_fit::readability(analysis, &p).failures() > 0
+    {
+        // Permitting auxiliary sheets cannot buy larger paper for an incomplete
+        // readability improvement. Keep the fitted drawing and its refusal;
+        // forced assignments and explicit paper/scale remain authoritative.
+        p = seed;
+    }
     if maximum(spec) > 1 || !moved.is_empty() {
         p.sheet.basis += &format!("; sheet allocation: {}", tried.join("; "));
     }

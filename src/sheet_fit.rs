@@ -598,8 +598,27 @@ pub(crate) fn unavoidable_steps_at_scale(
     scale: f64,
     primary_only: bool,
 ) -> usize {
-    if !crate::detail::requests(analysis, spec, scale).is_empty() {
-        return 0;
+    let requests = crate::detail::requests(analysis, spec, scale);
+    if !requests.is_empty() {
+        // Keep the historical reference and authored crops unchanged. An
+        // automatic crop whose bare model ink exceeds this paper cannot own a
+        // step on any auxiliary page either; packing cannot make it smaller.
+        let paper = spec
+            .sheet
+            .size
+            .as_ref()
+            .and_then(|name| crate::layout::PAGES.iter().find(|p| p.0 == name));
+        if primary_only
+            || requests.iter().any(|(_, d)| d.authored)
+            || paper.is_none_or(|(_, w, h)| {
+                requests.iter().any(|(_, d)| {
+                    let [x, y] = crate::detail::size(d);
+                    x <= w - 2.0 * MARGIN && y <= h - 2.0 * MARGIN
+                })
+            })
+        {
+            return 0;
+        }
     }
     let mut probe = plan.clone();
     for view in probe.views.iter_mut().filter(|v| v.detail.is_none()) {

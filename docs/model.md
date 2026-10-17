@@ -1008,6 +1008,13 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   schedule more cleanly. Failed presentation trials retain the original rows and
   tags and report the refusal. Exact selector inputs key per-call candidate
   preparation so repeated allocation prefixes do not repeat the same planning.
+  R5 exhausts paper and standard scales outside its main-sheet solver: each
+  prefix solves that trial's exact scale, rather than starting another scale
+  ladder or historical-reference search. The complete assembled drawing still
+  passes every information, fit, readability and retained-route gate. Projected
+  route ink is cached under its complete view/crop/extension inputs; a bounded
+  spatial index accelerates the same finite-strip calculation, with exhaustive
+  fallbacks for long segments and wide queries.
 
   An unpinned oblique-dimension side hint may yield to shorter clean witnesses
   in the same sheet, scale and view frames. All measurements, control frames,

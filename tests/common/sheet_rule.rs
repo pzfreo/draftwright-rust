@@ -68,6 +68,28 @@ pub fn tried(basis: &str) -> Vec<Tried> {
 /// precede larger paper; their individual sheets are checked by sheets tests.
 pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, String) {
     let basis = &plan.sheet.basis;
+    if basis.starts_with("screen-first fitted-reference retention on ") {
+        assert!(basis.contains("established clean readable drawing retained"));
+        assert!(basis.contains("retained readability [0 unreadable step spans, 0 openings below 2 mm, 0 text/arrow fit failures, 0 depiction gaps below 0.7 mm, 0 dimension-lane failures]"));
+        assert!(
+            !plan
+                .problems
+                .iter()
+                .any(|p| p.code == "layout_recovery_exhausted" && p.severity == "warning")
+        );
+        if plan.spec.sheet.size.is_none() {
+            for paper in draftwright::layout::PAGES
+                .iter()
+                .take(sheet_index(&plan.sheet.size))
+            {
+                assert!(
+                    basis.contains(&format!("{} multi-sheet:", paper.0)),
+                    "{name}: {basis}"
+                );
+            }
+        }
+        return (plan.sheet.size.clone(), plan.sheet.scale.clone());
+    }
     if basis.starts_with("readability refusal on ") {
         assert!(basis.contains("established fitted geometry retained"));
         assert!(

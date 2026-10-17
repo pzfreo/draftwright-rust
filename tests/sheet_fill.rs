@@ -873,14 +873,23 @@ fn declining_optional_details_does_not_buy_new_annotation_crossings() {
             .any(|q| q.code == "annotation_leader_crossing")
     );
     assert_eq!(
-        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A2", "5:1")
+        draftwright::sheet_fit::readability(&a, &p).failures(),
+        0,
+        "{}",
+        p.sheet.basis
     );
-    assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
     assert!(
         !p.problems
             .iter()
-            .any(|q| q.code == "layout_recovery_exhausted")
+            .any(|q| q.code == "layout_recovery_exhausted"),
+        "{}",
+        p.sheet.basis
+    );
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        ("A3", "1:1"),
+        "{}",
+        p.sheet.basis
     );
 }
 

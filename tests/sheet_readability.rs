@@ -166,8 +166,12 @@ mod corpus;
 
 #[test]
 fn two_readable_a4_sheets_precede_one_a3_when_fill_needs_enlargement() {
-    let Some(dir) = corpus::dir() else { return };
-    let (_, a) = model::analyse_native(&dir.join("mfcadpp/10252.step")).unwrap();
+    // The tapped-post intent has a clean, proven one-sheet A3 counterpart.
+    // 10252 cannot exercise this success path: its enlargement changes retained
+    // leader associations, so its fitted drawing must report refusal instead.
+    let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pmi/step/hw_string_post_tapped_intent.step.gz");
+    let (_, a) = model::analyse_native(&source).unwrap();
     let p = model::plan_recovered(&a, &model::Spec::default()).unwrap();
     assert_eq!(
         (
@@ -175,7 +179,7 @@ fn two_readable_a4_sheets_precede_one_a3_when_fill_needs_enlargement() {
             p.sheet.scale.as_str(),
             1 + p.sheets.len()
         ),
-        ("A4", "2:1", 2),
+        ("A4", "5:1", 2),
         "{}",
         p.sheet.basis
     );
@@ -193,7 +197,7 @@ fn two_readable_a4_sheets_precede_one_a3_when_fill_needs_enlargement() {
     assert!(single.sheet.fill < sheet_fit::FILL_BAND[0]);
     assert!(single.sheet.scale_factor < p.sheet.scale_factor);
     let a3_spec =
-        serde_json::from_value(json!({"sheet":{"size":"A3","scale":"2:1"},"sheets":{"max":1}}))
+        serde_json::from_value(json!({"sheet":{"size":"A3","scale":"5:1"},"sheets":{"max":1}}))
             .unwrap();
     let a3 = model::plan_recovered(&a, &a3_spec).unwrap();
     assert!(a3.sheets.is_empty());
