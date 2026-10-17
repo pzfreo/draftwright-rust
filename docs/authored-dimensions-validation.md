@@ -34,52 +34,57 @@ geometry/structural lint JSON alongside it:
 
 | Example | Before | After | Review |
 | --- | --- | --- | --- |
-| Plate diagonal | `target/authored-dimensions/diagonal-before.png` | `target/authored-dimensions/diagonal-after.png` | True 60.2 ±0.1 diagonal in front view, placed below in lane 1 to separate it from the overall width; one expected nominal-rounding info, no error. A4 at 2:1. |
-| Face angle | `target/authored-dimensions/angle-before.png` | `target/authored-dimensions/angle-after.png` | 90° ±0.5 arc below the front view; width label moved along its ordinary lane to clear the witnesses. No geometry/structural findings. A3 at 2:1. |
+| Plate diagonal | `target/authored-dimensions/diagonal-before.png` | `target/authored-dimensions/diagonal-after.png` | True 60.2 ±0.1 above the front view, parallel to its measured span with short perpendicular witnesses. No crossing with other dimension strokes or arrowheads. One expected nominal-rounding info; A4 at the original 2:1. |
+| Face angle | `target/authored-dimensions/angle-before.png` | `target/authored-dimensions/angle-after.png` | 90° ±0.5 on the two extended supports at the front view's corner, with a 15.6 mm page radius and its arc outside the outline. No geometry/structural findings. A4 at the original 2:1. |
 | Unrecognized cylindrical face | `target/authored-dimensions/cylinder-before.png` | `target/authored-dimensions/cylinder-after.png` | ⌀6.6 ±0.05 with a rim leader, from B-rep without a recognized feature record. No geometry/structural findings. A3 at 2:1. |
 
 The examples do not require A2+, extra details or changed datum/fit policies.
+The angle example uses automatic sheet selection and keeps the original scale. Its earlier
+manual scale pin selected A3 even without an angle, so that unnecessary pin and the manual
+width-label adjustment have been removed. The diagonal retains its unpinned below/lane-1
+preference: the ordinary placement code repairs its obstructed side.
+
+The placement search measures arrow flares as well as line strokes, fits the angle's actual
+text gap and arrows, and can use the equal included sector on both extended supports. It
+settles authored oblique quantities after merged dimensions receive their ink. Unpinned
+linear dimensions can exchange lanes, and spare projection-row space is tried against the
+finished drawing before changing paper or scale. Measured sheet fitting treats a corner arc
+as its own obstacle. The existing drawing-bounds and overlap checks remain the acceptance
+criteria. Structural lint accepts reversal of both physical supports and still rejects a
+single reversed support, including supplementary obtuse sectors.
 
 ## Validation
 
-Results recorded on the supplied Apple Silicon workspace. Limits, baselines and
-existing tests were not relaxed. Machine-readable reports and logs are in
-`target/authored-validation/` (generated artifacts, not committed).
+Follow-up results after rebasing onto `origin/main` (`861a94e7`). Generated reports and logs
+are in `target/authored-validation/placement-*`; render artifacts remain untracked.
+No existing test, threshold, schema limit or size ceiling was relaxed.
 
-- Formatting and `cargo clippy --workspace --all-targets --release -- -D warnings` pass.
-- The corpus-enabled full release run completed 113 binaries: 1,124 passed, two
-  failed. Its original schema-budget failure was subsequently fixed and rechecked
-  without changing the 42,500-byte limit. The other failure was the wall-clock
-  multi-sheet MCP p90 (533.813 ms against 150 ms).
-- The final affected-suite run passed 269 tests, including all 212 library and 12
-  authored integration tests, editor/session operations, MCP schemas and stateless
-  APIs. Two wall-clock gates failed under load: multi-sheet MCP p90 659.435 ms and
-  session NIST p90 649.677 ms, each against 150 ms. These gates remain unchanged.
-- Authored tests cover applied/default behavior, invalid and ambiguous references,
-  precise ownership, saved Spec/Analysis round-trip, pinned precision, class-only
-  fits, independent lint detecting tampered nominal ink, cylinders/spheres/axes,
-  true vertex distances, face/edge angles including 120°, and atomic preview,
-  apply, undo and redo.
-- MCP: 26 compact standalone schemas total **42,452 bytes**, below the unchanged
-  42,500-byte gate (main's supplied schemas: 42,464). Served tools/list: 13 tools,
-  **49,172 bytes**. Three schema-compaction equivalence tests pass; independent
-  JSON Schema validation agrees on all published/served schemas, inputs, outputs
-  and refusals. Input maps retain their existing sparse form; runtime Spec and
-  geometry validators enforce the new fields.
-- The 30-part quality survey exactly matches all 300 baseline cells. Leader-route
-  checking passes for 119 callouts: no new hidden/section/cut crossings or runs;
-  14 unchanged pre-existing runs remain.
-- Planning instruction budget passes on all 65 parts: 2,768,766,950,276 retired
-  instructions against a 3,165,755,533,285 limit (1.006 times the recorded baseline;
-  wall time 334.1 s, informational). No override resolver runs when the Spec has
-  no authored entries.
-- WASM release build (including wasm-opt) passes. The default cache location was
-  outside the sandbox's writable roots; retrying with `WASM_PACK_CACHE` under
-  `/private/tmp` and copies of the existing tool cache completed normally.
-  `node --test tools/wasm-parity.test.mjs` passes all four tests, including existing
-  prismatic/polygonal byte comparisons and geometry-authored apply/undo/redo parity.
-  The optimized module is 13,689,027 bytes raw; gzip -9 is 4,518,350 bytes and
-  Brotli quality 11 is 2,992,142 bytes.
-- `python3 tools/check_wasm_api.py` was attempted and exited 2 because the requested
-  file is absent from this checkout. WASM method signatures are unchanged; the
-  additive JSON API is called out under Unreleased “WASM API”.
+- `cargo fmt --check` and `cargo clippy --workspace --all-targets --release -- -D warnings` pass.
+- The affected release run covers the library and 18 integration suites, including authored
+  dimensions, PMI dimensions, placement, layout, lint fidelity/structure, leader rules,
+  session/editor operations and MCP/stateless APIs. Its final result is recorded in
+  `placement-affected-final-complete.log`: **377 passed**, with one contended session-latency
+  failure (**407.064 ms** p90 against **150 ms**). The same test passed in isolation at
+  **43.097 ms** p90 (`placement-session-latency-isolated.log`), validating all **378** tests.
+- New regressions compare the plate's sheet and scale before/after the authored angle, limit
+  its ink to a local corner, require its arc outside the outline, and independently check the
+  authored aligned span against every dimension stroke and arrowhead edge. Both automatic
+  placement and the obstructed unpinned below/lane-1 hint are exercised. The new structural
+  lint test accepts 60°/120° on both extended supports; existing single-reversal failures stay.
+- MCP schemas remain **42,452 bytes / 42,500**. The budget test passes; no MCP schema or budget
+  file changed in the placement follow-up.
+- All **300** quality cells on **30** corpus parts match the CI baseline exactly.
+- Leader routes pass for **119** callouts: no new hidden/section/cut crossings or long runs;
+  the same **14** pre-existing runs remain.
+- The CI-style `wasm-pack build crates/draftwright-wasm --target web --profile wasm-release
+  --locked` passes, including wasm-opt, using the existing tool cache under `/private/tmp`.
+- `python3 tools/check_wasm_api.py --base-ref origin/main` passes: the generated API matches
+  the reviewed snapshot. No snapshot update is required. The additive JSON contract is
+  already documented under Unreleased / WASM API.
+- All **four** native/WASM parity tests pass, including geometry-authored references,
+  editing and ink replay. WASM size passes the unchanged **15,700,000-byte** ceiling:
+  **13,727,945** raw, **4,534,944** gzip, **3,027,698** Brotli bytes.
+- All six regenerated PNGs were inspected. Angle and diagonal pairs remain **A4 at 2:1**;
+  cylinder remains **A3 at 2:1**. The angle and cylinder renders have no geometry/structural
+  findings. The diagonal has only its expected nominal-rounding info. Final PNG hashes
+  match the inspected images (`placement-png-review.json`).
