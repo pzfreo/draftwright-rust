@@ -2462,6 +2462,13 @@ fn clear_linear_ordered(
             .collect();
         let repair_clearance = std::cell::RefCell::new(std::collections::HashMap::new());
         let best_rank = std::cell::Cell::new(None);
+        let physical_trial = std::cell::RefCell::new(Placed {
+            lines: vec![[[0.; 2]; 2]; 3],
+            arrows: vec![[[0.; 2]; 2]; 2],
+            label_at: [0.; 2],
+            rotation: 0.,
+            label_box: [0.; 4],
+        });
         let candidates = choices
             .into_iter()
             .flat_map(|(target, lane)| {
@@ -2476,7 +2483,8 @@ fn clear_linear_ordered(
                 let Some(c) = place(&frames[view], &items[i], target, lane) else {
                     return Vec::new();
                 };
-                let mut strokes = vec![c.clone()];
+                let c = LinearStroke::new(&c);
+                let mut strokes = vec![c];
                 if recess_context
                     && recess_corridor
                     && items[i]
@@ -2493,7 +2501,7 @@ fn clear_linear_ordered(
                         1.0
                     };
                     for extra in [0.25, 0.5, 1.0] {
-                        let mut spaced = c.clone();
+                        let mut spaced = c;
                         if spaced
                             .lines
                             .iter()
@@ -2532,7 +2540,7 @@ fn clear_linear_ordered(
                             && (c.lines[end][1][normal] - c.lines[end][0][normal]).abs()
                                 > extra + 1.0
                         {
-                            let mut spaced = c.clone();
+                            let mut spaced = c;
                             spaced.lines[end][0][normal] += out * extra;
                             strokes.push(spaced);
                         }
@@ -2554,7 +2562,7 @@ fn clear_linear_ordered(
                         let mut alternative = items[i].clone();
                         alternative.shape = peer.shape.clone();
                         if let Some(p) = place(&frames[view], &alternative, target, lane) {
-                            strokes.push(p);
+                            strokes.push(LinearStroke::new(&p));
                         }
                     }
                 }
@@ -2595,7 +2603,7 @@ fn clear_linear_ordered(
                         order,
                     };
                     if let Some(p) = place(&frames[view], &alternate, target, lane) {
-                        strokes.push(p);
+                        strokes.push(LinearStroke::new(&p));
                     }
                 }
                 if recess_context
@@ -2604,7 +2612,7 @@ fn clear_linear_ordered(
                     let bases = if new_recess && held {
                         strokes.clone()
                     } else {
-                        vec![c.clone()]
+                        vec![c]
                     };
                     // A finite start gap and an oblique witness are compatible
                     // alternatives; neither may exclude the other's clear route.
@@ -2652,7 +2660,7 @@ fn clear_linear_ordered(
                                 if shift.abs() > 0.577 * run {
                                     continue;
                                 }
-                                let mut skew = aligned.clone();
+                                let mut skew = aligned;
                                 for l in skew.lines.iter_mut().take(2) {
                                     let run = dimension - l[0][normal];
                                     if run.abs() > 1e-9 {
@@ -2682,11 +2690,14 @@ fn clear_linear_ordered(
                     .collect::<Vec<_>>()
             })
             .flat_map(|(target, lane, stroke)| {
+                let mut trial = physical_trial.borrow_mut();
+                stroke.write(&mut trial);
+                let stroke = &*trial;
                 // Visit strokes in exactly the original order, but do not prepare
                 // every later stroke's labels before the first one can win.
                 // Label slides cannot repair an invalid physical witness.
-                if !page.witnesses_fit(&stroke, view)
-                    || fixed_witnesses.contact(&stroke, transverse_allowed)
+                if !page.witnesses_fit(stroke, view)
+                    || fixed_witnesses.contact(stroke, transverse_allowed)
                 {
                     return Vec::new();
                 }
@@ -2694,7 +2705,7 @@ fn clear_linear_ordered(
                 // the unchanged rank. With nonnegative remaining counts, an
                 // already losing feature tier needs no model measurement.
                 if recess_context {
-                    let bound = (feature_crossings(&stroke), 0);
+                    let bound = (feature_crossings(stroke), 0);
                     if (bound > before && !(new_recess && label_conflict))
                         || (!label_conflict && bound >= before)
                         || best_rank
@@ -2704,7 +2715,7 @@ fn clear_linear_ordered(
                         return Vec::new();
                     }
                 }
-                let hits = crossings(&stroke);
+                let hits = crossings(stroke);
 
                 if (hits > before && !(new_recess && label_conflict))
                     || (!label_conflict && hits >= before)
@@ -2718,20 +2729,20 @@ fn clear_linear_ordered(
                 if best_rank.get().is_some_and(|best| best <= lower_bound) {
                     return Vec::new();
                 }
-                let constant_contact = all_witnesses.contact(&stroke, transverse_allowed);
+                let constant_contact = all_witnesses.contact(stroke, transverse_allowed);
                 let mut choices = vec![stroke.clone()];
-                let needs_text = !page.fits(&stroke, view)
+                let needs_text = !page.fits(stroke, view)
                     || constant_contact
-                    || all_peer_ink.mutable_contact(&stroke)
-                    || super::label_lanes::off_span(&stroke, others.iter().copied())
+                    || all_peer_ink.mutable_contact(stroke)
+                    || super::label_lanes::off_span(stroke, others.iter().copied())
                     || others.iter().any(|q| {
-                        super::label_lanes::off_span(q, std::iter::once(&stroke))
+                        super::label_lanes::off_span(q, std::iter::once(stroke))
                             && !super::label_lanes::off_span(q, std::iter::once(p))
                     });
                 if recess_context && needs_text {
-                    choices.extend(super::label_lanes::centered_short(&stroke));
+                    choices.extend(super::label_lanes::centered_short(stroke));
                     choices.extend(
-                        super::label_lanes::alternatives_placed(&stroke, page.drawable(), &others)
+                        super::label_lanes::alternatives_placed(stroke, page.drawable(), &others)
                             .take(8),
                     );
                 }
@@ -2930,6 +2941,36 @@ fn clear_linear_ordered(
                 placed[j] = Some(r);
             }
         }
+    }
+}
+
+// A linear trial has exactly two witnesses, one dimension line and two arrows.
+// Keep rejected trials inline; allocate public Placed vectors only for the
+// survivors that need text alternatives or can become the selected result.
+#[derive(Clone, Copy)]
+struct LinearStroke {
+    lines: [[P2; 2]; 3],
+    arrows: [[P2; 2]; 2],
+    label_at: P2,
+    rotation: f64,
+    label_box: [f64; 4],
+}
+impl LinearStroke {
+    fn new(p: &Placed) -> Self {
+        Self {
+            lines: p.lines.as_slice().try_into().expect("three linear strokes"),
+            arrows: p.arrows.as_slice().try_into().expect("two linear arrows"),
+            label_at: p.label_at,
+            rotation: p.rotation,
+            label_box: p.label_box,
+        }
+    }
+    fn write(&self, p: &mut Placed) {
+        p.lines.copy_from_slice(&self.lines);
+        p.arrows.copy_from_slice(&self.arrows);
+        p.label_at = self.label_at;
+        p.rotation = self.rotation;
+        p.label_box = self.label_box;
     }
 }
 
@@ -4427,15 +4468,21 @@ mod tests {
                     b.label_box = [f64::from(shift), 14., f64::from(shift) + 8., 17.];
                     b.arrows.truncate(peer_arrows);
                     let indexed = PeerInk::new(std::iter::once(&b));
+                    let mut scratch = a.clone();
                     for x in -20..=20 {
                         let mut moved = a.clone();
                         moved.label_box[0] += f64::from(x);
                         moved.label_box[2] += f64::from(x);
                         moved.lines[2][0][0] = moved.lines[2][0][0].min(moved.label_box[0]);
                         moved.lines[2][1][0] = moved.lines[2][1][0].max(moved.label_box[2]);
+                        LinearStroke::new(&moved).write(&mut scratch);
+                        assert_eq!(
+                            serde_json::to_vec(&scratch).unwrap(),
+                            serde_json::to_vec(&moved).unwrap()
+                        );
                         assert_eq!(
                             WitnessPeers::new(std::iter::once(&b))
-                                .contact(&moved, |_| allow_transverse),
+                                .contact(&scratch, |_| allow_transverse),
                             linear_witness_contact(&moved, &b, allow_transverse)
                         );
                         assert_eq!(
