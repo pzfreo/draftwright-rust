@@ -2,13 +2,14 @@
 use crate::layout::{MARGIN, Rect};
 use crate::model::{Analysis, Plan};
 
-/// Maintainer's initial target (2026-10-12), as a share of usable paper.
+/// Usable-paper fill target. The lower bound triggers enlargement on the same
+/// paper (including allocation); it never buys a larger sheet (2026-10-17).
 pub const FILL_BAND: [f64; 2] = [0.60, 0.85];
 /// Clearance around each drawn item, page mm.
 pub const FILL_CLEARANCE: f64 = 1.0;
 /// Minimum visible opening across a hole or slot, page mm. Small edge treatments do
 /// not set the whole-sheet scale; their sizes are stated by callouts.
-pub const MIN_OPENING: f64 = 0.8;
+pub const MIN_OPENING: f64 = 2.0;
 /// The smallest scale the automatic choice offers, whatever the part (1:10).
 pub const ABSOLUTE_FLOOR: f64 = 0.1;
 
@@ -33,6 +34,7 @@ pub fn min_legible_scale(analysis: &Analysis) -> f64 {
         .fold(0.0, f64::max);
     let needed = (MIN_OPENING / opening)
         .max(20.0 / longest.max(1e-12))
+        .max(modelled_line_scale(analysis))
         .max(ABSOLUTE_FLOOR);
     crate::layout::SCALES
         .into_iter()
@@ -62,21 +64,318 @@ pub fn illegible_steps(analysis: &Analysis, plan: &Plan) -> usize {
                 .find(|v| v.id == d.view)
                 .map_or(0.0, |v| v.scale);
             d.measurements.iter().filter_map(move |m| {
-                if !matches!(m.parameter.as_str(), "step.length" | "step_position.length") {
-                    return None;
-                }
-                let f = analysis
-                    .features
-                    .iter()
-                    .find(|f| f.id == m.feature && f.kind == "turned_step")?;
-                let length =
-                    f.parameters.get("hi")?.as_f64()? - f.parameters.get("lo")?.as_f64()?;
-                (length.is_finite() && length > 0.0 && length * scale + 1e-6 < MIN_STEP_SPAN)
+                let length = if m.parameter.starts_with("through_step_leg.length")
+                    || m.parameter == "circular_step_depth.length"
+                    || m.parameter.starts_with("step_height.length")
+                {
+                    m.value.abs()
+                } else {
+                    if !matches!(m.parameter.as_str(), "step.length" | "step_position.length") {
+                        return None;
+                    }
+                    let f = analysis
+                        .features
+                        .iter()
+                        .find(|f| f.id == m.feature && f.kind == "turned_step")?;
+                    f.parameters.get("hi")?.as_f64()? - f.parameters.get("lo")?.as_f64()?
+                };
+                let floor = if m.parameter == "step.length" || m.parameter == "step_position.length"
+                {
+                    MIN_STEP_SPAN
+                } else {
+                    MIN_OPENING
+                };
+                (length.is_finite() && length > 0.0 && length * scale + 1e-6 < floor)
                     .then_some(m.feature.as_str())
             })
         })
         .filter(|feature| checked.insert(*feature))
         .count()
+}
+
+/// Thin depiction strokes need visible white between them on an ordinary printer.
+/// This also applies to modelled repetitive ink, without inventing a thread callout.
+pub const MIN_DEPICTION_GAP: f64 = 0.7;
+
+/// Repeated coaxial cylindrical strips are evidence of modelled repetitive ink.
+/// Require four distinct starts to avoid treating ordinary shoulders as threads.
+/// Use the axial repeat and root/crest separation, not tessellation chord lengths.
+fn modelled_line_scale(analysis: &Analysis) -> f64 {
+    let Some(ink) = &analysis.edge_ink else {
+        return 0.0;
+    };
+    let mut groups = std::collections::BTreeMap::<[i64; 4], Vec<[f64; 3]>>::new();
+    for face in &ink.curved {
+        let Some(c) = &face.cylinder else { continue };
+        let Some(axis) = (0..3).find(|&k| c.axis[k].abs() > 1.0 - 1e-6) else {
+            continue;
+        };
+        let mut key = c.origin.map(|x| (x * 1000.0).round() as i64);
+        key[axis] = 0;
+        groups
+            .entry([axis as i64, key[0], key[1], key[2]])
+            .or_default()
+            .push([face.bounds[0][axis], face.bounds[1][axis], c.radius]);
+    }
+    let mut minimum = f64::INFINITY;
+    for (key, faces) in &groups {
+        let mut radii: Vec<_> = faces.iter().map(|f| f[2]).collect();
+        radii.sort_by(f64::total_cmp);
+        radii.dedup_by(|a, b| (*a - *b).abs() < 0.01);
+        for radius in radii {
+            let mut starts: Vec<_> = faces
+                .iter()
+                .filter(|f| (f[2] - radius).abs() < 0.01)
+                .map(|f| f[0])
+                .collect();
+            starts.sort_by(f64::total_cmp);
+            starts.dedup_by(|a, b| (*a - *b).abs() < 0.01);
+            if starts.len() < 4 {
+                continue;
+            }
+            // Consecutive repeats must agree, so an arbitrary stack of shoulders is not ink density.
+            for four in starts.windows(4) {
+                let pitch = (four[3] - four[0]) / 3.0;
+                if pitch <= 0.01
+                    || !four
+                        .windows(2)
+                        .all(|w| ((w[1] - w[0]) - pitch).abs() < 0.02 * pitch)
+                {
+                    continue;
+                }
+                minimum = minimum.min(pitch);
+                // A modelled helical crest need not itself be a cylinder. Its
+                // curved-face bounds still prove the radial white-space limit.
+                let axis = key[0] as usize;
+                let crest = ink
+                    .curved
+                    .iter()
+                    .filter(|f| f.bounds[0][axis] <= four[3] && f.bounds[1][axis] >= four[0])
+                    .map(|face| {
+                        (0..3)
+                            .filter(|&k| k != axis)
+                            .map(|k| {
+                                let centre = key[k + 1] as f64 / 1000.0;
+                                (face.bounds[0][k] - centre)
+                                    .abs()
+                                    .max((face.bounds[1][k] - centre).abs())
+                            })
+                            .fold(0.0, f64::max)
+                    })
+                    .fold(radius, f64::max);
+                if crest > radius + 0.01 {
+                    minimum = minimum.min(crest - radius);
+                }
+                for face in faces
+                    .iter()
+                    .filter(|f| f[0] <= four[3] && f[1] >= four[0] && f[2] > radius + 0.01)
+                {
+                    minimum = minimum.min(face[2] - radius);
+                }
+            }
+        }
+    }
+    MIN_DEPICTION_GAP / minimum
+}
+
+/// Measured failures in the owning views, in paper millimetres. Counts stay
+/// separate so a larger-paper decision can name its actual readability failure.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Readability {
+    pub steps: usize,
+    pub openings: usize,
+    pub text_arrows: usize,
+    pub depiction: usize,
+    pub lanes: usize,
+}
+impl Readability {
+    pub fn failures(self) -> usize {
+        self.steps + self.openings + self.text_arrows + self.depiction + self.lanes
+    }
+}
+impl std::fmt::Display for Readability {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} unreadable step spans, {} openings below 2 mm, {} text/arrow fit failures, {} depiction gaps below 0.7 mm, {} dimension-lane failures",
+            self.steps, self.openings, self.text_arrows, self.depiction, self.lanes
+        )
+    }
+}
+
+/// Test settled ink rather than nominal text length: outside arrows and outside
+/// labels are valid when they clear their own extension lines. Existing hard ink
+/// checks supply clearance from other annotations, borders and foreign views.
+pub fn readability(analysis: &Analysis, plan: &Plan) -> Readability {
+    let mut result = Readability {
+        steps: illegible_steps(analysis, plan),
+        ..Default::default()
+    };
+    let mut openings = std::collections::BTreeSet::new();
+    // A schedule's hole sizes still owe readable geometry in the balloon's
+    // carrier view; moving their numbers into a table does not enlarge the holes.
+    for balloon in &plan.balloons {
+        let scale = plan
+            .views
+            .iter()
+            .find(|v| v.id == balloon.view)
+            .map_or(0.0, |v| v.scale);
+        for id in &balloon.features {
+            if let Some(feature) = analysis
+                .features
+                .iter()
+                .find(|f| f.id == *id && f.kind == "hole")
+                && let Some(size) = feature.parameters.get("diameter").and_then(|v| v.as_f64())
+                && size > 0.0
+                && size * scale + 1e-6 < MIN_OPENING
+            {
+                openings.insert(feature.id.as_str());
+            }
+        }
+    }
+    let mut rows = Vec::new();
+    let mut levels = std::collections::BTreeMap::<&str, Vec<f64>>::new();
+    let mut locations = std::collections::BTreeMap::<(&str, &str), Vec<f64>>::new();
+    let modelled = modelled_line_scale(analysis);
+    let manufacturing = crate::pmi_lowering::manufacturing(analysis);
+    for v in plan.views.iter().filter(|v| v.id != "v:iso") {
+        if v.detail.is_none() && v.scale + 1e-6 < modelled {
+            result.depiction += 1;
+        }
+        for depiction in manufacturing
+            .owned
+            .iter()
+            .filter_map(|o| o.depiction.as_ref())
+        {
+            if v.direction[depiction.axis].abs() > 1e-6 || v.cut.is_some() {
+                continue;
+            }
+            if let crate::pmi_lowering::DepictionKind::Thread { minor } = depiction.kind
+                && v.line_style.thread_depiction != Some(false)
+                && (depiction.diameter - minor) * 0.5 * v.scale + 1e-6 < MIN_DEPICTION_GAP
+            {
+                result.depiction += 1;
+            }
+            // Cosmetic knurls already enforce 3 mm paper spacing (cosmetic::ink).
+        }
+    }
+    for d in &plan.dimensions {
+        let Some(p) = &d.placed else { continue };
+        let Some(v) = plan.views.iter().find(|v| v.id == d.view) else {
+            continue;
+        };
+        // The existing ordinate legibility measure applies in the owning view,
+        // including enlarged details; schedules remove the local ordinate stack.
+        if d.kind == "linear"
+            && let Some(m) = d.measurements.first()
+            && matches!(
+                m.parameter.as_str(),
+                "location.length.x" | "location.length.y"
+            )
+            && !d
+                .measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:hole_pattern:"))
+        {
+            locations
+                .entry((v.id.as_str(), m.parameter.as_str()))
+                .or_default()
+                .push(d.value);
+        }
+        for m in &d.measurements {
+            if m.feature == "step_level" && m.parameter.starts_with("step_height.length") {
+                levels
+                    .entry(v.id.as_str())
+                    .or_default()
+                    .push(m.value.abs() * v.scale);
+            }
+            if m.feature == "envelope" && m.parameter == "height.length" {
+                levels
+                    .entry(v.id.as_str())
+                    .or_default()
+                    .push(m.value.abs() * v.scale);
+            }
+            let Some(feature) = analysis.features.iter().find(|f| f.id == m.feature) else {
+                continue;
+            };
+            let parameter = match feature.kind.as_str() {
+                "hole" => "diameter",
+                "slot" => "width",
+                _ => continue,
+            };
+            if let Some(size) = feature.parameters.get(parameter).and_then(|n| n.as_f64())
+                && size > 0.0
+                && size * v.scale + 1e-6 < MIN_OPENING
+            {
+                openings.insert(feature.id.as_str());
+            }
+        }
+        if p.lines.len() < 3 || p.arrows.len() != 2 || d.kind != "linear" {
+            continue;
+        }
+        let a = p.arrows[0][0];
+        let b = p.arrows[1][0];
+        let axis = usize::from((b[1] - a[1]).abs() > (b[0] - a[0]).abs());
+        let other = 1 - axis;
+        if (b[other] - a[other]).abs() > 1e-4 {
+            continue;
+        }
+        let lo = a[axis].min(b[axis]);
+        let hi = a[axis].max(b[axis]);
+        let text = [p.label_box[axis], p.label_box[axis + 2]];
+        let inward = p
+            .arrows
+            .iter()
+            .all(|[tip, tail]| (tail[axis] - tip[axis]) * ((lo + hi) * 0.5 - tip[axis]) > 0.0);
+        let inset = if inward { crate::dims::ARROW } else { 0.0 };
+        let inside = text[0] >= lo + inset - 0.1 && text[1] <= hi - inset + 0.1;
+        let outside =
+            text[1] <= lo - crate::dims::ARROW + 0.1 || text[0] >= hi + crate::dims::ARROW - 0.1;
+        if !inside && !outside {
+            result.text_arrows += 1;
+        }
+        // Interior dimensions deliberately use internal material space. Exterior
+        // lanes must be achievable within the settled view reservation.
+        if d.region != Some(crate::dims::CandidateRegion::Interior) {
+            let row = a[other];
+            if p.lines[..2]
+                .iter()
+                .any(|line| (row - line[0][other]).abs() + 1.0 + 0.1 < crate::dims::FIRST)
+            {
+                result.lanes += 1;
+            }
+            rows.push((d.view.as_str(), axis, row, lo, hi));
+        }
+    }
+    for values in levels.values_mut().filter(|v| v.len() > 1) {
+        values.push(0.0);
+        values.sort_by(f64::total_cmp);
+        values.dedup_by(|a, b| (*a - *b).abs() < 1e-6);
+        result.steps += values
+            .windows(2)
+            .filter(|w| w[1] - w[0] + 1e-6 < MIN_OPENING)
+            .count();
+    }
+    for ((view, _), values) in locations {
+        let scale = plan
+            .views
+            .iter()
+            .find(|v| v.id == view)
+            .map_or(0.0, |v| v.scale);
+        result.lanes += crate::layout::crowded_locations(&values, scale);
+    }
+    result.openings = openings.len();
+    for (i, a) in rows.iter().enumerate() {
+        for b in &rows[i + 1..] {
+            if a.0 == b.0 && a.1 == b.1 && a.3 < b.4 && b.3 < a.4 {
+                let gap = (a.2 - b.2).abs();
+                if gap + 0.1 < crate::dims::LANE {
+                    result.lanes += 1;
+                }
+            }
+        }
+    }
+    result
 }
 
 fn include(b: &mut Rect, p: [f64; 2]) {
@@ -933,22 +1232,10 @@ pub(crate) fn pack_gdt(analysis: &Analysis, template: &Plan, recipient: &Plan) -
     Some(p)
 }
 
-/// A neighbour may consume more paper only when the dimensioned views enlarge.
-pub(crate) fn allowed(smallest: (usize, f64), sheet: usize, scale: f64) -> bool {
-    sheet == smallest.0 || (sheet == smallest.0 + 1 && scale > smallest.1)
-}
-
+/// Paper is a real cost. Fill triggers a same-paper search, never a
+/// comparison in which a marginal fill gain purchases a larger sheet.
 pub(crate) fn rank(a: (f64, f64, f64), b: (f64, f64, f64)) -> std::cmp::Ordering {
-    let band = |p: (f64, f64, f64)| (FILL_BAND[0]..=FILL_BAND[1]).contains(&p.2);
-    band(b).cmp(&band(a)).then_with(|| {
-        if band(a) && band(b) {
-            b.0.total_cmp(&a.0).then_with(|| a.1.total_cmp(&b.1))
-        } else {
-            b.2.total_cmp(&a.2)
-                .then_with(|| b.0.total_cmp(&a.0))
-                .then_with(|| a.1.total_cmp(&b.1))
-        }
-    })
+    a.1.total_cmp(&b.1).then_with(|| b.0.total_cmp(&a.0))
 }
 
 /// A finished valid, complete pair as the sheet choice sees it.
@@ -964,33 +1251,28 @@ pub(crate) struct Candidate {
     pub extra_crossings: usize,
 }
 
-/// The maintainer's rule (2026-10-12) over valid, complete candidates only. The smallest fit is
-/// the smallest sheet with a valid complete drawing, at its largest such scale; unless the Spec
-/// names the sheet, only that pair and its next larger sheet at a larger scale compete, and
-/// [`rank`] decides between them by fill. Against a valid first estimate (*seed_clean*), a pair
-/// that adds material crossings is set aside (the quality ratchet); it still defines the smallest
-/// fit. Returns the smallest fit, and the chosen index, or `None` when every allowed pair adds
-/// crossings to the valid first estimate, which is then kept. `None` overall: no candidate.
+/// Smallest clean readable paper, then largest standard scale. The caller tries
+/// same-paper allocation before opening the next paper size. Material crossings
+/// retain the existing quality ratchet against a valid seed.
 pub(crate) fn choose(
     candidates: &[Candidate],
-    named_sheet: bool,
+    _named_sheet: bool,
     seed_clean: bool,
 ) -> Option<(Option<usize>, (usize, f64))> {
     let smallest = candidates
         .iter()
         .map(|c| (c.sheet, c.scale))
         .min_by(|a, b| a.0.cmp(&b.0).then(b.1.total_cmp(&a.1)))?;
-    let key = |c: &Candidate| (c.scale, c.width, c.fill);
     let chosen = candidates
         .iter()
         .enumerate()
-        .filter(|(_, c)| {
-            named_sheet
-                || (c.sheet == smallest.0 && c.scale == smallest.1)
-                || (c.sheet == smallest.0 + 1 && allowed(smallest, c.sheet, c.scale))
-        })
         .filter(|(_, c)| !seed_clean || c.extra_crossings == 0)
-        .min_by(|a, b| rank(key(a.1), key(b.1)))
+        .min_by(|a, b| {
+            rank(
+                (a.1.scale, a.1.width, a.1.fill),
+                (b.1.scale, b.1.width, b.1.fill),
+            )
+        })
         .map(|(i, _)| i);
     Some((chosen, smallest))
 }
@@ -1465,68 +1747,33 @@ mod tests {
         }
     }
     #[test]
-    fn band_prefers_scale_then_smaller_paper_otherwise_fullest() {
-        let best = candidate(2.0, 297.0, 0.60);
-        assert!(rank(best, candidate(1.0, 297.0, 0.85)).is_lt());
-        assert!(rank(best, candidate(2.0, 420.0, 0.80)).is_lt());
-        assert!(rank(best, candidate(5.0, 420.0, 0.90)).is_lt());
-        assert!(rank(candidate(1.0, 297.0, 0.59), candidate(2.0, 420.0, 0.40)).is_lt());
+    fn paper_cost_precedes_marginal_fill_and_scale() {
+        let a4 = candidate(1.0, 297.0, 0.52);
+        assert!(rank(a4, candidate(2.0, 420.0, 0.55)).is_lt());
+        assert!(rank(a4, candidate(10.0, 420.0, 0.80)).is_lt());
+        assert!(rank(candidate(2.0, 297.0, 0.40), a4).is_lt());
     }
     #[test]
-    fn neighbour_requires_enlargement_and_two_steps_are_forbidden() {
-        assert!(allowed((0, 1.0), 0, 0.5));
-        assert!(!allowed((0, 1.0), 1, 1.0));
-        assert!(allowed((0, 1.0), 1, 2.0));
-        assert!(!allowed((0, 1.0), 2, 5.0));
-    }
-    /// 10060 as measured: A4 1:1 17.0% and A3 2:1 14.9%, both valid and below the band.
-    #[test]
-    fn below_the_band_the_fullest_valid_pair_wins_on_less_paper() {
-        let set = [c(0, 1.0, 0.170), c(1, 2.0, 0.149)];
-        assert_eq!(choose(&set, false, true), Some((Some(0), (0, 1.0))));
-    }
-    #[test]
-    fn only_the_smallest_fits_largest_scale_and_one_enlarged_step_compete() {
-        // A4 1:1 fits. A4 1:2, A3 1:1 and every A2 pair are not allowed, however full.
+    fn smallest_readable_paper_then_largest_scale_independent_of_fill() {
         let set = [
-            c(0, 1.0, 0.30),
-            c(0, 0.5, 0.31),
-            c(1, 1.0, 0.70),
-            c(1, 2.0, 0.40),
+            c(0, 1.0, 0.52),
+            c(0, 0.5, 0.60),
+            c(1, 2.0, 0.55),
             c(2, 5.0, 0.75),
         ];
-        assert_eq!(choose(&set, false, true), Some((Some(3), (0, 1.0))));
-        // In the band, the larger scale wins, then the smaller sheet.
-        let set = [c(0, 1.0, 0.65), c(1, 2.0, 0.62)];
-        assert_eq!(choose(&set, false, true).unwrap().0, Some(1));
-        let set = [c(0, 2.0, 0.65), c(1, 2.0, 0.70)];
-        assert_eq!(choose(&set, false, true).unwrap().0, Some(0));
-    }
-    /// assembly_plate_pin as measured: a valid A3 1:2 adding two crossings still defines the
-    /// smallest fit, so A1 is never reached; A2 1:1, its allowed enlargement, is chosen.
-    /// spool_fits: every allowed pair adds crossings, so the valid first estimate is kept.
-    #[test]
-    fn a_material_veto_never_moves_the_smallest_fit() {
-        let set = [
-            x(1, 0.5, 0.194, 2),
-            x(2, 1.0, 0.245, 0),
-            x(2, 0.5, 0.096, 1),
-            x(3, 2.0, 0.251, 0),
-        ];
-        assert_eq!(choose(&set, false, true), Some((Some(1), (1, 0.5))));
-        // An invalid first estimate's crossing count vetoes nothing.
-        assert_eq!(choose(&set, false, false), Some((Some(1), (1, 0.5))));
-        let spool = [
-            x(0, 0.2, 0.226, 4),
-            x(1, 0.5, 0.311, 2),
-            x(2, 1.0, 0.475, 0),
-        ];
-        assert_eq!(choose(&spool, false, true), Some((None, (0, 0.2))));
-        assert_eq!(choose(&spool, false, false), Some((Some(1), (0, 0.2))));
+        assert_eq!(choose(&set, false, true), Some((Some(0), (0, 1.0))));
+        assert_eq!(choose(&set[2..], false, true), Some((Some(0), (1, 2.0))));
     }
     #[test]
-    fn a_named_sheet_chooses_its_scale_by_fill() {
-        let set = [c(2, 1.0, 0.30), c(2, 0.5, 0.12)];
+    fn material_crossing_ratchet_is_preserved() {
+        let set = [x(0, 1.0, 0.52, 1), x(1, 2.0, 0.55, 0)];
+        assert_eq!(choose(&set, false, true), Some((Some(1), (0, 1.0))));
+        assert_eq!(choose(&set, false, false), Some((Some(0), (0, 1.0))));
+        assert_eq!(choose(&set[..1], false, true), Some((None, (0, 1.0))));
+    }
+    #[test]
+    fn named_paper_chooses_its_largest_readable_scale() {
+        let set = [c(2, 1.0, 0.30), c(2, 0.5, 0.60)];
         assert_eq!(choose(&set, true, true).unwrap().0, Some(0));
         assert_eq!(choose(&[], true, true), None);
     }

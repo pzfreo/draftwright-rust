@@ -317,10 +317,14 @@ thread_local! {
     static RUNS: Cell<usize> = const { Cell::new(0) };
 }
 
-fn run(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+fn run(analysis: &Analysis, spec: &Spec, minimum: Option<f64>) -> Result<Plan, Invalid> {
     RUNS.with(|runs| runs.set(runs.get() + 1));
     crate::planning::with(analysis, || {
-        model::recover(analysis, spec, model::plan_escalated(analysis, spec)?)
+        if let Some(minimum) = minimum {
+            model::recover_at_least(analysis, spec, minimum)
+        } else {
+            model::recover(analysis, spec, model::plan_escalated(analysis, spec)?)
+        }
     })
 }
 
@@ -337,7 +341,7 @@ pub(crate) fn allocate_counted(
 ) -> Result<Plan, Invalid> {
     let before = RUNS.with(Cell::get);
     let result = (|| {
-        let mut plan = allocate_inner(analysis, spec, None)?;
+        let mut plan = allocate_inner(analysis, spec, None, None)?;
         // Finish forced allocations and table presentation before checking paths that
         // bypassed ordinary recovery (fixed scale, pins, or a rebuilt hole schedule).
         if spec.sheet.size.is_none()
@@ -368,12 +372,13 @@ fn allocate_inner(
     analysis: &Analysis,
     spec: &Spec,
     required: Option<&Plan>,
+    minimum: Option<f64>,
 ) -> Result<Plan, Invalid> {
     if spec.sheets.is_none()
         && spec.views.values().all(|v| v.sheet.is_none())
         && spec.tables.iter().all(|t| t.sheet.is_none())
     {
-        return run(analysis, spec);
+        return run(analysis, spec, minimum);
     }
     let migrated = model::migrate(spec, analysis)?;
     let spec = &migrated;
@@ -392,7 +397,7 @@ fn allocate_inner(
             }
         }
     }
-    let mut first = run(analysis, &working(analysis, spec, &moved))?;
+    let mut first = run(analysis, &working(analysis, spec, &moved), minimum)?;
     if !first.sheets.is_empty() && moved.is_empty() {
         return Ok(first);
     }
@@ -422,7 +427,7 @@ fn allocate_inner(
             if moved.contains_key("hole_table") {
                 copy.sheets.as_mut().unwrap().hole_table = Some(2);
             }
-            first = run(analysis, &copy)?;
+            first = run(analysis, &copy, minimum)?;
         }
         let mut p = first.clone();
         if !pack_with_overflow(analysis, spec, &moved, &mut p, step == 0) {
@@ -436,6 +441,9 @@ fn allocate_inner(
         // clean prefix can stop the search. Later prefixes may restore a seed measurement
         // or relieve a page whose packed estimate passed but whose actual ink did not.
         if required.is_some_and(|seed| !small_content_fits(analysis, seed, &p)) {
+            f.hard += 1;
+        }
+        if minimum.is_some_and(|scale| p.sheet.scale_factor < scale) {
             f.hard += 1;
         }
         let hard = f.hard;
@@ -524,11 +532,92 @@ pub(crate) fn small_fallback(
         return None;
     }
     for (name, _, _) in layout::PAGES.iter().take(2) {
+        if let Some(p) = paper_fallback(analysis, spec, required, name, 0.0, tried) {
+            return Some(p);
+        }
+    }
+    None
+}
+
+/// R5's established cumulative allocation, on one paper size and at readable
+/// standard scales. When fill is low, only an enlargement of the single-sheet
+/// candidate is useful. Named paper prevents recursive allocation searches.
+pub(crate) fn paper_fallback(
+    analysis: &Analysis,
+    spec: &Spec,
+    required: &Plan,
+    name: &str,
+    above_scale: f64,
+    tried: &mut Vec<String>,
+) -> Option<Plan> {
+    if spec.sheet.size.is_some() || spec.sheets.as_ref().and_then(|s| s.max) == Some(1) {
+        return None;
+    }
+    let (_, w, h) = layout::PAGES.iter().find(|p| p.0 == name)?;
+    let minimum = floor(spec)
+        .unwrap_or(0.0)
+        .max(crate::sheet_fit::min_legible_scale(analysis));
+    let scales: Vec<_> = layout::SCALES
+        .into_iter()
+        .filter(|scale| {
+            *scale > above_scale
+                && (spec
+                    .sheet
+                    .scale
+                    .as_ref()
+                    .map_or(*scale >= minimum, |s| model::scale_name(*scale) == *s))
+        })
+        .collect();
+    for scale in scales {
+        if required
+            .views
+            .iter()
+            .filter(|v| v.id != "v:iso" && v.detail.is_none() && v.sheet == 1)
+            .any(|v| {
+                let frame = haecceity::hlr::View::new(v.direction, v.up).expect("planned view");
+                let (size, _) = model::extent(analysis, &frame);
+                size[0] * scale > w - 2.0 * layout::MARGIN
+                    || size[1] * scale > h - 2.0 * layout::MARGIN
+            })
+        {
+            continue;
+        }
+        if !spec.views.values().any(|v| v.place.is_some()) {
+            let size = |id: &str| {
+                required
+                    .views
+                    .iter()
+                    .find(|v| v.id == id && v.sheet == 1)
+                    .map(|v| {
+                        let frame =
+                            haecceity::hlr::View::new(v.direction, v.up).expect("planned view");
+                        model::extent(analysis, &frame).0.map(|x| x * scale)
+                    })
+                    .unwrap_or([0.0; 2])
+            };
+            let front = size("v:front");
+            let plan = size("v:plan");
+            let side = size("v:side");
+            // Necessary geometry-only bounds for the aligned principal projections.
+            // Moving auxiliary content cannot shorten either principal row/column.
+            // Do not charge speculative annotation bands in this cheap refusal.
+            if front[0] + side[0] > w - 2.0 * layout::MARGIN
+                || front[1] + plan[1] > h - 2.0 * layout::MARGIN
+            {
+                tried.push(format!("{name} multi-sheet: {} principal projection row/column exceeds usable paper at the readable scale", model::scale_name(scale)));
+                continue;
+            }
+        }
         let mut working = spec.clone();
-        working.sheet.size = Some((*name).into());
+        working.sheet.size = Some(name.into());
         working.sheets.get_or_insert_with(Default::default).max =
             Some(spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9));
-        let mut p = match allocate_inner(analysis, &working, Some(required)) {
+        let mut p = match allocate_inner(
+            analysis,
+            &working,
+            Some(required),
+            spec.sheet.scale.is_none().then_some(scale),
+        ) {
             Ok(plan) => plan,
             Err(error) => {
                 tried.push(format!("{name} multi-sheet: invalid ({})", error.message));
@@ -538,10 +627,23 @@ pub(crate) fn small_fallback(
         crate::iso_caption::refresh(analysis, &mut p);
         let (mut f, dropped) = score(analysis, &working, &p);
         f.hard = f.hard.max(model::findings(&p).hard);
+        let readable = crate::sheet_fit::readability(analysis, &p);
+        let legible = if spec.sheet.scale.is_some() {
+            readable.failures() <= crate::sheet_fit::readability(analysis, required).failures()
+        } else {
+            readable.failures() == 0
+        };
         let complete = model::carries_required(required, &p);
         let fits = model::drawn_sheets_fit(analysis, &p);
         let over = model::over_views(&p) > model::over_views(required);
-        let clean = f.hard == 0 && dropped == 0 && small_content_fits(analysis, required, &p);
+        let clean = f.hard == 0
+            && dropped == 0
+            && legible
+            && p.sheet.scale_factor >= scale
+            && (!model::findings(required).clean()
+                || (model::feature_crossings(&p) <= model::feature_crossings(required)
+                    && model::ink_findings(&p) <= model::ink_findings(required)))
+            && small_content_fits(analysis, required, &p);
         let blockers: BTreeSet<_> = p
             .problems
             .iter()
@@ -549,7 +651,7 @@ pub(crate) fn small_fallback(
             .map(|q| q.code.as_str())
             .collect();
         tried.push(format!(
-            "{name} multi-sheet: {} sheets at {}, {} hard findings, {dropped} required drops, required measurements retained {complete}, drawn bounds fit {fits}, additional view conflicts {over}, blocking problems [{}]",
+            "{name} multi-sheet: {} sheets at {}, {} hard findings, {dropped} required drops, required measurements retained {complete}, drawn bounds fit {fits}, additional view conflicts {over}, readability [{readable}], blocking problems [{}]",
             1 + p.sheets.len(), p.sheet.scale, f.hard, blockers.into_iter().collect::<Vec<_>>().join(", ")
         ));
         if clean {
@@ -562,12 +664,13 @@ pub(crate) fn small_fallback(
                 sheet.default = true;
             }
             p.sheet.basis = format!(
-                "small part: practical-paper R5 allocation before A2 and larger; {}",
+                "screen-first paper policy: {name} R5 allocation before larger paper; fill floor 60%; candidates: {}",
                 tried.join("; ")
             );
             return Some(p);
         }
     }
+    tried.push(format!("{name} multi-sheet: no clean readable allocation at an admissible scale (minimum {}); principal ink must fit with 10/7 mm dimension lanes", model::scale_name(minimum)));
     None
 }
 
@@ -606,7 +709,7 @@ fn score(analysis: &Analysis, spec: &Spec, plan: &Plan) -> (layout::Findings, us
         .retain(|p| p.subjects.is_empty() || p.subjects.iter().any(|id| !off.contains(id)));
     let mut f = model::findings(&first);
     if spec.sheet.scale.is_none() {
-        f.hard += crate::sheet_fit::illegible_steps(analysis, plan);
+        f.hard += crate::sheet_fit::readability(analysis, plan).failures();
     }
     let requested = floor(spec);
     let legible = crate::sheet_fit::min_legible_scale(analysis);
@@ -1613,7 +1716,7 @@ mod tests {
         // The A3 candidate already meets every gate except inherited step legibility.
         let mut small_spec = spec.clone();
         small_spec.sheet.size = Some("A3".into());
-        let small = allocate_inner(&a, &small_spec, Some(&seed)).unwrap();
+        let small = allocate_inner(&a, &small_spec, Some(&seed), None).unwrap();
         assert!(model::findings(&small).clean());
         assert!(model::carries_required(&seed, &small));
         assert!(model::drawn_sheets_fit(&a, &small));

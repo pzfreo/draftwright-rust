@@ -262,7 +262,7 @@ fn split_and_regroup_use_the_ordinary_grid_planner_and_saved_ids() {
 }
 
 #[test]
-fn split_grid_a4_is_a_complete_fit_and_a3_is_selected_only_by_fill() {
+fn split_grid_prefers_clean_readable_a4_over_marginal_a3_fill() {
     let (part, a) = plate();
     let pattern = &a.recognition.as_ref().unwrap().patterns[0];
     let split = spec(json!({"features":{&pattern.id:{"split":true}}}));
@@ -274,7 +274,7 @@ fn split_grid_a4_is_a_complete_fit_and_a3_is_selected_only_by_fill() {
     ), "{}", automatic.sheet.basis);
     assert_eq!(
         (&*automatic.sheet.size, &*automatic.sheet.scale),
-        ("A3", "2:1")
+        ("A4", "1:1")
     );
 
     let mut pinned = split;

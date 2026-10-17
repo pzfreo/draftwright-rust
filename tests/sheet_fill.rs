@@ -1,4 +1,4 @@
-//! Maintainer sheet policy, 2026-10-12: measured content, bounded paper, valid ink.
+//! Maintainer sheet policy, 2026-10-17: paper cost, readability and measured content.
 use draftwright::model::{self, Analysis, Spec};
 use serde_json::json;
 use std::path::Path;
@@ -15,19 +15,11 @@ fn named(size: &str, scale: &str) -> Spec {
 }
 
 #[test]
-fn smallest_fit_can_only_grow_one_sheet_with_enlargement() {
+fn clean_readable_a4_precedes_larger_paper() {
     let a = part();
-    let fit = model::plan_escalated(&a, &named("A4", "1:1")).unwrap();
     let first = model::plan_escalated(&a, &named("A2", "1:1")).unwrap();
     let p = model::recover(&a, &Spec::default(), first).unwrap();
-    assert!(
-        matches!(p.sheet.size.as_str(), "A4" | "A3"),
-        "{}",
-        p.sheet.basis
-    );
-    if p.sheet.size == "A3" {
-        assert!(p.sheet.scale_factor > fit.sheet.scale_factor);
-    }
+    assert_eq!(p.sheet.size, "A4", "{}", p.sheet.basis);
     assert!(p.sheet.basis.contains("smallest fit"), "{}", p.sheet.basis);
 }
 
@@ -38,11 +30,11 @@ fn complete_underfilled_sheet_is_enlarged_and_fill_candidates_are_explained() {
     let p = model::recover(&a, &Spec::default(), first).unwrap();
     assert!(p.sheet.scale_factor > 0.1);
     assert!(p.sheet.basis.contains("fill"), "{}", p.sheet.basis);
-    assert!(p.sheet.basis.contains("60–85%"), "{}", p.sheet.basis);
+    assert!(p.sheet.basis.contains("floor 60%"), "{}", p.sheet.basis);
 }
 
 #[test]
-fn named_sheet_overrides_smallest_fit_but_still_chooses_scale_by_fill() {
+fn named_sheet_overrides_paper_order_and_chooses_largest_readable_scale() {
     let a = part();
     let mut s = Spec::default();
     s.sheet.size = Some("A2".into());
@@ -87,7 +79,7 @@ mod corpus;
 mod sheet_rule;
 
 #[test]
-fn grm03_prefers_larger_principals_without_losing_measurements() {
+fn grm03_prefers_readable_a4_without_losing_measurements() {
     let Some(dir) = corpus::dir() else {
         return;
     };
@@ -97,10 +89,22 @@ fn grm03_prefers_larger_principals_without_losing_measurements() {
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A3", "10:1")
+        ("A4", "5:1")
     );
-    // Remeasured A3 10:1 crop-free drawing: 60.95% of usable paper.
-    let fill = draftwright::sheet_fit::fill(&a, &p);
+    assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
+    assert!(
+        p.sheet.basis.contains("fill floor not attainable"),
+        "{}",
+        p.sheet.basis
+    );
+    // Preserve the original 60–85% quality guard on the same A3 10:1
+    // drawing. Its fill cannot justify buying that paper automatically.
+    let roomy: model::Plan = serde_json::from_reader(flate2::read::GzDecoder::new(
+        include_bytes!("fixtures/sheet-policy/grm03-a3-before.plan.json.gz").as_slice(),
+    ))
+    .unwrap();
+    assert_eq!(roomy.binding.source_sha256, a.binding.source_sha256);
+    let fill = draftwright::sheet_fit::fill(&a, &roomy);
     assert!((0.60..=0.85).contains(&fill), "GRM-03 fill {fill:.4}");
     assert!(p.views.iter().all(|v| v.detail.is_none()));
     assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
@@ -145,7 +149,7 @@ fn specify_plate_pmi_fits_a3_at_full_size_with_every_frame_clear() {
     let a = manufacturing_plate();
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
     assert!(
-        p.sheet.basis.starts_with("smallest fit A3 at 1:1;"),
+        p.sheet.basis.contains("A4 multi-sheet:"),
         "{}",
         p.sheet.basis
     );
@@ -222,8 +226,16 @@ fn ctc03_valid_complete_sheet_beats_invalid_seed_despite_material_crossings() {
     );
     assert!(!p.problems.iter().any(|p| matches!(
         p.code.as_str(),
-        "annotation_ink_overlap" | "layout_recovery_exhausted" | "annotation_off_sheet"
+        "annotation_ink_overlap" | "annotation_off_sheet"
     )));
+    if draftwright::sheet_fit::readability(&a, &p).failures() > 0 {
+        assert!(
+            p.problems
+                .iter()
+                .any(|problem| problem.code == "layout_recovery_exhausted"
+                    && problem.severity == "warning")
+        );
+    }
     assert!(
         p.dimensions
             .iter()
@@ -305,32 +317,39 @@ fn gz_part(name: &str) -> Analysis {
     model::analyse_native(&path).unwrap().1
 }
 
-/// Maintainer rule, 2026-10-15: A2 and larger are for parts that need them at 1:1. A part about
-/// 100 mm across, whose views fit A3 at 1:1, never takes a large sheet by default, even when its
-/// first estimate is A2 and A2 would score fewer findings (assembly_plate_pin: its ladder
-/// estimate is A2 at 1:1). A named large sheet is still the user's to choose.
+/// The former full-size-only cap accepted 1:5 holes below the new 2 mm
+/// readability floor. A small assembly may need A2 for its readable annotations;
+/// the related fixture still fits A3. Both must exhaust A4 and A3 allocation first.
 #[test]
-fn a_part_about_100_mm_never_gets_a2_or_larger_by_default() {
-    for name in [
-        "assembly_plate_pin.step",
-        "hw_assembly_plate_pin_intent.step",
+fn small_parts_exhaust_readability_and_allocation_before_large_paper() {
+    for (name, size) in [
+        ("assembly_plate_pin.step", "A2"),
+        ("hw_assembly_plate_pin_intent.step", "A3"),
     ] {
         let a = gz_part(name);
         let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        assert_eq!(p.sheet.size, size, "{name}: {}", p.sheet.basis);
+        assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
         assert!(
-            matches!(p.sheet.size.as_str(), "A4" | "A3"),
-            "{name}: {} at {}: {}",
-            p.sheet.size,
-            p.sheet.scale,
+            p.sheet.basis.contains("A4 multi-sheet:"),
+            "{name}: {}",
             p.sheet.basis
         );
+        if size == "A2" {
+            assert!(
+                p.sheet.basis.contains("A3 multi-sheet:"),
+                "{}",
+                p.sheet.basis
+            );
+        }
+        assert!(p.gdt.iter().all(|g| g.placed.is_some()));
+        assert!(!p.problems.iter().any(|p| matches!(
+            p.code.as_str(),
+            "annotation_ink_overlap" | "annotation_off_sheet" | "page_fit_uncertain"
+        )));
         let first = model::plan_escalated(&a, &named("A2", "1:1")).unwrap();
         let p = model::recover(&a, &Spec::default(), first).unwrap();
-        assert!(
-            matches!(p.sheet.size.as_str(), "A4" | "A3"),
-            "{name} from an A2 estimate: {}",
-            p.sheet.basis
-        );
+        assert_eq!(p.sheet.size, size, "{name}: {}", p.sheet.basis);
     }
     let a = part();
     let first = model::plan_escalated(&a, &named("A2", "1:1")).unwrap();
@@ -591,7 +610,7 @@ fn fixed_scale_can_use_a_valid_smaller_sheet_without_changing_scale() {
 /// This formerly selected A4 1:10: the 420 mm profile was 42 mm tall and its 20 mm
 /// shoulder bands were shorter than the 2.1 mm printed capitals, despite no hard collision.
 #[test]
-fn connector109_uses_a3_at_one_to_five_for_readable_steps() {
+fn connector109_needs_a2_at_one_to_two_for_readable_thread_depiction() {
     let Some(dir) = corpus::dir() else { return };
     let a = model::analyse_native(&dir.join("cadgenbench/threaded_connector_109.step"))
         .unwrap()
@@ -606,11 +625,15 @@ fn connector109_uses_a3_at_one_to_five_for_readable_steps() {
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A3", "1:5"),
+        ("A2", "1:2"),
         "{}",
         p.sheet.basis
     );
-    assert_eq!(draftwright::sheet_fit::illegible_steps(&a, &p), 0);
+    assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
+    let compressed = model::plan_recovered(&a, &named("A3", "1:5")).unwrap();
+    assert!(draftwright::sheet_fit::readability(&a, &compressed).depiction > 0);
+    assert!(p.sheet.basis.contains("A4 multi-sheet:"));
+    assert!(p.sheet.basis.contains("A3 multi-sheet:"));
     assert!(p.views.iter().all(|v| v.detail.is_none()));
     assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
     sheet_rule::assert_rule("connector109", &p);

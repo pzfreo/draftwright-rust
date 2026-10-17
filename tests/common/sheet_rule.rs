@@ -1,12 +1,5 @@
-//! An independent oracle for the maintainer's sheet rule (2026-10-12), read from the candidates
-//! a plan's sheet basis records. It does not call the planner's selection code.
-//!
-//! 1. The smallest fit is the smallest sheet with a valid complete candidate (no hard finding or
-//!    loss, no more annotations over another view than the first estimate), at its largest such
-//!    scale. 2. Only that pair and the next larger sheet at a larger scale are allowed. 3. Against
-//!    a valid first estimate, an allowed pair adding material crossings is set aside; if every one
-//!    does, the first estimate is kept. 4. In the fill band the larger scale wins, then the
-//!    smaller sheet; otherwise the fullest valid pair wins.
+//! Independent check of the screen-first paper rule (2026-10-17).
+//! Read the actual candidate history; never call the selection comparator.
 
 #![allow(dead_code)]
 
@@ -45,7 +38,7 @@ pub fn tried(basis: &str) -> Vec<Tried> {
         let head: Vec<&str> = rest[..i].rsplitn(3, ' ').collect();
         let (scale, size) = (head[0], head[1]);
         let tail = &rest[i + 6..];
-        let pct = tail.find('%').unwrap();
+        let Some(pct) = tail.find('%') else { break };
         let fill = tail[..pct].parse::<f64>().unwrap() / 100.0;
         let open = tail.find('(').unwrap();
         let close = open + tail[open..].find(')').unwrap();
@@ -70,14 +63,28 @@ pub fn tried(basis: &str) -> Vec<Tried> {
     out
 }
 
-fn in_band(f: f64) -> bool {
-    (draftwright::sheet_fit::FILL_BAND[0]..=draftwright::sheet_fit::FILL_BAND[1]).contains(&f)
-}
-
-/// Asserts *plan*'s automatic sheet follows the rule over its recorded candidates; *seed* is the
-/// first estimate's (sheet, scale). Returns the smallest fit.
+/// Smallest clean readable paper then largest standard scale, with the
+/// existing material-crossing ratchet. Multi-sheet choices must record R5 and
+/// precede larger paper; their individual sheets are checked by sheets tests.
 pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, String) {
     let basis = &plan.sheet.basis;
+    if basis.starts_with("screen-first paper policy:") {
+        assert!(
+            basis.contains("R5 allocation before larger paper"),
+            "{name}: {basis}"
+        );
+        assert!(basis.contains("readability [0 unreadable step spans, 0 openings below 2 mm, 0 text/arrow fit failures, 0 depiction gaps below 0.7 mm, 0 dimension-lane failures]"), "{name}: {basis}");
+        for paper in draftwright::layout::PAGES
+            .iter()
+            .take(sheet_index(&plan.sheet.size))
+        {
+            assert!(
+                basis.contains(&format!("{} multi-sheet:", paper.0)),
+                "{name}: {basis}"
+            );
+        }
+        return (plan.sheet.size.clone(), plan.sheet.scale.clone());
+    }
     let all = tried(basis);
     let estimate = format!("first estimate {} at {} (", seed.0, seed.1);
     let said = basis
@@ -85,8 +92,7 @@ pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, S
         .unwrap_or_else(|| panic!("{name}: no {estimate}: {basis}"))
         .1;
     let seed_clean = said.starts_with("valid and complete)");
-    let valid: Vec<&Tried> = all.iter().filter(|t| t.valid && t.over == 0).collect();
-    assert!(!valid.is_empty(), "{name}: no valid candidate: {basis}");
+    let valid: Vec<_> = all.iter().filter(|t| t.valid && t.over == 0).collect();
     let smallest = valid
         .iter()
         .min_by(|a, b| {
@@ -94,7 +100,7 @@ pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, S
                 .cmp(&sheet_index(&b.size))
                 .then(factor(&b.scale).total_cmp(&factor(&a.scale)))
         })
-        .unwrap();
+        .expect("valid candidate");
     assert!(
         basis.starts_with(&format!(
             "smallest fit {} at {};",
@@ -102,64 +108,38 @@ pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, S
         )),
         "{name}: {basis}"
     );
-    let pool: Vec<&Tried> = valid
+    let best = valid
         .iter()
-        .copied()
-        .filter(|t| {
-            (t.size == smallest.size && t.scale == smallest.scale)
-                || (sheet_index(&t.size) == sheet_index(&smallest.size) + 1
-                    && factor(&t.scale) > factor(&smallest.scale))
-        })
         .filter(|t| !seed_clean || t.crossings == 0)
-        .collect();
-    if pool.is_empty() {
-        assert!(seed_clean, "{name}: no allowed pair: {basis}");
+        .min_by(|a, b| {
+            sheet_index(&a.size)
+                .cmp(&sheet_index(&b.size))
+                .then(factor(&b.scale).total_cmp(&factor(&a.scale)))
+        });
+    if let Some(best) = best {
+        assert_eq!(
+            (plan.sheet.size.as_str(), plan.sheet.scale.as_str()),
+            (best.size.as_str(), best.scale.as_str()),
+            "{name}: {basis}"
+        );
+    } else {
         assert_eq!(
             (plan.sheet.size.as_str(), plan.sheet.scale.as_str()),
             seed,
-            "{name}: the valid first estimate is kept: {basis}"
+            "{name}: crossing ratchet: {basis}"
         );
-        assert!(basis.contains("which is kept"), "{name}: {basis}");
-        return (smallest.size.clone(), smallest.scale.clone());
     }
-    let chosen = pool
-        .iter()
-        .find(|t| t.size == plan.sheet.size && t.scale == plan.sheet.scale)
-        .unwrap_or_else(|| {
-            panic!(
-                "{name}: {} {} is not an allowed pair: {basis}",
-                plan.sheet.size, plan.sheet.scale
-            )
-        });
-    // Fill is recorded to 0.1%: compare with that resolution.
-    let band: Vec<&&Tried> = pool.iter().filter(|t| in_band(t.fill)).collect();
-    if band.is_empty() {
-        let fullest = pool.iter().map(|t| t.fill).fold(0.0, f64::max);
-        assert!(
-            chosen.fill >= fullest - 1e-9,
-            "{name}: below the band {} {} ({:.1}%) is not the fullest ({:.1}%): {basis}",
-            chosen.size,
-            chosen.scale,
-            chosen.fill * 100.0,
-            fullest * 100.0
-        );
-    } else {
-        assert!(in_band(chosen.fill), "{name}: a band pair exists: {basis}");
-        let best = band
+    if plan.spec.sheet.size.is_none() {
+        for paper in draftwright::layout::PAGES
             .iter()
-            .map(|t| (factor(&t.scale), -(sheet_index(&t.size) as f64)))
-            .fold((0.0, f64::NEG_INFINITY), |a, b| {
-                if b.0 > a.0 || (b.0 == a.0 && b.1 > a.1) {
-                    b
-                } else {
-                    a
-                }
-            });
-        assert_eq!(
-            (factor(&chosen.scale), -(sheet_index(&chosen.size) as f64)),
-            best,
-            "{name}: {basis}"
-        );
+            .take(sheet_index(&plan.sheet.size))
+        {
+            assert!(
+                basis.contains(&format!("{} multi-sheet:", paper.0))
+                    || plan.spec.sheets.as_ref().and_then(|s| s.max) == Some(1),
+                "{name}: smaller paper must exhaust allocation: {basis}"
+            );
+        }
     }
     (smallest.size.clone(), smallest.scale.clone())
 }

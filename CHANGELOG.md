@@ -6,6 +6,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Changed
+
+- Automatic sheet search now exhausts clean readable A4 drawings and the existing
+  A4 multi-sheet allocation before larger paper. Fill triggers same-paper
+  enlargement instead of ranking paper sizes. Readability measures dimensioned
+  openings (2 mm), turned intervals (2.1 mm), text/arrows, 10/7 mm dimension lanes,
+  and repetitive/thread ink (0.7 mm). Explicit Spec paper and scale remain authoritative.
+
 ### Added
 
 - Authored detail `from` selects an existing principal or section parent; `around` accepts
