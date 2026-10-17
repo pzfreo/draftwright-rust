@@ -41,6 +41,40 @@ pub fn min_legible_scale(analysis: &Analysis) -> f64 {
         .unwrap_or(needed)
 }
 
+/// Primary axial step spans need at least one text em on paper. A collision-free
+/// label alone does not make a compressed profile readable. Small treatments
+/// stated by notes (grooves, chamfers and radii) do not set this floor. Baseline
+/// stations still owe the physical interval they replace; enlarged detail owners
+/// use their own scale, never the parent sheet's.
+pub fn illegible_steps(analysis: &Analysis, plan: &Plan) -> usize {
+    let mut checked = std::collections::BTreeSet::new();
+    plan.dimensions
+        .iter()
+        .filter(|d| d.placed.is_some())
+        .flat_map(|d| {
+            let scale = plan
+                .views
+                .iter()
+                .find(|v| v.id == d.view)
+                .map_or(0.0, |v| v.scale);
+            d.measurements.iter().filter_map(move |m| {
+                if !matches!(m.parameter.as_str(), "step.length" | "step_position.length") {
+                    return None;
+                }
+                let f = analysis
+                    .features
+                    .iter()
+                    .find(|f| f.id == m.feature && f.kind == "turned_step")?;
+                let length =
+                    f.parameters.get("hi")?.as_f64()? - f.parameters.get("lo")?.as_f64()?;
+                (length.is_finite() && length > 0.0 && length * scale + 1e-6 < crate::dims::TEXT)
+                    .then_some(m.feature.as_str())
+            })
+        })
+        .filter(|feature| checked.insert(*feature))
+        .count()
+}
+
 fn include(b: &mut Rect, p: [f64; 2]) {
     b[0] = b[0].min(p[0]);
     b[1] = b[1].min(p[1]);
@@ -981,8 +1015,7 @@ pub(crate) fn reserve_linear_corridors(
         // Settled control frames and edited labels use their real ink, as pack_gdt does.
         // Estimated empty lanes are not additional physical drafting demands.
         for v in plan.views.iter_mut().filter(|v| v.id != "v:iso") {
-            let frame = haecceity::hlr::View::new(v.direction, v.up).expect("planned view");
-            let size = crate::model::extent(analysis, &frame).0;
+            let size = crate::detail::crop_extent(analysis, v).0;
             v.area = [
                 v.at[0] - v.scale * size[0] / 2.0,
                 v.at[1] - v.scale * size[1] / 2.0,
@@ -1132,6 +1165,15 @@ pub(crate) fn reserve_linear_corridors(
                 .filter(|(_, v)| v.cut.is_some())
             {
                 shifts[i][0] = shifts[side][0];
+                // A measured side corridor may reach its section partner. Carry
+                // the section beyond the final side edge, preserving the old gap;
+                // an actual positive gap also avoids rounded touching rectangles.
+                if old[i].1[0] >= old[side].1[2] - 1e-6 {
+                    let gap = (old[i].1[0] - old[side].1[2]).max(1e-6);
+                    shifts[i][0] = shifts[i][0].max(
+                        plan.views[side].area[2] + shifts[side][0] + gap - plan.views[i].area[0],
+                    );
+                }
             }
         }
         // Keep the assembled row inside the drawing area; source annotations and

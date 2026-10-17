@@ -1783,6 +1783,7 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Pla
             .iter()
             .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
             && findings(&ordinary).clean()
+            && crate::sheet_fit::illegible_steps(analysis, &ordinary) == 0
             && undrawn_gdt(&ordinary) == 0
             && drawn_sheets_fit(analysis, &ordinary)
             && required.is_subset(&carried(&ordinary));
@@ -1797,6 +1798,7 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Pla
         }
         let mut detailed = recover_candidates(analysis, spec, first, true, true)?;
         let detailed_complete = findings(&detailed).clean()
+            && crate::sheet_fit::illegible_steps(analysis, &detailed) == 0
             && undrawn_gdt(&detailed) == 0
             && drawn_sheets_fit(analysis, &detailed)
             && required.is_subset(&carried(&detailed));
@@ -1909,8 +1911,10 @@ fn recover_candidates(
                     .get(v.id.trim_start_matches("v:"))
                     .is_some_and(|v| v.omit))
     });
-    let seed_clean =
-        findings(&first).clean() && undrawn_gdt(&first) == 0 && drawn_items_fit(analysis, &first);
+    let seed_clean = findings(&first).clean()
+        && crate::sheet_fit::illegible_steps(analysis, &first) == 0
+        && undrawn_gdt(&first) == 0
+        && drawn_items_fit(analysis, &first);
     // A2 and larger only for a part whose views do not fit A3 at 1:1; asked at most once, and
     // only when a large sheet is in play (a named sheet is the user's choice).
     let mut small_part: Option<bool> = None;
@@ -1944,6 +1948,14 @@ fn recover_candidates(
                 continue;
             }
             if smallest.is_some_and(|(j, _)| i > j + 1) {
+                break;
+            }
+            // Practical paper already carries a complete, readable drawing. Large
+            // sheets relieve a fit/legibility failure, not a low-fill enlargement.
+            if i >= LARGE_SHEET && smallest.is_some_and(|(j, _)| j < LARGE_SHEET) {
+                tried.push(format!(
+                    "{name} and larger (a complete legible drawing already fits practical paper)"
+                ));
                 break;
             }
             if i >= LARGE_SHEET && rule && is_small(&mut small_part)? {
@@ -2129,6 +2141,7 @@ fn recover_candidates(
                 p.status = crate::completeness::status(&p.problems);
                 let mut f = findings(&p);
                 f.hard += usize::from(!actual_fit);
+                f.hard += crate::sheet_fit::illegible_steps(analysis, &p);
                 f.dropped += required.difference(&carried(&p)).count();
                 f.dropped += undrawn_gdt(&p);
                 let over = over_views(&p).saturating_sub(over_views(&first));
@@ -2271,7 +2284,8 @@ fn recover_candidates(
                 .unwrap_or_default()
                 .as_str();
         }
-        let illegible = first.sheet.scale_factor < min_legible_scale;
+        let illegible = first.sheet.scale_factor < min_legible_scale
+            || crate::sheet_fit::illegible_steps(analysis, &first) > 0;
         first.sheet.basis += &format!(
             "; no valid complete smallest fit at or above {}; candidates: {}",
             scale_name(min_legible_scale),
@@ -2279,7 +2293,7 @@ fn recover_candidates(
         );
         let below = if illegible {
             format!(
-                "; it is below {}, the smallest scale at which its smallest opening stays legible",
+                "; it is below {}, the opening legibility floor, or has dimensioned steps shorter than the text height",
                 scale_name(min_legible_scale)
             )
         } else {
@@ -4382,6 +4396,18 @@ fn plan_with_presentation(
         problems,
         spec,
     };
+    let unreadable = crate::sheet_fit::illegible_steps(analysis, &plan);
+    if given.sheet.scale.is_some() && !automatic_pair && unreadable > 0 {
+        plan.problems.push(Problem {
+            id: "p:legibility_floor_breached:steps".into(),
+            code: "legibility_floor_breached".into(),
+            severity: "warning".into(),
+            message: format!("{unreadable} dimensioned step spans project below the {:.1} mm text height at the requested scale; enlarge their owning view or omit sheet/scale for automatic selection.", crate::dims::TEXT),
+            subjects: vec!["sheet".into()],
+            fix: vec![crate::items::Op::remove("sheet/scale")],
+            ..Default::default()
+        });
+    }
     if complete_views {
         crate::sheet_fit::reserve_linear_corridors(
             analysis,

@@ -583,3 +583,75 @@ fn fixed_scale_can_use_a_valid_smaller_sheet_without_changing_scale() {
     assert!(p.sheets.is_empty());
     assert_eq!(p.spec.sheet.scale, spec.sheet.scale);
 }
+
+/// A fit is readable only when the dimensioned profile intervals survive its scale.
+/// This formerly selected A4 1:10: the 420 mm profile was 42 mm tall and its 20 mm
+/// shoulder bands were shorter than their 3 mm labels, despite no hard collision.
+#[test]
+fn connector109_uses_a3_at_one_to_five_for_readable_steps() {
+    let Some(dir) = corpus::dir() else { return };
+    let a = model::analyse_native(&dir.join("cadgenbench/threaded_connector_109.step"))
+        .unwrap()
+        .1;
+    let tiny = model::plan_recovered(&a, &named("A4", "1:10")).unwrap();
+    assert!(draftwright::sheet_fit::illegible_steps(&a, &tiny) > 0);
+    assert!(
+        tiny.problems
+            .iter()
+            .any(|p| p.code == "legibility_floor_breached")
+    );
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        ("A3", "1:5"),
+        "{}",
+        p.sheet.basis
+    );
+    assert_eq!(draftwright::sheet_fit::illegible_steps(&a, &p), 0);
+    assert!(p.views.iter().all(|v| v.detail.is_none()));
+    assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
+    sheet_rule::assert_rule("connector109", &p);
+}
+
+#[test]
+fn step_legibility_uses_the_owning_view_and_keeps_baseline_intervals() {
+    let mut a = model::analyse(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/turned.step"),
+    )
+    .unwrap()
+    .1;
+    let mut p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let mut d = p
+        .dimensions
+        .iter()
+        .find(|d| d.placed.is_some())
+        .unwrap()
+        .clone();
+    let f = &mut a.features[0];
+    f.kind = "turned_step".into();
+    f.parameters = json!({"lo": 0.0, "hi": 20.0}).as_object().unwrap().clone();
+    d.measurements = vec![draftwright::dims::Measurement {
+        feature: f.id.clone(),
+        parameter: "step.length".into(),
+        value: 20.0,
+    }];
+    p.dimensions = vec![d];
+    let mut detail = p
+        .views
+        .iter()
+        .find(|v| v.id == p.dimensions[0].view)
+        .unwrap()
+        .clone();
+    for v in &mut p.views {
+        v.scale = 0.1;
+    }
+    assert_eq!(draftwright::sheet_fit::illegible_steps(&a, &p), 1);
+    detail.id = "v:detail_a".into();
+    detail.scale = 0.2;
+    p.dimensions[0].view = detail.id.clone();
+    p.views.push(detail);
+    assert_eq!(draftwright::sheet_fit::illegible_steps(&a, &p), 0);
+    p.dimensions[0].measurements[0].parameter = "step_position.length".into();
+    p.views.last_mut().unwrap().scale = 0.1;
+    assert_eq!(draftwright::sheet_fit::illegible_steps(&a, &p), 1);
+}

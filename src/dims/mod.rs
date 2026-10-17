@@ -3125,10 +3125,10 @@ pub(crate) fn placement_options_with_spec(
     spec: &Spec,
 ) -> BTreeMap<String, Value> {
     let (mut wants, ..) = wants(analysis);
-    detail_routes(analysis, &mut wants, views);
     if authored::append(analysis, spec, &mut wants).is_err() {
         return BTreeMap::new();
     }
+    detail_routes(analysis, &mut wants, views);
     let original = wants.clone();
     let frames: BTreeMap<&str, Frame> = views
         .iter()

@@ -574,6 +574,7 @@ pub(crate) fn small_fallback(
 /// The supplement search uses the recovery's actual-ink and measurement-retention gates.
 fn small_content_fits(analysis: &Analysis, required: &Plan, plan: &Plan) -> bool {
     model::findings(plan).clean()
+        && crate::sheet_fit::illegible_steps(analysis, plan) == 0
         && model::carries_required(required, plan)
         && model::drawn_sheets_fit(analysis, plan)
         && model::over_views(plan) <= model::over_views(required)
@@ -601,6 +602,9 @@ fn score(analysis: &Analysis, spec: &Spec, plan: &Plan) -> (layout::Findings, us
         .problems
         .retain(|p| p.subjects.is_empty() || p.subjects.iter().any(|id| !off.contains(id)));
     let mut f = model::findings(&first);
+    if spec.sheet.scale.is_none() {
+        f.hard += crate::sheet_fit::illegible_steps(analysis, plan);
+    }
     let requested = floor(spec);
     let legible = crate::sheet_fit::min_legible_scale(analysis);
     let low_parent = spec.sheet.scale.is_none()

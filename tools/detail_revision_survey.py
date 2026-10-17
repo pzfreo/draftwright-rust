@@ -18,6 +18,8 @@ def main():
     ap.add_argument('--corpus', type=Path, required=True)
     ap.add_argument('--binary', type=Path, required=True)
     ap.add_argument('--out', type=Path, required=True)
+    ap.add_argument('--manifest', type=Path, help='Replay an existing unique-content survey exactly')
+    ap.add_argument('--audit-legibility', action='store_true', help='Retain Analysis and audit dimensioned step spans at owning-view scale')
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     # Every child uses one immutable executable, even if another verification builds the CLI.
@@ -41,6 +43,11 @@ def main():
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(data)
                 inputs[key] = {'name': name, 'aliases': [], 'path': str(target)}
+    if args.manifest:
+        inputs = json.loads(args.manifest.read_text())
+        for source in inputs.values():
+            if not Path(source['path']).is_file():
+                raise FileNotFoundError(source['path'])
     (args.out / 'manifest.json').write_text(json.dumps(inputs, indent=2) + '\n')
     def run(item):
         key, source = item
@@ -50,7 +57,33 @@ def main():
             row = {**source, 'refused': reply.stderr.decode() + reply.stdout.decode()}
         else:
             p = json.loads(reply.stdout)
-            row = {**source, 'sheet': p['sheet']['size'], 'scale': p['sheet']['scale'],
+            audit = {}
+            if args.audit_legibility:
+                analysed = subprocess.run([str(binary.resolve()), 'analyse', source['path']],
+                                          capture_output=True, timeout=3600, check=True)
+                (args.out / (key + '.analysis.json')).write_bytes(analysed.stdout)
+                a = json.loads(analysed.stdout)
+                features = {f['id']: f for f in a['features']}
+                views = {v['id']: v for v in p['views']}
+                short = {}
+                for d in p['dimensions']:
+                    if not d.get('placed'): continue
+                    for m in d.get('measurements', []):
+                        f = features.get(m['feature'], {})
+                        if m['parameter'] not in ('step.length', 'step_position.length') or f.get('kind') != 'turned_step': continue
+                        size = f['parameters']['hi'] - f['parameters']['lo']
+                        drawn = size * views[d['view']]['scale']
+                        if size > 0 and drawn + 1e-6 < 3:
+                            short[m['feature']] = {'dimension': d['id'], 'view': d['view'], 'drawn_mm': drawn}
+                opening = min((f['parameters'].get('diameter' if f['kind'] == 'hole' else 'width', float('inf'))
+                               for f in a['features'] if f['kind'] in ('hole', 'slot')), default=float('inf'))
+                longest = max(hi-lo for lo,hi in zip(*a['envelope']))
+                floor = max(0.8/opening, 20/max(longest, 1e-12), 0.1)
+                audit = {'unreadable_steps': short, 'geometric_floor': floor,
+                         'below_geometric_floor': p['sheet']['scale_factor'] + 1e-9 < floor,
+                         'legibility_warnings': [q for q in p['problems'] if q['code'] in
+                             ('legibility_floor_breached', 'layout_recovery_exhausted')]}
+            row = {**source, **audit, 'sheet': p['sheet']['size'], 'scale': p['sheet']['scale'],
                    'sheets': 1 + len(p.get('sheets', [])),
                    'details': [{k: v['detail'][k] for k in ('label', 'kind', 'scale', 'dimensions')} for v in p['views'] if v.get('detail')],
                    'errors': [q for q in p['problems'] if q['severity'] == 'error'],
