@@ -712,10 +712,7 @@ pub(super) fn place_with_obstacles(
         let mut count = 0;
         for (k, &c) in selected.iter().enumerate() {
             let a = &inv[k][c];
-            count += a.hard - a.furniture_hard + a.crossings - a.furniture_text + a.outside
-                // New notch bands must not preserve an ordinary-ink floor by
-                // replacing one dimension crossing with a route through a bore.
-                + if bounded_notches { a.feature_crossings } else { 0 };
+            count += a.hard - a.furniture_hard + a.crossings - a.furniture_text + a.outside;
             for (j, &other) in selected.iter().enumerate().take(k) {
                 count += conflict(a, &inv[j][other]);
             }
@@ -818,13 +815,7 @@ pub(super) fn place_with_obstacles(
                 continue;
             }
             let ordinary = |c: &Candidate| {
-                c.hard - c.furniture_hard + c.crossings - c.furniture_text
-                    + c.outside
-                    + if bounded_notches {
-                        c.feature_crossings
-                    } else {
-                        0
-                    }
+                c.hard - c.furniture_hard + c.crossings - c.furniture_text + c.outside
             };
             let local = |c: &Candidate| {
                 ordinary(c)

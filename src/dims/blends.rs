@@ -395,6 +395,82 @@ pub struct RadiusTable {
     pub table: crate::tables::PlannedTable,
 }
 
+fn table_spec(rows: &[RadiusRow]) -> crate::tables::TableSpec {
+    let mut cells = vec![vec![
+        "RADIUS CENTRES".into(),
+        "X FROM VIEW LEFT".into(),
+        "Y FROM VIEW BOTTOM".into(),
+        "RADIUS".into(),
+    ]];
+    cells.extend(rows.iter().map(|r| {
+        vec![
+            r.view.trim_start_matches("v:").to_uppercase(),
+            crate::lint::parameters::fmt(r.centre[0]),
+            crate::lint::parameters::fmt(r.centre[1]),
+            format!("R{}", fmt(r.radius)),
+        ]
+    }));
+    crate::tables::TableSpec {
+        sheet: None,
+        id: RADIUS_TABLE.into(),
+        rows: cells.into_iter().map(serde_json::Value::from).collect(),
+        prefer: Some("tr".into()),
+    }
+}
+
+/// New notch bands must leave room for the existing centre-located radius schedule.
+/// Forecast only automatic groups of at least four exact, end-on centres in one view;
+/// counted fillet owners and authored radius presentations retain their normal grammar.
+pub(crate) fn reservations(
+    a: &Analysis,
+    spec: &crate::model::Spec,
+) -> Vec<crate::tables::TableSpec> {
+    if spec.dimension_source != crate::model::DimensionSource::Auto
+        || crate::notches::requirements(a).is_empty()
+    {
+        return Vec::new();
+    }
+    let groups = groups(a);
+    let general = general(&groups);
+    let mut rows = Vec::new();
+    for (i, group) in groups.iter().enumerate() {
+        let value = radius(group[0]).unwrap();
+        let id = want_id(&group[0].id, "blend.radius");
+        if Some(i) == general
+            || group.len() < 4
+            || overridden(spec, spec, &id)
+            || a.features
+                .iter()
+                .any(|f| f.kind == "fillet" && radius(f).is_some_and(|r| fmt(r) == fmt(value)))
+        {
+            continue;
+        }
+        let located = group
+            .iter()
+            .map(|f| {
+                let (view, centre) = crate::lint::blends::table_centre(a, f)?;
+                (!spec.views.get(view).is_some_and(|v| v.omit)).then(|| RadiusRow {
+                    dimension: id.clone(),
+                    feature: f.id.clone(),
+                    view: format!("v:{view}"),
+                    centre,
+                    radius: value,
+                })
+            })
+            .collect::<Option<Vec<_>>>();
+        if let Some(located) = located
+            && located.iter().all(|r| r.view == located[0].view)
+        {
+            rows.extend(located);
+        }
+    }
+    if rows.is_empty() {
+        Vec::new()
+    } else {
+        vec![table_spec(&rows)]
+    }
+}
+
 /// Tables replace obstructed automatic exception leaders only when every member has a
 /// proven straight radius axis seen end-on. All centres are listed: no representative
 /// XYZ point is allowed to locate an arbitrary equal-radius subset. Authored ink stays literal.
@@ -456,26 +532,7 @@ pub(crate) fn tabulate_obstructed(
             .then(a.centre[1].total_cmp(&b.centre[1]))
             .then(a.feature.cmp(&b.feature))
     });
-    let mut cells = vec![vec![
-        "RADIUS CENTRES".into(),
-        "X FROM VIEW LEFT".into(),
-        "Y FROM VIEW BOTTOM".into(),
-        "RADIUS".into(),
-    ]];
-    cells.extend(rows.iter().map(|r| {
-        vec![
-            r.view.trim_start_matches("v:").to_uppercase(),
-            crate::lint::parameters::fmt(r.centre[0]),
-            crate::lint::parameters::fmt(r.centre[1]),
-            format!("R{}", fmt(r.radius)),
-        ]
-    }));
-    let specs = [crate::tables::TableSpec {
-        sheet: None,
-        id: RADIUS_TABLE.into(),
-        rows: cells.into_iter().map(serde_json::Value::from).collect(),
-        prefer: Some("tr".into()),
-    }];
+    let specs = [table_spec(&rows)];
     let mut remaining: Vec<_> = dimensions
         .iter()
         .enumerate()

@@ -1082,6 +1082,11 @@ basis, placed, reference?, determined_by?}`:
   Every planar projection counts; curved faces use their full covers. Radius leaders displaced
   by these new bands consider model strokes before their joint solve. This preserves short
   existing leaders without enabling general interior angular placement.
+  Before packing new notch bands, the layout reserves an existing automatic radius-centre
+  schedule when at least four exact, end-on centres share a view. Principal fillet owners
+  and authored radius presentations are excluded; the late table still requires genuine
+  leader obstruction and states every occurrence's own centre. This keeps the added notch
+  information from displacing CTC-01's four-row R25 schedule.
   Python's general profile-angle rule chooses only the foremost camera-facing planar
   face per body/view: on CTC-01 that is the hex top, whose 120° corners the HEX callout
   defines. It never reaches the plate notches. This bounded notch grammar deliberately

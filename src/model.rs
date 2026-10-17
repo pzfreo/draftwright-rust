@@ -3308,6 +3308,11 @@ fn plan_with_presentation(
     request.required_tables = crate::tables::sizes(&spec.tables);
     request
         .required_tables
+        .extend(crate::tables::sizes(&crate::dims::blends::reservations(
+            analysis, spec,
+        )));
+    request
+        .required_tables
         .extend(crate::tables::sizes(&crate::gears::tables(analysis)));
     if let Some(p) = presentation {
         request.required_tables.extend(p.sizes());
