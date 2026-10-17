@@ -1863,13 +1863,7 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
         crate::planning::memo(analysis, "analysis_digest", Vec::new(), || {
             Sha256::digest(serde_json::to_vec(analysis).expect("Analysis serializes")).into()
         });
-    let bytes = serde_json::to_vec(&(
-        analysis_key,
-        crate::planning::policy_key(analysis),
-        spec,
-        &first,
-    ))
-    .expect("plan inputs serialize");
+    let bytes = serde_json::to_vec(&(analysis_key, spec, &first)).expect("plan inputs serialize");
     let key: [u8; 32] = Sha256::digest(&bytes).into();
     if let Some(plan) = MEMO.get(&key) {
         return Ok(plan);
@@ -2672,8 +2666,6 @@ fn recover_uncached_with(
     minimum: Option<f64>,
     reference_only: bool,
 ) -> Result<Plan, Invalid> {
-    let _legacy_detail_paper =
-        reference_only.then(|| crate::planning::detail_paper_scope(analysis, None));
     recover_with_reference(analysis, spec, first, minimum, reference_only, None)
 }
 
@@ -3321,12 +3313,6 @@ fn recover_candidates_before(
                 }
             }
             let named = normalized_sheet_candidate(analysis, named, scale);
-            let paper = if reference_only {
-                None
-            } else {
-                crate::detail::paper_trial(analysis, &named, scale, [w, h])
-            };
-            let _detail_paper = crate::planning::detail_paper_scope(analysis, paper);
             if (reference_only || physical_fit_seen)
                 && crate::sheet_fit::unavoidable_steps_at_scale(
                     analysis,
@@ -4225,8 +4211,6 @@ fn recover_tables_inner(
     minimum: Option<f64>,
     reference_only: bool,
 ) -> Result<Plan, Invalid> {
-    let _legacy_detail_paper =
-        reference_only.then(|| crate::planning::detail_paper_scope(analysis, None));
     let required = carried(&first);
     // Establish the ordinary recovered geometry before changing presentation. A table must
     // not undo a scale recovery (nor spend one merely because its ladder has disappeared).

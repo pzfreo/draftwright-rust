@@ -206,7 +206,13 @@ pub(crate) fn retain_callouts(analysis: &Analysis, reference: &Plan, plan: &mut 
     retain_callouts_with(analysis, reference, plan, true);
     if !routes_no_worse(analysis, reference, plan) {
         retain_callouts_with(analysis, reference, plan, false);
-        retain_short_callouts(analysis, reference, plan);
+        let key = serde_json::to_vec(&(reference, &*plan, crate::planning::policy_key(analysis)))
+            .expect("short route inputs serialize");
+        *plan = crate::planning::memo(analysis, "short-readable-callouts", key, || {
+            let mut trial = plan.clone();
+            retain_short_callouts(analysis, reference, &mut trial);
+            trial
+        });
     }
 
     fn retain_short_callouts(analysis: &Analysis, reference: &Plan, plan: &mut Plan) {
@@ -219,6 +225,14 @@ pub(crate) fn retain_callouts(analysis: &Analysis, reference: &Plan, plan: &mut 
             || plan.sheet.scale_factor + 1e-6 < floor
             || routes_no_worse(analysis, reference, plan)
         {
+            return;
+        }
+        // These alternatives move only callouts. Ink from every other item is
+        // immutable, so a failed bounds gate without callouts cannot be repaired
+        // by any of the alternatives below.
+        let mut fixed = plan.clone();
+        fixed.dimensions.retain(|d| d.kind != "callout");
+        if !crate::model::drawn_sheets_fit(analysis, &fixed) {
             return;
         }
         let cache = crate::dims::footprints::Cache::default();
@@ -261,6 +275,22 @@ pub(crate) fn retain_callouts(analysis: &Analysis, reference: &Plan, plan: &mut 
             if shaft < crate::dims::ARROW {
                 continue;
             }
+            // A contact absent from settled ink would fail the exact finding
+            // gate. Reject it before cloning and rechecking the entire Plan.
+            let clear_peers: Vec<_> = plan
+                .dimensions
+                .iter()
+                .enumerate()
+                .filter(|(j, peer)| {
+                    *j != i
+                        && plan
+                            .views
+                            .iter()
+                            .any(|v| v.id == peer.view && v.sheet == view.sheet)
+                })
+                .filter_map(|(_, peer)| peer.placed.as_ref())
+                .filter(|p| crate::dims::annotation_pair_clear(current, p))
+                .collect();
             let before_codes = std::cell::OnceCell::new();
             'directions: for angle in (0..24).map(|i| f64::from(i) * std::f64::consts::TAU / 24.0) {
                 let direction = [angle.sin(), angle.cos()];
@@ -293,6 +323,12 @@ pub(crate) fn retain_callouts(analysis: &Analysis, reference: &Plan, plan: &mut 
                         left + q.label_at[0] - q.label_box[0],
                         bottom + q.label_at[1] - q.label_box[1],
                     ];
+                    if clear_peers
+                        .iter()
+                        .any(|peer| !crate::dims::annotation_pair_clear(&placed, peer))
+                    {
+                        continue;
+                    }
                     let mut trial = plan.clone();
                     trial.dimensions[i].placed = Some(placed);
                     if !routes_no_worse_for(analysis, reference, &trial, Some(&d.id)) {

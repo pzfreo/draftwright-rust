@@ -555,7 +555,7 @@ pub(crate) fn has_new_native_recess_dimensions(analysis: &Analysis) -> bool {
 }
 
 pub(crate) fn has_recess_dimensions(analysis: &Analysis) -> bool {
-    let (canonical, established, _) = crate::planning::policy_key(analysis);
+    let (canonical, established) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "recess-presence",
@@ -570,13 +570,25 @@ pub(crate) fn native_opening(feature: &str, parameter: &str) -> bool {
 }
 
 pub(crate) fn native_min_opening(analysis: &Analysis) -> f64 {
-    let (canonical, established, _) = crate::planning::policy_key(analysis);
+    let (canonical, established) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "native-dimensioned-opening",
         vec![u8::from(canonical), u8::from(established)],
         || {
-            wants(analysis)
+            // Measuring native mouths must not initialise the whole dimension
+            // inventory before the historical routing policy has been installed.
+            // Only the recess planner supplies these measurements.
+            let frame = QFrame(analysis.recognition.as_ref().map_or(
+                [[0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+                |r| r.frame,
+            ));
+            let context = Context {
+                analysis,
+                turned: turned::turned(analysis, &frame),
+                frame,
+            };
+            (recesses::PLANNER.wants)(&context)
                 .0
                 .iter()
                 .flat_map(|w| &w.measurements)
@@ -907,7 +919,7 @@ pub(crate) fn inspection_datum(a: &Analysis) -> Option<(usize, f64)> {
 }
 
 pub(crate) fn detail_levels(a: &Analysis) -> Vec<(String, f64)> {
-    let (canonical, established, _) = crate::planning::policy_key(a);
+    let (canonical, established) = crate::planning::policy_key(a);
     crate::planning::memo(
         a,
         "detail-linear-levels",
@@ -1702,7 +1714,7 @@ pub(crate) fn authored_placement_clear(spec: &Spec, dims: &[PlannedDimension]) -
 /// A slot chain must have room for its arrows and its own text between its ends.
 /// New recess annotations reserve extra paper rather than reducing these existing chains.
 pub(crate) fn recess_chain_scale(analysis: &Analysis, opening_floor: f64) -> f64 {
-    let (canonical, established, _) = crate::planning::policy_key(analysis);
+    let (canonical, established) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "recess-readable-scale",
@@ -1774,8 +1786,11 @@ pub(crate) fn extension_contacts(dims: &[PlannedDimension]) -> usize {
         .sum()
 }
 
-/// A new point on a parameterised rim must also meet visible physical edge
-/// evidence; a trimmed or hidden arc is not a valid replacement attachment.
+pub(crate) fn annotation_pair_clear(a: &Placed, b: &Placed) -> bool {
+    placement::annotations_clear(a, b)
+}
+
+/// A new rim point must meet visible physical edge evidence.
 pub(crate) fn callout_tip_visible(analysis: &Analysis, view: &PlannedView, tip: P2) -> bool {
     interior::proofs(analysis, std::slice::from_ref(view))
         .get(&view.id)
@@ -4207,6 +4222,34 @@ pub(crate) fn measurement_ids(analysis: &Analysis) -> BTreeSet<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_opening_floor_does_not_prime_the_routing_inventory() {
+        let (_, a) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/recesses/tuner.step"),
+        )
+        .unwrap();
+        crate::planning::with(&a, || {
+            type Inventory = (
+                Vec<Want>,
+                Vec<Problem>,
+                BTreeMap<String, pmi_dimensions::Note>,
+            );
+            assert!(crate::planning::lookup::<Inventory>(&a, "wants", &[]).is_none());
+            let minimum = native_min_opening(&a);
+            assert!(minimum.is_finite() && minimum > 0.0);
+            assert!(crate::planning::lookup::<Inventory>(&a, "wants", &[]).is_none());
+            let expected = wants(&a)
+                .0
+                .iter()
+                .flat_map(|w| &w.measurements)
+                .filter(|m| native_opening(&m.feature, &m.parameter) && m.value > 0.0)
+                .map(|m| m.value)
+                .fold(f64::INFINITY, f64::min);
+            assert_eq!(minimum, expected);
+        });
+    }
 
     #[test]
     fn rejected_head_routes_leave_parent_witnesses_untouched() {

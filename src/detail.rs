@@ -288,48 +288,10 @@ fn dimension(feature: &str, parameter: &str) -> String {
 pub(crate) fn requests(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Detail)> {
     // Sheet convergence asks for the same scale repeatedly. Keep this immutable
     // preparation in the planning scope, shared with its recovery candidates.
-    let key = serde_json::to_vec(&(spec, sheet.to_bits(), crate::planning::policy_key(a)))
-        .expect("detail inputs serialize");
+    let key = serde_json::to_vec(&(spec, sheet.to_bits())).expect("detail inputs serialize");
     crate::planning::memo(a, "detail_requests", key, || {
         requests_uncached(a, spec, sheet)
     })
-}
-
-fn fitting_paper_scale(d: &Detail, sheet: f64, [width, height]: [f64; 2]) -> Option<f64> {
-    let [left, right, bottom, top] = pads(d);
-    let axes = axes(d.source_view.trim_start_matches("v:"));
-    let spans = axes.map(|k| d.bounds[1][k] - d.bounds[0][k]);
-    if (spans[0] * d.scale + left + right).max(65.0) <= width - 2.0 * crate::layout::MARGIN
-        && spans[1] * d.scale + bottom + top <= height - 2.0 * crate::layout::MARGIN
-    {
-        return None;
-    }
-    crate::layout::SCALES.into_iter().find(|scale| {
-        *scale > sheet
-            && *scale < d.scale
-            && (spans[0] * scale + left + right).max(65.0) <= width - 2.0 * crate::layout::MARGIN
-            && spans[1] * scale + bottom + top <= height - 2.0 * crate::layout::MARGIN
-    })
-}
-
-pub(crate) fn paper_trial(
-    a: &Analysis,
-    spec: &Spec,
-    sheet: f64,
-    paper: [f64; 2],
-) -> Option<[f64; 2]> {
-    let _preferred = crate::planning::detail_paper_scope(a, None);
-    requests(a, spec, sheet)
-        .iter()
-        .any(|(_, d)| {
-            let [w, h] = size(d);
-            let [left, right, bottom, top] = pads(d);
-            !d.authored
-                && ((w + left + right).max(65.0) > paper[0] - 2.0 * crate::layout::MARGIN
-                    || h + bottom + top > paper[1] - 2.0 * crate::layout::MARGIN)
-                && fitting_paper_scale(d, sheet, paper).is_some()
-        })
-        .then_some(paper)
 }
 
 fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Detail)> {
@@ -642,17 +604,6 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
         }
     }
     for (_, d) in &mut out {
-        if !d.authored
-            && let Some(paper) = crate::planning::detail_paper(a)
-        {
-            // An oversized preferred crop must not purchase larger paper when
-            // a smaller standard enlargement can fit this paper. Keep its full
-            // witnesses and bounds. Finished readability, retention and route
-            // checks still decide whether this trial can actually qualify.
-            if let Some(scale) = fitting_paper_scale(d, sheet, paper) {
-                d.scale = scale;
-            }
-        }
         d.partial_profile = (0..3).any(|k| {
             k != d.axis
                 && (d.bounds[0][k] > a.envelope[0][k] + 1e-6

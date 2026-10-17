@@ -658,8 +658,6 @@ pub(crate) fn paper_fallback(
         }
         let mut working = spec.clone();
         working.sheet.size = Some(name.into());
-        let paper = crate::detail::paper_trial(analysis, &working, scale, [*w, *h]);
-        let _detail_paper = crate::planning::detail_paper_scope(analysis, paper);
         working.sheets.get_or_insert_with(Default::default).max =
             Some(spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9));
         if spec.sheet.scale.is_none()
