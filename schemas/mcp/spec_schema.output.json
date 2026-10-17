@@ -1,0 +1,48 @@
+{
+  "type": "object",
+  "anyOf": [
+    {
+      "properties": {
+        "spec": {
+          "type": "object"
+        },
+        "spec_read": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 2
+    },
+    {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "choices": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "code": {
+            "enum": [
+              "invalid",
+              "failed"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
+      },
+      "required": [
+        "error"
+      ],
+      "maxProperties": 1
+    }
+  ]
+}

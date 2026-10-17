@@ -8,6 +8,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Added
 
+- MCP `spec_schema {}` returns the full draft-2020-12 author Spec schema and its
+  named `get_spec` read shape on demand. Tool schemas retain explicit typed top-level
+  outlines, reducing session schema context from 42,681 to 34,389 bytes (19.43%).
+  Nested Spec additions no longer grow tools/list; server validation and corrective
+  guidance are unchanged.
+
 - Spec dimensioning schemes by feature pattern, station set or principal view axis: chain,
   chosen-datum baseline and signed running ordinate, with stable references, session edits,
   one-owner networks and independent printed-link lint (#76 item 4).

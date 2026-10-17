@@ -10,7 +10,7 @@ use crate::session::{Delta, ItemAnswer, ItemFilter, ProblemFilter};
 use crate::stateless::{Cache, PAGE_BYTES, spec_hash};
 use serde_json::{Value, json};
 
-pub const TOOLS: [&str; 13] = [
+pub const TOOLS: [&str; 14] = [
     "inspect_part",
     "list_items",
     "get_item",
@@ -21,6 +21,7 @@ pub const TOOLS: [&str; 13] = [
     "view_sheet",
     "render_pdf",
     "get_spec",
+    "spec_schema",
     "analyse",
     "render",
     "parts",
@@ -28,7 +29,7 @@ pub const TOOLS: [&str; 13] = [
 const CORRECTION_ATTEMPTS: usize = 8;
 
 pub const VERSIONS: [&str; 3] = ["2025-11-25", "2025-06-18", "2025-03-26"];
-pub const INSTRUCTIONS: &str = "Register STEP with inspect_part {step}; keep part_ref. The Spec is state: pass spec or immutable spec_version to each query. get_spec loads a drawing's current head; apply_ops requires that parent and returns a new version. preview_ops keeps no version. Lists and delta events are paged below 4096 bytes; follow next_cursor. Delta artifacts are lossless and readable with resources/read (events may be paged there without applying again). get_item explains basis and valid operations. view_sheet gives PNG, render_pdf delivery PDF. No live session or authentication; localhost development only.";
+pub const INSTRUCTIONS: &str = "Register STEP with inspect_part {step}; keep part_ref. Call spec_schema {} for the full Spec schema before authoring unfamiliar fields; item_options gives valid edit paths and choices. The Spec is state: pass spec or immutable spec_version to each query. get_spec loads a drawing's current head; apply_ops requires that parent and returns a new version. preview_ops keeps no version. Lists and delta events are paged below 4096 bytes; follow next_cursor. Delta artifacts are lossless and readable with resources/read (events may be paged there without applying again). get_item explains basis and valid operations. view_sheet gives PNG, render_pdf delivery PDF. No live session or authentication; localhost development only.";
 
 fn description(tool: &str) -> &'static str {
     match tool {
@@ -62,6 +63,9 @@ fn description(tool: &str) -> &'static str {
         "get_spec" => {
             "Read the complete author Spec and immutable spec_version. Supply part_ref and a spec_version (or inline spec); without either, read drawing_ref's current head (default: default). Keep this version as apply_ops parent; queries otherwise use the default Spec when no version is supplied."
         }
+        "spec_schema" => {
+            "Read the full draft-2020-12 author Spec schema without registering a part. No inputs. Returns spec (the standalone schema document) and spec_read (a JSON Pointer fragment within spec naming get_spec's spec value shape). Fetch once when authoring unfamiliar fields; item_options gives geometry-specific edit choices. Server validation and corrective guidance remain authoritative."
+        }
         "analyse" => {
             "One-shot recognition of a local STEP path, optionally using validated recognition JSON in features. Returns the full Analysis document including features and semantic PMI. Prefer inspect_part when editing: it registers the reusable content/cache handle."
         }
@@ -88,6 +92,7 @@ pub fn schema(tool: &str, output: bool) -> Option<Value> {
         "view_sheet",
         "render_pdf",
         "get_spec",
+        "spec_schema",
         "analyse",
         "render",
         "parts"
@@ -364,7 +369,14 @@ pub fn call(cache: &Cache, tool: &str, args: &Value) -> Result<Value, Error> {
     {
         crate::stateless::check_operation_count(ops.len())?;
     }
-    validate(&input, args).map_err(Error::invalid)?;
+    // Discovery uses a shallow outline; retain main's complete preflight constraints
+    // and error messages. Load the private documents once, outside tools/list.
+    static VALIDATION: std::sync::OnceLock<Value> = std::sync::OnceLock::new();
+    let validation = VALIDATION.get_or_init(|| {
+        serde_json::from_str(include_str!("../schemas/mcp-validation.json"))
+            .expect("private input validation schemas")
+    });
+    validate(validation.get(tool).unwrap_or(&input), args).map_err(Error::invalid)?;
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dispatch(cache, tool, args)))
         .unwrap_or_else(|_| {
             Err(Error::failed(
@@ -497,6 +509,11 @@ fn corrective_error(
 }
 
 fn dispatch(cache: &Cache, tool: &str, args: &Value) -> Result<Value, Error> {
+    if tool == "spec_schema" {
+        let spec: Value = serde_json::from_str(include_str!("../schemas/spec.json"))
+            .expect("published Spec schema");
+        return Ok(json!({"spec": spec, "spec_read": "#/$defs/spec_read"}));
+    }
     if tool == "parts" {
         return Ok(json!({ "parts": crate::api::parts(Path::new(text(args, "step")?))? }));
     }
