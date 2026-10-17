@@ -94,6 +94,7 @@ Lossless JSON artifacts use `resources/read {uri: "draftwright:<artifact_ref>"}`
 PNG/PDF artifacts return base64 blobs. These explicit detail reads can exceed the default budget.
 The PNG image content is also intentionally outside the text budget. `get_spec` returns the
 complete author document, which grows with authored intent rather than projected geometry.
+`spec_schema` is also an explicit, unpaged full-document read outside the default list budget.
 
 ## Library, cache and handle model
 
