@@ -79,7 +79,7 @@ mod corpus;
 mod sheet_rule;
 
 #[test]
-fn grm03_prefers_readable_a4_without_losing_measurements() {
+fn grm03_requires_a3_when_a4_cannot_preserve_clear_leader_associations() {
     let Some(dir) = corpus::dir() else {
         return;
     };
@@ -89,16 +89,19 @@ fn grm03_prefers_readable_a4_without_losing_measurements() {
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A4", "5:1")
+        ("A3", "10:1")
     );
     assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
     assert!(
-        p.sheet.basis.contains("fill floor not attainable"),
+        p.sheet.basis.contains("A4 multi-sheet:")
+            && p.sheet
+                .basis
+                .contains("leader/text gains a 1 mm padded extension-line contact"),
         "{}",
         p.sheet.basis
     );
-    // Preserve the original 60–85% quality guard on the same A3 10:1
-    // drawing. Its fill cannot justify buying that paper automatically.
+    // Preserve the original 60–85% guard on its exact captured drawing.
+    // Failed leader association, rather than fill, requires A3.
     let roomy: model::Plan = serde_json::from_reader(flate2::read::GzDecoder::new(
         include_bytes!("fixtures/sheet-policy/grm03-a3-before.plan.json.gz").as_slice(),
     ))
@@ -367,11 +370,7 @@ fn small_parts_exhaust_readability_and_allocation_before_large_paper() {
         // This explicitly framed seed has different established routes from the
         // automatic estimate. Its readable A2 drawing may remain when smaller
         // paper cannot preserve those routes; the old blanket A3 cap is gone.
-        let seeded_size = if name == "assembly_plate_pin.step" {
-            "A2"
-        } else {
-            size
-        };
+        let seeded_size = "A2";
         assert_eq!(p.sheet.size, seeded_size, "{name}: {}", p.sheet.basis);
         assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
         let issues = |p: &Plan| {
@@ -530,17 +529,12 @@ fn section_correction_preserves_the_gdt_string_posts_readable_scale() {
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A3", "5:1"),
+        ("A4", "5:1"),
         "{}",
         p.sheet.basis
     );
-    assert!(p.sheets.is_empty());
+    assert_eq!(p.sheets.len(), 1);
     assert!(p.sheet.basis.contains("A4 multi-sheet:"));
-    assert!(
-        p.sheet
-            .basis
-            .contains("retained leader association quality false")
-    );
     assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
     assert!(!p.problems.iter().any(|p| matches!(
         p.code.as_str(),
@@ -684,13 +678,19 @@ fn small_overflow_respects_explicit_auxiliary_assignment() {
 }
 
 #[test]
-fn large_paper_fallthrough_records_both_failed_small_allocations() {
+fn an_exhausted_step_and_lane_search_retains_the_fitted_drawing() {
     let Some(dir) = corpus::dir() else { return };
     let a = model::analyse_native(&dir.join("mfcadpp/10190.step"))
         .unwrap()
         .1;
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
-    assert_eq!(p.sheet.size, "A1");
+    assert_eq!(p.sheet.size, "A4");
+    assert!(draftwright::sheet_fit::readability(&a, &p).failures() > 0);
+    assert!(
+        p.problems
+            .iter()
+            .any(|q| q.code == "layout_recovery_exhausted" && q.severity == "warning")
+    );
     assert!(p.sheets.is_empty());
     for paper in ["A4", "A3"] {
         assert!(
@@ -699,7 +699,7 @@ fn large_paper_fallthrough_records_both_failed_small_allocations() {
             p.sheet.basis
         );
     }
-    assert!(p.sheet.basis.contains("1 required drops"));
+    assert!(!p.problems.iter().any(|q| q.code.ends_with("_dropped")));
 }
 
 #[test]
@@ -824,13 +824,13 @@ fn declining_optional_details_does_not_buy_new_annotation_crossings() {
     );
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A4", "1:1")
+        ("A2", "5:1")
     );
-    assert!(draftwright::sheet_fit::readability(&a, &p).failures() > 0);
+    assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
     assert!(
-        p.problems
+        !p.problems
             .iter()
-            .any(|q| q.code == "layout_recovery_exhausted" && q.severity == "warning")
+            .any(|q| q.code == "layout_recovery_exhausted")
     );
 }
 

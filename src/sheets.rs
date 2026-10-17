@@ -321,7 +321,35 @@ fn run(analysis: &Analysis, spec: &Spec, minimum: Option<f64>) -> Result<Plan, I
     RUNS.with(|runs| runs.set(runs.get() + 1));
     crate::planning::with(analysis, || {
         if let Some(minimum) = minimum {
-            model::recover_at_least(analysis, spec, minimum)
+            // R5 capacity constrains auxiliary packing, not the layout of an
+            // already named principal sheet. Keep it out of that pure solve's
+            // memo key, so step zero shares the ordinary candidate preparation.
+            // Every allocation prefix and its original capacity still runs.
+            let mut main = spec.clone();
+            if main.sheet.size.is_some() {
+                let needed = assignments(&main)
+                    .values()
+                    .copied()
+                    .chain(main.tables.iter().filter_map(|t| t.sheet))
+                    .max()
+                    .unwrap_or(1)
+                    .max(1);
+                // Already assigned carriers still pass the ordinary Spec
+                // validator. Capacity above their maximum affects packing only.
+                if let Some(sheets) = &mut main.sheets {
+                    sheets.max = (needed > 1).then_some(needed);
+                }
+                if main
+                    .sheets
+                    .as_ref()
+                    .is_some_and(|s| *s == SheetsSpec::default())
+                {
+                    main.sheets = None;
+                }
+            }
+            let mut p = model::recover_at_least(analysis, &main, minimum)?;
+            p.spec.sheets = spec.sheets.clone();
+            Ok(p)
         } else {
             model::recover(analysis, spec, model::plan_escalated(analysis, spec)?)
         }

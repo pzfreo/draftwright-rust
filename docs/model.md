@@ -968,12 +968,18 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   must not force the drawing back onto its larger paper.
   Incomplete and scheduled-row recovery trials compare each annotation/material
   finding type independently; fewer crossings do not pay for a new long leader.
-  Paper/scale changes also keep the rendered leader acceptance limits: no route
-  more than 2 mm longer, no new 1 mm padded text/extension contact, and no moved
+  Paper/scale changes also protect leader associations: no new 1 mm padded
+  text/extension contact, no new exact annotation/feature finding, and no moved
   route running for more than 2 mm within 0.3 mm of projected model/extension ink.
-  The search can transport a proven short leader offset to the candidate's new
-  feature attachment, then repeats placement, retention, bounds and readability
-  checks. A failed transport is discarded. Each sheet has independent coordinates.
+  A route on an already globally legible drawing cannot grow by more than 2 mm.
+  Growth from below the global feature/depiction floor may require longer clear
+  travel to the enlarged model's exterior, but no readability component may get
+  worse and every contact, finding and parallel-run limit remains independent.
+  The search tries the other established arrangements before rejecting paper. It
+  can shorten a clear outgoing shaft or transport a proven attachment and its
+  paper-space elbow/label offset, then repeats placement, retention, bounds and
+  readability checks. Failed alternatives are discarded. Each sheet has independent
+  coordinates; an unchanged pre-existing run is allowed only while it does not grow.
   Impossible principal projection rows/columns are rejected before solving, as are
   scales below the preparation floor once a complete fitted drawing exists; these
   trials can qualify neither readability nor the historical retained reference.

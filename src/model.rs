@@ -2107,12 +2107,19 @@ pub(crate) fn recover_at_least(
     spec: &Spec,
     minimum: f64,
 ) -> Result<Plan, Invalid> {
-    recover_uncached(
-        analysis,
-        spec,
-        plan_escalated(analysis, spec)?,
-        Some(minimum),
-    )
+    // R5 may revisit the same named main sheet from several cumulative
+    // prefixes/scale trials. Its recovered result is pure under these complete
+    // inputs. Cache only that main solve; the allocator still executes and
+    // validates every prefix and capacity on each invocation.
+    let key = serde_json::to_vec(&(spec, minimum)).expect("main-sheet search inputs serialize");
+    crate::planning::memo(analysis, "recovered-main-at-least", key, || {
+        recover_uncached(
+            analysis,
+            spec,
+            plan_escalated(analysis, spec)?,
+            Some(minimum),
+        )
+    })
 }
 
 /// Remove internal paper/scale controls without discarding the binding established
@@ -2177,8 +2184,10 @@ fn recover_uncached(
             restore_search_spec(&mut ordinary, spec);
             return Ok(ordinary);
         }
-        let mut detailed =
-            recover_candidates(analysis, spec, first, true, complete, minimum, false)?;
+        // The ordinary pass already exhausted candidates with no automatic crop.
+        // Repeating those solves cannot rescue it: this pass must actually carry
+        // an automatic detail, including when the ordinary search was refused.
+        let mut detailed = recover_candidates(analysis, spec, first, true, true, minimum, false)?;
         let detailed_complete = findings(&detailed).clean()
             && detailed.sheet.scale_factor + 1e-6 >= request_floor
             && crate::sheet_fit::readability(analysis, &detailed).failures() == 0
@@ -2431,6 +2440,14 @@ fn recover_candidates(
     // This pass shares candidate planning memos, but never ranks the new choices.
     let historical = if reference_only {
         None
+    } else if spec.sheet.size.is_none()
+        && spec.sheet.scale.is_none()
+        && drawn_quality_reference(analysis, &first)
+        && (first.spec.sheet.size != spec.sheet.size || first.spec.sheet.scale != spec.sheet.scale)
+    {
+        // A caller-supplied framed seed has its own established routes. It is
+        // independent of the ordinary automatic estimate being reconstructed.
+        Some(first.clone())
     } else {
         let key = serde_json::to_vec(&(spec, &first)).expect("route reference inputs serialize");
         Some(crate::planning::memo(
@@ -2444,9 +2461,12 @@ fn recover_candidates(
     // search nor the historical fitted reference. Once a complete fitted seed
     // exists those solves cannot improve recovery; keep them only for physical
     // salvage when the seed itself does not fit.
-    let mut physical_fit_seen = quality_kept;
+    let mut physical_fit_seen = quality_kept
+        || historical
+            .as_ref()
+            .is_some_and(|p| drawn_quality_reference(analysis, p) && carries_required(&first, p));
     let preparation_floor = crate::sheet_fit::preparation_scale(analysis);
-    let search_floor = if quality_kept {
+    let search_floor = if physical_fit_seen {
         crate::sheet_fit::preparation_scale(analysis).max(crate::sheet_fit::ABSOLUTE_FLOOR)
     } else {
         crate::sheet_fit::ABSOLUTE_FLOOR
@@ -2493,6 +2513,13 @@ fn recover_candidates(
                 && crate::sheets::floor(spec).is_none_or(|floor| *s >= floor)
                 && minimum.is_none_or(|floor| *s >= floor)
         }) {
+            if reference_only
+                && smallest.is_some_and(|(paper, first_scale)| i > paper && scale <= first_scale)
+            {
+                // The historical comparator permits only an enlargement on the
+                // single larger neighbour. These candidates cannot be selected.
+                continue;
+            }
             if physical_fit_seen && scale < preparation_floor {
                 continue;
             }
@@ -2601,18 +2628,25 @@ fn recover_candidates(
                         || ink_findings(&first) > 0
                         || feature_crossings(&first) > 0
                         || ink_findings(&p) > ink_findings(&first)
-                        || feature_crossings(&p) > feature_crossings(&first)))
+                        || feature_crossings(&p) > feature_crossings(&first)
+                        || historical
+                            .as_ref()
+                            .is_some_and(|r| !crate::sheet_fit::routes_no_worse(analysis, r, &p))))
             {
-                let quality = |p: &Plan| {
-                    let f = findings(p);
-                    (
-                        f.hard,
-                        f.dropped,
-                        over_views(p),
-                        ink_findings(p),
-                        feature_crossings(p),
-                    )
-                };
+                let quality =
+                    |p: &Plan| {
+                        let f = findings(p);
+                        (
+                            f.hard,
+                            f.dropped,
+                            over_views(p),
+                            usize::from(historical.as_ref().is_some_and(|r| {
+                                !crate::sheet_fit::routes_no_worse(analysis, r, p)
+                            })),
+                            ink_findings(p),
+                            feature_crossings(p),
+                        )
+                    };
                 for arrangement in [
                     layout::Arrangement::Columns,
                     layout::Arrangement::StackedIso,
@@ -2621,7 +2655,7 @@ fn recover_candidates(
                     if p.sheet.arrangement == arrangement.name() {
                         continue;
                     }
-                    let alternative = match plan_escalated_with(
+                    let mut alternative = match plan_escalated_with(
                         analysis,
                         &named,
                         true,
@@ -2640,6 +2674,9 @@ fn recover_candidates(
                         }
                         Err(e) => return Err(e),
                     };
+                    if let Some(reference) = historical.as_ref() {
+                        crate::sheet_fit::retain_callouts(analysis, reference, &mut alternative);
+                    }
                     if quality(&alternative) < quality(&p) {
                         p = alternative;
                     }
@@ -2795,7 +2832,7 @@ fn recover_candidates(
             quality_veto |= route_pair_veto;
             let verdict = if quality_veto {
                 format!(
-                    "drawing quality veto ({}); {}",
+                    "drawing quality veto: {}; {}",
                     crate::sheet_fit::route_refusal(analysis, reference, &p)
                         .unwrap_or("annotation/feature association"),
                     said(f, drops(&p))

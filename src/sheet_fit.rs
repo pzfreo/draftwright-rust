@@ -4,9 +4,9 @@ use crate::model::{Analysis, Plan};
 
 /// Paper changes must preserve the established callout quality in paper mm.
 /// Use the same 2 mm length allowance, 1 mm label/extension pad and 0.3 mm
-/// parallel-ink strip as the rendered leader acceptance. Projected edges include
-/// visible and hidden boundaries; their crossing count cannot be purchased by
-/// enlarging the feature. Each page is independent.
+/// parallel-ink strip as the rendered leader acceptance. Projected edges measure
+/// ambiguous parallel travel; exact annotation/feature association findings are
+/// guarded independently. Each page is independent.
 pub(crate) fn routes_no_worse(analysis: &Analysis, before: &Plan, after: &Plan) -> bool {
     routes_no_worse_for(analysis, before, after, None)
 }
@@ -36,6 +36,7 @@ fn route_refusal_for(
 ) -> Option<&'static str> {
     let length =
         |p: &crate::dims::Placed| p.lines.iter().map(|s| distance(s[0], s[1])).sum::<f64>();
+    let global_floor_recovery = std::cell::OnceCell::new();
     let mut changed = Vec::new();
     for d in after
         .dimensions
@@ -47,7 +48,26 @@ fn route_refusal_for(
             continue;
         };
         let Some(q) = &old.placed else { continue };
-        if length(p) > length(q) + 2.0 + 1e-6 {
+        if length(p) > length(q) + 2.0 + 1e-6
+            && !*global_floor_recovery.get_or_init(|| {
+                // The global feature/depiction floor requires the whole model
+                // to grow: a detail cannot open repetitive ink in every principal
+                // view. Clear travel to the enlarged exterior can then grow too.
+                // Every contact/crossing/run gate remains independent.
+                let floor = min_legible_scale(analysis)
+                    .max(crate::sheets::floor(&after.spec).unwrap_or(0.0));
+                let old = readability(analysis, before);
+                let new = readability(analysis, after);
+                before.sheet.scale_factor + 1e-6 < floor
+                    && after.sheet.scale_factor + 1e-6 >= floor
+                    && new.failures() < old.failures()
+                    && new.depiction <= old.depiction
+                    && new.steps <= old.steps
+                    && new.openings <= old.openings
+                    && new.text_arrows <= old.text_arrows
+                    && new.lanes <= old.lanes
+            })
+        {
             return Some("leader length exceeds retained route by more than 2 mm");
         }
         let (Some(v), Some(w)) = (
@@ -56,10 +76,7 @@ fn route_refusal_for(
         ) else {
             return Some("callout has no carrying view");
         };
-        let same = v.scale == w.scale
-            && v.direction == w.direction
-            && v.up == w.up
-            && p.lines.len() == q.lines.len()
+        let same = p.lines.len() == q.lines.len()
             && p.lines
                 .iter()
                 .flatten()
@@ -114,29 +131,30 @@ fn route_refusal_for(
         if total > old_total || (!same && text > old_text) {
             return Some("leader/text gains a 1 mm padded extension-line contact");
         }
-        // A rigidly translated route at the same scale preserves its own model
-        // relationship. Changed routes must also clear the projected model ink.
-        if !same {
+        // Match rendered acceptance: movement is measured in paper coordinates,
+        // independent of scale. An unchanged pre-existing run is retained only
+        // when its measured length does not grow.
+        {
             let ink = current_ink
                 .entry(sheet)
                 .or_insert_with(|| route_ink(analysis, after, sheet));
             let old_ink = reference_ink
                 .entry(old_sheet)
                 .or_insert_with(|| route_ink(analysis, before, old_sheet));
-            let crossing = |p: &crate::dims::Placed, ink: &[[[f64; 2]; 2]]| {
-                ink.iter()
-                    .filter(|s| p.lines.iter().any(|l| route_crosses(*l, **s)))
-                    .count()
-            };
-            if crossing(p, ink) > crossing(q, old_ink) {
-                return Some("leader gains projected model/hidden-edge crossings");
-            }
             let ink: Vec<_> = ink
                 .iter()
                 .copied()
                 .chain(a.iter().map(|(_, s)| *s))
                 .collect();
-            if p.lines.iter().any(|s| route_run(*s, &ink) > 2.0 + 1e-6) {
+            let old_ink: Vec<_> = old_ink
+                .iter()
+                .copied()
+                .chain(b.iter().map(|(_, s)| *s))
+                .collect();
+            if p.lines.iter().enumerate().any(|(i, s)| {
+                let run = route_run(*s, &ink);
+                run > 2.0 + 1e-6 && (!same || run > route_run(q.lines[i], &old_ink) + 1e-6)
+            }) {
                 return Some(
                     "moved leader runs for more than 2 mm within 0.3 mm of model/extension ink",
                 );
@@ -151,6 +169,18 @@ fn route_refusal_for(
 /// is transported in paper millimetres. This is a bounded alternative, accepted only after all ordinary
 /// placement, information and route gates are repeated.
 pub(crate) fn retain_callouts(analysis: &Analysis, reference: &Plan, plan: &mut Plan) {
+    retain_callouts_with(analysis, reference, plan, true);
+    if !routes_no_worse(analysis, reference, plan) {
+        retain_callouts_with(analysis, reference, plan, false);
+    }
+}
+
+fn retain_callouts_with(
+    analysis: &Analysis,
+    reference: &Plan,
+    plan: &mut Plan,
+    shorten_current: bool,
+) {
     if routes_no_worse(analysis, reference, plan) {
         return;
     }
@@ -186,6 +216,29 @@ pub(crate) fn retain_callouts(analysis: &Analysis, reference: &Plan, plan: &mut 
         let (Some(line), Some(old_line)) = (p.lines.first(), q.lines.first()) else {
             continue;
         };
+        if shorten_current && p.lines.len() == 2 && q.lines.len() == 2 {
+            let length =
+                |p: &crate::dims::Placed| p.lines.iter().map(|s| distance(s[0], s[1])).sum::<f64>();
+            let shaft = distance(p.lines[0][0], p.lines[0][1]);
+            let wanted = length(q) + 2.0 - distance(p.lines[1][0], p.lines[1][1]);
+            if wanted >= 2.7 && wanted < shaft - 1e-6 {
+                let delta =
+                    [0, 1].map(|k| (p.lines[0][1][k] - p.lines[0][0][k]) * (wanted / shaft - 1.0));
+                for k in 0..2 {
+                    p.lines[0][1][k] += delta[k];
+                    p.label_at[k] += delta[k];
+                    p.label_box[k] += delta[k];
+                    p.label_box[k + 2] += delta[k];
+                }
+                for at in &mut p.lines[1] {
+                    for k in 0..2 {
+                        at[k] += delta[k];
+                    }
+                }
+                changed = true;
+                continue;
+            }
+        }
         let (Some(view), Some(old_view)) = (
             trial.views.iter().find(|v| v.id == d.view),
             reference.views.iter().find(|v| v.id == old.view),
@@ -280,13 +333,6 @@ fn route_touches(s: [[f64; 2]; 2], b: Rect) -> bool {
     }
     lo <= hi
 }
-fn route_crosses(a: [[f64; 2]; 2], b: [[f64; 2]; 2]) -> bool {
-    let side = |p: [f64; 2], q: [f64; 2], r: [f64; 2]| {
-        (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
-    };
-    side(a[0], a[1], b[0]) * side(a[0], a[1], b[1]) < -1e-12
-        && side(b[0], b[1], a[0]) * side(b[0], b[1], a[1]) < -1e-12
-}
 fn route_ink(analysis: &Analysis, plan: &Plan, sheet: u32) -> Vec<[[f64; 2]; 2]> {
     let Some(ink) = &analysis.edge_ink else {
         return Vec::new();
@@ -315,7 +361,11 @@ fn route_ink(analysis: &Analysis, plan: &Plan, sheet: u32) -> Vec<[[f64; 2]; 2]>
 fn route_run(a: [[f64; 2]; 2], ink: &[[[f64; 2]; 2]]) -> f64 {
     let d = [a[1][0] - a[0][0], a[1][1] - a[0][1]];
     let mut intervals = Vec::new();
+    let near = grow_route_box(route_bounds(a), 0.3);
     for b in ink {
+        if (0..2).any(|k| b[0][k].max(b[1][k]) < near[k] || b[0][k].min(b[1][k]) > near[k + 2]) {
+            continue;
+        }
         let w = [b[1][0] - b[0][0], b[1][1] - b[0][1]];
         let n = w[0] * w[0] + w[1] * w[1];
         if n < 1e-18 || (d[0] * w[1] - d[1] * w[0]).abs() > 0.3 * distance(a[0], a[1]) * n.sqrt() {
@@ -1044,6 +1094,33 @@ pub fn footprints(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
 
 /// Usable-area share. Clip at the border and subtract title-block intersections from the union.
 pub fn fill(analysis: &Analysis, plan: &Plan) -> f64 {
+    if plan.sheet.number == 1 && plan.sheets.is_empty() && plan.views.iter().all(|v| v.sheet == 1) {
+        return fill_local(analysis, plan);
+    }
+    // Page coordinates are independent. Supplementary geometry or a moved
+    // table must not inflate the main page's fill by sharing its coordinates.
+    let mut local = plan.clone();
+    let number = plan.sheet.number;
+    local.sheets.clear();
+    local.views.retain(|v| v.sheet == number);
+    let carries = |id: &str| local.views.iter().any(|v| v.id == id);
+    local.dimensions.retain(|d| carries(&d.view));
+    local.gdt.retain(|g| carries(&g.view));
+    local.balloons.retain(|b| carries(&b.view));
+    local.tables.retain(|t| t.sheet == number);
+    local.hole_table = local.hole_table.filter(|t| t.sheet == number);
+    local.hole_tables.retain(|t| t.sheet == number);
+    if number > 1 {
+        local.notes.clear();
+        local.notes_block = None;
+        local.radius_notes_block = None;
+        local.radius_table = None;
+        local.requirements.clear();
+    }
+    fill_local(analysis, &local)
+}
+
+fn fill_local(analysis: &Analysis, plan: &Plan) -> f64 {
     let [w, h] = plan.sheet.page;
     let mut tb = plan.sheet.title_block;
     tb[3] = crate::title_block::top(tb);
@@ -2433,6 +2510,15 @@ mod tests {
             v.sheet = 2;
         }
         let with = furniture_bounds(&a, &p.sheet, &p.views);
+        let main_fill = fill(&a, &p);
+        for v in &mut p.views {
+            v.scale *= 10.0;
+        }
+        assert_eq!(
+            fill(&a, &p),
+            main_fill,
+            "foreign geometry cannot fill this page"
+        );
         p.views.retain(|v| v.detail.is_none());
         assert_eq!(with, furniture_bounds(&a, &p.sheet, &p.views));
     }
