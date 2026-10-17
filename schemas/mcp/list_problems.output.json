@@ -22,10 +22,10 @@
                 ],
                 "additionalProperties": false,
                 "patternProperties": {
-                  "^(id|code|severity|message)$(?!\\s)": {
+                  "^(id|code|severity|message)$(?!\n)": {
                     "type": "string"
                   },
-                  "^(subjects|refs)$(?!\\s)": {
+                  "^(subjects|refs)$(?!\n)": {
                     "$ref": "#/A"
                   }
                 }
@@ -47,7 +47,7 @@
                 ],
                 "additionalProperties": false,
                 "patternProperties": {
-                  "^(id|code|severity)$(?!\\s)": {
+                  "^(id|code|severity)$(?!\n)": {
                     "type": "string"
                   }
                 }

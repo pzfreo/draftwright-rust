@@ -808,6 +808,7 @@ mod tests {
                 .map(|e| e.into_iter().map(|p| [p[0], p[1], 0.]).collect()),
         );
         EdgeInk {
+            references: Default::default(),
             edges,
             planes: vec![PlanarFace {
                 normal: [0., 0., 1.],

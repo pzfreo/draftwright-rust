@@ -96,6 +96,34 @@ pub fn schema(tool: &str, output: bool) -> Option<Value> {
 }
 /// Validate the vocabulary used by our standalone draft-2020-12 schemas.
 pub fn validate(schema: &Value, value: &Value) -> Result<(), String> {
+    // The generator emits finite literal choices, optionally sharing underscore
+    // prefixes, e.g. hidden|centre_(marks|lines). Match the whole key exactly.
+    fn name_matches(choices: &str, key: &str) -> bool {
+        let mut depth = 0;
+        let mut start = 0;
+        for (i, c) in choices.char_indices() {
+            match c {
+                '(' => depth += 1,
+                ')' => depth -= 1,
+                '|' if depth == 0 => {
+                    if name_matches(&choices[start..i], key) {
+                        return true;
+                    }
+                    start = i + 1;
+                }
+                _ => {}
+            }
+        }
+        let last = &choices[start..];
+        if let Some((prefix, rest)) = last.split_once('(') {
+            rest.strip_suffix(')').is_some_and(|suffixes| {
+                key.strip_prefix(prefix)
+                    .is_some_and(|suffix| name_matches(suffixes, suffix))
+            })
+        } else {
+            last == key
+        }
+    }
     fn visit(root: &Value, s: &Value, v: &Value, path: &str) -> Result<(), String> {
         let bad = || format!("{path}: accepted shape is {s}");
         if let Some(r) = s["$ref"].as_str() {
@@ -178,8 +206,8 @@ pub fn validate(schema: &Value, value: &Value) -> Result<(), String> {
                     .filter(|(pattern, _)| {
                         pattern
                             .strip_prefix("^(")
-                            .and_then(|p| p.strip_suffix(")$(?!\\s)"))
-                            .is_some_and(|names| names.split('|').any(|name| name == key))
+                            .and_then(|p| p.strip_suffix(")$(?!\n)"))
+                            .is_some_and(|names| name_matches(names, key))
                     })
                     .map(|(_, shape)| shape)
                     .collect();

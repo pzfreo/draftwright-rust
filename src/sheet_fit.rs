@@ -474,7 +474,7 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
         || plan
             .dimensions
             .iter()
-            .any(|d| !matches!(d.kind.as_str(), "linear" | "callout"))
+            .any(|d| !matches!(d.kind.as_str(), "linear" | "callout" | "angular"))
     {
         return;
     }
@@ -489,7 +489,16 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
     };
     let bounds = footprints(analysis, plan);
     let mut groups: Vec<Rect> = bounds[..plan.views.len()].to_vec();
+    // Corner arcs are independent packing obstacles. Expanding their whole
+    // carrying view into an arc's empty quadrant needlessly overlaps its neighbour.
+    let mut angular = Vec::new();
     for d in plan.dimensions.iter().filter(|d| d.placed.is_some()) {
+        if d.kind == "angular" {
+            if let Some(b) = crate::dims::ink_box(d) {
+                angular.push(b);
+            }
+            continue;
+        }
         let Some(i) = plan.views.iter().position(|v| v.id == d.view) else {
             return;
         };
@@ -505,6 +514,7 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
         .enumerate()
         .filter(|(i, _)| *i != iso_index)
         .map(|(_, b)| b[3])
+        .chain(angular.iter().map(|b| b[3]))
         .fold(f64::NEG_INFINITY, f64::max);
     let lift = plan.sheet.page[1] - MARGIN - 2.0 - top;
     if lift <= 0.0 {
@@ -531,6 +541,11 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
         p.label_box[1] += lift;
         p.label_box[3] += lift;
     }
+    groups.extend(
+        angular
+            .into_iter()
+            .map(|b| [b[0], b[1] + lift, b[2], b[3] + lift]),
+    );
     groups.remove(iso_index);
     let mut tb = plan.sheet.title_block;
     tb[3] = tb[3].max(crate::title_block::top(tb) + 4.0);

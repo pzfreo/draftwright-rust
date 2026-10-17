@@ -16,6 +16,9 @@ pub const GRID: f64 = 1e-3;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EdgeInk {
+    /// Exact recognition-independent dimension references, keyed by versioned fingerprint.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub references: BTreeMap<String, Vec<super::dimension_geometry::Reference>>,
     /// Every edge of the part as a polyline in the part's frame, within [`TOLERANCE`].
     pub edges: Vec<Vec<[f64; 3]>>,
     /// Planar faces: their normal and the edges (indices into `edges`) of all their loops.
@@ -138,6 +141,7 @@ pub(super) fn evidence(part: &Part) -> EdgeInk {
         }
     }
     EdgeInk {
+        references: super::dimension_geometry::evidence(part),
         edges,
         planes,
         curved,

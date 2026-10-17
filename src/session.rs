@@ -1077,7 +1077,11 @@ impl Session {
             .collect()
     }
     fn placement_choices(&self) -> BTreeMap<String, Value> {
-        let mut choices = crate::dims::placement_options(&self.analysis, &self.plan().views);
+        let mut choices = crate::dims::placement_options_with_spec(
+            &self.analysis,
+            &self.plan().views,
+            self.spec(),
+        );
         // The Spec's datums and controls are placed as the file's PMI is ([`crate::spec_gdt`]).
         let merged = crate::spec_gdt::effective(&self.analysis, &self.plan().spec);
         choices.extend(crate::dims::gdt::placement_options(
@@ -1093,6 +1097,7 @@ impl Session {
     }
     fn options_for(&self, item: ItemAnswer, choices: &BTreeMap<String, Value>) -> Options {
         let id = item.item.id.as_str();
+        let angular = item.dimension_kind.as_deref() == Some("angular");
         let placements: Vec<Place> = choices
             .get(id)
             .into_iter()
@@ -1102,10 +1107,13 @@ impl Session {
                         .as_array()
                         .into_iter()
                         .flatten()
-                        .filter_map(|side| {
+                        .map(Some)
+                        .chain(angular.then_some(None))
+                        .filter_map(move |side| {
                             Some(Place {
                                 view: Some(v["view"].as_str()?.into()),
-                                side: serde_json::from_value(side.clone()).ok(),
+                                side: side
+                                    .and_then(|side| serde_json::from_value(side.clone()).ok()),
                                 lane: None,
                                 along: Some(Along::Slot(Slot::Middle)),
                                 offset: None,
@@ -1165,6 +1173,9 @@ fn settable(
         "hole_table".into(),
         choices(json!(["auto", "always", "never"])),
     );
+    if id == "sheet" {
+        fields.insert("dimensions/d:authored:<name>".into(), json!({"forms":["{between:[reference,reference],along:x|y|z|true,kind:linear}","{kind:diameter|radius,between:[face reference]}","{kind:angle,between:[reference,reference]}"],"consequences":["References are stable keys from Analysis.edge_ink.references; duplicate quantities are refused with their existing owner ID"]}));
+    }
     if !base.is_empty() {
         fields.insert(format!("{base}/omit"), choices(json!([false, true])));
         if item.item.kind == "view" {
@@ -1268,6 +1279,22 @@ fn settable(
                 fields[&format!("{base}/place/view")].clone(),
             );
             fields.insert(format!("{base}/tolerance"), json!({"forms":["±T","+U -L"]}));
+            if session
+                .spec()
+                .dimensions
+                .get(id)
+                .is_some_and(|d| d.between.is_some())
+            {
+                fields.insert(
+                    format!("{base}/kind"),
+                    choices(json!(["linear", "diameter", "radius", "angle"])),
+                );
+                fields.insert(format!("{base}/between"), json!({"forms":["[reference, reference] (linear/angle)","[face reference] (diameter/radius)"],"consequences":["Copy stable keys from Analysis.edge_ink.references; axis:<face key> selects a cylinder axis"]}));
+                fields.insert(
+                    format!("{base}/along"),
+                    choices(json!(["x", "y", "z", "true"])),
+                );
+            }
         }
     }
     // Recognition edits travel through the same transactional preview/apply and history.
@@ -1525,9 +1552,18 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                 a.features.dedup();
                 a.anchors = vec![d.view.clone()];
                 a.anchors.extend(a.features.clone());
+                for m in &d.measurements {
+                    if let Some(refs) = m.feature.strip_prefix("geometry:") {
+                        a.anchors.extend(refs.split('|').map(String::from));
+                    }
+                }
                 a.operations = ["omit", "tolerance", "place", "pin"]
                     .map(String::from)
                     .into();
+                if d.from_spec.iter().any(|field| field == "between") {
+                    a.operations
+                        .extend(["between", "kind", "along"].map(String::from));
+                }
             }
             if let Some(o) = plan.omitted.iter().find(|o| &o.id == id) {
                 a.basis = o.basis.clone();

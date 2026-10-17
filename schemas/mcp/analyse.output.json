@@ -16,10 +16,10 @@
           ],
           "additionalProperties": false,
           "patternProperties": {
-            "^(source_sha256|part|loader)$(?!\\s)": {
+            "^(source_sha256|part|loader)$(?!\n)": {
               "type": "string"
             },
-            "^(face_count|part_index)$(?!\\s)": {
+            "^(face_count|part_index)$(?!\n)": {
               "minimum": 0,
               "type": "integer"
             }

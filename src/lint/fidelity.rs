@@ -29,8 +29,8 @@
 //!   ray past the arc. The port draws an arc as chords within 0.005 mm of it, so its chords'
 //!   ends are on the circle.
 //! - `angular_support_mismatch` (`lint_angular_supports`, its drawn half): each ray must lie
-//!   along a straight visible edge of the view, so the angle is between the corner's physical
-//!   edges as drawn, and a quantity mark (`n×`) cannot be proved by one drawn corner, so it is
+//!   along a straight visible edge of the view, either both forwards or both extended backwards,
+//!   so the angle remains the corner's physical included angle, and a quantity mark (`n×`) cannot be proved by one drawn corner, so it is
 //!   refused. draftwright compares the drawn witnesses with the supports its registry binds;
 //!   lint here has the drawn view's edges, which the faces of an angle shown true project to.
 //! - `datum_leader_remote` (`_lint_datum_leader_locality`): a datum feature symbol (a PMI datum,
@@ -464,7 +464,9 @@ fn angular(drawing: &Drawing, d: &Drawn, label: &str, view: Option<&str>) -> Vec
              of its sector"
         )));
     }
-    // Its supports: each ray along a straight visible edge of its view.
+    // Both supports may be extended through their common vertex. Reversing
+    // both rays preserves the included angle; reversing only one changes it to
+    // its supplement and must still be refused.
     let edges: Vec<[P; 2]> = view
         .and_then(|name| drawing.sheet.views.iter().find(|w| w.name == name))
         .map(|w| {
@@ -477,10 +479,10 @@ fn angular(drawing: &Drawing, d: &Drawn, label: &str, view: Option<&str>) -> Vec
                 .collect()
         })
         .unwrap_or_default();
-    let supported = |ray: P| {
+    let supported = |ray: P, sense: f64| {
         edges.iter().any(|[a, b]| {
             let across = |p: P| cross(ray, sub(p, vertex)).abs();
-            let along = |p: P| dot(sub(p, vertex), ray);
+            let along = |p: P| sense * dot(sub(p, vertex), ray);
             across(*a) <= ON_EDGE
                 && across(*b) <= ON_EDGE
                 && along(*a).max(along(*b)) > ON_EDGE
@@ -495,7 +497,9 @@ fn angular(drawing: &Drawing, d: &Drawn, label: &str, view: Option<&str>) -> Vec
         Some(format!(
             "its quantity {quantity}× is not proved by the one corner drawn"
         ))
-    } else if !supported(u) || !supported(v) {
+    } else if !((supported(u, 1.0) && supported(v, 1.0))
+        || (supported(u, -1.0) && supported(v, -1.0)))
+    {
         Some("a ray does not lie along a visible edge of its view".to_string())
     } else {
         None

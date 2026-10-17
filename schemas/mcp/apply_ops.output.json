@@ -134,7 +134,7 @@
                                 "additionalProperties": false,
                                 "minProperties": 8,
                                 "patternProperties": {
-                                  "^(anchors|features|operations)$(?!\\s)": {
+                                  "^(anchors|features|operations)$(?!\n)": {
                                     "$ref": "#/A"
                                   }
                                 }
@@ -188,10 +188,10 @@
                                 ],
                                 "additionalProperties": false,
                                 "patternProperties": {
-                                  "^(id|code|severity|message)$(?!\\s)": {
+                                  "^(id|code|severity|message)$(?!\n)": {
                                     "$ref": "#/B"
                                   },
-                                  "^(subjects|refs)$(?!\\s)": {
+                                  "^(subjects|refs)$(?!\n)": {
                                     "$ref": "#/A"
                                   }
                                 }
@@ -214,7 +214,7 @@
                                 ],
                                 "additionalProperties": false,
                                 "patternProperties": {
-                                  "^(id|code|severity)$(?!\\s)": {
+                                  "^(id|code|severity)$(?!\n)": {
                                     "$ref": "#/B"
                                   }
                                 }

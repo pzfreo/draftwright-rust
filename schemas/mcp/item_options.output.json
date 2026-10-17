@@ -76,7 +76,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(forms|fields|paths|consequences)$(?!\\s)": {
+              "^(forms|fields|paths|consequences)$(?!\n)": {
                 "$ref": "#/A"
               }
             }
@@ -86,7 +86,7 @@
       "additionalProperties": false,
       "minProperties": 6,
       "patternProperties": {
-        "^(operations|view_anchors|scales)$(?!\\s)": {
+        "^(operations|view_anchors|scales)$(?!\n)": {
           "$ref": "#/A"
         }
       }

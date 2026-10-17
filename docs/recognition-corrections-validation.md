@@ -192,3 +192,72 @@ The isolated recheck used the same corpus-required workspace release command wit
 and one test thread. Its log is `http-slow-body-recheck.log`. The original full-run
 failure remains in `full-suite.log`; the successful recheck does not replace it.
 No other full-suite target failed. Nothing was pushed.
+
+## Merge of geometry-authored dimensions (#78, 2026-10-17)
+
+Merged `origin/main` at `a22bcab2` without rebasing. Recognition correction binding
+runs after migration and before the authored-dimension check, so validation sees
+remapped dimension entries. Both feature descriptions and WASM API notes remain in
+`model.md` and `CHANGELOG.md`. A combined regression plans a suppressed recognition
+and a geometry-authored width, round-trips the bound Spec, and refuses malformed
+reference counts.
+
+The MCP generator retains `dimension`, `spec_read`, recognition declarations and
+shared map/list `patternProperties`. Its iterative compaction includes main's
+`hoist_objects`, preserves root-local definitions, and measures compact UTF-8 bytes.
+Closed enum objects can use their inherited object type; finite property-name
+choices share underscore prefixes such as `centre_(marks|lines)`. The native matcher
+accepts exactly those literal choices. The newline guard now rejects a final newline
+with the same meaning in independent JSON Schema validation and native validation.
+The shared map constraint supplies object types for the typed `spec_read` dimensions.
+No schema JSON was hand-merged.
+
+The 26 schemas total **42,405 compact bytes**, below the unchanged **42,500-byte**
+budget. All **36,548** original/compact schema comparisons agreed. The independent
+server check validates all 13 tools' inputs, outputs and refusals and confirms the
+26 published and served schemas agree. Native and independent regressions cover
+prefix choices, final-newline keys, authored dimension forms and declarations together.
+
+Logs for this merge are in
+`target/recognition-corrections/authored-merge-validation/`.
+
+| Merge check | Result |
+| --- | --- |
+| Release build | Passed. |
+| `cargo fmt --all --check` | Passed. |
+| `cargo clippy --workspace --all-targets --release -- -D warnings` | Passed. |
+| Independent MCP validation | Passed: 13 tools / 26 schemas; clean regeneration is reproducible. |
+| Python schema compactor / WASM safeguard tests | All three / all 16 passed. |
+| Focused release regressions, required corpus | All 54 passed: 21 recognition, 14 authored dimensions, six linework, ten MCP efficiency and three engine-version/schema-budget tests. |
+| WASM build / API | Exact locked CI `wasm-release` web build passed; `check_wasm_api.py --base-ref origin/main` matches the reviewed snapshot. |
+| WASM size | Passed: 13,951,742 bytes raw, 4,614,466 gzip, 3,080,837 Brotli; raw ceiling remains 15,700,000 bytes. |
+| Native/WASM parity | Locked native reference build and all four Node tests passed, including correction sessions and geometry-authored dimension replay. |
+| Full corpus-required workspace release suite | 1,160 passed, one failed, zero ignored across 117 test/doc-test harnesses, including all 111 integration targets. Both doc-test harnesses completed. All session latency gates passed unchanged. |
+
+The full suite ran to completion with:
+
+```sh
+DRAFTWRIGHT_CORPUS=/Users/paul/repos/quiddity/tests/corpus \
+DRAFTWRIGHT_CORPUS_REQUIRED=1 CARGO_BUILD_JOBS=4 RUST_TEST_THREADS=4 \
+cargo test --workspace --release --no-fail-fast
+```
+
+The one failure was
+`stateless::http_slow_head_has_absolute_deadline_and_serves_queued_ping`:
+`http_response`'s `read_to_end` returned macOS `ConnectionReset` (OS error 54) at
+`tests/stateless.rs:181`, before the timing assertion. The slow-body counterpart
+passed. The unchanged slow-head test passed in isolation in **10.65 s**, with the
+same required corpus and one test thread:
+
+```sh
+DRAFTWRIGHT_CORPUS=/Users/paul/repos/quiddity/tests/corpus \
+DRAFTWRIGHT_CORPUS_REQUIRED=1 CARGO_BUILD_JOBS=4 RUST_TEST_THREADS=1 \
+cargo test --workspace --release --test stateless \
+  http_slow_head_has_absolute_deadline_and_serves_queued_ping -- --exact --nocapture
+```
+
+The original failure remains in `full-suite.log`; its successful isolated recheck
+is in `http-slow-head-recheck.log`. Neither HTTP implementation nor its tests were
+changed. No latency gate, threshold or latency environment override was changed.
+The release and WASM builds passed; WASM emitted the existing wrapper LICENSE-file
+notice. Nothing was pushed.

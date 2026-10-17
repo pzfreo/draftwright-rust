@@ -85,6 +85,52 @@ fn suppression_removes_dimensions_and_lint_requirements_but_does_not_hide_other_
 }
 
 #[test]
+fn recognition_binding_and_authored_dimension_validation_share_the_planned_spec() {
+    use model::dimension_geometry::Reference;
+    let (_, a) = plate();
+    let hole = a.features.iter().find(|f| f.kind == "hole").unwrap();
+    let mut planes: Vec<_> = a
+        .dimension_references()
+        .iter()
+        .filter_map(|(id, refs)| match refs.as_slice() {
+            [Reference::Plane { origin, normal, .. }] if normal[0].abs() > 1.0 - 1e-8 => {
+                Some((id.clone(), origin[0]))
+            }
+            _ => None,
+        })
+        .collect();
+    planes.sort_by(|p, q| p.1.total_cmp(&q.1));
+    let mut s = spec(json!({
+        "features":{&hole.id:{"suppress":true}},
+        "dimension_source":"authored",
+        "dimensions":{"d:authored:width":{
+            "between":[planes.first().unwrap().0,planes.last().unwrap().0],"along":"x"
+        }}
+    }));
+    let p = model::plan_recovered(&a, &s).unwrap();
+    assert!(p.spec.features[&hole.id].anchor.is_some());
+    assert_eq!(p.recognition_corrections.len(), 1);
+    let width = p
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:authored:width")
+        .unwrap();
+    assert_eq!(width.value, a.envelope[1][0] - a.envelope[0][0]);
+    assert!(width.from_spec.contains(&"between".into()));
+    assert_eq!(
+        serde_json::to_value(&p).unwrap(),
+        serde_json::to_value(model::plan_recovered(&a, &saved(&p.spec)).unwrap()).unwrap()
+    );
+    s.dimensions.get_mut("d:authored:width").unwrap().between = Some(vec!["one-reference".into()]);
+    assert!(
+        model::plan_recovered(&a, &s)
+            .unwrap_err()
+            .message
+            .contains("needs 2 reference(s)")
+    );
+}
+
+#[test]
 fn declare_a_missed_bore_from_faces_then_lint_its_actual_printed_value() {
     let (part, mut a) = plate();
     let hole = a

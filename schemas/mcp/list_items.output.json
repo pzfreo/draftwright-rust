@@ -113,7 +113,7 @@
                 "additionalProperties": false,
                 "minProperties": 8,
                 "patternProperties": {
-                  "^(anchors|features|operations)$(?!\\s)": {
+                  "^(anchors|features|operations)$(?!\n)": {
                     "$ref": "#/B"
                   }
                 }

@@ -1,6 +1,9 @@
 {
   "type": "object",
   "properties": {
+    "part_ref": {
+      "type": "string"
+    },
     "spec": {
       "type": "object",
       "properties": {
@@ -37,7 +40,7 @@
           },
           "additionalProperties": false,
           "patternProperties": {
-            "^(max|hole_table)$(?!\\s)": {
+            "^(max|hole_table)$(?!\n)": {
               "enum": [
                 null,
                 1,
@@ -78,13 +81,13 @@
           },
           "additionalProperties": false,
           "patternProperties": {
-            "^(fit_limits|fit_deviations|hidden|centre_marks|centre_lines|thread_depiction|knurl_depiction)$(?!\\s)": {
+            "^(hidden|thread_depiction|knurl_depiction|fit_(limits|deviations)|centre_(marks|lines))$(?!\n)": {
               "type": [
                 "boolean",
                 "null"
               ]
             },
-            "^(size|scale)$(?!\\s)": {
+            "^(size|scale)$(?!\n)": {
               "$ref": "#/B"
             }
           }
@@ -92,7 +95,7 @@
         "views": {
           "additionalProperties": {
             "patternProperties": {
-              "^(hidden|centre_marks|centre_lines|thread_depiction|knurl_depiction)$(?!\\s)": {
+              "^(hidden|thread_depiction|knurl_depiction|centre_(marks|lines))$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"
@@ -135,19 +138,25 @@
       },
       "additionalProperties": false,
       "patternProperties": {
-        "^(views|dimensions|annotations|features|faces)$(?!\\s)": {
+        "^(views|dimensions|annotations|features|faces)$(?!\n)": {
           "type": "object",
           "additionalProperties": {
             "type": "object"
           }
         },
-        "^(notes|tables|gears|feature_declarations)$(?!\\s)": {
+        "^(notes|tables|gears|feature_declarations)$(?!\n)": {
           "type": "array",
           "items": {
             "type": "object"
           }
         }
       }
+    },
+    "spec_version": {
+      "type": "string"
+    },
+    "drawing_ref": {
+      "type": "string"
     },
     "sheet": {
       "enum": [
@@ -166,18 +175,7 @@
   "required": [
     "part_ref"
   ],
-  "additionalProperties": {
-    "type": "string"
-  },
-  "propertyNames": {
-    "enum": [
-      "part_ref",
-      "spec",
-      "spec_version",
-      "drawing_ref",
-      "sheet"
-    ]
-  },
+  "additionalProperties": false,
   "A": {
     "items": {
       "type": "string"

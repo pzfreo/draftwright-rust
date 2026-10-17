@@ -31,6 +31,9 @@ with tempfile.TemporaryDirectory(prefix='s7-schema-') as cache:
             validators[tool['name'], direction] = Draft202012Validator(published)
     nullable = validators['inspect_part', 'input']
     assert not nullable.is_valid({'part_ref': 'part', 'part_ref\n': 'bad'}), 'literal property names stay strict at a final newline'
+    for spec in ({'dimensions\n': {}}, {'sheet': {'centre_marks\n': True}},
+                 {'sheet': {'fit_limits\n': True}}):
+        assert not nullable.is_valid({'part_ref': 'part', 'spec': spec}), spec
     for sheet in [{'size': None, 'fit_limits': None}, {'size': 'A4', 'fit_limits': True}]:
         nullable.validate({'part_ref': 'part', 'spec': {'sheet': sheet}})
     for sheet in [{'size': 42}, {'fit_limits': 'yes'}]:
@@ -53,6 +56,16 @@ with tempfile.TemporaryDirectory(prefix='s7-schema-') as cache:
     # Named view constraints and the common object-map shape must both apply.
     assert not nullable.is_valid({'part_ref': 'part', 'spec': {'views': {'side': []}}})
     assert not nullable.is_valid({'part_ref': 'part', 'spec': {'feature_declarations': 'bad'}})
+    read_spec = validators['get_spec', 'output']
+    def dimension_result(dimension):
+        return {'spec_version': 'v', 'spec': {'dimensions': {'d:authored:test': dimension},
+                'feature_declarations': [declaration]}}
+    for dimension in ({}, {'kind': 'linear', 'between': ['a', 'b'], 'along': 'true'},
+                      {'kind': None, 'between': None, 'along': None}):
+        read_spec.validate(dimension_result(dimension))
+    for dimension in ([], None, {'kind': 'bad'}, {'between': []},
+                      {'between': ['a', 'b', 'c']}, {'between': [1]}, {'along': 'bad'}):
+        assert not read_spec.is_valid(dimension_result(dimension)), dimension
     def call(name, args):
         validators[name, 'input'].validate(args)
         result = rpc('tools/call', {'name': name, 'arguments': args})

@@ -462,7 +462,7 @@ impl Grid {
 }
 
 /// The three edges of the arrowhead on *arrow* (tip, tail), as `dims::render` draws it.
-fn head(arrow: [P2; 2]) -> [[P2; 2]; 3] {
+pub(super) fn head(arrow: [P2; 2]) -> [[P2; 2]; 3] {
     let [tip, tail] = arrow;
     let n = [tail[1] - tip[1], tip[0] - tail[0]];
     let k = super::ARROW_HALF / n[0].hypot(n[1]).max(1e-12);

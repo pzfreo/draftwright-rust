@@ -8,7 +8,7 @@
             "additionalProperties": false,
             "minProperties": 8,
             "patternProperties": {
-              "^(anchors|features|operations)$(?!\\s)": {
+              "^(anchors|features|operations)$(?!\n)": {
                 "$ref": "#/A"
               }
             },
@@ -42,10 +42,10 @@
           {
             "additionalProperties": false,
             "patternProperties": {
-              "^(id|kind|basis)$(?!\\s)": {
+              "^(id|kind|basis)$(?!\n)": {
                 "type": "string"
               },
-              "^(label|view)$(?!\\s)": {
+              "^(label|view)$(?!\n)": {
                 "type": [
                   "string",
                   "null"

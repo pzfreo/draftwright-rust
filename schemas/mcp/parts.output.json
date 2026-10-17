@@ -7,10 +7,10 @@
           "additionalProperties": false,
           "minProperties": 5,
           "patternProperties": {
-            "^(name|product_id)$(?!\\s)": {
+            "^(name|product_id)$(?!\n)": {
               "type": "string"
             },
-            "^(part|faces|instances)$(?!\\s)": {
+            "^(part|faces|instances)$(?!\n)": {
               "minimum": 0,
               "type": "integer"
             }
