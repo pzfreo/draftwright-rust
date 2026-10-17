@@ -2102,6 +2102,89 @@ mod complete_candidate_tests {
 
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
+    fn shared_settlement_keeps_current_measurements_and_invalidates_edited_ink() {
+        use super::*;
+        for file in [
+            "tests/fixtures/parts/mounting_plate.step",
+            "tests/fixtures/pmi/step/hw_string_post_tapped_intent.step.gz",
+        ] {
+            let (_, a) =
+                analyse_native(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(file))
+                    .unwrap();
+            let base: Spec = serde_json::from_value(serde_json::json!({
+                "sheet": {"size": "A3", "scale": "1:1"}
+            }))
+            .unwrap();
+            let p = plan_with(&a, &base, false, true, None, true, false).unwrap();
+            let cache = crate::dims::footprints::Cache::default();
+            let mut fixed = crate::centrelines::obstacles(&p.views);
+            fixed.extend(p.gdt.iter().filter_map(crate::dims::gdt::proxy));
+            crate::planning::with(&a, || {
+                for edit in 0..4 {
+                    let mut inventory = p.dimensions.clone();
+                    let mut spec = base.clone();
+                    for d in &mut inventory {
+                        d.basis = format!("current candidate {edit}");
+                        d.default = false;
+                        d.from_spec.push("candidate metadata".into());
+                        // Settlement owns geometry only, including when a caller
+                        // refreshes the independently supplied measured values.
+                        for m in &mut d.measurements {
+                            m.value += edit as f64;
+                        }
+                    }
+                    if edit == 2 {
+                        for d in &mut inventory {
+                            if let Some(p) = &mut d.placed {
+                                p.label_at[0] += 1.0;
+                                p.label_box[0] += 1.0;
+                                p.label_box[2] += 1.0;
+                            }
+                        }
+                    }
+                    if edit == 3
+                        && let Some(d) = inventory.first()
+                    {
+                        spec.dimensions
+                            .entry(d.id.clone())
+                            .or_default()
+                            .place
+                            .get_or_insert_with(Default::default)
+                            .pinned = true;
+                    }
+                    let mut expected = inventory.clone();
+                    crate::dims::settle_inventory(
+                        &a,
+                        &spec,
+                        &p.sheet,
+                        &p.views,
+                        &mut expected,
+                        &fixed,
+                    );
+                    let reports = crate::dims::settle_after_furniture(
+                        &a,
+                        &spec,
+                        &p.sheet,
+                        &p.views,
+                        &mut expected,
+                        &fixed,
+                        &cache,
+                    );
+                    let actual = settle_sheet_inventory(
+                        &a, &spec, &p.sheet, &p.views, inventory, &fixed, &cache, true,
+                    );
+                    assert_eq!(
+                        serde_json::to_value(actual).unwrap(),
+                        serde_json::to_value((expected, reports)).unwrap(),
+                        "{file} edit {edit}"
+                    );
+                }
+            });
+        }
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn inactive_sheet_search_controls_preserve_candidate_ink() {
         use super::*;
         let Some(root) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
@@ -4153,7 +4236,7 @@ fn settle_sheet_inventory(
     spec: &Spec,
     sheet: &PlannedSheet,
     views: &[PlannedView],
-    inventory: Vec<crate::dims::PlannedDimension>,
+    mut inventory: Vec<crate::dims::PlannedDimension>,
     fixed: &[crate::dims::PlannedDimension],
     cache: &crate::dims::footprints::Cache,
     reroute: bool,
@@ -4177,27 +4260,63 @@ fn settle_sheet_inventory(
         } else {
             BTreeMap::new()
         };
-        (settled, reports)
+        (
+            settled.into_iter().map(|d| d.placed).collect::<Vec<_>>(),
+            reports,
+        )
     };
-    if !crate::planning::enabled(analysis) {
-        return prepare();
+    let (placements, reports) = if crate::planning::enabled(analysis) {
+        // These passes read placement intent and physical ink, not measurement
+        // claims, provenance or diagnostic explanations. Cache only placements:
+        // every returned dimension keeps this candidate's current metadata.
+        let controls: Vec<_> = spec
+            .dimensions
+            .iter()
+            .filter_map(|(id, d)| d.place.as_ref().map(|p| (id, p)))
+            .collect();
+        let geometry_views: Vec<_> = views
+            .iter()
+            .map(|v| {
+                (
+                    &v.id,
+                    v.sheet,
+                    v.direction,
+                    v.up,
+                    v.at,
+                    v.scale,
+                    v.area,
+                    &v.cut,
+                    &v.detail,
+                )
+            })
+            .collect();
+        let ink: Vec<_> = inventory
+            .iter()
+            .map(|d| (&d.id, &d.kind, &d.view, &d.region, &d.terms, &d.placed))
+            .collect();
+        let fixed_ink: Vec<_> = fixed
+            .iter()
+            .map(|d| (&d.id, &d.kind, &d.view, &d.region, &d.terms, &d.placed))
+            .collect();
+        let key = serde_json::to_vec(&(
+            controls,
+            sheet.page,
+            sheet.title_block,
+            sheet.number,
+            geometry_views,
+            ink,
+            fixed_ink,
+            reroute,
+        ))
+        .expect("sheet label settlement inputs serialize");
+        crate::planning::memo(analysis, "sheet-label-placements", key, prepare)
+    } else {
+        prepare()
+    };
+    for (dimension, placed) in inventory.iter_mut().zip(placements) {
+        dimension.placed = placed;
     }
-    let mut geometry_views = views.to_vec();
-    for view in &mut geometry_views {
-        view.basis.clear();
-    }
-    let key = serde_json::to_vec(&(
-        &spec.dimensions,
-        sheet.page,
-        sheet.title_block,
-        sheet.number,
-        &geometry_views,
-        &inventory,
-        fixed,
-        reroute,
-    ))
-    .expect("sheet label settlement inputs serialize");
-    crate::planning::memo(analysis, "sheet-label-settlement", key, prepare)
+    (inventory, reports)
 }
 
 fn plan_with_presentation(

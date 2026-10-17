@@ -1035,6 +1035,12 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   unchanged. Final label settlement separately keys on dimension placement intent,
   actual ink and fixed obstacles, physical paper/title bounds, sheet number and
   view geometry; source diagnostics never enter that geometric operation.
+  That cache stores placements only, leaving each candidate's current measured
+  values, provenance and explanations intact.
+  Feature footprints share exact frame/scale projections across the finite
+  internal search; actual crop definitions and user intent separate retained
+  cache entries. Route comparisons build each page's extension inventory once;
+  geometric contact and parallel-run predicates remain unchanged.
 
   An unpinned oblique-dimension side hint may yield to shorter clean witnesses
   in the same sheet, scale and view frames. All measurements, control frames,
