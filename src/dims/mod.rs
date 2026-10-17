@@ -170,7 +170,12 @@ fn chosen_views(
         }) else {
             continue;
         };
-        let able: Vec<&'static str> = w.views.iter().copied().filter(|c| carries(w, c)).collect();
+        let able: Vec<&'static str> = w
+            .views
+            .iter()
+            .copied()
+            .filter(|c| crate::view_setup::oriented(spec) || carries(w, c))
+            .collect();
         let Some(&v) = able.iter().find(|c| **c == v) else {
             return Err(Invalid {
                 message: format!(
@@ -194,7 +199,15 @@ fn chosen_views(
             if pinned {
                 w.views.retain(|c| *c == v);
             }
-            let (why, how, fix) = if spec.views.get(v).is_some_and(|s| s.omit) {
+            let (why, how, fix) = if crate::view_setup::requested(spec, v) == Some(false) {
+                (
+                    "excluded by the explicit principal set",
+                    format!(
+                        "Include {v} in views/front/principal_views or remove the dimension's view."
+                    ),
+                    vec![crate::view_setup::include_principal(spec, v)],
+                )
+            } else if spec.views.get(v).is_some_and(|s| s.omit) {
                 (
                     "omitted",
                     format!(
@@ -876,6 +889,17 @@ fn detail_routes(a: &Analysis, wants: &mut [Want], views: &[PlannedView]) {
         let inside =
             |p: P3| (0..3).all(|k| d.bounds[0][k] - 1e-6 <= p[k] && p[k] <= d.bounds[1][k] + 1e-6);
         for w in wants.iter_mut() {
+            if d.camera.is_some() && !true_shape(w, &Frame::new(a, v)) {
+                continue;
+            }
+            if d.kind == "auxiliary" {
+                // True-shape auxiliaries are available to explicit dimension placement;
+                // automatic owners remain on their established principal views.
+                if !w.views.contains(&name) {
+                    w.views.push(name);
+                }
+                continue;
+            }
             let explicit = d.dimensions.contains(&w.id);
             let blend = w
                 .measurements
@@ -889,7 +913,9 @@ fn detail_routes(a: &Analysis, wants: &mut [Want], views: &[PlannedView]) {
                 .measurements
                 .iter()
                 .any(|m| crate::dims::feature_origin(a, &m.feature).is_some_and(inside));
-            if !explicit && !(sites && blend && d.kind == "turned-head") && !(d.authored && feature)
+            if !explicit
+                && !(sites && blend && d.kind == "turned-head")
+                && !(d.authored && d.kind != "auxiliary" && feature)
             {
                 continue;
             }
@@ -954,8 +980,10 @@ fn route(
     wants: &mut [Want],
     frames: &BTreeMap<&str, Frame>,
     analysis: &Analysis,
+    spec: &Spec,
 ) -> (Vec<Option<&'static str>>, Vec<Vec<&'static str>>) {
     let [lo, hi] = analysis.envelope;
+    let oriented = crate::view_setup::oriented(spec);
     let mut chosen: Vec<Option<&'static str>> = Vec::new();
     let mut end_on: Vec<Vec<&'static str>> = Vec::new();
     for w in wants.iter_mut() {
@@ -963,12 +991,30 @@ fn route(
         let mut along = Vec::new();
         for v in w.views.clone() {
             let Some(f) = frames.get(v) else { continue };
+            let custom_camera = oriented
+                || spec
+                    .views
+                    .get(v)
+                    .is_some_and(|v| v.auxiliary.is_some() || v.partial.is_some());
+            if custom_camera && !true_shape(w, f) {
+                along.push(v);
+                continue;
+            }
+            let axis_true = |k: usize| {
+                let p = f.view.map([0, 1, 2].map(|j| f64::from(j == k)));
+                (p[0] * p[0] + p[1] * p[1] - 1.).abs() < 1e-6
+            };
             if let Shape::Linear { a, b, axis, .. } = &mut w.shape
-                && across(f, *axis).is_none()
+                && (across(f, *axis).is_none() || (custom_camera && !axis_true(*axis)))
             {
-                let radial = w
-                    .turning
-                    .and_then(|t| (0..3).find(|&j| j != t && j != *axis && across(f, j).is_some()));
+                let radial = w.turning.and_then(|t| {
+                    (0..3).find(|&j| {
+                        j != t
+                            && j != *axis
+                            && across(f, j).is_some()
+                            && (!custom_camera || axis_true(j))
+                    })
+                });
                 let Some(j) = radial else {
                     along.push(v);
                     continue;
@@ -977,6 +1023,12 @@ fn route(
                 *b = lo;
                 b[j] = hi[j];
                 *axis = j;
+            }
+            if custom_camera && let Shape::Linear { a, b, axis, .. } = &w.shape {
+                let p = f.view.map([0, 1, 2].map(|k| f64::from(k == *axis)));
+                if p[0].abs() < 1. - 1e-6 && p[1].abs() < 1. - 1e-6 {
+                    w.shape = Shape::Aligned { a: *a, b: *b };
+                }
             }
             view = Some(v);
             break;
@@ -1042,6 +1094,7 @@ pub(crate) fn callout_bands(
     let (mut wants, ..) = wants(analysis);
     let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
     authored::append(analysis, spec, &mut wants)?;
+    setup_routes(analysis, spec, &mut wants)?;
     if !scheme_covered.is_empty() {
         wants.retain(|w| !scheme_covered.contains_key(&w.id));
     }
@@ -1127,6 +1180,7 @@ fn lanes_uncached(
     let (mut wants, mut problems, notes) = wants(analysis);
     let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
     authored::append(analysis, spec, &mut wants)?;
+    setup_routes(analysis, spec, &mut wants)?;
     if scheme_covered.is_empty() {
         wants.retain(|w| !excluded.contains(&w.id));
     } else {
@@ -1146,7 +1200,7 @@ fn lanes_uncached(
         problems.extend(chosen_views(&mut wants, spec, &frames)?);
     }
     plates::prefer_readable(analysis, &mut wants, &frames, None);
-    let (chosen, _) = route(&mut wants, &frames, analysis);
+    let (chosen, _) = route(&mut wants, &frames, analysis, spec);
     let wants: Vec<_> = wants
         .into_iter()
         .zip(chosen)
@@ -1346,6 +1400,7 @@ pub(crate) fn reserve_linear_intent(
     if !spec.dimension_schemes.is_empty() {
         authored::append(analysis, spec, &mut wants)?;
     }
+    setup_routes(analysis, spec, &mut wants)?;
     if scheme_covered.is_empty() {
         wants.retain(|w| !excluded.contains(&w.id));
     } else {
@@ -1363,7 +1418,7 @@ pub(crate) fn reserve_linear_intent(
         .collect();
     chosen_views(&mut wants, spec, &frames)?;
     plates::prefer_readable(analysis, &mut wants, &frames, Some(spec));
-    let (chosen, _) = route(&mut wants, &frames, analysis);
+    let (chosen, _) = route(&mut wants, &frames, analysis, spec);
     let owner = placement::owners(analysis, &wants, &chosen);
     let (sides, lane) = placement::lanes(&frames, wants.iter().zip(chosen.iter().copied()), &owner);
     // Predict the same line-sharing reflow used by placement, before the
@@ -1638,6 +1693,7 @@ fn plan_inventory_uncached(
     let (mut wants, mut problems, notes) = wants(analysis);
     let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
     authored::append(analysis, spec, &mut wants)?;
+    setup_routes(analysis, spec, &mut wants)?;
     let retired: Vec<_> = if scheme_covered.is_empty() {
         Vec::new()
     } else {
@@ -1661,7 +1717,7 @@ fn plan_inventory_uncached(
     let authored_ownership = authored::ownership(analysis, spec, &wants);
     problems.extend(chosen_views(&mut wants, spec, &frames)?);
     plates::prefer_readable(analysis, &mut wants, &frames, Some(spec));
-    let (mut chosen, mut end_on) = route(&mut wants, &frames, analysis);
+    let (mut chosen, mut end_on) = route(&mut wants, &frames, analysis, spec);
     // Display intent may not silently undo the established one-owner span grouping.
     let display_owners = if spec.precision.is_empty() {
         Vec::new()
@@ -3192,6 +3248,9 @@ pub(crate) fn placement_options_with_spec(
     spec: &Spec,
 ) -> BTreeMap<String, Value> {
     let (mut wants, ..) = wants(analysis);
+    if setup_routes(analysis, spec, &mut wants).is_err() {
+        return BTreeMap::new();
+    }
     if schemes::apply(analysis, spec, &mut wants).is_err()
         || authored::append(analysis, spec, &mut wants).is_err()
     {
@@ -3207,7 +3266,7 @@ pub(crate) fn placement_options_with_spec(
                 .then(|| (name, Frame::new(analysis, v)))
         })
         .collect();
-    route(&mut wants, &frames, analysis);
+    route(&mut wants, &frames, analysis, spec);
     wants
         .iter()
         .zip(original)
@@ -3219,7 +3278,8 @@ pub(crate) fn placement_options_with_spec(
                     let frame = frames.get(name)?;
                     let mut probe = original.clone();
                     probe.views = vec![name];
-                    let (chosen, _) = route(std::slice::from_mut(&mut probe), &frames, analysis);
+                    let (chosen, _) =
+                        route(std::slice::from_mut(&mut probe), &frames, analysis, spec);
                     if chosen[0] != Some(name) {
                         return None;
                     }
@@ -3280,6 +3340,73 @@ pub(crate) fn measurement_ids(analysis: &Analysis) -> BTreeSet<String> {
         .flat_map(|w| &w.measurements)
         .map(|m| want_id(&m.feature, &m.parameter))
         .collect()
+}
+
+/// Camera overrides change carriers, never the measured model-space endpoints.
+fn true_shape(w: &Want, f: &placement::Frame) -> bool {
+    let direction = |v: P3| {
+        let p = f.view.map(v);
+        [p[0], p[1]]
+    };
+    let in_plane = |v: P3| {
+        let p = direction(v);
+        (p[0] * p[0] + p[1] * p[1] - (v.iter().map(|x| x * x).sum::<f64>())).abs() < 1e-6
+    };
+    match &w.shape {
+        Shape::Linear { axis, .. } => {
+            in_plane([0, 1, 2].map(|k| f64::from(k == *axis)))
+                || w.turning.is_some_and(|t| {
+                    (0..3).any(|k| k != t && in_plane([0, 1, 2].map(|j| f64::from(j == k))))
+                })
+        }
+        Shape::Aligned { a, b } => in_plane([0, 1, 2].map(|k| b[k] - a[k])),
+        Shape::Angular { angle } => angle.rays().is_some_and(|r| r.into_iter().all(in_plane)),
+        Shape::Callout { .. } => true,
+    }
+}
+fn setup_routes(a: &Analysis, s: &Spec, wants: &mut [Want]) -> Result<(), Invalid> {
+    if !crate::view_setup::oriented(s) {
+        return Ok(());
+    }
+    let cameras = crate::view_setup::cameras(a, s)?;
+    let frames: Vec<_> = cameras
+        .iter()
+        .map(|c| Frame::looking(a, c.direction, c.up, [0.; 2], 1.))
+        .collect();
+    for w in wants {
+        let original = w.views.clone();
+        let mut names = Vec::new();
+        for old in &original {
+            if let Some((_, d)) = TOWARD.iter().find(|(n, _)| n == old) {
+                for (k, c) in cameras.iter().enumerate() {
+                    if crate::view_setup::dot(*d, c.direction).abs() > 1. - 1e-6
+                        && true_shape(w, &frames[k])
+                        && !names.contains(&NAMES[k])
+                    {
+                        names.push(NAMES[k]);
+                    }
+                }
+            }
+        }
+        for (k, f) in frames.iter().enumerate() {
+            if !names.contains(&NAMES[k]) && true_shape(w, f) {
+                names.push(NAMES[k]);
+            }
+        }
+        if let Shape::Linear { a, b, axis, .. } = &w.shape
+            && w.turning.is_none()
+            && names.iter().any(|n| {
+                let k = NAMES.iter().position(|v| v == n).unwrap();
+                let p = frames[k].view.map([0, 1, 2].map(|j| f64::from(j == *axis)));
+                p[0].abs() < 1. - 1e-6 && p[1].abs() < 1. - 1e-6
+            })
+        {
+            w.shape = Shape::Aligned { a: *a, b: *b };
+        }
+        w.views = if names.is_empty() { original } else { names };
+        w.basis += "; carriers follow the authored front camera and retain true model-space sizes";
+    }
+    Ok(())
 }
 
 #[cfg(test)]

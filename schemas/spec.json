@@ -1100,6 +1100,74 @@
         "around"
       ]
     },
+    "orientation": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "rotation": {
+          "type": "number",
+          "minimum": -360,
+          "maximum": 360
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "from"
+      ]
+    },
+    "auxiliary": {
+      "type": "object",
+      "properties": {
+        "face": {
+          "type": "string"
+        },
+        "from": {
+          "enum": [
+            "front",
+            "plan",
+            "side"
+          ]
+        },
+        "scale_factor": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "face",
+        "from"
+      ]
+    },
+    "partial": {
+      "type": "object",
+      "properties": {
+        "around": {
+          "type": [
+            "string",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "from": {
+          "type": "string"
+        },
+        "scale_factor": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "around",
+        "from"
+      ]
+    },
     "view": {
       "type": "object",
       "properties": {
@@ -1179,6 +1247,55 @@
           "anyOf": [
             {
               "$ref": "#/$defs/detail"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "orientation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/orientation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "principal_views": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "front",
+                  "plan",
+                  "side"
+                ]
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "auxiliary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/auxiliary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "partial": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/partial"
             },
             {
               "type": "null"

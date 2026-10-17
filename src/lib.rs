@@ -54,3 +54,6 @@ pub mod iso_caption;
 pub mod detail;
 /// Authored corrections resolved into the ordinary feature inventory.
 pub mod recognition_corrections;
+
+/// Authored front cameras and true-shape / partial view requests.
+pub mod view_setup;

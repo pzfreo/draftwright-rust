@@ -163,8 +163,7 @@ pub(super) fn proofs(
                     continue;
                 }
                 let proof = std::rc::Rc::make_mut(&mut proof);
-                let (x0, x1, y) = crate::model::cutting_line(analysis, v, &view, cut);
-                let (items, letters) = crate::section::cutting_plane(x0, x1, y);
+                let (items, letters) = crate::model::cutting_plane_furniture(analysis, v, cut);
                 for item in &items {
                     let crate::output::Item::Face(loops) = item else {
                         continue;

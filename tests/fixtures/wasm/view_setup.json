@@ -1,0 +1,137 @@
+{
+  "name": "paired_ramp_step.step",
+  "part": "tests/fixtures/recognition/steps/paired_ramp_step.step",
+  "gzip": true,
+  "steps": [
+    {
+      "edit": "choose front frame and set",
+      "action": "fragments",
+      "ops": [
+        {
+          "op": "set",
+          "path": "sheet",
+          "value": {
+            "size": "A3",
+            "scale": "1:1"
+          }
+        },
+        {
+          "op": "set",
+          "path": "views/front",
+          "value": {
+            "orientation": {
+              "from": "z",
+              "rotation": 90
+            },
+            "principal_views": [
+              "front",
+              "plan",
+              "side"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "edit": "preview front rotation",
+      "action": "preview",
+      "ops": [
+        {
+          "op": "set",
+          "path": "views/front/orientation/rotation",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "edit": "restore edge parent",
+      "action": "fragments",
+      "ops": [
+        {
+          "op": "remove",
+          "path": "views/front/orientation"
+        }
+      ]
+    },
+    {
+      "edit": "author auxiliary",
+      "action": "fragments",
+      "ops": [
+        {
+          "op": "set",
+          "path": "views/detail_b/auxiliary",
+          "value": {
+            "face": "face:sha256:907ae97d24724e7ba82eb33e06bb3f33b1ad488c069b78c200da37bb574cb888",
+            "from": "front"
+          }
+        }
+      ]
+    },
+    {
+      "edit": "author partial auxiliary",
+      "action": "fragments",
+      "ops": [
+        {
+          "op": "set",
+          "path": "views/detail_c/partial",
+          "value": {
+            "from": "detail_b",
+            "around": "face:sha256:907ae97d24724e7ba82eb33e06bb3f33b1ad488c069b78c200da37bb574cb888",
+            "scale_factor": 1
+          }
+        }
+      ]
+    },
+    {
+      "edit": "undo partial",
+      "action": "undo"
+    },
+    {
+      "edit": "redo partial",
+      "action": "redo"
+    },
+    {
+      "edit": "allocate partial on sheet 2",
+      "action": "fragments",
+      "ops": [
+        {
+          "op": "set",
+          "path": "sheets/max",
+          "value": 2
+        },
+        {
+          "op": "set",
+          "path": "views/detail_c/sheet",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "edit": "pin width beside remote partial",
+      "action": "fragments",
+      "ops": [
+        {
+          "op": "set",
+          "path": "dimensions/d:envelope~1width.length/place",
+          "value": {
+            "pinned": true
+          }
+        }
+      ]
+    },
+    {
+      "edit": "undo remote pin",
+      "action": "undo"
+    },
+    {
+      "edit": "restore automatic views",
+      "action": "fragments",
+      "ops": [
+        {
+          "op": "remove",
+          "path": "views"
+        }
+      ]
+    }
+  ]
+}

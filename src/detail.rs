@@ -31,7 +31,7 @@ pub enum Around {
     Many(Vec<String>),
 }
 impl Around {
-    fn members(&self) -> &[String] {
+    pub(crate) fn members(&self) -> &[String] {
         match self {
             Self::One(id) => std::slice::from_ref(id),
             Self::Many(ids) => ids,
@@ -56,6 +56,8 @@ pub struct Detail {
     /// The source section's projection plane, without duplicating its furniture.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_cut: Option<crate::model::Cut>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub camera: Option<crate::view_setup::Camera>,
     pub kind: String,
     /// Part-frame crop, in model mm; complete dimensional witnesses must survive.
     pub bounds: [[f64; 3]; 2],
@@ -109,7 +111,7 @@ pub(crate) fn check(analysis: &Analysis, spec: &Spec) -> Result<(), Invalid> {
                     });
                 }
                 for (id, crop) in d.around.members().iter().zip(&members) {
-                    if !visible(crop.bounds, source) {
+                    if !visible_in(analysis, spec, crop.bounds, source) {
                         return Err(Invalid {
                             message: format!(
                                 "Detail {name}: feature or face {id:?} is not visible in view {source:?}: its crop projects to a degenerate region."
@@ -152,13 +154,17 @@ fn visible(bounds: [[f64; 3]; 2], source: &str) -> bool {
         .all(|&k| (bounds[1][k] - bounds[0][k]).is_finite() && bounds[1][k] - bounds[0][k] > 1e-6)
 }
 
-fn source_available(a: &Analysis, spec: &Spec, source: &str) -> bool {
-    if spec.views.get(source).is_some_and(|v| v.omit) {
+pub(crate) fn source_available(a: &Analysis, spec: &Spec, source: &str) -> bool {
+    if crate::view_setup::requested(spec, source) == Some(false)
+        || spec.views.get(source).is_some_and(|v| v.omit)
+    {
         return false;
     }
     let demand = crate::demand::read(a);
     let reduction = crate::demand::turned_views(&demand).filter(|(kept, dropped, _)| {
-        !spec.views.contains_key(*dropped)
+        !crate::view_setup::oriented(spec)
+            && crate::view_setup::requested(spec, dropped).is_none()
+            && !spec.views.contains_key(*dropped)
             && !spec.views.get(kept[0]).is_some_and(|v| v.omit)
             && !crate::pmi_lowering::views(a).contains(dropped)
     });
@@ -171,8 +177,13 @@ fn source_available(a: &Analysis, spec: &Spec, source: &str) -> bool {
                 .views
                 .get(crate::model::SECTION)
                 .is_some_and(|v| v.omit)
-            && source_available(a, spec, "plan")
-            && (source_available(a, spec, "front") || source_available(a, spec, "side"));
+            && if crate::view_setup::oriented(spec) {
+                crate::view_setup::cameras(a, spec)
+                    .is_ok_and(|c| crate::view_setup::section_parent(spec, &c).is_some())
+            } else {
+                source_available(a, spec, "plan")
+                    && (source_available(a, spec, "front") || source_available(a, spec, "side"))
+            };
     }
     true
 }
@@ -252,6 +263,14 @@ pub(crate) fn basis(a: &Analysis, spec: &Spec, name: &str, d: &Detail) -> String
         "{}: enlarged orthographic crop of {}",
         d.kind, d.source_view
     );
+    if d.kind == "auxiliary" || d.kind == "partial" {
+        basis = format!(
+            "authored {} view projected from {}; model-space region; scale {}",
+            d.kind,
+            d.source_view,
+            crate::model::scale_name(d.scale)
+        );
+    }
     if let Some(auth) = spec.views.get(name).and_then(|v| v.detail.as_ref())
         && auth.from.is_none()
         && let Ok(crops) = members(a, name, auth)
@@ -303,7 +322,7 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
         .filter_map(|f| crate::lint::turned::band(&frame, f).ok().map(|b| (f, b)))
         .collect();
     bands.sort_by(|a, b| a.1.axis.cmp(&b.1.axis).then(a.1.lo.total_cmp(&b.1.lo)));
-    let mut out = Vec::new();
+    let mut out = crate::view_setup::requests(a, spec, sheet);
     for (name, view) in &spec.views {
         let Some(auth) = &view.detail else { continue };
         if view.omit {
@@ -321,7 +340,9 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
         let primary = crops[0].primary;
         let source = if let Some(source) = &auth.from {
             source.clone()
-        } else if crops.iter().all(|c| c.source == crops[0].source) {
+        } else if crops.iter().all(|c| c.source == crops[0].source)
+            && !crate::view_setup::oriented(spec)
+        {
             crops[0].source.into()
         } else {
             // Deterministic ties: front, plan, side, then the section.
@@ -333,7 +354,7 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
                 }
                 let count = crops
                     .iter()
-                    .filter(|c| visible(c.bounds, candidate))
+                    .filter(|c| visible_in(a, spec, c.bounds, candidate))
                     .count();
                 if count > best.1 {
                     best = (candidate, count);
@@ -344,6 +365,8 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
         out.push((
             name.clone(),
             Detail {
+                camera: crate::view_setup::oriented(spec)
+                    .then(|| crate::view_setup::camera(a, spec, &source).expect("checked camera")),
                 label: name.trim_start_matches("detail_").to_uppercase(),
                 axis: primary,
                 source_view: format!("v:{source}"),
@@ -369,7 +392,7 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
     let mut allocated: std::collections::BTreeSet<String> = spec
         .views
         .iter()
-        .filter(|(_, v)| v.detail.is_some())
+        .filter(|(_, v)| crate::view_setup::authored(v))
         .map(|(name, _)| name.clone())
         .collect();
     if section_letter {
@@ -526,6 +549,7 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
                     })
                     .collect();
                 add(Detail {
+                    camera: None,
                     label: String::new(),
                     axis,
                     source_view: format!("v:{source}"),
@@ -584,6 +608,7 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
                 // Keep the whole feature silhouette. A support-centred strip can show
                 // unrelated edge fragments instead of the step being dimensioned.
                 add(Detail {
+                    camera: None,
                     label: String::new(),
                     axis: 2,
                     source_view: "v:front".into(),
@@ -614,6 +639,14 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
 }
 
 pub(crate) fn size(d: &Detail) -> [f64; 2] {
+    if let Some(c) = d.camera {
+        return crate::model::envelope_extent(
+            d.bounds,
+            &haecceity::hlr::View::new(c.direction, c.up).expect("derived camera"),
+        )
+        .0
+        .map(|v| v * d.scale);
+    }
     let axes = if d.source_view == "v:side" {
         [1, 2]
     } else if d.source_view == "v:plan" {
@@ -623,7 +656,7 @@ pub(crate) fn size(d: &Detail) -> [f64; 2] {
     };
     axes.map(|k| (d.bounds[1][k] - d.bounds[0][k]) * d.scale)
 }
-fn pads(d: &Detail) -> [f64; 4] {
+pub(crate) fn pads(d: &Detail) -> [f64; 4] {
     if d.kind == "prismatic-steps" {
         [0.0, 42.0, 14.0, 6.0]
     } else if d.kind == "y-turned-chain" {
@@ -683,7 +716,7 @@ pub(crate) fn section_label(spec: &Spec) -> String {
             !spec
                 .views
                 .get(**n)
-                .is_some_and(|v| !v.omit && v.detail.is_some())
+                .is_some_and(|v| !v.omit && crate::view_setup::authored(v))
         })
         .unwrap_or(&"detail_a")
         .trim_start_matches("detail_")
@@ -691,10 +724,15 @@ pub(crate) fn section_label(spec: &Spec) -> String {
 }
 pub(crate) fn caption(d: &Detail) -> String {
     format!(
-        "DETAIL {} ({}){}",
+        "{} {} ({}){}",
+        match d.kind.as_str() {
+            "auxiliary" => "AUXILIARY",
+            "partial" => "PARTIAL",
+            _ => "DETAIL",
+        },
         d.label,
         crate::model::scale_name(d.scale),
-        if d.partial_profile {
+        if d.partial_profile && d.kind != "partial" {
             " — PARTIAL PROFILE"
         } else {
             ""
@@ -964,6 +1002,23 @@ pub(crate) fn marker(
     )
 }
 
+/// Markers shared by layout measurement and rendering.
+pub(crate) fn markers(
+    a: &Analysis,
+    d: &Detail,
+    source: &PlannedView,
+    views: &[PlannedView],
+    page: [f64; 2],
+    avoid: &[Rect],
+) -> (Vec<crate::output::Curve>, [f64; 2]) {
+    if d.kind == "auxiliary" {
+        crate::view_setup::auxiliary_marker(a, d, source)
+    } else {
+        let (curve, at) = marker(a, d, source, views, page, avoid);
+        (vec![curve], at)
+    }
+}
+
 /// Detail boundaries are late furniture: interrupt the circle behind annotation text,
 /// retaining exact arcs and a small readable gap. Dimensions keep their settled ink.
 pub(crate) fn marker_ink(
@@ -998,6 +1053,25 @@ pub(crate) fn marker_ink(
             .collect();
     }
     arcs
+}
+
+// Shared model-space region preparation; no projection or kernel work.
+pub(crate) fn feature_bounds(a: &Analysis, f: &crate::bridge::Feature) -> [[f64; 3]; 2] {
+    feature_crop(a, f).bounds
+}
+fn visible_in(a: &Analysis, spec: &Spec, bounds: [[f64; 3]; 2], source: &str) -> bool {
+    if !crate::view_setup::oriented(spec) {
+        return visible(bounds, source);
+    }
+    crate::view_setup::camera(a, spec, source).is_ok_and(|c| {
+        crate::model::envelope_extent(
+            bounds,
+            &haecceity::hlr::View::new(c.direction, c.up).unwrap(),
+        )
+        .0
+        .iter()
+        .all(|v| *v > 1e-6)
+    })
 }
 
 #[cfg(test)]
