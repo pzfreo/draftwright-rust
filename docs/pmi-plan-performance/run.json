@@ -1,0 +1,12 @@
+{
+  "binaries": {
+    "base-draftwright": "13116bdaccb455aa4305a35a915736ff245a5c03deb737728cca68d6ef25f8e8",
+    "final-draftwright": "fbca96d6ea8d314e8463a81dfe5a4d5b78c4ea91061053c4ade8906b98aa39b2",
+    "head-draftwright": "a3ab485ce01c33c7682cab6726c41af771fcc77815447fd4ae4d528abff8b8c7"
+  },
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "release_debug": true,
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "source_after": "3896db5f84bf159d61145827584c475a22d74d88",
+  "source_before": "45a65043baaea9d4e2d6503a774b30f232851f40"
+}

@@ -1,0 +1,7 @@
+read 0.060s
+QPERF slots::discover 96.459313
+QPERF circular_face_patterns::discover 0.152043
+QPERF mod::inventory_in 96.749271
+QPERF mod::recognise 96.756295
+features 96.756s
+fingerprints 0.146s faces=282 features=94

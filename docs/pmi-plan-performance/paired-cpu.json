@@ -1,0 +1,19 @@
+{
+  "part": "nist_ctc_02_asme1_ap242-e2",
+  "runs": {
+    "after": {
+      "identical": true,
+      "instructions": 603577094884,
+      "seconds": 41.465197042096406,
+      "system_seconds": 0.138568,
+      "user_seconds": 33.06874700000001
+    },
+    "before": {
+      "identical": true,
+      "instructions": 630100434607,
+      "seconds": 56.30529512499925,
+      "system_seconds": 0.147062,
+      "user_seconds": 36.799744
+    }
+  }
+}
