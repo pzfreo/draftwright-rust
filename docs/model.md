@@ -1694,12 +1694,12 @@ fingerprints with complete keys from the Analysis):
   it, for example `{"op":"set","path":"dimensions/d:authored:corner","value":{...}}`;
   remove the entry to delete it. Session/MCP item answers expose its reference anchors,
   placement options and editable fields. Sheet options describe the creation forms. MCP
-  schemas describe the new fields without adding a tool. `get_spec` output declares the authored
-  fields once; inputs retain the established sparse per-ID object maps and use the same Spec
-  and geometry validators. Equivalent shared object-type constraints keep the 26 standalone
-  schemas at 42,681 bytes: dimension schemes add 216 bytes over main after sharing the sparse
-  map constraint. The session ceiling is exactly 42,681 bytes; validation is unchanged. Browser bindings accept the same
-  Spec and operations; their method signatures are unchanged.
+  schemas carry a compact top-level Spec outline. Call MCP `spec_schema {}` for the full
+  draft-2020-12 Spec schema and its named `spec_read` shape; `item_options` supplies valid
+  paths and choices. The 28 advertised schemas total 34,389 compact UTF-8 bytes; nested
+  Spec fields do not grow this budget. Server preflight and model/geometry validation
+  are unchanged. Browser bindings accept the same Spec and operations; their method
+  signatures are unchanged.
 
 ## The five operations
 

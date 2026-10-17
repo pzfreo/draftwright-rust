@@ -88,6 +88,13 @@ wrapper returned a string from `renderSvg()`. This package returns bytes as requ
 issue #66; decode with `new TextDecoder().decode(engine.renderSvg())` where text is needed.
 `snapshot().svg` and SVG fragment strings retain their existing formats.
 
+The MCP `tools/list` Spec shape is a shallow discovery outline. Editors needing the
+complete document schema can use the generated draft-2020-12 `schemas/spec.json`
+(or MCP `spec_schema {}` when connected); `#/$defs/spec_read` names the Spec value
+returned by `get_spec`. Live browser sessions continue to use their existing Spec,
+operation and placement-option methods and the same model validation. This schema
+advertisement change adds no WASM method or TypeScript signature.
+
 ## Consume a pinned release in the editor
 
 Each published GitHub release whose tag starts with `v` builds from that tag. Keep both

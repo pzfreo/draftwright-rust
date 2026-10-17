@@ -752,7 +752,7 @@ impl Service {
 }
 
 /// Stateless subprocess operations; tool calls use the same published MCP schemas.
-pub const STATELESS_OPERATIONS: [&str; 15] = [
+pub const STATELESS_OPERATIONS: [&str; 16] = [
     "stateless_apply",
     "stateless_preview",
     "mcp_inspect_part",
@@ -765,6 +765,7 @@ pub const STATELESS_OPERATIONS: [&str; 15] = [
     "mcp_view_sheet",
     "mcp_render_pdf",
     "mcp_get_spec",
+    "mcp_spec_schema",
     "mcp_analyse",
     "mcp_render",
     "mcp_parts",

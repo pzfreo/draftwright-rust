@@ -1,0 +1,113 @@
+"""On-demand Spec shape and the stable, shallow MCP context outline.
+
+These describe document structure; identity, geometry and engineering constraints
+remain the model's responsibility. No nested definition feeds the outline.
+"""
+from copy import deepcopy
+
+S = {'type': 'string'}
+B = {'type': 'boolean'}
+N = {'type': 'number'}
+I = {'type': 'integer', 'minimum': 0}
+SHEET = {'type': 'integer', 'minimum': 1, 'maximum': 9}
+
+def enum(*values): return {'enum': list(values)}
+def arr(item, **kw): return {'type': 'array', 'items': item, **kw}
+def obj(props, required=()):
+    return {'type': 'object', 'properties': props, 'additionalProperties': False,
+            **({'required': list(required)} if required else {})}
+def nullable(shape): return {'anyOf': [shape, {'type': 'null'}]}
+def optional(props): return {k: nullable(v) for k, v in props.items()}
+def ref(name): return {'$ref': '#/$defs/' + name}
+def mapping(shape): return {'type': 'object', 'additionalProperties': shape}
+
+def outline():
+    """An explicit top-level contract, independent of all nested Spec definitions."""
+    return {**obj({
+        'schema': enum('draftwright.spec/1', 'draftwright.spec/2'),
+        'binding': {'type': ['object', 'null']}, 'sheet': {'type': 'object'},
+        'iso_scale_factor': {'type': ['number', 'null']},
+        'sheets': {'type': ['object', 'null']},
+        **{k: {'type': 'object'} for k in ('views', 'dimensions', 'annotations',
+            'features', 'faces', 'dimension_schemes', 'precision')},
+        'dimension_source': enum('auto', 'authored'),
+        'hole_table': enum('auto', 'always', 'never'),
+        'envelope_tolerance': {'type': ['string', 'null']},
+        **{k: {'type': 'array'} for k in ('notes', 'tables', 'gears', 'feature_declarations')},
+    }), 'description': 'Typed outline only. Call spec_schema {} for the full Spec and get_spec spec_read schemas; item_options gives valid edit paths and choices.'}
+
+
+def document():
+    """Full draft-2020-12 author Spec, including the get_spec read shape."""
+    line = optional({k: B for k in ('hidden', 'centre_marks', 'centre_lines',
+                                  'thread_depiction', 'knurl_depiction')})
+    definitions = {
+        'binding': obj({'source_sha256': S, 'part': S, 'face_count': I,
+                        'loader': S, 'part_index': nullable(I)},
+                       ('source_sha256', 'part', 'face_count', 'loader')),
+        'text': obj(optional({'prefix': S, 'suffix': S, 'template': S})),
+        'place': obj({**optional({'view': S, 'side': enum('above', 'below', 'left', 'right'),
+                                  'lane': I, 'along': {'anyOf': [N, enum('start', 'middle', 'end', 'outside')]},
+                                  'offset': arr(N, minItems=2, maxItems=2)}), 'pinned': B}),
+        'view_place': obj({'relative_to': S, 'side': enum('above', 'below', 'left', 'right'),
+                           'gap': N, 'align': enum('start', 'middle', 'end', 'outside'), 'pinned': B},
+                          ('relative_to', 'side')),
+        'finish': obj({'ra': N, 'removal': nullable(enum('any', 'required', 'prohibited'))}, ('ra',)),
+        'thread': obj({'designation': S, 'length': nullable(N)}, ('designation',)),
+        'knurl': obj({'pattern': enum('straight', 'diamond'), 'pitch': N}, ('pattern', 'pitch')),
+        'control': obj({'characteristic': enum('straightness', 'flatness', 'circularity',
+                    'cylindricity', 'profile_line', 'profile_surface', 'angularity',
+                    'perpendicularity', 'parallelism', 'position', 'concentricity',
+                    'symmetry', 'circular_runout', 'total_runout'), 'tolerance': N,
+                    'datums': arr(S), 'diameter': nullable(B), 'modifier': nullable(enum('M', 'L'))},
+                    ('characteristic', 'tolerance')),
+        'anchor': obj({'faces': arr(S)}, ('faces',)),
+        'pattern': obj({'arrangement': enum('linear', 'grid', 'bolt_circle'), 'members': arr(S)},
+                       ('arrangement', 'members')),
+        'declaration': obj({'id': S, 'kind': enum('hole', 'boss', 'turned_step', 'slot', 'pocket'),
+                            'faces': arr(S)}, ('id', 'kind', 'faces')),
+        'scheme': obj({'scheme': enum('chain', 'baseline', 'ordinate'), 'axis': enum('x', 'y', 'z'),
+                       'targets': arr(S), 'view': nullable(enum('front', 'plan', 'side')), 'from': nullable(S)},
+                      ('scheme', 'axis')),
+        'dimension': obj({**optional({'text': ref('text'), 'style': enum('reference', 'basic'),
+                        'kind': enum('linear', 'diameter', 'radius', 'angle'),
+                        'between': arr(S, minItems=1, maxItems=2), 'along': enum('x', 'y', 'z', 'true'),
+                        'tolerance': S, 'fit': S, 'view': S, 'place': ref('place')}), 'omit': B}),
+        'annotation': obj({**optional({'text': ref('text'), 'place': ref('place')}), 'omit': B}),
+        'feature': obj({**optional({'anchor': ref('anchor'), 'reclassify': enum('hole', 'boss', 'turned_step', 'slot', 'pocket'),
+                       'pattern': ref('pattern'), 'fit': S, 'datum': S, 'finish': ref('finish'),
+                       'thread': ref('thread'), 'knurl': ref('knurl'), 'note': S}),
+                       'suppress': B, 'split': B, 'controls': arr(ref('control')), 'note_satisfies': arr(S)}),
+        'face': obj({**optional({'datum': S, 'finish': ref('finish'), 'note': S}), 'controls': arr(ref('control'))}),
+        'sheet': obj({**line, **optional({'size': S, 'scale': S, 'fit_limits': B, 'fit_deviations': B,
+                      'projection': enum('first', 'third'), 'default_finish': ref('finish')}), 'title': mapping(S)}),
+        'sheets': obj({**optional({'max': SHEET, 'smallest_scale': S, 'hole_table': SHEET}),
+                       'keep_together': arr(arr(S)), 'gdt_on_sheet_1': B}),
+        'view': obj({**line, **optional({'sheet': SHEET, 'place': ref('view_place')}), 'omit': B}),
+        'note': obj({'id': S, 'text': S}, ('id', 'text')),
+        'table': obj({'id': S, 'rows': arr(arr({'type': ['string', 'number']})),
+                      'sheet': nullable(SHEET), 'prefer': nullable(enum('tr', 'tl', 'br', 'bl'))}, ('id', 'rows')),
+        'gear': obj({'on': S, 'frame': obj({'origin': arr(N, minItems=3, maxItems=3), 'axis': S}, ('origin', 'axis')),
+                     'tooth_count': {'type': 'integer'}, 'module': N, 'pressure_angle': N,
+                     'profile_shift': N, 'face_width': N, 'tooth_thickness': N,
+                     'tooth_thickness_tolerance': arr(N, minItems=2, maxItems=2),
+                     'flank_tolerance_class': {'type': 'integer'}},
+                    ('on', 'frame', 'tooth_count', 'module', 'pressure_angle', 'profile_shift',
+                     'face_width', 'tooth_thickness', 'tooth_thickness_tolerance', 'flank_tolerance_class')),
+    }
+    props = {'schema': enum('draftwright.spec/1', 'draftwright.spec/2'),
+             'binding': nullable(ref('binding')), 'sheet': ref('sheet'),
+             'iso_scale_factor': nullable(N), 'sheets': nullable(ref('sheets')),
+             'dimension_source': enum('auto', 'authored'), 'hole_table': enum('auto', 'always', 'never'),
+             'envelope_tolerance': nullable(S),
+             'precision': mapping({'type': 'integer', 'minimum': 0, 'maximum': 15})}
+    for key, name in [('views', 'view'), ('dimensions', 'dimension'), ('annotations', 'annotation'),
+                      ('features', 'feature'), ('faces', 'face'), ('dimension_schemes', 'scheme')]:
+        props[key] = mapping(ref(name))
+    for key, name in [('feature_declarations', 'declaration'), ('notes', 'note'), ('tables', 'table'), ('gears', 'gear')]:
+        props[key] = arr(ref(name))
+    definitions['spec_read'] = obj(deepcopy(props))
+    return {'$schema': 'https://json-schema.org/draft/2020-12/schema',
+            'title': 'Draftwright Spec',
+            'description': 'Author Spec structure. Absent fields use defaults. Geometry, references, engineering constraints and edit guidance are validated by the server. The get_spec spec value has the same shape, also named by #/$defs/spec_read.',
+            **obj(props), '$defs': definitions}

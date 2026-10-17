@@ -4,7 +4,7 @@ fn main() {
     let root = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let files = build_support::inputs(&root).expect("engine fingerprint inputs");
     // Directory watches also catch newly added and removed source/assets.
-    for directory in ["src", "schemas/mcp", "fonts"] {
+    for directory in ["src", "schemas", "fonts"] {
         println!("cargo:rerun-if-changed={directory}");
     }
     for path in &files {

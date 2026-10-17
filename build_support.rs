@@ -29,7 +29,7 @@ pub fn inputs(root: &Path) -> io::Result<Vec<PathBuf>> {
         .to_vec();
     for (directory, extensions) in [
         ("src", &["rs"][..]),
-        ("schemas/mcp", &["json"][..]),
+        ("schemas", &["json"][..]),
         ("fonts", &["ttf", "otf"][..]),
     ] {
         collect(root, &root.join(directory), extensions, &mut files)?;
