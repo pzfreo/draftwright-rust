@@ -1,4 +1,4 @@
-"""Capture/compare exact CLI plan JSON and every sheet SVG over the 63-part survey.
+"""Capture/compare exact CLI plan JSON and every sheet SVG over the plan-time survey.
 
 The 30 quality parts must be a subset. Run --record with an origin/main release
 binary into a fresh directory, then --reference that directory with the new binary.
@@ -35,6 +35,18 @@ def main():
     inputs = args.out / 'inputs'
     inputs.mkdir(parents=True, exist_ok=args.check_only)
     files = plan_time.inputs(args.corpus, inputs)
+    if not args.check_only:
+        provenance = {
+            'binary_sha256': hashlib.sha256(args.binary.read_bytes()).hexdigest(),
+            'inputs_sha256': {p.stem: hashlib.sha256(p.read_bytes()).hexdigest() for p in files},
+        }
+        (args.out / 'provenance.json').write_text(
+            json.dumps(provenance, indent=2, sort_keys=True) + '\n')
+    if args.reference:
+        before = json.loads((args.reference / 'provenance.json').read_text())
+        after = json.loads((args.out / 'provenance.json').read_text())
+        if before['inputs_sha256'] != after['inputs_sha256']:
+            raise ValueError('reference input bytes changed')
     quality = {(args.corpus / p).stem for p in (ROOT / 'tools/quality_parts.txt').read_text().splitlines()}
     if len(quality) != 30 or not quality <= {p.stem for p in files}:
         raise ValueError('quality manifest is not a 30-part subset of the survey')
@@ -65,7 +77,7 @@ def main():
     if reference is not None and manifest.keys() != reference.keys():
         raise ValueError('reference part set changed')
     (args.out / 'manifest.json').write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\n')
-    print('63 survey parts / 30 quality parts: ' +
+    print(f'{len(files)} survey parts / {len(quality)} quality parts: ' +
           ('reference capture complete' if args.record else 'exact plan JSON and SVG PASS'))
 
 
