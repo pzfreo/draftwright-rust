@@ -42,6 +42,7 @@ fn analysed_uncached(stem: &str) -> (draftwright::haecceity::Part, Analysis) {
     let file = gz.file_name().unwrap().to_string_lossy();
     let out = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join("pmi_labels")
+        // nextest processes each start their local counter at zero.
         .join(format!("{}-{n}", std::process::id()));
     std::fs::create_dir_all(&out).unwrap();
     let path = out.join(file.strip_suffix(".gz").unwrap());

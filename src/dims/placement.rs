@@ -591,8 +591,22 @@ pub(super) fn lanes<'a>(
                         .any(|m| m.parameter == "thickness.length")
                     {
                         plate_strip(f, view, &w.shape, horizontal)
+                    } else if matches!(view, "front" | "side")
+                        && horizontal
+                        && w.measurements.iter().any(|m| {
+                            m.feature.starts_with("notch:") && m.parameter.starts_with("location.")
+                        })
+                    {
+                        Side::Above
                     } else if let Some(side) = body_strip(f, w, horizontal) {
                         side
+                    } else if w.measurements.iter().any(|m| {
+                        m.feature.starts_with("notch:") && m.parameter.starts_with("location.")
+                    }) && silhouette_gap(f, *b, horizontal).1 <= ON_SILHOUETTE
+                    {
+                        // A notch mouth on the silhouette is located on that free side,
+                        // keeping its witnesses out of the existing opposite-side callouts.
+                        silhouette_gap(f, *b, horizontal).0
                     } else {
                         strip(view, horizontal)
                     },
@@ -883,7 +897,7 @@ pub(super) fn fall_through(
         let first = *held.get(&(view, across)).unwrap_or(&0);
         // An overall extent has first claim on the free lanes (draftwright falls through only
         // the extent, ISSUE-1215-e); the others follow in their order.
-        let extent = |i: usize| items[i].id.starts_with("d:envelope/");
+        let extent = |i: usize| crate::dims::is_envelope_extent(&items[i].id);
         let (mut order, rest): (Vec<usize>, Vec<usize>) =
             list.into_iter().partition(|&i| extent(i));
         order.extend(rest);
@@ -4245,9 +4259,11 @@ pub(crate) fn collisions_cached(
             if boxes_overlap(lb, *b)
                 && !(*view == d.view
                     && views.iter().find(|v| v.id == d.view).is_some_and(|v| {
-                        interior_proofs
-                            .get(&v.id)
-                            .is_some_and(|proof| proof.blank(v, lb))
+                        interior_proofs.get(&v.id).is_some_and(|proof| {
+                            proof.blank(v, lb)
+                                || (d.measurements.iter().any(|m| m.parameter == "notch.angle")
+                                    && proof.exterior_annotation_clear(v, p))
+                        })
                     }))
             {
                 problem(

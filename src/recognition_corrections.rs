@@ -414,7 +414,7 @@ pub fn bind(a: &Analysis, s: Spec) -> Result<Spec, Invalid> {
                 || out.feature_declarations.iter().any(|d| d.id == id)
         };
         let measurement = |id: &str| {
-            id.starts_with("d:envelope/")
+            crate::dims::is_envelope_extent(id)
                 || out
                     .dimension_schemes
                     .keys()

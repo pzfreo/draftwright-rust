@@ -2,6 +2,7 @@
 //! parameters, constituent faces, feature IDs and grammar as the Python bridge. Source
 //! recess families are represented by this projection; source refusals remain lint evidence.
 //! Step levels and risers are retained as evidence, as on the bridge path.
+//! Oriented chamfers supply true normal-section bevels; radial profiles remain evidence only.
 //!
 //! The document is read fail-closed (ADR3-4): one schema version ([`SCHEMA_VERSION`]), the STEP
 //! file's coordinates, the part's face count, and only the families and record types that schema
@@ -136,11 +137,12 @@ pub const FAMILIES: &[(&str, &[&str])] = &[
 
 /// The families read here: each record is a feature, except an oriented slot pattern's, which is
 /// checked and not kept (see the module docs).
-pub const READ: [&str; 30] = [
+pub const READ: [&str; 31] = [
     "holes",
     "hole_patterns",
     "fillets",
     "chamfers",
+    "oriented_chamfers",
     "countersinks",
     "bosses",
     "turned_steps",
@@ -220,6 +222,21 @@ pub enum Field {
 /// so a change to it does not refuse a read that would not use it. `a.b` is field `b` of object
 /// field `a`, checked when `a` is not null (`a` is listed first).
 pub const FIELDS: &[(&str, &[(&str, Field)])] = &[
+    (
+        "OrientedChamfer",
+        &[
+            ("run", Field::Point),
+            ("length", Field::Number),
+            ("at", Field::Point),
+            ("corner", Field::Point),
+            ("leg1", Field::Number),
+            ("leg2", Field::Number),
+            ("leg1_direction", Field::Point),
+            ("leg2_direction", Field::Point),
+            ("support_spans", Field::Section(2)),
+            ("angle", Field::Number),
+        ],
+    ),
     (
         "SectionRecess",
         &[

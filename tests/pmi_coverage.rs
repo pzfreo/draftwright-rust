@@ -136,6 +136,7 @@ fn drawn_uncached(file: &str, bytes: &[u8]) -> (Part, Analysis, Drawing) {
     let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join("pmi_coverage_uncached")
+        // nextest processes each start their local counter at zero.
         .join(format!("{}-{n}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join(file);
