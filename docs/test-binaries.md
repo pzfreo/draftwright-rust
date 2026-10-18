@@ -19,8 +19,9 @@ The two corpus-wide harness targets and the two latency-sensitive targets remain
 | `session` | 8 | `session` (separate process scope) |
 | `multi_sheet_latency` | 1 | `multi_sheet_latency` (separate process scope) |
 
-The current source inventory contains 1,263 integration tests. The title-field regressions
-add seven drawing-number tests and one test of the original GRM-03 AP242 material.
+The current source inventory contains 1,272 integration tests. This includes the
+title-field regressions (seven drawing-number tests and the original GRM-03 AP242
+material), plus the faithful-nominal, interrupted-flat and rescue-table regressions.
 Historical before/after measurements below retain their original counts.
 
 ## Running tests

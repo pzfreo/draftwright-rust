@@ -16,7 +16,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   the shortest decimal within 1e-6 after noise removal, up to three places. Values requiring
   more places produce an informational `nominal_rounded` problem with modelled and printed
   values. Explicit measurement precision still wins; tolerance formatting is unchanged.
-  This intentionally departs from Python's one-decimal `_fmt`.
+  This intentionally departs from Python's one-decimal `_fmt`. Longer accurate labels now
+  settle against the finished drawing ink, preserving readable leaders and paper clearance.
 - Default drawing numbers to a leading part-number token in the STEP product name, then
   the file stem (including numeric names such as `10000`), before `DWG-001`. Explicit Spec
   numbers, including blanks, win; readable titles retain the part number (#103).

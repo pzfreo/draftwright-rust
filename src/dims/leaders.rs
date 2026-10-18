@@ -812,7 +812,6 @@ fn nominal_reference(
 fn settled_nominal_reference(
     analysis: &crate::model::Analysis,
     spec: &crate::model::Spec,
-    items: &[PlannedDimension],
 ) -> Option<crate::model::Plan> {
     if crate::nominal::comparison()
         || !crate::nominal::geometry_eligible(analysis)
@@ -833,11 +832,6 @@ fn settled_nominal_reference(
         || spec.envelope_tolerance.is_some()
         || !spec.gears.is_empty()
         || !spec.feature_declarations.is_empty()
-        || !items.iter().flat_map(|d| &d.measurements).any(|m| {
-            crate::nominal::format(m.value)
-                .split_once('.')
-                .is_some_and(|(_, fraction)| fraction.len() > 1)
-        })
     {
         return None;
     }
@@ -861,8 +855,14 @@ fn settled_nominal_reference(
         return reference;
     }
     let base = analysis.clone();
-    let reference =
-        crate::nominal::with_comparison(|| crate::model::plan_recovered(&base, &recipe).ok());
+    let reference = crate::nominal::with_comparison(|| {
+        crate::planning::with(&base, || {
+            // Use the established corridor recipe, before live inspection repairs.
+            // Otherwise an already lengthened route becomes its own budget.
+            crate::planning::store(&base, "canonical-circular-recipes", Vec::new(), true);
+            crate::model::plan_recovered(&base, &recipe).ok()
+        })
+    });
     MEMO.insert(key, reference.clone());
     reference
 }
@@ -1373,7 +1373,7 @@ pub(crate) fn settle_after_furniture(
     super::nearest_shared_witnesses(analysis, spec, views, items);
     let compact = crate::nominal::comparison();
     let bounded_notches = !crate::notches::requirements(analysis).is_empty();
-    let reference = settled_nominal_reference(analysis, spec, items);
+    let reference = settled_nominal_reference(analysis, spec);
     let mut updated = BTreeMap::new();
     let mut wants = None;
     let mut profile_proofs = None;
@@ -1524,7 +1524,27 @@ pub(crate) fn settle_after_furniture(
         );
         let budget = reference
             .as_ref()
-            .and_then(|r| r.dimensions.iter().find(|b| b.id == d.id))
+            .and_then(|r| {
+                r.dimensions
+                    .iter()
+                    .find(|b| b.id == d.id && b.region == d.region)
+                    .filter(|b| {
+                        !r.problems.iter().any(|p| {
+                            p.subjects.contains(&b.id)
+                                && matches!(
+                                    p.code.as_str(),
+                                    "annotation_off_sheet"
+                                        | "annotation_over_title_block"
+                                        | "annotation_over_view"
+                                        | "annotation_line_over_view"
+                                        | "annotation_outside_area"
+                                        | "annotation_overlap"
+                                        | "annotation_ink_overlap"
+                                        | "annotation_leader_crossing"
+                                )
+                        })
+                    })
+            })
             .and_then(|b| b.placed.as_ref())
             .map(|p| length(&p.lines) + 2.0);
         if reference.is_some() {
@@ -1552,6 +1572,7 @@ pub(crate) fn settle_after_furniture(
             let old = reference.dimensions.iter().find(|old| {
                 old.id == d.id
                     && old.view == d.view
+                    && old.region == d.region
                     && old.measurements.iter().all(|m| d.measurements.contains(m))
             })?;
             let old_view = reference.views.iter().find(|old_view| {
@@ -1607,6 +1628,38 @@ pub(crate) fn settle_after_furniture(
         if let Some((c, _)) = &established {
             candidates.push(c.clone());
         }
+        let budget = if d
+            .measurements
+            .iter()
+            .any(|m| m.parameter == "slot_end_radius.radius")
+            && established.as_ref().is_some_and(|(b, _)| {
+                let site = |tip: P2| {
+                    job.sites
+                        .iter()
+                        .enumerate()
+                        .min_by(|(_, a), (_, b)| {
+                            let distance =
+                                |s: &Site| ((tip[0] - s.0[0]).hypot(tip[1] - s.0[1]) - s.1).abs();
+                            distance(a).total_cmp(&distance(b))
+                        })
+                        .map(|(i, s)| (i, ((tip[0] - s.0[0]).hypot(tip[1] - s.0[1]) - s.1).abs()))
+                };
+                site(b.tip)
+                    .zip(site(before.tip))
+                    .is_some_and(|((a, error), (b, _))| {
+                        a != b
+                            || error
+                                > (crate::model::projected_ink::TOLERANCE
+                                    + crate::model::projected_ink::GRID)
+                                    * v.scale
+                    })
+            }) {
+            // The other end of one slot states the same radius, but does not
+            // inherit the paper reach of the opposite endpoint's route.
+            budget.map(|b| b.max(length(&before.segments())))
+        } else {
+            budget
+        };
         let extensions: Vec<_> = others
             .iter()
             .enumerate()
@@ -1619,6 +1672,9 @@ pub(crate) fn settle_after_furniture(
             })
             .collect();
         let prior_extensions = extension_contacts(&extensions, &old.lines, old.label_box);
+        let extension_ink: Vec<_> = extensions.iter().map(|(_, e)| *e).collect();
+        let extension_run =
+            |c: &Candidate| c.segments().iter().any(|s| runs_beside(*s, &extension_ink));
         // Score the final collision predicate as well as the router's indexed tiers.
         // Near-parallel runs and contacts with the other's arrow shaft must disappear
         // on the live ink, including the reverse direction of a callout pair.
@@ -1641,18 +1697,96 @@ pub(crate) fn settle_after_furniture(
                 .collect()
         };
         let prior_live = live_contacts(old);
-        let heads_clear = |c: &Candidate| {
-            head(arrow(c.tip, c.elbow)).iter().all(|h| {
-                extensions
-                    .iter()
-                    .all(|(_, e)| !touches_box(*h, grow(segment_bounds(*e), 0.2)))
+        let count_heads = |c: &Candidate, extensions: &[(usize, [P2; 2])]| {
+            extensions
+                .iter()
+                .filter(|(_, e)| {
+                    head(arrow(c.tip, c.elbow))
+                        .iter()
+                        .any(|h| touches_box(*h, grow(segment_bounds(*e), 0.2)))
+                })
+                .count()
+        };
+        let head_contacts = |c: &Candidate| count_heads(c, &extensions);
+        let outline_pad = LABEL_PAD
+            + (crate::model::projected_ink::TOLERANCE + crate::model::projected_ink::GRID)
+                * v.scale;
+        let outline_contacts = |c: &Candidate| {
+            job.model.map_or((0, 0), |ink| {
+                let ink = ink.resolved.as_ref().map_or(ink, |r| &r.visible);
+                (
+                    ink.touching(grow(c.label_box, outline_pad)),
+                    ink.touching(grow(segment_bounds([c.elbow, c.elbow]), outline_pad)),
+                )
             })
         };
-        let outline_clear = |c: &Candidate| {
-            !job.model.is_some_and(|ink| {
-                ink.crosses_box(grow(c.label_box, LABEL_PAD))
-                    || ink.crosses_box(grow(segment_bounds([c.elbow, c.elbow]), LABEL_PAD))
+        let hidden_contacts = |c: &Candidate| {
+            job.model
+                .and_then(|ink| ink.resolved.as_ref())
+                .map(|ink| ink.hidden.route_crossings(c.segments()))
+        };
+        let drawn_run = |c: &Candidate| {
+            job.model
+                .and_then(|ink| ink.resolved.as_ref())
+                .is_some_and(|ink| c.segments().iter().any(|s| ink.drawn.runs_beside(*s)))
+                || extension_run(c)
+        };
+        let baseline = established.as_ref().map_or(&before, |(b, _)| b);
+        let hidden_limit = hidden_contacts(baseline).or_else(|| hidden_contacts(&before));
+        let hidden_clear = |c: &Candidate| {
+            hidden_contacts(c)
+                .zip(hidden_limit)
+                .is_none_or(|(now, limit)| now <= limit)
+        };
+        let historical_extensions: Vec<_> = reference
+            .iter()
+            .flat_map(|r| {
+                r.dimensions
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, d)| d.kind == "linear")
+                    .filter_map(|(i, d)| {
+                        let old = r.views.iter().find(|v| v.id == d.view)?;
+                        let now = views.iter().find(|v| {
+                            v.id == d.view && v.direction == old.direction && v.up == old.up
+                        })?;
+                        let p = d.placed.as_ref()?;
+                        let factor = now.scale / old.scale;
+                        Some(p.lines.iter().take(2).map(move |line| {
+                            (
+                                i,
+                                line.map(|q| {
+                                    [0, 1].map(|k| now.at[k] + factor * (q[k] - old.at[k]))
+                                }),
+                            )
+                        }))
+                    })
+                    .flatten()
             })
+            .collect();
+        let head_limit = if historical_extensions.is_empty() {
+            head_contacts(&before)
+        } else {
+            count_heads(baseline, &historical_extensions)
+        };
+        let current_outline = outline_contacts(&before);
+        let baseline_outline = outline_contacts(baseline);
+        let outline_limit = (
+            current_outline.0.min(baseline_outline.0),
+            current_outline.1.min(baseline_outline.1),
+        );
+        let heads_clear = |c: &Candidate| head_contacts(c) <= head_limit;
+        let outline_clear = |c: &Candidate| {
+            let contacts = outline_contacts(c);
+            let pad = grow(c.label_box, LABEL_PAD);
+            let page_pad = page.drawable();
+            contacts.0 <= outline_limit.0
+                && contacts.1 <= outline_limit.1
+                && (reference.is_none()
+                    || (pad[0] >= page_pad[0]
+                        && pad[1] >= page_pad[1]
+                        && pad[2] <= page_pad[2]
+                        && pad[3] <= page_pad[3]))
         };
         // Good routes have no growth repair to perform. In particular, do not
         // spend a local search budget moving an already clear neighbouring callout.
@@ -1665,6 +1799,8 @@ pub(crate) fn settle_after_furniture(
             && prior_extensions == (0, 0)
             && heads_clear(&before)
             && outline_clear(&before)
+            && hidden_clear(&before)
+            && !drawn_run(&before)
             && budget.is_none_or(|budget| length(&before.segments()) <= budget + 1e-6)
             && established
                 .as_ref()
@@ -1695,7 +1831,11 @@ pub(crate) fn settle_after_furniture(
                 || (reference.is_some()
                     && (c.score() < before.score()
                         || model_crossings(&job, c) < model_crossings(&job, &before)
-                        || contacts < prior_extensions)))
+                        || contacts < prior_extensions
+                        || !heads_clear(&before)
+                        || !outline_clear(&before)
+                        || !hidden_clear(&before)
+                        || (drawn_run(&before) && !drawn_run(c)))))
                 && live.is_subset(&prior_live)
                 && c.text <= before.text
                 && c.hard <= before.hard
@@ -1713,7 +1853,6 @@ pub(crate) fn settle_after_furniture(
                     || super::placement::crosses([before.elbow, before.end], job.outline))
                 && c.grazing <= before.grazing
                 && c.beside <= before.beside
-                && (reference.is_none() || c.beside == 0)
                 && c.clearance
                     <= established
                         .as_ref()
@@ -1726,11 +1865,17 @@ pub(crate) fn settle_after_furniture(
                         })
                 && contacts.0 <= prior_extensions.0
                 && contacts.1 <= prior_extensions.1
+                && !drawn_run(c)
+                && hidden_clear(c)
                 && (reference.is_none() || {
                     let outline = job.model;
                     (!outline.is_some_and(|ink| {
                         ink.new_physical_crossing(&c.segments(), &before.segments())
                     }) || model_crossings(&job, c) < model_crossings(&job, &before)
+                        // A genuine hard-contact repair may use another edge at
+                        // the established intersection budget; a shorter route
+                        // alone does not license that exchange.
+                        || ((c.hard < before.hard || hidden_contacts(c).zip(hidden_contacts(&before)).is_some_and(|(a,b)|a<b)) && established.as_ref().is_some_and(|(b, _)| model_crossings(&job, c) <= model_crossings(&job, b)))
                         || established.as_ref().is_some_and(|(baseline, _)| {
                             !outline.is_some_and(|ink| {
                                 ink.new_physical_crossing(&c.segments(), &baseline.segments())
@@ -1754,10 +1899,24 @@ pub(crate) fn settle_after_furniture(
                         Page::new(analysis, sheet, &reserved).fits(&c.placed(), view)
                     }))
         };
-        let partial = candidates
-            .into_iter()
-            .filter(&acceptable)
-            .min_by_key(Candidate::score);
+        let rank = |c: &Candidate| {
+            let contacts = extension_contacts(&extensions, &c.segments(), c.label_box);
+            (
+                hidden_contacts(c).unwrap_or(0),
+                established.as_ref().map_or(0, |(b, _)| {
+                    job.model.map_or(0, |ink| {
+                        ink.new_physical_count(&c.segments(), &b.segments())
+                    })
+                }),
+                head_contacts(c),
+                outline_contacts(c),
+                contacts.1,
+                c.beside,
+                contacts.0,
+                c.score(),
+            )
+        };
+        let partial = candidates.into_iter().filter(&acceptable).min_by_key(&rank);
         let next = partial
             .clone()
             .filter(|c| reference.is_none() || c.clear())
@@ -1768,12 +1927,13 @@ pub(crate) fn settle_after_furniture(
                 if compact {
                     return None;
                 }
+                let mut fallback = partial.clone();
                 let mut centres = vec![(tip, elbow)];
                 if let Some((b, _)) = &established {
                     centres.push((b.tip, b.elbow));
                 }
                 for (tip, elbow) in centres {
-                    for ring in 1_i32..=if reference.is_some() { 24 } else { 14 } {
+                    for ring in 1_i32..=if reference.is_some() { 32 } else { 14 } {
                         for dx in -ring..=ring {
                             for dy in -ring..=ring {
                                 if dx.abs().max(dy.abs()) != ring {
@@ -1802,9 +1962,19 @@ pub(crate) fn settle_after_furniture(
                                         if let Some(c) = measure_at(
                                             &job, attached, elbow, end, right, &fixed, &page,
                                         ) && acceptable(&c)
-                                            && c.clear()
                                         {
-                                            return Some(c);
+                                            if c.clear() {
+                                                return Some(c);
+                                            }
+                                            // Dense views can retain an old crossing while
+                                            // repairing a padded text/head/outline contact.
+                                            // Keep that improvement if no clear route exists.
+                                            if fallback
+                                                .as_ref()
+                                                .is_none_or(|b| c.score() < b.score())
+                                            {
+                                                fallback = Some(c);
+                                            }
                                         }
                                     }
                                 }
@@ -1812,7 +1982,7 @@ pub(crate) fn settle_after_furniture(
                         }
                     }
                 }
-                None
+                fallback
             })
             .or(partial);
         let Some(next) = next else { continue };
@@ -3133,10 +3303,146 @@ impl PhysicalEdge {
     }
 }
 
+struct ResolvedInk {
+    visible: SegmentIndex,
+    hidden: SegmentIndex,
+    drawn: SegmentIndex,
+}
+
+fn resolved_ink(
+    analysis: &crate::model::Analysis,
+    ink: &crate::model::projected_ink::EdgeInk,
+    v: &crate::model::PlannedView,
+) -> Option<ResolvedInk> {
+    use crate::output::{Curve, Item};
+    if v.id == "v:iso" || v.cut.is_some() || v.detail.is_some() {
+        return None;
+    }
+    let actual = haecceity::hlr::View::new(v.direction, v.up)?;
+    let source = ink.resolved.iter().find(|r| {
+        r.direction
+            .iter()
+            .zip(actual.toward)
+            .all(|(a, b)| (a - b).abs() < 1e-9)
+    })?;
+    let camera = haecceity::hlr::View::new(source.direction, source.up)?;
+    let frame = Frame::new(analysis, v);
+    let map = |p: P2| frame.page([0, 1, 2].map(|k| camera.x[k] * p[0] + camera.y[k] * p[1]));
+    let origin = map([0., 0.]);
+    let transform = |c: &Curve| match c {
+        Curve::Line(a, b) => Curve::Line(map(*a), map(*b)),
+        Curve::Conic {
+            centre,
+            radii,
+            x_axis,
+            y_axis,
+            t0,
+            t1,
+        } => {
+            let axis = |p: P2| {
+                let q = map(p);
+                [0, 1].map(|k| (q[k] - origin[k]) / v.scale)
+            };
+            Curve::Conic {
+                centre: map(*centre),
+                radii: radii.map(|r| r * v.scale),
+                x_axis: axis(*x_axis),
+                y_axis: axis(*y_axis),
+                t0: *t0,
+                t1: *t1,
+            }
+        }
+        Curve::Beziers(p) => Curve::Beziers(
+            p.iter()
+                .map(|p| p.iter().map(|p| map(*p)).collect())
+                .collect(),
+        ),
+        Curve::Rational(p) => Curve::Rational(
+            p.iter()
+                .map(|p| {
+                    p.iter()
+                        .map(|p| {
+                            let q = map([p[0], p[1]]);
+                            [
+                                q[0] + origin[0] * (p[2] - 1.),
+                                q[1] + origin[1] * (p[2] - 1.),
+                                p[2],
+                            ]
+                        })
+                        .collect()
+                })
+                .collect(),
+        ),
+    };
+    let visible: Vec<_> = source
+        .visible
+        .iter()
+        .map(|c| Item::Edge(crate::linework::stable_curve(transform(c))))
+        .collect();
+    let hidden = if v.line_style.hidden == Some(false) {
+        Vec::new()
+    } else {
+        crate::linework::hidden(
+            &visible,
+            source
+                .hidden
+                .iter()
+                .map(|c| Item::Edge(crate::linework::stable_curve(transform(c))))
+                .collect(),
+        )
+    };
+    fn flatten(c: &Curve, a: f64, b: f64, depth: usize, into: &mut Vec<[P2; 2]>) {
+        let (p, q) = (c.at(a), c.at(b));
+        let flat = [0.25, 0.5, 0.75].iter().all(|t| {
+            let x = c.at(a + t * (b - a));
+            (x[0] - p[0] - t * (q[0] - p[0])).hypot(x[1] - p[1] - t * (q[1] - p[1])) <= 0.002
+        });
+        if depth >= 20 || flat {
+            into.push([p, q]);
+        } else {
+            let m = (a + b) * 0.5;
+            flatten(c, a, m, depth + 1, into);
+            flatten(c, m, b, depth + 1, into);
+        }
+    }
+    let sample = |items: &[Item]| {
+        let mut lines = Vec::new();
+        for item in items {
+            if let Item::Edge(c) = item {
+                let n = match c {
+                    Curve::Line(..) => 1,
+                    Curve::Conic { .. } => 4,
+                    Curve::Beziers(p) => p.len() * 4,
+                    Curve::Rational(p) => p.len() * 4,
+                };
+                for i in 0..n {
+                    flatten(
+                        c,
+                        i as f64 / n as f64,
+                        (i + 1) as f64 / n as f64,
+                        0,
+                        &mut lines,
+                    );
+                }
+            }
+        }
+        lines
+    };
+    let visible = sample(&visible);
+    let hidden = sample(&hidden);
+    let drawn = SegmentIndex::new(visible.iter().chain(&hidden).copied().collect());
+    Some(ResolvedInk {
+        visible: SegmentIndex::new(visible),
+        hidden: SegmentIndex::new(hidden),
+        drawn,
+    })
+}
+
 pub(super) struct SegmentIndex {
     bounds: [f64; 4],
     ink: Vec<[P2; 2]>,
     physical: Vec<PhysicalEdge>,
+    resolved: Option<Box<ResolvedInk>>,
     children: Option<Box<[SegmentIndex; 2]>>,
     counts: std::cell::RefCell<std::collections::HashMap<[u64; 4], usize>>,
     besides: std::cell::RefCell<std::collections::HashMap<[u64; 4], bool>>,
@@ -3172,6 +3478,7 @@ impl SegmentIndex {
         }
         let mut index = Self::new(model);
         index.physical = physical;
+        index.resolved = resolved_ink(analysis, ink, view).map(Box::new);
         (index, uncertain)
     }
 
@@ -3209,6 +3516,7 @@ impl SegmentIndex {
             bounds,
             ink,
             physical: Vec::new(),
+            resolved: None,
             children,
             counts: std::cell::RefCell::default(),
             besides: std::cell::RefCell::default(),
@@ -3426,6 +3734,16 @@ impl SegmentIndex {
                     && !old.iter().any(|line| segments_cross(*line, *edge))
             })
         }
+    }
+
+    fn new_physical_count(&self, next: &[[P2; 2]], old: &[[P2; 2]]) -> usize {
+        if self.physical.is_empty() {
+            return usize::from(self.new_crossing(next, old));
+        }
+        self.physical
+            .iter()
+            .filter(|edge| edge.crossed_by(next) && !edge.crossed_by(old))
+            .count()
     }
 
     /// Compare original CAD edges, not the sampled chords of the same curve.
@@ -6237,6 +6555,81 @@ mod tests {
 #[cfg(test)]
 mod arc_tip_tests {
     use super::*;
+
+    #[test]
+    fn resolved_visibility_survives_analysis_round_trip_and_matches_rendered_curves() {
+        use crate::model::{self, Analysis, Projections, Spec};
+        use crate::output::{Curve, Item};
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/parts/grm02.step");
+        let (part, analysis) = model::analyse_native(&path).unwrap();
+        let analysis: Analysis =
+            serde_json::from_slice(&serde_json::to_vec(&analysis).unwrap()).unwrap();
+        assert_eq!(analysis.edge_ink.as_ref().unwrap().resolved.len(), 3);
+        let plan = model::plan(&analysis, &Spec::default()).unwrap();
+        let geometry =
+            model::render_geometry(&part, &analysis, &plan, &mut Projections::default()).unwrap();
+        let mut views = 0;
+        let mut hidden = false;
+        for view in plan
+            .views
+            .iter()
+            .filter(|v| v.id != "v:iso" && v.cut.is_none() && v.detail.is_none())
+        {
+            let (index, _) =
+                SegmentIndex::for_view(&analysis, analysis.edge_ink.as_ref().unwrap(), view);
+            let resolved = index
+                .resolved
+                .as_ref()
+                .expect("principal ink is in the serialized Analysis");
+            let drawn = &geometry
+                .views
+                .iter()
+                .find(|(id, _)| id == &view.id)
+                .unwrap()
+                .1;
+            hidden |= !drawn.hidden.is_empty();
+            let b = Frame::new(&analysis, view).outline();
+            for i in 0..19 {
+                let y = |f: f64| b[1] + (i as f64 + f) / 19. * (b[3] - b[1]);
+                let line = [[b[0] - 3., y(0.37)], [b[2] + 3., y(0.79)]];
+                for (expected, actual) in [
+                    (&drawn.visible, &resolved.visible),
+                    (&drawn.hidden, &resolved.hidden),
+                ] {
+                    // Independent dense sampling of the renderer's actual curves,
+                    // rather than the router's adaptive sampler or coarse B-rep edges.
+                    let crossings: usize = expected
+                        .iter()
+                        .map(|item| match item {
+                            Item::Edge(c) => {
+                                let n = if matches!(c, Curve::Line(..)) {
+                                    1
+                                } else {
+                                    4096
+                                };
+                                (0..n)
+                                    .filter(|i| {
+                                        segments_cross(
+                                            line,
+                                            [
+                                                c.at(*i as f64 / n as f64),
+                                                c.at((*i + 1) as f64 / n as f64),
+                                            ],
+                                        )
+                                    })
+                                    .count()
+                            }
+                            _ => 0,
+                        })
+                        .sum();
+                    assert_eq!(actual.crossings(line), crossings, "{} query {i}", view.id);
+                }
+            }
+            views += 1;
+        }
+        assert!(views >= 2 && hidden);
+    }
 
     #[test]
     fn physical_edge_identity_survives_curve_sampling_but_rejects_another_edge() {
