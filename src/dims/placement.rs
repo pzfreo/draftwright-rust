@@ -4314,6 +4314,11 @@ pub(crate) fn collisions_cached(
     let mut problems = Vec::new();
     let drawable = drawable(sheet);
     let interior_proofs = super::interior::proofs(analysis, views);
+    let datum_proofs = if dims.iter().any(|d| d.id.starts_with("pmi:datum.")) {
+        super::interior::exterior_proofs(analysis, views)
+    } else {
+        BTreeMap::new()
+    };
     let outlines: Vec<_> = outlines(analysis, views)
         .into_iter()
         .filter(|(id, _)| views.iter().any(|v| v.id == *id && v.sheet == sheet.number))
@@ -4466,7 +4471,10 @@ pub(crate) fn collisions_cached(
                             proof.blank(v, lb)
                                 || (d.measurements.iter().any(|m| m.parameter == "notch.angle")
                                     && proof.exterior_annotation_clear(v, p))
-                        })
+                        }) || (d.id.starts_with("pmi:datum.")
+                            && datum_proofs
+                                .get(&v.id)
+                                .is_some_and(|proof| proof.exterior_annotation_clear(v, p)))
                     }))
             {
                 problem(

@@ -272,6 +272,69 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             out.push(i);
         }
     }
+    for r in report
+        .records
+        .iter()
+        .filter(|r| r.category == Category::Dimension && on_sheet.contains(r.source_id.as_str()))
+    {
+        let Some(g) = &r.geometry else {
+            continue;
+        };
+        if g.targets.is_empty() {
+            continue;
+        }
+        let measured = match (r.kind.as_str(), g.targets.as_slice()) {
+            ("diameter" | "radius", [Some(t)]) => t
+                .radius
+                .map(|v| if r.kind == "diameter" { 2.0 * v } else { v }),
+            ("linear" | "thickness", [Some(a), Some(b)]) => {
+                crate::pmi_lowering::derived_stations(a, b, [0.0; 3])
+                    .ok()
+                    .map(|s| {
+                        (0..3)
+                            .map(|k| (s[1][k] - s[0][k]).powi(2))
+                            .sum::<f64>()
+                            .sqrt()
+                    })
+            }
+            _ => None,
+        };
+        if measured
+            .zip(r.value)
+            .is_none_or(|(m, v)| (m - v).abs() > 0.01_f64.max(v.abs() * 5e-4))
+        {
+            out.push(sourced(
+                "pmi_value_mismatch",
+                &r.source_id,
+                Severity::Error,
+                format!(
+                    "AP242 source {} nominal {:?} disagrees with its derived geometry {:?} mm",
+                    r.source_id, r.value, measured
+                ),
+            ));
+        }
+        if let Some(q) = ["MAX", "MIN", "AVG"]
+            .into_iter()
+            .find(|q| r.label.ends_with(&format!(" {q}")))
+        {
+            for mark in marks.iter().filter(|m| {
+                m.claims
+                    .iter()
+                    .any(|c| ids.source(&c.feature) == Some(r.source_id.as_str()))
+            }) {
+                if !mark.text.split_whitespace().any(|t| t == q) {
+                    let mut i = sourced(
+                        "pmi_value_mismatch",
+                        &r.source_id,
+                        Severity::Error,
+                        format!("AP242 source {} is missing its {q} qualifier", r.source_id),
+                    );
+                    i.annotation = Some(mark.name.clone());
+                    out.push(i);
+                }
+            }
+        }
+    }
     out.extend(manufacturing_text(report, marks, &ids));
     out.extend(materials(report));
     let known: BTreeSet<&str> = report

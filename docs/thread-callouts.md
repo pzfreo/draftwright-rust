@@ -27,6 +27,9 @@ retain all carried requirements. The plan basis records these decisions.
 `compact` keeps compact wording even over two lines; `full` retains the long
 Python-style wording; `note` always puts the complete requirement into the existing
 numbered manufacturing schedule and leaves its identity plus `SEE MFG n` on the leader.
+A dimension that also owns a PMI size keeps its own tolerance and MAX/MIN/AVG
+qualifier on the leader before the manufacturing wording or note reference. For
+example, GRM-03 reads `ø10 MAX SEE MFG 2`: only the knurl wording moves to MFG 2.
 Secondary process and conventional drill-point terms use this same schedule with
 compact identity/depth wording retained on the leader. No term is discarded.
 
