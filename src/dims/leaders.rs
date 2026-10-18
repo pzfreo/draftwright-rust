@@ -636,8 +636,10 @@ fn boss_profile(w: &Want) -> bool {
         && w.measurements
             .iter()
             .all(|m| m.parameter == "boss.diameter")
-        && matches!(&w.shape, Shape::Callout { sites } if !sites.is_empty() && sites.iter().all(|(_, r)| *r == 0.0))
+        && matches!(&w.shape, Shape::Callout { sites, .. } if !sites.is_empty() && sites.iter().all(|(_, r)| *r == 0.0))
 }
+
+type Site = (P2, f64, Option<crate::arc::Span>);
 
 /// One callout's job: its view's outline, its sites on the page (centre, radius), its label's ink
 /// box about its baseline origin, and how far past each edge the strip's dimensions reach.
@@ -648,7 +650,7 @@ struct Job<'a> {
     outline: [f64; 4],
     /// The view's reserved area (box and bands), when the sheet has it.
     area: Option<[f64; 4]>,
-    sites: Vec<(P2, f64)>,
+    sites: Vec<Site>,
     /// For a turned step's diameter, whose sites lie on its silhouette: the silhouette's
     /// direction on the page ([`grazing`]).
     silhouette: Option<P2>,
@@ -697,7 +699,10 @@ fn side_index(side: Side) -> usize {
 
 /// Routing needs only this immutable classification. Lowering a dense AP242
 /// document again for every callout discards identical items and diagnostics.
-fn has_semantic_pmi(analysis: &crate::model::Analysis, frames: &BTreeMap<&str, Frame>) -> bool {
+pub(super) fn has_semantic_pmi(
+    analysis: &crate::model::Analysis,
+    frames: &BTreeMap<&str, Frame>,
+) -> bool {
     let key = ["front", "plan", "side"]
         .map(|name| u8::from(frames.contains_key(name)))
         .to_vec();
@@ -898,7 +903,7 @@ fn place_with_obstacles_uncached(
     };
     let mut jobs: Vec<(usize, Job)> = Vec::new();
     for (i, w) in items.iter().enumerate() {
-        let (Shape::Callout { sites }, Some(view)) = (&w.shape, views_of[i]) else {
+        let (Shape::Callout { sites, arcs }, Some(view)) = (&w.shape, views_of[i]) else {
             continue;
         };
         if placed[i].is_some() {
@@ -923,7 +928,7 @@ fn place_with_obstacles_uncached(
                 footprints: &footprints[view],
                 outline: f.outline(),
                 area: page.area(view),
-                sites: page_sites(f, sites),
+                sites: page_sites(f, sites, arcs),
                 silhouette: grazing(f, w),
                 model: models.get(view).map(|m| &m.as_ref().0),
                 short_profile: boss_profile(w),
@@ -1241,7 +1246,8 @@ pub(crate) fn settle_after_furniture(
         else {
             continue;
         };
-        let (Shape::Callout { sites }, Some(v)) = (&w.shape, views.iter().find(|v| v.id == d.view))
+        let (Shape::Callout { sites, arcs }, Some(v)) =
+            (&w.shape, views.iter().find(|v| v.id == d.view))
         else {
             continue;
         };
@@ -1264,7 +1270,7 @@ pub(crate) fn settle_after_furniture(
             footprints: &footprint,
             outline: frame.outline(),
             area: page.area(view),
-            sites: page_sites(&frame, sites),
+            sites: page_sites(&frame, sites, arcs),
             directed: false,
             corridors: false,
             short_profile: boss_profile(w),
@@ -1615,10 +1621,24 @@ fn refine_uncached(
     });
     let legacy = |i: usize| {
         reference.as_ref().and_then(|p| {
-            p.dimensions
-                .iter()
-                .find(|d| d.id == items[i].id && d.kind == "callout")
+            p.dimensions.iter().find(|d| {
+                d.id == items[i].id
+                    && d.kind == "callout"
+                    && d.view.strip_prefix("v:") == views_of[i]
+            })
         })
+    };
+    let changed_from_established = |i: usize, p: &Placed| {
+        legacy(i)
+            .and_then(|d| translated(reference.as_ref()?, d, views, &items[i]))
+            .is_some_and(|old| {
+                old.lines.len() == p.lines.len()
+                    && old.lines.iter().zip(&p.lines).any(|(a, b)| {
+                        a.iter()
+                            .zip(b)
+                            .any(|(a, b)| (0..2).any(|k| (a[k] - b[k]).abs() > 1e-6))
+                    })
+            })
     };
     let longer_than_established = |i: usize, p: &Placed| {
         legacy(i)
@@ -1715,6 +1735,24 @@ fn refine_uncached(
     };
     // Only a free callout already in contact is refined; most sheets have none, and then the
     // view ink below is never gathered.
+    let footprints: BTreeMap<_, _> = views
+        .iter()
+        .map(|v| (v.id.trim_start_matches("v:"), cache.get(analysis, v)))
+        .collect();
+    let expanded_native = super::has_new_native_recess_dimensions(analysis);
+    let feature_route = |i: usize, p: &Placed| {
+        expanded_native
+            && !repair_models.is_empty()
+            && items[i]
+                .measurements
+                .iter()
+                .any(|m| m.parameter == "bore.diameter")
+            && views_of[i].is_some_and(|v| {
+                !footprints[v]
+                    .crossed(p.lines[0], &items[i].measurements)
+                    .is_empty()
+            })
+    };
     let edited_text = edited_labels(spec);
     let todo: Vec<usize> = (0..items.len())
         .filter(|&i| {
@@ -1726,6 +1764,13 @@ fn refine_uncached(
                     .is_some_and(|d| d.place.is_some())
                 && placed[i].as_ref().is_some_and(|p| {
                     extension_index.contacts(&p.lines, p.label_box).0 > 0
+                        || feature_route(i, p)
+                        || (expanded_native
+                            && !repair_models.is_empty()
+                            && !bare
+                            && !canonical
+                            && !edited_text
+                            && changed_from_established(i, p))
                         || callout_crossing(i, p, placed)
                         || longer_than_established(i, p)
                         || added_material_crossing(i, p)
@@ -1749,14 +1794,10 @@ fn refine_uncached(
         .filter(|w| w.kind == "cutting_plane")
         .flat_map(crate::centrelines::segments)
         .collect();
-    let footprints: BTreeMap<_, _> = views
-        .iter()
-        .map(|v| (v.id.trim_start_matches("v:"), cache.get(analysis, v)))
-        .collect();
     let directed = !repair_models.is_empty() && !has_semantic_pmi(analysis, frames);
     for i in todo {
         let w = &items[i];
-        let (Shape::Callout { sites }, Some(view), Some(old)) =
+        let (Shape::Callout { sites, arcs }, Some(view), Some(old)) =
             (&w.shape, views_of[i], placed[i].clone())
         else {
             continue;
@@ -1765,7 +1806,7 @@ fn refine_uncached(
         let end = old.lines[1][1];
         let right = end[0] >= elbow[0];
         let frame = &frames[view];
-        let page_sites = page_sites(frame, sites);
+        let page_sites = page_sites(frame, sites, arcs);
         let old_length = length(&old.lines);
         let new_recess = w
             .measurements
@@ -1793,7 +1834,16 @@ fn refine_uncached(
                 .all(|m| m.feature.starts_with("f:section_recess:"));
         let repair_cross = callout_crossing(i, &old, placed);
         let old_run = model_run(w, &old);
+        let repair_features = feature_route(i, &old);
+        let restore_established = expanded_native
+            && !repair_models.is_empty()
+            && !bare
+            && !canonical
+            && !edited_text
+            && changed_from_established(i, &old);
         let repair_run = old_run
+            || restore_established
+            || repair_features
             || repair_cross
             || repair_text
             || longer_than_established(i, &old)
@@ -2206,7 +2256,7 @@ fn refine_uncached(
             continue;
         }
         // Fewest contacts first, then the least movement: the nearest acceptable route wins.
-        if clear_new_text {
+        if clear_new_text || repair_features {
             let mut graded: Vec<_> = candidates
                 .into_iter()
                 .map(|c| (job.footprints.crossing_count([c.2, c.3]), c))
@@ -2229,6 +2279,19 @@ fn refine_uncached(
             candidates = ranked.into_iter().map(|(_, _, c)| c).collect();
         } else {
             candidates.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
+        }
+        let is_established = |t: P2, q: P2, e: P2| {
+            established.as_ref().is_some_and(|p| {
+                [t, q, e]
+                    .iter()
+                    .zip([p.lines[0][0], p.lines[0][1], p.lines[1][1]])
+                    .all(|(a, b)| (0..2).all(|k| (a[k] - b[k]).abs() < 1e-6))
+            })
+        };
+        if restore_established {
+            // Preserve a still-clear established leader before shortening it
+            // through a different physical edge after the witness reflow.
+            candidates.sort_by_key(|c| !(c.0.0 == 0 && is_established(c.2, c.3, c.4)));
         }
         let mut fixed = Fixed::new(
             placed
@@ -2297,7 +2360,8 @@ fn refine_uncached(
             let corridors = extension_index
                 .contacts(&[[c.tip, c.elbow], [c.elbow, c.end]], c.label_box)
                 .0 as u32;
-            if c.hard > prior.hard
+            if (repair_features && c.feature_crossings >= prior.feature_crossings)
+                || c.hard > prior.hard
                 || (clear_new_text && c.hard > corridors)
                 || c.crossings > prior.crossings
                 || (repair_cross && directed_contacts(&c.placed()) >= prior_contacts)
@@ -2312,6 +2376,12 @@ fn refine_uncached(
                 return None;
             }
             let p = c.placed();
+            // Fixed-ink scoring does not include a peer's arrow shaft in both
+            // directions. A repair must not create a new close parallel leader
+            // or arrow contact while clearing its witness corridor.
+            if directed_contacts(&p) > prior_contacts {
+                return None;
+            }
             if (clear_new_text && !page.fits(&p, view))
                 || (repair_text && text_conflict(i, &p, placed, obstacles))
             {
@@ -3093,25 +3163,49 @@ fn grazing(f: &Frame, w: &Want) -> Option<P2> {
 /// A callout's sites on the page, at most [`MAX_SITES`]. A silhouette site (radius 0) that lands
 /// on another silhouette site lies on the view's line of sight (a turned band's two sites along
 /// the view direction, both on its axis): it is no silhouette in this view, and is left out.
-fn page_sites(f: &Frame, sites: &[(super::P3, f64)]) -> Vec<(P2, f64)> {
-    let all: Vec<(P2, f64)> = sites
-        .iter()
-        .map(|(c, r)| (f.page(*c), f.scale() * r))
-        .collect();
+fn page_sites(f: &Frame, sites: &[(super::P3, f64)], arcs: &[crate::arc::ProfileArc]) -> Vec<Site> {
+    let all: Vec<Site> = if arcs.is_empty() {
+        sites
+            .iter()
+            .map(|(c, r)| (f.page(*c), f.scale() * r, None))
+            .collect()
+    } else {
+        arcs.iter()
+            .map(|a| {
+                let (c, r, span) = a.projected(|p| f.page(p));
+                (c, r, Some(span))
+            })
+            .collect()
+    };
     let near = |a: P2, b: P2| (a[0] - b[0]).abs() < 1e-6 && (a[1] - b[1]).abs() < 1e-6;
-    let kept: Vec<(P2, f64)> = all
+    let kept: Vec<Site> = all
         .iter()
         .enumerate()
-        .filter(|(i, (p, r))| {
+        .filter(|(i, (p, r, _))| {
             *r > 0.0
                 || !all
                     .iter()
                     .enumerate()
-                    .any(|(j, (q, s))| j != *i && *s == 0.0 && near(*p, *q))
+                    .any(|(j, (q, s, _))| j != *i && *s == 0.0 && near(*p, *q))
         })
         .map(|(_, s)| *s)
         .take(MAX_SITES)
         .collect();
+    // A concave short arc may need a leader approaching across its opening.
+    // The nearest radial point can be a crowded tangent endpoint. Reuse the
+    // proven-point attachment contract of blends for interior arc stations too.
+    let mut kept = kept;
+    for arc in arcs
+        .iter()
+        .filter(|a| sites.len() == 1 && a.sweep < std::f64::consts::PI - 1e-6)
+    {
+        for fraction in [0.25, 0.5, 0.75] {
+            let point = f.page(arc.point(arc.start + fraction * arc.sweep));
+            if !kept.iter().any(|s| s.1 == 0.0 && near(s.0, point)) {
+                kept.push((point, 0.0, None));
+            }
+        }
+    }
     // A site set wholly on the line of sight still names the feature: keep it rather than none.
     if kept.is_empty() {
         all.into_iter().take(MAX_SITES).collect()
@@ -3121,19 +3215,32 @@ fn page_sites(f: &Frame, sites: &[(super::P3, f64)]) -> Vec<(P2, f64)> {
 }
 
 /// The tip on *site*'s rim radial towards *elbow* (draftwright's `_rim_tip`).
-fn rim_tip(site: (P2, f64), elbow: P2) -> P2 {
-    let (c, r) = site;
+fn rim_tip(site: Site, elbow: P2) -> P2 {
+    let (c, r, span) = site;
     let d = [elbow[0] - c[0], elbow[1] - c[1]];
     let n = d[0].hypot(d[1]);
-    if n <= r || n < 1e-12 {
+    if span.is_none() && (n <= r || n < 1e-12) {
         return c;
+    }
+    if let Some(span) = span {
+        let a = if n < 1e-12 {
+            span.start + span.sweep / 2.0
+        } else {
+            span.clamp(d[1].atan2(d[0]))
+        };
+        return [c[0] + r * a.cos(), c[1] + r * a.sin()];
     }
     [c[0] + r * d[0] / n, c[1] + r * d[1] / n]
 }
 
 /// An explicit shoulder keeps its station; attach radially to its nearest proven feature site.
-pub(super) fn intent_tip(frame: &Frame, sites: &[(super::P3, f64)], elbow: P2) -> P2 {
-    rim_tip(nearest(&page_sites(frame, sites), elbow), elbow)
+pub(super) fn intent_tip(
+    frame: &Frame,
+    sites: &[(super::P3, f64)],
+    arcs: &[crate::arc::ProfileArc],
+    elbow: P2,
+) -> P2 {
+    rim_tip(nearest(&page_sites(frame, sites, arcs), elbow), elbow)
 }
 
 /// A pinned callout whose bend is `offset` (paper mm) from its automatic leader tip, `held`'s
@@ -3149,10 +3256,10 @@ pub(super) fn offset_intent(
     offset: P2,
     held: Option<(&Placed, &[String])>,
 ) -> Option<Placed> {
-    let Shape::Callout { sites } = &w.shape else {
+    let Shape::Callout { sites, arcs } = &w.shape else {
         return None;
     };
-    let sites = page_sites(frame, sites);
+    let sites = page_sites(frame, sites, arcs);
     let held = held.and_then(|(p, terms)| Some((p, *p.lines.first()?, terms)));
     let anchor = match held {
         Some((_, [tip, _], _)) => tip,
@@ -3167,7 +3274,7 @@ pub(super) fn offset_intent(
     }
     let tip = match held {
         Some((_, [tip, _], _)) => {
-            let on = |s: &(P2, f64)| ((s.0[0] - tip[0]).hypot(s.0[1] - tip[1]) - s.1).abs();
+            let on = |s: &Site| ((s.0[0] - tip[0]).hypot(s.0[1] - tip[1]) - s.1).abs();
             let site = *sites.iter().min_by(|a, b| on(a).total_cmp(&on(b)))?;
             rim_tip(site, elbow)
         }
@@ -3209,7 +3316,7 @@ pub(super) fn route_intent(
     if pinned {
         return;
     }
-    let Shape::Callout { sites } = &w.shape else {
+    let Shape::Callout { sites, arcs } = &w.shape else {
         return;
     };
     let Some(&[tip, elbow]) = p.lines.first() else {
@@ -3224,7 +3331,7 @@ pub(super) fn route_intent(
         crate::placement_intent::Side::Left | crate::placement_intent::Side::Right
     ));
     let o = frame.outline();
-    let sites = page_sites(frame, sites);
+    let sites = page_sites(frame, sites, arcs);
     let contacts = |tip: P2, next: P2| {
         let shift = [next[0] - elbow[0], next[1] - elbow[1]];
         let label = [
@@ -3345,10 +3452,18 @@ fn exit_distance(p: P2, u: P2, b: [f64; 4]) -> f64 {
 }
 
 /// The site of *sites* nearest *elbow*.
-fn nearest(sites: &[(P2, f64)], elbow: P2) -> (P2, f64) {
+fn nearest(sites: &[Site], elbow: P2) -> Site {
     sites
         .iter()
-        .map(|s| (s, (s.0[0] - elbow[0]).hypot(s.0[1] - elbow[1]) - s.1))
+        .map(|s| {
+            let distance = if s.2.is_some() {
+                let tip = rim_tip(*s, elbow);
+                (tip[0] - elbow[0]).hypot(tip[1] - elbow[1])
+            } else {
+                (s.0[0] - elbow[0]).hypot(s.0[1] - elbow[1]) - s.1
+            };
+            (s, distance)
+        })
         .min_by(|a, b| a.1.total_cmp(&b.1))
         .map(|(s, _)| *s)
         .expect("a callout has a site")
@@ -3374,7 +3489,7 @@ fn inventory(
             .sites
             .iter()
             .max_by(|a, b| {
-                let k = |s: &(P2, f64)| if right { s.0[0] } else { -s.0[0] };
+                let k = |s: &Site| if right { s.0[0] } else { -s.0[0] };
                 k(a).total_cmp(&k(b))
             })
             .expect("a callout has a site");
@@ -3397,7 +3512,7 @@ fn inventory(
             .sites
             .iter()
             .max_by(|a, b| {
-                let k = |s: &(P2, f64)| if up { s.0[1] } else { -s.0[1] };
+                let k = |s: &Site| if up { s.0[1] } else { -s.0[1] };
                 k(a).total_cmp(&k(b))
             })
             .expect("a callout has a site");
@@ -3432,7 +3547,13 @@ fn inventory(
             for j in 0..DIRECTIONS {
                 let a = std::f64::consts::TAU * j as f64 / DIRECTIONS as f64;
                 let u = [a.cos(), a.sin()];
-                let tip = [site.0[0] + site.1 * u[0], site.0[1] + site.1 * u[1]];
+                let tip = rim_tip(
+                    site,
+                    [
+                        site.0[0] + (site.1 + 1.0) * u[0],
+                        site.0[1] + (site.1 + 1.0) * u[1],
+                    ],
+                );
                 for &reach in SWEEP_REACH.iter().take(3) {
                     raw.push((tip, [tip[0] + reach * u[0], tip[1] + reach * u[1]], None));
                 }
@@ -3690,6 +3811,19 @@ fn measure_at_bounds(
     right: bool,
     page: &Page,
 ) -> Option<Candidate> {
+    if job.sites.iter().any(|s| s.2.is_some())
+        && !job.sites.iter().any(|&(c, r, span)| {
+            span.is_some_and(|span| {
+                ((tip[0] - c[0]).hypot(tip[1] - c[1]) - r).abs() <= crate::lint::leaders::TOLERANCE
+                    && span.contains(
+                        (tip[1] - c[1]).atan2(tip[0] - c[0]),
+                        crate::lint::leaders::TOLERANCE / r.max(1e-9),
+                    )
+            })
+        })
+    {
+        return None;
+    }
     if (end[0] - elbow[0]) * if right { 1.0 } else { -1.0 } <= 1e-9 {
         return None;
     }
@@ -3976,15 +4110,16 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
 /// and label side, the label on the side the leader runs to (either for a vertical one). The
 /// sites are taken nearest *tip* first, so the sweep starts where the leader is.
 fn sweep(job: &Job, tip: P2) -> Vec<(P2, P2, bool)> {
-    let mut sites: Vec<(P2, f64)> = job.sites.clone();
-    let d = |s: &(P2, f64)| (s.0[0] - tip[0]).hypot(s.0[1] - tip[1]);
+    let mut sites: Vec<Site> = job.sites.clone();
+    let d = |s: &Site| (s.0[0] - tip[0]).hypot(s.0[1] - tip[1]);
     sites.sort_by(|a, b| d(a).total_cmp(&d(b)));
     let mut out = Vec::new();
-    for (c, r) in sites.into_iter().take(SWEEP_SITES) {
+    for site in sites.into_iter().take(SWEEP_SITES) {
+        let (c, r, _) = site;
         for j in 0..SWEEP_DIRECTIONS {
             let a = std::f64::consts::TAU * j as f64 / SWEEP_DIRECTIONS as f64;
             let u = [a.cos(), a.sin()];
-            let tip = [c[0] + r * u[0], c[1] + r * u[1]];
+            let tip = rim_tip(site, [c[0] + (r + 1.0) * u[0], c[1] + (r + 1.0) * u[1]]);
             for reach in SWEEP_REACH {
                 let elbow = [tip[0] + reach * u[0], tip[1] + reach * u[1]];
                 let dx = elbow[0] - tip[0];
@@ -4026,7 +4161,7 @@ pub fn clear_routes(
     super::detail_routes(analysis, &mut wants, views);
     super::route(&mut wants, &frames, analysis);
     let w = wants.iter().find(|w| w.id == id)?;
-    let Shape::Callout { sites } = &w.shape else {
+    let Shape::Callout { sites, arcs } = &w.shape else {
         return None;
     };
     let f = frames.get(view)?;
@@ -4039,7 +4174,7 @@ pub fn clear_routes(
         footprints: &footprints,
         outline: f.outline(),
         area: page.area(view),
-        sites: page_sites(f, sites),
+        sites: page_sites(f, sites, arcs),
         silhouette: grazing(f, w),
         model: None,
         short_profile: false,
@@ -4681,7 +4816,7 @@ mod tests {
 
     #[test]
     fn a_tip_is_on_the_rim_radial_to_the_elbow() {
-        let site = ([50.0, 40.0], 6.0);
+        let site = ([50.0, 40.0], 6.0, None);
         for elbow in [[80.0, 40.0], [20.0, 70.0], [50.0, 10.0], [61.0, 52.0]] {
             let t = rim_tip(site, elbow);
             let r = [t[0] - 50.0, t[1] - 40.0];
@@ -4764,13 +4899,13 @@ mod tests {
             }
             let Some(p) = &d.placed else { continue };
             let w = wants.iter().find(|w| w.id == d.id).unwrap();
-            let Shape::Callout { sites } = &w.shape else {
+            let Shape::Callout { sites, arcs } = &w.shape else {
                 panic!("radius needs arc sites")
             };
             let v = plan.views.iter().find(|v| v.id == d.view).unwrap();
-            let sites = page_sites(&Frame::new(&a, v), sites);
+            let sites = page_sites(&Frame::new(&a, v), sites, arcs);
             let [tip, elbow] = p.lines[0];
-            let (centre, _) = nearest(&sites, tip);
+            let (centre, _, _) = nearest(&sites, tip);
             let r = [tip[0] - centre[0], tip[1] - centre[1]];
             let shaft = [elbow[0] - tip[0], elbow[1] - tip[1]];
             let unchanged = [tip, elbow].iter().enumerate().all(|(i, p)| {
@@ -5443,5 +5578,31 @@ mod tests {
             [[0.0, 0.0], [1.0, 0.0]],
             [[2.0, 0.0], [3.0, 0.0]]
         ));
+    }
+}
+
+#[cfg(test)]
+mod arc_tip_tests {
+    use super::*;
+
+    #[test]
+    fn a_radius_tip_is_constrained_to_its_trimmed_span() {
+        use std::f64::consts::PI;
+        let site = (
+            [0.0, 0.0],
+            8.5,
+            Some(crate::arc::Span {
+                start: PI,
+                sweep: PI / 2.0,
+            }),
+        );
+        let tip = rim_tip(site, [-20.0, 20.0]);
+        assert!((tip[0] + 8.5).abs() < 1e-9 && tip[1].abs() < 1e-9);
+        let tip = rim_tip(site, [-20.0, -20.0]);
+        assert!((tip[0] + 8.5 / 2.0_f64.sqrt()).abs() < 1e-9);
+        assert!((tip[1] + 8.5 / 2.0_f64.sqrt()).abs() < 1e-9);
+        // A full-circle hole retains its unconstrained radial attachment.
+        let hole = rim_tip(([0.0, 0.0], 8.5, None), [-20.0, 20.0]);
+        assert!(hole[1] > 0.0);
     }
 }

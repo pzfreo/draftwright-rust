@@ -124,7 +124,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 "a raised pad's height along {} from the face it stands on, a callout led to its footprint, in the view that looks down on it",
                 AXES[axis]
             ),
-            shape: Shape::Callout {
+            shape: Shape::Callout { arcs: Vec::new(),
                 sites: vec![
                     edge(long, 1),
                     edge(long, 0),

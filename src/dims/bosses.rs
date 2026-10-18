@@ -319,7 +319,10 @@ pub(super) fn route_profile(analysis: &Analysis, w: &mut Want, view: &str) {
         }
     }
     if !sites.is_empty() {
-        w.shape = Shape::Callout { sites };
+        w.shape = Shape::Callout {
+            sites,
+            arcs: Vec::new(),
+        };
     }
 }
 
@@ -649,7 +652,10 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 .collect(),
             turning: None,
             basis,
-            shape: Shape::Callout { sites },
+            shape: Shape::Callout {
+                sites,
+                arcs: Vec::new(),
+            },
         });
     }
 

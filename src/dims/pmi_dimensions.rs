@@ -282,7 +282,7 @@ fn axis(letter: Option<&str>) -> Option<usize> {
 /// A callout's holes, each its feature, centre and diameter: the bore diameters it states, with
 /// its sites (the planner keeps them in the same order).
 fn holes_of(w: &Want) -> Vec<(String, P3, f64)> {
-    let Shape::Callout { sites } = &w.shape else {
+    let Shape::Callout { sites, .. } = &w.shape else {
         return Vec::new();
     };
     let bores: Vec<&Measurement> = w
@@ -418,7 +418,7 @@ fn external_owner(
         {
             continue;
         }
-        let Shape::Callout { sites } = &w.shape else {
+        let Shape::Callout { sites, .. } = &w.shape else {
             continue;
         };
         let named = sites
@@ -1078,7 +1078,17 @@ fn leader(
             ""
         }
     );
-    own(ids, r, value, vec![view], Shape::Callout { sites }, basis)
+    own(
+        ids,
+        r,
+        value,
+        vec![view],
+        Shape::Callout {
+            sites,
+            arcs: Vec::new(),
+        },
+        basis,
+    )
 }
 
 /// Drops the limits a PMI fit put beside its class when the spec hides fit limits
@@ -1231,7 +1241,7 @@ fn split(w: &Want, groups: &[Group]) -> Vec<(Want, Vec<usize>)> {
         return vec![(w.clone(), groups[0].1.clone())];
     }
     let holes = holes_of(w);
-    let Shape::Callout { sites } = &w.shape else {
+    let Shape::Callout { sites, .. } = &w.shape else {
         return vec![(w.clone(), groups[0].1.clone())];
     };
     groups
@@ -1260,7 +1270,7 @@ fn split(w: &Want, groups: &[Group]) -> Vec<(Want, Vec<usize>)> {
             }
             part.measurements
                 .retain(|m| features.contains(m.feature.as_str()));
-            part.shape = Shape::Callout {
+            part.shape = Shape::Callout { arcs: Vec::new(),
                 sites: members.iter().map(|&m| sites[m]).collect(),
             };
             part.id = want_id(&holes[members[0]].0, "bore.diameter");
@@ -1299,7 +1309,10 @@ mod tests {
             terms: vec!["2×".into(), "⌀35".into(), "THRU".into()],
             measurements: Vec::new(),
             basis: String::new(),
-            shape: Shape::Callout { sites: Vec::new() },
+            shape: Shape::Callout {
+                arcs: Vec::new(),
+                sites: Vec::new(),
+            },
             turning: None,
         };
         let limits = |lo: f64, hi: f64| Req {
@@ -1365,7 +1378,10 @@ mod tests {
             terms: vec![format!("⌀{value}")],
             measurements: Vec::new(),
             basis: String::new(),
-            shape: Shape::Callout { sites: Vec::new() },
+            shape: Shape::Callout {
+                arcs: Vec::new(),
+                sites: Vec::new(),
+            },
             turning: None,
         };
         for (code, value, upper, lower, printed) in [

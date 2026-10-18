@@ -8,6 +8,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- Keep radius leaders on the drawn part of trimmed arcs (quarter-cylinder edges, obround
+  and slot-pattern ends) instead of the full construction circle.
+- Prefer perpendicular location witnesses on either side and finite-gap witnesses before
+  any oblique fallback; a fallback uses parallel 30° witnesses clear of material and other
+  dimensions. On the 30 quality parts oblique witnesses fall from 16 dimensions to none.
+- Lint radius-leader targets on circular steps and slot ends, and oblique witness ink.
 - Stop reporting a STEP material as undrawn when the title block states it; retain the
   warning when a blank or conflicting Spec material replaces it.
 - Describe missed feature recognition and unsupported STEP annotations in drawing language,

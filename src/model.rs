@@ -115,6 +115,9 @@ pub struct Analysis {
     /// Exact trimmed-surface attachment points for recognised blends, in the part frame.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub blend_sites: BTreeMap<String, Vec<[f64; 3]>>,
+    /// Exact circular boundary spans of partial radius features.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub profile_arcs: BTreeMap<String, Vec<crate::arc::ProfileArc>>,
     /// Small, grouped shallow relief regions whose profiles are governed by the model.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub radius_reliefs: Vec<crate::blends::Relief>,
@@ -1045,6 +1048,7 @@ fn analyse_step_input(
         recognition: None,
         features: Vec::new(),
         blend_sites: BTreeMap::new(),
+        profile_arcs: BTreeMap::new(),
         radius_reliefs: crate::blends::reliefs(&part),
         iso_bounds: [0.0; 4],
         edge_ink: None,
@@ -1135,6 +1139,7 @@ pub fn recognise(part: &Part, analysis: &mut Analysis, json: &str) -> Result<(),
     let (recognition, features) = crate::bridge::read(part, &analysis.binding.source_sha256, json)?;
     analysis.recognition = Some(recognition);
     analysis.blend_sites = crate::blends::evidence(part, &features);
+    analysis.profile_arcs = crate::arc::evidence(part, &features);
     analysis.features = features;
     analysis.unrecognised.clear();
     Ok(())
@@ -1227,6 +1232,7 @@ pub fn recognise_document(
         patterns: read.patterns,
     });
     analysis.blend_sites = crate::blends::evidence(part, &features);
+    analysis.profile_arcs = crate::arc::evidence(part, &features);
     analysis.features = features;
     Ok(())
 }
@@ -4711,6 +4717,33 @@ fn plan_with_presentation(
                 {
                     d.placed = before.placed.clone();
                     d.region = before.region;
+                } else if stable.contains(&d.view)
+                    && d.kind == "linear"
+                    && spec.dimensions.get(&d.id).is_none_or(|s| {
+                        s.place.is_none()
+                            && s.tolerance.is_none()
+                            && s.text.is_none()
+                            && s.style.is_none()
+                    })
+                    && let Some(crate::items::State::Covered { by }) = reference
+                        .omitted
+                        .iter()
+                        .find(|o| o.id == d.id)
+                        .map(|o| &o.state)
+                    && let Some(owner) = reference.dimensions.iter().find(|o| {
+                        &o.id == by && o.view == d.view && o.kind == "linear" && o.region.is_none()
+                    })
+                    && let (Some(p), Some(q)) = (&d.placed, &owner.placed)
+                    && p.rotation == q.rotation
+                    && p.arrows.len() == 2
+                    && q.arrows.len() == 2
+                {
+                    // An outward witness repair moves the owner's actual lane
+                    // beyond its nominal reservation. A promoted counted alias
+                    // inherits that settled lane, keeping its own measured ends.
+                    let normal = usize::from(p.rotation == 0.0);
+                    d.placed = Some(crate::dims::in_lane(p, q.arrows[0][0][normal]));
+                    d.region = None;
                 }
             }
         } else {
@@ -4770,6 +4803,7 @@ fn plan_with_presentation(
         &mut dimensions,
         &gdt,
         &mut problems,
+        complete_views,
     );
     for d in dimensions
         .iter()
