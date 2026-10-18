@@ -50,7 +50,7 @@ def document():
                                   'lane': I, 'along': {'anyOf': [N, enum('start', 'middle', 'end', 'outside')]},
                                   'offset': arr(N, minItems=2, maxItems=2)}), 'pinned': B}),
         'view_place': obj({'relative_to': S, 'side': enum('above', 'below', 'left', 'right'),
-                           'gap': {**N, 'description': 'Clear paper mm between view areas, including dimension bands (default 10).'},
+                           'gap': {**N, 'description': 'Clear paper distance in mm between the views’ annotation bands, not their part outlines (default 10 mm).'},
                            'align': {**enum('start', 'middle', 'end', 'outside', 'projection'),
                                      'description': 'projection keeps geometry origins aligned across side (x above/below, y left/right), only for front/plan or front/side in either direction, first or third angle. Gap stays between areas including bands. Other values retain existing alignment.'}, 'pinned': B},
                           ('relative_to', 'side')),

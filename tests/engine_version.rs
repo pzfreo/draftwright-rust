@@ -144,6 +144,8 @@ fn tools_explain_their_operations_without_source_and_fit_schema_budget() {
         })
         .sum();
     // Exact compact total after moving nested Spec vocabulary out of tools/list.
+    // The generator asserts the same ceiling; nested Spec additions cost no context.
+    // In particular the view-gap description adds zero advertised bytes.
     // The projection enum and description are on demand: +0 advertised schema bytes.
     // The generator asserts the same unchanged ceiling.
     assert_eq!(schema_bytes, 34477, "schemas: {schema_bytes} bytes");

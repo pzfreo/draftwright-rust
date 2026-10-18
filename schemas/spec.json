@@ -307,7 +307,7 @@
         },
         "gap": {
           "type": "number",
-          "description": "Clear paper mm between view areas, including dimension bands (default 10)."
+          "description": "Clear paper distance in mm between the views\u2019 annotation bands, not their part outlines (default 10 mm)."
         },
         "align": {
           "enum": [

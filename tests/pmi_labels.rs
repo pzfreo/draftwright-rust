@@ -277,7 +277,9 @@ fn two_defaults_of_one_kind_are_ambiguous_and_neither_is_drawn() {
         let p = plan
             .problems
             .iter()
-            .find(|p| p.code == "pmi_not_lowered" && p.refs == [source])
+            .find(|p| {
+                p.code == "pmi_not_lowered" && p.refs.first().map(String::as_str) == Some(source)
+            })
             .unwrap();
         assert!(p.message.contains("ambiguous document default"), "{p:?}");
     }
