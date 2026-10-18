@@ -98,6 +98,11 @@ def findings(plan):
 
 def reasons(plan):
     basis = plan['sheet']['basis']
+    if basis.startswith('screen-first fitted-reference retention'):
+        # Later basis text describes refused trials, not the published drawing.
+        retained = f"Established readable whole-part drawing retained on {plan['sheet']['size']} at {plan['sheet']['scale']}. "
+        refused = re.search(r'smaller ordinary fit [^;]+', basis)
+        return retained + (refused.group(0) if refused else 'Alternative search refused against the fitted drawing.')
     prefix = ''
     if 'independently recovered ordinary drawing without automatic details' in basis:
         prefix = 'Ordinary readable main retained: a smaller reduction makes openings or depictions unreadable. No automatic detail purchases paper. '
@@ -110,7 +115,8 @@ def reasons(plan):
         selected = selected.group(1)
         if selected == 'A4' and plan['sheet']['size'] == 'A3':
             prefix = 'Ordinary A3 recovery: A4 misses a whole-part floor/fit or needs multiple sheets; no automatic detail purchases paper. '
-        elif PAPERS.index(plan['sheet']['size']) < PAPERS.index(selected):
+        elif PAPERS.index(plan['sheet']['size']) < PAPERS.index(selected) and any(
+                v.get('detail') for v in plan['views']):
             prefix = f"Whole-part annotation fit needs {selected}; local details allow {plan['sheet']['size']}. "
     else:
         ordinary = basis
