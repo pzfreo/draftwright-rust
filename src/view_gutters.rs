@@ -64,15 +64,20 @@ fn bands(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
     // Label clearance is occupied paper too, including beside the title and
     // fixed furniture. Keep the two mm used by measured annotation packing.
     let label_clearance = |b: Rect| [b[0] - 2.0, b[1] - 2.0, b[2] + 2.0, b[3] + 2.0];
-    let reference_box = |prefix: &str, r: &crate::sheets::CrossRef| {
-        let text = format!("{prefix} SHEET {}, ZONE {}", r.sheet, r.zone);
-        let laid = crate::dims::font().text(&text, crate::section::FONT_SIZE);
+    let text_box = |text: &str, at: [f64; 2]| {
+        let laid = crate::dims::font().text(text, crate::section::FONT_SIZE);
         label_clearance([
-            r.at[0] + laid.min[0],
-            r.at[1] + laid.min[1],
-            r.at[0] + laid.max[0],
-            r.at[1] + laid.max[1],
+            at[0] + laid.min[0],
+            at[1] + laid.min[1],
+            at[0] + laid.max[0],
+            at[1] + laid.max[1],
         ])
+    };
+    let reference_box = |prefix: &str, r: &crate::sheets::CrossRef| {
+        text_box(
+            &format!("{prefix} SHEET {}, ZONE {}", r.sheet, r.zone),
+            r.at,
+        )
     };
     for d in &plan.dimensions {
         if let Some(p) = &d.placed {
@@ -138,6 +143,22 @@ fn bands(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
             crate::sheet_fit::furniture_bounds(analysis, sheet, std::slice::from_ref(v));
         for b in furniture.into_iter().skip(fixed) {
             own(&v.id, label_clearance(b));
+        }
+        // View captions render in the annotation font; the shared furniture
+        // helper also serves condensed title text. Reserve the actual caption ink.
+        if let Some(c) = &v.cut {
+            let (size, _) = crate::detail::crop_extent(analysis, v);
+            let at = [v.at[0], v.at[1] - v.scale * size[1] / 2.0 - 7.0];
+            own(
+                &v.id,
+                text_box(&format!("SECTION {}–{}", c.label, c.label), at),
+            );
+        }
+        if let Some(d) = &v.detail {
+            own(
+                &v.id,
+                text_box(&crate::detail::caption(d), crate::detail::caption_at(v)),
+            );
         }
         if let Some(d) = &v.detail
             && let Some(source) = plan.views.iter().find(|s| s.id == d.source_view)
