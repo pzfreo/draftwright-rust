@@ -912,8 +912,15 @@ fn control_frame(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
     }
     let has = |m: &str| r.gtol_modifiers.iter().any(|x| x == m);
     let site = r
-        .ref_bbox
-        .map_or(centre, |b| [0, 1, 2].map(|k| 0.5 * (b[k] + b[k + 3])));
+        .geometry
+        .as_ref()
+        .filter(|g| !g.targets.is_empty())
+        .and_then(|g| g.sites.first())
+        .copied()
+        .unwrap_or_else(|| {
+            r.ref_bbox
+                .map_or(centre, |b| [0, 1, 2].map(|k| 0.5 * (b[k] + b[k + 3])))
+        });
     let proven = r.geometry.as_ref().and_then(|g| g.axis.as_deref());
     let (axis, why) = match (proven, r.dominant_axis.as_str()) {
         (Some(a), _) => (a, "its faces' common cylinder axis"),
@@ -1296,7 +1303,13 @@ fn cylinder(part: &Part, f: usize) -> Result<Cylinder, &'static str> {
 /// ([`crate::dims::angular::geometry`]); the curved kinds keep no geometry (not drawn: see
 /// `pmi_dimensions`).
 pub fn dimension_geometry(part: &Part, r: &Record) -> Geometry {
-    let mut g = Geometry::default();
+    let mut g = Geometry {
+        targets: r
+            .geometry
+            .as_ref()
+            .map_or_else(Vec::new, |g| g.targets.clone()),
+        ..Geometry::default()
+    };
     g.reasons.extend(crate::pmi::placements_reason(r));
     let value = r.value.unwrap_or(0.0);
     match r.kind.as_str() {
@@ -1311,6 +1324,10 @@ pub fn dimension_geometry(part: &Part, r: &Record) -> Geometry {
 }
 
 fn linear_geometry(part: &Part, r: &Record, value: f64, g: &mut Geometry) {
+    if !g.targets.is_empty() {
+        derived_linear_geometry(part, r, value, g);
+        return;
+    }
     let word = |s: &str| {
         if r.kind == "thickness" {
             s.replace("linear dimension", "thickness dimension")
@@ -1403,6 +1420,151 @@ fn linear_geometry(part: &Part, r: &Record, value: f64, g: &mut Geometry) {
     g.stations = points.to_vec();
     g.axis = axis.map(|k| XYZ[k].to_string());
     g.reasons.extend(reasons.into_iter().map(|s| word(&s)));
+}
+
+/// Closest witnesses on two infinite semantic targets, independent of the authored nominal.
+/// Non-parallel planes have no constant separation; intersecting axis/plane targets do not
+/// establish a nonzero location. Parallel axes use the support centre to choose their station.
+pub(crate) fn derived_stations(
+    a: &crate::pmi::DerivedTarget,
+    b: &crate::pmi::DerivedTarget,
+    centre: [f64; 3],
+) -> Result<[[f64; 3]; 2], &'static str> {
+    use crate::pmi::DerivedKind::{Axis, MedianPlane};
+    let dot = |a: [f64; 3], b: [f64; 3]| (0..3).map(|i| a[i] * b[i]).sum::<f64>();
+    let sub = |a: [f64; 3], b: [f64; 3]| [0, 1, 2].map(|i| a[i] - b[i]);
+    let along = |p: [f64; 3], d: [f64; 3], t: f64| [0, 1, 2].map(|i| p[i] + d[i] * t);
+    let cross = |a: [f64; 3], b: [f64; 3]| {
+        [
+            a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0],
+        ]
+    };
+    let parallel = |a: [f64; 3], b: [f64; 3]| {
+        let n = cross(a, b);
+        dot(n, n) <= 1e-18
+    };
+    match (a.kind, b.kind) {
+        (MedianPlane, MedianPlane) => {
+            if !parallel(a.direction, b.direction) {
+                return Err("derived planes are not parallel");
+            }
+            let p = along(centre, a.direction, dot(sub(a.point, centre), a.direction));
+            Ok([p, along(p, a.direction, dot(sub(b.point, p), a.direction))])
+        }
+        (Axis, MedianPlane) | (MedianPlane, Axis) => {
+            let (axis, plane) = if a.kind == Axis { (a, b) } else { (b, a) };
+            if dot(axis.direction, plane.direction).abs() > 1e-9 {
+                return Err(
+                    "derived axis intersects its reference plane; no constant nonzero distance",
+                );
+            }
+            let p = along(
+                axis.point,
+                axis.direction,
+                dot(sub(centre, axis.point), axis.direction),
+            );
+            let q = along(
+                p,
+                plane.direction,
+                dot(sub(plane.point, p), plane.direction),
+            );
+            Ok(if a.kind == Axis { [p, q] } else { [q, p] })
+        }
+        (Axis, Axis) => {
+            let d = sub(b.point, a.point);
+            let n = cross(a.direction, b.direction);
+            let p = if parallel(a.direction, b.direction) {
+                along(a.point, a.direction, dot(sub(centre, a.point), a.direction))
+            } else {
+                let t = dot(cross(d, b.direction), n) / dot(n, n);
+                along(a.point, a.direction, t)
+            };
+            Ok([
+                p,
+                along(b.point, b.direction, dot(sub(p, b.point), b.direction)),
+            ])
+        }
+    }
+}
+
+fn derived_linear_geometry(part: &Part, r: &Record, value: f64, g: &mut Geometry) {
+    use crate::pmi::{DerivedKind, DerivedTarget};
+    let target = |i: usize| -> Option<DerivedTarget> {
+        if let Some(Some(t)) = g.targets.get(i) {
+            return Some(t.clone());
+        }
+        let faces = r.face_groups.get(i)?;
+        let &first = faces.first()?;
+        let (kind, point, direction, radius) = match &part.faces[first].surface {
+            Surface::Plane { frame } => (DerivedKind::MedianPlane, frame.origin, frame.z, None),
+            Surface::Cylinder { frame, radius } => {
+                (DerivedKind::Axis, frame.origin, frame.z, Some(*radius))
+            }
+            _ => return None,
+        };
+        // Direct support may accompany a derived target, but may not introduce another
+        // plane or axis by averaging a face group.
+        let candidate = DerivedTarget {
+            kind,
+            point,
+            direction,
+            radius,
+            faces: faces.clone(),
+        };
+        for &f in &faces[1..] {
+            let (p, d) = match (&part.faces[f].surface, kind) {
+                (Surface::Plane { frame }, DerivedKind::MedianPlane)
+                | (Surface::Cylinder { frame, .. }, DerivedKind::Axis) => (frame.origin, frame.z),
+                _ => return None,
+            };
+            let dot = |x: [f64; 3], y: [f64; 3]| (0..3).map(|i| x[i] * y[i]).sum::<f64>();
+            if (dot(d, direction).abs() - 1.0).abs() > 1e-9 {
+                return None;
+            }
+            let delta = [0, 1, 2].map(|i| p[i] - point[i]);
+            let residual = if kind == DerivedKind::MedianPlane {
+                dot(delta, direction).abs()
+            } else {
+                let t = dot(delta, direction);
+                (0..3)
+                    .map(|i| (delta[i] - t * direction[i]).powi(2))
+                    .sum::<f64>()
+                    .sqrt()
+            };
+            if residual > 1e-6 {
+                return None;
+            }
+        }
+        Some(candidate)
+    };
+    let (Some(a), Some(b)) = (target(0), target(1)) else {
+        g.reasons
+            .push("derived location needs two resolved axis or plane targets".into());
+        return;
+    };
+    let centre = r
+        .ref_bbox
+        .map_or([0.0; 3], |b| [0, 1, 2].map(|i| 0.5 * (b[i] + b[i + 3])));
+    g.targets = vec![Some(a.clone()), Some(b.clone())];
+    match derived_stations(&a, &b, centre) {
+        Ok(s) => {
+            let (points, axis, reasons) = stations_proof(s, value, None);
+            g.stations = points.to_vec();
+            g.axis = axis.map(|k| XYZ[k].into());
+            g.reasons.extend(reasons);
+            // An axis location is read in the view that sees the axis end-on.
+            if let Some(k) = [a, b]
+                .iter()
+                .find(|t| t.kind == DerivedKind::Axis)
+                .and_then(|t| exact_axis(t.direction))
+            {
+                g.view = Some(["side", "front", "plan"][k].into());
+            }
+        }
+        Err(why) => g.reasons.push(why.into()),
+    }
 }
 
 /// What two groups of faces prove as parallel planes (draftwright's
@@ -1650,6 +1812,13 @@ pub(crate) fn projection_view(delta: [f64; 3]) -> Option<&'static str> {
 
 fn cylinder_geometry(part: &Part, r: &Record, value: f64, g: &mut Geometry) {
     let radius = r.kind == "radius";
+    if !g.targets.is_empty()
+        && !matches!(g.targets.as_slice(), [Some(t)] if t.kind == crate::pmi::DerivedKind::Axis && t.radius.is_some())
+    {
+        g.reasons
+            .push("derived size target has no resolved cylinder radius".into());
+        return;
+    }
     let noun = if radius { "radius" } else { "diameter" };
     if !r.edges.is_empty() {
         g.reasons
@@ -1663,6 +1832,22 @@ fn cylinder_geometry(part: &Part, r: &Record, value: f64, g: &mut Geometry) {
                 }
             }
             Err(why) => g.reasons.push(why.replace("diameter", noun)),
+        }
+    }
+    if let [Some(target)] = g.targets.as_slice() {
+        let mut d = target.direction;
+        let k = (0..3)
+            .max_by(|&i, &j| d[i].abs().total_cmp(&d[j].abs()))
+            .unwrap();
+        if d[k] < 0.0 {
+            d = d.map(|v| -v);
+        }
+        let along: f64 = (0..3).map(|i| target.point[i] * d[i]).sum();
+        let origin = [0, 1, 2].map(|i| target.point[i] - along * d[i]);
+        for c in &mut g.cylinders {
+            c.origin = origin;
+            c.direction = d;
+            c.radius = target.radius.expect("resolved radius checked above");
         }
     }
     if g.cylinders.is_empty() {
@@ -3668,6 +3853,41 @@ pub fn manufacturing_for(analysis: &Analysis, spec: &crate::model::Spec) -> Manu
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn derived_distances_use_infinite_targets_not_their_arbitrary_origins() {
+        use crate::pmi::{
+            DerivedKind::{Axis, MedianPlane},
+            DerivedTarget,
+        };
+        let target = |kind, point, direction| DerivedTarget {
+            kind,
+            point,
+            direction,
+            radius: None,
+            faces: vec![],
+        };
+        let axis = target(Axis, [0.0, 100.0, 0.0], [0.0, 1.0, 0.0]);
+        let plane = target(MedianPlane, [3.0, 999.0, 23.0], [-1.0, 0.0, 0.0]);
+        let parallel = target(Axis, [3.0, -100.0, 4.0], [0.0, -1.0, 0.0]);
+        let plane2 = target(MedianPlane, [8.0, -999.0, -23.0], [1.0, 0.0, 0.0]);
+        let distance = |a: &DerivedTarget, b: &DerivedTarget| {
+            let s = derived_stations(a, b, [0.0; 3]).unwrap();
+            (0..3)
+                .map(|i| (s[0][i] - s[1][i]).powi(2))
+                .sum::<f64>()
+                .sqrt()
+        };
+        assert_eq!(distance(&axis, &plane), 3.0);
+        assert_eq!(distance(&plane, &axis), 3.0);
+        assert_eq!(distance(&axis, &parallel), 5.0);
+        assert_eq!(distance(&plane, &plane2), 5.0);
+        let skew = target(Axis, [0.0, 0.0, 7.0], [1.0, 0.0, 0.0]);
+        assert_eq!(distance(&axis, &skew), 7.0);
+        let nonparallel = target(MedianPlane, [2.0, 3.0, 4.0], [0.0, 1.0, 0.0]);
+        assert!(derived_stations(&plane, &nonparallel, [0.0; 3]).is_err());
+        assert!(derived_stations(&axis, &nonparallel, [0.0; 3]).is_err());
+    }
 
     #[test]
     fn cached_lowering_retains_all_principal_view_variants_and_diagnostics() {

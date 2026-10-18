@@ -21,7 +21,20 @@ pub(super) fn apply(analysis: &Analysis, spec: &Spec, wants: &mut [Want]) {
             let raw_terms = raw.terms(&owned[0].owner).0.join(" ");
             let mut riders = String::new();
             let mut qualified_bore = None;
+            let mut physical_diameter = None;
             if let Some((physical, suffix)) = original.split_once(&raw_terms) {
+                if owned.iter().any(|o| o.knurl_values().is_some()) {
+                    // The knurl's note moves manufacturing wording only. The size's
+                    // own PMI band and qualifier must stay beside its diameter.
+                    physical_diameter = Some(
+                        physical
+                            .trim()
+                            .strip_prefix(count.as_deref().unwrap_or(""))
+                            .unwrap_or(physical.trim())
+                            .trim()
+                            .to_string(),
+                    );
+                }
                 if owned.iter().any(|o| o.thread().is_some_and(|t| t.internal)) {
                     let bore = physical
                         .trim()
@@ -65,11 +78,31 @@ pub(super) fn apply(analysis: &Analysis, spec: &Spec, wants: &mut [Want]) {
                     riders += suffix.trim();
                 }
             }
-            let text = owned
+            let mut text = owned
                 .iter()
                 .map(|o| o.suffix.as_str())
                 .collect::<Vec<_>>()
                 .join(" \n ");
+            if let Some(diameter) = physical_diameter
+                && let Some((identity, rest)) = text.split_once(' ')
+                && identity.starts_with(['ø', '⌀', 'Ø'])
+            {
+                // Keep the manufacturing identity's source precision (e.g. 6.25,
+                // where the generic geometry label rounds to 6.2). Only a size
+                // stated as two explicit limits replaces that nominal identity.
+                let diameter = match diameter.split_once(' ') {
+                    Some((_, band)) if band.starts_with("- ") => diameter,
+                    Some((_, band)) => format!("{identity} {band}"),
+                    None => identity.to_string(),
+                };
+                // A common MAX already on the size also qualifies MAX AFTER KNURL.
+                let rest = if diameter.ends_with(" MAX") {
+                    rest.strip_prefix("MAX ").unwrap_or(rest)
+                } else {
+                    rest
+                };
+                text = format!("{diameter} {rest}");
+            }
             w.terms = text
                 .split(' ')
                 .filter(|s| !s.is_empty())

@@ -14,6 +14,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- Draw AP242 dimensions and tolerances on resolved derived axes and planes, preserving
+  authored values, tolerances and MAX/MIN/AVG qualifiers. GRM-03 now carries its ten
+  semantic sizes and lengths instead of geometric fallback dimensions.
 - Default drawing numbers to a leading part-number token in the STEP product name, then
   the file stem (including numeric names such as `10000`), before `DWG-001`. Explicit Spec
   numbers, including blanks, win; readable titles retain the part number (#103).
