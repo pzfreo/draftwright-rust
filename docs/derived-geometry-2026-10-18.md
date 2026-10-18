@@ -277,3 +277,24 @@ The final release SHA-256 is `3be615a3db43e0a8f606bd95a585ef510bf05cf1788f87bec1
 matching the saved after binary, the acceptance summary and the drawing captures. The final
 GRM-03 before/after PNGs were viewed again after all checks: the upper B attachment and
 nearby frame are clear of dimension ink, with A below. Commits remain local; nothing was pushed.
+
+## Integration with manufacturing note callouts
+
+After merging #112, a knurl's note form must retain the owned PMI size's own
+qualifier and tolerance before the manufacturing reference. GRM-03 therefore
+prints `ø10 MAX SEE MFG 2`; MFG 2 carries the complete knurl wording. The planted
+tolerance regression exercises `auto`, `note`, `compact` and `full` presentation.
+
+Callout reflow also exposed an arrangement-level tie: the boundary-only datum
+layout could retain B's 113.22 mm leader when the local layout had the same
+contact score. The final arrangement comparison now prefers shorter total datum
+leaders after symbol overlaps, datum crossings and annotation contacts. The
+boundary-only pass must compete with the local search before ending the search;
+a drawing without datum leaders retains its early exit. The original contact
+guard and proven-site requirements still apply, with no fixture-specific rule.
+
+The drawing choice retains A4 at 5:1, all ten source sizes and 14 total dimensions.
+B's leader is **2.4 mm**, with **zero crossings**; the drawing has **two total
+datum-leader crossings**, both on A. The PNG in `artifacts/derived-dw/merge/` was
+visually inspected: B is clear beside the upper shoulder, and MAX remains on
+the diameter leader. SVG, PDF, plan, render report and metrics are alongside it.

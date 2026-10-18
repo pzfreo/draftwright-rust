@@ -1260,7 +1260,18 @@ pub(crate) fn plan_anchored(
             contacts(&candidate.1).len(),
         )
     };
+    let datum_length = |candidate: &(Vec<PlannedGdt>, Vec<Problem>)| -> f64 {
+        candidate
+            .0
+            .iter()
+            .filter(|g| g.kind == "datum_feature")
+            .filter_map(|g| g.placed.as_ref())
+            .flat_map(|p| &p.lines)
+            .map(|[a, b]| (b[0] - a[0]).hypot(b[1] - a[1]))
+            .sum()
+    };
     let mut best_score = score(&seed);
+    let mut best_length = datum_length(&seed);
     let mut best = seed;
     let mut original = true;
     for search in searches {
@@ -1284,15 +1295,24 @@ pub(crate) fn plan_anchored(
             || overlap_count(&compact.1) < seed_overlaps)
         {
             let grade = score(&compact);
-            if grade < best_score || (original && grade == best_score) {
+            let length = datum_length(&compact);
+            if grade < best_score
+                || (grade == best_score && (original || length < best_length - 1e-6))
+            {
                 best = compact;
                 best_score = grade;
+                best_length = length;
                 original = false;
             }
             // Try the datum-only arrangement too if a legal full arrangement
-            // still crosses dimensions. Keep the first clear arrangement, and
-            // stop once the datum symbols and their leaders are both clear.
-            if best_score.0 == 0 && best_score.1 == 0 {
+            // still crosses dimensions. Keep the shortest equally clear arrangement, and
+            // stop once the datum symbols and their leaders are both clear. The
+            // boundary-only baseline must still compete with the local search:
+            // equal contacts do not justify retaining a much longer leader.
+            if (search != Search::Baseline || best_length <= 1e-6)
+                && best_score.0 == 0
+                && best_score.1 == 0
+            {
                 return best;
             }
         }
