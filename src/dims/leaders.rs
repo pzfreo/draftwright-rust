@@ -1485,6 +1485,8 @@ pub(super) fn refine(
         .collect();
     let canonical = crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[])
         .unwrap_or(false);
+    let wrapped_polish =
+        crate::planning::lookup::<bool>(analysis, "wrapped-route-polish", &[]).unwrap_or(false);
     let proof_views: Vec<_> = proofs.keys().collect();
     let mut geometry_sheet = sheet.clone();
     geometry_sheet.title.clear();
@@ -1507,6 +1509,7 @@ pub(super) fn refine(
         geometry_views,
         frame_geometry,
         canonical,
+        wrapped_polish,
         items,
         views_of,
         &*placed,
@@ -1753,6 +1756,8 @@ fn refine_uncached(
                     .is_empty()
             })
     };
+    let wrapped_polish =
+        crate::planning::lookup::<bool>(analysis, "wrapped-route-polish", &[]).unwrap_or(false);
     let edited_text = edited_labels(spec);
     let todo: Vec<usize> = (0..items.len())
         .filter(|&i| {
@@ -1773,6 +1778,9 @@ fn refine_uncached(
                             && changed_from_established(i, p))
                         || callout_crossing(i, p, placed)
                         || longer_than_established(i, p)
+                        || (wrapped_polish
+                            && !canonical
+                            && items[i].terms.iter().any(|s| crate::callouts::is_break(s)))
                         || added_material_crossing(i, p)
                         || bad_run(p, views_of[i].unwrap())
                         || model_run(&items[i], p)
@@ -1808,6 +1816,8 @@ fn refine_uncached(
         let frame = &frames[view];
         let page_sites = page_sites(frame, sites, arcs);
         let old_length = length(&old.lines);
+        let wrapped =
+            wrapped_polish && !canonical && w.terms.iter().any(|s| crate::callouts::is_break(s));
         let new_recess = w
             .measurements
             .iter()
@@ -1842,6 +1852,7 @@ fn refine_uncached(
             && !edited_text
             && changed_from_established(i, &old);
         let repair_run = old_run
+            || wrapped
             || restore_established
             || repair_features
             || repair_cross
@@ -1937,17 +1948,59 @@ fn refine_uncached(
                     if length(&lines) > max_length + 1e-6 {
                         continue;
                     }
-                    let (_, lb) = label_geometry(q, e, right, label.min, label.max);
+                    let (_, block) = label_geometry(q, e, right, label.min, label.max);
+                    // Keep the initial inventory intact. Only final refinement
+                    // tries a small glyph lift when a tall wrapped block barely
+                    // misses the nearest clear route; every physical gate below
+                    // compares it with the already settled drawing.
+                    for lift in
+                        std::iter::once(0.0).chain(wrapped.then_some(0.25 * (q[1] - t[1]).signum()))
+                    {
+                        let lb = [block[0], block[1] + lift, block[2], block[3] + lift];
+                        let Some(now) = extension_index.contacts_bounded(&lines, lb, Some(before))
+                        else {
+                            continue;
+                        };
+                        if now.0 > before.0
+                            || (!repair_run && now.0 == before.0)
+                            || now.1 > before.1
+                        {
+                            continue;
+                        }
+                        let moved = (q[0] - elbow[0]).hypot(q[1] - elbow[1])
+                            + (e[0] - end[0]).hypot(e[1] - end[1])
+                            + lift.abs();
+                        candidates.push((now, moved, t, q, e, right, lb));
+                    }
+                }
+            }
+        }
+        if wrapped {
+            // Shorten along the settled shaft itself. Its true attachment and
+            // every crossed model edge stay fixed, unlike a new radial route.
+            let shaft = (elbow[0] - tip[0]).hypot(elbow[1] - tip[1]);
+            let steps = ((shaft - MIN_LEADER).min(3.0 * ROW) / 0.25).floor() as i32;
+            for step in 1..=steps {
+                let f = (shaft - f64::from(step) * 0.25) / shaft;
+                let q = [0, 1].map(|k| tip[k] + f * (elbow[k] - tip[k]));
+                let e = [q[0] + if right { shelf } else { -shelf }, q[1]];
+                let lines = [[tip, q], [q, e]];
+                if length(&lines) > max_length + 1e-6 {
+                    continue;
+                }
+                let (_, block) = label_geometry(q, e, right, label.min, label.max);
+                for lift in [0.0, 0.25 * (q[1] - tip[1]).signum()] {
+                    let lb = [block[0], block[1] + lift, block[2], block[3] + lift];
                     let Some(now) = extension_index.contacts_bounded(&lines, lb, Some(before))
                     else {
                         continue;
                     };
-                    if now.0 > before.0 || (!repair_run && now.0 == before.0) || now.1 > before.1 {
-                        continue;
+                    if now.0 <= before.0 && now.1 <= before.1 {
+                        let moved = (q[0] - elbow[0]).hypot(q[1] - elbow[1])
+                            + (e[0] - end[0]).hypot(e[1] - end[1])
+                            + lift.abs();
+                        candidates.push((now, moved, tip, q, e, right, lb));
                     }
-                    let moved = (q[0] - elbow[0]).hypot(q[1] - elbow[1])
-                        + (e[0] - end[0]).hypot(e[1] - end[1]);
-                    candidates.push((now, moved, t, q, e, right, lb));
                 }
             }
         }
@@ -2265,7 +2318,7 @@ fn refine_uncached(
                 a.0.cmp(&b.0).then(na.cmp(nb)).then(a.1.total_cmp(&b.1))
             });
             candidates = graded.into_iter().map(|(_, c)| c).collect();
-        } else if old_run {
+        } else if old_run || wrapped {
             let mut ranked: Vec<_> = candidates
                 .into_iter()
                 .map(|c| (head_on(c.2, c.3), length(&[[c.2, c.3], [c.3, c.4]]), c))

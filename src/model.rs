@@ -1900,6 +1900,173 @@ mod complete_candidate_tests {
 }
 
 fn recover_uncached(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
+    let mut plan = recover_callouts(analysis, spec, first)?;
+    shorten_wrapped_callouts(analysis, spec, &mut plan);
+    Ok(plan)
+}
+
+/// Schedules and retained recipes settle before this last bounded route polish.
+/// Freeze every other annotation and accept only a shorter, no-worse drawing.
+fn shorten_wrapped_callouts(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
+    let wrapped = |d: &crate::dims::PlannedDimension| {
+        d.kind == "callout" && d.placed.is_some() && d.terms.iter().any(|t| t == "\u{2028}")
+    };
+    if crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[]).unwrap_or(false)
+        || !plan.sheets.is_empty()
+        || !spec.dimensions.is_empty()
+        || !spec.views.is_empty()
+        || spec.sheet.scale.is_some()
+        || !plan.dimensions.iter().any(wrapped)
+    {
+        return;
+    }
+    let mut intent = spec.clone();
+    for d in plan.dimensions.iter().filter(|d| !wrapped(d)) {
+        intent.dimensions.entry(d.id.clone()).or_default().place =
+            Some(crate::placement_intent::Place {
+                pinned: true,
+                ..Default::default()
+            });
+    }
+    let mut fixed: Vec<_> = plan
+        .gdt
+        .iter()
+        .filter_map(crate::dims::gdt::proxy)
+        .collect();
+    fixed.extend(crate::centrelines::obstacles(&plan.views));
+    fixed.extend(
+        plan.notes_block
+            .iter()
+            .chain(&plan.radius_notes_block)
+            .map(crate::notes::proxy),
+    );
+    fixed.extend(plan.tables.iter().filter_map(crate::tables::proxy));
+    fixed.extend(
+        plan.radius_table
+            .iter()
+            .filter_map(|t| crate::tables::proxy(&t.table)),
+    );
+    fixed.extend(
+        plan.hole_table
+            .iter()
+            .chain(&plan.hole_tables)
+            .flat_map(|t| &t.blocks)
+            .filter_map(crate::tables::proxy),
+    );
+    fixed.extend(plan.captions.iter().map(crate::iso_caption::proxy));
+    fixed.extend(
+        plan.requirements
+            .iter()
+            .filter_map(crate::dims::gdt::finish_proxy),
+    );
+    let mut candidate = plan.clone();
+    let cache = crate::dims::footprints::Cache::default();
+    crate::planning::store(analysis, "wrapped-route-polish", Vec::new(), true);
+    let reports = crate::dims::refine_inventory(
+        analysis,
+        &intent,
+        &candidate.sheet,
+        &candidate.views,
+        &mut candidate.dimensions,
+        &fixed,
+        &cache,
+    );
+    crate::planning::store(analysis, "wrapped-route-polish", Vec::new(), false);
+    let ids: BTreeSet<_> = candidate.dimensions.iter().map(|d| d.id.clone()).collect();
+    candidate.problems.retain(|p| {
+        !(p.subjects.iter().any(|id| ids.contains(id))
+            && (p.code.starts_with("annotation_")
+                || matches!(
+                    p.code.as_str(),
+                    "leader_through_feature"
+                        | "extension_through_feature"
+                        | "dimension_line_shared"
+                        | "dimension_text_stray"
+                )))
+    });
+    candidate.problems.extend(reports.into_values().flatten());
+    candidate
+        .problems
+        .extend(crate::dims::recheck_cached(analysis, &candidate, &cache));
+    let length = |d: &crate::dims::PlannedDimension| {
+        d.placed.as_ref().map_or(0.0, |p| {
+            p.lines
+                .iter()
+                .map(|s| (s[1][0] - s[0][0]).hypot(s[1][1] - s[0][1]))
+                .sum::<f64>()
+        })
+    };
+    let mut shorter = false;
+    for d in candidate.dimensions.iter().filter(|d| wrapped(d)) {
+        let Some(old) = plan.dimensions.iter().find(|old| old.id == d.id) else {
+            return;
+        };
+        if length(d) > length(old) + 1e-6 {
+            return;
+        }
+        // Balloons are installed after the original solve. A conservative full
+        // ink box protects their rings, labels and leaders during this optional
+        // polish without treating their old overlap as permission for a new one.
+        if let Some(ink) = crate::dims::ink_box(d)
+            && plan.balloons.iter().any(|b| {
+                let mut bounds = [
+                    b.at[0] - b.radius,
+                    b.at[1] - b.radius,
+                    b.at[0] + b.radius,
+                    b.at[1] + b.radius,
+                ];
+                for p in b.leader.iter().flatten() {
+                    bounds = [
+                        bounds[0].min(p[0]),
+                        bounds[1].min(p[1]),
+                        bounds[2].max(p[0]),
+                        bounds[3].max(p[1]),
+                    ];
+                }
+                if let Some(label) = b.label_box {
+                    bounds = [
+                        bounds[0].min(label[0]),
+                        bounds[1].min(label[1]),
+                        bounds[2].max(label[2]),
+                        bounds[3].max(label[3]),
+                    ];
+                }
+                rect_overlap(ink, bounds)
+            })
+        {
+            return;
+        }
+        shorter |= length(d) < length(old) - 1e-6;
+    }
+    if !shorter
+        || findings(&candidate).hard > findings(plan).hard
+        || ink_findings(&candidate) > ink_findings(plan)
+        || feature_crossings(&candidate) > feature_crossings(plan)
+        || !carried(plan).is_subset(&carried(&candidate))
+        || !drawn_sheets_fit(analysis, &candidate)
+    {
+        return;
+    }
+    for d in candidate.dimensions.iter_mut().filter(|d| wrapped(d)) {
+        if let Some(old) = plan.dimensions.iter().find(|old| old.id == d.id)
+            && length(d) < length(old) - 1e-6
+        {
+            d.basis += "; final wrapped-callout polish shortens the leader after schedules and retained annotations settle";
+        }
+        if let (Some(p), Some(v)) = (&d.placed, candidate.views.iter().find(|v| v.id == d.view))
+            && let Some(line) = p.lines.first()
+        {
+            candidate.callout_tips.insert(
+                d.id.clone(),
+                (d.view.clone(), [line[0][0] - v.at[0], line[0][1] - v.at[1]]),
+            );
+        }
+    }
+    candidate.status = crate::completeness::status(&candidate.problems);
+    *plan = candidate;
+}
+
+fn recover_callouts(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
     let mut best = recover_paper(analysis, spec, first)?;
     if crate::placement_intent::has_pins(spec) {
         return Ok(best);
@@ -2619,6 +2786,39 @@ fn recover_candidates(
             continue;
         }
         break;
+    }
+    if spec.sheet.size.is_none()
+        && spec.dimensions.is_empty()
+        && spec.views.is_empty()
+        && !crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[])
+            .unwrap_or(false)
+        && let Some((small, _)) =
+            candidates
+                .iter()
+                .enumerate()
+                .min_by(|(_, (a, _)), (_, (b, _))| {
+                    a.sheet.cmp(&b.sheet).then(b.scale.total_cmp(&a.scale))
+                })
+        && candidates[small]
+            .1
+            .dimensions
+            .iter()
+            .any(|d| d.kind == "callout" && d.terms.iter().any(|s| crate::callouts::is_break(s)))
+    {
+        let reference = candidates[small].1.clone();
+        let sheet = candidates[small].0.sheet;
+        candidates.retain(|(c, p)| {
+            if c.sheet <= sheet || !longer_callouts(p, &reference) {
+                return true;
+            }
+            let prefix = format!("{} {} fill ", layout::PAGES[c.sheet].0, scale_name(c.scale));
+            for trace in tried.iter_mut().filter(|t| t.starts_with(&prefix)) {
+                *trace = trace.replacen("(valid and complete", "(leader length quality veto", 1);
+                *trace +=
+                    "; automatic enlargement lengthens an established leader by more than 2 mm";
+            }
+            false
+        });
     }
     let keys: Vec<_> = candidates.iter().map(|(c, _)| *c).collect();
     let Some((choice, (i, s))) =
