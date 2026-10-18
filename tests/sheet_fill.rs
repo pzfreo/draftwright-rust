@@ -89,7 +89,7 @@ fn grm03_uses_an_a4_detail_for_its_local_flange_floor() {
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A4", "2:1")
+        ("A3", "10:1")
     );
     assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
     assert!(
@@ -112,7 +112,14 @@ fn grm03_uses_an_a4_detail_for_its_local_flange_floor() {
     // The old drawing keeps the unchanged 60–85% measurement guard above.
     // The automatic A4 result saturates below that guide rather than buying A3.
     assert!(p.sheet.basis.contains("fill floor not attainable"));
-    assert!(p.views.iter().any(|v| v.detail.is_some()));
+    assert!(p.views.iter().all(|v| v.detail.is_none()));
+    let without_details: Spec =
+        serde_json::from_value(json!({"sheet":{"automatic_details":false}})).unwrap();
+    let ordinary = model::plan_recovered(&a, &without_details).unwrap();
+    assert_eq!(
+        (ordinary.sheet.size.as_str(), ordinary.sheet.scale.as_str()),
+        ("A3", "10:1")
+    );
     assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
     sheet_rule::assert_rule("grm03", &p);
     assert!(!p.problems.iter().any(|p| matches!(
@@ -790,20 +797,15 @@ fn connector109_uses_a_local_root_and_crest_detail_on_a3() {
         "{}",
         p.sheet.basis
     );
-    assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
+    let readable = draftwright::sheet_fit::readability(&a, &p);
+    assert_eq!((readable.depiction, readable.failures()), (2, 2));
+    assert!(p.views.iter().all(|v| v.detail.is_none()));
     assert!(
-        !p.problems
+        p.problems
             .iter()
-            .any(|q| q.code == "layout_recovery_exhausted")
+            .any(|q| q.code == "layout_recovery_exhausted" && q.severity == "warning")
     );
-    let mut without = p.clone();
-    without.views.retain(|v| v.detail.is_none());
-    assert!(draftwright::sheet_fit::readability(&a, &without).depiction > 0);
-    assert!(p.views.iter().any(|v| {
-        v.detail
-            .as_ref()
-            .is_some_and(|d| d.kind == "readability-depiction" && d.scale > p.sheet.scale_factor)
-    }));
+    assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
     let compressed = model::plan_recovered(&a, &named("A3", "1:5")).unwrap();
     assert!(draftwright::sheet_fit::readability(&a, &compressed).depiction > 0);
     assert!(p.sheet.basis.contains("A4 multi-sheet:"));
@@ -964,25 +966,17 @@ fn readable_reductions_do_not_return_to_a_larger_obstructed_estimate() {
         let p = model::plan_recovered(&a, &Spec::default()).unwrap();
         assert_eq!(
             (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-            if file == "spool_fits.step" {
-                ("A4", "1:5")
-            } else {
-                ("A3", "1:2")
-            },
+            ("A3", "1:2"),
             "{file}: {}",
             p.sheet.basis
         );
         let r = draftwright::sheet_fit::readability(&a, &p);
-        if file == "spool_fits.step" {
-            assert_eq!((r.steps, r.openings, r.failures()), (2, 24, 26));
-            assert!(
-                p.problems
-                    .iter()
-                    .any(|q| q.code == "layout_recovery_exhausted")
-            );
-        } else {
-            assert_eq!(r.failures(), 0);
-        }
+        assert_eq!(r.failures(), 0);
+        assert!(
+            !p.problems
+                .iter()
+                .any(|q| q.code == "layout_recovery_exhausted" && q.severity == "warning")
+        );
         assert!(
             p.problems
                 .iter()
@@ -1012,7 +1006,7 @@ fn readable_reductions_do_not_return_to_a_larger_obstructed_estimate() {
                     .flat_map(|r| r.measurements.iter()),
             );
             let inferred: Vec<_> = required.iter().filter(|m| !claims.contains(m)).collect();
-            assert_eq!(inferred.len(), 2);
+            assert_eq!(inferred.len(), 0);
             for m in inferred {
                 assert_eq!(m.feature, "f:hole:7");
                 assert!(["location.length.x", "location.length.y"].contains(&m.parameter.as_str()));

@@ -1488,6 +1488,196 @@ fn no_new_issue_pairs(first: &Plan, candidate: &Plan) -> bool {
         .all(|(identity, n)| n <= before.get(&identity).copied().unwrap_or(0))
 }
 
+fn retains_enlarged_ink(before: &Plan, after: &Plan) -> bool {
+    // This guard concerns replacement crops. A fully enlarged ordinary
+    // drawing can deliver the controls directly in its main views.
+    if after
+        .views
+        .iter()
+        .all(|v| v.detail.as_ref().is_none_or(|d| d.authored))
+    {
+        return true;
+    }
+    before
+        .dimensions
+        .iter()
+        .filter(|d| d.placed.is_some() && !d.reference)
+        .all(|d| {
+            let Some(old) = before
+                .views
+                .iter()
+                .find(|v| v.id == d.view && v.detail.as_ref().is_some_and(|c| !c.authored))
+            else {
+                return true;
+            };
+            after
+                .dimensions
+                .iter()
+                .find(|next| next.id == d.id && next.placed.is_some())
+                .is_some_and(|next| {
+                    after
+                        .views
+                        .iter()
+                        .any(|v| v.id == next.view && v.scale + 1e-6 >= old.scale)
+                })
+        })
+}
+
+/// Halving an annotation-heavy main view with unresolved local geometry is a
+/// visual regression even when its text lanes still pass the whole-drawing gate.
+fn crowded_reduction(analysis: &Analysis, reference: &Plan, candidate: &Plan) -> bool {
+    candidate.sheet.scale_factor * 2.0 <= reference.sheet.scale_factor + 1e-6
+        && crate::sheet_fit::readability(analysis, reference).failures() == 0
+        && crate::sheet_fit::readability(analysis, candidate).failures() > 0
+        && candidate
+            .views
+            .iter()
+            .filter(|v| matches!(v.id.as_str(), "v:front" | "v:plan" | "v:side"))
+            .any(|v| {
+                candidate
+                    .dimensions
+                    .iter()
+                    .filter(|d| d.view == v.id && !d.reference)
+                    .count()
+                    .max(
+                        reference
+                            .dimensions
+                            .iter()
+                            .filter(|d| d.view == v.id && !d.reference)
+                            .count(),
+                    )
+                    >= 8
+            })
+}
+
+/// A crossed exterior control can use another orthogonal carrier that sees
+/// the same measurement. Try normal placement there before refusing the scale.
+fn alternate_crossed_carriers(analysis: &Analysis, spec: &Spec, reference: &Plan, plan: &mut Plan) {
+    if spec.sheet.scale.is_some()
+        || spec.sheet.size.is_some()
+        || !plan.gdt.is_empty()
+        || crate::placement_intent::has_pins(spec)
+        || plan.views.iter().any(|v| v.detail.is_some())
+    {
+        return;
+    }
+    let controls: Vec<_> =
+        plan.dimensions
+            .iter()
+            .filter(|d| {
+                d.kind == "linear"
+                    && d.placed.is_some()
+                    && !spec.dimensions.contains_key(&d.id)
+                    && plan.problems.iter().chain(&reference.problems).any(|q| {
+                        q.code == "annotation_leader_crossing" && q.subjects.contains(&d.id)
+                    })
+            })
+            .map(|d| (d.id.clone(), d.view.clone()))
+            .collect();
+    for (id, old_view) in controls {
+        for view in ["front", "side", "plan"] {
+            if old_view == format!("v:{view}") {
+                continue;
+            }
+            let mut named = spec.clone();
+            named.sheet.size = Some(plan.sheet.size.clone());
+            named.sheet.scale = Some(plan.sheet.scale.clone());
+            named.sheet.automatic_details = Some(false);
+            named.dimensions.entry(id.clone()).or_default().view = Some(view.into());
+            let Ok(mut trial) = plan_recovered(analysis, &named) else {
+                continue;
+            };
+            // Reuse just the proven alternate placement in the settled frames.
+            // Replanning unrelated controls can recreate an already repaired conflict.
+            let Some(source_dimension) = trial
+                .dimensions
+                .iter()
+                .find(|d| d.id == id && d.placed.is_some())
+            else {
+                continue;
+            };
+            let Some(source_view) = trial.views.iter().find(|v| v.id == source_dimension.view)
+            else {
+                continue;
+            };
+            let Some(target_view) = plan.views.iter().find(|v| {
+                v.id == source_view.id
+                    && v.scale == source_view.scale
+                    && v.direction == source_view.direction
+                    && v.up == source_view.up
+            }) else {
+                continue;
+            };
+            let delta = [
+                target_view.at[0] - source_view.at[0],
+                target_view.at[1] - source_view.at[1],
+            ];
+            let original = plan.dimensions.iter().find(|d| d.id == id).unwrap();
+            if original.measurements != source_dimension.measurements
+                || original.terms != source_dimension.terms
+            {
+                continue;
+            }
+            let mut replacement = original.clone();
+            replacement.view = source_dimension.view.clone();
+            replacement.region = source_dimension.region;
+            replacement.placed = source_dimension.placed.clone();
+            let q = replacement.placed.as_mut().unwrap();
+            for point in q
+                .lines
+                .iter_mut()
+                .chain(&mut q.arrows)
+                .flatten()
+                .chain(std::iter::once(&mut q.label_at))
+            {
+                for k in 0..2 {
+                    point[k] += delta[k];
+                }
+            }
+            for (k, value) in q.label_box.iter_mut().enumerate() {
+                *value += delta[k % 2];
+            }
+            trial = plan.clone();
+            *trial.dimensions.iter_mut().find(|d| d.id == id).unwrap() = replacement;
+            crate::sheet_fit::correct_sections(analysis, &mut trial);
+            let checked = crate::dims::recheck(analysis, &trial);
+            let codes: BTreeSet<_> = crate::dims::recheck(analysis, plan)
+                .into_iter()
+                .chain(checked.iter().cloned())
+                .map(|q| q.code)
+                .collect();
+            trial.problems.retain(|q| !codes.contains(&q.code));
+            trial.problems.extend(checked);
+            crate::sheet_fit::retain_callouts(analysis, reference, &mut trial);
+            // Discharge only the packing estimate after the actual ink fits.
+            if drawn_sheets_fit(analysis, &trial) {
+                trial.problems.retain(|q| q.code != "page_fit_uncertain");
+            }
+            if trial
+                .problems
+                .iter()
+                .any(|q| q.code == "annotation_leader_crossing" && q.subjects.contains(&id))
+                || !findings(&trial).clean()
+                || !no_new_drawing_issues(reference, &trial)
+                || !no_new_drawing_issues(plan, &trial)
+                || !crate::sheet_fit::routes_no_worse(analysis, reference, &trial)
+                || !drawn_sheets_fit(analysis, &trial)
+                || !carried(plan).is_subset(&carried(&trial))
+                || crate::sheet_fit::readability(analysis, &trial).failures()
+                    > crate::sheet_fit::readability(analysis, plan).failures()
+            {
+                continue;
+            }
+            trial.sheet.basis = format!(
+                "{}; crossed exterior control placed in {}",
+                plan.sheet.basis, view
+            );
+            *plan = trial;
+            break;
+        }
+    }
+}
+
 /// The established fitted drawing is the route reference, rather than the raw
 /// seed whose routes recovery can already improve. A changed crossing pair is
 /// not paid for by removing other pairs. Refuse explicitly when readability and
@@ -1515,10 +1705,12 @@ fn protect_retained_routes(
     // A substantial reduction in the main views loses useful shape and dimension
     // separation even when local counters happen to pass. Prefer the established
     // clean paper when downsizing would cut the main scale by more than half.
+    let dense_reduction = crowded_reduction(analysis, reference, &candidate);
     let main_scale_loss = spec.sheet.size.is_none()
         && spec.sheet.scale.is_none()
         && paper(&candidate) < paper(reference)
-        && candidate.sheet.scale_factor * 2.0 + 1e-6 < reference.sheet.scale_factor;
+        && (candidate.sheet.scale_factor * 2.0 + 1e-6 < reference.sheet.scale_factor
+            || dense_reduction);
     let worse_readability = if paper(&candidate) < paper(reference) {
         crate::sheet_fit::readability(analysis, &candidate).whole_drawing_failures()
             > crate::sheet_fit::readability(analysis, reference).whole_drawing_failures()
@@ -1563,7 +1755,9 @@ fn protect_retained_routes(
             kept.sheet.size, kept.sheet.scale
         )
     };
-    let scale_reason = if main_scale_loss {
+    let scale_reason = if main_scale_loss && dense_reduction {
+        "; smaller paper refused: halving a crowded main view leaves unresolved local geometry"
+    } else if main_scale_loss {
         "; smaller paper refused: main views would lose more than half their linear scale"
     } else {
         ""
@@ -2835,6 +3029,7 @@ fn recover_with_reference(
             && drawn_quality_reference(analysis, &first)
             && route_reference.is_none_or(|reference| {
                 first.sheet.scale_factor * 2.0 + 1e-6 >= reference.sheet.scale_factor
+                    && !crowded_reduction(analysis, reference, &first)
                     && no_new_drawing_issues(reference, &first)
                     && crate::sheet_fit::routes_no_worse(analysis, reference, &first)
             }))
@@ -3070,7 +3265,8 @@ fn recover_with_reference(
                     detailed = packed;
                 }
             }
-            let useful = crate::detail::readable_automatic(analysis, &ordinary, &detailed);
+            let useful = crate::detail::readable_automatic(analysis, &ordinary, &detailed)
+                && retains_enlarged_ink(&first, &detailed);
             let improved = legibility(&detailed) < legibility(&ordinary)
                 && crate::sheet_fit::readability(analysis, &detailed).whole_drawing_failures() == 0;
             let qualified = useful
@@ -3112,6 +3308,52 @@ fn recover_with_reference(
             }
         }
         let mut detailed = best_detail.expect("at least one detail trial");
+        // Preserve already useful enlarged dimensions when a new, smaller crop
+        // would send those controls back to a smaller parent. Refuse the new
+        // aperture need explicitly instead of replacing clear profile context.
+        if !reference_only {
+            for previous in std::iter::once(&first).chain(route_reference) {
+                if retains_enlarged_ink(previous, &detailed) {
+                    continue;
+                }
+                let mut kept = previous.clone();
+                for view in &mut kept.views {
+                    if let Some(d) = &mut view.detail
+                        && !d.authored
+                    {
+                        d.marked_bounds = d.bounds;
+                    }
+                }
+                crate::sheet_fit::repair_callout_crossings(analysis, &ordinary, &mut kept);
+                if !kept
+                    .views
+                    .iter()
+                    .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
+                    || !crate::detail::readable_automatic(analysis, &ordinary, &kept)
+                    || !findings(&kept).clean()
+                    || !drawn_sheets_fit(analysis, &kept)
+                    || !required.is_subset(&carried(&kept))
+                    || legibility(&kept) > legibility(&ordinary)
+                    || !no_new_drawing_issues(&ordinary, &kept)
+                    || !crate::sheet_fit::routes_no_worse(analysis, &ordinary, &kept)
+                {
+                    continue;
+                }
+                kept.sheet.basis = format!(
+                    "whole-part paper {} at {}; established enlarged profile retained; new readability need refused; whole-part trials: {}; local-detail trials: {}",
+                    ordinary.sheet.size,
+                    ordinary.sheet.scale,
+                    ordinary
+                        .sheet
+                        .basis
+                        .replace("drawn-item fill", "candidate coverage"),
+                    kept.sheet.basis
+                );
+                record_sheet_choice(&first, &mut kept);
+                return Ok(local_readability_refusal(analysis, spec, kept));
+            }
+        }
+
         let a3_exception = before_paper == Some(2) && detailed.sheet.size == "A3";
         let detailed_complete = (before_paper.is_none()
             || a3_exception
@@ -3122,6 +3364,7 @@ fn recover_with_reference(
             && findings(&detailed).clean()
             && detailed.sheet.scale_factor + 1e-6 >= request_floor
             && crate::detail::readable_automatic(analysis, &ordinary, &detailed)
+            && retains_enlarged_ink(&first, &detailed)
             && (legibility(&detailed) == 0
                 || (legibility(&detailed) < legibility(&ordinary)
                     && crate::sheet_fit::readability(analysis, &detailed)
@@ -3283,6 +3526,9 @@ fn record_sheet_choice(first: &Plan, chosen: &mut Plan) {
 
 fn local_readability_refusal(analysis: &Analysis, spec: &Spec, mut plan: Plan) -> Plan {
     restore_search_spec(&mut plan, spec);
+    let reference = plan.clone();
+    crate::sheet_fit::repair_callout_crossings(analysis, &reference, &mut plan);
+    crate::sheet_fit::repair_readability(analysis, &mut plan);
     let r = crate::sheet_fit::readability(analysis, &plan);
     if r.failures() > 0
         && !plan
@@ -4001,6 +4247,14 @@ fn recover_candidates_before(
                 // Qualify the repaired ink, rather than retaining a veto from
                 // the longer callout that the bounded repair just replaced.
                 crate::sheet_fit::retain_callouts(analysis, reference, &mut p);
+            }
+            if !reference_only
+                && scale >= min_legible_scale
+                && let Some(reference) = historical.as_ref()
+            {
+                crate::sheet_fit::repair_angular_labels(analysis, reference, &mut p);
+                crate::sheet_fit::retain_callouts(analysis, reference, &mut p);
+                alternate_crossed_carriers(analysis, spec, reference, &mut p);
             }
             // An estimate's iso budget can refuse a sheet whose finished drawing fits.
             // Only discharge that estimate when all actual item bounds and reserved views fit.

@@ -145,7 +145,7 @@ def main():
     assert old_manifest.keys() == new_manifest.keys(), 'survey contents differ'
     before_read, after_read = read(args.before_readability), read(args.after_readability)
     stats = {stage: collections.Counter() for stage in ('before', 'after')}
-    rows, changes, up, lost, added, derived, lost_annotations, large = [], [], [], [], [], [], [], []
+    rows, changes, up, lost, added, derived, lost_annotations, large, gained = [], [], [], [], [], [], [], [], []
     for key, source in old_manifest.items():
         old = read(args.before / (key + '.plan.json'))
         new = read(args.after / (key + '.plan.json'))
@@ -154,11 +154,30 @@ def main():
             continue
         assert 'sheet' in new, source['name']
         views = {v['id']: v for v in new['views']}
+        all_automatic = [v for v in new['views'] if v.get('detail') and not v['detail'].get('authored')]
+        assert len(all_automatic) <= 2, source['name']
+        for v in all_automatic:
+            assert v['detail']['bounds'] == v['detail']['marked_bounds'], source['name']
+            assert any(d['view'] == v['id'] and d.get('placed') and not d.get('reference') for d in new['dimensions']), source['name']
+        automatic = [v for v in new['views'] if v.get('detail', {}).get('kind', '').startswith('readability') and not v.get('detail', {}).get('authored')]
+        assert all(sum(v.get('sheet', 1) == sheet for v in automatic) <= 2 for sheet in {v.get('sheet', 1) for v in automatic}), source['name']
+        if automatic:
+            ordinary = re.search(r'whole-part paper (A[0-4]) at ([0-9]+):([0-9]+)', new['sheet']['basis'])
+            assert ordinary, (source['name'], 'missing independent whole-part choice')
+            assert PAPERS.index(new['sheet']['size']) <= PAPERS.index(ordinary[1]), source['name']
+            scale = int(ordinary[2]) / int(ordinary[3])
+            assert new['sheet']['scale_factor'] + 1e-6 >= scale, source['name']
+            assert all(v['scale'] + 1e-6 >= scale for v in new['views'] if v['id'] in ('v:front', 'v:plan', 'v:side')), source['name']
         for view in new['views']:
             detail = view.get('detail')
             if detail and detail['kind'].startswith('readability') and not detail['authored']:
                 parent = views[detail['source_view']]
                 assert view.get('sheet', 1) == parent.get('sheet', 1), source['name']
+                assert detail['bounds'] == detail['marked_bounds'], source['name']
+                axes = {'v:plan': (0, 1), 'v:side': (1, 2)}.get(detail['source_view'], (0, 2))
+                spans = [detail['bounds'][1][axis] - detail['bounds'][0][axis] for axis in axes]
+                assert min(spans) > 0 and max(spans) <= 3 * min(spans) + 1e-6, source['name']
+                assert any(d['view'] == view['id'] and d.get('placed') and not d.get('reference') for d in new['dimensions']), source['name']
         assert key in before_read and key in after_read, source['name']
         assert not after_read[key]['failures'] or any(
             q['code'] == 'layout_recovery_exhausted' for q in new['problems']), source['name']
@@ -170,6 +189,8 @@ def main():
                    reason=reasons(new), readability_after=after_read[key]['reason'],
                    recovery_exhausted=any(q['code'] == 'layout_recovery_exhausted' for q in new['problems']))
         rows.append(row)
+        if sum(bool(v.get('detail')) for v in new['views']) > sum(bool(v.get('detail')) for v in old['views']):
+            gained.append(row)
         if row['before'] != row['after']:
             changes.append(row)
         if PAPERS.index(new['sheet']['size']) > PAPERS.index(old['sheet']['size']):
@@ -201,7 +222,7 @@ def main():
     readable = {stage: sum(v['failures'] == 0 for v in data.values())
                 for stage, data in (('before', before_read), ('after', after_read))}
     report = dict(parts=len(rows), changed=len(changes), stats=stats, fully_readable=readable, up=up,
-                  large_paper=large, lost_measurements=lost, axis_derived_measurements=derived, lost_annotation_claims=lost_annotations, new_drawing_findings=added)
+                  large_paper=large, gained_details=gained, lost_measurements=lost, axis_derived_measurements=derived, lost_annotation_claims=lost_annotations, new_drawing_findings=added)
     (args.out / 'audit.json').write_text(json.dumps(report, indent=2) + '\n')
     lines = ['# Paired sheet-policy results', '',
              '227 drawable inputs; the same unresolved input is refused on both sides. Counts classify the primary paper.', '',
@@ -212,11 +233,12 @@ def main():
               '| Part | Before | After | Reason |', '| --- | --- | --- | --- |']
     for row in up:
         lines.append('| ' + ' | '.join(str(row[k]).replace('|', '/') for k in ('part', 'before', 'after', 'reason')) + ' |')
+    lines += ['', f'{len(gained)} parts gain details. The complete before/after inventory is in the CSV.', '']
     lines += ['', f"{len(changes)} drawings change paper, scale, sheet count or detail count. "
               f"Fully readable drawings: {readable['before']} → {readable['after']}. "
               'Every remaining readability failure has an explicit refusal.', '',
               'No lost measurement facts, lost PMI/GDT claims or new drawing-finding identities. '
-              'The plain spool retains two centre coordinates through its measured OD, centred bore cross and common axis. '
+              'Direct dimensions and independently verified common-axis geometry retain the measurement inventory. '
               'See [verification and PNG index](sheet-policy-verification.md).']
     (args.out / 'summary.md').write_text('\n'.join(lines) + '\n')
     print(json.dumps({k: v if k in ('parts', 'changed', 'stats', 'fully_readable') else len(v) for k, v in report.items()}, indent=2))

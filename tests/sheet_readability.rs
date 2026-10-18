@@ -459,18 +459,53 @@ fn a_local_interval_reservation_encloses_its_repaired_text() {
         assert!(std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"));
         return;
     };
-    let (_, a) = model::analyse_native(&Path::new(&corpus).join("mfcadpp/10007.step")).unwrap();
+    let (_, a) =
+        model::analyse_native(&Path::new(&corpus).join("mfcadpp_holdout/520.step")).unwrap();
     let p = model::plan_recovered(&a, &model::Spec::default()).unwrap();
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
         ("A4", "1:1")
     );
     assert_eq!(sheet_fit::readability(&a, &p).failures(), 0);
-    assert!(p.views.iter().any(|v| v.detail.is_some()));
+    assert_eq!(p.views.iter().filter(|v| v.detail.is_some()).count(), 1);
+    assert!(
+        p.dimensions
+            .iter()
+            .any(|d| d.reference && d.view.starts_with("v:detail_"))
+    );
+    assert!(
+        p.dimensions
+            .iter()
+            .any(|d| !d.reference && d.view.starts_with("v:detail_"))
+    );
     assert!(
         !p.problems
             .iter()
             .any(|q| q.code == "annotation_outside_area")
     );
     assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
+}
+
+#[test]
+fn a_crowded_main_view_keeps_its_readable_a3_scale() {
+    let Some(corpus) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
+        assert!(std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"));
+        return;
+    };
+    for name in ["10007", "1017"] {
+        let (_, a) =
+            model::analyse_native(&Path::new(&corpus).join(format!("mfcadpp/{name}.step")))
+                .unwrap();
+        let p = model::plan_recovered(&a, &model::Spec::default()).unwrap();
+        assert_eq!(
+            (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+            ("A3", "2:1"),
+            "{name}: {}",
+            p.sheet.basis
+        );
+        assert_eq!(sheet_fit::readability(&a, &p).failures(), 0);
+        assert!(p.views.iter().all(|v| v.detail.is_none()));
+        assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
+        assert!(p.sheet.basis.contains("halving a crowded main view"));
+    }
 }

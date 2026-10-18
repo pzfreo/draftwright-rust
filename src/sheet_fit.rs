@@ -229,9 +229,28 @@ fn new_callout_association(reference: &Plan, plan: &Plan, id: &str) -> bool {
 /// rotates short exits around the retained tip, or around a visible circular bore
 /// rim, with the original +2 mm length allowance.
 pub(crate) fn retain_callouts(analysis: &Analysis, reference: &Plan, plan: &mut Plan) {
+    retain_callouts_inner(analysis, reference, plan, false);
+}
+
+pub(crate) fn repair_callout_crossings(analysis: &Analysis, reference: &Plan, plan: &mut Plan) {
+    retain_callouts_inner(analysis, reference, plan, true);
+}
+
+fn retain_callouts_inner(
+    analysis: &Analysis,
+    reference: &Plan,
+    plan: &mut Plan,
+    repair_existing: bool,
+) {
     retain_callouts_with(analysis, reference, plan, true);
     if !routes_no_worse(analysis, reference, plan)
         || !crate::model::no_new_drawing_issues(reference, plan)
+        || (repair_existing
+            && plan.gdt.is_empty()
+            && plan
+                .problems
+                .iter()
+                .any(|q| q.code == "annotation_leader_crossing"))
     {
         retain_callouts_with(analysis, reference, plan, false);
         let key = serde_json::to_vec(&(reference, &*plan, crate::planning::policy_key(analysis)))
@@ -250,6 +269,11 @@ pub(crate) fn retain_callouts(analysis: &Analysis, reference: &Plan, plan: &mut 
         // all length, contact, material and measurement guards remain unchanged.
         let floor =
             min_legible_scale(analysis).max(crate::sheets::floor(&plan.spec).unwrap_or(0.0));
+        let existing_crossing = plan.gdt.is_empty()
+            && plan
+                .problems
+                .iter()
+                .any(|q| q.code == "annotation_leader_crossing");
         let changed_association = plan
             .dimensions
             .iter()
@@ -265,8 +289,11 @@ pub(crate) fn retain_callouts(analysis: &Analysis, reference: &Plan, plan: &mut 
         if ((reference.sheet.scale_factor + 1e-6 >= floor
             || plan.sheet.scale_factor + 1e-6 < floor)
             && !changed_association
+            && !existing_crossing
             && !local_recovery)
-            || (routes_no_worse(analysis, reference, plan) && !changed_association)
+            || (routes_no_worse(analysis, reference, plan)
+                && !changed_association
+                && !existing_crossing)
         {
             return;
         }
@@ -283,7 +310,11 @@ pub(crate) fn retain_callouts(analysis: &Analysis, reference: &Plan, plan: &mut 
             let d = &plan.dimensions[i];
             if d.kind != "callout"
                 || (routes_no_worse_for(analysis, reference, plan, Some(&d.id))
-                    && !new_callout_association(reference, plan, &d.id))
+                    && !new_callout_association(reference, plan, &d.id)
+                    && !(plan.gdt.is_empty()
+                        && plan.problems.iter().any(|q| {
+                            q.code == "annotation_leader_crossing" && q.subjects.contains(&d.id)
+                        })))
                 || plan
                     .spec
                     .dimensions
@@ -441,6 +472,9 @@ pub(crate) fn retain_callouts(analysis: &Analysis, reference: &Plan, plan: &mut 
                         if !routes_no_worse_for(analysis, reference, &trial, Some(&d.id)) {
                             continue;
                         }
+                        if plan.gdt.is_empty() {
+                            enclose_free_ink(analysis, &mut trial);
+                        }
                         let checked = crate::dims::recheck_cached(analysis, &trial, &cache);
                         let mut codes = before_codes
                             .get_or_init(|| {
@@ -453,7 +487,19 @@ pub(crate) fn retain_callouts(analysis: &Analysis, reference: &Plan, plan: &mut 
                         codes.extend(checked.iter().map(|p| p.code.clone()));
                         trial.problems.retain(|p| !codes.contains(&p.code));
                         trial.problems.extend(checked);
-                        if crate::model::no_new_drawing_issues(reference, &trial)
+                        let crossings = |p: &Plan| {
+                            p.problems
+                                .iter()
+                                .filter(|q| {
+                                    q.code == "annotation_leader_crossing"
+                                        && q.subjects.contains(&d.id)
+                                })
+                                .count()
+                        };
+                        if (!plan.gdt.is_empty()
+                            || crossings(plan) == 0
+                            || crossings(&trial) < crossings(plan))
+                            && crate::model::no_new_drawing_issues(reference, &trial)
                             && crate::model::no_new_drawing_issues(plan, &trial)
                             && crate::model::drawn_sheets_fit(analysis, &trial)
                             && crate::model::carries_required(plan, &trial)
@@ -464,6 +510,76 @@ pub(crate) fn retain_callouts(analysis: &Analysis, reference: &Plan, plan: &mut 
                             break 'directions;
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/// Move only free angular text when a later exterior witness crosses its label.
+/// Arc, arrows, measurements and all original clearance/route limits stay fixed.
+pub(crate) fn repair_angular_labels(analysis: &Analysis, reference: &Plan, plan: &mut Plan) {
+    if !plan.gdt.is_empty() || crate::placement_intent::has_pins(&plan.spec) {
+        return;
+    }
+    let cache = crate::dims::footprints::Cache::default();
+    for i in 0..plan.dimensions.len() {
+        let d = &plan.dimensions[i];
+        if d.kind != "angular"
+            || d.placed.is_none()
+            || plan
+                .spec
+                .dimensions
+                .get(&d.id)
+                .is_some_and(|e| e.place.is_some())
+            || !plan
+                .problems
+                .iter()
+                .any(|q| q.code == "annotation_ink_overlap" && q.subjects.contains(&d.id))
+        {
+            continue;
+        }
+        'offsets: for step in [0.5 * crate::dims::LANE, crate::dims::LANE] {
+            for direction in [[0., 1.], [0., -1.], [-1., 0.], [1., 0.]] {
+                let mut trial = plan.clone();
+                let p = trial.dimensions[i].placed.as_mut().unwrap();
+                for (k, offset) in direction.into_iter().enumerate() {
+                    p.label_at[k] += step * offset;
+                    p.label_box[k] += step * offset;
+                    p.label_box[k + 2] += step * offset;
+                }
+                enclose_free_ink(analysis, &mut trial);
+                let checked = crate::dims::recheck_cached(analysis, &trial, &cache);
+                let codes: std::collections::BTreeSet<_> =
+                    crate::dims::recheck_cached(analysis, plan, &cache)
+                        .into_iter()
+                        .chain(checked.iter().cloned())
+                        .map(|q| q.code)
+                        .collect();
+                trial.problems.retain(|q| !codes.contains(&q.code));
+                trial.problems.extend(checked);
+                if !crate::model::drawn_sheets_fit(analysis, &trial)
+                    && let Some(packed) = pack_settled_views(analysis, plan, &trial)
+                {
+                    trial = packed;
+                }
+                if !crate::model::drawn_sheets_fit(analysis, &trial)
+                    && let Some(spaced) = separate_projection_rows(analysis, plan, &trial)
+                {
+                    trial = spaced;
+                }
+                if !trial
+                    .problems
+                    .iter()
+                    .any(|q| q.code == "annotation_ink_overlap" && q.subjects.contains(&d.id))
+                    && crate::model::no_new_drawing_issues(reference, &trial)
+                    && crate::model::no_new_drawing_issues(plan, &trial)
+                    && routes_no_worse(analysis, plan, &trial)
+                    && crate::model::drawn_sheets_fit(analysis, &trial)
+                {
+                    trial.status = crate::completeness::status(&trial.problems);
+                    *plan = trial;
+                    break 'offsets;
                 }
             }
         }
@@ -1099,11 +1215,11 @@ pub(crate) fn repair_readability(analysis: &Analysis, plan: &mut Plan) {
     for i in 0..plan.dimensions.len() {
         let d = &plan.dimensions[i];
         let interior = d.region == Some(crate::dims::CandidateRegion::Interior);
-        let local_text = plan.views.iter().find(|v| v.id == d.view).is_some_and(|v| {
-            v.detail
-                .as_ref()
-                .is_some_and(|detail| !detail.authored && detail.kind.starts_with("readability"))
-        });
+        let local_text = plan
+            .views
+            .iter()
+            .find(|v| v.id == d.view)
+            .is_some_and(|v| v.detail.as_ref().is_some_and(|detail| !detail.authored));
         if d.kind != "linear"
             || (interior && !local_text)
             || plan
@@ -1362,7 +1478,7 @@ fn separate_projection_rows(a: &Analysis, reference: &Plan, template: &Plan) -> 
         || template
             .views
             .iter()
-            .any(|v| v.cut.is_some() || v.detail.is_some())
+            .any(|v| v.detail.as_ref().is_some_and(|d| d.authored))
     {
         return None;
     }
@@ -1403,6 +1519,9 @@ fn separate_projection_rows(a: &Analysis, reference: &Plan, template: &Plan) -> 
             p.problems.retain(|q| !codes.contains(&q.code));
             p.problems.extend(checked);
             enclose_free_ink(a, &mut p);
+            if p.views.iter().any(|v| v.cut.is_some()) {
+                correct_estimate(a, &mut p);
+            }
             if crate::model::no_new_drawing_issues(reference, &p)
                 && routes_no_worse(a, reference, &p)
                 && crate::model::drawn_sheets_fit(a, &p)
@@ -2364,7 +2483,7 @@ fn fill_local(analysis: &Analysis, plan: &Plan) -> f64 {
 /// fit the orientation view against the measured blocks, once. Never move pinned content.
 /// Reconcile conservative section bands with settled ink before spilling onto another page.
 /// Principal projections and their dimensions stay aligned; free sections may use another gap.
-fn correct_sections(analysis: &Analysis, plan: &mut Plan) {
+pub(crate) fn correct_sections(analysis: &Analysis, plan: &mut Plan) {
     if !plan.views.iter().any(|v| v.cut.is_some())
         || plan.spec.views.values().any(|v| v.place.is_some())
     {

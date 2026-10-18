@@ -378,14 +378,13 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
     if section_letter {
         allocated.insert(format!("detail_{}", section_label(spec).to_lowercase()));
     }
-    let mut automatic_readability = 0;
+    let mut automatic_count = 0;
     let mut add = |mut d: Detail| {
-        if d.kind.starts_with("readability") {
-            if automatic_readability == 2 || !context_bounds(a, &mut d) {
-                return;
-            }
-            automatic_readability += 1;
+        if automatic_count == 2 || (d.kind.starts_with("readability") && !context_bounds(a, &mut d))
+        {
+            return;
         }
+        d.marked_bounds = d.bounds;
         d.dimensions.retain(|id| {
             id.starts_with("d:step_level/step_interval.length.")
                 || !out
@@ -403,6 +402,7 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
             return;
         }
         d.label = name.trim_start_matches("detail_").to_uppercase();
+        automatic_count += 1;
         out.push((name.to_string(), d));
     };
     // One physical connected profile at a time. Repeated equal pitches of three or more
@@ -803,42 +803,41 @@ pub(crate) fn readable_automatic(
     if automatic.is_empty() {
         return true;
     }
-    if p.sheet.scale_factor + 1e-6 < parent.sheet.scale_factor
+    if p.sheets.len() > parent.sheets.len()
+        || p.sheet.scale_factor + 1e-6 < parent.sheet.scale_factor
         || crate::layout::PAGES
             .iter()
             .position(|page| page.0 == p.sheet.size)
             > crate::layout::PAGES
                 .iter()
                 .position(|page| page.0 == parent.sheet.size)
-        || automatic
-            .iter()
-            .filter(|v| v.detail.as_ref().unwrap().kind.starts_with("readability"))
-            .count()
-            > 2
+        || automatic.len() > 2
     {
         return false;
     }
     for v in automatic {
         let d = v.detail.as_ref().unwrap();
-        if !d.kind.starts_with("readability") {
-            continue;
-        }
-        let [w, h] = size(d);
-        if d.bounds != d.marked_bounds
-            || w.max(h) > 3.0 * w.min(h) + 1e-6
-            || !p.dimensions.iter().any(|dimension| {
-                dimension.view == v.id
-                    && !dimension.reference
-                    && dimension.placed.is_some()
-                    && parent.dimensions.iter().any(|old| {
-                        old.id == dimension.id
-                            && old.view == d.source_view
-                            && !old.reference
-                            && old.placed.is_some()
-                    })
-            })
-        {
+        if !p.dimensions.iter().any(|dimension| {
+            dimension.view == v.id
+                && !dimension.reference
+                && dimension.placed.is_some()
+                && parent.dimensions.iter().any(|old| {
+                    old.id == dimension.id
+                        && old.view == d.source_view
+                        && !old.reference
+                        && old.placed.is_some()
+                })
+        }) {
             return false;
+        }
+        if d.bounds != d.marked_bounds {
+            return false;
+        }
+        if d.kind.starts_with("readability") {
+            let [w, h] = size(d);
+            if w.max(h) > 3.0 * w.min(h) + 1e-6 {
+                return false;
+            }
         }
     }
     // All captions are obstacles from the outset. Simulate the renderer's letter
@@ -1263,11 +1262,7 @@ pub(crate) fn marker(
             })
         }),
     );
-    let gap = if d.kind.starts_with("readability") {
-        1.75
-    } else {
-        1.0
-    };
+    let gap = if !d.authored { 1.75 } else { 1.0 };
     let label_at = positions
         .into_iter()
         .find(|p| {

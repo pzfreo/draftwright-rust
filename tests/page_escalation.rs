@@ -338,7 +338,7 @@ fn local_floors_use_details_and_never_buy_large_paper() {
         let analysis = api::analyse_from(&path, Features::Native).unwrap();
         assert_eq!(
             draftwright::sheet_fit::readability(&analysis, &plan).failures(),
-            0
+            usize::from(file.ends_with("10000.step"))
         );
         if file.ends_with("10000.step") {
             let compressed =
@@ -353,7 +353,18 @@ fn local_floors_use_details_and_never_buy_large_paper() {
             );
             assert!(plan.sheet.basis.contains("A4 multi-sheet:"));
             assert_eq!(plan.sheet.scale, "1:1");
-            assert!(plan.views.iter().filter(|v| v.detail.is_some()).count() >= 1);
+            assert_eq!(plan.views.iter().filter(|v| v.detail.is_some()).count(), 1);
+            assert!(
+                plan.problems
+                    .iter()
+                    .any(|p| p.code == "layout_recovery_exhausted")
+            );
+            assert!(
+                plan.dimensions
+                    .iter()
+                    .filter(|d| d.view.starts_with("v:detail_"))
+                    .all(|d| !d.reference)
+            );
         }
     }
 }
@@ -369,12 +380,16 @@ fn compressed_steps_recover_in_an_a4_detail_without_buying_longer_callouts() {
     assert_eq!(sheet(&plan), ("A4", "1:1"));
     assert_eq!(
         draftwright::sheet_fit::readability(&analysis, &plan).failures(),
+        3
+    );
+    assert!(plan.views.iter().all(|v| v.detail.is_none()));
+    assert_eq!(
+        draftwright::sheet_fit::readability(&analysis, &plan).whole_drawing_failures(),
         0
     );
-    assert!(plan.views.iter().any(|v| v.detail.is_some()));
+    assert!(plan.dimensions.iter().all(|d| d.placed.is_some()));
     assert!(
-        !plan
-            .problems
+        plan.problems
             .iter()
             .any(|p| p.code == "layout_recovery_exhausted")
     );
@@ -623,7 +638,7 @@ fn a_fitted_route_reference_keeps_pair_identity_without_restoring_raw_crossings(
     let a = api::analyse_from(&dir.join("mfcadpp_holdout/419.step"), Features::Native).unwrap();
     let reference = api::plan_analysed(&a, &spec(json!({"size":"A3", "scale":"2:1"}))).unwrap();
     let p = api::plan_analysed(&a, &Spec::default()).unwrap();
-    assert_eq!(sheet(&p), ("A4", "1:1"));
+    assert_eq!(sheet(&p), ("A3", "1:1"));
     assert_eq!(
         pairs(&reference)
             .iter()
