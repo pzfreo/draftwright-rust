@@ -81,6 +81,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
   stems with spaces. Explicit Spec titles, including blanks, keep precedence.
 - Explain that hole tables require X/Y locations from a datum corner and recommend the
   retained individual dimensions when those locations are absent.
+- Clarify that view placement gaps measure between annotation bands, not part outlines,
+  in the Spec schema, MCP item options and documentation. Tools/list stays at 34,477
+  compact schema bytes.
 
 - Preserve archived Python 0.3.9 pocket callouts and individual datum locations.
 - Repair displaced location witnesses through foreign features and overlapping

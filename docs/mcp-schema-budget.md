@@ -142,3 +142,15 @@ Acceptance measured the served tool definitions, including names/descriptions, a
 **42,438 bytes**, plus **724 instruction bytes**. Its **10,791 fixed-context tokens**
 are the script's `ceil(bytes/4)` estimate, not an actual tokenizer measurement.
 The schema-only budget remains **34,389 bytes**.
+
+
+## View-gap description (2026-10-18)
+
+The `views/<name>/place/gap` field now explains that the clear paper distance is
+between annotation bands, not part outlines. The on-demand `schemas/spec.json`
+and MCP `item_options` (through its existing `consequences` guidance field) carry the
+explanation. Regeneration leaves all 28 advertised
+input/output schemas byte-identical: **34,477 compact bytes** before and after
+(the earlier 34,389-byte figure predates the 88-byte detail-view name addition).
+`SCHEMA_BUDGET` and the exact Rust budget assertion remain 34,477; no allowance
+was added. The schema-discovery and item-options tests pin the description.
