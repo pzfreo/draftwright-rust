@@ -616,18 +616,18 @@ fn r5_a_further_sheet_before_a_smaller_scale_uses_cumulative_prefixes() {
 }
 
 #[test]
-fn r5_paper_runs_before_a_further_sheet() {
+fn one_larger_sheet_precedes_automatic_r5_overflow() {
     let a = analysed("gramel/string_post.step");
     let s = spec(
         json!({"sheets":{"max":2,"smallest_scale":"5:1"},"hole_table":"never","tables":overflow::tables()}),
     );
     let p = model::plan_recovered(&a, &s).unwrap();
     assert!(p.sheet.scale_factor >= 5.);
-    assert_eq!(p.sheet.size, "A4");
+    assert_eq!(p.sheet.size, "A3");
     assert_eq!(p.sheet.scale, "5:1");
-    assert_eq!(p.sheets.len(), 1);
+    assert!(p.sheets.is_empty());
     assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
-    assert!(p.sheet.basis.contains("R5 allocation before larger paper"));
+    assert!(p.sheet.basis.contains("A4 "));
     assert!(p.tables.iter().any(|t| t.id == "t:1" && t.placed.is_some()));
     assert!(!p.problems.iter().any(|p| {
         [

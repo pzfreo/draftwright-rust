@@ -3242,6 +3242,28 @@ fn recover_uncached(
     let seed = first.clone();
     let mut plan = recover_callouts(analysis, spec, first, minimum)?;
     shorten_wrapped_callouts(analysis, spec, &mut plan);
+    if spec.sheet.automatic_details != Some(false)
+        && !crate::placement_intent::has_pins(spec)
+        && plan
+            .views
+            .iter()
+            .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
+    {
+        // The public switch-off solve is the independent whole-part comparator.
+        // Intermediate omitted-crop trials may have a smaller, unreadable main.
+        let mut plain = spec.clone();
+        plain.sheet.automatic_details = Some(false);
+        let mut ordinary = plan_recovered(analysis, &plain)?;
+        let paper = |p: &Plan| layout::PAGES.iter().position(|page| page.0 == p.sheet.size);
+        if plan.sheets.len() > ordinary.sheets.len()
+            || plan.sheet.scale_factor + 1e-6 < ordinary.sheet.scale_factor
+            || paper(&plan) > paper(&ordinary)
+        {
+            restore_search_spec(&mut ordinary, spec);
+            ordinary.sheet.basis += "; automatic detail refused against the independently recovered whole-part drawing; main scale, paper and sheet count retained";
+            plan = ordinary;
+        }
+    }
     // Presentation recovery can revisit an intermediate enlarged refusal. The
     // original fitted whole-part drawing still forbids spending paper for a
     // partial local improvement, including after schedule/callout changes.

@@ -165,7 +165,7 @@ fn a_hole_schedule_keeps_the_opening_floor_in_the_balloon_view() {
 mod corpus;
 
 #[test]
-fn two_readable_a4_sheets_precede_one_a3_when_fill_needs_enlargement() {
+fn one_readable_a3_precedes_two_a4_sheets_when_fill_needs_enlargement() {
     // The tapped-post intent has a clean, proven one-sheet A3 counterpart.
     // 10252 cannot exercise this success path: its enlargement changes retained
     // leader associations, so its fitted drawing must report refusal instead.
@@ -179,18 +179,13 @@ fn two_readable_a4_sheets_precede_one_a3_when_fill_needs_enlargement() {
             p.sheet.scale.as_str(),
             1 + p.sheets.len()
         ),
-        ("A4", "5:1", 2),
+        ("A3", "5:1", 1),
         "{}",
         p.sheet.basis
     );
     assert_eq!(sheet_fit::readability(&a, &p).failures(), 0);
     assert!(p.spec.sheets.is_none());
-    assert!(
-        p.views
-            .iter()
-            .filter(|v| ["v:front", "v:plan", "v:side"].contains(&v.id.as_str()))
-            .all(|v| v.sheet == 1)
-    );
+    assert!(p.views.iter().all(|v| v.sheet == 1));
     let single_spec =
         serde_json::from_value(json!({"sheet":{"size":"A4"},"sheets":{"max":1}})).unwrap();
     let single = model::plan_recovered(&a, &single_spec).unwrap();
@@ -214,7 +209,7 @@ fn a3_explains_the_a4_prismatic_readability_refusal() {
         ("A3", "5:1")
     );
     assert_eq!(sheet_fit::readability(&a, &p).failures(), 0);
-    assert!(p.sheet.basis.contains("A4 multi-sheet:"));
+    assert!(p.sheet.basis.contains("A4 "));
     let spec = serde_json::from_value(json!({"sheet":{"size":"A4","scale":"1:1"}})).unwrap();
     let compressed = model::plan_recovered(&a, &spec).unwrap();
     assert!(sheet_fit::readability(&a, &compressed).steps > 0);
@@ -335,9 +330,11 @@ fn rejected_local_floor_up_moves_are_bounded_to_practical_paper() {
             assert_eq!(plan.sheet.size, "A4");
             assert_eq!(
                 r.failures(),
-                4,
-                "the strict route guard refuses the crop rather than adding crossing pairs"
+                8,
+                "current main's six native intervals and two openings remain refused without new crossing pairs"
             );
+            assert_eq!(r.steps, 6);
+            assert_eq!(r.native_openings, 1);
             assert!(
                 plan.problems
                     .iter()
@@ -531,7 +528,7 @@ fn ordinary_paper_keeps_readable_controlled_openings_with_the_switch_off() {
 }
 
 #[test]
-fn readable_bores_do_not_replace_a_useful_profile_with_circle_only_crops() {
+fn readable_bores_keep_the_whole_profile_without_circle_only_crops() {
     let Some(corpus) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
         assert!(std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"));
         return;
@@ -548,19 +545,15 @@ fn readable_bores_do_not_replace_a_useful_profile_with_circle_only_crops() {
         .unwrap();
     assert!(control.placed.is_some());
     let carrier = p.views.iter().find(|v| v.id == control.view).unwrap();
-    assert!(carrier.scale >= 2.0);
-    if let Some(detail) = &carrier.detail {
-        assert_eq!(detail.kind, "prismatic-steps");
-        assert_eq!(detail.bounds, detail.marked_bounds);
-        assert!(detail.bounds[1][0] - detail.bounds[0][0] > 40.0);
-        assert!(detail.bounds[1][2] - detail.bounds[0][2] > 40.0);
-    }
+    assert!(carrier.scale >= 1.0);
+    assert!(control.value * carrier.scale >= sheet_fit::MIN_STEP_SPAN);
+    assert!(p.views.iter().all(|v| v.detail.is_none()));
     assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
-    assert_eq!(sheet_fit::readability(&a, &p).whole_drawing_failures(), 0);
+    assert_eq!(sheet_fit::readability(&a, &p).failures(), 0);
 }
 
 #[test]
-fn a_refused_aperture_crop_keeps_the_useful_enlarged_profile() {
+fn a_readable_whole_profile_keeps_its_controls_without_aperture_crops() {
     let Some(corpus) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
         assert!(std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"));
         return;
@@ -569,20 +562,19 @@ fn a_refused_aperture_crop_keeps_the_useful_enlarged_profile() {
     let p = model::plan_recovered(&a, &model::Spec::default()).unwrap();
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A4", "1:1")
+        ("A1", "5:1")
     );
-    let details: Vec<_> = p.views.iter().filter(|v| v.detail.is_some()).collect();
-    assert_eq!(details.len(), 1);
-    let detail = details[0].detail.as_ref().unwrap();
-    assert_eq!(
-        (detail.kind.as_str(), detail.scale),
-        ("prismatic-steps", 2.0)
-    );
-    assert_eq!(detail.bounds, detail.marked_bounds);
+    assert!(p.views.iter().all(|v| v.detail.is_none()));
     let controls: std::collections::BTreeSet<_> = p
         .dimensions
         .iter()
-        .filter(|d| d.view == details[0].id)
+        .filter(|d| {
+            matches!(
+                d.id.as_str(),
+                "d:step_level/step_height.length.h4_581"
+                    | "d:step_level/step_height.length.h10_385"
+            )
+        })
         .map(|d| d.id.as_str())
         .collect();
     assert_eq!(
@@ -597,24 +589,24 @@ fn a_refused_aperture_crop_keeps_the_useful_enlarged_profile() {
     assert!(
         p.dimensions
             .iter()
-            .filter(|d| d.view == details[0].id)
+            .filter(|d| controls.contains(d.id.as_str()))
             .all(|d| !d.reference && d.placed.is_some())
     );
     assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
     let r = sheet_fit::readability(&a, &p);
     assert_eq!(
         (r.native_openings, r.failures(), r.whole_drawing_failures()),
-        (1, 1, 0)
+        (0, 0, 0)
     );
     assert!(
-        p.problems
+        !p.problems
             .iter()
             .any(|q| q.code == "layout_recovery_exhausted")
     );
 }
 
 #[test]
-fn an_initial_large_profile_does_not_veto_a_useful_same_paper_crop() {
+fn an_automatic_crop_cannot_reduce_the_independent_main_view_scale() {
     let Some(corpus) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
         assert!(std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"));
         return;
@@ -631,21 +623,16 @@ fn an_initial_large_profile_does_not_veto_a_useful_same_paper_crop() {
     let ordinary = model::plan_recovered(&a, &ordinary).unwrap();
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A4", "1:1")
+        ("A3", "2:1")
     );
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
         (ordinary.sheet.size.as_str(), ordinary.sheet.scale.as_str())
     );
     assert_eq!(sheet_fit::readability(&a, &p).failures(), 0);
-    let details: Vec<_> = p.views.iter().filter(|v| v.detail.is_some()).collect();
-    assert_eq!(details.len(), 1);
-    assert_eq!(details[0].scale, 2.0);
-    assert!(
-        p.dimensions
-            .iter()
-            .any(|d| d.view == details[0].id && !d.reference && d.placed.is_some())
-    );
+    assert!(p.views.iter().all(|v| v.detail.is_none()));
+    assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
+    assert!(p.sheets.is_empty());
 }
 
 #[test]

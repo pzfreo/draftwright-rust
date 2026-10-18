@@ -761,6 +761,16 @@ pub(crate) fn small_fallback(
                 let binding = p.spec.binding.clone();
                 p.spec = spec.clone();
                 p.spec.binding = binding;
+                for warning in required
+                    .problems
+                    .iter()
+                    .filter(|p| p.code == "legibility_floor_breached")
+                {
+                    if !p.problems.iter().any(|p| p.id == warning.id) {
+                        p.problems.push(warning.clone());
+                    }
+                }
+                p.status = crate::completeness::status(&p.problems);
                 p.sheet.default = true;
                 p.sheet.basis += "; fixed scale retained on the smallest clean single-sheet paper";
                 return Some(p);
