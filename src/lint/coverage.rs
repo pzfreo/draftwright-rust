@@ -59,14 +59,29 @@ pub const AXIS_TOL: f64 = 1.0;
 
 const AXES: [&str; 3] = ["x", "y", "z"];
 
-/// A number as Python's messages print it (`_fmt`): whole, or to one decimal.
+/// A nominal as live labels print it: shortest within 1e-6, up to three places.
 pub fn fmt(v: f64) -> String {
-    let r = v.round();
-    if (v - r).abs() < 1e-6 {
-        format!("{}", r as i64)
-    } else {
-        format!("{v:.1}")
+    let v = (v * 1e6).round() / 1e6;
+    for places in 0..=3 {
+        let text = format!("{v:.places$}");
+        if places == 3
+            || text
+                .parse::<f64>()
+                .is_ok_and(|n| (n - v).abs() <= 1e-6 + 1e-12)
+        {
+            let text = if places == 0 {
+                text.as_str()
+            } else {
+                text.trim_end_matches('0').trim_end_matches('.')
+            };
+            return if text == "-0" {
+                "0".into()
+            } else {
+                text.into()
+            };
+        }
     }
+    unreachable!()
 }
 
 /// The diameters a text prints: each number after `ø`, `Ø` or `⌀` (Python's `_DIAM_RE`).

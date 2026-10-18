@@ -245,8 +245,8 @@ fn a_flat_without_stock_identity_is_its_own_definition() {
     assert_eq!(got[0].0, "2× 2.4 A/F");
 }
 
-/// Flats of different sizes print with the fewest decimals (up to two) that tell them apart, as
-/// draftwright's `flat_auto_decimals` (6.00 and 6.05 never read `6` and `6.0`).
+/// Every nominal uses its own shortest faithful decimal, intentionally replacing Python's
+/// shared `flat_auto_decimals` policy. Hundredths remain distinct without padding integers.
 #[test]
 fn flats_of_different_sizes_print_decimals_that_tell_them_apart() {
     let Some(plan) = planned("string_post", |i, r| {
@@ -257,7 +257,7 @@ fn flats_of_different_sizes_print_decimals_that_tell_them_apart() {
         return;
     };
     let labels: Vec<String> = items(&plan).into_iter().map(|i| i.0).collect();
-    assert_eq!(labels, ["2.40 A/F", "2.45 A/F"]);
+    assert_eq!(labels, ["2.4 A/F", "2.45 A/F"]);
     let plan = planned("string_post", |i, r| {
         if i == 3 {
             set(r, "across", 3.0.into());
@@ -265,7 +265,7 @@ fn flats_of_different_sizes_print_decimals_that_tell_them_apart() {
     })
     .unwrap();
     let labels: Vec<String> = items(&plan).into_iter().map(|i| i.0).collect();
-    assert_eq!(labels, ["2.4 A/F", "3.0 A/F"]);
+    assert_eq!(labels, ["2.4 A/F", "3 A/F"]);
 }
 
 /// A groove or flat whose record cannot be stated is reported (`feature_not_dimensioned`), never

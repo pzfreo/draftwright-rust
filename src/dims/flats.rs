@@ -11,9 +11,7 @@
 //!   face's `flat.length`.
 //! - **View:** the flats are seen edge-on looking down the stock: [`end_on`] the record's axis
 //!   (draftwright's `presentation_axis`, which draws an exact x/z slant in the side view).
-//! - **Decimals:** with one size the usual format; when the sheet's flats differ in size, the
-//!   fewest decimals (up to two) that tell them apart, for every flat (draftwright's
-//!   `flat_auto_decimals`, there over the sizes the spec keeps, here over every flat).
+//! - **Decimals:** the common shortest faithful nominal format, up to three places.
 //! - **Leader site:** the faces' `at`.
 //!
 //! A flat whose record lacks its size, position or axis, or whose direction does not lie along
@@ -135,26 +133,6 @@ fn definitions(members: &[&Flat]) -> usize {
     }
 }
 
-/// draftwright's flat decimals: none (the usual format) for one size; otherwise the fewest, up to
-/// two, that tell the sizes (to 0.01) apart.
-fn decimals(flats: &[Flat]) -> Option<usize> {
-    let mut sizes: Vec<i64> = flats
-        .iter()
-        .map(|f| (f.across * 100.0).round() as i64)
-        .collect();
-    sizes.sort_unstable();
-    sizes.dedup();
-    if sizes.len() < 2 {
-        None
-    } else if sizes.iter().any(|s| s % 10 != 0) {
-        Some(2)
-    } else if sizes.iter().any(|s| s % 100 != 0) {
-        Some(1)
-    } else {
-        None
-    }
-}
-
 fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let mut problems = Vec::new();
     let mut flats = Vec::new();
@@ -164,11 +142,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             Err(why) => problems.push(not_dimensioned(f, &why)),
         }
     }
-    let places = decimals(&flats);
-    let text = |a: f64| match places {
-        Some(n) => format!("{a:.n$}"),
-        None => fmt(a),
-    };
+    let text = fmt;
     // Stock regions, then callouts of equal definitions, each in order of its first face.
     let mut regions: Vec<Vec<&Flat>> = Vec::new();
     for (i, f) in flats.iter().enumerate() {

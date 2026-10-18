@@ -6,6 +6,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Fixed
+
+- Preserve nominal hundredths and thousandths throughout drawing text: default labels now use
+  the shortest decimal within 1e-6 after noise removal, up to three places. Values requiring
+  more places produce an informational `nominal_rounded` problem with modelled and printed
+  values. Explicit measurement precision still wins; tolerance formatting is unchanged.
+  This intentionally departs from Python's one-decimal `_fmt`.
+
 ### Added
 
 - Consume oriented chamfers from native recognition, claim their faces, and include equal

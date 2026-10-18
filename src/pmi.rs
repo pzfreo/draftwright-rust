@@ -3173,7 +3173,7 @@ fn deviations(upper: f64, lower: f64, places: Option<usize>) -> String {
     }
 }
 
-/// draftwright's `_fmt`: an integer when whole, else one decimal place; or exactly *decimals*
+/// A nominal with at most three decimal places; or exactly *decimals*
 /// places (no negative zero).
 pub fn fmt(v: f64, decimals: Option<usize>) -> String {
     match decimals {
@@ -3189,12 +3189,27 @@ pub fn fmt(v: f64, decimals: Option<usize>) -> String {
             }
         }
         None => {
-            let r = v.round_ties_even();
-            if (v - r).abs() < 1e-6 {
-                format!("{}", r as i64)
-            } else {
-                format!("{v:.1}")
+            let v = (v * 1e6).round() / 1e6;
+            for places in 0..=3 {
+                let text = format!("{v:.places$}");
+                if places == 3
+                    || text
+                        .parse::<f64>()
+                        .is_ok_and(|n| (n - v).abs() <= 1e-6 + 1e-12)
+                {
+                    let text = if places == 0 {
+                        text.as_str()
+                    } else {
+                        text.trim_end_matches('0').trim_end_matches('.')
+                    };
+                    return if text == "-0" {
+                        "0".into()
+                    } else {
+                        text.into()
+                    };
+                }
             }
+            unreachable!()
         }
     }
 }
@@ -3328,7 +3343,8 @@ mod tests {
     #[test]
     fn numbers_format_as_draftwright_formats_them() {
         assert_eq!(fmt(35.0, None), "35");
-        assert_eq!(fmt(3.175, None), "3.2");
+        // Default nominals preserve thousandths; tolerances retain their own policy.
+        assert_eq!(fmt(3.175, None), "3.175");
         assert_eq!(fmt(0.25, Some(3)), "0.250");
         assert_eq!(fmt(-0.0001, Some(2)), "0.00");
         assert_eq!(fmt_magnitude(0.508, None), "0.508");

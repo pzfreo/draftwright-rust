@@ -402,3 +402,51 @@ fn extent_precision_composes_with_default_and_stacked_fit_labels() {
         }
     }
 }
+
+#[test]
+fn default_nominals_preserve_hundredths_and_report_the_three_place_limit() {
+    for (value, expected) in [
+        (4.75, "4.75"),
+        (1.875, "1.875"),
+        (247.65000001, "247.65"),
+        (12., "12"),
+    ] {
+        assert_eq!(dims::fmt(value), expected);
+        // Lint and PMI have independent implementations; compare their live-text policy.
+        assert_eq!(draftwright::lint::coverage::fmt(value), expected);
+        assert_eq!(draftwright::lint::parameters::fmt(value), expected);
+        assert_eq!(draftwright::pmi::fmt(value, None), expected);
+    }
+    let (_, mut a) = analysed("plate");
+    let hole = a.features.iter_mut().find(|f| f.kind == "hole").unwrap();
+    let id = format!("d:{}/bore.diameter", hole.id);
+    hole.parameters.insert("diameter".into(), json!(6.23456));
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
+    assert!(d.label.contains("6.235"), "{}", d.label);
+    let warning = plan
+        .problems
+        .iter()
+        .find(|p| p.code == "nominal_rounded" && p.subjects.contains(&id))
+        .unwrap();
+    assert_eq!(warning.severity, "info");
+    assert!(warning.message.contains("6.23456") && warning.message.contains("6.235"));
+    let mut spec = Spec::default();
+    spec.precision.insert(id.clone(), 5);
+    let exact = model::plan(&a, &spec).unwrap();
+    assert!(
+        exact
+            .dimensions
+            .iter()
+            .find(|d| d.id == id)
+            .unwrap()
+            .label
+            .contains("6.23456")
+    );
+    assert!(
+        !exact
+            .problems
+            .iter()
+            .any(|p| p.code == "nominal_rounded" && p.subjects.contains(&id))
+    );
+}

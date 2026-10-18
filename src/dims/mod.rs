@@ -371,17 +371,10 @@ pub struct Omitted {
     pub state: crate::items::State,
 }
 
-/// draftwright's number format (`_fmt`): a whole number bare, anything else to one decimal.
-/// Geometric noise below 1e-6 mm is removed first, so 247.64999999 reads as 247.65 does.
+/// Shortest nominal within 1e-6 after noise removal, bounded to three decimal places.
+/// Unlike Python's `_fmt`, this preserves modelled hundredths and thousandths.
 pub fn fmt(v: f64) -> String {
-    let v = (v * 1e6).round() / 1e6;
-    let r = v.round();
-    if (v - r).abs() < 1e-6 {
-        format!("{}", if r == 0.0 { 0 } else { r as i64 })
-    } else {
-        let text = format!("{v:.1}");
-        if text == "-0.0" { "0.0".into() } else { text }
-    }
+    crate::nominal::format(v)
 }
 
 type P3 = [f64; 3];
