@@ -16,12 +16,16 @@ fn include(a: &mut Rect, b: Rect) {
 }
 
 fn measured(plan: &Plan, v: &crate::model::PlannedView) -> bool {
+    let name = v.id.trim_start_matches("v:");
     (v.id == "v:iso" || v.cut.is_some())
-        && plan
-            .spec
-            .views
-            .get(v.id.trim_start_matches("v:"))
-            .is_none_or(|v| v.place.is_none())
+        // Authored relations use the literal footprint, including the anchor's.
+        // Cross-sheet footprints also reserve reference text and define zones.
+        && v.xref.is_none()
+        && v.cut.as_ref().is_none_or(|c| c.xref.is_none())
+        && plan.spec.views.get(name).is_none_or(|v| v.place.is_none())
+        && !plan.spec.views.values().any(|v| {
+            v.place.as_ref().is_some_and(|p| p.relative_to == name)
+        })
 }
 
 /// Reserved annotation bands, enlarged to contain settled ink and view furniture.
@@ -60,6 +64,16 @@ fn bands(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
     // Label clearance is occupied paper too, including beside the title and
     // fixed furniture. Keep the two mm used by measured annotation packing.
     let label_clearance = |b: Rect| [b[0] - 2.0, b[1] - 2.0, b[2] + 2.0, b[3] + 2.0];
+    let reference_box = |prefix: &str, r: &crate::sheets::CrossRef| {
+        let text = format!("{prefix} SHEET {}, ZONE {}", r.sheet, r.zone);
+        let laid = crate::dims::font().text(&text, crate::section::FONT_SIZE);
+        label_clearance([
+            r.at[0] + laid.min[0],
+            r.at[1] + laid.min[1],
+            r.at[0] + laid.max[0],
+            r.at[1] + laid.max[1],
+        ])
+    };
     for d in &plan.dimensions {
         if let Some(p) = &d.placed {
             own(&d.view, label_clearance(p.label_box));
@@ -97,6 +111,17 @@ fn bands(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
         own(&b.view, r);
     }
     for v in &plan.views {
+        if let Some(r) = &v.xref {
+            own(&v.id, reference_box("FROM", r));
+        }
+        if let Some(c) = &v.cut
+            && let Some(r) = &c.xref
+        {
+            own(
+                &c.marked_in,
+                reference_box(&format!("SECTION {}–{},", c.label, c.label), r),
+            );
+        }
         for w in &v.line_work {
             for c in &w.curves {
                 own(&v.id, c.bbox());
@@ -271,7 +296,10 @@ fn translations(
             .is_some_and(|p| p.pinned);
         let pinned = pinned_item || pinned_view
             // Cross-sheet references encode both destination zones and local stations.
-            || v.xref.is_some() || v.cut.as_ref().is_some_and(|c| c.xref.is_some());
+            || v.xref.is_some() || v.cut.as_ref().is_some_and(|c| c.xref.is_some())
+            || plan.views.iter().any(|section| section.cut.as_ref().is_some_and(|c| {
+                c.marked_in == v.id && c.xref.is_some()
+            }));
         if pinned {
             for edges in &mut hard {
                 equality(edges, i, n);
