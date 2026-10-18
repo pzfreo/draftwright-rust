@@ -1,5 +1,12 @@
 # Next session: handoff (2026-10-08)
 
+## Derived PMI kernel pin (2026-10-18)
+
+haecceity and quiddity temporarily pin quiddity-rust merge commit
+`6ab5f29df418a06ee26e86ce1f7b010b653e1ade` for PMI document format 2 / reader
+`haecceity-pmi-read/7` derived geometry. Return both dependencies to a tag at the next
+quiddity release. Keep the release-pin checker unchanged; a rev-pin complaint is a warning.
+
 ## Release 0.1.0-alpha.4 (2026-10-16)
 
 Both workspace crates and Cargo.lock are at `0.1.0-alpha.4`; README and CHANGELOG cover

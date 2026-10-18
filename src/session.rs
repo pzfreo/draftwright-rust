@@ -1367,6 +1367,23 @@ fn settable(
             }
         }
     }
+    let callout_paths: Vec<_> =
+        item.features
+            .iter()
+            .filter(|id| {
+                analysis.features.iter().any(|f| {
+                    &f.id == *id && matches!(f.kind.as_str(), "hole" | "turned_step" | "boss")
+                })
+            })
+            .map(|id| format!("features/{}/callouts/style", items::key(id)))
+            .collect();
+    if let Some(path) = callout_paths.first() {
+        let mut descriptor = choices(json!(["auto", "compact", "full", "note"]));
+        if callout_paths.len() > 1 {
+            descriptor["paths"] = json!(callout_paths);
+        }
+        fields.insert(path.clone(), descriptor);
+    }
     for (classes, paths) in fits {
         let mut descriptor = choices(json!(classes));
         if paths.len() > 1 {
@@ -1375,6 +1392,10 @@ fn settable(
         fields.insert(paths[0].clone(), descriptor);
     }
     if item.item.kind == "sheet" {
+        fields.insert(
+            "sheet/callouts/style".into(),
+            choices(json!(["auto", "compact", "full", "note"])),
+        );
         for field in crate::linework::FIELDS {
             fields.insert(format!("sheet/{field}"), choices(json!([false, true])));
         }
@@ -1398,6 +1419,10 @@ fn settable(
             || patterns.iter().any(|p| &p.id == feature);
         if known {
             let base = format!("features/{}", items::key(feature));
+            fields.insert(
+                format!("{base}/callouts/style"),
+                choices(json!(["auto", "compact", "full", "note"])),
+            );
             fields.insert(format!("{base}/datum"), json!({"forms":["A"]}));
             fields.insert(
                 format!("{base}/controls"),
@@ -1440,6 +1465,10 @@ fn settable(
         fields.insert(
             "sheet/title".into(),
             json!({"fields":crate::title_block::KEYS.map(|k|k.0),"forms":["text"]}),
+        );
+        fields.insert(
+            "sheet/view_gutter".into(),
+            json!({"forms":["non-negative paper mm (default 25; 0 disables)"]}),
         );
         fields.insert("sheet/fit_limits".into(), choices(json!([false, true])));
         fields.insert("sheet/fit_deviations".into(), choices(json!([false, true])));

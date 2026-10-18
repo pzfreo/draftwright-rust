@@ -9,6 +9,7 @@ pub mod api;
 pub mod arc;
 pub mod blends;
 pub mod bridge;
+pub mod callouts;
 pub mod centrelines;
 pub mod completeness;
 pub mod cosmetic;
@@ -52,6 +53,7 @@ mod nominal;
 mod notches;
 mod oriented_chamfers;
 mod planning;
+mod view_gutters;
 
 pub mod iso_caption;
 

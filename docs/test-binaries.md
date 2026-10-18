@@ -10,18 +10,18 @@ The two corpus-wide harness targets and the two latency-sensitive targets remain
 
 | Target | Tests | Original source modules |
 | --- | ---: | --- |
-| `core` | 270 | `api_analysis`, `assembly_parts`, `bridge`, `cli_native`, `editor_session`, `engine_version`, `facts`, `gears`, `gzip`, `identity`, `mcp`, `mcp_efficiency`, `mcp_spec_schema`, `model`, `native`, `native_recesses`, `pmi`, `pmi_lowering`, `pmi_thread_knurl`, `recognition_corrections`, `serve`, `sheets_mcp`, `stateless`, `test_support` |
-| `dimensions` | 325 | `angled_steps`, `authored_dimensions`, `coverage_holes`, `datum_placement`, `dimension_rules`, `dimension_schemes`, `dimensions`, `dims_blends`, `dims_edges`, `dims_grooves_flats`, `dims_plates`, `dims_recesses`, `dims_slots`, `dims_spotface`, `dims_steps`, `dims_stock`, `dims_turned`, `fit_label_layout`, `hole_tables`, `planned_hole_tables`, `plate_coverage`, `pmi_angular`, `pmi_dimensions`, `precision`, `repeated_dimensions`, `tolerances` |
-| `rendering` | 460 | `bands`, `centrelines`, `detail_views`, `fix_relayout`, `gdt_band`, `h5_chains`, `interior_placement`, `iso_nts`, `label_lanes`, `label_rows`, `label_text`, `layout`, `leader_rules`, `leaders`, `line_through_feature`, `linework`, `linework_spec`, `notes`, `oriented_chamfers`, `output`, `page_escalation`, `pinned_callouts`, `pinned_offset`, `placement`, `placement_intent`, `projection_alignment`, `pmi_drawings`, `pmi_labels`, `png`, `render_caches`, `render_panics`, `repeated_labels`, `sections`, `sheet_fill`, `sheet_projection`, `sheets`, `sheets_lint`, `sheets_render`, `sheets_xref`, `spec_gdt`, `spec_notes`, `surface_texture`, `tables`, `text`, `timezone`, `title_block`, `title_block_material`, `views`, `views_layout_rules` |
+| `core` | 279 | `api_analysis`, `assembly_parts`, `bridge`, `cli_native`, `editor_session`, `engine_version`, `facts`, `gears`, `gzip`, `identity`, `mcp`, `mcp_efficiency`, `mcp_spec_schema`, `model`, `native`, `native_recesses`, `pmi`, `pmi_lowering`, `pmi_thread_knurl`, `recognition_corrections`, `serve`, `sheets_mcp`, `stateless`, `test_support` |
+| `dimensions` | 336 | `angled_steps`, `authored_dimensions`, `coverage_holes`, `datum_placement`, `dimension_rules`, `dimension_schemes`, `dimensions`, `dims_blends`, `dims_edges`, `dims_grooves_flats`, `dims_plates`, `dims_recesses`, `dims_slots`, `dims_spotface`, `dims_steps`, `dims_stock`, `dims_turned`, `fit_label_layout`, `hole_tables`, `planned_hole_tables`, `plate_coverage`, `pmi_angular`, `pmi_dimensions`, `precision`, `repeated_dimensions`, `tolerances` |
+| `rendering` | 472 | `bands`, `centrelines`, `detail_views`, `fix_relayout`, `gdt_band`, `h5_chains`, `interior_placement`, `iso_nts`, `label_lanes`, `label_rows`, `label_text`, `layout`, `leader_rules`, `leaders`, `line_through_feature`, `linework`, `linework_spec`, `notes`, `oriented_chamfers`, `output`, `page_escalation`, `pinned_callouts`, `pinned_offset`, `placement`, `placement_intent`, `projection_alignment`, `pmi_drawings`, `pmi_labels`, `png`, `render_caches`, `render_panics`, `repeated_labels`, `sections`, `sheet_fill`, `sheet_projection`, `sheets`, `sheets_lint`, `sheets_render`, `sheets_xref`, `spec_gdt`, `spec_notes`, `surface_texture`, `table_symbols`, `tables`, `text`, `timezone`, `title_block`, `title_block_material`, `views`, `views_layout_rules` |
 | `audits` | 158 | `completeness`, `completeness_rules`, `issue_regressions`, `items`, `lint`, `lint_coverage`, `lint_family_rest`, `lint_fidelity`, `lint_structural`, `ownership_rules`, `pmi_coverage`, `problem_wording`, `review_leftovers`, `rule_pins`, `rules_catalogue`, `rules_text`, `trust_rules` |
 | `issue_drafting` | 37 | `issue_drafting` (separate process scope) |
 | `issue_trust` | 13 | `issue_trust` (separate process scope) |
 | `session` | 8 | `session` (separate process scope) |
 | `multi_sheet_latency` | 1 | `multi_sheet_latency` (separate process scope) |
 
-The current source inventory contains 1,272 integration tests. This includes the
-title-field regressions (seven drawing-number tests and the original GRM-03 AP242
-material), plus the faithful-nominal, interrupted-flat and rescue-table regressions.
+The current source inventory contains 1,304 integration tests. The table-symbol
+regressions add four tests covering inline ink, declared tables and numbered notes,
+GRM-03 manufacturing requirements, and the 30 quality parts.
 Historical before/after measurements below retain their original counts.
 
 ## Running tests

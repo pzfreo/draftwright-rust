@@ -1914,7 +1914,7 @@
     "side": "rust",
     "family": "callout",
     "view": "front",
-    "label": "4× ⌀10.541 THRU ⌴ ⌀15.88 ↧ 12.7 (2×2)",
+    "label": "4× ⌀10.541 THRU ⌴ ⌀15.88\n↧ 12.7 (2×2)",
     "count": 1,
     "verdict": "rust-correct",
     "reason": "Faithful nominal display intentionally replaces Python one-decimal rounding; exact model hundredths/thousandths are retained up to three places. Existing ownership and view differences remain independently listed (docs/drawn-values-2026-10-18.md)."
@@ -1924,7 +1924,7 @@
     "side": "rust",
     "family": "callout",
     "view": "plan",
-    "label": "2× ⌀14.287 THRU ⌴ ⌀20.64 ↧ 14.29",
+    "label": "2× ⌀14.287 THRU ⌴ ⌀20.64\n↧ 14.29",
     "count": 1,
     "verdict": "rust-correct",
     "reason": "Faithful nominal display intentionally replaces Python one-decimal rounding; exact model hundredths/thousandths are retained up to three places. Existing ownership and view differences remain independently listed (docs/drawn-values-2026-10-18.md)."
@@ -1934,7 +1934,7 @@
     "side": "rust",
     "family": "callout",
     "view": "plan",
-    "label": "4× ⌀7.137 THRU ⌴ ⌀10.16 ↧ 7.94",
+    "label": "4× ⌀7.137 THRU ⌴ ⌀10.16\n↧ 7.94",
     "count": 1,
     "verdict": "rust-correct",
     "reason": "Faithful nominal display intentionally replaces Python one-decimal rounding; exact model hundredths/thousandths are retained up to three places. Existing ownership and view differences remain independently listed (docs/drawn-values-2026-10-18.md)."

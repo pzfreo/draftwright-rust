@@ -265,11 +265,15 @@ fn unchanged_view_pins_at_the_margin_are_not_off_sheet() {
     for name in ["1000", "10000", "1004"] {
         let (_, a) = model::analyse_native(&c.join(format!("mfcadpp/{name}.step"))).unwrap();
         let base = model::plan_recovered(&a, &Spec::default()).unwrap();
+        // Pin the reported default gap: automatic bands now spend spare paper.
+        let front = base.views.iter().find(|v| v.id == "v:front").unwrap();
+        let top = base.views.iter().find(|v| v.id == "v:plan").unwrap();
+        let gap = top.area[1] - front.area[3];
         let s = set(
             &Spec::default(),
             "v:plan",
             "place",
-            json!({"relative_to":"front","side":"above","gap":0,"align":"middle","pinned":true}),
+            json!({"relative_to":"front","side":"above","gap":gap,"align":"middle","pinned":true}),
         );
         let pinned = model::plan_recovered(&a, &s).unwrap();
         assert_eq!(

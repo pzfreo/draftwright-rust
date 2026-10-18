@@ -214,9 +214,21 @@ fn stc09_without_a_complete_fit_keeps_its_first_drawing_and_reports_the_floor() 
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
         (first.sheet.size.as_str(), first.sheet.scale.as_str())
     );
+    // Recovery retains the first geometry; the final allocator may add slack-only gutters.
+    let mut unspaced = Spec::default();
+    unspaced.sheet.view_gutter = Some(0.0);
+    let unspaced = model::plan_recovered(&a, &unspaced).unwrap();
     assert_eq!(
-        serde_json::to_value(&p.views).unwrap(),
+        serde_json::to_value(&unspaced.views).unwrap(),
         serde_json::to_value(&first.views).unwrap()
+    );
+    assert_eq!(
+        p.views.iter().map(|v| (&v.id, v.scale)).collect::<Vec<_>>(),
+        first
+            .views
+            .iter()
+            .map(|v| (&v.id, v.scale))
+            .collect::<Vec<_>>()
     );
     assert!(p.sheet.scale_factor < draftwright::sheet_fit::min_legible_scale(&a));
     let said = p

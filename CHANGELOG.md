@@ -6,18 +6,17 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Added
+
+- Pin a projected view's gap with `views/<name>/place/align: "projection"` while keeping
+  geometry on its projection line despite asymmetric dimension bands. Valid front/plan
+  and front/side pairs offer it first in `item_options`; other pairs refuse it with choices.
+
 ### Fixed
 
-- Merge interrupted coplanar flat faces on the same stock in Draftwright's bridge (a repair
-  for quiddity's per-face flat recognition). Reserve A/F for opposing parallel flats; a
-  single flat retains the Python flat-to-far-side nominal without A/F. Proven height and
-  axis-location spans now carry flat measurement claims, including when its callout is omitted.
-- Preserve nominal hundredths and thousandths throughout drawing text: default labels now use
-  the shortest decimal within 1e-6 after noise removal, up to three places. Values requiring
-  more places produce an informational `nominal_rounded` problem with modelled and printed
-  values. Explicit measurement precision still wins; tolerance formatting is unchanged.
-  This intentionally departs from Python's one-decimal `_fmt`. Longer accurate labels now
-  settle against the finished drawing ink, preserving readable leaders and paper clearance.
+- Draw AP242 dimensions and tolerances on resolved derived axes and planes, preserving
+  authored values, tolerances and MAX/MIN/AVG qualifiers. GRM-03 now carries its ten
+  semantic sizes and lengths instead of geometric fallback dimensions.
 - Default drawing numbers to a leading part-number token in the STEP product name, then
   the file stem (including numeric names such as `10000`), before `DWG-001`. Explicit Spec
   numbers, including blanks, win; readable titles retain the part number (#103).
@@ -41,12 +40,6 @@ All notable changes to draftwright-rust are recorded here, in the style of
 - Clarify that view placement gaps measure between annotation bands, not part outlines,
   in the Spec schema, MCP item options and documentation. Tools/list stays at 34,477
   compact schema bytes.
-
-### Added
-
-- Pin a projected view's gap with `views/<name>/place/align: "projection"` while keeping
-  geometry on its projection line despite asymmetric dimension bands. Valid front/plan
-  and front/side pairs offer it first in `item_options`; other pairs refuse it with choices.
 
 ## 0.1.0-alpha.5 (2026-10-18)
 

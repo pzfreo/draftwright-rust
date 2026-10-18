@@ -779,7 +779,12 @@ fn rows(
             d.terms
                 .iter()
                 .position(|t| t == "↧")
-                .and_then(|k| d.terms.get(k + 1))
+                .and_then(|k| {
+                    d.terms
+                        .iter()
+                        .skip(k + 1)
+                        .find(|t| !crate::callouts::is_break(t))
+                })
                 .cloned()
                 .unwrap_or_default()
         };
@@ -2119,9 +2124,14 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
             {
                 continue;
             }
-            let terms = d.terms.iter().skip(usize::from(
-                d.terms.first().is_some_and(|t| t.ends_with('×')),
-            ));
+            let terms = d
+                .terms
+                .iter()
+                .filter(|t| !crate::callouts::is_break(t))
+                .skip(usize::from(
+                    d.terms.first().is_some_and(|t| t.ends_with('×')),
+                ))
+                .take_while(|t| t.as_str() != "EQ" && !t.starts_with("EQ SP"));
             // Array grammar locates members only in the leader version; the schedule's physical
             // member ordinates replace it. Compound recess/thread wording is retained verbatim.
             // Explicit nominal formatting has already been applied to these terms. Parsing

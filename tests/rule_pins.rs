@@ -196,7 +196,7 @@ fn opposed_coaxial_taps_keep_authored_left_and_right_callouts() {
     let p = model::plan_recovered(&a, &s).unwrap();
     for ((f, _), (side, label)) in holes
         .iter()
-        .zip([("left", "⌀2 ↧ 6 M2x0.4"), ("right", "⌀4 ↧ 3 M4x0.7")])
+        .zip([("left", "M2\n⌀2 ↧ 6"), ("right", "M4\n⌀4 ↧ 3")])
     {
         let d = p
             .dimensions

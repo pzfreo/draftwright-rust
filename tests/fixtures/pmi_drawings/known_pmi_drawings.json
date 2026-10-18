@@ -402,32 +402,6 @@
   "evidence": "known_pmi.json (record, rust-correct): Python's record is part 1's 'default tolerances' (#1667, ISO 2768-f) left unpaired: as for #1571, draftwright pairs a general tolerance only when the file has exactly one. The port reads part 1's requirement in words #1662 ('ISO 2768-f') and its class #1667 ('ISO 2768-f') as one record, manufacturing_requirement:#1662, with #1667's 'tolerance class' field. On the drawing: draftwright's is not drawn, refused (pmi_not_extracted, pmi_not_lowered); the port has no such record, so neither draws nor reports it."
  },
  {
-  "file": "assembly_plate_pin.step",
-  "record": "manufacturing_requirement:#1526",
-  "port": "manufacturing_requirement:#1526",
-  "field": "drawing",
-  "python": {
-   "codes": [
-    "pmi_not_extracted",
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "rust": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "dimension",
-     "rides_on": "bore.diameter",
-     "text": "⌀4.2 M5 x 0.8-6H RH; THRU",
-     "view": "plan"
-    }
-   ]
-  },
-  "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: not drawn (it cannot extract the requirement: 'thread presentation callouts have multiple distinct supports', so it never reaches lower_ap242_manufacturing_requirements); the port's: '⌀4.2 M5 x 0.8-6H RH; THRU' on the plan view's callout of the through hole f:hole:6. The port reads it paired with part 0's structured statement #1551 (known_pmi.json's 'fields' difference, rust-correct) and gives it, as lower_ap242_manufacturing_requirements does, to the one feature its cylinder proves (⌀4.2, the tapping drill, through the plate); the callout is draftwright's grammar (hole_callout_spec: the through tap's suffix states THRU, so the bore's own THRU is dropped). As known_pmi_coverage.json (pmi_not_lowered, rust-correct)."
- },
- {
   "file": "bolt_thread_knurl.step",
   "record": "dimension:0:1:4:1",
   "port": "dimension:#418",
@@ -451,56 +425,6 @@
   },
   "verdict": "rust-correct",
   "evidence": "draftwright's drawing: not drawn, refused (pmi_not_rendered); the port's: '⌀6 +0.0 -0.008' (dimension, front view, on step.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright does not draw it (pmi_not_rendered: AP242 source dimension:0:1:4:1 reached typed drafting IR but produced no annotation). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀6 +0.0 -0.008'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
- },
- {
-  "file": "bolt_thread_knurl.step",
-  "record": "manufacturing_requirement:#444",
-  "port": "manufacturing_requirement:#444",
-  "field": "drawing",
-  "python": {
-   "codes": [
-    "pmi_not_rendered"
-   ],
-   "outcome": "refused"
-  },
-  "rust": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "dimension",
-     "rides_on": "od.diameter",
-     "text": "⌀10 SEE MFG 1",
-     "view": "front"
-    }
-   ]
-  },
-  "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: not drawn (pmi_not_rendered: its typed thread reached the IR but no annotation prints it); the port's: 'ø10 SEE MFG 1' on the overall diameter, with the manufacturing requirements table's row MFG 1 'M10 x 1.5-6g RH, FULL AVAILABLE LENGTH'. Both give the thread to the same owner, the ø10 turned step f:turned_step:1 (lower_ap242_manufacturing_requirements; its structured thread length 14 is the cylinder's), and both plan the same table (two requirements, the knurl's suffix 56 characters; draftwright places it: manufacturing_table in the fixture equals the port's rows); but draftwright's overall diameter prints no thread and it draws no diameter of its own for that step, so its own lint finds the requirement not drawn. The port's overall diameter states that band, so it carries the reference. As known_pmi_coverage.json (pmi_not_rendered, rust-correct)."
- },
- {
-  "field": "drawing",
-  "file": "bolt_thread_knurl.step",
-  "port": "manufacturing_requirement:#475",
-  "python": {
-   "codes": [
-    "pmi_not_rendered"
-   ],
-   "outcome": "refused"
-  },
-  "record": "manufacturing_requirement:#475",
-  "rust": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "dimension",
-     "rides_on": "step.diameter",
-     "text": "⌀6.25 SEE MFG 2",
-     "view": "front"
-    }
-   ]
-  },
-  "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: not drawn (pmi_not_rendered: its typed knurl reached the IR but no annotation prints it); the port's: 'ø6.2 SEE MFG 2' on the ø6.25 turned step's diameter (f:turned_step:2), with the table's row MFG 2 'ø6.25 MAX AFTER KNURL; STRAIGHT KNURL P1; CUT/FORMED PERMITTED'. Both give the knurl to that step and plan the same table, but draftwright draws no diameter for the step (its renderer's gap, which its lint reports), so the requirement is lost from its sheet; the port states it. ('6.2' is how both print 6.25 at one decimal, _fmt; the table states 6.25.) As known_pmi_coverage.json (pmi_not_rendered, rust-correct). Only nominal display changes to shortest faithful decimals up to three places; tolerances, claims and rendering outcomes are retained (drawn-values-2026-10-18)."
  },
  {
   "file": "bracket_positions.step",
@@ -3211,21 +3135,21 @@
   "evidence": "known_pmi.json (record, rust-correct): draftwright keeps an XCAF occurrence of datum C that it could not project onto the datum's Part 21 definition (datum #127 has 0 related DATUM_FEATUREs), beside its record for the datum; the port reads one record per datum from Part 21: datum:#127 (part 0) is paired with another of draftwright's records for it. On the drawing: draftwright's is not drawn, refused (pmi_not_extracted, pmi_not_lowered); the port has no such record, so neither draws nor reports it."
  },
  {
-  "field": "drawing",
   "file": "nist_ftc_07_asme1_ap242-e2.stp",
-  "port": "dimension:#15130",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "dimension",
-     "rides_on": "bore.diameter",
-     "text": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6",
-     "view": "front"
-    }
-   ]
-  },
   "record": "dimension:0:1:4:85",
+  "port": "dimension:#15130",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6",
+     "view": "front"
+    }
+   ]
+  },
   "rust": {
    "drawn": [
     {
@@ -3241,39 +3165,10 @@
   "evidence": "draftwright's drawing: '4× ⌀6.3 +0.0762 -0.0 ↧ 7.6' (dimension, front view, on bore.diameter); the port's: '4× ⌀6.3 +0.0762 -0.0 ↧ 7.6 (2×2)' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (label, equivalent): Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Only nominal display changes to shortest faithful decimals up to three places; tolerances, claims and rendering outcomes are retained (drawn-values-2026-10-18)."
  },
  {
-  "field": "drawing",
   "file": "nist_ftc_07_asme1_ap242-e2.stp",
-  "port": "dimension:#15238",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "dimension",
-     "rides_on": "bore.diameter",
-     "text": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6",
-     "view": "front"
-    }
-   ]
-  },
   "record": "dimension:0:1:4:87",
-  "rust": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "dimension",
-     "rides_on": "bore.diameter",
-     "text": "4× ⌀6.35 +0.0762 -0.0 ↧ 7.62 (2×2)",
-     "view": "front"
-    }
-   ]
-  },
-  "verdict": "equivalent",
-  "evidence": "draftwright's drawing: '4× ⌀6.3 +0.0762 -0.0 ↧ 7.6' (dimension, front view, on bore.diameter); the port's: '4× ⌀6.3 +0.0762 -0.0 ↧ 7.6 (2×2)' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (label, equivalent): Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Only nominal display changes to shortest faithful decimals up to three places; tolerances, claims and rendering outcomes are retained (drawn-values-2026-10-18)."
- },
- {
+  "port": "dimension:#15238",
   "field": "drawing",
-  "file": "nist_ftc_07_asme1_ap242-e2.stp",
-  "port": "dimension:#15344",
   "python": {
    "drawn": [
     {
@@ -3285,7 +3180,6 @@
     }
    ]
   },
-  "record": "dimension:0:1:4:89",
   "rust": {
    "drawn": [
     {
@@ -3301,16 +3195,46 @@
   "evidence": "draftwright's drawing: '4× ⌀6.3 +0.0762 -0.0 ↧ 7.6' (dimension, front view, on bore.diameter); the port's: '4× ⌀6.3 +0.0762 -0.0 ↧ 7.6 (2×2)' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (label, equivalent): Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Only nominal display changes to shortest faithful decimals up to three places; tolerances, claims and rendering outcomes are retained (drawn-values-2026-10-18)."
  },
  {
-  "field": "drawing",
   "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:89",
+  "port": "dimension:#15344",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6",
+     "view": "front"
+    }
+   ]
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "4× ⌀6.35 +0.0762 -0.0 ↧ 7.62 (2×2)",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "equivalent",
+  "evidence": "draftwright's drawing: '4× ⌀6.3 +0.0762 -0.0 ↧ 7.6' (dimension, front view, on bore.diameter); the port's: '4× ⌀6.3 +0.0762 -0.0 ↧ 7.6 (2×2)' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (label, equivalent): Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Only nominal display changes to shortest faithful decimals up to three places; tolerances, claims and rendering outcomes are retained (drawn-values-2026-10-18)."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:94",
   "port": "dimension:#15653",
+  "field": "drawing",
   "python": {
    "codes": [
     "authored_dim_source_unresolved"
    ],
    "outcome": "refused"
   },
-  "record": "dimension:0:1:4:94",
   "rust": {
    "drawn": [
     {
@@ -3326,16 +3250,16 @@
   "evidence": "draftwright's drawing: not drawn, refused (authored_dim_source_unresolved); the port's: '3× ⌀22.2 ±0.254 THRU' (dimension, side view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.875 ±0.01 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '3× ⌀22.2 ±0.254 THRU'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Only nominal display changes to shortest faithful decimals up to three places; tolerances, claims and rendering outcomes are retained (drawn-values-2026-10-18)."
  },
  {
-  "field": "drawing",
   "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:96",
   "port": "dimension:#15745",
+  "field": "drawing",
   "python": {
    "codes": [
     "authored_dim_source_unresolved"
    ],
    "outcome": "refused"
   },
-  "record": "dimension:0:1:4:96",
   "rust": {
    "drawn": [
     {
@@ -3351,16 +3275,16 @@
   "evidence": "draftwright's drawing: not drawn, refused (authored_dim_source_unresolved); the port's: '4× ⌀15.1 +0.3048 -0.0508 THRU' (dimension, plan view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.594 +0.012/-0.002 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀15.1 +0.3048 -0.0508 THRU'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Only nominal display changes to shortest faithful decimals up to three places; tolerances, claims and rendering outcomes are retained (drawn-values-2026-10-18)."
  },
  {
-  "field": "drawing",
   "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:97",
   "port": "dimension:#15791",
+  "field": "drawing",
   "python": {
    "codes": [
     "authored_dim_source_unresolved"
    ],
    "outcome": "refused"
   },
-  "record": "dimension:0:1:4:97",
   "rust": {
    "drawn": [
     {
@@ -3402,16 +3326,16 @@
   "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: '0.30 ±0.02 INCH' (dimension, side view). As known_pmi_dimensions.json (outcome, rust-correct): draftwright found no room and dropped this source requirement (plan_incomplete: the automatically planned sheet drops 23 required annotation outcome(s) (hole_pattern_dim_dropped, location_ref_dropped, plate_thickness_dropped, pmi_dropped); pmi_dropped: PMI '0.30 ±0.02 INCH' not placed (no room beside the side)); the port places it with the other planned dimensions, any collision reported against its ID."
  },
  {
-  "field": "drawing",
   "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:100",
   "port": "dimension:#16004",
+  "field": "drawing",
   "python": {
    "codes": [
     "authored_dim_source_unresolved"
    ],
    "outcome": "refused"
   },
-  "record": "dimension:0:1:4:100",
   "rust": {
    "drawn": [
     {
@@ -4919,9 +4843,10 @@
   "evidence": "known_pmi.json (record, rust-correct): #19654, a position 0.8 tolerance on supplemental geometry (NIST's expected PMI: '⌖ | ⌀0.8 Ⓟ 3.2 | D | E | B' and the F, G frames). XCAF does not transfer it, so draftwright's census has no source for it (silently missing). The port reads it, partially: the projected tolerance zone is not carried; applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges. On the drawing: the port's is not drawn, refused (pmi_not_lowered); draftwright has no such record."
  },
  {
-  "field": "drawing",
   "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "dimension:0:1:4:3",
   "port": "dimension:#8744",
+  "field": "drawing",
   "python": {
    "codes": [
     "authored_dim_source_unresolved",
@@ -4929,7 +4854,6 @@
    ],
    "outcome": "refused"
   },
-  "record": "dimension:0:1:4:3",
   "rust": {
    "drawn": [
     {
@@ -4945,9 +4869,10 @@
   "evidence": "draftwright's drawing: not drawn, refused (authored_dim_source_unresolved, pmi_not_extracted); the port's: '2× ⌀6.3 ±0.2032 ↧ 12.7' (dimension, plan view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.250 ±0.008 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists; pmi_not_extracted: AP242 dimension dimension:0:1:4:3 was discovered but not extracted: Part21 dimension correspondence is ambiguous for 'Hole Callout  (Radi). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '2× ⌀6.3 ±0.2032 ↧ 12.7'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Only nominal display changes to shortest faithful decimals up to three places; tolerances, claims and rendering outcomes are retained (drawn-values-2026-10-18)."
  },
  {
-  "field": "drawing",
   "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "dimension:0:1:4:7",
   "port": "dimension:#8982",
+  "field": "drawing",
   "python": {
    "codes": [
     "authored_dim_source_unresolved",
@@ -4955,7 +4880,6 @@
    ],
    "outcome": "refused"
   },
-  "record": "dimension:0:1:4:7",
   "rust": {
    "drawn": [
     {
@@ -4971,16 +4895,16 @@
   "evidence": "draftwright's drawing: not drawn, refused (authored_dim_source_unresolved, pmi_not_extracted); the port's: '4× ⌀10.5 ±0.2032 THRU ⌴ ⌀15.9 ↧ 12.7 (2×2)' (dimension, plan view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.415 ±0.008 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists; pmi_not_extracted: AP242 dimension dimension:0:1:4:7 was discovered but not extracted: Part21 dimension correspondence is ambiguous for 'Hole Callout  (Radi). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀10.5 ±0.2032 THRU ⌴ ⌀15.9 ↧ 12.7 (2×2)'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Only nominal display changes to shortest faithful decimals up to three places; tolerances, claims and rendering outcomes are retained (drawn-values-2026-10-18)."
  },
  {
-  "field": "drawing",
   "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "dimension:0:1:4:9",
   "port": "dimension:#9112",
+  "field": "drawing",
   "python": {
    "codes": [
     "authored_dim_source_unresolved"
    ],
    "outcome": "refused"
   },
-  "record": "dimension:0:1:4:9",
   "rust": {
    "drawn": [
     {
@@ -5072,16 +4996,16 @@
   "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: '12.00 ±0.01 INCH' (dimension, side view). As known_pmi_dimensions.json (outcome, rust-correct): draftwright found no room and dropped this source requirement (plan_incomplete: the automatically planned sheet drops 19 required annotation outcome(s) (hole_pattern_dim_dropped, location_ref_dropped, off_axis_location_dropped, plate_thickness_dropped, pmi_dropped); pmi_dropped: PMI '12.00 ±0.01 INCH' not placed (no room beside the side)); the port places it with the other planned dimensions, any collision reported against its ID."
  },
  {
-  "field": "drawing",
   "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "dimension:0:1:4:93",
   "port": "dimension:#11272",
+  "field": "drawing",
   "python": {
    "codes": [
     "authored_dim_source_unresolved"
    ],
    "outcome": "refused"
   },
-  "record": "dimension:0:1:4:93",
   "rust": {
    "drawn": [
     {
@@ -6000,17 +5924,17 @@
   "evidence": "known_pmi.json (record, rust-correct): draftwright keeps an XCAF occurrence of datum F that it could not project onto the datum's Part 21 definition (datum reference faces are not coaxial), beside its record for the datum; the port reads one record per datum from Part 21: datum:#8519 (part 0) is paired with another of draftwright's records for it. On the drawing: draftwright's is not drawn, refused (pmi_not_extracted, pmi_not_lowered); the port has no such record, so neither draws nor reports it."
  },
  {
-  "field": "drawing",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "port": "dimension:#9797",
-  "python": {
-   "codes": [
-    "callout_dropped",
-    "plan_incomplete"
-   ],
-   "outcome": "dropped"
-  },
   "record": "dimension:0:1:4:92",
+  "port": "dimension:#9797",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "callout_dropped",
+    "plan_incomplete"
+   ],
+   "outcome": "dropped"
+  },
   "rust": {
    "drawn": [
     {
@@ -6026,17 +5950,17 @@
   "evidence": "draftwright's drawing: not drawn, dropped (callout_dropped, plan_incomplete); the port's: '4× ⌀5.9 ±0.2032 THRU (2×2)' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø5.9 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. Only nominal display changes to shortest faithful decimals up to three places; tolerances, claims and rendering outcomes are retained (drawn-values-2026-10-18)."
  },
  {
-  "field": "drawing",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "port": "dimension:#9820",
-  "python": {
-   "codes": [
-    "callout_dropped",
-    "plan_incomplete"
-   ],
-   "outcome": "dropped"
-  },
   "record": "dimension:0:1:4:93",
+  "port": "dimension:#9820",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "callout_dropped",
+    "plan_incomplete"
+   ],
+   "outcome": "dropped"
+  },
   "rust": {
    "drawn": [
     {
@@ -6052,17 +5976,17 @@
   "evidence": "draftwright's drawing: not drawn, dropped (callout_dropped, plan_incomplete); the port's: '4× ⌀5.9 ±0.2032 THRU (2×2)' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø5.9 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. Only nominal display changes to shortest faithful decimals up to three places; tolerances, claims and rendering outcomes are retained (drawn-values-2026-10-18)."
  },
  {
-  "field": "drawing",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
-  "port": "dimension:#9843",
-  "python": {
-   "codes": [
-    "callout_dropped",
-    "plan_incomplete"
-   ],
-   "outcome": "dropped"
-  },
   "record": "dimension:0:1:4:94",
+  "port": "dimension:#9843",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "callout_dropped",
+    "plan_incomplete"
+   ],
+   "outcome": "dropped"
+  },
   "rust": {
    "drawn": [
     {
@@ -6078,9 +6002,10 @@
   "evidence": "draftwright's drawing: not drawn, dropped (callout_dropped, plan_incomplete); the port's: '4× ⌀5.9 ±0.2032 THRU (2×2)' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø5.9 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. Only nominal display changes to shortest faithful decimals up to three places; tolerances, claims and rendering outcomes are retained (drawn-values-2026-10-18)."
  },
  {
-  "field": "drawing",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:95",
   "port": "dimension:#9866",
+  "field": "drawing",
   "python": {
    "codes": [
     "callout_dropped",
@@ -6088,7 +6013,6 @@
    ],
    "outcome": "dropped"
   },
-  "record": "dimension:0:1:4:95",
   "rust": {
    "drawn": [
     {
@@ -6104,9 +6028,10 @@
   "evidence": "draftwright's drawing: not drawn, dropped (callout_dropped, plan_incomplete); the port's: '3× ⌀6.3 +0.0762 -0.0 THRU' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø6.3 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count). Only nominal display changes to shortest faithful decimals up to three places; tolerances, claims and rendering outcomes are retained (drawn-values-2026-10-18)."
  },
  {
-  "field": "drawing",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:96",
   "port": "dimension:#9889",
+  "field": "drawing",
   "python": {
    "drawn": [
     {
@@ -6118,7 +6043,6 @@
     }
    ]
   },
-  "record": "dimension:0:1:4:96",
   "rust": {
    "drawn": [
     {
@@ -6134,9 +6058,10 @@
   "evidence": "draftwright's drawing: '⌀6.3 +0.0762 -0.0 THRU' (dimension, front view, on bore.diameter); the port's: '3× ⌀6.3 +0.0762 -0.0 THRU' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (label, rust-correct): Both give the AP242 tolerance to the hole callout; haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count), and the port's callout counts the holes the requirement applies to, draftwright's names one. Only nominal display changes to shortest faithful decimals up to three places; tolerances, claims and rendering outcomes are retained (drawn-values-2026-10-18)."
  },
  {
-  "field": "drawing",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:99",
   "port": "dimension:#10063",
+  "field": "drawing",
   "python": {
    "codes": [
     "callout_dropped",
@@ -6144,7 +6069,6 @@
    ],
    "outcome": "dropped"
   },
-  "record": "dimension:0:1:4:99",
   "rust": {
    "drawn": [
     {
@@ -6186,9 +6110,10 @@
   "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: '0.375 ±0.008 INCH' (dimension, front view). As known_pmi_dimensions.json (outcome, rust-correct): draftwright found no room and dropped this source requirement (plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped); pmi_dropped: PMI '0.375 ±0.008 INCH' not placed (no room beside the front)); the port places it with the other planned dimensions, any collision reported against its ID."
  },
  {
-  "field": "drawing",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:104",
   "port": "dimension:#10191",
+  "field": "drawing",
   "python": {
    "codes": [
     "callout_dropped",
@@ -6196,7 +6121,6 @@
    ],
    "outcome": "dropped"
   },
-  "record": "dimension:0:1:4:104",
   "rust": {
    "drawn": [
     {
@@ -6212,9 +6136,10 @@
   "evidence": "draftwright's drawing: not drawn, dropped (callout_dropped, plan_incomplete); the port's: '7× ⌀4.0 ±0.2032 THRU' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø4.0 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count). The two ⌀4.0 records (dimension:#10191, 3 holes, and dimension:#10311, 4 holes) state the same tolerance, and the port calls out the seven identical holes once, the one callout carrying both records' tolerance (its plan's dimension measurements name both). Only nominal display changes to shortest faithful decimals up to three places; tolerances, claims and rendering outcomes are retained (drawn-values-2026-10-18)."
  },
  {
-  "field": "drawing",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:105",
   "port": "dimension:#10215",
+  "field": "drawing",
   "python": {
    "drawn": [
     {
@@ -6226,7 +6151,6 @@
     }
    ]
   },
-  "record": "dimension:0:1:4:105",
   "rust": {
    "drawn": [
     {
@@ -6242,9 +6166,10 @@
   "evidence": "draftwright's drawing: '⌀8.0 ±0.2032 THRU' (dimension, front view, on bore.diameter); the port's: '2× ⌀8.0 ±0.2032 THRU' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (label, rust-correct): Both give the AP242 tolerance to the hole callout; haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count), and the port's callout counts the holes the requirement applies to, draftwright's names one. Only nominal display changes to shortest faithful decimals up to three places; tolerances, claims and rendering outcomes are retained (drawn-values-2026-10-18)."
  },
  {
-  "field": "drawing",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:106",
   "port": "dimension:#10239",
+  "field": "drawing",
   "python": {
    "drawn": [
     {
@@ -6256,7 +6181,6 @@
     }
    ]
   },
-  "record": "dimension:0:1:4:106",
   "rust": {
    "drawn": [
     {
@@ -6272,9 +6196,10 @@
   "evidence": "draftwright's drawing: '⌀7.1 ±0.2032 THRU' (dimension, front view, on bore.diameter); the port's: '3× ⌀7.1 ±0.2032 THRU' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (label, rust-correct): Both give the AP242 tolerance to the hole callout; haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count), and the port's callout counts the holes the requirement applies to, draftwright's names one. Only nominal display changes to shortest faithful decimals up to three places; tolerances, claims and rendering outcomes are retained (drawn-values-2026-10-18)."
  },
  {
-  "field": "drawing",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:108",
   "port": "dimension:#10287",
+  "field": "drawing",
   "python": {
    "codes": [
     "callout_dropped",
@@ -6282,7 +6207,6 @@
    ],
    "outcome": "dropped"
   },
-  "record": "dimension:0:1:4:108",
   "rust": {
    "drawn": [
     {
@@ -6298,9 +6222,10 @@
   "evidence": "draftwright's drawing: not drawn, dropped (callout_dropped, plan_incomplete); the port's: '2× ⌀5.6 ±0.2032 THRU' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø5.6 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count). Only nominal display changes to shortest faithful decimals up to three places; tolerances, claims and rendering outcomes are retained (drawn-values-2026-10-18)."
  },
  {
-  "field": "drawing",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "record": "dimension:0:1:4:109",
   "port": "dimension:#10311",
+  "field": "drawing",
   "python": {
    "codes": [
     "callout_dropped",
@@ -6308,7 +6233,6 @@
    ],
    "outcome": "dropped"
   },
-  "record": "dimension:0:1:4:109",
   "rust": {
    "drawn": [
     {
@@ -8139,74 +8063,6 @@
   "evidence": "S5 native symbolic-bore port: this source declares its literal ISO 286 H7/H11 class without numeric limits. Proven internal cylinders correlate uniquely to the recognised bore owner; its native text now retains the class without computing unstated limits or duplicating the dimension. Python drops the class (and draws the 62 mm bore separately). The symbolic-fit regression and unchanged exact-one-outcome/NIST open-question tests verify the reading and owner. Maintainer decision 2026-10-16: the default drawing states the class alone; sheet/fit_deviations explicitly adds stacked upper/lower deviations."
  },
  {
-  "file": "hw_string_post_tapped_intent.step",
-  "record": "manufacturing_requirement:#3143",
-  "port": "manufacturing_requirement:#3143",
-  "field": "record",
-  "python": null,
-  "rust": {
-   "drawing": {
-    "codes": [
-     "pmi_not_lowered"
-    ],
-    "outcome": "refused"
-   },
-   "record": {
-    "kind": "internal_thread",
-    "label": "internal thread"
-   }
-  },
-  "verdict": "rust-correct",
-  "evidence": "S5 reads this semantic metric thread and its uniquely paired manufacturing attribute into one native requirement, preserving their fields, support and both provenance sets (tests/editor_session.rs). The historical field full thread depth is not silently reinterpreted as minimum full thread; native lowering therefore reports this requirement as not lowered. Python has no paired record. The exhaustive drawn-or-reported and exact comparison gates remain unchanged."
- },
- {
-  "file": "hw_thumbwheel_thread_knurl_intent.step",
-  "record": "manufacturing_requirement:#704",
-  "port": "manufacturing_requirement:#704",
-  "field": "record",
-  "python": null,
-  "rust": {
-   "drawing": {
-    "codes": [
-     "pmi_not_lowered"
-    ],
-    "outcome": "refused"
-   },
-   "record": {
-    "kind": "internal_thread",
-    "label": "internal thread"
-   }
-  },
-  "verdict": "rust-correct",
-  "evidence": "S5 reads this semantic metric thread and its uniquely paired manufacturing attribute into one native requirement, preserving their fields, support and both provenance sets (tests/editor_session.rs). The historical field full thread depth is not silently reinterpreted as minimum full thread; native lowering therefore reports this requirement as not lowered. Python has no paired record. The exhaustive drawn-or-reported and exact comparison gates remain unchanged."
- },
- {
-  "file": "hw_thumbwheel_thread_knurl_intent.step",
-  "record": "manufacturing_requirement:#726",
-  "port": "manufacturing_requirement:#726",
-  "field": "record",
-  "python": null,
-  "rust": {
-   "drawing": {
-    "drawn": [
-     {
-      "boxed": false,
-      "kind": "dimension",
-      "rides_on": "step.diameter",
-      "text": "M5 x 0.8-6g RH, FULL AVAILABLE LENGTH",
-      "view": "front"
-     }
-    ]
-   },
-   "record": {
-    "kind": "external_thread",
-    "label": "external thread"
-   }
-  },
-  "verdict": "rust-correct",
-  "evidence": "Stream f1-ext-threads-knurl (#23) reads this semantic external metric thread and its uniquely paired manufacturing attribute (pitch 0.8, thread length) into one structured external_thread, lowered to the ø5 turned step: its callout prints the designation in place of the plain diameter (ISO 6410, as #23 asks) and the front view draws the minor-diameter thin lines. Python leaves the semantic thread unextracted, so has no paired record. tests/pmi_thread_knurl.rs checks the same path on the editor's spindle."
- },
- {
   "file": "assembly_plate_pin.step",
   "record": "dimension:0:1:4:6",
   "port": "dimension:#1358",
@@ -8668,6 +8524,370 @@
   },
   "verdict": "rust-correct",
   "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): the port draws this record's span once, on the PMI dimension that states the same span with the same label, which claims this record; draftwright draws each record standalone, so the sheet repeated it."
+ },
+ {
+  "field": "drawing",
+  "file": "assembly_plate_pin.step",
+  "port": "manufacturing_requirement:#1526",
+  "python": {
+   "codes": [
+    "pmi_not_extracted",
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "record": "manufacturing_requirement:#1526",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "M5-6H THRU",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn (it cannot extract the requirement: 'thread presentation callouts have multiple distinct supports', so it never reaches lower_ap242_manufacturing_requirements); the port's: '⌀4.2 M5 x 0.8-6H RH; THRU' on the plan view's callout of the through hole f:hole:6. The port reads it paired with part 0's structured statement #1551 (known_pmi.json's 'fields' difference, rust-correct) and gives it, as lower_ap242_manufacturing_requirements does, to the one feature its cylinder proves (⌀4.2, the tapping drill, through the plate); the callout is draftwright's grammar (hole_callout_spec: the through tap's suffix states THRU, so the bore's own THRU is dropped). As known_pmi_coverage.json (pmi_not_lowered, rust-correct). Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+ },
+ {
+  "field": "drawing",
+  "file": "bolt_thread_knurl.step",
+  "port": "manufacturing_requirement:#444",
+  "python": {
+   "codes": [
+    "pmi_not_rendered"
+   ],
+   "outcome": "refused"
+  },
+  "record": "manufacturing_requirement:#444",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "od.diameter",
+     "text": "M10-6g",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn (pmi_not_rendered: its typed thread reached the IR but no annotation prints it); the port's: 'ø10 SEE MFG 1' on the overall diameter, with the manufacturing requirements table's row MFG 1 'M10 x 1.5-6g RH, FULL AVAILABLE LENGTH'. Both give the thread to the same owner, the ø10 turned step f:turned_step:1 (lower_ap242_manufacturing_requirements; its structured thread length 14 is the cylinder's), and both plan the same table (two requirements, the knurl's suffix 56 characters; draftwright places it: manufacturing_table in the fixture equals the port's rows); but draftwright's overall diameter prints no thread and it draws no diameter of its own for that step, so its own lint finds the requirement not drawn. The port's overall diameter states that band, so it carries the reference. As known_pmi_coverage.json (pmi_not_rendered, rust-correct). Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+ },
+ {
+  "field": "drawing",
+  "file": "bolt_thread_knurl.step",
+  "port": "manufacturing_requirement:#475",
+  "python": {
+   "codes": [
+    "pmi_not_rendered"
+   ],
+   "outcome": "refused"
+  },
+  "record": "manufacturing_requirement:#475",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "⌀6.25 SEE MFG 1",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn (pmi_not_rendered: its typed knurl reached the IR but no annotation prints it); the port's: 'ø6.2 SEE MFG 2' on the ø6.25 turned step's diameter (f:turned_step:2), with the table's row MFG 2 'ø6.25 MAX AFTER KNURL; STRAIGHT KNURL P1; CUT/FORMED PERMITTED'. Both give the knurl to that step and plan the same table, but draftwright draws no diameter for the step (its renderer's gap, which its lint reports), so the requirement is lost from its sheet; the port states it. ('6.2' is how both print 6.25 at one decimal, _fmt; the table states 6.25.) As known_pmi_coverage.json (pmi_not_rendered, rust-correct). Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+ },
+ {
+  "field": "record",
+  "file": "hw_string_post_tapped_intent.step",
+  "port": "manufacturing_requirement:#3143",
+  "python": null,
+  "record": "manufacturing_requirement:#3143",
+  "rust": {
+   "drawing": {
+    "drawn": [
+     {
+      "boxed": false,
+      "kind": "dimension",
+      "rides_on": "bore.diameter",
+      "text": "M2-6H ↧ 2.5 ⌀1.6 ↧ 4",
+      "view": "plan"
+     }
+    ]
+   },
+   "record": {
+    "kind": "internal_thread",
+    "label": "internal thread"
+   }
+  },
+  "verdict": "rust-correct",
+  "evidence": "The stated full thread depth alias is now lowered: 2.5 mm full thread, with the original tapping drill and drill depth. The previous unsupported-field refusal is fixed. See docs/thread-callouts.md."
+ },
+ {
+  "field": "drawing",
+  "file": "hw_thumbwheel_notes_add.step",
+  "port": "manufacturing_requirement:#689",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "⌀1.6 ↧ 3.8 SEE MFG 1",
+     "view": "side"
+    }
+   ]
+  },
+  "record": "manufacturing_requirement:#689",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "M2-6H ↧ 2.5 ⌀1.6 ↧ 3.8",
+     "view": "side"
+    }
+   ]
+  },
+  "verdict": "equivalent",
+  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+ },
+ {
+  "field": "drawing",
+  "file": "hw_thumbwheel_notes_add.step",
+  "port": "manufacturing_requirement:#722",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "⌀6 SEE MFG 2",
+     "view": "front"
+    }
+   ]
+  },
+  "record": "manufacturing_requirement:#722",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "⌀6 MAX AFTER KNURL SEE MFG 1 DIAMOND KNURL P1",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "equivalent",
+  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+ },
+ {
+  "field": "drawing",
+  "file": "hw_thumbwheel_notes_add.step",
+  "port": "manufacturing_requirement:#749",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "⌀5 SEE MFG 3",
+     "view": "front"
+    }
+   ]
+  },
+  "record": "manufacturing_requirement:#749",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "M5-6g",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "equivalent",
+  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+ },
+ {
+  "field": "record",
+  "file": "hw_thumbwheel_thread_knurl_intent.step",
+  "port": "manufacturing_requirement:#704",
+  "python": null,
+  "record": "manufacturing_requirement:#704",
+  "rust": {
+   "drawing": {
+    "drawn": [
+     {
+      "boxed": false,
+      "kind": "dimension",
+      "rides_on": "bore.diameter",
+      "text": "M2-6H ↧ 2.5 ⌀1.6 ↧ 3.8",
+      "view": "side"
+     }
+    ]
+   },
+   "record": {
+    "kind": "internal_thread",
+    "label": "internal thread"
+   }
+  },
+  "verdict": "rust-correct",
+  "evidence": "The stated full thread depth alias is now lowered: 2.5 mm full thread, with the original tapping drill and drill depth. The previous unsupported-field refusal is fixed. See docs/thread-callouts.md."
+ },
+ {
+  "field": "record",
+  "file": "hw_thumbwheel_thread_knurl_intent.step",
+  "port": "manufacturing_requirement:#726",
+  "python": null,
+  "record": "manufacturing_requirement:#726",
+  "rust": {
+   "drawing": {
+    "drawn": [
+     {
+      "boxed": false,
+      "kind": "dimension",
+      "rides_on": "step.diameter",
+      "text": "M5-6g",
+      "view": "front"
+     }
+    ]
+   },
+   "record": {
+    "kind": "external_thread",
+    "label": "external thread"
+   }
+  },
+  "verdict": "rust-correct",
+  "evidence": "Stream f1-ext-threads-knurl (#23) reads this semantic external metric thread and its uniquely paired manufacturing attribute (pitch 0.8, thread length) into one structured external_thread, lowered to the ø5 turned step: its callout prints the designation in place of the plain diameter (ISO 6410, as #23 asks) and the front view draws the minor-diameter thin lines. Python leaves the semantic thread unextracted, so has no paired record. tests/pmi_thread_knurl.rs checks the same path on the editor's spindle. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+ },
+ {
+  "field": "drawing",
+  "file": "string_post_tapped.step",
+  "port": "manufacturing_requirement:#3157",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "⌀1.6 ↧ 4 M2 x 0.4-6H RH; 2.5 MIN FULL THREAD",
+     "view": "plan"
+    }
+   ]
+  },
+  "record": "manufacturing_requirement:#3157",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "M2-6H ↧ 2.5 ⌀1.6 ↧ 4",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "equivalent",
+  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+ },
+ {
+  "field": "drawing",
+  "file": "thumbwheel_thread_knurl.step",
+  "port": "manufacturing_requirement:#689",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "⌀1.6 ↧ 3.8 SEE MFG 1",
+     "view": "side"
+    }
+   ]
+  },
+  "record": "manufacturing_requirement:#689",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "M2-6H ↧ 2.5 ⌀1.6 ↧ 3.8",
+     "view": "side"
+    }
+   ]
+  },
+  "verdict": "equivalent",
+  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+ },
+ {
+  "field": "drawing",
+  "file": "thumbwheel_thread_knurl.step",
+  "port": "manufacturing_requirement:#722",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "⌀6 SEE MFG 2",
+     "view": "front"
+    }
+   ]
+  },
+  "record": "manufacturing_requirement:#722",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "⌀6 MAX AFTER KNURL SEE MFG 1 DIAMOND KNURL P1",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "equivalent",
+  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+ },
+ {
+  "field": "drawing",
+  "file": "thumbwheel_thread_knurl.step",
+  "port": "manufacturing_requirement:#749",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "⌀5 SEE MFG 3",
+     "view": "front"
+    }
+   ]
+  },
+  "record": "manufacturing_requirement:#749",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "M5-6g",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "equivalent",
+  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
  },
  {
   "field": "drawing",

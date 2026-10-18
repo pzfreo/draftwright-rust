@@ -155,6 +155,22 @@ pub(super) fn proofs(
     analysis: &Analysis,
     views: &[PlannedView],
 ) -> BTreeMap<String, std::rc::Rc<Proof>> {
+    prepared_proofs(analysis, views, false)
+}
+
+/// Datum placement can prove exterior paper without a square planar face.
+pub(super) fn exterior_proofs(
+    analysis: &Analysis,
+    views: &[PlannedView],
+) -> BTreeMap<String, std::rc::Rc<Proof>> {
+    prepared_proofs(analysis, views, true)
+}
+
+fn prepared_proofs(
+    analysis: &Analysis,
+    views: &[PlannedView],
+    exterior: bool,
+) -> BTreeMap<String, std::rc::Rc<Proof>> {
     let Some(ink) = analysis.edge_ink.as_ref() else {
         return BTreeMap::new();
     };
@@ -167,16 +183,26 @@ pub(super) fn proofs(
             let canonical =
                 crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[])
                     .unwrap_or(false);
-            let key = serde_json::to_vec(&(v.direction, v.up, canonical))
+            let key = serde_json::to_vec(&(v.direction, v.up, canonical, exterior))
                 .expect("projection inputs serialize");
             let mut proof = crate::planning::memo(analysis, "interior", key, || {
-                build(ink, v, centre).map(|mut p| {
+                let prepared = if exterior {
+                    build_camera_with_exterior(ink, v.direction, v.up, centre, true)
+                } else {
+                    build(ink, v, centre)
+                };
+                prepared.map(|mut p| {
                     // Replay the established comparison's old attachment recipe.
                     // Actual drawings always require visible physical attachments.
                     p.require_visible_attachment = !canonical;
                     std::rc::Rc::new(p)
                 })
             })?;
+            // Preserve the established eligibility of dimension/interior routing.
+            // Only datum exterior placement opts into entirely turned views.
+            if !exterior && proof.faces.is_empty() {
+                return None;
+            }
             // A cutting-plane line this view marks is fixed ink; its letters are boxes.
             for cut in views.iter().filter_map(|q| q.cut.as_ref()) {
                 let name = v.id.trim_start_matches("v:");
@@ -219,6 +245,16 @@ fn build_camera(
     direction: [f64; 3],
     up: [f64; 3],
     centre: P2,
+) -> Option<Proof> {
+    build_camera_with_exterior(ink, direction, up, centre, false)
+}
+
+fn build_camera_with_exterior(
+    ink: &crate::model::projected_ink::EdgeInk,
+    direction: [f64; 3],
+    up: [f64; 3],
+    centre: P2,
+    exterior: bool,
 ) -> Option<Proof> {
     let view = haecceity::hlr::View::new(direction, up)?;
     let d = direction;
@@ -277,7 +313,13 @@ fn build_camera(
         })
         .filter(|face| !face.chords.is_empty())
         .collect();
-    if faces.is_empty() {
+    if !exterior && faces.is_empty() {
+        return None;
+    }
+    // An entirely turned part has no plane square to a side view, but its
+    // curved-face covers still prove exterior paper. `blank` continues to
+    // require a containing planar face for every interior label.
+    if exterior_faces.is_empty() && ink.curved.is_empty() {
         return None;
     }
     let mut boxes = Vec::new();
@@ -464,8 +506,20 @@ impl Proof {
     /// with the same ink margins as face-interior labels. Curved faces use their
     /// full bounds (including end-on cylinders), so this fails closed near them.
     pub(super) fn exterior_annotation_clear(&self, v: &PlannedView, p: &Placed) -> bool {
-        let lo = self.model_point(v, [p.label_box[0], p.label_box[1]]);
-        let hi = self.model_point(v, [p.label_box[2], p.label_box[3]]);
+        self.exterior_clear(v, p.label_box, &p.lines, &p.arrows)
+    }
+
+    /// Prove annotation ink on exterior paper within the view's overall bounds.
+    /// Shared by compact datum placement and collision reporting.
+    pub(super) fn exterior_clear(
+        &self,
+        v: &PlannedView,
+        label: [f64; 4],
+        lines: &[[P2; 2]],
+        arrows: &[[P2; 2]],
+    ) -> bool {
+        let lo = self.model_point(v, [label[0], label[1]]);
+        let hi = self.model_point(v, [label[2], label[3]]);
         let b = [lo[0], lo[1], hi[0], hi[1]];
         let c = 0.5 / v.scale + SLACK;
         let middle = [(b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0];
@@ -488,8 +542,8 @@ impl Proof {
                         % 2
                         == 0
             })
-            && p.lines.iter().all(|s| self.segment_clear(v, *s, false))
-            && p.arrows.iter().all(|s| self.arrow_clear(v, *s, false))
+            && lines.iter().all(|s| self.segment_clear(v, *s, false))
+            && arrows.iter().all(|s| self.arrow_clear(v, *s, false))
     }
 
     /// A visible profile attachment and its complete exterior ink. Unlike an
@@ -1112,6 +1166,45 @@ mod tests {
 
     fn proof(ink: &EdgeInk) -> Proof {
         build(ink, &view(), [0., 0.]).unwrap()
+    }
+
+    #[test]
+    fn a_turned_part_proves_exterior_paper_without_a_planar_interior() {
+        let mut ink = EdgeInk {
+            resolved: Vec::new(),
+            references: Default::default(),
+            edges: vec![],
+            planes: vec![],
+            curved: vec![CurvedFace {
+                bounds: [[0.0, -5.0, -5.0], [20.0, 5.0, 5.0]],
+                cylinder: Some(Cylinder {
+                    origin: [0.0; 3],
+                    axis: [1.0, 0.0, 0.0],
+                    radius: 5.0,
+                }),
+            }],
+        };
+        let v = view();
+        let p = build_camera_with_exterior(&ink, v.direction, v.up, [0.0; 2], true).unwrap();
+        let label = [3.0, 8.0, 9.0, 14.0];
+        assert!(
+            !p.blank(&v, label),
+            "no planar face can carry an interior label"
+        );
+        assert!(p.exterior_clear(&v, label, &[[[4.0, 6.5], [4.0, 8.0]]], &[]));
+        assert!(
+            !p.exterior_clear(&v, [3.0, -1.0, 9.0, 1.0], &[], &[]),
+            "empty line-work cannot excuse a box inside the cylinder"
+        );
+        assert!(
+            !p.exterior_clear(&v, label, &[[[4.0, -1.0], [4.0, 8.0]]], &[]),
+            "the shaft must also stay off the cylinder's silhouette"
+        );
+        ink.curved.clear();
+        assert!(
+            build_camera_with_exterior(&ink, v.direction, v.up, [0.0; 2], true).is_none(),
+            "missing surface evidence fails closed"
+        );
     }
 
     fn semicircle() -> Vec<P2> {

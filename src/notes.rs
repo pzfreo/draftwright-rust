@@ -326,7 +326,7 @@ fn plan_with_rows(
     // Row *i*'s ink centre, counted from the heading, and its cell's bottom.
     let font = crate::dims::font();
     let centre = |x0: f64, top: f64, i: usize, row: &str| {
-        let laid = font.baseline(&ink(row), TEXT);
+        let laid = tables::text_ink(row, font);
         let mid = top - (i as f64 + 0.5) * row_height;
         [x0 + pen + 0.5 * (laid.min[0] + laid.max[0]), mid]
     };
@@ -530,7 +530,7 @@ pub(crate) fn radius_notes(
                 .iter()
                 .enumerate()
                 .map(|(i, row)| {
-                    let laid = crate::dims::font().baseline(&ink(row), TEXT);
+                    let laid = tables::text_ink(row, crate::dims::font());
                     [
                         x + pen + 0.5 * (laid.min[0] + laid.max[0]),
                         y + h - (i as f64 + 0.5) * ROW,

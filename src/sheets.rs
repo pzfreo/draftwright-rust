@@ -358,6 +358,7 @@ pub(crate) fn allocate_counted(
             }
         }
         crate::iso_caption::refresh(analysis, &mut plan);
+        crate::view_gutters::apply(analysis, &mut plan);
         Ok(plan)
     })();
     *steps += RUNS.with(Cell::get) - before;

@@ -12853,23 +12853,5 @@
   "source": "manufacturing_requirement:#1543",
   "verdict": "rust-correct",
   "evidence": "S5 reads semantic metric thread #1543 and its paired attribute into one requirement, preserving both sets of provenance (tests/editor_session.rs). This historical haecceity writer states full thread depth, which the native manufacturing vocabulary does not accept as minimum full thread; the record is therefore reported as not lowered rather than silently reinterpreted. Python leaves the semantic thread as an unprojected source and has no corresponding lint finding. The exclusive drawn-or-reported gate remains enabled."
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "hw_string_post_tapped_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "manufacturing_requirement:#3143",
-  "verdict": "rust-correct",
-  "evidence": "S5 reads semantic metric thread #3143 and its paired attribute into one requirement, preserving both sets of provenance (tests/editor_session.rs). This historical haecceity writer states full thread depth, which the native manufacturing vocabulary does not accept as minimum full thread; the record is therefore reported as not lowered rather than silently reinterpreted. Python leaves the semantic thread as an unprojected source and has no corresponding lint finding. The exclusive drawn-or-reported gate remains enabled."
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "hw_thumbwheel_thread_knurl_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "manufacturing_requirement:#704",
-  "verdict": "rust-correct",
-  "evidence": "S5 reads semantic metric thread #704 and its paired attribute into one requirement, preserving both sets of provenance (tests/editor_session.rs). This historical haecceity writer states full thread depth, which the native manufacturing vocabulary does not accept as minimum full thread; the record is therefore reported as not lowered rather than silently reinterpreted. Python leaves the semantic thread as an unprojected source and has no corresponding lint finding. The exclusive drawn-or-reported gate remains enabled."
  }
 ]
