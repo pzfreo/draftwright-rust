@@ -99,6 +99,8 @@ def findings(plan):
 def reasons(plan):
     basis = plan['sheet']['basis']
     prefix = ''
+    if 'independently recovered ordinary drawing without automatic details' in basis:
+        prefix = 'Ordinary readable main retained: a smaller reduction makes openings or depictions unreadable. No automatic detail purchases paper. '
     rejected = re.search(r'no new crossing pairs are allowed; rejected drawing (A[0-4]) at ', basis)
     if rejected and PAPERS.index(rejected.group(1)) < PAPERS.index(plan['sheet']['size']):
         prefix = 'Smaller-paper candidate adds crossing pairs against the retained fitted drawing. '
