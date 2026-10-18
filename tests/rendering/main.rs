@@ -85,6 +85,8 @@ mod spec_gdt;
 mod spec_notes;
 #[path = "../surface_texture.rs"]
 mod surface_texture;
+#[path = "../table_symbols.rs"]
+mod table_symbols;
 #[path = "../tables.rs"]
 mod tables;
 #[path = "../text.rs"]
