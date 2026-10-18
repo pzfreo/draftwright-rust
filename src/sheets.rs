@@ -359,6 +359,9 @@ pub(crate) fn allocate_counted(
         }
         crate::iso_caption::refresh(analysis, &mut plan);
         crate::view_gutters::apply(analysis, &mut plan);
+        // Gutters translate the isometric while schedules stay fixed. Resolve
+        // its caption against that finished furniture, not the earlier frame.
+        crate::iso_caption::refresh(analysis, &mut plan);
         Ok(plan)
     })();
     *steps += RUNS.with(Cell::get) - before;
