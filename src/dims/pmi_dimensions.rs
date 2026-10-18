@@ -735,17 +735,34 @@ pub(super) fn lower(cx: &Context, wants: &mut [Want]) -> Lowered {
     // Qualifiers belong to the requirement even when a recognised size owns its ink.
     for r in &records {
         if let Some(q) = qualifier(r) {
+            let manufacturing = crate::pmi_lowering::manufacturing(cx.analysis);
             let id = feature(&ids, &r.source_id);
             for w in wants
                 .iter_mut()
                 .filter(|w| w.measurements.iter().any(|m| m.feature == id))
             {
-                if !w.terms.iter().any(|t| t == q) {
-                    let suffix = w
-                        .terms
-                        .iter()
-                        .position(|t| matches!(t.as_str(), "SEE" | "THRU" | "↧" | "EQ"))
-                        .unwrap_or(w.terms.len());
+                let suffix = manufacturing
+                    .owned
+                    .iter()
+                    .filter(|o| {
+                        o.knurl_values().is_some()
+                            && w.measurements.iter().any(|m| m.feature == o.id)
+                    })
+                    .find_map(|o| {
+                        let terms = manufacturing.terms(&o.owner).0;
+                        (!terms.is_empty())
+                            .then(|| w.terms.windows(terms.len()).position(|s| s == terms))
+                            .flatten()
+                    })
+                    .unwrap_or_else(|| {
+                        w.terms
+                            .iter()
+                            .position(|t| matches!(t.as_str(), "SEE" | "THRU" | "↧" | "EQ"))
+                            .unwrap_or(w.terms.len())
+                    });
+                // An equal word in the knurl's manufacturing suffix is not the
+                // size's qualifier: that suffix may subsequently move into a note.
+                if !w.terms[..suffix].iter().any(|t| t == q) {
                     w.terms.insert(suffix, q.into());
                 }
             }

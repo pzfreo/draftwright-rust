@@ -1565,24 +1565,38 @@ fn derived_requirements_preserve_tolerance_bands_on_owned_and_standalone_dimensi
         r.lower_tol = Some(-0.01);
         r.label = label.into();
     }
-    for style in ["auto", "note", "compact", "full"] {
-        let spec = serde_json::from_value(serde_json::json!({
-            "sheet": {"callouts": {"style": style}}
-        }))
-        .unwrap();
-        let plan = model::plan(&a, &spec).unwrap();
-        for id in [841, 1040, 914] {
-            let r = records(&a).iter().find(|r| r.part21_id == id).unwrap();
-            let d = stating(&plan, &a, r).unwrap();
-            assert!(d.placed.is_some(), "{style}: {d:?}");
-            assert!(
-                d.label.contains("+0.02") && d.label.contains("-0.01"),
-                "{style}: {d:?}"
-            );
-            if id == 914 {
-                assert!(d.label.contains(" MAX"), "{style}: {d:?}");
-                if let Some(see) = d.label.find(" SEE") {
-                    assert!(d.label.find(" MAX").unwrap() < see, "{style}: {d:?}");
+    // A lone knurl does not use the legacy manufacturing schedule. Its raw
+    // MAX AFTER KNURL must not stand in for the size's independent MAX qualifier.
+    for include_threads in [true, false] {
+        let mut a = a.clone();
+        if !include_threads {
+            let Some(Reading::Read(report)) = &mut a.pmi else {
+                unreachable!()
+            };
+            report
+                .records
+                .retain(|r| r.category != Category::ManufacturingRequirement || r.kind == "knurl");
+        }
+        for style in ["auto", "note", "compact", "full"] {
+            let spec = serde_json::from_value(serde_json::json!({
+                "sheet": {"callouts": {"style": style}}
+            }))
+            .unwrap();
+            let plan = model::plan(&a, &spec).unwrap();
+            for id in [841, 1040, 914] {
+                let r = records(&a).iter().find(|r| r.part21_id == id).unwrap();
+                let d = stating(&plan, &a, r).unwrap();
+                assert!(d.placed.is_some(), "{style}: {d:?}");
+                assert!(
+                    d.label.contains("+0.02") && d.label.contains("-0.01"),
+                    "{style}: {d:?}"
+                );
+                if id == 914 {
+                    assert!(d.label.contains(" MAX"), "{style}: {d:?}");
+                    if style != "full" {
+                        let see = d.label.find("SEE MFG").expect("knurl note reference");
+                        assert!(d.label.find(" MAX").unwrap() < see, "{style}: {d:?}");
+                    }
                 }
             }
         }
