@@ -2062,6 +2062,15 @@ fn shorten_wrapped_callouts(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
             );
         }
     }
+    candidate.sheet.fill = crate::sheet_fit::fill(analysis, &candidate);
+    if let Some((before, tail)) = candidate.sheet.basis.split_once("; drawn-item fill ")
+        && let Some((_, after)) = tail.split_once('%')
+    {
+        candidate.sheet.basis = format!(
+            "{before}; drawn-item fill {:.1}%{after}",
+            candidate.sheet.fill * 100.0
+        );
+    }
     candidate.status = crate::completeness::status(&candidate.problems);
     *plan = candidate;
 }
