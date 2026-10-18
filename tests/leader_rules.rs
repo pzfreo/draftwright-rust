@@ -535,15 +535,24 @@ fn the_plan_and_lint_agree_on_a_leader_cutting_back_into_the_material() {
 
 /// Build the native regression part through the public analysis and rendering APIs.
 fn drawing_10000() -> Option<(Analysis, model::Plan, Drawing)> {
+    native_drawing("mfcadpp/10000.step", false)
+}
+
+fn native_drawing(file: &str, recovered: bool) -> Option<(Analysis, model::Plan, Drawing)> {
     let corpus = std::env::var("DRAFTWRIGHT_CORPUS")
         .unwrap_or_else(|_| "/Users/paul/repos/quiddity/tests/corpus".into());
-    let path = Path::new(&corpus).join("mfcadpp/10000.step");
+    let path = Path::new(&corpus).join(file);
     if !path.is_file() {
         assert!(std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").is_err());
         return None;
     }
     let (part, a) = model::analyse_native(&path).unwrap();
-    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let plan = if recovered {
+        model::plan_recovered(&a, &Spec::default())
+    } else {
+        model::plan(&a, &Spec::default())
+    }
+    .unwrap();
     let drawing = model::render(&part, &a, &plan, &font()).unwrap();
     Some((a, plan, drawing))
 }
@@ -700,4 +709,96 @@ fn rounded_slot_radii_keep_their_exact_arcs_on_nist_parts() {
             .collect();
         assert!(issues.is_empty(), "{name}: {issues:?}");
     }
+}
+
+/// The exported drawing keeps its established counted leaders, rather than an
+/// untagged centre table, and each representative tip touches physical arc ink.
+#[test]
+fn recovered_ctc02_keeps_counted_radius_leaders_on_trimmed_arcs() {
+    let Some((a, plan, drawing)) = native_drawing("nist/nist_ctc_02_asme1_rc.stp", true) else {
+        return;
+    };
+    assert!(plan.radius_table.is_none());
+    assert_eq!(
+        (plan.sheet.size.as_str(), plan.sheet.scale.as_str()),
+        ("A0", "1:5")
+    );
+    for (label, count) in [("4× R15", 4), ("6× R18", 6)] {
+        let d = plan
+            .dimensions
+            .iter()
+            .find(|d| d.label == label)
+            .expect(label);
+        assert_eq!(d.view, "v:plan");
+        assert_eq!(d.measurements.len(), count);
+        let tip = d.placed.as_ref().expect("visible counted leader").lines[0][0];
+        let frame = &drawing.sheet.frames["plan"];
+        let view = draftwright::haecceity::hlr::View::new(frame.direction, frame.up).unwrap();
+        let centre = view.map([0, 1, 2].map(|k| (a.envelope[0][k] + a.envelope[1][k]) / 2.0));
+        assert!(
+            d.measurements.iter().any(|m| {
+                a.blend_sites.get(&m.feature).is_some_and(|sites| {
+                    sites.iter().any(|site| {
+                        let q = view.map(*site);
+                        let page = [0, 1].map(|k| frame.at[k] + frame.scale * (q[k] - centre[k]));
+                        (page[0] - tip[0]).hypot(page[1] - tip[1]) < 0.002
+                    })
+                })
+            }),
+            "{label} tip {tip:?} must touch a proven trimmed surface site"
+        );
+    }
+    assert!(
+        !lint::lint(&a, &drawing)
+            .iter()
+            .any(|i| i.code.starts_with("radius_leader_target_"))
+    );
+}
+
+/// Perpendicular witness repair must not displace the existing hole schedule
+/// onto a larger sheet at the same geometry scale.
+#[test]
+fn recovered_ftc09_keeps_a1_and_perpendicular_witnesses() {
+    let Some((a, plan, drawing)) = native_drawing("nist/nist_ftc_09_asme1_rd.stp", true) else {
+        return;
+    };
+    assert_eq!(
+        (plan.sheet.size.as_str(), plan.sheet.scale.as_str()),
+        ("A1", "1:1")
+    );
+    assert!(plan.radius_table.is_none());
+    let table = plan
+        .hole_tables
+        .iter()
+        .find(|t| t.id == "hole_schedule_front")
+        .expect("established hole schedule");
+    assert_eq!(table.rows.len(), 30);
+    let iso = plan.views.iter().find(|v| v.id == "v:iso").unwrap();
+    assert!(
+        (iso.scale - 1.3).abs() < 1e-9,
+        "retain the established orientation scale"
+    );
+    for k in 0..2 {
+        assert!(iso.at[k] + iso.scale * a.iso_bounds[k] >= iso.area[k] - 1e-6);
+        assert!(iso.at[k] + iso.scale * a.iso_bounds[k + 2] <= iso.area[k + 2] + 1e-6);
+    }
+    for d in plan.dimensions.iter().filter(|d| d.kind == "linear") {
+        let Some(p) = d.placed.as_ref() else { continue };
+        assert_eq!(p.arrows.len(), 2);
+        let [a, b] = [p.arrows[0][0], p.arrows[1][0]];
+        let axis = [b[0] - a[0], b[1] - a[1]];
+        for [from, to] in p.lines.iter().take(2) {
+            let dot = (to[0] - from[0]) * axis[0] + (to[1] - from[1]) * axis[1];
+            assert!(
+                dot.abs() < 1e-6,
+                "{} must have perpendicular witnesses",
+                d.id
+            );
+        }
+    }
+    assert!(
+        !lint::structural::check(&drawing)
+            .iter()
+            .any(|i| i.code == "oblique_witness_crossing")
+    );
 }
