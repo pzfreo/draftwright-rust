@@ -19,6 +19,43 @@ use crate::model::{Invalid, Problem};
 use crate::output::Curve;
 use crate::text::{Font, Laid, P, Segment};
 
+/// A drawing title from the STEP product, falling back to the source file's stem.
+/// Bindings retain their original identity; only the displayed title is normalised.
+pub(crate) fn default_title(analysis: &crate::model::Analysis) -> String {
+    let meaningful = |name: &str| {
+        let compact: String = name
+            .chars()
+            .filter(|c| c.is_alphanumeric())
+            .flat_map(char::to_lowercase)
+            .collect();
+        !compact.is_empty()
+            && ![
+                "part", "body", "solid", "compound", "shape", "object", "model", "unnamed",
+            ]
+            .iter()
+            .any(|prefix| {
+                compact
+                    .strip_prefix(prefix)
+                    .is_some_and(|suffix| suffix.chars().all(|c| c.is_ascii_digit()))
+            })
+    };
+    let name = analysis
+        .product_name
+        .as_deref()
+        .filter(|name| meaningful(name))
+        .unwrap_or(
+            analysis
+                .source_stem
+                .as_deref()
+                .unwrap_or(&analysis.binding.part),
+        );
+    name.replace(['_', '-'], " ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_uppercase()
+}
+
 /// The face the title block is measured and drawn with, by file name and data.
 pub const FONT: &str = "IBMPlexSansCondensed-Regular.ttf";
 pub const FONT_DATA: &[u8] = include_bytes!("../fonts/IBMPlexSansCondensed-Regular.ttf");

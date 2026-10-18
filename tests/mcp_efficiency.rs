@@ -137,6 +137,12 @@ fn options_explain_sheet_and_bare_view_keys() {
                 .is_some()
         );
     }
+    let description = view["settable"]["views/iso/place/gap"]["consequences"][0]
+        .as_str()
+        .unwrap();
+    assert!(
+        description.contains("annotation bands") && description.contains("not their part outlines")
+    );
     let sheet = call(&cache, "item_options", query(&summary, "sheet"));
     for field in ["size", "scale", "title", "fit_limits", "fit_deviations"] {
         assert!(sheet["settable"].get(format!("sheet/{field}")).is_some());

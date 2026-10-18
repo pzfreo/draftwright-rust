@@ -336,3 +336,100 @@ fn no_problem_message_carries_an_internal_id() {
         found.join("\n")
     );
 }
+
+#[test]
+fn recognition_warning_describes_the_part_and_retains_developer_provenance() {
+    let (_, mut a) = cache::native(&fixture("parts/plate.step"));
+    a.unrecognised = vec![model::Unrecognised {
+        family: "freeform_surfaces".into(),
+        records: Some(2),
+    }];
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let p = plan
+        .problems
+        .iter()
+        .find(|p| p.code == "features_not_recognised")
+        .unwrap();
+    assert_eq!(
+        p.message,
+        "Unrecognised features on this part: 2 freeform surfaces. These features are not dimensioned, sectioned or checked. If a missed feature matches a supported type, declare it in the Spec's feature_declarations using its face fingerprints. Otherwise, add the required dimensions and review it manually."
+    );
+    assert!(p.refs.contains(&a.recognition.as_ref().unwrap().recogniser));
+    assert!(p.refs.iter().any(|r| r.contains("tools/recognise.py")));
+    a.unrecognised[0].records = Some(1);
+    let single = model::plan(&a, &Spec::default()).unwrap();
+    let single = single
+        .problems
+        .iter()
+        .find(|p| p.code == "features_not_recognised")
+        .unwrap();
+    assert!(
+        single
+            .message
+            .contains("1 freeform surface. This feature is not dimensioned")
+    );
+    a.unrecognised[0].family = "thin_wall_bodies".into();
+    let single = model::plan(&a, &Spec::default()).unwrap();
+    let single = single
+        .problems
+        .iter()
+        .find(|p| p.code == "features_not_recognised")
+        .unwrap();
+    assert!(single.message.contains("1 thin wall body."));
+    a.unrecognised[0].records = None;
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let p = plan
+        .problems
+        .iter()
+        .find(|p| p.code == "features_not_recognised")
+        .unwrap();
+    assert!(p.message.contains("whether this part has any is unknown"));
+    assert!(!p.message.contains("on this part:"));
+}
+
+#[test]
+fn problems_keep_tool_diagnostics_out_of_drawing_messages() {
+    for (name, plan) in plans() {
+        for p in &plan.problems {
+            for internal in [
+                "quiddity",
+                "haecceity",
+                "tools/",
+                "not ported",
+                "::",
+                "lower_ap242_",
+                "tolerance_withheld",
+            ] {
+                assert!(
+                    !p.message.contains(internal),
+                    "{name}: {}: {}",
+                    p.code,
+                    p.message
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn hole_table_refusal_explains_the_datum_requirement() {
+    let (_, mut a) = cache::native(&fixture("parts/plate.step"));
+    // As in the schedule's datum-evidence regression: holes are kept, but no corner is proven.
+    a.principal_profiles.clear();
+    let plan = model::plan_escalated(&a, &spec(json!({"hole_table":"always"}))).unwrap();
+    let p = plan
+        .problems
+        .iter()
+        .find(|p| p.code == "hole_table_unavailable")
+        .unwrap();
+    assert_eq!(
+        p.message,
+        "A hole table needs holes located in X and Y from a datum corner. This part has no holes located that way; use the individual hole dimensions shown instead."
+    );
+    assert!(!p.subjects.is_empty());
+    assert!(
+        p.subjects
+            .iter()
+            .all(|id| plan.dimensions.iter().any(|d| d.id == *id))
+    );
+}

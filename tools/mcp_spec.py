@@ -50,7 +50,7 @@ def document():
                                   'lane': I, 'along': {'anyOf': [N, enum('start', 'middle', 'end', 'outside')]},
                                   'offset': arr(N, minItems=2, maxItems=2)}), 'pinned': B}),
         'view_place': obj({'relative_to': S, 'side': enum('above', 'below', 'left', 'right'),
-                           'gap': N, 'align': enum('start', 'middle', 'end', 'outside'), 'pinned': B},
+                           'gap': {**N, 'description': 'Clear paper distance in mm between the views’ annotation bands, not their part outlines (default 10 mm).'}, 'align': enum('start', 'middle', 'end', 'outside'), 'pinned': B},
                           ('relative_to', 'side')),
         'finish': obj({'ra': N, 'removal': nullable(enum('any', 'required', 'prohibited'))}, ('ra',)),
         'thread': obj({'designation': S, 'length': nullable(N)}, ('designation',)),

@@ -86,7 +86,7 @@ pub struct ViewPlace {
     /// (ADR R1 invariant 1).
     pub relative_to: String,
     pub side: Side,
-    /// Clear space between the two view footprints, in paper mm.
+    /// Clear paper distance between the views’ annotation bands, not their part outlines, in mm.
     #[serde(default = "default_gap")]
     pub gap: f64,
     #[serde(default = "middle")]

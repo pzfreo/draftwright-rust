@@ -1253,7 +1253,7 @@ fn settable(
                 format!("{base}/place/side"),
                 choices(json!(["above", "below", "left", "right"])),
             );
-            fields.insert(format!("{base}/place/gap"), json!({"range":[0,1000]}));
+            fields.insert(format!("{base}/place/gap"), json!({"range":[0,1000],"consequences":["Clear paper distance in mm between the views’ annotation bands, not their part outlines (default 10 mm)."]}));
             fields.insert(
                 format!("{base}/place/align"),
                 choices(json!(["start", "middle", "end", "outside"])),

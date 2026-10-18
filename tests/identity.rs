@@ -429,7 +429,7 @@ fn records_that_cannot_be_told_apart_are_refused_not_guessed() {
         let p = plan
             .problems
             .iter()
-            .find(|p| p.code == "pmi_not_lowered" && p.refs == [s.clone()])
+            .find(|p| p.code == "pmi_not_lowered" && p.refs.first() == Some(s))
             .unwrap_or_else(|| panic!("{s}: {:#?}", plan.problems));
         assert!(
             p.message.contains("could not be told from"),
