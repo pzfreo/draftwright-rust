@@ -73,8 +73,6 @@ jobs:
         with:
           tool: nextest@0.9.146
       - run: cargo nextest archive --release --archive-file nextest-archive.tar.zst
-      - run: cargo nextest list --release --ignore-default-filter --message-format json > nextest-list.json
-      - run: python3 tools/check_test_binaries.py --nextest-list nextest-list.json
       - run: cargo test --doc --release
       # nextest's cargo test build also produces CARGO_BIN_EXE_draftwright. Reuse that
       # release executable and this job's pinned corpus in every acceptance job.
@@ -136,6 +134,9 @@ jobs:
       - if: matrix.shard == 'harness'
         shell: bash
         run: |
+          cargo nextest list --archive-file nextest-archive.tar.zst \
+            --workspace-remap . --ignore-default-filter --message-format json > nextest-list.json
+          python3 tools/check_test_binaries.py --nextest-list nextest-list.json
           left_out=$(cargo nextest list --archive-file nextest-archive.tar.zst \
             --workspace-remap . --profile ci --ignore-default-filter -E 'not default()' \
             --message-format oneline --color never | awk '{print $1}' | sort -u | sed 's/^draftwright:://')

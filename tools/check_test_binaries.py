@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # Keep strings atomic (including raw strings), and discard comments before looking
 # for modules or attributes. Braces in fixture JSON must not affect the walk.
 TOKEN = re.compile(
-    r'//[^\n]*|/\*|r(?P<hashes>\#*)"[\s\S]*?"(?P=hashes)'
+    r'//[^\n]*|/\*|(?:b|c)?r(?P<hashes>\#*)"[\s\S]*?"(?P=hashes)'
     r'|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])\''
     r'|[A-Za-z_][A-Za-z_0-9]*|[^\s]', re.DOTALL
 )

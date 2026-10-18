@@ -9,6 +9,10 @@ mod assembly_parts;
 mod bridge;
 #[path = "../cli_native.rs"]
 mod cli_native;
+#[path = "../editor_session.rs"]
+mod editor_session;
+#[path = "../engine_version.rs"]
+mod engine_version;
 // Preserve both the public test prefix and its existing private facts helper.
 #[allow(clippy::module_inception)]
 #[path = "../facts.rs"]
@@ -19,6 +23,12 @@ mod gears;
 mod gzip;
 #[path = "../identity.rs"]
 mod identity;
+#[path = "../mcp.rs"]
+mod mcp;
+#[path = "../mcp_efficiency.rs"]
+mod mcp_efficiency;
+#[path = "../mcp_spec_schema.rs"]
+mod mcp_spec_schema;
 #[path = "../model.rs"]
 mod model;
 #[path = "../native.rs"]
@@ -33,5 +43,11 @@ mod pmi_lowering;
 mod pmi_thread_knurl;
 #[path = "../recognition_corrections.rs"]
 mod recognition_corrections;
+#[path = "../serve.rs"]
+mod serve;
+#[path = "../sheets_mcp.rs"]
+mod sheets_mcp;
+#[path = "../stateless.rs"]
+mod stateless;
 #[path = "../test_support.rs"]
 mod test_support;

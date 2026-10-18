@@ -49,28 +49,20 @@ opt-level = 3
 # See docs/test-binaries.md; tools/check_test_binaries.py guards module coverage.
 
 [[test]]
-name = "analysis"
-path = "tests/analysis/main.rs"
+name = "core"
+path = "tests/core/main.rs"
 
 [[test]]
 name = "dimensions"
 path = "tests/dimensions/main.rs"
 
 [[test]]
-name = "drawing"
-path = "tests/drawing/main.rs"
-
-[[test]]
-name = "documents"
-path = "tests/documents/main.rs"
+name = "rendering"
+path = "tests/rendering/main.rs"
 
 [[test]]
 name = "audits"
 path = "tests/audits/main.rs"
-
-[[test]]
-name = "interface"
-path = "tests/interface/main.rs"
 
 [[test]]
 name = "issue_drafting"
@@ -79,3 +71,11 @@ path = "tests/issue_drafting.rs"
 [[test]]
 name = "issue_trust"
 path = "tests/issue_trust.rs"
+
+[[test]]
+name = "session"
+path = "tests/session.rs"
+
+[[test]]
+name = "multi_sheet_latency"
+path = "tests/multi_sheet_latency.rs"

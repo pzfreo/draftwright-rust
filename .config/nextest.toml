@@ -8,7 +8,7 @@
 # Latency gates measure interactive edits; run them without competing test processes.
 # Their native 150 ms assertions remain enabled, including in local shard simulations.
 [[profile.default.overrides]]
-filter = 'test(=multi_sheet_latency::r5_multi_sheet_latency) | (binary(=interface) & test(/^session::/) & test(_benchmark_deltas))'
+filter = 'test(=r5_multi_sheet_latency) | (binary(=session) & test(_benchmark_deltas))'
 threads-required = "num-cpus"
 
 # Aggregate audits retain their global assertions and use at most four scoped workers.

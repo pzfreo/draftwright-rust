@@ -26,6 +26,7 @@ mod cases;
 mod support;
 // mod ghost;
 const TEXT: &str = "mod ghost; #[test] fn ghost() {}";
+const BYTES: &[u8] = br#"{"quoted": "mod ghost; #[test] fn ghost() {}"}"#;
 const CONTINUED: &str = "first \\\n+second { mod ghost; }";
 #[test]
 fn first() { let json = r#"{ mod ghost; }"#; }
@@ -74,14 +75,15 @@ macro_rules! pmi_files {
     def test_repository_and_ci_keep_both_guards_enabled(self):
         expected, _ = guard.inventory()
         self.assertEqual(set(expected), {
-            'analysis', 'dimensions', 'drawing', 'documents', 'audits', 'interface',
+            'core', 'dimensions', 'rendering', 'audits', 'session', 'multi_sheet_latency',
             'issue_drafting', 'issue_trust'})
         workflow = (guard.ROOT / '.github/workflows/ci.yml').read_text()
         lint, rest = workflow.split('  lint:', 1)[1].split('  build:', 1)
-        build = rest.split('  test:', 1)[0]
+        harness = rest.split('  test:', 1)[1].split('  acceptance:', 1)[0]
         self.assertIn('python3 tools/check_test_binaries.py', lint)
-        self.assertIn('--ignore-default-filter --message-format json', build)
-        self.assertIn('python3 tools/check_test_binaries.py --nextest-list', build)
+        self.assertIn('--ignore-default-filter --message-format json', harness)
+        self.assertIn('python3 tools/check_test_binaries.py --nextest-list', harness)
+        self.assertIn('cargo nextest list --archive-file nextest-archive.tar.zst', harness)
         manifest = guard.tomllib.loads((guard.ROOT / 'Cargo.toml').read_text())
         self.assertFalse(manifest['package']['autotests'])
 
