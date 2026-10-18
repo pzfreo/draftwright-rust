@@ -402,32 +402,6 @@
   "evidence": "known_pmi.json (record, rust-correct): Python's record is part 1's 'default tolerances' (#1667, ISO 2768-f) left unpaired: as for #1571, draftwright pairs a general tolerance only when the file has exactly one. The port reads part 1's requirement in words #1662 ('ISO 2768-f') and its class #1667 ('ISO 2768-f') as one record, manufacturing_requirement:#1662, with #1667's 'tolerance class' field. On the drawing: draftwright's is not drawn, refused (pmi_not_extracted, pmi_not_lowered); the port has no such record, so neither draws nor reports it."
  },
  {
-  "file": "assembly_plate_pin.step",
-  "record": "manufacturing_requirement:#1526",
-  "port": "manufacturing_requirement:#1526",
-  "field": "drawing",
-  "python": {
-   "codes": [
-    "pmi_not_extracted",
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "rust": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "dimension",
-     "rides_on": "bore.diameter",
-     "text": "⌀4.2 M5 x 0.8-6H RH; THRU",
-     "view": "plan"
-    }
-   ]
-  },
-  "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: not drawn (it cannot extract the requirement: 'thread presentation callouts have multiple distinct supports', so it never reaches lower_ap242_manufacturing_requirements); the port's: '⌀4.2 M5 x 0.8-6H RH; THRU' on the plan view's callout of the through hole f:hole:6. The port reads it paired with part 0's structured statement #1551 (known_pmi.json's 'fields' difference, rust-correct) and gives it, as lower_ap242_manufacturing_requirements does, to the one feature its cylinder proves (⌀4.2, the tapping drill, through the plate); the callout is draftwright's grammar (hole_callout_spec: the through tap's suffix states THRU, so the bore's own THRU is dropped). As known_pmi_coverage.json (pmi_not_lowered, rust-correct)."
- },
- {
   "file": "bolt_thread_knurl.step",
   "record": "dimension:0:1:4:1",
   "port": "dimension:#418",
@@ -451,56 +425,6 @@
   },
   "verdict": "rust-correct",
   "evidence": "draftwright's drawing: not drawn, refused (pmi_not_rendered); the port's: '⌀6 +0.0 -0.008' (dimension, front view, on step.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright does not draw it (pmi_not_rendered: AP242 source dimension:0:1:4:1 reached typed drafting IR but produced no annotation). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀6 +0.0 -0.008'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
- },
- {
-  "file": "bolt_thread_knurl.step",
-  "record": "manufacturing_requirement:#444",
-  "port": "manufacturing_requirement:#444",
-  "field": "drawing",
-  "python": {
-   "codes": [
-    "pmi_not_rendered"
-   ],
-   "outcome": "refused"
-  },
-  "rust": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "dimension",
-     "rides_on": "od.diameter",
-     "text": "⌀10 SEE MFG 1",
-     "view": "front"
-    }
-   ]
-  },
-  "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: not drawn (pmi_not_rendered: its typed thread reached the IR but no annotation prints it); the port's: 'ø10 SEE MFG 1' on the overall diameter, with the manufacturing requirements table's row MFG 1 'M10 x 1.5-6g RH, FULL AVAILABLE LENGTH'. Both give the thread to the same owner, the ø10 turned step f:turned_step:1 (lower_ap242_manufacturing_requirements; its structured thread length 14 is the cylinder's), and both plan the same table (two requirements, the knurl's suffix 56 characters; draftwright places it: manufacturing_table in the fixture equals the port's rows); but draftwright's overall diameter prints no thread and it draws no diameter of its own for that step, so its own lint finds the requirement not drawn. The port's overall diameter states that band, so it carries the reference. As known_pmi_coverage.json (pmi_not_rendered, rust-correct)."
- },
- {
-  "file": "bolt_thread_knurl.step",
-  "record": "manufacturing_requirement:#475",
-  "port": "manufacturing_requirement:#475",
-  "field": "drawing",
-  "python": {
-   "codes": [
-    "pmi_not_rendered"
-   ],
-   "outcome": "refused"
-  },
-  "rust": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "dimension",
-     "rides_on": "step.diameter",
-     "text": "⌀6.2 SEE MFG 2",
-     "view": "front"
-    }
-   ]
-  },
-  "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: not drawn (pmi_not_rendered: its typed knurl reached the IR but no annotation prints it); the port's: 'ø6.2 SEE MFG 2' on the ø6.25 turned step's diameter (f:turned_step:2), with the table's row MFG 2 'ø6.25 MAX AFTER KNURL; STRAIGHT KNURL P1; CUT/FORMED PERMITTED'. Both give the knurl to that step and plan the same table, but draftwright draws no diameter for the step (its renderer's gap, which its lint reports), so the requirement is lost from its sheet; the port states it. ('6.2' is how both print 6.25 at one decimal, _fmt; the table states 6.25.) As known_pmi_coverage.json (pmi_not_rendered, rust-correct)."
  },
  {
   "file": "bracket_positions.step",
@@ -8139,74 +8063,6 @@
   "evidence": "S5 native symbolic-bore port: this source declares its literal ISO 286 H7/H11 class without numeric limits. Proven internal cylinders correlate uniquely to the recognised bore owner; its native text now retains the class without computing unstated limits or duplicating the dimension. Python drops the class (and draws the 62 mm bore separately). The symbolic-fit regression and unchanged exact-one-outcome/NIST open-question tests verify the reading and owner. Maintainer decision 2026-10-16: the default drawing states the class alone; sheet/fit_deviations explicitly adds stacked upper/lower deviations."
  },
  {
-  "file": "hw_string_post_tapped_intent.step",
-  "record": "manufacturing_requirement:#3143",
-  "port": "manufacturing_requirement:#3143",
-  "field": "record",
-  "python": null,
-  "rust": {
-   "drawing": {
-    "codes": [
-     "pmi_not_lowered"
-    ],
-    "outcome": "refused"
-   },
-   "record": {
-    "kind": "internal_thread",
-    "label": "internal thread"
-   }
-  },
-  "verdict": "rust-correct",
-  "evidence": "S5 reads this semantic metric thread and its uniquely paired manufacturing attribute into one native requirement, preserving their fields, support and both provenance sets (tests/editor_session.rs). The historical field full thread depth is not silently reinterpreted as minimum full thread; native lowering therefore reports this requirement as not lowered. Python has no paired record. The exhaustive drawn-or-reported and exact comparison gates remain unchanged."
- },
- {
-  "file": "hw_thumbwheel_thread_knurl_intent.step",
-  "record": "manufacturing_requirement:#704",
-  "port": "manufacturing_requirement:#704",
-  "field": "record",
-  "python": null,
-  "rust": {
-   "drawing": {
-    "codes": [
-     "pmi_not_lowered"
-    ],
-    "outcome": "refused"
-   },
-   "record": {
-    "kind": "internal_thread",
-    "label": "internal thread"
-   }
-  },
-  "verdict": "rust-correct",
-  "evidence": "S5 reads this semantic metric thread and its uniquely paired manufacturing attribute into one native requirement, preserving their fields, support and both provenance sets (tests/editor_session.rs). The historical field full thread depth is not silently reinterpreted as minimum full thread; native lowering therefore reports this requirement as not lowered. Python has no paired record. The exhaustive drawn-or-reported and exact comparison gates remain unchanged."
- },
- {
-  "file": "hw_thumbwheel_thread_knurl_intent.step",
-  "record": "manufacturing_requirement:#726",
-  "port": "manufacturing_requirement:#726",
-  "field": "record",
-  "python": null,
-  "rust": {
-   "drawing": {
-    "drawn": [
-     {
-      "boxed": false,
-      "kind": "dimension",
-      "rides_on": "step.diameter",
-      "text": "M5 x 0.8-6g RH, FULL AVAILABLE LENGTH",
-      "view": "front"
-     }
-    ]
-   },
-   "record": {
-    "kind": "external_thread",
-    "label": "external thread"
-   }
-  },
-  "verdict": "rust-correct",
-  "evidence": "Stream f1-ext-threads-knurl (#23) reads this semantic external metric thread and its uniquely paired manufacturing attribute (pitch 0.8, thread length) into one structured external_thread, lowered to the ø5 turned step: its callout prints the designation in place of the plain diameter (ISO 6410, as #23 asks) and the front view draws the minor-diameter thin lines. Python leaves the semantic thread unextracted, so has no paired record. tests/pmi_thread_knurl.rs checks the same path on the editor's spindle."
- },
- {
   "file": "assembly_plate_pin.step",
   "record": "dimension:0:1:4:6",
   "port": "dimension:#1358",
@@ -8668,5 +8524,369 @@
   },
   "verdict": "rust-correct",
   "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): the port draws this record's span once, on the PMI dimension that states the same span with the same label, which claims this record; draftwright draws each record standalone, so the sheet repeated it."
+ },
+ {
+  "field": "drawing",
+  "file": "assembly_plate_pin.step",
+  "port": "manufacturing_requirement:#1526",
+  "python": {
+   "codes": [
+    "pmi_not_extracted",
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "record": "manufacturing_requirement:#1526",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "M5-6H THRU",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn (it cannot extract the requirement: 'thread presentation callouts have multiple distinct supports', so it never reaches lower_ap242_manufacturing_requirements); the port's: '⌀4.2 M5 x 0.8-6H RH; THRU' on the plan view's callout of the through hole f:hole:6. The port reads it paired with part 0's structured statement #1551 (known_pmi.json's 'fields' difference, rust-correct) and gives it, as lower_ap242_manufacturing_requirements does, to the one feature its cylinder proves (⌀4.2, the tapping drill, through the plate); the callout is draftwright's grammar (hole_callout_spec: the through tap's suffix states THRU, so the bore's own THRU is dropped). As known_pmi_coverage.json (pmi_not_lowered, rust-correct). Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+ },
+ {
+  "field": "drawing",
+  "file": "bolt_thread_knurl.step",
+  "port": "manufacturing_requirement:#444",
+  "python": {
+   "codes": [
+    "pmi_not_rendered"
+   ],
+   "outcome": "refused"
+  },
+  "record": "manufacturing_requirement:#444",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "od.diameter",
+     "text": "M10-6g",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn (pmi_not_rendered: its typed thread reached the IR but no annotation prints it); the port's: 'ø10 SEE MFG 1' on the overall diameter, with the manufacturing requirements table's row MFG 1 'M10 x 1.5-6g RH, FULL AVAILABLE LENGTH'. Both give the thread to the same owner, the ø10 turned step f:turned_step:1 (lower_ap242_manufacturing_requirements; its structured thread length 14 is the cylinder's), and both plan the same table (two requirements, the knurl's suffix 56 characters; draftwright places it: manufacturing_table in the fixture equals the port's rows); but draftwright's overall diameter prints no thread and it draws no diameter of its own for that step, so its own lint finds the requirement not drawn. The port's overall diameter states that band, so it carries the reference. As known_pmi_coverage.json (pmi_not_rendered, rust-correct). Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+ },
+ {
+  "field": "drawing",
+  "file": "bolt_thread_knurl.step",
+  "port": "manufacturing_requirement:#475",
+  "python": {
+   "codes": [
+    "pmi_not_rendered"
+   ],
+   "outcome": "refused"
+  },
+  "record": "manufacturing_requirement:#475",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "⌀6.25 SEE MFG 1",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn (pmi_not_rendered: its typed knurl reached the IR but no annotation prints it); the port's: 'ø6.2 SEE MFG 2' on the ø6.25 turned step's diameter (f:turned_step:2), with the table's row MFG 2 'ø6.25 MAX AFTER KNURL; STRAIGHT KNURL P1; CUT/FORMED PERMITTED'. Both give the knurl to that step and plan the same table, but draftwright draws no diameter for the step (its renderer's gap, which its lint reports), so the requirement is lost from its sheet; the port states it. ('6.2' is how both print 6.25 at one decimal, _fmt; the table states 6.25.) As known_pmi_coverage.json (pmi_not_rendered, rust-correct). Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+ },
+ {
+  "field": "record",
+  "file": "hw_string_post_tapped_intent.step",
+  "port": "manufacturing_requirement:#3143",
+  "python": null,
+  "record": "manufacturing_requirement:#3143",
+  "rust": {
+   "drawing": {
+    "drawn": [
+     {
+      "boxed": false,
+      "kind": "dimension",
+      "rides_on": "bore.diameter",
+      "text": "M2-6H ↧ 2.5 ⌀1.6 ↧ 4",
+      "view": "plan"
+     }
+    ]
+   },
+   "record": {
+    "kind": "internal_thread",
+    "label": "internal thread"
+   }
+  },
+  "verdict": "rust-correct",
+  "evidence": "The stated full thread depth alias is now lowered: 2.5 mm full thread, with the original tapping drill and drill depth. The previous unsupported-field refusal is fixed. See docs/thread-callouts.md."
+ },
+ {
+  "field": "drawing",
+  "file": "hw_thumbwheel_notes_add.step",
+  "port": "manufacturing_requirement:#689",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "⌀1.6 ↧ 3.8 SEE MFG 1",
+     "view": "side"
+    }
+   ]
+  },
+  "record": "manufacturing_requirement:#689",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "M2-6H ↧ 2.5 ⌀1.6 ↧ 3.8",
+     "view": "side"
+    }
+   ]
+  },
+  "verdict": "equivalent",
+  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+ },
+ {
+  "field": "drawing",
+  "file": "hw_thumbwheel_notes_add.step",
+  "port": "manufacturing_requirement:#722",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "⌀6 SEE MFG 2",
+     "view": "front"
+    }
+   ]
+  },
+  "record": "manufacturing_requirement:#722",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "⌀6 MAX AFTER KNURL SEE MFG 1 DIAMOND KNURL P1",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "equivalent",
+  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+ },
+ {
+  "field": "drawing",
+  "file": "hw_thumbwheel_notes_add.step",
+  "port": "manufacturing_requirement:#749",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "⌀5 SEE MFG 3",
+     "view": "front"
+    }
+   ]
+  },
+  "record": "manufacturing_requirement:#749",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "M5-6g",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "equivalent",
+  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+ },
+ {
+  "field": "record",
+  "file": "hw_thumbwheel_thread_knurl_intent.step",
+  "port": "manufacturing_requirement:#704",
+  "python": null,
+  "record": "manufacturing_requirement:#704",
+  "rust": {
+   "drawing": {
+    "drawn": [
+     {
+      "boxed": false,
+      "kind": "dimension",
+      "rides_on": "bore.diameter",
+      "text": "M2-6H ↧ 2.5 ⌀1.6 ↧ 3.8",
+      "view": "side"
+     }
+    ]
+   },
+   "record": {
+    "kind": "internal_thread",
+    "label": "internal thread"
+   }
+  },
+  "verdict": "rust-correct",
+  "evidence": "The stated full thread depth alias is now lowered: 2.5 mm full thread, with the original tapping drill and drill depth. The previous unsupported-field refusal is fixed. See docs/thread-callouts.md."
+ },
+ {
+  "field": "record",
+  "file": "hw_thumbwheel_thread_knurl_intent.step",
+  "port": "manufacturing_requirement:#726",
+  "python": null,
+  "record": "manufacturing_requirement:#726",
+  "rust": {
+   "drawing": {
+    "drawn": [
+     {
+      "boxed": false,
+      "kind": "dimension",
+      "rides_on": "step.diameter",
+      "text": "M5-6g",
+      "view": "front"
+     }
+    ]
+   },
+   "record": {
+    "kind": "external_thread",
+    "label": "external thread"
+   }
+  },
+  "verdict": "rust-correct",
+  "evidence": "Stream f1-ext-threads-knurl (#23) reads this semantic external metric thread and its uniquely paired manufacturing attribute (pitch 0.8, thread length) into one structured external_thread, lowered to the ø5 turned step: its callout prints the designation in place of the plain diameter (ISO 6410, as #23 asks) and the front view draws the minor-diameter thin lines. Python leaves the semantic thread unextracted, so has no paired record. tests/pmi_thread_knurl.rs checks the same path on the editor's spindle. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+ },
+ {
+  "field": "drawing",
+  "file": "string_post_tapped.step",
+  "port": "manufacturing_requirement:#3157",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "⌀1.6 ↧ 4 M2 x 0.4-6H RH; 2.5 MIN FULL THREAD",
+     "view": "plan"
+    }
+   ]
+  },
+  "record": "manufacturing_requirement:#3157",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "M2-6H ↧ 2.5 ⌀1.6 ↧ 4",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "equivalent",
+  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+ },
+ {
+  "field": "drawing",
+  "file": "thumbwheel_thread_knurl.step",
+  "port": "manufacturing_requirement:#689",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "⌀1.6 ↧ 3.8 SEE MFG 1",
+     "view": "side"
+    }
+   ]
+  },
+  "record": "manufacturing_requirement:#689",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "M2-6H ↧ 2.5 ⌀1.6 ↧ 3.8",
+     "view": "side"
+    }
+   ]
+  },
+  "verdict": "equivalent",
+  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+ },
+ {
+  "field": "drawing",
+  "file": "thumbwheel_thread_knurl.step",
+  "port": "manufacturing_requirement:#722",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "⌀6 SEE MFG 2",
+     "view": "front"
+    }
+   ]
+  },
+  "record": "manufacturing_requirement:#722",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "⌀6 MAX AFTER KNURL SEE MFG 1 DIAMOND KNURL P1",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "equivalent",
+  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+ },
+ {
+  "field": "drawing",
+  "file": "thumbwheel_thread_knurl.step",
+  "port": "manufacturing_requirement:#749",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "⌀5 SEE MFG 3",
+     "view": "front"
+    }
+   ]
+  },
+  "record": "manufacturing_requirement:#749",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "step.diameter",
+     "text": "M5-6g",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "equivalent",
+  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
  }
 ]

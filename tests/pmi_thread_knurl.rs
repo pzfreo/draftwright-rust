@@ -139,7 +139,7 @@ fn a_single_thread_prints_its_suffix_on_its_holes_callout() {
     assert_eq!(python, "⌀1.6 ↧ 4 M2 x 0.4-6H RH; 2.5 MIN FULL THREAD");
     assert_eq!(
         claimed(&plan, &a, source),
-        [("d:f:hole:2/bore.diameter", python.as_str())]
+        [("d:f:hole:2/bore.diameter", "M2-6H ↧ 2.5\n⌀1.6 ↧ 4")]
     );
     assert_eq!(refused(&plan, source), None);
     // One requirement: no table, in draftwright's drawing or the port's.
@@ -150,7 +150,8 @@ fn a_single_thread_prints_its_suffix_on_its_holes_callout() {
         draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
     let drawing = model::render(&part, &a, &plan, &font).unwrap();
     let svg = pdf::svg_text(&drawing.svg()).join(" ");
-    assert!(svg.contains("MIN FULL THREAD"), "{svg}");
+    assert!(svg.contains("M2-6H ↧ 2.5"), "{svg}");
+    assert!(svg.contains("⌀1.6 ↧ 4"), "{svg}");
     let lint = draftwright::lint::lint(&a, &drawing);
     assert!(
         !lint.iter().any(|i| i.sources.iter().any(|s| s == source)),
@@ -161,7 +162,12 @@ fn a_single_thread_prints_its_suffix_on_its_holes_callout() {
 #[test]
 fn several_long_requirements_refer_to_the_manufacturing_requirements_table() {
     let (part, a) = analysed("thumbwheel_thread_knurl");
-    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let plan = model::plan(
+        &a,
+        &serde_json::from_value(serde_json::json!({"sheet":{"callouts":{"style":"note"}}}))
+            .unwrap(),
+    )
+    .unwrap();
     let drawing_py = captured("thumbwheel_thread_knurl");
     for (source, id) in [
         ("manufacturing_requirement:#689", "d:f:hole:1/bore.diameter"),
@@ -174,15 +180,15 @@ fn several_long_requirements_refer_to_the_manufacturing_requirements_table() {
             "d:f:turned_step:1/step.diameter",
         ),
     ] {
-        let python = python_label(&drawing_py, source);
-        assert_eq!(
-            claimed(&plan, &a, source),
-            [(id, python.as_str())],
-            "{source}"
-        );
+        let expected = match source {
+            "manufacturing_requirement:#689" => "M2-6H SEE MFG 1",
+            "manufacturing_requirement:#722" => "ø6 SEE MFG 2",
+            _ => "M5-6g SEE MFG 3",
+        };
+        assert_eq!(claimed(&plan, &a, source), [(id, expected)], "{source}");
         assert_eq!(refused(&plan, source), None);
     }
-    let rows: Vec<Vec<String>> =
+    let mut rows: Vec<Vec<String>> =
         serde_json::from_value(drawing_py["manufacturing_table"].clone()).unwrap();
     assert_eq!(rows[2], ["MFG 2", "ø6 MAX AFTER KNURL; DIAMOND KNURL P1;"]);
     let table = plan
@@ -190,6 +196,9 @@ fn several_long_requirements_refer_to_the_manufacturing_requirements_table() {
         .iter()
         .find(|t| t.id == "manufacturing_requirements")
         .unwrap();
+    // Note form retains the tapping drill as well as its full thread requirement.
+    rows[1][1] = "M2 x 0.4-6H RH; 2.5 MIN FULL THREAD; ⌀1.6 ↧".into();
+    rows.insert(2, vec![String::new(), "3.8".into()]);
     assert_eq!(table.rows, rows);
     assert!(table.default);
     let p = table.placed.as_ref().expect("the table has a place");
@@ -258,10 +267,13 @@ fn a_requirement_no_one_feature_owns_is_reported_with_draftwrights_reason() {
     assert!(lint.iter().any(|i| i.code == "pmi_not_lowered"
         && i.sources == [source]
         && i.message.contains("no canonical feature matches")));
-    // The two left still go to the table (the knurl's suffix is 55 characters), renumbered.
+    // Only the knurl needs a process note; the thread keeps its compact designation.
     let labels: Vec<&str> = plan.dimensions.iter().map(|d| d.label.as_str()).collect();
-    assert!(labels.contains(&"ø6 SEE MFG 1"), "{labels:?}");
-    assert!(labels.contains(&"ø5 SEE MFG 2"), "{labels:?}");
+    assert!(
+        labels.contains(&"ø6 MAX AFTER KNURL SEE MFG 1\nDIAMOND KNURL P1"),
+        "{labels:?}"
+    );
+    assert!(labels.contains(&"M5-6g"), "{labels:?}");
     // Two owners: a second turned step on the knurl's cylinder.
     let mut b = a.clone();
     let mut twin = b
@@ -333,7 +345,7 @@ fn a_semantic_turned_knurl_prints_on_its_diameters_callout() {
     let plan = model::plan(&a, &Spec::default()).unwrap();
     let source = "manufacturing_requirement:#925";
     let labels: Vec<&str> = claimed(&plan, &a, source).iter().map(|c| c.1).collect();
-    assert_eq!(labels, ["ø24 MAX AFTER KNURL; STRAIGHT KNURL P1"]);
+    assert_eq!(labels, ["ø24 MAX AFTER KNURL\nSTRAIGHT KNURL P1"]);
     assert_eq!(refused(&plan, source), None);
     assert!(
         !plan
@@ -380,7 +392,7 @@ fn a_semantic_diamond_knurl_prints_on_its_diameters_callout() {
     let plan = model::plan(&a, &Spec::default()).unwrap();
     let source = "manufacturing_requirement:#925";
     let labels: Vec<&str> = claimed(&plan, &a, source).iter().map(|c| c.1).collect();
-    assert_eq!(labels, ["ø24 MAX AFTER KNURL; DIAMOND KNURL P1"]);
+    assert_eq!(labels, ["ø24 MAX AFTER KNURL\nDIAMOND KNURL P1"]);
     assert_eq!(refused(&plan, source), None);
 }
 
@@ -484,7 +496,7 @@ fn a_semantic_external_thread_prints_its_designation_in_place_of_the_diameter() 
     let source = r.source_id.clone();
     let plan = model::plan(&a, &Spec::default()).unwrap();
     let labels: Vec<&str> = claimed(&plan, &a, &source).iter().map(|c| c.1).collect();
-    assert_eq!(labels, ["M10 x 1.5-6g RH, FULL AVAILABLE LENGTH"]);
+    assert_eq!(labels, ["M10-6g"]);
     assert_eq!(refused(&plan, &source), None);
     // Neither the thread nor its manufacturing attribute set is reported not projected.
     assert!(
@@ -498,12 +510,12 @@ fn a_semantic_external_thread_prints_its_designation_in_place_of_the_diameter() 
     // The knurl still prints on its own diameter.
     let knurl = "manufacturing_requirement:#925";
     let labels: Vec<&str> = claimed(&plan, &a, knurl).iter().map(|c| c.1).collect();
-    assert_eq!(labels, ["ø24 MAX AFTER KNURL; STRAIGHT KNURL P1"]);
+    assert_eq!(labels, ["ø24 MAX AFTER KNURL\nSTRAIGHT KNURL P1"]);
     let font =
         draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
     let drawing = model::render(&part, &a, &plan, &font).unwrap();
     let svg = drawing.svg();
-    assert!(pdf::svg_text(&svg).join(" ").contains("M10 x 1.5-6g RH"));
+    assert!(pdf::svg_text(&svg).join(" ").contains("M10-6g"));
     let lint = draftwright::lint::lint(&a, &drawing);
     assert!(
         !lint.iter().any(|i| i.sources.contains(&source)),
@@ -622,7 +634,7 @@ fn the_threads_leader_meets_the_silhouette_at_an_angle() {
         let d = plan
             .dimensions
             .iter()
-            .find(|d| d.label.starts_with("M10 x 1.5-6g"))
+            .find(|d| d.label.starts_with("M10-6g"))
             .expect("the thread's callout");
         let [tip, elbow] = d.placed.as_ref().expect("placed").lines[0];
         let (dx, dy) = ((elbow[0] - tip[0]).abs(), (elbow[1] - tip[1]).abs());
@@ -648,10 +660,7 @@ fn a_threaded_diameter_keeps_its_designation_and_a_plain_one_its_fit() {
     let plan = model::plan(&a, &Spec::default()).unwrap();
     let labels: Vec<&str> = plan.dimensions.iter().map(|d| d.label.as_str()).collect();
     assert!(labels.contains(&"ø10 f7"), "{labels:?}");
-    assert!(
-        labels.contains(&"M5 x 0.8-6g RH, FULL AVAILABLE LENGTH"),
-        "{labels:?}"
-    );
+    assert!(labels.contains(&"M5-6g"), "{labels:?}");
 
     let (_, a) = external_thread();
     let id = "d:f:turned_step:1/step.diameter";
@@ -662,7 +671,7 @@ fn a_threaded_diameter_keeps_its_designation_and_a_plain_one_its_fit() {
     .unwrap();
     let plan = model::plan(&a, &spec).unwrap();
     let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
-    assert_eq!(d.label, "M10 x 1.5-6g RH, FULL AVAILABLE LENGTH");
+    assert_eq!(d.label, "M10-6g");
     assert!(
         plan.problems
             .iter()
@@ -742,7 +751,12 @@ fn an_external_thread_detail_clips_its_ink_and_records_its_true_transform() {
 #[test]
 fn manufacturing_references_require_complete_source_matched_ink() {
     let (part, a) = analysed("thumbwheel_thread_knurl");
-    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let plan = model::plan(
+        &a,
+        &serde_json::from_value(serde_json::json!({"sheet":{"callouts":{"style":"note"}}}))
+            .unwrap(),
+    )
+    .unwrap();
     let font =
         draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
     let original = model::render(&part, &a, &plan, &font).unwrap();
@@ -832,7 +846,8 @@ fn manufacturing_references_require_complete_source_matched_ink() {
 fn authored_manufacturing_rows_keep_the_compilers_source_bindings() {
     let (part, analysis) = analysed("thumbwheel_thread_knurl");
     let spec = model::edit(
-        &Spec::default(),
+        &serde_json::from_value(serde_json::json!({"sheet":{"callouts":{"style":"note"}}}))
+            .unwrap(),
         &serde_json::json!([{
             "op":"set", "path":"features/f:hole:1/thread",
             "value":{"designation":"M2x0.4-6H", "length":2.5}
@@ -895,10 +910,13 @@ fn spec_can_switch_thread_and_knurl_ink_independently_without_losing_requirement
             draftwright::cosmetic::ink(&a, &m, &front(&p)).len(),
             expected
         );
-        assert_eq!(
-            p.dimensions.iter().map(|d| &d.label).collect::<Vec<_>>(),
-            auto.dimensions.iter().map(|d| &d.label).collect::<Vec<_>>()
-        );
+        let label = p
+            .dimensions
+            .iter()
+            .find(|d| d.label.starts_with("M10-6g"))
+            .unwrap();
+        assert_eq!(label.label.contains("FULL AVAILABLE"), !thread);
+        assert_eq!(label.placed.as_ref().unwrap().rotation, 0.0);
         let drawing = model::render(
             &part,
             &a,
@@ -927,4 +945,205 @@ fn spec_can_switch_thread_and_knurl_ink_independently_without_losing_requirement
     assert!(delta.geometry.views.iter().any(|(id, _)| id == "v:front"));
     let fragments = session.svg_fragments(Some(&delta));
     assert!(thin_lines(&fragments["v:front"]).is_empty());
+}
+
+/// Coarse designations, depth aliases and Spec controls are independent of legacy captures.
+#[test]
+fn compact_taps_print_the_exact_stated_full_thread_depth_and_drill_values() {
+    for stem in ["string_post_tapped", "hw_string_post_tapped_intent"] {
+        let (part, a) = analysed(stem);
+        let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+        let d = plan
+            .dimensions
+            .iter()
+            .find(|d| d.label.starts_with("M2-6H"))
+            .unwrap();
+        assert_eq!(d.label, "M2-6H ↧ 2.5\n⌀1.6 ↧ 4", "{stem}");
+        let placed = d.placed.as_ref().unwrap();
+        assert_eq!(placed.rotation, 0.0);
+        assert!(placed.label_box[3] - placed.label_box[1] > draftwright::callouts::line_spacing());
+        let font = draftwright::text::Font::new(draftwright::api::MONO.to_vec()).unwrap();
+        let drawing = model::render(&part, &a, &plan, &font).unwrap();
+        let thread = drawing.annotations.iter().find(|m| m.name == d.id).unwrap();
+        assert_eq!(thread.runs.len(), 2);
+        assert!(
+            !draftwright::lint::lint(&a, &drawing)
+                .iter()
+                .any(|i| i.code == "pmi_source_text_mismatch")
+        );
+        for (old, new) in [("2.5", "6.5"), ("1.6", "1.7"), ("↧ 4", "↧ 5")] {
+            let mut damaged = drawing.clone();
+            for &run in &thread.runs {
+                damaged.text[run].text = damaged.text[run].text.replace(old, new);
+            }
+            assert!(
+                draftwright::lint::lint(&a, &damaged)
+                    .iter()
+                    .any(|i| i.code == "pmi_source_text_mismatch"),
+                "{stem}: {old}"
+            );
+        }
+    }
+}
+
+#[test]
+fn structured_full_thread_aliases_must_agree_with_each_other_and_prose() {
+    let (_, a) = analysed("string_post_tapped");
+    let source = "manufacturing_requirement:#3157";
+    let same = edit(&a, source, |r| {
+        r.fields
+            .push(("full thread depth".into(), Field::Length(2.5)))
+    });
+    assert!(
+        draftwright::pmi_lowering::manufacturing(&same)
+            .refused
+            .is_empty()
+    );
+    let disagree = edit(&a, source, |r| {
+        r.fields
+            .push(("full thread depth".into(), Field::Length(3.0)))
+    });
+    assert!(
+        draftwright::pmi_lowering::manufacturing(&disagree)
+            .refused
+            .iter()
+            .any(|p| p.message.contains("aliases disagree"))
+    );
+    let prose = edit(&a, source, |r| {
+        r.fields.retain(|(name, _)| name != "minimum full thread");
+        r.fields
+            .push(("full thread depth".into(), Field::Length(3.0)));
+    });
+    assert!(
+        draftwright::pmi_lowering::manufacturing(&prose)
+            .refused
+            .iter()
+            .any(|p| p.message.contains("disagree with prose"))
+    );
+}
+
+#[test]
+fn spec_and_pmi_threads_share_short_designations_and_one_style_override() {
+    let (_, a) = external_thread();
+    let id = "d:f:turned_step:1/step.diameter";
+    let pmi = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        pmi.dimensions.iter().find(|d| d.id == id).unwrap().label,
+        "M10-6g"
+    );
+    for (designation, expected) in [
+        ("M10x1.5-6g RH", "M10-6g"),
+        ("M10x1-6g LH", "M10 x 1-6g LH"),
+    ] {
+        let spec: Spec = serde_json::from_value(serde_json::json!({
+            "features":{"f:turned_step:1":{"thread":{"designation":designation}}}
+        }))
+        .unwrap();
+        let plan = model::plan(&a, &spec).unwrap();
+        assert_eq!(
+            plan.dimensions.iter().find(|d| d.id == id).unwrap().label,
+            expected
+        );
+    }
+    let note: Spec = serde_json::from_value(serde_json::json!({
+        "sheet":{"callouts":{"style":"full"}},
+        "features":{"f:turned_step:1":{"callouts":{"style":"note"}}},
+        "dimensions":{id:{"text":{"template":"{value} AFTER PLATING"}}}
+    }))
+    .unwrap();
+    let plan = model::plan(&a, &note).unwrap();
+    assert_eq!(
+        plan.dimensions.iter().find(|d| d.id == id).unwrap().label,
+        "M10-6g SEE MFG 1 AFTER\nPLATING"
+    );
+    assert!(
+        plan.tables
+            .iter()
+            .any(|t| t.id == "manufacturing_requirements")
+    );
+}
+
+#[test]
+fn callout_wrapping_measures_real_ink_and_preserves_words_and_forced_breaks() {
+    let input = "DIAMOND KNURL P0.8 FULL WIDTH; CUT/FORMED PERMITTED"
+        .split_whitespace()
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    let wrapped = draftwright::callouts::wrap(&input);
+    let font = draftwright::text::Font::new(draftwright::api::MONO.to_vec()).unwrap();
+    assert!(draftwright::callouts::lines(&wrapped).len() > 1);
+    for line in draftwright::callouts::lines(&wrapped) {
+        let ink = draftwright::dims::label_ink(line, &font);
+        assert!(ink.max[0] - ink.min[0] <= 48.0);
+    }
+    assert_eq!(
+        draftwright::callouts::label(&wrapped)
+            .split_whitespace()
+            .collect::<Vec<_>>(),
+        input.iter().map(String::as_str).collect::<Vec<_>>()
+    );
+    let forced = vec![
+        "M2-6H".into(),
+        "↧".into(),
+        "2.5".into(),
+        "\n".into(),
+        "⌀1.6".into(),
+        "↧".into(),
+        "4".into(),
+    ];
+    assert_eq!(draftwright::callouts::wrap(&forced), forced);
+    let word = vec!["ONE_UNBREAKABLE_MANUFACTURING_WORD_EXCEEDING_THE_WIDTH".into()];
+    assert_eq!(draftwright::callouts::wrap(&word), word);
+}
+
+#[test]
+fn auto_moves_a_three_line_knurl_to_its_complete_source_note() {
+    let (part, a) = analysed("bolt_thread_knurl");
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let d = plan
+        .dimensions
+        .iter()
+        .find(|d| d.measurements.iter().any(|m| m.parameter == "knurl"))
+        .unwrap();
+    assert_eq!(d.label, "ø6.25 SEE MFG 1");
+    assert!(d.basis.contains("exceed two lines"));
+    let table = plan
+        .tables
+        .iter()
+        .find(|t| t.id == "manufacturing_requirements")
+        .unwrap();
+    let note = table
+        .rows
+        .iter()
+        .flat_map(|r| r.iter())
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(note.contains("ø6.25 MAX AFTER KNURL"));
+    assert!(note.contains("STRAIGHT KNURL P1"));
+    assert!(note.contains("CUT/FORMED PERMITTED"));
+    let font = draftwright::text::Font::new(draftwright::api::MONO.to_vec()).unwrap();
+    let drawing = model::render(&part, &a, &plan, &font).unwrap();
+    assert!(
+        !draftwright::lint::lint(&a, &drawing)
+            .iter()
+            .any(|i| i.code == "manufacturing_reference_unresolved"
+                || i.code == "pmi_source_text_mismatch")
+    );
+}
+
+#[test]
+fn an_internal_threads_bore_fit_stays_on_its_tapping_drill() {
+    let (_, a) = analysed("string_post_tapped");
+    let spec: Spec = serde_json::from_value(serde_json::json!({
+        "features":{"f:hole:2":{"fit":"H7"}}
+    }))
+    .unwrap();
+    let plan = model::plan(&a, &spec).unwrap();
+    let d = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:hole:2/bore.diameter")
+        .unwrap();
+    assert_eq!(d.label, "M2-6H ↧ 2.5\n⌀1.6 H7 ↧ 4");
 }

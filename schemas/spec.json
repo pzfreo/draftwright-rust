@@ -173,6 +173,20 @@
         "loader"
       ]
     },
+    "callouts": {
+      "type": "object",
+      "properties": {
+        "style": {
+          "enum": [
+            "auto",
+            "compact",
+            "full",
+            "note"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "text": {
       "type": "object",
       "properties": {
@@ -822,6 +836,16 @@
             }
           ]
         },
+        "callouts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/callouts"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "suppress": {
           "type": "boolean"
         },
@@ -1007,6 +1031,16 @@
           "anyOf": [
             {
               "$ref": "#/$defs/finish"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "callouts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/callouts"
             },
             {
               "type": "null"

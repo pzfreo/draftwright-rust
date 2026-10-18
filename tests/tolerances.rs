@@ -108,7 +108,7 @@ fn ftc06_prints_the_authored_bands_as_draftwright_does() {
         ("d:envelope/depth.length", "97.8 +0.1 -0.02"),
         (
             "d:f:hole_pattern:2/bore.diameter",
-            "4× ⌀7.1 ±0.03 THRU ⌴ ⌀10.2 ↧ 7.9",
+            "4× ⌀7.1 ±0.03 THRU ⌴\n⌀10.2 ↧ 7.9",
         ),
         ("d:f:hole_pattern:1/grid_pitch.length.row", "127 ±0.1"),
         ("d:f:hole:11/bore.diameter", "2× ⌀6.3 H7 ↧ 12.7"),

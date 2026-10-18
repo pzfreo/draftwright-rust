@@ -104,6 +104,12 @@ pub(crate) fn plan(
     }) {
         let Some(p) = &d.placed else { continue };
         obstacles.push(p.label_box);
+        // A PMI item's rendered ink box spans its glyph and leader together.
+        // Keep the caption outside that whole item, including the empty corner of
+        // a diagonal shaft's box, as the rendered caption audit requires.
+        if d.id.starts_with("pmi:") {
+            obstacles.extend(crate::dims::ink_box(d));
+        }
         obstacles.extend(p.lines.iter().chain(&p.arrows).map(|[a, b]| {
             [
                 a[0].min(b[0]) - pad,

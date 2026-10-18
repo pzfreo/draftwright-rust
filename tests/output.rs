@@ -137,7 +137,7 @@ fn callout_symbols_are_searchable_in_the_pdf_and_the_svg() {
         (&|r| r["bottom"] = "flat".into(), "4× ⌀6 ↧ 5 (2×2)"),
         (
             &|r| r["cbore"] = json!({ "diameter": 11.0, "depth": 6.4 }),
-            "4× ⌀6 THRU ⌴ ⌀11 ↧ 6.4 (2×2)",
+            "4× ⌀6 THRU ⌴ ⌀11 ↧ 6.4\n(2×2)",
         ),
         (
             &|r| {
@@ -147,14 +147,20 @@ fn callout_symbols_are_searchable_in_the_pdf_and_the_svg() {
                     "depth": 3.0,
                 })
             },
-            "4× ⌀6 THRU ⌵ ⌀12 × 90° (2×2)",
+            "4× ⌀6 THRU ⌵ ⌀12 × 90°\n(2×2)",
         ),
     ];
     for (edit, callout) in cases {
         let drawing = plate(edit);
         let written: Vec<String> = drawing.text.iter().map(|r| r.text.clone()).collect();
         assert!(
-            written.iter().any(|t| t == callout),
+            drawing.annotations.iter().any(|a| a
+                .runs
+                .iter()
+                .map(|&i| drawing.text[i].text.as_str())
+                .collect::<Vec<_>>()
+                .join("\n")
+                == callout),
             "{callout}: {written:?}"
         );
         assert!(written.iter().any(|t| t == "PLATE"), "{written:?}");

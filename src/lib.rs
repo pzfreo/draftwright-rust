@@ -9,6 +9,7 @@ pub mod api;
 pub mod arc;
 pub mod blends;
 pub mod bridge;
+pub mod callouts;
 pub mod centrelines;
 pub mod completeness;
 pub mod cosmetic;
