@@ -817,6 +817,11 @@ pub(crate) fn readable_automatic(
     }
     for v in automatic {
         let d = v.detail.as_ref().unwrap();
+        if p.dimensions.iter().any(|dimension| {
+            dimension.view == v.id && crate::dims::text_off_span(dimension, &p.dimensions)
+        }) {
+            return false;
+        }
         if !p.dimensions.iter().any(|dimension| {
             dimension.view == v.id
                 && !dimension.reference

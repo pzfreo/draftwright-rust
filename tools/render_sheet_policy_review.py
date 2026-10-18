@@ -13,6 +13,7 @@ r=args.survey
 stages=['before','after'] if args.stage=='both' else [args.stage]
 m=json.load(open(r/'before/manifest.json'))
 requested=['mfcadpp/10000.step','mfcadpp_holdout/520.step','mfcadpp/10167.step','mfcadpp/10049.step','mfcadpp/10119.step','mfcadpp_holdout/163.step','mfcadpp_holdout/274.step','mfcadpp/10212.step','gramel/GRM-03_thumbwheel_drive_screw.step','ttt_inputs/sm-hanger.step','nist/nist_ctc_03_asme1_rc.stp','mfcadpp/10063.step','mfcadpp_regressions/11512.step','cadgenbench/threaded_connector_109.step','parts/boss_circle.step','mfcadpp/1004.step','mfcadpp/10007.step','mfcadpp/1017.step','mfcadpp/10098.step','mfcadpp/1013.step']
+requested.append('nist/nist_ftc_07_asme1_rd.stp')
 selected={};lower=[]
 for k,v in m.items():
  old=json.load(open(r/'before'/(k+'.plan.json')));new=json.load(open(r/'after'/(k+'.plan.json')))

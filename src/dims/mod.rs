@@ -74,6 +74,24 @@ mod wording;
 pub(crate) use pmi_dimensions::basic as is_basic;
 mod leaders;
 pub(crate) use label_lanes::settle_inventory;
+
+/// Use the settled-label rule when deciding whether an automatic detail earns
+/// publication. A reference companion must remain associated with its span too.
+pub(crate) fn text_off_span(d: &PlannedDimension, dimensions: &[PlannedDimension]) -> bool {
+    d.kind == "linear"
+        && d.placed.as_ref().is_some_and(|p| {
+            label_lanes::off_span(
+                p,
+                dimensions
+                    .iter()
+                    .filter(|other| {
+                        other.id != d.id && other.kind == "linear" && other.view == d.view
+                    })
+                    .filter_map(|other| other.placed.as_ref()),
+            )
+        })
+}
+
 pub(crate) use leaders::settle_after_furniture;
 pub(crate) use placement::collisions_cached as label_collisions;
 pub(crate) mod levels;

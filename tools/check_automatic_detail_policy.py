@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import runpy
 import subprocess
 
 parser = argparse.ArgumentParser(description=__doc__)
@@ -17,6 +18,7 @@ spec = out / 'no-automatic-details.spec.json'
 spec.write_text(json.dumps({'sheet': {'automatic_details': False}}) + '\n')
 binary = (r / 'after/draftwright').resolve()
 papers = ['A4', 'A3', 'A2', 'A1', 'A0']
+text_off_span = runpy.run_path(str(Path(__file__).with_name('quality.py')))['text_off_span']
 receipts = []
 for key, source in manifest.items():
     plan = json.loads((r / 'after' / (key + '.plan.json')).read_text())
@@ -32,8 +34,10 @@ for key, source in manifest.items():
     assert len(plan.get('sheets', [])) <= len(ordinary.get('sheets', [])), source['name']
     assert papers.index(plan['sheet']['size']) <= papers.index(ordinary['sheet']['size']), source['name']
     assert plan['sheet']['scale_factor'] >= ordinary['sheet']['scale_factor'], source['name']
+    bad_labels = set(text_off_span(plan))
     for view in automatic:
         detail = view['detail']
+        assert not any(d['id'] in bad_labels and d['view'] == view['id'] for d in plan['dimensions']), source['name']
         assert detail['bounds'] == detail['marked_bounds'], source['name']
         parent = next(v for v in plan['views'] if v['id'] == detail['source_view'])
         assert view.get('sheet', 1) == parent.get('sheet', 1), source['name']
