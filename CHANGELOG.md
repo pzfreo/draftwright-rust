@@ -6,6 +6,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Added
+
+- Pin a projected view's gap with `views/<name>/place/align: "projection"` while keeping
+  geometry on its projection line despite asymmetric dimension bands. Valid front/plan
+  and front/side pairs offer it first in `item_options`; other pairs refuse it with choices.
+
 ### Fixed
 
 - Default drawing numbers to a leading part-number token in the STEP product name, then
