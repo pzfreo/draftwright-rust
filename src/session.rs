@@ -1361,6 +1361,10 @@ fn settable(
         fields.insert(paths[0].clone(), descriptor);
     }
     if item.item.kind == "sheet" {
+        fields.insert(
+            "sheet/callouts/style".into(),
+            choices(json!(["auto", "compact", "full", "note"])),
+        );
         for field in crate::linework::FIELDS {
             fields.insert(format!("sheet/{field}"), choices(json!([false, true])));
         }
@@ -1384,6 +1388,10 @@ fn settable(
             || patterns.iter().any(|p| &p.id == feature);
         if known {
             let base = format!("features/{}", items::key(feature));
+            fields.insert(
+                format!("{base}/callouts/style"),
+                choices(json!(["auto", "compact", "full", "note"])),
+            );
             fields.insert(format!("{base}/datum"), json!({"forms":["A"]}));
             fields.insert(
                 format!("{base}/controls"),

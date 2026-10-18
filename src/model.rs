@@ -330,6 +330,9 @@ pub struct DimensionSpec {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct FeatureSpec {
+    /// Shared thread and knurl callout presentation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub callouts: Option<crate::callouts::Settings>,
     /// Stable defining-face fingerprints, filled when a correction is saved.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub anchor: Option<crate::recognition_corrections::Anchor>,
@@ -406,6 +409,9 @@ impl Default for Spec {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct SheetSpec {
+    /// Shared thread and knurl callout presentation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub callouts: Option<crate::callouts::Settings>,
     /// Line-work intent; absent keeps the view's automatic convention.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hidden: Option<bool>,
@@ -1894,6 +1900,65 @@ mod complete_candidate_tests {
 }
 
 fn recover_uncached(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
+    let mut best = recover_paper(analysis, spec, first)?;
+    if crate::placement_intent::has_pins(spec) {
+        return Ok(best);
+    }
+    let clean =
+        |p: &Plan| findings(p).clean() && drawn_sheets_fit(analysis, p) && undrawn_gdt(p) == 0;
+    if best.sheet.size == "A4" && clean(&best) {
+        return Ok(best);
+    }
+    let m = crate::pmi_lowering::manufacturing_for(analysis, spec);
+    // Try one source owner at a time on the chosen paper and scale before allowing
+    // its callout to demand larger paper. Other feature overrides stay authoritative.
+    let mut intent = spec.clone();
+    for o in &m.owned {
+        if crate::callouts::style(spec, &o.owner) != crate::callouts::Style::Auto {
+            continue;
+        }
+        let Some(d) = best
+            .dimensions
+            .iter()
+            .find(|d| d.measurements.iter().any(|v| v.feature == o.id))
+        else {
+            continue;
+        };
+        if d.label.split_whitespace().count() <= 1 {
+            continue;
+        }
+        let mut trial = intent.clone();
+        trial.features.entry(o.owner.clone()).or_default().callouts =
+            Some(crate::callouts::Settings {
+                style: crate::callouts::Style::Note,
+            });
+        trial.sheet.size = Some(spec.sheet.size.clone().unwrap_or_else(|| "A4".into()));
+        trial.sheet.scale = Some(best.sheet.scale.clone());
+        let seed = plan_escalated(analysis, &trial)?;
+        let mut candidate = recover_paper(analysis, &trial, seed)?;
+        if clean(&candidate)
+            && carried(&best).is_subset(&carried(&candidate))
+            && (candidate.sheet.page[0] * candidate.sheet.page[1]
+                < best.sheet.page[0] * best.sheet.page[1]
+                || !clean(&best))
+        {
+            for d in &mut candidate.dimensions {
+                if d.measurements.iter().any(|v| v.feature == o.id) {
+                    d.basis += "; auto selected note form to fit the chosen paper and scale cleanly before paper escalation";
+                }
+            }
+            intent = trial;
+            candidate.spec = spec.clone();
+            best = candidate;
+            if best.sheet.size == "A4" {
+                break;
+            }
+        }
+    }
+    Ok(best)
+}
+
+fn recover_paper(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
     if spec.sheet.scale.is_some() || crate::placement_intent::has_pins(spec) {
         return recover_candidates(analysis, spec, first, true, false);
     }
@@ -3669,8 +3734,10 @@ fn plan_with_presentation(
     // The part's manufacturing requirements table, when its threads and knurls are referred to
     // one (crate::pmi_lowering::manufacturing), before the notes, as draftwright reserves it.
     request.required_tables.extend(
-        crate::tables::manufacturing_size(&crate::pmi_lowering::manufacturing(analysis).rows())
-            .map(|s| (s, Corner::TopRight)),
+        crate::tables::manufacturing_size(
+            &crate::pmi_lowering::manufacturing_for(analysis, spec).rows(),
+        )
+        .map(|s| (s, Corner::TopRight)),
     );
     request
         .required_tables
@@ -4796,7 +4863,7 @@ fn plan_with_presentation(
     let captions = crate::iso_caption::plan(analysis, &sheet, &views, &ink);
     ink.extend(captions.iter().map(crate::iso_caption::proxy));
     // The manufacturing requirements table goes before the notes, which keep clear of it.
-    let (schedule, more) = crate::tables::manufacturing(analysis, &sheet, &views, &ink);
+    let (schedule, more) = crate::tables::manufacturing(analysis, spec, &sheet, &views, &ink);
     problems.extend(more);
     ink.extend(schedule.iter().filter_map(crate::tables::proxy));
     let (mut automatic, authored): (Vec<_>, Vec<_>) = notes_given

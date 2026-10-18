@@ -442,7 +442,7 @@ fn unknown_ids_and_unreadable_entries_are_refused() {
         e.message
     );
     let e = refused(
-        json!([{"op": "set", "path": "features/f:hole:1/thread", "value": {"designation": "M7"}}]),
+        json!([{"op": "set", "path": "features/f:hole:1/thread", "value": {"designation": "M13"}}]),
     );
     assert!(
         e.message.contains("no ISO 261 coarse pitch"),

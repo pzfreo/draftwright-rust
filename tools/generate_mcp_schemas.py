@@ -332,6 +332,7 @@ for mode in ('validation', 'published'):
 Path('schemas/mcp-validation.json').write_text(json.dumps(validation, indent=2) + '\n')
 # Exact measured ceiling, shared with tests/engine_version.rs. Nested Spec growth is free;
 # detail placement view names (detail_a…) add 88 bytes to item_options.
+# callouts/style: +0 tools/list bytes (nested on-demand Spec vocabulary only).
 SCHEMA_BUDGET = 34477
 assert total <= SCHEMA_BUDGET, f'schemas: {total} bytes (budget {SCHEMA_BUDGET})'
 print(f'{len(tools)} tools; {total} compact schema bytes')

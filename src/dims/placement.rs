@@ -115,6 +115,33 @@ pub struct LabelInk {
 /// spotface symbol (the term [`SPOTFACE`], ASME Y14.5-2018's counterbore symbol with SF inside)
 /// is the counterbore's strokes widened to hold the font's own `SF`, in a cell of [`SF_CELL`].
 pub fn label_ink(terms: &[String], font: &Font) -> LabelInk {
+    if terms.iter().any(|t| t == crate::callouts::BREAK) {
+        let mut combined = LabelInk {
+            glyphs: Vec::new(),
+            strokes: Vec::new(),
+            min: [f64::INFINITY; 2],
+            max: [f64::NEG_INFINITY; 2],
+        };
+        for (i, line) in crate::callouts::lines(terms).iter().enumerate() {
+            let ink = label_ink(line, font);
+            let rise = -(i as f64) * crate::callouts::LINE;
+            for k in 0..2 {
+                let shift = if k == 1 { rise } else { 0.0 };
+                combined.min[k] = combined.min[k].min(ink.min[k] + shift);
+                combined.max[k] = combined.max[k].max(ink.max[k] + shift);
+            }
+            let shift = |p: P2| [p[0], p[1] + rise];
+            combined
+                .strokes
+                .extend(ink.strokes.into_iter().map(|[a, b]| [shift(a), shift(b)]));
+            combined.glyphs.extend(ink.glyphs.into_iter().map(|g| {
+                g.into_iter()
+                    .map(|c| c.into_iter().map(|s| moved(&s, &shift)).collect())
+                    .collect()
+            }));
+        }
+        return combined;
+    }
     let h = TEXT;
     let mut ink = LabelInk {
         glyphs: Vec::new(),
