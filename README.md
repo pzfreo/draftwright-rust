@@ -6,7 +6,7 @@ fully-annotated engineering drawings from STEP B-rep. No OpenCascade: geometry c
 kernel, and features from the Rust port of quiddity, both in
 [quiddity-rust](https://github.com/pzfreo/quiddity-rust).
 
-**Status: alpha 4** (`0.1.0-alpha.4`, 2026-10-16, on quiddity-rust `0.1.0-alpha.4`). Alpha 1's
+**Status: alpha 5** (`0.1.0-alpha.5`, 2026-10-18, on quiddity-rust `0.1.0-alpha.6`). Alpha 1's
 gates are in `docs/alpha1.md`; what changed is in `CHANGELOG.md`. It is an
 alpha: every drawing reports what it does not state, but drawings are not yet as clean as Python
 draftwright's on dense parts (see "Known limitations"). The port is checked against
@@ -247,8 +247,8 @@ every corpus-backed test; without it they are skipped.
 
 ## Taking a new haecceity
 
-haecceity and Rust quiddity come by git from `pzfreo/quiddity-rust`. Alpha 3 pins them to the
-`v0.1.0-alpha.4` tag (commit `f5ddb726`),
+haecceity and Rust quiddity come by git from `pzfreo/quiddity-rust`. Alpha 5 pins them to the
+`v0.1.0-alpha.6` tag (commit `0cfe8356`),
 by `tag` in `Cargo.toml` and one commit in `Cargo.lock`. To follow the development branch again,
 set `branch = "main"` in place of `tag` in `Cargo.toml`; then, to move the pin to what is pushed
 on that branch:

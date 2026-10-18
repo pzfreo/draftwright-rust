@@ -1842,7 +1842,7 @@ fingerprints with complete keys from the Analysis):
   placement options and editable fields. Sheet options describe the creation forms. MCP
   schemas carry a compact top-level Spec outline. Call MCP `spec_schema {}` for the full
   draft-2020-12 Spec schema and its named `spec_read` shape; `item_options` supplies valid
-  paths and choices. The 28 advertised schemas total 34,389 compact UTF-8 bytes; nested
+  paths and choices. The 28 advertised schemas total 34,477 compact UTF-8 bytes; nested
   Spec fields do not grow this budget. Server preflight and model/geometry validation
   are unchanged. Browser bindings accept the same Spec and operations; their method
   signatures are unchanged.

@@ -4,7 +4,7 @@ All notable changes to draftwright-rust are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follow
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.1.0-alpha.5 (2026-10-18)
 
 ### Added
 
@@ -26,7 +26,7 @@ All notable changes to draftwright-rust are recorded here, in the style of
   and size/depth callouts, pitch and absolute locations, independent coverage
   outcomes, and four retained radius requirements per rounded pocket. Five pending
   recess-reader rules and four formerly bridge-only rules have native regressions.
-  The kernel is pinned to quiddity-rust release `v0.1.0-alpha.5` (`6494e07f`).
+  The kernel is pinned to quiddity-rust release `v0.1.0-alpha.6`.
   See docs/native-recesses.md for reader and drafting details.
 
 - Authored detail `from` selects an existing principal or section parent; `around` accepts
@@ -42,7 +42,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   Verification and Python differences: [detail views](docs/detail-verification.md).
 - MCP `spec_schema {}` returns the full draft-2020-12 author Spec schema and its
   named `get_spec` read shape on demand. Tool schemas retain explicit typed top-level
-  outlines, reducing session schema context from 42,681 to 34,389 bytes (19.43%).
+  outlines. Against alpha.4 the per-session schema context falls from 42,464 to 34,477 bytes
+  (−18.8%), including this release's new Spec fields.
   Nested Spec additions no longer grow tools/list; server validation and corrective
   guidance are unchanged.
 
@@ -70,6 +71,18 @@ All notable changes to draftwright-rust are recorded here, in the style of
 - Spec line-work switches per view and drawing-wide sheet defaults: hidden lines,
   centre marks, centre lines, thread depiction and knurl depiction (#76 item 6).
   Session options/edits support them; effective paths are reported in view `from_spec`.
+
+### Changed
+
+- Planning is faster on PMI-heavy AP242 files (#90): linear-dimension trials reuse their
+  stroke geometry and footprint witness counts are memoised; with quiddity-rust alpha.6's
+  bounded emptiness probe, NIST FTC-10's AP242 plan falls from 203 s to about 5 s. Every
+  plan JSON and SVG on the 65-part survey is byte-identical to the output before this change.
+- The plan-time budget is re-recorded at 2,352,592,623,176 instructions on the 65-part
+  survey (from 3,166,420,524,176 after native recesses; margin still 15%).
+- Development: integration tests are grouped into eight binaries, halving CI's build step,
+  with a guard against unreachable test files (#91); long test loops are split into
+  individual cases (#89); release-only PRs skip the build in CI (#86).
 
 ### Fixed
 
