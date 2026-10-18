@@ -293,3 +293,67 @@ fn overlapping_datum_triangles_are_errors_even_with_separate_letter_boxes() {
     assert_eq!(issues[0].severity, "error");
     assert!(datums.iter().all(|g| issues[0].subjects.contains(&g.id)));
 }
+
+#[test]
+fn an_already_separated_seed_does_not_gain_datum_crossings() {
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/pmi/step/hw_every_kind.step.gz");
+    let (_, a) = model::analyse_native(&path).unwrap();
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert!(gdt::symbol_collisions(&plan.gdt).is_empty());
+    let ids: Vec<_> = plan
+        .gdt
+        .iter()
+        .filter(|g| g.kind == "datum_feature")
+        .map(|g| &g.id)
+        .collect();
+    let crossings: Vec<_> = plan
+        .problems
+        .iter()
+        .filter(|p| {
+            p.code == "annotation_leader_crossing" && p.subjects.iter().any(|s| ids.contains(&s))
+        })
+        .collect();
+    assert!(
+        crossings.is_empty(),
+        "the legal seed has no datum-leader crossings: {crossings:#?}"
+    );
+}
+
+fn dense_datums_are_separate(name: &str, expected: usize) {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pmi/step")
+        .join(name);
+    let (_, a) = model::analyse_native(&path).unwrap();
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let shown: Vec<_> = plan
+        .gdt
+        .iter()
+        .filter(|g| g.kind == "datum_feature" && g.placed.is_some())
+        .collect();
+    assert_eq!(
+        shown.len(),
+        expected,
+        "separate the symbols without dropping datums"
+    );
+    let collisions = gdt::symbol_collisions(&plan.gdt);
+    assert!(
+        collisions.is_empty(),
+        "coincident projections still need distinct symbols: {collisions:#?}"
+    );
+}
+
+#[test]
+fn ftc10_coincident_projected_datums_do_not_touch() {
+    dense_datums_are_separate("nist_ftc_10_asme1_ap242-e2.stp.gz", 8);
+}
+
+#[test]
+fn stc10_coincident_projected_datums_do_not_touch() {
+    dense_datums_are_separate("nist_stc_10_asme1_ap242-e2.stp.gz", 8);
+}
+
+#[test]
+fn ftc07_coincident_projected_datums_do_not_touch() {
+    dense_datums_are_separate("nist_ftc_07_asme1_ap242-e2.stp.gz", 5);
+}

@@ -155,6 +155,22 @@ pub(super) fn proofs(
     analysis: &Analysis,
     views: &[PlannedView],
 ) -> BTreeMap<String, std::rc::Rc<Proof>> {
+    prepared_proofs(analysis, views, false)
+}
+
+/// Datum placement can prove exterior paper without a square planar face.
+pub(super) fn exterior_proofs(
+    analysis: &Analysis,
+    views: &[PlannedView],
+) -> BTreeMap<String, std::rc::Rc<Proof>> {
+    prepared_proofs(analysis, views, true)
+}
+
+fn prepared_proofs(
+    analysis: &Analysis,
+    views: &[PlannedView],
+    exterior: bool,
+) -> BTreeMap<String, std::rc::Rc<Proof>> {
     let Some(ink) = analysis.edge_ink.as_ref() else {
         return BTreeMap::new();
     };
@@ -177,6 +193,11 @@ pub(super) fn proofs(
                     std::rc::Rc::new(p)
                 })
             })?;
+            // Preserve the established eligibility of dimension/interior routing.
+            // Only datum exterior placement opts into entirely turned views.
+            if !exterior && proof.faces.is_empty() {
+                return None;
+            }
             // A cutting-plane line this view marks is fixed ink; its letters are boxes.
             for cut in views.iter().filter_map(|q| q.cut.as_ref()) {
                 let name = v.id.trim_start_matches("v:");

@@ -41,10 +41,12 @@
 //! reserved-area boundaries, followed by the count of leader crossings with dimension lines,
 //! extension lines, arrow shafts and other leaders (the collision reporter's `lines_meet`,
 //! including collinear travel). Only the all-zero grade ends the search immediately. Within
-//! equal clearances, fewer crossings win. A complete arrangement is accepted only if it does
-//! not introduce a new annotation contact against the original arrangement (unique unordered
-//! annotation pairs, independent of reporting direction): later frames
-//! must not be displaced into overlaps to clear an earlier leader. Unavoidable collisions are
+//! equal clearances, fewer crossings win. When the original arrangement separates datum
+//! triangles, a new arrangement must not introduce any annotation contact (unique unordered
+//! pairs, independent of reporting direction). An original arrangement with touching triangles
+//! is already illegal: datum-only repair is tried first and may trade soft contacts for fewer
+//! symbol overlaps, retaining all findings. Later frames must not be displaced merely to clear
+//! an earlier leader in an already legal arrangement. Unavoidable collisions are
 //! retained and reported (Policy B). Explicit placement intents retain their strip/tier rules.
 //! If the full rearrangement introduces contact, the datum changes are also tried alone.
 //! Pins and canonical hand placements take precedence over automatic compact placement.
@@ -652,7 +654,7 @@ type Choice<'a> = (Grade, &'a str, Candidate, P2, usize);
 /// Compact datum tiers, starting with the normal triangle, shaft and frame clearances.
 /// Exact obstacle grading rejects any intervening dimension, extension or text. The outer
 /// edge must precede the first stroke across the frame's strip, with the usual clearance.
-fn inside_tiers(side: &str, tip: P2, size: P2, ink: &[[P2; 2]]) -> Vec<f64> {
+fn inside_tiers(side: &str, tip: P2, outline: [f64; 4], size: P2, ink: &[[P2; 2]]) -> Vec<f64> {
     let d = outward(side);
     let sign = d[0] + d[1];
     // Start at the attachment, not at the far end of the entire view. A shoulder
@@ -669,11 +671,22 @@ fn inside_tiers(side: &str, tip: P2, size: P2, ink: &[[P2; 2]]) -> Vec<f64> {
         .flat_map(|l| l.iter().map(|p| dot(*p, d)))
         .filter(|v| *v > dot(tip, d) + 1e-6)
         .fold(f64::INFINITY, f64::min);
-    (0..TIERS)
-        .map(|k| first + k as f64 * step(Shape::Datum, side, size))
-        .take_while(|p| *p + TEXT + CLEAR <= nearest)
-        .map(|p| p * sign)
-        .collect()
+    // Keep the original view-boundary grid too. Starting the new grid at a
+    // shoulder changes its phase; replacing the old grid would lose clear
+    // placements between crowded dimension lanes on unrelated parts.
+    let boundary = first_tier(Shape::Datum, side, tip, outline, &[], size) * sign;
+    let mut positions: Vec<_> = [first, boundary]
+        .into_iter()
+        .flat_map(|start| {
+            (0..TIERS)
+                .map(move |k| start + k as f64 * step(Shape::Datum, side, size))
+                .take_while(move |p| *p + TEXT + CLEAR <= nearest)
+                .map(move |p| p * sign)
+        })
+        .collect();
+    positions.sort_by(|a, b| (a * sign).total_cmp(&(b * sign)));
+    positions.dedup_by(|a, b| (*a - *b).abs() < 1e-6);
+    positions
 }
 
 /// Both silhouettes are usable only where the reader proved points on the trimmed face.
@@ -773,6 +786,124 @@ fn plane_extensions<'a>(analysis: &Analysis, item: &'a Lowered, frame: &Frame) -
     sites
 }
 
+fn authored(place: Option<&crate::placement_intent::Place>) -> bool {
+    place.is_some_and(|p| {
+        p.pinned || p.side.is_some() || p.lane.is_some() || p.along.is_some() || p.offset.is_some()
+    })
+}
+
+fn datum_sites<'a>(
+    analysis: &Analysis,
+    item: &'a Lowered,
+    frame: &Frame,
+    constrained: bool,
+) -> Vec<Site<'a>> {
+    if matches!(&item.glyph, Glyph::Datum { surface, .. } if surface == "cylinder") {
+        return cylinder_sites(analysis, item, frame, constrained.then_some(item.side));
+    }
+    let mut sites: Vec<_> = std::iter::once(item.site)
+        .chain(item.alternatives.iter().copied())
+        .map(|p| (frame.page(p), item.side, None))
+        .collect();
+    if !constrained {
+        sites.extend(plane_extensions(analysis, item, frame));
+    }
+    sites
+}
+
+/// Reserve distinct proven attachment sites together before greedily placing
+/// letter boxes. Three coincident projections may need an earlier triangle to
+/// move away from its middle station to leave room for the third. The bounded
+/// search concerns filled triangles alone, not combinations of leader tiers.
+fn separated_sites(
+    analysis: &Analysis,
+    spec: &Spec,
+    items: &[Lowered],
+    frames: &BTreeMap<&str, Frame>,
+    page: &Page<'_>,
+) -> BTreeMap<String, Vec<P2>> {
+    let mut choices = Vec::new();
+    for item in items
+        .iter()
+        .filter(|i| matches!(i.glyph, Glyph::Datum { .. }))
+    {
+        let entry = spec.annotations.get(&item.id);
+        if entry.is_some_and(|p| p.omit) {
+            continue;
+        }
+        let intent = entry.and_then(|p| p.place.as_ref());
+        // Explicit pins retain their authored positions and are linted as drawn.
+        if intent.is_some_and(|p| p.pinned) {
+            return BTreeMap::new();
+        }
+        let Some(frame) = frames.get(item.view) else {
+            continue;
+        };
+        if page.area(item.view).is_none() {
+            continue;
+        }
+        let mut fills = Vec::new();
+        for (tip, side, _) in datum_sites(analysis, item, frame, authored(intent)) {
+            let d = outward(side);
+            let pos = dot(tip, d) + 0.9 * TRIANGLE + 0.8 * TEXT + TEXT;
+            let c = candidate(Shape::Datum, tip, side, pos * (d[0] + d[1]), [H, H]);
+            let fill = c.fills.into_iter().next().expect("datum triangle");
+            let b = fill_box(&fill);
+            let paper = page.drawable();
+            if b[0] >= paper[0]
+                && b[1] >= paper[1]
+                && b[2] <= paper[2]
+                && b[3] <= paper[3]
+                && !fills.contains(&fill)
+            {
+                fills.push(fill);
+            }
+        }
+        if fills.is_empty() {
+            return BTreeMap::new();
+        }
+        choices.push((item.id.clone(), fills));
+    }
+    fn choose(
+        choices: &[(String, Vec<Vec<P2>>)],
+        selected: &mut Vec<Vec<P2>>,
+        remaining: &mut usize,
+    ) -> bool {
+        if selected.len() == choices.len() {
+            return true;
+        }
+        for fill in &choices[selected.len()].1 {
+            if *remaining == 0 {
+                return false;
+            }
+            *remaining -= 1;
+            if selected
+                .iter()
+                .any(|previous| polygons_touch(fill, previous))
+            {
+                continue;
+            }
+            selected.push(fill.clone());
+            if choose(choices, selected, remaining) {
+                return true;
+            }
+            selected.pop();
+        }
+        false
+    }
+    let mut selected = Vec::new();
+    let mut remaining = 4096;
+    if choose(&choices, &mut selected, &mut remaining) {
+        choices
+            .into_iter()
+            .zip(selected)
+            .map(|((id, _), fill)| (id, fill))
+            .collect()
+    } else {
+        BTreeMap::new()
+    }
+}
+
 /// Conservative bounds of a filled datum triangle, including its surface base.
 /// Reserve these alongside frames so triangles cannot overlap or touch, even when
 /// their leaders and letter boxes are far apart.
@@ -803,6 +934,8 @@ struct Obstacles<'a> {
     area: Option<[f64; 4]>,
     /// Proven exterior paper beside a shoulder inside the whole-view box.
     exterior: Option<(&'a PlannedView, &'a super::interior::Proof)>,
+    protect_triangles: bool,
+    triangles: Vec<Vec<P2>>,
     labels: Vec<[f64; 4]>,
     lines: Vec<[P2; 2]>,
 }
@@ -810,7 +943,8 @@ struct Obstacles<'a> {
 impl Obstacles<'_> {
     /// How well *c* fits, best first: 0 clear of everything and inside its view's reserved area;
     /// 1 clear of everything, past the area; 2 on the sheet and off every label and frame, a line
-    /// of it through a label or another view; 3 off every label and frame only; 4 neither.
+    /// of it through a label or another view; 3 off every label and frame only; 4 neither;
+    /// 5 a filled datum triangle overlaps or touches an earlier triangle.
     /// Add the crossing count as the second component: (0, 0) alone is clear, and fewer
     /// crossings win among candidates with otherwise equal clearances.
     fn grade(&self, c: &Candidate, best: Option<Grade>) -> Grade {
@@ -845,16 +979,26 @@ impl Obstacles<'_> {
     }
 
     fn clearance_grade(&self, c: &Candidate) -> u8 {
+        // Filled symbols take precedence over soft label/leader contacts. In a
+        // dense view every label tier may be obstructed, but another proven site
+        // can still separate the triangles rather than keeping coincident ink.
+        if c.fills
+            .iter()
+            .any(|f| self.triangles.iter().any(|t| polygons_touch(f, t)))
+        {
+            return 5;
+        }
         let b = c.label_box;
         let d = self.page.drawable();
         let on_sheet = b[0] >= d[0] && b[1] >= d[1] && b[2] <= d[2] && b[3] <= d[3];
         let grown = [b[0] - 0.5, b[1] - 0.5, b[2] + 0.5, b[3] + 0.5];
         let off_labels = self.labels.iter().all(|l| !boxes_overlap(grown, *l))
-            && c.fills.iter().all(|f| {
-                let b = fill_box(f);
-                let grown = [b[0] - 0.5, b[1] - 0.5, b[2] + 0.5, b[3] + 0.5];
-                self.labels.iter().all(|l| !boxes_overlap(grown, *l))
-            });
+            && (!self.protect_triangles
+                || c.fills.iter().all(|f| {
+                    let b = fill_box(f);
+                    let grown = [b[0] - 0.5, b[1] - 0.5, b[2] + 0.5, b[3] + 0.5];
+                    self.labels.iter().all(|l| !boxes_overlap(grown, *l))
+                }));
         if !off_labels {
             return 4;
         }
@@ -1036,6 +1180,13 @@ pub(crate) fn plan_anchored(
             .collect::<std::collections::BTreeSet<_>>()
     };
     let before = contacts(&seed.1);
+    let overlap_count = |problems: &[Problem]| {
+        problems
+            .iter()
+            .filter(|p| p.code == "datum_symbol_overlap")
+            .count()
+    };
+    let seed_overlaps = overlap_count(&seed.1);
     // Without datums, only the added dimension arrow shafts can change the datum-only
     // pass's clearance grading. If every seed label clears them, the same first-best
     // choice survives at each step; the pass would reproduce the seed.
@@ -1051,7 +1202,39 @@ pub(crate) fn plan_anchored(
     if seed.0.iter().all(|g| g.placed.is_none()) {
         return seed;
     }
-    for search in [Search::All, Search::Datums] {
+    // Preserve the actual old arrangement as the contact reference. Triangle
+    // reservations belong to the corrective searches, never to that seed.
+    // An already illegal seed needs symbol separation before soft contacts:
+    // try moving datums alone first, and keep every resulting warning visible.
+    let searches = if seed_overlaps > 0 {
+        [Search::Datums, Search::All]
+    } else {
+        [Search::All, Search::Datums]
+    };
+    let score = |candidate: &(Vec<PlannedGdt>, Vec<Problem>)| {
+        let datums: BTreeSet<_> = candidate
+            .0
+            .iter()
+            .filter(|g| g.kind == "datum_feature")
+            .map(|g| &g.id)
+            .collect();
+        (
+            overlap_count(&candidate.1),
+            candidate
+                .1
+                .iter()
+                .filter(|p| {
+                    p.code == "annotation_leader_crossing"
+                        && p.subjects.iter().any(|id| datums.contains(id))
+                })
+                .count(),
+            contacts(&candidate.1).len(),
+        )
+    };
+    let mut best_score = score(&seed);
+    let mut best = seed;
+    let mut original = true;
+    for search in searches {
         if search == Search::Datums && !datum_search_can_change {
             continue;
         }
@@ -1064,13 +1247,25 @@ pub(crate) fn plan_anchored(
             canonical,
             cache,
             search,
-            Some(&before),
-        ) && contacts(&compact.1).is_subset(&before)
+            (seed_overlaps == 0).then_some(&before),
+        ) && (contacts(&compact.1).is_subset(&before)
+            || overlap_count(&compact.1) < seed_overlaps)
         {
-            return compact;
+            let grade = score(&compact);
+            if grade < best_score || (original && grade == best_score) {
+                best = compact;
+                best_score = grade;
+                original = false;
+            }
+            // Try the datum-only arrangement too if a legal full arrangement
+            // still crosses dimensions. Keep the first clear arrangement, and
+            // stop mandatory triangle repair as soon as it has no hard overlap.
+            if best_score.0 == 0 && (best_score.1 == 0 || seed_overlaps > 0) {
+                return best;
+            }
         }
     }
-    seed
+    best
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -1208,12 +1403,19 @@ fn plan_search(
         })
         .collect();
     let exterior = if compact && items.iter().any(|i| matches!(i.glyph, Glyph::Datum { .. })) {
-        super::interior::proofs(analysis, views)
+        super::interior::exterior_proofs(analysis, views)
+    } else {
+        BTreeMap::new()
+    };
+    let mut reservations = if compact && allowed.is_none() {
+        separated_sites(analysis, spec, &items, &frames, &page)
     } else {
         BTreeMap::new()
     };
     let mut out = Vec::new();
+    let mut triangles = Vec::new();
     for item in items {
+        reservations.remove(&item.id);
         let shape = Shape::of(&item.glyph);
         let datum = shape == Shape::Datum;
         let (laid, cells) = match &item.glyph {
@@ -1277,13 +1479,7 @@ fn plan_search(
             .annotations
             .get(&item.id)
             .and_then(|a| a.place.as_ref());
-        let authored = intent.is_some_and(|p| {
-            p.pinned
-                || p.side.is_some()
-                || p.lane.is_some()
-                || p.along.is_some()
-                || p.offset.is_some()
-        });
+        let authored = authored(intent);
         if intent.is_some() {
             planned.basis += "; placed relative to its anchor by the spec";
         }
@@ -1350,7 +1546,10 @@ fn plan_search(
                 move_point(&mut t.at, delta);
             }
             labels.push(p.label_box);
-            labels.extend(p.fills.iter().map(|f| fill_box(f)));
+            if compact {
+                labels.extend(p.fills.iter().map(|f| fill_box(f)));
+                triangles.extend(p.fills.iter().cloned());
+            }
             lines.extend(p.lines.iter().copied());
             planned.side = g.side.clone();
             planned.state = State::Shown;
@@ -1385,6 +1584,12 @@ fn plan_search(
                         .and_then(|v| exterior.get(&v.id).map(|proof| (v, proof.as_ref())))
                 })
                 .flatten(),
+            protect_triangles: compact,
+            triangles: triangles
+                .iter()
+                .chain(reservations.values())
+                .cloned()
+                .collect(),
             labels: labels.clone(),
             lines: lines.clone(),
         };
@@ -1400,12 +1605,8 @@ fn plan_search(
             .chain(item.alternatives.iter().copied())
             .map(|s| (frame.page(s), item.side, None))
             .collect();
-        if compact && let Glyph::Datum { surface, .. } = &item.glyph {
-            if surface == "cylinder" {
-                sites = cylinder_sites(analysis, &item, frame, authored.then_some(item.side));
-            } else if !authored {
-                sites.extend(plane_extensions(analysis, &item, frame));
-            }
+        if compact && datum {
+            sites = datum_sites(analysis, &item, frame, authored);
         }
         let tiers = |side: &str, tip: P2| {
             let pinned = intent.is_some_and(|p| p.pinned);
@@ -1448,7 +1649,7 @@ fn plan_search(
                 };
                 for side in choices {
                     let positions = if inside && datum {
-                        inside_tiers(side, *tip, laid.size, &ink)
+                        inside_tiers(side, *tip, frame.outline(), laid.size, &ink)
                     } else if inside {
                         // Frame ink can fit between the face and the first
                         // dimension lane too. Exact obstacle grading, including
@@ -1572,7 +1773,10 @@ fn plan_search(
             }
         }
         labels.push(chosen.label_box);
-        labels.extend(chosen.fills.iter().map(|f| fill_box(f)));
+        if compact {
+            labels.extend(chosen.fills.iter().map(|f| fill_box(f)));
+            triangles.extend(chosen.fills.iter().cloned());
+        }
         lines.extend(chosen.lines.iter().copied());
         planned.state = State::Shown;
         planned.placed = Some(GdtPlaced {
@@ -2050,7 +2254,12 @@ mod tests {
             tip[0] + 0.9 * TRIANGLE + 0.8 * TEXT + TEXT,
             [H, H],
         );
-        let proofs = crate::dims::interior::proofs(&analysis, std::slice::from_ref(&view));
+        assert!(
+            !crate::dims::interior::proofs(&analysis, std::slice::from_ref(&view))
+                .contains_key(&view.id),
+            "ordinary dimension routing retains its planar-face requirement"
+        );
+        let proofs = crate::dims::interior::exterior_proofs(&analysis, std::slice::from_ref(&view));
         let proof = proofs
             .get(&view.id)
             .expect("turned side view has exterior proof");
@@ -2091,6 +2300,8 @@ mod tests {
             own: "v:front".into(),
             area: None,
             exterior: None,
+            protect_triangles: true,
+            triangles: first.fills.clone(),
             labels: std::iter::once(first.label_box)
                 .chain(first.fills.iter().map(|f| fill_box(f)))
                 .collect(),
@@ -2101,7 +2312,7 @@ mod tests {
         for offset in [0.0, TRIANGLE / 2.0, TRIANGLE] {
             let next = candidate(Shape::Datum, [30.0, 180.0 + offset], "right", 75.0, [H, H]);
             assert!(!boxes_overlap(first.label_box, next.label_box));
-            assert_eq!(obstacles.clearance_grade(&next), 4, "offset {offset}");
+            assert_eq!(obstacles.clearance_grade(&next), 5, "offset {offset}");
         }
         let clear = candidate(
             Shape::Datum,
