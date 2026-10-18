@@ -2424,11 +2424,12 @@ pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selectio
     // Keep the caption's normal lower band clear as well as the projected ink.
     let caption = 3.0 * crate::section::FONT_SIZE;
     let target = [size[0], size[1] + caption];
+    let margin = crate::layout::MARGIN + crate::layout::PREFERRED_BLOCK_GUTTER;
     let region = [
-        crate::layout::MARGIN,
-        crate::layout::MARGIN,
-        plan.sheet.page[0] - crate::layout::MARGIN,
-        plan.sheet.page[1] - crate::layout::MARGIN,
+        margin,
+        margin,
+        plan.sheet.page[0] - margin,
+        plan.sheet.page[1] - margin,
     ];
     let Some([x, y]) =
         crate::layout::fit_auxiliary_box(target, region, &obstacles, Corner::TopRight, tables::PAD)
