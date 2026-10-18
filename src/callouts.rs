@@ -62,7 +62,7 @@ fn width(terms: &[String]) -> f64 {
 pub fn wrap(terms: &[String]) -> Vec<String> {
     // The private placement comparison predates multiline callouts. Keep its
     // compact corridors intact; every live label still uses measured wrapping.
-    if crate::nominal::unwrapped_comparison() {
+    if crate::nominal::comparison() {
         return terms.to_vec();
     }
     use sha2::{Digest, Sha256};

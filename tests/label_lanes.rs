@@ -227,6 +227,19 @@ fn precise_labels_keep_their_span_after_the_final_inventory_settles() {
         .find(|d| d.id == "d:f:slot:1/slot_width.length")
         .unwrap();
     assert_eq!(slot.label, "192.21");
+    let fillet = p
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:fillet:7/fillet.radius")
+        .unwrap();
+    assert_eq!(fillet.label, "8× R1.5");
+    assert!(
+        fillet
+            .measurements
+            .iter()
+            .all(|m| (m.value - 1.524).abs() < 1e-6)
+    );
+    assert!(fillet.basis.contains("one-decimal text retained"));
     assert!(
         !p.problems.iter().any(|q| {
             matches!(

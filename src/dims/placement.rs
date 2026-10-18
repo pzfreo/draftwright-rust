@@ -2510,11 +2510,17 @@ fn clear_linear_ordered(
             .iter()
             .enumerate()
             .filter(|(j, _)| {
-                new_native
-                    && !semantic_pmi
+                crate::nominal::geometry_eligible(analysis)
                     && !crate::nominal::comparison()
                     && *j != i
                     && chosen[*j] == Some(view)
+            })
+            .filter(|(j, _)| {
+                matches!(items[*j].shape, Shape::Linear { order: 0, .. })
+                    && items[*j]
+                        .measurements
+                        .iter()
+                        .any(|m| !m.feature.starts_with("f:section_recess:"))
             })
             .filter_map(|(_, q)| q.as_ref())
             .filter(|q| {
@@ -2591,7 +2597,8 @@ fn clear_linear_ordered(
             && ((old_location(i) && established_clear.contains(&items[i].id))
                 || (new_native
                     && crate::nominal::geometry_eligible(analysis)
-                    && !crate::nominal::comparison())))
+                    && !crate::nominal::comparison()
+                    && matches!(items[i].shape, Shape::Linear { order: 0, .. }))))
             || items[i]
                 .measurements
                 .iter()

@@ -172,12 +172,11 @@ pub(crate) fn enabled(analysis: &Analysis) -> bool {
 }
 
 /// Placement policies held in the planning scope are inputs to exact result caches too.
-pub(crate) fn policy_key(analysis: &Analysis) -> (bool, bool, bool, bool) {
+pub(crate) fn policy_key(analysis: &Analysis) -> (bool, bool, bool) {
     (
         lookup::<bool>(analysis, "canonical-circular-recipes", &[]).unwrap_or(false),
         lookup::<bool>(analysis, "established-route-policy", &[]).unwrap_or(false),
         crate::nominal::comparison(),
-        crate::nominal::unwrapped_comparison(),
     )
 }
 

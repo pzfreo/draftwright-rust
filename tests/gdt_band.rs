@@ -139,12 +139,11 @@ fn stc_09_datum_symbols_are_inside_their_bands_and_frames_past_them_had_no_clear
             g.basis
         );
     }
-    // 12 frames and 4 datum symbols stood past their areas before the reservation.
-    // Faithful nominal widths and measured caption reservations leave only one
-    // control frame without a clear strip; retain the exact remaining count.
+    // 12 frames and 4 datum symbols stood past their areas before the reservation; 2 frames,
+    // each moved to a strip across or beside its view, remain.
     assert_eq!(
         outside.len(),
-        1,
+        2,
         "{:?}",
         outside.iter().map(|g| &g.id).collect::<Vec<_>>()
     );

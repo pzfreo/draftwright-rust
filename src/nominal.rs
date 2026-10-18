@@ -3,7 +3,6 @@
 thread_local! {
     // Unrendered placement comparison only. Live plans always leave this scope first.
     static COMPARISON: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-    static UNWRAPPED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// Authored PMI owns its layout and precision; compact nominal recipes are
@@ -13,28 +12,15 @@ pub(crate) fn geometry_eligible(analysis: &crate::model::Analysis) -> bool {
         .recognition
         .as_ref()
         .is_some_and(|r| r.recogniser.starts_with("quiddity-rust "))
-        && !matches!(&analysis.pmi, Some(crate::pmi::Reading::Read(report)) if !report.records.is_empty())
+        && !authored_pmi(analysis)
+}
+
+pub(crate) fn authored_pmi(analysis: &crate::model::Analysis) -> bool {
+    matches!(&analysis.pmi, Some(crate::pmi::Reading::Read(report)) if !report.records.is_empty())
 }
 
 pub(crate) fn comparison() -> bool {
     COMPARISON.get()
-}
-
-// Only the late corridor comparison needs the older single-line recipe.
-// Sheet selection and every live label retain the current wrapping policy.
-pub(crate) fn unwrapped_comparison() -> bool {
-    comparison() && UNWRAPPED.get()
-}
-
-pub(crate) fn with_unwrapped_comparison<T>(run: impl FnOnce() -> T) -> T {
-    struct Restore(bool);
-    impl Drop for Restore {
-        fn drop(&mut self) {
-            UNWRAPPED.set(self.0);
-        }
-    }
-    let _restore = Restore(UNWRAPPED.replace(true));
-    run()
 }
 
 pub(crate) fn with_comparison<T>(run: impl FnOnce() -> T) -> T {

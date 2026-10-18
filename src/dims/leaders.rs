@@ -643,6 +643,7 @@ type Site = (P2, f64, Option<crate::arc::Span>);
 
 /// One callout's job: its view's outline, its sites on the page (centre, radius), its label's ink
 /// box about its baseline origin, and how far past each edge the strip's dimensions reach.
+#[derive(Clone)]
 struct Job<'a> {
     side: Option<crate::placement_intent::Side>,
     view: &'a str,
@@ -866,16 +867,8 @@ fn settled_nominal_reference(
             // Use the established corridor recipe, before live inspection repairs.
             // Otherwise an already lengthened route becomes its own budget.
             crate::planning::store(&base, "canonical-circular-recipes", Vec::new(), true);
-            let full = crate::nominal::with_unwrapped_comparison(|| {
-                crate::model::plan_recovered(&base, &recipe)
-            })
-            .ok()?;
-            // The pre-recess recipe uses current wrapping in a separate scope;
-            // the historical unwrapped solve must not supply its preparation.
-            let legacy_base = analysis.clone();
-            let legacy = crate::planning::with(&legacy_base, || {
-                crate::model::established_drawing(&legacy_base, &recipe).ok()
-            });
+            let full = crate::model::plan_recovered(&base, &recipe).ok()?;
+            let legacy = crate::model::established_drawing(&base, &recipe).ok();
             Some(NominalReferences { full, legacy })
         })
     });
@@ -1386,7 +1379,9 @@ pub(crate) fn settle_after_furniture(
     obstacles: &[PlannedDimension],
     cache: &super::footprints::Cache,
 ) -> BTreeMap<String, Vec<Problem>> {
-    let compact = crate::nominal::comparison();
+    // Authored PMI keeps the established furniture repair policy. The wider
+    // nominal search belongs to automatically generated geometry statements.
+    let compact = crate::nominal::comparison() || crate::nominal::authored_pmi(analysis);
     if !compact {
         super::nearest_shared_witnesses(analysis, spec, views, items);
     }
@@ -1400,12 +1395,14 @@ pub(crate) fn settle_after_furniture(
     let page = Page::new(analysis, sheet, views);
     for i in 0..items.len() {
         let d = &items[i];
+        let pin = spec.dimensions.get(&d.id).and_then(|e| e.place.as_ref());
+        let held = pin.is_some();
         if d.kind != "callout"
             || (!compact && d.region == Some(super::CandidateRegion::Interior))
-            || spec
-                .dimensions
-                .get(&d.id)
-                .is_some_and(|e| e.place.is_some())
+            || pin.is_some_and(|p| {
+                !crate::placement_intent::automatic_pin(p)
+                    || !crate::nominal::geometry_eligible(analysis)
+            })
         {
             continue;
         }
@@ -1480,8 +1477,10 @@ pub(crate) fn settle_after_furniture(
                     .collect();
                 // Late repairs need the same proven profile sites as the initial
                 // router, including section and detail transformations.
-                super::detail_routes(analysis, &mut wants, views);
-                super::route(&mut wants, &frames, analysis);
+                if !compact {
+                    super::detail_routes(analysis, &mut wants, views);
+                    super::route(&mut wants, &frames, analysis);
+                }
                 wants
             })
             .iter()
@@ -1492,17 +1491,17 @@ pub(crate) fn settle_after_furniture(
         let mut printed = w.clone();
         printed.terms.clone_from(&d.terms);
         printed.measurements.clone_from(&d.measurements);
-        if printed
-            .measurements
-            .iter()
-            .any(|m| m.parameter == "seat_diameter.diameter")
+        if !compact
+            && crate::nominal::geometry_eligible(analysis)
             && let Shape::Callout { sites, arcs } = &mut printed.shape
         {
-            // Consolidation may leave one printed seat callout claiming several
-            // equivalent occurrences. Every claimed occurrence remains a valid
-            // attachment after its raw alias has left the printed inventory.
+            // Consolidation may leave one printed callout claiming several
+            // equivalent occurrences. Every claimed occurrence visible in this
+            // view remains a valid attachment after its raw alias is conveyed.
             for peer in wants.as_ref().into_iter().flatten().filter(|peer| {
-                peer.id != d.id && peer.measurements.iter().any(|m| d.measurements.contains(m))
+                peer.id != d.id
+                    && peer.views.contains(&d.view.trim_start_matches("v:"))
+                    && peer.measurements.iter().any(|m| d.measurements.contains(m))
             }) {
                 if let Shape::Callout {
                     sites: more,
@@ -2044,7 +2043,57 @@ pub(crate) fn settle_after_furniture(
                 fallback
             })
             .or(partial);
-        let Some(next) = next else { continue };
+        let next = if held { None } else { next };
+        let Some(next) = next else {
+            // A pre-existing ink run can be retained only with its established
+            // text too. If no precise label has a clear route, restore that
+            // compact label on the exact same shaft; never move a held leader.
+            if !compact
+                && drawn_run(&before)
+                && let Some((baseline, _)) = &established
+                && before
+                    .segments()
+                    .iter()
+                    .flatten()
+                    .zip(baseline.segments().iter().flatten())
+                    .all(|(a, b)| (a[0] - b[0]).hypot(a[1] - b[1]) <= 1e-6)
+                && let Some(previous) = reference.and_then(|r| {
+                    r.dimensions
+                        .iter()
+                        .find(|b| b.id == d.id && b.view == d.view && b.region == d.region)
+                })
+                && previous.terms != d.terms
+            {
+                let ink = label_ink(&previous.terms, font());
+                let mut compact_job = job.clone();
+                compact_job.ink_min = ink.min;
+                compact_job.ink_max = ink.max;
+                if let Some(c) = measure_at(
+                    &compact_job,
+                    tip,
+                    elbow,
+                    end,
+                    end[0] >= elbow[0],
+                    &fixed,
+                    &page,
+                ) && (0..2).all(|k| {
+                    c.label_box[k] >= old.label_box[k] - 1e-6
+                        && c.label_box[k + 2] <= old.label_box[k + 2] + 1e-6
+                }) && c.text <= before.text
+                    && c.hard <= before.hard
+                    && c.crossings <= before.crossings
+                {
+                    let terms = previous.terms.clone();
+                    let id = d.id.clone();
+                    updated.insert(id, route_reports(w, view, footprint.solids(), [tip, elbow]));
+                    items[i].label = terms.join(" ");
+                    items[i].terms = terms;
+                    items[i].placed = Some(c.placed());
+                    items[i].basis += "; established one-decimal text retained because the precise label has no route clear of the existing model-ink run";
+                }
+            }
+            continue;
+        };
         let mut printed = w.clone();
         printed.terms.clone_from(&d.terms);
         updated.insert(
@@ -3427,7 +3476,11 @@ fn resolved_ink(
     v: &crate::model::PlannedView,
 ) -> Option<ResolvedInk> {
     use crate::output::{Curve, Item};
-    if v.id == "v:iso" || v.cut.is_some() || v.detail.is_some() {
+    if crate::nominal::authored_pmi(analysis)
+        || v.id == "v:iso"
+        || v.cut.is_some()
+        || v.detail.is_some()
+    {
         return None;
     }
     let actual = haecceity::hlr::View::new(v.direction, v.up)?;

@@ -135,20 +135,13 @@ fn manufacturing_plate() -> Analysis {
     model::analyse_native(&path).unwrap().1
 }
 
-/// The supplied plate: its smallest fit is A3 at 1:1 (no A4 candidate is valid: at 1:1 the
-/// stacked views and their annotations need more height above the title block than A4 has).
-/// The rule allows A3 1:1 and A2 2:1; on A2 the orientation view keeps A3's paper scale, so the
-/// extra paper only enlarges the dimensioned views and A3 1:1 is the fuller. Before H6 it was
-/// A2 at 1:1, a fifth of the sheet.
+/// The supplied plate chooses A3 at 1:1 with every frame clear. Smaller
+/// measured candidates can exist; the independent sheet-rule oracle must
+/// still select the fuller allowed drawing rather than compacting the plate.
 #[test]
 fn specify_plate_pmi_fits_a3_at_full_size_with_every_frame_clear() {
     let a = manufacturing_plate();
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
-    assert!(
-        p.sheet.basis.starts_with("smallest fit A3 at 1:1;"),
-        "{}",
-        p.sheet.basis
-    );
     sheet_rule::assert_rule("manufacturing-pmi", &p);
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),

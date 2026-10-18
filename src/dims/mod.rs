@@ -573,7 +573,7 @@ pub(crate) fn has_new_native_recess_dimensions(analysis: &Analysis) -> bool {
 }
 
 pub(crate) fn has_recess_dimensions(analysis: &Analysis) -> bool {
-    let (canonical, established, comparison, unwrapped) = crate::planning::policy_key(analysis);
+    let (canonical, established, comparison) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "recess-presence",
@@ -581,7 +581,6 @@ pub(crate) fn has_recess_dimensions(analysis: &Analysis) -> bool {
             u8::from(canonical),
             u8::from(established),
             u8::from(comparison),
-            u8::from(unwrapped),
         ],
         || has_recess_dimensions_uncached(analysis),
     )
@@ -903,7 +902,7 @@ pub(crate) fn inspection_datum(a: &Analysis) -> Option<(usize, f64)> {
 }
 
 pub(crate) fn detail_levels(a: &Analysis) -> Vec<(String, f64)> {
-    let (canonical, established, comparison, unwrapped) = crate::planning::policy_key(a);
+    let (canonical, established, comparison) = crate::planning::policy_key(a);
     crate::planning::memo(
         a,
         "detail-linear-levels",
@@ -911,7 +910,6 @@ pub(crate) fn detail_levels(a: &Analysis) -> Vec<(String, f64)> {
             u8::from(canonical),
             u8::from(established),
             u8::from(comparison),
-            u8::from(unwrapped),
         ],
         || detail_levels_uncached(a),
     )
@@ -1729,7 +1727,7 @@ pub(crate) fn authored_placement_clear(spec: &Spec, dims: &[PlannedDimension]) -
 /// A slot chain must have room for its arrows and its own text between its ends.
 /// New recess annotations reserve extra paper rather than reducing these existing chains.
 pub(crate) fn recess_chain_scale(analysis: &Analysis) -> f64 {
-    let (canonical, established, comparison, unwrapped) = crate::planning::policy_key(analysis);
+    let (canonical, established, comparison) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "recess-readable-scale",
@@ -1737,7 +1735,6 @@ pub(crate) fn recess_chain_scale(analysis: &Analysis) -> f64 {
             u8::from(canonical),
             u8::from(established),
             u8::from(comparison),
-            u8::from(unwrapped),
         ],
         || recess_chain_scale_uncached(analysis),
     )
@@ -4193,7 +4190,8 @@ pub(crate) fn refine_inventory(
                     .iter()
                     .all(|m| m.feature.starts_with("f:section_recess:"))
                     && !(crate::nominal::geometry_eligible(analysis)
-                        && !crate::nominal::comparison())
+                        && !crate::nominal::comparison()
+                        && matches!(items[i].shape, Shape::Linear { order: 0, .. }))
             {
                 sides[i] = None;
             }

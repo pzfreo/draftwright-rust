@@ -1646,14 +1646,8 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
         crate::planning::memo(analysis, "analysis_digest", Vec::new(), || {
             Sha256::digest(serde_json::to_vec(analysis).expect("Analysis serializes")).into()
         });
-    let bytes = serde_json::to_vec(&(
-        analysis_key,
-        spec,
-        &first,
-        crate::nominal::comparison(),
-        crate::nominal::unwrapped_comparison(),
-    ))
-    .expect("plan inputs serialize");
+    let bytes = serde_json::to_vec(&(analysis_key, spec, &first, crate::nominal::comparison()))
+        .expect("plan inputs serialize");
     let key: [u8; 32] = Sha256::digest(&bytes).into();
     if let Some(plan) = MEMO.get(&key) {
         return Ok(plan);
@@ -2455,6 +2449,15 @@ fn recover_candidates(
         || crate::sheet_fit::min_legible_scale(analysis),
         |floor| floor.max(crate::sheet_fit::min_legible_scale(analysis)),
     );
+    // A comparison below the live readability floor cannot cap the search:
+    // doing so removes every scale, rather than preserving an old corridor.
+    // The existing crossing and leader budgets still constrain each candidate.
+    let established_scale = established_scale.filter(|cap| {
+        *cap >= min_legible_scale
+            && established_plan
+                .as_ref()
+                .is_none_or(|p| findings(p).clean())
+    });
     first.sheet.fill = crate::sheet_fit::fill(analysis, &first);
     if spec.sheet.scale.is_some()
         || crate::placement_intent::has_pins(spec)
@@ -5960,6 +5963,9 @@ fn settle_finished_nominals(
     for d in &mut trial.dimensions {
         if let Some(s) = items.iter().find(|s| s.id == d.id) {
             d.placed = s.placed.clone();
+            d.terms.clone_from(&s.terms);
+            d.label.clone_from(&s.label);
+            d.basis.clone_from(&s.basis);
         }
     }
     crate::sheet_fit::reserve_nominal_bounds(
