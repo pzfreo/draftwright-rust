@@ -913,7 +913,7 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   Underestimated annotation bands reuse the existing settled-block packing,
   moving entire carriers without rerouting any witness or leader. Actual fit,
   measurement retention, readability and physical findings are checked again;
-  authored frames and details are left intact.
+  explicit view placements and authored details are retained.
   Optional details are tried only when an ordinary drawing cannot provide the
   smaller readable paper; authored details remain explicit intent.
 
@@ -928,6 +928,15 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   measurements, fits the drawing, and adds no drawing or leader-route finding.
   Oblique witnesses keep their original rays: moving a lane transports both
   arrow tips equally along those rays, preserving the measured span.
+  A larger readable trial may expose an inverted datum ladder. Ordinary
+  perpendicular location rows can exchange occupied lanes in ascending datum
+  order while preserving physical witness origins and measured spans. Every
+  readability component, exact finding and leader-association limit must remain
+  no worse. An established slot size/datum chain keeps its shared corridor;
+  exchanging only its location row would detach the measurement network.
+  An infeasible authored tolerance edit can retry the same selected
+  paper and scale through the established named-frame layout; explicit sheet,
+  view and pin intent remains authoritative.
   The native pre-recess comparison uses the legacy fitted scale independently
   of the new paper ranking. Its 0.8 mm channel/opening preparation heuristic has
   a separate memo input from the 2 mm acceptance floor; frame preparation cannot
@@ -938,7 +947,8 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   and retains these eligibility guards when it reaches larger paper.
 
   Readability is measured in the owning view's paper millimetres:
-  `MIN_OPENING = 2.0` for a dimensioned hole/slot; `MIN_STEP_SPAN = 2.1` (the
+  `MIN_OPENING = 2.0` for a dimensioned hole/slot or native pocket/channel
+  mouth; `MIN_STEP_SPAN = 2.1` (the
   existing printed capital height) for a dimensioned turned interval, including
   baseline intervals. Prismatic steps and differences between baseline heights
   use 2.0 mm, preserving a real 2 mm wall at 1:1. Linear text must clear its own extension lines: between
@@ -1000,15 +1010,22 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   This includes existing principal-profile tangent evidence for conical and other
   curved silhouettes, plus square-on cylindrical generators clipped to trimmed
   face evidence and detail crops, rather than B-rep edges alone.
-  A route on an already globally legible drawing cannot grow by more than 2 mm.
-  Growth from below the global feature/depiction floor may require longer clear
-  travel to the enlarged model's exterior, but no readability component may get
-  worse and every contact, finding and parallel-run limit remains independent.
+  A retained route cannot grow by more than 2 mm, including when the model
+  grows to meet the global feature/depiction floor. Every readability component,
+  contact, finding and parallel-run limit remains independent.
   The search tries the other established arrangements before rejecting paper. It
   can shorten a clear outgoing shaft or transport a proven attachment and its
-  paper-space elbow/label offset, then repeats placement, retention, bounds and
-  readability checks. Failed alternatives are discarded. Each sheet has independent
+  paper-space elbow/label offset, or try bounded short exits at the same feature or a physically visible
+  circular bore rim when a global readability floor requires enlargement. A shorter
+  shoulder or a straight leader may fit the same length budget. Interior exits need
+  the ordinary whole-annotation proof; exterior text keeps 1 mm clear, and a leader
+  cannot borrow more than 0.5 mm of a resolved centre stroke. It then repeats
+  placement, retention, bounds and readability checks. Failed alternatives are discarded. Each sheet has independent
   coordinates; an unchanged pre-existing run is allowed only while it does not grow.
+  Complete model-edge indexes are reused per exact resolved carrier frame and
+  crop. Current extension strokes keep their own index. The finite-strip test
+  merges segments from every model and extension index before measuring a run,
+  including continuous runs that cross between indexes.
   Impossible principal projection rows/columns are rejected before solving, as are
   scales below the preparation floor once a complete fitted drawing exists; these
   trials can qualify neither readability nor the historical retained reference.
@@ -1028,6 +1045,12 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   schedule more cleanly. Failed presentation trials retain the original rows and
   tags and report the refusal. Exact selector inputs key per-call candidate
   preparation so repeated allocation prefixes do not repeat the same planning.
+  An installed native schedule that passes the established scale, coverage,
+  bounds, corridor and material guards is its own historical reference.
+  Readable table trials compare against that actual drawing directly, retaining
+  the same guards and avoiding a separate hypothetical inline reconstruction.
+  Repeated linear labels in the same view and direction cannot increase when
+  choosing a recovered drawing, matching the existing quality measure.
   A complete ordinary single-sheet A4 keeps optional details out. A larger
   ordinary drawing or an existing allocation still allows a necessary crop to
   reach cheaper paper or fewer sheets. That comparison exhausts only the paper

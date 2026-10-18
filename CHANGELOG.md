@@ -11,14 +11,16 @@ All notable changes to draftwright-rust are recorded here, in the style of
 - Automatic sheet search now exhausts clean readable A4 drawings and the existing
   A4 multi-sheet allocation before larger paper. Fill triggers same-paper
   enlargement instead of ranking paper sizes. Readability measures dimensioned
-  openings (2 mm), turned intervals (2.1 mm), text/arrows, 10/7 mm dimension lanes,
-  and repetitive/thread ink (0.7 mm). Explicit Spec paper and scale remain authoritative;
+  openings and native pocket/channel mouths (2 mm), turned intervals (2.1 mm),
+  text/arrows, 10/7 mm dimension lanes and repetitive/thread ink (0.7 mm).
+  Explicit Spec paper and scale remain authoritative;
   migrated legacy dimension keys and revision bindings survive recovery.
   An identical unsupported-source-PMI refusal remains reported without forcing
   larger paper when the complete allocated drawing otherwise fits and reads cleanly.
   Paper changes retain short, unobstructed leader associations; failed alternatives
-  keep their explicit refusal. Quality and leader checks inspect allocated pages
-  independently without changing their thresholds or baselines.
+  keep their explicit refusal. Global readability enlargement retains the original
+  +2 mm leader limit, with bounded alternative exits at proven attachments.
+  Quality and leader checks inspect allocated pages independently without changing their thresholds or baselines.
   Exhausted searches retain fitted geometry and report all measured readability
   failures; optional capacity cannot buy larger paper for an incomplete result.
   Native recesses retain their established scale for fill-driven growth while

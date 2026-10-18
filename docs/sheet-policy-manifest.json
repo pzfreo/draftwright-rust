@@ -1,0 +1,923 @@
+{
+  "02444d743414d208f157c6b3f8616566907189db4c01c14d8dad1e10daa5371d": {
+    "aliases": [],
+    "name": "fixtures/rule_pins/framed.step.gz"
+  },
+  "02e1170ca9a885cd94a9eb408e21a715a762516aaff0bbef77a39d5dcdc27658": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/hw_thumbwheel_notes_add.step.gz"
+  },
+  "0336b397faae8d94757b1fb0c4a1eca152428559298c6da66c9134851667781e": {
+    "aliases": [
+      "fixtures/samples/editor-plate.step"
+    ],
+    "name": "fixtures/parts/mounting_plate.step"
+  },
+  "034d4dec7b699002d09eb45de66bd5e6971a91304589e67b105df0cbb7e40084": {
+    "aliases": [],
+    "name": "corpus/cadgenbench_inputs/cgb245.step"
+  },
+  "036683e8358ac27d51a92c35362e175c91bc44d3b600a5c605fb496865edcd37": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/nist_ctc_01_asme1_ap242-e1.stp.gz"
+  },
+  "053ae89dd4b9d20115229a05e86a3c199ecb44dd22c995dab39b72676c19712b": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/244.step"
+  },
+  "0555ad7b995d75d928d6af587c4fca4d318cde31ff9aba9ff021cfe8b179f8cf": {
+    "aliases": [],
+    "name": "fixtures/recognition/issues/u_channel_asymmetric.step"
+  },
+  "078d0abd52b618a1a9180bb27a162a8fd1b8ae1a74a52571adfdbf3914f23d71": {
+    "aliases": [],
+    "name": "fixtures/recognition/issues/whistle_frame_reference.step.gz"
+  },
+  "087d3081e3c0780b90c9cc8a9c42979b54e9afb487f91e7f9e3afc66d932e695": {
+    "aliases": [],
+    "name": "fixtures/parts/k5/pad-z-positive.step"
+  },
+  "0a7f6df4fa7aeda4c2de0bc97f82517fd5355658100e0a9794eaf882bf46893a": {
+    "aliases": [],
+    "name": "fixtures/recognition/slot_patterns/slot_array.step"
+  },
+  "0b2c689b1ec09c362c334a9b6c9714a5e4d658295f7f16078f5588472721dd26": {
+    "aliases": [],
+    "name": "corpus/cadgenbench_inputs/cgb207.step"
+  },
+  "0b59655eb992bc8d6e53d3a5e7e260df49ff7f47367a2320b5f19733f6f40e80": {
+    "aliases": [],
+    "name": "fixtures/recognition/golden/oriented_slots.step"
+  },
+  "0b8604ddb4f9ec269c21e574337ab487230a7a4e0502c5c91338feba22194a25": {
+    "aliases": [],
+    "name": "fixtures/parts/k5/pad-compound-equal.step"
+  },
+  "0b8a39b594b3533461788a2755e84b8b56545133f77da279f0f57b18b1a182ee": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/408.step"
+  },
+  "0dd4b33b42c69db9442b27ee49f160cbd054dc7ea9fbfdc2024cd14c6907c074": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10096.step"
+  },
+  "0dfecfecb5347c5a1c805c6dda6320176761dbdd164e0092e8f5c2e6bfecfca5": {
+    "aliases": [],
+    "name": "fixtures/recognition/issues/u_channel.step"
+  },
+  "0e491b009f34bcf4fead1ca11b85a3034f07004910af335e5d171e5f569e7d48": {
+    "aliases": [],
+    "name": "fixtures/parts/rules-text/central-prismatic-square.step"
+  },
+  "0f0a603e51806b569c7a95eb67ea5477381374955a32c273e9a15f11f51453dd": {
+    "aliases": [],
+    "name": "fixtures/recognition/golden/double_d_bore.step"
+  },
+  "10d0f6b5b56df0e6bd62952d866bf6544d1e963b931a51cb4634f5236671fe0e": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/hw_string_post_tapped_intent.step.gz"
+  },
+  "13cbdce2f410e033d0341fb14206a4e2f47a821574d0e4f0de9559400ba03268": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/467.step"
+  },
+  "16d92b1693827ffa31c01c2204378e9fb51c647cd15d6288bb4b1ad0c568322f": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/183.step"
+  },
+  "18435ce9934466967f27f56e30dd06df69ee8351869bb85cef37a31c8cdf4449": {
+    "aliases": [],
+    "name": "fixtures/recognition/issues/curved_rotated.step"
+  },
+  "18a1e1fc58a1da7db47491f0c0ff297d5c2887377294849f6147c3a4db6ac2ae": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/275.step"
+  },
+  "1985e7ec6b8bc83f39af670155b2659b2b3f10bfccf76d438c8f08bb0402f491": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10163.step"
+  },
+  "1b28ca63f6b86a703957b3d1edae5e3aeb92e8908758a99fee8cb8fd26c4caff": {
+    "aliases": [],
+    "name": "fixtures/recognition/golden/gusset_ribs.step"
+  },
+  "1c0936f8f2f8cd8cc01fd686eb5e3e9a9c80489d031fcaa45625e9bf8e61728f": {
+    "aliases": [],
+    "name": "fixtures/coverage-holes/countersink-single.step"
+  },
+  "1e7236880c897811307dffe03138f461ef0484e38d8094972e0e9ff3703fd95a": {
+    "aliases": [],
+    "name": "fixtures/recognition/issues/centred_rebate.step"
+  },
+  "1f3ee4cdb9690bbae4635a5b976550295d38c40687905d95d8022b55b91c456e": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10138.step"
+  },
+  "1fa118bec6073df2463ab8bf07800a2f524447c93a4fb5b9786e4a4ec210abf9": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/205.step"
+  },
+  "20226562f507df001a322a3eccde6826690598ed97798d5e81be2dc2b058dd8c": {
+    "aliases": [],
+    "name": "corpus/inventory_refusal/13975.step.gz"
+  },
+  "20de40173fe108277fcd5c5c4ee4d8486d2470d036aeadd9e4f31aaa8d9ce2ff": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10212.step"
+  },
+  "224e8cebe2c2b822430481ab229b59f357eff64446ceb36a9cc9aa9ab2d4ac8b": {
+    "aliases": [],
+    "name": "fixtures/coverage-holes/countersink-mixed-pair.step"
+  },
+  "23517c641de281f5ec22c016ef006e00ffc77a3b28b0cb6bd7a8fea57701a90f": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10038.step"
+  },
+  "236d20f2bccd93353006f1a08835446aef03ed48a656ecead73ea730a9586605": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/265.step"
+  },
+  "246adf991192a4c4290932007860fb4e04b9720aba793eb3ac6a949b7e947bd8": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/1008.step"
+  },
+  "24ac3ce61feff05c2f49606c36ac75f897886ea3394cbbd5b2b00135995c752d": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/hw_thumbwheel_thread_knurl_intent.step.gz"
+  },
+  "25f752ce3fb1477b1db2df5d036075cc14fe26a6c9cc96a0d12599a6aea3cda0": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10190.step"
+  },
+  "267afb3d42dc146a389934719bc1de18b438fdf95c2f8e9dd24f4a3ffef50b64": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/18016.step"
+  },
+  "2a029868cd4517774379695ec5c5928a98a7d10ff999520c0dbce6c3cf79935e": {
+    "aliases": [],
+    "name": "corpus/cadgenbench_inputs/cgb203.step"
+  },
+  "2bd726f9fe86aeb96ab517ce876e5696e7951310df5c4fbca36276d65879067b": {
+    "aliases": [],
+    "name": "corpus/nist/nist_ftc_10_asme1_rb.stp"
+  },
+  "2bf574be4135d46e208f0ad069684162d4f50bee781422ad399cb49ca80a54fa": {
+    "aliases": [],
+    "name": "fixtures/parts/k5/issue_909_basic_part_design_017_body.step"
+  },
+  "2e974154e0f285c18c5aeb8761841e025e8c02c4c94eb8bd364398b8f202b777": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10278.step"
+  },
+  "301cb3ce914fa28c68e3cc324d22a9b6e8ee119c7c76797e7d7052de7bccdcff": {
+    "aliases": [],
+    "name": "corpus/cadgenbench/threaded_connector_109.step"
+  },
+  "322e088eb634021e3f34ca8c81109d30df90d224a4988b11a6ab7c6b1fd6570b": {
+    "aliases": [],
+    "name": "fixtures/parts/gear_blank.step"
+  },
+  "324d912c89adbe25a94669454d756c8fbbaa0aa37d76b90333d4f9e8e84160d9": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10255.step"
+  },
+  "327b93792b6ff7961ee923d5d7ab9c8f098d8efc601d871bb08f035145a54eb3": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/257.step"
+  },
+  "3322957335fecbdc051b583c6ce763cdfbd356a5ef3349c22c3e3fd9a4b9d39a": {
+    "aliases": [
+      "fixtures/samples/spindle-pmi.step.gz",
+      "fixtures/samples/spindle_shaft_fit.step.gz"
+    ],
+    "name": "fixtures/samples/cnc-review-spindle.step.gz"
+  },
+  "333e414e548868a813178e8a0479f84342d446249d769b02f606ef98f69399e6": {
+    "aliases": [],
+    "name": "fixtures/recognition/polygonal_stock/roll17.step"
+  },
+  "35ecbb110cbb29f1761ca37a81d028bb7b5ff2a5d9352392c52b99008c02ac6a": {
+    "aliases": [],
+    "name": "fixtures/details/y_chain.step.gz"
+  },
+  "36f8570b11a53590d971316ad59174f18c0229f1def1e172e434ceb621f43172": {
+    "aliases": [],
+    "name": "fixtures/coverage-holes/profile-triangle.step"
+  },
+  "38a1e1e6f6e69403994627ba4ec058ffba81463b01d802514d6c9f9461834bc6": {
+    "aliases": [],
+    "name": "fixtures/parts/rules-text/coaxial-step-x.step"
+  },
+  "3e05041a154d2e3448e8f82004dda8691dda2a9d6e9197eb19a8c69f3db2af26": {
+    "aliases": [],
+    "name": "fixtures/parts/rules-text/central-prismatic.step"
+  },
+  "3ede6a86f773f2ef4218c6d0881f16049f2a165cdb1eb0b3ab90f7da57e41ab4": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/119.step"
+  },
+  "3fbe0c46722f27bef891e9269bf6e432f6d360c74dcf953f7cc065275244e36d": {
+    "aliases": [],
+    "name": "fixtures/rule_pins/opposed.step.gz"
+  },
+  "4069220db61e503e17d24f045d7f26dd89522be59534f16bd0765a32bd3fc590": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10098.step"
+  },
+  "4071566f601d289e9987213a8fd56c4281506b3f44c78a171d02939f86c91f49": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10101.step"
+  },
+  "41026b1f0d81830c6092b5147e0e084d2fa163169161c31af4ce06493d3c7d33": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/nist_stc_09_asme1_ap242-e4.stp.gz"
+  },
+  "411262cba6156e8464381cba72ba67ffbb8fe521837548a4289c5f5bd8bafa3b": {
+    "aliases": [],
+    "name": "fixtures/recognition/issues/pocket_square.step"
+  },
+  "415fd38127eed54f65160e5918d2b5b80beb1d4801f8e73e67b814470f5609bf": {
+    "aliases": [],
+    "name": "fixtures/samples/turned_spindle_fits.step.gz"
+  },
+  "4273d2baaba4402420370bef6ebd34a4fc03b78506295581a57aa8a37218d97d": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10119.step"
+  },
+  "45907a67440f17db767b75f91ce68eb4a0867edfe358cfd07bbf073d8a1f1622": {
+    "aliases": [],
+    "name": "fixtures/recognition/issues/curved_centered.step"
+  },
+  "460b8f65b820809977ffc8587e51688b76d2bfadcb5cc7a20b8f8a1e71ae6774": {
+    "aliases": [],
+    "name": "fixtures/coverage-holes/countersink-two-face.step"
+  },
+  "46c48aea96886dfb0bd8fff207fe9f459cd52ce100c15d1d6c153c13d23ebacc": {
+    "aliases": [],
+    "name": "fixtures/recognition/golden/polygonal_stock.step"
+  },
+  "477412d7adc7c5a61048c6485bb3f42396dd44aca23761c60b3215470e67f5d8": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10127.step"
+  },
+  "4911c06426f0ceeedc198416e058aabc1c1a6a65e9e766eca7efed5484a27cda": {
+    "aliases": [],
+    "name": "fixtures/parts/gear_wheel.step.gz"
+  },
+  "4b7011b0b86cf6301058aa954b76a9587d23478b6dee2660f4a80caf0dfe8b73": {
+    "aliases": [],
+    "name": "corpus/nist/nist_ftc_08_asme1_rc.stp"
+  },
+  "4bc9710ddcd1fe0bd7dff4b0ecc47397028139fac8656747aa3101ed3cbdb54f": {
+    "aliases": [],
+    "name": "fixtures/recognition/polygonal_stock/y.step"
+  },
+  "4c3b0b9d3bddedba67cee682bab3534e46556962db7a3ef0d511cdc4c8f16eda": {
+    "aliases": [],
+    "name": "fixtures/recognition/steps/paired_ramp_step.step"
+  },
+  "4d383baf1d39ae90f6959b744c58607ece15126bd26a9c039c1c42b5a5218a7d": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10224.step"
+  },
+  "4d504aa58d58a56b29d18389687e0dd40d0f3345205667f20bd6122949b65232": {
+    "aliases": [],
+    "name": "fixtures/recognition/steps/plates_pads_levels_and_slanted_steps.step"
+  },
+  "4d57202dd151423930d469be8d5d76c508aae127dbf7c5530790cdc23fe629f0": {
+    "aliases": [],
+    "name": "corpus/cadgenbench_inputs/cgb243.step.gz"
+  },
+  "511a84d59a1eaf72303d8f9d150a7c3b043ac6f93ff9fac14d4618fcd3e92ee4": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10077.step"
+  },
+  "5140b8f41fa1d0a069ea978e28c92a597f47220d0a11e667b79ff5f7c7243b86": {
+    "aliases": [
+      "fixtures/rule_pins/nist_ctc_05_asme1_ap203.stp.gz"
+    ],
+    "name": "corpus/nist/nist_ctc_05_asme1_rd.stp"
+  },
+  "5175a9364e5f7197178c42f2c95d79c84559563318b3dba71c45a7f66323dbcd": {
+    "aliases": [],
+    "name": "fixtures/parts/k5/pad-x-positive.step"
+  },
+  "523a9621070b29f10cb689f857d11cbfadcaa459e768bdae6c35c188869f6a4e": {
+    "aliases": [
+      "fixtures/parts/k5/turned-step-compound.step"
+    ],
+    "name": "fixtures/coverage-holes/turned-step-compound.step"
+  },
+  "5252edd399055ef7b16c7bcd0a47fe3063dc161c9306446f73372ee6e7814a76": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10247.step"
+  },
+  "5356158c5cf7b57a7cbadd351826378523f39b54007df2372bff9d80a03a03c9": {
+    "aliases": [],
+    "name": "fixtures/parts/prismatic.step"
+  },
+  "543d217a6913a3009946192e775a25475c4cd4b1def66c12ff8942030809d848": {
+    "aliases": [],
+    "name": "corpus/cadgenbench_inputs/cgb242.step.gz"
+  },
+  "552841d2e7e0813a3d895a21ad5211ec76ae27835dbdff14c92f28c1d8bebd88": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/hw_thread_replaced.step.gz"
+  },
+  "57c760cefcfb2ea17ab4e562fa3201668838b75007a89fe22a980f85d12b4d99": {
+    "aliases": [],
+    "name": "fixtures/surface_texture/plate_face_ra0_8.step.gz"
+  },
+  "58dfe8a594a5afe64652ea127807ad6141812e2e1d2556d429f6a42e4ec46747": {
+    "aliases": [],
+    "name": "corpus/cadgenbench/flanged_spool_132.step"
+  },
+  "59bbc09a34621c03106e4c1b2a5bc909fdb67463117c16c4965ee7a6fe5c1521": {
+    "aliases": [],
+    "name": "fixtures/rule_pins/nist_ctc_05_asme1_ap242.stp.gz"
+  },
+  "5a7cfcf49a1d175262c7ae9598574da08ca5e2d86317acc331d628701e137b54": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/1004.step"
+  },
+  "5c0debe81a20bb450cde0733c264fcaeb2b8c5dd7cc659000d8922292acdb269": {
+    "aliases": [],
+    "name": "fixtures/recognition/polygonal_stock/plain.step"
+  },
+  "5c37a23fd7b9f680d789246802a5bf2de15b7533abb42eec1e37b16494afaa56": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10000.step"
+  },
+  "5cf8174a2255a36c7b4511b0c5ca032e1bdb1ebd2b57b060d703784d2166e5fd": {
+    "aliases": [],
+    "name": "fixtures/coverage-holes/asymmetric-shafts.step"
+  },
+  "5dc3ff1ba7307846c534650ac0c0c2ae1442cd51f29fb0a028a63a1ecd041e67": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_regressions/11512.step"
+  },
+  "5e30f0903f9470c14a98e70395ca005fe90bcd3fb704c381a80a69958838f169": {
+    "aliases": [],
+    "name": "corpus/nist/nist_ftc_06_asme1_rd.stp"
+  },
+  "5e5b8ad971846442a0a797196e035cb10599ada4cc9d347cbaa6fa337bf086e5": {
+    "aliases": [],
+    "name": "fixtures/recognition/issues/curved_negative.step"
+  },
+  "621c0a7fd6fe5257cdb7c051e12c02c5b08f27b40fb916e914677ea81730e53c": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/hw_every_kind.step.gz"
+  },
+  "6589c93ffd94a50b497244fa61228498318818bd48149b7b09dacaa48897f968": {
+    "aliases": [],
+    "name": "fixtures/coverage-holes/double-d-single-z.step"
+  },
+  "661210dec702f8347603884bec0476da0a1af5376a55bf842c45ba25181e2860": {
+    "aliases": [],
+    "name": "corpus/cadgenbench_inputs/cgb202.step.gz"
+  },
+  "664cd3d720dc4f91dc00e0a9991e6f550e56499f47f9d3c25fde77b34ae1f5be": {
+    "aliases": [],
+    "name": "fixtures/parts/manufacturing_pmi.step.gz"
+  },
+  "669d2c5e678a84b216eb877101f87875a32d3cb9869d473391f85d57099ea180": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/1000.step"
+  },
+  "68d71f706f3bb807889547736e8c20ac38e5f8a3f161282f327260cf014dab8d": {
+    "aliases": [],
+    "name": "fixtures/parts/two_grids.step"
+  },
+  "6e2873fe7eeae0cf27178117b3de0436d03464c5897ee251e78801bc4410a7d0": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/200.step"
+  },
+  "6e99d5645452ec451ce24eb49bc25c664af69294863c8af29be2848ce32fda6d": {
+    "aliases": [],
+    "name": "fixtures/recognition/golden/gusset_rib_patterns.step"
+  },
+  "6f3acb4036ec1583fd88be630a9699b67c24510d62f18f7fed6953e6dd1d7c4c": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/nist_ctc_01_merge.step.gz"
+  },
+  "6f496f7981be0c8c84bdccf707b0ad63145761b95799d793c012e2e5866fab04": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/196.step"
+  },
+  "6f6d59b6ec8a2a1efe4c567108530a32535c85a377e8b54560e3bec4206ab8de": {
+    "aliases": [],
+    "name": "fixtures/coverage-holes/double-d-axis-y.step"
+  },
+  "70b699e8fd31d7097d063652b02c464eabeff59dbd0ec38e1468fd266d63b562": {
+    "aliases": [],
+    "name": "fixtures/rule_pins/grm04_drive_plate.step.gz"
+  },
+  "710ba36a0a5cd07aa0ff46795b5a0f899e5dd9a9cc63cd0e0c83fed7d2b65399": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/thumbwheel_thread_knurl.step.gz"
+  },
+  "71777c28da76da0e8a667e4cbe792d5f72c09b5c56440c9744d3d50ca96ecc8d": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/nist_stc_06_asme1_ap242-e3.stp.gz"
+  },
+  "722bbf0a6972c99d9505e79655f4360647985e3cd59570adcb38667cada831aa": {
+    "aliases": [],
+    "name": "fixtures/parts/rules-text/two-channels-reversed.step"
+  },
+  "723abca859b3564c1614d49519f6eedab68eb633af296103d6573ec797030849": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/238.step"
+  },
+  "735c8425a3b62c1397ba8904381f5517bc714ee864ecfbab12c4057be0a402b4": {
+    "aliases": [],
+    "name": "fixtures/recognition/issues/tb_stepped.step"
+  },
+  "73c7ee3e136a78cfb4acf42e8bbfdc75e949ea4d9f55be10ce05441595e13892": {
+    "aliases": [],
+    "name": "corpus/gramel/GRM-05_depth_lock_bolt.step"
+  },
+  "74f64e175c5f3acb1336abaacef3900911356cc206550047f6d96d92de6d8dd4": {
+    "aliases": [],
+    "name": "fixtures/parts/k5/groove-compound.step"
+  },
+  "75655195470b8f4d705702d7f1908acc8f9fdb257b32770f486d3ac349ed3eee": {
+    "aliases": [],
+    "name": "fixtures/rule_pins/tuner_jig_blind_obround_pockets.step.gz"
+  },
+  "75cf7e06187ce921bd7c410e1b74bd030d2ec585da7a982dd379f38cc1bee120": {
+    "aliases": [],
+    "name": "fixtures/coverage-holes/three-shafts.step"
+  },
+  "7667c69558ac6a95be8d27dac0e0c3c7d8c8454b85c00e12b432a299c5545ebb": {
+    "aliases": [],
+    "name": "fixtures/recognition/issues/counterbored_block.step"
+  },
+  "76a2bdfe9ca8c0d99f152e6d60e1de74efe61dec3ef26c6bf82bd1a7d82c4559": {
+    "aliases": [],
+    "name": "fixtures/identity/plate_intent.step.gz"
+  },
+  "7810703748d5013da4cb0a53fde1e399f6327428b1e8410671deb85116b10f00": {
+    "aliases": [],
+    "name": "fixtures/turned_knurl/spindle_turned_knurl.step.gz"
+  },
+  "792dd02460d38dcd60964c061d6be092abcbbf9353c74a6d7b6402a0d4826b14": {
+    "aliases": [],
+    "name": "fixtures/coverage-holes/countersink-external-cone.step"
+  },
+  "7a4593094940f4afda1bb9f25855d33e24ce0f6f0739f56f4dd8a12b26eddc11": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10156.step"
+  },
+  "7b7f1a4bf407ef7599d58e126e43e95f50d165212ed21bf6b2fc716d14bfdf85": {
+    "aliases": [],
+    "name": "corpus/gramel/string_post.step"
+  },
+  "7f4fa03419e4589cbb3df2c161c7b8dc67d828b6395f781b2bd9a0da33ecde91": {
+    "aliases": [],
+    "name": "fixtures/parts/scattered_holes.step"
+  },
+  "80fb0fbffea33913b71ac99af89b14bc2930b0f8d3cd9d454aea54d986213a7d": {
+    "aliases": [],
+    "name": "corpus/cadgenbench_inputs/cgb241.step"
+  },
+  "8247dc2eb7ed6f423fba35b177cc1abeb6358922dab54a486050bfa0ba857f6b": {
+    "aliases": [],
+    "name": "corpus/ttt_inputs/sm-hanger.step"
+  },
+  "827385f00aa992faed2925956f7a5459c0868720d3567be52a4b511b91422e71": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/317.step"
+  },
+  "839827f0f10a2d7b1c0bdadd059e5add5681bbc89c7e8c1276425279fb3b5431": {
+    "aliases": [],
+    "name": "fixtures/coverage-holes/double-d-blind.step"
+  },
+  "83ab0e7a04b1fae5c55251aa60f1d7a2ee6b08c049c3483dd1ac240ae13386cf": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/388.step"
+  },
+  "83e252b9d4e936268124a976dd3e605995c0b798bbd3441ab46c2cb623c85c74": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/229.step"
+  },
+  "843669dff7adb6cca31f185af9700a1d85f1f2e5c922b881d5361dfed5423ada": {
+    "aliases": [],
+    "name": "fixtures/parts/rules-text/detached.step"
+  },
+  "8523eec98e62bb671a514e39ea55cd04539d2d012080046b3e85796aa1424148": {
+    "aliases": [],
+    "name": "fixtures/recognition/issues/single_hole.step"
+  },
+  "85cbc1f175588f0eaa1cd654a6b9e1c7e8fc95bda26ddb186db21ffb6e6330b9": {
+    "aliases": [],
+    "name": "fixtures/parts/rules-text/two-channels.step"
+  },
+  "869eaead2cc509e56ff23dab0ec32d49d74e7d6d82961b8b0f9863ae66321c2b": {
+    "aliases": [],
+    "name": "fixtures/assembly/assembly_pin_pmi.step.gz"
+  },
+  "8740d288d9031af4756159d61bb8c179e5be18c07ae07c059205cfb17469202c": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/1017.step"
+  },
+  "88310a9fa7901ff2eff93ce8467f29e7298c86315d8f8b1f76b741c0f90f2087": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10020.step"
+  },
+  "8b6a5959e000ff25de9bcf97025b8552e6f54609eb21d0ccd567ad1509697ad2": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10146.step"
+  },
+  "8bcf7a6500f889884b09edecaa73a95953a41fe77d5c85785382eff8589cd716": {
+    "aliases": [],
+    "name": "fixtures/assembly/assembly.step"
+  },
+  "8d0a9b6b47b4bda59247e0db7c91f76873cc026594e586b14aad650cf5c6f9f9": {
+    "aliases": [],
+    "name": "fixtures/details/unequal_prism.step.gz"
+  },
+  "8dbe1a7bde45a055e505f843d86dd33eb9f1474084a7e7e7fd186edc759c0c15": {
+    "aliases": [],
+    "name": "fixtures/coverage-holes/countersink-topology-a.step"
+  },
+  "90501a6deb188f9f199f8b0d72a648435eb967a6146b58889703c9dfb74a20c8": {
+    "aliases": [],
+    "name": "fixtures/rule_pins/framed-moved.step.gz"
+  },
+  "90e9260ef6847751b9285314229bc18b593c44f9dfaff154604efe96e90c84cc": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10131.step"
+  },
+  "91456bd801b9ebc6f8f13c8b19aba71e9dea2b7a7426f86fa56bafc17c13afef": {
+    "aliases": [],
+    "name": "corpus/inventory_refusal/14052.step.gz"
+  },
+  "9164edc860b394b7a3c9eef4ebd205badfce8fd0b03d2626dceaa2c578684dd2": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/1007.step"
+  },
+  "95a775b1acdbc34de11319cb83b4cf6c6fdd7de8cbfc4af2d0afe5d3565cfdf8": {
+    "aliases": [],
+    "name": "corpus/nist/nist_ctc_03_asme1_rc.stp"
+  },
+  "95ae8bff5625d9eeeacaa7fa1dd353f47976d85fba635dee9008ea4a4a94d018": {
+    "aliases": [],
+    "name": "fixtures/recognition/steps/rectangular_through_step.step"
+  },
+  "971dca9ef243320b93a340e612cfe18bd7b99efd261a78e1bb0fd08ffc23d513": {
+    "aliases": [],
+    "name": "fixtures/parts/turned.step"
+  },
+  "98e25858a531adf1ca04a7534332987940db5e79c49c5e56e4473fed0ef71095": {
+    "aliases": [],
+    "name": "fixtures/parts/rules-text/coaxial-cylinder-x.step"
+  },
+  "99a0a2079ddeb64d05c2432cbe931fa17c89da60d8b0bcb0b11bd0ed94fa2e68": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/nist_ctc_02_asme1_ap242-e2.stp.gz"
+  },
+  "9b831e372dbe2890bed04cadd1b2f6ea4f732ddd4a6b7545a410eeab67d9779f": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10049.step"
+  },
+  "9cc88aeaa0d1c582b2a7a40d9cddf25670fa7f830cf3be4b74566b9fad0caeb5": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/bracket_positions.step.gz"
+  },
+  "9d7711f48e81831c5d1838fdac5c11c0de1aa9b61f3c1d67930a7638b3b25e69": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/nist_ftc_10_asme1_ap242-e2.stp.gz"
+  },
+  "9efba1ba446db8dd3336cb91133c830b116bb13f00e3056e4ee2dd173c753eb8": {
+    "aliases": [],
+    "name": "fixtures/parts/rules-text/two-slots.step"
+  },
+  "9f82025b516c8eb37910c5c05ba842f6a924e6dddd8422d1b57bb3f4fb266686": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/203.step"
+  },
+  "9f83718ddcb45234efdf1013010180079303454b7d2a33d2c1850afa4124f5e0": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/340.step"
+  },
+  "9fc6dd58170a1b75575182e9f882791e87c35a7a2ee4f71e60df06b8dfd473ef": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/274.step"
+  },
+  "a0bc551656780b26d7a0ee1beedbc07d43f41efa092f74f3c2d8383417f04481": {
+    "aliases": [],
+    "name": "corpus/nist/nist_ftc_07_asme1_rd.stp"
+  },
+  "a1b36cacf4225411aac4f190e60ef7e2425c398dea12856b6a546b22d4345f23": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10060.step"
+  },
+  "a35f516a25d2dc7eb7346f08d580f9ce36cc72833e32e851592a4eb1992ab169": {
+    "aliases": [],
+    "name": "fixtures/recognition/steps/stepped_block.step"
+  },
+  "a4b2a36fd4a28fe2e8cf690cc5c134371357af6ebc528ebb82ee92b96b9b4910": {
+    "aliases": [],
+    "name": "fixtures/coverage-holes/profile-pentagon.step"
+  },
+  "a626e89b628850f3a252d693b26069da7fec2138be9a08560cdd8735f3ce73ac": {
+    "aliases": [],
+    "name": "fixtures/recognition/issues/tb_bored_plate.step"
+  },
+  "a6665d3f94a2c396b81033624bf69126546c201b165065feaab3e643b716a231": {
+    "aliases": [],
+    "name": "fixtures/recognition/issues/tb_tall_box.step"
+  },
+  "a72d1308242ef3fa0213dc861e0b65e91270284bfbd43e4d4782b2172ca072d4": {
+    "aliases": [],
+    "name": "fixtures/recognition/issues/bounded_pocket.step"
+  },
+  "a76cd50002206153709b892ba65e0be2c3474fc7df38e33521be345a5f10fac7": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/181.step"
+  },
+  "aa34b9b5ba6bb45bcb176dfccc4f9d94c01914142e35421eee6a4552a7490dbd": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10170.step"
+  },
+  "aa8115c12e12a99cc439477cbfd222916f9ec629fbb3c9002b18e0c264c9a892": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/nist_ftc_07_asme1_ap242-e2.stp.gz"
+  },
+  "acb4511a0a817cdb161e00bfab9053504166416c56fd21ccfdcefe595b5bc4ff": {
+    "aliases": [],
+    "name": "fixtures/recognition/issues/tb_plain_box.step"
+  },
+  "ad28b14a32f075a3829e147c9470fa393f12fa304d27a5bb089c3274d6897030": {
+    "aliases": [],
+    "name": "fixtures/coverage-holes/countersink-deburr.step"
+  },
+  "ad95c3b0af77116dcc223cd67747767380f8f705194f9bcc3d004f67467cad59": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10007.step"
+  },
+  "af3b6fef1ff0a6a08fcb765e11e26171f47cbba2a2a2335eb2eda2b57b14750e": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/163.step"
+  },
+  "b30a1b3af604ca03100e9090b0e638302db5b90f39a58ccb520fbd6364bde222": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/483.step"
+  },
+  "b3c3ca453dc2e3b49e0c6a452ac2b34635e4d89f8e874de94158a3909468759b": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10063.step"
+  },
+  "b401a6b5b42da0f4d1fd0fa198f0c095cb8f4e43db0a14e423c605c89eb2bd0e": {
+    "aliases": [],
+    "name": "fixtures/coverage-holes/profile-trapezoid.step"
+  },
+  "b4d455810969ee6644e73f3ee0576b43dc0937eeb2589a4383c931d126b6d285": {
+    "aliases": [],
+    "name": "corpus/gramel/GRM-03_thumbwheel_drive_screw.step"
+  },
+  "b9470b92ad910bc9eb37bea723737cfe29dc29a7d2b90ccf115ed246d499d461": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10092.step"
+  },
+  "bc268a9d3b1534eb8f19ac96bc39b1ba0d0bdacaf7ab129170f26937bab5bc8a": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/assembly_plate_pin.step.gz"
+  },
+  "bf3df8a4ece1a50d19c46b6b30b4f311183171143350d2a4a91729e6e69ed6b9": {
+    "aliases": [],
+    "name": "fixtures/samples/specify-sample-spindle.step.gz"
+  },
+  "c2156586da19af94d75b628ed984f76d776ec96d871a5ca44da06280338bb306": {
+    "aliases": [],
+    "name": "fixtures/parts/rules-text/three-body-channel.step"
+  },
+  "c300e6f91742d1f811fba99cb6640da33683e98e420df8147141f5c171cc785e": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/118.step"
+  },
+  "c30e2d019e46f28dfa7bfdbc9dd80f731c6eb467b65c76e710e6fa2f0d244367": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/string_post_tapped.step.gz"
+  },
+  "c4684e5b6ee29431cadf4c5584f30c2ea6b421903dfda04260b30316ccef1ac8": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/20273.step"
+  },
+  "c63186c9e2d05cc1647de0ac56799e8bac428daf3f334feb21109f06b4c67854": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/464.step"
+  },
+  "c6c17f867a9bcc6f1afc60f2977ec16fa283bb33dca0f062b16350edd3dc13fc": {
+    "aliases": [],
+    "name": "fixtures/recognition/issues/pocket_y.step"
+  },
+  "c7c3b3c267f46ccdfb6d103e7cb95d13acb9923b777ef291e793b4b341b15118": {
+    "aliases": [],
+    "name": "fixtures/parts/k5/turned-step-repeated-lengths.step"
+  },
+  "c8f384c54ae25dc537028bd493c7347fa67d298d5954e3dccf94b3d2b0dd0f3a": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10245.step"
+  },
+  "c92969cd4eac72e5e9efb2ee8e8bf0d62a3571a77a1413a77387253d466e7f86": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10047.step"
+  },
+  "caa73a9f76a15a245db49287ec957b5f4a96ab46a83832eda72284737e8256f3": {
+    "aliases": [],
+    "name": "fixtures/recognition/steps/circular_blind_step.step"
+  },
+  "cdb59a085a3364941b881f96b511265a7cb5f6e94180c4426bdc3025481f405a": {
+    "aliases": [],
+    "name": "corpus/nist/nist_ctc_04_asme1_rd.stp"
+  },
+  "ce19568938b87b485909a2053b6358f45cd90ab3025d1cdc045528927e019073": {
+    "aliases": [],
+    "name": "fixtures/recognition/issues/pocket_x.step"
+  },
+  "ce530623be12b4a9c79316830039999a80dd9d547665005e25d3fc8532948e0c": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/808.step"
+  },
+  "cf1a0bf3164d071cfd102a0a1f3efe60e3ef0ebcc03184a7eaae65a78e7052dd": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/182.step"
+  },
+  "cf60fc55069e7a70590d7328808169723930faef1b9c7060717ff4b8060e435e": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/1013.step"
+  },
+  "cf642e0da264ba3666825c1b38efaf930bb77078d2d88c04e228a2b5219a9a17": {
+    "aliases": [],
+    "name": "fixtures/turned_knurl/spindle_diamond_knurl.step.gz"
+  },
+  "cfd51e16da5855c4921e36f42ea8eb620ac828f5b960cdfb7b93a599a8cb4eb4": {
+    "aliases": [],
+    "name": "fixtures/parts/rules-text/two-pockets.step"
+  },
+  "d165fab2c375af9e3ddd73f95fc7d8094954db6e45967f1d0ee503a2b6a7baed": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10103.step"
+  },
+  "d1852dcd9ffe049d1031353d815b4c8e675f66608f5a1d800bc928ef23746b74": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/spool_fits.step.gz"
+  },
+  "d219df11e85697651c02fd0f3bc6bc43aedcc579db56935b8aa17b9f915ac0e6": {
+    "aliases": [],
+    "name": "fixtures/parts/rules-text/central-prismatic-wide.step"
+  },
+  "d2e691be8f01f320aa29c8a27af9932e4ae58cb1891d2024d6b879320add1e39": {
+    "aliases": [],
+    "name": "fixtures/coverage-holes/double-d-round-bore.step"
+  },
+  "d2fae995b887e39e81db7a176856453ce48ab6e8eb3e295958df16d0e9c21d41": {
+    "aliases": [],
+    "name": "fixtures/identity/plate_intent_rewritten.step.gz"
+  },
+  "d3501c8c991affa2393435a2aecdcae20f151d0b584089bbc25d191a16868bc6": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10033.step"
+  },
+  "d4356c584a02d33f8b9edcd601dbd51f0078ab3b2e11e16f85e145d3d59c6ea9": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/419.step"
+  },
+  "d6462263ac2d681dd14f7c2ac7a31f0132371934939ff0ada89a746b23582982": {
+    "aliases": [],
+    "name": "fixtures/parts/unresolved.step"
+  },
+  "d6f3e83ebb5b6dbdece381cac4316ec017900c4686e09f24d65217a1dcbfc526": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/bolt_thread_knurl.step.gz"
+  },
+  "d84a7973f7f59262c3af6754560370906bf8a3beefc7e5f17e98089941343329": {
+    "aliases": [],
+    "name": "fixtures/parts/editor_pmi.step"
+  },
+  "d906582aa4adbdd3870cb5fd51676a548f5f1a62ce236c861de9c6d2c9b305e0": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/498.step"
+  },
+  "da44c719d3343fb824a2f39af75c794fe4ec4698bc911acd6a1faa1daec198c7": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10252.step"
+  },
+  "dbced691a5f8558611d55978d11660667d60de7adf83869fb9c2cb0e05438c51": {
+    "aliases": [],
+    "name": "corpus/cadgenbench_inputs/cgb217.step.gz"
+  },
+  "dfcd4d15c66f08c3483ccdb73119104ea815acb9e28f1273950e59682bc8aac3": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10155.step"
+  },
+  "e081d518484d5c708c6729353237f94a7d97da2b74a10d60d4c0d146d67a5855": {
+    "aliases": [],
+    "name": "corpus/nist/nist_ctc_01_asme1_rd.stp"
+  },
+  "e1f12e3a4fb802dc2df3e04d95e96681f544dd516edf82c8baa05f73b4f8e0e4": {
+    "aliases": [],
+    "name": "fixtures/parts/boss_circle.step"
+  },
+  "e22894685e88bbdaec26cd0c407dd8410574f227cef040b2c598979dd9e18f08": {
+    "aliases": [],
+    "name": "fixtures/surface_texture/plate_part_ra1_6.step.gz"
+  },
+  "e29c09bd2d454601ff1a0d77c4c4ffaf2ed78eee71031ce49f7b7bb5a6d1d4e8": {
+    "aliases": [],
+    "name": "corpus/nist/nist_ftc_09_asme1_rd.stp"
+  },
+  "e48047288e55bd313324cda3beddd3c4e386515d3e628adddde616fe63c08c3d": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/hw_spool_fits_intent.step.gz"
+  },
+  "e6df6d0ed68fd8a91bd3f8360c7047f2af3d61068b89050d84423fe8ddb93bcf": {
+    "aliases": [],
+    "name": "corpus/nist/nist_ctc_02_asme1_rc.stp"
+  },
+  "e8eeba466dff6a7c607b399cb9edbc1b5eb1c33302051a9579bdb2c9dc732144": {
+    "aliases": [],
+    "name": "fixtures/recognition/polygonal_stock/translated.step"
+  },
+  "e980c12943dcfe9dbf7e7c47e2a6a5741cf6b9a371ba35e7436ebfe9d858e361": {
+    "aliases": [],
+    "name": "fixtures/parts/plate.step"
+  },
+  "ea2c22d0b75611331947df036397027b87149c476b2ba6c43d04d59d7df35a6b": {
+    "aliases": [],
+    "name": "fixtures/coverage-holes/double-d-roll-30.step"
+  },
+  "eb69b8617d32f56191b71c953500db14b4afc2cf4122bb5e2289a45534294a23": {
+    "aliases": [],
+    "name": "fixtures/recognition/polygonal_stock/x.step"
+  },
+  "ec928f335fcf0f9dd29acaa90362f0a9578e781c750e80faf3df99b6b63c6fcd": {
+    "aliases": [],
+    "name": "fixtures/recognition/issues/pocket_z.step"
+  },
+  "ed2f10365275e2a1ce4f8462e75f7168821668384927d6303cdd62c71378520e": {
+    "aliases": [],
+    "name": "fixtures/recognition/slot_patterns/slot_grid.step"
+  },
+  "ed45a7b6f69a543348d67d9b10db3a7f127c69cba43ea78892b15ce09b7cc275": {
+    "aliases": [],
+    "name": "fixtures/turned_knurl/spindle_external_thread.step.gz"
+  },
+  "ef369ad15c4e1a615d37bcb25fda4bdaafa15c7602f8b6905f904ec65094f293": {
+    "aliases": [],
+    "name": "fixtures/parts/rules-text/three-body-pocket.step"
+  },
+  "f2395c4933b21a7e65e889737c0c683abd825336881cd8c227352bfe64e87bdc": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/363.step"
+  },
+  "f56db19a57634bfbb48c43262033dd1e034c91bce178b250f5b56c7e2fd8f1ab": {
+    "aliases": [],
+    "name": "fixtures/parts/issue_1247_angled_blind_step.step"
+  },
+  "f63dd97d11972bd6e855dc0b518df24432ab710a71246cca8163a0ede23d9ea0": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/520.step"
+  },
+  "f71122c64c85a730147818c037e0bcde72dade3dbd0676b45a5142865a6b4eeb": {
+    "aliases": [],
+    "name": "fixtures/parts/rules-text/two-pads.step"
+  },
+  "fa26ed75ac96518c1d8964799321270b48b709fbc43afd396452bd9867bd7d89": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10167.step"
+  },
+  "fa2723e9a094d0d07ce588be2924c7005f875e90fa7b6c79e5c6d63e67a7c4b0": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/16943.step"
+  },
+  "fb17eefc1714858019d6dc6ee403008f54dad43643276897da6687975a22a82a": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/hw_thread_removed.step.gz"
+  },
+  "fb52b6ed8638989bfcb8de5e80a4a852ea42218b2665b96de917404210c7a5c6": {
+    "aliases": [],
+    "name": "corpus/mfcadpp_holdout/471.step"
+  },
+  "fb66a5cb9ac5c2c8655bc01c231475bb1431b4d1eb8ff389b7ad10a584a4c107": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/hw_assembly_plate_pin_intent.step.gz"
+  },
+  "fba4f46cab1ce1402362038036884631b4a41afe1c9efc5681d358c39db7ed5f": {
+    "aliases": [],
+    "name": "fixtures/pmi/step/nist_stc_10_asme1_ap242-e2.stp.gz"
+  },
+  "fc891f27e0be19cccbccfc405646074871ea4e1e8eaaa758e2254656c552567c": {
+    "aliases": [],
+    "name": "corpus/mfcadpp/10046.step"
+  },
+  "fd11be6fd9642a9ee7f35ea797ccf39a04bb9b66b1b68fcd7ec4d8a21f4aa57a": {
+    "aliases": [],
+    "name": "fixtures/details/crowded_prism.step.gz"
+  },
+  "fe583a5a7863aa0e94051fa998d2a656f0030e6d19e37cfc28826154d75aee0b": {
+    "aliases": [],
+    "name": "fixtures/recognition/issues/curved_offset.step"
+  }
+}
