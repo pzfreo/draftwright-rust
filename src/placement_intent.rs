@@ -1021,7 +1021,8 @@ pub(crate) fn automatic_pin(p: &Place) -> bool {
     p.pinned && p.side.is_none() && p.lane.is_none() && p.along.is_none() && p.offset.is_none()
 }
 
-/// A bare dimension pin keeps its existing station and adds no packing obstacle.
+/// Bare dimension pins keep settled peers in their carrier frames. Explicit view
+/// relations transport those frames too; they do not change annotation intent.
 pub(crate) fn automatic_pins_only(spec: &Spec) -> bool {
     spec.dimensions
         .values()
@@ -1031,7 +1032,6 @@ pub(crate) fn automatic_pins_only(spec: &Spec) -> bool {
             .values()
             .all(|d| d.place.as_ref().is_none_or(automatic_pin))
         && spec.annotations.is_empty()
-        && spec.views.values().all(|v| v.place.is_none())
         && spec
             .dimensions
             .values()

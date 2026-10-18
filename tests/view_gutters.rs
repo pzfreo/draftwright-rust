@@ -177,3 +177,62 @@ fn pin_replay_keeps_the_ftc09_schedule_and_its_clearance() {
             .any(|p| p.code == "annotation_ink_overlap")
     );
 }
+
+#[test]
+fn mixed_view_and_item_pins_keep_settled_peers_in_the_guttered_frame() {
+    let Some(corpus) = corpus::dir() else { return };
+    let (_, analysis) = model::analyse_native(&corpus.join("mfcadpp/10060.step")).unwrap();
+    for gutter in [0.0, 25.0] {
+        let mut spec: Spec =
+            serde_json::from_value(json!({"sheet":{"view_gutter":gutter}})).unwrap();
+        let base = model::plan_recovered(&analysis, &spec).unwrap();
+        let front = base.views.iter().find(|v| v.id == "v:front").unwrap();
+        for id in [
+            "d:envelope/height.length",
+            "d:envelope/depth.length",
+            "d:f:section_recess:2/pocket_width.length",
+            "d:f:paired_ramp_step:1/ramp_angle.angle",
+            "d:f:hole:1/bore.diameter",
+        ] {
+            spec.dimensions.entry(id.into()).or_default().place =
+                Some(serde_json::from_value(json!({"pinned":true})).unwrap());
+        }
+        for (name, side, align, gap) in [
+            ("plan", "above", "middle", 0),
+            ("side", "right", "start", 1),
+            ("iso", "right", "start", 1),
+        ] {
+            let view = base
+                .views
+                .iter()
+                .find(|v| v.id == format!("v:{name}"))
+                .unwrap();
+            let distance = if gap == 0 {
+                view.area[1] - front.area[3]
+            } else {
+                view.area[0] - front.area[2]
+            };
+            spec.views.entry(name.into()).or_default().place = Some(
+                serde_json::from_value(json!({"relative_to":"front","side":side,
+                    "gap":distance,"align":align,"pinned":true}))
+                .unwrap(),
+            );
+        }
+        let replay = model::plan_recovered(&analysis, &spec).unwrap();
+        assert!(
+            !replay
+                .problems
+                .iter()
+                .any(|p| p.code == "pinned_view_off_sheet")
+        );
+        let width = |p: &Plan| {
+            p.dimensions
+                .iter()
+                .find(|d| d.id == "d:envelope/width.length")
+                .unwrap()
+                .placed
+                .clone()
+        };
+        assert_eq!(width(&replay), width(&base));
+    }
+}
