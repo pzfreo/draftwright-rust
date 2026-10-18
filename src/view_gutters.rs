@@ -510,7 +510,9 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
     for (((v, b), delta), measured) in plan.views.iter_mut().zip(bounds).zip(&deltas).zip(measured)
     {
         move_point(&mut v.at, *delta);
-        if measured {
+        // A canonical pin already carries the measured frame. Recomputing the
+        // same bounds from its transported origin can lose an ulp on a no-op.
+        if measured && v.area.iter().zip(b).any(|(a, b)| (a - b).abs() > 1e-8) {
             v.area = b;
         }
         move_box(&mut v.area, *delta);
