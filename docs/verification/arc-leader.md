@@ -42,9 +42,9 @@ the perpendicular, may not add either feature or model-edge crossings relative
 to their perpendicular base, and may not traverse material or cross another
 dimension's line, witness, arrowhead or label. Location retries also stay outside
 settled size lanes before ranking the datum ladder. Semantic PMI retains its established
-corridor policy. Multiple counted radius exceptions in one recess view retain
-a located centre schedule; hole schedules and their tags now include that
-radius table among their furniture obstacles. When an omission promotes a counted
+corridor policy. Obstructed radius exceptions retain the established centre
+schedule policy; clear counted radius leaders stay on the recovered view. Hole schedules
+and their tags include an existing radius table among their furniture obstacles. When an omission promotes a counted
 linear alias, it inherits its owner’s settled lane while retaining its own
 measurement stations. This keeps edits local after an outward witness repair.
 
@@ -156,3 +156,141 @@ short 3.4 label.
 One slow-header HTTP test encountered a connection reset during the grouped core
 run. It passed unchanged in isolation and in the complete 269-test core retry;
 no HTTP code, assertion or timing limit changed.
+
+
+## Reviewer follow-up: preserve paper and radius presentation
+
+The follow-up starts at `22e6d2ec` and compares the exported, recovered plans
+with main at `d96f067b`. Before/after artifacts for this follow-up live in
+`artifacts/arc-leader/fix/`; `before/` is the rejected branch drawing and `main/`
+is the main drawing. The original verification above records the earlier round.
+
+CTC-02 lost its clear `4× R15` and `6× R18` plan-view leaders because the branch
+forced multiple counted radius groups in a recess view into a centre schedule,
+without requiring an obstructed leader. Complete-view recovery now applies the
+original obstruction-based schedule policy. The bare, unrecovered planner keeps
+its established estimated centre schedule; its existing row-credit and table
+corruption tests remain unchanged. The counted exported leaders retain every
+occurrence claim and attach to proven sites on their trimmed corner surfaces.
+FTC-08 retains its existing radius-centre table.
+
+FTC-09's A1 failure was not a larger principal view or a changed geometry scale.
+Its scheduled layout reserved an isometric region 289 mm high, then restored
+the established isometric scale, producing 363.897 mm of projected ink. That
+footprint intruded into the 30-hole schedule's placement space. The schedule
+transaction failed, restored the coordinate ladder, and its close 38.1/39.37
+ordinates caused recovery to choose A0. The schedule installer now retries an
+automatic isometric that outgrows its reservation beside the complete schedules,
+using the same isometric scale and the existing furniture clearances. The retry
+commits only after every schedule row and tag fits. Principal view frames and
+witnesses stay fixed, and authored placements and held frames keep their existing
+policy. The choice is to move the automatic orientation view and keep A1 at 1:1.
+
+Two new exported-plan regressions check CTC-02's counted leaders and physical
+trimmed sites, and FTC-09's A1/1:1 sheet, 30 schedule rows, unchanged isometric
+scale, bounded isometric footprint and perpendicular witnesses. No existing
+assertion, threshold, known-finding fixture or quality baseline is changed.
+
+All **30/30** exported plans retain main's sheet dimensions, sheet scale and
+every individual view scale.
+Parts gaining or losing a radius-centre table relative to main: **none**.
+CTC-01 and FTC-08 retain their tables; FTC-08's complete radius-table data is
+identical to main. The full comparison is saved in
+`fix/presentation-comparison.json`.
+
+| Quality part | Main → final sheet | Main → final scale | Radius-centre table |
+| --- | --- | --- | --- |
+| cadgenbench_inputs/cgb203.step | A4 → A4 | 1:5 → 1:5 | absent in both |
+| cadgenbench_inputs/cgb207.step | A3 → A3 | 1:2 → 1:2 | absent in both |
+| cadgenbench_inputs/cgb241.step | A3 → A3 | 1:5 → 1:5 | absent in both |
+| cadgenbench_inputs/cgb245.step | A2 → A2 | 1:2 → 1:2 | absent in both |
+| gramel/GRM-03_thumbwheel_drive_screw.step | A3 → A3 | 10:1 → 10:1 | absent in both |
+| gramel/GRM-05_depth_lock_bolt.step | A3 → A3 | 5:1 → 5:1 | absent in both |
+| gramel/string_post.step | A4 → A4 | 5:1 → 5:1 | absent in both |
+| nist/nist_ctc_01_asme1_rd.stp | A3 → A3 | 1:5 → 1:5 | retained |
+| nist/nist_ctc_02_asme1_rc.stp | A0 → A0 | 1:5 → 1:5 | absent in both |
+| nist/nist_ctc_03_asme1_rc.stp | A3 → A3 | 1:5 → 1:5 | absent in both |
+| nist/nist_ctc_04_asme1_rd.stp | A1 → A1 | 1:5 → 1:5 | absent in both |
+| nist/nist_ctc_05_asme1_rd.stp | A2 → A2 | 1:5 → 1:5 | absent in both |
+| nist/nist_ftc_06_asme1_rd.stp | A1 → A1 | 1:2 → 1:2 | absent in both |
+| nist/nist_ftc_07_asme1_rd.stp | A2 → A2 | 1:2 → 1:2 | absent in both |
+| nist/nist_ftc_08_asme1_rc.stp | A1 → A1 | 1:2 → 1:2 | retained |
+| nist/nist_ftc_09_asme1_rd.stp | A1 → A1 | 1:1 → 1:1 | absent in both |
+| nist/nist_ftc_10_asme1_rb.stp | A1 → A1 | 1:1 → 1:1 | absent in both |
+| ttt_inputs/sm-hanger.step | A3 → A3 | 1:2 → 1:2 | absent in both |
+| mfcadpp/1000.step | A4 → A4 | 2:1 → 2:1 | absent in both |
+| mfcadpp/10000.step | A4 → A4 | 1:1 → 1:1 | absent in both |
+| mfcadpp/10007.step | A3 → A3 | 2:1 → 2:1 | absent in both |
+| mfcadpp/10020.step | A3 → A3 | 2:1 → 2:1 | absent in both |
+| mfcadpp/10033.step | A3 → A3 | 2:1 → 2:1 | absent in both |
+| mfcadpp/10038.step | A4 → A4 | 2:1 → 2:1 | absent in both |
+| mfcadpp/1004.step | A4 → A4 | 1:1 → 1:1 | absent in both |
+| mfcadpp/10046.step | A3 → A3 | 2:1 → 2:1 | absent in both |
+| mfcadpp/10047.step | A3 → A3 | 1:1 → 1:1 | absent in both |
+| mfcadpp/10049.step | A4 → A4 | 1:1 → 1:1 | absent in both |
+| mfcadpp/10060.step | A4 → A4 | 1:1 → 1:1 | absent in both |
+| mfcadpp/10063.step | A4 → A4 | 1:1 → 1:1 | absent in both |
+
+The inspected CTC-02 plan detail keeps both counted leaders with their trimmed
+corner targets and ordinary perpendicular witnesses. FTC-09 keeps the full front
+hole schedule and the perpendicular location ladders on an **841 × 594 mm A1**
+sheet at **1:1**. Its orientation projection keeps scale 1.3 and is repacked with
+6 mm of breathing room inside the sheet frame, in addition to the existing
+furniture clearance. The initial trial touched the frame; visual QA caught that
+and the final placement reserves the shared preferred block gutter.
+
+| Part | Main PNG | Rejected branch PNG | Fixed PNG | Fixed detail |
+| --- | --- | --- | --- | --- |
+| CTC-02 | [main](../../artifacts/arc-leader/fix/main/nist_ctc_02_asme1_rc.png) | [before](../../artifacts/arc-leader/fix/before/nist_ctc_02_asme1_rc.png) | [after](../../artifacts/arc-leader/fix/after/nist_ctc_02_asme1_rc.png) | [plan leaders](../../artifacts/arc-leader/fix/after/ctc02-plan-detail.png) |
+| FTC-09 | [main](../../artifacts/arc-leader/fix/main/nist_ftc_09_asme1_rd.png) | [before](../../artifacts/arc-leader/fix/before/nist_ftc_09_asme1_rd.png) | [after](../../artifacts/arc-leader/fix/after/nist_ftc_09_asme1_rd.png) | full sheet above |
+
+The first follow-up dimensions run passed 319 tests and failed the two bare
+CTC-02 radius-table expectations. Those tests use `model::plan`, whose estimated
+presentation already had the table on main; the exported command-line drawing
+uses `model::plan_recovered`. The final fix passes the existing complete-view
+policy to radius scheduling, retaining the bare planner's schedule while requiring
+an actual obstruction before tabulating recovered counted leaders. Both existing
+tests, including all row-credit and corrupted-locator assertions, are unchanged.
+The initial failure log remains at `fix/dimensions-initial.log`.
+
+### Follow-up verification
+
+The final source is `8c0bd6a1`, following `2359e935` and `69a6b52f`. Checks use
+the same local environment and unchanged limits recorded above. The final
+before/main/after PNGs and CTC-02 plan-detail crops have been inspected; final PNG
+hashes are saved in `fix/png-sha256.json`.
+
+| Check on final source | Result |
+| --- | --- |
+| `cargo fmt --all --check` | PASS |
+| `cargo clippy --workspace --all-targets --release -- -D warnings` | PASS |
+| Workspace library tests | PASS: 253 tests; wasm crate has 0 library tests |
+| Affected binaries: dimensions / rendering / core / audits / drafting | PASS: 321 / 447 / 269 / 155 / 37 tests |
+| `python3 -m unittest discover -s tools -p 'test_quality.py'` | PASS: 40 tests |
+| Final `tools/quality.py`, all 30 quality parts | PASS: ink 6, line-through-feature 63, no off-sheet items |
+| `tools/check_leader_routes.py` | PASS: 144 callouts, no additional crossings, excess length or new runs; 8 unchanged pre-existing runs |
+| `tools/check_quality_table.py`, unchanged CI table | PASS: 30 parts, 300 cells, no part worse |
+| Main comparison: sheet dimensions, sheet scale, every view scale | PASS: unchanged on all 30 parts |
+| Radius-centre table gains / losses against main | PASS: none; FTC-08 table exactly identical |
+| Oblique witnesses across all 30 parts | PASS: 0 parts / 0 dimensions |
+| Independent radius-target and oblique findings, fresh reviews of all 30 parts | PASS: zero in both lint and structural results |
+| Accepted dimension placements on 10000, 10020, 10046, FTC-06, FTC-08 | PASS: exactly identical to the accepted previous-round plans |
+| Full workspace suite, once in this follow-up | PASS: 1,504 passed, 0 failed, 0 skipped; 572.413 s |
+| Workspace release doc-tests | PASS: both crates; 0 doc-tests |
+
+The full follow-up command is
+`cargo nextest run --workspace --release --no-fail-fast --ignore-default-filter --test-threads 8`.
+Its result is kept separately from the earlier round's full run and the first
+follow-up dimensions failure. Full data and logs are under `fix/`, including
+`presentation-comparison.json`, `new-physical-lints.json`, `oblique.json`,
+`leader-routes.json`, `quality-table.log`, and the per-binary test logs.
+
+No existing assertion, limit, known-finding fixture or baseline was weakened.
+No remote CI job was started and no commit was pushed.
+
+The one completed follow-up full run passes all **1,504 tests**, including the
+unchanged native latency gates. No full-suite rerun or latency retry was needed.
+The 10000 radius tip still touches its quarter arc and its 17.5 witnesses remain
+vertical; both regressions pass in the focused rendering binary and in the full
+run. The accepted 10000, 10020, 10046, FTC-06 and FTC-08 dimension records are
+identical to the previous accepted output.
