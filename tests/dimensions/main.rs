@@ -1,4 +1,6 @@
-// Integration modules retain their source paths and independent helper statics.
+// Each original module keeps its helper instances, including private cache statics.
+#![allow(clippy::duplicate_mod)]
+
 #[path = "../angled_steps.rs"]
 mod angled_steps;
 #[path = "../authored_dimensions.rs"]

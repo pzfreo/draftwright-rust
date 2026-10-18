@@ -1,4 +1,6 @@
-// Integration modules retain their source paths and independent helper statics.
+// Each original module keeps its helper instances, including private cache statics.
+#![allow(clippy::duplicate_mod)]
+
 #[path = "../editor_session.rs"]
 mod editor_session;
 #[path = "../engine_version.rs"]

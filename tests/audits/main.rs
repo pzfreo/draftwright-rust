@@ -1,4 +1,6 @@
-// Integration modules retain their source paths and independent helper statics.
+// Each original module keeps its helper instances, including private cache statics.
+#![allow(clippy::duplicate_mod)]
+
 #[path = "../completeness.rs"]
 mod completeness;
 #[path = "../completeness_rules.rs"]

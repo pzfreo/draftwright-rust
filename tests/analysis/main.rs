@@ -1,4 +1,6 @@
-// Integration modules retain their source paths and independent helper statics.
+// Each original module keeps its helper instances, including private cache statics.
+#![allow(clippy::duplicate_mod)]
+
 #[path = "../api_analysis.rs"]
 mod api_analysis;
 #[path = "../assembly_parts.rs"]
@@ -7,6 +9,8 @@ mod assembly_parts;
 mod bridge;
 #[path = "../cli_native.rs"]
 mod cli_native;
+// Preserve both the public test prefix and its existing private facts helper.
+#[allow(clippy::module_inception)]
 #[path = "../facts.rs"]
 mod facts;
 #[path = "../gears.rs"]
