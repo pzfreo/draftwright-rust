@@ -1032,10 +1032,14 @@ fn detail_routes(a: &Analysis, wants: &mut [Want], views: &[PlannedView]) {
                     }
                 }
                 Shape::Callout { sites } => {
-                    sites.retain(|(p, _)| inside(*p));
-                    if sites.is_empty() {
+                    // A rejected crop must leave the parent's proven sites
+                    // intact, just as rejected linear witnesses stay untouched.
+                    let retained: Vec<_> =
+                        sites.iter().copied().filter(|(p, _)| inside(*p)).collect();
+                    if retained.is_empty() {
                         continue;
                     }
+                    *sites = retained;
                 }
                 Shape::Aligned { a, b } => {
                     if !inside(*a) || !inside(*b) {
