@@ -924,11 +924,16 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   controlling dimension or callout from its parent; reference-only crops and
   unannotated depiction crops are refused. Compact crops include surrounding
   outline (maximum 3:1 aspect ratio) and use the same bounds for the parent marker.
+  An already readable bore cannot earn a crop just because its label is wider
+  than the opening; repair the parent lanes or report the refusal.
   Captions and letters retain normal text clearance. Useful partial improvements
   can remain with explicit refusals for every unresolved local floor. A declined
   crop keeps a fitting single-sheet whole-part drawing; removing the crop from
   an A3 trial cannot make that larger paper eligible. Ordinary A3 recovery still
   addresses a failed whole-part floor/fit or an existing multi-sheet allocation.
+  If a reduction makes previously readable openings or depictions fail, recover
+  the ordinary drawing again at their established scale with every fit, fact
+  and route gate still enforced. This also applies with automatic details off.
   A smaller-paper choice that cuts the established main scale by more than half
   is refused in favour of the established fitted drawing. Halving a principal
   view with at least eight real controls and unresolved local geometry is also

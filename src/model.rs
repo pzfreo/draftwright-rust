@@ -3072,6 +3072,56 @@ fn recover_with_reference(
                 ordinary.sheet.size, ordinary.sheet.scale
             );
         }
+        // Preserve readable controlled openings and unannotated depictions in
+        // an ordinary drawing. Shrinking them below their floors cannot earn
+        // a useful detail merely by fitting a smaller paper.
+        // This comparator contains no automatic crop, including with the
+        // explicit switch off; optional details never purchase its paper.
+        let ordinary_readability = crate::sheet_fit::readability(analysis, &ordinary);
+        if !reference_only
+            && spec.sheet.size.is_none()
+            && initial_readability.failures() == 0
+            && ordinary.sheet.scale_factor < first.sheet.scale_factor
+            && (ordinary_readability.openings > initial_readability.openings
+                || ordinary_readability.native_openings > initial_readability.native_openings
+                || ordinary_readability.depiction > initial_readability.depiction)
+            && first.views.iter().all(|v| v.detail.is_none())
+        {
+            let mut readable = recover_candidates_before(
+                analysis,
+                spec,
+                first.clone(),
+                false,
+                false,
+                Some(first.sheet.scale_factor.max(request_floor)),
+                false,
+                local_paper,
+                route_reference,
+            )?;
+            if findings(&readable).clean()
+                && crate::sheet_fit::readability(analysis, &readable).failures() == 0
+                && readable.sheet.scale_factor >= first.sheet.scale_factor
+                && readable.views.iter().all(|v| v.detail.is_none())
+                && drawn_quality_reference(analysis, &readable)
+                && required.is_subset(&carried(&readable))
+                && route_reference.is_none_or(|reference| {
+                    no_new_drawing_issues(reference, &readable)
+                        && crate::sheet_fit::routes_no_worse(analysis, reference, &readable)
+                })
+            {
+                readable.sheet.basis = format!(
+                    "screen-first fitted-reference retention on {} at {}; established clean readable drawing retained; retained readability [{}]; independently recovered ordinary drawing without automatic details; smaller ordinary fit {} at {} refused [{}]; {}",
+                    readable.sheet.size,
+                    readable.sheet.scale,
+                    crate::sheet_fit::readability(analysis, &readable),
+                    ordinary.sheet.size,
+                    ordinary.sheet.scale,
+                    ordinary_readability,
+                    readable.sheet.basis
+                );
+                ordinary = readable;
+            }
+        }
         // Nominal bands may make a large sheet appear necessary even though
         // its settled principal and annotation blocks fit practical paper.
         // Reuse that finished, same-scale ink before accepting A2 or larger.

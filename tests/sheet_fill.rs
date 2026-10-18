@@ -778,7 +778,7 @@ fn fixed_scale_can_use_a_valid_smaller_sheet_without_changing_scale() {
 /// This formerly selected A4 1:10: the 420 mm profile was 42 mm tall and its 20 mm
 /// shoulder bands were shorter than the 2.1 mm printed capitals, despite no hard collision.
 #[test]
-fn connector109_uses_a_local_root_and_crest_detail_on_a3() {
+fn connector109_keeps_a_readable_ordinary_main_without_an_unannotated_crop() {
     let Some(dir) = corpus::dir() else { return };
     let a = model::analyse_native(&dir.join("cadgenbench/threaded_connector_109.step"))
         .unwrap()
@@ -793,17 +793,24 @@ fn connector109_uses_a_local_root_and_crest_detail_on_a3() {
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A3", "1:5"),
+        ("A2", "1:2"),
         "{}",
         p.sheet.basis
     );
     let readable = draftwright::sheet_fit::readability(&a, &p);
-    assert_eq!((readable.depiction, readable.failures()), (2, 2));
+    assert_eq!((readable.depiction, readable.failures()), (0, 0));
     assert!(p.views.iter().all(|v| v.detail.is_none()));
     assert!(
-        p.problems
+        !p.problems
             .iter()
             .any(|q| q.code == "layout_recovery_exhausted" && q.severity == "warning")
+    );
+    let mut without = Spec::default();
+    without.sheet.automatic_details = Some(false);
+    let ordinary = model::plan_recovered(&a, &without).unwrap();
+    assert_eq!(
+        (&p.sheet.size, &p.sheet.scale),
+        (&ordinary.sheet.size, &ordinary.sheet.scale)
     );
     assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
     let compressed = model::plan_recovered(&a, &named("A3", "1:5")).unwrap();

@@ -511,6 +511,26 @@ fn a_crowded_main_view_keeps_its_readable_a3_scale() {
 }
 
 #[test]
+fn ordinary_paper_keeps_readable_controlled_openings_with_the_switch_off() {
+    let (_, a) = model::analyse_native(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/boss_circle.step"),
+    )
+    .unwrap();
+    for automatic in [None, Some(false)] {
+        let mut spec = model::Spec::default();
+        spec.sheet.automatic_details = automatic;
+        let p = model::plan_recovered(&a, &spec).unwrap();
+        assert_eq!(
+            (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+            ("A3", "1:1")
+        );
+        assert!(p.views.iter().all(|v| v.detail.is_none()));
+        assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
+        assert_eq!(sheet_fit::readability(&a, &p).failures(), 0);
+    }
+}
+
+#[test]
 fn readable_bores_do_not_replace_a_useful_profile_with_circle_only_crops() {
     let Some(corpus) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
         assert!(std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"));
