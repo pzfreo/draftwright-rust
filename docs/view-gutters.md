@@ -310,3 +310,56 @@ clearance changes; authored alignment/gap assertions remain unchanged.
 
 All work was committed locally in coherent steps. Nothing was pushed, no foreign
 repository was copied or vendored, and `CHANGELOG.md` was not edited.
+
+## Quality-pins replay repair (2026-10-18)
+
+The original `1-1` acceptance cell reproduced FTC-09's **0 → 12 ink findings**.
+The final gutter solver kept views clear of a table's literal cells but consumed
+the **2 mm clearance** required by `tables::place`. FTC-09's isometric ended
+0.00001 mm from its hole schedule. Pin replay retained those canonical view
+frames, could no longer install the schedule, and restored crowded individual
+hole dimensions.
+
+The gutter solver now reserves `tables::PAD` around hole schedule blocks,
+authored tables and the radius table. FTC-09 retains 2.00001 mm of clearance.
+The regression pins the failing cell's step-height dimension and checks that
+the schedule retains its rows and coverage, every dimension keeps its exact
+placed geometry, and no annotation ink overlap appears. The acceptance runner,
+its pin selection and thresholds are unchanged.
+
+The first eight-cell run then exposed 10060 in cell `3-8`: mixing bare item
+pins with view pins restacked its unchanged width dimension above the front
+view. Its anchor area grew 8.55 mm, so replaying the reported plan/front gap
+pushed plan off-sheet. Bare pins now retain settled peers when view relations
+are present too; existing anchor-delta transport carries those peers with
+their views. A second regression checks this mixed pin replay with gutters
+disabled and at the 25 mm default.
+
+Validation uses eight build/test threads and the required corpus environment
+above. `cargo fmt --all --check`, strict workspace/all-target release Clippy,
+and the source inventory guard pass. The four requested release binaries pass:
+**core 279, rendering 468, dimensions 332, audits 158** (1,237 tests, no failures
+or skips). The complete integration source inventory is **1,296** tests across
+eight binaries; `docs/test-binaries.md` reflects the current counts.
+
+Each cell ran independently with `python3 -I tools/ci_acceptance.py --job
+quality-pins --pin-cell CELL --out target/acceptance-final/CELL`. All eight
+reports use the same final release binary and identical fixture hashes.
+
+| Cell | Complete job | Total ink, unpinned → pinned | Off-sheet, unpinned → pinned |
+| --- | --- | ---: | ---: |
+| `1-1` | PASS | 6 → 6 | 0 → 0 |
+| `1-3` | PASS | 6 → 6 | 0 → 0 |
+| `2-1` | PASS | 6 → 6 | 0 → 0 |
+| `2-3` | PASS | 6 → 6 | 0 → 0 |
+| `2-8` | PASS | 6 → 6 | 0 → 0 |
+| `3-1` | PASS | 6 → 6 | 0 → 0 |
+| `3-3` | PASS | 6 → 6 | 0 → 0 |
+| `3-8` | PASS | 6 → 6 | 0 → 0 |
+
+FTC-09 is **0 → 0 ink in every cell**. All 30 parts in every cell pass, as do
+the fresh baseline, leader-route, label-lane-locality and deliberate-rejection
+checks. Raw JSON, plans, SVGs and logs remain under `target/acceptance-final/`.
+The final Rust logs are `target/final-{required-binaries,strict-clippy,fmt-check}.log`.
+No original test or acceptance threshold was weakened. Nothing was pushed, and
+`CHANGELOG.md` was not edited.
