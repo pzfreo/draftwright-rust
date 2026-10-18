@@ -53,8 +53,9 @@ the complete PMI length chain replaces the automatic cumulative shoulder locatio
 The drawing has 14 dimensions instead of 13, with no duplicate geometric annotation for
 any of the ten semantic sizes. Both sheets are A4 at 5:1. Inspection confirms readable
 labels, short-length outside arrows and witnesses on the intended shoulders/cylinders.
-Datum-leader crossing warnings remain visible (3 before, 7 after); these are not hidden
-or re-baselined.
+The initial after raster exposed a datum-placement regression (3 before, 7 after datum-leader
+crossing warnings). The review correction below replaces that result; the original evidence
+remains available and no warning or baseline was hidden.
 
 Bracket_positions is unchanged: the five location records #31343, #31359, #31375,
 #31401 and #31417 still have no face-supported plane-to-bore axis witness. These are
@@ -127,3 +128,152 @@ repeated spans 0, lines through features 63, hidden-on-visible 0 and section-hid
 The JSON baseline, leader-route baseline, assertion thresholds and budget files are unchanged.
 Final PNGs were regenerated from the tested release binary; bracket_positions still has
 an identical raster. Both code commits and this evidence remain local; nothing was pushed.
+
+## Datum placement review correction
+
+The source chain changed the dimension ink used to rank B's attachment sites. The old
+search put the letter box beyond the entire view's right edge even when the shoulder
+had clear paper beside it. Grading considered the letter boxes and leaders, but did not
+reserve filled datum triangles: B's lower alternative could overlap A's triangle without
+a penalty. The new dimensions therefore exposed two general placement defects.
+
+Compact datum tiers now include an attachment-based grid with the existing triangle,
+shaft and frame clearances, while retaining the original view-boundary grid. Replacing the
+old grid would change its phase and lose existing clear lanes on unrelated drawings.
+A box inside the view's overall rectangle is usable only when the existing projected-edge
+and full curved-face-cover proof certifies exterior paper;
+its entire leader must also clear the model ink. That proof previously required a
+planar face square to the viewer, which excludes an entirely turned side view.
+Datum exterior proof now works without that face. Ordinary dimension routing retains its
+original eligibility, and interior labels still require their containing planar face.
+Missing surface evidence remains refused. The same proof is used by placement and collision
+reporting; all sheet checks remain enabled.
+
+The compact search places a planar datum before cylinders, whose other proven silhouettes
+provide more freedom. This prevents a cylinder from consuming the plane's only clear
+shoulder band. Equally clear automatic datum candidates are ranked by total leader length
+before their original site order. Only the normal minimum-length clear shaft ends the
+search early. A shorter candidate receives an exact crossing count: it cannot inherit a
+pruned tie with an earlier, longer route.
+
+The original, unmodified placement remains the contact reference. An already separated
+seed retains the complete no-new-contact guard; triangle reservations are applied in the
+corrective searches instead of silently changing that reference. A seed with touching
+triangles is illegal: symbol-separation repair takes precedence and may exchange soft
+contacts for fewer hard symbol overlaps, with every resulting finding still reported.
+The previous complete compact arrangement also remains a candidate, subject to the new
+triangle lint. A bounded joint assignment is used only if ordinary placement still leaves
+triangle contacts, reserving disjoint proven attachment sites before placing the boxes.
+Three cylinders can share a projection and need an earlier symbol to leave its middle
+station. The search never invents a point on a face. Filled triangles have priority over
+soft label/leader congestion so coincident projections try other proven sites even when
+every letter-box tier is busy.
+
+Filled triangles reserve their bounds with 0.5 mm clearance alongside the letter boxes,
+including editor-pinned placements. Independent final-plan lint reports
+`datum_symbol_overlap` as an error when two actual filled triangles overlap, contain one
+another or touch. It uses separating axes rather than bounding boxes, so empty triangular
+corners do not produce a false overlap. The arrangement guard includes this finding.
+
+The drawing choice is to keep B near its proven upper shoulder attachment, away from A,
+with a short leader, retaining all ten source dimensions on A4 at 5:1. New regressions
+require more than one symbol height between A and B, no B leader crossings, a leader
+shorter than 20 mm, no touching triangles, and no more than main's three datum-leader
+crossings. Planted overlapping ink is an error even with separate letter boxes. Separate
+unit checks cover overlapping/touching triangles, containment, disjoint triangles whose
+bounds overlap, and exterior proof on an entirely curved part without permitting ink
+inside its body or through its silhouette. Further native regressions require the original
+zero-crossing datum layout on `hw_every_kind` and distinct triangles for all 5 / 8 / 5 / 8 drawn
+datums on NIST FTC-07, FTC-10, STC-09 and STC-10, without dropping any of those datums.
+
+GRM-03's datum-leader crossings are **2**, down from the reviewed head's **7** and below
+main's **3**. **B has zero crossings**, with a **2.4 mm** leader at the upper proven shoulder
+site. Its attachment is **34.3 mm** from A (the symbol frame is 6 mm tall). A remains below
+the shoulder. All ten PMI dimensions, the 14 total dimensions, A4 and 5:1 scale are retained.
+
+### Review-fix drawing evidence
+
+The comparison against reviewed head `3c43abc0` covers the same 38 fixtures. All dimension
+requirements, labels, qualifiers, measurement claims and states are identical; GD&T source
+identities, faces, cells, modifiers and states are also identical. No requirement was dropped
+to obtain separation. `fix/requirements-comparison.json` records these checks and
+`fix/plan-diffs.json` lists every changed JSON path. The original derived-geometry comparison
+above remains historical evidence for the lowering itself.
+
+The original filled-triangle contacts were GRM-03 B/A, FTC-07 B/C, FTC-10 C/B + E/G + F/D,
+STC-09 A/G, and STC-10 B/C + D/E + G/F + G/E + F/E. The final 38-plan audit has **zero**
+filled-triangle contacts. Crowded NIST leaders still have warnings; keeping distinct,
+face-supported datum symbols takes precedence over retaining an invalid coincident symbol.
+These warnings are retained without changing the CI baseline:
+
+| Fixture | Triangle contacts before → after | Datum-leader crossings before → after |
+| --- | ---: | ---: |
+| GRM-03 AP242 PMI | 1 → 0 | 7 → 2 (main: 3) |
+| NIST FTC-07 | 1 → 0 | 5 → 6 |
+| NIST FTC-10 | 3 → 0 | 13 → 20 |
+| NIST STC-09 | 1 → 0 | 11 → 15 |
+| NIST STC-10 | 5 → 0 | 12 → 20 |
+
+The other 33 fixtures have unchanged datum-leader crossing counts. FTC-07 changes from
+A2 at 1:5 to A1 at 1:1, making its features more readable while separating the symbols.
+The other three NIST sheets retain their previous size and scale. There is no increase in
+hard annotation errors, and every previous PMI refusal remains reported.
+
+PNGs regenerated from the saved before binary and final tested binary are under
+`artifacts/derived-dw/fix/`. All seven were visually inspected:
+
+- `GRM-03_thumbwheel_drive_screw_AP242_PMI-before.png` and `-after.png`: B moves from the
+  lower overlapping pair to the upper shoulder, with a nearby box and a short clear leader.
+- `bracket_positions-before.png` and `-after.png`: pixel-identical, on A2 at 1:1; its plan is
+  also unchanged, including the five face-to-bore refusals.
+- `nist_ftc_07_asme1_ap242-e2-before.png` and `-after.png`: the enlarged 1:1 view and separated
+  B/C attachments are legible; the source frames and hole schedule remain present.
+- `nist_stc_10_asme1_ap242-e2-after.png`: the previously coincident datum markers are distinct;
+  the congested leader warnings remain visible.
+
+### Review-fix verification
+
+The source is frozen at `c46affc`. Runs use the same required-corpus environment and eight
+build/test workers specified above. No assertion, threshold, comparison fixture, baseline,
+instruction budget, test exclusion or kernel pin was weakened or re-recorded. No kernel
+repository was edited, and no repository was vendored or copied. The initial affected run
+was interrupted to correct wider survey findings; the completed frozen-source results below
+are the verification record. The full suite ran once after those corrections.
+
+| Check | Result |
+| --- | --- |
+| `cargo fmt --all --check` | PASS |
+| `cargo clippy --workspace --all-targets --release -- -D warnings` | PASS |
+| Source and compiled test inventory | PASS: 8 integration binaries, 138 reachable files, 1,267 exact test names |
+| Focused datum and interior-proof checks | PASS: 26/26 |
+| 66-part `tools/check_plan_time.py` | PASS: 2,266,945,131,444 instructions; unchanged limit 2,705,481,516,652 |
+| Four affected integration binaries | PASS: 1,208/1,208, 0 skipped; 361.846 s |
+| Full workspace nextest run | 1,524/1,525 passed, 0 skipped; sole failure: native NIST session latency (663.839 s) |
+| Final isolated native NIST session gate | PASS with unchanged 150 ms assertion; 15.534 s (`fix/latency-retry-quiet.log`) |
+| Workspace documentation tests | PASS (both crates; 0 doctests) |
+| MCP acceptance | PASS: Python quality tests, acceptance tests, Node client tests, 7/7 scripted tasks |
+| Quality and table checker | PASS: 30 parts / 300 baseline cells; no part worse |
+| Rendered leader-route checker | PASS: 144 callouts on 30 parts; 8 unchanged pre-existing runs |
+| CI quality baseline comparison | PASS against unchanged `tools/ci-quality-baseline.json` |
+
+The full run's NIST session latency sample maximum was 329.561 ms; its other eight
+samples were 37–104 ms. An unchanged isolated retry also failed: maximum 168.291 ms,
+other samples 10–91 ms. The 150 ms native gate remained enabled throughout. Both
+failures are retained in `fix/full-suite.log` and `fix/latency-retry.log`. They are timing
+failures rather than delta/plan/render equivalence failures; those checks pass in the same
+test before its final latency assertion. The other native session latency benchmarks
+and the multi-sheet latency gate passed in the full run. The latency fixture contains no
+GD&T and does not enter the new datum candidate search. A final isolated retry after all
+quality work completed **passed**, including the unchanged 150 ms assertion; no source,
+threshold or gate setting changed between these runs. The full suite was not repeated.
+
+Quality totals remain off-sheet 0, repeated labels 7, repeated measurements 0, view overlaps 0,
+title-block overlaps 0, ink findings 6, repeated spans 0, lines through features 63,
+hidden-on-visible 0 and section-hidden 0. `fix/ci-quality-reference.md` is generated verbatim
+from the unchanged CI reference JSON and records its SHA-256. `fix/validation.json` and
+`fix/verification-continuation.json` retain the run outcomes, including the full-suite failure.
+
+The final release SHA-256 is `3be615a3db43e0a8f606bd95a585ef510bf05cf1788f87bec13d1154772df827`,
+matching the saved after binary, the acceptance summary and the drawing captures. The final
+GRM-03 before/after PNGs were viewed again after all checks: the upper B attachment and
+nearby frame are clear of dimension ink, with A below. Commits remain local; nothing was pushed.
