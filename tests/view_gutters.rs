@@ -3,6 +3,9 @@ use draftwright::model::{self, Plan, Spec};
 use serde_json::json;
 use std::sync::OnceLock;
 
+#[path = "common/corpus.rs"]
+mod corpus;
+
 fn plate() -> &'static model::Analysis {
     static A: OnceLock<model::Analysis> = OnceLock::new();
     A.get_or_init(|| {
@@ -139,4 +142,38 @@ fn settled_routes_move_rigidly_with_their_view() {
         }
     }
     assert!(moved);
+}
+
+#[test]
+fn pin_replay_keeps_the_ftc09_schedule_and_its_clearance() {
+    let Some(corpus) = corpus::dir() else { return };
+    let (_, analysis) =
+        model::analyse_native(&corpus.join("nist/nist_ftc_09_asme1_rd.stp")).unwrap();
+    let base = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    assert_eq!(base.hole_tables.len(), 1);
+    let table = base.hole_tables[0].blocks[0].placed.as_ref().unwrap().cells;
+    let iso = base.views.iter().find(|v| v.id == "v:iso").unwrap();
+    assert!(gap(iso.area, table) >= draftwright::tables::PAD);
+
+    let spec = serde_json::from_value(json!({"dimensions":{
+        "d:step_level/step_height.length.h47_625":{"place":{"pinned":true}}
+    }}))
+    .unwrap();
+    let replay = model::plan_recovered(&analysis, &spec).unwrap();
+    assert_eq!(replay.hole_tables.len(), 1);
+    assert_eq!(
+        serde_json::to_value(&replay.hole_tables[0].rows).unwrap(),
+        serde_json::to_value(&base.hole_tables[0].rows).unwrap()
+    );
+    assert_eq!(replay.hole_tables[0].covered, base.hole_tables[0].covered);
+    for d in &base.dimensions {
+        let after = replay.dimensions.iter().find(|a| a.id == d.id).unwrap();
+        assert_eq!(after.placed, d.placed, "{}", d.id);
+    }
+    assert!(
+        !replay
+            .problems
+            .iter()
+            .any(|p| p.code == "annotation_ink_overlap")
+    );
 }

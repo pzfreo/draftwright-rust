@@ -360,24 +360,31 @@ fn translations(
                     .filter_map(|r| r.placed.as_ref().map(|p| p.label_box)),
             );
         }
+        // Table placement reserves PAD around its cells. Preserve that corridor
+        // when spending spare paper: canonical pin replays rebuild the tables in
+        // these frames, and must be able to install the same presentation again.
+        let table_clearance = |b: Rect| {
+            let p = crate::tables::PAD;
+            [b[0] - p, b[1] - p, b[2] + p, b[3] + p]
+        };
         obstacles.extend(
             plan.tables
                 .iter()
                 .filter(|t| t.sheet == sheet.number)
-                .filter_map(|t| t.placed.as_ref().map(|p| p.cells)),
+                .filter_map(|t| t.placed.as_ref().map(|p| table_clearance(p.cells))),
         );
         obstacles.extend(
             plan.hole_tables
                 .iter()
                 .filter(|t| t.sheet == sheet.number)
                 .flat_map(|t| &t.blocks)
-                .filter_map(|t| t.placed.as_ref().map(|p| p.cells)),
+                .filter_map(|t| t.placed.as_ref().map(|p| table_clearance(p.cells))),
         );
         if let Some(t) = &plan.radius_table
             && sheet.number == t.table.sheet
             && let Some(p) = &t.table.placed
         {
-            obstacles.push(p.cells);
+            obstacles.push(table_clearance(p.cells));
         }
         for (obstacle, b) in obstacles.into_iter().enumerate() {
             // A row initially left of the title may have room to lift above it.
