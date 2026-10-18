@@ -282,7 +282,7 @@ fn axis(letter: Option<&str>) -> Option<usize> {
 /// A callout's holes, each its feature, centre and diameter: the bore diameters it states, with
 /// its sites (the planner keeps them in the same order).
 fn holes_of(w: &Want) -> Vec<(String, P3, f64)> {
-    let Shape::Callout { sites } = &w.shape else {
+    let Shape::Callout { sites, .. } = &w.shape else {
         return Vec::new();
     };
     let bores: Vec<&Measurement> = w
@@ -418,7 +418,7 @@ fn external_owner(
         {
             continue;
         }
-        let Shape::Callout { sites } = &w.shape else {
+        let Shape::Callout { sites, .. } = &w.shape else {
             continue;
         };
         let named = sites
@@ -727,10 +727,16 @@ pub(super) fn lower(cx: &Context, wants: &mut [Want]) -> Lowered {
 
 fn refusal(r: &Record, code: &str, why: &str) -> Problem {
     let open = if why.contains("supplemental geometry") || why.contains("stated without limits") {
-        " (an open question for the maintainer: it stays undrawn until it is decided)"
+        "; add the required dimension in the Spec and review it manually"
     } else {
         ""
     };
+    let mut refs = vec![r.source_id.clone(), why.to_string()];
+    if !open.is_empty() {
+        refs.push(
+            "an open question for the maintainer: it stays undrawn until it is decided".into(),
+        );
+    }
     Problem {
         id: format!("p:{code}:{}", r.source_id),
         code: code.into(),
@@ -741,16 +747,17 @@ fn refusal(r: &Record, code: &str, why: &str) -> Problem {
         }
         .into(),
         message: format!(
-            "PMI dimension {} ({}) is not drawn: {why}{open}.",
+            "PMI dimension {} ({}) is not drawn: {}{open}.",
             r.source_id,
             if r.label.is_empty() {
                 &r.kind
             } else {
                 &r.label
-            }
+            },
+            crate::pmi::reader_reason(why)
         ),
         subjects: Vec::new(),
-        refs: vec![r.source_id.clone()],
+        refs,
         ..Default::default()
     }
 }
@@ -1071,7 +1078,17 @@ fn leader(
             ""
         }
     );
-    own(ids, r, value, vec![view], Shape::Callout { sites }, basis)
+    own(
+        ids,
+        r,
+        value,
+        vec![view],
+        Shape::Callout {
+            sites,
+            arcs: Vec::new(),
+        },
+        basis,
+    )
 }
 
 /// Drops the limits a PMI fit put beside its class when the spec hides fit limits
@@ -1120,21 +1137,23 @@ pub(super) fn yield_to_spec(
         let label = if printed {
             String::new()
         } else {
-            format!(
-                "; the spec's {what} is withheld (tolerance_withheld), so the label states no tolerance"
-            )
+            format!("; the Spec's {what} cannot be printed, so the label states no tolerance")
         };
         for s in &note.banded {
+            let mut refs = vec![s.clone(), "draftwright lower_ap242_hole_tolerances".into()];
+            if !printed {
+                refs.push("tolerance_withheld".into());
+            }
             problems.push(Problem {
                 id: format!("p:pmi_not_lowered:{s}"),
                 code: "pmi_not_lowered".into(),
                 severity: "error".into(),
                 message: format!(
-                    "PMI dimension {s} ({band} on {}) is not drawn: the spec gives that size its own {what}, and a requirement already authored on a size wins over an imported one (draftwright's lower_ap242_hole_tolerances){label}.",
+                    "The STEP tolerance {band} on {} is not drawn because the Spec supplies its own {what}{label}. Remove the Spec override to use the STEP tolerance.",
                     super::wording_of(w)
                 ),
                 subjects: vec![w.id.clone()],
-                refs: vec![s.clone()],
+                refs,
                 ..Default::default()
             });
         }
@@ -1222,7 +1241,7 @@ fn split(w: &Want, groups: &[Group]) -> Vec<(Want, Vec<usize>)> {
         return vec![(w.clone(), groups[0].1.clone())];
     }
     let holes = holes_of(w);
-    let Shape::Callout { sites } = &w.shape else {
+    let Shape::Callout { sites, .. } = &w.shape else {
         return vec![(w.clone(), groups[0].1.clone())];
     };
     groups
@@ -1251,7 +1270,7 @@ fn split(w: &Want, groups: &[Group]) -> Vec<(Want, Vec<usize>)> {
             }
             part.measurements
                 .retain(|m| features.contains(m.feature.as_str()));
-            part.shape = Shape::Callout {
+            part.shape = Shape::Callout { arcs: Vec::new(),
                 sites: members.iter().map(|&m| sites[m]).collect(),
             };
             part.id = want_id(&holes[members[0]].0, "bore.diameter");
@@ -1290,7 +1309,10 @@ mod tests {
             terms: vec!["2×".into(), "⌀35".into(), "THRU".into()],
             measurements: Vec::new(),
             basis: String::new(),
-            shape: Shape::Callout { sites: Vec::new() },
+            shape: Shape::Callout {
+                arcs: Vec::new(),
+                sites: Vec::new(),
+            },
             turning: None,
         };
         let limits = |lo: f64, hi: f64| Req {
@@ -1356,7 +1378,10 @@ mod tests {
             terms: vec![format!("⌀{value}")],
             measurements: Vec::new(),
             basis: String::new(),
-            shape: Shape::Callout { sites: Vec::new() },
+            shape: Shape::Callout {
+                arcs: Vec::new(),
+                sites: Vec::new(),
+            },
             turning: None,
         };
         for (code, value, upper, lower, printed) in [

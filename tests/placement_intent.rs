@@ -14,21 +14,13 @@ fn fixture(p: &str) -> PathBuf {
         .join(p)
 }
 fn plate() -> (draftwright::haecceity::Part, Analysis) {
-    let editor = Path::new("/Users/paul/repos/draftwright-editor/public/samples/plate.step");
-    let fallback = fixture("parts/mounting_plate.step");
-    model::analyse_native(if editor.exists() { editor } else { &fallback }).unwrap()
+    model::analyse_native(&fixture("parts/mounting_plate.step")).unwrap()
 }
 fn slice() -> Vec<(String, Analysis)> {
     let mut parts = vec![("plate".into(), plate().1)];
     if let Some(c) = corpus::dir() {
         let m = c.join("mfcadpp/10127.step");
-        let editor = Path::new("/Users/paul/repos/draftwright-editor/web/samples/10127.step");
-        parts.push((
-            "10127".into(),
-            model::analyse_native(if m.exists() { &m } else { editor })
-                .unwrap()
-                .1,
-        ));
+        parts.push(("10127".into(), model::analyse_native(&m).unwrap().1));
         for (name, file) in [
             ("GRM-03", "gramel/GRM-03_thumbwheel_drive_screw.step"),
             ("CTC-01", "nist/nist_ctc_01_asme1_rd.stp"),

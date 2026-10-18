@@ -79,6 +79,17 @@ pub struct AnnotationSpec {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub place: Option<Place>,
 }
+/// View alignment is separate from annotation slots: only views have projection origins.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ViewAlign {
+    Start,
+    Middle,
+    End,
+    Outside,
+    Projection,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ViewPlace {
@@ -86,19 +97,19 @@ pub struct ViewPlace {
     /// (ADR R1 invariant 1).
     pub relative_to: String,
     pub side: Side,
-    /// Clear space between the two view footprints, in paper mm.
+    /// Clear paper distance between the views’ annotation bands, not their part outlines, in mm.
     #[serde(default = "default_gap")]
     pub gap: f64,
     #[serde(default = "middle")]
-    pub align: Slot,
+    pub align: ViewAlign,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pinned: bool,
 }
 fn default_gap() -> f64 {
     10.0
 }
-fn middle() -> Slot {
-    Slot::Middle
+fn middle() -> ViewAlign {
+    ViewAlign::Middle
 }
 
 pub(crate) fn carrier(plan: &Plan, id: &str) -> Option<String> {
@@ -215,6 +226,18 @@ pub(crate) fn check(s: &Spec) -> Result<(), Invalid> {
                         .collect(),
                 ));
             }
+            if p.align == ViewAlign::Projection && !projection_related(name, &p.relative_to) {
+                return Err(error(
+                    format!(
+                        "The alignment of {name} relative to {} cannot be projection; valid choices are start, middle, end, outside.",
+                        p.relative_to
+                    ),
+                    align_choices(name, &p.relative_to)
+                        .iter()
+                        .map(|s| (*s).into())
+                        .collect(),
+                ));
+            }
             let mut seen = BTreeSet::new();
             let mut at = name.as_str();
             while let Some(p) = s.views.get(at).and_then(|v| v.place.as_ref()) {
@@ -233,19 +256,40 @@ pub(crate) fn check(s: &Spec) -> Result<(), Invalid> {
     Ok(())
 }
 
-fn unconventional(s: &Spec, name: &str, p: &ViewPlace) -> bool {
-    let first = s.sheet.projection.as_deref() == Some("first");
-    let expected = match (name, p.relative_to.as_str(), first) {
+fn projection_side(name: &str, anchor: &str, first: bool) -> Option<Side> {
+    match (name, anchor, first) {
         ("plan", "front", false) | ("front", "plan", true) => Some(Side::Above),
         ("plan", "front", true) | ("front", "plan", false) => Some(Side::Below),
         ("side", "front", false) | ("front", "side", true) => Some(Side::Right),
         ("side", "front", true) | ("front", "side", false) => Some(Side::Left),
         _ => None,
-    };
+    }
+}
+
+pub(crate) fn projection_related(name: &str, anchor: &str) -> bool {
+    projection_side(name, anchor, false).is_some()
+}
+
+pub(crate) fn align_choices(name: &str, anchor: &str) -> &'static [&'static str] {
+    if projection_related(name, anchor) {
+        &["projection", "start", "middle", "end", "outside"]
+    } else {
+        &["start", "middle", "end", "outside"]
+    }
+}
+
+fn unconventional(s: &Spec, name: &str, p: &ViewPlace) -> bool {
+    let expected = projection_side(
+        name,
+        &p.relative_to,
+        s.sheet.projection.as_deref() == Some("first"),
+    );
     matches!(
         (name, p.relative_to.as_str()),
         ("side", "plan") | ("plan", "side")
-    ) || expected.is_some_and(|side| p.side != side || p.align != Slot::Middle)
+    ) || expected.is_some_and(|side| {
+        p.side != side || !matches!(p.align, ViewAlign::Middle | ViewAlign::Projection)
+    })
 }
 
 fn overlap(a: [f64; 4], b: [f64; 4]) -> bool {
@@ -353,17 +397,16 @@ pub(crate) fn views(
             let a = views[i].area;
             let horizontal = matches!(p.side, Side::Left | Side::Right);
             let k = usize::from(horizontal);
-            let principal_pair = matches!(
-                (name.as_str(), p.relative_to.as_str()),
-                ("front", "plan" | "side") | ("plan" | "side", "front")
-            );
-            let offset = if principal_pair && p.align == Slot::Middle {
+            let principal_pair = projection_related(&name, &p.relative_to);
+            // Retain middle's historical principal-view behavior for saved Specs.
+            let offset = if principal_pair && p.align == ViewAlign::Middle {
                 anchor.at[k] - views[i].at[k]
             } else {
                 match p.align {
-                    Slot::Start => b[k] - a[k],
-                    Slot::Middle => 0.5 * (b[k] + b[k + 2] - a[k] - a[k + 2]),
-                    Slot::End | Slot::Outside => b[k + 2] - a[k + 2],
+                    ViewAlign::Start => b[k] - a[k],
+                    ViewAlign::Middle => 0.5 * (b[k] + b[k + 2] - a[k] - a[k + 2]),
+                    ViewAlign::End | ViewAlign::Outside => b[k + 2] - a[k + 2],
+                    ViewAlign::Projection => anchor.at[k] - views[i].at[k],
                 }
             };
             let out = match p.side {
@@ -561,9 +604,28 @@ pub(crate) fn views(
     let mut fixed: BTreeSet<String> = s
         .views
         .iter()
-        .filter(|(_, v)| v.place.as_ref().is_some_and(|p| p.pinned))
+        // An explicit projection relation must also survive automatic obstacle packing.
+        .filter(|(_, v)| {
+            v.place
+                .as_ref()
+                .is_some_and(|p| p.pinned || p.align == ViewAlign::Projection)
+        })
         .map(|(n, _)| format!("v:{n}"))
         .collect();
+    if s.views.values().any(|v| {
+        v.place
+            .as_ref()
+            .is_some_and(|p| p.align == ViewAlign::Projection)
+    }) {
+        // Front's automatic partners share its projection origins too. Packing one of
+        // them independently after moving front would break an otherwise valid relation.
+        fixed.extend(
+            views
+                .iter()
+                .filter(|v| matches!(v.id.as_str(), "v:front" | "v:plan" | "v:side"))
+                .map(|v| v.id.clone()),
+        );
+    }
     // Annotation anchors are fixed too, so filling around one cannot move its carrying view.
     if canonical.is_some() {
         for (id, p) in s
@@ -1022,6 +1084,38 @@ pub(crate) fn held_dimensions(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn issue109_projection_origin_survives_lopsided_bands_and_obstacle_packing() {
+        let sheet: PlannedSheet = serde_json::from_value(json!({
+            "size":"A3", "page":[420,297], "scale":"1:1", "scale_factor":1,
+            "arrangement":"columns", "title_block":[350,10,410,40],
+            "default":true, "basis":"test", "state":{"kind":"shown"}, "title":{}
+        }))
+        .unwrap();
+        for pinned in [false, true] {
+            for gap in [0., 5., 15., 30., 1000.] {
+                let mut pair: Vec<PlannedView> = serde_json::from_str(include_str!(
+                    "../tests/fixtures/projection_alignment/issue109.views.json"
+                ))
+                .unwrap();
+                let spec: Spec = serde_json::from_value(json!({"views":{"plan":{"place":{
+                    "relative_to":"front", "side":"above", "align":"projection", "gap":gap, "pinned":pinned
+                }}}})).unwrap();
+                // This obstacle cannot be cleared by sliding the projection off its line.
+                views(
+                    &spec,
+                    &mut pair,
+                    None,
+                    &sheet,
+                    &[[15., 125., 230., 285.]],
+                    &mut Vec::new(),
+                );
+                assert!((pair[1].at[0] - pair[0].at[0]).abs() < 1e-6);
+                assert!((pair[1].area[1] - pair[0].area[3] - gap).abs() < 1e-6);
+            }
+        }
+    }
 
     #[test]
     fn pinned_view_bounds_distinguish_roundoff_from_overruns_on_every_edge() {

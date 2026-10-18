@@ -215,7 +215,7 @@ D1 adds the real-model call client and finished-task checker; see
 calling, logging bytes/tokens and scoring. Served descriptions explain each tool without
 requiring source access. Schemas factor repeated shapes through local JSON Pointer targets while
 remaining standalone. `cargo test --release --test core engine_version::` checks the source hash,
-cache namespace, tool descriptions and the exact 34,389-byte per-session schema total (28 documents, 14 tools).
+cache namespace, tool descriptions and the exact 34,477-byte per-session schema total (28 documents, 14 tools).
 See [the measurement](mcp-schema-budget.md) for baseline attribution and per-tool sizes.
 
 `inspect_part.key_items` is a deterministic, 700-byte index: envelope dimensions and
@@ -244,6 +244,17 @@ controls authored in the Spec"; the full Spec schema's `faces` in `schemas/spec.
 and the drawing number is `sheet/title/number`. Compatible view/side pairs remain in
 `placements`; candidates require preview/apply, and a view relation needs both
 `relative_to` and `side`. Set several subfields by setting their complete `place` object.
+
+For `plan`/`front` and `side`/`front` pairs (either direction), `place/align` choices list
+`projection` first. It keeps geometry origins aligned across `side` and changes only the
+clear gap between areas, including dimension bands; use it when nudging a projected view.
+Choices reflect the current `relative_to`, or available projection partners before a relation
+is authored. Other pairs, including `plan`/`side`, isometrics and details, offer only
+`start`, `middle`, `end`, `outside`; requesting `projection` is refused with those choices.
+First and third angle use the same alignment and their respective conventional sides.
+Omitting `place` and existing alignment values keep their previous planning behavior.
+See the [#109 reproduction and verification](projection-alignment.md) for measured examples.
+
 A callout also lists `place/offset` (`range` per component of the pair): its bend's `[dx, dy]`
 from its automatic leader tip in paper mm, which can put the label inside the view. It is a
 pinned form of its own: set `{"offset":[dx,dy],"pinned":true}` with no side, lane or along
@@ -423,7 +434,7 @@ Schemas inline one-use definitions and use equivalent nullable types and enums.
 They omit redundant canonical `$id` URLs and the dialect annotation, using MCP's
 [default JSON Schema 2020-12 dialect](https://modelcontextprotocol.io/specification/2025-11-25/basic#schema-dialect).
 `op` remains published by apply/preview input schemas with local reference `#/op`.
-The context budget is 34,389 bytes after replacing repeated nested Spec definitions
+The context budget is 34,477 bytes after replacing repeated nested Spec definitions
 with the typed outline. Nested Spec fields no longer increase that total; generated
 private schemas retain the existing server validation constraints.
 

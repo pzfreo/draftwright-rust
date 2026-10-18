@@ -63,8 +63,12 @@ edited.
   quiddity's JSON, which the bridge reads in full; for Rust quiddity's recognition
   (`model::analyse_native`, the command line's default) the families its document has that
   `bridge::native` does not read. Unified recesses and
-  their patterns are represented by recognition/3. `plan` reports unread families as one `features_not_recognised` warning. `plan` reads older
-  analyses with none; `render` and `review` draw only from this version.
+  their patterns are represented by recognition/3. `plan` reports unread families as one
+  `features_not_recognised` warning naming the affected geometry and suggesting
+  `feature_declarations` for supported missed features. Unknown occurrence counts are stated
+  as unknown. Tool/version provenance and original reader diagnostics stay in problem `refs`
+  (and lint `evidence`), outside drawing-user messages. `plan` reads older analyses with none;
+  `render` and `review` draw only from this version.
 - **Principal profiles** (`draftwright.analysis/6`, `principal_profiles`): for each solid of a
   part of several (else the whole part), its box and each principal boundary face (a plane flat
   across one axis on that box), with its inner loops' edges and its outer loop's arcs: the B-rep
@@ -219,6 +223,14 @@ cross-hole axial positions use that origin, shortest nearest the part. The old `
 IDs remain valid: J4's coverage records connect conveyed band lengths to their baseline
 positions. Explicitly toleranced band lengths remain independent controlling requirements;
 their tolerances are never silently transferred to a cumulative position.
+
+The default drawing title prefers a meaningful STEP product name for a single part or
+selected assembly member. Empty names and generic CAD names such as `Part1`, `Body`
+and `Solid` fall back to the file stem. Underscores and hyphens become spaces and
+the title is printed in upper case. An explicit `sheet/title/title` always wins.
+`product_name` retains the STEP name; a selected assembly member also retains `source_stem`
+so generic member names still fall back to the source file. Older analyses without those
+fields use their binding's display name.
 
 ### Spec: what the author decided
 
@@ -712,10 +724,21 @@ Existing angular PMI keeps its measured sector: `lane` increases the radius in p
 Views use `{relative_to, side, gap?, align?, pinned?}`. `relative_to` names another view
 (`front`, `plan`, `side`, `iso`, `section_aa`, `detail_a`–`detail_h`); the page is never an anchor, so a view's place
 is always relative to another view (ADR R1 invariant 1), typically its projection partner.
-`gap` is the clear paper distance between view footprints (default 10 mm, 0–1000);
-`align` is `start`, `middle` (default) or `end` along the other axis (`outside` also aligns
-ends). Dependencies resolve before packing; cycles and self-anchors are refused. Missing anchors
-are reported, with the entry retained. Unpinned views fit around fixed footprints; an automatic
+`gap` is the clear paper distance between the views’ annotation bands, not their part
+outlines (default 10 mm, 0–1000). The reserved view area includes annotation bands,
+so the visible part outlines will usually be farther apart than `gap`;
+`align` is `start`, `middle` (default), `end` or `outside`
+(`outside` also aligns ends). These existing choices retain their saved-Spec behavior.
+Use `align: "projection"` to change the gap while keeping the projected geometry's origins
+aligned across `side`: x for above/below, y for left/right, regardless of lopsided bands.
+It applies only to `plan` against `front` or `side` against `front`, in either direction,
+in first- and third-angle projection. Keep the conventional side for the selected projection.
+For example, `views/plan/place = {"relative_to":"front","side":"above","gap":15,
+"align":"projection","pinned":true}` keeps the plan on the front's x in third angle.
+Other pairs refuse `projection` and name `start`, `middle`, `end`, `outside` as valid choices.
+Projection relations preserve the principal group during packing so an automatic partner
+cannot slide off its projection line. Dependencies resolve before packing; cycles and self-anchors
+are refused. Missing anchors are reported, with the entry retained. Unpinned views fit around fixed footprints; an automatic
 isometric may be reduced to fit the space left. A pinned isometric first resolves the requested
 relative region, clips it to the drawing area and fits its ink in the largest free rectangle
 inside that region. Its resulting position and scale are then fixed. Principal view pins keep
@@ -1841,7 +1864,7 @@ fingerprints with complete keys from the Analysis):
   placement options and editable fields. Sheet options describe the creation forms. MCP
   schemas carry a compact top-level Spec outline. Call MCP `spec_schema {}` for the full
   draft-2020-12 Spec schema and its named `spec_read` shape; `item_options` supplies valid
-  paths and choices. The 28 advertised schemas total 34,389 compact UTF-8 bytes; nested
+  paths and choices. The 28 advertised schemas total 34,477 compact UTF-8 bytes; nested
   Spec fields do not grow this budget. Server preflight and model/geometry validation
   are unchanged. Browser bindings accept the same Spec and operations; their method
   signatures are unchanged.

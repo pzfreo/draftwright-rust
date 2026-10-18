@@ -279,7 +279,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             Err(why) => {
                 issues.push(issue(
                     "unverifiable",
-                    format!("{noun}: measurement {} cannot be checked: {why}", w.role),
+                    format!("{noun}: measurement {} cannot be checked: {}. Review this measurement manually", w.role, why.replace("quiddity's plates", "recognised plates")),
                     Some(why.clone()),
                     None,
                 ));

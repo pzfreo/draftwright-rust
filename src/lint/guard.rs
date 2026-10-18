@@ -34,12 +34,13 @@ const FORBIDDEN: [&str; 14] = [
 ];
 
 /// The `crate::` paths lint may use.
-const ALLOWED: [&str; 6] = [
+const ALLOWED: [&str; 7] = [
     "crate::model::Analysis",
     "crate::bridge",
     "crate::pmi",
     "crate::pmi_lowering",
     "crate::material",
+    "crate::arc",
     "crate::output",
 ];
 
@@ -183,6 +184,8 @@ fn module_violations() -> Vec<(String, Vec<String>)> {
     );
     // `crate::material` is allowed to lint, so it is held to lint's rule as well.
     files.push(dir.parent().unwrap().join("material.rs"));
+    // Shared arc geometry/evidence is audited by the same independence guard.
+    files.push(dir.parent().unwrap().join("arc.rs"));
     files
         .into_iter()
         .filter(|p| p.file_name().unwrap() != "guard.rs")
@@ -227,6 +230,7 @@ mod tests {
             "use crate::output::{Claim, Drawing};",
             "use crate::bridge::Feature;",
             "let m = crate::material::solids(a, f);",
+            "let s = crate::arc::Span { start: 0.0, sweep: 1.0 };",
             "// the Plan and the Spec are not read\nlet x = 1;",
             "/* Plan */ let s = \"the spec, in a message\";",
             "let v = r#\"plan\"#;",

@@ -366,7 +366,10 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             measurements,
             turning: None,
             basis: format!("{why}; called out where it is seen end-on{threaded}"),
-            shape: Shape::Callout { sites },
+            shape: Shape::Callout {
+                sites,
+                arcs: Vec::new(),
+            },
         });
     }
 
@@ -480,7 +483,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             } else {
                 format!("a hole's size is called out where it is seen end-on{note}{threaded}")
             },
-            shape: Shape::Callout {
+            shape: Shape::Callout { arcs: Vec::new(),
                 sites: members
                     .iter()
                     .map(|&m| (holes[m].at, 0.5 * holes[m].diameter))

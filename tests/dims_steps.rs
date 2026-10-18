@@ -32,9 +32,7 @@ fn fixture(name: &str) -> Analysis {
     let dir = steps_dir();
     let json = gunzip(&dir.join(format!("{name}.json.gz")));
     let (part, mut a) = model::analyse(&dir.join(format!("{name}.step"))).unwrap();
-    let (r, features) = draftwright::bridge::read(&part, &a.binding.source_sha256, &json).unwrap();
-    a.recognition = Some(r);
-    a.features = features;
+    model::recognise(&part, &mut a, &json).unwrap();
     a
 }
 
@@ -46,9 +44,7 @@ fn sheet_part(corpus: &Path, name: &str) -> Analysis {
             .join(format!("tests/fixtures/recognition/sheets/{name}.json.gz")),
     );
     let (part, mut a) = model::analyse(&corpus.join(&f.binding.file)).unwrap();
-    let (r, features) = draftwright::bridge::read(&part, &a.binding.source_sha256, &json).unwrap();
-    a.recognition = Some(r);
-    a.features = features;
+    model::recognise(&part, &mut a, &json).unwrap();
     a
 }
 

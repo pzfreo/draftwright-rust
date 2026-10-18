@@ -105,7 +105,10 @@ fn want(cx: &Context, f: &Feature) -> Result<Want, String> {
             "a groove's axial width and floor diameter are called out together, in a view that shows the profile about {}",
             AXES[k]
         ),
-        shape: Shape::Callout { sites },
+        shape: Shape::Callout {
+            sites,
+            arcs: Vec::new(),
+        },
     })
 }
 

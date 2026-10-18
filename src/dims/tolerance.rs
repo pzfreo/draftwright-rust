@@ -772,7 +772,10 @@ mod tests {
                 })
                 .collect(),
             basis: String::new(),
-            shape: super::super::Shape::Callout { sites: Vec::new() },
+            shape: super::super::Shape::Callout {
+                arcs: Vec::new(),
+                sites: Vec::new(),
+            },
             turning: None,
         };
         let mut spec = Spec::default();
@@ -822,7 +825,10 @@ mod tests {
                 value: 6.0,
             }],
             basis: String::new(),
-            shape: super::super::Shape::Callout { sites: Vec::new() },
+            shape: super::super::Shape::Callout {
+                arcs: Vec::new(),
+                sites: Vec::new(),
+            },
             turning: None,
         };
         let spec: Spec = serde_json::from_value(serde_json::json!({

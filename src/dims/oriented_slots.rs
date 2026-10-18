@@ -196,7 +196,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             } else {
                 "a free-direction slot's width and length in one callout, in the view along its run, the leader to its rim".into()
             },
-            shape: Shape::Callout {
+            shape: Shape::Callout { arcs: Vec::new(),
                 sites: members
                     .iter()
                     .flat_map(|(_, r)| r.rim.iter().map(|p| (*p, 0.0)))

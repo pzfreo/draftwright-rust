@@ -6,6 +6,7 @@
 pub use haecceity;
 
 pub mod api;
+pub mod arc;
 pub mod blends;
 pub mod bridge;
 pub mod centrelines;

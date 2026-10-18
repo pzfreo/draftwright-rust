@@ -159,10 +159,27 @@ fn records(a: &Analysis) -> &[Record] {
 
 /// The port's findings of `pmi_coverage.py`'s codes on *drawing*.
 fn coverage(a: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
-    lint::lint(a, drawing)
+    let found: Vec<LintIssue> = lint::lint(a, drawing)
         .into_iter()
         .filter(|i| CODES.contains(&i.code.as_str()))
-        .collect()
+        .collect();
+    for issue in &found {
+        for internal in ["haecceity", "quiddity", "tools/", "lower_ap242_"] {
+            assert!(
+                !issue.message.contains(internal),
+                "{}: {}",
+                issue.code,
+                issue.message
+            );
+        }
+        if issue.code == "pmi_not_extracted" {
+            assert!(
+                issue.evidence.is_some(),
+                "the original reader diagnostic is retained"
+            );
+        }
+    }
+    found
 }
 
 fn category(c: &str) -> Option<Category> {
@@ -669,7 +686,16 @@ fn a_frame_that_misstates_its_source_is_reported() {
         (found[0].code.as_str(), found[0].severity),
         ("pmi_not_extracted", lint::Severity::Error)
     );
-    assert!(found[0].message.contains("could not be inventoried"));
+    assert!(
+        found[0]
+            .message
+            .contains("STEP annotations could not be read")
+    );
+    assert!(found[0].message.contains("review them manually"));
+    assert_eq!(
+        found[0].evidence.as_deref(),
+        Some("cannot read Part 21: test")
+    );
 }
 
 /// *drawing* without its PMI annotations.

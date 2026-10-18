@@ -244,7 +244,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                     (n, f) => format!("{n} equal definitions ({f} faces) are called out once and counted"),
                 }
             ),
-            shape: Shape::Callout {
+            shape: Shape::Callout { arcs: Vec::new(),
                 sites: members.iter().map(|m| (cx.frame.point(m.at), 0.0)).collect(),
             },
         });

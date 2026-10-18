@@ -104,7 +104,11 @@ fn through_wants(s: &Through) -> Vec<Want> {
 }
 
 /// A circular blind step's callout: `R<radius> × <depth> DEEP`, with a leader to its arc.
-fn circular(f: &Feature, frame: &QFrame) -> Result<Want, String> {
+fn circular(
+    f: &Feature,
+    frame: &QFrame,
+    analysis: &crate::model::Analysis,
+) -> Result<Want, String> {
     let r = size(f, "radius")?;
     let depth = size(f, "length")?;
     let k = run(f, frame)?;
@@ -147,6 +151,7 @@ fn circular(f: &Feature, frame: &QFrame) -> Result<Want, String> {
         ],
         basis: "a circular blind step states its radius and blind depth in one callout, in the view that sees its arc".into(),
         shape: Shape::Callout {
+            arcs: analysis.profile_arcs.get(&f.id).cloned().ok_or("its trimmed circular boundary is unavailable")?,
             sites: vec![(centre, r)],
         },
         turning: None,
@@ -188,7 +193,7 @@ fn ramp(f: &Feature, frame: &QFrame) -> Result<Want, String> {
             },
         ],
         basis: "a paired-ramp step states its two equal ramp angles and their run in one callout, in the view that sees the ramps' section".into(),
-        shape: Shape::Callout {
+        shape: Shape::Callout { arcs: Vec::new(),
             sites: vec![(frame.point(at), 0.0)],
         },
         turning: None,
@@ -240,7 +245,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     }
     for f in &cx.analysis.features {
         let want = match f.kind.as_str() {
-            "circular_blind_step" => circular(f, &cx.frame),
+            "circular_blind_step" => circular(f, &cx.frame, cx.analysis),
             "paired_ramp_step" => ramp(f, &cx.frame),
             _ => continue,
         };
