@@ -2286,6 +2286,10 @@ fn clear_linear_ordered(
         let (Some(view), Some(side)) = (chosen[i], sides[i]) else {
             continue;
         };
+        let supported_rung = items[i]
+            .measurements
+            .iter()
+            .any(|m| m.feature == "step_level" && m.parameter.starts_with("step_height.length"));
         let location_order_conflict = |target: Side, c: &Placed, ink: &[Option<Placed>]| {
             // New recess witnesses choose their physical corridor first.
             // Repair the existing ladder around them, rather than constraining
@@ -2561,7 +2565,7 @@ fn clear_linear_ordered(
                             }
                         }
                     }
-                    if recess_context && !semantic_pmi {
+                    if recess_context && !semantic_pmi && !supported_rung {
                         let normal = usize::from(c.rotation == 0.0);
                         let out = if matches!(target, Side::Below | Side::Left) {
                             -1.0
@@ -2593,6 +2597,7 @@ fn clear_linear_ordered(
                     }
                     if recess_context
                         && !semantic_pmi
+                        && !supported_rung
                         && super::has_new_native_recess_dimensions(analysis)
                     {
                         // A perpendicular witness can keep its measurement station
@@ -2671,6 +2676,7 @@ fn clear_linear_ordered(
                         }
                     }
                     if recess_context
+                        && new_native
                         && before.0 > 0
                         && items[i].measurements.iter().any(|m| {
                             m.feature == "step_level"
