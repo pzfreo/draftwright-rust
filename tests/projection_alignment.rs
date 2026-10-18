@@ -16,6 +16,19 @@ fn planned(a: &Analysis, value: Value) -> Plan {
     model::plan_recovered(a, &serde_json::from_value::<Spec>(value).unwrap()).unwrap()
 }
 
+fn rounded(value: Value) -> Value {
+    match value {
+        Value::Number(n) if !n.is_i64() && !n.is_u64() => {
+            json!(format!("{:.2}", n.as_f64().unwrap()))
+        }
+        Value::Array(items) => Value::Array(items.into_iter().map(rounded).collect()),
+        Value::Object(map) => {
+            Value::Object(map.into_iter().map(|(k, v)| (k, rounded(v))).collect())
+        }
+        other => other,
+    }
+}
+
 #[test]
 fn legacy_alignments_plan_byte_identically() {
     let a = plate();
@@ -31,7 +44,9 @@ fn legacy_alignments_plan_byte_identically() {
         if align != "none" {
             value["views"] = json!({"plan":{"place":{"relative_to":"front","side":"above","gap":15,"align":align,"pinned":true}}});
         }
-        let bytes = serde_json::to_vec(&planned(&a, value)).unwrap();
+        // Floats are rounded to 0.01 mm so libm differences between platforms do not count.
+        let bytes = serde_json::to_vec(&rounded(serde_json::to_value(planned(&a, value)).unwrap()))
+            .unwrap();
         let hash: String = Sha256::digest(&bytes)
             .iter()
             .map(|b| format!("{b:02x}"))
