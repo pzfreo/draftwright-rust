@@ -410,10 +410,9 @@ fn every_planning_entry_point_applies_the_recovery() {
     assert_eq!(named.sheet.size, "A2");
 }
 
-/// Native FTC-07's smallest complete fit is A2 at 1:2. A1 at 1:1 would be allowed only
-/// because it is its immediate neighbour and enlarges the dimensioned views; since the Stage H
-/// chain rules (h-chains) its A1 1:1 drawing lays a pitch line through a hole callout (a hard
-/// finding), so it is no candidate and the smallest fit is kept.
+/// FTC-07's smallest complete fit remains A2 at 1:2. Font-measured callout wrapping
+/// now clears the pitch-line clash that excluded A1 at 1:1, so that immediate
+/// neighbour may win with enlargement. The same one-paper-step rule still applies.
 #[test]
 fn ftc07_uses_one_paper_step_only_with_enlargement() {
     let Some(dir) = corpus::dir() else {
@@ -421,7 +420,7 @@ fn ftc07_uses_one_paper_step_only_with_enlargement() {
     };
     let step = dir.join("nist/nist_ftc_07_asme1_rd.stp");
     let plan = api::plan_from(&step, Features::Native, &Spec::default()).unwrap();
-    assert_eq!(sheet(&plan), ("A2", "1:2"));
+    assert_eq!(sheet(&plan), ("A1", "1:1"));
     let analysis = api::analyse_from(&step, Features::Native).unwrap();
     // The table-free drawing the sheet is chosen by ([`model::recover`]'s hole-table path).
     let never = Spec {
@@ -429,7 +428,7 @@ fn ftc07_uses_one_paper_step_only_with_enlargement() {
         ..Default::default()
     };
     let chosen = api::plan_analysed(&analysis, &never).unwrap();
-    assert_eq!(sheet(&chosen), ("A2", "1:2"));
+    assert_eq!(sheet(&chosen), ("A1", "1:1"));
     assert!(chosen.sheet.basis.contains("smallest fit A2 at 1:2"));
     sheet_rule::assert_rule("ftc07", &chosen);
     let a1 = chosen
@@ -438,7 +437,15 @@ fn ftc07_uses_one_paper_step_only_with_enlargement() {
         .split("; ")
         .find(|c| c.starts_with("A1 1:1 "))
         .unwrap_or_else(|| panic!("{}", chosen.sheet.basis));
-    assert!(a1.contains("hard layout finding"), "{a1}");
+    assert!(a1.contains("valid and complete"), "{a1}");
+    assert!(
+        !chosen.problems.iter().any(|p| matches!(
+            p.code.as_str(),
+            "annotation_overlap" | "annotation_ink_overlap" | "annotation_off_sheet"
+        )),
+        "{:?}",
+        chosen.problems
+    );
     let first =
         model::plan_escalated(&analysis, &spec(json!({"size":"A3", "scale":"1:5"}))).unwrap();
     let again = model::recover(&analysis, &Spec::default(), first).unwrap();

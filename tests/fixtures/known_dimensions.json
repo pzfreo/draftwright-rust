@@ -1398,5 +1398,105 @@
     "count": 1,
     "verdict": "rust-correct",
     "reason": "Both plate notches share a mouth plane 100 mm from the minimum Y datum. One span carries both notch claims; it locates their 50 mm theoretical-sharp depths and 60-degree angles. The aligned side projection shows the true Y coordinate without carrying a witness through the plan bore-leader band. Python's foremost hex-top rule does not reach these plate notches."
+  },
+  {
+    "part": "ftc06",
+    "side": "python",
+    "family": "callout",
+    "view": "front",
+    "label": "4× ⌀10.5 THRU ⌴ ⌀15.9 ↧ 12.7 (2×2)",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same callout words and measurements now wrap at the requested 48 mm font-measured width. Geometry and coverage remain checked; see docs/thread-callouts.md."
+  },
+  {
+    "part": "ftc06",
+    "side": "python",
+    "family": "callout",
+    "view": "plan",
+    "label": "2× ⌀14.3 THRU ⌴ ⌀20.6 ↧ 14.3",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same callout words and measurements now wrap at the requested 48 mm font-measured width. Geometry and coverage remain checked; see docs/thread-callouts.md."
+  },
+  {
+    "part": "ftc06",
+    "side": "python",
+    "family": "callout",
+    "view": "plan",
+    "label": "4× ⌀7.1 THRU ⌴ ⌀10.2 ↧ 7.9",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same callout words and measurements now wrap at the requested 48 mm font-measured width. Geometry and coverage remain checked; see docs/thread-callouts.md."
+  },
+  {
+    "part": "ftc06",
+    "side": "rust",
+    "family": "callout",
+    "view": "front",
+    "label": "4× ⌀10.5 THRU ⌴ ⌀15.9 ↧\n12.7 (2×2)",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same callout words and measurements now wrap at the requested 48 mm font-measured width. Geometry and coverage remain checked; see docs/thread-callouts.md."
+  },
+  {
+    "part": "ftc06",
+    "side": "rust",
+    "family": "callout",
+    "view": "plan",
+    "label": "2× ⌀14.3 THRU ⌴ ⌀20.6 ↧\n14.3",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same callout words and measurements now wrap at the requested 48 mm font-measured width. Geometry and coverage remain checked; see docs/thread-callouts.md."
+  },
+  {
+    "part": "ftc06",
+    "side": "rust",
+    "family": "callout",
+    "view": "plan",
+    "label": "4× ⌀7.1 THRU ⌴ ⌀10.2 ↧\n7.9",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same callout words and measurements now wrap at the requested 48 mm font-measured width. Geometry and coverage remain checked; see docs/thread-callouts.md."
+  },
+  {
+    "part": "spool132",
+    "side": "python",
+    "family": "callout",
+    "view": "plan",
+    "label": "12× ⌀8 THRU EQ SP ON ø110 BC LOWER FACE",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same callout words and measurements now wrap at the requested 48 mm font-measured width. Geometry and coverage remain checked; see docs/thread-callouts.md."
+  },
+  {
+    "part": "spool132",
+    "side": "python",
+    "family": "callout",
+    "view": "plan",
+    "label": "12× ⌀8 THRU EQ SP ON ø110 BC UPPER FACE",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same callout words and measurements now wrap at the requested 48 mm font-measured width. Geometry and coverage remain checked; see docs/thread-callouts.md."
+  },
+  {
+    "part": "spool132",
+    "side": "rust",
+    "family": "callout",
+    "view": "plan",
+    "label": "12× ⌀8 THRU EQ SP ON ø110\nBC LOWER FACE",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same callout words and measurements now wrap at the requested 48 mm font-measured width. Geometry and coverage remain checked; see docs/thread-callouts.md."
+  },
+  {
+    "part": "spool132",
+    "side": "rust",
+    "family": "callout",
+    "view": "plan",
+    "label": "12× ⌀8 THRU EQ SP ON ø110\nBC UPPER FACE",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same callout words and measurements now wrap at the requested 48 mm font-measured width. Geometry and coverage remain checked; see docs/thread-callouts.md."
   }
 ]

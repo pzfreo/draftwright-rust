@@ -417,7 +417,12 @@ impl Callout {
                     k += 1;
                 }
                 let segment = out.segments.last_mut().unwrap();
-                if first && times && decimals == 0 && matches!(chars.get(k), Some('⌀' | 'ø' | 'Ø'))
+                if first
+                    && times
+                    && decimals == 0
+                    && (matches!(chars.get(k), Some('⌀' | 'ø' | 'Ø'))
+                        || (chars.get(k) == Some(&'M')
+                            && chars.get(k + 1).is_some_and(char::is_ascii_digit)))
                 {
                     out.count = Some(v as usize);
                     i = k;
@@ -643,8 +648,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             } else if let Some(t) = o.thread()
                 && t.internal
                 && t.through
-                && t.drill_diameter
-                    .is_some_and(|d| (d - (t.nominal - t.pitch)).abs() < 1e-6)
+                && t.conventional_drill()
                 && super::pmi_coverage::thread_text_states(t, &mark.text)
             {
                 mark.text += &format!(" ⌀{} THRU", t.drill_diameter.unwrap());

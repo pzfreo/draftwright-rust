@@ -501,12 +501,12 @@ fn blind_slots_are_called_out_as_draftwright_reads_their_sections() {
                 (
                     "round_bottom_blind_slot_flat_width.length",
                     "plan",
-                    "ROUND-BOTTOM OPEN SLOT 1 BOTTOM FLAT × R0.5 × 2.4 LONG",
+                    "ROUND-BOTTOM OPEN SLOT 1\nBOTTOM FLAT × R0.5 × 2.4\nLONG",
                 ),
                 (
                     "round_bottom_blind_slot_flat_width.length",
                     "side",
-                    "ROUND-BOTTOM OPEN SLOT 1 BOTTOM FLAT × R4.4 × 4.7 LONG",
+                    "ROUND-BOTTOM OPEN SLOT 1\nBOTTOM FLAT × R4.4 × 4.7\nLONG",
                 ),
             ],
         ),
@@ -524,7 +524,7 @@ fn blind_slots_are_called_out_as_draftwright_reads_their_sections() {
                 (
                     "rectangular_blind_slot_width.length",
                     "front",
-                    "OPEN SLOT 3.3 × 9.2 × 2.0 DEEP",
+                    "OPEN SLOT 3.3 × 9.2 × 2.0\nDEEP",
                 ),
             ],
         ),
@@ -538,7 +538,7 @@ fn blind_slots_are_called_out_as_draftwright_reads_their_sections() {
                 (
                     "rectangular_blind_slot_width.length",
                     "plan",
-                    "OPEN SLOT 2.5 × 11.7 × 6.7 DEEP",
+                    "OPEN SLOT 2.5 × 11.7 × 6.7\nDEEP",
                 ),
             ],
         ),

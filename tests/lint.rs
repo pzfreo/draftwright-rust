@@ -1770,7 +1770,7 @@ fn a_countersunk_hole_is_called_out_and_its_callout_satisfies_lint() {
         .iter()
         .find(|d| d.kind == "callout")
         .unwrap();
-    assert_eq!(callout.label, "4× ⌀6 THRU ⌵ ⌀12 × 90° (2×2)");
+    assert_eq!(callout.label, "4× ⌀6 THRU ⌵ ⌀12 × 90°\n(2×2)");
     assert!(
         !plan
             .problems

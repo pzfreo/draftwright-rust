@@ -298,7 +298,7 @@ fn an_oriented_slot_is_called_out_once_with_both_requirements_on_its_rim() {
         .collect();
     assert_eq!(callouts.len(), 1, "one callout states the slot");
     let d = callouts[0];
-    assert_eq!(d.label, "ORIENTED SLOT 2 WIDE × 4.5 LONG");
+    assert_eq!(d.label, "ORIENTED SLOT 2 WIDE × 4.5\nLONG");
     assert_eq!(d.view, "v:side");
     let mut params: Vec<_> = d
         .measurements

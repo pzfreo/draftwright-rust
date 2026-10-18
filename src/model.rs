@@ -1910,6 +1910,28 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Pla
         return Ok(best);
     }
     let m = crate::pmi_lowering::manufacturing_for(analysis, spec);
+    if spec.sheet.size.is_none()
+        && m.owned
+            .iter()
+            .any(|o| crate::callouts::style(spec, &o.owner) == crate::callouts::Style::Auto)
+    {
+        // Compact manufacturing text must not cause a small turned part to take a
+        // larger paper merely to enlarge it. Keep a complete, legible A4 candidate.
+        let mut small = spec.clone();
+        small.sheet.size = Some("A4".into());
+        let seed = plan_escalated(analysis, &small)?;
+        let mut candidate = recover_paper(analysis, &small, seed)?;
+        if candidate.sheet.size == "A4"
+            && clean(&candidate)
+            && crate::sheet_fit::illegible_steps(analysis, &candidate) == 0
+            && carried(&best).is_subset(&carried(&candidate))
+        {
+            candidate.sheet.basis += "; auto compact manufacturing callouts fit cleanly on A4; retain the smaller paper before enlargement";
+            candidate.spec = spec.clone();
+            candidate.sheet.default = spec.sheet.size.is_none();
+            return Ok(candidate);
+        }
+    }
     // Try one source owner at a time on the chosen paper and scale before allowing
     // its callout to demand larger paper. Other feature overrides stay authoritative.
     let mut intent = spec.clone();
@@ -1944,11 +1966,16 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Pla
         {
             for d in &mut candidate.dimensions {
                 if d.measurements.iter().any(|v| v.feature == o.id) {
+                    d.basis = d
+                        .basis
+                        .replace("callouts/style Note", "callouts/style Auto")
+                        .replace("note form requested;", "auto note form selected for fit;");
                     d.basis += "; auto selected note form to fit the chosen paper and scale cleanly before paper escalation";
                 }
             }
             intent = trial;
             candidate.spec = spec.clone();
+            candidate.sheet.default = spec.sheet.size.is_none();
             best = candidate;
             if best.sheet.size == "A4" {
                 break;

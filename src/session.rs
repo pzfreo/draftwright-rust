@@ -1353,6 +1353,23 @@ fn settable(
             }
         }
     }
+    let callout_paths: Vec<_> =
+        item.features
+            .iter()
+            .filter(|id| {
+                analysis.features.iter().any(|f| {
+                    &f.id == *id && matches!(f.kind.as_str(), "hole" | "turned_step" | "boss")
+                })
+            })
+            .map(|id| format!("features/{}/callouts/style", items::key(id)))
+            .collect();
+    if let Some(path) = callout_paths.first() {
+        let mut descriptor = choices(json!(["auto", "compact", "full", "note"]));
+        if callout_paths.len() > 1 {
+            descriptor["paths"] = json!(callout_paths);
+        }
+        fields.insert(path.clone(), descriptor);
+    }
     for (classes, paths) in fits {
         let mut descriptor = choices(json!(classes));
         if paths.len() > 1 {

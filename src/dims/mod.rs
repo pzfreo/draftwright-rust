@@ -1144,8 +1144,8 @@ pub(crate) fn callout_bands(
             let (side, depth) = match side {
                 Side::Left => ("left", ink.max[0] - ink.min[0] + SHOULDER),
                 Side::Right => ("right", ink.max[0] - ink.min[0] + SHOULDER),
-                Side::Above => ("above", TEXT + LIFT),
-                Side::Below => ("below", TEXT + LIFT),
+                Side::Above => ("above", (ink.max[1] - ink.min[1]).max(TEXT) + LIFT),
+                Side::Below => ("below", (ink.max[1] - ink.min[1]).max(TEXT) + LIFT),
             };
             Some(crate::layout::CalloutBand {
                 view,
@@ -3875,7 +3875,7 @@ pub fn render(
                 text: terms.join(" "),
                 at: f([
                     0.5 * (line.min[0] + line.max[0]),
-                    -(i as f64) * crate::callouts::LINE,
+                    -(i as f64) * crate::callouts::line_spacing(),
                 ]),
                 size: TEXT,
                 rotation: p.rotation,
@@ -4223,17 +4223,36 @@ pub(crate) fn recheck_cached(
 }
 
 /// A matching chamfer requirement is actually retained by this Spec's dimension set.
-pub(crate) fn chamfer_stated(analysis: &Analysis, spec: &Spec, size: f64) -> bool {
-    wants(analysis).0.iter().any(|w| {
-        w.measurements
-            .iter()
-            .any(|m| m.parameter == "chamfer.length" && (m.value - size).abs() < 1e-6)
-            && !spec.dimensions.get(&w.id).is_some_and(|d| d.omit)
-            && (spec.dimension_source == DimensionSource::Auto
-                || spec.dimensions.contains_key(&w.id))
-            && w.views
-                .iter()
-                .any(|v| !spec.views.get(*v).is_some_and(|v| v.omit))
+pub(crate) fn chamfer_stated(
+    analysis: &Analysis,
+    spec: &Spec,
+    size: f64,
+    band: &crate::pmi_lowering::Depiction,
+) -> bool {
+    let dimensions = wants(analysis).0;
+    // Both named boundary chamfers must be dimensioned. An unrelated bevel of the
+    // same size elsewhere on the part cannot stand for a knurl's end conditions.
+    band.span.iter().all(|end| {
+        dimensions.iter().any(|w| {
+            w.measurements.iter().any(|m| {
+                m.parameter == "chamfer.length"
+                    && (m.value - size).abs() < 1e-6
+                    && feature_origin(analysis, &m.feature).is_some_and(|at| {
+                        (at[band.axis] - end).abs() <= size + 0.01
+                            && (0..3)
+                                .filter(|k| *k != band.axis)
+                                .map(|k| (at[k] - band.on[k]).powi(2))
+                                .sum::<f64>()
+                                .sqrt()
+                                <= band.diameter / 2.0 + size + 0.01
+                    })
+            }) && !spec.dimensions.get(&w.id).is_some_and(|d| d.omit)
+                && (spec.dimension_source == DimensionSource::Auto
+                    || spec.dimensions.contains_key(&w.id))
+                && w.views
+                    .iter()
+                    .any(|v| !spec.views.get(*v).is_some_and(|v| v.omit))
+        })
     })
 }
 

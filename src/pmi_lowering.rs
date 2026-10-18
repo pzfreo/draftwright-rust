@@ -1806,6 +1806,7 @@ pub struct Owned {
     /// minor diameter or a knurl's band; none for an internal thread.
     pub depiction: Option<Depiction>,
     requirement: Aspect,
+    presentation_reason: &'static str,
 }
 
 /// Where and what a turned step's thread or knurl is drawn, in the drawing's frame (as
@@ -1844,6 +1845,9 @@ pub struct Manufacturing {
 }
 
 impl Owned {
+    pub(crate) fn presentation_reason(&self) -> &'static str {
+        self.presentation_reason
+    }
     pub(crate) fn knurl_values(&self) -> Option<(&str, f64, Option<f64>)> {
         match &self.requirement {
             Aspect::Knurl(k) => Some((&k.pattern, k.pitch, k.maximum_diameter)),
@@ -1862,10 +1866,16 @@ impl Manufacturing {
     /// What *o*'s owner's callout prints for it: its suffix, or `SEE MFG n` when the table
     /// states it (`manufacturing_callout_suffix`).
     pub fn printed(&self, o: &Owned) -> String {
-        self.tags
-            .iter()
-            .find(|(s, _)| *s == o.source)
-            .map_or_else(|| o.suffix.clone(), |(_, tag)| format!("SEE {tag}"))
+        self.tags.iter().find(|(s, _)| *s == o.source).map_or_else(
+            || o.suffix.clone(),
+            |(_, tag)| {
+                if o.suffix.contains(&format!("SEE {tag}")) {
+                    o.suffix.clone()
+                } else {
+                    format!("SEE {tag}")
+                }
+            },
+        )
     }
 
     /// The requirements feature *id* carries, its thread before its knurl (`_manufacturing_suffix`).
@@ -1912,7 +1922,10 @@ impl Manufacturing {
             .any(|(o, p)| o.through && *p == o.suffix);
         let text = printed.join("; ");
         (
-            text.split_whitespace().map(str::to_string).collect(),
+            text.split(' ')
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .collect(),
             through,
         )
     }
@@ -1991,6 +2004,20 @@ pub(crate) struct Thread {
 }
 
 impl Thread {
+    /// Conventional metric tapping drills. Fractional coarse pitches at M8/M9/M12
+    /// use the available drill sizes in Walter's Threading Technical Compendium;
+    /// do not classify those stated drills as non-standard by subtracting pitch.
+    pub(crate) fn conventional_drill(&self) -> bool {
+        let recommended = [(8.0, 1.25, 6.8), (9.0, 1.25, 7.8), (12.0, 1.75, 10.2)]
+            .into_iter()
+            .find(|&(d, p, _)| {
+                same_number(d, self.nominal, 1e-9) && same_number(p, self.pitch, 1e-9)
+            })
+            .map_or(self.nominal - self.pitch, |(_, _, drill)| drill);
+        self.drill_diameter
+            .is_some_and(|d| same_number(d, recommended, 1e-6))
+    }
+
     /// `ThreadRequirement.__post_init__`'s refusals.
     fn check(self) -> Result<Self, String> {
         for (name, v) in [("nominal_diameter", self.nominal), ("pitch", self.pitch)] {
@@ -2081,7 +2108,7 @@ impl Knurl {
 
     /// `callout_suffix`: compact terms after the owner's diameter.
     fn suffix(&self) -> String {
-        let magnitude = |v: f64| crate::pmi::fmt_magnitude(v, None);
+        let magnitude = g6;
         let mut terms = Vec::new();
         if self.maximum_diameter.is_some() {
             terms.push("MAX AFTER KNURL".to_string());
@@ -2109,7 +2136,7 @@ impl Knurl {
     fn text(&self) -> String {
         match self.maximum_diameter {
             None => self.suffix(),
-            Some(d) => format!("ø{} {}", crate::pmi::fmt_magnitude(d, None), self.suffix()),
+            Some(d) => format!("ø{} {}", g6(d), self.suffix()),
         }
     }
 }
@@ -3066,7 +3093,7 @@ fn authored(
                     None
                 },
                 drill_point_angle: None,
-                through: internal && o.through,
+                through: internal && o.through && length.is_none(),
             }
             .check()?,
         ),
@@ -3361,7 +3388,7 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
                                 text += &format!("; ⌀{}", g6(d));
                                 if let Some(depth) = t.drill_depth {
                                     text += &format!(" ↧ {}", g6(depth));
-                                } else if t.through {
+                                } else {
                                     text += " THRU";
                                 }
                             }
@@ -3379,6 +3406,7 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
                         through,
                         depiction,
                         requirement: aspect,
+                        presentation_reason: "source wording",
                     });
                     None
                 }
@@ -3488,7 +3516,7 @@ pub fn manufacturing_for(analysis: &Analysis, spec: &crate::model::Spec) -> Manu
                 if t.through {
                     label += " THRU";
                 }
-                if let Some(depth) = t.minimum_full_thread.filter(|_| !t.through) {
+                if let Some(depth) = t.minimum_full_thread {
                     label += &if t.internal {
                         format!(" ↧ {}", g6(depth))
                     } else {
@@ -3499,24 +3527,22 @@ pub fn manufacturing_for(analysis: &Analysis, spec: &crate::model::Spec) -> Manu
                     label += ", FULL AVAILABLE LENGTH";
                 }
                 // Blind taps retain the exact source drill dimensions on a second line.
-                // Through taps omit only the conventional nominal-minus-pitch drill.
+                // Through taps omit only a conventional tapping drill.
                 if t.internal
-                    && (!t.through
-                        || t.drill_diameter
-                            .is_some_and(|d| !same_number(d, t.nominal - t.pitch, 0.001)))
+                    && (!t.through || !t.conventional_drill())
                     && let Some(d) = t.drill_diameter
                 {
                     label += &format!(" {BREAK} ⌀{}", g6(d));
                     if let Some(depth) = t.drill_depth {
                         label += &format!(" ↧ {}", g6(depth));
-                    } else if t.through {
+                    } else {
                         label += " THRU";
                     }
                 }
                 (identity, label, t.drill_point_angle.is_some())
             }
             Aspect::Knurl(k) => {
-                let identity = format!("ø{}", g6(diameter));
+                let identity = format!("ø{}", g6(k.maximum_diameter.unwrap_or(diameter)));
                 let mut label = identity.clone();
                 if k.maximum_diameter.is_some() {
                     label += " MAX AFTER KNURL";
@@ -3532,7 +3558,10 @@ pub fn manufacturing_for(analysis: &Analysis, spec: &crate::model::Spec) -> Manu
                 // Keep chamfer limits unless the drawing explicitly dimensions the matching
                 // chamfers. Complete source text remains in the process note as well.
                 if let Some(c) = k.edge_chamfer {
-                    let dimensioned = crate::dims::chamfer_stated(analysis, spec, c);
+                    let dimensioned = o
+                        .depiction
+                        .as_ref()
+                        .is_some_and(|d| crate::dims::chamfer_stated(analysis, spec, c, d));
                     if !dimensioned {
                         label += &format!(" TO C{} CHAMFERS", g6(c));
                     }
@@ -3545,10 +3574,16 @@ pub fn manufacturing_for(analysis: &Analysis, spec: &crate::model::Spec) -> Manu
                 let mut label = format!("⌀{}", g6(diameter));
                 if let Some(depth) = t.drill_depth {
                     label += &format!(" ↧ {}", g6(depth));
+                } else if !t.through {
+                    label += " THRU";
                 }
                 label + " " + &o.suffix
             }
-            Aspect::Knurl(_) => format!("ø{} {}", g6(diameter), o.suffix),
+            Aspect::Knurl(k) => format!(
+                "ø{} {}",
+                g6(k.maximum_diameter.unwrap_or(diameter)),
+                o.suffix
+            ),
             _ => o.suffix.clone(),
         };
         let terms = |s: &str| {
@@ -3569,6 +3604,22 @@ pub fn manufacturing_for(analysis: &Analysis, spec: &crate::model::Spec) -> Manu
         };
         let too_long = crate::callouts::lines(&crate::callouts::wrap(&terms(&measured))).len() > 2;
         let note = style == Style::Note || (style == Style::Auto && too_long);
+        o.presentation_reason = match style {
+            Style::Full => "full wording requested",
+            Style::Note => {
+                "note form requested; the source-bound manufacturing note states the complete requirement"
+            }
+            Style::Auto if too_long => {
+                "auto selected note form: compact callout would exceed two lines; complete wording in the source-bound manufacturing note"
+            }
+            _ if auxiliary => {
+                "compact identity; secondary manufacturing terms moved to the source-bound manufacturing note"
+            }
+            Style::Compact => "compact wording requested",
+            _ => {
+                "compact default; thread/knurl extent retained explicitly or evidenced by the drawing"
+            }
+        };
         if note || (style != Style::Full && auxiliary) {
             scheduled.push(o.source.clone());
             if note {
@@ -3733,6 +3784,7 @@ mod tests {
     #[test]
     fn long_requirements_go_to_the_table_in_source_order() {
         let owned = |source: &str, suffix: &str| Owned {
+            presentation_reason: "source wording",
             requirement: Aspect::Knurl(Knurl {
                 pattern: "straight".into(),
                 pitch: 1.0,

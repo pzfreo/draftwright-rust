@@ -958,7 +958,7 @@ fn compact_taps_print_the_exact_stated_full_thread_depth_and_drill_values() {
         assert_eq!(d.label, "M2-6H ↧ 2.5\n⌀1.6 ↧ 4", "{stem}");
         let placed = d.placed.as_ref().unwrap();
         assert_eq!(placed.rotation, 0.0);
-        assert!(placed.label_box[3] - placed.label_box[1] > draftwright::callouts::LINE);
+        assert!(placed.label_box[3] - placed.label_box[1] > draftwright::callouts::line_spacing());
         let font = draftwright::text::Font::new(draftwright::api::MONO.to_vec()).unwrap();
         let drawing = model::render(&part, &a, &plan, &font).unwrap();
         let thread = drawing.annotations.iter().find(|m| m.name == d.id).unwrap();
@@ -1051,7 +1051,7 @@ fn spec_and_pmi_threads_share_short_designations_and_one_style_override() {
     let plan = model::plan(&a, &note).unwrap();
     assert_eq!(
         plan.dimensions.iter().find(|d| d.id == id).unwrap().label,
-        "M10-6g SEE MFG 1 AFTER PLATING"
+        "M10-6g SEE MFG 1 AFTER\nPLATING"
     );
     assert!(
         plan.tables
@@ -1091,4 +1091,56 @@ fn callout_wrapping_measures_real_ink_and_preserves_words_and_forced_breaks() {
     assert_eq!(draftwright::callouts::wrap(&forced), forced);
     let word = vec!["ONE_UNBREAKABLE_MANUFACTURING_WORD_EXCEEDING_THE_WIDTH".into()];
     assert_eq!(draftwright::callouts::wrap(&word), word);
+}
+
+#[test]
+fn auto_moves_a_three_line_knurl_to_its_complete_source_note() {
+    let (part, a) = analysed("bolt_thread_knurl");
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let d = plan
+        .dimensions
+        .iter()
+        .find(|d| d.measurements.iter().any(|m| m.parameter == "knurl"))
+        .unwrap();
+    assert_eq!(d.label, "ø6.25 SEE MFG 1");
+    assert!(d.basis.contains("exceed two lines"));
+    let table = plan
+        .tables
+        .iter()
+        .find(|t| t.id == "manufacturing_requirements")
+        .unwrap();
+    let note = table
+        .rows
+        .iter()
+        .flat_map(|r| r.iter())
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(note.contains("ø6.25 MAX AFTER KNURL"));
+    assert!(note.contains("STRAIGHT KNURL P1"));
+    assert!(note.contains("CUT/FORMED PERMITTED"));
+    let font = draftwright::text::Font::new(draftwright::api::MONO.to_vec()).unwrap();
+    let drawing = model::render(&part, &a, &plan, &font).unwrap();
+    assert!(
+        !draftwright::lint::lint(&a, &drawing)
+            .iter()
+            .any(|i| i.code == "manufacturing_reference_unresolved"
+                || i.code == "pmi_source_text_mismatch")
+    );
+}
+
+#[test]
+fn an_internal_threads_bore_fit_stays_on_its_tapping_drill() {
+    let (_, a) = analysed("string_post_tapped");
+    let spec: Spec = serde_json::from_value(serde_json::json!({
+        "features":{"f:hole:2":{"fit":"H7"}}
+    }))
+    .unwrap();
+    let plan = model::plan(&a, &spec).unwrap();
+    let d = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:hole:2/bore.diameter")
+        .unwrap();
+    assert_eq!(d.label, "M2-6H ↧ 2.5\n⌀1.6 H7 ↧ 4");
 }

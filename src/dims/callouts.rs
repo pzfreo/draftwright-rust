@@ -20,7 +20,39 @@ pub(super) fn apply(analysis: &Analysis, spec: &Spec, wants: &mut [Want]) {
             let original = w.terms.join(" ");
             let raw_terms = raw.terms(&owned[0].owner).0.join(" ");
             let mut riders = String::new();
+            let mut qualified_bore = None;
             if let Some((physical, suffix)) = original.split_once(&raw_terms) {
+                if owned.iter().any(|o| o.thread().is_some_and(|t| t.internal)) {
+                    let bore = physical
+                        .trim()
+                        .strip_prefix(count.as_deref().unwrap_or(""))
+                        .unwrap_or(physical.trim())
+                        .trim();
+                    let end = bore.find(['⌴', '⌵']).unwrap_or(bore.len());
+                    let bore = bore[..end].trim();
+                    let qualified = bore.split_whitespace().any(|word| {
+                        let value = word.trim_start_matches(['ø', '⌀', 'Ø']);
+                        !matches!(word, "↧" | "THRU") && value.parse::<f64>().is_err()
+                    });
+                    let specified = spec
+                        .features
+                        .get(&owned[0].owner)
+                        .is_some_and(|f| f.fit.is_some())
+                        || spec
+                            .dimensions
+                            .get(&w.id)
+                            .is_some_and(|d| d.fit.is_some() || d.tolerance.is_some());
+                    let precise = spec.precision.contains_key(&w.id)
+                        || w.measurements.iter().any(|m| {
+                            matches!(m.parameter.as_str(), "bore.diameter" | "bore.depth")
+                                && spec
+                                    .precision
+                                    .contains_key(&format!("d:{}/{}", m.feature, m.parameter))
+                        });
+                    if qualified || specified || precise {
+                        qualified_bore = Some(bore.to_string());
+                    }
+                }
                 // Counterbores, spotfaces and countersinks remain independent physical
                 // requirements. Pattern shape/pitch/face riders follow the manufacturing text.
                 if let Some(start) = physical.find(['⌴', '⌵']) {
@@ -43,6 +75,30 @@ pub(super) fn apply(analysis: &Analysis, spec: &Spec, wants: &mut [Want]) {
                 .filter(|s| !s.is_empty())
                 .map(str::to_string)
                 .collect();
+            if let Some(bore) = qualified_bore {
+                if crate::callouts::style(spec, &owned[0].owner) == crate::callouts::Style::Full {
+                    let suffix = raw
+                        .on(&owned[0].owner)
+                        .iter()
+                        .map(|o| o.suffix.as_str())
+                        .collect::<Vec<_>>()
+                        .join("; ");
+                    w.terms = format!("{bore} {suffix}")
+                        .split_whitespace()
+                        .map(str::to_string)
+                        .collect();
+                } else {
+                    w.terms.truncate(
+                        w.terms
+                            .iter()
+                            .position(|s| s == crate::callouts::BREAK)
+                            .unwrap_or(w.terms.len()),
+                    );
+                    w.terms.push(crate::callouts::BREAK.into());
+                    w.terms.extend(bore.split_whitespace().map(str::to_string));
+                }
+                w.basis += "; retains the source tapping-drill fit on its own drill line";
+            }
             if !riders.is_empty() {
                 w.terms
                     .extend(riders.split_whitespace().map(str::to_string));
@@ -53,22 +109,38 @@ pub(super) fn apply(analysis: &Analysis, spec: &Spec, wants: &mut [Want]) {
             // Manufacturing requirements always read horizontally, including a lone knurl
             // on an overall diameter. Its measured diameter remains claimed by this leader.
             if let Shape::Linear { a, b, .. } = w.shape {
+                let frame = crate::bridge::holes::frame(analysis);
+                let sites: Vec<_> = owned
+                    .iter()
+                    .filter_map(|o| analysis.features.iter().find(|f| f.id == o.owner))
+                    .filter_map(|f| crate::lint::turned::band(&frame, f).ok())
+                    .flat_map(|band| {
+                        let mut mid = band.on;
+                        mid[band.axis] = (band.lo + band.hi) / 2.0;
+                        (0..3).filter(move |k| *k != band.axis).flat_map(move |k| {
+                            [-0.5 * band.diameter, 0.5 * band.diameter].map(|r| {
+                                let mut p = mid;
+                                p[k] += r;
+                                (p, 0.0)
+                            })
+                        })
+                    })
+                    .collect();
                 w.shape = Shape::Callout {
                     arcs: Vec::new(),
-                    sites: vec![(a, 0.0), (b, 0.0)],
+                    sites: if sites.is_empty() {
+                        vec![(a, 0.0), (b, 0.0)]
+                    } else {
+                        sites
+                    },
                 };
             }
             for o in owned {
                 let style = crate::callouts::style(spec, &o.owner);
-                let referred = m.tags.iter().any(|(s, _)| s == &o.source);
                 w.basis += &format!(
-                    "; callouts/style {style:?}: {}{}",
+                    "; callouts/style {style:?}: {} {}",
                     o.source,
-                    if referred {
-                        " uses a source-bound manufacturing note (secondary terms or compact text exceeding two lines)"
-                    } else {
-                        " uses compact identity and drawing evidence for extent"
-                    }
+                    o.presentation_reason()
                 );
             }
         }

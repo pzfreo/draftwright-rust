@@ -3777,7 +3777,14 @@ fn label_geometry(_elbow: P2, end: P2, right: bool, ink_min: P2, ink_max: P2) ->
     } else {
         end[0] - 1.0 - ink_max[0]
     };
-    let label_at = [at_x, end[1] - 0.5 * CAP];
+    let centre_y = if ink_min[1] < -CAP {
+        // The shoulder meets the centre of a multiline block. Keeping the old
+        // first-line anchor would put every continuation into the corridor below.
+        0.5 * (ink_min[1] + ink_max[1])
+    } else {
+        0.5 * CAP
+    };
+    let label_at = [at_x, end[1] - centre_y];
     let ink = super::LabelInk {
         glyphs: Vec::new(),
         strokes: Vec::new(),

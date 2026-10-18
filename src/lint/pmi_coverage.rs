@@ -742,11 +742,16 @@ pub(super) fn thread_text_states(t: &crate::pmi_lowering::Thread, text: &str) ->
     if !designation {
         return false;
     }
-    if let Some(depth) = t.minimum_full_thread.filter(|_| !t.through) {
+    if let Some(depth) = t.minimum_full_thread {
         let full = words
             .windows(4)
             .any(|w| equal(w[0], depth) && w[1..] == ["MIN", "FULL", "THREAD"])
-            || words.windows(2).any(|w| w[0] == "↧" && equal(w[1], depth));
+            || words[..words
+                .iter()
+                .position(|w| w.starts_with(['⌀', 'ø', 'Ø']))
+                .unwrap_or(words.len())]
+                .windows(2)
+                .any(|w| w[0] == "↧" && equal(w[1], depth));
         if !full {
             return false;
         }
@@ -761,9 +766,7 @@ pub(super) fn thread_text_states(t: &crate::pmi_lowering::Thread, text: &str) ->
     if !t.internal {
         return true;
     }
-    let conventional_through = t.through
-        && t.drill_diameter
-            .is_some_and(|d| (d - (t.nominal - t.pitch)).abs() < 1e-6);
+    let conventional_through = t.through && t.conventional_drill();
     if conventional_through {
         return true;
     }
@@ -778,9 +781,12 @@ pub(super) fn thread_text_states(t: &crate::pmi_lowering::Thread, text: &str) ->
             return false;
         }
         match t.drill_depth {
-            Some(depth) => {
-                words.get(i + 1) == Some(&"↧") && words.get(i + 2).is_some_and(|w| equal(w, depth))
-            }
+            Some(depth) => words[i + 1..]
+                .split(|w| w.starts_with(['⌀', 'ø', 'Ø']))
+                .next()
+                .unwrap_or(&[])
+                .windows(2)
+                .any(|w| w[0] == "↧" && equal(w[1], depth)),
             None => true,
         }
     })

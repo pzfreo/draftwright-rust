@@ -275,6 +275,15 @@ fn parameter(id: &str) -> &str {
 /// diameter. A missing diameter glyph alone says nothing about a thread. A tapping
 /// drill printed before the designation remains the value that takes a bore tolerance.
 pub(super) fn thread_designated(w: &super::Want) -> bool {
+    if w.measurements
+        .iter()
+        .any(|m| matches!(m.parameter.as_str(), "step.diameter" | "od.diameter"))
+        && w.terms
+            .iter()
+            .any(|t| t.starts_with('M') && t.as_bytes().get(1).is_some_and(u8::is_ascii_digit))
+    {
+        return true;
+    }
     parameter(&w.id).ends_with("diameter")
         && value_term(&w.terms).is_some_and(|i| {
             // Manufacturing suffixes append depth/length prose after a comma or semicolon.
@@ -285,6 +294,20 @@ pub(super) fn thread_designated(w: &super::Want) -> bool {
 
 /// The term a band follows: the first that states a number and is not a count (`4×`).
 fn value_term(terms: &[String]) -> Option<usize> {
+    // An internal thread's identity leads its tapping-drill line. A bore fit or
+    // band qualifies that explicit drill, not the thread nominal in its designation.
+    if let Some(thread) = terms
+        .iter()
+        .position(|t| t.starts_with('M') && t.as_bytes().get(1).is_some_and(u8::is_ascii_digit))
+        && let Some(drill) = terms
+            .iter()
+            .enumerate()
+            .skip(thread + 1)
+            .find(|(_, t)| t.starts_with(['⌀', 'ø', 'Ø']))
+            .map(|(i, _)| i)
+    {
+        return Some(drill);
+    }
     terms.iter().position(|t| {
         t.chars().any(|c| c.is_ascii_digit())
             && !(t.ends_with('×') && t.trim_end_matches('×').bytes().all(|b| b.is_ascii_digit()))
