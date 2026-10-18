@@ -813,9 +813,55 @@ fn datum_end(analysis: &Analysis, p: &[&Banded]) -> Option<(bool, String)> {
     ))
 }
 
+/// A complete authored chain between derived planes owns the profile's axial sizes.
+/// Replacing it with automatic cumulative shoulder locations would hide its source claims.
+fn derived_chain(analysis: &Analysis, p: &[&Banded]) -> bool {
+    let Some(crate::pmi::Reading::Read(report)) = &analysis.pmi else {
+        return false;
+    };
+    p.len() >= 2
+        && p.iter().all(|(_, band)| {
+            report.records.iter().any(|r| {
+                if r.category != crate::pmi::Category::Dimension
+                    || r.kind != "linear"
+                    || !r.blockers.is_empty()
+                {
+                    return false;
+                }
+                let Some(g) = &r.geometry else {
+                    return false;
+                };
+                if !g.reasons.is_empty()
+                    || g.axis.as_deref() != Some(["X", "Y", "Z"][band.axis])
+                    || !matches!(g.targets.as_slice(), [Some(a),Some(b)]
+                    if a.kind == crate::pmi::DerivedKind::MedianPlane
+                    && b.kind == crate::pmi::DerivedKind::MedianPlane)
+                {
+                    return false;
+                }
+                let [a, b] = g.stations.as_slice() else {
+                    return false;
+                };
+                (a[band.axis].min(b[band.axis]) - band.lo).abs() <= 1e-6
+                    && (a[band.axis].max(b[band.axis]) - band.hi).abs() <= 1e-6
+                    && [a, b].iter().all(|point| {
+                        (0..3)
+                            .filter(|&i| i != band.axis)
+                            .map(|i| (point[i] - band.on[i]).powi(2))
+                            .sum::<f64>()
+                            .sqrt()
+                            <= band.diameter / 2.0 + 1e-6
+                    })
+            })
+        })
+}
+
 /// PMI has first say; otherwise measure from the larger flat end. Equal ends use the low
 /// station, giving a deterministic inspection origin independent of feature numbering.
 fn profile_datum(analysis: &Analysis, p: &[&Banded]) -> Option<(bool, String)> {
+    if derived_chain(analysis, p) {
+        return None;
+    }
     datum_end(analysis, p).or_else(|| {
         let high = p.last()?.1.diameter > p.first()?.1.diameter + 1e-6;
         Some((

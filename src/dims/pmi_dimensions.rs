@@ -26,7 +26,8 @@
 //!   different requirements (draftwright splits it; the port splits count groups, grids and
 //!   lines), a counted turned diameter a record names only one of (`pmi_dimensions_not_ported`).
 //!
-//! Dimensions on supplemental (invisible) geometry stay refused. A stated ISO 286 hole class
+//! Derived targets use the kernel-resolved axes and planes; unresolved supplemental-only
+//! geometry stays refused. A stated ISO 286 hole class
 //! without limits is printed only on a uniquely matched recognised bore owner, as the class and
 //! optional stacked deviations from draftwright's table; one outside the table is refused.
 
@@ -367,7 +368,16 @@ fn step_length(wants: &[Want], stations: &[P3], k: usize, value: f64) -> Option<
 /// (draftwright's `_canonical_nominal_diameter_label`).
 fn canonical(r: &Record, value: f64) -> bool {
     let size = format!("ø{}", fmt(value));
-    r.label == size || r.label == format!("{size} THRU")
+    let label = qualifier(r).map_or(r.label.as_str(), |q| {
+        r.label.strip_suffix(q).unwrap().trim_end()
+    });
+    label == size || label == format!("{size} THRU")
+}
+
+fn qualifier(r: &Record) -> Option<&'static str> {
+    ["MAX", "MIN", "AVG"]
+        .into_iter()
+        .find(|q| r.label.ends_with(&format!(" {q}")))
 }
 
 /// Whether a site of a planned item lies on cylinder *c*: a circle (centre, radius) on its axis
@@ -722,6 +732,25 @@ pub(super) fn lower(cx: &Context, wants: &mut [Want]) -> Lowered {
             }
         }
     }
+    // Qualifiers belong to the requirement even when a recognised size owns its ink.
+    for r in &records {
+        if let Some(q) = qualifier(r) {
+            let id = feature(&ids, &r.source_id);
+            for w in wants
+                .iter_mut()
+                .filter(|w| w.measurements.iter().any(|m| m.feature == id))
+            {
+                if !w.terms.iter().any(|t| t == q) {
+                    let suffix = w
+                        .terms
+                        .iter()
+                        .position(|t| matches!(t.as_str(), "SEE" | "THRU" | "↧" | "EQ"))
+                        .unwrap_or(w.terms.len());
+                    w.terms.insert(suffix, q.into());
+                }
+            }
+        }
+    }
     (standalone, problems, notes)
 }
 
@@ -731,12 +760,7 @@ fn refusal(r: &Record, code: &str, why: &str) -> Problem {
     } else {
         ""
     };
-    let mut refs = vec![r.source_id.clone(), why.to_string()];
-    if !open.is_empty() {
-        refs.push(
-            "an open question for the maintainer: it stays undrawn until it is decided".into(),
-        );
-    }
+    let refs = vec![r.source_id.clone(), why.to_string()];
     Problem {
         id: format!("p:{code}:{}", r.source_id),
         code: code.into(),
@@ -843,6 +867,9 @@ fn outcome(ids: &Identities, r: &Record, wants: &[Want], turned: Option<&Turned>
             if !r.basic
                 && band.is_none()
                 && r.label.trim() == fmt(value)
+                // Automatic baseline rungs hide their local step lengths. A derived PMI
+                // requirement must then stand on its own instead of claiming hidden ink.
+                && (g.targets.is_empty() || !wants.iter().any(|w| w.id.ends_with("/step_position.length")))
                 && let Some(i) = step_length(wants, &g.stations, k, value)
             {
                 return Outcome::Stated(
@@ -1027,6 +1054,10 @@ fn linear(ids: &Identities, r: &Record, g: &crate::pmi::Geometry, k: usize, valu
     let (mut a, mut e) = (at, at);
     a[k] = lo;
     e[k] = hi;
+    if !g.targets.is_empty() {
+        a = s[0];
+        e = s[1];
+    }
     let view = views[0];
     let basis = format!(
         "source-authored: the AP242 {} dimension {} ({}), between its two proven stations along {}, in the {view} view (draftwright's render_pmi); no recognised feature's dimension states it, so it stands beside them{}",

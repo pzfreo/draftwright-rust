@@ -12,7 +12,10 @@ fn every_pmi_fixture_has_a_scheduled_case() {
     .filter_map(|name| name.strip_suffix(".gz").map(str::to_owned))
     .collect();
     actual.sort();
-    assert_eq!(actual, support::PMI_FILES);
+    let mut scheduled = support::PMI_FILES.to_vec();
+    scheduled.push(support::DERIVED_PMI_FILE);
+    scheduled.sort();
+    assert_eq!(actual, scheduled);
 }
 
 #[path = "common/cache.rs"]

@@ -8,6 +8,10 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- Draw AP242 dimensions and tolerances on resolved derived axes and planes, preserving
+  authored values, tolerances and MAX/MIN/AVG qualifiers. GRM-03 now carries its ten
+  semantic sizes and lengths instead of geometric fallback dimensions.
+
 - Keep radius leaders on the drawn part of trimmed arcs (quarter-cylinder edges, obround
   and slot-pattern ends) instead of the full construction circle.
 - Prefer perpendicular location witnesses on either side and finite-gap witnesses before
