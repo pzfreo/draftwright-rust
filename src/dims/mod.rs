@@ -1818,6 +1818,31 @@ pub(crate) fn annotation_pair_clear(a: &Placed, b: &Placed) -> bool {
     placement::annotations_clear(a, b)
 }
 
+/// A settled slot size and its datum leg own one physical corridor. A later
+/// row-order repair must not detach either member from that established chain.
+pub(crate) fn settled_slot_chain(d: &PlannedDimension, dimensions: &[PlannedDimension]) -> bool {
+    if !d
+        .measurements
+        .iter()
+        .any(|m| m.parameter == "location_slot.length")
+    {
+        return false;
+    }
+    let Some(p) = &d.placed else {
+        return false;
+    };
+    dimensions.iter().any(|other| {
+        other.id != d.id
+            && other.view == d.view
+            && other.kind == "linear"
+            && placement::slot_chain_claims(&d.measurements, &other.measurements)
+            && other
+                .placed
+                .as_ref()
+                .is_some_and(|q| placement::forms_chain(p, q))
+    })
+}
+
 /// A new rim point must meet visible physical edge evidence.
 pub(crate) fn callout_tip_visible(analysis: &Analysis, view: &PlannedView, tip: P2) -> bool {
     interior::proofs(analysis, std::slice::from_ref(view))

@@ -3472,6 +3472,9 @@ pub(crate) fn order_location_rows(analysis: &Analysis, plan: &mut Plan) {
         {
             continue;
         }
+        if crate::dims::settled_slot_chain(d, &plan.dimensions) {
+            continue;
+        }
         groups
             .entry((d.view.clone(), normal, a[normal] > v.at[normal]))
             .or_default()
