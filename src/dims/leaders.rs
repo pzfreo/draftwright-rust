@@ -3124,6 +3124,21 @@ fn page_sites(f: &Frame, sites: &[(super::P3, f64)], arcs: &[crate::arc::Profile
         .map(|(_, s)| *s)
         .take(MAX_SITES)
         .collect();
+    // A concave short arc may need a leader approaching across its opening.
+    // The nearest radial point can be a crowded tangent endpoint. Reuse the
+    // proven-point attachment contract of blends for interior arc stations too.
+    let mut kept = kept;
+    for arc in arcs
+        .iter()
+        .filter(|a| sites.len() == 1 && a.sweep < std::f64::consts::PI - 1e-6)
+    {
+        for fraction in [0.25, 0.5, 0.75] {
+            let point = f.page(arc.point(arc.start + fraction * arc.sweep));
+            if !kept.iter().any(|s| s.1 == 0.0 && near(s.0, point)) {
+                kept.push((point, 0.0, None));
+            }
+        }
+    }
     // A site set wholly on the line of sight still names the feature: keep it rather than none.
     if kept.is_empty() {
         all.into_iter().take(MAX_SITES).collect()
@@ -3729,6 +3744,19 @@ fn measure_at_bounds(
     right: bool,
     page: &Page,
 ) -> Option<Candidate> {
+    if job.sites.iter().any(|s| s.2.is_some())
+        && !job.sites.iter().any(|&(c, r, span)| {
+            span.is_some_and(|span| {
+                ((tip[0] - c[0]).hypot(tip[1] - c[1]) - r).abs() <= crate::lint::leaders::TOLERANCE
+                    && span.contains(
+                        (tip[1] - c[1]).atan2(tip[0] - c[0]),
+                        crate::lint::leaders::TOLERANCE / r.max(1e-9),
+                    )
+            })
+        })
+    {
+        return None;
+    }
     if (end[0] - elbow[0]) * if right { 1.0 } else { -1.0 } <= 1e-9 {
         return None;
     }
