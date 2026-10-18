@@ -73,7 +73,7 @@ mod label_lanes;
 mod wording;
 pub(crate) use pmi_dimensions::basic as is_basic;
 mod leaders;
-pub(crate) use label_lanes::settle_inventory;
+pub(crate) use label_lanes::{in_lane, settle_inventory};
 pub(crate) use leaders::settle_after_furniture;
 pub(crate) use placement::collisions_cached as label_collisions;
 pub(crate) mod levels;
