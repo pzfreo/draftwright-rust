@@ -2377,6 +2377,11 @@ fn plan_inventory_ordered(
         // Bare pins keep the settled peers' carriers as well as their strokes.
         // A new carrier cannot replay the canonical paper-space annotation.
         for w in &mut wants {
+            if spec.dimensions.get(&w.id).is_some_and(|entry| {
+                entry.view.is_some() || entry.place.as_ref().is_some_and(|p| p.view.is_some())
+            }) {
+                continue;
+            }
             if let Some(previous) = held.iter().find(|d| d.id == w.id)
                 && let Some(i) = w
                     .views

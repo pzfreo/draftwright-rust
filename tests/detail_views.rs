@@ -167,7 +167,7 @@ fn bare_dimension_pins_keep_recoverys_detail_selection_and_ink() {
     // Bare pins preserve that decision and every dimension's exact ink.
     for (part, paper, scale, details) in [
         ("mfcadpp/10046.step", "A3", "2:1", 0),
-        ("mfcadpp_regressions/11512.step", "A4", "1:1", 1),
+        ("mfcadpp_regressions/11512.step", "A4", "2:1", 0),
     ] {
         let (_, a) = model::analyse_native(&dir.join(part)).unwrap();
         let base = model::plan_recovered(&a, &Spec::default()).unwrap();

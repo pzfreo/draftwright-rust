@@ -3297,6 +3297,10 @@ fn recover_with_reference(
             route_reference,
         )?;
         if !reference_only
+            // Pinned crops come from the already-qualified canonical drawing.
+            // A switch-off solve would select a new canonical scale and destroy
+            // the very frame and ink that the pin is required to retain.
+            && !crate::placement_intent::has_pins(spec)
             && detailed.views.iter().any(|v| {
                 v.detail
                     .as_ref()
