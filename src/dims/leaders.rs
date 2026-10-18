@@ -1621,10 +1621,24 @@ fn refine_uncached(
     });
     let legacy = |i: usize| {
         reference.as_ref().and_then(|p| {
-            p.dimensions
-                .iter()
-                .find(|d| d.id == items[i].id && d.kind == "callout")
+            p.dimensions.iter().find(|d| {
+                d.id == items[i].id
+                    && d.kind == "callout"
+                    && d.view.strip_prefix("v:") == views_of[i]
+            })
         })
+    };
+    let changed_from_established = |i: usize, p: &Placed| {
+        legacy(i)
+            .and_then(|d| translated(reference.as_ref()?, d, views, &items[i]))
+            .is_some_and(|old| {
+                old.lines.len() == p.lines.len()
+                    && old.lines.iter().zip(&p.lines).any(|(a, b)| {
+                        a.iter()
+                            .zip(b)
+                            .any(|(a, b)| (0..2).any(|k| (a[k] - b[k]).abs() > 1e-6))
+                    })
+            })
     };
     let longer_than_established = |i: usize, p: &Placed| {
         legacy(i)
@@ -1721,6 +1735,24 @@ fn refine_uncached(
     };
     // Only a free callout already in contact is refined; most sheets have none, and then the
     // view ink below is never gathered.
+    let footprints: BTreeMap<_, _> = views
+        .iter()
+        .map(|v| (v.id.trim_start_matches("v:"), cache.get(analysis, v)))
+        .collect();
+    let expanded_native = super::has_new_native_recess_dimensions(analysis);
+    let feature_route = |i: usize, p: &Placed| {
+        expanded_native
+            && !repair_models.is_empty()
+            && items[i]
+                .measurements
+                .iter()
+                .any(|m| m.parameter == "bore.diameter")
+            && views_of[i].is_some_and(|v| {
+                !footprints[v]
+                    .crossed(p.lines[0], &items[i].measurements)
+                    .is_empty()
+            })
+    };
     let edited_text = edited_labels(spec);
     let todo: Vec<usize> = (0..items.len())
         .filter(|&i| {
@@ -1732,6 +1764,13 @@ fn refine_uncached(
                     .is_some_and(|d| d.place.is_some())
                 && placed[i].as_ref().is_some_and(|p| {
                     extension_index.contacts(&p.lines, p.label_box).0 > 0
+                        || feature_route(i, p)
+                        || (expanded_native
+                            && !repair_models.is_empty()
+                            && !bare
+                            && !canonical
+                            && !edited_text
+                            && changed_from_established(i, p))
                         || callout_crossing(i, p, placed)
                         || longer_than_established(i, p)
                         || added_material_crossing(i, p)
@@ -1754,10 +1793,6 @@ fn refine_uncached(
         .flat_map(|v| &v.line_work)
         .filter(|w| w.kind == "cutting_plane")
         .flat_map(crate::centrelines::segments)
-        .collect();
-    let footprints: BTreeMap<_, _> = views
-        .iter()
-        .map(|v| (v.id.trim_start_matches("v:"), cache.get(analysis, v)))
         .collect();
     let directed = !repair_models.is_empty() && !has_semantic_pmi(analysis, frames);
     for i in todo {
@@ -1799,7 +1834,16 @@ fn refine_uncached(
                 .all(|m| m.feature.starts_with("f:section_recess:"));
         let repair_cross = callout_crossing(i, &old, placed);
         let old_run = model_run(w, &old);
+        let repair_features = feature_route(i, &old);
+        let restore_established = expanded_native
+            && !repair_models.is_empty()
+            && !bare
+            && !canonical
+            && !edited_text
+            && changed_from_established(i, &old);
         let repair_run = old_run
+            || restore_established
+            || repair_features
             || repair_cross
             || repair_text
             || longer_than_established(i, &old)
@@ -2212,7 +2256,7 @@ fn refine_uncached(
             continue;
         }
         // Fewest contacts first, then the least movement: the nearest acceptable route wins.
-        if clear_new_text {
+        if clear_new_text || repair_features {
             let mut graded: Vec<_> = candidates
                 .into_iter()
                 .map(|c| (job.footprints.crossing_count([c.2, c.3]), c))
@@ -2235,6 +2279,19 @@ fn refine_uncached(
             candidates = ranked.into_iter().map(|(_, _, c)| c).collect();
         } else {
             candidates.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
+        }
+        let is_established = |t: P2, q: P2, e: P2| {
+            established.as_ref().is_some_and(|p| {
+                [t, q, e]
+                    .iter()
+                    .zip([p.lines[0][0], p.lines[0][1], p.lines[1][1]])
+                    .all(|(a, b)| (0..2).all(|k| (a[k] - b[k]).abs() < 1e-6))
+            })
+        };
+        if restore_established {
+            // Preserve a still-clear established leader before shortening it
+            // through a different physical edge after the witness reflow.
+            candidates.sort_by_key(|c| !(c.0.0 == 0 && is_established(c.2, c.3, c.4)));
         }
         let mut fixed = Fixed::new(
             placed
@@ -2303,7 +2360,8 @@ fn refine_uncached(
             let corridors = extension_index
                 .contacts(&[[c.tip, c.elbow], [c.elbow, c.end]], c.label_box)
                 .0 as u32;
-            if c.hard > prior.hard
+            if (repair_features && c.feature_crossings >= prior.feature_crossings)
+                || c.hard > prior.hard
                 || (clear_new_text && c.hard > corridors)
                 || c.crossings > prior.crossings
                 || (repair_cross && directed_contacts(&c.placed()) >= prior_contacts)
@@ -2318,6 +2376,12 @@ fn refine_uncached(
                 return None;
             }
             let p = c.placed();
+            // Fixed-ink scoring does not include a peer's arrow shaft in both
+            // directions. A repair must not create a new close parallel leader
+            // or arrow contact while clearing its witness corridor.
+            if directed_contacts(&p) > prior_contacts {
+                return None;
+            }
             if (clear_new_text && !page.fits(&p, view))
                 || (repair_text && text_conflict(i, &p, placed, obstacles))
             {

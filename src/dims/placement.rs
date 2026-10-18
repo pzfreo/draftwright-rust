@@ -2298,13 +2298,18 @@ fn clear_linear_ordered(
             let centre = (outline[normal] + outline[normal + 2]) / 2.0;
             let distance = |q: &Placed| (q.arrows[0][0][normal] - centre).abs();
             ink.iter().enumerate().any(|(j, q)| {
-                location(j)
-                    && positions[j] < positions[i]
+                let nearer = (!semantic_pmi
+                    && matches!(items[j].shape, Shape::Linear { order: 0, .. }))
+                    || (location(j)
+                        && positions[j] < positions[i]
+                        && items[j].value < items[i].value - 1e-9);
+                nearer
                     && chosen[j] == Some(view)
                     && sides[j] == Some(target)
-                    && items[j].value < items[i].value - 1e-9
                     && q.as_ref().is_some_and(|q| {
-                        !q.arrows.is_empty() && distance(c) < distance(q) + super::LANE - 1e-6
+                        q.arrows.len() == 2
+                            && q.rotation == c.rotation
+                            && distance(c) < distance(q) + super::LANE - 1e-6
                     })
             })
         };
@@ -2584,6 +2589,65 @@ fn clear_linear_ordered(
                             .all(|l| out * (l[1][normal] - l[0][normal]) > 1.0)
                         {
                             strokes.push(near_face);
+                        }
+                    }
+                    if recess_context
+                        && !semantic_pmi
+                        && super::has_new_native_recess_dimensions(analysis)
+                    {
+                        // A perpendicular witness can keep its measurement station
+                        // while starting beyond a settled callout's finite corridor.
+                        // Use the same label/leader padding as the callout router;
+                        // otherwise a near-miss here evicts that leader later.
+                        let normal = usize::from(c.rotation == 0.0);
+                        let out = if matches!(target, Side::Below | Side::Left) {
+                            -1.0
+                        } else {
+                            1.0
+                        };
+                        let bases = strokes.clone();
+                        for mut clear in bases {
+                            for line in clear.lines.iter_mut().take(2) {
+                                for peer in others
+                                    .iter()
+                                    .filter(|p| p.arrows.len() == 1 && p.lines.len() == 2)
+                                {
+                                    let b = peer.label_box;
+                                    let boxes = std::iter::once([
+                                        b[0] - 1.0,
+                                        b[1] - 1.0,
+                                        b[2] + 1.0,
+                                        b[3] + 1.0,
+                                    ])
+                                    .chain(
+                                        peer.lines.iter().map(|[a, b]| {
+                                            [
+                                                a[0].min(b[0]) - 1.0,
+                                                a[1].min(b[1]) - 1.0,
+                                                a[0].max(b[0]) + 1.0,
+                                                a[1].max(b[1]) + 1.0,
+                                            ]
+                                        }),
+                                    );
+                                    for b in boxes {
+                                        if super::leaders::touches_box(*line, b) {
+                                            let from = b[normal + if out > 0.0 { 2 } else { 0 }]
+                                                + out * 1e-6;
+                                            if out * (from - line[0][normal]) > 0.0 {
+                                                line[0][normal] = from;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if clear
+                                .lines
+                                .iter()
+                                .take(2)
+                                .all(|l| out * (l[1][normal] - l[0][normal]) > 1.0)
+                            {
+                                strokes.push(clear);
+                            }
                         }
                     }
                     if new_recess
