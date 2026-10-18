@@ -33,7 +33,11 @@ fn sample(name: &str) -> (Part, Analysis) {
     )
     .read_to_end(&mut bytes)
     .unwrap();
-    let out = Path::new(env!("CARGO_TARGET_TMPDIR")).join("spec_notes");
+    // nextest runs cases in separate processes, each starting at ThreadId(1).
+    // Isolate their atomic staging files as well as ordinary harness threads.
+    let out = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("spec_notes")
+        .join(std::process::id().to_string());
     std::fs::create_dir_all(&out).unwrap();
     let path = out.join(format!("{name}.step"));
     let part = out.join(format!("{name}.{:?}.part", std::thread::current().id()));
