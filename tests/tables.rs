@@ -461,6 +461,7 @@ fn tables_match_draftwrights_on_corpus_parts() {
             py["page"][1].as_f64().unwrap(),
         ];
         let [w, h] = plan.sheet.page;
+        let font = font();
         for (t, pt) in plan.tables.iter().zip(py["tables"].as_array().unwrap()) {
             let p: &tables::PlacedTable = t
                 .placed
@@ -469,9 +470,30 @@ fn tables_match_draftwrights_on_corpus_parts() {
             assert_eq!(json!(t.rows), pt["rows"], "{name} {}", t.id);
             let pb = floats(&pt["box"]);
             let pc = floats(&pt["columns"]);
-            // Same rows and height; each column's width the widest cell's ink and the padding,
-            // the ink measured from the same font's outlines (equal to 1e-4 mm on these tables;
-            // 1e-3 allowed for outline flattening).
+            // Python substitutes ø in diameter cells. Our label symbol occupies one em;
+            // account for that deliberate width change while retaining the captured font,
+            // padding and centring comparison (1e-3 allowed for outline flattening).
+            let symbol_deltas: Vec<f64> = (0..t.rows[0].len())
+                .map(|c| {
+                    let widest = |symbols: bool| {
+                        let width = t
+                            .rows
+                            .iter()
+                            .map(|row| {
+                                if symbols {
+                                    let ink = tables::text_ink(&row[c], &font);
+                                    ink.max[0] - ink.min[0]
+                                } else {
+                                    let ink = font.baseline(&tables::ink(&row[c]), tables::TEXT);
+                                    ink.max[0] - ink.min[0]
+                                }
+                            })
+                            .fold(0.0, f64::max);
+                        (width + 2.0 * tables::PAD).max(2.5 * tables::TEXT)
+                    };
+                    widest(true) - widest(false)
+                })
+                .collect();
             assert!(
                 (p.cells[3] - p.cells[1] - (pb[3] - pb[1])).abs() < 1e-6,
                 "{name} {}",
@@ -480,7 +502,7 @@ fn tables_match_draftwrights_on_corpus_parts() {
             for c in 0..p.columns.len() - 1 {
                 let (ours, theirs) = (p.columns[c + 1] - p.columns[c], pc[c + 1] - pc[c]);
                 assert!(
-                    (ours - theirs).abs() < 1e-3,
+                    (ours - theirs - symbol_deltas[c]).abs() < 1e-3,
                     "{name} {} column {c}: {ours} vs {theirs}",
                     t.id
                 );
@@ -547,7 +569,12 @@ fn tables_match_draftwrights_on_corpus_parts() {
                         continue;
                     }
                     let b = floats(ink);
-                    let theirs = [0.5 * (b[0] + b[2]) - pb[0], pb[3] - 0.5 * (b[1] + b[3])];
+                    let theirs = [
+                        0.5 * (b[0] + b[2]) - pb[0]
+                            + symbol_deltas[..c].iter().sum::<f64>()
+                            + 0.5 * symbol_deltas[c],
+                        pb[3] - 0.5 * (b[1] + b[3]),
+                    ];
                     let ours = ours.unwrap();
                     let ours = [ours[0] - p.cells[0], p.cells[3] - ours[1]];
                     assert!(

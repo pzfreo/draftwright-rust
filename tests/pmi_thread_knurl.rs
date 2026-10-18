@@ -206,10 +206,7 @@ fn several_long_requirements_refer_to_the_manufacturing_requirements_table() {
     let font =
         draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
     for (row, at) in table.rows.iter().zip(&p.cells_at) {
-        let laid = font.baseline(
-            &draftwright::tables::ink(&row[1]),
-            draftwright::tables::TEXT,
-        );
+        let laid = draftwright::tables::text_ink(&row[1], &font);
         let left = at[1].unwrap()[0] - 0.5 * (laid.max[0] - laid.min[0]);
         assert!(
             (left - (p.columns[1] + draftwright::tables::PAD)).abs() < 1e-9,
