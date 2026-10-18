@@ -587,7 +587,7 @@ fn route_touches(s: [[f64; 2]; 2], b: Rect) -> bool {
 // Index only accelerates the existing finite-strip calculation. Long lines and
 // wide query boxes use the exhaustive path, bounding memory without omitting ink.
 struct RouteInk {
-    model: Option<std::sync::Arc<RouteInk>>,
+    models: Vec<std::sync::Arc<RouteInk>>,
     segments: Vec<[[f64; 2]; 2]>,
     cells: std::collections::BTreeMap<[i32; 2], Vec<usize>>,
     long: Vec<usize>,
@@ -606,7 +606,7 @@ impl RouteInk {
 
     fn new(segments: Vec<[[f64; 2]; 2]>) -> Self {
         let mut ink = Self {
-            model: None,
+            models: Vec::new(),
             segments,
             cells: Default::default(),
             long: Vec::new(),
@@ -627,10 +627,11 @@ impl RouteInk {
     }
 
     fn nearby(&self, route: [[f64; 2]; 2]) -> Vec<[[f64; 2]; 2]> {
-        let mut nearby = self
-            .model
-            .as_ref()
-            .map_or_else(Vec::new, |model| model.nearby(route));
+        let mut nearby: Vec<_> = self
+            .models
+            .iter()
+            .flat_map(|model| model.nearby(route))
+            .collect();
         let (lo, hi, count) = Self::cells(grow_route_box(route_bounds(route), 0.3));
         if count > Self::MAX_CELLS {
             nearby.extend_from_slice(&self.segments);
@@ -663,10 +664,18 @@ fn indexed_route_ink(
 ) -> std::sync::Arc<RouteInk> {
     // The Analysis owns all model evidence. Only these view transforms/crops and
     // actual extension strokes can change this sheet's projected route obstacle.
-    let views: Vec<_> = plan
+    let carriers: Vec<_> = plan
         .views
         .iter()
-        .filter(|v| v.sheet == sheet)
+        .filter(|v| {
+            v.sheet == sheet
+                && v.id != "v:iso"
+                && v.cut.is_none()
+                && v.detail.as_ref().is_none_or(|d| d.source_cut.is_none())
+        })
+        .collect();
+    let views: Vec<_> = carriers
+        .iter()
         .map(|v| {
             (
                 &v.id,
@@ -685,20 +694,36 @@ fn indexed_route_ink(
     crate::planning::memo(analysis, "indexed-sheet-route-ink", key, || {
         // Reordering only dimension rows does not change a single model edge.
         // Keep its complete index under the exact same resolved view inputs.
-        let model = crate::planning::memo(analysis, "indexed-model-route-ink", model_key, || {
-            std::sync::Arc::new(RouteInk::new(route_ink(analysis, plan, sheet)))
-        });
+        let models = carriers
+            .iter()
+            .zip(&views)
+            .map(|(view, inputs)| {
+                let key = serde_json::to_vec(&(sheet, inputs))
+                    .expect("model view route inputs serialize");
+                crate::planning::memo(analysis, "indexed-model-view-route-ink", key, || {
+                    std::sync::Arc::new(RouteInk::new(route_ink(
+                        analysis,
+                        std::slice::from_ref(*view),
+                        sheet,
+                    )))
+                })
+            })
+            .collect();
         let mut ink = RouteInk::new(extensions.iter().map(|(_, s)| *s).collect());
-        ink.model = Some(model);
+        ink.models = models;
         std::sync::Arc::new(ink)
     })
 }
 
-fn route_ink(analysis: &Analysis, plan: &Plan, sheet: u32) -> Vec<[[f64; 2]; 2]> {
+fn route_ink(
+    analysis: &Analysis,
+    views: &[crate::model::PlannedView],
+    sheet: u32,
+) -> Vec<[[f64; 2]; 2]> {
     let Some(ink) = &analysis.edge_ink else {
         return Vec::new();
     };
-    plan.views
+    views
         .iter()
         .filter(|v| {
             v.sheet == sheet
@@ -3531,9 +3556,14 @@ mod tests {
     #[test]
     fn separate_model_and_extension_indexes_preserve_a_joined_run() {
         let model = std::sync::Arc::new(RouteInk::new(vec![[[1.0, 0.2], [2.0, 0.2]]]));
-        let mut combined = RouteInk::new(vec![[[2.0, 0.2], [4.0, 0.2]]]);
-        combined.model = Some(model);
-        let all = [[[1.0, 0.2], [2.0, 0.2]], [[2.0, 0.2], [4.0, 0.2]]];
+        let second = std::sync::Arc::new(RouteInk::new(vec![[[2.0, 0.2], [3.0, 0.2]]]));
+        let mut combined = RouteInk::new(vec![[[3.0, 0.2], [4.0, 0.2]]]);
+        combined.models = vec![model, second];
+        let all = [
+            [[1.0, 0.2], [2.0, 0.2]],
+            [[2.0, 0.2], [3.0, 0.2]],
+            [[3.0, 0.2], [4.0, 0.2]],
+        ];
         for route in [[[0.0, 0.0], [5.0, 0.0]], [[0.0, 0.0], [10000.0, 0.0]]] {
             assert_eq!(combined.run(route), route_run(route, &all));
             assert!((combined.run(route) - 3.0).abs() < 1e-9);
@@ -3701,17 +3731,18 @@ mod tests {
         v.up = [0.0, 0.0, 1.0];
         v.scale = 1.0;
         v.at = [50.0, 50.0];
-        let ink = route_ink(&a, &p, 1);
+        let ink = route_ink(&a, &p.views, 1);
         assert!((route_run([[49.2, 46.0], [49.2, 49.0]], &ink) - 3.0).abs() < 1e-6);
         assert_eq!(route_run([[49.31, 46.0], [49.31, 49.0]], &ink), 0.0);
         p.views[0].direction = [0.0, -2.0, 0.0];
         assert!(
-            (route_run([[49.2, 46.0], [49.2, 49.0]], &route_ink(&a, &p, 1)) - 3.0).abs() < 1e-6
+            (route_run([[49.2, 46.0], [49.2, 49.0]], &route_ink(&a, &p.views, 1)) - 3.0).abs()
+                < 1e-6
         );
         // A face which never reaches x = -radius has no left generator.
         a.edge_ink.as_mut().unwrap().curved[0].bounds[0][0] = 0.0;
         assert_eq!(
-            route_run([[49.2, 46.0], [49.2, 49.0]], &route_ink(&a, &p, 1)),
+            route_run([[49.2, 46.0], [49.2, 49.0]], &route_ink(&a, &p.views, 1)),
             0.0
         );
     }
@@ -3741,7 +3772,7 @@ mod tests {
         v.up = [0.0, 0.0, 1.0];
         v.scale = 1.0;
         v.at = [50.0, 50.0];
-        let ink = route_ink(&a, &p, 1);
+        let ink = route_ink(&a, &p.views, 1);
         assert!(route_run([[49.1, 46.0], [46.1, 49.0]], &ink) > 4.0);
         assert_eq!(route_run([[49.5, 46.0], [46.5, 49.0]], &ink), 0.0);
     }
