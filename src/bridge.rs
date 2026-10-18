@@ -34,6 +34,7 @@ use haecceity::geom::Bounds;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
+mod flats;
 pub mod holes;
 pub mod native;
 pub mod recess_patterns;
@@ -554,6 +555,7 @@ pub fn read(part: &Part, sha256: &str, json: &str) -> Result<(Recognition, Vec<F
             &derived.section_recess_patterns,
         )?;
     }
+    flats::merge(part, &frame, &mut features);
     let patterns = hole_patterns(&derived.hole_patterns, &features)?;
     // Records with no ID are ordered by everything they carry.
     let key = |r: &Record| {

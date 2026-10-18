@@ -8,6 +8,11 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- Merge interrupted coplanar flat faces on the same stock in Draftwright's bridge (a repair
+  for quiddity's per-face flat recognition). Reserve A/F for opposing parallel flats; a
+  single flat retains the Python flat-to-far-side nominal without A/F. Proven height and
+  axis-location spans now carry flat measurement claims, including when its callout is omitted.
+
 - Preserve nominal hundredths and thousandths throughout drawing text: default labels now use
   the shortest decimal within 1e-6 after noise removal, up to three places. Values requiring
   more places produce an informational `nominal_rounded` problem with modelled and printed

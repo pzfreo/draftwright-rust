@@ -636,6 +636,7 @@ fn wants_uncached(
             }
         }
     }
+    flats::share_locations(&cx, &mut out);
     // A planner may dimension some records of a kind it does not claim (the section recesses
     // that are blind slots): those are not reported.
     let stated: BTreeSet<String> = out

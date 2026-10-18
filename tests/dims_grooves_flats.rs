@@ -104,7 +104,15 @@ fn grooves_and_flats_match_draftwrights_sheets() {
             })
             .map(|a| {
                 (
-                    a.label.clone().unwrap(),
+                    // Connector109 has one flat: preserve its full nominal and omit A/F.
+                    // Keep the archived Python facts as historical evidence.
+                    if name == "connector109"
+                        && a.measurements.iter().any(|m| m.parameter == "flat.length")
+                    {
+                        "52.571".into()
+                    } else {
+                        a.label.clone().unwrap()
+                    },
                     a.view.clone().unwrap(),
                     a.measurements
                         .iter()
@@ -185,7 +193,8 @@ fn equal_flats_on_other_stock_are_counted_and_a_double_d_is_one() {
     };
     let got = items(&plan);
     assert_eq!(got.len(), 1, "{got:?}");
-    assert_eq!(got[0].0, "2× 2.4 A/F");
+    // Independent stock (or missing stock identity) proves no opposed pair.
+    assert_eq!(got[0].0, "2× 2.4");
     assert_eq!(got[0].2.len(), 2);
 
     let plan = planned("string_post", |i, r| {
@@ -242,7 +251,8 @@ fn a_flat_without_stock_identity_is_its_own_definition() {
     };
     let got = items(&plan);
     assert_eq!(got.len(), 1, "{got:?}");
-    assert_eq!(got[0].0, "2× 2.4 A/F");
+    // Independent stock (or missing stock identity) proves no opposed pair.
+    assert_eq!(got[0].0, "2× 2.4");
 }
 
 /// Every nominal uses its own shortest faithful decimal, intentionally replacing Python's
@@ -320,4 +330,117 @@ fn a_record_that_cannot_be_stated_is_reported() {
     let mut reported: Vec<String> = (1..=7).map(|i| format!("f:turned_step:{i}")).collect();
     reported.push("f:groove:3".into());
     assert_eq!(codes(&plan, "feature_not_dimensioned"), reported);
+}
+
+/// GRM-02's cross window interrupts one D-flat. The provider still emits faces separately;
+/// the bridge repairs the occurrence identity and keeps Python's flat-to-far-side convention.
+#[test]
+fn grm02_interrupted_flat_is_one_feature_without_across_flats_wording() {
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/grm02.step");
+    let (part, a) = model::analyse_native(&path).unwrap();
+    let raw = quiddity::recognition::document(
+        &quiddity::correspondence::recognise(&part),
+        part.faces.len(),
+    );
+    let raw_flats: Vec<_> = raw.records.iter().filter(|r| r.family == "flats").collect();
+    assert_eq!(
+        raw_flats.len(),
+        2,
+        "upstream per-face recognition is the source of the split"
+    );
+    assert_eq!(
+        raw_flats
+            .iter()
+            .map(|r| r.faces.clone())
+            .collect::<Vec<_>>(),
+        [vec![6], vec![2]]
+    );
+    // Coplanarity alone must not combine independent stock regions.
+    let mut separate_stock = raw.clone();
+    let second = separate_stock
+        .records
+        .iter_mut()
+        .filter(|r| r.family == "flats")
+        .nth(1)
+        .unwrap();
+    second
+        .parameters
+        .insert("stock_span".into(), serde_json::json!([40., 50.]));
+    let separate = draftwright::bridge::native::read(&part, &separate_stock).unwrap();
+    assert_eq!(
+        separate
+            .features
+            .iter()
+            .filter(|f| f.kind == "flat")
+            .count(),
+        2
+    );
+    let flats: Vec<_> = a.features.iter().filter(|f| f.kind == "flat").collect();
+    assert_eq!(flats.len(), 1);
+    assert_eq!(flats[0].id, "f:flat:1");
+    assert_eq!(flats[0].faces, [2, 6]);
+    assert_eq!(flats[0].parameters["opposed"], false);
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let width = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:slot:1/slot_width.length")
+        .unwrap();
+    assert_eq!(width.value, 4.75);
+    assert_eq!(width.label, "4.75");
+    let flat = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:flat:1/flat.length")
+        .unwrap();
+    assert_eq!(flat.value, 7.4);
+    assert_eq!(flat.label, "7.4");
+    assert!(!plan.dimensions.iter().any(|d| d.label.contains("A/F")));
+}
+
+#[test]
+fn grm02_drawn_height_or_axis_location_states_the_single_flat() {
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/grm02.step");
+    let (part, a) = model::analyse_native(&path).unwrap();
+    let mut spec = Spec::default();
+    spec.dimensions
+        .entry("d:f:flat:1/flat.length".into())
+        .or_default()
+        .omit = true;
+    for omit_height in [false, true] {
+        spec.dimensions
+            .entry("d:envelope/height.length".into())
+            .or_default()
+            .omit = omit_height;
+        let plan = model::plan(&a, &spec).unwrap();
+        assert!(
+            !plan
+                .problems
+                .iter()
+                .any(|p| p.code == "feature_not_dimensioned"
+                    && p.subjects.contains(&"f:flat:1".into())),
+            "{:#?}",
+            plan.problems
+        );
+        let font = draftwright::text::Font::open(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("fonts")
+                .join(draftwright::dims::FONT),
+        )
+        .unwrap();
+        let drawing = model::render(&part, &a, &plan, &font).unwrap();
+        let issues: Vec<_> = lint::lint(&a, &drawing)
+            .into_iter()
+            .filter(|p| p.code.starts_with("flat_"))
+            .collect();
+        assert!(issues.is_empty(), "{issues:?}");
+    }
+    spec.dimensions
+        .entry("d:f:hole:1/location.length.z".into())
+        .or_default()
+        .omit = true;
+    let missing = model::plan(&a, &spec).unwrap();
+    assert!(missing.problems.iter().any(|p| p.code == "feature_not_dimensioned" && p.subjects.contains(&"f:flat:1".into())));
 }
