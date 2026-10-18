@@ -19,7 +19,8 @@ from concurrent.futures import ThreadPoolExecutor
 INK = {"annotation_ink_overlap", "annotation_over_view", "annotation_line_over_view",
        "annotation_leader_crossing", "annotation_outside_area", "label_centerline_overlap",
        "leader_centerline_overlap", "label_section_furniture_overlap",
-       "oblique_witness_crossing", "radius_leader_target_mismatch"}
+       "oblique_witness_crossing", "radius_leader_target_mismatch",
+       "radius_leader_target_unverifiable"}
 
 
 def line_through_features(plan):
@@ -563,7 +564,8 @@ def one(f, dw, out, spec=None, timeout=600, review=True):
         for code in ("label_centerline_overlap", "leader_centerline_overlap",
                      "label_section_furniture_overlap", "oblique_witness_crossing"):
             codes[code] = max(codes[code], sum(i["code"] == code for i in review["structural"]))
-        codes["radius_leader_target_mismatch"] = sum(i["code"] == "radius_leader_target_mismatch" for i in review.get("lint", []))
+        for code in ("radius_leader_target_mismatch", "radius_leader_target_unverifiable"):
+            codes[code] = max(codes[code], sum(i["code"] == code for i in review.get("lint", [])))
         with open(f"{out}/{name}.review.json", "w") as output:
             json.dump({k: review[k] for k in ("lint", "structural")}, output, indent=1, sort_keys=True)
     # Repeated dimensions: the same measured quantity (feature, parameter) stated more than once,

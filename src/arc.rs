@@ -5,7 +5,10 @@ use std::f64::consts::{PI, TAU};
 use serde::{Deserialize, Serialize};
 
 use crate::bridge::Feature;
-use haecceity::{Part, geom::Curve};
+use haecceity::{
+    Part,
+    geom::{Curve, Surface},
+};
 
 /// *a* − *b* wrapped into (−π, π], shared with the blend sector check.
 pub(crate) fn turn(a: f64, b: f64) -> f64 {
@@ -103,14 +106,38 @@ pub fn evidence(part: &Part, features: &[Feature]) -> BTreeMap<String, Vec<Profi
         else {
             continue;
         };
+        // Feature dimensions can be quantised (for example R3.17 for an
+        // actual R3.175 cylinder). Select the carrying cylinders by nearest
+        // recorded radius, then match their boundary edges to the exact surface,
+        // never to that rounded dimension. Retain a planar-only legacy record.
+        let mut faces: Vec<_> = f
+            .faces
+            .iter()
+            .filter_map(|&i| {
+                if let Surface::Cylinder { radius, .. } = part.faces[i].surface {
+                    Some((i, radius))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        if let Some(error) = faces
+            .iter()
+            .map(|(_, r)| (r - radius).abs())
+            .reduce(f64::min)
+        {
+            faces.retain(|(_, r)| (r - radius).abs() <= error + 1e-8);
+        } else {
+            faces.extend(f.faces.iter().map(|&i| (i, radius)));
+        }
         let mut arcs = Vec::new();
-        for &face in &f.faces {
+        for (face, surface_radius) in faces {
             for edge in part.face_edges(face) {
                 let e = &part.edges[edge];
                 let Curve::Circle { frame, radius: r } = &e.curve else {
                     continue;
                 };
-                if (radius - r).abs() > 0.002 {
+                if (surface_radius - r).abs() > 0.002 {
                     continue;
                 }
                 let (a, b) = haecceity::sampling::edge_interval(

@@ -268,12 +268,12 @@ class CentreLineInk(unittest.TestCase):
                 'views': [{'line_work': [{'kind': 'cross'}]}]}
         for code in ('label_centerline_overlap', 'leader_centerline_overlap',
                      'label_section_furniture_overlap', 'oblique_witness_crossing',
-                     'radius_leader_target_mismatch'):
+                     'radius_leader_target_mismatch', 'radius_leader_target_unverifiable'):
             with self.subTest(code=code):
                 replies = [subprocess.CompletedProcess([], 0, '{}', ''),
                     subprocess.CompletedProcess([], 0, json.dumps(plan), ''),
-                    subprocess.CompletedProcess([], 0, json.dumps({'structural': [] if code == 'radius_leader_target_mismatch' else [
-                        {'code': code, 'annotation': 'd:a'}], 'lint': [{'code': code}] if code == 'radius_leader_target_mismatch' else []}), '')]
+                    subprocess.CompletedProcess([], 0, json.dumps({'structural': [] if code.startswith('radius_leader_target_') else [
+                        {'code': code, 'annotation': 'd:a'}], 'lint': [{'code': code}] if code.startswith('radius_leader_target_') else []}), '')]
                 with tempfile.TemporaryDirectory() as out, patch.object(quality.subprocess, 'run', side_effect=replies):
                     (Path(out) / 'part.svg').write_text('<svg/>')
                     _, result = quality.one('part.step', 'dw', out)

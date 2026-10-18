@@ -649,3 +649,55 @@ fn hole_location_uses_perpendicular_witnesses_and_rejects_oblique_crossings_1000
                 && i.annotation.as_deref() == Some(location.id.as_str()))
     );
 }
+
+/// Rounded slot dimensions must not discard their exact cylindrical boundary evidence.
+#[test]
+fn rounded_slot_radii_keep_their_exact_arcs_on_nist_parts() {
+    let corpus = std::env::var("DRAFTWRIGHT_CORPUS")
+        .unwrap_or_else(|_| "/Users/paul/repos/quiddity/tests/corpus".into());
+    for name in ["nist_ctc_03_asme1_rc", "nist_ftc_09_asme1_rd"] {
+        let path = Path::new(&corpus).join(format!("nist/{name}.stp"));
+        if !path.is_file() {
+            assert!(std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").is_err());
+            return;
+        }
+        let (part, a) = model::analyse_native(&path).unwrap();
+        let mut rounded = false;
+        for f in a.features.iter().filter(|f| f.kind == "slot") {
+            let arcs = a.profile_arcs.get(&f.id).expect("slot has boundary arcs");
+            assert!(!arcs.is_empty());
+            let radii: Vec<_> = f
+                .faces
+                .iter()
+                .filter_map(|&i| {
+                    if let draftwright::haecceity::geom::Surface::Cylinder { radius, .. } =
+                        part.faces[i].surface
+                    {
+                        Some(radius)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            assert!(
+                arcs.iter()
+                    .all(|arc| radii.iter().any(|r| (r - arc.radius).abs() < 1e-10))
+            );
+            let nominal = f.parameters["end_radius"].as_f64().unwrap();
+            rounded |= arcs.iter().any(|arc| (arc.radius - nominal).abs() > 0.002);
+        }
+        assert!(rounded, "exercise the rounded-radius evidence gap");
+        let plan = model::plan(&a, &Spec::default()).unwrap();
+        let drawing = model::render(&part, &a, &plan, &font()).unwrap();
+        let issues: Vec<_> = lint::lint(&a, &drawing)
+            .into_iter()
+            .filter(|i| {
+                i.code.starts_with("radius_leader_target_")
+                    && i.annotation
+                        .as_deref()
+                        .is_some_and(|id| id.ends_with("/slot_end_radius.radius"))
+            })
+            .collect();
+        assert!(issues.is_empty(), "{name}: {issues:?}");
+    }
+}
