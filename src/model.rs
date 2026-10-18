@@ -1503,20 +1503,9 @@ fn retains_enlarged_ink(analysis: &Analysis, before: &Plan, after: &Plan) -> boo
     if !drawn_sheets_fit(analysis, before) {
         return true;
     }
-    let mut measured = before.clone();
-    measured.problems.retain(|q| q.code != "page_fit_uncertain");
-    if !findings(&measured).clean() {
-        return true;
-    }
-    // This guard concerns replacement crops. A fully enlarged ordinary
-    // drawing can deliver the controls directly in its main views.
-    if after
-        .views
-        .iter()
-        .all(|v| v.detail.as_ref().is_none_or(|d| d.authored))
-    {
-        return true;
-    }
+    // A parent annotation problem does not invalidate a useful enlarged
+    // profile elsewhere. The replacement still has to pass every finished
+    // drawing gate, and its controls must retain their established scale.
     before
         .dimensions
         .iter()
@@ -2841,8 +2830,8 @@ fn normalized_sheet_candidate(analysis: &Analysis, mut spec: Spec, scale: f64) -
         // really can affect the fixed frames; none of its controls are inert.
         return spec;
     }
-    // Active automatic detail slots request the last-resort annotation-context
-    // recipe. Keep those existing view settings in the serialized candidate key.
+    // Active automatic detail slots request the mixed interval recipe. Keep
+    // those existing view settings in the serialized candidate key.
     if spec.sheet.automatic_details == Some(true)
         && crate::detail::NAMES.iter().any(|name| {
             spec.views

@@ -56,7 +56,7 @@ pub(crate) fn details(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<crate::detai
         })
         .collect();
     for w in &inventory {
-        let mut needed = w
+        let needed = w
             .measurements
             .iter()
             .filter_map(|m| {
@@ -101,21 +101,9 @@ pub(crate) fn details(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<crate::detai
                     .then_some(floor / size)
             })
             .fold(0.0, f64::max);
-        let mut context = false;
-        if needed <= sheet && annotation_context && matches!(w.shape, Shape::Callout { .. }) {
-            // A last-resort local carrier for an aperture whose label cannot
-            // remain inside at the main scale. This proposes a crop; the same
-            // finished ink, route and readability gates still qualify it.
-            if let Some(diameter) = w
-                .measurements
-                .iter()
-                .find_map(|m| (m.parameter == "bore.diameter").then_some(m.value.abs()))
-                .filter(|d| *d > 0.0)
-            {
-                needed = (font().advance(&w.terms.join(" "), TEXT) + 2.0 * ARROW + 2.0) / diameter;
-                context = needed > sheet;
-            }
-        }
+        // A long label does not make an otherwise readable bore a useful
+        // enlarged feature. Repair its parent lanes or report the refusal;
+        // font-width/diameter crops can show only a circle and an isolated edge.
         if needed <= sheet {
             continue;
         }
@@ -193,12 +181,7 @@ pub(crate) fn details(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<crate::detai
             axis: primary,
             source_view: format!("v:{source}"),
             source_cut: None,
-            kind: if context {
-                "readability-annotation-context"
-            } else {
-                "readability"
-            }
-            .into(),
+            kind: "readability".into(),
             bounds,
             marked_bounds: bounds,
             dimensions: vec![w.id.clone()],
@@ -235,8 +218,6 @@ pub(crate) fn details(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<crate::detai
                 // recipe remains an independently qualified fallback, and pins
                 // can reconstruct the selected mixed recipe from its provenance.
                 previous.kind = "readability-height-interval-context".into();
-            } else if context {
-                previous.kind = "readability-annotation-context".into();
             }
             previous.dimensions.extend(d.dimensions);
             previous.scale = previous.scale.max(d.scale);

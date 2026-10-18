@@ -511,6 +511,35 @@ fn a_crowded_main_view_keeps_its_readable_a3_scale() {
 }
 
 #[test]
+fn readable_bores_do_not_replace_a_useful_profile_with_circle_only_crops() {
+    let Some(corpus) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
+        assert!(std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"));
+        return;
+    };
+    let (_, a) =
+        model::analyse_native(&Path::new(&corpus).join("mfcadpp_holdout/419.step")).unwrap();
+    let p = model::plan_recovered(&a, &model::Spec::default()).unwrap();
+    assert_eq!(p.sheet.size, "A3");
+    assert!(p.sheet.scale_factor >= 1.0);
+    let control = p
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:step_level/step_height.length.h8_23")
+        .unwrap();
+    assert!(control.placed.is_some());
+    let carrier = p.views.iter().find(|v| v.id == control.view).unwrap();
+    assert!(carrier.scale >= 2.0);
+    if let Some(detail) = &carrier.detail {
+        assert_eq!(detail.kind, "prismatic-steps");
+        assert_eq!(detail.bounds, detail.marked_bounds);
+        assert!(detail.bounds[1][0] - detail.bounds[0][0] > 40.0);
+        assert!(detail.bounds[1][2] - detail.bounds[0][2] > 40.0);
+    }
+    assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
+    assert_eq!(sheet_fit::readability(&a, &p).whole_drawing_failures(), 0);
+}
+
+#[test]
 fn a_refused_aperture_crop_keeps_the_useful_enlarged_profile() {
     let Some(corpus) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
         assert!(std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"));
