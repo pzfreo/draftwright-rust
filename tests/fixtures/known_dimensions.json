@@ -3008,5 +3008,45 @@
     "count": 1,
     "verdict": "rust-correct",
     "reason": "When no faithful decimal fits within three places, the specified fallback prints all three places and reports nominal_rounded. Exact revised nominal text; measurements and ownership remain unchanged (docs/drawn-values-2026-10-18.md)."
+  },
+  {
+    "part": "spool132",
+    "side": "python",
+    "family": "callout",
+    "view": "plan",
+    "label": "12× ⌀8 THRU EQ SP ON ø110 BC LOWER FACE",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same callout words and measurements now wrap at the requested 48 mm font-measured width. Geometry and coverage remain checked; see docs/thread-callouts.md."
+  },
+  {
+    "part": "spool132",
+    "side": "python",
+    "family": "callout",
+    "view": "plan",
+    "label": "12× ⌀8 THRU EQ SP ON ø110 BC UPPER FACE",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same callout words and measurements now wrap at the requested 48 mm font-measured width. Geometry and coverage remain checked; see docs/thread-callouts.md."
+  },
+  {
+    "part": "spool132",
+    "side": "rust",
+    "family": "callout",
+    "view": "plan",
+    "label": "12× ⌀8 THRU EQ SP ON ø110\nBC LOWER FACE",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same callout words and measurements now wrap at the requested 48 mm font-measured width. Geometry and coverage remain checked; see docs/thread-callouts.md."
+  },
+  {
+    "part": "spool132",
+    "side": "rust",
+    "family": "callout",
+    "view": "plan",
+    "label": "12× ⌀8 THRU EQ SP ON ø110\nBC UPPER FACE",
+    "count": 1,
+    "verdict": "equivalent",
+    "reason": "The same callout words and measurements now wrap at the requested 48 mm font-measured width. Geometry and coverage remain checked; see docs/thread-callouts.md."
   }
 ]

@@ -353,7 +353,7 @@ fn identical_hex_pockets_and_coaxial_seats_are_counted_once() {
     // draftwright batches hexagonal pockets by axis, opening and label, and coaxial seats by
     // axis, centre and label (`polygonal_prism_jobs`, `circular_recess_jobs`).
     let h = by(&hex);
-    assert_eq!(h.label, "2× HEX 1.935 A/F × 2.104 DEEP");
+    assert_eq!(h.label, "2× HEX 1.935 A/F × 2.104\nDEEP");
     let features: Vec<&str> = h.measurements.iter().map(|m| m.feature.as_str()).collect();
     assert_eq!(
         features,
@@ -365,7 +365,7 @@ fn identical_hex_pockets_and_coaxial_seats_are_counted_once() {
         ]
     );
     let s = by(&seat);
-    assert_eq!(s.label, "2× ø2 × 12.593 LONG × 180° ARC");
+    assert_eq!(s.label, "2× ø2 × 12.593 LONG × 180°\nARC");
     assert_eq!(s.measurements.len(), 6);
     // Across the axis the two seats share their locations; along it each has its own.
     let located: Vec<(String, usize)> = plan
@@ -480,7 +480,7 @@ fn identical_located_seats_keep_all_claims_and_promote_a_survivor() {
                 .any(|m| m.feature == original && m.parameter == "seat_diameter.diameter")
         })
         .unwrap();
-    assert_eq!(carrier.label, "2× ø2 × 12.593 LONG × 180° ARC");
+    assert_eq!(carrier.label, "2× ø2 × 12.593 LONG × 180°\nARC");
     for feature in [&original[..], "f:section_recess:99"] {
         for parameter in [
             "seat_diameter.diameter",
