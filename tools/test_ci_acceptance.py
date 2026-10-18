@@ -353,7 +353,7 @@ class Acceptance(unittest.TestCase):
         names = runner.survey_names()
         slices = [runner.survey.in_shard(names, k, 4) for k in range(1, 5)]
         self.assertEqual(sorted(sum(slices, [])), sorted(names))
-        self.assertTrue(all(18 <= len(s) <= 19 for s in slices))
+        self.assertEqual([len(s) for s in slices], [20, 19, 19, 19])
         result = {name: {'repeated_span': 0} for name in slices[1]}
         self.assertEqual(self.check('survey', result, extra=['--survey-shard', '2/4']).returncode, 0)
         for bad in (dict(list(result.items())[1:]), {**result, slices[0][0]: {'repeated_span': 0}}):

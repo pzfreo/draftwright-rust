@@ -54,9 +54,9 @@ def names(files):
 def survey_names():
     corpus = manifest('repeated_span_parts.txt') + manifest('repeated_span_extra_parts.txt')
     fixtures = sorted((ROOT / 'tests/fixtures/pmi/step').glob('*.gz'))
-    require(len(corpus) == 52 and len(fixtures) == 22, 'incomplete survey fixture manifest (52 + 22 required)')
+    require(len(corpus) == 55 and len(fixtures) == 22, 'incomplete survey fixture manifest (55 + 22 required)')
     result = names(corpus) | names(p.name[:-3] for p in fixtures)
-    require(len(result) == 74, 'incomplete/ambiguous 74-part survey')
+    require(len(result) == 77, 'incomplete/ambiguous 77-part survey')
     return result
 
 
@@ -267,7 +267,8 @@ def main():
         require(args.corpus is not None, 'DRAFTWRIGHT_CORPUS or --corpus is required')
         args.corpus = args.corpus.resolve()
         os.environ['DRAFTWRIGHT_CORPUS'] = str(args.corpus)
-        required = [args.corpus / p for p in manifest('repeated_span_parts.txt')]
+        required = [args.corpus / p for p in
+                    manifest('repeated_span_parts.txt') + manifest('repeated_span_extra_parts.txt')]
         required += [ROOT / 'tests/fixtures/parts/mounting_plate.step']
         required += sorted((ROOT / 'tests/fixtures/pmi/step').glob('*.gz'))
         required += [ROOT / 'tools/mcp-eval/features' / (name + '.features.json')
