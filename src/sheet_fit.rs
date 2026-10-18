@@ -587,6 +587,7 @@ fn route_touches(s: [[f64; 2]; 2], b: Rect) -> bool {
 // Index only accelerates the existing finite-strip calculation. Long lines and
 // wide query boxes use the exhaustive path, bounding memory without omitting ink.
 struct RouteInk {
+    model: Option<std::sync::Arc<RouteInk>>,
     segments: Vec<[[f64; 2]; 2]>,
     cells: std::collections::BTreeMap<[i32; 2], Vec<usize>>,
     long: Vec<usize>,
@@ -605,6 +606,7 @@ impl RouteInk {
 
     fn new(segments: Vec<[[f64; 2]; 2]>) -> Self {
         let mut ink = Self {
+            model: None,
             segments,
             cells: Default::default(),
             long: Vec::new(),
@@ -624,10 +626,15 @@ impl RouteInk {
         ink
     }
 
-    fn run(&self, route: [[f64; 2]; 2]) -> f64 {
+    fn nearby(&self, route: [[f64; 2]; 2]) -> Vec<[[f64; 2]; 2]> {
+        let mut nearby = self
+            .model
+            .as_ref()
+            .map_or_else(Vec::new, |model| model.nearby(route));
         let (lo, hi, count) = Self::cells(grow_route_box(route_bounds(route), 0.3));
         if count > Self::MAX_CELLS {
-            return route_run(route, &self.segments);
+            nearby.extend_from_slice(&self.segments);
+            return nearby;
         }
         let mut indices: std::collections::BTreeSet<_> = self.long.iter().copied().collect();
         for x in lo[0]..=hi[0] {
@@ -637,8 +644,14 @@ impl RouteInk {
                 }
             }
         }
-        let nearby: Vec<_> = indices.into_iter().map(|i| self.segments[i]).collect();
-        route_run(route, &nearby)
+        nearby.extend(indices.into_iter().map(|i| self.segments[i]));
+        nearby
+    }
+
+    fn run(&self, route: [[f64; 2]; 2]) -> f64 {
+        // Merge model and extension intervals in one calculation. Separate
+        // maxima would miss a continuous run crossing between the two indexes.
+        route_run(route, &self.nearby(route))
     }
 }
 
@@ -667,11 +680,17 @@ fn indexed_route_ink(
             )
         })
         .collect();
-    let key = serde_json::to_vec(&(sheet, views, extensions)).expect("route ink inputs serialize");
+    let model_key = serde_json::to_vec(&(sheet, &views)).expect("model route ink inputs serialize");
+    let key = serde_json::to_vec(&(&model_key, extensions)).expect("route ink inputs serialize");
     crate::planning::memo(analysis, "indexed-sheet-route-ink", key, || {
-        let mut segments = route_ink(analysis, plan, sheet);
-        segments.extend(extensions.iter().map(|(_, s)| *s));
-        std::sync::Arc::new(RouteInk::new(segments))
+        // Reordering only dimension rows does not change a single model edge.
+        // Keep its complete index under the exact same resolved view inputs.
+        let model = crate::planning::memo(analysis, "indexed-model-route-ink", model_key, || {
+            std::sync::Arc::new(RouteInk::new(route_ink(analysis, plan, sheet)))
+        });
+        let mut ink = RouteInk::new(extensions.iter().map(|(_, s)| *s).collect());
+        ink.model = Some(model);
+        std::sync::Arc::new(ink)
     })
 }
 
@@ -3508,6 +3527,18 @@ pub(crate) fn order_location_rows(analysis: &Analysis, plan: &mut Plan) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn separate_model_and_extension_indexes_preserve_a_joined_run() {
+        let model = std::sync::Arc::new(RouteInk::new(vec![[[1.0, 0.2], [2.0, 0.2]]]));
+        let mut combined = RouteInk::new(vec![[[2.0, 0.2], [4.0, 0.2]]]);
+        combined.model = Some(model);
+        let all = [[[1.0, 0.2], [2.0, 0.2]], [[2.0, 0.2], [4.0, 0.2]]];
+        for route in [[[0.0, 0.0], [5.0, 0.0]], [[0.0, 0.0], [10000.0, 0.0]]] {
+            assert_eq!(combined.run(route), route_run(route, &all));
+            assert!((combined.run(route) - 3.0).abs() < 1e-9);
+        }
+    }
 
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
