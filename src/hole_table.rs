@@ -2541,10 +2541,44 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
         let cells = schedule_cells(&t);
         let widths = schedule_widths(&cells);
         let size = [widths.iter().sum(), ROW * cells.len() as f64];
-        let Some(at) = tables::place(size, &plan.sheet, &obstacles, Corner::TopRight) else {
-            return false;
+        // Gutters can expose a new top-right vacancy without changing the
+        // canonical schedule. Pins retain its exact cells when the same table
+        // still passes the ordinary border and PAD clearance checks.
+        let retained = plan
+            .canonical_schedules
+            .as_ref()
+            .and_then(|c| {
+                c.tables
+                    .iter()
+                    .find(|old| old.id == t.id && old.origin == t.origin)
+            })
+            .filter(|old| old.blocks.len() == 1 && old.blocks[0].rows == cells)
+            .and_then(|old| old.blocks[0].placed.as_ref())
+            .filter(|p| {
+                let b = p.cells;
+                let margin = crate::layout::MARGIN;
+                b[0] >= margin - 1e-6
+                    && b[1] >= margin - 1e-6
+                    && b[2] <= plan.sheet.page[0] - margin + 1e-6
+                    && b[3] <= plan.sheet.page[1] - margin + 1e-6
+                    && crate::layout::fit_box(
+                        [b[2] - b[0], b[3] - b[1]],
+                        b,
+                        &obstacles,
+                        Corner::TopRight,
+                        tables::PAD,
+                    )
+                    .is_some()
+            })
+            .cloned();
+        let placed = if let Some(p) = retained {
+            p
+        } else {
+            let Some(at) = tables::place(size, &plan.sheet, &obstacles, Corner::TopRight) else {
+                return false;
+            };
+            tables::lay(&cells, &widths, at)
         };
-        let placed = tables::lay(&cells, &widths, at);
         obstacles.push(placed.cells);
         t.blocks.push(PlannedTable {
             sheet: 1,
