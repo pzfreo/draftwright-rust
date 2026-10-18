@@ -4334,7 +4334,24 @@ mod tests {
             let precise = callout_bands(&analysis, &spec).unwrap();
             assert_eq!(precise.len(), 1);
             assert_eq!(precise[0].side, side);
-            assert!(precise[0].depth > bare[0].depth + 20.0);
+            let plan = crate::model::plan(&analysis, &spec).unwrap();
+            let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
+            assert!(d.label.contains("6.000000000000000"));
+            assert!(d.label.lines().count() > 1);
+            let ink = label_ink(&d.terms, font());
+            let width = ink.max[0] - ink.min[0];
+            assert!(width <= crate::callouts::WIDTH);
+            assert_eq!(precise[0].depth, FIRST + (width + SHOULDER) + 2.0);
+            // Precision still adds over 20 mm of text. Wrapping now reserves the
+            // widest line, rather than letting that text grow one unbounded column.
+            let unwrapped: Vec<_> = d
+                .terms
+                .iter()
+                .filter(|s| !crate::callouts::is_break(s))
+                .cloned()
+                .collect();
+            let ink = label_ink(&unwrapped, font());
+            assert!(FIRST + ink.max[0] - ink.min[0] + SHOULDER + 2.0 > bare[0].depth + 20.0);
         }
     }
 

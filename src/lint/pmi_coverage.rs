@@ -728,15 +728,7 @@ pub(super) fn thread_text_states(t: &crate::pmi_lowering::Thread, text: &str) ->
         (1..=5).filter(|n| i + n <= words.len()).any(|n| {
             let s = words[i..i + n].join(" ");
             let s = s.trim_end_matches([';', ',']);
-            crate::spec_notes::metric(s).is_ok_and(|(d, p)| {
-                (d - t.nominal).abs() < 1e-6
-                    && (p - t.pitch).abs() < 1e-6
-                    && (t.class.is_empty()
-                        || s.split_once('-').is_some_and(|(_, tail)| {
-                            tail.split_whitespace().next() == Some(t.class.as_str())
-                        }))
-                    && s.ends_with("LH") == (t.hand == "LH")
-            })
+            t.designation_matches(s)
         })
     });
     if !designation {

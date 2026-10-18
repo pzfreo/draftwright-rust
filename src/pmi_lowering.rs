@@ -2004,6 +2004,20 @@ pub(crate) struct Thread {
 }
 
 impl Thread {
+    /// Compare rendered designation ink with this source requirement alone. Lint uses
+    /// this pure parser without consulting presentation settings or the planned label.
+    pub(crate) fn designation_matches(&self, text: &str) -> bool {
+        crate::spec_notes::metric(text).is_ok_and(|(diameter, pitch)| {
+            (diameter - self.nominal).abs() < 1e-6
+                && (pitch - self.pitch).abs() < 1e-6
+                && (self.class.is_empty()
+                    || text.split_once('-').is_some_and(|(_, tail)| {
+                        tail.split_whitespace().next() == Some(self.class.as_str())
+                    }))
+                && text.ends_with("LH") == (self.hand == "LH")
+        })
+    }
+
     /// Conventional metric tapping drills. Fractional coarse pitches at M8/M9/M12
     /// use the available drill sizes in Walter's Threading Technical Compendium;
     /// do not classify those stated drills as non-standard by subtracting pitch.
