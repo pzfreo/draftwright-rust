@@ -9199,7 +9199,7 @@ fn render_annotations_with_cuts(
                 pw - layout::MARGIN,
                 ph - layout::MARGIN,
             ];
-            let curves = crate::detail::clip(circle, drawable)
+            let curves = crate::detail::clip_marker(circle, drawable)
                 .into_iter()
                 .flat_map(|arc| crate::detail::marker_ink(arc, &labels))
                 .collect::<Vec<_>>();

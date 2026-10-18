@@ -1078,6 +1078,8 @@ pub(crate) fn crop_extent(a: &Analysis, v: &PlannedView) -> ([f64; 2], [f64; 2])
     )
 }
 
+const CLIP_ROUNDOFF: f64 = 1e-8;
+
 /// Clip exact curves recursively by their conservative bounding boxes. Fully contained
 /// intervals retain their exact representation; only boundary intervals are subdivided.
 pub(crate) fn clip(curve: crate::output::Curve, rect: Rect) -> Vec<crate::output::Curve> {
@@ -1108,10 +1110,17 @@ pub(crate) fn clip(curve: crate::output::Curve, rect: Rect) -> Vec<crate::output
     }
     fn visit(c: crate::output::Curve, r: Rect, depth: u8, out: &mut Vec<crate::output::Curve>) {
         let b = c.bbox();
-        if b[2] < r[0] - 1e-8 || b[0] > r[2] + 1e-8 || b[3] < r[1] - 1e-8 || b[1] > r[3] + 1e-8 {
+        if b[2] < r[0] - CLIP_ROUNDOFF
+            || b[0] > r[2] + CLIP_ROUNDOFF
+            || b[3] < r[1] - CLIP_ROUNDOFF
+            || b[1] > r[3] + CLIP_ROUNDOFF
+        {
             return;
         }
-        if b[0] >= r[0] - 1e-8 && b[1] >= r[1] - 1e-8 && b[2] <= r[2] + 1e-8 && b[3] <= r[3] + 1e-8
+        if b[0] >= r[0] - CLIP_ROUNDOFF
+            && b[1] >= r[1] - CLIP_ROUNDOFF
+            && b[2] <= r[2] + CLIP_ROUNDOFF
+            && b[3] <= r[3] + CLIP_ROUNDOFF
         {
             out.push(c);
             return;
@@ -1125,6 +1134,25 @@ pub(crate) fn clip(curve: crate::output::Curve, rect: Rect) -> Vec<crate::output
     let mut out = Vec::new();
     visit(curve, rect, 0, &mut out);
     out
+}
+
+/// Keep page-marker ink inside the exact drawable border. The curve clipper's
+/// numerical allowance is useful at feature boundaries; an inset of twice that
+/// allowance prevents it from exporting a page marker just outside the sheet.
+pub(crate) fn clip_marker(
+    circle: crate::output::Curve,
+    drawable: Rect,
+) -> Vec<crate::output::Curve> {
+    let guard = 2.0 * CLIP_ROUNDOFF;
+    clip(
+        circle,
+        [
+            drawable[0] + guard,
+            drawable[1] + guard,
+            drawable[2] - guard,
+            drawable[3] - guard,
+        ],
+    )
 }
 
 /// A rectangular crop is an interrupted view, not a manufactured closing edge.
@@ -1334,6 +1362,32 @@ pub(crate) fn marker_ink(
 mod tests {
     use super::*;
     use crate::output::Curve;
+
+    #[test]
+    fn page_marker_arcs_do_not_export_the_clippers_roundoff_outside_the_border() {
+        let circle = Curve::Conic {
+            centre: [149.75, 67.1500272280282],
+            radii: [66.06919519533733; 2],
+            x_axis: [1.0, 0.0],
+            y_axis: [0.0, 1.0],
+            t0: 0.0,
+            t1: std::f64::consts::TAU,
+        };
+        let drawable = [10.0, 10.0, 584.0, 410.0];
+        assert!(circle.bbox()[1] < drawable[1]);
+        let arcs = clip_marker(circle, drawable);
+        assert!(!arcs.is_empty());
+        for arc in &arcs {
+            let b = arc.bbox();
+            assert!(b[0] >= drawable[0] && b[1] >= drawable[1]);
+            assert!(b[2] <= drawable[2] && b[3] <= drawable[3]);
+        }
+        let bottom = arcs
+            .iter()
+            .map(|arc| arc.bbox()[1])
+            .fold(f64::INFINITY, f64::min);
+        assert!(bottom < drawable[1] + 1e-6);
+    }
 
     #[test]
     fn every_cut_endpoint_meets_a_thin_break_and_whole_curves_need_none() {
