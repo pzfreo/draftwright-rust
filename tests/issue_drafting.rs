@@ -176,7 +176,7 @@ fn overlap(a: [f64; 4], b: [f64; 4]) -> bool {
 /// The numbers a label prints as measurements: each term's number, less a count (`4×`), a
 /// grid's shape (`(2×2)`) and a face's ordinal (`FACE 1 OF 3`).
 fn printed(label: &str) -> Vec<String> {
-    let terms: Vec<&str> = label.split(' ').collect();
+    let terms: Vec<&str> = label.split_whitespace().collect();
     let mut out = Vec::new();
     for (i, t) in terms.iter().enumerate() {
         let before = i.checked_sub(1).map(|j| terms[j]);
@@ -196,7 +196,7 @@ fn printed(label: &str) -> Vec<String> {
 /// ISSUE-1142-a: a hole callout's claims cover everything its compound text prints. Every number
 /// it prints (the bore, its depth, the recesses, the countersink, a bolt circle) is the value of
 /// a measurement it claims, and every measurement it claims is printed; the drawn annotation
-/// carries the plan's claims and prints the plan's label as one run (the port does not wrap).
+/// carries the plan's claims and prints the complete label in ordered, wrapped text runs.
 #[test]
 fn a_hole_callout_claims_everything_it_prints() {
     let mut seen = 0;
@@ -206,7 +206,12 @@ fn a_hole_callout_claims_everything_it_prints() {
             let numbers: BTreeSet<String> = printed(&d.label).into_iter().collect();
             let claimed: BTreeSet<String> = d.measurements.iter().map(|m| fmt(m.value)).collect();
             assert_eq!(numbers, claimed, "{name}: {} prints {:?}", d.id, d.label);
-            assert_eq!(d.label, d.terms.join(" "), "{name}: {}", d.id);
+            assert_eq!(
+                d.label,
+                draftwright::callouts::label(&d.terms),
+                "{name}: {}",
+                d.id
+            );
         }
     }
     assert!(seen > 10, "{seen} hole callouts");
@@ -224,8 +229,17 @@ fn a_hole_callout_claims_everything_it_prints() {
                 })
                 .collect();
             assert_eq!(a.claims, claims, "{name}: {}", d.id);
-            assert_eq!(a.runs.len(), 1, "{name}: {}", d.id);
-            assert_eq!(drawing.text[a.runs[0]].text, d.label, "{name}: {}", d.id);
+            assert_eq!(a.runs.len(), d.label.lines().count(), "{name}: {}", d.id);
+            assert_eq!(
+                a.runs
+                    .iter()
+                    .map(|&i| drawing.text[i].text.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+                d.label,
+                "{name}: {}",
+                d.id
+            );
         }
     }
 }
@@ -1380,7 +1394,12 @@ fn every_authored_tolerance_reaches_the_label_that_claims_it() {
                     d.label
                 );
             }
-            assert_eq!(d.label, d.terms.join(" "), "{name}: {}", d.id);
+            assert_eq!(
+                d.label,
+                draftwright::callouts::label(&d.terms),
+                "{name}: {}",
+                d.id
+            );
             if d.placed.is_none() {
                 assert!(reported("view_plan_incomplete", &d.id), "{name}: {}", d.id);
             }
@@ -1627,13 +1646,29 @@ fn an_authored_magnitude_is_never_rounded() {
     ] {
         let plan = fixture_plan("plate", &tolerances(&[(id, authored)]));
         let d = dimension(&plan, id);
-        assert_eq!(d.label, format!("4× ⌀6 {printed} THRU (2×2)"), "{authored}");
+        // The longest bands now wrap at the same 48 mm limit as other callouts.
+        let expected = if matches!(authored, "±0.000000123" | "+0.015 -0.002" | "+0.00001 -0") {
+            format!("4× ⌀6 {printed} THRU\n(2×2)")
+        } else {
+            format!("4× ⌀6 {printed} THRU (2×2)")
+        };
+        assert_eq!(d.label, expected, "{authored}");
         let b = d.placed.as_ref().unwrap().label_box;
         let ink = draftwright::dims::label_ink(&d.terms, &font);
         assert!(((b[2] - b[0]) - (ink.max[0] - ink.min[0])).abs() < 1e-9);
         assert_eq!(codes(&plan), codes(&bare), "{authored}");
         let (_, drawing) = drawn("plate", &plan);
-        assert!(drawing.text.iter().any(|t| t.text == d.label), "{authored}");
+        let annotation = drawing.annotations.iter().find(|a| a.name == d.id).unwrap();
+        assert_eq!(
+            annotation
+                .runs
+                .iter()
+                .map(|&i| drawing.text[i].text.as_str())
+                .collect::<Vec<_>>()
+                .join("\n"),
+            d.label,
+            "{authored}"
+        );
     }
 }
 

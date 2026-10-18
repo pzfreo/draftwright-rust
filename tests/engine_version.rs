@@ -135,6 +135,7 @@ fn tools_explain_their_operations_without_source_and_fit_schema_budget() {
     assert!(description("inspect_part").contains("problem_filter"));
     assert!(description("list_problems").contains("filter.feature"));
     assert!(description("item_options").contains("diameter"));
+    assert!(description("item_options").contains("align=projection"));
     let schema_bytes: usize = tools
         .iter()
         .map(|tool| {
@@ -144,6 +145,11 @@ fn tools_explain_their_operations_without_source_and_fit_schema_budget() {
         .sum();
     // Exact compact total after moving nested Spec vocabulary out of tools/list.
     // The generator asserts the same ceiling; nested Spec additions cost no context.
+    // In particular the view-gap description adds zero advertised bytes.
+    // The projection enum and description are on demand: +0 advertised schema bytes.
+    // The generator asserts the same unchanged ceiling.
+    // The generator asserts the same ceiling; callouts/style adds 0 tools/list bytes
+    // because sheet and feature vocabulary is in on-demand schemas/spec.json.
     assert_eq!(schema_bytes, 34477, "schemas: {schema_bytes} bytes");
     eprintln!("schema bytes per session: {schema_bytes}");
 }

@@ -692,3 +692,180 @@ fn the_drawn_by_cell_credits_draftwright_and_carries_the_link() {
     );
     assert_eq!(title_block::attribution("   "), "draftwright");
 }
+
+#[test]
+fn default_titles_prefer_meaningful_products_and_preserve_explicit_titles() {
+    let bytes = std::fs::read_to_string(fixture("parts/plate.step")).unwrap();
+    // A real STEP read, with no PMI required for the product name.
+    let bytes = bytes.replace(
+        "PRODUCT('COMPOUND','COMPOUND'",
+        "PRODUCT('Clamp plate','Clamp plate'",
+    );
+    let (_, a) =
+        model::analyse_native_bytes("string_post-tapped.step.gz", bytes.as_bytes()).unwrap();
+    assert_eq!(a.product_name.as_deref(), Some("Clamp plate"));
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(cell(&p, "title").value.as_deref(), Some("CLAMP PLATE"));
+    assert_eq!(a.binding.part, "string_post-tapped");
+
+    for product in [
+        None,
+        Some(""),
+        Some("  "),
+        Some("Part1"),
+        Some("Part 12"),
+        Some("Body"),
+        Some("Body.001"),
+        Some("Solid"),
+        Some("COMPOUND"),
+    ] {
+        let mut a = a.clone();
+        a.product_name = product.map(String::from);
+        let p = model::plan(&a, &Spec::default()).unwrap();
+        assert_eq!(
+            cell(&p, "title").value.as_deref(),
+            Some("STRING POST TAPPED"),
+            "{product:?}"
+        );
+        for title in ["Explicit drawing title", ""] {
+            let mut s = Spec::default();
+            s.sheet.title.insert("title".into(), title.into());
+            let p = model::plan(&a, &s).unwrap();
+            assert_eq!(p.sheet.title["title"], title);
+        }
+    }
+    let mut s = Spec::default();
+    s.sheet
+        .title
+        .insert("title".into(), "Override product".into());
+    assert_eq!(
+        model::plan(&a, &s).unwrap().sheet.title["title"],
+        "Override product"
+    );
+    // A selected assembly member's binding is its product name, so preserve the file stem
+    // separately when a generic CAD name needs the same fallback.
+    let assembly = std::fs::read_to_string(fixture("assembly/assembly.step"))
+        .unwrap()
+        .replace("PRODUCT('pin','pin'", "PRODUCT('Body1','Body1'");
+    let (_, selected) = model::analyse_step_part(
+        Path::new("string_post-tapped.step"),
+        assembly.as_bytes(),
+        Some(1),
+    )
+    .unwrap();
+    assert_eq!(selected.binding.part, "Body1");
+    assert_eq!(selected.source_stem.as_deref(), Some("string_post-tapped"));
+    assert_eq!(
+        model::plan(&selected, &Spec::default())
+            .unwrap()
+            .sheet
+            .title["title"],
+        "STRING POST TAPPED"
+    );
+    let mut legacy = serde_json::to_value(&a).unwrap();
+    legacy.as_object_mut().unwrap().remove("product_name");
+    let legacy: Analysis = serde_json::from_value(legacy).unwrap();
+    assert_eq!(
+        model::plan(&legacy, &Spec::default()).unwrap().sheet.title["title"],
+        "STRING POST TAPPED"
+    );
+}
+
+#[test]
+fn drawing_number_prefers_the_products_leading_part_number() {
+    let bytes = std::fs::read_to_string(fixture("parts/plate.step"))
+        .unwrap()
+        .replace(
+            "PRODUCT('COMPOUND','COMPOUND'",
+            "PRODUCT('GRM-02 Shaft','GRM-02 Shaft'",
+        );
+    let (_, a) = model::analyse_native_bytes(
+        "GRM-03_thumbwheel_drive_screw_ap242_pmi.step.gz",
+        bytes.as_bytes(),
+    )
+    .unwrap();
+    assert_eq!(a.product_name.as_deref(), Some("GRM-02 Shaft"));
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(cell(&p, "drawing_number").value.as_deref(), Some("GRM-02"));
+    // Keep #108's complete readable title, even when its number is also in DWG NO.
+    assert_eq!(cell(&p, "title").value.as_deref(), Some("GRM 02 SHAFT"));
+}
+
+#[test]
+fn drawing_number_uses_the_stem_when_the_product_has_no_part_number() {
+    for product in [None, Some("Thumbwheel drive screw"), Some("Bracket 42")] {
+        let mut a = plate().1.clone();
+        a.product_name = product.map(String::from);
+        a.binding.part = "GRM-03_thumbwheel_drive_screw_ap242_pmi".into();
+        let p = model::plan(&a, &Spec::default()).unwrap();
+        assert_eq!(cell(&p, "drawing_number").value.as_deref(), Some("GRM-03"));
+    }
+    // A selected assembly member keeps the file's stem separately from its binding.
+    let mut a = plate().1.clone();
+    a.product_name = Some("Thumbwheel drive screw".into());
+    a.binding.part = "Thumbwheel drive screw".into();
+    a.source_stem = Some("GRM-03_thumbwheel_drive_screw_ap242_pmi".into());
+    assert_eq!(
+        model::plan(&a, &Spec::default()).unwrap().sheet.title["number"],
+        "GRM-03"
+    );
+}
+
+#[test]
+fn a_numeric_stem_is_a_drawing_number() {
+    let mut a = plate().1.clone();
+    a.product_name = None;
+    a.binding.part = "10000".into();
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(cell(&p, "drawing_number").value.as_deref(), Some("10000"));
+}
+
+#[test]
+fn a_plain_word_stem_keeps_the_fallback_drawing_number() {
+    let p = model::plan(&plate().1, &Spec::default()).unwrap();
+    assert_eq!(cell(&p, "drawing_number").value.as_deref(), Some("DWG-001"));
+}
+
+#[test]
+fn an_explicit_spec_drawing_number_wins() {
+    let mut a = plate().1.clone();
+    a.product_name = Some("GRM-03 Thumbwheel".into());
+    let mut s = Spec::default();
+    s.sheet.title.insert("number".into(), "AUTHOR-42".into());
+    let p = model::plan(&a, &s).unwrap();
+    assert_eq!(
+        cell(&p, "drawing_number").value.as_deref(),
+        Some("AUTHOR-42")
+    );
+}
+
+#[test]
+fn an_explicit_blank_spec_drawing_number_wins() {
+    let mut a = plate().1.clone();
+    a.product_name = Some("GRM-03 Thumbwheel".into());
+    for blank in ["", "   "] {
+        let mut s = Spec::default();
+        s.sheet.title.insert("number".into(), blank.into());
+        let p = model::plan(&a, &s).unwrap();
+        assert_eq!(p.sheet.title["number"], blank);
+        assert_eq!(cell(&p, "drawing_number").value, None);
+    }
+}
+
+#[test]
+fn drawing_numbers_require_a_leading_token_with_only_internal_hyphens() {
+    for (product, expected) in [
+        ("  grm-03-2 Thumbwheel", "grm-03-2"),
+        ("10000 Bracket", "10000"),
+        ("A42_thumbwheel", "A42"),
+        ("GRM--03 Thumbwheel", "DWG-001"),
+        ("GRM-03- Thumbwheel", "DWG-001"),
+        ("-GRM-03 Thumbwheel", "DWG-001"),
+        ("Bracket GRM-03", "DWG-001"),
+    ] {
+        let mut a = plate().1.clone();
+        a.product_name = Some(product.into());
+        let p = model::plan(&a, &Spec::default()).unwrap();
+        assert_eq!(p.sheet.title["number"], expected, "{product}");
+    }
+}

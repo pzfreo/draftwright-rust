@@ -42,6 +42,10 @@ macro_rules! part_cases {
     };
 }
 
+/// Independently tested against the kernel contract in pmi_dimensions, without a Python
+/// comparison capture. Keep it in the strict on-disk fixture inventory as well.
+pub const DERIVED_PMI_FILE: &str = "GRM-03_thumbwheel_drive_screw_AP242_PMI.step";
+
 /// Single inventory for both the generated tests and the fixture completeness assertion.
 macro_rules! pmi_files {
     ($emit:ident $(, $check:ident)?) => { $emit!($($check;)?

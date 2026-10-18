@@ -1297,10 +1297,24 @@ fn settable(
                 format!("{base}/place/side"),
                 choices(json!(["above", "below", "left", "right"])),
             );
-            fields.insert(format!("{base}/place/gap"), json!({"range":[0,1000]}));
+            fields.insert(format!("{base}/place/gap"), json!({"range":[0,1000],"consequences":["Clear paper distance in mm between the views’ annotation bands, not their part outlines (default 10 mm)."]}));
+            let name = id.trim_start_matches("v:");
+            let anchor = session
+                .spec()
+                .views
+                .get(name)
+                .and_then(|v| v.place.as_ref())
+                .map(|p| p.relative_to.as_str())
+                .or_else(|| {
+                    view_anchors
+                        .iter()
+                        .map(|v| v.trim_start_matches("v:"))
+                        .find(|anchor| crate::placement_intent::projection_related(name, anchor))
+                })
+                .unwrap_or("");
             fields.insert(
                 format!("{base}/place/align"),
-                choices(json!(["start", "middle", "end", "outside"])),
+                choices(json!(crate::placement_intent::align_choices(name, anchor))),
             );
         } else {
             let mut views: Vec<_> = placements.iter().filter_map(|p| p.view.clone()).collect();
@@ -1397,6 +1411,23 @@ fn settable(
             }
         }
     }
+    let callout_paths: Vec<_> =
+        item.features
+            .iter()
+            .filter(|id| {
+                analysis.features.iter().any(|f| {
+                    &f.id == *id && matches!(f.kind.as_str(), "hole" | "turned_step" | "boss")
+                })
+            })
+            .map(|id| format!("features/{}/callouts/style", items::key(id)))
+            .collect();
+    if let Some(path) = callout_paths.first() {
+        let mut descriptor = choices(json!(["auto", "compact", "full", "note"]));
+        if callout_paths.len() > 1 {
+            descriptor["paths"] = json!(callout_paths);
+        }
+        fields.insert(path.clone(), descriptor);
+    }
     for (classes, paths) in fits {
         let mut descriptor = choices(json!(classes));
         if paths.len() > 1 {
@@ -1405,6 +1436,10 @@ fn settable(
         fields.insert(paths[0].clone(), descriptor);
     }
     if item.item.kind == "sheet" {
+        fields.insert(
+            "sheet/callouts/style".into(),
+            choices(json!(["auto", "compact", "full", "note"])),
+        );
         for field in crate::linework::FIELDS {
             fields.insert(format!("sheet/{field}"), choices(json!([false, true])));
         }
@@ -1428,6 +1463,10 @@ fn settable(
             || patterns.iter().any(|p| &p.id == feature);
         if known {
             let base = format!("features/{}", items::key(feature));
+            fields.insert(
+                format!("{base}/callouts/style"),
+                choices(json!(["auto", "compact", "full", "note"])),
+            );
             fields.insert(format!("{base}/datum"), json!({"forms":["A"]}));
             fields.insert(
                 format!("{base}/controls"),
@@ -1474,6 +1513,10 @@ fn settable(
         fields.insert(
             "sheet/automatic_details".into(),
             choices(json!([false, true])),
+        );
+        fields.insert(
+            "sheet/view_gutter".into(),
+            json!({"forms":["non-negative paper mm (default 25; 0 disables)"]}),
         );
         fields.insert("sheet/fit_limits".into(), choices(json!([false, true])));
         fields.insert("sheet/fit_deviations".into(), choices(json!([false, true])));

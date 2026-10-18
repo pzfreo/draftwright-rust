@@ -223,7 +223,10 @@ mod tests {
                     value: 10.0,
                 }],
                 basis: String::new(),
-                shape: Shape::Callout { sites: vec![] },
+                shape: Shape::Callout {
+                    arcs: Vec::new(),
+                    sites: vec![],
+                },
                 turning: None,
             };
             let mut spec = Spec::default();

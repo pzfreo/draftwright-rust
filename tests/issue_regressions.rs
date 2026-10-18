@@ -740,7 +740,7 @@ fn a_circular_seat_keeps_its_arc_and_six_requirements() {
         .iter()
         .find(|d| d.id.ends_with("/seat_diameter.diameter"))
         .unwrap();
-    assert_eq!(callout.label, "3× ø14.3 × 6 LONG × 62.9° ARC");
+    assert_eq!(callout.label, "3× ø14.3 × 6 LONG × 62.9°\nARC");
     assert_eq!(callout.measurements.len(), 9);
     for m in &callout.measurements {
         let (want, within) = match m.parameter.as_str() {

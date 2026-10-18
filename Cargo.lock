@@ -187,7 +187,7 @@ dependencies = [
 
 [[package]]
 name = "draftwright"
-version = "0.1.0-alpha.4"
+version = "0.1.0-alpha.5"
 dependencies = [
  "chrono",
  "dxf",
@@ -208,7 +208,7 @@ dependencies = [
 
 [[package]]
 name = "draftwright-wasm"
-version = "0.1.0-alpha.4"
+version = "0.1.0-alpha.5"
 dependencies = [
  "console_error_panic_hook",
  "draftwright",
@@ -358,8 +358,8 @@ dependencies = [
 
 [[package]]
 name = "haecceity"
-version = "0.1.0-alpha.5"
-source = "git+https://github.com/pzfreo/quiddity-rust?rev=f14e08f8c1e782b9c33b4c66db9cc54174f0840e#f14e08f8c1e782b9c33b4c66db9cc54174f0840e"
+version = "0.1.0-alpha.6"
+source = "git+https://github.com/pzfreo/quiddity-rust?rev=6ab5f29df418a06ee26e86ce1f7b010b653e1ade#6ab5f29df418a06ee26e86ce1f7b010b653e1ade"
 dependencies = [
  "flate2",
  "i_overlay",
@@ -718,8 +718,8 @@ checksum = "d55d956fa96f5ec02be2e13af0e20391a5aa83d6a074e3ad368959d0fab299ea"
 
 [[package]]
 name = "quiddity"
-version = "0.1.0-alpha.5"
-source = "git+https://github.com/pzfreo/quiddity-rust?rev=f14e08f8c1e782b9c33b4c66db9cc54174f0840e#f14e08f8c1e782b9c33b4c66db9cc54174f0840e"
+version = "0.1.0-alpha.6"
+source = "git+https://github.com/pzfreo/quiddity-rust?rev=6ab5f29df418a06ee26e86ce1f7b010b653e1ade#6ab5f29df418a06ee26e86ce1f7b010b653e1ade"
 dependencies = [
  "flate2",
  "haecceity",

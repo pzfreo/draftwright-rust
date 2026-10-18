@@ -16,6 +16,46 @@ use serde::{Deserialize, Serialize};
 
 pub type P = [f64; 2];
 
+/// Centre baseline label ink on a table/note anchor. Strokes and glyphs share the
+/// same transform; all exporters consume these visible primitives.
+pub(crate) fn centred_label_ink(
+    ink: crate::dims::LabelInk,
+    at: P,
+    items: &mut Vec<Item>,
+) -> crate::text::Laid {
+    use crate::text::Segment;
+    let centre = [0, 1].map(|k| 0.5 * (ink.min[k] + ink.max[k]));
+    let local = |p: P| [p[0] - centre[0], p[1] - centre[1]];
+    for [a, b] in ink.strokes {
+        let a = local(a);
+        let b = local(b);
+        items.push(Item::Edge(Curve::Line(
+            [at[0] + a[0], at[1] + a[1]],
+            [at[0] + b[0], at[1] + b[1]],
+        )));
+    }
+    crate::text::Laid {
+        contours: ink
+            .glyphs
+            .into_iter()
+            .flatten()
+            .map(|c| {
+                c.into_iter()
+                    .map(|s| match s {
+                        Segment::Line(a, b) => Segment::Line(local(a), local(b)),
+                        Segment::Quad(a, b, c) => Segment::Quad(local(a), local(b), local(c)),
+                        Segment::Cubic(a, b, c, d) => {
+                            Segment::Cubic(local(a), local(b), local(c), local(d))
+                        }
+                    })
+                    .collect()
+            })
+            .collect(),
+        min: local(ink.min),
+        max: local(ink.max),
+    }
+}
+
 /// Stable rendered item name for the isometric's required scale disclaimer.
 pub const NTS_CAPTION_ID: &str = "note_iso_nts";
 

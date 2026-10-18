@@ -515,8 +515,16 @@ fn the_cgb245_view_pin_reproducer_keeps_its_schedule() {
         );
     }
     let mut ops: Vec<_> = ["d:envelope/height.length", "d:f:slot:1/location_slot.length", "d:f:slot:1/slot_length.length", "d:f:slot:1/slot_width.length", "d:step_level/step_height.length.h13_226", "d:step_level/step_height.length.h9_226"].iter().map(|id| serde_json::json!({"op":"set", "path":format!("dimensions/{}/place",draftwright::items::key(id)), "value":{"pinned":true}})).collect();
-    for (view, side, align) in [("plan", "above", "middle"), ("iso", "right", "start")] {
-        ops.push(serde_json::json!({"op":"set", "path":format!("views/{view}/place"), "value":{"relative_to":"front", "side":side, "align":align, "gap":0, "pinned":true}}));
+    // Pin each view at the gap the default layout reports (as the editor does), so the
+    // default gutter is replayed rather than replaced by an explicit zero.
+    let area = |id: &str| base.views.iter().find(|v| v.id == id).unwrap().area;
+    let front = area("v:front");
+    let gaps = [area("v:plan")[1] - front[3], area("v:iso")[0] - front[2]];
+    for ((view, side, align), gap) in [("plan", "above", "middle"), ("iso", "right", "start")]
+        .into_iter()
+        .zip(gaps)
+    {
+        ops.push(serde_json::json!({"op":"set", "path":format!("views/{view}/place"), "value":{"relative_to":"front", "side":side, "align":align, "gap":gap, "pinned":true}}));
     }
     let spec = model::edit(&Spec::default(), &serde_json::json!(ops)).unwrap();
     let after = model::plan_recovered(&analysis, &spec).unwrap();

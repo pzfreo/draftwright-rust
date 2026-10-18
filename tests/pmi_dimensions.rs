@@ -550,7 +550,7 @@ part_cases!(the_open_questions_stay_refused;
     nist_ftc_10_asme1_ap242_e2 => "nist_ftc_10_asme1_ap242-e2",
 );
 fn the_open_questions_stay_refused(stem: &str) {
-    // stc_10's supplemental geometry and ftc_10's fit without limits stay open questions.
+    // Unsupported supplemental geometry and fits without limits stay refused with a remedy.
     let needle = match stem {
         "nist_stc_10_asme1_ap242-e2" => "supplemental geometry",
         "nist_ftc_10_asme1_ap242-e2" => "stated without limits",
@@ -569,10 +569,16 @@ fn the_open_questions_stay_refused(stem: &str) {
         let p = plan
             .problems
             .iter()
-            .find(|p| p.code == "pmi_not_lowered" && p.refs == [r.source_id.clone()])
+            .find(|p| p.code == "pmi_not_lowered" && p.refs.first() == Some(&r.source_id))
             .unwrap();
         assert!(
-            p.message.contains("open question for the maintainer"),
+            p.message
+                .contains("add the required dimension in the Spec and review it manually")
+                && p.refs.iter().any(|reason| reason.contains(needle))
+                && !p
+                    .refs
+                    .iter()
+                    .any(|reason| reason.contains("open question for the maintainer")),
             "{}",
             p.message
         );
@@ -587,7 +593,7 @@ fn a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins() {
         .iter()
         .find(|d| d.id == "d:f:hole_pattern:1/bore.diameter")
         .unwrap();
-    assert_eq!(callout.label, "6× ⌀10 +0.09 -0.0 THRU EQ SP ON ø90 BC");
+    assert_eq!(callout.label, "6× ⌀10 +0.09 -0.0 THRU EQ\nSP ON ø90 BC");
     assert!(callout.basis.contains("lower_ap242_hole_tolerances"));
     let feature = callout
         .measurements
@@ -619,7 +625,7 @@ fn a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins() {
         .iter()
         .find(|d| d.id == callout.id)
         .unwrap();
-    assert_eq!(c.label, "6× ⌀10 ±0.05 THRU EQ SP ON ø90 BC");
+    assert_eq!(c.label, "6× ⌀10 ±0.05 THRU EQ SP ON\nø90 BC");
     assert!(
         c.measurements
             .iter()
@@ -630,9 +636,15 @@ fn a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins() {
         "{}",
         c.basis
     );
-    assert!(edited.problems.iter().any(|p| p.code == "pmi_not_lowered"
-        && p.refs.contains(&source)
-        && p.message.contains("wins over an imported one")));
+    assert!(edited.problems.iter().any(|p| {
+        p.code == "pmi_not_lowered"
+            && p.refs.contains(&source)
+            && p.message
+                .contains("Remove the Spec override to use the STEP tolerance")
+            && p.refs
+                .iter()
+                .any(|r| r.contains("lower_ap242_hole_tolerances"))
+    }));
 
     // A fit on every hole wins the same way, and only the fit is printed.
     let holes: Vec<String> = callout
@@ -660,18 +672,19 @@ fn a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins() {
         (c, edited.problems)
     };
     let (c, problems) = fitted(&holes);
-    assert_eq!(c.label, "6× ⌀10 H7 THRU EQ SP ON ø90 BC");
+    assert_eq!(c.label, "6× ⌀10 H7 THRU EQ SP ON ø90\nBC");
     assert!(problems.iter().any(|p| p.code == "pmi_not_lowered"
         && p.refs.contains(&source)
         && p.message.contains("its own fit")
-        && !p.message.contains("withheld")));
+        && !p.message.contains("cannot be printed")));
     // A fit on some of them is withheld: the label states neither, and the report says so.
     let (c, problems) = fitted(&holes[..1]);
     assert_eq!(c.label, "6× ⌀10 THRU EQ SP ON ø90 BC");
     assert!(problems.iter().any(|p| p.code == "tolerance_withheld"));
     assert!(problems.iter().any(|p| p.code == "pmi_not_lowered"
         && p.refs.contains(&source)
-        && p.message.contains("withheld")));
+        && p.message.contains("cannot be printed")
+        && p.refs.contains(&"tolerance_withheld".into())));
 }
 
 #[test]
@@ -1028,7 +1041,7 @@ fn what_the_faces_do_not_prove_is_reported_not_guessed() {
     let reason = |plan: &Plan| {
         plan.problems
             .iter()
-            .find(|p| p.refs == [source.clone()])
+            .find(|p| p.refs.first() == Some(&source))
             .map(|p| (p.code.clone(), p.message.clone()))
             .unwrap()
     };
@@ -1384,5 +1397,228 @@ fn oblique_pmi_draws_its_exact_projected_station_span() {
                         && i.annotation.as_deref() == Some(d.id.as_str()))
             );
         }
+    }
+}
+
+#[test]
+fn grm03_draws_all_ten_derived_dimensions_with_their_requirements_once() {
+    let (part, a, plan) = planned(support::DERIVED_PMI_FILE.trim_end_matches(".step"));
+    let expected = [
+        (841, 4.0),
+        (877, 6.0),
+        (914, 10.0),
+        (958, 5.0),
+        (994, 1.6),
+        (1040, 3.2),
+        (1086, 0.5),
+        (1132, 2.0),
+        (1174, 3.0),
+        (1216, 20.0),
+    ];
+    let dimensions: Vec<_> = records(&a)
+        .iter()
+        .filter(|r| r.category == Category::Dimension)
+        .collect();
+    assert_eq!(dimensions.len(), 10);
+    for (id, value) in expected {
+        let r = dimensions.iter().find(|r| r.part21_id == id).unwrap();
+        assert_eq!(r.value, Some(value));
+        assert!(r.blockers.is_empty(), "{r:?}");
+        let g = r.geometry.as_ref().unwrap();
+        assert!(g.reasons.is_empty(), "{r:?}");
+        assert!(g.targets.iter().all(Option::is_some), "{r:?}");
+        let d = stating(&plan, &a, r).unwrap_or_else(|| panic!("{r:?}\n{:#?}", plan.problems));
+        assert!(d.placed.is_some(), "{d:?}");
+        assert_eq!(d.value, value);
+        let identity = item_id(&a, r).unwrap();
+        assert_eq!(
+            plan.dimensions
+                .iter()
+                .filter(|d| d.measurements.iter().any(|m| m.feature == identity))
+                .count(),
+            1
+        );
+        if id == 914 {
+            assert_eq!(d.label, "ø10 MAX SEE MFG 2");
+        }
+        if r.upper_tol.is_some() || r.lower_tol.is_some() {
+            assert!(
+                d.label.contains('±') || d.label.contains('+') || d.label.contains('-'),
+                "{}",
+                d.label
+            );
+        }
+        // A geometrical fallback for a claimed size would repeat the source's information.
+        assert!(
+            !plan
+                .dimensions
+                .iter()
+                .any(|other| other.id != d.id && other.value == value && other.kind == d.kind),
+            "duplicate {d:?}"
+        );
+    }
+    let font =
+        draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
+    let drawing = model::render(&part, &a, &plan, &font).unwrap();
+    let issues = draftwright::lint::pmi_coverage::coverage(&a, &draftwright::lint::marks(&drawing));
+    // The original file also has three unsupported manufacturing notes. Keep those
+    // exact refusals while requiring every dimension and datum to reach actual ink.
+    let refused: Vec<_> = issues
+        .iter()
+        .filter(|i| i.code == "pmi_not_lowered")
+        .flat_map(|i| i.sources.iter().map(String::as_str))
+        .collect();
+    assert_eq!(
+        refused,
+        [
+            "manufacturing_requirement:#2020",
+            "manufacturing_requirement:#2024",
+            "manufacturing_requirement:#2028"
+        ]
+    );
+    assert!(
+        !issues
+            .iter()
+            .any(|i| ["pmi_not_rendered", "pmi_value_mismatch"].contains(&i.code.as_str())),
+        "{issues:?}"
+    );
+    assert_eq!(plan.sheet.size, "A4");
+    assert!(
+        !plan
+            .dimensions
+            .iter()
+            .any(|d| d.id.ends_with("/step_position.length")),
+        "the complete source chain owns the profile lengths"
+    );
+}
+
+#[test]
+fn derived_dimension_lint_checks_geometry_and_maximum_independently_of_claims() {
+    let (_, mut a, plan) = planned("GRM-03_thumbwheel_drive_screw_AP242_PMI");
+    let mut ink = marks(&plan);
+    let Some(Reading::Read(report)) = &mut a.pmi else {
+        panic!("PMI");
+    };
+    let r = report
+        .records
+        .iter_mut()
+        .find(|r| r.part21_id == 914)
+        .unwrap();
+    let source = r.source_id.clone();
+    r.geometry.as_mut().unwrap().targets[0]
+        .as_mut()
+        .unwrap()
+        .radius = Some(6.0);
+    let issues = draftwright::lint::pmi_coverage::coverage(&a, &ink);
+    assert!(
+        issues
+            .iter()
+            .any(|i| i.code == "pmi_value_mismatch" && i.sources.contains(&source)),
+        "{issues:?}"
+    );
+    let Some(Reading::Read(report)) = &mut a.pmi else {
+        unreachable!()
+    };
+    report
+        .records
+        .iter_mut()
+        .find(|r| r.part21_id == 914)
+        .unwrap()
+        .geometry
+        .as_mut()
+        .unwrap()
+        .targets[0]
+        .as_mut()
+        .unwrap()
+        .radius = Some(5.0);
+    for m in &mut ink {
+        m.text = m.text.replace(" MAX", "");
+    }
+    let issues = draftwright::lint::pmi_coverage::coverage(&a, &ink);
+    assert!(
+        issues
+            .iter()
+            .any(|i| i.code == "pmi_value_mismatch" && i.message.contains("MAX")),
+        "{issues:?}"
+    );
+}
+
+#[test]
+fn derived_requirements_preserve_tolerance_bands_on_owned_and_standalone_dimensions() {
+    let (_, mut a, _) = planned("GRM-03_thumbwheel_drive_screw_AP242_PMI");
+    let Some(Reading::Read(report)) = &mut a.pmi else {
+        panic!("PMI");
+    };
+    // The supplied GRM-03 has nominal dimensions and one Maximum qualifier, without
+    // per-dimension semantic tolerance bands. Plant bands to exercise both ownership paths.
+    for (id, label) in [
+        (841, "ø4 +0.02/-0.01"),
+        (1040, "3.2 +0.02/-0.01"),
+        (914, "ø10 +0.02/-0.01 MAX"),
+    ] {
+        let r = report
+            .records
+            .iter_mut()
+            .find(|r| r.part21_id == id)
+            .unwrap();
+        r.upper_tol = Some(0.02);
+        r.lower_tol = Some(-0.01);
+        r.label = label.into();
+    }
+    // A lone knurl does not use the legacy manufacturing schedule. Its raw
+    // MAX AFTER KNURL must not stand in for the size's independent MAX qualifier.
+    for include_threads in [true, false] {
+        let mut a = a.clone();
+        if !include_threads {
+            let Some(Reading::Read(report)) = &mut a.pmi else {
+                unreachable!()
+            };
+            report
+                .records
+                .retain(|r| r.category != Category::ManufacturingRequirement || r.kind == "knurl");
+        }
+        for style in ["auto", "note", "compact", "full"] {
+            let spec = serde_json::from_value(serde_json::json!({
+                "sheet": {"callouts": {"style": style}}
+            }))
+            .unwrap();
+            let plan = model::plan(&a, &spec).unwrap();
+            for id in [841, 1040, 914] {
+                let r = records(&a).iter().find(|r| r.part21_id == id).unwrap();
+                let d = stating(&plan, &a, r).unwrap();
+                assert!(d.placed.is_some(), "{style}: {d:?}");
+                assert!(
+                    d.label.contains("+0.02") && d.label.contains("-0.01"),
+                    "{style}: {d:?}"
+                );
+                if id == 914 {
+                    assert!(d.label.contains(" MAX"), "{style}: {d:?}");
+                    if style != "full" {
+                        let see = d.label.find("SEE MFG").expect("knurl note reference");
+                        assert!(d.label.find(" MAX").unwrap() < see, "{style}: {d:?}");
+                    }
+                }
+            }
+        }
+    }
+    // An incomplete chain must not hand its remaining source lengths to the hidden
+    // local dimensions of the automatic cumulative baseline.
+    let Some(Reading::Read(report)) = &mut a.pmi else {
+        unreachable!()
+    };
+    report
+        .records
+        .iter_mut()
+        .find(|r| r.part21_id == 1216)
+        .unwrap()
+        .blockers
+        .push("planted unresolved endpoint".into());
+    let partial = model::plan(&a, &Spec::default()).unwrap();
+    for id in [1040, 1086, 1132, 1174] {
+        let r = records(&a).iter().find(|r| r.part21_id == id).unwrap();
+        assert!(
+            stating(&partial, &a, r).is_some_and(|d| d.placed.is_some()),
+            "source {id} must survive a partial chain"
+        );
     }
 }

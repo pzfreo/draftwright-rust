@@ -1,6 +1,6 @@
 [package]
 name = "draftwright"
-version = "0.1.0-alpha.4"
+version = "0.1.0-alpha.5"
 edition = "2024"
 autotests = false
 license = "AGPL-3.0-only"
@@ -10,10 +10,10 @@ description = "Automated technical drawings from STEP B-rep: a Rust port of draf
 chrono = { version = "0.4", default-features = false }
 dxf = { version = "0.6.2", features = ["serialize"] }
 flate2 = "1.1.10"
-haecceity = { git = "https://github.com/pzfreo/quiddity-rust", rev = "f14e08f8c1e782b9c33b4c66db9cc54174f0840e" }
+haecceity = { git = "https://github.com/pzfreo/quiddity-rust", rev = "6ab5f29df418a06ee26e86ce1f7b010b653e1ade" }
 pdf-writer = "0.15"
 png = "0.18.1"
-quiddity = { git = "https://github.com/pzfreo/quiddity-rust", rev = "f14e08f8c1e782b9c33b4c66db9cc54174f0840e" }
+quiddity = { git = "https://github.com/pzfreo/quiddity-rust", rev = "6ab5f29df418a06ee26e86ce1f7b010b653e1ade" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.151", features = ["float_roundtrip"] }
 sha2 = "0.11.0"

@@ -33,7 +33,11 @@ fn sample(name: &str) -> (Part, Analysis) {
     )
     .read_to_end(&mut bytes)
     .unwrap();
-    let out = Path::new(env!("CARGO_TARGET_TMPDIR")).join("spec_notes");
+    // nextest runs cases in separate processes, each starting at ThreadId(1).
+    // Isolate their atomic staging files as well as ordinary harness threads.
+    let out = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("spec_notes")
+        .join(std::process::id().to_string());
     std::fs::create_dir_all(&out).unwrap();
     let path = out.join(format!("{name}.step"));
     let part = out.join(format!("{name}.{:?}.part", std::thread::current().id()));
@@ -172,7 +176,7 @@ fn m6_on_the_plate_hole_pattern_prints_on_its_callout() {
     let s = spec(json!({"features": {"f:hole_pattern:1": {"thread": {"designation": "M6"}}}}));
     let plan = model::plan_recovered(&a, &s).unwrap();
     let callout = dimension(&plan, id);
-    assert_eq!(callout.label, "4× ⌀6 THRU M6 (2×2)");
+    assert_eq!(callout.label, "4× M6 THRU\n⌀6 THRU (2×2)");
     let claim = callout
         .measurements
         .iter()
@@ -201,10 +205,7 @@ fn m6_on_the_plate_hole_pattern_prints_on_its_callout() {
         &spec(json!({"features": {"f:hole_pattern:1": {"thread": {"designation": "M6x1-6H", "length": 4}}}})),
     )
     .unwrap();
-    assert_eq!(
-        dimension(&plan, id).label,
-        "4× ⌀6 THRU M6x1-6H; 4 MIN FULL THREAD (2×2)"
-    );
+    assert_eq!(dimension(&plan, id).label, "4× M6-6H ↧ 4\n⌀6 THRU (2×2)");
     let plan = model::plan_recovered(
         &a,
         &spec(json!({"features": {"f:hole:1": {"thread": {"designation": "M6"}}}})),
@@ -213,7 +214,14 @@ fn m6_on_the_plate_hole_pattern_prints_on_its_callout() {
     let refused = problems(&plan, "pmi_not_lowered");
     assert_eq!(refused.len(), 1, "{:?}", plan.problems);
     assert_eq!(refused[0].severity, "error");
-    assert_eq!(refused[0].refs, ["spec:features/f:hole:1/thread"]);
+    assert_eq!(
+        refused[0].refs.first().map(String::as_str),
+        Some("spec:features/f:hole:1/thread")
+    );
+    assert!(
+        refused[0].refs.len() > 1,
+        "the original refusal diagnostic is retained"
+    );
     assert!(
         refused[0]
             .message
@@ -247,11 +255,11 @@ fn m10_and_a_knurl_on_the_spindle_print_after_their_diameters() {
     let plan = model::plan_recovered(&a, &s).unwrap();
     assert_eq!(
         dimension(&plan, "d:f:turned_step:1/step.diameter").label,
-        "ø10 M10; 15 MIN FULL THREAD"
+        "M10; 15 MIN FULL THREAD"
     );
     // The ø24 step's diameter is the overall diameter's, which prints its knurl.
     let od = dimension(&plan, "d:envelope/od.diameter");
-    assert_eq!(od.label, "ø24 DIAMOND KNURL P0.8");
+    assert_eq!(od.label, "ø24\nDIAMOND KNURL P0.8");
     assert!(od.measurements.iter().any(|m| m.parameter == "knurl"));
     no_pmi_problems(&plan);
     let d = model::render(&part, &a, &plan, &font()).unwrap();
@@ -309,7 +317,7 @@ fn a_feature_note_and_a_sheet_note_are_drawn() {
     assert_eq!(plan.notes[0].rows, ["1  BREAK ALL SHARP EDGES"]);
     no_pmi_problems(&plan);
     let d = model::render(&part, &a, &plan, &font()).unwrap();
-    assert_eq!(runs(&d, &note.id), ["DRILL AND TAP AFTER HARDENING"]);
+    assert_eq!(runs(&d, &note.id), ["DRILL AND TAP AFTER", "HARDENING"]);
     assert!(d.svg().contains("BREAK ALL SHARP EDGES"));
     assert_eq!(pmi_lint(&a, &d), Vec::<String>::new());
     // A face takes a note too.
@@ -325,7 +333,7 @@ fn spec_finish_threads_and_knurls_win_over_step_pmi_with_a_problem() {
     let base = model::plan_recovered(&a, &Spec::default()).unwrap();
     assert_eq!(
         dimension(&base, "d:envelope/od.diameter").label,
-        "ø24 MAX AFTER KNURL; DIAMOND KNURL P1"
+        "ø24 MAX AFTER KNURL\nDIAMOND KNURL P1"
     );
     assert_eq!(
         base.requirements
@@ -344,11 +352,11 @@ fn spec_finish_threads_and_knurls_win_over_step_pmi_with_a_problem() {
     let plan = model::plan_recovered(&a, &s).unwrap();
     assert_eq!(
         dimension(&plan, "d:envelope/od.diameter").label,
-        "ø24 STRAIGHT KNURL P1"
+        "ø24\nSTRAIGHT KNURL P1"
     );
     assert_eq!(
         dimension(&plan, "d:f:hole:1/bore.diameter").label,
-        "⌀4.2 ↧ 9.2 M5x0.8-6H; 8 MIN FULL THREAD"
+        "M5-6H ↧ 8\n⌀4.2 ↧ 9.2"
     );
     let finishes: Vec<_> = plan
         .requirements
@@ -442,7 +450,7 @@ fn unknown_ids_and_unreadable_entries_are_refused() {
         e.message
     );
     let e = refused(
-        json!([{"op": "set", "path": "features/f:hole:1/thread", "value": {"designation": "M7"}}]),
+        json!([{"op": "set", "path": "features/f:hole:1/thread", "value": {"designation": "M13"}}]),
     );
     assert!(
         e.message.contains("no ISO 261 coarse pitch"),

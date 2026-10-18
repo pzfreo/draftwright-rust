@@ -155,6 +155,22 @@ pub(super) fn proofs(
     analysis: &Analysis,
     views: &[PlannedView],
 ) -> BTreeMap<String, std::rc::Rc<Proof>> {
+    prepared_proofs(analysis, views, false)
+}
+
+/// Datum placement can prove exterior paper without a square planar face.
+pub(super) fn exterior_proofs(
+    analysis: &Analysis,
+    views: &[PlannedView],
+) -> BTreeMap<String, std::rc::Rc<Proof>> {
+    prepared_proofs(analysis, views, true)
+}
+
+fn prepared_proofs(
+    analysis: &Analysis,
+    views: &[PlannedView],
+    exterior: bool,
+) -> BTreeMap<String, std::rc::Rc<Proof>> {
     let Some(ink) = analysis.edge_ink.as_ref() else {
         return BTreeMap::new();
     };
@@ -167,10 +183,15 @@ pub(super) fn proofs(
             let canonical =
                 crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[])
                     .unwrap_or(false);
-            let key = serde_json::to_vec(&(v.direction, v.up, canonical))
+            let key = serde_json::to_vec(&(v.direction, v.up, canonical, exterior))
                 .expect("projection inputs serialize");
             let mut proof = crate::planning::memo(analysis, "interior", key, || {
-                build(ink, v, centre).map(|mut p| {
+                let prepared = if exterior {
+                    build_camera_with_exterior(ink, v.direction, v.up, centre, true)
+                } else {
+                    build(ink, v, centre)
+                };
+                prepared.map(|mut p| {
                     // Replay the established comparison's old attachment recipe.
                     // Actual drawings always require visible physical attachments.
                     p.require_visible_attachment = !canonical;
@@ -183,6 +204,11 @@ pub(super) fn proofs(
                 // must not borrow the principal view's centre from the memo.
                 std::rc::Rc::make_mut(&mut proof).centre =
                     crate::detail::crop_extent(analysis, v).1;
+            }
+            // Preserve the established eligibility of dimension/interior routing.
+            // Only datum exterior placement opts into entirely turned views.
+            if !exterior && proof.faces.is_empty() {
+                return None;
             }
             // A cutting-plane line this view marks is fixed ink; its letters are boxes.
             for cut in views.iter().filter_map(|q| q.cut.as_ref()) {
@@ -226,6 +252,16 @@ fn build_camera(
     direction: [f64; 3],
     up: [f64; 3],
     centre: P2,
+) -> Option<Proof> {
+    build_camera_with_exterior(ink, direction, up, centre, false)
+}
+
+fn build_camera_with_exterior(
+    ink: &crate::model::projected_ink::EdgeInk,
+    direction: [f64; 3],
+    up: [f64; 3],
+    centre: P2,
+    exterior: bool,
 ) -> Option<Proof> {
     let view = haecceity::hlr::View::new(direction, up)?;
     let d = direction;
@@ -284,7 +320,13 @@ fn build_camera(
         })
         .filter(|face| !face.chords.is_empty())
         .collect();
-    if faces.is_empty() {
+    if !exterior && faces.is_empty() {
+        return None;
+    }
+    // An entirely turned part has no plane square to a side view, but its
+    // curved-face covers still prove exterior paper. `blank` continues to
+    // require a containing planar face for every interior label.
+    if exterior_faces.is_empty() && ink.curved.is_empty() {
         return None;
     }
     let mut boxes = Vec::new();
@@ -471,8 +513,20 @@ impl Proof {
     /// with the same ink margins as face-interior labels. Curved faces use their
     /// full bounds (including end-on cylinders), so this fails closed near them.
     pub(super) fn exterior_annotation_clear(&self, v: &PlannedView, p: &Placed) -> bool {
-        let lo = self.model_point(v, [p.label_box[0], p.label_box[1]]);
-        let hi = self.model_point(v, [p.label_box[2], p.label_box[3]]);
+        self.exterior_clear(v, p.label_box, &p.lines, &p.arrows)
+    }
+
+    /// Prove annotation ink on exterior paper within the view's overall bounds.
+    /// Shared by compact datum placement and collision reporting.
+    pub(super) fn exterior_clear(
+        &self,
+        v: &PlannedView,
+        label: [f64; 4],
+        lines: &[[P2; 2]],
+        arrows: &[[P2; 2]],
+    ) -> bool {
+        let lo = self.model_point(v, [label[0], label[1]]);
+        let hi = self.model_point(v, [label[2], label[3]]);
         let b = [lo[0], lo[1], hi[0], hi[1]];
         let c = 0.5 / v.scale + SLACK;
         let middle = [(b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0];
@@ -495,8 +549,8 @@ impl Proof {
                         % 2
                         == 0
             })
-            && p.lines.iter().all(|s| self.segment_clear(v, *s, false))
-            && p.arrows.iter().all(|s| self.arrow_clear(v, *s, false))
+            && lines.iter().all(|s| self.segment_clear(v, *s, false))
+            && arrows.iter().all(|s| self.arrow_clear(v, *s, false))
     }
 
     /// A visible profile attachment and its complete exterior ink. Unlike an
@@ -644,7 +698,7 @@ fn conflict(a: &Placed, b: &Placed) -> bool {
 
 /// A spacing preference, applied only after material and settled-ink clearance.
 fn prefers_centre_row(frame: &Frame, w: &Want, v: &PlannedView, prismatic: bool) -> bool {
-    let Shape::Callout { sites } = &w.shape else {
+    let Shape::Callout { sites, .. } = &w.shape else {
         return false;
     };
     prismatic
@@ -658,6 +712,7 @@ fn prefers_centre_row(frame: &Frame, w: &Want, v: &PlannedView, prismatic: bool)
         })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn callouts(
     frame: &Frame,
     w: &Want,
@@ -666,8 +721,9 @@ fn callouts(
     v: &PlannedView,
     recess_context: bool,
     centre_row: bool,
+    peers: &[&Placed],
 ) -> Vec<Placed> {
-    let Shape::Callout { sites } = &w.shape else {
+    let Shape::Callout { sites, arcs } = &w.shape else {
         return Vec::new();
     };
     let radial = w.measurements.iter().any(|m| {
@@ -685,7 +741,26 @@ fn callouts(
     if !radial {
         // Physical arc anchors, rather than the absent half of a construction circle.
         'sites: for (centre, radius) in sites {
-            for tip in proof.arc_stations(v, frame.page(*centre), *radius) {
+            for mut tip in proof.arc_stations(v, frame.page(*centre), *radius) {
+                if !arcs.is_empty() {
+                    // The stored edge is chord sampled. Restore its exact radius
+                    // before using a physical station as a leader attachment.
+                    let Some((c, r, angle)) = arcs.iter().find_map(|arc| {
+                        let (c, r, span) = arc.projected(|p| frame.page(p));
+                        let angle = (tip[1] - c[1]).atan2(tip[0] - c[0]);
+                        (((tip[0] - c[0]).hypot(tip[1] - c[1]) - r).abs()
+                            <= 2.0 * SLACK * frame.scale()
+                            && span.contains(angle, 1e-9))
+                        .then_some((c, r, angle))
+                    }) else {
+                        continue;
+                    };
+                    if ((tip[0] - c[0]).hypot(tip[1] - c[1]) - r).abs()
+                        > crate::lint::leaders::TOLERANCE
+                    {
+                        tip = [c[0] + r * angle.cos(), c[1] + r * angle.sin()];
+                    }
+                }
                 if !attachments
                     .iter()
                     .any(|p| (p[0] - tip[0]).hypot(p[1] - tip[1]) <= 0.05)
@@ -721,19 +796,46 @@ fn callouts(
     let stations: Vec<_> = if radial && recess_context {
         // Short radial routes round both physical end caps get first claim.
         // Finer directions can pass between a new centre mark and a slot wall.
+        let offsets: &[f64] = if arcs.is_empty() {
+            &[0.0]
+        } else {
+            &[0.0, 5.625, 2.8125, 8.4375]
+        };
+        let angles: Vec<_> = offsets
+            .iter()
+            .copied()
+            .flat_map(|offset| (0..32).map(move |a| f64::from(a) * 11.25 + offset))
+            .collect();
         (1..=8)
-            .flat_map(|n| (0..32).map(move |a| (f64::from(a) * 11.25, n)))
+            .flat_map(|n| angles.iter().copied().map(move |a| (a, n)))
             .collect()
     } else {
-        rotations
+        // Non-radial profile leaders also try the established 22.5-degree
+        // escape phase. Changing an exterior attachment must not rotate the
+        // entire interior inventory and lose a previously clear short route.
+        let phase = 22.5 - u[1].atan2(u[0]).to_degrees();
+        let canonical = (!arcs.is_empty() && !recess_context)
+            .then_some(rotations.map(|a| a + phase))
             .into_iter()
+            .flatten();
+        canonical
+            .chain(rotations)
             .flat_map(|a| (1..=8).map(move |n| (a, n)))
             .collect()
     };
     for (rotation, lane) in stations {
         let (s, c) = rotation.to_radians().sin_cos();
         let d = [u[0] * c - u[1] * s, u[0] * s + u[1] * c];
-        let tips: Vec<_> = if radial {
+        let tips: Vec<_> = if radial && !arcs.is_empty() {
+            arcs.iter()
+                .filter_map(|arc| {
+                    let (centre, radius, span) = arc.projected(|p| frame.page(p));
+                    let angle = d[1].atan2(d[0]);
+                    span.contains(angle, 1e-9)
+                        .then_some([centre[0] + radius * d[0], centre[1] + radius * d[1]])
+                })
+                .collect()
+        } else if radial {
             sites
                 .iter()
                 .take(64)
@@ -792,7 +894,9 @@ fn callouts(
                 rotation: 0.0,
                 label_box: label_box(&ink, label_at, 0.0),
             };
-            if proof.annotation_clear(v, &p, true) {
+            if proof.annotation_clear(v, &p, true)
+                && (arcs.is_empty() || peers.iter().all(|q| !conflict(&p, q)))
+            {
                 out.push(p);
             }
             if out.len() == 64 {
@@ -924,7 +1028,23 @@ pub(super) fn place(
         let candidates =
             match &items[i].shape {
                 Shape::Callout { .. } => {
-                    callouts(frame, &items[i], old, proof, v, recess_context, centre_row)
+                    let peers: Vec<_> = placed
+                        .iter()
+                        .enumerate()
+                        .filter(|(j, _)| *j != i)
+                        .filter_map(|(_, p)| p.as_ref())
+                        .chain(obstacles.iter().filter_map(|d| d.placed.as_ref()))
+                        .collect();
+                    callouts(
+                        frame,
+                        &items[i],
+                        old,
+                        proof,
+                        v,
+                        recess_context,
+                        centre_row,
+                        &peers,
+                    )
                 }
                 Shape::Linear { .. }
                     if !page.fits(old, name)
@@ -1052,6 +1172,44 @@ mod tests {
 
     fn proof(ink: &EdgeInk) -> Proof {
         build(ink, &view(), [0., 0.]).unwrap()
+    }
+
+    #[test]
+    fn a_turned_part_proves_exterior_paper_without_a_planar_interior() {
+        let mut ink = EdgeInk {
+            references: Default::default(),
+            edges: vec![],
+            planes: vec![],
+            curved: vec![CurvedFace {
+                bounds: [[0.0, -5.0, -5.0], [20.0, 5.0, 5.0]],
+                cylinder: Some(Cylinder {
+                    origin: [0.0; 3],
+                    axis: [1.0, 0.0, 0.0],
+                    radius: 5.0,
+                }),
+            }],
+        };
+        let v = view();
+        let p = build_camera_with_exterior(&ink, v.direction, v.up, [0.0; 2], true).unwrap();
+        let label = [3.0, 8.0, 9.0, 14.0];
+        assert!(
+            !p.blank(&v, label),
+            "no planar face can carry an interior label"
+        );
+        assert!(p.exterior_clear(&v, label, &[[[4.0, 6.5], [4.0, 8.0]]], &[]));
+        assert!(
+            !p.exterior_clear(&v, [3.0, -1.0, 9.0, 1.0], &[], &[]),
+            "empty line-work cannot excuse a box inside the cylinder"
+        );
+        assert!(
+            !p.exterior_clear(&v, label, &[[[4.0, -1.0], [4.0, 8.0]]], &[]),
+            "the shaft must also stay off the cylinder's silhouette"
+        );
+        ink.curved.clear();
+        assert!(
+            build_camera_with_exterior(&ink, v.direction, v.up, [0.0; 2], true).is_none(),
+            "missing surface evidence fails closed"
+        );
     }
 
     fn semicircle() -> Vec<P2> {
@@ -1364,12 +1522,13 @@ mod tests {
             basis: "test".into(),
             turning: None,
             shape: Shape::Callout {
+                arcs: Vec::new(),
                 sites: vec![([0., 0., 0.], 5.)],
             },
         };
         let mut old = dimension();
         old.lines = vec![[[0., 5.], [0., 12.]], [[0., 12.], [3., 12.]]];
-        let candidates = callouts(&frame, &w, &old, &proof, &v, false, true);
+        let candidates = callouts(&frame, &w, &old, &proof, &v, false, true, &[]);
         assert!(
             !candidates.is_empty(),
             "a preferred row is not a hard constraint"
@@ -1406,12 +1565,13 @@ mod tests {
             basis: "test".into(),
             turning: None,
             shape: Shape::Callout {
+                arcs: Vec::new(),
                 sites: vec![([0., 0., 0.], 5.)],
             },
         };
         let mut old = dimension();
         old.lines = vec![[[0., -5.], [0., -12.]], [[0., -12.], [3., -12.]]];
-        let candidates = callouts(&frame, &w, &old, &proof, &v, false, false);
+        let candidates = callouts(&frame, &w, &old, &proof, &v, false, false, &[]);
         assert!(!candidates.is_empty());
         for p in candidates {
             assert!(p.lines[0][0][1] >= 0.0);

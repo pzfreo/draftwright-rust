@@ -173,6 +173,20 @@
         "loader"
       ]
     },
+    "callouts": {
+      "type": "object",
+      "properties": {
+        "style": {
+          "enum": [
+            "auto",
+            "compact",
+            "full",
+            "note"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "text": {
       "type": "object",
       "properties": {
@@ -306,15 +320,18 @@
           ]
         },
         "gap": {
-          "type": "number"
+          "type": "number",
+          "description": "Clear paper distance in mm between the views\u2019 annotation bands, not their part outlines (default 10 mm)."
         },
         "align": {
           "enum": [
             "start",
             "middle",
             "end",
-            "outside"
-          ]
+            "outside",
+            "projection"
+          ],
+          "description": "projection keeps geometry origins aligned across side (x above/below, y left/right), only for front/plan or front/side in either direction, first or third angle. Gap stays between areas including bands. Other values retain existing alignment."
         },
         "pinned": {
           "type": "boolean"
@@ -819,6 +836,16 @@
             }
           ]
         },
+        "callouts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/callouts"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "suppress": {
           "type": "boolean"
         },
@@ -935,6 +962,18 @@
             }
           ]
         },
+        "view_gutter": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "description": "Preferred maximum blank view gutter in paper mm, default 25; shrinks to fit at the selected sheet and scale."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "size": {
           "anyOf": [
             {
@@ -1002,6 +1041,16 @@
           "anyOf": [
             {
               "$ref": "#/$defs/finish"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "callouts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/callouts"
             },
             {
               "type": "null"

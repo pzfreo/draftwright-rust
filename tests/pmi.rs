@@ -55,6 +55,11 @@ fn inputs() -> Vec<(String, Vec<u8>)> {
     fixtures.sort();
     for p in fixtures {
         let name = p.file_name().unwrap().to_string_lossy().into_owned();
+        // GRM-03 is an independent kernel-contract regression below and in pmi_dimensions;
+        // it has no Python capture. Every pre-existing comparison fixture remains required.
+        if name == GRM03 {
+            continue;
+        }
         out.push((name, gunzip(&std::fs::read(&p).unwrap())));
     }
     match corpus::dir() {
@@ -795,7 +800,7 @@ fn a_requirement_or_label_record_is_lowered_or_reported() {
         }) {
             let said: Vec<_> = problems
                 .iter()
-                .filter(|p| p.refs == [r.source_id.clone()])
+                .filter(|p| p.refs.first() == Some(&r.source_id))
                 .collect();
             let label = items.iter().any(|i| i.source == r.source_id);
             let carried = sheet.iter().any(|q| q.source == r.source_id);
@@ -910,4 +915,159 @@ fn every_item_and_finding_is_accounted_for_and_the_output_is_deterministic() {
             "{name}: not deterministic"
         );
     }
+}
+
+const GRM03: &str = "GRM-03_thumbwheel_drive_screw_AP242_PMI.step.gz";
+
+#[test]
+fn derived_targets_follow_the_part_occurrence_transform() {
+    let (doc, mut defs, _, read) = reading(GRM03);
+    let original = haecceity::read_step(doc.bytes()).unwrap();
+    let base = pmi::report(&doc, &defs, &original, &read).unwrap();
+    let placement = [
+        [0.0, -1.0, 0.0, 37.0],
+        [1.0, 0.0, 0.0, -12.0],
+        [0.0, 0.0, 1.0, 5.0],
+    ];
+    let part = haecceity::step::read_step_placed(doc.bytes(), &placement).unwrap();
+    for d in &mut defs {
+        for p in &mut d.placements {
+            let old = p.placement;
+            p.placement = [0, 1, 2].map(|i| {
+                [0, 1, 2, 3].map(|j| {
+                    (0..3).map(|k| placement[i][k] * old[k][j]).sum::<f64>()
+                        + if j == 3 { placement[i][3] } else { 0.0 }
+                })
+            });
+        }
+    }
+    let placed = pmi::report(&doc, &defs, &part, &read).unwrap();
+    let mut count = 0;
+    for r in base
+        .records
+        .iter()
+        .filter(|r| r.category == Category::Dimension)
+    {
+        let other = placed
+            .records
+            .iter()
+            .find(|p| p.source_id == r.source_id)
+            .unwrap();
+        assert!(other.blockers.is_empty(), "{other:?}");
+        assert!(
+            other.geometry.as_ref().unwrap().reasons.is_empty(),
+            "{other:?}"
+        );
+        for (a, b) in r
+            .geometry
+            .as_ref()
+            .unwrap()
+            .targets
+            .iter()
+            .zip(&other.geometry.as_ref().unwrap().targets)
+        {
+            let (a, b) = (a.as_ref().unwrap(), b.as_ref().unwrap());
+            for (i, row) in placement.iter().enumerate() {
+                let point = (0..3).map(|k| row[k] * a.point[k]).sum::<f64>() + row[3];
+                let direction = (0..3).map(|k| row[k] * a.direction[k]).sum::<f64>();
+                assert!((point - b.point[i]).abs() < 1e-9);
+                assert!((direction - b.direction[i]).abs() < 1e-9);
+            }
+            assert_eq!(a.faces, b.faces);
+            count += 1;
+        }
+    }
+    assert_eq!(count, 15);
+}
+
+#[test]
+fn derived_tolerance_targets_and_unresolved_sizes_keep_the_kernel_contract() {
+    let (doc, defs, part, mut read) = reading(GRM03);
+    let feature = match read.parts[0].dimensions[0].kind {
+        hpmi::DimensionKind::Size { feature, .. } => feature,
+        _ => panic!("size"),
+    };
+    let magnitude = read.parts[0].dimensions[0].nominal.clone();
+    read.parts[0].tolerances.push(hpmi::GeometricTolerance {
+        kind: hpmi::ToleranceKind::Straightness,
+        target: hpmi::ToleranceTarget::Feature(feature),
+        magnitude,
+        zone: None,
+        modifiers: vec![],
+        unit_basis: None,
+        maximum: None,
+        unequal: None,
+        datums: None,
+        auxiliary: vec![],
+        description: None,
+    });
+    read.provenance.parts[0].tolerances.push(vec![999999]);
+    let report = pmi::report(&doc, &defs, &part, &read).unwrap();
+    let r = report
+        .records
+        .iter()
+        .find(|r| r.category == Category::GeometricTolerance)
+        .unwrap();
+    assert!(r.blockers.is_empty(), "{r:?}");
+    let g = r.geometry.as_ref().unwrap();
+    assert_eq!(g.axis.as_deref(), Some("X"));
+    assert_eq!(g.targets.len(), 1);
+    assert_eq!(g.sites.len(), 1);
+    let mut a = draftwright::model::analyse(&fixtures().join("step").join(GRM03))
+        .unwrap()
+        .1;
+    a.pmi = Some(pmi::Reading::Read(report));
+    let (items, problems) = draftwright::pmi_lowering::lower(&a, &|_| true);
+    assert!(
+        items
+            .iter()
+            .any(|i| i.source == "geometric_tolerance:#999999"),
+        "{problems:?}"
+    );
+    for dimension in [0, 5] {
+        read.parts[0].tolerances[0].target =
+            hpmi::ToleranceTarget::Dimension(hpmi::DimensionId(dimension));
+        let report = pmi::report(&doc, &defs, &part, &read).unwrap();
+        let r = report
+            .records
+            .iter()
+            .find(|r| r.category == Category::GeometricTolerance)
+            .unwrap();
+        assert!(r.blockers.is_empty(), "{r:?}");
+        let g = r.geometry.as_ref().unwrap();
+        assert_eq!(g.axis.as_deref(), Some("X"));
+        assert_eq!(g.targets.len(), if dimension == 0 { 1 } else { 2 });
+        assert_eq!(g.sites.len(), 1);
+    }
+    // No radius means an axis may support a tolerance but cannot state a diameter.
+    let geometry = match read.parts[0].features[feature.0] {
+        hpmi::Feature::Derived {
+            geometry: Some(id), ..
+        } => id,
+        _ => panic!("derived"),
+    };
+    read.parts[0].derived_geometry[geometry.0].radius = None;
+    let report = pmi::report(&doc, &defs, &part, &read).unwrap();
+    let r = report.records.iter().find(|r| r.part21_id == 841).unwrap();
+    assert!(
+        r.geometry
+            .as_ref()
+            .unwrap()
+            .reasons
+            .iter()
+            .any(|r| r.contains("no resolved cylinder radius")),
+        "{r:?}"
+    );
+    if let hpmi::Feature::Derived { geometry, .. } = &mut read.parts[0].features[feature.0] {
+        *geometry = None;
+    }
+    let report = pmi::report(&doc, &defs, &part, &read).unwrap();
+    let r = report.records.iter().find(|r| r.part21_id == 841).unwrap();
+    assert!(!r.faces.is_empty());
+    assert!(
+        r.blockers
+            .iter()
+            .any(|b| b.contains("no resolved geometry")),
+        "{r:?}"
+    );
 }

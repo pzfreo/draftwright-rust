@@ -6,26 +6,42 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
-### Changed
+### Added
 
-- Automatic sheet search now exhausts clean readable A4 drawings and the existing
-  A4 multi-sheet allocation before larger paper. Fill triggers same-paper
-  enlargement instead of ranking paper sizes. Readability measures dimensioned
-  openings and native pocket/channel mouths (2 mm), turned intervals (2.1 mm),
-  text/arrows, 10/7 mm dimension lanes and repetitive/thread ink (0.7 mm).
-  Explicit Spec paper and scale remain authoritative;
-  migrated legacy dimension keys and revision bindings survive recovery.
-  An identical unsupported-source-PMI refusal remains reported without forcing
-  larger paper when the complete allocated drawing otherwise fits and reads cleanly.
-  Paper changes retain short, unobstructed leader associations; failed alternatives
-  keep their explicit refusal. Global readability enlargement retains the original
-  +2 mm leader limit, with bounded alternative exits at proven attachments.
-  Quality and leader checks inspect allocated pages independently without changing their thresholds or baselines.
-  Exhausted searches retain fitted geometry and report all measured readability
-  failures; optional capacity cannot buy larger paper for an incomplete result.
-  Native recesses retain their established scale for fill-driven growth while
-  permitting necessary readable enlargement. Bounded free-lane/text repairs
-  precede larger paper and retain every measurement and existing quality limit.
+- Pin a projected view's gap with `views/<name>/place/align: "projection"` while keeping
+  geometry on its projection line despite asymmetric dimension bands. Valid front/plan
+  and front/side pairs offer it first in `item_options`; other pairs refuse it with choices.
+
+### Fixed
+
+- Draw AP242 dimensions and tolerances on resolved derived axes and planes, preserving
+  authored values, tolerances and MAX/MIN/AVG qualifiers. GRM-03 now carries its ten
+  semantic sizes and lengths instead of geometric fallback dimensions.
+- Default drawing numbers to a leading part-number token in the STEP product name, then
+  the file stem (including numeric names such as `10000`), before `DWG-001`. Explicit Spec
+  numbers, including blanks, win; readable titles retain the part number (#103).
+- Cover the tester's original GRM-03 AP242 material (`CZ121 / CW614N / CuZn39Pb3`)
+  through reading, title-block rendering and coverage lint. Its CAx-IF property already
+  projects on main; #108's warning fix applies without a new reader or kernel change (#101).
+- Keep radius leaders on the drawn part of trimmed arcs (quarter-cylinder edges, obround
+  and slot-pattern ends) instead of the full construction circle.
+- Prefer perpendicular location witnesses on either side and finite-gap witnesses before
+  any oblique fallback; a fallback uses parallel 30° witnesses clear of material and other
+  dimensions. On the 30 quality parts oblique witnesses fall from 16 dimensions to none.
+- Lint radius-leader targets on circular steps and slot ends, and oblique witness ink.
+- Stop reporting a STEP material as undrawn when the title block states it; retain the
+  warning when a blank or conflicting Spec material replaces it.
+- Describe missed feature recognition and unsupported STEP annotations in drawing language,
+  with Spec remedies; retain tool/version and reader diagnostics in structured references.
+- Prefer meaningful STEP product names for default titles, otherwise print readable file
+  stems with spaces. Explicit Spec titles, including blanks, keep precedence.
+- Explain that hole tables require X/Y locations from a datum corner and recommend the
+  retained individual dimensions when those locations are absent.
+- Clarify that view placement gaps measure between annotation bands, not part outlines,
+  in the Spec schema, MCP item options and documentation. Tools/list stays at 34,477
+  compact schema bytes.
+
+## 0.1.0-alpha.5 (2026-10-18)
 
 ### Added
 
@@ -47,7 +63,7 @@ All notable changes to draftwright-rust are recorded here, in the style of
   and size/depth callouts, pitch and absolute locations, independent coverage
   outcomes, and four retained radius requirements per rounded pocket. Five pending
   recess-reader rules and four formerly bridge-only rules have native regressions.
-  The kernel is pinned to quiddity-rust release `v0.1.0-alpha.5` (`6494e07f`).
+  The kernel is pinned to quiddity-rust release `v0.1.0-alpha.6`.
   See docs/native-recesses.md for reader and drafting details.
 
 - Authored detail `from` selects an existing principal or section parent; `around` accepts
@@ -63,7 +79,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   Verification and Python differences: [detail views](docs/detail-verification.md).
 - MCP `spec_schema {}` returns the full draft-2020-12 author Spec schema and its
   named `get_spec` read shape on demand. Tool schemas retain explicit typed top-level
-  outlines, reducing session schema context from 42,681 to 34,389 bytes (19.43%).
+  outlines. Against alpha.4 the per-session schema context falls from 42,464 to 34,477 bytes
+  (−18.8%), including this release's new Spec fields.
   Nested Spec additions no longer grow tools/list; server validation and corrective
   guidance are unchanged.
 
@@ -91,6 +108,18 @@ All notable changes to draftwright-rust are recorded here, in the style of
 - Spec line-work switches per view and drawing-wide sheet defaults: hidden lines,
   centre marks, centre lines, thread depiction and knurl depiction (#76 item 6).
   Session options/edits support them; effective paths are reported in view `from_spec`.
+
+### Changed
+
+- Planning is faster on PMI-heavy AP242 files (#90): linear-dimension trials reuse their
+  stroke geometry and footprint witness counts are memoised; with quiddity-rust alpha.6's
+  bounded emptiness probe, NIST FTC-10's AP242 plan falls from 203 s to about 5 s. Every
+  plan JSON and SVG on the 65-part survey is byte-identical to the output before this change.
+- The plan-time budget is re-recorded at 2,352,592,623,176 instructions on the 65-part
+  survey (from 3,166,420,524,176 after native recesses; margin still 15%).
+- Development: integration tests are grouped into eight binaries, halving CI's build step,
+  with a guard against unreachable test files (#91); long test loops are split into
+  individual cases (#89); release-only PRs skip the build in CI (#86).
 
 ### Fixed
 

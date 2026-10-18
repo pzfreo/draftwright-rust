@@ -57,6 +57,8 @@ mod pmi_drawings;
 mod pmi_labels;
 #[path = "../png.rs"]
 mod png;
+#[path = "../projection_alignment.rs"]
+mod projection_alignment;
 #[path = "../render_caches.rs"]
 mod render_caches;
 #[path = "../render_panics.rs"]
@@ -83,6 +85,8 @@ mod spec_gdt;
 mod spec_notes;
 #[path = "../surface_texture.rs"]
 mod surface_texture;
+#[path = "../table_symbols.rs"]
+mod table_symbols;
 #[path = "../tables.rs"]
 mod tables;
 #[path = "../text.rs"]
@@ -93,6 +97,8 @@ mod timezone;
 mod title_block;
 #[path = "../title_block_material.rs"]
 mod title_block_material;
+#[path = "../view_gutters.rs"]
+mod view_gutters;
 #[path = "../views.rs"]
 mod views;
 #[path = "../views_layout_rules.rs"]

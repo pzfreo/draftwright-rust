@@ -380,7 +380,10 @@ fn compound_callouts_keep_every_value_tolerance_and_fit_and_lint_rejects_false_l
     );
     let p = model::plan(&a, &spec).unwrap();
     let d = p.dimensions.iter().find(|d| d.id == old.id).unwrap();
-    assert_eq!(d.label, format!("DRILL {} AFTER PLATING", old.label));
+    assert_eq!(
+        d.label,
+        "DRILL ⌀6.25 H7 ↧ 4.75 ⌴\n⌀8.75 ↧ 1.875 ⌵ ⌀10.25 ×\n82.5° AFTER PLATING"
+    );
     assert_eq!(d.value, old.value);
     assert_eq!(d.measurements, old.measurements);
     assert!(d.label.contains("H7"));
@@ -392,7 +395,10 @@ fn compound_callouts_keep_every_value_tolerance_and_fit_and_lint_rejects_false_l
         .into_iter()
         .find(|m| m.name == d.id)
         .unwrap();
-    assert_eq!(mark.text, old.label);
+    assert_eq!(
+        mark.text,
+        old.label.split_whitespace().collect::<Vec<_>>().join(" ")
+    );
     assert!(!mark.claims.is_empty());
     let run = drawing
         .annotations

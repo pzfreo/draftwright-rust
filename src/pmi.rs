@@ -174,7 +174,7 @@ pub struct Record {
     pub fields: Vec<(String, Field)>,
     /// Where a geometric tolerance or datum attaches, derived from its faces for lowering
     /// (draftwright's `ref_pts`, `reference_axis`, `reference_surface_kind` and
-    /// `reference_normal`); absent on a dimension.
+    /// `reference_normal`), or a dimension's resolved targets and witnesses.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub geometry: Option<Geometry>,
 }
@@ -404,14 +404,38 @@ impl Report {
     }
 }
 
+/// An infinite target resolved by the kernel from a derived shape aspect's faces.
+/// Coordinates and support faces are in the drawing's placed frame; supplemental items
+/// remain cross-check evidence in the kernel and never select the drawing target.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DerivedTarget {
+    pub kind: DerivedKind,
+    pub point: [f64; 3],
+    pub direction: [f64; 3],
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub radius: Option<f64>,
+    pub faces: Vec<usize>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DerivedKind {
+    Axis,
+    MedianPlane,
+}
+
 /// Where a geometric tolerance or datum attaches to the part, in the drawing's frame (the
 /// file's), as draftwright measures it from the record's faces (`_datum_geometry_from_shapes`,
 /// `_datum_reference_normal` and `_common_principal_cylinder_axis`), and where a dimension does.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Geometry {
+    /// One entry per authored reference group when any is derived. Direct companion
+    /// planes/axes are resolved during lowering; unmeasurable groups remain `None`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub targets: Vec<Option<DerivedTarget>>,
     /// A datum's attachment site on each face, face by face (`ref_pts`): a point inside a plane,
     /// or on a cylinder's projected silhouette (`_datum_face_site`); a radius's proven point on
-    /// its arc. Empty for a tolerance.
+    /// its arc. A tolerance on derived geometry keeps a point on its resolved target.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sites: Vec<[f64; 3]>,
     /// Other proven sites on a datum's first face, ranked as draftwright ranks its choice and
@@ -745,6 +769,7 @@ pub fn report_part(
 /// The drawing's part, indexed by the file instances its faces and edges were read from.
 struct Drawing<'a> {
     part: &'a Part,
+    chosen: Option<usize>,
     /// `ADVANCED_FACE` instance → (placed instance, drawing face).
     faces: BTreeMap<u64, Vec<(usize, usize)>>,
     edges: BTreeMap<u64, Vec<(usize, usize)>>,
@@ -782,7 +807,12 @@ impl<'a> Drawing<'a> {
                 part.faces.len()
             ));
         }
-        Ok(Drawing { part, faces, edges })
+        Ok(Drawing {
+            part,
+            chosen,
+            faces,
+            edges,
+        })
     }
 
     /// The drawing's faces (or edges) read from *entity* in one of *def*'s placements.
@@ -1242,13 +1272,109 @@ impl PartReader<'_> {
                     s.all_around |= *kind == GroupKind::AllAround;
                     todo.extend(members);
                 }
-                Some(Feature::Derived { from, .. }) => todo.extend(from),
+                Some(Feature::Derived { from, geometry, .. }) => {
+                    if geometry.is_none() {
+                        s.unresolved
+                            .push("derived feature has no resolved geometry".into());
+                    }
+                    todo.extend(from);
+                }
                 None => s
                     .unresolved
                     .push(format!("{UNRESOLVED}: feature {} is not the part's", f.0)),
             }
         }
         s
+    }
+
+    fn target(&self, feature: FeatureId) -> Result<Option<DerivedTarget>, String> {
+        self.target_inner(feature, &mut BTreeSet::new())
+    }
+
+    fn target_inner(
+        &self,
+        feature: FeatureId,
+        seen: &mut BTreeSet<FeatureId>,
+    ) -> Result<Option<DerivedTarget>, String> {
+        if !seen.insert(feature) {
+            return Err("derived target contains a cycle".into());
+        }
+        let result = (|| {
+            let geometry = match self.pmi.features.get(feature.0) {
+                Some(Feature::Derived {
+                    geometry: Some(id), ..
+                }) => &self.pmi.derived_geometry[id.0],
+                Some(Feature::Derived { geometry: None, .. }) => {
+                    return Err("derived feature has no resolved geometry".into());
+                }
+                Some(Feature::Group { members, .. }) => {
+                    let targets = members
+                        .iter()
+                        .map(|&m| self.target_inner(m, seen))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    if targets.iter().all(Option::is_none) {
+                        return Ok(None);
+                    }
+                    return match targets.as_slice() {
+                        [one] => Ok(one.clone()),
+                        _ => Err("derived target group has no single axis or plane".into()),
+                    };
+                }
+                _ => return Ok(None),
+            };
+            let mut support = Support::default();
+            for &face in &geometry.deriving_faces {
+                self.anchor(Anchor::Face(face), &mut support);
+            }
+            if !support.unresolved.is_empty() {
+                return Err(support.unresolved.join("; "));
+            }
+            let point = geometry.point.each_ref().map(|l| l.mm());
+            let direction = geometry.direction.0.each_ref().map(|d| d.to_f64());
+            let (point, direction) = if self.drawing.chosen.is_some() {
+                (point, direction)
+            } else {
+                let [placement] = self.def.placements.as_slice() else {
+                    return Err("derived target has more than one occurrence placement".into());
+                };
+                let m = &placement.placement;
+                let rotate =
+                    |v: [f64; 3]| [0, 1, 2].map(|i| (0..3).map(|j| m[i][j] * v[j]).sum::<f64>());
+                let p = rotate(point);
+                ([0, 1, 2].map(|i| p[i] + m[i][3]), rotate(direction))
+            };
+            Ok(Some(DerivedTarget {
+                kind: match geometry.kind {
+                    pmi::DerivedGeometryKind::Axis => DerivedKind::Axis,
+                    pmi::DerivedGeometryKind::MedianPlane => DerivedKind::MedianPlane,
+                },
+                point,
+                direction,
+                radius: geometry.radius.as_ref().map(|r| r.mm()),
+                faces: support.faces.into_iter().collect(),
+            }))
+        })();
+        seen.remove(&feature);
+        result
+    }
+
+    fn targets(&self, features: &[FeatureId], r: &mut Record) {
+        let targets: Vec<_> = features
+            .iter()
+            .map(|&f| match self.target(f) {
+                Ok(t) => t,
+                Err(why) => {
+                    r.blockers.push(why);
+                    None
+                }
+            })
+            .collect();
+        if targets.iter().any(Option::is_some) {
+            r.geometry = Some(Geometry {
+                targets,
+                ..Geometry::default()
+            });
+        }
     }
 
     fn anchor(&self, a: Anchor, s: &mut Support) {
@@ -1455,7 +1581,12 @@ impl PartReader<'_> {
         {
             blockers.push(format!("the angle selection {a:?} is not carried"));
         }
-        if let Some(q) = &d.qualifier {
+        if let Some(q) = &d.qualifier
+            && !matches!(
+                q,
+                pmi::Qualifier::Maximum | pmi::Qualifier::Minimum | pmi::Qualifier::Average
+            )
+        {
             blockers.push(format!("the value qualifier {q:?} is not carried"));
         }
         for m in &d.modifiers {
@@ -1510,6 +1641,15 @@ impl PartReader<'_> {
             }
         }
         r.label = dimension_label(&r, d);
+        if let Some(suffix) = d.qualifier.as_ref().and_then(|q| match q {
+            pmi::Qualifier::Maximum => Some("MAX"),
+            pmi::Qualifier::Minimum => Some("MIN"),
+            pmi::Qualifier::Average => Some("AVG"),
+            _ => None,
+        }) {
+            r.label += &format!(" {suffix}");
+        }
+        self.targets(&groups, &mut r);
         r
     }
 
@@ -1660,6 +1800,7 @@ impl PartReader<'_> {
         }
         r.datum_refs = datum_refs;
         r.gtol_modifiers = modifiers;
+        self.targets(&features, &mut r);
         r.blockers.dedup();
         r
     }
@@ -2298,6 +2439,13 @@ impl PartReader<'_> {
 /// The reason prefix of a record whose face, edge or reference does not resolve: not read.
 const UNRESOLVED: &str = "unresolved";
 
+/// Reader names belong in structured diagnostics, while the message explains the limitation.
+pub(crate) fn reader_reason(reason: &str) -> String {
+    reason
+        .replace(" (haecceity reads it without one)", "")
+        .replace("haecceity", "the STEP reader")
+}
+
 /// The reason of an item read but not projected.
 const NOT_PROJECTED: &str = "read by haecceity; not projected to a draftwright record (the port \
                              projects dimensions, geometric tolerances, datums, manufacturing \
@@ -2771,7 +2919,46 @@ fn att_centre(a: &FaceAttachment) -> [f64; 3] {
 /// which the record carries (`ref_bbox`).
 fn tolerance_geometry(part: &Part, r: &Record) -> Geometry {
     let faces: Vec<FaceAttachment> = r.faces.iter().map(|&f| face_attachment(part, f)).collect();
-    tolerance_geometry_of(r, &faces)
+    let mut g = tolerance_geometry_of(r, &faces);
+    g.targets = r
+        .geometry
+        .as_ref()
+        .map_or_else(Vec::new, |g| g.targets.clone());
+    if let [Some(target)] = g.targets.as_slice() {
+        g.axis = exact_target_axis(target.direction).map(|k| AXIS_NAMES[k].into());
+        let centre = r
+            .ref_bbox
+            .map_or(target.point, |b| [0, 1, 2].map(|k| 0.5 * (b[k] + b[k + 3])));
+        let t: f64 = (0..3)
+            .map(|k| (centre[k] - target.point[k]) * target.direction[k])
+            .sum();
+        g.sites = vec![match target.kind {
+            DerivedKind::Axis => [0, 1, 2].map(|k| target.point[k] + t * target.direction[k]),
+            DerivedKind::MedianPlane => [0, 1, 2].map(|k| centre[k] - t * target.direction[k]),
+        }];
+    } else if let [Some(a), Some(b)] = g.targets.as_slice() {
+        let centre = r
+            .ref_bbox
+            .map_or([0.0; 3], |b| [0, 1, 2].map(|k| 0.5 * (b[k] + b[k + 3])));
+        match crate::pmi_lowering::derived_stations(a, b, centre) {
+            Ok(points) => {
+                g.sites = vec![[0, 1, 2].map(|k| 0.5 * (points[0][k] + points[1][k]))];
+                let direction = if b.kind == DerivedKind::Axis {
+                    b.direction
+                } else {
+                    a.direction
+                };
+                g.axis = exact_target_axis(direction).map(|k| AXIS_NAMES[k].into());
+            }
+            Err(why) => g.reasons.push(why.into()),
+        }
+    }
+    g
+}
+
+fn exact_target_axis(d: [f64; 3]) -> Option<usize> {
+    let k = principal(d, 1e-6)?;
+    ((d[k].abs() - 1.0).abs() <= 1e-6).then_some(k)
 }
 
 /// [`tolerance_geometry`] from the attachments of *r*'s faces, in its order.

@@ -113,6 +113,63 @@ fn material_unreported(a: &Analysis, d: &Drawing) -> bool {
         .any(|i| i.code == "pmi_not_extracted" && i.sources.iter().any(|s| s == "material:0:0"))
 }
 
+#[test]
+fn grm03_ap242_material_reaches_the_title_block_with_its_source() {
+    let compressed = std::fs::read(
+        root().join("tests/fixtures/material/GRM-03_thumbwheel_drive_screw_AP242_PMI.step.gz"),
+    )
+    .unwrap();
+    let mut bytes = Vec::new();
+    flate2::read::GzDecoder::new(compressed.as_slice())
+        .read_to_end(&mut bytes)
+        .unwrap();
+    // The tester's actual file uses the same CAx-IF property form as our Brass CW614N
+    // and Stainless steel 303 fixtures, with both an identification and a description.
+    let doc = draftwright::haecceity::p21::Document::parse(bytes.clone()).unwrap();
+    let defs = draftwright::haecceity::step::read_part_definitions(&bytes).unwrap();
+    let read = draftwright::haecceity::pmi::read(&doc, &defs).unwrap();
+    let m = read.parts[0]
+        .material
+        .as_ref()
+        .expect("haecceity reads GRM-03's material");
+    assert_eq!(m.id, "CZ121 / CW614N / CuZn39Pb3");
+    assert_eq!(m.name.as_deref(), Some("Free-machining leaded brass"));
+    assert_eq!(read.provenance.parts[0].material, [1994, 1995, 1996, 1997]);
+
+    let (part, a) = analysed("GRM-03_thumbwheel_drive_screw_ap242_pmi.step", &bytes);
+    let Some(draftwright::pmi::Reading::Read(r)) = &a.pmi else {
+        panic!("GRM-03's PMI is read")
+    };
+    let m = r
+        .title_material()
+        .expect("the material has a title-block projection");
+    assert_eq!(m.source_id, "material:#1996");
+    assert_eq!(m.designation, "CZ121 / CW614N / CuZn39Pb3");
+    assert_eq!(m.name.as_deref(), Some("Free-machining leaded brass"));
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        material(&plan).as_deref(),
+        Some("CZ121 / CW614N / CuZn39Pb3")
+    );
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "pmi_not_extracted" && p.refs.contains(&"material:0:0".into()))
+    );
+    let drawing = render(&part, &a, &plan);
+    let annotation = drawing
+        .annotations
+        .iter()
+        .find(|n| n.name == "pmi:material:0:0")
+        .expect("the drawn material retains its census source");
+    assert_eq!(
+        drawing.text[annotation.runs[0]].text,
+        "CZ121 / CW614N / CuZn39Pb3"
+    );
+    assert!(material_unreported(&a, &drawing));
+}
+
 pmi_cases!(the_title_block_states_the_files_material_as_draftwright_does);
 fn the_title_block_states_the_files_material_as_draftwright_does(only: &str) {
     let python: BTreeMap<&str, &str> = PYTHON.into_iter().collect();
@@ -120,8 +177,20 @@ fn the_title_block_states_the_files_material_as_draftwright_does(only: &str) {
         .into_iter()
         .filter(|(_, (file, _))| file == only)
     {
-        let (_, a) = analysed(&file, &bytes);
+        let (part, a) = analysed(&file, &bytes);
         let plan = model::plan(&a, &Spec::default()).unwrap();
+        if python.contains_key(stem.as_str()) {
+            assert!(
+                !plan
+                    .problems
+                    .iter()
+                    .any(|p| p.code == "pmi_not_extracted"
+                        && p.refs.contains(&"material:0:0".into())),
+                "{stem}: {:?}",
+                plan.problems
+            );
+            assert!(material_unreported(&a, &render(&part, &a, &plan)), "{stem}");
+        }
         assert_eq!(
             material(&plan).as_deref(),
             python.get(stem.as_str()).copied(),
@@ -149,6 +218,11 @@ fn a_material_the_spec_states_wins_even_blank() {
     // The spec's material is drawn instead; it is not the file's, so the file's is not drawn.
     let plan = model::plan(&a, &spec_with_material("Brass CW614N")).unwrap();
     assert_eq!(material(&plan).as_deref(), Some("Brass CW614N"));
+    assert!(
+        plan.problems
+            .iter()
+            .any(|p| p.code == "pmi_not_extracted" && p.refs.contains(&"material:0:0".into()))
+    );
     let d = render(&part, &a, &plan);
     assert!(!d.annotations.iter().any(|n| n.name == "pmi:material:0:0"));
     assert!(!material_unreported(&a, &d));
@@ -156,6 +230,12 @@ fn a_material_the_spec_states_wins_even_blank() {
     // A blank one clears the cell (draftwright's explicit empty value).
     let plan = model::plan(&a, &spec_with_material("")).unwrap();
     assert_eq!(material(&plan), None);
+    assert!(
+        plan.problems
+            .iter()
+            .any(|p| p.code == "pmi_not_extracted" && p.refs.contains(&"material:0:0".into()))
+    );
+    assert!(!material_unreported(&a, &render(&part, &a, &plan)));
 
     // The same material, stated by the spec, still states the file's.
     let plan = model::plan(&a, &spec_with_material("Steel C45")).unwrap();

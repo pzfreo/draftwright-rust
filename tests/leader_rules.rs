@@ -538,3 +538,278 @@ fn the_plan_and_lint_agree_on_a_leader_cutting_back_into_the_material() {
         "{planned:#?} {linted:#?}"
     );
 }
+
+/// Build the native regression part through the public analysis and rendering APIs.
+fn drawing_10000() -> Option<(Analysis, model::Plan, Drawing)> {
+    native_drawing("mfcadpp/10000.step", false)
+}
+
+fn native_drawing(file: &str, recovered: bool) -> Option<(Analysis, model::Plan, Drawing)> {
+    let corpus = std::env::var("DRAFTWRIGHT_CORPUS")
+        .unwrap_or_else(|_| "/Users/paul/repos/quiddity/tests/corpus".into());
+    let path = Path::new(&corpus).join(file);
+    if !path.is_file() {
+        assert!(std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").is_err());
+        return None;
+    }
+    let (part, a) = model::analyse_native(&path).unwrap();
+    let plan = if recovered {
+        model::plan_recovered(&a, &Spec::default())
+    } else {
+        model::plan(&a, &Spec::default())
+    }
+    .unwrap();
+    let drawing = model::render(&part, &a, &plan, &font()).unwrap();
+    Some((a, plan, drawing))
+}
+
+#[test]
+fn circular_step_radius_tip_follows_the_trimmed_arc_10000() {
+    let Some((a, plan, drawing)) = drawing_10000() else {
+        return;
+    };
+    let radius = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id.ends_with("/circular_step_radius.radius"))
+        .unwrap();
+    let p = radius.placed.as_ref().unwrap();
+    let tip = p.lines[0][0];
+    let frame = &drawing.sheet.frames["side"];
+    let view = draftwright::haecceity::hlr::View::new(frame.direction, frame.up).unwrap();
+    let centre = view.map([0, 1, 2].map(|k| (a.envelope[0][k] + a.envelope[1][k]) / 2.0));
+    let page = |q| {
+        let q = view.map(q);
+        [0, 1].map(|k| frame.at[k] + frame.scale * (q[k] - centre[k]))
+    };
+    let feature = &radius.measurements[0].feature;
+    assert!(
+        a.profile_arcs[feature].iter().any(|arc| {
+            // Check against the actual edge's parameter interval, without using
+            // the placement's span clamp or lint's target predicate.
+            let c = page(arc.centre);
+            if ((tip[0] - c[0]).hypot(tip[1] - c[1]) - arc.radius * frame.scale).abs() > 0.002 {
+                return false;
+            }
+            let points: Vec<_> = (0..=1000)
+                .map(|i| page(arc.point(arc.start + arc.sweep * f64::from(i) / 1000.0)))
+                .collect();
+            points
+                .iter()
+                .any(|q| (q[0] - tip[0]).hypot(q[1] - tip[1]) < 0.02)
+        }),
+        "tip {tip:?} must touch the trimmed quarter arc"
+    );
+    assert!(
+        !lint::lint(&a, &drawing)
+            .iter()
+            .any(|i| i.code.starts_with("radius_leader_target_"))
+    );
+    let mut broken = drawing.clone();
+    let item = broken
+        .sheet
+        .items
+        .iter_mut()
+        .find(|d| d.name == radius.id)
+        .unwrap();
+    let arc = &a.profile_arcs[feature][0];
+    let absent = page(arc.point(arc.start + arc.sweep + std::f64::consts::FRAC_PI_4));
+    item.lines[0][0] = absent;
+    assert!(
+        lint::lint(&a, &broken)
+            .iter()
+            .any(|i| i.code == "radius_leader_target_mismatch"
+                && i.annotation.as_deref() == Some(radius.id.as_str()))
+    );
+}
+
+#[test]
+fn hole_location_uses_perpendicular_witnesses_and_rejects_oblique_crossings_10000() {
+    let Some((_, plan, drawing)) = drawing_10000() else {
+        return;
+    };
+    let location = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:hole:1/location.length.y")
+        .unwrap();
+    assert_eq!(location.view, "v:side");
+    let p = location.placed.as_ref().unwrap();
+    assert!(
+        p.lines[..2]
+            .iter()
+            .all(|l| (l[1][0] - l[0][0]).abs() < 1e-9),
+        "17.5 must have vertical witnesses: {p:?}"
+    );
+    assert!(
+        !lint::structural::check(&drawing)
+            .iter()
+            .any(|i| i.code == "oblique_witness_crossing")
+    );
+
+    let mut broken = drawing.clone();
+    let item = broken
+        .sheet
+        .items
+        .iter_mut()
+        .find(|d| d.name == location.id)
+        .unwrap();
+    for line in item.lines.iter_mut().take(2) {
+        line[1][0] += (line[1][1] - line[0][1]) / 3.0_f64.sqrt();
+    }
+    assert!(
+        lint::structural::check(&broken)
+            .iter()
+            .any(|i| i.code == "oblique_witness_crossing"
+                && i.annotation.as_deref() == Some(location.id.as_str()))
+    );
+}
+
+/// Rounded slot dimensions must not discard their exact cylindrical boundary evidence.
+#[test]
+fn rounded_slot_radii_keep_their_exact_arcs_on_nist_parts() {
+    let corpus = std::env::var("DRAFTWRIGHT_CORPUS")
+        .unwrap_or_else(|_| "/Users/paul/repos/quiddity/tests/corpus".into());
+    for name in ["nist_ctc_03_asme1_rc", "nist_ftc_09_asme1_rd"] {
+        let path = Path::new(&corpus).join(format!("nist/{name}.stp"));
+        if !path.is_file() {
+            assert!(std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").is_err());
+            return;
+        }
+        let (part, a) = model::analyse_native(&path).unwrap();
+        let mut rounded = false;
+        for f in a.features.iter().filter(|f| f.kind == "slot") {
+            let arcs = a.profile_arcs.get(&f.id).expect("slot has boundary arcs");
+            assert!(!arcs.is_empty());
+            let radii: Vec<_> = f
+                .faces
+                .iter()
+                .filter_map(|&i| {
+                    if let draftwright::haecceity::geom::Surface::Cylinder { radius, .. } =
+                        part.faces[i].surface
+                    {
+                        Some(radius)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            assert!(
+                arcs.iter()
+                    .all(|arc| radii.iter().any(|r| (r - arc.radius).abs() < 1e-10))
+            );
+            let nominal = f.parameters["end_radius"].as_f64().unwrap();
+            rounded |= arcs.iter().any(|arc| (arc.radius - nominal).abs() > 0.002);
+        }
+        assert!(rounded, "exercise the rounded-radius evidence gap");
+        let plan = model::plan(&a, &Spec::default()).unwrap();
+        let drawing = model::render(&part, &a, &plan, &font()).unwrap();
+        let issues: Vec<_> = lint::lint(&a, &drawing)
+            .into_iter()
+            .filter(|i| {
+                i.code.starts_with("radius_leader_target_")
+                    && i.annotation
+                        .as_deref()
+                        .is_some_and(|id| id.ends_with("/slot_end_radius.radius"))
+            })
+            .collect();
+        assert!(issues.is_empty(), "{name}: {issues:?}");
+    }
+}
+
+/// The exported drawing keeps its established counted leaders, rather than an
+/// untagged centre table, and each representative tip touches physical arc ink.
+#[test]
+fn recovered_ctc02_keeps_counted_radius_leaders_on_trimmed_arcs() {
+    let Some((a, plan, drawing)) = native_drawing("nist/nist_ctc_02_asme1_rc.stp", true) else {
+        return;
+    };
+    assert!(plan.radius_table.is_none());
+    assert_eq!(
+        (plan.sheet.size.as_str(), plan.sheet.scale.as_str()),
+        ("A0", "1:5")
+    );
+    for (label, count) in [("4× R15", 4), ("6× R18", 6)] {
+        let d = plan
+            .dimensions
+            .iter()
+            .find(|d| d.label == label)
+            .expect(label);
+        assert_eq!(d.view, "v:plan");
+        assert_eq!(d.measurements.len(), count);
+        let tip = d.placed.as_ref().expect("visible counted leader").lines[0][0];
+        let frame = &drawing.sheet.frames["plan"];
+        let view = draftwright::haecceity::hlr::View::new(frame.direction, frame.up).unwrap();
+        let centre = view.map([0, 1, 2].map(|k| (a.envelope[0][k] + a.envelope[1][k]) / 2.0));
+        assert!(
+            d.measurements.iter().any(|m| {
+                a.blend_sites.get(&m.feature).is_some_and(|sites| {
+                    sites.iter().any(|site| {
+                        let q = view.map(*site);
+                        let page = [0, 1].map(|k| frame.at[k] + frame.scale * (q[k] - centre[k]));
+                        (page[0] - tip[0]).hypot(page[1] - tip[1]) < 0.002
+                    })
+                })
+            }),
+            "{label} tip {tip:?} must touch a proven trimmed surface site"
+        );
+    }
+    assert!(
+        !lint::lint(&a, &drawing)
+            .iter()
+            .any(|i| i.code.starts_with("radius_leader_target_"))
+    );
+}
+
+/// Perpendicular witness repair must not displace the existing hole schedule
+/// onto a larger sheet at the same geometry scale.
+#[test]
+fn recovered_ftc09_keeps_a1_and_perpendicular_witnesses() {
+    let Some((a, plan, drawing)) = native_drawing("nist/nist_ftc_09_asme1_rd.stp", true) else {
+        return;
+    };
+    assert_eq!(
+        (plan.sheet.size.as_str(), plan.sheet.scale.as_str()),
+        ("A1", "1:1")
+    );
+    assert!(plan.radius_table.is_none());
+    let table = plan
+        .hole_tables
+        .iter()
+        .find(|t| t.id == "hole_schedule_front")
+        .expect("established hole schedule");
+    assert_eq!(table.rows.len(), 30);
+    let iso = plan.views.iter().find(|v| v.id == "v:iso").unwrap();
+    assert!(
+        (iso.scale - 1.3).abs() < 1e-9,
+        "retain the established orientation scale"
+    );
+    for k in 0..2 {
+        assert!(iso.at[k] + iso.scale * a.iso_bounds[k] >= iso.area[k] - 1e-6);
+        assert!(iso.at[k] + iso.scale * a.iso_bounds[k + 2] <= iso.area[k + 2] + 1e-6);
+        assert!(iso.at[k] + iso.scale * a.iso_bounds[k] >= draftwright::layout::MARGIN + 2.0);
+        assert!(
+            iso.at[k] + iso.scale * a.iso_bounds[k + 2]
+                <= plan.sheet.page[k] - draftwright::layout::MARGIN - 2.0
+        );
+    }
+    for d in plan.dimensions.iter().filter(|d| d.kind == "linear") {
+        let Some(p) = d.placed.as_ref() else { continue };
+        assert_eq!(p.arrows.len(), 2);
+        let [a, b] = [p.arrows[0][0], p.arrows[1][0]];
+        let axis = [b[0] - a[0], b[1] - a[1]];
+        for [from, to] in p.lines.iter().take(2) {
+            let dot = (to[0] - from[0]) * axis[0] + (to[1] - from[1]) * axis[1];
+            assert!(
+                dot.abs() < 1e-6,
+                "{} must have perpendicular witnesses",
+                d.id
+            );
+        }
+    }
+    assert!(
+        !lint::structural::check(&drawing)
+            .iter()
+            .any(|i| i.code == "oblique_witness_crossing")
+    );
+}

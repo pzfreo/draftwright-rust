@@ -70,12 +70,12 @@ class Acceptance(unittest.TestCase):
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertIn('incomplete' if not error else 'render failed', result.stderr)
 
-    def test_survey_requires_all_77_parts_and_zero_repeated_spans(self):
+    def test_survey_requires_all_78_parts_and_zero_repeated_spans(self):
         names = [Path(p).stem for p in (ROOT / 'tools/repeated_span_parts.txt').read_text().splitlines()]
         names += [Path(p).stem for p in (ROOT / 'tools/repeated_span_extra_parts.txt').read_text().splitlines()]
         names += [Path(p.name[:-3]).stem for p in (ROOT / 'tests/fixtures/pmi/step').glob('*.gz')]
         result = {name: {'repeated_span': 0} for name in names}
-        self.assertEqual(len(result), 77)
+        self.assertEqual(len(result), 78)
         self.assertEqual(self.check('survey', result).returncode, 0)
         for bad in (dict(list(result.items())[1:]), {**result, names[0]: {'repeated_span': 1}},
                     {**result, names[0]: {'error': 'render failed'}}):
@@ -348,12 +348,12 @@ class Acceptance(unittest.TestCase):
         with self.assertRaises(ValueError):
             instructions.assess({'a': {'base': 100, 'head': 0}})
 
-    def test_survey_shards_partition_the_77_parts(self):
+    def test_survey_shards_partition_the_78_parts(self):
         runner = self.runner()
         names = runner.survey_names()
         slices = [runner.survey.in_shard(names, k, 4) for k in range(1, 5)]
         self.assertEqual(sorted(sum(slices, [])), sorted(names))
-        self.assertEqual([len(s) for s in slices], [20, 19, 19, 19])
+        self.assertEqual([len(s) for s in slices], [20, 20, 19, 19])
         result = {name: {'repeated_span': 0} for name in slices[1]}
         self.assertEqual(self.check('survey', result, extra=['--survey-shard', '2/4']).returncode, 0)
         for bad in (dict(list(result.items())[1:]), {**result, slices[0][0]: {'repeated_span': 0}}):
@@ -392,7 +392,7 @@ class Acceptance(unittest.TestCase):
                     patch.object(survey.quality, 'table'):
                 self.assertEqual(survey.main(), 1)
             results = json.loads((Path(tmp) / 'baseline.json').read_text())
-            self.assertEqual(len(results), 77)
+            self.assertEqual(len(results), 78)
             self.assertTrue(all('timed out' in row['error'] for row in results.values()))
 
     def test_failed_subprocess_reports_exit_before_missing_results(self):

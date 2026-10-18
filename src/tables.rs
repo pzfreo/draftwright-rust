@@ -35,10 +35,93 @@ pub const ROW: f64 = TEXT + 2.0 * PAD;
 /// The corners a table may prefer, as draftwright names them.
 pub const CORNERS: [&str; 4] = ["tr", "tl", "br", "bl"];
 
-/// What a cell draws: `⌀`, which the face lacks, as `ø` (draftwright's `_font_safe_text`); its
-/// text run keeps the cell as given.
+/// Legacy font-safe spelling for text-only consumers (draftwright's `_font_safe_text`).
+/// Drawing and measurement use [`text_ink`] so all four callout symbols have ink.
 pub fn ink(text: &str) -> String {
     text.replace('⌀', "ø")
+}
+
+/// A table cell or note on its baseline, preserving prose, punctuation and whitespace.
+/// Each callout symbol uses the same one-em cell and ink as dimension labels, even when
+/// embedded in a word. Ordinary text retains the font's advances and line spacing.
+pub fn text_ink(text: &str, font: &crate::text::Font) -> crate::dims::LabelInk {
+    use crate::dims::LabelInk;
+    use crate::text::Segment;
+    if !text.contains(['⌀', '↧', '⌴', '⌵']) {
+        let laid = font.baseline(text, TEXT);
+        return LabelInk {
+            glyphs: vec![laid.contours],
+            strokes: Vec::new(),
+            min: laid.min,
+            max: laid.max,
+        };
+    }
+    let mut out = LabelInk {
+        glyphs: Vec::new(),
+        strokes: Vec::new(),
+        min: [f64::INFINITY; 2],
+        max: [f64::NEG_INFINITY; 2],
+    };
+    let mut append = |ink: LabelInk, x: f64, y: f64| {
+        if ink.glyphs.iter().all(Vec::is_empty) && ink.strokes.is_empty() {
+            return;
+        }
+        let shift = |p: [f64; 2]| [x + p[0], y + p[1]];
+        for k in 0..2 {
+            out.min[k] = out.min[k].min(shift(ink.min)[k]);
+            out.max[k] = out.max[k].max(shift(ink.max)[k]);
+        }
+        out.strokes
+            .extend(ink.strokes.into_iter().map(|[a, b]| [shift(a), shift(b)]));
+        out.glyphs.extend(ink.glyphs.into_iter().map(|g| {
+            g.into_iter()
+                .map(|c| {
+                    c.into_iter()
+                        .map(|s| match s {
+                            Segment::Line(a, b) => Segment::Line(shift(a), shift(b)),
+                            Segment::Quad(a, b, c) => Segment::Quad(shift(a), shift(b), shift(c)),
+                            Segment::Cubic(a, b, c, d) => {
+                                Segment::Cubic(shift(a), shift(b), shift(c), shift(d))
+                            }
+                        })
+                        .collect()
+                })
+                .collect()
+        }));
+    };
+    for (row, line) in text.split('\n').enumerate() {
+        let mut x = 0.0;
+        let y = -(row as f64) * font.line_spacing(TEXT);
+        for chunk in line.split_inclusive(['⌀', '↧', '⌴', '⌵']) {
+            let symbol = chunk
+                .chars()
+                .next_back()
+                .filter(|c| matches!(c, '⌀' | '↧' | '⌴' | '⌵'));
+            let plain = symbol.map_or(chunk, |c| &chunk[..chunk.len() - c.len_utf8()]);
+            if !plain.is_empty() {
+                let laid = font.baseline(plain, TEXT);
+                append(
+                    LabelInk {
+                        glyphs: vec![laid.contours],
+                        strokes: Vec::new(),
+                        min: laid.min,
+                        max: laid.max,
+                    },
+                    x,
+                    y,
+                );
+                x += font.advance(plain, TEXT);
+            }
+            if let Some(c) = symbol {
+                append(crate::dims::label_ink(&[c.to_string()], font), x, y);
+                x += TEXT;
+            }
+        }
+    }
+    if !out.min[0].is_finite() {
+        (out.min, out.max) = ([0.0; 2], [0.0; 2]);
+    }
+    out
 }
 
 /// *text*'s ink `[x0, x1]` laid from a pen at 0, or none when it draws nothing.
@@ -49,7 +132,7 @@ pub(crate) fn span(text: &str) -> Option<[f64; 2]> {
     use std::sync::{Mutex, OnceLock};
     type Memo = VecDeque<(String, Option<[f64; 2]>)>;
     static MEMO: OnceLock<Mutex<Memo>> = OnceLock::new();
-    let text = ink(text);
+    let text = text.to_string();
     let memo = MEMO.get_or_init(|| Mutex::new(VecDeque::new()));
     if let Some(span) = memo
         .lock()
@@ -60,8 +143,9 @@ pub(crate) fn span(text: &str) -> Option<[f64; 2]> {
     {
         return span;
     }
-    let laid = crate::dims::font().baseline(&text, TEXT);
-    let span = (!laid.contours.is_empty()).then_some([laid.min[0], laid.max[0]]);
+    let laid = text_ink(&text, crate::dims::font());
+    let span = (laid.glyphs.iter().any(|g| !g.is_empty()) || !laid.strokes.is_empty())
+        .then_some([laid.min[0], laid.max[0]]);
     if text.len() <= 4096 {
         let mut memo = memo.lock().expect("table metrics memo lock");
         memo.retain(|(t, _)| *t != text);
@@ -488,11 +572,12 @@ pub fn manufacturing_size(rows: &[Vec<String>]) -> Option<[f64; 2]> {
 /// maintainer).
 pub fn manufacturing(
     analysis: &Analysis,
+    spec: &crate::model::Spec,
     sheet: &PlannedSheet,
     views: &[PlannedView],
     dims: &[PlannedDimension],
 ) -> (Option<PlannedTable>, Vec<Problem>) {
-    let m = crate::pmi_lowering::manufacturing(analysis);
+    let m = crate::pmi_lowering::manufacturing_for(analysis, spec);
     let rows = m.rows();
     if rows.is_empty() {
         return (None, Vec::new());
@@ -551,7 +636,7 @@ pub fn manufacturing(
             .collect(),
         default: true,
         basis: format!(
-            "source-authored: the part's effective thread and knurl requirements ({}): with two or more and one too long for its callout, each callout refers to its row (SEE MFG n) and this table states them, towards the sheet's top right, as draftwright's manufacturing schedule",
+            "source-authored: the part's effective thread and knurl requirements ({}): complete source wording for explicit or automatic note form and secondary manufacturing terms; the corresponding horizontal leaders refer to these source-bound rows (SEE MFG n), towards the sheet's top right",
             m.tags
                 .iter()
                 .map(|(s, _)| s.as_str())

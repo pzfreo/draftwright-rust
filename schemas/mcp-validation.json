@@ -63,6 +63,13 @@
                   "type": "string"
                 }
               },
+              "view_gutter": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
               "projection": {
                 "enum": [
                   null,
@@ -300,6 +307,9 @@
                   "$ref": "#/D"
                 }
               },
+              "view_gutter": {
+                "$ref": "#/F"
+              },
               "projection": {
                 "enum": [
                   null,
@@ -500,11 +510,7 @@
             "maxItems": 4
           },
           "radius": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "minimum": 0
+            "$ref": "#/F"
           }
         },
         "additionalProperties": false,
@@ -553,6 +559,13 @@
         "$ref": "#/D"
       },
       "type": "array"
+    },
+    "F": {
+      "minimum": 0,
+      "type": [
+        "number",
+        "null"
+      ]
     }
   },
   "get_item": {
@@ -618,6 +631,13 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "view_gutter": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
               },
               "projection": {
                 "enum": [
@@ -841,6 +861,13 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "view_gutter": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
               },
               "projection": {
                 "enum": [
@@ -1083,6 +1110,13 @@
                   "type": "string"
                 }
               },
+              "view_gutter": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
               "projection": {
                 "enum": [
                   null,
@@ -1301,6 +1335,13 @@
                 "additionalProperties": {
                   "$ref": "#/B"
                 }
+              },
+              "view_gutter": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
               },
               "projection": {
                 "enum": [
@@ -1570,6 +1611,13 @@
                 "additionalProperties": {
                   "$ref": "#/A"
                 }
+              },
+              "view_gutter": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
               },
               "projection": {
                 "enum": [
@@ -1844,6 +1892,13 @@
                   "$ref": "#/C"
                 }
               },
+              "view_gutter": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
               "projection": {
                 "enum": [
                   null,
@@ -2095,6 +2150,13 @@
                   "type": "string"
                 }
               },
+              "view_gutter": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
               "projection": {
                 "enum": [
                   null,
@@ -2318,6 +2380,13 @@
                   "type": "string"
                 }
               },
+              "view_gutter": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
               "projection": {
                 "enum": [
                   null,
@@ -2531,6 +2600,13 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "view_gutter": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
               },
               "projection": {
                 "enum": [

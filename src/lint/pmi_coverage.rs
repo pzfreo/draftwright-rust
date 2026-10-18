@@ -132,12 +132,17 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let report = match &analysis.pmi {
         Some(Reading::Read(r)) => r,
         Some(Reading::Refused(why)) => {
-            let mut out = vec![issue(
+            let mut finding = issue(
                 "pmi_not_extracted",
                 "part",
                 Severity::Error,
-                format!("AP242 PMI could not be inventoried: {why}"),
-            )];
+                format!(
+                    "STEP annotations could not be read: {}. Add the requirements to the Spec and review them manually.",
+                    crate::pmi::reader_reason(why)
+                ),
+            );
+            finding.evidence = Some(why.clone());
+            let mut out = vec![finding];
             out.extend(unreconciled(&on_sheet));
             return out;
         }
@@ -157,17 +162,25 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         } else {
             Severity::Error
         };
-        out.push(sourced(
+        let mut finding = sourced(
             "pmi_not_extracted",
             &s.id,
             severity,
             format!(
-                "AP242 {} {} was discovered but not extracted: {}",
-                category_name(s.category),
-                s.id,
-                s.reason
+                "A STEP {} annotation is not fully represented on the drawing. Add the requirement to the Spec and review it manually.",
+                s.id.split(':')
+                    .next()
+                    .unwrap_or("unknown")
+                    .replace('_', " ")
             ),
+        );
+        finding.evidence = Some(format!(
+            "AP242 {} {} was discovered but not extracted: {}",
+            category_name(s.category),
+            s.id,
+            s.reason
         ));
+        out.push(finding);
     }
     // Lowering does not depend on which views are drawn, only where an item goes. A drawing-wide
     // requirement lowers to the sheet (the title block, the finish symbol, a general note).
@@ -216,12 +229,17 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         } else {
             Severity::Error
         };
-        out.push(sourced(
+        let mut finding = sourced(
             "pmi_not_lowered",
             id,
             severity,
-            format!("AP242 source {id} did not produce a drawing item: {reason}"),
-        ));
+            format!(
+                "AP242 source {id} did not produce a drawing item: {}",
+                crate::pmi::reader_reason(&reason)
+            ),
+        );
+        finding.evidence = Some(reason);
+        out.push(finding);
     }
     for r in &report.records {
         let id = r.source_id.as_str();
@@ -252,6 +270,69 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             i.id = format!("l:pmi_value_mismatch:{}", m.name);
             i.annotation = Some(m.name.clone());
             out.push(i);
+        }
+    }
+    for r in report
+        .records
+        .iter()
+        .filter(|r| r.category == Category::Dimension && on_sheet.contains(r.source_id.as_str()))
+    {
+        let Some(g) = &r.geometry else {
+            continue;
+        };
+        if g.targets.is_empty() {
+            continue;
+        }
+        let measured = match (r.kind.as_str(), g.targets.as_slice()) {
+            ("diameter" | "radius", [Some(t)]) => t
+                .radius
+                .map(|v| if r.kind == "diameter" { 2.0 * v } else { v }),
+            ("linear" | "thickness", [Some(a), Some(b)]) => {
+                crate::pmi_lowering::derived_stations(a, b, [0.0; 3])
+                    .ok()
+                    .map(|s| {
+                        (0..3)
+                            .map(|k| (s[1][k] - s[0][k]).powi(2))
+                            .sum::<f64>()
+                            .sqrt()
+                    })
+            }
+            _ => None,
+        };
+        if measured
+            .zip(r.value)
+            .is_none_or(|(m, v)| (m - v).abs() > 0.01_f64.max(v.abs() * 5e-4))
+        {
+            out.push(sourced(
+                "pmi_value_mismatch",
+                &r.source_id,
+                Severity::Error,
+                format!(
+                    "AP242 source {} nominal {:?} disagrees with its derived geometry {:?} mm",
+                    r.source_id, r.value, measured
+                ),
+            ));
+        }
+        if let Some(q) = ["MAX", "MIN", "AVG"]
+            .into_iter()
+            .find(|q| r.label.ends_with(&format!(" {q}")))
+        {
+            for mark in marks.iter().filter(|m| {
+                m.claims
+                    .iter()
+                    .any(|c| ids.source(&c.feature) == Some(r.source_id.as_str()))
+            }) {
+                if !mark.text.split_whitespace().any(|t| t == q) {
+                    let mut i = sourced(
+                        "pmi_value_mismatch",
+                        &r.source_id,
+                        Severity::Error,
+                        format!("AP242 source {} is missing its {q} qualifier", r.source_id),
+                    );
+                    i.annotation = Some(mark.name.clone());
+                    out.push(i);
+                }
+            }
         }
     }
     out.extend(manufacturing_text(report, marks, &ids));
@@ -709,6 +790,81 @@ pub(super) fn source_sites(
     out
 }
 
+// Read designation and role-bound values from all source-bound leader/note runs.
+// Numeric fields are compared with the parsed source, never with generated label text.
+pub(super) fn thread_text_states(t: &crate::pmi_lowering::Thread, text: &str) -> bool {
+    let words: Vec<_> = text
+        .split_whitespace()
+        .map(|s| s.trim_end_matches([';', ',']))
+        .collect();
+    let equal = |s: &str, value: f64| {
+        s.trim_end_matches([';', ','])
+            .parse::<f64>()
+            .is_ok_and(|v| (v - value).abs() < 1e-6)
+    };
+    let designation = words.iter().enumerate().any(|(i, word)| {
+        if !word.starts_with('M') {
+            return false;
+        }
+        (1..=5).filter(|n| i + n <= words.len()).any(|n| {
+            let s = words[i..i + n].join(" ");
+            let s = s.trim_end_matches([';', ',']);
+            t.designation_matches(s)
+        })
+    });
+    if !designation {
+        return false;
+    }
+    if let Some(depth) = t.minimum_full_thread {
+        let full = words
+            .windows(4)
+            .any(|w| equal(w[0], depth) && w[1..] == ["MIN", "FULL", "THREAD"])
+            || words[..words
+                .iter()
+                .position(|w| w.starts_with(['⌀', 'ø', 'Ø']))
+                .unwrap_or(words.len())]
+                .windows(2)
+                .any(|w| w[0] == "↧" && equal(w[1], depth));
+        if !full {
+            return false;
+        }
+    }
+    if t.through
+        && !words
+            .iter()
+            .any(|w| w.trim_end_matches([';', ',']) == "THRU")
+    {
+        return false;
+    }
+    if !t.internal {
+        return true;
+    }
+    let conventional_through = t.through && t.conventional_drill();
+    if conventional_through {
+        return true;
+    }
+    let Some(drill) = t.drill_diameter else {
+        return true;
+    };
+    words.iter().enumerate().any(|(i, word)| {
+        let Some(size) = word.strip_prefix(['⌀', 'ø', 'Ø']) else {
+            return false;
+        };
+        if !equal(size, drill) {
+            return false;
+        }
+        match t.drill_depth {
+            Some(depth) => words[i + 1..]
+                .split(|w| w.starts_with(['⌀', 'ø', 'Ø']))
+                .next()
+                .unwrap_or(&[])
+                .windows(2)
+                .any(|w| w[0] == "↧" && equal(w[1], depth)),
+            None => true,
+        }
+    })
+}
+
 /// A short manufacturing leader needs exactly one complete, source-matched rendered row.
 /// Read only the drawing and the source reading; searchable text in an unrelated table
 /// cannot supply the requirement or borrow another source's reference.
@@ -728,6 +884,71 @@ pub fn manufacturing_references(analysis: &Analysis, drawing: &Drawing) -> Vec<L
     let header_complete =
         headers.len() == 1 && normal(&headers[0].text) == "REF MANUFACTURING REQUIREMENT";
     let mut issues = Vec::new();
+    for o in &manufacturing.owned {
+        let related: Vec<_> = marks
+            .iter()
+            .filter(|m| {
+                m.claims
+                    .iter()
+                    .any(|c| c.feature == o.id && c.parameter == o.aspect)
+            })
+            .collect();
+        if related.is_empty() {
+            continue;
+        }
+        let mut text = related
+            .iter()
+            .map(|m| m.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        for a in drawing.annotations.iter().filter(|a| {
+            a.name.starts_with("manufacturing_requirements/")
+                && a.approved_claims.len() == 1
+                && a.approved_claims[0].feature == o.id
+                && a.approved_claims[0].parameter == o.aspect
+        }) {
+            text.push(' ');
+            text += &super::schedule_evidence::text(drawing, a);
+        }
+        let states = if let Some(t) = o.thread() {
+            thread_text_states(t, &text)
+        } else if let Some((pattern, pitch, maximum)) = o.knurl_values() {
+            let words: Vec<_> = text
+                .split_whitespace()
+                .map(|w| w.trim_end_matches([';', ',']))
+                .collect();
+            let same = |s: &str, expected: f64| {
+                s.parse::<f64>().is_ok_and(|v| (v - expected).abs() < 1e-6)
+            };
+            words.windows(3).any(|w| {
+                w[0] == pattern.to_uppercase()
+                    && w[1] == "KNURL"
+                    && w[2].strip_prefix('P').is_some_and(|s| same(s, pitch))
+            }) && maximum.is_none_or(|d| {
+                words.windows(4).any(|w| {
+                    w[0].strip_prefix(['ø', '⌀', 'Ø'])
+                        .is_some_and(|s| same(s, d))
+                        && w[1..] == ["MAX", "AFTER", "KNURL"]
+                })
+            })
+        } else {
+            true
+        };
+        if !states {
+            let mut finding = issue(
+                "pmi_source_text_mismatch",
+                &o.id,
+                Severity::Error,
+                format!(
+                    "The rendered manufacturing callout and its note do not state the source designation, pitch, depth or diameter values for {}",
+                    o.source
+                ),
+            );
+            finding.sources = vec![o.source.clone()];
+            finding.annotation = related.first().map(|m| m.name.clone());
+            issues.push(finding);
+        }
+    }
     for leader in marks
         .iter()
         .filter(|m| !m.name.starts_with("manufacturing_requirements/"))
@@ -771,11 +992,7 @@ pub fn manufacturing_references(analysis: &Analysis, drawing: &Drawing) -> Vec<L
                 && header_complete
                 && rows.len() == 1
                 && owned.iter().any(|o| {
-                    manufacturing
-                        .tags
-                        .iter()
-                        .any(|(source, t)| source == &o.source && t == &tag)
-                        && rows[0].approved_claims.len() == 1
+                    rows[0].approved_claims.len() == 1
                         && rows[0].approved_claims[0].feature == o.id
                         && rows[0].approved_claims[0].parameter == o.aspect
                         && normal(&super::schedule_evidence::text(drawing, rows[0]))

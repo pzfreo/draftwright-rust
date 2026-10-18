@@ -54,9 +54,9 @@ def names(files):
 def survey_names():
     corpus = manifest('repeated_span_parts.txt') + manifest('repeated_span_extra_parts.txt')
     fixtures = sorted((ROOT / 'tests/fixtures/pmi/step').glob('*.gz'))
-    require(len(corpus) == 55 and len(fixtures) == 22, 'incomplete survey fixture manifest (55 + 22 required)')
+    require(len(corpus) == 55 and len(fixtures) == 23, 'incomplete survey fixture manifest (55 + 23 required)')
     result = names(corpus) | names(p.name[:-3] for p in fixtures)
-    require(len(result) == 77, 'incomplete/ambiguous 77-part survey')
+    require(len(result) == 78, 'incomplete/ambiguous 78-part survey')
     return result
 
 

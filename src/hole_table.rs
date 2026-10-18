@@ -779,7 +779,12 @@ fn rows(
             d.terms
                 .iter()
                 .position(|t| t == "↧")
-                .and_then(|k| d.terms.get(k + 1))
+                .and_then(|k| {
+                    d.terms
+                        .iter()
+                        .skip(k + 1)
+                        .find(|t| !crate::callouts::is_break(t))
+                })
                 .cloned()
                 .unwrap_or_default()
         };
@@ -848,6 +853,7 @@ fn table_obstacles(analysis: &Analysis, plan: &Plan, dims: &[PlannedDimension]) 
     out.extend(
         plan.tables
             .iter()
+            .chain(plan.radius_table.iter().map(|t| &t.table))
             .filter(|t| t.sheet == plan.sheet.number)
             .filter_map(|t| t.placed.as_ref().map(|p| p.cells)),
     );
@@ -959,6 +965,7 @@ fn fixed_obstacles(
     out.extend(
         plan.tables
             .iter()
+            .chain(plan.radius_table.iter().map(|t| &t.table))
             .filter(|t| t.sheet == plan.sheet.number)
             .filter_map(|t| t.placed.as_ref().map(|p| p.cells)),
     );
@@ -2155,9 +2162,14 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
             {
                 continue;
             }
-            let terms = d.terms.iter().skip(usize::from(
-                d.terms.first().is_some_and(|t| t.ends_with('×')),
-            ));
+            let terms = d
+                .terms
+                .iter()
+                .filter(|t| !crate::callouts::is_break(t))
+                .skip(usize::from(
+                    d.terms.first().is_some_and(|t| t.ends_with('×')),
+                ))
+                .take_while(|t| t.as_str() != "EQ" && !t.starts_with("EQ SP"));
             // Array grammar locates members only in the leader version; the schedule's physical
             // member ordinates replace it. Compound recess/thread wording is retained verbatim.
             // Explicit nominal formatting has already been applied to these terms. Parsing
@@ -2428,6 +2440,75 @@ fn opening_diameter(h: &holes::Hole<'_>) -> f64 {
 /// Place the schedules transactionally. Every row has a nearby tag; none needs a long leader.
 /// On failure the caller keeps the original complete plan and the legacy rescue still runs.
 pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bool {
+    if install_at(analysis, plan, selection) {
+        return true;
+    }
+    // Retaining an established isometric scale can outgrow the newly packed
+    // reservation. Before spending more paper, retry that automatic orientation
+    // view beside the complete schedules at the same scale. Principal views,
+    // authored placements and held frames keep their existing geometry.
+    if crate::placement_intent::has_pins(&plan.spec)
+        || plan
+            .spec
+            .views
+            .get("iso")
+            .is_some_and(|v| v.place.is_some())
+    {
+        return false;
+    }
+    let Some(iso) = plan
+        .views
+        .iter()
+        .find(|v| v.id == "v:iso" && v.sheet == plan.sheet.number)
+    else {
+        return false;
+    };
+    let bounds = analysis.iso_bounds.map(|b| b * iso.scale);
+    if (0..2).all(|k| {
+        iso.at[k] + bounds[k] >= iso.area[k] - 1e-6
+            && iso.at[k] + bounds[k + 2] <= iso.area[k + 2] + 1e-6
+    }) {
+        return false;
+    }
+    let mut retry = plan.clone();
+    retry.views.retain(|v| v.id != "v:iso");
+    let mut obstacles = table_obstacles(analysis, &retry, &retry.dimensions);
+    for (size, corner) in selection.sizes() {
+        let Some([x, y]) = tables::place(size, &retry.sheet, &obstacles, corner) else {
+            return false;
+        };
+        obstacles.push([x, y, x + size[0], y + size[1]]);
+    }
+    let size = [bounds[2] - bounds[0], bounds[3] - bounds[1]];
+    // Keep the caption's normal lower band clear as well as the projected ink.
+    let caption = 3.0 * crate::section::FONT_SIZE;
+    let target = [size[0], size[1] + caption];
+    let margin = crate::layout::MARGIN + crate::layout::PREFERRED_BLOCK_GUTTER;
+    let region = [
+        margin,
+        margin,
+        plan.sheet.page[0] - margin,
+        plan.sheet.page[1] - margin,
+    ];
+    let Some([x, y]) =
+        crate::layout::fit_auxiliary_box(target, region, &obstacles, Corner::TopRight, tables::PAD)
+    else {
+        return false;
+    };
+    let mut iso = iso.clone();
+    iso.area = [x, y, x + target[0], y + target[1]];
+    iso.at = [x - bounds[0], y + caption - bounds[1]];
+    iso.basis += "; repacked at the established scale beside the complete hole schedules";
+    retry.views.push(iso);
+    if !install_at(analysis, &mut retry, selection) {
+        return false;
+    }
+    crate::iso_caption::refresh(analysis, &mut retry);
+    *plan = retry;
+    true
+}
+
+fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bool {
     // Removing ladders must not withdraw the room already needed by a semantic frame or datum.
     // If this presentation cannot keep them in their bands, retain the complete original plan.
     if plan.problems.iter().any(|p| {

@@ -36,7 +36,7 @@ const ISO_MAX_GROW: f64 = 1.3;
 const VIEW_GUTTER: f64 = 6.0;
 const VIEW_GUTTER_PREFERRED: f64 = 12.0;
 /// Breathing room a table is first offered beyond its hard clearance.
-const PREFERRED_BLOCK_GUTTER: f64 = 6.0;
+pub(crate) const PREFERRED_BLOCK_GUTTER: f64 = 6.0;
 const TOL: f64 = 0.5;
 /// Blank paper between the side view's band and a section view, which is all the band a section
 /// has on its left (draftwright's row budget for a section, `10 + 2 hw + DIM_PAD`).

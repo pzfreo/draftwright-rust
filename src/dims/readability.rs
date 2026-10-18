@@ -113,7 +113,7 @@ pub(crate) fn details(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<crate::detai
         let (points, primary): (Vec<P3>, usize) = match &w.shape {
             Shape::Linear { a, b, axis, .. } => (vec![*a, *b], *axis),
             Shape::Aligned { a, b } => (vec![*a, *b], 0),
-            Shape::Callout { sites } => {
+            Shape::Callout { sites, .. } => {
                 // Keep the entire opening, not only the selected leader endpoint.
                 let native = w
                     .measurements

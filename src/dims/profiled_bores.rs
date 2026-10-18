@@ -103,7 +103,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             });
             Ok(Want{id:want_id(&f.id,"bore.diameter"),views:vec![end_on(k)],value:major,terms,measurements,
                 turning:None,basis:"a double-D bore's major diameter and across flats in one callout, led to its circular rim in the view along its axis".into(),
-                shape:Shape::Callout{sites:sites.to_vec()}})
+                shape:Shape::Callout{sites:sites.to_vec(), arcs: Vec::new()}})
         };
         match read() {
             Ok(w) => out.push(w),
