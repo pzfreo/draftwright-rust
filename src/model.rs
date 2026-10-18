@@ -1488,7 +1488,23 @@ fn no_new_issue_pairs(first: &Plan, candidate: &Plan) -> bool {
         .all(|(identity, n)| n <= before.get(&identity).copied().unwrap_or(0))
 }
 
-fn retains_enlarged_ink(before: &Plan, after: &Plan) -> bool {
+fn retains_enlarged_ink(analysis: &Analysis, before: &Plan, after: &Plan) -> bool {
+    // A raw local-floor estimate on different paper/scale is not the
+    // independently chosen whole-part drawing whose useful crop we retain.
+    if before.sheet.size != after.sheet.size
+        || before.sheet.scale_factor != after.sheet.scale_factor
+    {
+        return true;
+    }
+    // An unfitted proposal is not an established useful profile.
+    if !drawn_sheets_fit(analysis, before) {
+        return true;
+    }
+    let mut measured = before.clone();
+    measured.problems.retain(|q| q.code != "page_fit_uncertain");
+    if !findings(&measured).clean() {
+        return true;
+    }
     // This guard concerns replacement crops. A fully enlarged ordinary
     // drawing can deliver the controls directly in its main views.
     if after
@@ -3266,7 +3282,7 @@ fn recover_with_reference(
                 }
             }
             let useful = crate::detail::readable_automatic(analysis, &ordinary, &detailed)
-                && retains_enlarged_ink(&first, &detailed);
+                && retains_enlarged_ink(analysis, &first, &detailed);
             let improved = legibility(&detailed) < legibility(&ordinary)
                 && crate::sheet_fit::readability(analysis, &detailed).whole_drawing_failures() == 0;
             let qualified = useful
@@ -3313,44 +3329,95 @@ fn recover_with_reference(
         // aperture need explicitly instead of replacing clear profile context.
         if !reference_only {
             for previous in std::iter::once(&first).chain(route_reference) {
-                if retains_enlarged_ink(previous, &detailed) {
+                if retains_enlarged_ink(analysis, previous, &detailed) {
                     continue;
                 }
-                let mut kept = previous.clone();
-                for view in &mut kept.views {
-                    if let Some(d) = &mut view.detail
-                        && !d.authored
-                    {
-                        d.marked_bounds = d.bounds;
-                    }
-                }
-                crate::sheet_fit::repair_callout_crossings(analysis, &ordinary, &mut kept);
-                if !kept
+                // Preserve the ordinary drawing's settled routes. Reusing a raw
+                // parent's placements would restore conflicts already repaired there.
+                let mut kept = ordinary.clone();
+                for old_view in previous
                     .views
                     .iter()
-                    .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
-                    || !crate::detail::readable_automatic(analysis, &ordinary, &kept)
-                    || !findings(&kept).clean()
-                    || !drawn_sheets_fit(analysis, &kept)
-                    || !required.is_subset(&carried(&kept))
-                    || legibility(&kept) > legibility(&ordinary)
-                    || !no_new_drawing_issues(&ordinary, &kept)
-                    || !crate::sheet_fit::routes_no_worse(analysis, &ordinary, &kept)
+                    .filter(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
                 {
-                    continue;
+                    let detail = old_view.detail.as_ref().unwrap();
+                    if kept.views.iter().any(|v| v.id == old_view.id)
+                        || !kept
+                            .views
+                            .iter()
+                            .any(|v| v.id == detail.source_view && v.sheet == old_view.sheet)
+                    {
+                        continue;
+                    }
+                    let mut moved = Vec::new();
+                    for old in previous
+                        .dimensions
+                        .iter()
+                        .filter(|d| d.view == old_view.id && d.placed.is_some())
+                    {
+                        let Some(d) = kept.dimensions.iter_mut().find(|d| {
+                            d.id == old.id
+                                && d.view == detail.source_view
+                                && d.terms == old.terms
+                                && d.measurements == old.measurements
+                        }) else {
+                            continue;
+                        };
+                        d.view = old_view.id.clone();
+                        d.placed = old.placed.clone();
+                        d.region = old.region;
+                        moved.push(d.id.clone());
+                    }
+                    if moved.is_empty() {
+                        continue;
+                    }
+                    let mut restored = old_view.clone();
+                    let d = restored.detail.as_mut().unwrap();
+                    d.marked_bounds = d.bounds;
+                    d.dimensions = moved;
+                    kept.views.push(restored);
                 }
-                kept.sheet.basis = format!(
-                    "whole-part paper {} at {}; established enlarged profile retained; new readability need refused; whole-part trials: {}; local-detail trials: {}",
-                    ordinary.sheet.size,
-                    ordinary.sheet.scale,
-                    ordinary
-                        .sheet
-                        .basis
-                        .replace("drawn-item fill", "candidate coverage"),
-                    kept.sheet.basis
-                );
-                record_sheet_choice(&first, &mut kept);
-                return Ok(local_readability_refusal(analysis, spec, kept));
+                for mut kept in [kept, previous.clone()] {
+                    for v in &mut kept.views {
+                        if let Some(d) = &mut v.detail
+                            && !d.authored
+                        {
+                            d.marked_bounds = d.bounds;
+                        }
+                    }
+                    if let Some(packed) =
+                        crate::sheet_fit::pack_settled_views(analysis, &kept, &kept)
+                    {
+                        kept = packed;
+                    }
+                    crate::sheet_fit::repair_callout_crossings(analysis, &ordinary, &mut kept);
+                    if !kept
+                        .views
+                        .iter()
+                        .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
+                        || !crate::detail::readable_automatic(analysis, &ordinary, &kept)
+                        || !findings(&kept).clean()
+                        || !drawn_sheets_fit(analysis, &kept)
+                        || !required.is_subset(&carried(&kept))
+                        || legibility(&kept) > legibility(&ordinary)
+                        || !no_new_drawing_issues(&ordinary, &kept)
+                        || !crate::sheet_fit::routes_no_worse(analysis, &ordinary, &kept)
+                    {
+                        continue;
+                    }
+                    kept.sheet.basis = format!(
+                        "whole-part paper {} at {}; established enlarged profile retained; new readability need refused; whole-part trials: {}; local-detail trials: {}",
+                        ordinary.sheet.size,
+                        ordinary.sheet.scale,
+                        ordinary
+                            .sheet
+                            .basis
+                            .replace("drawn-item fill", "candidate coverage"),
+                        kept.sheet.basis
+                    );
+                    record_sheet_choice(&first, &mut kept);
+                    return Ok(local_readability_refusal(analysis, spec, kept));
+                }
             }
         }
 
@@ -3364,7 +3431,7 @@ fn recover_with_reference(
             && findings(&detailed).clean()
             && detailed.sheet.scale_factor + 1e-6 >= request_floor
             && crate::detail::readable_automatic(analysis, &ordinary, &detailed)
-            && retains_enlarged_ink(&first, &detailed)
+            && retains_enlarged_ink(analysis, &first, &detailed)
             && (legibility(&detailed) == 0
                 || (legibility(&detailed) < legibility(&ordinary)
                     && crate::sheet_fit::readability(analysis, &detailed)

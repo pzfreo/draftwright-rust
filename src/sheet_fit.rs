@@ -2943,7 +2943,7 @@ fn pack_reserved(
             .views
             .iter()
             .filter_map(|v| v.detail.as_ref())
-            .all(|d| !d.authored && d.kind.starts_with("readability"));
+            .all(|d| !d.authored);
     if pack_details {
         for (i, view) in template.views.iter().enumerate() {
             if let Some(detail) = &view.detail {

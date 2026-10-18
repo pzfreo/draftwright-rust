@@ -509,3 +509,92 @@ fn a_crowded_main_view_keeps_its_readable_a3_scale() {
         assert!(p.sheet.basis.contains("halving a crowded main view"));
     }
 }
+
+#[test]
+fn a_refused_aperture_crop_keeps_the_useful_enlarged_profile() {
+    let Some(corpus) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
+        assert!(std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"));
+        return;
+    };
+    let (_, a) = model::analyse_native(&Path::new(&corpus).join("mfcadpp/10098.step")).unwrap();
+    let p = model::plan_recovered(&a, &model::Spec::default()).unwrap();
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        ("A4", "1:1")
+    );
+    let details: Vec<_> = p.views.iter().filter(|v| v.detail.is_some()).collect();
+    assert_eq!(details.len(), 1);
+    let detail = details[0].detail.as_ref().unwrap();
+    assert_eq!(
+        (detail.kind.as_str(), detail.scale),
+        ("prismatic-steps", 2.0)
+    );
+    assert_eq!(detail.bounds, detail.marked_bounds);
+    let controls: std::collections::BTreeSet<_> = p
+        .dimensions
+        .iter()
+        .filter(|d| d.view == details[0].id)
+        .map(|d| d.id.as_str())
+        .collect();
+    assert_eq!(
+        controls,
+        [
+            "d:step_level/step_height.length.h4_581",
+            "d:step_level/step_height.length.h10_385"
+        ]
+        .into_iter()
+        .collect()
+    );
+    assert!(
+        p.dimensions
+            .iter()
+            .filter(|d| d.view == details[0].id)
+            .all(|d| !d.reference && d.placed.is_some())
+    );
+    assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
+    let r = sheet_fit::readability(&a, &p);
+    assert_eq!(
+        (r.native_openings, r.failures(), r.whole_drawing_failures()),
+        (1, 1, 0)
+    );
+    assert!(
+        p.problems
+            .iter()
+            .any(|q| q.code == "layout_recovery_exhausted")
+    );
+}
+
+#[test]
+fn an_initial_large_profile_does_not_veto_a_useful_same_paper_crop() {
+    let Some(corpus) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
+        assert!(std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"));
+        return;
+    };
+    let (_, a) = model::analyse_native(&Path::new(&corpus).join("mfcadpp/10049.step")).unwrap();
+    let estimate = model::plan(&a, &model::Spec::default()).unwrap();
+    assert_eq!(
+        (estimate.sheet.size.as_str(), estimate.sheet.scale.as_str()),
+        ("A3", "2:1")
+    );
+    let p = model::plan_recovered(&a, &model::Spec::default()).unwrap();
+    let ordinary: model::Spec =
+        serde_json::from_value(json!({"sheet":{"automatic_details":false}})).unwrap();
+    let ordinary = model::plan_recovered(&a, &ordinary).unwrap();
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        ("A4", "1:1")
+    );
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        (ordinary.sheet.size.as_str(), ordinary.sheet.scale.as_str())
+    );
+    assert_eq!(sheet_fit::readability(&a, &p).failures(), 0);
+    let details: Vec<_> = p.views.iter().filter(|v| v.detail.is_some()).collect();
+    assert_eq!(details.len(), 1);
+    assert_eq!(details[0].scale, 2.0);
+    assert!(
+        p.dimensions
+            .iter()
+            .any(|d| d.view == details[0].id && !d.reference && d.placed.is_some())
+    );
+}
