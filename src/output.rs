@@ -1715,6 +1715,127 @@ fn elevate(poles: &[[f64; 3]], degree: usize) -> Vec<[f64; 3]> {
     p
 }
 
+/// Geometry as SVG inspection sees it: exported control-point precision,
+/// polynomial rational pieces, and the canonical origin of a circle element.
+pub(crate) fn inspection_curve(curve: &Curve) -> Curve {
+    let round = |p: P| p.map(|x| num(x).parse::<f64>().expect("SVG coordinates are numbers"));
+    let bezier = |p: &[Vec<P>]| {
+        Curve::Beziers(
+            p.iter()
+                .map(|p| p.iter().map(|p| round(*p)).collect())
+                .collect(),
+        )
+    };
+    fn flatten(c: &Curve, a: f64, b: f64, depth: usize, into: &mut Vec<Vec<P>>) {
+        let (p, q) = (c.at(a), c.at(b));
+        if depth >= 20
+            || [0.25, 0.5, 0.75].iter().all(|t| {
+                let x = c.at(a + t * (b - a));
+                (x[0] - p[0] - t * (q[0] - p[0])).hypot(x[1] - p[1] - t * (q[1] - p[1])) <= 0.002
+            })
+        {
+            into.push(vec![p, q]);
+        } else {
+            let m = (a + b) / 2.;
+            flatten(c, a, m, depth + 1, into);
+            flatten(c, m, b, depth + 1, into);
+        }
+    }
+    match curve {
+        Curve::Line(a, b) => Curve::Line(round(*a), round(*b)),
+        Curve::Conic {
+            centre,
+            radii,
+            t0,
+            t1,
+            ..
+        } if (radii[0] - radii[1]).abs() <= 1e-12 * radii[0]
+            && (t1 - t0).abs() >= 2. * PI - 1e-12 =>
+        {
+            Curve::Conic {
+                centre: round(*centre),
+                radii: *radii,
+                x_axis: [1., 0.],
+                y_axis: [0., 1.],
+                t0: 0.,
+                t1: 2. * PI,
+            }
+        }
+        Curve::Conic {
+            centre,
+            radii,
+            x_axis,
+            y_axis,
+            t0,
+            t1,
+        } => {
+            // SVG endpoint arcs reconstruct their centre from the exported endpoints.
+            // In a near-semicircle the six-place endpoint rounding is significant.
+            let phi = x_axis[1].atan2(x_axis[0]);
+            let (sin, cos) = phi.sin_cos();
+            let sweep = (x_axis[0] * y_axis[1] - x_axis[1] * y_axis[0] > 0.) == (*t1 > *t0);
+            let du = t1 - t0;
+            let ends = if du.abs() >= 2. * PI - 1e-12 {
+                vec![t0 + du / 2., *t1]
+            } else {
+                vec![*t1]
+            };
+            let mut start = round(curve.start());
+            let mut previous = *t0;
+            let mut lines = Vec::new();
+            for t in ends {
+                let end = round(Curve::conic_at(*centre, *radii, *x_axis, *y_axis, t));
+                let (dx, dy) = ((start[0] - end[0]) / 2., (start[1] - end[1]) / 2.);
+                let (x, y) = (cos * dx + sin * dy, -sin * dx + cos * dy);
+                let (mut rx, mut ry) = (radii[0], radii[1]);
+                let scale = ((x / rx).powi(2) + (y / ry).powi(2)).sqrt().max(1.);
+                rx *= scale;
+                ry *= scale;
+                let mut k = (((rx * ry).powi(2) - (rx * y).powi(2) - (ry * x).powi(2)).max(0.)
+                    / ((rx * y).powi(2) + (ry * x).powi(2)).max(1e-30))
+                .sqrt();
+                if ((t - previous).abs() > PI) == sweep {
+                    k = -k;
+                }
+                let (ux, uy) = (k * rx * y / ry, -k * ry * x / rx);
+                let centre = [
+                    (start[0] + end[0]) / 2. + cos * ux - sin * uy,
+                    (start[1] + end[1]) / 2. + sin * ux + cos * uy,
+                ];
+                let from = ((y - uy) / ry).atan2((x - ux) / rx);
+                let to = ((-y - uy) / ry).atan2((-x - ux) / rx);
+                let mut angle = (to - from).rem_euclid(2. * PI);
+                if !sweep {
+                    angle -= 2. * PI;
+                }
+                let arc = Curve::Conic {
+                    centre,
+                    radii: [rx, ry],
+                    x_axis: [cos, sin],
+                    y_axis: [-sin, cos],
+                    t0: from,
+                    t1: from + angle,
+                };
+                let n = (angle.abs() / FRAC_PI_2).ceil().max(1.) as usize;
+                for i in 0..n {
+                    flatten(
+                        &arc,
+                        i as f64 / n as f64,
+                        (i + 1) as f64 / n as f64,
+                        0,
+                        &mut lines,
+                    );
+                }
+                start = end;
+                previous = t;
+            }
+            Curve::Beziers(lines)
+        }
+        Curve::Beziers(p) => bezier(p),
+        Curve::Rational(p) => bezier(&polynomial(p)),
+    }
+}
+
 /// The SVG path commands for *curve*, from its start (already reached).
 fn svg_segments(curve: &Curve, d: &mut String) {
     match curve {

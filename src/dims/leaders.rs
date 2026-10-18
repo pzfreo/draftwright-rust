@@ -3462,20 +3462,23 @@ fn resolved_ink(
         let mut lines = Vec::new();
         for item in items {
             if let Item::Edge(c) = item {
-                let n = match c {
-                    Curve::Line(..) => 1,
-                    Curve::Conic { .. } => 4,
-                    Curve::Beziers(p) => p.len() * 4,
-                    Curve::Rational(p) => p.len() * 4,
-                };
-                for i in 0..n {
-                    flatten(
-                        c,
-                        i as f64 / n as f64,
-                        (i + 1) as f64 / n as f64,
-                        0,
-                        &mut lines,
-                    );
+                let c = crate::output::inspection_curve(c);
+                match c {
+                    Curve::Line(a, b) => lines.push([a, b]),
+                    Curve::Beziers(pieces) => {
+                        for p in pieces {
+                            if p.len() == 2 {
+                                lines.push([p[0], p[1]]);
+                            } else {
+                                flatten(&Curve::Beziers(vec![p]), 0., 1., 0, &mut lines);
+                            }
+                        }
+                    }
+                    _ => {
+                        for i in 0..4 {
+                            flatten(&c, i as f64 / 4., (i + 1) as f64 / 4., 0, &mut lines);
+                        }
+                    }
                 }
             }
         }
@@ -3486,7 +3489,7 @@ fn resolved_ink(
     let drawn = SegmentIndex::new(visible.iter().chain(&hidden).copied().collect());
     Some(ResolvedInk {
         visible: SegmentIndex::new(visible),
-        hidden: SegmentIndex::new(hidden),
+        hidden: SegmentIndex::exported(hidden),
         drawn,
     })
 }
@@ -3496,6 +3499,7 @@ pub(super) struct SegmentIndex {
     ink: Vec<[P2; 2]>,
     physical: Vec<PhysicalEdge>,
     resolved: Option<Box<ResolvedInk>>,
+    exported: bool,
     children: Option<Box<[SegmentIndex; 2]>>,
     counts: std::cell::RefCell<std::collections::HashMap<[u64; 4], usize>>,
     besides: std::cell::RefCell<std::collections::HashMap<[u64; 4], bool>>,
@@ -3570,6 +3574,7 @@ impl SegmentIndex {
             ink,
             physical: Vec::new(),
             resolved: None,
+            exported: false,
             children,
             counts: std::cell::RefCell::default(),
             besides: std::cell::RefCell::default(),
@@ -3740,6 +3745,20 @@ impl SegmentIndex {
         }
     }
 
+    fn exported(ink: Vec<[P2; 2]>) -> Self {
+        fn mark(index: &mut SegmentIndex) {
+            index.exported = true;
+            if let Some(children) = &mut index.children {
+                for child in children.iter_mut() {
+                    mark(child);
+                }
+            }
+        }
+        let mut index = Self::new(ink);
+        mark(&mut index);
+        index
+    }
+
     // Count each projected edge once, even when both legs cross it. This is
     // the router's original full-scan predicate, queried through the same tree.
     fn route_crossings(&self, lines: [[P2; 2]; 2]) -> usize {
@@ -3768,7 +3787,15 @@ impl SegmentIndex {
         } else {
             self.ink
                 .iter()
-                .filter(|edge| lines.iter().any(|line| segments_cross(*line, **edge)))
+                .filter(|edge| {
+                    lines.iter().any(|line| {
+                        if self.exported {
+                            exported_cross(*line, **edge)
+                        } else {
+                            segments_cross(*line, **edge)
+                        }
+                    })
+                })
                 .count()
         }
     }
@@ -5321,6 +5348,15 @@ fn through(s: [P2; 2], p: P2) -> bool {
     n > 1e-9 && ((p[0] - s[0][0]) * u[1] - (p[1] - s[0][1]) * u[0]).abs() / n < 1e-3
 }
 
+// SVG endpoint rounding can turn an analytic endpoint touch into a crossing.
+// Use the exported-ink product predicate for those curves, independently of the
+// router's analytic endpoint tolerance.
+fn exported_cross(a: [P2; 2], b: [P2; 2]) -> bool {
+    let side = |p: P2, q: P2, r: P2| (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+    side(a[0], a[1], b[0]) * side(a[0], a[1], b[1]) < -1e-12
+        && side(b[0], b[1], a[0]) * side(b[0], b[1], a[1]) < -1e-12
+}
+
 /// Whether two segments cross at a point inside both (touching ends and collinear runs do not
 /// count).
 pub(super) fn segments_cross(a: [P2; 2], b: [P2; 2]) -> bool {
@@ -6689,6 +6725,23 @@ mod arc_tip_tests {
             views += 1;
         }
         assert!(views >= 2 && hidden);
+    }
+
+    #[test]
+    fn exported_hidden_ink_counts_rounded_endpoint_crossings() {
+        // FTC-10: the analytic leader meets the hidden edge's endpoint.
+        // Rounding the SVG endpoint to six places leaves a strict crossing.
+        let route = [
+            [[311.05331089993444, 300.0213243599738], [323.5, 305.]],
+            [[323.5, 305.], [324.25, 305.]],
+        ];
+        let edge = [[314.902, 303.], [318.5, 303.]];
+        assert!(!segments_cross(route[0], edge));
+        let mut ink = vec![edge];
+        ink.extend((0..40).map(|i| [[i as f64, 0.], [i as f64, 10.]]));
+        let exported = SegmentIndex::exported(ink);
+        assert_eq!(exported.route_crossings(route), 1);
+        assert_eq!(exported.route_crossings(route), 1);
     }
 
     #[test]
