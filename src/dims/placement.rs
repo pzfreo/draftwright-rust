@@ -2503,7 +2503,27 @@ fn clear_linear_ordered(
             .filter_map(|(_, p)| p.as_ref())
             .chain(obstacles.iter().filter_map(|d| d.placed.as_ref()))
             .collect();
-        let label_conflict = location_order_conflict(side, p, placed)
+        // A settled witness can separate a short peer's text from its own
+        // arrow even without touching a glyph. Repair that witness as well
+        // as trying to move the already detached label.
+        let separated_labels: Vec<_> = placed
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| {
+                new_native
+                    && !semantic_pmi
+                    && !crate::nominal::comparison()
+                    && *j != i
+                    && chosen[*j] == Some(view)
+            })
+            .filter_map(|(_, q)| q.as_ref())
+            .filter(|q| {
+                !super::label_lanes::off_span(q, std::iter::empty())
+                    && super::label_lanes::off_span(q, std::iter::once(p))
+            })
+            .collect();
+        let label_conflict = !separated_labels.is_empty()
+            || location_order_conflict(side, p, placed)
             || !page.fits(p, view)
             || others.iter().any(|q| conflict(p, q))
             || (recess_context && super::label_lanes::off_span(p, others.iter().copied()));
@@ -2567,18 +2587,21 @@ fn clear_linear_ordered(
         // witness onto another hole even when neither is a recess. Give that
         // physical crossing the same bounded corridor repair as new witnesses
         // when the established drawing proves it was clear before expansion.
-        let recess_corridor =
-            (old_location(i) && before.0 > 0 && established_clear.contains(&items[i].id))
-                || items[i]
-                    .measurements
+        let recess_corridor = (before.0 > 0
+            && ((old_location(i) && established_clear.contains(&items[i].id))
+                || (new_native
+                    && crate::nominal::geometry_eligible(analysis)
+                    && !crate::nominal::comparison())))
+            || items[i]
+                .measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:section_recess:"))
+            || p.lines.iter().take(2).any(|line| {
+                footprint
+                    .crossed_extension(*line, &items[i].measurements)
                     .iter()
-                    .any(|m| m.feature.starts_with("f:section_recess:"))
-                || p.lines.iter().take(2).any(|line| {
-                    footprint
-                        .crossed_extension(*line, &items[i].measurements)
-                        .iter()
-                        .any(|id| id.starts_with("f:section_recess:"))
-                });
+                    .any(|id| id.starts_with("f:section_recess:"))
+            });
         if (recess_context && !recess_corridor && !label_conflict)
             || (!label_conflict && (!recess_corridor || before == (0, 0)))
         {
@@ -3185,6 +3208,9 @@ fn clear_linear_ordered(
                         final_peers.iter().any(|q| conflict(&c, q))
                     };
                     if pair_contact
+                        || separated_labels
+                            .iter()
+                            .any(|q| super::label_lanes::off_span(q, std::iter::once(&c)))
                         || (recess_context
                             && (super::label_lanes::off_span(&c, final_peers.iter().copied())
                                 || final_peers.iter().any(|q| {

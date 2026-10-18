@@ -573,7 +573,7 @@ pub(crate) fn has_new_native_recess_dimensions(analysis: &Analysis) -> bool {
 }
 
 pub(crate) fn has_recess_dimensions(analysis: &Analysis) -> bool {
-    let (canonical, established, comparison) = crate::planning::policy_key(analysis);
+    let (canonical, established, comparison, unwrapped) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "recess-presence",
@@ -581,6 +581,7 @@ pub(crate) fn has_recess_dimensions(analysis: &Analysis) -> bool {
             u8::from(canonical),
             u8::from(established),
             u8::from(comparison),
+            u8::from(unwrapped),
         ],
         || has_recess_dimensions_uncached(analysis),
     )
@@ -902,7 +903,7 @@ pub(crate) fn inspection_datum(a: &Analysis) -> Option<(usize, f64)> {
 }
 
 pub(crate) fn detail_levels(a: &Analysis) -> Vec<(String, f64)> {
-    let (canonical, established, comparison) = crate::planning::policy_key(a);
+    let (canonical, established, comparison, unwrapped) = crate::planning::policy_key(a);
     crate::planning::memo(
         a,
         "detail-linear-levels",
@@ -910,6 +911,7 @@ pub(crate) fn detail_levels(a: &Analysis) -> Vec<(String, f64)> {
             u8::from(canonical),
             u8::from(established),
             u8::from(comparison),
+            u8::from(unwrapped),
         ],
         || detail_levels_uncached(a),
     )
@@ -1727,7 +1729,7 @@ pub(crate) fn authored_placement_clear(spec: &Spec, dims: &[PlannedDimension]) -
 /// A slot chain must have room for its arrows and its own text between its ends.
 /// New recess annotations reserve extra paper rather than reducing these existing chains.
 pub(crate) fn recess_chain_scale(analysis: &Analysis) -> f64 {
-    let (canonical, established, comparison) = crate::planning::policy_key(analysis);
+    let (canonical, established, comparison, unwrapped) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "recess-readable-scale",
@@ -1735,6 +1737,7 @@ pub(crate) fn recess_chain_scale(analysis: &Analysis) -> f64 {
             u8::from(canonical),
             u8::from(established),
             u8::from(comparison),
+            u8::from(unwrapped),
         ],
         || recess_chain_scale_uncached(analysis),
     )
@@ -1782,6 +1785,20 @@ fn recess_chain_scale_uncached(analysis: &Analysis) -> f64 {
             Some((ink.max[0] - ink.min[0] + 2.0 * ARROW + 2.0) / w.value)
         })
         .fold(0.0, f64::max)
+}
+
+/// Finished short-span labels must remain associated with their own arrows.
+pub(crate) fn labels_on_spans(dims: &[PlannedDimension]) -> bool {
+    dims.iter().filter(|d| d.kind == "linear").all(|d| {
+        d.placed.as_ref().is_none_or(|p| {
+            !label_lanes::off_span(
+                p,
+                dims.iter()
+                    .filter(|q| q.id != d.id && q.kind == "linear" && q.view == d.view)
+                    .filter_map(|q| q.placed.as_ref()),
+            )
+        })
+    })
 }
 
 /// The finite 1 mm leader/extension corridors used by the shared solve and QA.
@@ -4175,6 +4192,8 @@ pub(crate) fn refine_inventory(
                     .measurements
                     .iter()
                     .all(|m| m.feature.starts_with("f:section_recess:"))
+                    && !(crate::nominal::geometry_eligible(analysis)
+                        && !crate::nominal::comparison())
             {
                 sides[i] = None;
             }

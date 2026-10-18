@@ -168,3 +168,75 @@ fn stc09_slot_length_stays_beside_its_peer_and_gdt_corridors() {
         "a moved label must keep 1 mm from a GD&T leader it never touched"
     );
 }
+
+#[test]
+fn precise_labels_keep_their_span_after_the_final_inventory_settles() {
+    for (file, expected) in [
+        (
+            "mfcadpp/10047.step",
+            vec![
+                ("d:f:slot:1/slot_width.length", "4.53"),
+                ("d:step_level/step_height.length.h2_526", "2.526"),
+                ("d:f:section_recess:6/location_pocket.z", "3.526"),
+            ],
+        ),
+        (
+            "cadgenbench_inputs/cgb207.step",
+            vec![("d:step_level/step_height.length.h12_001", "12.001")],
+        ),
+    ] {
+        let Some(p) = plan(file) else { return };
+        for (id, label) in expected {
+            let d = p.dimensions.iter().find(|d| d.id == id).unwrap();
+            assert_eq!(d.label, label);
+            assert!(adjacent(d), "{file}: {id} is detached from its span");
+            let placed = d.placed.as_ref().unwrap();
+            let k = usize::from(placed.rotation != 0.0);
+            let lo = placed.arrows[0][0][k].min(placed.arrows[1][0][k]);
+            let hi = placed.arrows[0][0][k].max(placed.arrows[1][0][k]);
+            let b = placed.label_box;
+            let line = placed.arrows[0][0][1 - k];
+            let normal = [line.min(b[1 - k]), line.max(b[3 - k])];
+            for peer in p
+                .dimensions
+                .iter()
+                .filter(|q| q.id != d.id && q.kind == "linear" && q.view == d.view)
+            {
+                let Some(q) = &peer.placed else { continue };
+                for [a, z] in q.lines.iter().take(2) {
+                    let between = (b[k] + 1e-6 < a[k] && a[k] < lo - 1e-6)
+                        || (hi + 1e-6 < a[k] && a[k] < b[k + 2] - 1e-6);
+                    assert!(
+                        !((a[k] - z[k]).abs() <= 1e-6
+                            && between
+                            && a[1 - k].min(z[1 - k]) <= normal[1]
+                            && a[1 - k].max(z[1 - k]) >= normal[0]),
+                        "{file}: {} separates {id}'s text from its span",
+                        peer.id
+                    );
+                }
+            }
+        }
+    }
+    let Some(p) = plan("nist/nist_ftc_08_asme1_rc.stp") else {
+        return;
+    };
+    let slot = p
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:slot:1/slot_width.length")
+        .unwrap();
+    assert_eq!(slot.label, "192.21");
+    assert!(
+        !p.problems.iter().any(|q| {
+            matches!(
+                q.code.as_str(),
+                "extension_through_feature" | "leader_through_feature"
+            ) && q
+                .subjects
+                .iter()
+                .any(|id| id == &slot.id || id == "d:f:section_recess:1/seat_diameter.diameter")
+        }),
+        "a table must not freeze newly obstructed old witnesses or seat leaders"
+    );
+}

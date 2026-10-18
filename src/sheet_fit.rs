@@ -13,6 +13,17 @@ pub const MIN_OPENING: f64 = 0.8;
 pub const ABSOLUTE_FLOOR: f64 = 0.1;
 
 pub fn min_legible_scale(analysis: &Analysis) -> f64 {
+    let needed = min_geometry_scale(analysis).max(crate::dims::recess_chain_scale(analysis));
+    crate::layout::SCALES
+        .into_iter()
+        .rev()
+        .find(|s| *s >= needed)
+        .unwrap_or(needed)
+}
+
+/// Geometry floor, before the estimated room for labels inside slot chains.
+/// A finished drawing may prove those labels readable with outward arrows.
+pub(crate) fn min_geometry_scale(analysis: &Analysis) -> f64 {
     let opening = analysis
         .features
         .iter()
@@ -33,8 +44,7 @@ pub fn min_legible_scale(analysis: &Analysis) -> f64 {
         .fold(0.0, f64::max);
     let needed = (MIN_OPENING / opening)
         .max(20.0 / longest.max(1e-12))
-        .max(ABSOLUTE_FLOOR)
-        .max(crate::dims::recess_chain_scale(analysis));
+        .max(ABSOLUTE_FLOOR);
     crate::layout::SCALES
         .into_iter()
         .rev()

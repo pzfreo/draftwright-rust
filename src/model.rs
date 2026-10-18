@@ -1646,8 +1646,14 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
         crate::planning::memo(analysis, "analysis_digest", Vec::new(), || {
             Sha256::digest(serde_json::to_vec(analysis).expect("Analysis serializes")).into()
         });
-    let bytes = serde_json::to_vec(&(analysis_key, spec, &first, crate::nominal::comparison()))
-        .expect("plan inputs serialize");
+    let bytes = serde_json::to_vec(&(
+        analysis_key,
+        spec,
+        &first,
+        crate::nominal::comparison(),
+        crate::nominal::unwrapped_comparison(),
+    ))
+    .expect("plan inputs serialize");
     let key: [u8; 32] = Sha256::digest(&bytes).into();
     if let Some(plan) = MEMO.get(&key) {
         return Ok(plan);
@@ -1948,7 +1954,90 @@ mod complete_candidate_tests {
 fn recover_uncached(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
     let mut plan = recover_callouts(analysis, spec, first)?;
     shorten_wrapped_callouts(analysis, spec, &mut plan);
+    recover_recess_corridors(analysis, spec, &mut plan)?;
     Ok(plan)
+}
+
+/// A schedule can make the first sheet complete while leaving a new recess
+/// leader across another feature. Compare the next legible scale on that paper
+/// against the complete printed drawing, including all established corridors.
+fn recover_recess_corridors(
+    analysis: &Analysis,
+    spec: &Spec,
+    plan: &mut Plan,
+) -> Result<(), Invalid> {
+    let blocked = |p: &Plan| {
+        p.problems
+            .iter()
+            .filter(|q| {
+                q.code == "leader_through_feature"
+                    && q.subjects.first().is_some_and(|id| {
+                        p.dimensions.iter().any(|d| {
+                            &d.id == id
+                                && d.measurements
+                                    .iter()
+                                    .any(|m| m.feature.starts_with("f:section_recess:"))
+                        })
+                    })
+            })
+            .count()
+    };
+    if crate::nominal::comparison()
+        || !crate::nominal::geometry_eligible(analysis)
+        || spec.sheet.scale.is_some()
+        || crate::placement_intent::has_pins(spec)
+        || annotation_text_edited(spec)
+        || !plan.sheets.is_empty()
+        || blocked(plan) == 0
+    {
+        return Ok(());
+    }
+    let floor = crate::sheets::floor(spec)
+        .unwrap_or(crate::sheet_fit::ABSOLUTE_FLOOR)
+        .max(crate::sheet_fit::min_geometry_scale(analysis));
+    let Some(scale) = layout::SCALES
+        .iter()
+        .copied()
+        .find(|s| *s < plan.sheet.scale_factor && *s >= floor)
+    else {
+        return Ok(());
+    };
+    let mut intent = spec.clone();
+    intent.sheet.size = Some(plan.sheet.size.clone());
+    intent.sheet.scale = Some(scale_name(scale));
+    let mut trial = plan_escalated_with(analysis, &intent, true, None, false)?;
+    if blocked(&trial) >= blocked(plan)
+        || findings(&trial).hard > findings(plan).hard
+        || findings(&trial).dropped > findings(plan).dropped
+        || undrawn_gdt(&trial) > undrawn_gdt(plan)
+        || ink_findings(&trial) > ink_findings(plan)
+        || feature_crossings(&trial) > feature_crossings(plan)
+        || crate::dims::extension_contacts(&trial.dimensions)
+            > crate::dims::extension_contacts(&plan.dimensions)
+        || !carried(plan).is_subset(&carried(&trial))
+        || longer_callouts(&trial, plan)
+        || !drawn_items_fit(analysis, &trial)
+        || crate::sheet_fit::illegible_steps(analysis, &trial) > 0
+        || !crate::dims::labels_on_spans(&trial.dimensions)
+        || trial
+            .dimensions
+            .iter()
+            .flat_map(|d| &d.measurements)
+            .filter(|m| m.parameter == "channel_width.length")
+            .any(|m| m.value * scale < crate::sheet_fit::MIN_OPENING)
+    {
+        return Ok(());
+    }
+    trial.spec = spec.clone();
+    trial.sheet.default = spec.sheet.size.is_none();
+    trial.sheet.basis = format!(
+        "automatic reduction on {} to {} clears new recess leaders while retaining the complete drawing and established corridors; drawn-item fill {:.1}%",
+        trial.sheet.size,
+        trial.sheet.scale,
+        trial.sheet.fill * 100.0
+    );
+    *plan = trial;
+    Ok(())
 }
 
 /// Schedules and retained recipes settle before this last bounded route polish.
@@ -5837,7 +5926,11 @@ fn settle_finished_nominals(
     let mut items = plan.dimensions.clone();
     items.extend_from_slice(omitted);
     let cache = crate::dims::footprints::Cache::default();
-    let reports = crate::dims::settle_after_furniture(
+    // Consolidation can release the witness or label corridor that prevented
+    // an earlier repair. Reconsider the complete printed inventory before
+    // fixing the final callouts, with the usual page and peer protections.
+    crate::dims::settle_inventory(analysis, spec, &plan.sheet, &plan.views, &mut items, &fixed);
+    let mut reports = crate::dims::refine_inventory(
         analysis,
         spec,
         &plan.sheet,
@@ -5846,7 +5939,21 @@ fn settle_finished_nominals(
         &fixed,
         &cache,
     );
-    if reports.is_empty() {
+    reports.extend(crate::dims::settle_after_furniture(
+        analysis,
+        spec,
+        &plan.sheet,
+        &plan.views,
+        &mut items,
+        &fixed,
+        &cache,
+    ));
+    if reports.is_empty()
+        && items
+            .iter()
+            .zip(&plan.dimensions)
+            .all(|(a, b)| a.placed == b.placed)
+    {
         return;
     }
     let mut trial = plan.clone();

@@ -60,6 +60,11 @@ fn width(terms: &[String]) -> f64 {
 /// Python's 48 mm policy: intact words; a semicolon closes a half-used line.
 /// Explicit breaks are retained. Numeric upper/lower deviation tokens stay intact.
 pub fn wrap(terms: &[String]) -> Vec<String> {
+    // The private placement comparison predates multiline callouts. Keep its
+    // compact corridors intact; every live label still uses measured wrapping.
+    if crate::nominal::unwrapped_comparison() {
+        return terms.to_vec();
+    }
     use sha2::{Digest, Sha256};
     static MEMO: crate::planning::BoundedMemo<Vec<String>> = crate::planning::BoundedMemo::new(512);
     let terms: Vec<_> = terms

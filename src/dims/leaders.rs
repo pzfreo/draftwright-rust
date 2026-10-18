@@ -807,12 +807,18 @@ fn nominal_reference(
     .and_then(Result::ok)
 }
 
+#[derive(Clone)]
+struct NominalReferences {
+    full: crate::model::Plan,
+    legacy: Option<crate::model::Plan>,
+}
+
 // A late comparison cannot influence view selection, lane ownership or sheet search.
 // It contributes remeasured alternatives only after the complete inventory has settled.
 fn settled_nominal_reference(
     analysis: &crate::model::Analysis,
     spec: &crate::model::Spec,
-) -> Option<crate::model::Plan> {
+) -> Option<NominalReferences> {
     if crate::nominal::comparison()
         || !crate::nominal::geometry_eligible(analysis)
         || !default_nominal_intent(spec)
@@ -836,7 +842,7 @@ fn settled_nominal_reference(
         return None;
     }
     use sha2::{Digest, Sha256};
-    static MEMO: crate::planning::BoundedMemo<Option<crate::model::Plan>> =
+    static MEMO: crate::planning::BoundedMemo<Option<NominalReferences>> =
         crate::planning::BoundedMemo::new(16);
     let analysis_key: [u8; 32] =
         crate::planning::memo(analysis, "analysis_digest", Vec::new(), || {
@@ -860,7 +866,17 @@ fn settled_nominal_reference(
             // Use the established corridor recipe, before live inspection repairs.
             // Otherwise an already lengthened route becomes its own budget.
             crate::planning::store(&base, "canonical-circular-recipes", Vec::new(), true);
-            crate::model::plan_recovered(&base, &recipe).ok()
+            let full = crate::nominal::with_unwrapped_comparison(|| {
+                crate::model::plan_recovered(&base, &recipe)
+            })
+            .ok()?;
+            // The pre-recess recipe uses current wrapping in a separate scope;
+            // the historical unwrapped solve must not supply its preparation.
+            let legacy_base = analysis.clone();
+            let legacy = crate::planning::with(&legacy_base, || {
+                crate::model::established_drawing(&legacy_base, &recipe).ok()
+            });
+            Some(NominalReferences { full, legacy })
         })
     });
     MEMO.insert(key, reference.clone());
@@ -1370,10 +1386,14 @@ pub(crate) fn settle_after_furniture(
     obstacles: &[PlannedDimension],
     cache: &super::footprints::Cache,
 ) -> BTreeMap<String, Vec<Problem>> {
-    super::nearest_shared_witnesses(analysis, spec, views, items);
     let compact = crate::nominal::comparison();
+    if !compact {
+        super::nearest_shared_witnesses(analysis, spec, views, items);
+    }
     let bounded_notches = !crate::notches::requirements(analysis).is_empty();
-    let reference = settled_nominal_reference(analysis, spec);
+    let references = settled_nominal_reference(analysis, spec);
+    let full_reference = references.as_ref().map(|r| &r.full);
+    let legacy_reference = references.as_ref().and_then(|r| r.legacy.as_ref());
     let mut updated = BTreeMap::new();
     let mut wants = None;
     let mut profile_proofs = None;
@@ -1390,6 +1410,29 @@ pub(crate) fn settle_after_furniture(
             continue;
         }
         let Some(old) = &d.placed else { continue };
+        // Preserve established corridors against the pre-recess comparison,
+        // rather than treating a displaced full-inventory route as its own budget.
+        let matching = |r: &crate::model::Plan| {
+            r.dimensions
+                .iter()
+                .find(|b| {
+                    b.id == d.id
+                        && b.view == d.view
+                        && b.region == d.region
+                        && b.measurements.iter().all(|m| d.measurements.contains(m))
+                })
+                .and_then(|b| b.placed.as_ref())
+                .map(|p| length(&p.lines))
+        };
+        let reference = match (legacy_reference, full_reference) {
+            (Some(legacy), Some(full))
+                if matching(legacy)
+                    .is_some_and(|l| matching(full).is_none_or(|f| l <= f + 1e-6)) =>
+            {
+                Some(legacy)
+            }
+            (_, full) => full,
+        };
         // Longer faithful nominal labels can contact already settled dimensions as well
         // as furniture. Reconsider those routes against the complete live inventory.
         let conflicts = if compact {
@@ -1446,6 +1489,32 @@ pub(crate) fn settle_after_furniture(
         else {
             continue;
         };
+        let mut printed = w.clone();
+        printed.terms.clone_from(&d.terms);
+        printed.measurements.clone_from(&d.measurements);
+        if printed
+            .measurements
+            .iter()
+            .any(|m| m.parameter == "seat_diameter.diameter")
+            && let Shape::Callout { sites, arcs } = &mut printed.shape
+        {
+            // Consolidation may leave one printed seat callout claiming several
+            // equivalent occurrences. Every claimed occurrence remains a valid
+            // attachment after its raw alias has left the printed inventory.
+            for peer in wants.as_ref().into_iter().flatten().filter(|peer| {
+                peer.id != d.id && peer.measurements.iter().any(|m| d.measurements.contains(m))
+            }) {
+                if let Shape::Callout {
+                    sites: more,
+                    arcs: span,
+                } = &peer.shape
+                {
+                    sites.extend(more.iter().copied());
+                    arcs.extend(span.iter().cloned());
+                }
+            }
+        }
+        let w = &printed;
         let (Shape::Callout { sites, arcs }, Some(v)) =
             (&w.shape, views.iter().find(|v| v.id == d.view))
         else {
@@ -1522,31 +1591,36 @@ pub(crate) fn settle_after_furniture(
                     .iter()
                     .any(|m| m.parameter == "polygon_across_flats.length"),
         );
-        let budget = reference
-            .as_ref()
-            .and_then(|r| {
-                r.dimensions
-                    .iter()
-                    .find(|b| b.id == d.id && b.region == d.region)
-                    .filter(|b| {
-                        !r.problems.iter().any(|p| {
-                            p.subjects.contains(&b.id)
-                                && matches!(
-                                    p.code.as_str(),
-                                    "annotation_off_sheet"
-                                        | "annotation_over_title_block"
-                                        | "annotation_over_view"
-                                        | "annotation_line_over_view"
-                                        | "annotation_outside_area"
-                                        | "annotation_overlap"
-                                        | "annotation_ink_overlap"
-                                        | "annotation_leader_crossing"
-                                )
-                        })
-                    })
-            })
-            .and_then(|b| b.placed.as_ref())
-            .map(|p| length(&p.lines) + 2.0);
+        let new_recess = legacy_reference.is_some_and(|r| matching(r).is_none())
+            && d.measurements
+                .iter()
+                .all(|m| m.feature.starts_with("f:section_recess:"));
+        let budget = reference.as_ref().map(|r| {
+            r.dimensions
+                .iter()
+                .find(|b| b.id == d.id && b.region == d.region)
+                .and_then(|b| b.placed.as_ref())
+                .map_or(length(&old.lines), |p| {
+                    // A new recess has no established paper corridor. Its compact
+                    // comparison may use a different scale; map that model reach
+                    // before comparing it with the current paper route.
+                    let reach = if new_recess {
+                        r.views
+                            .iter()
+                            .find(|q| q.id == d.view)
+                            .map_or(length(&p.lines), |q| {
+                                let shaft = length(&p.lines[..1]) * v.scale / q.scale;
+                                shaft + length(&p.lines[1..])
+                            })
+                    } else {
+                        length(&p.lines)
+                    };
+                    reach.min(length(&old.lines))
+                })
+                + 2.0
+        });
+        // A repair cannot lengthen an already shorter live corridor simply
+        // because the compact recipe took a longer path on another sheet.
         if reference.is_some() {
             let delta = [elbow[0] - tip[0], elbow[1] - tip[1]];
             let norm = delta[0].hypot(delta[1]);
@@ -1628,38 +1702,6 @@ pub(crate) fn settle_after_furniture(
         if let Some((c, _)) = &established {
             candidates.push(c.clone());
         }
-        let budget = if d
-            .measurements
-            .iter()
-            .any(|m| m.parameter == "slot_end_radius.radius")
-            && established.as_ref().is_some_and(|(b, _)| {
-                let site = |tip: P2| {
-                    job.sites
-                        .iter()
-                        .enumerate()
-                        .min_by(|(_, a), (_, b)| {
-                            let distance =
-                                |s: &Site| ((tip[0] - s.0[0]).hypot(tip[1] - s.0[1]) - s.1).abs();
-                            distance(a).total_cmp(&distance(b))
-                        })
-                        .map(|(i, s)| (i, ((tip[0] - s.0[0]).hypot(tip[1] - s.0[1]) - s.1).abs()))
-                };
-                site(b.tip)
-                    .zip(site(before.tip))
-                    .is_some_and(|((a, error), (b, _))| {
-                        a != b
-                            || error
-                                > (crate::model::projected_ink::TOLERANCE
-                                    + crate::model::projected_ink::GRID)
-                                    * v.scale
-                    })
-            }) {
-            // The other end of one slot states the same radius, but does not
-            // inherit the paper reach of the opposite endpoint's route.
-            budget.map(|b| b.max(length(&before.segments())))
-        } else {
-            budget
-        };
         let extensions: Vec<_> = others
             .iter()
             .enumerate()
@@ -1732,6 +1774,9 @@ pub(crate) fn settle_after_furniture(
                 || extension_run(c)
         };
         let baseline = established.as_ref().map_or(&before, |(b, _)| b);
+        // Spend the established drawing's crossing budget, rather than making
+        // an incidental reduction on a long detour permanent. This permits a
+        // shorter corridor while staying no worse than the established ink.
         let hidden_limit = hidden_contacts(baseline).or_else(|| hidden_contacts(&before));
         let hidden_clear = |c: &Candidate| {
             hidden_contacts(c)
@@ -1830,6 +1875,7 @@ pub(crate) fn settle_after_furniture(
                 || live.len() < prior_live.len()
                 || (reference.is_some()
                     && (c.score() < before.score()
+                        || c.feature_crossings < before.feature_crossings
                         || model_crossings(&job, c) < model_crossings(&job, &before)
                         || contacts < prior_extensions
                         || !heads_clear(&before)
@@ -1901,22 +1947,35 @@ pub(crate) fn settle_after_furniture(
         };
         let rank = |c: &Candidate| {
             let contacts = extension_contacts(&extensions, &c.segments(), c.label_box);
+            // Hidden and physical crossing budgets are enforced above. Within
+            // those budgets prefer a clear, short readable corridor; one fewer
+            // hidden edge must not buy an unnecessarily long detour.
             (
-                hidden_contacts(c).unwrap_or(0),
-                established.as_ref().map_or(0, |(b, _)| {
-                    job.model.map_or(0, |ink| {
-                        ink.new_physical_count(&c.segments(), &b.segments())
-                    })
-                }),
+                c.hard,
+                c.text,
+                c.feature_crossings,
                 head_contacts(c),
                 outline_contacts(c),
                 contacts.1,
                 c.beside,
                 contacts.0,
+                (length(&c.segments()) * 1e6).round() as i64,
+                established.as_ref().map_or(0, |(b, _)| {
+                    job.model.map_or(0, |ink| {
+                        ink.new_physical_count(&c.segments(), &b.segments())
+                    })
+                }),
+                hidden_contacts(c).unwrap_or(0),
                 c.score(),
             )
         };
-        let partial = candidates.into_iter().filter(&acceptable).min_by_key(&rank);
+        let partial = candidates.into_iter().filter(&acceptable).min_by(|a, b| {
+            if compact {
+                a.score().cmp(&b.score())
+            } else {
+                rank(a).cmp(&rank(b))
+            }
+        });
         let next = partial
             .clone()
             .filter(|c| reference.is_none() || c.clear())

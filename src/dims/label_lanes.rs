@@ -757,32 +757,37 @@ fn settle_inventory_uncached(
             // A longer label may need another lane, but must not jump past an overall
             // extent or reverse datum-location order. Same-rank sizes may still skip
             // an occupied rung, as before.
-            let ordered = others
-                .iter()
-                .filter(|q| q.kind == "linear" && q.view == d.view)
-                .filter_map(|q| Some((*q, q.placed.as_ref()?)))
-                .filter(|(_, q)| {
-                    q.arrows.len() == 2
-                        && q.rotation == p.rotation
-                        && (q.arrows[0][0][normal] - centre) * (p.arrows[0][0][normal] - centre)
-                            > 0.
-                })
-                .all(|(q, placed)| {
-                    let order = rank(d).cmp(&rank(q)).then_with(|| {
-                        if rank(d) == 1 {
-                            d.value.total_cmp(&q.value)
-                        } else {
-                            std::cmp::Ordering::Equal
+            // Sliding text on its existing line cannot change lane order.
+            // An inherited imperfect ladder must not block that local repair.
+            let ordered = (crate::nominal::geometry_eligible(analysis)
+                && !crate::nominal::comparison()
+                && (c.arrows[0][0][normal] - p.arrows[0][0][normal]).abs() < 1e-6)
+                || others
+                    .iter()
+                    .filter(|q| q.kind == "linear" && q.view == d.view)
+                    .filter_map(|q| Some((*q, q.placed.as_ref()?)))
+                    .filter(|(_, q)| {
+                        q.arrows.len() == 2
+                            && q.rotation == p.rotation
+                            && (q.arrows[0][0][normal] - centre) * (p.arrows[0][0][normal] - centre)
+                                > 0.
+                    })
+                    .all(|(q, placed)| {
+                        let order = rank(d).cmp(&rank(q)).then_with(|| {
+                            if rank(d) == 1 {
+                                d.value.total_cmp(&q.value)
+                            } else {
+                                std::cmp::Ordering::Equal
+                            }
+                        });
+                        let next = (c.arrows[0][0][normal] - centre).abs();
+                        let peer = (placed.arrows[0][0][normal] - centre).abs();
+                        match order {
+                            std::cmp::Ordering::Less => next < peer - 1e-6,
+                            std::cmp::Ordering::Greater => next > peer + 1e-6,
+                            std::cmp::Ordering::Equal => true,
                         }
                     });
-                    let next = (c.arrows[0][0][normal] - centre).abs();
-                    let peer = (placed.arrows[0][0][normal] - centre).abs();
-                    match order {
-                        std::cmp::Ordering::Less => next < peer - 1e-6,
-                        std::cmp::Ordering::Greater => next > peer + 1e-6,
-                        std::cmp::Ordering::Equal => true,
-                    }
-                });
             if !ordered
                 || !page.fits(c, view)
                 || (!restore_extent && outside(c, region))
