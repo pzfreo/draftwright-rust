@@ -393,6 +393,13 @@ struct Evaluation {
     rendered: usize,
 }
 
+#[derive(Clone)]
+struct RenderPreparation {
+    geometry: model::GeometryLayer,
+    drawing: Drawing,
+    projections: Projections,
+}
+
 pub struct Session {
     part: Part,
     analysis: Analysis,
@@ -404,7 +411,7 @@ pub struct Session {
     redo: Vec<Spec>,
     stats: Stats,
     planner: Planner,
-    render_memo: crate::planning::BoundedMemo<Drawing>,
+    render_memo: crate::planning::BoundedMemo<RenderPreparation>,
 }
 impl Session {
     #[cfg(not(target_arch = "wasm32"))]
@@ -891,9 +898,28 @@ impl Session {
     fn evaluate(&self, spec: &Spec) -> Result<Evaluation, Error> {
         let mut planner = self.planner.clone();
         let plan = planner.plan(&self.analysis, spec)?;
-        let mut cache = self.projections.clone();
-        let geometry = model::render_geometry(&self.part, &self.analysis, &plan, &mut cache)
-            .map_err(|e| Error::failed(format!("cannot render session: {e}")))?;
+        // Part, font and recognized geometry are fixed for this Session. Key
+        // preparation by the actual newly planned result and mutable PMI, then
+        // keep the cache that really performed the preview's geometry passes.
+        // Planning, allocation, annotation ink and delta computation still run.
+        let key: [u8; 32] = Sha256::digest(
+            serde_json::to_vec(&(&plan, &self.analysis.pmi)).expect("render inputs serialize"),
+        )
+        .into();
+        let (geometry, mut cache, prepared_drawing) = if let Some(prepared) =
+            self.render_memo.get(&key)
+        {
+            (
+                prepared.geometry,
+                prepared.projections,
+                Some(prepared.drawing),
+            )
+        } else {
+            let mut cache = self.projections.clone();
+            let geometry = model::render_geometry(&self.part, &self.analysis, &plan, &mut cache)
+                .map_err(|e| Error::failed(format!("cannot render session: {e}")))?;
+            (geometry, cache, None)
+        };
         let annotations = ink(&plan, Some(&self.state));
         let rendered = annotations
             .keys()
@@ -905,18 +931,18 @@ impl Session {
             geometry,
             annotations,
         };
-        // Part, font and recognized geometry are fixed for this Session; PMI and
-        // Spec are its mutable rendering inputs. Reuse an exact preview's assembled
-        // drawing, still planning, placing geometry and computing ink/deltas each time.
-        let key: [u8; 32] = Sha256::digest(
-            serde_json::to_vec(&(spec, &self.analysis.pmi)).expect("render inputs serialize"),
-        )
-        .into();
-        let drawing = if let Some(drawing) = self.render_memo.get(&key) {
+        let drawing = if let Some(drawing) = prepared_drawing {
             drawing
         } else {
             let drawing = state.render(&self.part, &self.analysis, &self.font, &mut cache)?;
-            self.render_memo.insert(key, drawing.clone());
+            self.render_memo.insert(
+                key,
+                RenderPreparation {
+                    geometry: state.geometry.clone(),
+                    drawing: drawing.clone(),
+                    projections: cache.clone(),
+                },
+            );
             drawing
         };
         state.problems.extend(drawing.problems.clone());

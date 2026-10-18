@@ -102,6 +102,19 @@ pub(crate) fn with_retained<T>(analysis: &Analysis, run: impl FnOnce() -> T) -> 
             .and_then(|i| retained.remove(i))
             .map(|(_, values)| values)
             .unwrap_or_else(|| Rc::new(RefCell::new(BTreeMap::new())));
+        // These are invocation inputs, not keyed immutable preparation. Let
+        // normal planning establish them afresh even when the arena is small;
+        // crossing the cache budget must not change preview/commit policy keys.
+        values.borrow_mut().retain(|(name, key), _| {
+            !key.is_empty()
+                || !matches!(
+                    *name,
+                    "canonical-circular-recipes"
+                        | "established-route-policy"
+                        | "established-clear-witnesses"
+                        | "canonical-interior-statements"
+                )
+        });
         if values.borrow().len() > 256 {
             let mut references = 0;
             values.borrow_mut().retain(|(name, key), _| {
@@ -365,6 +378,33 @@ mod tests {
             2,
             "title/scale edits reuse only Analysis-dependent preparation"
         );
+        assert!(!enabled(&a));
+    }
+
+    #[test]
+    fn retained_invocations_clear_only_unkeyed_policy_inputs() {
+        let a = analysis();
+        with_retained(&a, || {
+            store(&a, "retained-geometry", vec![17], 42_u32);
+            for name in ["canonical-circular-recipes", "established-route-policy"] {
+                store(&a, name, vec![], true);
+            }
+            for name in [
+                "established-clear-witnesses",
+                "canonical-interior-statements",
+            ] {
+                store(&a, name, vec![], BTreeSet::from(["control".to_string()]));
+            }
+        });
+        // A small arena must have the same invocation policy as one that crossed
+        // the disposable-candidate budget. Pure keyed preparation still survives.
+        with_retained(&a, || {
+            assert_eq!(lookup::<u32>(&a, "retained-geometry", &[17]), Some(42));
+            let policy = main_policy(&a);
+            assert_eq!(policy.recipes_and_routes, (false, false));
+            assert!(policy.clear_witnesses.is_none());
+            assert!(policy.interior_statements.is_none());
+        });
         assert!(!enabled(&a));
     }
 

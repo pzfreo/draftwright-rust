@@ -448,7 +448,9 @@ fn run_prepared(analysis: &Analysis, spec: &Spec, minimum: Option<f64>) -> Resul
         .map(|_| crate::planning::main_policy(analysis));
     let key = memo.as_ref().map(|_| {
         let analysis_key: [u8; 32] =
-            Sha256::digest(serde_json::to_vec(analysis).expect("Analysis serializes")).into();
+            crate::planning::memo(analysis, "analysis_digest", vec![], || {
+                Sha256::digest(serde_json::to_vec(analysis).expect("Analysis serializes")).into()
+            });
         let bytes = serde_json::to_vec(&(analysis_key, spec, minimum.map(f64::to_bits), &policy))
             .expect("session main inputs serialize");
         Sha256::digest(bytes).into()
