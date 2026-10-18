@@ -997,7 +997,7 @@ fn optimistic_steps_after_crops(
 ) -> usize {
     if requests
         .iter()
-        .any(|(_, d)| d.authored || d.kind == "readability-height-interval")
+        .any(|(_, d)| d.authored || d.kind.starts_with("readability-height-interval"))
         || plan
             .views
             .iter()
@@ -1552,7 +1552,7 @@ fn baseline_step_failures(plan: &Plan) -> usize {
                         plan.views.iter().any(|crop| {
                             crop.scale * gap + 1e-6 >= MIN_OPENING
                                 && crop.detail.as_ref().is_some_and(|d| {
-                                    d.kind == "readability-height-interval"
+                                    d.kind.starts_with("readability-height-interval")
                                         && d.source_view == view
                                         && d.dimensions.contains(
                                             &crate::dims::readability_interval_id(lower, upper),
@@ -2472,7 +2472,11 @@ fn correct_sections(analysis: &Analysis, plan: &mut Plan) {
 /// underestimate its annotation ink. Move whole carriers, never reroute a leader.
 pub(crate) fn enclose_free_ink(analysis: &Analysis, plan: &mut Plan) {
     if !plan.sheets.is_empty()
-        || plan.views.iter().any(|v| v.detail.is_some())
+        || plan.views.iter().any(|v| {
+            v.detail
+                .as_ref()
+                .is_some_and(|d| d.authored || !d.kind.starts_with("readability"))
+        })
         || !plan
             .problems
             .iter()
@@ -2485,6 +2489,7 @@ pub(crate) fn enclose_free_ink(analysis: &Analysis, plan: &mut Plan) {
         && crate::model::carries_required(plan, &candidate)
         && crate::model::no_new_drawing_issues(plan, &candidate)
         && crate::model::ink_findings(&candidate) < crate::model::ink_findings(plan)
+        && routes_no_worse(analysis, plan, &candidate)
         && readability(analysis, &candidate).failures() <= readability(analysis, plan).failures()
     {
         *plan = candidate;

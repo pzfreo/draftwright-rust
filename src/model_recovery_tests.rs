@@ -489,6 +489,18 @@ fn short_reference_text_and_a_bore_callout_fit_their_local_carriers() {
     let reference = plan_recovered(&a, &Spec::default()).unwrap();
     assert!(matches!(reference.sheet.size.as_str(), "A4" | "A3"));
     assert_eq!(crate::sheet_fit::readability(&a, &reference).failures(), 0);
+    let bore = reference
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:hole:1/bore.diameter")
+        .unwrap();
+    assert!(bore.view.starts_with("v:detail_"));
+    let pin:Spec=serde_json::from_value(serde_json::json!({"dimensions":{&bore.id:{"place":{"view":bore.view.trim_start_matches("v:"),"pinned":true}}}})).unwrap();
+    let pinned = plan_recovered(&a, &pin).unwrap();
+    let actual = pinned.dimensions.iter().find(|d| d.id == bore.id).unwrap();
+    assert_eq!(actual.view, bore.view);
+    assert_eq!(actual.placed, bore.placed);
+    assert!(no_new_drawing_issues(&reference, &pinned));
     crate::planning::with(&a, || {
         established_drawing(&a, &Spec::default()).unwrap();
         let mut spec: Spec = serde_json::from_value(

@@ -331,6 +331,19 @@ fn rejected_local_floor_up_moves_are_bounded_to_practical_paper() {
             plan.sheet.basis
         );
         let r = sheet_fit::readability(&a, &plan);
+        if file == "mfcadpp_holdout/229.step" {
+            assert_eq!(plan.sheet.size, "A4");
+            assert_eq!(
+                r.failures(),
+                4,
+                "the strict route guard refuses the crop rather than adding crossing pairs"
+            );
+            assert!(
+                plan.problems
+                    .iter()
+                    .any(|q| q.code == "layout_recovery_exhausted")
+            );
+        }
         if plan
             .sheet
             .basis
@@ -438,4 +451,26 @@ fn parent_coordinates_keep_the_enlarged_openings_size_carrier() {
     );
     p.views.last_mut().unwrap().scale = 0.1;
     assert_eq!(sheet_fit::readability(&a, &p).openings, before);
+}
+
+#[test]
+fn a_local_interval_reservation_encloses_its_repaired_text() {
+    let Some(corpus) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
+        assert!(std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"));
+        return;
+    };
+    let (_, a) = model::analyse_native(&Path::new(&corpus).join("mfcadpp/10007.step")).unwrap();
+    let p = model::plan_recovered(&a, &model::Spec::default()).unwrap();
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        ("A4", "1:1")
+    );
+    assert_eq!(sheet_fit::readability(&a, &p).failures(), 0);
+    assert!(p.views.iter().any(|v| v.detail.is_some()));
+    assert!(
+        !p.problems
+            .iter()
+            .any(|q| q.code == "annotation_outside_area")
+    );
+    assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
 }

@@ -214,7 +214,19 @@ pub(crate) fn details(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<crate::detai
         };
         if let Some(previous) = crops.iter_mut().find(|p| {
             p.source_view == d.source_view
-                && p.kind == d.kind
+                && (p.kind == d.kind
+                    || (annotation_context
+                        && ((p.scale - d.scale).abs() < 1e-6 || {
+                            let (larger, smaller) = if p.scale > d.scale {
+                                (p.bounds, d.bounds)
+                            } else {
+                                (d.bounds, p.bounds)
+                            };
+                            axes.iter().all(|&k| {
+                                larger[0][k] <= smaller[0][k] + 1e-6
+                                    && larger[1][k] + 1e-6 >= smaller[1][k]
+                            })
+                        })))
                 && axes.iter().all(|&k| {
                     p.bounds[0][k] <= d.bounds[1][k] + (20.0 / p.scale.max(d.scale)).max(pad)
                         && d.bounds[0][k] <= p.bounds[1][k] + (20.0 / p.scale.max(d.scale)).max(pad)
@@ -228,6 +240,17 @@ pub(crate) fn details(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<crate::detai
                 previous.bounds[1][k] = previous.bounds[1][k].max(d.bounds[1][k]);
             }
             previous.marked_bounds = previous.bounds;
+            if annotation_context
+                && (previous.kind.starts_with("readability-height-interval")
+                    || d.kind.starts_with("readability-height-interval"))
+            {
+                // This late recipe mixes annotation grammars. The floor-only
+                // recipe remains an independently qualified fallback, and pins
+                // can reconstruct the selected mixed recipe from its provenance.
+                previous.kind = "readability-height-interval-context".into();
+            } else if context {
+                previous.kind = "readability-annotation-context".into();
+            }
             previous.dimensions.extend(d.dimensions);
             previous.scale = previous.scale.max(d.scale);
         } else {
@@ -340,7 +363,7 @@ pub(super) fn append_intervals(
     if !views.iter().any(|v| {
         v.detail
             .as_ref()
-            .is_some_and(|d| d.kind == "readability-height-interval")
+            .is_some_and(|d| d.kind.starts_with("readability-height-interval"))
     }) {
         return;
     }
@@ -353,7 +376,7 @@ pub(super) fn append_intervals(
     for (_, w) in intervals {
         if views.iter().any(|v| {
             v.detail.as_ref().is_some_and(|d| {
-                d.kind == "readability-height-interval" && d.dimensions.contains(&w.id)
+                d.kind.starts_with("readability-height-interval") && d.dimensions.contains(&w.id)
             })
         }) && !inventory.iter().any(|existing| existing.id == w.id)
         {

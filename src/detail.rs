@@ -379,12 +379,12 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
         allocated.insert(format!("detail_{}", section_label(spec).to_lowercase()));
     }
     let mut add = |mut d: Detail| {
-        if d.kind != "readability-height-interval" {
-            d.dimensions.retain(|id| {
-                !out.iter()
+        d.dimensions.retain(|id| {
+            id.starts_with("d:step_level/step_interval.length.")
+                || !out
+                    .iter()
                     .any(|(_, previous)| previous.dimensions.contains(id))
-            });
-        }
+        });
         if d.dimensions.is_empty() && d.kind != "readability-depiction" {
             return;
         }
@@ -746,7 +746,10 @@ pub(crate) fn size(d: &Detail) -> [f64; 2] {
 fn pads(d: &Detail) -> [f64; 4] {
     if d.kind == "readability-depiction" {
         [8.0, 8.0, 12.0, 8.0]
-    } else if d.kind == "readability-height-interval"
+    } else if (d.kind.starts_with("readability-height-interval")
+        && d.dimensions
+            .iter()
+            .all(|id| id.contains("/step_interval.length.")))
         || (d.kind == "readability"
             && d.dimensions
                 .iter()
@@ -755,7 +758,7 @@ fn pads(d: &Detail) -> [f64; 4] {
         // Baseline heights own vertical lanes only. Reserving the generic
         // diameter/callout bands here needlessly purchases a larger sheet.
         [4.0, 28.0, 8.0, 8.0]
-    } else if d.kind == "readability" {
+    } else if d.kind.starts_with("readability") {
         [12.0, 42.0, 12.0, 12.0]
     } else if d.kind == "prismatic-steps" {
         [0.0, 42.0, 14.0, 6.0]

@@ -5414,7 +5414,7 @@ fn plan_with_presentation(
                 if base.views.iter().any(|v| {
                     v.detail
                         .as_ref()
-                        .is_some_and(|d| d.kind == "readability-annotation-context")
+                        .is_some_and(|d| d.kind.ends_with("-context"))
                 }) {
                     for name in crate::detail::NAMES {
                         effective.views.entry(name.into()).or_default();
