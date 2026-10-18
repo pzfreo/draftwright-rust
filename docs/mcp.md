@@ -215,7 +215,7 @@ D1 adds the real-model call client and finished-task checker; see
 calling, logging bytes/tokens and scoring. Served descriptions explain each tool without
 requiring source access. Schemas factor repeated shapes through local JSON Pointer targets while
 remaining standalone. `cargo test --release --test core engine_version::` checks the source hash,
-cache namespace, tool descriptions and the exact 34,389-byte per-session schema total (28 documents, 14 tools).
+cache namespace, tool descriptions and the exact 34,477-byte per-session schema total (28 documents, 14 tools).
 See [the measurement](mcp-schema-budget.md) for baseline attribution and per-tool sizes.
 
 `inspect_part.key_items` is a deterministic, 700-byte index: envelope dimensions and
@@ -423,7 +423,7 @@ Schemas inline one-use definitions and use equivalent nullable types and enums.
 They omit redundant canonical `$id` URLs and the dialect annotation, using MCP's
 [default JSON Schema 2020-12 dialect](https://modelcontextprotocol.io/specification/2025-11-25/basic#schema-dialect).
 `op` remains published by apply/preview input schemas with local reference `#/op`.
-The context budget is 34,389 bytes after replacing repeated nested Spec definitions
+The context budget is 34,477 bytes after replacing repeated nested Spec definitions
 with the typed outline. Nested Spec fields no longer increase that total; generated
 private schemas retain the existing server validation constraints.
 
