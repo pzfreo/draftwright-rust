@@ -53,7 +53,7 @@ Logs, exact commands, exit statuses and timings are under
 | `tools/check_leader_routes.py`, unchanged fixture | PASS: 144 callouts on 30 parts; eight unchanged pre-existing runs |
 | Quality against `tools/ci-quality-baseline.json` | PASS: all 300 cells no worse |
 | `tools/check_quality_table.py docs/status-2026-10-10.md` | PASS: all 450 cells no worse |
-| `cargo test --release --test oriented_chamfers` | PASS: 12 tests, including the new rendered-route regression |
+| `cargo test --release --test rendering oriented_chamfers::` | PASS: 12 tests, including the new rendered-route regression |
 | `cargo test --release --lib` | PASS: 250 tests |
 | Complete workspace nextest suite, once after targeted checks | PASS: 1,309 tests across 122 binaries, 0 failed, 0 skipped; 968.754 seconds of execution |
 

@@ -57,7 +57,7 @@
     issues: [69]
     tests: [tests/test_lint_coverage.py]
   status: ported
-  rust_test: "tests/completeness.rs::assembly_severity_reaches_all_feature_coverage_families"
+  rust_test: "audits::completeness::assembly_severity_reaches_all_feature_coverage_families"
   rust_note: "The drawing-wide lint collector applies one solid_count > 1 policy to every feature-coverage family, including family modules that return Warning themselves. Evidence, codes and requirement IDs stay identical. Centre-mark and relief-note coverage use the same assembly decision. Structural, PMI and contradictory-measurement findings retain their independent severity; absent solid_count remains strict like a single solid."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream lint-and-reporting"
 
@@ -94,7 +94,7 @@
     issues: [1351]
     tests: [tests/test_issue_1351_structured_note_coverage.py]
   status: ported
-  rust_test: "tests/dims_blends.rs::a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit"
+  rust_test: "dimensions::dims_blends::a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit"
   rust_note: "Notes earn dimensional credit only through explicit feature/parameter satisfies claims, never prose (src/dims/blends.rs; tests/dims_blends.rs::a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit). Authored notes carry no satisfaction claims and therefore cannot earn credit from their prose; authoring such claims is a separate feature."
   port_note: "Keep: satisfaction by typed identity only."
 
@@ -107,7 +107,7 @@
     issues: [1543]
     tests: [tests/test_issue_1543_schedule_requirements.py, tests/test_issue_1543_feature_schedules.py]
   status: ported
-  rust_test: "tests/planned_hole_tables.rs::schedule_cell_evidence_checks_approved_tolerance_precision_and_through_wording; tests/planned_hole_tables.rs::damaged_size_cells_lose_size_through_and_quantity_evidence; tests/planned_hole_tables.rs::a_schedule_coordinate_cannot_change_its_approved_axis_or_owner"
+  rust_test: "dimensions::planned_hole_tables::schedule_cell_evidence_checks_approved_tolerance_precision_and_through_wording; dimensions::planned_hole_tables::damaged_size_cells_lose_size_through_and_quantity_evidence; dimensions::planned_hole_tables::a_schedule_coordinate_cannot_change_its_approved_axis_or_owner"
   rust_note: "Each supported measurement schedule cell carries display-complete compiler-approved text separately from its actual rendered runs (output::Annotation::approved_text and approved_claims). The cell must retain its exact approved feature/parameter identities, so changing its axis or owner cannot borrow a numerically equal value. lint::schedule_evidence verifies that presentation before exposing claims; changed/missing/empty cells or lost approvals cannot earn evidence and produce claimed_value_absent warnings. Physical nominal values and roles are checked independently against Analysis, including every physical hole member and its own X/Y cell. Whitespace between wrapped runs is insignificant; approved precision and tolerance wording must survive verbatim. Radius-centre rows use the same approval seam. General authorable feature schedules remain pending under ISSUE-1543-a."
   port_note: "Keep: verify cell content before crediting schedule evidence."
 
@@ -130,7 +130,7 @@
     issues: [29, 623, 1018, 1127, 1711]
   status: translated
   rust_rule: "lint::LintIssue (src/lint/mod.rs) carries code, severity, message, at, view, subjects, requirements, measurements, sources, stage, annotation, related, evidence and fix."
-  rust_test: "tests/lint.rs::review_finds_the_plates_holes_stated_by_its_own_callout"
+  rust_test: "audits::lint::review_finds_the_plates_holes_stated_by_its_own_callout"
   rust_note: "lint::LintIssue (src/lint/mod.rs) carries code, severity, message, at, view, subjects, requirements, measurements, sources, stage, annotation, related, evidence and fix. Measurement spans are not needed: Rust measurement IDs are per feature and parameter."
   port_note: "Adapt: define a Rust LintIssue struct with the same stable fields."
 
@@ -289,7 +289,7 @@
     tests: [tests/test_issue_1369_hole_completeness_evidence.py, tests/test_issue_1219_location_claims_its_own_axis.py]
   status: translated
   rust_rule: "src/lint/coverage.rs::located reports each unlocated axis across any hole's axis (feature_not_located, per-axis requirement; tests/issue_regressions.rs::removing_a_hole_location_or_its_callout_is_reported); pattern members via src/lint/hole_patterns.rs; schedule X/Y cells per axis (tests/planned_hole_tables.rs::rows_and_tags_credit_hole_size_count_and_both_locations)."
-  rust_test: "tests/issue_regressions.rs::removing_a_hole_location_or_its_callout_is_reported; tests/planned_hole_tables.rs::rows_and_tags_credit_hole_size_count_and_both_locations"
+  rust_test: "audits::issue_regressions::removing_a_hole_location_or_its_callout_is_reported; dimensions::planned_hole_tables::rows_and_tags_credit_hole_size_count_and_both_locations"
   rust_note: "src/lint/coverage.rs::located reports each unlocated axis across any hole's axis (feature_not_located, per-axis requirement; tests/issue_regressions.rs::removing_a_hole_location_or_its_callout_is_reported); pattern members via src/lint/hole_patterns.rs; schedule X/Y cells per axis (tests/planned_hole_tables.rs::rows_and_tags_credit_hole_size_count_and_both_locations). Python's ledger-state form (hole_requirement_missing per axis) is not needed."
   port_note: "Keep."
 
@@ -394,7 +394,7 @@
   status: ported
   rust_note: "The independent standalone CounterSink inventory is reconciled one-to-one with complete attached csink records. Every unconsumed seat reports both countersink.diameter and countersink.angle as hole_requirement_unverifiable on the seat itself, without guessing a hole or recounting its bore. This includes the opposite-face seat of a physical two-sided bore."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream holes-and-threads"
-  rust_test: "tests/coverage_holes.rs::a_second_countersink_seat_is_unverifiable_without_recounting_the_bore; tests/coverage_holes.rs::a_real_two_face_bore_reports_only_its_unattributed_seat"
+  rust_test: "dimensions::coverage_holes::a_second_countersink_seat_is_unverifiable_without_recounting_the_bore; dimensions::coverage_holes::a_real_two_face_bore_reports_only_its_unattributed_seat"
 
 - id: LINT-code-hole_requirement_state
   statement: "Uncovered hole requirements are reported per requirement as hole_requirement_missing, hole_requirement_suppressed or hole_requirement_unverifiable, naming quantity, diameter, THRU or blind depth and axis."
@@ -420,7 +420,7 @@
     issues: [1378]
     tests: [tests/test_issue_1378_diameter_leader_targets.py]
   status: ported
-  rust_test: "tests/leader_rules.rs::a_diameter_tip_touches_the_rim_of_the_hole_it_names"
+  rust_test: "rendering::leader_rules::a_diameter_tip_touches_the_rim_of_the_hole_it_names"
   rust_note: "Stream K4, src/lint/leaders.rs (run by lint::lint): the tip is the first point of the drawn callout's leader (Drawn::lines), projected targets come from the Analysis's hole records (bridge::holes::Hole: opening, depth, recess and countersink diameters) and double-D records, through the view's recorded transform (Sheet::frames); tolerance 0.002 mm as draftwright. The defining edges are the occurrence's rim circles rather than the BRep's edges (the Analysis keeps face indices only); seen end-on, where the port calls a hole out, they coincide. A view without a recorded transform (a captured Python sheet) is not judged."
   port_note: "Keep: check leader tips against projected feature edges."
 
@@ -433,7 +433,7 @@
     issues: [1378]
     tests: [tests/test_issue_1378_diameter_leader_targets.py]
   status: ported
-  rust_test: "tests/leader_rules.rs::a_diameter_tip_touches_the_rim_of_the_hole_it_names"
+  rust_test: "rendering::leader_rules::a_diameter_tip_touches_the_rim_of_the_hole_it_names"
   rust_note: "Stream K4, src/lint/leaders.rs: a callout claiming bore.diameter in a view with a recorded transform, none of whose named holes has a readable boundary there (a hole record without axis, location or diameter; a double-D not seen end-on), is a warning with its reason. Recognition is always same-run in the port, and claims name their occurrence, so draftwright's ownership reasons do not arise."
   port_note: "Keep."
 
@@ -451,7 +451,7 @@
     issues: [80, 92, 1351, 1450]
     tests: [tests/test_lint_coverage.py, tests/test_diameter_leaders.py, tests/test_issue_1505_diameter_coverage.py]
   status: pending
-  rust_test: tests/lint_coverage.rs::pythons_backstop_is_reproduced_on_its_recorded_input
+  rust_test: audits::lint_coverage::pythons_backstop_is_reproduced_on_its_recorded_input
   rust_note: "Partly ported (src/lint/coverage.rs::feature_coverage, run by lint::check before boss heights, as draftwright orders it). Ported: the inventory (every readable hole's bore, counterbore and spotface diameter and every boss's, distinct; it equals draftwright's on all 11 compared parts), the 0.15 mm match, radius callouts not counting, a hole callout (a mark claiming a hole diameter) mentioning the diameters it prints before its bolt-circle clause and never read as free text, every other mark's ø/⌀ numbers. On draftwright's recorded input (tests/fixtures/lint_coverage/python.json.gz: 18 drawings, two with callouts taken off; ctc05's uncalled ø38.1, a stripped cgb245's ø10, a stripped m10127's ø8.4) the port's check gives exactly its findings. Nothing is excluded for a callout cap: the port drops no callout. Not ported: excluding a boss diameter that a blend of the same face owns (boss_blend_owner_pairs): it compares quiddity's defining faces, and the Analysis keeps only each feature's constituent faces (src/bridge.rs), which differ (grm04_drive_plate: boss [0, 3], blend [0]); structured-note and verified-cell authority (the port has neither); the assembly severity (always warning: the Analysis does not say whether the part is several bodies). Like draftwright, an uncalled hole is reported both here and by hole coverage (hole_requirement_missing); a misprinted callout leaves its diameter uncovered here too. Done in substance (rules assessment of 2026-10-11): the backstop works. Left pending for the boss-blend exclusion, which differs on grm04_drive_plate (boss faces [0, 3], blend [0]) and goes with face precedence (ISSUE-1450-a). The remaining GRM-04 false positive requires quiddity defining-face provenance: bridge::read currently preserves constituent faces (boss [0,3], blend [0]) while Python boss_blend_owner_pairs compares equal nonempty defining-face sets, the same circle/axis, unique pairing and an envelope-carried boss span."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream lint-and-reporting"
 
@@ -465,7 +465,7 @@
     issues: [92]
     tests: [tests/test_hole_pattern_callouts.py, tests/test_hole_table.py]
   status: ported
-  rust_test: tests/lint_coverage.rs::pythons_backstop_is_reproduced_on_its_recorded_input
+  rust_test: audits::lint_coverage::pythons_backstop_is_reproduced_on_its_recorded_input
   rust_note: "src/lint/coverage.rs::count_mismatch (the check) and ::counts (on a drawing's marks: a hole callout provides its printed diameters at its leading n×, its owner the holes it claims). On draftwright's recorded input with the count check on (python.json.gz: ctc04's 30 ø14 / 12 ø6.6 and a stripped cgb245's 6 ø5) the findings are exactly draftwright's. As in draftwright's drawing lint (check_hole_counts=False), lint::check does not run it: counts are hole coverage's grouping.count. Severity is always warning: the Analysis does not say whether the part is an assembly."
   port_note: "Keep only if a standalone coarse check is wanted; the hole ledger supersedes it."
 
@@ -479,7 +479,7 @@
     issues: [218]
     tests: [tests/test_issue_1143_hole_completeness.py, tests/test_e2e_slice.py]
   status: ported
-  rust_test: tests/centrelines.rs::a_plate_marks_every_pattern_member_and_lint_reads_the_drawn_marks
+  rust_test: rendering::centrelines::a_plate_marks_every_pattern_member_and_lint_reads_the_drawn_marks
   rust_note: "The check is ported (src/lint/coverage.rs::location and ::judge: a centre mark within 0.6 mm of the hole's centre projected into its end-on view, front or rear for y; one finding counting the holes, naming them) and gives exactly draftwright's findings on its recorded input (python.json.gz: a cgb245 with its 16 centre marks taken off). Not run by lint::check: the port draws no centre marks (the Drawing records none), so on its own drawings it reports every hole (coverage::centre_marks; tests/fixtures/lint_coverage/known.json, rust-wrong, 9 parts, connector109 drawn only with LINT_OWN_ALL=1). Double-D bores are among the holes (coverage::sites, as Python's profiled_bores). Stage G6: lint reads the drawn centre marks and view transforms (coverage::drawn_centre_marks), never the plan."
   port_note: "Keep."
 
@@ -493,7 +493,7 @@
     issues: [218, 93]
     tests: [tests/test_issue_1143_hole_completeness.py, tests/test_interior_label_placement.py]
   status: ported
-  rust_test: tests/lint_coverage.rs::pythons_backstop_is_reproduced_on_its_recorded_input
+  rust_test: audits::lint_coverage::pythons_backstop_is_reproduced_on_its_recorded_input
   rust_note: "Partly ported (src/lint/coverage.rs::located, run by lint::check after boss heights). The judgement (::judge: pattern members exempt, an axis needs locating when the hole is more than 1.0 mm off the part box's centre across it, located by structured evidence or a witness within 0.6 mm on that page axis; one finding counting the holes, naming them, each axis not located a requirement) gives exactly draftwright's findings on its recorded input (python.json.gz: cgb245's 2, ctc03's 1, ctc04's 9, ctc05's 3, ftc09's 7, a stripped m10127's 1). On the port's drawings the evidence is structured only: an annotation claiming the hole's location.length.<axis>. Double-D bores are located as holes are (coverage::sites: at the record's location, along its axis, never patterned; src/lint/coverage.rs::tests::a_double_d_bore_is_located_as_a_hole_is). Not ported: the geometric witness fallback on the port's own drawings (the Drawing records neither its dimensions' witness points nor the views' projections), location notes (the port has none), and the assembly severity. On cgb245 the port locates the two holes draftwright leaves unlocated in y (known.json, rust-correct). Closed by the rules assessment of 2026-10-11: the geometric witness fallback and location notes have no input on the port's drawings, whose evidence is structured; nothing further is worth porting."
   port_note: "Keep."
 
@@ -507,7 +507,7 @@
     issues: [1058, 1245, 1246]
     tests: [tests/test_issue_1058_wheel_profile.py, tests/test_issue_1245_passage_disposition.py]
   status: ported
-  rust_test: tests/lint_coverage.rs::pythons_principal_profile_scan_is_reproduced
+  rust_test: audits::lint_coverage::pythons_principal_profile_scan_is_reproduced
   rust_note: "src/lint/profiles.rs. Lint never sees the part, so the scan is made when the part is analysed (profiles::evidence, the Analysis's principal_profiles, schema draftwright.analysis/6): each solid of a part of several (else the part), its box and each principal boundary face (a plane flat across one axis on the solid's box, Python's _principal_boundary_plane) with its inner loops' edges and its outer loop's arcs; lint judges it (profiles::verdicts, ::radial_count): an inner loop is supported as an open end of a closed square-ended section recess record, the mouth of a through double-D bore claimed once, or a circle, axis-aligned rectangle, true obround or rounded rectangle; an outer loop of six or more equal, evenly spaced arcs on one circle (not all its edges) is counted. One finding each, Python's messages; info on a part of several solids, as in Python. Against draftwright's own scan (tools/capture_lint_profiles.py: all 100 corpus parts and 27 of draftwright's test parts): every inner loop's verdicts agree (709 loops; the recess and double-D claims compared on the 65 parts whose recognition the port has or whose recognition has no bore or closed recess, by shape alone on the other 62), and so do the findings on those 65 parts (15 findings, among them ctc02's, ctc04's, m10127's and the oriented slots part's). Differences, in tests/fixtures/lint_coverage/known_profiles.json: on ctc01, ctc03 and ftc06 draftwright's box takes in the file's PMI presentation curves (build123d imports them with the solid), so it misses principal faces the port scans (their openings are supported; rust-correct); cgb241's box is OpenCascade's untrimmed B-spline box (rust-correct); ctc02's differs by an edge's 0.002 mm (equivalent). No corpus part has a toothed outline (the radial count is unit-tested only). On Rust quiddity's recognition (the CLI's default) section recesses are not read, so an opening a recess accounts for is reported unsupported (fail closed), and the Analysis's unrecognised lists section_recesses. Python claims double-D mouths in its recognition's order, the port in the Analysis's: equivalent, since a mouth matches only the loop at it."
   port_note: "Keep: independent B-rep scan for undimensionable profiles."
 
@@ -523,7 +523,7 @@
   status: ported
   rust_note: "Lint independently projects Analysis.risers onto recognised body levels and checks each defining shoulder station against truthful step-position ink. A lone transition, exact channel walls and X/Y through-step bends retain Python's exemptions; those features have their own ink ledgers. Every section_recess pocket remains checked by lint::pockets. This is a drawing coverage check in the Rust Analysis model, not Python's conversion-stage comparison."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream dimensioning-coverage"
-  rust_test: "tests/coverage_holes.rs::every_prismatic_shoulder_station_needs_its_own_truthful_drawing_evidence; tests/lint_coverage.rs::prismatic_and_profile_findings_on_draftwrights_test_parts_are_known"
+  rust_test: "dimensions::coverage_holes::every_prismatic_shoulder_station_needs_its_own_truthful_drawing_evidence; audits::lint_coverage::prismatic_and_profile_findings_on_draftwrights_test_parts_are_known"
 
 - id: LINT-code-pad_footprint_not_defined
   statement: "Every rectangular raised pad has its footprint length and width, its height above the attachment face, and its in-plane location dimensioned."
@@ -563,7 +563,7 @@
     issues: [223, 443, 1357]
     tests: [tests/test_axial_dimensions.py, tests/test_issue_443_grm03_axial_coverage.py]
   status: ported
-  rust_test: "tests/completeness.rs::unstated_turned_band_length_and_diameter_are_lint_findings"
+  rust_test: "audits::completeness::unstated_turned_band_length_and_diameter_are_lint_findings"
   rust_note: "src/lint/turned.rs: each band's step.length not placed is axial_length_missing (one per band, naming it, where Python counts per profile), judged per band and so per body-local profile; a baseline from an end locating both shoulders places it (#33), and a grouped label only when it states exactly its adjoining members (stream K5, tests/completeness_rules.rs::a_grouped_length_states_exactly_its_adjoining_members). Differences: Python's witness-on-both-shoulders and schedule/structured-note evidence have no input on the port's drawings (lint reads printed claims), and its suppression when a chain drop was reported is not reached (the port drops no chain)."
   port_note: "Keep."
 
@@ -834,7 +834,7 @@
     issues: [1479]
     tests: [tests/test_issue_1479_radius_leader_targets.py]
   status: ported
-  rust_test: "tests/leader_rules.rs::a_radius_tip_lands_on_the_trimmed_profile_arc"
+  rust_test: "rendering::leader_rules::a_radius_tip_lands_on_the_trimmed_profile_arc"
   rust_note: "Stream K4, src/lint/leaders.rs: a straight blend's (path.direction) callout tip, in a view seeing its arc end-on, must lie within 0.002 mm of the circle of its radius about its rolling axis and within the trimmed arc's sector, read from Analysis::blend_sites (sampled at a quarter, half and three quarters of the face's parameter range, so the arc runs half their spread beyond them; a lone point gives a quarter turn either way, an overturnable judgement). Circular-path blends are not checked, as in draftwright. Not judged: a fillet callout carrying the blends' claims."
   port_note: "Keep."
 
@@ -847,7 +847,7 @@
     issues: [1479]
     tests: [tests/test_issue_1479_radius_leader_targets.py]
   status: ported
-  rust_test: "tests/leader_rules.rs::a_radius_tip_lands_on_the_trimmed_profile_arc"
+  rust_test: "rendering::leader_rules::a_radius_tip_lands_on_the_trimmed_profile_arc"
   rust_note: "Stream K4, src/lint/leaders.rs: a straight blend whose path, radius or proven trimmed points cannot be read, or whose callout is in a view that does not show its arc end-on, is a warning with its reason."
   port_note: "Keep."
 
@@ -864,7 +864,7 @@
     issues: [1374]
     tests: [tests/test_issue_1374_turned_step_completeness_evidence.py]
   status: ported
-  rust_test: "tests/completeness.rs::unstated_turned_band_length_and_diameter_are_lint_findings; tests/lint.rs::ledgers_on_pythons_sheets_match_pythons_or_are_known"
+  rust_test: "audits::completeness::unstated_turned_band_length_and_diameter_are_lint_findings; audits::lint::ledgers_on_pythons_sheets_match_pythons_or_are_known"
   rust_note: "src/lint/turned.rs inventories each turned band's axial length and diameter and reports unstated requirements (tests/completeness.rs::unstated_turned_band_length_and_diameter_are_lint_findings); tests/lint.rs::ledgers_on_pythons_sheets_match_pythons_or_are_known pins ledger parity. Authored omissions and covered or undrawable items belong to src/items.rs::State under R1; Policy B has no placement-drop state."
   port_note: "Keep."
 
@@ -1086,7 +1086,7 @@
     issues: [1372]
     tests: [tests/test_pocket_pattern_completeness_evidence.py]
   status: ported
-  rust_test: "tests/native_recesses.rs::native_patterns_have_one_grouped_callout_pitches_and_absolute_location"
+  rust_test: "core::native_recesses::native_patterns_have_one_grouped_callout_pitches_and_absolute_location"
   rust_note: "Native recognition/3 and the Python bridge retain unified pattern members as feature IDs. One pattern owns count, W/L/D (MAX DEEP under a cylinder), one/two pitches and two absolute centre locations. Members are not dimensioned or linted singly. Lattice and member specifications are verified before dimensions are credited. Quantity requires an explicit leading N× token; an equal width or length numeral cannot supply it. As Python, non-Z patterns have no location compiler owner and remain unverifiable; directions outside the part axes are explicitly unsupported."
   port_note: "triage 2026-10-16: PORT, value medium, size L, stream recess-reader"
 
@@ -1099,7 +1099,7 @@
     issues: [1372]
     tests: [tests/test_pocket_pattern_completeness_evidence.py, tests/test_issue_1485_rounded_pockets.py]
   status: ported
-  rust_test: "tests/native_recesses.rs::pocket_pattern_requirement_states_are_checked_independently"
+  rust_test: "core::native_recesses::pocket_pattern_requirement_states_are_checked_independently"
   rust_note: "Independent drawing lint reports pocket_pattern_requirement_missing, _suppressed and _unverifiable. Authored omissions cross the drawing boundary as provenance without ink. Removing pitch also reopens member location findings."
   port_note: "triage 2026-10-16: PORT, value medium, size S, stream recess-reader"
 
@@ -1182,7 +1182,7 @@
     issues: [1432]
     tests: [tests/test_issue_1432_oriented_slot_semantics.py]
   status: ported
-  rust_test: "tests/completeness_rules.rs::an_oriented_slot_is_called_out_once_with_both_requirements_on_its_rim"
+  rust_test: "audits::completeness_rules::an_oriented_slot_is_called_out_once_with_both_requirements_on_its_rim"
   rust_note: "src/lint/oriented_slots.rs: each oriented_slot feature has oriented_slot_width.length and oriented_slot_length.length, judged by the claiming annotation's printed text; a record without a positive width or length, or two records the same, has both unverifiable (an_oriented_slot_states_its_width_and_length). Stream K5: the planner states them (src/dims/oriented_slots.rs): one callout ORIENTED SLOT W WIDE × L LONG in the view along the slot's dominant run axis, its leader to the rim (the record's section boundary at the run's end facing the viewer), equal slots in one view counted (2× ORIENTED SLOT …); on mfcadpp_holdout/467 lint now finds both stated on the port's own sheet, and on quiddity's golden oriented_slots plate the three members of its oriented slot array are stated by one counted callout (known_lint.json family_rest entries removed). Difference: Python leaves the members of oriented slot patterns undrawn and unjudged (#1430); the Analysis does not record pattern membership, so the port states and judges them, which leaves nothing missing on either sheet."
   port_note: "Keep."
 
@@ -1452,7 +1452,7 @@
     issues: [1177]
     tests: [tests/test_angular_rendering.py, tests/test_angle_patterns.py]
   status: ported
-  rust_test: "tests/lint_fidelity.rs::an_angle_states_the_degrees_between_its_rays"
+  rust_test: "audits::lint_fidelity::an_angle_states_the_degrees_between_its_rays"
   rust_note: "Stream K7, src/lint/fidelity.rs: the rays are read from the ink (the two extension lines, from where their carriers meet), never from the plan's angle; the leading nominal (after any quantity mark) must agree within half its last printed place. The port's angles are PMI records printed without a degree sign (60 ±0.5), which the drawing's angular ink, not its text, identifies, as draftwright's implicit_degree_label does."
   port_note: "Keep."
 
@@ -1466,7 +1466,7 @@
     issues: [1177]
     tests: [tests/test_angular_rendering.py, tests/test_canonical_angles.py]
   status: ported
-  rust_test: "tests/lint_fidelity.rs::an_angle_draws_an_arc_about_its_vertex_with_extension_lines_past_it"
+  rust_test: "audits::lint_fidelity::an_angle_draws_an_arc_about_its_vertex_with_extension_lines_past_it"
   rust_note: "Stream K7, src/lint/fidelity.rs: an angular dimension (a non-callout dimension whose ink is not linear) must have a vertex (non-parallel extension lines, a proper sector), arc chords about it at one radius (0.01 mm), none outside the sector, on both halves, the arc reaching each ray at its radius (draftwright's tip vertex), and each extension line along its ray past the arc. The port draws arcs as chords, so a chord's two ends stand for draftwright's circular edge."
   port_note: "Keep."
 
@@ -1480,7 +1480,7 @@
     issues: [1177]
     tests: [tests/test_angular_rendering.py, tests/test_canonical_angles.py]
   status: ported
-  rust_test: "tests/lint_fidelity.rs::an_angles_rays_are_the_corners_physical_edges"
+  rust_test: "audits::lint_fidelity::an_angles_rays_are_the_corners_physical_edges"
   rust_note: "Stream K7, src/lint/fidelity.rs, the drawn half: each ray must lie along a straight visible edge of its view (within 0.01 mm, on the ray's side of the vertex), the edges an angle's planar faces project to in the view that shows it true. draftwright compares the drawn witnesses with its registry's support roster; lint here reads only the drawing. A quantity mark on an angle is refused (one drawn corner cannot prove n): the port draws no counted angles (its angles are single PMI records), so detected and authored group proofs are not-applicable."
   port_note: "Keep."
 
@@ -1511,7 +1511,7 @@
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
   status: ported
-  rust_test: "tests/gears.rs::missing_and_duplicate_gear_tables_fail_coverage"
+  rust_test: "core::gears::missing_and_duplicate_gear_tables_fail_coverage"
   rust_note: "Exactly one drawn provenance-bound table per declared gear; missing or duplicate annotations report Python gear_requirement_missing/ambiguous."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream gears"
 
@@ -1525,7 +1525,7 @@
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
   status: ported
-  rust_test: "tests/gears.rs::stale_or_damaged_gear_table_is_a_requirement_mismatch"
+  rust_test: "core::gears::stale_or_damaged_gear_table_is_a_requirement_mismatch"
   rust_note: "Independent oracle compares every actual rendered cell, including standards, units and signed deviations, with current authored requirements."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream gears"
 
@@ -1538,7 +1538,7 @@
     issues: [1086, 1058]
     tests: [tests/test_issue_1086_declared_gears.py, tests/test_issue_1058_wheel_profile.py]
   status: ported
-  rust_test: "tests/gears.rs::repeating_profile_never_invents_gear_semantics"
+  rust_test: "core::gears::repeating_profile_never_invents_gear_semantics"
   rust_note: "Full-wire repeating profiles without declarations report gear_semantics_missing, distinct from the existing unsupported-boundary coverage warning."
   port_note: "Keep."
 
@@ -1552,7 +1552,7 @@
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
   status: ported
-  rust_test: "tests/gears.rs::declared_gear_axis_mismatch_uses_correspondence_before_axis"
+  rust_test: "core::gears::declared_gear_axis_mismatch_uses_correspondence_before_axis"
   rust_note: "Centre/span correspondence precedes the axis audit; assembly findings are informational."
   port_note: "triage 2026-10-16: PORT, value low, size L, stream gears"
 
@@ -1566,7 +1566,7 @@
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py, tests/test_issue_1176_quality_fidelity.py]
   status: ported
-  rust_test: "tests/gears.rs::declared_gear_repeat_count_must_match_full_wire_evidence; tests/gears.rs::real_wheel_full_wire_evidence_reconciles_authored_gear"
+  rust_test: "core::gears::declared_gear_repeat_count_must_match_full_wire_evidence; core::gears::real_wheel_full_wire_evidence_reconciles_authored_gear"
   rust_note: "Compares authored tooth count with full-wire repeat evidence, including the real Python 13-tooth wheel fixture."
   port_note: "triage 2026-10-16: PORT, value low, size L, stream gears"
 
@@ -1579,7 +1579,7 @@
     issues: [1086]
     tests: [tests/test_issue_1086_declared_gears.py]
   status: ported
-  rust_test: "tests/gears.rs::gear_correspondence_fails_closed_when_absent_ambiguous_or_displaced"
+  rust_test: "core::gears::gear_correspondence_fails_closed_when_absent_ambiguous_or_displaced"
   rust_note: "Missing, ambiguous or displaced full-wire profiles remain unverifiable. Radial arc counts are insufficient."
   port_note: "triage 2026-10-16: PORT, value low, size L, stream gears"
 
@@ -1597,7 +1597,7 @@
     issues: [1217, 1206, 1218]
     tests: [tests/test_issue_1217_claimed_representations.py, tests/test_issue_1219_location_claims_its_own_axis.py]
   status: translated
-  rust_test: "tests/issue_trust.rs::a_claim_is_credited_only_when_its_text_states_the_value"
+  rust_test: "issue_trust::a_claim_is_credited_only_when_its_text_states_the_value"
   rust_note: "Rust lint credits a claim only when its rendered text states the part's value (src/lint/holes.rs Callout, term by term; src/lint/parameters.rs via holes::states), so an unrendered claim surfaces as the family's missing finding; src/lint/fidelity.rs label_vs_measured checks a label against its drawn span. Test: tests/issue_trust.rs::a_claim_is_credited_only_when_its_text_states_the_value. By design (ADR1-9) lint compares with the part, not the plan. The remaining tightening is ISSUE-1217-a."
   rust_rule: "Rust lint credits a claim only when its rendered text states the part's value (src/lint/holes.rs Callout, term by term; src/lint/parameters.rs via holes::states), so an unrendered claim surfaces as the family's missing finding; src/lint/fidelity.rs label_vs_measured checks a label against its drawn span."
   port_note: "Keep: verify rendered text against the compiled plan."
@@ -1641,7 +1641,7 @@
     issues: [1217]
     tests: [tests/test_issue_1217_claimed_representations.py]
   status: ported
-  rust_test: tests/lint.rs::lint_reads_the_drawings_annotations
+  rust_test: audits::lint::lint_reads_the_drawings_annotations
   rust_note: "Folded into each family's <family>_requirement_unverifiable: a claim whose printed text does not state the value is neither credited nor taken as refuted. Closed by the rules assessment of 2026-10-11."
   port_note: "Keep."
 
@@ -1659,7 +1659,7 @@
     issues: [1600, 1153, 1209, 1216]
     tests: [tests/test_lint_structural.py, tests/test_issue_1006_measurement_comparison.py]
   status: ported
-  rust_test: "tests/lint_fidelity.rs::a_linear_label_states_its_drawn_span_divided_by_the_view_scale"
+  rust_test: "audits::lint_fidelity::a_linear_label_states_its_drawn_span_divided_by_the_view_scale"
   rust_note: "Stream K7, src/lint/fidelity.rs (run by structural::check, so review's structural list and tools/quality.py's review read it): the measured path is read from the ink alone, the span between a linear dimension's two extension lines (output::linear_ink), divided by its view's recorded scale (Sheet::frames); thresholds, severities and the correct-rounding exemption as draftwright, with the port's one-place sheet precision (dims::fmt) as the floor. Differences: every N× v the port draws spans one member (a pattern's first pitch, one rise, one of equal features), so N× v reads v where draftwright needs a producer tag; an INCH PMI label is compared in millimetres at its own printed places. Passes on the port's drawings of the 30 quality parts, the lint_structural corpus and the PMI fixtures (tests/lint_fidelity.rs::the_ports_own_pmi_drawing_says_what_it_draws catches a moved extension line on nist_ctc_01)."
   port_note: "Keep."
 
@@ -1673,7 +1673,7 @@
     issues: [1600, 1610]
     tests: [tests/test_issue_1349_precision_display.py]
   status: ported
-  rust_test: "tests/lint_fidelity.rs::a_correctly_rounded_label_is_noted_once_per_sheet"
+  rust_test: "audits::lint_fidelity::a_correctly_rounded_label_is_noted_once_per_sheet"
   rust_note: "Stream K7, src/lint/fidelity.rs: once per sheet, info, from the same reading as label_vs_measured (shift floor 0.0005 mm, largest named). The port's spec has no display precision, so the message says the dimension needs more places, which the spec cannot yet ask for, in place of draftwright's .format(decimals=…) advice. Recorded on the corpus drawings in tests/fixtures/known_structural.json (7 parts, rust-correct)."
   port_note: "Keep."
 
@@ -1754,7 +1754,7 @@
     module: "linting/structural.py"
     tests: [tests/test_issue_1153_contradictory_dimensions.py]
   status: ported
-  rust_test: tests/lint_structural.rs::a_label_over_a_view_is_judged_by_its_edges
+  rust_test: audits::lint_structural::a_label_over_a_view_is_judged_by_its_edges
   rust_note: "Ported in substance: a label over a view's line-work is reported (annotation_over_view in the plan, view_annotation_overlap in lint), judged by the view's edges rather than by 10 % of the outline box."
   port_note: "Keep."
 
@@ -1851,7 +1851,7 @@
     issues: [796, 798]
     tests: [tests/test_issue_798_silhouette_lint.py, tests/test_diameter_leaders.py]
   status: ported
-  rust_test: "tests/leader_rules.rs::a_shaft_cutting_back_into_the_material_is_reported_with_its_depth"
+  rust_test: "rendering::leader_rules::a_shaft_cutting_back_into_the_material_is_reported_with_its_depth"
   rust_note: "Stream K4, src/lint/leaders.rs (run by lint::lint): each drawn callout's shaft against its own view's material (material::solids through the view's recorded transform), measured by material::reentry; info, with draftwright's message and the depth. A view without a recorded transform is not judged."
   port_note: "Keep."
 
@@ -1878,7 +1878,7 @@
     issues: [2181]
     tests: [tests/test_gdt_placement.py]
   status: ported
-  rust_test: "tests/lint_fidelity.rs::a_datum_symbol_sits_close_to_its_surface"
+  rust_test: "audits::lint_fidelity::a_datum_symbol_sits_close_to_its_surface"
   rust_note: "Stream K7, src/lint/fidelity.rs: a PMI datum symbol (pmi:datum.…) whose shaft, from the triangle's base (the symbol's ink furthest from its frame along the shaft) to the frame, exceeds max(24 mm, 2.5 × the frame's larger side): warning. Dense PMI fixtures can still report remote symbols; these stay visible rather than being dropped (tests/lint_fidelity.rs::the_ports_own_pmi_drawing_says_what_it_draws). Automatic datum placement now tries inside lanes, both proven cylinder silhouettes and drawn planar face extensions (tests/datum_placement.rs); the CNC-review spindle's A and B have short, clear leaders. None of the 30 quality parts carries a datum."
   port_note: "Keep."
 
@@ -1894,7 +1894,7 @@
   status: ported
   rust_note: "src/lint/structural.rs compares detail-caption text with every other label, across view scales, at a half-text-height gap. tests/detail_views.rs covers rendered caption separation."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream detail-views"
-  rust_test: "tests/detail_views.rs::a_constrained_main_scale_keeps_the_complete_head_crop_and_sheet_scale_iso"
+  rust_test: "rendering::detail_views::a_constrained_main_scale_keeps_the_complete_head_crop_and_sheet_scale_iso"
 - id: LINT-code-derived_view_identifier_reused
   statement: "Each derived-view identifier (section or detail letter) names only one view."
   detail: "Error; read from structured view keys, not caption text."
@@ -1961,7 +1961,7 @@
     issues: [623]
     tests: [tests/test_pmi.py]
   status: ported
-  rust_test: "tests/pmi_coverage.rs::pmi_coverage_matches_draftwright_or_is_known"
+  rust_test: "audits::pmi_coverage::pmi_coverage_matches_draftwright_or_is_known"
   port_note: "Keep if PMI is ported."
   rust_note: "The coverage lint (`src/lint/pmi_coverage.rs`) reports a refused reading ('AP242 PMI could not be inventoried') and every source `pmi::read` did not read or read in part, with Python's annotate-mode message and severity (error); a source of no draftwright category (an attribute set, property, standard or reader finding haecceity reports, which draftwright's census does not hold) is info, as the plan reports it. Compared on the 14 AP242 fixtures (`known_pmi_coverage.json`): the differences are the readings' (draftwright's OpenCascade misreads and XCAF occurrences, rust-correct; draftwright's face checks made at extraction, which the port makes when lowering, equivalent; haecceity's unmodelled hole occurrences, rust-wrong; the open questions, undetermined)."
 
@@ -1975,7 +1975,7 @@
     issues: [623]
     tests: [tests/test_pmi.py, tests/test_pmi_manufacturing_finish.py]
   status: ported
-  rust_test: "tests/pmi_coverage.rs::pmi_coverage_matches_draftwright_or_is_known"
+  rust_test: "audits::pmi_coverage::pmi_coverage_matches_draftwright_or_is_known"
   port_note: "Keep if PMI is ported."
   rust_note: "The coverage lint (`src/lint/pmi_coverage.rs`) reports each record of the reading that no annotation draws and that does not lower: a tolerance, datum, surface label or common label `pmi_lowering::lower` (a function of the Analysis alone) refuses, or a drawing-wide requirement `pmi_lowering::sheet_requirements` refuses (ambiguous, or not a supported default), with its reason; a thread or knurl requirement or a face's finish (read, not drawn yet); a dimension its reading or faces block, an angle no view shows true or an oblique quantity (what stage 2b does not draw). Error; warning for a manufacturing requirement of a kind draftwright does not support. The message names a drawing item, not Python's typed IR. On the fixtures (`known_pmi_coverage.json`) the rust-wrong differences are the drawing's or the reader's: threads and knurls the port does not draw yet (ctc_01's angle is drawn since d-pmi-angular-dims), haecceity's unmodelled hole occurrences. The plan reports the same records with its own reasons (`pmi_not_lowered`, `pmi_dimensions_not_ported`; `tests/pmi_lowering.rs::every_record_and_source_is_drawn_or_reported`)."
 
@@ -1990,7 +1990,7 @@
     tests: [tests/test_issue_1296_cylindrical_diameter_pmi.py]
   status: translated
   rust_rule: "src/lint/pmi_coverage.rs reports every lowerable record no annotation names or states (tests/pmi_coverage.rs::a_frame_that_misstates_its_source_is_reported); plan side never draws-and-reports (tests/pmi_dimensions.rs::every_dimension_is_drawn_or_reported_never_both)."
-  rust_test: "tests/pmi_coverage.rs::a_frame_that_misstates_its_source_is_reported; tests/pmi_dimensions.rs::every_dimension_is_drawn_or_reported_never_both"
+  rust_test: "audits::pmi_coverage::a_frame_that_misstates_its_source_is_reported; dimensions::pmi_dimensions::every_dimension_is_drawn_or_reported_never_both"
   port_note: "Keep if PMI is ported."
   rust_note: "src/lint/pmi_coverage.rs reports every lowerable record no annotation names or states (tests/pmi_coverage.rs::a_frame_that_misstates_its_source_is_reported); plan side never draws-and-reports (tests/pmi_dimensions.rs::every_dimension_is_drawn_or_reported_never_both). Python's de-duplication against build issues needs lint to read the build ledger, which R1 forbids; the possible double report is the open maintainer question in docs/next-session.md, not a port gap."
 
@@ -2004,7 +2004,7 @@
     issues: [623]
     tests: [tests/test_pmi_gtol_lowering.py]
   status: ported
-  rust_test: "tests/pmi_coverage.rs::a_frame_that_misstates_its_source_is_reported"
+  rust_test: "audits::pmi_coverage::a_frame_that_misstates_its_source_is_reported"
   port_note: "Keep if PMI is ported."
   rust_note: "Partly: the coverage lint (`src/lint/pmi_coverage.rs`) reads each drawn frame's text runs (`pmi:<source>`) and reports one that does not state exactly one magnitude within Python's display bound of its source's, its zone (`⌀`, `S⌀` or none) and, beyond Python, its datum letters (repeats removed). The visible ink is not checked separately: the drawing exposes no glyph text per annotation, only the runs drawn from the same cell (`tests/pmi_lowering.rs::frames_and_symbols_are_searchable_and_drawn_from_the_font` compares the ink with draftwright's). No mismatch on the 14 fixtures, as in draftwright. Closed by the rules assessment of 2026-10-11: the visible ink is drawn from the same cell as the checked text runs; nothing further is worth porting."
 
@@ -2029,7 +2029,7 @@
     module: "linting/pmi_coverage.py"
     tests: [tests/test_pmi_manufacturing_finish.py]
   status: ported
-  rust_test: "tests/surface_texture.rs::a_finish_leader_must_stay_on_its_source_face"
+  rust_test: "rendering::surface_texture::a_finish_leader_must_stay_on_its_source_face"
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream pmi"
   rust_note: "Source-site lint reads the finished leader tip, its recorded view transform and the source record's exact face attachments. Planar finishes must lie on that face's edge line; cylindrical finishes on its silhouette. A source-scoped general note must name a document-note source. A known census source without a typed finish/note record is rejected, rather than borrowing its mere census presence. The Rust annotation identity resolves directly to a record (unknown claims are pmi_source_unknown), so no separate, losable Part21/source_id declaration pair exists. No datum or GD&T placement was changed."
 
@@ -2043,7 +2043,7 @@
     issues: [1563]
     tests: [tests/test_issue_1563_sheet_pmi_reconciliation.py]
   status: ported
-  rust_test: "tests/pmi_coverage.rs::a_frame_that_misstates_its_source_is_reported"
+  rust_test: "audits::pmi_coverage::a_frame_that_misstates_its_source_is_reported"
   port_note: "Keep if PMI is ported."
   rust_note: "The coverage lint (`src/lint/pmi_coverage.rs`) reports annotations that name or claim `pmi:<source>` on a part whose Analysis has no PMI reading, or whose reading was refused, as one warning listing the sources. draftwright's error for source-linked finishes and document notes does not arise: the port draws its PMI notes and finish symbol only from a reading."
 
@@ -2057,7 +2057,7 @@
     issues: [1563]
     tests: [tests/test_issue_1563_sheet_pmi_reconciliation.py]
   status: ported
-  rust_test: "tests/pmi_coverage.rs::a_frame_that_misstates_its_source_is_reported"
+  rust_test: "audits::pmi_coverage::a_frame_that_misstates_its_source_is_reported"
   port_note: "Keep if PMI is ported."
   rust_note: "The coverage lint (`src/lint/pmi_coverage.rs`) checks the drawing's annotations (each `pmi:<source>` name or claim) against the reading's records and sources, where draftwright checks its IR's declarations; with Python's message, less the document's name. On a refused reading the claims are reported unreconciled, not fabricated (nothing was read to contradict them)."
 
@@ -2073,7 +2073,7 @@
   status: ported
   port_note: "triage 2026-10-16: PORT, value low, size S, stream pmi"
   rust_note: "Manufacturing table rows retain compiler-owned source/aspect bindings in Plan, including Spec-authored overrides, then render provenance annotations preserving wrapped runs. These bindings do not add a second physical measurement owner. lint::pmi_coverage::manufacturing_references requires the complete REF / MANUFACTURING REQUIREMENT header, exactly one complete row, the correct MFG tag and source binding, and an actually drawn table for every source-bearing SEE MFG leader. Removing the table, truncating/emptying a row, changing its tag/source or duplicating it reports manufacturing_reference_unresolved as an error."
-  rust_test: "tests/pmi_thread_knurl.rs::manufacturing_references_require_complete_source_matched_ink; tests/pmi_thread_knurl.rs::authored_manufacturing_rows_keep_the_compilers_source_bindings"
+  rust_test: "core::pmi_thread_knurl::manufacturing_references_require_complete_source_matched_ink; core::pmi_thread_knurl::authored_manufacturing_rows_keep_the_compilers_source_bindings"
 
 - id: LINT-code-step_material_mismatch
   statement: "When the STEP supplies the material, the title block states that material."
@@ -2149,7 +2149,7 @@
     module: "linting/pmi_coverage.py"
     tests: [tests/test_title_block_units_format.py]
   status: ported
-  rust_test: "tests/pmi_labels.rs::the_specs_tolerance_wins_and_a_different_pmi_one_is_reported"
+  rust_test: "rendering::pmi_labels::the_specs_tolerance_wins_and_a_different_pmi_one_is_reported"
   port_note: "Keep."
   rust_note: "Partly: the plan reports it (a warning, naming the PMI source and sheet/title/tolerance) when the spec's tolerance, which wins, differs from the part's one AP242 general tolerance; also for a blank spec value, which draftwright passes in silence. As a lint code on a drawing it is not ported: as step_general_tolerance_mismatch, the finding turns on whether the caller authored the title field, which draftwright's lint is told and the port's lint cannot know: lint never reads the Spec (R1), and the drawing does not record a field's origin (a recorded maintainer question in docs/next-session.md). Closed by the rules assessment of 2026-10-11: the plan's warning is the port of it; the lint twin (LINT-code-step_general_tolerance_mismatch) is retired."
 
@@ -2216,7 +2216,7 @@
     issues: [1338]
     tests: [tests/test_issue_1338_scale_before_page_escalation.py]
   status: ported
-  rust_test: tests/sheet_fill.rs::invalid_high_fill_never_beats_a_valid_complete_sheet
+  rust_test: rendering::sheet_fill::invalid_high_fill_never_beats_a_valid_complete_sheet
   rust_note: "Stage H6: hard layout findings invalidate a candidate before fill is compared; material crossings are a later veto among allowed pairs."
   port_note: "Keep: used by page/scale escalation."
 
@@ -2242,7 +2242,7 @@
     issues: [1365, 1430, 1557]
     tests: [tests/test_quality_components.py]
   status: ported
-  rust_test: tests/native.rs::the_reader_refuses_what_it_does_not_know
+  rust_test: core::native::the_reader_refuses_what_it_does_not_know
   rust_note: "Ported as refusal: both readers refuse a family, record type or derived collection they do not know (tests/bridge.rs::a_document_the_bridge_does_not_know_is_refused), and a recognised feature no planner dimensions is reported dimensions_not_ported. Closed by the rules assessment of 2026-10-11."
   port_note: "Keep the principle: no recognised inventory may silently join the blind spot."
 
