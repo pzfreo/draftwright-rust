@@ -11,10 +11,10 @@ pub(super) fn apply(
     kept: &mut [Kept],
     given: &mut [Vec<String>],
 ) -> Result<(), Invalid> {
-    if spec.dimensions.is_empty() {
-        return Ok(());
-    }
     for ((w, ..), from_spec) in kept.iter_mut().zip(given) {
+        if matches!(w.shape, super::Shape::Callout { .. }) {
+            w.terms = crate::callouts::wrap(&w.terms);
+        }
         let Some(entry) = spec.dimensions.get(&w.id) else {
             continue;
         };
@@ -51,6 +51,9 @@ pub(super) fn apply(
             };
             from_spec.push(field.into());
             w.basis += &format!("; from_spec: {field}");
+        }
+        if matches!(w.shape, super::Shape::Callout { .. }) {
+            w.terms = crate::callouts::wrap(&w.terms);
         }
     }
     Ok(())

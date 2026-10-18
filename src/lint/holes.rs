@@ -417,7 +417,12 @@ impl Callout {
                     k += 1;
                 }
                 let segment = out.segments.last_mut().unwrap();
-                if first && times && decimals == 0 && matches!(chars.get(k), Some('⌀' | 'ø' | 'Ø'))
+                if first
+                    && times
+                    && decimals == 0
+                    && (matches!(chars.get(k), Some('⌀' | 'ø' | 'Ø'))
+                        || (chars.get(k) == Some(&'M')
+                            && chars.get(k + 1).is_some_and(char::is_ascii_digit)))
                 {
                     out.count = Some(v as usize);
                     i = k;
@@ -616,6 +621,41 @@ fn uncounted<'a>(g: &'a HoleGroup, marks: &[Mark]) -> Vec<&'a str> {
 
 /// The hole coverage findings: each requirement of each group that the marks do not state.
 pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
+    // A thread's source-bound manufacturing row can carry its tapping-drill values.
+    // This evidence augments only that owner's hole check, never measurement ownership.
+    let manufacturing = crate::pmi_lowering::manufacturing(analysis);
+    let normal = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut evidence = marks.to_vec();
+    for mark in &mut evidence {
+        for o in manufacturing.owned.iter().filter(|o| {
+            mark.claims
+                .iter()
+                .any(|c| c.feature == o.id && c.parameter == "thread")
+        }) {
+            let words: Vec<_> = mark.text.split_whitespace().collect();
+            let reference = words
+                .windows(3)
+                .find(|w| w[0] == "SEE" && w[1] == "MFG")
+                .map(|w| format!("MFG {}", w[2].trim_end_matches([';', ','])));
+            if let Some(tag) = reference {
+                if let Some(row) = marks.iter().find(|m| {
+                    m.name == format!("manufacturing_requirements/{tag}")
+                        && normal(&m.text) == normal(&format!("{tag} {}", o.text))
+                }) {
+                    mark.text += " ";
+                    mark.text += &row.text;
+                }
+            } else if let Some(t) = o.thread()
+                && t.internal
+                && t.through
+                && t.conventional_drill()
+                && super::pmi_coverage::thread_text_states(t, &mark.text)
+            {
+                mark.text += &format!(" ⌀{} THRU", t.drill_diameter.unwrap());
+            }
+        }
+    }
+    let marks = evidence.as_slice();
     let mut issues = Vec::new();
     for g in groups(analysis) {
         let uncounted = uncounted(&g, marks);

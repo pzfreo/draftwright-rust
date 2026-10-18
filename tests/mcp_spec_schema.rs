@@ -98,6 +98,17 @@ fn known_bad_specs_are_refused_and_existing_preflight_guidance_is_preserved() {
     }
 }
 
+#[test]
+fn callout_styles_are_discovered_for_sheet_and_feature_without_context_growth() {
+    let schema = discovery()["spec"].clone();
+    for style in ["auto", "compact", "full", "note"] {
+        let value = json!({"sheet":{"callouts":{"style":style}}, "features":{"f:turned_step:1":{"callouts":{"style":style}}}});
+        mcp::validate(&schema, &value).unwrap();
+        let _: model::Spec = serde_json::from_value(value).unwrap();
+    }
+    assert!(mcp::validate(&schema, &json!({"sheet":{"callouts":{"style":"wide"}}})).is_err());
+}
+
 // Rust json! accepts trailing commas. Keep strings intact while normalizing literal
 // examples for JSON parsing; expressions with runtime values are tested by their own
 // session tests and are deliberately not guessed here.

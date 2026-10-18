@@ -334,6 +334,7 @@ Path('schemas/mcp-validation.json').write_text(json.dumps(validation, indent=2) 
 # detail placement view names (detail_a…) add 88 bytes to item_options.
 # View-gap descriptions are in the on-demand Spec only and add zero tools/list bytes.
 # projection alignment and its description live in the on-demand Spec: +0 advertised bytes.
+# callouts/style: +0 tools/list bytes (nested on-demand Spec vocabulary only).
 SCHEMA_BUDGET = 34477
 assert total <= SCHEMA_BUDGET, f'schemas: {total} bytes (budget {SCHEMA_BUDGET})'
 print(f'{len(tools)} tools; {total} compact schema bytes')

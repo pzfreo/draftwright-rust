@@ -23,7 +23,7 @@ fn semantic_threads_use_native_lowering_and_keep_their_source() {
         .expect("semantic thread has a native owner");
     assert!(item.placed.is_some());
     assert!(
-        item.label.contains("M5 x 0.8-6H RH") && item.label.contains("THRU"),
+        item.label.contains("M5-6H") && item.label.contains("THRU"),
         "{}",
         item.label
     );
@@ -226,7 +226,7 @@ fn symbolic_bore_fits_are_printed_with_their_iso_286_limits() {
     for fit in ["H7", "H11"] {
         let label = labels.iter().find(|l| l.contains(fit)).unwrap();
         assert!(
-            !label.contains("(+") && !label.contains('\n'),
+            !label.contains("(+") && !label.contains("\n0"),
             "{label:?} states {fit} without deviations by default"
         );
     }

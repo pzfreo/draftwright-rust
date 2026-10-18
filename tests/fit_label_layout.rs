@@ -89,8 +89,9 @@ fn editor_spindle_g6_label_clears_dimension_lines_and_arrows() {
     let mut spec = Spec::default();
     spec.sheet.fit_deviations = Some(true);
     let plan = model::plan_recovered(&a, &spec).unwrap();
-    assert_eq!(plan.sheet.size, "A3");
-    assert_eq!(plan.sheet.scale, "2:1");
+    // Compact manufacturing text now retains a clean, legible A4 before enlargement.
+    assert_eq!(plan.sheet.size, "A4");
+    assert_eq!(plan.sheet.scale, "1:1");
     clear_label(
         &plan,
         "d:f:turned_step:1/step.diameter",
@@ -142,7 +143,7 @@ fn asymmetric_band_label_clears_the_dimension_stack() {
     clear_label(
         &plan,
         "d:f:hole_pattern:1/bore.diameter",
-        "4× ⌀35 +0.03 -0.0 THRU (2×2)",
+        "4× ⌀35 +0.03 -0.0 THRU\n(2×2)",
     );
     let mut on = spec.clone();
     on.sheet.fit_deviations = Some(true);

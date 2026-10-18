@@ -488,11 +488,12 @@ pub fn manufacturing_size(rows: &[Vec<String>]) -> Option<[f64; 2]> {
 /// maintainer).
 pub fn manufacturing(
     analysis: &Analysis,
+    spec: &crate::model::Spec,
     sheet: &PlannedSheet,
     views: &[PlannedView],
     dims: &[PlannedDimension],
 ) -> (Option<PlannedTable>, Vec<Problem>) {
-    let m = crate::pmi_lowering::manufacturing(analysis);
+    let m = crate::pmi_lowering::manufacturing_for(analysis, spec);
     let rows = m.rows();
     if rows.is_empty() {
         return (None, Vec::new());
@@ -551,7 +552,7 @@ pub fn manufacturing(
             .collect(),
         default: true,
         basis: format!(
-            "source-authored: the part's effective thread and knurl requirements ({}): with two or more and one too long for its callout, each callout refers to its row (SEE MFG n) and this table states them, towards the sheet's top right, as draftwright's manufacturing schedule",
+            "source-authored: the part's effective thread and knurl requirements ({}): complete source wording for explicit or automatic note form and secondary manufacturing terms; the corresponding horizontal leaders refer to these source-bound rows (SEE MFG n), towards the sheet's top right",
             m.tags
                 .iter()
                 .map(|(s, _)| s.as_str())

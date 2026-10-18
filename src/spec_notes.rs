@@ -79,19 +79,27 @@ const REMOVALS: [(&str, &str); 3] = [
 const PATTERNS: [&str; 2] = ["straight", "diamond"];
 
 /// ISO 261's coarse pitches by nominal size, for a designation that states none.
-const COARSE: [(f64, f64); 30] = [
+pub(crate) const COARSE: [(f64, f64); 40] = [
     (1.0, 0.25),
+    (1.1, 0.25),
     (1.2, 0.25),
+    (1.4, 0.3),
     (1.6, 0.35),
+    (1.8, 0.35),
     (2.0, 0.4),
+    (2.2, 0.45),
     (2.5, 0.45),
     (3.0, 0.5),
     (3.5, 0.6),
     (4.0, 0.7),
+    (4.5, 0.75),
     (5.0, 0.8),
     (6.0, 1.0),
+    (7.0, 1.0),
     (8.0, 1.25),
+    (9.0, 1.25),
     (10.0, 1.5),
+    (11.0, 1.5),
     (12.0, 1.75),
     (14.0, 2.0),
     (16.0, 2.0),
@@ -109,7 +117,9 @@ const COARSE: [(f64, f64); 30] = [
     (48.0, 5.0),
     (52.0, 5.0),
     (56.0, 5.5),
+    (60.0, 5.5),
     (64.0, 6.0),
+    (68.0, 6.0),
 ];
 
 /// Whether *spec* authors any finish, thread, knurl or note, or a default finish.

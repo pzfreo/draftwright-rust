@@ -604,14 +604,17 @@ fn native_blind_slots_use_the_existing_approved_recess_callout_grammars() {
         (
             "mfcadpp/10047.step",
             vec![
-                "ROUND-BOTTOM OPEN SLOT 1 BOTTOM FLAT × R0.5 × 2.4 LONG",
-                "ROUND-BOTTOM OPEN SLOT 1 BOTTOM FLAT × R4.4 × 4.7 LONG",
+                "ROUND-BOTTOM OPEN SLOT 1\nBOTTOM FLAT × R0.5 × 2.4\nLONG",
+                "ROUND-BOTTOM OPEN SLOT 1\nBOTTOM FLAT × R4.4 × 4.7\nLONG",
             ],
         ),
-        ("mfcadpp/10245.step", vec!["OPEN SLOT 3.3 × 9.2 × 2.0 DEEP"]),
+        (
+            "mfcadpp/10245.step",
+            vec!["OPEN SLOT 3.3 × 9.2 × 2.0\nDEEP"],
+        ),
         (
             "mfcadpp_regressions/11512.step",
-            vec!["OPEN SLOT 2.5 × 11.7 × 6.7 DEEP"],
+            vec!["OPEN SLOT 2.5 × 11.7 × 6.7\nDEEP"],
         ),
     ] {
         let (_, a) = model::analyse_native(&root.join(file)).unwrap();
