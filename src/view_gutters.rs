@@ -226,6 +226,15 @@ fn translations(
                     equality(edges, i, j);
                 }
             }
+            // A section may already have been raised to clear the title. It is
+            // still beside the row: keep that deliberate offset rather than
+            // letting the gutter pass pull the row and section apart again.
+            let same_up = a.up.iter().zip(b.up).map(|(x, y)| x * y).sum::<f64>().abs() > 1.0 - 1e-6;
+            let x_gap = (bounds[i][0] - bounds[j][2]).max(bounds[j][0] - bounds[i][2]);
+            let y_overlap = bounds[i][3].min(bounds[j][3]) - bounds[i][1].max(bounds[j][1]);
+            if same_up && x_gap >= -1e-6 && y_overlap > 1e-6 {
+                equality(&mut hard[1], i, j);
+            }
         }
     }
     for (i, v) in plan.views.iter().enumerate() {
@@ -599,12 +608,18 @@ mod tests {
         for (v, b) in plan.views.iter_mut().zip(&bounds) {
             v.at = [0.5 * (b[0] + b[2]), 0.5 * (b[1] + b[3])];
         }
-        let d = translations(&analysis, &plan, &bounds, PREFERRED, false).unwrap();
-        assert!(d[1][1] > 1.0 && d[2][0] > 1.0);
-        assert_eq!(d[0][1], d[2][1]);
-        assert_eq!(d[0][1], d[3][1]);
-        assert_eq!(d[0][0], d[1][0]);
-        assert_eq!(d[0][0], d[4][0]);
+        for lift in [0.0, 5.0] {
+            let mut bounds = bounds.clone();
+            bounds[3][1] += lift;
+            bounds[3][3] += lift;
+            plan.views[3].at[1] += lift;
+            let d = translations(&analysis, &plan, &bounds, PREFERRED, false).unwrap();
+            assert!(d[1][1] > 1.0 && d[2][0] > 1.0);
+            assert_eq!(d[0][1], d[2][1]);
+            assert_eq!(d[0][1], d[3][1]);
+            assert_eq!(d[0][0], d[1][0]);
+            assert_eq!(d[0][0], d[4][0]);
+        }
     }
 
     #[test]
