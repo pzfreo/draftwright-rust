@@ -359,6 +359,7 @@ struct Planner {
     calls: usize,
     sheet_steps: usize,
     main: std::sync::Arc<crate::planning::BoundedMemo<Plan>>,
+    seed: std::sync::Arc<crate::planning::BoundedMemo<Plan>>,
 }
 impl Default for Planner {
     fn default() -> Self {
@@ -366,6 +367,7 @@ impl Default for Planner {
             calls: 0,
             sheet_steps: 0,
             main: std::sync::Arc::new(crate::planning::BoundedMemo::new(32)),
+            seed: std::sync::Arc::new(crate::planning::BoundedMemo::new(16)),
         }
     }
 }
@@ -374,6 +376,7 @@ impl Planner {
         self.calls += 1;
         Ok(crate::planning::with_session_main(
             self.main.clone(),
+            self.seed.clone(),
             || {
                 crate::planning::with_retained(analysis, || {
                     crate::sheets::allocate_counted(analysis, spec, &mut self.sheet_steps)

@@ -385,6 +385,41 @@ fn material_in_reserved_cells(plan: &mut Plan, material: &str) -> bool {
     true
 }
 
+/// Retain only a nominal seed, after establishing its comparison policies. A
+/// recovered parent may allocate nested sheets; this seed cache never skips
+/// those runs or their policy transitions.
+pub(crate) fn prepared_seed(
+    analysis: &Analysis,
+    spec: &Spec,
+    prepare: impl FnOnce() -> Result<Plan, Invalid>,
+) -> Result<Plan, Invalid> {
+    let memo = MAIN_DEPTH
+        .with(|depth| depth.get() == 1)
+        .then(crate::planning::session_seed)
+        .flatten();
+    let Some(memo) = memo else { return prepare() };
+    let policy = crate::planning::main_policy(analysis);
+    let analysis_key: [u8; 32] = crate::planning::memo(analysis, "analysis_digest", vec![], || {
+        Sha256::digest(serde_json::to_vec(analysis).expect("Analysis serializes")).into()
+    });
+    let key = Sha256::digest(
+        serde_json::to_vec(&(analysis_key, spec, &policy)).expect("seed inputs serialize"),
+    )
+    .into();
+    if let Some(plan) = memo.get(&key) {
+        return Ok(plan);
+    }
+    let before = RUNS.with(Cell::get);
+    let plan = prepare();
+    if RUNS.with(Cell::get) == before
+        && crate::planning::main_policy(analysis) == policy
+        && let Ok(plan) = &plan
+    {
+        memo.insert(key, plan.clone());
+    }
+    plan
+}
+
 fn run_prepared(analysis: &Analysis, spec: &Spec, minimum: Option<f64>) -> Result<Plan, Invalid> {
     struct Depth;
     impl Drop for Depth {

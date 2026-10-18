@@ -26,24 +26,38 @@ thread_local! {
 
 // Session-owned exact main preparation is separate from the disposable
 // per-candidate arena. Preview and commit can exceed that arena's entry budget.
+#[derive(Clone)]
+struct SessionPreparation {
+    main: Arc<BoundedMemo<Plan>>,
+    seed: Arc<BoundedMemo<Plan>>,
+}
 thread_local! {
-    static SESSION_MAIN: RefCell<Option<Arc<BoundedMemo<Plan>>>> = const { RefCell::new(None) };
+    static SESSION_MAIN: RefCell<Option<SessionPreparation>> = const { RefCell::new(None) };
 }
 
-pub(crate) fn with_session_main<T>(memo: Arc<BoundedMemo<Plan>>, run: impl FnOnce() -> T) -> T {
-    struct Restore(Option<Arc<BoundedMemo<Plan>>>);
+pub(crate) fn with_session_main<T>(
+    main: Arc<BoundedMemo<Plan>>,
+    seed: Arc<BoundedMemo<Plan>>,
+    run: impl FnOnce() -> T,
+) -> T {
+    struct Restore(Option<SessionPreparation>);
     impl Drop for Restore {
         fn drop(&mut self) {
             SESSION_MAIN.with(|active| *active.borrow_mut() = self.0.take());
         }
     }
-    let previous = SESSION_MAIN.with(|active| active.replace(Some(memo)));
+    let previous =
+        SESSION_MAIN.with(|active| active.replace(Some(SessionPreparation { main, seed })));
     let _scope = Restore(previous);
     run()
 }
 
 pub(crate) fn session_main() -> Option<Arc<BoundedMemo<Plan>>> {
-    SESSION_MAIN.with(|active| active.borrow().clone())
+    SESSION_MAIN.with(|active| active.borrow().as_ref().map(|m| m.main.clone()))
+}
+
+pub(crate) fn session_seed() -> Option<Arc<BoundedMemo<Plan>>> {
+    SESSION_MAIN.with(|active| active.borrow().as_ref().map(|m| m.seed.clone()))
 }
 
 #[derive(serde::Serialize, PartialEq, Eq)]
@@ -71,8 +85,12 @@ thread_local! {
 /// Preview and commit often have identical inputs. Keep their pure preparation bounded and
 /// bound to the entire Analysis, including recognition. Spec-dependent candidates already
 /// key on the complete Spec; Analysis-only preparation can also survive a title edit. Every
-/// invocation still runs the recovered planner. Oversized scopes are cleared on re-entry,
-/// bounding retention by 256 entries plus the existing single-call planning budget.
+/// invocation still runs the recovered planner. Oversized scopes discard candidate
+/// preparation on re-entry, retaining only the Analysis digest and established
+/// comparison recipes (keyed by hole-table setting and projection). Scope policies
+/// are rebuilt from that reference through the normal planning path.
+/// Their bounded presentation inputs avoid repeating the reference solve at the
+/// preview/commit boundary without retaining another candidate arena.
 pub(crate) fn with_retained<T>(analysis: &Analysis, run: impl FnOnce() -> T) -> T {
     let key: [u8; 32] =
         Sha256::digest(serde_json::to_vec(analysis).expect("analysis serializes")).into();
@@ -85,7 +103,16 @@ pub(crate) fn with_retained<T>(analysis: &Analysis, run: impl FnOnce() -> T) -> 
             .map(|(_, values)| values)
             .unwrap_or_else(|| Rc::new(RefCell::new(BTreeMap::new())));
         if values.borrow().len() > 256 {
-            values.borrow_mut().clear();
+            let mut references = 0;
+            values.borrow_mut().retain(|(name, key), _| {
+                if *name == "established-drawing" {
+                    // The valid hole-table/projection combinations are few;
+                    // bound even refused, malformed presentation inputs.
+                    references += 1;
+                    return references <= 8;
+                }
+                key.is_empty() && *name == "analysis_digest"
+            });
         }
         retained.push_front((key, values.clone()));
         retained.truncate(4);
@@ -338,6 +365,49 @@ mod tests {
             2,
             "title/scale edits reuse only Analysis-dependent preparation"
         );
+        assert!(!enabled(&a));
+    }
+
+    #[test]
+    fn oversized_session_scopes_keep_keyed_references_and_discard_candidates() {
+        let mut a = analysis();
+        let presentation = vec![1];
+        with_retained(&a, || {
+            store(&a, "established-drawing", presentation.clone(), 42_u32);
+            store(&a, "established-drawing", vec![2], 43_u32);
+            store(&a, "established-route-policy", vec![], true);
+            store(
+                &a,
+                "established-clear-witnesses",
+                vec![],
+                BTreeSet::from(["control".to_string()]),
+            );
+            for key in 0_u32..300 {
+                store(&a, "disposable-candidate", key.to_le_bytes().to_vec(), key);
+            }
+        });
+        with_retained(&a, || {
+            assert_eq!(
+                lookup::<u32>(&a, "established-drawing", &presentation),
+                Some(42)
+            );
+            assert_eq!(lookup::<u32>(&a, "established-drawing", &[2]), Some(43));
+            assert_eq!(lookup::<u32>(&a, "established-drawing", &[3]), None);
+            assert_eq!(lookup::<u32>(&a, "disposable-candidate", &[0; 4]), None);
+            let policy = main_policy(&a);
+            assert!(!policy.recipes_and_routes.1);
+            assert!(policy.clear_witnesses.is_none());
+        });
+        // Matching STEP bindings cannot carry a reference across changed evidence.
+        a.envelope[1][0] += 1.0;
+        with_retained(&a, || {
+            assert_eq!(
+                lookup::<u32>(&a, "established-drawing", &presentation),
+                None
+            );
+            assert!(!main_policy(&a).recipes_and_routes.1);
+            assert!(main_policy(&a).clear_witnesses.is_none());
+        });
         assert!(!enabled(&a));
     }
 

@@ -5398,9 +5398,11 @@ pub fn plan_escalated(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
         if spec.sheet.scale.is_none() && crate::dims::has_new_native_recess_dimensions(analysis) {
             established_drawing(analysis, spec)?;
         }
-        let mut plan = plan_escalated_with(analysis, spec, false, None, false)?;
-        crate::iso_caption::refresh(analysis, &mut plan);
-        Ok(plan)
+        crate::sheets::prepared_seed(analysis, spec, || {
+            let mut plan = plan_escalated_with(analysis, spec, false, None, false)?;
+            crate::iso_caption::refresh(analysis, &mut plan);
+            Ok(plan)
+        })
     })
 }
 
