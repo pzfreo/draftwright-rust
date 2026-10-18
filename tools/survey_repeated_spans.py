@@ -55,7 +55,9 @@ def main():
     assert args.out.is_absolute(), 'out must be absolute'
     inputs = args.out / 'inputs'
     inputs.mkdir(parents=True, exist_ok=True)
-    files = [corpus / f for f in Path('tools/repeated_span_parts.txt').read_text().splitlines()]
+    # Keep the instruction-budget cohort fixed; coverage also includes newer test inputs.
+    files = [corpus / f for manifest in ('repeated_span_parts.txt', 'repeated_span_extra_parts.txt')
+             for f in (Path('tools') / manifest).read_text().splitlines()]
     assert set(Path('tools/quality_parts.txt').read_text().splitlines()) <= {
         str(p.relative_to(corpus)) for p in files}
     sources = '\n'.join(p.read_text() for p in Path('tests').rglob('*.rs'))
