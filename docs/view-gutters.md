@@ -1,8 +1,11 @@
 # Default view gutters
 
-Automatic final drawings prefer 12 mm of blank paper between adjacent annotation
-bands, spending only slack on the selected sheet at the selected scales. Gutters
-shrink continuously to zero when necessary. Projection origins stay aligned;
+Automatic final drawings share spare paper between adjacent annotation bands up
+to a preferred maximum of 25 mm, at the selected sheet and scales. A gap of
+roughly eight annotation text heights separates sparse views without scattering
+the projected set.
+Gutters shrink continuously to zero when necessary. Whole rows and columns,
+including aligned sections and auxiliary projections, translate together;
 explicit `views/<name>/place/gap` stays an authored distance, including zero.
 `sheet/view_gutter` overrides the preference (finite, non-negative paper mm);
 zero reproduces the drawing without the final spacing pass.
@@ -17,14 +20,18 @@ sheet, change a scale, reroute a dimension or drop a view.
 
 The solver translates complete view blocks and their settled annotation ink,
 GD&T, line work, balloons and scale captions. It preserves projection alignment,
-explicit relative placement groups, pinned annotation stations and the canonical
-frames retained by annotation text edits. It shares constrained slack before
+explicit relative placement groups, pinned views, their anchor chains and pinned
+annotation stations. Annotation text and lanes settle in the recovered frame
+before this optional final pass. It shares constrained slack before
 improving individual pairs, and tries lifting the row above the title block
 before sacrificing a gutter. Frames and fixed sheet furniture remain obstacles.
-An isometric uses its actual ink/caption band rather than reserving its empty
-fitting rectangle, with 1 mm of clearance inside the frame for its ink.
+An automatic isometric or section uses its actual geometry, ink and caption
+instead of its empty fitting region or generic section padding. Dimension/GD&T
+labels and section/detail captions reserve two mm at the frame, title and fixed
+furniture; the isometric caption keeps one mm at the frame. Authored placement
+footprints retain their literal relations, including zero gaps.
 
-## Comparison
+## Initial 12 mm comparison (historical)
 
 Baseline: `9422945b691a798ef97b569a783ab8d51188c3b3` (`origin/main` at start).
 The baseline binary was built before editing and retained under
@@ -125,7 +132,8 @@ python3 tools/check_test_binaries.py
 python3 tools/test_mcp_spec_outline.py
 ```
 
-The full test suite was not run. Five new rendering regressions cover roomy first
+The initial pass ran only core and rendering; the review follow-up below also
+covers dimensions and audits. Five new rendering regressions cover roomy first
 and third angle layouts, unchanged sheets and scales, shrinking, explicit gaps,
 override validation/round-trip and rigid annotation transport. Existing no-op pin,
 editor fragment, detail, relative iso, section and multi-sheet assertions remain
@@ -160,3 +168,145 @@ from main; gutters do not reroute or remove annotations to hide existing finding
 
 Raw plan/analysis JSON, SVGs, the 16 PNGs, comparison JSON, binary copies and
 check logs remain in the ignored `artifacts/view-gutters/` directory.
+
+## Review follow-up (2026-10-18)
+
+The earlier uncommitted fixes were retained and completed:
+
+- Text-edit references disable optional gutters. Previously, a reference with
+  final translations changed authored diagonal lanes before unchanged width ink
+  was restored, and exhausted an enlarged corner label's border clearance.
+  Edited ink now settles once before gutters. Fixed A4 at 2:1 is also exercised
+  with 0, 25 and 1,000 mm requested gutters.
+- Two mm around dimension/GD&T labels, section/detail captions and reference text
+  counts as occupied paper.
+  This protects the fit label's border/title/furniture clearance before spacing.
+  Section/detail captions are measured in their rendered annotation font, rather
+  than relying on the shared furniture helper's condensed title font.
+- View pins are fixed, and item pins resolve the actual coverage owner/carrier.
+  Explicit view relations remain rigid, so fixing a view fixes its anchor chain.
+  Authored relation anchors keep their literal footprint too; cross-sheet views
+  keep reference-label reservations and both ends of their zone addresses fixed.
+  Already measured areas survive no-op passes exactly: recalculating an iso box
+  from its translated origin had changed one coordinate by an ulp on a bare pin.
+- Equal projection origins constrain translations for every projected row/column,
+  including sections and auxiliary views. Sections already raised to clear the
+  title retain their existing row offset too (string_post). The section no longer
+  stays behind when GRM-01's front and side move. Automatic sections relinquish empty generic
+  allocation padding after their geometry, ink and captions are measured.
+- The default maximum is 25 mm; the existing override remains the preferred
+  maximum. The solver shares tight slack before improving individual gaps.
+
+The cgb245 schedule reproducer combines bare dimension pins with an explicitly
+changed **zero-gap** plan/front relation. The default now includes an automatic
+gutter. These are different anchor intents: resolving zero deliberately moves
+plan and its ink relative to front. This follows the documented S3 rule in
+[model.md](model.md#placement-place-s3): editing a pin's anchor intent re-resolves
+it. Silently substituting the default gap would discard the authored distance.
+The original regression assertion is retained; the reported-gap replay and the
+literal-zero replay are recorded separately below.
+
+### A4 at 1:1 drawing review
+
+Each render was made with `--spec` using
+`{"sheet":{"size":"A4","scale":"1:1"}}`. The comparison also includes
+`view_gutter:0`. The before binary was built from the exact starting HEAD,
+`0bf7ff40`, in a temporary source export of this repository; the after binary
+includes this follow-up. No external repository was copied or vendored. Files are
+under the ignored
+`artifacts/view-gutters/followup/` directory, with a three-column
+`comparisons.html` (disabled / previous 12 mm / final 25 mm). Both SVG and PNG
+are retained for every drawing in `before/` and `after/`.
+
+| Part | Front/side gap: previous → final (mm) | Plan/front gap: previous → final (mm) |
+| --- | ---: | ---: |
+| GRM-01_shank | 6.74 → 24.59 | 12.00 → 25.00 |
+| mfcadpp/1004 | 12.00 → 25.00 | 12.34 → 25.34 |
+| mfcadpp/10060 | 12.00 → 27.00 | 12.00 → 26.00 |
+
+These numbers use reported view areas; the solver also includes ink extending
+past those areas, so an area gap can exceed its 25 mm occupied-band preference.
+GRM-01's front/side/section origins were 78/78/90 mm with the previous gutters;
+all three are now **71.00001 mm**. The shapes' tops and bottoms are level.
+The side/section band gap also grows, from 4.01 to 16.59 mm; the caption's two mm
+clearance from the title block limits further horizontal expansion.
+All three A4 drawings retain 1:1 and have no `page_fit_uncertain`. The automatic
+GRM-01 drawing also retains A3 at 2:1 with clear gutters and an aligned section.
+Before/after PNGs for all three parts and the automatic GRM-01 PNG were inspected.
+
+For cgb245, replaying the reported 25 mm gap preserves the schedule and **all six
+pinned dimensions byte for byte**. Requesting zero instead preserves the schedule
+and front pins, but moves the plan's slot-location arrow from y = 282.3955465 to
+257.3955465 mm, exactly 25 mm. The earlier 12 mm build's equivalent movement was
+282.3955465 → 270.3955465 mm. Both cases and all six dimension comparisons are in
+`cgb245-{reported-gap,zero-gap}.{spec,plan,check}.json`. The unchanged regression
+compares these distinct anchor intents as if they requested the same position;
+its failure is reported explicitly rather than changing the test or overriding
+zero.
+
+### Sheet/scale and section checks
+
+All **30 sheet/scale choices and all view scales/inventories are identical to the
+exact starting HEAD, 0bf7ff40**. The complete before/after gap table is retained in
+`followup/comparison-merged-head.md` and `.json`. Eighteen parts meet/exceed the
+25 mm preference; twelve shrink it to keep real clearances. A few tight gaps are
+up to one mm smaller than the old 12 mm build because measured label clearance
+now takes priority.
+
+The historical table above predates the reviewer merge. Its 10047 entry says A3
+at 1:1, but an independent build of **0bf7ff40 already chooses A4 at 1:1**. This
+round retains that choice; it does not introduce that historical discrepancy.
+
+All seven quality parts with sections were also compared with gutters disabled:
+**13 row/column coordinates or deliberate raised-section offsets are preserved**,
+including string_post's title-clearing offset. The report is
+`followup/section-alignment-verified.json`. GRM-01 was checked separately at both
+its automatic A3 2:1 and requested A4 1:1. The unit regression also exercises an
+auxiliary projection in a shared column and both level and raised sections.
+
+### Final checks
+
+Rust verification used the corpus-required environment shown above, with eight
+build jobs and eight Rust test threads. The final source was held unchanged during
+verification. `followup/manifest.json` records the exact baseline/implementation
+commits, binary SHA-256 values and environment. Reproduction:
+
+```sh
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --release -- -D warnings
+cargo test --release --test core --test rendering --test dimensions --test audits --no-fail-fast
+python3 tools/check_test_binaries.py
+python3 tools/test_mcp_spec_outline.py
+python3 -I tools/quality.py artifacts/view-gutters/followup/draftwright-after artifacts/view-gutters/followup/quality-final-state $(sed "s|^|$DRAFTWRIGHT_CORPUS/|" tools/quality_parts.txt)
+python3 tools/check_view_gutters.py artifacts/view-gutters/followup/head-plans artifacts/view-gutters/followup/quality-final-state artifacts/view-gutters/followup/comparison-merged-head.json
+python3 -I tools/check_quality_table.py docs/status-2026-10-10.md artifacts/view-gutters/followup/quality-final-state/baseline.json
+python3 -I tools/check_leader_routes.py artifacts/view-gutters/followup/quality-final-state --report artifacts/view-gutters/followup/leaders-final-state.json
+```
+
+| Check | Final result |
+| --- | --- |
+| `cargo fmt --all --check` | PASS |
+| Strict workspace/all-target release Clippy | PASS (37.10 s) |
+| `core` | PASS: 277/277 (60.54 s), including engine-version and fresh-process/session equality |
+| `audits` | PASS: 158/158 (109.42 s) |
+| `rendering` | PASS: 466/466 (108.09 s), including no-op pins, authored relations, narrow cross-sheet captions and reciprocal zone addresses |
+| `dimensions` | 321/322 (64.67 s); only `planned_hole_tables::the_cgb245_view_pin_reproducer_keeps_its_schedule` fails, for the explicit-zero anchor change explained above |
+| Three reported angle/diagonal/fit-label regressions | PASS unchanged |
+| Fixed A4 2:1 authored corner, gutter 0 / 25 / 1,000 | PASS |
+| Source inventory | PASS: 8 binaries, 140 reachable Rust files, 1,282 integration tests; docs counts match |
+| MCP Spec outline/schema guards | PASS: 3 tests |
+| `tools/quality.py` and maintained table checker | PASS: all 30 parts, all 450 cells no worse |
+| Leader checker | PASS: 144 callouts; no new/longer bad routes; 8 unchanged pre-existing runs |
+| Exact starting-HEAD sheet/scale comparison | PASS: all 30 choices and every view scale/inventory unchanged |
+| Section row/column check | PASS: all 7 corpus section parts, 13 coordinates/offsets; GRM-01 also checked at A3 2:1 and A4 1:1 |
+
+The final tracked quality totals are unchanged: zero off-sheet annotations, zero
+view overlaps, zero views on the title block, 7 repeated labels, 6 ink findings,
+63 feature crossings, 1 off-span text and 18 leader/extension contacts. The final
+four-binary log is `followup/final-state.log`; quality/checker logs use the
+`final-state` suffix. No original test was removed, ignored or weakened. The
+legacy alignment hashes were re-recorded for the requested 25 mm default and
+clearance changes; authored alignment/gap assertions remain unchanged.
+
+All work was committed locally in coherent steps. Nothing was pushed, no foreign
+repository was copied or vendored, and `CHANGELOG.md` was not edited.
