@@ -520,7 +520,7 @@ fn run_prepared_uncached(
     })
 }
 
-/// Single-sheet recovery may invoke the small-part overflow allocation before large paper.
+/// Single-sheet recovery exhausts allowed paper before automatic overflow allocation.
 pub(crate) fn allocate(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     allocate_counted(analysis, spec, &mut 0)
 }
@@ -738,6 +738,41 @@ pub(crate) fn small_fallback(
     if spec.sheet.size.is_some() {
         return None;
     }
+    // A fixed scale still searches all single-sheet paper before an auxiliary
+    // allocation. It may recover smaller paper, but may never add sheets for it.
+    if spec.sheet.scale.is_some()
+        && !crate::placement_intent::has_pins(spec)
+        && assignments(spec).values().all(|n| *n <= 1)
+        && spec.tables.iter().all(|t| t.sheet.is_none_or(|n| n <= 1))
+    {
+        for (name, ..) in layout::PAGES {
+            let mut single = spec.clone();
+            single.sheet.size = Some(name.into());
+            single.sheets.get_or_insert_with(Default::default).max = Some(1);
+            let Ok(mut p) = model::plan_recovered(analysis, &single) else {
+                continue;
+            };
+            if p.sheets.is_empty()
+                && small_content_fits(analysis, required, &p)
+                && crate::sheet_fit::readability(analysis, &p).whole_drawing_failures() == 0
+                && model::no_new_drawing_issues(required, &p)
+                && crate::sheet_fit::routes_no_worse(analysis, required, &p)
+            {
+                let binding = p.spec.binding.clone();
+                p.spec = spec.clone();
+                p.spec.binding = binding;
+                p.sheet.default = true;
+                p.sheet.basis += "; fixed scale retained on the smallest clean single-sheet paper";
+                return Some(p);
+            }
+        }
+    }
+    if required.sheets.is_empty()
+        && small_content_fits(analysis, required, required)
+        && crate::sheet_fit::readability(analysis, required).whole_drawing_failures() == 0
+    {
+        return None;
+    }
     if spec.sheets.as_ref().and_then(|s| s.max) == Some(1) {
         tried.push("small-sheet allocation blocked by explicit sheets.max = 1".into());
         return None;
@@ -903,7 +938,7 @@ pub(crate) fn paper_fallback(
                 sheet.default = true;
             }
             p.sheet.basis = format!(
-                "screen-first paper policy: {name} R5 allocation before larger paper; fill floor 60%; candidates: {}",
+                "screen-first paper policy: {name} R5 allocation after single-sheet exhaustion; fill floor 60%; candidates: {}",
                 tried.join("; ")
             );
             return Some(p);

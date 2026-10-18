@@ -19,6 +19,12 @@ It never says *pinned*: that word belongs to the existing placement intents (`Pl
 
 ## Small-part overflow amendment (2026-10-16)
 
+**Release amendment (2026-10-18):** automatic allocation now exhausts clean,
+readable single-sheet drawings through A0 before adding sheets. One larger sheet
+beats multiple smaller sheets; low fill alone never justifies another sheet.
+Explicit sheet intent remains binding. This supersedes the practical-paper
+ordering in the following historical amendment; the R5 packing rules remain.
+
 The maintainer's practical-paper rule overrides the original paper-first search below:
 when a part's full-size view envelope fits A3, and no valid complete single A4/A3
 candidate exists, try R5 allocation on A4 and then A3 before allowing A2 or larger.

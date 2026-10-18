@@ -1771,8 +1771,11 @@ fn protect_retained_routes(
     let unjustified_paper = spec.sheet.size.is_none()
         && paper(&candidate) > paper(reference)
         && carries_required(&candidate, reference)
-        && crate::sheet_fit::readability(analysis, &candidate).failures()
-            >= crate::sheet_fit::readability(analysis, reference).failures();
+        && (crate::sheet_fit::readability(analysis, &candidate).failures()
+            >= crate::sheet_fit::readability(analysis, reference).failures()
+            || (crate::sheet_fit::readability(analysis, &candidate).failures() > 0
+                && crate::sheet_fit::readability(analysis, reference).whole_drawing_failures()
+                    == 0));
     if !drawn_quality_reference(analysis, reference)
         || (!unjustified_paper
             && !main_scale_loss
@@ -2113,7 +2116,7 @@ pub(crate) fn undrawn_gdt(p: &Plan) -> usize {
 }
 
 /// Select finished, complete readable drawings under the screen-first policy (2026-10-17).
-/// Exhaust each paper size and its R5 allocation before larger paper. Pins keep
+/// Exhaust single-sheet paper before automatic R5 allocation. Pins keep
 /// their canonical sheet; explicit choices override.
 pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
     let mut bound = crate::recognition_corrections::canonical(analysis, spec)?;
@@ -3062,6 +3065,8 @@ fn recover_callouts(
         if candidate.sheet.size == "A4"
             && clean(&candidate)
             && crate::sheet_fit::illegible_steps(analysis, &candidate) == 0
+            && crate::sheet_fit::readability(analysis, &candidate).failures()
+                <= crate::sheet_fit::readability(analysis, &best).failures()
             && carried(&best).is_subset(&carried(&candidate))
         {
             candidate.sheet.basis += "; auto compact manufacturing callouts fit cleanly on A4; retain the smaller paper before enlargement";
@@ -3230,8 +3235,20 @@ fn recover_uncached(
     first: Plan,
     minimum: Option<f64>,
 ) -> Result<Plan, Invalid> {
+    let seed = first.clone();
     let mut plan = recover_callouts(analysis, spec, first, minimum)?;
     shorten_wrapped_callouts(analysis, spec, &mut plan);
+    // Presentation recovery can revisit an intermediate enlarged refusal. The
+    // original fitted whole-part drawing still forbids spending paper for a
+    // partial local improvement, including after schedule/callout changes.
+    if plan.sheet.page[0] > seed.sheet.page[0]
+        && crate::sheet_fit::readability(analysis, &plan).failures() > 0
+        && crate::sheet_fit::readability(analysis, &seed).whole_drawing_failures() == 0
+        && findings(&seed).clean()
+        && drawn_quality_reference(analysis, &seed)
+    {
+        plan = protect_retained_routes(analysis, spec, &seed, plan);
+    }
     Ok(plan)
 }
 
@@ -4372,7 +4389,7 @@ fn recover_candidates_before(
         && !suppressed_detail
         && crate::sheet_fit::primary_illegible_steps(analysis, &first) == 0
         && !(seed_paper >= LARGE_SHEET && practical_fallback);
-    // Exhaust each paper and its existing R5 allocation before opening the next.
+    // Exhaust single-sheet paper before considering an automatic R5 allocation.
     for (i, (name, _, _)) in layout::PAGES.iter().enumerate() {
         // A complete ordinary drawing bounds optional work: cheaper paper,
         // or the same paper when a crop can reduce an existing allocation.
@@ -4939,9 +4956,36 @@ fn recover_candidates_before(
             .iter()
             .filter(|(c, _)| c.sheet == i && (!seed_kept || c.extra_crossings == 0))
             .max_by(|a, b| a.0.scale.total_cmp(&b.0.scale));
-        let above = best_here.map_or(0.0, |(c, _)| c.scale);
         let underfilled = best_here.is_none_or(|(c, _)| c.fill < FILL_BAND[0]);
-        if spec.sheet.size.is_none() && underfilled {
+        if best_here.is_some() {
+            if underfilled {
+                tried.push(format!("{name}: fill floor not attainable at the next readable standard scale, without adding sheets; largest clean readable scale retained"));
+            }
+            break;
+        }
+    }
+    // One readable sheet beats multiple smaller sheets. Exhaust every allowed
+    // single-sheet paper/scale first; fill alone never earns auxiliary sheets.
+    let fitted_single_sheet = std::iter::once(&first)
+        .chain(historical.iter())
+        .chain(retained_candidates.iter().map(|(_, p)| p))
+        .any(|p| {
+            p.sheets.is_empty()
+                && findings(p).clean()
+                && drawn_quality_reference(analysis, p)
+                && crate::sheet_fit::readability(analysis, p).whole_drawing_failures() == 0
+        });
+    if !reference_only
+        && spec.sheet.size.is_none()
+        && !fitted_single_sheet
+        && !candidates
+            .iter()
+            .any(|(c, _)| !seed_kept || c.extra_crossings == 0)
+    {
+        for (i, (name, ..)) in layout::PAGES.iter().enumerate() {
+            if before_paper.is_some_and(|limit| i >= limit) {
+                break;
+            }
             // Already allocated content is assembled by the caller. Its completed document
             // gets the same fallback in sheets::allocate_counted, rather than nesting moves.
             let assigned = spec.views.values().any(|v| v.sheet.is_some_and(|n| n > 1))
@@ -4969,7 +5013,7 @@ fn recover_candidates_before(
                     &fallback_spec,
                     &first,
                     name,
-                    above.max(minimum.unwrap_or(0.0) - 1e-6),
+                    minimum.unwrap_or(0.0) - 1e-6,
                     &mut tried,
                     historical.as_ref().unwrap_or(&first),
                 )
@@ -4988,12 +5032,6 @@ fn recover_candidates_before(
                     "practical-sheet allocation still obstructs established corridors".into(),
                 );
             }
-        }
-        if best_here.is_some() {
-            if underfilled {
-                tried.push(format!("{name}: fill floor not attainable at the next readable standard scale, including R5 allocation; largest clean readable scale retained"));
-            }
-            break;
         }
     }
     if reference_only {
@@ -5492,12 +5530,20 @@ fn recover_scheduled_rows(
                 return Some(p);
             }
         }
-        if spec.sheet.size.is_none()
-            && let Some(p) =
+    }
+    if spec.sheet.size.is_none()
+        && !(first.sheets.is_empty()
+            && findings(first).clean()
+            && drawn_quality_reference(analysis, first)
+            && crate::sheet_fit::readability(analysis, first).whole_drawing_failures() == 0)
+    {
+        for (name, ..) in layout::PAGES {
+            if let Some(p) =
                 crate::sheets::paper_fallback(analysis, spec, first, name, 0.0, &mut tried, first)
-        {
-            (selection.scale, selection.page) = original;
-            return Some(p);
+            {
+                (selection.scale, selection.page) = original;
+                return Some(p);
+            }
         }
     }
     (selection.scale, selection.page) = original;

@@ -13,6 +13,7 @@ pub struct Tried {
     pub valid: bool,
     pub over: usize,
     pub crossings: usize,
+    pub unreadable: usize,
 }
 
 pub fn sheet_index(size: &str) -> usize {
@@ -36,6 +37,15 @@ pub fn tried(basis: &str) -> Vec<Tried> {
     let mut out = Vec::new();
     while let Some(i) = rest.find(" fill ") {
         let head: Vec<&str> = rest[..i].rsplitn(3, ' ').collect();
+        // Retained histories also contain prose such as "drawn-item fill" and
+        // "fill floor". Only a paper/scale pair introduces a measured trial.
+        if head.len() < 2
+            || !draftwright::layout::PAGES.iter().any(|p| p.0 == head[1])
+            || !head[0].contains(':')
+        {
+            rest = &rest[i + 6..];
+            continue;
+        }
         let (scale, size) = (head[0], head[1]);
         let tail = &rest[i + 6..];
         let Some(pct) = tail.find('%') else { break };
@@ -50,6 +60,21 @@ pub fn tried(basis: &str) -> Vec<Tried> {
                 .map(|n| n.trim().parse::<usize>().unwrap())
                 .unwrap_or_else(|| panic!("{what} missing: {inside}"))
         };
+        let unreadable = inside
+            .split(", ")
+            .filter_map(|p| {
+                [
+                    " unreadable step spans",
+                    " openings below 2 mm",
+                    " text/arrow fit failures",
+                    " depiction gaps below 0.7 mm",
+                    " dimension-lane failures",
+                ]
+                .iter()
+                .find_map(|suffix| p.strip_suffix(suffix))
+            })
+            .map(|n| n.trim().parse::<usize>().unwrap())
+            .sum();
         out.push(Tried {
             size: size.to_string(),
             scale: scale.to_string(),
@@ -57,6 +82,7 @@ pub fn tried(basis: &str) -> Vec<Tried> {
             valid: inside.starts_with("valid and complete"),
             over: count(" additional view conflicts"),
             crossings: count(" additional material crossings"),
+            unreadable,
         });
         rest = &tail[close..];
     }
@@ -65,7 +91,7 @@ pub fn tried(basis: &str) -> Vec<Tried> {
 
 /// Smallest clean readable paper then largest standard scale, with the
 /// existing material-crossing ratchet. Multi-sheet choices must record R5 and
-/// precede larger paper; their individual sheets are checked by sheets tests.
+/// follow single-sheet exhaustion; their individual sheets are checked by sheets tests.
 pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, String) {
     let basis = &plan.sheet.basis;
     if let Some(measured) = basis.strip_prefix("whole-part measured fit ") {
@@ -188,10 +214,7 @@ pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, S
                 .iter()
                 .take(sheet_index(&plan.sheet.size))
             {
-                assert!(
-                    basis.contains(&format!("{} multi-sheet:", paper.0)),
-                    "{name}: {basis}"
-                );
+                assert!(basis.contains(&format!("{} ", paper.0)), "{name}: {basis}");
             }
         }
         return (plan.sheet.size.clone(), plan.sheet.scale.clone());
@@ -204,7 +227,11 @@ pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, S
                 .any(|p| p.code == "layout_recovery_exhausted" && p.severity == "warning")
         );
         assert!(
-            tried(basis).iter().all(|t| !t.valid || t.over > 0),
+            tried(basis).iter().all(|t| {
+                !t.valid
+                    || t.over > 0
+                    || (sheet_index(&t.size) > sheet_index(&plan.sheet.size) && t.unreadable > 0)
+            }),
             "{name}: a qualified candidate was refused: {basis}"
         );
         if plan.spec.sheet.size.is_none() {
@@ -212,10 +239,7 @@ pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, S
                 .iter()
                 .take(sheet_index(&plan.sheet.size))
             {
-                assert!(
-                    basis.contains(&format!("{} multi-sheet:", paper.0)),
-                    "{name}: {basis}"
-                );
+                assert!(basis.contains(&format!("{} ", paper.0)), "{name}: {basis}");
             }
         }
         return (plan.sheet.size.clone(), plan.sheet.scale.clone());
@@ -260,13 +284,13 @@ pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, S
             .iter()
             .take(sheet_index(&chosen.0))
         {
-            assert!(basis.contains(&format!("{} multi-sheet:", paper.0)));
+            assert!(basis.contains(&format!("{} ", paper.0)));
         }
         return chosen;
     }
     if basis.starts_with("screen-first paper policy:") {
         assert!(
-            basis.contains("R5 allocation before larger paper"),
+            basis.contains("R5 allocation after single-sheet exhaustion"),
             "{name}: {basis}"
         );
         assert!(basis.contains("readability [0 unreadable step spans, 0 openings below 2 mm, 0 text/arrow fit failures, 0 depiction gaps below 0.7 mm, 0 dimension-lane failures]"), "{name}: {basis}");
@@ -274,10 +298,7 @@ pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, S
             .iter()
             .take(sheet_index(&plan.sheet.size))
         {
-            assert!(
-                basis.contains(&format!("{} multi-sheet:", paper.0)),
-                "{name}: {basis}"
-            );
+            assert!(basis.contains(&format!("{} ", paper.0)), "{name}: {basis}");
         }
         return (plan.sheet.size.clone(), plan.sheet.scale.clone());
     }
@@ -331,9 +352,9 @@ pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, S
             .take(sheet_index(&plan.sheet.size))
         {
             assert!(
-                basis.contains(&format!("{} multi-sheet:", paper.0))
+                basis.contains(&format!("{} ", paper.0))
                     || plan.spec.sheets.as_ref().and_then(|s| s.max) == Some(1),
-                "{name}: smaller paper must exhaust allocation: {basis}"
+                "{name}: smaller single-sheet paper must be tried: {basis}"
             );
         }
     }

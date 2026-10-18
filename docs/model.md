@@ -499,9 +499,9 @@ not relax safety margins or change sheet-size, scale, detail, fit or datum polic
 #### Sheet allocation (R5, Stage I)
 
 `sheets.max` allows 1–9 sheets. An explicit count is binding. With no count,
-the normal search tries a single clean readable A4 drawing, then the existing R5
-allocation on A4 before A3. Each paper exhausts its readable single-sheet and
-multi-sheet trials before larger paper, up to the existing nine-sheet bound.
+the normal search exhausts clean readable single-sheet drawings from A4 through
+A0 before trying the existing R5 allocation, up to the nine-sheet bound. One sheet
+of larger paper beats multiple smaller sheets. Low fill never earns extra sheets.
 Named paper keeps the original default of one.
 See the [R5 small-part amendment](adr/R5-multi-sheet.md#small-part-overflow-amendment-2026-10-16). `sheets.smallest_scale` is an ISO
 5455 scale floor, `keep_together` is a list of groups of view names (also allowing
@@ -918,10 +918,11 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   invariant 9.
 - **Automatic paper is a real cost** (maintainer, 2026-10-17;
   `model::recover`, `sheet_fit`, `sheets::paper_fallback`). Search A4 at the largest
-  clean, readable standard scale first. Before A3, try the existing R5 cumulative
-  allocation on A4: auxiliary views, sections, details, tables and control views
-  retain their established grouping, packing and cross-references. Exhaust each
-  paper size in this order before A2/A1/A0. Larger paper requires a failed smaller
+  clean, readable standard scale first. Exhaust single-sheet A3 through A0
+  before trying the existing R5 cumulative allocation: auxiliary views, sections,
+  details, tables and control views retain their established grouping, packing and
+  cross-references. Extra sheets require single-sheet exhaustion or explicit sheet
+  intent. Larger paper requires a failed smaller
   paper fit/readability test; a marginal fill gain never purchases larger paper.
   Candidate histories record actual fit, measurement retention and separate
   readability counts. The material-crossing ratchet against a valid fitted seed
@@ -929,7 +930,7 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   reference: improving the raw seed cannot restore its worse routes, and fewer
   crossings cannot pay for a newly obstructed dimension or feature association.
   Explicit paper, scale, sheet limits, assignments and pins retain priority.
-  An authored scale with automatic paper still tries multi-sheet A4 before A3;
+  An authored scale with automatic paper searches single-sheet paper first;
   the scale itself is preserved.
   Version-1 Spec keys are migrated before recovery; restoring user intent after
   temporary search controls preserves canonical keys and revision bindings.
@@ -1026,8 +1027,8 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   `sheet.fill` is the union of drawn-item footprints (including witnesses,
   leaders, arrows and furniture), with 1 mm clearance inside the border and
   excluding the title grid. Reserved bands never count. The existing 60% lower
-  target is a **floor triggering enlargement on the same paper**, including
-  multi-sheet allocation; 85% remains a saturation guide. If no enlarged clean
+  target is a **floor triggering enlargement on the same paper**; 85% remains a
+  saturation guide. If no enlarged clean
   readable allocation fits, keep the largest clean readable scale on that paper
   and explicitly report that the fill floor is unattainable. Increasing paper
   to chase fill would contradict the paper-cost order. No quality baseline or

@@ -2373,6 +2373,20 @@ fn plan_inventory_ordered(
     let authored_ownership = authored::ownership(analysis, spec, &wants);
     problems.extend(chosen_views(&mut wants, spec, &frames, false)?);
     plates::prefer_readable(analysis, &mut wants, &frames, Some(spec));
+    if crate::placement_intent::automatic_pins_only(spec) {
+        // Bare pins keep the settled peers' carriers as well as their strokes.
+        // A new carrier cannot replay the canonical paper-space annotation.
+        for w in &mut wants {
+            if let Some(previous) = held.iter().find(|d| d.id == w.id)
+                && let Some(i) = w
+                    .views
+                    .iter()
+                    .position(|v| previous.view == format!("v:{v}"))
+            {
+                w.views.swap(0, i);
+            }
+        }
+    }
     let (mut chosen, mut end_on) = route(&mut wants, &frames, analysis);
     // Display intent may not silently undo the established one-owner span grouping.
     let display_owners = if spec.precision.is_empty() {

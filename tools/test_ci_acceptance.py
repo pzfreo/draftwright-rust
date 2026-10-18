@@ -212,7 +212,7 @@ class Acceptance(unittest.TestCase):
         # The fixed instruction cohort excludes supplemental coverage fixtures.
         extras = {Path(p).stem for p in (ROOT / 'tools/repeated_span_extra_parts.txt').read_text().splitlines()}
         names = self.runner().survey_names() - extras
-        self.assertEqual(len(names), 65)
+        self.assertEqual(len(names), 66)
         parts = {p: {'instructions': 100, 'seconds': 1} for p in names}
         budget = {'format': plan_time.FORMAT, 'instructions': {'darwin-arm64': 6500}}
         self.assertTrue(plan_time.verdict(parts, budget, 'darwin-arm64')['passed'])
