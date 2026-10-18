@@ -4752,6 +4752,7 @@ fn plan_with_presentation(
         &mut dimensions,
         &gdt,
         &mut problems,
+        complete_views,
     );
     for d in dimensions
         .iter()

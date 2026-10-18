@@ -491,12 +491,26 @@ pub(crate) fn tabulate_obstructed(
     dimensions: &mut [super::PlannedDimension],
     gdt: &[crate::dims::gdt::PlannedGdt],
     problems: &mut Vec<Problem>,
+    complete_views: bool,
 ) -> Option<RadiusTable> {
     let recesses = dimensions.iter().any(|d| {
         d.measurements
             .iter()
             .any(|m| m.feature.starts_with("f:section_recess:"))
     });
+    // The bare planner keeps its established estimated schedule. Complete-view
+    // recovery judges the finished routes: multiple counted groups alone are
+    // not an obstruction and must not withdraw clear representative leaders.
+    let mut counted_by_view = BTreeMap::<&str, usize>::new();
+    if recesses && !complete_views {
+        for d in dimensions.iter().filter(|d| {
+            d.placed.is_some()
+                && d.measurements.len() > 1
+                && d.measurements.iter().all(|m| m.parameter == "blend.radius")
+        }) {
+            *counted_by_view.entry(&d.view).or_default() += 1;
+        }
+    }
     let mut indices = Vec::new();
     let mut rows = Vec::new();
     for (i, d) in dimensions.iter().enumerate() {
@@ -506,12 +520,14 @@ pub(crate) fn tabulate_obstructed(
             || spec.dimensions.get(&d.id).is_some_and(|s| {
                 s.place.is_some() || s.tolerance.is_some() || s.text.is_some() || s.style.is_some()
             })
-            || !problems.iter().any(|p| {
-                p.subjects.contains(&d.id) && leader_problem(&p.code)
+            || (!(d.measurements.len() > 1
+                && counted_by_view.get(d.view.as_str()).is_some_and(|n| *n > 1))
+                && !problems.iter().any(|p| {
+                    p.subjects.contains(&d.id) && leader_problem(&p.code)
                     // A clear leader beyond an estimated band stays visible. A
                     // reservation warning alone does not justify a radius table.
                     && (!recesses || p.code != "annotation_outside_area")
-            })
+                }))
         {
             continue;
         }
