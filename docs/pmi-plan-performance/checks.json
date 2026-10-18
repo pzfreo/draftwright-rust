@@ -1,0 +1,18 @@
+{
+  "ap242_plans_compared": 22,
+  "ap242_svgs_compared": 22,
+  "full_suite_commands": [
+    "cargo test --workspace --release --locked --no-fail-fast",
+    "cargo fmt --all --check",
+    "cargo clippy --workspace --all-targets --release --locked -- -D warnings"
+  ],
+  "identical": true,
+  "manifest_sha256": "e2997565ea38e8d0b0fc5f182be0d5f03de45c8bb80031bdca2c91d336777458",
+  "no_exclusions": true,
+  "plans_compared": 65,
+  "svgs_compared": 65,
+  "test_groups": 124,
+  "tests_failed": 0,
+  "tests_ignored": 0,
+  "tests_passed": 1298
+}

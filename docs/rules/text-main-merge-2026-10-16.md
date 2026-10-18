@@ -63,7 +63,7 @@ and `DRAFTWRIGHT_CORPUS_REQUIRED=1` for both release-test commands.
 
 - `cargo fmt --check`: passed.
 - `cargo clippy --all-targets --release -- -D warnings`: passed.
-- Targeted `cargo test --release --test rules_catalogue --test rules_text --test pmi_coverage --test surface_texture`: **17 passed**, zero failed or ignored (6 catalogue, 3 rules-text, 4 PMI coverage, 4 surface-texture).
+- Targeted release tests for `rules_catalogue`, `rules_text` and `pmi_coverage` (now `--test audits`) and `surface_texture` (now `--test rendering`): **17 passed**, zero failed or ignored (6 catalogue, 3 rules-text, 4 PMI coverage, 4 surface-texture).
 - All eight batch additions passed: the five integration regressions above and the three library regressions for overlap remedies, manufacturing source text/display precision and safe blocked-centre-row alternatives.
 - Exact full required-corpus `cargo test --release`: **1,065 passed, zero failed or ignored**. All 104 integration targets, library and binary tests, and doc tests completed. Both `multi_sheet_latency::r5_multi_sheet_latency` and all eight session tests (including the plate, turned, dense and NIST benchmarks) passed with the original 150 ms gates enabled. No latency gate, threshold or fixture was changed. No continuation run or follow-up code fix was needed.
 

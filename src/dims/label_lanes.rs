@@ -425,6 +425,17 @@ fn label_at(p: &Placed, at: f64) -> Placed {
     c
 }
 
+/// One extra paper clearance from its own dimension line, without changing the span.
+fn lift_label(p: &Placed) -> Placed {
+    let k = 1 - axis(p);
+    let delta = (p.label_at[k] - p.arrows[0][0][k]).signum() * CLEAR;
+    let mut c = p.clone();
+    c.label_at[k] += delta;
+    c.label_box[k] += delta;
+    c.label_box[k + 2] += delta;
+    c
+}
+
 /// Outside arrows can carry short text centred over their measured span.
 /// Lift it half a millimetre to leave paper above the outward arrowheads.
 pub(super) fn centered_short(p: &Placed) -> Option<Placed> {
@@ -592,6 +603,7 @@ fn settle_inventory_inner<const BOUNDS: bool>(
     fixed: &[PlannedDimension],
 ) {
     let page = Page::new(analysis, sheet, views);
+    let bounded_notches = !crate::notches::requirements(analysis).is_empty();
     // One traversal: the next lane, or one rung further if a peer occupies that lane.
     for i in 0..inventory.len() {
         let d = &inventory[i];
@@ -716,9 +728,10 @@ fn settle_inventory_inner<const BOUNDS: bool>(
                 .filter(|((_, b), _)| !BOUNDS || boxes_overlap(bounds, **b))
                 .map(|((_, _), cached)| cached.contacts(c).count_ones() as usize)
                 .sum();
-            // The caller still requires !span_bad(c), so a retained candidate's
-            // span tier is false; evaluate that guard once after scoring.
-            (hits, false) < (count, original_span_bad)
+            // Notch lanes may retain an existing detached station. Score its real
+            // span tier so an unchanged candidate cannot stop a later repair.
+            // Other drawings still require !span_bad(c) below.
+            (hits, bounded_notches && span_bad(c)) < (count, original_span_bad)
         };
         // A single occupied rung may be skipped; fixed-ink obstructions never justify
         // a farther search. Two paper lanes is the absolute movement bound.
@@ -745,8 +758,25 @@ fn settle_inventory_inner<const BOUNDS: bool>(
                     .iter()
                     .map(|q| LabelContacts::new(&lane, q))
                     .collect();
-                alternatives(&lane, page.drawable(), &others)
-                    .find(|c| allowed(c, &prepared) && better(c, &prepared) && !span_bad(c))
+                // Keep the settled along-span station when a new notch lane
+                // lets the whole dimension move clear of a callout.
+                let alternatives: Vec<_> = alternatives(&lane, page.drawable(), &others).collect();
+                // If new bands displaced short text, restore its own span before
+                // accepting a contact-only improvement at the old detached station.
+                alternatives
+                    .iter()
+                    .filter(|c| bounded_notches && span_bad(p) && !span_bad(c))
+                    .flat_map(|c| [c.clone(), lift_label(c)])
+                    .chain(std::iter::once(lane).filter(|_| bounded_notches))
+                    .chain(alternatives.iter().cloned())
+                    // A longer tolerance may already stand beyond a neighbouring
+                    // witness. New notch lanes may clear its text contacts while
+                    // retaining that existing span relation; never introduce one.
+                    .find(|c| {
+                        allowed(c, &prepared)
+                            && better(c, &prepared)
+                            && (!span_bad(c) || (bounded_notches && span_bad(p)))
+                    })
             });
         if let Some(c) = found {
             inventory[i].placed = Some(c);

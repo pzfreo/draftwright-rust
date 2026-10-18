@@ -2,6 +2,7 @@
 name = "draftwright"
 version = "0.1.0-alpha.4"
 edition = "2024"
+autotests = false
 license = "AGPL-3.0-only"
 description = "Automated technical drawings from STEP B-rep: a Rust port of draftwright."
 
@@ -9,10 +10,10 @@ description = "Automated technical drawings from STEP B-rep: a Rust port of draf
 chrono = { version = "0.4", default-features = false }
 dxf = { version = "0.6.2", features = ["serialize"] }
 flate2 = "1.1.10"
-haecceity = { git = "https://github.com/pzfreo/quiddity-rust", tag = "v0.1.0-alpha.5" }
+haecceity = { git = "https://github.com/pzfreo/quiddity-rust", rev = "f14e08f8c1e782b9c33b4c66db9cc54174f0840e" }
 pdf-writer = "0.15"
 png = "0.18.1"
-quiddity = { git = "https://github.com/pzfreo/quiddity-rust", tag = "v0.1.0-alpha.5" }
+quiddity = { git = "https://github.com/pzfreo/quiddity-rust", rev = "f14e08f8c1e782b9c33b4c66db9cc54174f0840e" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.151", features = ["float_roundtrip"] }
 sha2 = "0.11.0"
@@ -44,3 +45,37 @@ inherits = "release"
 lto = true
 codegen-units = 1
 opt-level = 3
+
+# See docs/test-binaries.md; tools/check_test_binaries.py guards module coverage.
+
+[[test]]
+name = "core"
+path = "tests/core/main.rs"
+
+[[test]]
+name = "dimensions"
+path = "tests/dimensions/main.rs"
+
+[[test]]
+name = "rendering"
+path = "tests/rendering/main.rs"
+
+[[test]]
+name = "audits"
+path = "tests/audits/main.rs"
+
+[[test]]
+name = "issue_drafting"
+path = "tests/issue_drafting.rs"
+
+[[test]]
+name = "issue_trust"
+path = "tests/issue_trust.rs"
+
+[[test]]
+name = "session"
+path = "tests/session.rs"
+
+[[test]]
+name = "multi_sheet_latency"
+path = "tests/multi_sheet_latency.rs"

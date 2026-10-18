@@ -851,13 +851,12 @@ fn rendering_writes_only_its_drawings_and_removes_nothing() {
 /// quiddity record types draftwright leaves undimensioned by design (`detect.py`'s
 /// `_ORCHESTRATED_RECORDS` and `_UNCONSUMED_RECORDS`; the port's `dims::UNDRAFTED`). An angled
 /// step is not one: the plan reports it unsupported (ISSUE-1247-a).
-const UNDRAFTED: [&str; 10] = [
+const UNDRAFTED: [&str; 9] = [
     "CircularFacePattern",
     "CounterSink",
     "FreeformSurface",
     "InteriorVoid",
     "ObliqueThroughStep",
-    "OrientedChamfer",
     "OrientedSlotArray",
     "OrientedSlotGrid",
     "SheetMetalBody",

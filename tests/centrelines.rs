@@ -2,6 +2,13 @@
 #[path = "common/corpus.rs"]
 mod corpus;
 
+#[path = "common/support.rs"]
+#[macro_use]
+mod support;
+
+#[path = "common/cache.rs"]
+mod cache;
+
 use draftwright::{
     api,
     model::{self, Spec},
@@ -18,7 +25,7 @@ fn drawing_with(
     file: &Path,
     spec: &Spec,
 ) -> (model::Analysis, model::Plan, draftwright::output::Drawing) {
-    let (part, a) = model::analyse_native(file).unwrap();
+    let (part, a) = cache::native(file);
     let p = model::plan_recovered(&a, spec).unwrap();
     let d = model::render(&part, &a, &p, &Font::new(api::MONO.to_vec()).unwrap()).unwrap();
     (a, p, d)
@@ -313,69 +320,68 @@ fn an_actual_section_hatch_is_not_a_label_on_its_axis() {
     );
 }
 
-#[test]
-fn callouts_do_not_borrow_hole_centre_strokes() {
+part_cases!(callouts_do_not_borrow_hole_centre_strokes;
+    nist_ctc_02_asme1_rc => "nist/nist_ctc_02_asme1_rc.stp",
+    nist_ctc_04_asme1_rd => "nist/nist_ctc_04_asme1_rd.stp",
+    nist_ctc_05_asme1_rd => "nist/nist_ctc_05_asme1_rd.stp",
+    nist_ftc_06_asme1_rd => "nist/nist_ftc_06_asme1_rd.stp",
+    nist_ftc_07_asme1_rd => "nist/nist_ftc_07_asme1_rd.stp",
+    nist_ftc_10_asme1_rb => "nist/nist_ftc_10_asme1_rb.stp",
+);
+fn callouts_do_not_borrow_hole_centre_strokes(file: &str) {
     let Some(dir) = corpus::dir() else { return };
-    for file in [
-        "nist/nist_ctc_02_asme1_rc.stp",
-        "nist/nist_ctc_04_asme1_rd.stp",
-        "nist/nist_ctc_05_asme1_rd.stp",
-        "nist/nist_ftc_06_asme1_rd.stp",
-        "nist/nist_ftc_07_asme1_rd.stp",
-        "nist/nist_ftc_10_asme1_rb.stp",
-    ] {
-        let (_, p, drawn) = drawing(&dir.join(file));
-        let contacts: Vec<_> = draftwright::lint::structural::check(&drawn)
-            .into_iter()
-            .filter(|i| {
-                matches!(
-                    i.code.as_str(),
-                    "leader_centerline_overlap"
-                        | "label_centerline_overlap"
-                        | "label_section_furniture_overlap"
-                )
-            })
-            .collect();
-        assert!(contacts.is_empty(), "{file}: {contacts:?}");
-        if file.ends_with("nist_ftc_10_asme1_rb.stp") {
-            let d = p
-                .dimensions
-                .iter()
-                .find(|d| d.id == "d:f:hole:17/bore.diameter")
-                .unwrap();
-            let v = p.views.iter().find(|v| v.id == d.view).unwrap();
-            let centre = v
-                .line_work
-                .iter()
-                .find(|w| w.id == "ink:v:side:f:hole:17")
-                .unwrap()
-                .centre
-                .unwrap();
-            let shelf_end = d.placed.as_ref().unwrap().lines[1][1];
-            for stroke in v.line_work.iter().flat_map(|w| &w.curves) {
-                let (a, b) = (stroke.start(), stroke.end());
-                let u = [b[0] - a[0], b[1] - a[1]];
-                let length2 = u[0] * u[0] + u[1] * u[1];
-                if length2 < 1e-12 {
-                    continue;
-                }
-                let t = (((shelf_end[0] - a[0]) * u[0] + (shelf_end[1] - a[1]) * u[1]) / length2)
-                    .clamp(0., 1.);
-                let gap = (shelf_end[0] - a[0] - t * u[0]).hypot(shelf_end[1] - a[1] - t * u[1]);
-                assert!(gap >= 1. - 1e-6, "{file}: shelf endpoint gap {gap}");
+
+    let (_, p, drawn) = drawing(&dir.join(file));
+    let contacts: Vec<_> = draftwright::lint::structural::check(&drawn)
+        .into_iter()
+        .filter(|i| {
+            matches!(
+                i.code.as_str(),
+                "leader_centerline_overlap"
+                    | "label_centerline_overlap"
+                    | "label_section_furniture_overlap"
+            )
+        })
+        .collect();
+    assert!(contacts.is_empty(), "{file}: {contacts:?}");
+    if file.ends_with("nist_ftc_10_asme1_rb.stp") {
+        let d = p
+            .dimensions
+            .iter()
+            .find(|d| d.id == "d:f:hole:17/bore.diameter")
+            .unwrap();
+        let v = p.views.iter().find(|v| v.id == d.view).unwrap();
+        let centre = v
+            .line_work
+            .iter()
+            .find(|w| w.id == "ink:v:side:f:hole:17")
+            .unwrap()
+            .centre
+            .unwrap();
+        let shelf_end = d.placed.as_ref().unwrap().lines[1][1];
+        for stroke in v.line_work.iter().flat_map(|w| &w.curves) {
+            let (a, b) = (stroke.start(), stroke.end());
+            let u = [b[0] - a[0], b[1] - a[1]];
+            let length2 = u[0] * u[0] + u[1] * u[1];
+            if length2 < 1e-12 {
+                continue;
             }
-            let [tip, elbow] = d.placed.as_ref().unwrap().lines[0];
-            let radius = d.value * v.scale / 2.;
-            let u = [tip[0] - centre[0], tip[1] - centre[1]];
-            assert!(
-                (u[0].hypot(u[1]) - radius).abs() < 1e-6,
-                "the revised tip must stay on the opening rim"
-            );
-            assert!(
-                u[0] * (elbow[0] - tip[0]) + u[1] * (elbow[1] - tip[1]) > 0.,
-                "the leader must leave the opening outward"
-            );
+            let t = (((shelf_end[0] - a[0]) * u[0] + (shelf_end[1] - a[1]) * u[1]) / length2)
+                .clamp(0., 1.);
+            let gap = (shelf_end[0] - a[0] - t * u[0]).hypot(shelf_end[1] - a[1] - t * u[1]);
+            assert!(gap >= 1. - 1e-6, "{file}: shelf endpoint gap {gap}");
         }
+        let [tip, elbow] = d.placed.as_ref().unwrap().lines[0];
+        let radius = d.value * v.scale / 2.;
+        let u = [tip[0] - centre[0], tip[1] - centre[1]];
+        assert!(
+            (u[0].hypot(u[1]) - radius).abs() < 1e-6,
+            "the revised tip must stay on the opening rim"
+        );
+        assert!(
+            u[0] * (elbow[0] - tip[0]) + u[1] * (elbow[1] - tip[1]) > 0.,
+            "the leader must leave the opening outward"
+        );
     }
 }
 
@@ -409,50 +415,49 @@ fn beside_run(line: [[f64; 2]; 2], c: [f64; 2], e: [f64; 2]) -> f64 {
     best
 }
 
-/// cgb207's R5 ran 36.5 mm beside hole 1's axis (0.775 mm off, then tilted to converge on it)
-/// and string_post's ⌀1.6 8.9 mm along the A-A cutting line.
-/// No leader shaft on these sheets may run beside a centre stroke, at any small angle, other
-/// than its own hole's centre mark.
-#[test]
-fn leaders_do_not_run_beside_centre_lines() {
+// cgb207's R5 ran 36.5 mm beside hole 1's axis (0.775 mm off, then tilted to converge on it)
+// and string_post's ⌀1.6 8.9 mm along the A-A cutting line.
+// No leader shaft on these sheets may run beside a centre stroke, at any small angle, other
+// than its own hole's centre mark.
+part_cases!(leaders_do_not_run_beside_centre_lines;
+    cgb207 => "cadgenbench_inputs/cgb207.step",
+    cgb203 => "cadgenbench_inputs/cgb203.step",
+    string_post => "gramel/string_post.step",
+);
+fn leaders_do_not_run_beside_centre_lines(file: &str) {
     let Some(dir) = corpus::dir() else { return };
-    for file in [
-        "cadgenbench_inputs/cgb207.step",
-        "cadgenbench_inputs/cgb203.step",
-        "gramel/string_post.step",
-    ] {
-        let (_, p, _) = drawing(&dir.join(file));
-        let mut checked = 0;
-        for d in p.dimensions.iter() {
-            let Some(placed) = d.placed.as_ref().filter(|p| !p.arrows.is_empty()) else {
-                continue;
-            };
-            let v = p.views.iter().find(|v| v.id == d.view).unwrap();
-            let shaft = placed.lines[0];
-            let [a, b] = shaft;
-            let n = (b[0] - a[0]).hypot(b[1] - a[1]);
-            // A radial leader leaving its own hole along that hole's centre mark is attached,
-            // not running along another line: the cross whose centre its line passes through.
-            let radial = |c: [f64; 2]| {
-                ((c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0])).abs() / n < 1e-3
-            };
-            for stroke in v
-                .line_work
-                .iter()
-                .filter(|w| !(w.kind == "cross" && w.centre.is_some_and(radial)))
-                .flat_map(|w| &w.curves)
-            {
-                let run = beside_run(shaft, stroke.start(), stroke.end());
-                assert!(
-                    run <= 0.5,
-                    "{file}: {} runs {run:.2} mm beside a centre stroke",
-                    d.id
-                );
-            }
-            checked += 1;
+
+    let (_, p, _) = drawing(&dir.join(file));
+    let mut checked = 0;
+    for d in p.dimensions.iter() {
+        let Some(placed) = d.placed.as_ref().filter(|p| !p.arrows.is_empty()) else {
+            continue;
+        };
+        let v = p.views.iter().find(|v| v.id == d.view).unwrap();
+        let shaft = placed.lines[0];
+        let [a, b] = shaft;
+        let n = (b[0] - a[0]).hypot(b[1] - a[1]);
+        // A radial leader leaving its own hole along that hole's centre mark is attached,
+        // not running along another line: the cross whose centre its line passes through.
+        let radial = |c: [f64; 2]| {
+            ((c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0])).abs() / n < 1e-3
+        };
+        for stroke in v
+            .line_work
+            .iter()
+            .filter(|w| !(w.kind == "cross" && w.centre.is_some_and(radial)))
+            .flat_map(|w| &w.curves)
+        {
+            let run = beside_run(shaft, stroke.start(), stroke.end());
+            assert!(
+                run <= 0.5,
+                "{file}: {} runs {run:.2} mm beside a centre stroke",
+                d.id
+            );
         }
-        assert!(checked > 0, "{file}");
+        checked += 1;
     }
+    assert!(checked > 0, "{file}");
 }
 
 /// A label that must stay across the end of an axis shortens that axis's overrun (ISO 128-24)
@@ -535,7 +540,7 @@ fn a_label_across_an_axis_end_trims_the_overrun() {
 #[test]
 fn linework_overrides_leave_sections_and_cutting_plane_rules_intact() {
     let Some(dir) = corpus::dir() else { return };
-    let (part, a) = model::analyse_native(&dir.join("gramel/string_post.step")).unwrap();
+    let (part, a) = cache::native(&dir.join("gramel/string_post.step"));
     let s: Spec = serde_json::from_value(serde_json::json!({
         "sheet":{"hidden":false,"centre_marks":false,"centre_lines":false},
         "views":{"section_aa":{"hidden":true,"thread_depiction":true,"knurl_depiction":true}}

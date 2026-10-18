@@ -89,7 +89,7 @@ latency threshold, or original assertion is relaxed.
 | `cargo clippy --workspace --all-targets --release -- -D warnings` | PASS |
 | Focused PMI/precision, fit-layout, catalogue and source-finish suites | PASS: 80 tests in six harnesses |
 | Final corpus-required `cargo test --release --no-fail-fast` | 1,112 passed, two failed, zero ignored across 112 result blocks; exit 101. Failures detailed below. |
-| Unchanged `cargo test --release --test stateless` rerun | PASS: all 13 tests, including both slow-request deadline cases |
+| Unchanged `cargo test --release --test core stateless::` rerun | PASS: all 13 tests, including both slow-request deadline cases |
 | Corrected trust fixture suite | PASS: all 15 tests, including the added two-open/delayed-EOF control |
 | Remaining view suite and doc tests | PASS: five view tests, zero doc tests |
 | `python3 -I tools/quality.py` on the exact 30-part manifest | PASS |

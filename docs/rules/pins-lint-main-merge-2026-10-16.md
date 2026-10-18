@@ -222,7 +222,7 @@ Validation:
 
 - `cargo fmt --check`: passed.
 - `cargo clippy --all-targets --release -- -D warnings`: passed.
-- Required-corpus targeted release run (`--lib --test rules_catalogue --test rule_pins --test completeness --test trust_rules`): 242 passed, zero failed or ignored. This includes all 11 tests added by the batch, all six catalogue checks/scenarios, main's correlated-set trust checks and the existing library regressions.
+- Required-corpus targeted release run (library plus `rules_catalogue`, `rule_pins`, `completeness` and `trust_rules` (now modules of `--test audits`)): 242 passed, zero failed or ignored. This includes all 11 tests added by the batch, all six catalogue checks/scenarios, main's correlated-set trust checks and the existing library regressions.
 - The exact required-corpus `cargo test --release` command stopped at `multi_sheet_latency::r5_multi_sheet_latency`: MCP p90 810.875 ms exceeded its unchanged 150 ms wall-clock limit (direct p90 90.583 ms). Its preceding targets had 637 tests pass. All 49 remaining integration targets passed under `--no-fail-fast` (393 tests), and doc tests passed (zero tests). Together the full run and its continuation covered all 102 integration targets plus library/binary tests: **1030 passed, 1 wall-clock failure, 0 ignored**. The session target, including `nist_benchmark_deltas`, passed. No latency gate, threshold or fixture was changed.
 
 A field-by-field audit of all 515 catalogue entries confirms the requested merge precedence; the baseline audit confirms minimum values per cell and metadata from main.

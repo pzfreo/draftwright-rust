@@ -174,7 +174,7 @@ checks run one at a time with the required corpus and both concurrency values at
 | `cargo fmt --all --check` | PASS |
 | `cargo clippy --workspace --all-targets --release -- -D warnings` | PASS |
 | `cargo test --workspace --release --no-fail-fast` | PASS; 1,296 passed, 0 failed, 0 ignored in 123 groups (2,077.486 s); includes doc-tests and native latency gates |
-| Separate `cargo test --release --test rules_catalogue` | PASS; 6 tests |
+| Separate `cargo test --release --test audits rules_catalogue::` | PASS; 6 tests |
 | Locked release rebuild for schema validation | PASS |
 | `python3 tools/generate_mcp_schemas.py` | PASS; 14 tools, **34,477 compact advertised schema bytes**; no generated file changes |
 | `uv run --with jsonschema python tools/check_mcp_schemas.py target/release/draftwright` | PASS; 28 published/served schemas agree; all tool input/output/refusal checks and 1,872 checked-in Spec examples |

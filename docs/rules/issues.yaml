@@ -48,7 +48,7 @@
       - "tests/test_issue_443_grm03_axial_coverage.py::test_grm03_detail_caption_fits_the_selected_a4_sheet"
     corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw.step"]
   status: ported
-  rust_test: "tests/detail_views.rs::string_post_prefers_complete_larger_principals_without_a_detail; tests/detail_views.rs::a_constrained_main_scale_keeps_the_complete_head_crop_and_sheet_scale_iso; tests/issue_drafting.rs::grm03_locates_every_turned_shoulder_and_keeps_the_isometric"
+  rust_test: "rendering::detail_views::string_post_prefers_complete_larger_principals_without_a_detail; rendering::detail_views::a_constrained_main_scale_keeps_the_complete_head_crop_and_sheet_scale_iso; issue_drafting::grm03_locates_every_turned_shoulder_and_keeps_the_isometric"
   rust_note: "Complete principal views win before automatic details under the sheet rules; tests/detail_views.rs covers both the larger default main scale and a constrained scale that still needs the complete enlarged head and sheet-scale isometric. Exact axial requirement IDs and the inspection baseline remain."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream dimensioning-coverage"
 
@@ -79,7 +79,7 @@
       - "tests/test_issue_563_placement_intent.py::test_view_only_measured_override_preserves_the_derived_side"
     corpus_parts: ["GRM-02"]
   status: ported
-  rust_test: tests/placement_intent.rs::placement_vocabulary_is_validated_without_page_coordinates
+  rust_test: rendering::placement_intent::placement_vocabulary_is_validated_without_page_coordinates
   rust_note: "Ported: a dimension's place (view, side, lane, along, pinned) is semantic, a page coordinate is refused, and the request reaches the plan (from_spec names place) and the drawing."
   port_note: "Keep: spec placement hints (view/side) by stable dimension ID -> plan honours them; no coordinate API."
 
@@ -96,7 +96,7 @@
     corpus_parts: []
   status: ported
   rust_note: "Maintainer approval 2026-10-16 applied: composition reserves every source linear corridor, including below front and above/left of plan, and all authored principal strips at their requested or respaced lanes. Complete automatic composition (escalated/recovered planning) measures the settled linear ink, including reflow, labels and outside-arrow corner reach, from the full inventory. Established witness and leader routes, including settled GD&T, are transported with their owning view block without changing their attachment or placement decisions; the isometric is fitted against the resulting footprints. Preferred-scale reductions are permitted to keep corridors inside their reserved area and on the sheet. A single tolerance/fit edit retains the complete unedited projection frame while reserving the edited ink; bulk tolerancing receives complete composition. Edited labels are settled at their new widths. An explicitly named sheet/scale retains its projection origins and section-mark frame while reserving the complete ink; automatic candidates may repack free blocks. The low-level single-pass estimate retains its original band-overrun diagnostics; every drawing API uses the complete compose-then-pack path. For dimension-only drawings, if no complete candidate exists and measured corridors make the seed run off paper, a physically fitting candidate with no hard findings may carry every seed measurement, still reporting all missing requirements. Unreadable GD&T seeds keep their established bands and recovery contract; legible settled blocks compose from their measured ink without changing attachment or placement decisions. No part-specific exceptions."
-  rust_test: "tests/views_layout_rules.rs::every_source_and_explicit_linear_corridor_is_reserved; tests/views_layout_rules.rs::explicit_dimensions_that_reflow_keep_their_reserved_corridors; tests/views_layout_rules.rs::reserved_location_corridors_choose_witnesses_clear_of_foreign_holes"
+  rust_test: "rendering::views_layout_rules::every_source_and_explicit_linear_corridor_is_reserved; rendering::views_layout_rules::explicit_dimensions_that_reflow_keep_their_reserved_corridors; rendering::views_layout_rules::reserved_location_corridors_choose_witnesses_clear_of_foreign_holes"
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream views-and-layout"
 
 - id: ISSUE-563-c
@@ -111,7 +111,7 @@
       - "tests/test_issue_563_placement_intent.py::test_pattern_pitch_placement_policy_is_rejected_instead_of_moving_the_callout"
     corpus_parts: []
   status: ported
-  rust_test: tests/placement_intent.rs::placement_vocabulary_is_validated_without_page_coordinates
+  rust_test: rendering::placement_intent::placement_vocabulary_is_validated_without_page_coordinates
   rust_note: "Ported: a bad place (an unknown side or view, a lane or along out of range, a page coordinate, a cycle of view anchors) is refused by edit or plan, with the valid choices."
   port_note: "Keep: spec validation returns structured problems for unsupported placement hints."
 
@@ -225,7 +225,7 @@
       - "tests/test_issue_798_floor_cardinality.py::test_a_job_with_no_acceptable_candidate_at_all_is_dropped"
     corpus_parts: []
   status: ported
-  rust_test: "tests/leaders.rs::a_leader_has_a_horizontal_shoulder_and_reads_outward"
+  rust_test: "rendering::leaders::a_leader_has_a_horizontal_shoulder_and_reads_outward"
   rust_note: "A callout whose every candidate is blocked takes the least blocked (src/dims/leaders.rs: hard blockers, then crossings, then text touched, then ink out of its view's area, then length), and the plan reports what it still crosses (annotation_leader_crossing, annotation_ink_overlap, annotation_over_view, ...). No callout is dropped for routing; only an item no shown view can carry is unplaced (view_plan_incomplete). Material cutting is the leader re-entering the material after leaving it at its tip, measured over each solid's projected box (src/material.rs, shared with lint, ADR2-8)."
   port_note: "Keep: leader router unit test; plan records the crossing as a problem rather than dropping the callout."
 
@@ -276,7 +276,7 @@
       - "tests/test_issue_798_silhouette_lint.py::test_material_is_never_an_acceptance_test"
     corpus_parts: ["nist_ctc_04_asme1_ap203", "nist_ctc_05_asme1_ap242"]
   status: ported
-  rust_test: "tests/leader_rules.rs::the_plan_and_lint_agree_on_a_leader_cutting_back_into_the_material"
+  rust_test: "rendering::leader_rules::the_plan_and_lint_agree_on_a_leader_cutting_back_into_the_material"
   rust_note: "Stream K4: the router (src/dims/leaders.rs) and lint's leader_crosses_silhouette (src/lint/leaders.rs) share material::reentry on the same material (material::solids); the plan reports a chosen re-entering leader as annotation_line_over_view with the depth cut, and a pinned callout's leader, which the router does not route, the same way (src/placement_intent.rs); lint reports leader_crosses_silhouette (info) with the depth. On the plate-and-pin assembly with the pin's callout pinned across the plate both name it with the same depth, and on the port's automatic drawings neither reports any callout (the_ports_own_callouts_touch_their_targets). Difference from draftwright, where material is a soft preference: in the router a re-entering candidate counts one hard blocker, outranking crossings, with its depth added to its length; it is still never rejected or dropped, so the least-cutting route wins when every candidate re-enters. Every drawn callout has a readable shaft (Drawn::lines), so #2112's unreadable case does not arise; there is no covers_diameters exemption."
   port_note: "Keep: plan problem 'leader crosses silhouette' derived from the same predicate the router uses."
 
@@ -289,7 +289,7 @@
       - "tests/test_issue_827_real_part_canary.py::test_tuner_retains_occurrences_and_measurements_through_export"
     corpus_parts: ["tuner_jig_blind_obround_pockets.step"]
   status: ported
-  rust_test: "tests/rule_pins.rs::tuner_five_pockets_keep_their_sizes_and_locations_through_export"
+  rust_test: "audits::rule_pins::tuner_five_pockets_keep_their_sizes_and_locations_through_export"
   rust_note: "Already true, now pinned with the exact Python STEP and captured recognition: five centres at y=21.2,48.4,75.6,102.8,130, x=-5, z=8.5; each pocket states 7.9 x 13.6 x 19 DEEP, its x datum offset 10 and hand-listed y offset. All measurements are placed and remain in SVG/DXF exports; twenty R3.94 corner occurrences each retain exactly one stated radius, carried by the R3.9 default note. Rust dimensions the five occurrences singly with a shared x dimension, rather than Python's pocket-pattern adapter; no ownership or grouping policy was changed."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream regression-pins"
 
@@ -308,7 +308,7 @@
     corpus_parts: []
   status: translated
   rust_rule: "Per-axis, per-feature location IDs (tests/issue_drafting.rs::each_axis_of_a_location_is_its_own_measurement)."
-  rust_test: "tests/issue_drafting.rs::each_axis_of_a_location_is_its_own_measurement"
+  rust_test: "issue_drafting::each_axis_of_a_location_is_its_own_measurement"
   rust_note: "Per-axis, per-feature location IDs (tests/issue_drafting.rs::each_axis_of_a_location_is_its_own_measurement). K6 decided a coordinate two members share stays one dimension with one ID and no member-level spec address. The remaining 'member swap' build comparison belongs with ISSUE-1006-a."
   port_note: "Keep: stable IDs for location components (feature, member, axis) in Plan; spec edits address them."
 
@@ -341,7 +341,7 @@
       - "tests/test_issue_885_prismatic_coverage.py::test_side_opening_pocket_gets_two_in_plane_location_dimensions"
     corpus_parts: []
   status: ported
-  rust_test: "tests/completeness_rules.rs::each_raised_pad_states_its_footprint_height_and_location; tests/native_recesses.rs::native_side_pockets_state_size_depth_and_both_locations"
+  rust_test: "audits::completeness_rules::each_raised_pad_states_its_footprint_height_and_location; core::native_recesses::native_side_pockets_state_size_depth_and_both_locations"
   rust_note: "The native default path now reads unified recesses and plans side-opening pockets with size/depth and both in-plane datum locations in the view looking into the pocket. Existing pad footprint, local height and location tests remain in force."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream recess-reader"
 
@@ -357,7 +357,7 @@
       - "tests/test_issue_885_prismatic_coverage.py::test_datum_starting_blind_slot_does_not_retain_the_superseded_pocket_callout"
     corpus_parts: []
   status: pending
-  rust_test: "tests/completeness_rules.rs::each_raised_pad_states_its_footprint_height_and_location; tests/issue_trust.rs::a_callout_certifies_only_the_holes_it_claims"
+  rust_test: "audits::completeness_rules::each_raised_pad_states_its_footprint_height_and_location; issue_trust::a_callout_certifies_only_the_holes_it_claims"
   rust_note: "Partial: raised pads are dimensioned with footprint, height and location (src/dims/pads.rs; tests/completeness_rules.rs::each_raised_pad_states_its_footprint_height_and_location). Pad and pocket lint credits sizes and locations by feature ID (src/lint/pads.rs, src/lint/pockets.rs), as pinned for holes by tests/issue_trust.rs::a_callout_certifies_only_the_holes_it_claims. The sibling-pad size and unrelated-endpoint pocket scenarios still lack dedicated regression tests. Rules-text blocker (2026-10-16): Python's complete sparse-recognition scenario also requires removal locality, the completeness score and blind-slot/pocket supersession."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream regression-pins"
 
@@ -373,7 +373,7 @@
       - "tests/test_issue_909_sloped_profile.py::test_removing_a_required_pad_dimension_reports_the_real_requirement"
     corpus_parts: ["issue_909_basic_part_design_017_body.step"]
   status: ported
-  rust_test: "tests/completeness_rules.rs::the_sloped_profile_pad_reaches_the_drawing_and_an_omission_is_reported"
+  rust_test: "audits::completeness_rules::the_sloped_profile_pad_reaches_the_drawing_and_an_omission_is_reported"
   rust_note: "Stream K5: on draftwright's issue_909 case study the raised pad reaches the drawing with its footprint (16.7 wide, 31 long), located 26.5 along x, as draftwright's sheet states it, and its height 7 HIGH (src/dims/pads.rs); omitting its width makes lint report pad_requirement_missing naming pad_width.length. Rust quiddity finds the pad under the touching lower ledges. Difference: draftwright's sheet reaches A3 through a detail view and re-planning; the port's is A3 2:1 without one (no detail views)."
   port_note: "Keep: scenario test case-study STEP -> pad footprint in plan; spec omission -> named missing-requirement problem."
 
@@ -389,7 +389,7 @@
       - "tests/test_issue_915_dense_case.py::test_issue_915_a2_detail_uses_each_levels_supporting_geometry"
     corpus_parts: ["issue_915_case_study_2.step"]
   status: pending
-  rust_test: "tests/issue_drafting.rs::a_rungs_witnesses_stand_on_its_levels_support"
+  rust_test: "issue_drafting::a_rungs_witnesses_stand_on_its_levels_support"
   rust_note: "Partial: the ladder's witnesses stand on each level's own support (src/dims/levels.rs): on every part both witness lines of each height start at its level's support (its faces' largest x and smallest y, as draftwright's rung span does), not at the part's box (checked to differ on a sampled part), and a level with no recorded support is reported (step_level_support_missing). The detail crop and rectangular free-space search are now ported in src/detail.rs and src/layout.rs. Still pending: the dense-plan single spacing solve. issue_915_case_study_2.step is not among the parts here (draftwright's own test of it is an expected failure on quiddity#536)."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream detail-views"
 
@@ -404,7 +404,7 @@
       - "tests/test_issue_916_pocket_leader.py::test_approved_pocket_sizes_map_to_the_matching_rim_axis"
     corpus_parts: []
   status: ported
-  rust_test: "tests/issue_regressions.rs::a_pocket_leader_starts_on_its_rim_on_the_matching_axis"
+  rust_test: "audits::issue_regressions::a_pocket_leader_starts_on_its_rim_on_the_matching_axis"
   rust_note: "On draftwright's blind pocket (square, and 22 × 14 cut along z, x and y) and two pockets with a cylindrical mouth (tests/fixtures/recognition/issues/, quiddity 0.3.9), the callout is in the view that looks into the pocket and its tip is the midpoint of one of the rim's sides, on the matching size's centre line (src/dims/recesses.rs: the leader's sites are the four side walls' midpoints; src/dims/leaders.rs chooses one); both exits occur. Leaving cleanly: no plan problem but annotation_outside_area (info) names the callout, the sheet lint finds nothing, and a leader taken back across its own view would be reported (annotation_line_over_view). Differences: draftwright accepts a tip anywhere along a side, the port takes a side's midpoint (equivalent); draftwright's case that forces the width exit by planting notes in the other corridors has no counterpart (the spec places no notes there). The pockets' location labels print 35.0 where draftwright's print 35: the recognition document rounds the record to 0.001 mm in quiddity's working frame, whose origin is off that grid, so the port reads 34.9996 (rust-wrong in what is printed, from the input; draftwright's own run reads the shape exactly)."
   port_note: "Keep: plan leader tip lies on the pocket rim edge."
 
@@ -421,7 +421,7 @@
       - "tests/test_issue_917_open_channel.py::test_wrong_channel_identity_cannot_clear_the_physical_transition_warning"
     corpus_parts: []
   status: ported
-  rust_test: "tests/issue_regressions.rs::an_open_channel_is_one_feature_with_one_width; tests/native_recesses.rs::native_recess_grammars_and_unsupported_dispositions_are_preserved"
+  rust_test: "audits::issue_regressions::an_open_channel_is_one_feature_with_one_width; core::native_recesses::native_recess_grammars_and_unsupported_dispositions_are_preserved"
   rust_note: "The native default path reads the unified open U-channel and states its width once, alongside the existing plateau/step and ownership rules. Bounded pockets retain their own grammar."
   port_note: "Keep: scenario test on synthetic channel parts -> plan has one channel chain without redundant wall dimension."
 
@@ -437,7 +437,7 @@
       - "tests/test_issue_924_zero_length_shoulders.py::test_an_omitted_shoulder_does_not_require_its_directional_view"
     corpus_parts: []
   status: ported
-  rust_test: "tests/issue_drafting.rs::a_shoulder_on_the_box_is_reported_not_drawn"
+  rust_test: "issue_drafting::a_shoulder_on_the_box_is_reported_not_drawn"
   rust_note: "Partial: a shoulder on the box is not drawn but reported, an info step_position_coincident_with_datum naming its axis (src/dims/levels.rs, exact zero as draftwright's _is_zero_step_position); only it leaves its chain (the stepped block given risers on its low x and low y faces keeps its 20 and draws nothing of zero length), and with only a coincident shoulder and its view omitted the plan needs no view for it. Quiddity never gives such a riser, so the test plants it, as draftwright's tests declare one. Not ported: draftwright also lists the shoulder among its suppressions (value 0, not authored), where the plan's omitted list holds only items the plan has (a spec can address), and a coincident shoulder is none; whether it should be an omitted entry is the port_note's ask. Closed by the rules assessment of 2026-10-11: listing the shoulder among the omissions is not worth adding."
   port_note: "Keep: plan omission with basis 'coincident with datum'; renderer never sees zero-length dims."
 
@@ -454,7 +454,7 @@
       - "tests/test_issue_955_height_contingency.py::test_an_unplaceable_fallback_is_a_drop_not_a_stale_suppression"
     corpus_parts: []
   status: translated
-  rust_test: "tests/dims_turned.rs::the_overall_finishes_the_default_baseline_and_a_partial_profile_keeps_its_length; tests/dims_turned.rs::spec_tolerances_and_omissions_reach_the_step_items"
+  rust_test: "dimensions::dims_turned::the_overall_finishes_the_default_baseline_and_a_partial_profile_keeps_its_length; dimensions::dims_turned::spec_tolerances_and_omissions_reach_the_step_items"
   rust_rule: "Rust placement never drops a chain item (Policy B)."
   rust_note: "Rust placement never drops a chain item (Policy B). The overall length finishes the common inspection baseline; independent profiles retain supported chains (src/dims/turned.rs; tests/dims_turned.rs::the_overall_finishes_the_default_baseline_and_a_partial_profile_keeps_its_length). Authored omissions do not release a contingency or replan the remaining chain (tests/dims_turned.rs::spec_tolerances_and_omissions_reach_the_step_items)."
   port_note: "Keep: plan default with basis 'contingency for dropped chain'; scenario test forcing the chain drop."
@@ -537,7 +537,7 @@
   status: ported
   rust_note: "The double_d_bore planner emits one compound major-diameter and across-flats callout, in the view along the bore, with its leader on a circular arc for any in-plane flat direction. It uses the explicit through fact; a blind record states its depth, never THRU. Native blind profile fixtures remain unsupported section recesses as in Python, never inferred through bores. Lint requires both roles on the same live callout."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream holes-and-threads"
-  rust_test: "tests/coverage_holes.rs::double_d_planner_states_both_roles_in_any_flat_direction_and_never_invents_thru; tests/coverage_holes.rs::independent_double_d_fixtures_are_owned_once_and_blind_profiles_stay_blind"
+  rust_test: "dimensions::coverage_holes::double_d_planner_states_both_roles_in_any_flat_direction_and_never_invents_thru; dimensions::coverage_holes::independent_double_d_fixtures_are_owned_once_and_blind_profiles_stay_blind"
 
 - id: ISSUE-1058-b
   statement: "Double-D coverage is per physical bore: a diameter-only callout does not cover the profile requirement, a dropped counted callout records every occurrence, and one record cannot cover two coincident assembly occurrences."
@@ -584,7 +584,7 @@
     corpus_parts: []
   status: ported
   port_note: "Keep: scenario test rotated hex-bar STEP -> plan has A/F + length."
-  rust_test: tests/dims_stock.rs::rigid_motion_moves_the_views_but_not_the_statements
+  rust_test: dimensions::dims_stock::rigid_motion_moves_the_views_but_not_the_statements
   rust_note: "src/dims/stock.rs (ARCH0015-4): the stock is dimensioned by its A/F callout in the plan view and its length in the front view, not as a boss and with no overall extent; the bar turned 17 degrees about its axis states exactly what the plain bar does (HEX 34.6 A/F, 30), as on draftwright's sheets of both."
 
 - id: ISSUE-1082-b
@@ -599,7 +599,7 @@
       - "tests/test_issue_1082_polygonal_stock.py::test_rejected_stock_length_candidate_records_the_drop_with_measurement_identity"
     corpus_parts: []
   status: translated
-  rust_test: "tests/dims_stock.rs::lint_finds_the_stock_stated; tests/trust_rules.rs::an_omission_is_never_reported_as_a_drop"
+  rust_test: "dimensions::dims_stock::lint_finds_the_stock_stated; audits::trust_rules::an_omission_is_never_reported_as_a_drop"
   rust_rule: "tests/dims_stock.rs::lint_finds_the_stock_stated (broken record or second stock unverifiable, omitted length missing) and tests/trust_rules.rs::an_omission_is_never_reported_as_a_drop (spec omission vs undrawable item kept apart in plan problems)."
   rust_note: "tests/dims_stock.rs::lint_finds_the_stock_stated (broken record or second stock unverifiable, omitted length missing) and tests/trust_rules.rs::an_omission_is_never_reported_as_a_drop (spec omission vs undrawable item kept apart in plan problems). Lint not seeing the spec is by design (ADR1-9)."
   port_note: "Keep: problems distinguish 'omitted by spec' from 'dropped by layout' from 'unverifiable'."
@@ -616,7 +616,7 @@
       - "tests/test_issue_1086_declared_gears.py::test_external_spur_gear_ir_rejects_incomplete_or_invalid_requirements"
     corpus_parts: []
   status: ported
-  rust_test: "tests/gears.rs::gear_table_preserves_exact_python_rows_and_exports; tests/gears.rs::invalid_gear_requirements_are_refused_one_per_python_validation_rule; tests/gears.rs::gear_anchors_and_editor_preserve_authored_intent"
+  rust_test: "core::gears::gear_table_preserves_exact_python_rows_and_exports; core::gears::invalid_gear_requirements_are_refused_one_per_python_validation_rule; core::gears::gear_anchors_and_editor_preserve_authored_intent"
   rust_note: "Complete authored declaration, Python validation and exact ISO rows; late table furniture uses the existing sheet/table solver and survives SVG/PDF export."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream gears"
 
@@ -633,7 +633,7 @@
       - "tests/test_issue_1086_declared_gears.py::test_normative_parameter_mutation_cannot_leave_a_stale_table_clean"
     corpus_parts: []
   status: ported
-  rust_test: "tests/gears.rs::real_wheel_full_wire_evidence_reconciles_authored_gear; tests/gears.rs::repeating_profile_never_invents_gear_semantics; tests/gears.rs::missing_and_duplicate_gear_tables_fail_coverage"
+  rust_test: "core::gears::real_wheel_full_wire_evidence_reconciles_authored_gear; core::gears::repeating_profile_never_invents_gear_semantics; core::gears::missing_and_duplicate_gear_tables_fail_coverage"
   rust_note: "Independent rendered-table and full-wire geometry audit; no normative recognition. Smooth blanks remain unverifiable, as Python does."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream gears"
 
@@ -650,7 +650,7 @@
       - "tests/test_issue_1116_ap242_hole_tolerance_lowering.py::test_ctc01_consumes_all_hole_tolerances_once_and_emits_provenance"
     corpus_parts: ["nist_ctc_01_asme1_ap242"]
   status: ported
-  rust_test: "tests/pmi_dimensions.rs::a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins"
+  rust_test: "dimensions::pmi_dimensions::a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins"
   rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`); its geometric tolerances and datums are drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`), and its dimensions are lowered by `src/dims/pmi_dimensions.rs` (`tests/pmi_dimensions.rs`, `known_pmi_dimensions.json`). Partly: a toleranced bore whose cylinders are a hole callout's holes gives that callout its band once, with the source claimed on the item (a measurement of `pmi:<source>`) and named in its basis; symmetric limits print as ±, asymmetric limits keep limit form (`⌀34.8 - ⌀35.1`), inch values are already mm (ctc01, ftc07, stc09 callouts). A spec's own tolerance, or a fit on its holes or boss, wins and the PMI one is reported (with the label stating neither when the spec's is withheld). Not yet: the coverage lint's provenance check. Closed by the rules assessment of 2026-10-11: the provenance check is the PMI coverage lint's (LINT-code-pmi_not_rendered); nothing further here."
   port_note: "Keep: scenario CTC-01 AP242 -> each hole tolerance appears once in the plan label with source provenance."
 
@@ -667,7 +667,7 @@
       - "tests/test_issue_1116_ap242_hole_tolerance_lowering.py::test_editable_callout_refuses_a_mixed_member_tolerance_pattern"
     corpus_parts: ["nist_ctc_01_asme1_ap242"]
   status: ported
-  rust_test: "tests/pmi_dimensions.rs::holes_of_different_requirements_are_called_out_apart"
+  rust_test: "dimensions::pmi_dimensions::holes_of_different_requirements_are_called_out_apart"
   rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`); its geometric tolerances and datums are drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`), and its dimensions are lowered by `src/dims/pmi_dimensions.rs` (`tests/pmi_dimensions.rs`, `known_pmi_dimensions.json`). Partly: holes of one callout with different AP242 requirements are called out apart (a count group or a grid or line of holes split by requirement: ctc01's ⌀20 and ⌀35 holes); equal requirements from several sources state once with every source; conflicting requirements on one hole, and a bolt circle whose holes differ, are reported (`pmi_not_lowered`, `pmi_dimensions_not_ported`) rather than drawn; an unmatched requirement stands beside the callouts as its own dimension, or is reported with its reason. Closed by the rules assessment of 2026-10-11: nothing of it is left to port."
   port_note: "Keep: PMI lowering problems with reasons; grouping respects per-member tolerances."
 
@@ -685,7 +685,7 @@
     corpus_parts: []
   status: translated
   rust_rule: "tests/issue_trust.rs::asking_for_less_never_buys_silence checks that removing dimensions cannot buy silence."
-  rust_test: "tests/issue_trust.rs::asking_for_less_never_buys_silence; tests/completeness.rs::omitted_overall_extents_are_lint_findings; tests/completeness.rs::hole_pattern_missing_location_is_reported_per_axis; tests/completeness.rs::hole_pattern_pitch_needs_truthful_printed_evidence; tests/issue_regressions.rs::removing_a_hole_location_or_its_callout_is_reported"
+  rust_test: "issue_trust::asking_for_less_never_buys_silence; audits::completeness::omitted_overall_extents_are_lint_findings; audits::completeness::hole_pattern_missing_location_is_reported_per_axis; audits::completeness::hole_pattern_pitch_needs_truthful_printed_evidence; audits::issue_regressions::removing_a_hole_location_or_its_callout_is_reported"
   rust_note: "tests/issue_trust.rs::asking_for_less_never_buys_silence checks that removing dimensions cannot buy silence. Overall extents, pattern locations and pitches now have coverage findings (tests/completeness.rs::omitted_overall_extents_are_lint_findings, hole_pattern_missing_location_is_reported_per_axis, hole_pattern_pitch_needs_truthful_printed_evidence); single-hole locations are checked by src/lint/coverage.rs and tests/issue_regressions.rs::removing_a_hole_location_or_its_callout_is_reported. Rust has no quality score or score-summary verdict."
   port_note: "Keep: property test: removing spec items never reduces plan problems' completeness count."
 
@@ -700,7 +700,7 @@
       - "tests/test_issue_1130_view_planning_evidence.py::test_the_automatic_sheet_agrees_with_the_explicit_engine_verdict"
     corpus_parts: []
   status: translated
-  rust_test: "tests/sections.rs::a_turned_part_leaves_out_the_view_that_repeats_its_profile"
+  rust_test: "rendering::sections::a_turned_part_leaves_out_the_view_that_repeats_its_profile"
   rust_note: "The redundant-profile reduction is src/demand.rs::turned_views (tests/sections.rs::a_turned_part_leaves_out_the_view_that_repeats_its_profile). Python's own test now keeps the full four views for this fixture (its docstring says so), so its A2 1:1 claim is stale. A 217 mm plate at 1:1 on A2 fits the A2-for-large-parts decision."
   rust_rule: "The redundant-profile reduction is src/demand.rs::turned_views (tests/sections.rs::a_turned_part_leaves_out_the_view_that_repeats_its_profile)."
   port_note: "Keep: scenario test on synthetic thin plate -> plan omits redundant view, A2 1:1, no problems."
@@ -718,7 +718,7 @@
       - "tests/test_issue_1132_turned_profile_span_is_reported.py::test_a_malformed_groove_does_not_raise"
     corpus_parts: []
   status: translated
-  rust_test: "tests/completeness.rs::unclaimed_faces_and_unplanned_features_need_attention"
+  rust_test: "audits::completeness::unclaimed_faces_and_unplanned_features_need_attention"
   rust_rule: "The companion LINT-code-turned_profile_not_spanned was retired (declared models)."
   rust_note: "The companion LINT-code-turned_profile_not_spanned was retired (declared models). Rust states the overall length when bands do not run end to end (src/dims/turned.rs) and reports unexplained geometry as unclaimed_geometry warning with counts (src/completeness.rs; tests/completeness.rs::unclaimed_faces_and_unplanned_features_need_attention). No gap-length figure, which only Python ledger computed."
   port_note: "Keep: plan problem (geometry class, warning) with summed gap length."
@@ -734,7 +734,7 @@
       - "tests/test_issue_1142_hole_leader_labels.py::test_public_build_rejects_a_labelless_geometric_callout"
     corpus_parts: []
   status: ported
-  rust_test: "tests/issue_drafting.rs::a_hole_callout_claims_everything_it_prints"
+  rust_test: "issue_drafting::a_hole_callout_claims_everything_it_prints"
   rust_note: "Checked on the five fixtures and thirteen sampled parts (ctc04 among them): every number a hole callout prints (bore, depth, recesses, countersink, bolt circle) is the value of a measurement it claims and every claimed measurement is printed, and the drawn annotation carries the plan's claims and prints its label as one run. The port prints every callout on one line and never wraps, so no branch can lose its label (the wrapping clause is not-applicable); a callout without claims cannot be built (src/dims/holes.rs makes the terms and measurements together)."
   port_note: "Keep: plan callout elements are structured (terms), renderer wraps from structure."
 
@@ -750,7 +750,7 @@
       - "tests/test_issue_1142_hole_leader_labels.py::test_centerline_overlap_uses_text_bbox_not_full_leader_footprint"
     corpus_parts: []
   status: ported
-  rust_test: "tests/issue_trust.rs::a_claim_is_credited_only_when_its_text_states_the_value"
+  rust_test: "issue_trust::a_claim_is_credited_only_when_its_text_states_the_value"
   rust_note: "Partly ported: lint credits a requirement only through a structured claim on the feature by ID, so a callout's words cannot claim a feature; a count is read from the callout's leading n× against the holes it claims (no count shortfall is waived, ISSUE-1143-b), and a bolt circle's diameter (after EQ/ON/BC) or any other term cannot confirm a hole's size. Not ported: centre-line overlap by text box (placement's). Closed by the rules assessment of 2026-10-11: the centre-line clearance is lint's (tests/lint_structural.rs::a_label_clears_a_centreline_by_half_a_millimetre); nothing further."
   port_note: "Keep: never parse rendered text for semantics; plan carries structured claims."
 
@@ -767,7 +767,7 @@
     corpus_parts: []
   status: translated
   rust_rule: "Lint requirements come only from the Analysis (src/lint/holes.rs, src/lint/hole_patterns.rs), not from what the planner chose to draw: tests/issue_trust.rs::the_part_owns_the_hole_requirements_and_only_the_drawn_ink_earns_them and tests/completeness.rs::hole_pattern_missing_location_is_reported_per_axis."
-  rust_test: "tests/issue_trust.rs::the_part_owns_the_hole_requirements_and_only_the_drawn_ink_earns_them; tests/completeness.rs::hole_pattern_missing_location_is_reported_per_axis"
+  rust_test: "issue_trust::the_part_owns_the_hole_requirements_and_only_the_drawn_ink_earns_them; audits::completeness::hole_pattern_missing_location_is_reported_per_axis"
   rust_note: "Lint requirements come only from the Analysis (src/lint/holes.rs, src/lint/hole_patterns.rs), not from what the planner chose to draw: tests/issue_trust.rs::the_part_owns_the_hole_requirements_and_only_the_drawn_ink_earns_them and tests/completeness.rs::hole_pattern_missing_location_is_reported_per_axis. Single-hole locations are checked by src/lint/coverage.rs::located (LINT-hole_coverage-location)."
   port_note: "Keep: completeness problems computed from Analysis, not from Spec; property test on spec deletions."
 
@@ -785,7 +785,7 @@
     corpus_parts: []
   status: translated
   rust_rule: "src/lint/holes.rs::uncounted and tests/issue_trust.rs::a_callout_certifies_only_the_holes_it_claims (claims by stable feature IDs, count must match; opposite-face groups separate)."
-  rust_test: "tests/issue_trust.rs::a_callout_certifies_only_the_holes_it_claims"
+  rust_test: "issue_trust::a_callout_certifies_only_the_holes_it_claims"
   rust_note: "src/lint/holes.rs::uncounted and tests/issue_trust.rs::a_callout_certifies_only_the_holes_it_claims (claims by stable feature IDs, count must match; opposite-face groups separate). No IR/tool-centre fallback exists to guard. Single-hole location is LINT-hole_coverage-location."
   port_note: "Keep: hole ownership by stable analysis IDs; mismatch -> 'unverifiable' problem."
 
@@ -803,7 +803,7 @@
     corpus_parts: []
   status: translated
   rust_rule: "src/lint/coverage.rs::located requires each non-pattern hole's location, including scattered-group members; a centre mark alone never locates one (src/lint/coverage.rs::tests::holes_need_a_mark_and_a_location)."
-  rust_test: "src/lint/coverage.rs::tests::holes_need_a_mark_and_a_location; tests/dimension_rules.rs::a_grid_of_holes_is_called_out_once_located_and_spaced"
+  rust_test: "src/lint/coverage.rs::tests::holes_need_a_mark_and_a_location; dimensions::dimension_rules::a_grid_of_holes_is_called_out_once_located_and_spaced"
   rust_note: "src/lint/coverage.rs::located requires each non-pattern hole's location, including scattered-group members; a centre mark alone never locates one (src/lint/coverage.rs::tests::holes_need_a_mark_and_a_location). Centre marks are drawn by src/centrelines.rs. Grid pitches and centre are pinned by tests/dimension_rules.rs::a_grid_of_holes_is_called_out_once_located_and_spaced. Holes with tilted axes are refused and reported feature_not_dimensioned (src/dims/holes.rs); locating those needs auxiliary views."
   port_note: "Keep: scenario tests -> plan has both pitches / every member location."
 
@@ -820,7 +820,7 @@
     corpus_parts: []
   status: ported
   port_note: "Keep: plan table cells bound to measurement IDs; empty cell = no claim."
-  rust_test: tests/hole_tables.rs::table_rows_match_draftwrights_attempt_on_ctc02
+  rust_test: dimensions::hole_tables::table_rows_match_draftwrights_attempt_on_ctc02
   rust_note: "Partly ported (src/hole_table.rs): each row prints THRU or the depth its callout states and the X and Y its plan-view location dimensions state, a blank cell when none locates the hole along that axis, and claims only what it prints (the drawing's row annotation claims bore.diameter, bore.depth when printed, and each printed location); a table not kept (no place, or a balloon short) restores every replaced item and keeps the drops. Not ported: the public hole-table verb. Closed by the rules assessment of 2026-10-11: there are no verbs in the Spec/Plan design, so the public hole-table verb does not apply."
 
 - id: ISSUE-1143-e
@@ -850,7 +850,7 @@
     corpus_parts: []
   status: ported
   port_note: "triage 2026-10-16: PORT, value low, size M, stream tables"
-  rust_test: "tests/hole_tables.rs::retained_leader_crossings_roll_back_the_whole_table_and_restore_fallbacks; tests/hole_tables.rs::an_escalated_table_is_whole_on_the_sheet_with_a_balloon_per_row; tests/hole_tables.rs::a_table_without_every_balloon_is_withdrawn_whole"
+  rust_test: "dimensions::hole_tables::retained_leader_crossings_roll_back_the_whole_table_and_restore_fallbacks; dimensions::hole_tables::an_escalated_table_is_whole_on_the_sheet_with_a_balloon_per_row; dimensions::hole_tables::a_table_without_every_balloon_is_withdrawn_whole"
   rust_note: "The alternative table commits only with exactly one correctly-owned balloon for every row. Its rings and shafts now clear retained feature leaders by actual segments; crossing, collinear overlap and T contact are unsafe, while an endpoint shared alone is harmless. Failure withdraws the entire table/balloon inventory, restores every surviving fallback dimension unchanged and retains both table_dropped and balloon_dropped evidence. The Plan is evaluated afresh, so no mutable registry transaction is needed."
 
 - id: ISSUE-1144-b
@@ -865,7 +865,7 @@
       - "tests/test_issue_1144_transactional_hole_table.py::test_public_hole_table_remains_additive_and_keeps_every_balloon"
     corpus_parts: []
   status: pending
-  rust_test: tests/planned_hole_tables.rs::semantic_pmi_callouts_remain_source_carrying_beside_the_schedule
+  rust_test: dimensions::planned_hole_tables::semantic_pmi_callouts_remain_source_carrying_beside_the_schedule
   rust_note: "Partly ported (src/hole_table.rs::rows): an automatic table replaces only plain callouts (no counterbore, spotface or countersink, no authored tolerance or fit) and clears only the drops of items it replaces; THRU is printed as the callout prints it. Not ported: threads (not dimensioned), authored through-wording, the public hole-table verb. Stage H1: semantic PMI and authored fits keep their native callouts beside a schedule, and recess/depth/thread wording is drawn in the size cell (table_recess_and_depth_symbols_are_drawn_inside_the_size_cell). The 'user-requested table is additive and keeps every balloon' part is not separately tested. Pending: Python public additive add_hole_table semantics and arbitrary authored through-wording have no Rust Spec equivalent (hole_table=always selects a replacement representation). Implementing an additive table intent needs a new Spec/Plan contract and shared ownership reconciliation; the dimension-ownership stream owns that reconciliation, so no second owner is introduced here."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream tables"
 
@@ -897,7 +897,7 @@
     corpus_parts: ["nist_ctc_02_asme1_ap203"]
   status: translated
   rust_rule: "The automatic recovery picks the smallest valid complete sheet and scale and records the basis (src/model.rs::recover_uncached, src/sheet_fit.rs::choose)."
-  rust_test: "tests/issue_drafting.rs::a_scale_that_does_not_fit_is_reported"
+  rust_test: "issue_drafting::a_scale_that_does_not_fit_is_reported"
   rust_note: "The automatic recovery picks the smallest valid complete sheet and scale and records the basis (src/model.rs::recover_uncached, src/sheet_fit.rs::choose). A pinned scale is kept and reported (page_fit_uncertain, with a fix naming a pair that fits; tests/issue_drafting.rs::a_scale_that_does_not_fit_is_reported). Policy B replaces the strict and permissive policies."
   port_note: "Keep: plan scale default with basis; spec scale + policy -> problems."
 
@@ -914,7 +914,7 @@
       - "tests/test_issue_1146_scale_completeness.py::test_policy_vocabulary_and_applicability_fail_before_build"
     corpus_parts: []
   status: ported
-  rust_test: "tests/issue_drafting.rs::fill_selection_preserves_hard_findings_when_no_complete_candidate_exists; tests/page_escalation.rs::an_info_or_view_box_finding_is_not_a_hard_failure"
+  rust_test: "issue_drafting::fill_selection_preserves_hard_findings_when_no_complete_candidate_exists; rendering::page_escalation::an_info_or_view_box_finding_is_not_a_hard_failure"
   rust_note: "Partly ported, for draftwright's layout recovery (model::recover, applied by model::plan_recovered to every plan the library gives): on every part's default plan, problems other than the hard layout codes (validation findings, missing ports, info observations) never move the sheet; the one required loss it counts, hole locations too close to read (layout::crowded_locations), is measured from the plan's dimensions whatever any problem's severity; a hard finding no try clears keeps the first sheet and says so (layout_recovery_exhausted, info, naming the codes: cgb245 and ctc04), never silently. Not ported: a scale-completeness policy (strict, permissive) and its vocabulary; the rendering floor (the ladder ends at the largest standard sheet and says so the same way); an unrelated build error (a plan that cannot be made is an error before any recovery). The port keeps an authored scale and reports what does not fit (tests/trust_rules.rs::an_authored_constraint_is_kept_and_its_infeasibility_reported); a computed scale and an overflow are plan problems (scale_fallback_applied, views_do_not_fit); a scale outside the standard series is refused before planning, with the series. Closed by the rules assessment of 2026-10-11: the scale-completeness policy vocabulary and the rendering floor have no counterpart in the port's recovery; nothing further is worth porting."
   port_note: "Keep."
 
@@ -929,7 +929,7 @@
       - "tests/test_issue_1146_scale_completeness.py::test_authored_table_footprint_can_select_a_larger_standard_page"
     corpus_parts: []
   status: ported
-  rust_test: "tests/issue_drafting.rs::every_view_lies_on_the_page_or_the_plan_says_it_does_not"
+  rust_test: "issue_drafting::every_view_lies_on_the_page_or_the_plan_says_it_does_not"
   rust_note: "Checked on the fixtures and sampled parts: every planned view's area lies on the page and no two principal views' areas (each with its annotation bands) overlap, unless the plan reports views_do_not_fit; a pinned A4 at 10:1 that cannot hold them is reported (page_fit_uncertain). Authored tables (src/tables.rs) take part in page and scale selection: tests/tables.rs::a_long_table_moves_the_sheet_on_rather_than_be_dropped. Observed, verdict undetermined (owed in layout, src/layout.rs): ftc06's section A-A area overlaps the side view's by 10 mm, and ctc01's isometric, as drawn, reaches into the plan view's right band; neither is a principal pair."
   port_note: "Keep: page/scale selection unit tests."
 
@@ -963,7 +963,7 @@
       - "tests/test_issue_1153_contradictory_dimensions.py::test_a_uniform_staircase_reports_no_contradiction"
     corpus_parts: []
   status: ported
-  rust_test: "tests/lint_fidelity.rs::a_linear_label_states_its_drawn_span_divided_by_the_view_scale"
+  rust_test: "audits::lint_fidelity::a_linear_label_states_its_drawn_span_divided_by_the_view_scale"
   rust_note: "Stream K7: label_vs_measured (src/lint/fidelity.rs) re-measures each drawn linear dimension's span from its ink, independently of the plan: an error from 5%, a warning past 0.5%. The port's counted labels mean one member (N× v reads v), so a uniform staircase (n× rise) and a pattern's pitch report nothing, and a dimension drawn at the wrong length still does."
   port_note: "Keep: independent post-render check (label value vs measured witness span) -> error problem."
 
@@ -983,7 +983,7 @@
     corpus_parts: []
   status: ported
   rust_rule: "src/dims/bosses.rs::consolidate gives a default boss height to a kept overall extent only when their support planes coincide, recording 'conveyed by <id>' on the omission (tests/dims_slots.rs::a_boss_height_between_the_parts_own_faces_is_the_overall_extents)."
-  rust_test: "tests/dims_slots.rs::a_boss_height_between_the_parts_own_faces_is_the_overall_extents; tests/issue_drafting.rs::a_toleranced_height_is_not_handed_to_an_untoleranced_extent; tests/ownership_rules.rs::an_authored_set_keeps_the_owner_that_conveys_a_left_out_measurement"
+  rust_test: "dimensions::dims_slots::a_boss_height_between_the_parts_own_faces_is_the_overall_extents; issue_drafting::a_toleranced_height_is_not_handed_to_an_untoleranced_extent; audits::ownership_rules::an_authored_set_keeps_the_owner_that_conveys_a_left_out_measurement"
   rust_note: "src/dims/bosses.rs, consolidate: a default boss height whose base and top lie on the same two support planes as a kept overall extent (within 0.005 mm) moves to the plan's omitted list, covered, with the basis 'conveyed by <the extent's ID>'; plane coincidence, not value equality (a proud boss keeps both, a face 0.5 mm short is another plane); an extent the spec omits takes nothing; a toleranced height is kept beside an untoleranced extent, a tolerance on the extent alone still takes it, both toleranced keep both. Stream K6 ports authored-set parity (src/dims/redundancy.rs::authored_parity): an item an authored set leaves out that the defaults hand to an owner the set keeps is covered by it, as in the automatic plan, and the owner carries the same claims, so the drawn set authored back plans and lints the same; an owner the set leaves out takes nothing (not_authored). H5 additionally reconciles supported slot/plate intervals (tests/h5_chains.rs). Python's other refusals (an owner a rotational OD withholds) have no counterpart: a part turned whole draws no envelope width or depth to hand a height to, and bosses::consolidate does not run on it."
   port_note: "Keep: plan consolidation keyed by support-plane pairs; omission basis references the carrier ID."
 
@@ -996,7 +996,7 @@
       - "tests/test_issue_1155_grm04_sheet_use.py::test_grm04_measured_replan_keeps_diameter_and_location_on_a_clean_sheet"
     corpus_parts: ["GRM-04", "grm04_drive_plate.step"]
   status: ported
-  rust_test: "tests/rule_pins.rs::grm04_small_hole_retains_diameter_and_location_on_a_clean_sheet"
+  rust_test: "audits::rule_pins::grm04_small_hole_retains_diameter_and_location_on_a_clean_sheet"
   rust_note: "Already true, now pinned with the Python GRM-04 STEP and recognition: a placed 2.4 bore diameter and its location survive automatic sheet recovery, with no structural lint, overlap, out-of-area or dropped-item problem. The precise automatic sheet/scale follows Rust's existing fit policy rather than pinning Python's A4/2:1 implementation detail."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream regression-pins"
 
@@ -1031,7 +1031,7 @@
     corpus_parts: []
   status: translated
   rust_rule: "src/dims/leaders.rs places all callouts in a view from one shared inventory containing placed dimension lines and labels, arrowhead outlines including their flares, centre-mark crosses (except the hole's own transverse mark), views and title block (tests/leaders.rs::callout_leaders_cross_nothing_unlisted)."
-  rust_test: "tests/leaders.rs::callout_leaders_cross_nothing_unlisted"
+  rust_test: "rendering::leaders::callout_leaders_cross_nothing_unlisted"
   rust_note: "src/dims/leaders.rs places all callouts in a view from one shared inventory containing placed dimension lines and labels, arrowhead outlines including their flares, centre-mark crosses (except the hole's own transverse mark), views and title block (tests/leaders.rs::callout_leaders_cross_nothing_unlisted). Rust has no optional leaders; filled datum-face ink remains a datum-placement concern."
   port_note: "Keep: single leader solve per view over all obstacles."
 
@@ -1064,7 +1064,7 @@
       - "tests/test_issue_1166_cross_pass_feature_leaders.py::test_immediate_producer_floor_records_a_retained_fixed_crossing_issue_2112"
     corpus_parts: []
   status: translated
-  rust_test: "tests/model.rs::geometry_the_kernel_did_not_resolve_is_refused_as_failed"
+  rust_test: "core::model::geometry_the_kernel_did_not_resolve_is_refused_as_failed"
   rust_rule: "Lint fails visibly where geometry can't be read: diameter_leader_target_unverifiable and radius_leader_target_unverifiable (src/lint/leaders.rs, tests/leader_rules.rs)."
   rust_note: "Lint fails visibly where geometry can't be read: diameter_leader_target_unverifiable and radius_leader_target_unverifiable (src/lint/leaders.rs, tests/leader_rules.rs). The material that both router and lint use comes from the Analysis (src/material.rs). Unresolved kernel geometry is refused before drawing (tests/model.rs::geometry_the_kernel_did_not_resolve_is_refused_as_failed)."
   port_note: "Keep."
@@ -1129,7 +1129,7 @@
       - "tests/test_issue_1177_angular_dimensions.py::test_every_kind_is_either_renderable_or_explicitly_refused"
     corpus_parts: ["nist_ctc_01_asme1_ap242"]
   status: ported
-  rust_test: "tests/issue_drafting.rs::an_angle_is_never_drawn_as_a_length"
+  rust_test: "issue_drafting::an_angle_is_never_drawn_as_a_length"
   rust_note: "Partial: on every part no linear dimension states an angle, and every angle the plan states (a countersink's, a chamfer's) is printed in degrees in its callout. Not ported: angular dimensions (none is planned, so none can fall back to a linear one), arcs from proven supports, and refusal of kinds that cannot be drawn. Since then angular PMI dimensions are drawn as arcs from proven supports, and one no view shows true is refused (tests/pmi_angular.rs). Closed by the rules assessment of 2026-10-11."
   port_note: "Keep: plan dimension kinds are typed (linear/angular/...); renderer has no fallback from angular to linear."
 
@@ -1146,7 +1146,7 @@
       - "tests/test_issue_1177_angular_dimensions.py::test_an_explicit_scale_survives_an_angular_declaration"
     corpus_parts: []
   status: ported
-  rust_test: tests/pmi_angular.rs::an_angle_no_view_shows_true_is_refused
+  rust_test: dimensions::pmi_angular::an_angle_no_view_shows_true_is_refused
   rust_note: "Ported for PMI angles: an angle whose sides' plane no view looks along is refused with draftwright's reason, as an error, never drawn foreshortened. There are no authored angular dimensions, so the warning case does not arise."
   port_note: "Keep."
 
@@ -1161,7 +1161,7 @@
     corpus_parts: ["nist_ctc_04_asme1_ap203"]
   status: translated
   rust_rule: "tests/issue_regressions.rs::issue_1187_a_retained_leader_crossings_have_no_clear_route (dims::clear_routes over ctc04): every retained crossing has no clear route."
-  rust_test: "tests/issue_regressions.rs::issue_1187_a_retained_leader_crossings_have_no_clear_route"
+  rust_test: "audits::issue_regressions::issue_1187_a_retained_leader_crossings_have_no_clear_route"
   rust_note: "tests/issue_regressions.rs::issue_1187_a_retained_leader_crossings_have_no_clear_route (dims::clear_routes over ctc04): every retained crossing has no clear route. Python's release gate is a build123d flange fixture that has no counterpart here. Rust drops no callout for routing (Policy B)."
   port_note: "Keep: scenario CTC-04 -> every reported leader crossing has no clear alternative candidate."
 
@@ -1209,7 +1209,7 @@
     corpus_parts: ["GRM-01"]
   status: translated
   rust_rule: "A section the part needs but that isn't drawn is never silent: a section_not_shown problem says why and how to fix it (tests/model.rs::a_section_not_drawn_says_why)."
-  rust_test: "tests/model.rs::a_section_not_drawn_says_why"
+  rust_test: "core::model::a_section_not_drawn_says_why"
   rust_note: "A section the part needs but that isn't drawn is never silent: a section_not_shown problem says why and how to fix it (tests/model.rs::a_section_not_drawn_says_why). An authored omission is the spec's decision. Lint never reads the plan by design (lint independence), and the closed per-plan status vocabulary is Python record-keeping."
   port_note: "Keep: plan carries a section decision enum per candidate section."
 
@@ -1225,7 +1225,7 @@
       - "tests/test_issue_1196_deterministic_view_names.py::test_every_overflow_message_names_the_view_that_actually_overflows"
     corpus_parts: []
   status: ported
-  rust_test: "tests/issue_trust.rs::diagnostics_are_the_same_every_run"
+  rust_test: "issue_trust::diagnostics_are_the_same_every_run"
   rust_note: "Checked on the fixtures and thirteen sampled parts (ctc04 among them): problems and lint findings are the same bytes on a second run, no message carries an address or a debug rendering, and every view a problem names is a planned view. Views are always named (v:front, ...), so no position fallback is needed; an overflow is reported for the sheet (views_do_not_fit), not per view, so no view can be misnamed."
   port_note: "Keep: plan/problem serialisation byte-identical across runs."
 
@@ -1242,7 +1242,7 @@
       - "tests/test_issue_1202_observed_drawing_consumer.py::test_a_build_failure_scores_every_hole_unknown_and_says_so"
     corpus_parts: ["nist_ctc_03_asme1_ap203", "nist_ctc_04_asme1_ap203"]
   status: ported
-  rust_test: "tests/planned_hole_tables.rs::drawing_consumer_observes_real_ink_and_reports_failed_builds_unknown"
+  rust_test: "dimensions::planned_hole_tables::drawing_consumer_observes_real_ink_and_reports_failed_builds_unknown"
   rust_note: "evaluation::drawing_consumer reads actual rendered annotations/runs across sheets and independently recognised hole IDs, never a capability declaration. It credits bore callouts or approved/verified schedule size cells only when their own explicit diameter term states the physical bore size; a quantity-only label is unsupported. Empty, removed and contradicted annotations are unsupported; a failed build makes every hole unknown and preserves its build_error. Review exposes this report, so corpus consumers can inspect the actual build. Rust joins by retained feature ID rather than Python proximity correspondence."
   port_note: "Keep: evaluation harness reads the plan/render output, not declared capabilities."
 
@@ -1259,7 +1259,7 @@
     corpus_parts: ["nist_ctc_04_asme1_ap203"]
   status: translated
   rust_rule: "Problem IDs are unique (tests/issue_trust.rs::diagnostics_are_the_same_every_run)."
-  rust_test: "tests/issue_trust.rs::diagnostics_are_the_same_every_run; tests/lint_fidelity.rs::a_linear_label_states_its_drawn_span_divided_by_the_view_scale"
+  rust_test: "issue_trust::diagnostics_are_the_same_every_run; audits::lint_fidelity::a_linear_label_states_its_drawn_span_divided_by_the_view_scale"
   rust_note: "Each problem is reported once (problem IDs are unique in every plan checked), and stream K7's label_vs_measured judges each annotation at its own view's recorded scale (Sheet::frames; tests/lint_fidelity.rs::a_linear_label_states_its_drawn_span_divided_by_the_view_scale). Detail views now carry their own scale (src/detail.rs; tests/detail_views.rs)."
   port_note: "Keep: single check pass with per-annotation view scale."
 
@@ -1277,7 +1277,7 @@
       - "tests/test_issue_1209_linear_pmi_witnesses.py::test_oblique_linear_support_renders_its_exact_projected_span"
     corpus_parts: ["nist_ctc_03_asme1_ap242", "nist_ctc_04_asme1_ap242"]
   status: ported
-  rust_test: "tests/pmi_dimensions.rs::oblique_pmi_draws_its_exact_projected_station_span"
+  rust_test: "dimensions::pmi_dimensions::oblique_pmi_draws_its_exact_projected_station_span"
   rust_note: "Proven linear/thickness stations in a principal plane now draw an aligned dimension in the preserving front, plan or side projection, including Python's transverse-noise tolerance. The witness endpoints, dimension line, arrows, rotated label and reservation use that exact projected span. The existing geometric proof still refuses incomplete, coincident, wrong-nominal and nonprincipal relationships; tests/pmi_dimensions.rs::what_the_faces_do_not_prove_is_reported_not_guessed pins those refusals. Scale-aware layout reserves the actual rotated ink; the regression also checks its drawing border and reserved area with default and authored precision in all three projections. Centered text and clipped witnesses follow Python's Dimension with either arrow arrangement; axis-only label sliding cannot bend the oblique line. Ownership is unchanged."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream pmi"
   owner: draftwright
@@ -1296,7 +1296,7 @@
       - "tests/test_issue_1215_envelope_tolerance.py::test_the_tolerance_reaches_the_exported_ink"
     corpus_parts: []
   status: ported
-  rust_test: "tests/issue_drafting.rs::envelope_wide_bands_and_extent_fits_reach_the_ink"
+  rust_test: "issue_drafting::envelope_wide_bands_and_extent_fits_reach_the_ink"
   rust_note: "Spec.envelope_tolerance supplies every overall extent's band. Per-extent tolerance or fit overrides the fallback; an ISO 286 class on an extent prints its code alone by default, with stacked upper/lower deviations when sheet/fit_deviations is true (the legacy fit_limits alias remains supported). Requested nominal precision composes with both modes, pinned in tests/precision.rs::extent_precision_composes_with_default_and_stacked_fit_labels. Tests inspect the planned label and the rendered text runs, with the other extents bare for a per-extent fit. Existing per-extent deviation pairs and bounds tests remain."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream spec-tolerance-precision"
 
@@ -1310,7 +1310,7 @@
       - "tests/test_issue_1215_envelope_tolerance.py::test_the_annotation_bounds_enclose_the_complete_tolerance_label"
     corpus_parts: []
   status: ported
-  rust_test: "tests/issue_drafting.rs::a_toleranced_label_grows_along_its_line_and_its_box_holds_it"
+  rust_test: "issue_drafting::a_toleranced_label_grows_along_its_line_and_its_box_holds_it"
   rust_note: "Placement places a kept item with its label as drawn, tolerance included (src/dims/mod.rs::plan), and its box is the glyphs' ink (dims::label_ink): on plate the rotated height's box grows more than twice along its line and the width's along its own, each box is the ink of its terms, and every glyph drawn for the label lies inside it. Equivalent difference: across the line the port's box changes by the ± glyph's ink below the digits (0.036 mm on plate), where draftwright's text box keeps its height exactly; the lane is unchanged."
   port_note: "Keep: text measurement used for layout equals rendered extent."
 
@@ -1327,7 +1327,7 @@
       - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_the_hole_table_depth_column_prints_the_authored_tolerance"
     corpus_parts: []
   status: pending
-  rust_test: "tests/issue_drafting.rs::every_authored_tolerance_reaches_the_label_that_claims_it"
+  rust_test: "issue_drafting::every_authored_tolerance_reaches_the_label_that_claims_it"
   rust_note: "Partial: on the five fixtures and thirteen sampled parts (ctc04 among them), every dimension the default plan has or leaves out, each given its own band, prints its band exactly once and no other's (or the plan reports tolerance_withheld); an undrawn one is reported (view_plan_incomplete) and one left out is reported (tolerance_not_shown); on plate each band is drawn in exactly one text run. Not ported: a callout's other terms (counterbore and countersink sizes, a bore's depth) have no dimension ID and cannot be toleranced, where draftwright's kind-keyed sweep tolerances them too; a hole table's cells (src/hole_table.rs) print a callout's tolerance term after the diameter, untested: no corpus part keeps a table. Pending: independent addressable depth, counterbore, spotface and countersink parameter tolerances; those compound terms still have no public dimension ID on which to author a band. Adding those IDs and reconciling their measurement owner belongs to the dimension-ownership stream, not this table batch."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream holes-and-threads"
 
@@ -1342,7 +1342,7 @@
       - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_the_deliberately_bare_names_are_reachable"
     corpus_parts: []
   status: ported
-  rust_test: "tests/issue_drafting.rs::a_jittered_pattern_claims_no_pitch_tolerance"
+  rust_test: "issue_drafting::a_jittered_pattern_claims_no_pitch_tolerance"
   rust_note: "Partial: dims::holes collapses a linear pattern to one n× pitch only when its gaps are equal within 1e-4 mm, so a jittered pattern (two_grids with a hole moved 0.3 mm) plans no pitch: its holes are dimensioned singly, with the reason in their callout's basis, and a tolerance set on the missing pitch is refused naming it; the even pattern prints its band (2× 10 ±0.05). draftwright collapses the jittered pattern (its recogniser admits 2 % jitter), prints the bare pitch and reports the withheld tolerance; the port states no common pitch over unequal gaps at all (rust-correct). Not ported: the N× rise representative that stays deliberately bare (step levels are not dimensioned on main). Closed by the rules assessment of 2026-10-11: step levels' N× rise is not drawn, so nothing further applies."
   port_note: "Keep: plan problem for withheld tolerance."
 
@@ -1357,7 +1357,7 @@
       - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_a_withholding_is_retracted_only_when_every_mark_is_drawn"
     corpus_parts: []
   status: ported
-  rust_test: tests/placement.rs::a_starved_overall_extent_has_first_claim_on_the_opposite_strip
+  rust_test: rendering::placement::a_starved_overall_extent_has_first_claim_on_the_opposite_strip
   rust_note: "src/dims/placement.rs::fall_through: a strip holds its linear dimensions (an overall extent among them) up to the first lane whose item does not fit the page (on the sheet, its label off the views and the title block, no line through the title block or another view); that item and those outside it take the next free lanes of the strip across the view, each that fits there, an overall extent first (then moved outside the others where that still fits). On cgb245 and m1000 the front's overall height takes the one lane left of the front, clear of the side view, ahead of the rung or location that would reach it first; on ftc06 the front's width takes the one lane above the front, off the isometric. One that fits on neither side keeps its lane and is reported (annotation_off_sheet, annotation_over_view, annotation_line_over_view), never dropped: draftwright drops it and reports the drop (rust-correct by the port's honest-failure rule; the plan keeps every item, R1 invariant 3). Beyond draftwright, every linear dimension falls through, not only an extent (draftwright's slot dimensions do too, _slots.py): rust-correct, since draftwright leaves such an item in its starved strip, where on cgb245 the plan's left-strip items ran off the sheet (10 annotation_off_sheet errors), while a moved item measures the same span from the same edge and so reads as the same baseline dimension, only from the clear side; its cost is a split ladder (cgb245's plan y locations stand right of the plan apart from the two its left strip holds; tests/placement.rs::a_strip_without_room_falls_through_to_the_opposite_strip). Not-applicable: the withholding and its retraction once every mark is drawn (the port withholds no extent). On cgb245 the plan's left-strip items left the sheet 10 times before; 1 is left (tests/fixtures/known_placement.json). Also checked by tests/placement.rs::what_does_not_fit_the_page_is_reported (what still does not fit is reported, on every part) and tests/issue_drafting.rs::an_overall_extent_is_placed_or_reported."
   port_note: "Keep."
 
@@ -1372,7 +1372,7 @@
       - "tests/test_issue_1215_no_approved_tolerance_is_dropped.py::test_only_an_absence_code_counts_as_reporting_an_absence"
     corpus_parts: []
   status: ported
-  rust_test: "tests/planned_hole_tables.rs::an_omitted_hole_size_has_no_schedule_row_or_claim; tests/planned_hole_tables.rs::an_omitted_hole_location_is_not_silently_reintroduced_by_a_table"
+  rust_test: "dimensions::planned_hole_tables::an_omitted_hole_size_has_no_schedule_row_or_claim; dimensions::planned_hole_tables::an_omitted_hole_location_is_not_silently_reintroduced_by_a_table"
   rust_note: "Already true, now tested: both an explicitly omitted size callout and an omitted location keep the physical hole out of the schedule. The omitted-by-user state remains in Plan, no rendered size claim appears for it and the missing physical requirement is still reported. Rows are selected from planned measurements, never reconstructed from recognised geometry."
   port_note: "Keep: renderers never format from Analysis; only from Plan."
 
@@ -1389,7 +1389,7 @@
   status: translated
   rust_rule: "Rust places each item with its label as drawn, measured from the glyph ink with tolerance included (tests/issue_drafting.rs::a_callouts_room_is_measured_from_the_text_it_draws)."
   rust_note: "Rust places each item with its label as drawn, measured from the glyph ink with tolerance included (tests/issue_drafting.rs::a_callouts_room_is_measured_from_the_text_it_draws). There is no pre-placement reservation to under-estimate. Overrun is reported (annotation_outside_area), never a dropped callout (Policy B)."
-  rust_test: "tests/issue_drafting.rs::a_callouts_room_is_measured_from_the_text_it_draws"
+  rust_test: "issue_drafting::a_callouts_room_is_measured_from_the_text_it_draws"
   port_note: "Keep: reservation computed from the same plan text the renderer measures."
 
 - id: ISSUE-1216-b
@@ -1405,7 +1405,7 @@
   status: ported
   rust_note: "Detail dimensions and captions share the structural pairwise pass, using their own view scales; src/detail.rs, src/lint/structural.rs."
   port_note: "Keep."
-  rust_test: "tests/detail_views.rs::a_constrained_main_scale_keeps_the_complete_head_crop_and_sheet_scale_iso; tests/detail_views.rs::crowded_prismatic_rungs_and_y_chains_use_their_own_camera_and_scale"
+  rust_test: "rendering::detail_views::a_constrained_main_scale_keeps_the_complete_head_crop_and_sheet_scale_iso; rendering::detail_views::crowded_prismatic_rungs_and_y_chains_use_their_own_camera_and_scale"
 
 - id: ISSUE-1217-a
   statement: "Every claimed representation is verified against what the annotation actually renders: the expected formatted value (not a substring or raw float), locations from their span, every number of a compound callout, and hole-table rows; an unconfirmed claim is reported as a warning."
@@ -1421,7 +1421,7 @@
       - "tests/test_issue_1217_claimed_representations.py::test_a_quantity_column_cannot_confirm_a_diameter"
     corpus_parts: ["GRM-03"]
   status: pending
-  rust_test: "tests/issue_trust.rs::a_claim_is_credited_only_when_its_text_states_the_value"
+  rust_test: "issue_trust::a_claim_is_credited_only_when_its_text_states_the_value"
   rust_note: "Partly ported. Hole coverage reads a claiming callout term by term (src/lint/holes.rs::Callout): each size is credited only when the term that states it (the number after ⌀, after ↧, in its recess or countersink segment) rounds from the part's value at its printed precision; a repeat count, a grid's (r×c), a bolt circle's diameter, a tolerance or another size of the same value confirms nothing ('6× ⌀8 THRU' and '4× ⌀8 THRU (6×2)' no longer confirm ⌀6 on plate.step; draftwright's test_a_repeat_count_cannot_confirm_a_diameter). Stricter than draftwright's evidence.py, which strips only the leading count (rust-correct: the rule asks for every number of a compound callout). Not ported: the families sharing lint::parameters still accept any number in the label (holes::states); locations and pitches are not verified against spans; there are no hole tables. Pending: every ordinary annotation family, non-schedule locations from their own spans and pitches; parameters::coverage still accepts any matching numeric term. A universal post-render mark verifier is a cross-cutting change (more than a day); span/measurement ownership is assigned to the dimension-ownership stream."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream lint-and-reporting"
 
@@ -1437,7 +1437,7 @@
       - "tests/test_issue_1217_the_facility_is_shared.py::test_the_registered_exemption_is_real_and_not_a_blanket"
     corpus_parts: ["GRM-03", "nist_ctc_01", "nist_ctc_02_asme1_ap203", "nist_ctc_04_asme1_ap203", "nist_ctc_05"]
   status: ported
-  rust_test: "tests/issue_trust.rs::every_number_on_the_sheet_carries_a_claim"
+  rust_test: "issue_trust::every_number_on_the_sheet_carries_a_claim"
   rust_note: "Checked on the four fixtures, ftc06 and ctc01: every annotation that prints a digit claims the measurements it states, and every other text run with a digit is in the title block (drawing number, scale)."
   port_note: "Keep: by construction every plan text element with a number references a measurement ID; corpus-wide property test."
 
@@ -1468,7 +1468,7 @@
       - "tests/test_issue_1229_ledger_member_keying.py::test_every_recognised_group_is_uniform_in_bottom"
     corpus_parts: []
   status: ported
-  rust_test: tests/dimension_rules.rs::blind_and_through_holes_are_separate_requirements
+  rust_test: dimensions::dimension_rules::blind_and_through_holes_are_separate_requirements
   port_note: "Keep: hole grouping key includes through/blind."
 
 - id: ISSUE-1229-b
@@ -1499,7 +1499,7 @@
       - "tests/test_issue_1240_iso_above_strip_visibility.py::test_the_page_spanning_riders_do_not_neutralise_the_iso_fit"
     corpus_parts: []
   status: retired
-  rust_test: "tests/issue_drafting.rs::a_label_over_the_isometric_is_reported"
+  rust_test: "issue_drafting::a_label_over_the_isometric_is_reported"
   why: "Rules assessment 2026-10-11: a label over the isometric is reported, and none is left on the corpus; the clamp is tuning."
   rust_note: "Partial: on every part with an isometric, a placed label over its drawn box is an annotation_over_view naming v:iso (src/dims/placement.rs::collisions). On a default plan such a label is itself a placement defect (none is left on the corpus parts: ftc06's front width, rust-wrong before, now falls through to the strip above the front), so the test also runs on plate pinned to A4 at 5:1, whose annotations the sheet has no room for (on A3 at 2:1 they now fit, the strips falling through, src/dims/placement.rs::fall_through), and requires a label over the isometric there, so it stays exercised once the defects are fixed. Not ported: clamping a strip below an overlapping isometric and capping the isometric's growth at placed annotations (the port fits the isometric into the space the views' areas leave, before anything is placed, and does not re-fit it)."
   port_note: "Keep: layout unit tests with planted obstacles; single layout solve should make this structural."
@@ -1516,7 +1516,7 @@
       - "tests/test_issue_1245_passage_disposition.py::test_passage_profile_correlation_fails_closed"
     corpus_parts: []
   status: translated
-  rust_test: "src/lint/section_recesses.rs::tests::a_recess_no_grammar_reads_is_reported_unsupported; tests/native_recesses.rs::native_passages_pockets_and_source_refusals_reach_lint"
+  rust_test: "src/lint/section_recesses.rs::tests::a_recess_no_grammar_reads_is_reported_unsupported; core::native_recesses::native_passages_pockets_and_source_refusals_reach_lint"
   rust_rule: "src/lint/section_recesses.rs reports an unreadable passage as passage_requirement_unsupported at warning severity, with the reason and (k of N), regardless of the marks (src/lint/section_recesses.rs::tests::a_recess_no_grammar_reads_is_reported_unsupported)."
   rust_note: "Native recognition/3 carries unsupported passages into the same grammar disposition and lint as the bridge; no dimensions are invented. Source projection refusals remain explicit lint findings."
   port_note: "Keep: plan problem 'unsupported feature' per recognised-but-undrawable feature."
@@ -1532,7 +1532,7 @@
       - "tests/test_issue_1246_prismatic_pocket_disposition.py::test_a_four_sided_survivor_is_unsupported_not_misclassified_as_non_rectangular"
     corpus_parts: []
   status: translated
-  rust_test: "tests/lint.rs; tests/native_recesses.rs::native_passages_pockets_and_source_refusals_reach_lint"
+  rust_test: "tests/lint.rs; core::native_recesses::native_passages_pockets_and_source_refusals_reach_lint"
   rust_rule: "src/lint/section_recesses.rs reports every recess no grammar reads as prismatic_pocket_requirement_unsupported, passage_requirement_unsupported or section_recess_requirement_unsupported, with a reason (tests/lint.rs and tests/fixtures/known_lint.json)."
   rust_note: "Native recognition/3 carries unsupported prismatic pockets into the same disposition and lint as the bridge (including the K3 triangular pocket on 14052). No depth or footprint grammar is invented."
   port_note: "Keep."
@@ -1548,7 +1548,7 @@
       - "tests/test_issue_1247_angled_step_disposition.py::test_corpus_fixture_pins_angled_step_chamfer_ownership"
     corpus_parts: ["issue_1247_angled_blind_step.step"]
   status: ported
-  rust_test: tests/angled_steps.rs::draftwrights_angled_step_fixture_is_reported_unsupported
+  rust_test: dimensions::angled_steps::draftwrights_angled_step_fixture_is_reported_unsupported
   rust_note: "Partly ported: lint raises angled_step_requirement_unsupported, a warning, for each recognised angled step, as draftwright does (src/lint/angled_steps.rs, LINT-code-angled_step_requirement_unsupported). The plan states nothing of an angled step and reports each as one unsupported warning of the same code, p:angled_step_requirement_unsupported:<feature id> (src/dims/mod.rs unsupported; maintainer decision 2026-10-09, in place of the completeness outcome until there is one), on draftwright's fixture issue_1247_angled_blind_step.step (native recognition) and corpus part m10245 (tests/angled_steps.rs). Not ported: the explicit unsupported completeness outcome (draftwright's lint_summary completeness: unsupported 1, by_family angled_steps; the port has no completeness report). Chamfer-versus-step ownership is quiddity's aggregate: at the pinned quiddity-rust the native document still carries the step's slant as a chamfer too (tests/fixtures/known_native.json, m10245), so the fixture's slant is also dimensioned as a chamfer there. Closed by the rules assessment of 2026-10-11: the completeness outcome belongs to ADR5-5."
   port_note: "Keep."
 
@@ -1563,7 +1563,7 @@
       - "tests/test_issue_1254_turned_chamfers.py::test_same_first_leg_does_not_collapse_different_chamfer_forms"
     corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw.step"]
   status: ported
-  rust_test: tests/dims_edges.rs::grm03_states_three_chamfers_in_two_callouts
+  rust_test: dimensions::dims_edges::grm03_states_three_chamfers_in_two_callouts
   rust_note: "GRM-03's three turned chamfers are two callouts in the profile view covering all three measurements; chamfers sharing only their first leg are separate callouts (tests/dims_edges.rs::chamfers_are_called_out_c_or_leg_and_angle). A chamfer is turned only when quiddity's record says so (src/dims/edges.rs); the port has no declared builds, so draftwright's supplied-parallel-chamfer case is quiddity's record with turned false."
   port_note: "Keep: scenario GRM-03 -> two chamfer callouts covering three measurement IDs."
 
@@ -1582,7 +1582,7 @@
     corpus_parts: []
   status: translated
   rust_rule: "Authored omissions replan before projection, sections need their plan parent, named sheet scales are never relaxed and an exact iso scale is kept (tests/issue_drafting.rs::what_the_spec_asks_of_the_views_is_kept_or_reported, tests/iso_nts.rs)."
-  rust_test: "tests/issue_drafting.rs::what_the_spec_asks_of_the_views_is_kept_or_reported"
+  rust_test: "issue_drafting::what_the_spec_asks_of_the_views_is_kept_or_reported"
   rust_note: "Partial: authored omissions replan before projection, derived sections require their plan parent, and named sheet scales are never relaxed. Spec.iso_scale_factor now preserves an exact authored iso scale through fitting/recovery and captions every result off sheet scale (tests/iso_nts.rs). Detail-view generation is now ported (src/detail.rs); per-principal exact scales are absent from the Spec; view placement constraints are covered by placement_intent."
   port_note: "Keep: Spec view constraints -> Plan honours them or reports infeasibility; never silently relaxes."
 
@@ -1598,7 +1598,7 @@
       - "tests/test_issue_1260_view_constraints.py::test_source_location_reaches_an_infeasibility"
     corpus_parts: []
   status: ported
-  rust_test: "tests/issue_trust.rs::an_unknown_view_is_refused_with_the_views_there_are"
+  rust_test: "issue_trust::an_unknown_view_is_refused_with_the_views_there_are"
   rust_note: "Partly ported: plan refuses an unknown view, with the views there are. Not ported: edit accepts it (edit is given no analysis and does not check view names), so it is refused only when planned; there are no view pins, authored views mixed with automatic dimensions, or script source locations to report. Closed by the rules assessment of 2026-10-11: view pins are relative and a contradictory one is refused (tests/placement_intent.rs::placement_vocabulary_is_validated_without_page_coordinates); nothing further."
   port_note: "Translate: spec edit validation returns structured refusals; Sheet-verb ordering tests retire."
 
@@ -1614,7 +1614,7 @@
       - "tests/test_issue_1262_automatic_turned_views.py::test_grm03_callout_keeps_external_text_clearance_from_the_end_view"
     corpus_parts: ["grm03_thumbwheel_drive_screw_ap242_pmi.step"]
   status: ported
-  rust_test: "tests/views_layout_rules.rs::a_radial_flat_or_cross_slot_vetoes_turning_view_reduction; tests/sections.rs::a_turned_part_leaves_out_the_view_that_repeats_its_profile"
+  rust_test: "rendering::views_layout_rules::a_radial_flat_or_cross_slot_vetoes_turning_view_reduction; rendering::sections::a_turned_part_leaves_out_the_view_that_repeats_its_profile"
   rust_note: "The complete automatic build (escalated/recovered planning, used by every drawing API) vetoes a reduced candidate before composition if any wanted measurement the full set can carry has no carrier in the kept set, including radial flats, cross slots and fillets. PMI targets and a needed section also retain their carriers. The low-level single-pass estimate keeps its existing missing-view diagnostics; the complete build never accepts that loss. DimensionSpec view remains a preference; retaining a view is authored in views/name, preserving the existing dimension ownership contract. Omitted requirements are excluded. Plain turned parts still keep profile, end and iso, with an explicit scale too."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream views-and-layout"
 
@@ -1632,7 +1632,7 @@
       - "tests/test_issue_1276_turned_leader_targets.py::test_sheet_knurl_leader_lands_on_the_cylindrical_surface"
     corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw.step"]
   status: pending
-  rust_test: "tests/issue_drafting.rs::a_groove_callout_leads_to_its_floor"
+  rust_test: "issue_drafting::a_groove_callout_leads_to_its_floor"
   rust_note: "Partly ported for fillets and chamfers: on a part turned whole, a turned treatment's leader site is set at its radius off the turning axis, at its own axial station, so it lands on the profile in whichever profile view carries it (src/dims/edges.rs::site; src/dims/edges.rs::tests::a_turned_site_turns_onto_the_profile; tests/dims_edges.rs::turned_callouts_in_the_fallback_profile_end_on_the_profile). A groove's callout leads to its floor: sites at the floor radius off its own axis, at its own axial station, on both radial axes, so the tip lands on the floor in whichever profile view carries it (src/dims/grooves.rs; the rust_test checks every placed groove callout's tip on the projected floor, connector109's three grooves). draftwright's groove case is a per-feature note (POLISH GROOVE), which the port does not plan; the groove callout is the port's leader to a groove. Not ported: rotation about the feature's own shaft on a part with several or partial shafts (draftwright ranks external cylinder patches, _turned_profile_site), so there the physical site is kept; knurl notes are not planned."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream dimensioning-coverage"
 
@@ -1646,7 +1646,7 @@
       - "tests/test_issue_1281_turned_fillets.py::test_a_supplied_parallel_fillet_is_not_guessed_to_be_turned"
     corpus_parts: ["rounded-shaft.step"]
   status: ported
-  rust_test: tests/dims_edges.rs::a_turned_fillet_reads_in_the_profile_and_is_never_guessed_turned
+  rust_test: dimensions::dims_edges::a_turned_fillet_reads_in_the_profile_and_is_never_guessed_turned
   rust_note: "Turned fillets read in the shaft's profile, one n× R callout with every measurement; the same records with turned false read end-on, never guessed turned. The scenario is the port's turned fixture, not draftwright's rounded-shaft.step."
   port_note: "Keep."
 
@@ -1662,7 +1662,7 @@
       - "tests/test_issue_1296_cylindrical_diameter_pmi.py::test_exact_grm03_five_diameters_each_own_one_canonical_annotation"
     corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw_ap242_pmi.step", "ap242_single_cylinder_diameter.step"]
   status: ported
-  rust_test: "tests/pmi_dimensions.rs::an_external_diameter_annotates_the_turned_size_with_its_signs; tests/pmi_dimensions.rs::a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins; tests/pmi_dimensions.rs::every_dimension_is_drawn_or_reported_never_both"
+  rust_test: "dimensions::pmi_dimensions::an_external_diameter_annotates_the_turned_size_with_its_signs; dimensions::pmi_dimensions::a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins; dimensions::pmi_dimensions::every_dimension_is_drawn_or_reported_never_both"
   rust_note: "src/dims/pmi_dimensions.rs gives a PMI diameter to the hole callout / turned step / boss whose cylinder it names (axis line, diameter, extent), no standalone item: tests/pmi_dimensions.rs::an_external_diameter_annotates_the_turned_size_with_its_signs (nothing restates it), a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins (stated once), every_dimension_is_drawn_or_reported_never_both. GRM-03 AP242 five-diameter equal-nominal fixture not in Rust; could be added as a pin but the rule is met."
   port_note: "Keep: scenario GRM-03 AP242 -> five diameters, one plan dimension each, with PMI provenance."
 
@@ -1678,7 +1678,7 @@
       - "tests/test_issue_1296_cylindrical_diameter_pmi.py::test_nominal_lowering_reports_skips_ambiguity_merges_and_conflicts"
     corpus_parts: []
   status: ported
-  rust_test: "tests/pmi_dimensions.rs::pmi_dimensions_match_draftwright_or_are_known"
+  rust_test: "dimensions::pmi_dimensions::pmi_dimensions_match_draftwright_or_are_known"
   rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`); its geometric tolerances and datums are drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`), and its dimensions are lowered by `src/dims/pmi_dimensions.rs` (`tests/pmi_dimensions.rs`, `known_pmi_dimensions.json`). Partly: a standalone diameter is led to its one cylinder axis line where it is seen end-on; one naming several distinct axis lines is refused (`standalone diameter fallback references multiple distinct cylinder axis lines`), never drawn at a centroid; a non-principal cylinder is `pmi_dimensions_not_ported`. Closed by the rules assessment of 2026-10-11: nothing of it is left to port."
   port_note: "Keep."
 
@@ -1694,7 +1694,7 @@
       - "tests/test_issue_1298_manufacturing_requirements.py::test_exact_grm03_renders_complete_source_owned_manufacturing_drawing_once"
     corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw_ap242_pmi.step"]
   status: pending
-  rust_test: "tests/pmi_thread_knurl.rs::several_long_requirements_refer_to_the_manufacturing_requirements_table"
+  rust_test: "core::pmi_thread_knurl::several_long_requirements_refer_to_the_manufacturing_requirements_table"
   rust_note: "Partly: thread and knurl requirements are read with their structured fields and faces (`src/pmi.rs`) and given, as `lower_ap242_manufacturing_requirements` does, to the one hole or turned step their cylinder proves, words and structured fields reconciled and the text checked against the cylinder (`pmi_lowering::manufacturing`); the owner's callout prints the suffix (string_post_tapped: `⌀1.6 ↧ 4 M2 x 0.4-6H RH; 2.5 MIN FULL THREAD`), or `SEE MFG n` with the manufacturing requirements table when two or more are owned and one suffix exceeds 52 characters (thumbwheel_thread_knurl: `⌀1.6 ↧ 3.8 SEE MFG 1`, `ø6 SEE MFG 2`, `ø5 SEE MFG 3`), each owner on a callout of its own; no owner, several, or a text that disagrees with its cylinder is a `pmi_not_lowered` error with draftwright's reason (`tests/pmi_thread_knurl.rs`). Not ported: a requirement a boss owns is refused (the boss callout prints none yet), and a table with no place on the sheet is a `table_not_placed` error where draftwright falls back to the full suffixes. Rules-text blocker (2026-10-16): Boss-owned requirements are still refused and a full table has no complete-suffix fallback."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream holes-and-threads"
 
@@ -1710,7 +1710,7 @@
       - "tests/test_issue_1298_manufacturing_requirements.py::test_document_note_table_drop_is_a_source_complete_annotate_error"
     corpus_parts: ["GRM-03"]
   status: pending
-  rust_test: "tests/pmi_labels.rs::sheet_requirements_are_on_the_title_block_beside_it_and_in_the_notes"
+  rust_test: "rendering::pmi_labels::sheet_requirements_are_on_the_title_block_beside_it_and_in_the_notes"
   rust_note: "Partly: document-level requirements are lowered as draftwright lowers them (`pmi_lowering::sheet_requirements`, `plan_sheet`): the one general tolerance fills the title block's tolerance cell (a spec tolerance wins), the one `Ra <v> µm unless otherwise specified` surface texture is a surface texture symbol beside the title block, and each edge condition on no face is a general note (`pmi:<source>`, after the spec's notes), each recorded in the plan's `requirements` and searchable in the SVG and PDF (`tests/pmi_drawings.rs` agrees with draftwright's drawings). Datum scheme and model representation notes are not lowered (`pmi_not_lowered`, info), so no source datum note is omitted or restored."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream pmi"
 
@@ -1727,7 +1727,7 @@
       - "tests/test_issue_1298_manufacturing_requirements.py::test_known_unsupported_manufacturing_intent_is_explicit_without_error_lint"
     corpus_parts: []
   status: ported
-  rust_test: tests/pmi_labels.rs::two_defaults_of_one_kind_are_ambiguous_and_neither_is_drawn
+  rust_test: rendering::pmi_labels::two_defaults_of_one_kind_are_ambiguous_and_neither_is_drawn
   rust_note: "AP242 PMI is read and carried by the Analysis (`src/pmi.rs`, `tests/pmi.rs`), and its geometric tolerances and datums are lowered and drawn as feature control frames and datum feature symbols (`src/pmi_lowering.rs`, `src/dims/gdt.rs`, `tests/pmi_lowering.rs`). Manufacturing PMI (threads, knurls, general tolerances, surface texture and edge notes) is read into draftwright's records, a requirement in words on the faces of the part's callouts named like it and a thread or knurl paired with the structured statement on exactly those faces, as draftwright pairs them (`tests/pmi.rs::a_thread_pairs_with_the_structured_statement_on_its_callouts_faces`). Document defaults fail closed as draftwright's do: two general tolerances or two default surface textures are each `pmi_not_lowered` (ambiguous), as is a structured class that disagrees with its prose, an unsupported finish statement or a face-specific edge condition (`tests/pmi_labels.rs::two_defaults_of_one_kind_are_ambiguous_and_neither_is_drawn`). Threads and knurls are not drawn yet: each is a `pmi_not_lowered` plan problem (warning for a face's requirement); nothing is re-synthesised from it. Since then a thread prints its suffix on its hole's callout (tests/pmi_thread_knurl.rs::a_single_thread_prints_its_suffix_on_its_holes_callout) and a requirement no one feature owns is reported. Closed by the rules assessment of 2026-10-11."
   port_note: "Keep."
 
@@ -1745,7 +1745,7 @@
       - "tests/test_issue_1299_page_escalation.py::test_exact_grm03_recovers_all_axial_stations_on_a4_with_pmi_off"
     corpus_parts: ["grm03_thumbwheel_drive_screw_ap242_pmi.step"]
   status: ported
-  rust_test: "tests/page_escalation.rs::a_hard_failure_tries_a_scale_each_way_on_its_sheet_before_a_larger_sheet"
+  rust_test: "rendering::page_escalation::a_hard_failure_tries_a_scale_each_way_on_its_sheet_before_a_larger_sheet"
   rust_note: "Partial: draftwright's bounded, ordered recovery is ported as src/layout.rs::recover (a hard layout failure: the nearest smaller then larger standard scale on the sheet, then each larger sheet; else a required loss: the next two larger scales, then each larger sheet; else nothing, so a complete drawing never spends a larger sheet; a named sheet is never left) and src/model.rs::recover (hard = the plan's hard layout problems; loss = hole locations too close to read, layout::crowded_locations, draftwright's location_ref_dropped measure, which the port keeps and counts rather than drops; a try is taken only valid and complete; never re-plans a named scale; says what it did: layout_replanned, layout_recovery_exhausted), held by tests/page_escalation.rs (draftwright's six tests: the stand-in ones on layout::recover, GRM-03 and the pinning on corpus parts) and tests/issue_drafting.rs::a_sheet_the_spec_names_is_never_escalated. On cgb245 it rejects every try and keeps A2 1:2 as draftwright does (equivalent; since the layout keeps the isometric off the plan's bands its first plan has no label off the sheet, and the recovery starts from its two hole locations too close to read, a loss, so it tries A2 1:1 first where draftwright tries 1:5 first). Each try is planned afresh at its sheet and scale, where draftwright reuses the settled arrangement and principal views; draftwright's recovery-detail, requirement-regression and structural-replay gates have no input in the port. Applied to every plan the library gives (model::plan_recovered, called by every api entry point: command line, JSON-lines service, MCP; tests/page_escalation.rs::every_planning_entry_point_applies_the_recovery), under the maintainer's directive of 2026-10-09; model::plan stays one try. A port gate besides draftwright's: a try with more annotation_over_view / annotation_line_over_view than the first plan is not taken (ftc07 native held it, A1 1:1 lying one more item over a view than its A3 1:5 first plan, until the layout reserved the band right of the front and the plan for the front's lanes, stream d-quality-lanes; ftc07 now takes draftwright's A2 1:2 directly, tests/page_escalation.rs::ftc07_takes_draftwrights_first_choice, and no corpus case meets the gate). On tools/quality_parts.txt (native, after drawing quality 3) it moves no part: ctc01 keeps A3 1:5, draftwright's choice (its label off the sheet is gone since the layout keeps the isometric off the plan's bands); ftc07 now takes A2 1:2, draftwright's first choice (since stream d-quality-lanes); the others' tries are never clean, as draftwright's are not (ctc02, ctc03, ctc04, ctc05, ftc08, ftc09, ftc10, cgb245 keep their first plans with layout_recovery_exhausted, their hole locations past bands that are draftwright's estimates: the hole-table case). Not done: escalation cannot clear those, as each larger sheet is filled to draftwright's band estimates again. GRM-03 (Python quiddity's recognition) stays A4 2:1 (draftwright 5:1 through its recovery detail, which the port does not plan: not-applicable); m10127 stays A4 1:1 (draftwright A3 2:1 on its own ink overlap: undetermined). Closed by the rules assessment of 2026-10-11: the parts still exhausted are the hole-table case (ARCH0009-2, ISSUE-1144-b)."
   port_note: "Keep: page/scale default with basis; scenario GRM-03."
 
@@ -1761,7 +1761,7 @@
       - "tests/test_issue_1308_machined_leader_analytics.py::test_shared_machined_adapter_fails_closed_with_provenance"
     corpus_parts: ["grm03_thumbwheel_drive_screw.step", "issue_1058_wheel_rh.step", "nist_ctc_01_asme1_ap242"]
   status: ported
-  rust_test: tests/placement_intent.rs::placement_vocabulary_is_validated_without_page_coordinates
+  rust_test: rendering::placement_intent::placement_vocabulary_is_validated_without_page_coordinates
   rust_note: "Ported: a requested side, lane or along out of range is refused with the valid choices. Placement drops nothing, so there is no drop severity to tie to PMI. Closed by the rules assessment of 2026-10-11."
   port_note: "Keep."
 
@@ -1806,7 +1806,7 @@
     corpus_parts: []
   status: translated
   rust_rule: "src/pmi_lowering.rs records a span/diameter vs nominal disagreement as a reason (\"differs from nominal\"), and such a record is never drawn, only reported pmi_not_lowered: tests/pmi_dimensions.rs::every_dimension_is_drawn_or_reported_never_both."
-  rust_test: "tests/pmi_dimensions.rs::every_dimension_is_drawn_or_reported_never_both"
+  rust_test: "dimensions::pmi_dimensions::every_dimension_is_drawn_or_reported_never_both"
   rust_note: "src/pmi_lowering.rs records a span/diameter vs nominal disagreement as a reason (\"differs from nominal\"), and such a record is never drawn, only reported pmi_not_lowered: tests/pmi_dimensions.rs::every_dimension_is_drawn_or_reported_never_both. Planner never sees the conflict, so no crash path."
   port_note: "Keep: PMI-vs-geometry nominal disagreement is a problem, not a planner crash."
 
@@ -1821,7 +1821,7 @@
       - "tests/test_issue_1332_overlap_remedy.py::test_the_suggestion_never_contradicts_the_message"
     corpus_parts: []
   status: ported
-  rust_test: "src/dims/placement.rs::tests::an_overlapping_pair_has_one_diagnostic_with_a_consistent_remedy; tests/lint_structural.rs::overlapping_labels_name_the_line_work_that_also_crosses"
+  rust_test: "src/dims/placement.rs::tests::an_overlapping_pair_has_one_diagnostic_with_a_consistent_remedy; audits::lint_structural::overlapping_labels_name_the_line_work_that_also_crosses"
   rust_note: "Rules-text batch, 2026-10-16: planner collisions now report one annotation_overlap for an overlapping pair, including a move-what-is-drawn remedy when its line-work or callout arrowhead crosses either label. The duplicate annotation_ink_overlap is suppressed for that pair only; crossings between disjoint labels retain their diagnostic. Both inventory orders and the ordinary-overlap control are tested. The sheet lint already supplies consistent advice; planner problems offer no unsupported typed repair. The new test failed on the original code (two overlap codes for one pair) and passes with this change. No annotation ink or placement algorithm is changed."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream lint-and-reporting"
 
@@ -1854,7 +1854,7 @@
       - "tests/test_issue_1334_prevent_ink.py::test_infeasible_along_line_shift_promotes_one_rung_to_the_existing_far_tier"
     corpus_parts: []
   status: ported
-  rust_test: tests/label_lanes.rs::a_moved_label_keeps_clear_of_strokes_it_never_touched
+  rust_test: rendering::label_lanes::a_moved_label_keeps_clear_of_strokes_it_never_touched
   rust_note: "GD&T placement also counts dimension/extension/leader crossings using leaders::lines_meet, tries compact datum tiers and valid alternate attachments, and rejects a complete replacement if it introduces a new annotation contact (tests/datum_placement.rs). Partial: src/dims/placement.rs::settle moves a label off other items' lines and labels (a linear label along its line, a callout's leader turned) only to a place clear of every other item's ink, by the same segment-through-box and box-overlap tests collisions reports with; on every part any line through another label is an annotation_ink_overlap and any label overlap an annotation_overlap, and the settled places repeat plan after plan. Not ported: promoting a label to a farther lane when no shift along its line clears it (it stays and the collision is reported); lint does not check ink overlap on the drawing (placement's problems do). Stage H3 label settlement: a moved label never gains a contact and keeps 1 paper mm from strokes it did not already touch; GD&T leaders are fixed obstacles."
   port_note: "Keep: one collision predicate shared by placement and checking."
 
@@ -1869,7 +1869,7 @@
       - "tests/test_issue_1336_grm03_ap242_pmi_fixture.py::test_pmi_fixture_is_a_different_solid_from_the_plain_grm03_fixture"
     corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw.step", "grm03_thumbwheel_drive_screw_ap242_pmi.step"]
   status: ported
-  rust_test: "tests/issue_trust.rs::corpus_fixtures_are_bound_to_their_files"
+  rust_test: "issue_trust::corpus_fixtures_are_bound_to_their_files"
   rust_note: "Every sampled corpus part is checked against its captured sheet's sha256 before use (also in tests/views.rs, tests/lint.rs and tests/dimensions.rs), and the bridge refuses recognition made for another file. No PMI fixture is read."
   port_note: "Keep: corpus fixture hash + precondition tests in the Rust test corpus."
 
@@ -1886,7 +1886,7 @@
       - "tests/test_issue_1338_scale_before_page_escalation.py::test_side_hole_label_clears_neighbour_view_text_issue_2177"
     corpus_parts: ["GRM-03", "grm03_thumbwheel_drive_screw_ap242_pmi.step"]
   status: ported
-  rust_test: tests/issue_drafting.rs::sheet_selection_is_bounded_and_keeps_every_outcome
+  rust_test: issue_drafting::sheet_selection_is_bounded_and_keeps_every_outcome
   rust_note: "Partial: draftwright's recovery is ported as model::recover (ISSUE-1299-a), applied to every plan the library gives (model::plan_recovered; model::plan is one try). Applied to every part's default plan (5 fixtures, 13 sampled corpus parts), the first thing it tries is always another scale on the same sheet, and a re-planned sheet keeps every hole and turned-shoulder outcome the first plan placed: ctc01 is kept on A3 1:5 with nothing tried, as in draftwright (it moved to A3 1:10 for a label off the sheet until the layout kept the isometric off the plan's bands); cgb245 (A2 1:1 tried first) and ctc04 (A1 tried first) are kept with layout_recovery_exhausted, as draftwright keeps both. GRM-03, the reported part, stays A4 at 2:1 with nothing tried and its four shoulders located; draftwright reaches 5:1 on A4 by measuring larger scales against the recovery detail its estimate reserved, which the port does not plan (not-applicable). The PMI-mode clause is not-applicable: no PMI is lowered into the plan. Stage H6: paper grows at most one size and only with enlargement; every hole and shoulder outcome of the first plan survives the choice."
   port_note: "Keep: scenario GRM-03 -> A4 at upscaled ratio, complete."
 
@@ -1905,7 +1905,7 @@
   status: ported
   rust_note: "Spec.precision is a map from semantic measurement IDs to decimal places. It formats each nominal from its original numeric value before placement, including compound callout roles, chains, ladders and locations; the same terms are measured and drawn, preserving tolerance digits, symbolic thread/reference text and numeric provenance. Compound terms, reservations, close diameters, zero-place lint, and hole-schedule cells and their rendered ink are additionally pinned in tests/precision.rs (requested_precision_survives_hole_schedule_cells_and_their_ink covers native coordinates and counterbore depths). Existing shared dimension owners are retained: conflicting text policies on a shared term or coincident span are refused as Python's shared_location_text does, without changing ownership."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream spec-tolerance-precision"
-  rust_test: "tests/precision.rs::requested_precision_reaches_extents_chains_ladders_and_locations"
+  rust_test: "dimensions::precision::requested_precision_reaches_extents_chains_ladders_and_locations"
 
 - id: ISSUE-1349-b
   statement: "Conflicting precision for one semantic dimension, or an invalid precision, is refused; precision boundaries and negative zero format stably."
@@ -1918,7 +1918,7 @@
       - "tests/test_issue_1349_precision_display.py::test_precision_boundaries_and_negative_zero_are_stable"
     corpus_parts: []
   status: ported
-  rust_test: "tests/precision.rs::invalid_and_conflicting_precision_fail_closed_at_both_inputs"
+  rust_test: "dimensions::precision::invalid_and_conflicting_precision_fail_closed_at_both_inputs"
   rust_note: "Precision is an integer from 0 to 15, checked by Spec deserialization and model::edit, also checked for programmatically constructed Specs at planning. Conflicting repeated JSON keys and coincident measurement policies fail closed. tests/precision.rs::coincident_measurements_require_matching_explicit_precision and dims::precision::tests::precision_boundaries_and_negative_zero_are_stable pin conflicts, boundaries, retained zeroes and negative zero."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream spec-tolerance-precision"
   owner: draftwright
@@ -1935,7 +1935,7 @@
       - "tests/test_issue_1350_detected_takeover.py::test_emitter_fails_closed_when_a_view_constraint_has_no_public_script_form"
     corpus_parts: []
   status: translated
-  rust_test: tests/identity.rs::every_surviving_item_keeps_its_id_across_a_moved_dimension_an_omitted_view_and_the_sheet_and_scale
+  rust_test: core::identity::every_surviving_item_keeps_its_id_across_a_moved_dimension_an_omitted_view_and_the_sheet_and_scale
   rust_rule: "There is no takeover: plan defaults are edited by stable ID in the Spec, an item keeps its ID whatever else is edited, and a batch of edits is applied whole or refused."
   port_note: "Translate: Plan defaults are editable by stable ID in Spec; edits are atomic and order-independent. Emitter round-trip retires."
 
@@ -1952,7 +1952,7 @@
       - "tests/test_issue_1351_structured_note_coverage.py::test_duplicate_notes_do_not_multiply_one_requirement_identity_into_physical_count"
     corpus_parts: []
   status: ported
-  rust_test: "tests/spec_notes.rs::structured_feature_notes_cover_only_explicit_roles_of_their_placed_owner"
+  rust_test: "rendering::spec_notes::structured_feature_notes_cover_only_explicit_roles_of_their_placed_owner"
   rust_note: "FeatureSpec.note_satisfies names explicit measurement roles of its note's owner. Unknown roles are refused. The rendered annotation carries satisfaction claims separately from measurements; lint accepts them only for a source-resolved, placed leadered feature note with surviving text in its view. Coverage removes only the exact satisfied identities: prose, an unplaced/removed note, a sibling and implicit THRU/count gain nothing. Set membership prevents duplicate authority multiplying physical counts. Existing notes and datum/GD&T placement are unchanged."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream spec-tolerance-precision"
   owner: draftwright
@@ -1970,7 +1970,7 @@
       - "tests/test_issue_1352_searchable_pdf_text.py::test_committed_dimension_pdf_uses_registry_spec_issue_1931"
     corpus_parts: []
   status: ported
-  rust_test: tests/output.rs::callout_symbols_are_searchable_in_the_pdf_and_the_svg
+  rust_test: rendering::output::callout_symbols_are_searchable_in_the_pdf_and_the_svg
   rust_note: "Ported in part: every label the port draws (dimensions, hole callouts, section captions and title-block values) is one invisible text run of the plan's own string, in the PDF (render mode invisible, so the ink is unchanged) and in the SVG (a fill-opacity 0 group after the layers); read back through the fonts' ToUnicode maps it is the string drawn, callout symbols included (`4× ⌀6 THRU ⌴ ⌀11 ↧ 6.4 (2×2)`), where draftwright's text has `ø` and spaces for the path-only symbols (rust-correct: the copied text states what is drawn). A run is centred on its label's ink, so a callout's selection box approximates its ink, as draftwright's does. General notes (src/notes.rs) are searchable too: each row of the GENERAL NOTES block is one run, the heading and continuation rows included (tests/output.rs::general_notes_reach_the_pdf_text_layer). Not ported: per-feature notes, GD&T and datums (not drawn yet), multiline line pitch (a note's rows are separate runs, as draftwright's table rows are), and a reading-order check; the unchanged-pixels check is by construction, not a test. Since then GD&T frames and datum symbols are searchable too (tests/pmi_lowering.rs::frames_and_symbols_are_searchable_and_drawn_from_the_font). Closed by the rules assessment of 2026-10-11."
   port_note: "Keep: PDF renderer emits invisible text from plan strings; font/glyph-recovery tests for raw helpers retire."
 
@@ -1986,7 +1986,7 @@
       - "tests/test_issue_1353_cnc_authoritative_workflow.py::test_turned_canary_prints_precision_nominals_and_round_trips_cleanly"
     corpus_parts: ["GRM-01", "GRM-03"]
   status: translated
-  rust_test: "tests/issue_trust.rs::the_spec_read_back_from_a_drawing_gives_the_same_drawing"
+  rust_test: "issue_trust::the_spec_read_back_from_a_drawing_gives_the_same_drawing"
   rust_rule: "Taking a drawing over is reading its spec back: every output (SVG, DXF, PDF, PNG) carries the whole spec, and the plan is a function of the analysis and the spec alone, so planning from the spec read back gives the same plan, the same drawing and the same lint findings. There is no script to take over or stage."
   rust_note: "The staged manufacturing package (tolerances, fits, precision) is not ported; when it is, it travels in the spec and the same test covers it."
   port_note: "Translate: Spec serialise/deserialise round-trip yields identical Plan; script round-trip retires."
@@ -2000,7 +2000,7 @@
       - "tests/test_issue_1353_cnc_authoritative_workflow.py::test_opposed_coaxial_taps_keep_solver_participation_on_authored_opposite_sides"
     corpus_parts: ["GRM-01"]
   status: ported
-  rust_test: "tests/rule_pins.rs::opposed_coaxial_taps_keep_authored_left_and_right_callouts"
+  rust_test: "audits::rule_pins::opposed_coaxial_taps_keep_authored_left_and_right_callouts"
   rust_note: "Implemented after the scenario disproved the regression-only triage: an unpinned side-only callout formerly became a fixed station and could run off-sheet or along cutting-plane/centre ink. Side-only requests now constrain the shared solver's inventory before pruning, with printed-label bands reserved before view packing. Explicit lane/along/pinned stations retain their semantics. Python's exact Box/cylinder fixture, including its enclosed cavity, uses captured Python recognition and Spec M2x0.4/M4x0.7; elbows stay outside the authored opposite edges, all rendered lint is informational or clear, and no non-info plan problem remains. No measurement ownership, detail or datum/GD&T placement logic changed."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream regression-pins"
 
@@ -2033,7 +2033,7 @@
       - "tests/test_issue_1357_framed_boundary.py::test_every_typed_frame_refusal_propagates_without_a_raw_fallback"
     corpus_parts: []
   status: ported
-  rust_test: "tests/completeness_rules.rs::each_turned_body_has_its_own_chain_on_its_own_silhouette"
+  rust_test: "audits::completeness_rules::each_turned_body_has_its_own_chain_on_its_own_silhouette"
   rust_note: "Eccentric cylinders are not one turned profile (tests/issue_drafting.rs::eccentric_cylinders_are_not_one_turned_profile). Stream K5: on draftwright's turned-step-compound.step (two shafts, Rust quiddity's recognition) every band of both profiles is planned and drawn, its length and diameter claimed by its own band, none merged or chosen."
   port_note: "Keep: Analysis exposes a list of turned profiles."
 
@@ -2050,7 +2050,7 @@
       - "tests/test_issue_1357_plural_turned_profiles.py::test_mixed_axis_profiles_remain_local_instead_of_inventing_one_orientation"
     corpus_parts: []
   status: ported
-  rust_test: "tests/coverage_holes.rs::an_omitted_separating_view_reports_superimposed_profiles_with_a_restoring_fix; tests/completeness_rules.rs::a_bodys_chain_goes_in_the_view_that_separates_it"
+  rust_test: "dimensions::coverage_holes::an_omitted_separating_view_reports_superimposed_profiles_with_a_restoring_fix; audits::completeness_rules::a_bodys_chain_goes_in_the_view_that_separates_it"
   rust_note: "Each turned body retains its own measurement claims and chain in a separating view. When authored views leave profiles superimposed, Policy B keeps their chains and reports turned_profile_superimposed on their IDs, naming the axis line and giving an executable fix restoring the separating view (views/<view>/omit=false)."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream dimensioning-coverage"
 
@@ -2065,7 +2065,7 @@
       - "tests/test_issue_1357_pmi_frame.py::test_default_public_api_remains_caller_space_compatible"
     corpus_parts: ["nist_ctc_01_asme1_ap242", "nist_ctc_03_asme1_ap242", "grm03_thumbwheel_drive_screw_ap242_pmi.step"]
   status: translated
-  rust_test: tests/pmi_lowering.rs::pmi_lowering_matches_draftwright_or_is_known
+  rust_test: core::pmi_lowering::pmi_lowering_matches_draftwright_or_is_known
   rust_rule: "PMI geometry and the Analysis's features share the file's frame by construction; there is no requested frame to express either in."
   rust_note: "Partly: the PMI geometry (records' boxes, datum sites, outward normals, cylinder axes) is in the file's frame, the frame the drawing and the Analysis's features are drawn in, and lowering's sites agree with draftwright's frame-less extraction (`tests/pmi_lowering.rs`); the port has no requested frame to express it in."
   port_note: "Keep: PMI and Analysis share one coordinate frame."
@@ -2083,7 +2083,7 @@
       - "tests/test_issue_1360_thread_depth.py::test_thread_depth_width_estimation_and_rendering_share_one_suffix"
     corpus_parts: []
   status: pending
-  rust_test: tests/spec_notes.rs::m10_and_a_knurl_on_the_spindle_print_after_their_diameters
+  rust_test: rendering::spec_notes::m10_and_a_knurl_on_the_spindle_print_after_their_diameters
   rust_note: "Partly ported (stream K1b, src/spec_notes.rs): a Spec-authored thread's length (features/<id>/thread/length) prints in its callout as the minimum full thread (⌀4.2 ↧ 9.2 M5x0.8-6H; 8 MIN FULL THREAD), and one deeper than its blind hole is reported, not drawn (pmi_not_lowered). Not ported: the tap depth as an addressable dimension ID of its own, and the refusal of a thread depth whose callout head is omitted (an omitted callout leaves the thread undrawn; no test checks what is reported then). A bore fit never leaks onto the counterbore: fits are keyed to the bore diameter's dimension (src/dims/tolerance.rs). Rules-text blocker (2026-10-16): Tap depth is still a manufacturing aspect rather than an independently addressable dimension, with no complete callout-head/dependent validation and coverage contract."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream holes-and-threads"
 
@@ -2100,7 +2100,7 @@
     corpus_parts: []
   status: translated
   rust_rule: "Python seams (IR, declaration, generated code) do not exist; Rust boundary is Analysis to rendered marks: src/lint/holes.rs reads the Analysis and the drawn ink only; tests/issue_trust.rs::the_part_owns_the_hole_requirements_and_only_the_drawn_ink_earns_them."
-  rust_test: "tests/issue_trust.rs::the_part_owns_the_hole_requirements_and_only_the_drawn_ink_earns_them"
+  rust_test: "issue_trust::the_part_owns_the_hole_requirements_and_only_the_drawn_ink_earns_them"
   rust_note: "Python seams (IR, declaration, generated code) do not exist; Rust boundary is Analysis to rendered marks: src/lint/holes.rs reads the Analysis and the drawn ink only; tests/issue_trust.rs::the_part_owns_the_hole_requirements_and_only_the_drawn_ink_earns_them. Hand-authored corpus denominator is replaced by facts fixtures from draftwright sheets (tests/fixtures/known_completeness.json)."
   port_note: "Keep the evaluation principle (independent corpus denominator, mutation tests); boundaries become Analysis/Spec/Plan/render."
 
@@ -2119,7 +2119,7 @@
   status: ported
   rust_note: "Committed independent Python countersink fixtures cover single/mixed seats, topology order, deburrs and an external-cone negative. Standalone seats are consumed only once by complete attached records; an unattributed second seat keeps both unverifiable requirements and no extra bore. Role-swapped sizes and missing/corrupt degree units lose ink credit. Analysis is the immutable recognition boundary; no provider-to-IR conversion can shrink its ledger."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream holes-and-threads"
-  rust_test: "tests/coverage_holes.rs::independent_countersink_fixtures_keep_each_seat_and_reject_misleading_ink; tests/coverage_holes.rs::a_real_two_face_bore_reports_only_its_unattributed_seat"
+  rust_test: "dimensions::coverage_holes::independent_countersink_fixtures_keep_each_seat_and_reject_misleading_ink; dimensions::coverage_holes::a_real_two_face_bore_reports_only_its_unattributed_seat"
 
 - id: ISSUE-1370-b
   statement: "Double-D completeness crosses declaration and drawing seams: a double-D is owned once and never recounted as a round hole, its flat direction is an unoriented line, and removed, role-swapped or unit-less across-flats ink loses credit."
@@ -2134,7 +2134,7 @@
       - "tests/test_issue_1370_double_d_completeness_evidence.py::test_deleting_provider_records_cannot_shrink_the_independent_denominator"
     corpus_parts: ["double-d-single-z.step", "double-d-blind.step", "double-d-opposed-blind.step", "double-d-round-bore.step", "double-d-coaxial-compound.step"]
   status: ported
-  rust_test: "tests/coverage_holes.rs::double_d_ink_requires_one_live_callout_with_truthful_roles_and_units; tests/coverage_holes.rs::independent_double_d_fixtures_are_owned_once_and_blind_profiles_stay_blind"
+  rust_test: "dimensions::coverage_holes::double_d_ink_requires_one_live_callout_with_truthful_roles_and_units; dimensions::coverage_holes::independent_double_d_fixtures_are_owned_once_and_blind_profiles_stay_blind"
   rust_note: "The compound planner supplies both double-D requirements once. Independent single/rolled/Y-axis fixtures establish that native recognition does not recount a profiled bore as a round hole; blind and round-bore negatives remain distinct. Flat directions and their negatives dimension identically. Removing the live callout, swapping diameter/A-F roles, omitting DOUBLE-D or THRU, or corrupting the A/F unit loses credit; numbers in unrelated roles cannot certify a profile."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream holes-and-threads"
 
@@ -2150,7 +2150,7 @@
       - "tests/test_issue_1370_hole_pattern_completeness_evidence.py::test_deleting_provider_patterns_cannot_shrink_the_independent_denominator"
     corpus_parts: ["pattern-topology-a.step"]
   status: ported
-  rust_test: "tests/completeness.rs::hole_pattern_interval_and_group_counts_must_match_physical_members; tests/completeness.rs::hole_pattern_pitch_needs_truthful_printed_evidence"
+  rust_test: "audits::completeness::hole_pattern_interval_and_group_counts_must_match_physical_members; audits::completeness::hole_pattern_pitch_needs_truthful_printed_evidence"
   rust_note: "Pitch coverage checks the printed repetition against the number of physical member intervals along each lattice axis, including the member-anchor alternative. A bare pitch states exactly one interval. Hole coverage already checks group quantity against all claimed physical members without recounting pattern members; the new mutation test pins both group and interval counts independently of printed provenance."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream holes-and-threads"
 
@@ -2167,7 +2167,7 @@
     corpus_parts: ["flat-coaxial.step", "flat-double-d.step", "flat-topology-a.step"]
   status: translated
   rust_rule: "src/dims/flats.rs and src/lint/flats.rs: tests/dims_grooves_flats.rs::equal_flats_on_other_stock_are_counted_and_a_double_d_is_one, src/lint/flats.rs tests (misprinted value unverifiable)."
-  rust_test: "tests/dims_grooves_flats.rs::equal_flats_on_other_stock_are_counted_and_a_double_d_is_one"
+  rust_test: "dimensions::dims_grooves_flats::equal_flats_on_other_stock_are_counted_and_a_double_d_is_one"
   rust_note: "src/dims/flats.rs and src/lint/flats.rs: tests/dims_grooves_flats.rs::equal_flats_on_other_stock_are_counted_and_a_double_d_is_one, src/lint/flats.rs tests (misprinted value unverifiable). Credit needs a claim on the mark, so severed provenance earns nothing; denominator comes from the Analysis."
   port_note: "Keep."
 
@@ -2217,7 +2217,7 @@
       - "tests/test_issue_1374_chamfer_completeness_evidence.py::test_wrong_chamfer_view_loses_drawing_credit"
     corpus_parts: ["chamfer-compound.step", "chamfer-overlap.step", "chamfer-turned.step"]
   status: pending
-  rust_test: tests/dims_edges.rs::chamfers_are_called_out_c_or_leg_and_angle
+  rust_test: dimensions::dims_edges::chamfers_are_called_out_c_or_leg_and_angle
   rust_note: "Ported in the plan: each chamfer is one requirement, equal chamfers (legs and angle) share one counted callout that keeps every member's chamfer.length measurement. Not ported: drawing credit lost by a leader moved off the bevel or into the wrong view (lint judges claims, not leader tips)."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream leaders-and-tips"
 
@@ -2233,7 +2233,7 @@
       - "tests/test_issue_1374_fillet_completeness_evidence.py::test_weakening_provider_fillet_radius_reduces_fidelity"
     corpus_parts: ["fillet-overlap.step", "fillet-repeated.step"]
   status: pending
-  rust_test: tests/dims_edges.rs::equal_fillets_share_one_counted_callout
+  rust_test: dimensions::dims_edges::equal_fillets_share_one_counted_callout
   rust_note: "Ported in the plan: each fillet is one requirement, equal fillets share one n× R callout that keeps every member's fillet.radius measurement. Not ported: drawing credit lost by a leader moved off the round or profile (lint judges claims, not leader tips)."
   port_note: "triage 2026-10-16: PORT, value medium, size S, stream leaders-and-tips"
 
@@ -2250,7 +2250,7 @@
       - "tests/test_issue_1374_turned_step_completeness_evidence.py::test_global_od_cannot_multiply_across_disjoint_coaxial_profiles"
     corpus_parts: ["turned-step-axis-x.step", "turned-step-axis-z.step", "turned-step-compound.step", "turned-step-repeated-lengths.step", "turned-step-through-bore.step", "turned-step-translated-blind-bore.step", "groove-lone-y.step"]
   status: ported
-  rust_test: "tests/completeness_rules.rs::a_grouped_length_states_exactly_its_adjoining_members"
+  rust_test: "audits::completeness_rules::a_grouped_length_states_exactly_its_adjoining_members"
   rust_note: "Two requirements per band, none for a groove's band, and the overall diameter claiming the band it is: tests/issue_drafting.rs::each_turned_band_carries_its_diameter_and_length. Stream K5: lint's turned-step ledger credits a grouped length (a mark claiming several bands' step.length) only when its label is exactly the count of the bands it claims and one length, and its bands lie on one profile's axis line with no other band of theirs between them (src/lint/turned.rs::grouped): on draftwright's turned-step-repeated-lengths.step, 3× 10 places all three, 2× 10 and 3× 999 NOTE 10 none (unverifiable), and 2× 10 on the outer two neither (the middle missing), as Python's tests require."
   port_note: "Keep: scenario tests per corpus part."
 
@@ -2281,7 +2281,7 @@
       - "tests/test_issue_1378_diameter_leader_targets.py::test_split_declared_holes_cannot_claim_the_other_members_rim"
     corpus_parts: []
   status: ported
-  rust_test: "tests/leader_rules.rs::a_diameter_tip_touches_the_rim_of_the_hole_it_names"
+  rust_test: "rendering::leader_rules::a_diameter_tip_touches_the_rim_of_the_hole_it_names"
   rust_note: "Stream K4: lint (src/lint/leaders.rs, diameter_leader_target_mismatch, warning) checks each drawn hole callout's tip against the boundary circles of the holes it claims (bore rim at the opening and far end, counterbore/spotface and countersink rims), as projected by its view's recorded transform; a double-D bore's boundary is its trimmed profile, flats included. A tip in blank material or on another hole's rim is reported; a callout naming another member may tip it. The planner meets the rule: tests/issue_drafting.rs::a_hole_callouts_tip_is_on_the_rim_of_a_hole_it_names (the plan) and tests/leader_rules.rs::the_ports_own_callouts_touch_their_targets (lint on the drawn fixtures), and no quality part has a finding. The port has no fidelity score: the warning is the lowered fidelity. The planner draws no double-D diameter callout of its own."
   port_note: "Keep: leader target = projected hole boundary; post-render check verifies."
 
@@ -2297,7 +2297,7 @@
     corpus_parts: []
   status: translated
   rust_rule: "tests/issue_trust.rs::every_recognised_feature_is_dimensioned_or_reported (every Analysis feature is planned or a problem's subject), and tests/completeness.rs::wholly_omitted_supported_feature_needs_attention."
-  rust_test: "tests/issue_trust.rs::every_recognised_feature_is_dimensioned_or_reported; tests/completeness.rs::wholly_omitted_supported_feature_needs_attention"
+  rust_test: "issue_trust::every_recognised_feature_is_dimensioned_or_reported; audits::completeness::wholly_omitted_supported_feature_needs_attention"
   rust_note: "tests/issue_trust.rs::every_recognised_feature_is_dimensioned_or_reported (every Analysis feature is planned or a problem's subject), and tests/completeness.rs::wholly_omitted_supported_feature_needs_attention. Framed recognition is quiddity's. An unplanned recognised kind gets dimensions_not_ported; src/completeness.rs sets its final severity to warning for a single part or info for multiple solids."
   port_note: "Keep: every Analysis feature appears in Plan or in problems."
 
@@ -2331,7 +2331,7 @@
     corpus_parts: []
   status: translated
   rust_rule: "Layout degradations are plan problems: scale_fallback_applied, views_do_not_fit, page_fit_uncertain, layout_recovery_exhausted (tests/sheet_fill.rs::unavailable_legible_scale_is_a_warning), and the sheet basis names the fallback taken."
-  rust_test: "tests/sheet_fill.rs::unavailable_legible_scale_is_a_warning"
+  rust_test: "rendering::sheet_fill::unavailable_legible_scale_is_a_warning"
   rust_note: "Layout degradations are plan problems: scale_fallback_applied, views_do_not_fit, page_fit_uncertain, layout_recovery_exhausted (tests/sheet_fill.rs::unavailable_legible_scale_is_a_warning), and the sheet basis names the fallback taken. The legibility-at-pinned-scale gap is ARCH0004-3. Problem codes come from code, not from logs, so no registry of unknown kinds is needed."
   port_note: "Keep: plan problems/advisories; no log scraping."
 
@@ -2346,7 +2346,7 @@
       - "tests/test_issue_1397_unverifiable_requirement_message.py::test_the_groove_corrupt_inventory_path_does_not_invent_a_count"
     corpus_parts: []
   status: ported
-  rust_test: "tests/issue_trust.rs::an_unverifiable_finding_names_its_requirement_or_says_it_cannot"
+  rust_test: "issue_trust::an_unverifiable_finding_names_its_requirement_or_says_it_cannot"
   rust_note: "No lint message prints a placeholder: a finding names its requirement, and a hole whose record cannot be read is named by its ID with the reason and no count. Its requirement list keeps '?' as the parameter, as draftwright's ledger keeps UNJOINED_PARAMETER_ID (equivalent); a slot pattern, not checked yet, is reported the same way."
   port_note: "Keep: problem payloads are structured (count / ids), messages derived."
 
@@ -2363,7 +2363,7 @@
       - "tests/test_issue_1432_adoption.py::test_arbitrary_three_axis_motion_preserves_physical_requirements"
     corpus_parts: []
   status: pending
-  rust_test: "tests/completeness_rules.rs::an_oriented_slot_is_called_out_once_with_both_requirements_on_its_rim"
+  rust_test: "audits::completeness_rules::an_oriented_slot_is_called_out_once_with_both_requirements_on_its_rim"
   rust_note: "Stream K5: a free-direction slot is dimensioned by one callout carrying both requirements, its arrow on the physical rotated rim (the record's section boundary projected into the view along its run; checked within 0.001 mm on mfcadpp_holdout/467, whose section is turned about 27°). Not ported: a rigid-motion test (no rotated copy of a fixture), and pattern members are counted into one callout rather than left to a pattern (the Analysis records no oriented slot pattern membership; #1430). Rules-text blocker (2026-10-16): Native check_oriented_slot_patterns validates members but discards the pattern record, so the planner groups equal slots rather than deferring pattern members as Python does (#1430)."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream regression-pins"
 
@@ -2382,7 +2382,7 @@
     corpus_parts: []
   status: translated
   rust_rule: "Oriented slots are dimensioned by src/dims/oriented_slots.rs (tests/completeness_rules.rs::an_oriented_slot_is_called_out_once_with_both_requirements_on_its_rim). src/lint/oriented_slots.rs::tests::an_oriented_slot_states_its_width_and_length checks that removal exposes missing requirements and malformed or duplicate records fail closed as unverifiable."
-  rust_test: "tests/completeness_rules.rs::an_oriented_slot_is_called_out_once_with_both_requirements_on_its_rim; src/lint/oriented_slots.rs::tests::an_oriented_slot_states_its_width_and_length; tests/bridge.rs::a_slot_pattern_that_does_not_resolve_to_its_slots_is_refused"
+  rust_test: "audits::completeness_rules::an_oriented_slot_is_called_out_once_with_both_requirements_on_its_rim; src/lint/oriented_slots.rs::tests::an_oriented_slot_states_its_width_and_length; core::bridge::a_slot_pattern_that_does_not_resolve_to_its_slots_is_refused"
   rust_note: "Oriented slots are dimensioned by src/dims/oriented_slots.rs (tests/completeness_rules.rs::an_oriented_slot_is_called_out_once_with_both_requirements_on_its_rim). src/lint/oriented_slots.rs::tests::an_oriented_slot_states_its_width_and_length checks that removal exposes missing requirements and malformed or duplicate records fail closed as unverifiable. The bridge refuses inconsistent slot-pattern membership (tests/bridge.rs::a_slot_pattern_that_does_not_resolve_to_its_slots_is_refused); Python subclass spoofing has no typed Rust counterpart."
   port_note: "Keep the coverage rules; Python duck-typing/subclass-spoofing tests retire under Rust types."
 
@@ -2396,7 +2396,7 @@
       - "tests/test_issue_1432_oriented_slot_semantics.py::test_sheet_word_and_generated_line_replay_the_exact_feature"
     corpus_parts: []
   status: translated
-  rust_test: tests/model.rs::the_embedded_spec_reads_back_exactly_or_is_refused
+  rust_test: core::model::the_embedded_spec_reads_back_exactly_or_is_refused
   rust_rule: "No script is generated: the Spec travels in every output and reads back exactly, so authored values replay at full precision."
   port_note: "Translate: Spec serialisation round-trips f64 exactly; script emitter retires."
 
@@ -2412,7 +2412,7 @@
       - "tests/test_issue_1433_blend_semantics.py::test_raw_and_framed_arbitrary_rigid_motion_keep_four_radius_requirements"
     corpus_parts: []
   status: ported
-  rust_test: tests/dims_blends.rs::few_blends_share_a_radius_callout_and_lose_credit_when_hidden
+  rust_test: dimensions::dims_blends::few_blends_share_a_radius_callout_and_lose_credit_when_hidden
   rust_note: "Partial, for fillets: on every part a fillet callout's members all have the radius it prints and it counts them (4× R2), and on prismatic each occurrence is credited by it and every occurrence is reported when it is removed. Not ported: blends (quiddity's Blend, the rule's subject) are not dimensioned: each is reported dimensions_not_ported (src/dims/edges.rs plans fillets and chamfers only), though lint's blend coverage (src/lint/blends.rs) judges them. Stage G3: equal displayed radii share exact occurrence credit; hiding the shared callout or note withdraws every occurrence's credit. Python evidence in tests/fixtures/known_blends.json."
   port_note: "Keep."
 
@@ -2428,7 +2428,7 @@
       - "tests/test_issue_1433_blend_semantics.py::test_mutated_recognition_or_ir_is_unverifiable_not_false_credit"
     corpus_parts: []
   status: translated
-  rust_test: "tests/dims_blends.rs::a_blend_owns_its_cylindrical_face_without_erasing_unrelated_equal_bosses"
+  rust_test: "dimensions::dims_blends::a_blend_owns_its_cylindrical_face_without_erasing_unrelated_equal_bosses"
   rust_rule: "Blends are planned by src/dims/blends.rs (Stage G3; tests/dims_blends.rs::a_blend_owns_its_cylindrical_face_without_erasing_unrelated_equal_bosses). src/lint/blends.rs reports a record with no readable radius as blend_requirement_unverifiable."
   rust_note: "Blends are planned by src/dims/blends.rs (Stage G3; tests/dims_blends.rs::a_blend_owns_its_cylindrical_face_without_erasing_unrelated_equal_bosses). src/lint/blends.rs reports a record with no readable radius as blend_requirement_unverifiable. Singular face ownership and ambiguous-support recognition remain quiddity-rust's recognise_blends responsibility."
   port_note: "Keep; schema-spoofing tests retire."
@@ -2446,7 +2446,7 @@
       - "tests/test_issue_1450_boss_blend_ownership.py::test_detect_and_lint_decide_absorption_from_one_shared_predicate"
     corpus_parts: ["GRM-04", "grm04_drive_plate.step"]
   status: ported
-  rust_test: tests/dims_blends.rs::a_blend_owns_its_cylindrical_face_without_erasing_unrelated_equal_bosses
+  rust_test: dimensions::dims_blends::a_blend_owns_its_cylindrical_face_without_erasing_unrelated_equal_bosses
   rust_note: "Partial: on every part the faces of the bosses whose diameter the plan states and of the fillets whose radius it states are disjoint. Not ported: draftwright's absorption decision itself; the port dimensions each feature quiddity gives, with no predicate to fail closed, so the check holds because no part here has a boss and a fillet on one face. GRM-04, the reported part, has no recognition fixture here. Stage G3: one shared same-face predicate for planning and lint; missing or ambiguous face evidence never deduplicates by value."
   port_note: "Keep: scenario GRM-04 -> R4 only, no Ø of the same face."
 
@@ -2464,7 +2464,7 @@
       - "tests/test_issue_1460_step_inspection.py::test_evaluated_empty_families_are_not_reported_as_unavailable_or_not_applicable"
     corpus_parts: ["nist_ctc_01_asme1_ap203", "nist_ctc_01_asme1_ap242", "grm04_drive_plate.step", "issue_1058_wheel_rh.step"]
   status: translated
-  rust_test: "tests/completeness.rs::inspect_summary_carries_the_plans_status_and_completeness"
+  rust_test: "audits::completeness::inspect_summary_carries_the_plans_status_and_completeness"
   rust_rule: "No separate inspection report; the plan states disposition per feature: planned items claim features, unplanned ones get feature_not_dimensioned / dimensions_not_ported (src/completeness.rs, src/dims/mod.rs::not_ported), and inspect_part summarises counts (tests/completeness.rs::inspect_summary_carries_the_plans_status_and_completeness)."
   rust_note: "No separate inspection report; the plan states disposition per feature: planned items claim features, unplanned ones get feature_not_dimensioned / dimensions_not_ported (src/completeness.rs, src/dims/mod.rs::not_ported), and inspect_part summarises counts (tests/completeness.rs::inspect_summary_carries_the_plans_status_and_completeness). Gap noted: UNDRAFTED kinds (src/dims/mod.rs) get no disposition line."
   port_note: "Keep: Analysis report API (feature list + disposition per feature)."
@@ -2483,7 +2483,7 @@
       - "tests/test_issue_1460_step_inspection.py::test_a_face_position_is_the_point_on_the_face_not_the_area_centroid"
     corpus_parts: []
   status: translated
-  rust_test: "tests/trust_rules.rs::the_hash_and_the_geometry_come_from_one_read"
+  rust_test: "audits::trust_rules::the_hash_and_the_geometry_come_from_one_read"
   rust_rule: "The Analysis is the inspection document: deterministic, records file name and hash not path (tests/trust_rules.rs::the_hash_and_the_geometry_come_from_one_read); analyse runs no plan or render (stateless operations, R4)."
   rust_note: "The Analysis is the inspection document: deterministic, records file name and hash not path (tests/trust_rules.rs::the_hash_and_the_geometry_come_from_one_read); analyse runs no plan or render (stateless operations, R4). Face indices allowed within one file per ADR5-9 accepted reading."
   port_note: "Keep."
@@ -2502,7 +2502,7 @@
     corpus_parts: []
   status: translated
   rust_rule: "tests/model.rs::a_kernel_or_bridge_failure_is_failed_and_bad_input_invalid (missing/unparsable invalid, unresolvable failed, never a warning)."
-  rust_test: "tests/model.rs::a_kernel_or_bridge_failure_is_failed_and_bad_input_invalid"
+  rust_test: "core::model::a_kernel_or_bridge_failure_is_failed_and_bad_input_invalid"
   rust_note: "tests/model.rs::a_kernel_or_bridge_failure_is_failed_and_bad_input_invalid (missing/unparsable invalid, unresolvable failed, never a warning). The script-still-generated clause has no Rust counterpart (no scripts)."
   port_note: "Keep: typed errors for input failures vs plan problems."
 
@@ -2517,7 +2517,7 @@
       - "tests/test_issue_1460_step_inspection.py::test_the_generated_script_contains_none_of_the_evidence"
     corpus_parts: []
   status: translated
-  rust_test: "tests/issue_trust.rs::rendering_writes_only_its_drawings_and_removes_nothing"
+  rust_test: "issue_trust::rendering_writes_only_its_drawings_and_removes_nothing"
   rust_rule: "The port writes no sidecar: render writes exactly the drawings asked for, each staged and moved in (ADR5-10), so it leaves no evidence file to go stale and touches nothing else in the directory; what a report would hold is in the reply (R4 decision 5)."
   rust_note: "R4 decision 5 allows a sidecar written on request; none is implemented. When one is, the stale-file and not-ours rules apply to it."
   port_note: "Translate if the Rust CLI writes sidecars; otherwise retire."
@@ -2535,7 +2535,7 @@
       - "tests/test_issue_1466_dimension_options.py::test_grm04_discovers_supported_edits_without_exploratory_renders"
     corpus_parts: ["grm04_drive_plate.step"]
   status: ported
-  rust_test: tests/mcp_efficiency.rs::options_list_valid_hole_fits_and_every_dimension_field
+  rust_test: core::mcp_efficiency::options_list_valid_hole_fits_and_every_dimension_field
   rust_note: "Ported as the item_options tool (src/mcp.rs): an item's valid fields, fits and views, listed without rendering; a refusal gives the valid choices and a corrected op (tests/mcp_efficiency.rs::refusals_give_valid_choices_and_an_executable_corrected_op). Closed by the rules assessment of 2026-10-11."
   port_note: "Keep: Plan exposes per-item editable options; test options == planner behaviour."
 
@@ -2551,7 +2551,7 @@
       - "tests/test_issue_1466_semantic_sides.py::test_native_hole_routes_and_height_honour_the_requested_side"
     corpus_parts: ["grm04_drive_plate.step"]
   status: ported
-  rust_test: tests/placement_intent.rs::seeded_edits_on_slice_parts_preserve_pinned_geometry
+  rust_test: rendering::placement_intent::seeded_edits_on_slice_parts_preserve_pinned_geometry
   rust_note: "Ported: a dimension's side is a place request that moves its label, never its measurement; a pin is kept through other edits, and one that collides or leaves the sheet is reported rather than moved (tests/placement_intent.rs). There is no repair step to relax it. Closed by the rules assessment of 2026-10-11."
   port_note: "Keep: scenario GRM-04 with side edits."
 
@@ -2568,7 +2568,7 @@
       - "tests/test_issue_1479_radius_leader_targets.py::test_wrong_radius_tip_lowers_fidelity"
     corpus_parts: ["GRM-04", "grm04_drive_plate.step"]
   status: ported
-  rust_test: "tests/leader_rules.rs::a_radius_tip_lands_on_the_trimmed_profile_arc"
+  rust_test: "rendering::leader_rules::a_radius_tip_lands_on_the_trimmed_profile_arc"
   rust_note: "Stream K4: the planner tips a blend's radius callout at one of the blend's proven trimmed-surface points (Analysis::blend_sites, src/dims/blends.rs), in the view that shows its arc end-on; a group without one is an explicit drop (feature_not_dimensioned, 'no principal view has a proven attachment on its trimmed blend surface'). Lint (src/lint/leaders.rs, radius_leader_target_mismatch) checks the drawn tip against the trimmed arc from the Analysis (circle of the radius about the path, the sector from the proven points), so a centre bore, another circle or the untrimmed extension is reported, wherever the geometry is placed. Met on the port's drawings (tests/leader_rules.rs::the_ports_own_callouts_touch_their_targets, string_post's blend). A fillet leader that carries its equal blends' claims (dims::blends::consolidate) is judged as the fillet's callout and is not checked here."
   port_note: "Keep."
 
@@ -2584,7 +2584,7 @@
       - "tests/test_issue_1485_curved_pockets.py::test_repeated_curved_pockets_keep_one_group_and_every_original_occurrence"
     corpus_parts: []
   status: ported
-  rust_test: "tests/issue_regressions.rs::a_cylindrical_mouth_states_its_greatest_depth; tests/native_recesses.rs::native_patterns_have_one_grouped_callout_pitches_and_absolute_location"
+  rust_test: "audits::issue_regressions::a_cylindrical_mouth_states_its_greatest_depth; core::native_recesses::native_patterns_have_one_grouped_callout_pitches_and_absolute_location"
   rust_note: "Native repeated curved pockets retain every occurrence, one grouped count/size/MAX DEEP callout, pitch and absolute location. Existing planar-substitution and inconsistent-mouth refusal tests remain in force. The prior bridge record precision limitation remains documented in tests/issue_regressions.rs."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream recess-reader"
 
@@ -2616,7 +2616,7 @@
       - "tests/test_issue_1485_rounded_pockets.py::test_removing_pattern_pitch_reopens_the_member_location_warning"
     corpus_parts: ["tuner_jig_blind_obround_pockets.step"]
   status: ported
-  rust_test: "tests/native_recesses.rs::rounded_pocket_corner_radius_reaches_native_ink_and_lint"
+  rust_test: "core::native_recesses::rounded_pocket_corner_radius_reaches_native_ink_and_lint"
   rust_note: "The tuner fixture retains five rounded profiles, their 3.94 mm corner radius, one grouped pocket callout, pitch and absolute locations. The explicit counted pattern-corner callout carries matching blend claims, and those blends do not also generate a blanket radius note. Lone pockets reuse matching blend carriers; without blend evidence the callout owns four corner measurements per occurrence. Removing the carrier reopens all twenty physical corner requirements, on both the recognised-blend and fallback paths. Removing pitch reopens the member location warning. Unequal or mixed tangent corners remain unsupported by the existing grammar."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream recess-reader"
 
@@ -2630,7 +2630,7 @@
       - "tests/test_issue_1505_diameter_coverage.py::test_global_od_reuse_requires_one_undecorated_band_on_the_same_axis"
     corpus_parts: []
   status: pending
-  rust_test: "tests/issue_drafting.rs::equal_diameters_on_different_features_are_stated_apart"
+  rust_test: "issue_drafting::equal_diameters_on_different_features_are_stated_apart"
   rust_note: "Partial: on every part no dimension states both a hole's bore and an outside diameter (a boss's or the part's overall), and lint's turned-step ledger (src/lint/turned.rs::overall) lets the overall diameter stand for a band's only when it is the unique largest of its profile and alone on its axis line with its diameter (turned fixture, and the same with two largest bands, where it stands for neither). The plan's overall diameter claims the one band of its size (or two separate flanges, `2× ø`, as draftwright's _share_unique_outer_diameter), every other band has its own diameter callout, and a band along z whose diameter prints as a coaxial bore's reads `OD` (src/dims/turned.rs). Not ported: the tolerance and decoration clauses (a toleranced overall diameter still stands for its band). Re-assessed by stream K6: draftwright refuses the reuse because the overall diameter would drop the band's decoration; here a band the overall diameter states has no item of its own, a PMI tolerance on its cylinder attaches to the overall diameter (pmi_dimensions::external_owner) and a thread or knurl prints on it, so the decoration reaches the sheet; the remaining difference is which item carries it. Stream K6 decided (unattended, overturnable) to keep that: refusing the reuse would add a band callout repeating the overall diameter's value on dense turned parts, while no information is lost today. It stays pending for that clause. Rules-text blocker (2026-10-16): Changing which physical measurement the global OD owns or may satisfy is explicitly protected ownership work in this batch."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream one-owner"
 
@@ -2647,7 +2647,7 @@
     corpus_parts: []
   status: pending
   rust_note: "Partial: X-head and Y-chain requests carry exact approved requirement IDs through the normal planner; Z terminal flanges also get a head detail. Saved chain IDs and all 14 string-post tolerances remain addressable. Omitted dimensions are not reconstructed in the crop. Still pending: general nonterminal off-page Z-chain recovery and solid Boolean cut caps; the current kernel clips exact projected intervals."
-  rust_test: "tests/dims_turned.rs::a_short_shoulder_never_erases_its_neighbours_lengths"
+  rust_test: "dimensions::dims_turned::a_short_shoulder_never_erases_its_neighbours_lengths"
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream detail-views"
 
 - id: ISSUE-1511-a
@@ -2663,7 +2663,7 @@
     corpus_parts: []
   status: translated
   rust_rule: "Each boss height retains its own claim and outline witnesses (src/dims/bosses.rs), yielding only when it is a default height between the same support planes as a kept extent (tests/dims_slots.rs::a_boss_height_between_the_parts_own_faces_is_the_overall_extents)."
-  rust_test: "tests/dims_slots.rs::a_boss_height_between_the_parts_own_faces_is_the_overall_extents; tests/issue_drafting.rs::a_toleranced_height_is_not_handed_to_an_untoleranced_extent"
+  rust_test: "dimensions::dims_slots::a_boss_height_between_the_parts_own_faces_is_the_overall_extents; issue_drafting::a_toleranced_height_is_not_handed_to_an_untoleranced_extent"
   rust_note: "Each boss height retains its own claim and outline witnesses (src/dims/bosses.rs), yielding only when it is a default height between the same support planes as a kept extent (tests/dims_slots.rs::a_boss_height_between_the_parts_own_faces_is_the_overall_extents). A toleranced height is kept; an extent's tolerance alone does not prevent it from owning an untoleranced height (tests/issue_drafting.rs::a_toleranced_height_is_not_handed_to_an_untoleranced_extent). src/lint/bosses.rs reports boss_height_missing per missing boss height. Whole-turned parts bypass this consolidation; there are no contingency owners."
   port_note: "Keep."
 
@@ -2678,7 +2678,7 @@
       - "tests/test_issue_1514_projection_safeguard.py::test_supported_layout_retains_third_angle_relationships"
     corpus_parts: ["missing.step"]
   status: ported
-  rust_test: "tests/issue_trust.rs::a_projection_is_refused_before_the_part_is_read"
+  rust_test: "issue_trust::a_projection_is_refused_before_the_part_is_read"
   rust_note: "The port draws third-angle only and its spec has no projection field, so every projection asked for (first and third included) is refused, as an unknown field naming size, scale and title, before the STEP file is opened: by plan, render and review (so by the service, the MCP server and the command line) and by edit. draftwright accepts first and third; first-angle drawing is a missing feature, not part of this rule."
   port_note: "Translate: projection is a Rust enum; CLI parse error before reading."
 
@@ -2743,7 +2743,7 @@
       - "tests/test_issue_1518_explicit_rear.py::test_short_rear_location_is_a_reported_loss_and_strict_refusal"
     corpus_parts: []
   status: retired
-  rust_test: "tests/issue_drafting.rs::a_rear_view_is_never_added_and_one_asked_for_is_refused"
+  rust_test: "issue_drafting::a_rear_view_is_never_added_and_one_asked_for_is_refused"
   why: "Rules assessment 2026-10-11: a rear view is refused honestly before planning; the explicit rear view is a feature nobody has asked for."
   rust_note: "Partial: no automatic plan has a view other than front, plan, side, iso and section A-A, and a rear view asked for is refused before planning, naming the views there are. Not ported: the explicit rear view itself (handedness, bore sizes, depths and locations in it)."
   port_note: "Keep."
@@ -2758,7 +2758,7 @@
       - "tests/test_issue_1524_tolerance_magnitude.py::test_rendered_callout_table_and_reserved_width_keep_small_tolerances"
     corpus_parts: []
   status: ported
-  rust_test: "tests/issue_drafting.rs::an_authored_magnitude_is_never_rounded"
+  rust_test: "issue_drafting::an_authored_magnitude_is_never_rounded"
   rust_note: "Partial: an authored band keeps its digits, one decimal at least (src/dims/tolerance.rs::printed): each of draftwright's cases (±0.02 to ±0.000000123, +0.015 -0.002, and +0.00001 -0 as +0.00001 -0.0) prints as its _tol_suffix does, in the label, the drawn text run and the placed box, and adds no problem. The spec carries the band as text, so no float formatting can round it. Not ported: a hole table's cells (src/hole_table.rs) print a callout's tolerance term after the diameter, untested: no corpus part keeps a table. Closed by the rules assessment of 2026-10-11: nothing of it is left to port."
   port_note: "Keep: unit test on label formatting (nominal 1 dp, tolerance 0.005)."
 
@@ -2774,7 +2774,7 @@
       - "tests/test_issue_1530_section_provenance.py::test_preexisting_coplanar_boundaries_are_not_new_cut_faces"
     corpus_parts: []
   status: ported
-  rust_test: "tests/views_layout_rules.rs::section_hatch_excludes_coplanar_boundaries_and_retained_material; tests/views_layout_rules.rs::gap_tangent_and_outside_sections_are_reported_without_false_cut_ink; tests/issue_drafting.rs::a_sections_ink_describes_its_cut"
+  rust_test: "rendering::views_layout_rules::section_hatch_excludes_coplanar_boundaries_and_retained_material; rendering::views_layout_rules::gap_tangent_and_outside_sections_are_reported_without_false_cut_ink; issue_drafting::a_sections_ink_describes_its_cut"
   rust_note: "Hatching already clips to material on both sides of the actual plane; new attached, detached, adjacent, notch and bored multi-region fixtures pin it. Rendering now refuses section geometry, attached dimensions, hatch and furniture when the cut is outside the open extent or no material crosses it (gap/tangent/coplanar-only), reporting section_dropped on the otherwise drawable sheet. The check uses geometric boundary samples and the solid classifier independently of paper hatch spacing. Rust has no authored cut-plane Spec verb; the renderer checks public Plan cuts without introducing that API."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream views-and-layout"
 
@@ -2854,7 +2854,7 @@
       - "tests/test_issue_1536_title_overflow.py::test_export_preserves_the_full_overflowing_value"
     corpus_parts: []
   status: ported
-  rust_test: "tests/issue_drafting.rs::a_title_block_value_that_overflows_is_reported"
+  rust_test: "issue_drafting::a_title_block_value_that_overflows_is_reported"
   rust_note: "Every value the title block draws (src/title_block.rs, draftwright's ISO 7200 grid) is measured with the face it is drawn in (Plex Sans Condensed at 3 mm, multi-line values with each line centred on its advance and lines 1.3 em apart, as build123d's Text; within 0.001 mm of draftwright's _text_size) against its cell: wider or taller is one title_field_overflow warning per cell, subject title_block/<field>, naming the field, the text's and the cell's sizes and the full value, and the value is drawn and exported whole (tests/title_block.rs: a_field_crossing_cells_inside_the_page_is_reported, all_rendered_fields_and_multiline_heights_are_checked, export_keeps_the_full_overflowing_value; the PDF in tests/output.rs::title_block_values_reach_the_pdf_text_layer). A value running past the sheet's drawing area is also an annotation_off_sheet error. Differences: the check is a plan problem, not a lint finding as in draftwright (port_note); draftwright's lint summary and legibility score have no counterpart (the port has no lint summary)."
   port_note: "Keep: plan problem per overflowing title-block cell."
 
@@ -2873,7 +2873,7 @@
     corpus_parts: ["part.step"]
   status: translated
   rust_rule: "Hole schedules (the only schedule in Rust; the Spec's own tables are descriptive) meet each clause: rows are physical holes with planner measurements, precision and tolerance, and a missing datum corner refuses the schedule (src/hole_table.rs; tests/planned_hole_tables.rs::rows_and_tags_credit_hole_size_count_and_both_locations, ::a_schedule_without_a_proven_datum_corner_is_refused)."
-  rust_test: "tests/planned_hole_tables.rs::rows_and_tags_credit_hole_size_count_and_both_locations; tests/planned_hole_tables.rs::a_schedule_without_a_proven_datum_corner_is_refused"
+  rust_test: "dimensions::planned_hole_tables::rows_and_tags_credit_hole_size_count_and_both_locations; dimensions::planned_hole_tables::a_schedule_without_a_proven_datum_corner_is_refused"
   rust_note: "Hole schedules (the only schedule in Rust; the Spec's own tables are descriptive) meet each clause: rows are physical holes with planner measurements, precision and tolerance, and a missing datum corner refuses the schedule (src/hole_table.rs; tests/planned_hole_tables.rs::rows_and_tags_credit_hole_size_count_and_both_locations, ::a_schedule_without_a_proven_datum_corner_is_refused)."
   port_note: "Keep: Spec schedule rows reference measurement IDs; Plan table cells carry them."
 
@@ -2890,7 +2890,7 @@
       - "tests/test_issue_1543_schedule_requirements.py::test_damaged_diameter_cell_loses_its_physical_riders"
     corpus_parts: ["part.step"]
   status: translated
-  rust_test: "tests/planned_hole_tables.rs::a_changed_coordinate_cannot_borrow_a_number_from_another_cell; tests/planned_hole_tables.rs::a_changed_entry_cell_is_reported_even_when_xy_is_correct; tests/planned_hole_tables.rs::a_schedule_without_a_proven_datum_corner_is_refused; tests/planned_hole_tables.rs::rows_and_tags_credit_hole_size_count_and_both_locations"
+  rust_test: "dimensions::planned_hole_tables::a_changed_coordinate_cannot_borrow_a_number_from_another_cell; dimensions::planned_hole_tables::a_changed_entry_cell_is_reported_even_when_xy_is_correct; dimensions::planned_hole_tables::a_schedule_without_a_proven_datum_corner_is_refused; dimensions::planned_hole_tables::rows_and_tags_credit_hole_size_count_and_both_locations"
   rust_rule: "Hole tables are Rust's schedules, with individually claimed cell ink and a proven datum corner. tests/planned_hole_tables.rs::a_changed_coordinate_cannot_borrow_a_number_from_another_cell and a_changed_entry_cell_is_reported_even_when_xy_is_correct check changed-cell findings; a_schedule_without_a_proven_datum_corner_is_refused and rows_and_tags_credit_hole_size_count_and_both_locations check refusal and coverage."
   rust_note: "Hole tables are Rust's schedules, with individually claimed cell ink and a proven datum corner. tests/planned_hole_tables.rs::a_changed_coordinate_cannot_borrow_a_number_from_another_cell and a_changed_entry_cell_is_reported_even_when_xy_is_correct check changed-cell findings; a_schedule_without_a_proven_datum_corner_is_refused and rows_and_tags_credit_hole_size_count_and_both_locations check refusal and coverage. General authorable feature schedules are not implemented."
   port_note: "Keep."
@@ -2907,7 +2907,7 @@
       - "tests/test_issue_1543_schedule_requirements.py::test_removing_schedule_retains_v5_intent_and_the_requirement_denominator"
     corpus_parts: ["part.step", "bolt-circle.step", "profile.step", "triangle.step"]
   status: ported
-  rust_test: "tests/planned_hole_tables.rs::damaged_size_cells_lose_size_through_and_quantity_evidence; tests/planned_hole_tables.rs::schedule_cell_evidence_checks_approved_tolerance_precision_and_through_wording; tests/tables.rs::a_numeric_descriptive_table_cannot_replace_physical_measurements"
+  rust_test: "dimensions::planned_hole_tables::damaged_size_cells_lose_size_through_and_quantity_evidence; dimensions::planned_hole_tables::schedule_cell_evidence_checks_approved_tolerance_precision_and_through_wording; rendering::tables::a_numeric_descriptive_table_cannot_replace_physical_measurements"
   rust_note: "Only cells whose actual runs and feature/parameter bindings match their independent compiler approvals expose claims. A bad, empty, removed or unapproved hole-size cell loses bore/THRU/quantity evidence, without borrowing a valid size from another member; coordinates lose only their own axis. Changing its role to bolt_circle.diameter cannot credit a bore. Descriptive tables carry no measurement claims even when they print a complete missing callout. Analysis retains the denominator independently of the removed schedule. Supported hole and radius-centre schedules use this seam; the general feature-schedule authoring API is separately pending under ISSUE-1543-a."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream tables"
 
@@ -2938,7 +2938,7 @@
       - "tests/test_issue_1555_turned_recognition_format_invariance.py::test_ctc05_recognises_its_actual_turned_profile"
     corpus_parts: ["nist_ctc_05_asme1_ap203", "nist_ctc_05_asme1_ap242"]
   status: ported
-  rust_test: "tests/rule_pins.rs::ctc05_step_encodings_have_the_same_true_turned_profile"
+  rust_test: "audits::rule_pins::ctc05_step_encodings_have_the_same_true_turned_profile"
   rust_note: "Already true in native Rust recognition, now pinned across both exact Python CTC-05 STEP encodings. The current Python test (after quiddity 0.2.8 coalesced contiguous equal-diameter bands) pins THREE physical z steps: (diameter,lo,hi)=(63.5,279.4,482.6),(304.8,25.4,127),(558.8,0,25.4). Both Rust Analyses match every number within 0.001 mm and have exactly those three steps, excluding the old blend-sized artefact. The catalogue detail and batch's five-step description predate that deliberate Python update."
   owner: quiddity
   port_note: "triage 2026-10-16: PORT, value low, size S, stream regression-pins"
@@ -2956,7 +2956,7 @@
       - "tests/test_issue_1560_envelope_axes.py::test_complete_authored_set_can_intentionally_omit_body_extents"
     corpus_parts: []
   status: ported
-  rust_test: "tests/issue_drafting.rs::the_parts_extents_never_leave_the_drawing_silently"
+  rust_test: "issue_drafting::the_parts_extents_never_leave_the_drawing_silently"
   rust_note: "Each non-zero axis of the box has an outcome in lint's envelope ledger and stays in its denominator; an omitted extent is listed in the plan's omitted with its basis and stays in the ledger, missing; an empty authored set leaves all three missing. A local turned profile cannot hide a longer body axis (a diameter counts only when centred across the axis's whole interval) and overlapping steps do not chain (src/lint/envelope.rs::tests::a_turned_parts_extents_are_its_chain_and_its_diameter). Stream K5: any other measurement whose span runs end to end carries the axis (src/lint/envelope.rs::tests::any_measurement_spanning_the_box_states_the_extent)."
   port_note: "Keep."
 
@@ -2973,7 +2973,7 @@
       - "tests/test_issue_1563_sheet_pmi_reconciliation.py::test_a_drawing_with_no_ap242_claims_stays_quiet"
     corpus_parts: ["grm03_thumbwheel_drive_screw_ap242_pmi.step"]
   status: ported
-  rust_test: "tests/pmi_lowering.rs::every_record_and_source_is_drawn_or_reported"
+  rust_test: "core::pmi_lowering::every_record_and_source_is_drawn_or_reported"
   rust_note: "Partly: on the plan path every PMI record is drawn or reported (`pmi_not_lowered`, `pmi_dimensions_not_ported`, also for manufacturing requirements and surface labels), every source not read is a `pmi_not_extracted` problem and a file whose PMI cannot be read is `pmi_not_read`; reconciling a drawing's claimed source IDs (fabricated IDs, content with no census) is the PMI coverage lint's, not ported. Closed by the rules assessment of 2026-10-11: reconciling claimed source IDs is the PMI coverage lint's (LINT-code-pmi_not_rendered)."
   port_note: "Keep: Plan problems from PMI census vs Spec; Spec references PMI by source id."
 
@@ -2990,7 +2990,7 @@
       - "tests/test_issue_1585_title_block_date.py::test_no_date_field_when_no_date_was_supplied"
     corpus_parts: []
   status: ported
-  rust_test: "tests/issue_drafting.rs::a_supplied_date_reaches_the_title_block"
+  rust_test: "issue_drafting::a_supplied_date_reaches_the_title_block"
   rust_note: "sheet.title's date fills the date cell of draftwright's ISO 7200 grid (src/title_block.rs), recorded in the plan's sheet.title_cells, drawn centred in it and as one invisible text run, read back from the PDF (tests/output.rs::title_block_values_reach_the_pdf_text_layer). tests/title_block.rs checks each clause: the_date_is_a_field_of_its_own, the_date_is_a_text_run_at_its_cells_centre, the_date_is_drawn_inside_its_cell, common_date_formats_fit_on_the_pages_draftwright_uses (A4's 120 mm and A3's 150 mm blocks) and no_date_field_when_no_date_was_supplied (whitespace is no value; a padded date is drawn stripped). Every other sheet.title key fills its own cell, and a key the block has no cell for is refused by plan and edit (honest failure, as build123d_drafting's TitleBlock refuses a value its layout cannot place)."
   port_note: "Keep: ISO 7200 title block layout with dedicated date cell."
 
@@ -3007,7 +3007,7 @@
     corpus_parts: []
   status: translated
   rust_rule: "A strip lane that would enter the title block falls through to the opposite strip, and leaders treat the block as hard (src/dims/placement.rs; tests/issue_regressions.rs::the_title_block_keeps_dimensions_out_without_dropping_them)."
-  rust_test: "tests/issue_regressions.rs::the_title_block_keeps_dimensions_out_without_dropping_them"
+  rust_test: "audits::issue_regressions::the_title_block_keeps_dimensions_out_without_dropping_them"
   rust_note: "A strip lane that would enter the title block falls through to the opposite strip, and leaders treat the block as hard (src/dims/placement.rs; tests/issue_regressions.rs::the_title_block_keeps_dimensions_out_without_dropping_them). A dimension with nowhere to go is kept and reported as annotation_over_title_block (Policy B, not withheld), and automatic sheets escalate through the H6 recovery. A pinned sheet is honoured and reported."
   port_note: "Keep: scenario Box(40,30,12) and stepped Box(80,60,30)."
 
@@ -3027,7 +3027,7 @@
       - "tests/test_issue_1596_bolt_circle_corroboration.py::test_four_polar_holes_on_a_square_plate_do_not_establish_a_circular_datum"
     corpus_parts: []
   status: ported
-  rust_test: tests/dimension_rules.rs::a_four_hole_bolt_circle_is_not_trusted
+  rust_test: dimensions::dimension_rules::a_four_hole_bolt_circle_is_not_trusted
   rust_note: "bridge::holes::established_with, which the dimensions, demand and lint all call with bridge::holes::bosses: five or more members, or a hole that is not a member or a boss on the circle's centre (axis parallel, within 0.5 mm, draftwright's _BC_CONCENTRIC_TOL); refused members are called out and located as loose holes. The boss branch is checked on draftwright's own test part (tests/bands.rs::a_boss_on_its_centre_establishes_a_small_bolt_circle: 4× ⌀2.4 THRU EQ SP ON ø34.4 BC and 2× ⌀2.4 THRU, as draftwright's sheet prints), the axis and distance conditions in bridge::holes's unit tests. The port requires the witness's axis to be parallel where draftwright compares dominant axis letters (see LINT-hole_coverage-bolt_circle_corroboration). draftwright's test_the_rule_does_not_depend_on_the_angle_to_the_axes has no Rust counterpart: the check works in the part's frame, but no rotated-part fixture tests it."
   port_note: "Keep: scenario tests on synthetic plates (grid, 5-hole circle, flange with boss)."
 
@@ -3043,7 +3043,7 @@
       - "tests/test_issue_1598_hex_pockets.py::test_counted_hexes_preserve_distinct_claims_and_rank_above_incidental_flats"
     corpus_parts: ["issue_1595_whistle_key_frame.step", "whistle_frame_reference.step"]
   status: retired
-  rust_test: "tests/issue_regressions.rs::a_hex_pocket_needs_a_regular_hexagon_and_keeps_each_claim"
+  rust_test: "audits::issue_regressions::a_hex_pocket_needs_a_regular_hexagon_and_keeps_each_claim"
   why: "Rules assessment 2026-10-11: the regular-hex grammar is ported (tests/issue_regressions.rs::a_hex_pocket_needs_a_regular_hexagon_and_keeps_each_claim); the rest is recognition's."
   rust_note: "Partial: on draftwright's whistle frame (tests/fixtures/recognition/issues/, quiddity 0.3.9) six section recesses read as hexagonal pockets along z, 4.3 across flats, 1.9 deep, mouths on the bottom face (lint::section_recesses::grammar, lint::pockets::hexes), and the plan states them in one callout, 6× HEX 4.3 A/F × 1.9 DEEP (draftwright's label), claiming each pocket's own across-flats size and depth (twelve claims). A record whose six vertices are not a regular hexagon (one moved 0.05 mm, one at the centre, one repeated, two swapped), with five vertices or with no depth is not read as one, with draftwright's reasons, and not dimensioned. Not ported: a label stating only the approved one of its two sizes (the spec approves or omits a callout whole); hex callouts ranked above incidental flats in leader placement; declared hex pockets (not applicable: no declarations, R4 decision 3)."
   port_note: "Keep: scenario on whistle frame STEPs -> six hex pockets."
@@ -3060,7 +3060,7 @@
   status: ported
   rust_note: "Python internal_section_rows is ported for recognized Analysis features through the shared section-recess grammars (the original fixture uses the supported recognition bridge): Z hex pockets, Y circular seats and X blind-hole physical members qualify rows within 0.5 mm, at least three details of two kinds. Internal rows use Python's decimal round(y, 1), including ties to even and binary-value boundaries. Qualifying bore rows have priority; otherwise the densest internal row wins, nearest the part centre then lowest Y on a tie. The original whistle-frame fixture chooses Y=-7.9 and retains a hatched section and required slot dimensions through direct and recovered planning; one-kind or only two-detail rows do not qualify."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream views-and-layout"
-  rust_test: "tests/views_layout_rules.rs::internal_stations_require_three_details_of_two_kinds; src/demand.rs::internal_station_rows_use_python_rounding"
+  rust_test: "rendering::views_layout_rules::internal_stations_require_three_details_of_two_kinds; src/demand.rs::internal_station_rows_use_python_rounding"
 
 - id: ISSUE-1612-a
   statement: "Physical sheet options (independent margins, zero meaning an unframed edge, zone labels) preserve nominal frame and title-block geometry, are refused before build when invalid, and survive repacking; an opt-in filing layout keeps hole location coverage."
@@ -3093,7 +3093,7 @@
   status: translated
   rust_rule: "Arc shape and six requirements per seat ported (src/dims/recesses.rs; tests/issue_regressions.rs::a_circular_seat_keeps_its_arc_and_six_requirements); axis furniture added in G6."
   rust_note: "Arc shape and six requirements per seat ported (src/dims/recesses.rs; tests/issue_regressions.rs::a_circular_seat_keeps_its_arc_and_six_requirements); axis furniture added in G6. The declared-seat refusal is moot: Rust has no declarations (R4 decision 3)."
-  rust_test: "tests/issue_regressions.rs::a_circular_seat_keeps_its_arc_and_six_requirements"
+  rust_test: "audits::issue_regressions::a_circular_seat_keeps_its_arc_and_six_requirements"
   port_note: "Keep."
 
 - id: ISSUE-1613-b

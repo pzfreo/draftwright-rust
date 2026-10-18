@@ -1,6 +1,9 @@
 #[path = "common/mcp_schema.rs"]
 mod mcp_schema;
 
+#[path = "common/cache.rs"]
+mod cache;
+
 use draftwright::{
     Session, dims,
     items::{Op, key},
@@ -12,8 +15,13 @@ use std::path::PathBuf;
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
-fn analysed(name: &str) -> (draftwright::haecceity::Part, model::Analysis) {
-    model::analyse_native(&root().join(format!("tests/fixtures/parts/{name}.step"))).unwrap()
+fn analysed(
+    name: &str,
+) -> (
+    std::sync::Arc<draftwright::haecceity::Part>,
+    model::Analysis,
+) {
+    cache::native(&root().join(format!("tests/fixtures/parts/{name}.step")))
 }
 fn font() -> draftwright::text::Font {
     draftwright::text::Font::open(&root().join("fonts").join(dims::FONT)).unwrap()
@@ -23,7 +31,7 @@ fn font() -> draftwright::text::Font {
 fn full_wording_preserves_measurements_searchable_text_and_ink_reservation() {
     for name in ["plate", "turned", "prismatic"] {
         let (part, a) = analysed(name);
-        let base = model::plan(&a, &Spec::default()).unwrap();
+        let base = cache::default_plan(&a, false);
         for old in base
             .dimensions
             .iter()
@@ -94,7 +102,7 @@ fn full_wording_preserves_measurements_searchable_text_and_ink_reservation() {
 #[test]
 fn reference_and_basic_are_explicit_and_keep_the_measured_claims() {
     let (part, a) = analysed("plate");
-    let base = model::plan(&a, &Spec::default()).unwrap();
+    let base = cache::default_plan(&a, false);
     let old = base
         .dimensions
         .iter()
@@ -173,7 +181,7 @@ fn invalid_wording_and_unknown_or_covered_references_are_refused_with_a_fix() {
         assert!(error.message.contains("There is no"));
         assert!(!error.choices.is_empty());
     }
-    let base = model::plan(&a, &Spec::default()).unwrap();
+    let base = cache::default_plan(&a, false);
     if let Some(o) = base
         .omitted
         .iter()
@@ -192,7 +200,7 @@ fn invalid_wording_and_unknown_or_covered_references_are_refused_with_a_fix() {
 fn lint_reads_live_measured_text_even_with_unit_substrings_in_prose_and_refuses_damaged_text() {
     let (part, a) = analysed("plate");
     let id = "d:envelope/width.length";
-    let base = model::plan(&a, &Spec::default()).unwrap();
+    let base = cache::default_plan(&a, false);
     let old = base.dimensions.iter().find(|d| d.id == id).unwrap();
     for style in [json!(null), json!("reference"), json!("basic")] {
         let spec: Spec = serde_json::from_value(json!({"dimensions":{id:{"text":{"prefix":"DEGREASE CLEAN", "suffix":"REF"}, "style":style}}})).unwrap();
@@ -226,7 +234,7 @@ fn lint_reads_live_measured_text_even_with_unit_substrings_in_prose_and_refuses_
 
 #[test]
 fn session_edits_preview_history_replay_and_options_use_existing_ops() {
-    let (part, a) = analysed("plate");
+    let (part, a) = model::analyse_native(&root().join("tests/fixtures/parts/plate.step")).unwrap();
     let mut session = Session::new(part, a, Spec::default()).unwrap();
     let id = "d:envelope/width.length";
     let old = session.plan().clone();
@@ -293,8 +301,8 @@ fn pmi_callout_wording_is_reserved_drawn_searchable_and_structured_symbols_refus
             })
             .unwrap()
     };
-    let (part, a) = model::analyse_native(&file).unwrap();
-    let base = model::plan(&a, &Spec::default()).unwrap();
+    let (part, a) = cache::native(&file);
+    let base = cache::default_plan(&a, false);
     let label = base
         .gdt
         .iter()
@@ -430,7 +438,7 @@ fn quantity_prefix_stays_visible_to_lint_and_cannot_double_an_existing_count() {
             .iter()
             .any(|i| i.code == "label_vs_measured")
     );
-    let base = model::plan(&a, &Spec::default()).unwrap();
+    let base = cache::default_plan(&a, false);
     let counted = base
         .dimensions
         .iter()
@@ -479,8 +487,8 @@ fn automatic_radius_note_wording_keeps_coverage_and_live_value_checks() {
     let Some(dir) = corpus::dir() else {
         return;
     };
-    let (part, a) = model::analyse_native(&dir.join("cadgenbench_inputs/cgb245.step")).unwrap();
-    let base = model::plan(&a, &Spec::default()).unwrap();
+    let (part, a) = cache::native(&dir.join("cadgenbench_inputs/cgb245.step"));
+    let base = cache::default_plan(&a, false);
     let note = base
         .notes
         .iter()
@@ -627,7 +635,7 @@ fn saved_template_reexpands_when_the_authoritative_measurement_changes() {
     let old = before.dimensions.iter().find(|d| d.id == id).unwrap();
     a.envelope[1][0] += 3.25;
     let read: Spec = serde_json::from_str(&saved).unwrap();
-    let automatic = model::plan(&a, &Spec::default()).unwrap();
+    let automatic = cache::default_plan(&a, false);
     let expected = automatic.dimensions.iter().find(|d| d.id == id).unwrap();
     let after = model::plan(&a, &read).unwrap();
     let d = after.dimensions.iter().find(|d| d.id == id).unwrap();
@@ -697,7 +705,7 @@ fn large_mcp_options_keep_all_structured_and_resource_details_within_the_wire_bu
 #[test]
 fn inactive_saved_wording_never_becomes_live_lint_evidence_on_a_reused_id() {
     let (part, a) = analysed("plate");
-    let base = model::plan(&a, &Spec::default()).unwrap();
+    let base = cache::default_plan(&a, false);
     let old = base
         .dimensions
         .iter()
@@ -735,7 +743,7 @@ fn inactive_saved_wording_never_becomes_live_lint_evidence_on_a_reused_id() {
 #[test]
 fn style_only_counted_references_keep_live_per_unit_value_checks() {
     let (part, a) = analysed("two_grids");
-    let base = model::plan(&a, &Spec::default()).unwrap();
+    let base = cache::default_plan(&a, false);
     let old = base
         .dimensions
         .iter()

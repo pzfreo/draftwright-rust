@@ -39,9 +39,54 @@ pub(super) struct Footprints {
     counts: RefCell<HashMap<[u64; 4], usize>>,
     index: OnceCell<Index>,
     extensions: RefCell<HashMap<ExtensionKey, BTreeSet<String>>>,
+    extension_counts: RefCell<HashMap<OwnersKey, Rc<ExtensionCounts>>>,
+    extension_count_values: RefCell<HashMap<(usize, [u64; 4]), usize>>,
 }
 
-type ExtensionKey = ([u64; 4], Vec<(String, String, u64)>);
+type OwnersKey = Vec<(String, String, u64)>;
+type ExtensionKey = ([u64; 4], OwnersKey);
+
+struct ExtensionCounts {
+    // A repeated footprint of the same feature counts once. Owned features
+    // and the view's material are excluded exactly as crossed_extension does.
+    features: Vec<Option<usize>>,
+    id: usize,
+}
+
+pub(super) struct ExtensionCounter<'a> {
+    footprints: &'a Footprints,
+    prepared: Rc<ExtensionCounts>,
+}
+impl ExtensionCounter<'_> {
+    pub(super) fn count(&self, shaft: [P2; 2]) -> usize {
+        let key = [shaft[0][0], shaft[0][1], shaft[1][0], shaft[1][1]].map(f64::to_bits);
+        let key = (self.prepared.id, key);
+        if let Some(&count) = self.footprints.extension_count_values.borrow().get(&key) {
+            return count;
+        }
+        let length = (shaft[1][0] - shaft[0][0]).hypot(shaft[1][1] - shaft[0][1]);
+        let mut ids: Vec<_> = self
+            .footprints
+            .near_indices(shaft)
+            .filter_map(|i| {
+                let id = self.prepared.features[i]?;
+                self.footprints.features[i]
+                    .shape
+                    .crossed_with_length(shaft, length)
+                    .then_some(id)
+            })
+            .collect();
+        ids.sort_unstable();
+        ids.dedup();
+        let count = ids.len();
+        let mut saved = self.footprints.extension_count_values.borrow_mut();
+        if saved.len() >= 8192 {
+            saved.clear();
+        }
+        saved.insert(key, count);
+        count
+    }
+}
 
 // A conservative broad phase only: surviving shapes use the unchanged crossing predicate.
 struct Index {
@@ -565,6 +610,8 @@ impl Footprints {
             counts: RefCell::default(),
             index: OnceCell::new(),
             extensions: RefCell::new(HashMap::new()),
+            extension_counts: RefCell::default(),
+            extension_count_values: RefCell::default(),
         }
     }
 
@@ -594,6 +641,10 @@ impl Footprints {
     }
 
     fn near(&self, shaft: [P2; 2]) -> impl Iterator<Item = &Footprint> {
+        self.near_indices(shaft).map(|i| &self.features[i])
+    }
+
+    fn near_indices(&self, shaft: [P2; 2]) -> impl Iterator<Item = usize> {
         let index = self.index.get_or_init(|| {
             let mut by_x: Vec<_> = self
                 .features
@@ -614,7 +665,7 @@ impl Footprints {
             .iter()
             .take_while(move |(_, f)| !bounded || f[0] <= b[2])
             .filter(move |(_, f)| !bounded || (f[2] >= b[0] && f[1] <= b[3] && f[3] >= b[1]))
-            .map(|(i, _)| &self.features[*i])
+            .map(|(i, _)| *i)
     }
 
     fn crossed_ids(&self, shaft: [P2; 2]) -> BTreeSet<&str> {
@@ -670,6 +721,39 @@ impl Footprints {
             line[0] = [line[0][0] + t * d[0], line[0][1] + t * d[1]];
         }
         true
+    }
+
+    /// Bind ownership once for the many exact witness-count queries in a linear solve.
+    pub(super) fn extension_counter(&self, owners: &[Measurement]) -> ExtensionCounter<'_> {
+        let key: OwnersKey = owners
+            .iter()
+            .map(|m| (m.feature.clone(), m.parameter.clone(), m.value.to_bits()))
+            .collect();
+        let cached = self.extension_counts.borrow().get(&key).cloned();
+        let prepared = cached.unwrap_or_else(|| {
+            let mut ids = BTreeMap::new();
+            let features = self
+                .features
+                .iter()
+                .map(|f| {
+                    if f.id == self.view || self.owned(&f.id, owners) {
+                        return None;
+                    }
+                    let next = ids.len();
+                    Some(*ids.entry(&f.id).or_insert(next))
+                })
+                .collect();
+            let id = self.extension_counts.borrow().len();
+            let prepared = Rc::new(ExtensionCounts { features, id });
+            self.extension_counts
+                .borrow_mut()
+                .insert(key, prepared.clone());
+            prepared
+        });
+        ExtensionCounter {
+            footprints: self,
+            prepared,
+        }
     }
 
     /// A dimension witnesses its own feature (all members for a pattern). Unlike a leader,
@@ -827,6 +911,8 @@ mod tests {
             counts: RefCell::default(),
             index: OnceCell::new(),
             extensions: RefCell::new(HashMap::new()),
+            extension_counts: RefCell::default(),
+            extension_count_values: RefCell::default(),
             features: vec![
                 footprint("f:own", [0.0, 0.0]),
                 footprint("f:other", [5.0, 0.0]),
@@ -869,6 +955,8 @@ mod tests {
             counts: RefCell::default(),
             index: OnceCell::new(),
             extensions: RefCell::new(HashMap::new()),
+            extension_counts: RefCell::default(),
+            extension_count_values: RefCell::default(),
             members: BTreeMap::from([(
                 "f:pattern".into(),
                 BTreeSet::from(["f:a".into(), "f:b".into()]),
@@ -1042,6 +1130,84 @@ mod tests {
     }
 
     #[test]
+    fn ownership_count_cache_matches_uncached_crossings_and_deduplicates_features() {
+        let f = Footprints {
+            features: vec![
+                Footprint {
+                    id: "f:hole".into(),
+                    shape: Shape::Circle([0., 0.], 2.),
+                },
+                Footprint {
+                    id: "f:hole".into(),
+                    shape: Shape::Box([-1., -1., 1., 1.]),
+                },
+                Footprint {
+                    id: "f:slot".into(),
+                    shape: Shape::Box([3., -2., 5., 2.]),
+                },
+                Footprint {
+                    id: "v:plan".into(),
+                    shape: Shape::Box([-8., -8., 8., 8.]),
+                },
+            ],
+            solids: vec![],
+            view: "v:plan".into(),
+            members: BTreeMap::from([
+                (
+                    "f:pattern".into(),
+                    BTreeSet::from(["f:hole".into(), "f:slot".into()]),
+                ),
+                ("step_level/4".into(), BTreeSet::from(["f:slot".into()])),
+            ]),
+            counts: RefCell::default(),
+            index: OnceCell::new(),
+            extensions: RefCell::default(),
+            extension_counts: RefCell::default(),
+            extension_count_values: RefCell::default(),
+        };
+        for (feature, parameter, value) in [
+            ("", "length", 0.),
+            ("f:hole", "length", 4.),
+            ("f:pattern", "length", 4.),
+            ("step_level", "step_height.length.h4", 4.),
+            ("step_level", "step_height.length.h4", 5.),
+        ] {
+            let owners = [Measurement {
+                feature: feature.into(),
+                parameter: parameter.into(),
+                value,
+            }];
+            let counter = f.extension_counter(&owners);
+            let repeated = f.extension_counter(&owners);
+            assert!(Rc::ptr_eq(&counter.prepared, &repeated.prepared));
+            for x in -8..=8 {
+                for y in -8..=8 {
+                    for shaft in [
+                        [[-9., f64::from(y)], [f64::from(x), 0.]],
+                        [[f64::from(x), -9.], [f64::from(x), f64::from(y)]],
+                    ] {
+                        let length = (shaft[1][0] - shaft[0][0]).hypot(shaft[1][1] - shaft[0][1]);
+                        let expected = f
+                            .features
+                            .iter()
+                            .filter(|p| {
+                                p.id != f.view
+                                    && !f.owned(&p.id, &owners)
+                                    && p.shape.crossed_with_length(shaft, length)
+                            })
+                            .map(|p| &p.id)
+                            .collect::<BTreeSet<_>>()
+                            .len();
+                        assert_eq!(counter.count(shaft), expected);
+                        assert_eq!(repeated.count(shaft), expected);
+                        assert_eq!(f.crossed_extension(shaft, &owners).len(), expected);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn containing_features_allow_an_exit_but_still_report_reentry() {
         let vertices = [
             [0.0, 0.0],
@@ -1068,6 +1234,8 @@ mod tests {
             counts: RefCell::default(),
             index: OnceCell::new(),
             extensions: RefCell::new(HashMap::new()),
+            extension_counts: RefCell::default(),
+            extension_count_values: RefCell::default(),
         };
         let exit = [[1.0, 2.0], [-1.0, 2.0]];
         let reentry = [[1.0, 2.0], [7.0, 2.0]];
@@ -1128,6 +1296,8 @@ mod tests {
             counts: RefCell::default(),
             index: OnceCell::new(),
             extensions: RefCell::new(HashMap::new()),
+            extension_counts: RefCell::default(),
+            extension_count_values: RefCell::default(),
             features: vec![
                 Footprint {
                     id: "f:own".into(),

@@ -20,6 +20,20 @@ env:
 # archive, and the archive's tests run in parallel jobs. Every test of `cargo test --release`
 # runs in exactly one of them (doc-tests, which nextest does not run, run in the build job).
 jobs:
+  # A pull request that changes only release metadata (versions, notes) runs lint alone;
+  # tools/release_only.py says what counts. Pushes to main always run every job.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      release_only: ${{ steps.check.outputs.release_only }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+      - id: check
+        if: github.event_name == 'pull_request'
+        run: python3 -I tools/release_only.py ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }}
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -36,10 +50,14 @@ jobs:
       - run: rustup toolchain install
       # Caches ~/.cargo (registry and the git checkout of haecceity) and target/.
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: python3 tools/check_test_binaries.py
+      - run: python3 -m unittest discover -s tools -p 'test_check_test_binaries.py'
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --release -- -D warnings
 
   build:
+    needs: changes
+    if: needs.changes.outputs.release_only != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -116,6 +134,9 @@ jobs:
       - if: matrix.shard == 'harness'
         shell: bash
         run: |
+          cargo nextest list --archive-file nextest-archive.tar.zst \
+            --workspace-remap . --ignore-default-filter --message-format json > nextest-list.json
+          python3 tools/check_test_binaries.py --nextest-list nextest-list.json
           left_out=$(cargo nextest list --archive-file nextest-archive.tar.zst \
             --workspace-remap . --profile ci --ignore-default-filter -E 'not default()' \
             --message-format oneline --color never | awk '{print $1}' | sort -u | sed 's/^draftwright:://')
@@ -184,6 +205,8 @@ jobs:
 
   wasm:
     name: Browser WASM and native parity
+    needs: changes
+    if: needs.changes.outputs.release_only != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6

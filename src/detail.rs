@@ -799,6 +799,7 @@ pub(crate) fn at(d: &Detail, area: Rect) -> [f64; 2] {
 pub(crate) fn scaled(a: &Analysis, spec: &Spec, sheet: f64) -> Scaled {
     let requests = requests(a, spec, sheet);
     let mut scaled = Scaled {
+        angular: crate::dims::angular::notch_reservations(a, spec, sheet),
         pack_derived_at_edges: !requests.is_empty()
             && requests
                 .iter()
