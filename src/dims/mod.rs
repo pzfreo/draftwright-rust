@@ -73,7 +73,7 @@ mod label_lanes;
 mod wording;
 pub(crate) use pmi_dimensions::basic as is_basic;
 mod leaders;
-pub(crate) use label_lanes::settle_inventory;
+pub(crate) use label_lanes::{in_lane, settle_inventory};
 pub(crate) use leaders::settle_after_furniture;
 pub(crate) use placement::collisions_cached as label_collisions;
 pub(crate) mod levels;
@@ -423,8 +423,12 @@ enum Shape {
     },
     /// An exact span between two proven stations in a principal projection plane.
     Aligned { a: P3, b: P3 },
-    /// A leader to one of these circles (centre, radius), world mm.
-    Callout { sites: Vec<(P3, f64)> },
+    /// A leader to circles/points (centre, radius), world mm. When `arcs` is
+    /// nonempty it supplies the actual trimmed profiles instead of whole circles.
+    Callout {
+        sites: Vec<(P3, f64)>,
+        arcs: Vec<crate::arc::ProfileArc>,
+    },
     /// An angle between two sides, drawn about its vertex ([`angular`]).
     Angular { angle: angular::Angle },
 }
@@ -939,7 +943,7 @@ fn detail_routes(a: &Analysis, wants: &mut [Want], views: &[PlannedView]) {
                 .iter()
                 .any(|m| m.parameter == "blend.radius" || m.parameter == "fillet.radius");
             let sites = match &w.shape {
-                Shape::Callout { sites } => sites.iter().any(|(p, _)| inside(*p)),
+                Shape::Callout { sites, .. } => sites.iter().any(|(p, _)| inside(*p)),
                 _ => false,
             };
             let feature = w
@@ -985,7 +989,7 @@ fn detail_routes(a: &Analysis, wants: &mut [Want], views: &[PlannedView]) {
                         *b_edge = false;
                     }
                 }
-                Shape::Callout { sites } => {
+                Shape::Callout { sites, .. } => {
                     sites.retain(|(p, _)| inside(*p));
                     if sites.is_empty() {
                         continue;
@@ -4084,12 +4088,12 @@ pub(crate) fn refine_inventory(
         if w.measurements
             .first()
             .is_some_and(|m| m.parameter == "seat_diameter.diameter")
-            && let Shape::Callout { sites } = &mut w.shape
+            && let Shape::Callout { sites, .. } = &mut w.shape
         {
             for peer in raw.iter().filter(|peer| {
                 peer.id != w.id && peer.measurements.iter().any(|m| w.measurements.contains(m))
             }) {
-                if let Shape::Callout { sites: more } = &peer.shape {
+                if let Shape::Callout { sites: more, .. } = &peer.shape {
                     sites.extend(more.iter().copied());
                 }
             }

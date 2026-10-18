@@ -115,6 +115,7 @@ pub fn check(drawing: &Drawing) -> Vec<LintIssue> {
     issues.extend(annotation_pairs(drawing));
     issues.extend(fixed_ink_contacts(drawing));
     issues.extend(dimension_lines(drawing));
+    issues.extend(oblique_witnesses(drawing));
     issues.extend(annotation_bounds(drawing));
     issues.extend(view_annotations(drawing));
     issues.extend(view_boxes(drawing));
@@ -735,6 +736,89 @@ fn dimension_lines(drawing: &Drawing) -> Vec<LintIssue> {
             );
             i.annotation = Some(a.name.clone());
             i.fix = Some("set the text beside its own dimension line".into());
+            issues.push(i);
+        }
+    }
+    issues
+}
+
+/// Oblique witnesses must not cut the visible part or another dimension's ink.
+/// Read the line grammar and visible curves of the finished sheet, independently
+/// of the placement search and its conservative material evidence.
+fn oblique_witnesses(drawing: &Drawing) -> Vec<LintIssue> {
+    let side = |a: P, b: P, c: P| (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    let intersects = |a: [P; 2], b: [P; 2]| {
+        side(a[0], a[1], b[0]) * side(a[0], a[1], b[1]) < -1e-10
+            && side(b[0], b[1], a[0]) * side(b[0], b[1], a[1]) < -1e-10
+    };
+    let mut issues = Vec::new();
+    for d in drawing
+        .sheet
+        .items
+        .iter()
+        .filter(|d| d.kind == Kind::Dimension && d.elbow.is_none())
+    {
+        let Some(linear) = crate::output::linear_ink(&d.lines) else {
+            continue;
+        };
+        if !d.lines[..2]
+            .iter()
+            .any(|l| (l[1][linear.k] - l[0][linear.k]).abs() > 1e-6)
+        {
+            continue;
+        }
+        let view = drawing
+            .annotations
+            .iter()
+            .find(|a| a.name == d.name)
+            .and_then(|a| a.view.as_deref());
+        let material = drawing
+            .sheet
+            .views
+            .iter()
+            .filter(|v| Some(v.name.as_str()) == view)
+            .any(|v| {
+                edges(v).iter().any(|edge| match edge {
+                    Edge::Line(a, b, _) => d.lines[..2].iter().any(|l| intersects(*l, [*a, *b])),
+                    Edge::Points(points, _) => points
+                        .windows(2)
+                        .any(|p| d.lines[..2].iter().any(|l| intersects(*l, [p[0], p[1]]))),
+                })
+            });
+        let peers: Vec<_> = drawing
+            .sheet
+            .items
+            .iter()
+            .filter(|q| q.name != d.name && q.kind == Kind::Dimension)
+            .filter(|q| {
+                d.lines[..2].iter().any(|l| {
+                    q.label.is_some_and(|b| clip(l[0], l[1], b).is_some())
+                        || q.lines.iter().chain(&q.heads).any(|t| intersects(*l, *t))
+                })
+            })
+            .collect();
+        if material || !peers.is_empty() {
+            let mut i = issue(
+                format!("l:oblique_witness_crossing:{}", d.name),
+                "oblique_witness_crossing",
+                Severity::Warning,
+                format!(
+                    "'{}' has an oblique witness crossing {}",
+                    called(drawing, d),
+                    if material {
+                        "the visible part outline"
+                    } else {
+                        "another dimension"
+                    }
+                ),
+            );
+            i.annotation = Some(d.name.clone());
+            i.view = view.map(str::to_owned);
+            i.related = peers.iter().map(|q| q.name.clone()).collect();
+            i.evidence = Some("the drawn oblique witness intersects visible boundary ink, a dimension line, witness, arrowhead or label".into());
+            i.fix = Some(
+                "use perpendicular witnesses in a clear lane before an oblique fallback".into(),
+            );
             issues.push(i);
         }
     }

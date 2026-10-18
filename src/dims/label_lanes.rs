@@ -526,7 +526,17 @@ fn promote(p: &Placed, amount: f64) -> Placed {
     let k = 1 - axis(p);
     let line = p.arrows[0][0][k];
     let out = (line - p.lines[0][0][k]).signum();
-    let d = out * amount;
+    shift_lane(p, out * amount)
+}
+
+/// Move the dimension line and text while retaining its measured witness origins.
+pub(crate) fn in_lane(p: &Placed, line: f64) -> Placed {
+    let k = 1 - axis(p);
+    shift_lane(p, line - p.arrows[0][0][k])
+}
+
+fn shift_lane(p: &Placed, d: f64) -> Placed {
+    let k = 1 - axis(p);
     let mut c = p.clone();
     for l in c.lines.iter_mut().take(2) {
         l[1][k] += d;

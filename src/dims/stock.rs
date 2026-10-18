@@ -103,7 +103,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 "the part is {sides}-sided stock along {}: its size across flats is called out where its outline is seen, in place of the overall {} and {} extents, which depend on how the stock is turned",
                 AXES[k], across[0], across[1]
             ),
-            shape: Shape::Callout {
+            shape: Shape::Callout { arcs: Vec::new(),
                 sites: flats.iter().map(|c| (*c, 0.0)).collect(),
             },
         });

@@ -319,7 +319,7 @@ fn diameters(
                     )
                 }, carries(manufacturing, &members)),
                 terms,
-                shape: Shape::Callout {
+                shape: Shape::Callout { arcs: Vec::new(),
                     sites: members.iter().flat_map(|(_, c)| sites(c)).collect(),
                 },
                 turning: Some(b.axis),

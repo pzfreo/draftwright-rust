@@ -40,6 +40,7 @@ use std::collections::BTreeMap;
 use std::f64::consts::PI;
 
 use super::{LintIssue, Severity};
+use crate::arc::turn;
 use crate::bridge::Feature;
 use crate::bridge::holes::{self, Hole, dir_to_part, point, to_part};
 use crate::model::Analysis;
@@ -252,12 +253,6 @@ fn arc(analysis: &Analysis, id: &str) -> Result<Option<Arc>, String> {
     }))
 }
 
-/// *a* − *b* wrapped into (−π, π].
-fn turn(a: f64, b: f64) -> f64 {
-    let d = (a - b).rem_euclid(2.0 * PI);
-    if d > PI { d - 2.0 * PI } else { d }
-}
-
 /// Whether *tip* lies on *arc* as seen end-on in *p*, within [`TOLERANCE`].
 fn on_arc(p: &Projection, arc: &Arc, tip: P) -> bool {
     let c = p.page(arc.at);
@@ -281,8 +276,11 @@ fn on_arc(p: &Projection, arc: &Arc, tip: P) -> bool {
         (-0.5 * PI, 0.5 * PI)
     };
     let slack = TOLERANCE / r.max(1e-9);
-    let t = turn(angle(tip), reference);
-    t >= lo - slack && t <= hi + slack
+    crate::arc::Span {
+        start: reference + lo,
+        sweep: hi - lo,
+    }
+    .contains(angle(tip), slack)
 }
 
 fn issue(code: &str, name: &str, view: &str, tip: P, message: String, why: &str) -> LintIssue {
@@ -340,15 +338,16 @@ pub(super) fn check(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
                 .map(|c| c.feature.as_str())
                 .collect()
         };
-        let mut found = |code: &str, subjects: Vec<&str>, parameter: &str, message, why| {
-            let mut i = issue(code, &a.name, view, tip, message, why);
-            i.measurements = subjects
-                .iter()
-                .map(|f| format!("{f}/{parameter}"))
-                .collect();
-            i.subjects = subjects.into_iter().map(String::from).collect();
-            issues.push(i);
-        };
+        let mut found =
+            |code: &str, subjects: Vec<&str>, parameter: &str, message: String, why: &str| {
+                let mut i = issue(code, &a.name, view, tip, message, why);
+                i.measurements = subjects
+                    .iter()
+                    .map(|f| format!("{f}/{parameter}"))
+                    .collect();
+                i.subjects = subjects.into_iter().map(String::from).collect();
+                issues.push(i);
+            };
         let bores = claimed("bore.diameter");
         if !bores.is_empty() {
             let mut gaps: Vec<f64> = bores
@@ -433,6 +432,40 @@ pub(super) fn check(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
                     ),
                     "drawn tip is outside the trimmed physical profile arc tolerance",
                 );
+            }
+        }
+        for parameter in ["circular_step_radius.radius", "slot_end_radius.radius"] {
+            let steps = claimed(parameter);
+            if !steps.is_empty() {
+                let arcs: Vec<_> = steps
+                    .iter()
+                    .filter_map(|id| analysis.profile_arcs.get(*id))
+                    .flatten()
+                    .collect();
+                let on = arcs.iter().any(|arc| {
+                    let (c, r, span) = arc.projected(|q| p.page(q));
+                    ((tip[0] - c[0]).hypot(tip[1] - c[1]) - r).abs() <= TOLERANCE
+                        && span.contains(
+                            (tip[1] - c[1]).atan2(tip[0] - c[0]),
+                            TOLERANCE / r.max(1e-9),
+                        )
+                });
+                if !on {
+                    found(
+                        if arcs.is_empty() {
+                            "radius_leader_target_unverifiable"
+                        } else {
+                            "radius_leader_target_mismatch"
+                        },
+                        steps,
+                        parameter,
+                        format!(
+                            "{}: the radius leader tip does not touch its named trimmed circular profile arc",
+                            a.name
+                        ),
+                        "drawn tip must be on a recorded circular boundary edge, within its angular span",
+                    );
+                }
             }
         }
         // The shaft against the material it left at its tip.

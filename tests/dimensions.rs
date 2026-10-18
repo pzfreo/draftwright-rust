@@ -80,6 +80,7 @@ fn analysed(corpus: &Path, name: &str, file: &str, json: &str) -> Option<Analysi
         }
     };
     a.recognition = Some(r);
+    a.profile_arcs = draftwright::arc::evidence(&part, &features);
     a.features = features;
     Some(a)
 }

@@ -71,6 +71,37 @@ struct Slot<'a> {
 }
 
 impl Slot<'_> {
+    fn end_arcs(&self, r: f64, analysis: &crate::model::Analysis) -> Vec<crate::arc::ProfileArc> {
+        if let Some(arcs) = analysis.profile_arcs.get(&self.feature.id) {
+            return arcs.clone();
+        }
+        let mut u = [0.0; 3];
+        let mut v = [0.0; 3];
+        u[self.long] = 1.0;
+        v[self.wide] = 1.0;
+        [0, 1]
+            .map(|end| crate::arc::ProfileArc {
+                centre: self.at(
+                    if end == 0 {
+                        self.ends[0] + r
+                    } else {
+                        self.ends[1] - r
+                    },
+                    self.centre,
+                ),
+                radius: r,
+                u,
+                v,
+                start: if end == 0 {
+                    std::f64::consts::FRAC_PI_2
+                } else {
+                    -std::f64::consts::FRAC_PI_2
+                },
+                sweep: std::f64::consts::PI,
+            })
+            .to_vec()
+    }
+
     /// The point at *long* along it and *wide* across it, at mid-thickness.
     fn at(&self, long: f64, wide: f64) -> P3 {
         let mut p = [0.0; 3];
@@ -349,11 +380,8 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 measurements: vec![m("slot_end_radius.radius", r)],
                 turning: None,
                 basis: "an obround slot's ends are proven arcs: their radius is called out once for both, with a leader to an end".into(),
-                shape: Shape::Callout {
-                    sites: vec![
-                        (s.at(s.ends[0] + r, s.centre), r),
-                        (s.at(s.ends[1] - r, s.centre), r),
-                    ],
+                shape: Shape::Callout { arcs: s.end_arcs(r, cx.analysis),
+                    sites: vec![(s.at(s.ends[0] + r, s.centre), r), (s.at(s.ends[1] - r, s.centre), r)],
                 },
             });
         }
@@ -669,6 +697,7 @@ fn pattern<'a>(cx: &Context<'a>, p: &'a Feature) -> Result<Grouped<'a>, String> 
             "{why} is called out once with its width and length, in the view that looks through them, as draftwright's grouped slot callout"
         ),
         shape: Shape::Callout {
+            arcs: Vec::new(),
             sites: slots
                 .iter()
                 .flat_map(|t| {
@@ -687,11 +716,8 @@ fn pattern<'a>(cx: &Context<'a>, p: &'a Feature) -> Result<Grouped<'a>, String> 
             measurements: vec![m("slot_end_radius.radius", r)],
             turning: None,
             basis: "the pattern's obround ends are proven arcs: their radius is called out once, with a leader to an end of one slot".into(),
-            shape: Shape::Callout {
-                sites: vec![
-                    (s.at(s.ends[0] + r, s.centre), r),
-                    (s.at(s.ends[1] - r, s.centre), r),
-                ],
+            shape: Shape::Callout { arcs: s.end_arcs(r, cx.analysis),
+                sites: vec![(s.at(s.ends[0] + r, s.centre), r), (s.at(s.ends[1] - r, s.centre), r)],
             },
         });
     }
@@ -997,6 +1023,7 @@ impl Blind<'_> {
             turning: None,
             basis: basis.into(),
             shape: Shape::Callout {
+                arcs: Vec::new(),
                 sites: vec![wall(-1.0), wall(1.0)],
             },
         }

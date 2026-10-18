@@ -227,7 +227,7 @@ fn pocket_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>) 
                     ""
                 }
             ),
-            shape: Shape::Callout {
+            shape: Shape::Callout { arcs: Vec::new(),
                 sites,
             },
         });
@@ -336,7 +336,7 @@ fn hex_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>) {
                 "a hexagonal pocket's size across flats and depth in one callout, in the view down it"
                     .into()
             },
-            shape: Shape::Callout {
+            shape: Shape::Callout { arcs: Vec::new(),
                 sites: members
                     .iter()
                     .map(|(_, at, a, _)| (*at, 0.5 * a))
@@ -410,7 +410,7 @@ fn seat_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>) {
                 "a circular seat's diameter, run and swept angle in one callout, in the view along it"
                     .into()
             },
-            shape: Shape::Callout {
+            shape: Shape::Callout { arcs: Vec::new(),
                 sites: members.iter().flat_map(|s| {
                     // All stations are on the measured arc, away from its open
                     // ends. A fixed midpoint can force a new seat leader across
@@ -661,7 +661,10 @@ fn pattern_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>)
             basis:
                 "one count and size/depth callout for identical recognised pocket-pattern members"
                     .into(),
-            shape: Shape::Callout { sites },
+            shape: Shape::Callout {
+                sites,
+                arcs: Vec::new(),
+            },
         });
         for (parameter, axis, pitch, intervals, at) in group.pitches {
             let mut b = at;
@@ -769,7 +772,10 @@ fn corner_wants(cx: &Context, out: &mut Vec<Want>) {
             turning: None,
             basis: "each rounded pocket retains four equal tangent corner-radius requirements"
                 .into(),
-            shape: Shape::Callout { sites },
+            shape: Shape::Callout {
+                sites,
+                arcs: Vec::new(),
+            },
         });
     }
 }
@@ -832,10 +838,10 @@ pub(super) fn consolidate(
             let claims = kept[j].0.measurements.clone();
             kept[i].0.measurements.extend(claims);
             let more = match &kept[j].0.shape {
-                Shape::Callout { sites } => sites.clone(),
+                Shape::Callout { sites, .. } => sites.clone(),
                 _ => Vec::new(),
             };
-            if let Shape::Callout { sites } = &mut kept[i].0.shape {
+            if let Shape::Callout { sites, .. } = &mut kept[i].0.shape {
                 sites.extend(more);
             }
             let by = kept[i].0.id.clone();
