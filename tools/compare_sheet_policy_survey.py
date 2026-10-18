@@ -148,6 +148,7 @@ def main():
     before_read, after_read = read(args.before_readability), read(args.after_readability)
     stats = {stage: collections.Counter() for stage in ('before', 'after')}
     rows, changes, up, lost, added, derived, lost_annotations, large, gained = [], [], [], [], [], [], [], [], []
+    sheet_changes = []
     for key, source in old_manifest.items():
         old = read(args.before / (key + '.plan.json'))
         new = read(args.after / (key + '.plan.json'))
@@ -195,6 +196,8 @@ def main():
             gained.append(row)
         if row['before'] != row['after']:
             changes.append(row)
+        if len(new.get('sheets', [])) != len(old.get('sheets', [])):
+            sheet_changes.append(row)
         if PAPERS.index(new['sheet']['size']) > PAPERS.index(old['sheet']['size']):
             up.append(row)
         if new['sheet']['size'] in ('A2', 'A1', 'A0'):
@@ -224,7 +227,7 @@ def main():
     readable = {stage: sum(v['failures'] == 0 for v in data.values())
                 for stage, data in (('before', before_read), ('after', after_read))}
     report = dict(parts=len(rows), changed=len(changes), stats=stats, fully_readable=readable, up=up,
-                  large_paper=large, gained_details=gained, lost_measurements=lost, axis_derived_measurements=derived, lost_annotation_claims=lost_annotations, new_drawing_findings=added)
+                  large_paper=large, gained_details=gained, sheet_count_changes=sheet_changes, lost_measurements=lost, axis_derived_measurements=derived, lost_annotation_claims=lost_annotations, new_drawing_findings=added)
     (args.out / 'audit.json').write_text(json.dumps(report, indent=2) + '\n')
     lines = ['# Paired sheet-policy results', '',
              '227 drawable inputs; the same unresolved input is refused on both sides. Counts classify the primary paper.', '',
@@ -243,8 +246,19 @@ def main():
               'Direct dimensions and independently verified common-axis geometry retain the measurement inventory. '
               'See [verification and PNG index](sheet-policy-verification.md).']
     (args.out / 'summary.md').write_text('\n'.join(lines) + '\n')
+    changed_frames = [row for row in changes
+                      if row['before'].rsplit(' / ', 1)[0] != row['after'].rsplit(' / ', 1)[0]]
+    lines = ['# Paper, scale or sheet-count changes', '',
+             'Before and after use paper, main scale / physical sheets / details.', '',
+             '| Part | Before | After |', '| --- | --- | --- |']
+    lines += ['| ' + ' | '.join(row[k] for k in ('part', 'before', 'after')) + ' |'
+              for row in sorted(changed_frames, key=lambda row: row['part'])]
+    lines += ['', f'{len(sheet_changes)} parts change sheet count; no part may gain sheets.', '']
+    (args.out / 'changes.md').write_text('\n'.join(lines))
     print(json.dumps({k: v if k in ('parts', 'changed', 'stats', 'fully_readable') else len(v) for k, v in report.items()}, indent=2))
     assert not lost and not lost_annotations and not added, 'information or finding regression; see audit.json'
+    assert not any(int(row['after'].split(' / ')[1]) > int(row['before'].split(' / ')[1])
+                   for row in sheet_changes), 'a part gained sheets; see audit.json'
 
 
 if __name__ == '__main__':
