@@ -11,6 +11,8 @@ import json
 from pathlib import Path
 import sys
 
+PREFERRED = 25.0
+
 
 def bands(plan, analysis):
     result = {}
@@ -50,7 +52,7 @@ def compare(before, after):
         old, new = minimum(a, analysis), minimum(b, analysis)
         rows.append(dict(part=part, sheet=b['sheet']['size'], scale=b['sheet']['scale'],
                          before=old[0], after=new[0], limiting_pair=new[1:],
-                         shrank=new[0] is not None and new[0] < 12 - 1e-6))
+                         shrank=new[0] is not None and new[0] < PREFERRED - 1e-6))
     return rows
 
 

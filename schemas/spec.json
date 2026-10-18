@@ -967,7 +967,7 @@
             {
               "type": "number",
               "minimum": 0,
-              "description": "Preferred blank view gutter in paper mm, default 12; shrinks to fit at the selected sheet and scale."
+              "description": "Preferred maximum blank view gutter in paper mm, default 25; shrinks to fit at the selected sheet and scale."
             },
             {
               "type": "null"

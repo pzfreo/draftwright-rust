@@ -431,7 +431,7 @@ pub struct SheetSpec {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub knurl_depiction: Option<bool>,
 
-    /// Preferred blank paper between view annotation bands, mm (default 12).
+    /// Preferred maximum blank paper between view annotation bands, mm (default 25).
     /// Spent only after sheet and scale selection; zero disables automatic gutters.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(deserialize_with = "view_gutter")]
@@ -3497,6 +3497,9 @@ fn plan_with_presentation(
         // Tolerance, fit and wording edits change annotation ink, not the part projections.
         // Keep authored geometry in the complete unedited frame too.
         let mut base = spec.clone();
+        // Text is laid out before optional final gutters. Reusing a spaced frame
+        // here can exhaust a label's border clearance before its ink is settled.
+        base.sheet.view_gutter = Some(0.0);
         for d in base.dimensions.values_mut() {
             d.tolerance = None;
             d.fit = None;

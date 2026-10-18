@@ -40,7 +40,7 @@ fn minimum(p: &Plan) -> f64 {
 fn roomy_sheet_has_preferred_gutters_and_projection_origins() {
     for projection in ["first", "third"] {
         let p = plan(json!({"sheet":{"size":"A2","scale":"1:1","projection":projection}}));
-        assert!(minimum(&p) >= 12.0 - 1e-6, "{}", minimum(&p));
+        assert!(minimum(&p) >= 25.0 - 1e-6, "{}", minimum(&p));
         let front = p.views.iter().find(|v| v.id == "v:front").unwrap();
         for (id, k) in [("v:plan", 0), ("v:side", 1)] {
             if let Some(v) = p.views.iter().find(|v| v.id == id) {

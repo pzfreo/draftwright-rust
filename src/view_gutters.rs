@@ -4,7 +4,9 @@ use crate::layout::{MARGIN, Rect};
 use crate::model::{Analysis, Plan};
 use crate::placement_intent::{move_box, move_point};
 
-pub(crate) const PREFERRED: f64 = 12.0;
+// About eight annotation capitals: ample separation on sparse sheets while the
+// projections still read as one set. Tight sheets share less, down to zero.
+pub(crate) const PREFERRED: f64 = 25.0;
 
 fn include(a: &mut Rect, b: Rect) {
     for k in 0..2 {
@@ -13,20 +15,37 @@ fn include(a: &mut Rect, b: Rect) {
     }
 }
 
+fn measured(plan: &Plan, v: &crate::model::PlannedView) -> bool {
+    (v.id == "v:iso" || v.cut.is_some())
+        && plan
+            .spec
+            .views
+            .get(v.id.trim_start_matches("v:"))
+            .is_none_or(|v| v.place.is_none())
+}
+
 /// Reserved annotation bands, enlarged to contain settled ink and view furniture.
-/// The iso's empty fitting region is not an annotation band: use its drawn bounds.
+/// Empty iso fitting regions and generic section padding are available paper.
 fn bands(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
     let mut bounds: Vec<_> = plan
         .views
         .iter()
         .map(|v| {
-            if v.id == "v:iso" && plan.spec.views.get("iso").is_none_or(|v| v.place.is_none()) {
+            if measured(plan, v) && v.id == "v:iso" {
                 let b = analysis.iso_bounds;
                 [
                     v.at[0] + v.scale * b[0],
                     v.at[1] + v.scale * b[1],
                     v.at[0] + v.scale * b[2],
                     v.at[1] + v.scale * b[3],
+                ]
+            } else if measured(plan, v) {
+                let (size, _) = crate::detail::crop_extent(analysis, v);
+                [
+                    v.at[0] - v.scale * size[0] / 2.0,
+                    v.at[1] - v.scale * size[1] / 2.0,
+                    v.at[0] + v.scale * size[0] / 2.0,
+                    v.at[1] + v.scale * size[1] / 2.0,
                 ]
             } else {
                 v.area
@@ -38,12 +57,21 @@ fn bands(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
             include(&mut bounds[i], b);
         }
     };
+    // Label clearance is occupied paper too, including beside the title and
+    // fixed furniture. Keep the two mm used by measured annotation packing.
+    let label_clearance = |b: Rect| [b[0] - 2.0, b[1] - 2.0, b[2] + 2.0, b[3] + 2.0];
     for d in &plan.dimensions {
+        if let Some(p) = &d.placed {
+            own(&d.view, label_clearance(p.label_box));
+        }
         if let Some(b) = crate::dims::ink_box(d) {
             own(&d.view, b);
         }
     }
     for g in &plan.gdt {
+        if let Some(p) = &g.placed {
+            own(&g.view, label_clearance(p.label_box));
+        }
         if let Some(d) = crate::dims::gdt::proxy(g)
             && let Some(b) = crate::dims::ink_box(&d)
         {
@@ -84,7 +112,7 @@ fn bands(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
         let furniture =
             crate::sheet_fit::furniture_bounds(analysis, sheet, std::slice::from_ref(v));
         for b in furniture.into_iter().skip(fixed) {
-            own(&v.id, b);
+            own(&v.id, label_clearance(b));
         }
         if let Some(d) = &v.detail
             && let Some(source) = plan.views.iter().find(|s| s.id == d.source_view)
@@ -182,6 +210,24 @@ fn translations(
             equality(&mut hard[k], i, j);
         }
     }
+    // The packer establishes rows/columns for sections and auxiliary projections
+    // too. Keep their established alignment, even when annotation bands differ.
+    // Isometrics and detail crops are independent compositions.
+    for (i, a) in plan.views.iter().enumerate() {
+        if a.id == "v:iso" || a.detail.is_some() {
+            continue;
+        }
+        for (j, b) in plan.views[..i].iter().enumerate() {
+            if a.sheet != b.sheet || b.id == "v:iso" || b.detail.is_some() {
+                continue;
+            }
+            for (k, edges) in hard.iter_mut().enumerate() {
+                if (a.at[k] - b.at[k]).abs() < 1e-6 {
+                    equality(edges, i, j);
+                }
+            }
+        }
+    }
     for (i, v) in plan.views.iter().enumerate() {
         // Explicit placement relations retain their exact gap and alignment, pinned
         // or otherwise. Their connected group may translate, but never deform.
@@ -196,13 +242,28 @@ fn translations(
                 equality(edges, i, j);
             }
         }
-        let pinned = plan.spec.dimensions.iter().any(|(id,d)| d.place.as_ref().is_some_and(|p| p.pinned)
-                && plan.dimensions.iter().any(|d| d.id == *id && d.view == v.id))
-            || plan.spec.annotations.iter().any(|(id,d)| d.place.as_ref().is_some_and(|p| p.pinned)
-                && plan.gdt.iter().any(|g| g.id == *id && g.view == v.id))
+        let pinned_item = plan
+            .spec
+            .dimensions
+            .iter()
+            .filter_map(|(id, d)| d.place.as_ref().filter(|p| p.pinned).map(|_| id))
+            .chain(
+                plan.spec
+                    .annotations
+                    .iter()
+                    .filter_map(|(id, a)| a.place.as_ref().filter(|p| p.pinned).map(|_| id)),
+            )
+            .any(|id| crate::placement_intent::carrier(plan, id).as_deref() == Some(&v.id));
+        let pinned_view = plan
+            .spec
+            .views
+            .get(v.id.trim_start_matches("v:"))
+            .and_then(|s| s.place.as_ref())
+            .is_some_and(|p| p.pinned);
+        let pinned = pinned_item || pinned_view
             // Cross-sheet references encode both destination zones and local stations.
             || v.xref.is_some() || v.cut.as_ref().is_some_and(|c| c.xref.is_some());
-        if pinned || crate::model::dimension_text_edited(&plan.spec) {
+        if pinned {
             for edges in &mut hard {
                 equality(edges, i, n);
             }
@@ -436,9 +497,11 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
             Some((id.clone(), i, tip))
         })
         .collect();
-    for ((v, b), delta) in plan.views.iter_mut().zip(bounds).zip(&deltas) {
+    let measured: Vec<_> = plan.views.iter().map(|v| measured(plan, v)).collect();
+    for (((v, b), delta), measured) in plan.views.iter_mut().zip(bounds).zip(&deltas).zip(measured)
+    {
         move_point(&mut v.at, *delta);
-        if v.id == "v:iso" && plan.spec.views.get("iso").is_none_or(|v| v.place.is_none()) {
+        if measured {
             v.area = b;
         }
         move_box(&mut v.area, *delta);
@@ -505,4 +568,94 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
             .insert(id, (v.id.clone(), [tip[0] - v.at[0], tip[1] - v.at[1]]));
     }
     plan.sheet.fill = crate::sheet_fit::fill(analysis, plan);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn sections_and_auxiliary_projections_translate_with_their_rows_and_columns() {
+        let (_, analysis) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/samples/editor-plate.step"),
+        )
+        .unwrap();
+        let mut plan = crate::model::plan_recovered(&analysis, &Default::default()).unwrap();
+        plan.views.retain(|v| v.id != "v:iso");
+        let mut section = plan.views[0].clone();
+        section.id = "v:section_aa".into();
+        let mut auxiliary = section.clone();
+        auxiliary.id = "v:auxiliary".into();
+        plan.views.extend([section, auxiliary]);
+        let bounds = vec![
+            [10.0, 10.0, 30.0, 30.0],
+            [10.0, 30.0, 30.0, 50.0],
+            [30.0, 10.0, 50.0, 30.0],
+            [50.0, 10.0, 70.0, 30.0],
+            [10.0, 50.0, 30.0, 70.0],
+        ];
+        for (v, b) in plan.views.iter_mut().zip(&bounds) {
+            v.at = [0.5 * (b[0] + b[2]), 0.5 * (b[1] + b[3])];
+        }
+        let d = translations(&analysis, &plan, &bounds, PREFERRED, false).unwrap();
+        assert!(d[1][1] > 1.0 && d[2][0] > 1.0);
+        assert_eq!(d[0][1], d[2][1]);
+        assert_eq!(d[0][1], d[3][1]);
+        assert_eq!(d[0][0], d[1][0]);
+        assert_eq!(d[0][0], d[4][0]);
+    }
+
+    #[test]
+    fn final_gutters_hold_view_pins_their_anchors_and_covered_item_carriers() {
+        let (_, analysis) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/samples/editor-plate.step"),
+        )
+        .unwrap();
+        let mut plan = crate::model::plan_recovered(&analysis, &Default::default()).unwrap();
+        plan.views.retain(|v| v.id != "v:iso");
+        let bounds = vec![
+            [10.0, 10.0, 30.0, 30.0],
+            [10.0, 30.0, 30.0, 50.0],
+            [30.0, 10.0, 50.0, 30.0],
+        ];
+        assert_eq!(
+            plan.views.iter().map(|v| v.id.as_str()).collect::<Vec<_>>(),
+            ["v:front", "v:plan", "v:side"]
+        );
+        let free = translations(&analysis, &plan, &bounds, PREFERRED, false).unwrap();
+        assert!(free[1][1] > 1.0 && free[2][0] > 1.0);
+
+        plan.spec = serde_json::from_value(json!({"views":{"plan":{"place":{
+            "relative_to":"front", "side":"above", "gap":0, "pinned":true
+        }}}}))
+        .unwrap();
+        let pinned = translations(&analysis, &plan, &bounds, PREFERRED, false).unwrap();
+        assert_eq!(pinned[0], [0.0; 2]);
+        assert_eq!(pinned[1], [0.0; 2]);
+
+        // Covered scalars have no drawn dimension under their own ID. Their pin
+        // still fixes the view carrying the actual owner.
+        let owner = plan
+            .dimensions
+            .iter_mut()
+            .find(|d| d.view == "v:side")
+            .unwrap();
+        owner.id = "d:owner".into();
+        plan.omitted.push(
+            serde_json::from_value(json!({
+            "id":"d:covered", "label":"covered scalar", "basis":"covered",
+            "state":{"kind":"covered","by":"d:owner"}
+            }))
+            .unwrap(),
+        );
+        plan.spec = serde_json::from_value(json!({"dimensions":{
+            "d:covered":{"place":{"pinned":true}}
+        }}))
+        .unwrap();
+        let pinned = translations(&analysis, &plan, &bounds, PREFERRED, false).unwrap();
+        assert_eq!(pinned[2], [0.0; 2]);
+    }
 }
