@@ -533,6 +533,10 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
     for d in deltas.iter_mut().flatten() {
         if d.abs() < 1e-8 {
             *d = 0.0;
+        } else {
+            // Different annotation bounds can leave nanometre-sized bisection
+            // noise on the same frame. Keep nonzero moves at that resolution too.
+            *d = (*d * 1e8).round() / 1e8;
         }
     }
     // Rebase editor tip metadata from the transported paper point. Keeping the old
