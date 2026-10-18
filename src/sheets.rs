@@ -604,7 +604,7 @@ pub(crate) fn paper_fallback(
     let (_, w, h) = layout::PAGES.iter().find(|p| p.0 == name)?;
     let minimum = floor(spec)
         .unwrap_or(0.0)
-        .max(crate::sheet_fit::min_legible_scale(analysis));
+        .max(crate::sheet_fit::general_scale(analysis));
     let scales: Vec<_> = layout::SCALES
         .into_iter()
         .filter(|scale| {
@@ -661,6 +661,7 @@ pub(crate) fn paper_fallback(
         working.sheets.get_or_insert_with(Default::default).max =
             Some(spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9));
         if spec.sheet.scale.is_none()
+            && spec.sheet.automatic_details == Some(true)
             && crate::sheet_fit::unavoidable_steps_at_scale(
                 analysis, &working, required, scale, false,
             ) > 0
@@ -689,8 +690,10 @@ pub(crate) fn paper_fallback(
         let readable = crate::sheet_fit::readability(analysis, &p);
         let legible = if spec.sheet.scale.is_some() {
             readable.failures() <= crate::sheet_fit::readability(analysis, required).failures()
-        } else {
+        } else if spec.sheet.automatic_details == Some(true) {
             readable.failures() == 0
+        } else {
+            readable.whole_drawing_failures() == 0
         };
         let complete = model::carries_required(required, &p);
         let fits = model::drawn_sheets_fit(analysis, &p);
@@ -795,10 +798,10 @@ fn score(analysis: &Analysis, spec: &Spec, plan: &Plan) -> (layout::Findings, us
         .retain(|p| p.subjects.is_empty() || p.subjects.iter().any(|id| !off.contains(id)));
     let mut f = model::findings(&first);
     if spec.sheet.scale.is_none() {
-        f.hard += crate::sheet_fit::readability(analysis, plan).failures();
+        f.hard += crate::sheet_fit::readability(analysis, plan).whole_drawing_failures();
     }
     let requested = floor(spec);
-    let legible = crate::sheet_fit::min_legible_scale(analysis);
+    let legible = crate::sheet_fit::general_scale(analysis);
     let low_parent = spec.sheet.scale.is_none()
         && plan.sheet.scale_factor < requested.unwrap_or(0.).max(legible);
     let low_view =

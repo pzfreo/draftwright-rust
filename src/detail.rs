@@ -358,6 +358,9 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
             },
         ));
     }
+    if spec.sheet.automatic_details == Some(false) {
+        return out;
+    }
     let available = |source: &str| !spec.views.get(source).is_some_and(|v| v.omit);
     let demand = crate::demand::read(a);
     let section_letter = (demand.section.is_some()
@@ -376,6 +379,15 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
         allocated.insert(format!("detail_{}", section_label(spec).to_lowercase()));
     }
     let mut add = |mut d: Detail| {
+        if d.kind != "readability-height-interval" {
+            d.dimensions.retain(|id| {
+                !out.iter()
+                    .any(|(_, previous)| previous.dimensions.contains(id))
+            });
+        }
+        if d.dimensions.is_empty() && d.kind != "readability-depiction" {
+            return;
+        }
         let Some(name) = NAMES.iter().find(|n| !allocated.contains(**n)) else {
             return;
         };
@@ -395,7 +407,7 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
                 && w[0].0.parameters.get("profile") == w[1].0.parameters.get("profile")
                 && (0..3).all(|k| k == w[0].1.axis || (w[0].1.on[k] - w[1].1.on[k]).abs() < 1e-3)
         });
-    if connected {
+    if connected && spec.sheet.automatic_details != Some(true) {
         let axis = bands[0].1.axis;
         let source = axis_view(axis);
         let repeated = bands.windows(3).any(|w| {
@@ -549,7 +561,11 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
                 });
             }
         }
-    } else if bands.is_empty() && available("front") && !a.level_supports.is_empty() {
+    } else if spec.sheet.automatic_details != Some(true)
+        && bands.is_empty()
+        && available("front")
+        && !a.level_supports.is_empty()
+    {
         // Recover only approved height rungs rejected by the parent spacing gate.
         let mut levels = a.levels.clone();
         levels.sort_by(f64::total_cmp);
@@ -603,6 +619,19 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
             }
         }
     }
+    // Local floors use the established crop/marker/dimension-ownership machinery.
+    // Existing specialised crops retain priority; nearby candidates share a crop.
+    if spec.sheet.automatic_details == Some(true) {
+        for d in crate::dims::readability_details(a, spec, sheet)
+            .into_iter()
+            .chain(depiction_details(a, sheet))
+        {
+            if !source_available(a, spec, d.source_view.trim_start_matches("v:")) {
+                continue;
+            }
+            add(d);
+        }
+    }
     for (_, d) in &mut out {
         d.partial_profile = (0..3).any(|k| {
             k != d.axis
@@ -611,6 +640,97 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
         });
     }
     out
+}
+
+/// A few complete repetition periods identify dense modelled ink without
+/// enlarging the whole component. Cosmetic threads use their owned cylinder.
+pub(crate) fn depiction_details(a: &Analysis, sheet: f64) -> Vec<Detail> {
+    let needed = crate::sheet_fit::modelled_line_scale(a);
+    if needed <= sheet {
+        return Vec::new();
+    }
+    let Some(ink) = &a.edge_ink else {
+        return Vec::new();
+    };
+    let mut groups = std::collections::BTreeMap::<[i64; 4], Vec<_>>::new();
+    for face in &ink.curved {
+        let Some(c) = &face.cylinder else { continue };
+        let Some(axis) = holes::principal(c.axis) else {
+            continue;
+        };
+        let mut key = c.origin.map(|x| (x * 1000.0).round() as i64);
+        key[axis] = 0;
+        groups
+            .entry([axis as i64, key[0], key[1], key[2]])
+            .or_default()
+            .push(face);
+    }
+    let scale = crate::layout::SCALES
+        .into_iter()
+        .rev()
+        .find(|s| *s >= needed && *s > sheet)
+        .unwrap_or(needed);
+    let mut result = Vec::new();
+    for (key, faces) in groups {
+        let axis = key[0] as usize;
+        let mut starts: Vec<_> = faces.iter().map(|f| f.bounds[0][axis]).collect();
+        starts.sort_by(f64::total_cmp);
+        starts.dedup_by(|a, b| (*a - *b).abs() < 0.01);
+        let Some(four) = starts.windows(4).find(|four| {
+            let pitch = (four[3] - four[0]) / 3.0;
+            pitch > 0.01
+                && four
+                    .windows(2)
+                    .all(|w| ((w[1] - w[0]) - pitch).abs() < 0.02 * pitch)
+        }) else {
+            continue;
+        };
+        let mut bounds = faces[0].bounds;
+        for f in &faces {
+            bounds = union(bounds, f.bounds);
+        }
+        let pad = 2.0 / scale;
+        bounds[0][axis] = (four[0] - pad).max(a.envelope[0][axis]);
+        bounds[1][axis] = (four[3] + pad).min(a.envelope[1][axis]);
+        for k in (0..3).filter(|k| *k != axis) {
+            bounds[0][k] = (bounds[0][k] - pad).max(a.envelope[0][k]);
+            bounds[1][k] = (bounds[1][k] + pad).min(a.envelope[1][k]);
+        }
+        // A few periods at one radial edge show both roots and crests. The
+        // opposite rim adds the component's diameter, not local information,
+        // and can make an otherwise useful thread detail larger than its page.
+        let source = axis_view(axis);
+        let radial = axes(source)
+            .into_iter()
+            .find(|k| *k != axis)
+            .expect("axial view");
+        let radii: Vec<_> = faces
+            .iter()
+            .filter(|f| f.bounds[0][axis] < four[3] && f.bounds[1][axis] > four[0])
+            .filter_map(|f| f.cylinder.as_ref().map(|c| c.origin[radial] + c.radius))
+            .collect();
+        if let (Some(root), Some(crest)) = (
+            radii.iter().copied().min_by(f64::total_cmp),
+            radii.iter().copied().max_by(f64::total_cmp),
+        ) {
+            bounds[0][radial] = (root - pad).max(a.envelope[0][radial]);
+            bounds[1][radial] = (crest + pad).min(a.envelope[1][radial]);
+        }
+        result.push(Detail {
+            label: String::new(),
+            axis,
+            source_view: format!("v:{source}"),
+            source_cut: None,
+            kind: "readability-depiction".into(),
+            bounds,
+            marked_bounds: bounds,
+            dimensions: Vec::new(),
+            scale,
+            authored: false,
+            partial_profile: true,
+        });
+    }
+    result
 }
 
 pub(crate) fn size(d: &Detail) -> [f64; 2] {
@@ -624,7 +744,20 @@ pub(crate) fn size(d: &Detail) -> [f64; 2] {
     axes.map(|k| (d.bounds[1][k] - d.bounds[0][k]) * d.scale)
 }
 fn pads(d: &Detail) -> [f64; 4] {
-    if d.kind == "prismatic-steps" {
+    if d.kind == "readability-depiction" {
+        [8.0, 8.0, 12.0, 8.0]
+    } else if d.kind == "readability-height-interval"
+        || (d.kind == "readability"
+            && d.dimensions
+                .iter()
+                .all(|id| id.contains("/step_height.length")))
+    {
+        // Baseline heights own vertical lanes only. Reserving the generic
+        // diameter/callout bands here needlessly purchases a larger sheet.
+        [4.0, 28.0, 8.0, 8.0]
+    } else if d.kind == "readability" {
+        [12.0, 42.0, 12.0, 12.0]
+    } else if d.kind == "prismatic-steps" {
         [0.0, 42.0, 14.0, 6.0]
     } else if d.kind == "y-turned-chain" {
         [
@@ -661,17 +794,38 @@ pub(crate) fn at(d: &Detail, area: Rect) -> [f64; 2] {
     [area[0] + left + w / 2.0, area[1] + bottom + h / 2.0]
 }
 pub(crate) fn scaled(a: &Analysis, spec: &Spec, sheet: f64) -> Scaled {
-    Scaled {
-        derived: requests(a, spec, sheet)
+    let requests = requests(a, spec, sheet);
+    let mut scaled = Scaled {
+        pack_derived_at_edges: !requests.is_empty()
+            && requests
+                .iter()
+                .all(|(_, d)| d.kind.starts_with("readability")),
+        derived: requests
             .iter()
             .map(|(id, d)| {
                 let [w, h] = size(d);
                 let [left, right, bottom, top] = pads(d);
-                (id.clone(), (w + left + right).max(65.0), h + bottom + top)
+                (
+                    id.clone(),
+                    (w + left + right).max(if d.kind.starts_with("readability") {
+                        45.0
+                    } else {
+                        65.0
+                    }),
+                    h + bottom + top,
+                )
             })
             .collect(),
         ..Scaled::default()
+    };
+    if scaled.pack_derived_at_edges {
+        scaled.derived.sort_by(|a, b| {
+            (b.1 * b.2)
+                .total_cmp(&(a.1 * a.2))
+                .then_with(|| a.0.cmp(&b.0))
+        });
     }
+    scaled
 }
 pub(crate) fn section_label(spec: &Spec) -> String {
     if spec.views.contains_key(crate::model::SECTION) {

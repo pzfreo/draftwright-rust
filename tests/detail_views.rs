@@ -163,10 +163,10 @@ fn an_omitted_detail_seed_cannot_leak_into_an_ordinary_candidate() {
 #[test]
 fn bare_dimension_pins_keep_recoverys_detail_selection_and_ink() {
     let Some(dir) = corpus::dir() else { return };
-    // Native section recesses make 10046 readable without a crop at 2:1;
-    // 11512 retains a real crop. A bare pin must preserve either presentation.
+    // A fitting local crop wins; a refused crop keeps the smaller drawing.
+    // Bare pins preserve that decision and every dimension's exact ink.
     for (part, paper, scale, details) in [
-        ("mfcadpp/10046.step", "A3", "2:1", 0),
+        ("mfcadpp/10046.step", "A4", "1:2", 0),
         ("mfcadpp_regressions/11512.step", "A4", "1:1", 1),
     ] {
         let (_, a) = model::analyse_native(&dir.join(part)).unwrap();
@@ -179,7 +179,16 @@ fn bare_dimension_pins_keep_recoverys_detail_selection_and_ink() {
             base.views.iter().filter(|v| v.detail.is_some()).count(),
             details
         );
-        assert_eq!(draftwright::sheet_fit::readability(&a, &base).failures(), 0);
+        assert_eq!(
+            draftwright::sheet_fit::readability(&a, &base).failures(),
+            if details == 0 { 2 } else { 0 }
+        );
+        assert_eq!(
+            base.problems
+                .iter()
+                .any(|p| p.code == "layout_recovery_exhausted"),
+            details == 0
+        );
         assert!(base.problems.iter().all(|p| !matches!(
             p.code.as_str(),
             "annotation_over_view" | "annotation_line_over_view"

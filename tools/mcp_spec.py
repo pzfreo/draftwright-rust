@@ -79,7 +79,7 @@ def document():
                        'thread': ref('thread'), 'knurl': ref('knurl'), 'note': S}),
                        'suppress': B, 'split': B, 'controls': arr(ref('control')), 'note_satisfies': arr(S)}),
         'face': obj({**optional({'datum': S, 'finish': ref('finish'), 'note': S}), 'controls': arr(ref('control'))}),
-        'sheet': obj({**line, **optional({'size': S, 'scale': S, 'fit_limits': B, 'fit_deviations': B,
+        'sheet': obj({**line, **optional({'size': S, 'scale': S, 'automatic_details': B, 'fit_limits': B, 'fit_deviations': B,
                       'projection': enum('first', 'third'), 'default_finish': ref('finish')}), 'title': mapping(S)}),
         'sheets': obj({**optional({'max': SHEET, 'smallest_scale': S, 'hole_table': SHEET}),
                        'keep_together': arr(arr(S)), 'gdt_on_sheet_1': B}),

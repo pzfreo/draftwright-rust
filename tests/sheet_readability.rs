@@ -282,3 +282,160 @@ fn outside_text_does_not_excuse_colliding_inward_arrowheads() {
     ink.arrows[1][1] = [4.7, 0.0];
     assert_eq!(sheet_fit::readability(&a, &p).text_arrows, 0);
 }
+
+#[test]
+fn local_floors_never_count_as_whole_drawing_failures() {
+    let local = sheet_fit::Readability {
+        steps: 1,
+        openings: 2,
+        native_openings: 3,
+        depiction: 4,
+        text_arrows: 0,
+        lanes: 0,
+    };
+    assert_eq!(local.failures(), 10);
+    assert_eq!(local.whole_drawing_failures(), 0);
+    assert_eq!(
+        sheet_fit::Readability {
+            text_arrows: 2,
+            lanes: 3,
+            ..local
+        }
+        .whole_drawing_failures(),
+        5
+    );
+}
+
+#[test]
+fn rejected_local_floor_up_moves_are_bounded_to_practical_paper() {
+    let Some(corpus) = std::env::var_os("DRAFTWRIGHT_CORPUS").map(std::path::PathBuf::from) else {
+        assert!(std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"));
+        return;
+    };
+    for file in [
+        "mfcadpp/10000.step",
+        "mfcadpp/10167.step",
+        "mfcadpp/1004.step",
+        "mfcadpp/10245.step",
+        "mfcadpp/10119.step",
+        "mfcadpp_holdout/229.step",
+        "mfcadpp_holdout/520.step",
+        "mfcadpp_holdout/808.step",
+        "mfcadpp_holdout/257.step",
+    ] {
+        let (_, a) = model::analyse_native(&corpus.join(file)).unwrap();
+        let plan = model::plan_recovered(&a, &model::Spec::default()).unwrap();
+        assert!(
+            matches!(plan.sheet.size.as_str(), "A4" | "A3"),
+            "{file}: {}",
+            plan.sheet.basis
+        );
+        let r = sheet_fit::readability(&a, &plan);
+        if plan
+            .sheet
+            .basis
+            .contains("local readability recovered by enlarged detail")
+        {
+            assert_eq!(r.failures(), 0, "{file}");
+            assert!(
+                plan.views
+                    .iter()
+                    .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
+            );
+        } else if r.failures() > 0 {
+            assert!(
+                plan.problems
+                    .iter()
+                    .any(|p| p.code == "layout_recovery_exhausted"),
+                "{file}"
+            );
+        }
+    }
+}
+
+#[test]
+fn parent_coordinates_keep_the_enlarged_openings_size_carrier() {
+    let (a, _) = plate();
+    let spec =
+        serde_json::from_value(json!({"sheet":{"size":"A4","scale":"1:1"},"hole_table":"never"}))
+            .unwrap();
+    let mut p = model::plan_recovered(&a, &spec).unwrap();
+    for view in &mut p.views {
+        view.scale = 0.1;
+    }
+    let index = p
+        .dimensions
+        .iter()
+        .position(|d| {
+            d.kind == "callout"
+                && d.measurements.iter().any(|m| {
+                    a.features
+                        .iter()
+                        .any(|f| f.id == m.feature && f.kind == "hole")
+                })
+        })
+        .unwrap();
+    let owned: std::collections::BTreeSet<_> = p.dimensions[index]
+        .measurements
+        .iter()
+        .filter(|m| {
+            a.features
+                .iter()
+                .any(|f| f.id == m.feature && f.kind == "hole")
+        })
+        .map(|m| m.feature.clone())
+        .collect();
+    // Give each actual bore a parent datum measurement. Only its carrier
+    // scale matters to this perturbation; the opening's real size stays owned
+    // by its existing callout in the enlarged view.
+    let mut coordinate = p
+        .dimensions
+        .iter()
+        .find(|d| d.kind == "linear")
+        .unwrap()
+        .clone();
+    coordinate.id = "d:parent-coordinate-probe".into();
+    coordinate.view = p.dimensions[index].view.clone();
+    coordinate.measurements = owned
+        .iter()
+        .map(|id| draftwright::dims::Measurement {
+            feature: id.clone(),
+            parameter: "location.length.x".into(),
+            value: a.features.iter().find(|f| f.id == *id).unwrap().parameters["location"][0]
+                .as_f64()
+                .unwrap(),
+        })
+        .collect();
+    p.dimensions.push(coordinate);
+    let before = sheet_fit::readability(&a, &p).openings;
+    assert!(p.dimensions.iter().any(|d| {
+        d.measurements
+            .iter()
+            .any(|m| owned.contains(&m.feature) && m.parameter.contains("location"))
+    }));
+    let mut detail = p
+        .views
+        .iter()
+        .find(|v| v.id == p.dimensions[index].view)
+        .unwrap()
+        .clone();
+    detail.id = "v:detail_a".into();
+    detail.scale = 1.0;
+    p.dimensions[index].view = detail.id.clone();
+    p.views.push(detail);
+    assert_eq!(
+        sheet_fit::readability(&a, &p).openings,
+        before - owned.len()
+    );
+    assert!(
+        p.dimensions
+            .iter()
+            .filter(|d| d
+                .measurements
+                .iter()
+                .any(|m| owned.contains(&m.feature) && m.parameter.contains("location")))
+            .all(|d| d.view != "v:detail_a")
+    );
+    p.views.last_mut().unwrap().scale = 0.1;
+    assert_eq!(sheet_fit::readability(&a, &p).openings, before);
+}

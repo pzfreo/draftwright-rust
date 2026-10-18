@@ -79,7 +79,7 @@ mod corpus;
 mod sheet_rule;
 
 #[test]
-fn grm03_requires_a3_when_a4_cannot_preserve_clear_leader_associations() {
+fn grm03_uses_an_a4_detail_for_its_local_flange_floor() {
     let Some(dir) = corpus::dir() else {
         return;
     };
@@ -89,7 +89,7 @@ fn grm03_requires_a3_when_a4_cannot_preserve_clear_leader_associations() {
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A3", "10:1")
+        ("A4", "2:1")
     );
     assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
     assert!(
@@ -109,12 +109,10 @@ fn grm03_requires_a3_when_a4_cannot_preserve_clear_leader_associations() {
     assert_eq!(roomy.binding.source_sha256, a.binding.source_sha256);
     let fill = draftwright::sheet_fit::fill(&a, &roomy);
     assert!((0.60..=0.85).contains(&fill), "GRM-03 fill {fill:.4}");
-    let default_fill = draftwright::sheet_fit::fill(&a, &p);
-    assert!(
-        (0.60..=0.85).contains(&default_fill),
-        "GRM-03 automatic fill {default_fill:.4}"
-    );
-    assert!(p.views.iter().all(|v| v.detail.is_none()));
+    // The old drawing keeps the unchanged 60–85% measurement guard above.
+    // The automatic A4 result saturates below that guide rather than buying A3.
+    assert!(p.sheet.basis.contains("fill floor not attainable"));
+    assert!(p.views.iter().any(|v| v.detail.is_some()));
     assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
     sheet_rule::assert_rule("grm03", &p);
     assert!(!p.problems.iter().any(|p| matches!(
@@ -372,11 +370,9 @@ fn small_parts_exhaust_readability_and_allocation_before_large_paper() {
         )));
         let first = model::plan_escalated(&a, &named("A2", "1:1")).unwrap();
         let p = model::recover(&a, &Spec::default(), first.clone()).unwrap();
-        // This explicitly framed seed has different established routes from the
-        // automatic estimate. Its readable A2 drawing may remain when smaller
-        // paper cannot preserve those routes; the old blanket A3 cap is gone.
-        let seeded_size = "A2";
-        assert_eq!(p.sheet.size, seeded_size, "{name}: {}", p.sheet.basis);
+        // A supplied framed drawing preserves its own established annotation
+        // associations. A2 may remain when smaller paper buys a new crossing pair.
+        assert_eq!(p.sheet.size, "A2", "{name}: {}", p.sheet.basis);
         assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
         let issues = |p: &Plan| {
             let mut out = std::collections::BTreeMap::new();
@@ -775,7 +771,7 @@ fn fixed_scale_can_use_a_valid_smaller_sheet_without_changing_scale() {
 /// This formerly selected A4 1:10: the 420 mm profile was 42 mm tall and its 20 mm
 /// shoulder bands were shorter than the 2.1 mm printed capitals, despite no hard collision.
 #[test]
-fn connector109_needs_a2_at_one_to_two_for_readable_thread_depiction() {
+fn connector109_uses_a_local_root_and_crest_detail_on_a3() {
     let Some(dir) = corpus::dir() else { return };
     let a = model::analyse_native(&dir.join("cadgenbench/threaded_connector_109.step"))
         .unwrap()
@@ -790,16 +786,28 @@ fn connector109_needs_a2_at_one_to_two_for_readable_thread_depiction() {
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A2", "1:2"),
+        ("A3", "1:5"),
         "{}",
         p.sheet.basis
     );
     assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
+    assert!(
+        !p.problems
+            .iter()
+            .any(|q| q.code == "layout_recovery_exhausted")
+    );
+    let mut without = p.clone();
+    without.views.retain(|v| v.detail.is_none());
+    assert!(draftwright::sheet_fit::readability(&a, &without).depiction > 0);
+    assert!(p.views.iter().any(|v| {
+        v.detail
+            .as_ref()
+            .is_some_and(|d| d.kind == "readability-depiction" && d.scale > p.sheet.scale_factor)
+    }));
     let compressed = model::plan_recovered(&a, &named("A3", "1:5")).unwrap();
     assert!(draftwright::sheet_fit::readability(&a, &compressed).depiction > 0);
     assert!(p.sheet.basis.contains("A4 multi-sheet:"));
     assert!(p.sheet.basis.contains("A3 multi-sheet:"));
-    assert!(p.views.iter().all(|v| v.detail.is_none()));
     assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
     sheet_rule::assert_rule("connector109", &p);
 }
@@ -843,6 +851,22 @@ fn step_legibility_uses_the_owning_view_and_keeps_baseline_intervals() {
     p.views.push(detail);
     assert_eq!(draftwright::sheet_fit::illegible_steps(&a, &p), 0);
     p.dimensions[0].measurements[0].parameter = "step_position.length".into();
+    p.views.last_mut().unwrap().scale = 0.1;
+    assert_eq!(draftwright::sheet_fit::illegible_steps(&a, &p), 1);
+    let mut local = p.dimensions[0].clone();
+    local.id = "d:local_step_length".into();
+    local.measurements[0].parameter = "step.length".into();
+    let mut carrier = p.views.last().unwrap().clone();
+    carrier.id = "v:detail_b".into();
+    carrier.scale = 0.2;
+    local.view = carrier.id.clone();
+    p.views.push(carrier);
+    p.dimensions.push(local);
+    assert_eq!(
+        draftwright::sheet_fit::illegible_steps(&a, &p),
+        0,
+        "a readable local band states the interval while its datum stays on the parent"
+    );
     p.views.last_mut().unwrap().scale = 0.1;
     assert_eq!(draftwright::sheet_fit::illegible_steps(&a, &p), 1);
 }
@@ -940,11 +964,25 @@ fn readable_reductions_do_not_return_to_a_larger_obstructed_estimate() {
         let p = model::plan_recovered(&a, &Spec::default()).unwrap();
         assert_eq!(
             (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-            ("A3", "1:2"),
+            if file == "spool_fits.step" {
+                ("A4", "1:5")
+            } else {
+                ("A3", "1:2")
+            },
             "{file}: {}",
             p.sheet.basis
         );
-        assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
+        let r = draftwright::sheet_fit::readability(&a, &p);
+        if file == "spool_fits.step" {
+            assert_eq!((r.steps, r.openings, r.failures()), (2, 24, 26));
+            assert!(
+                p.problems
+                    .iter()
+                    .any(|q| q.code == "layout_recovery_exhausted")
+            );
+        } else {
+            assert_eq!(r.failures(), 0);
+        }
         assert!(
             p.problems
                 .iter()
@@ -952,6 +990,58 @@ fn readable_reductions_do_not_return_to_a_larger_obstructed_estimate() {
                 .count()
                 <= 8
         );
-        assert!(!p.hole_tables.is_empty());
+        if file == "spool_fits.step" {
+            let recorded: serde_json::Value = serde_json::from_str(include_str!(
+                "fixtures/sheet-policy/spool-main-measurements.json"
+            ))
+            .unwrap();
+            assert_eq!(a.binding.source_sha256, recorded["source_sha256"]);
+            let required: Vec<draftwright::dims::Measurement> =
+                serde_json::from_value(recorded["measurements"].clone()).unwrap();
+            assert_eq!(required.len(), 69);
+            let mut claims: Vec<_> = p
+                .dimensions
+                .iter()
+                .filter(|d| d.placed.is_some())
+                .flat_map(|d| d.measurements.iter())
+                .collect();
+            claims.extend(
+                p.hole_tables
+                    .iter()
+                    .flat_map(|t| t.rows.iter())
+                    .flat_map(|r| r.measurements.iter()),
+            );
+            let inferred: Vec<_> = required.iter().filter(|m| !claims.contains(m)).collect();
+            assert_eq!(inferred.len(), 2);
+            for m in inferred {
+                assert_eq!(m.feature, "f:hole:7");
+                assert!(["location.length.x", "location.length.y"].contains(&m.parameter.as_str()));
+                assert_eq!(m.value, 65.0);
+            }
+            // These two formerly tabulated coordinates are still fully defined:
+            // the 62 mm bore shares the drawn axis of the 130 mm round stock.
+            assert!(claims.iter().any(|m| m.feature == "envelope"
+                && m.parameter == "od.diameter"
+                && m.value == 130.0));
+            let plan = p.views.iter().find(|v| v.id == "v:plan").unwrap();
+            let cross = plan
+                .line_work
+                .iter()
+                .find(|w| w.id == "ink:v:plan:f:hole:7")
+                .unwrap();
+            assert_eq!(cross.centre, Some(plan.at));
+            assert!(cross.curves.len() >= 2);
+            assert!(
+                p.views
+                    .iter()
+                    .flat_map(|v| &v.line_work)
+                    .any(|w| w.id.ends_with(":f:hole:7")
+                        && w.kind == "axis"
+                        && w.global_axis
+                        && !w.curves.is_empty())
+            );
+        } else {
+            assert!(!p.hole_tables.is_empty());
+        }
     }
 }

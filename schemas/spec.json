@@ -955,6 +955,16 @@
             }
           ]
         },
+        "automatic_details": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "fit_limits": {
           "anyOf": [
             {

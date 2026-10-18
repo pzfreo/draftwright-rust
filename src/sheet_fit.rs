@@ -196,6 +196,32 @@ fn route_refusal_uncached(
     None
 }
 
+/// Feature associations are independent of length, padded contacts and parallel
+/// travel. A geometrically short leader can still point through a newly crossed
+/// feature, and deserves the same bounded repair rather than a weaker reference.
+fn new_callout_association(reference: &Plan, plan: &Plan, id: &str) -> bool {
+    plan.problems
+        .iter()
+        .filter(|q| {
+            q.severity != "info"
+                && matches!(
+                    q.code.as_str(),
+                    "leader_through_feature" | "annotation_leader_crossing"
+                )
+                && q.subjects.iter().any(|s| s == id)
+        })
+        .any(|q| {
+            let same = |p: &&crate::model::Problem| {
+                p.code == q.code
+                    && p.severity == q.severity
+                    && p.subjects == q.subjects
+                    && p.refs == q.refs
+            };
+            plan.problems.iter().filter(same).count()
+                > reference.problems.iter().filter(same).count()
+        })
+}
+
 /// Preserve a short proven paper-space leader when its feature grows. The new
 /// proven attachment maps into the new ordinary view; the old elbow/label offset
 /// is transported in paper millimetres. This is a bounded alternative, accepted only after all ordinary
@@ -204,7 +230,9 @@ fn route_refusal_uncached(
 /// rim, with the original +2 mm length allowance.
 pub(crate) fn retain_callouts(analysis: &Analysis, reference: &Plan, plan: &mut Plan) {
     retain_callouts_with(analysis, reference, plan, true);
-    if !routes_no_worse(analysis, reference, plan) {
+    if !routes_no_worse(analysis, reference, plan)
+        || !crate::model::no_new_drawing_issues(reference, plan)
+    {
         retain_callouts_with(analysis, reference, plan, false);
         let key = serde_json::to_vec(&(reference, &*plan, crate::planning::policy_key(analysis)))
             .expect("short route inputs serialize");
@@ -216,14 +244,29 @@ pub(crate) fn retain_callouts(analysis: &Analysis, reference: &Plan, plan: &mut 
     }
 
     fn retain_short_callouts(analysis: &Analysis, reference: &Plan, plan: &mut Plan) {
-        // This bounded alternative replaces the former length exemption only
-        // when the global opening/depiction floor requires the whole model to
-        // grow. Ordinary reductions keep their established placement ratchet.
+        // Whole-part paper must not inherit a large scale merely because the
+        // local floor used to govern its route reference. On practical paper,
+        // try the same short exits for a local refusal as for an enlargement;
+        // all length, contact, material and measurement guards remain unchanged.
         let floor =
             min_legible_scale(analysis).max(crate::sheets::floor(&plan.spec).unwrap_or(0.0));
-        if reference.sheet.scale_factor + 1e-6 >= floor
-            || plan.sheet.scale_factor + 1e-6 < floor
-            || routes_no_worse(analysis, reference, plan)
+        let changed_association = plan
+            .dimensions
+            .iter()
+            .any(|d| d.kind == "callout" && new_callout_association(reference, plan, &d.id));
+        let measured = readability(analysis, plan);
+        let local_recovery = matches!(plan.sheet.size.as_str(), "A4" | "A3")
+            && (measured.failures() > measured.whole_drawing_failures()
+                || plan.views.iter().any(|v| {
+                    v.detail
+                        .as_ref()
+                        .is_some_and(|d| !d.authored && d.kind.starts_with("readability"))
+                }));
+        if ((reference.sheet.scale_factor + 1e-6 >= floor
+            || plan.sheet.scale_factor + 1e-6 < floor)
+            && !changed_association
+            && !local_recovery)
+            || (routes_no_worse(analysis, reference, plan) && !changed_association)
         {
             return;
         }
@@ -239,7 +282,8 @@ pub(crate) fn retain_callouts(analysis: &Analysis, reference: &Plan, plan: &mut 
         for i in 0..plan.dimensions.len() {
             let d = &plan.dimensions[i];
             if d.kind != "callout"
-                || routes_no_worse_for(analysis, reference, plan, Some(&d.id))
+                || (routes_no_worse_for(analysis, reference, plan, Some(&d.id))
+                    && !new_callout_association(reference, plan, &d.id))
                 || plan
                     .spec
                     .dimensions
@@ -432,16 +476,24 @@ fn retain_callouts_with(
     plan: &mut Plan,
     shorten_current: bool,
 ) {
-    if routes_no_worse(analysis, reference, plan) {
+    if routes_no_worse(analysis, reference, plan)
+        && crate::model::no_new_drawing_issues(reference, plan)
+    {
         return;
     }
     let worse: std::collections::BTreeSet<_> = plan
         .dimensions
         .iter()
         .filter(|d| d.kind == "callout")
-        .filter(|d| !routes_no_worse_for(analysis, reference, plan, Some(&d.id)))
+        .filter(|d| {
+            !routes_no_worse_for(analysis, reference, plan, Some(&d.id))
+                || new_callout_association(reference, plan, &d.id)
+        })
         .map(|d| d.id.clone())
         .collect();
+    if worse.is_empty() {
+        return;
+    }
     let mut trial = plan.clone();
     let mut changed = false;
     for d in &mut trial.dimensions {
@@ -454,11 +506,17 @@ fn retain_callouts_with(
         {
             continue;
         }
-        let Some(old) = reference
-            .dimensions
-            .iter()
-            .find(|old| old.id == d.id && old.terms == d.terms && old.view == d.view)
-        else {
+        let Some(old) = reference.dimensions.iter().find(|old| {
+            old.id == d.id
+                && old.terms == d.terms
+                && (old.view == d.view
+                    || trial
+                        .views
+                        .iter()
+                        .find(|v| v.id == d.view)
+                        .and_then(|v| v.detail.as_ref())
+                        .is_some_and(|detail| detail.source_view == old.view))
+        }) else {
             continue;
         };
         let (Some(p), Some(q)) = (&mut d.placed, &old.placed) else {
@@ -467,7 +525,7 @@ fn retain_callouts_with(
         let (Some(line), Some(old_line)) = (p.lines.first(), q.lines.first()) else {
             continue;
         };
-        if shorten_current && p.lines.len() == 2 && q.lines.len() == 2 {
+        if shorten_current && old.view == d.view && p.lines.len() == 2 && q.lines.len() == 2 {
             let length =
                 |p: &crate::dims::Placed| p.lines.iter().map(|s| distance(s[0], s[1])).sum::<f64>();
             let shaft = distance(p.lines[0][0], p.lines[0][1]);
@@ -503,13 +561,14 @@ fn retain_callouts_with(
         // opposite rim; translating the old outgoing ray from that other rim
         // would take the shaft through the part. Ordinary view centres share
         // the same model projection, so this affine map preserves the site.
-        let tip = if view.detail.is_none()
-            && old_view.detail.is_none()
-            && view.cut.is_none()
-            && old_view.cut.is_none()
-        {
+        let tip = if view.cut.is_none() && old_view.cut.is_none() {
+            let centre = crate::detail::crop_extent(analysis, view).1;
+            let old_centre = crate::detail::crop_extent(analysis, old_view).1;
             [0, 1].map(|k| {
-                view.at[k] + (old_line[0][k] - old_view.at[k]) * view.scale / old_view.scale
+                view.at[k]
+                    + view.scale
+                        * ((old_line[0][k] - old_view.at[k]) / old_view.scale + old_centre[k]
+                            - centre[k])
             })
         } else {
             line[0]
@@ -525,6 +584,13 @@ fn retain_callouts_with(
             p.label_at[k] += shift;
             p.label_box[k] += shift;
             p.label_box[k + 2] += shift;
+        }
+        if old.view != d.view {
+            let Ok(region) = crate::dims::short_callout_region(analysis, &trial.views, view, p)
+            else {
+                continue;
+            };
+            d.region = region;
         }
         changed = true;
     }
@@ -929,7 +995,9 @@ fn optimistic_steps_after_crops(
     scale: f64,
     requests: &[(String, crate::detail::Detail)],
 ) -> usize {
-    if requests.iter().any(|(_, d)| d.authored)
+    if requests
+        .iter()
+        .any(|(_, d)| d.authored || d.kind == "readability-height-interval")
         || plan
             .views
             .iter()
@@ -1030,8 +1098,14 @@ pub(crate) fn repair_readability(analysis: &Analysis, plan: &mut Plan) {
     let mut original_codes = None;
     for i in 0..plan.dimensions.len() {
         let d = &plan.dimensions[i];
+        let interior = d.region == Some(crate::dims::CandidateRegion::Interior);
+        let local_text = plan.views.iter().find(|v| v.id == d.view).is_some_and(|v| {
+            v.detail
+                .as_ref()
+                .is_some_and(|detail| !detail.authored && detail.kind.starts_with("readability"))
+        });
         if d.kind != "linear"
-            || d.region == Some(crate::dims::CandidateRegion::Interior)
+            || (interior && !local_text)
             || plan
                 .spec
                 .dimensions
@@ -1052,9 +1126,10 @@ pub(crate) fn repair_readability(analysis: &Analysis, plan: &mut Plan) {
         let lo = p.arrows[0][0][axis].min(p.arrows[1][0][axis]);
         let hi = p.arrows[0][0][axis].max(p.arrows[1][0][axis]);
         let row = p.arrows[0][0][normal];
-        let near = p.lines[..2]
-            .iter()
-            .any(|s| (row - s[0][normal]).abs() + 1.1 < crate::dims::FIRST);
+        let near = !interior
+            && p.lines[..2]
+                .iter()
+                .any(|s| (row - s[0][normal]).abs() + 1.1 < crate::dims::FIRST);
         let inward = p
             .arrows
             .iter()
@@ -1065,20 +1140,21 @@ pub(crate) fn repair_readability(analysis: &Analysis, plan: &mut Plan) {
                 && p.label_box[axis + 2] <= hi - inset + 0.1)
                 || p.label_box[axis + 2] <= lo - crate::dims::ARROW + 0.1
                 || p.label_box[axis] >= hi + crate::dims::ARROW - 0.1);
-        let parallel = plan.dimensions.iter().enumerate().any(|(j, peer)| {
-            j != i
-                && peer.kind == "linear"
-                && peer.view == d.view
-                && peer.region != Some(crate::dims::CandidateRegion::Interior)
-                && peer.placed.as_ref().is_some_and(|q| {
-                    q.rotation == p.rotation
-                        && q.lines.len() >= 3
-                        && q.arrows.len() == 2
-                        && (q.arrows[0][0][normal] - row).abs() + 0.1 < crate::dims::LANE
-                        && q.arrows[0][0][axis].min(q.arrows[1][0][axis]) < hi
-                        && lo < q.arrows[0][0][axis].max(q.arrows[1][0][axis])
-                })
-        });
+        let parallel = !interior
+            && plan.dimensions.iter().enumerate().any(|(j, peer)| {
+                j != i
+                    && peer.kind == "linear"
+                    && peer.view == d.view
+                    && peer.region != Some(crate::dims::CandidateRegion::Interior)
+                    && peer.placed.as_ref().is_some_and(|q| {
+                        q.rotation == p.rotation
+                            && q.lines.len() >= 3
+                            && q.arrows.len() == 2
+                            && (q.arrows[0][0][normal] - row).abs() + 0.1 < crate::dims::LANE
+                            && q.arrows[0][0][axis].min(q.arrows[1][0][axis]) < hi
+                            && lo < q.arrows[0][0][axis].max(q.arrows[1][0][axis])
+                    })
+            });
         if !near && !text_bad && !parallel {
             continue;
         }
@@ -1271,6 +1347,21 @@ pub(crate) const PREPARATION_MIN_OPENING: f64 = 0.8;
 /// The smallest scale the automatic choice offers, whatever the part (1:10).
 pub const ABSOLUTE_FLOOR: f64 = 0.1;
 
+/// Whole-part geometry floor, independent of local holes, steps and depictions.
+pub(crate) fn general_scale(analysis: &Analysis) -> f64 {
+    let longest = (0..3)
+        .map(|k| analysis.envelope[1][k] - analysis.envelope[0][k])
+        .fold(0.0, f64::max);
+    let needed = (20.0 / longest.max(1e-12)).max(ABSOLUTE_FLOOR);
+    crate::layout::SCALES
+        .into_iter()
+        .rev()
+        .find(|s| *s >= needed)
+        .unwrap_or(needed)
+}
+
+/// Combined local floor for diagnostics and calibration. Automatic main-view
+/// paper selection uses `general_scale`; local floors belong to detail owners.
 pub fn min_legible_scale(analysis: &Analysis) -> f64 {
     let needed = scale_floor(analysis, MIN_OPENING, modelled_line_scale(analysis))
         .max(MIN_OPENING / crate::dims::native_min_opening(analysis));
@@ -1336,6 +1427,24 @@ pub(crate) fn primary_illegible_steps(analysis: &Analysis, plan: &Plan) -> usize
 }
 
 fn illegible_spans(analysis: &Analysis, plan: &Plan, primary_only: bool) -> usize {
+    let mut band_owners = std::collections::BTreeMap::<&str, f64>::new();
+    for d in plan.dimensions.iter().filter(|d| d.placed.is_some()) {
+        let scale = plan
+            .views
+            .iter()
+            .find(|v| v.id == d.view)
+            .map_or(0.0, |v| v.scale);
+        for m in d
+            .measurements
+            .iter()
+            .filter(|m| m.parameter == "step.length")
+        {
+            band_owners
+                .entry(&m.feature)
+                .and_modify(|s| *s = s.max(scale))
+                .or_insert(scale);
+        }
+    }
     let mut checked = std::collections::BTreeSet::new();
     plan.dimensions
         .iter()
@@ -1346,6 +1455,7 @@ fn illegible_spans(analysis: &Analysis, plan: &Plan, primary_only: bool) -> usiz
                 .iter()
                 .find(|v| v.id == d.view)
                 .map_or(0.0, |v| v.scale);
+            let band_owners = &band_owners;
             d.measurements.iter().filter_map(move |m| {
                 if primary_only
                     && !matches!(m.parameter.as_str(), "step.length" | "step_position.length")
@@ -1373,6 +1483,16 @@ fn illegible_spans(analysis: &Analysis, plan: &Plan, primary_only: bool) -> usiz
                 } else {
                     MIN_OPENING
                 };
+                let scale = if !primary_only
+                    && matches!(m.parameter.as_str(), "step.length" | "step_position.length")
+                {
+                    band_owners
+                        .get(m.feature.as_str())
+                        .copied()
+                        .unwrap_or(scale)
+                } else {
+                    scale
+                };
                 (length.is_finite() && length > 0.0 && length * scale + 1e-6 < floor)
                     .then_some(m.feature.as_str())
             })
@@ -1382,32 +1502,82 @@ fn illegible_spans(analysis: &Analysis, plan: &Plan, primary_only: bool) -> usiz
 }
 
 fn baseline_step_failures(plan: &Plan) -> usize {
-    let mut levels = std::collections::BTreeMap::<&str, Vec<f64>>::new();
+    let mut levels = std::collections::BTreeMap::<&str, Vec<(f64, Option<&str>, &str, f64)>>::new();
     for d in plan.dimensions.iter().filter(|d| d.placed.is_some()) {
-        let Some(v) = plan.views.iter().find(|v| v.id == d.view) else {
+        let Some(owner) = plan.views.iter().find(|v| v.id == d.view) else {
             continue;
         };
+        let root = owner
+            .detail
+            .as_ref()
+            .map_or(owner.id.as_str(), |detail| detail.source_view.as_str());
         for m in &d.measurements {
             if (m.feature == "step_level" && m.parameter.starts_with("step_height.length"))
                 || (m.feature == "envelope" && m.parameter == "height.length")
             {
-                levels
-                    .entry(v.id.as_str())
-                    .or_default()
-                    .push(m.value.abs() * v.scale);
+                levels.entry(root).or_default().push((
+                    m.value.abs(),
+                    Some(d.id.as_str()),
+                    owner.id.as_str(),
+                    owner.scale,
+                ));
             }
         }
     }
     levels
-        .values_mut()
-        .filter(|v| v.len() > 1)
-        .map(|values| {
-            values.push(0.0);
-            values.sort_by(f64::total_cmp);
-            values.dedup_by(|a, b| (*a - *b).abs() < 1e-6);
+        .into_iter()
+        .filter(|(_, values)| values.len() > 1)
+        .map(|(view, mut values)| {
+            let scale = plan
+                .views
+                .iter()
+                .find(|v| v.id == view)
+                .map_or(0.0, |v| v.scale);
+            values.push((0.0, None, view, scale));
+            values.sort_by(|a, b| a.0.total_cmp(&b.0));
+            values.dedup_by(|a, b| (a.0 - b.0).abs() < 1e-6);
             values
                 .windows(2)
-                .filter(|w| w[1] - w[0] + 1e-6 < MIN_OPENING)
+                .filter(|pair| {
+                    let gap = pair[1].0 - pair[0].0;
+                    let carrier_scale = if pair[0].1.is_none() || pair[0].2 == pair[1].2 {
+                        pair[1].3
+                    } else {
+                        scale
+                    };
+                    if gap * carrier_scale + 1e-6 >= MIN_OPENING {
+                        return false;
+                    }
+                    let covered = pair[0].1.zip(pair[1].1).is_some_and(|(lower, upper)| {
+                        plan.views.iter().any(|crop| {
+                            crop.scale * gap + 1e-6 >= MIN_OPENING
+                                && crop.detail.as_ref().is_some_and(|d| {
+                                    d.kind == "readability-height-interval"
+                                        && d.source_view == view
+                                        && d.dimensions.contains(
+                                            &crate::dims::readability_interval_id(lower, upper),
+                                        )
+                                        && plan.dimensions.iter().any(|dimension| {
+                                            dimension.view == crop.id
+                                                && dimension.placed.as_ref().is_some_and(|p| {
+                                                    p.arrows.len() == 2
+                                                        && distance(p.arrows[0][0], p.arrows[1][0])
+                                                            + 1e-6
+                                                            >= MIN_OPENING
+                                                })
+                                                && d.dimensions.contains(&dimension.id)
+                                                && dimension.measurements.iter().any(|m| {
+                                                    m.feature == "step_level"
+                                                        && m.parameter
+                                                            .starts_with("step_interval.length")
+                                                        && (m.value - gap).abs() < 1e-6
+                                                })
+                                        })
+                                })
+                        })
+                    });
+                    !covered
+                })
                 .count()
         })
         .sum()
@@ -1420,7 +1590,7 @@ pub const MIN_DEPICTION_GAP: f64 = 0.7;
 /// Repeated coaxial cylindrical strips are evidence of modelled repetitive ink.
 /// Require four distinct starts to avoid treating ordinary shoulders as threads.
 /// Use the axial repeat and root/crest separation, not tessellation chord lengths.
-fn modelled_line_scale(analysis: &Analysis) -> f64 {
+pub(crate) fn modelled_line_scale(analysis: &Analysis) -> f64 {
     crate::planning::memo(analysis, "sheet-depiction-scale", vec![], || {
         modelled_line_scale_uncached(analysis)
     })
@@ -1518,6 +1688,10 @@ pub struct Readability {
     pub lanes: usize,
 }
 impl Readability {
+    /// Only these measured failures can purchase paper for the whole drawing.
+    pub fn whole_drawing_failures(self) -> usize {
+        self.text_arrows + self.lanes
+    }
     pub fn failures(self) -> usize {
         self.steps
             + self.openings
@@ -1561,6 +1735,47 @@ fn readability_uncached(analysis: &Analysis, plan: &Plan) -> Readability {
         steps: illegible_steps(analysis, plan) + baseline_step_failures(plan),
         ..Default::default()
     };
+    // A local size callout's carrier establishes the opening's readable
+    // geometry. Parent datum coordinates do not shrink that enlarged opening.
+    let mut opening_owners = std::collections::BTreeMap::<&str, f64>::new();
+    for d in plan.dimensions.iter().filter(|d| d.placed.is_some()) {
+        let scale = plan
+            .views
+            .iter()
+            .find(|v| v.id == d.view)
+            .map_or(0.0, |v| v.scale);
+        for m in &d.measurements {
+            if m.parameter.contains("location") {
+                continue;
+            }
+            let Some(feature) = analysis.features.iter().find(|f| f.id == m.feature) else {
+                continue;
+            };
+            let size_owner = (feature.kind == "hole"
+                && (d.kind == "callout" || m.parameter.contains("diameter")))
+                || (feature.kind == "slot"
+                    && (d.kind == "callout" || m.parameter.contains("width")));
+            if size_owner {
+                opening_owners
+                    .entry(&m.feature)
+                    .and_modify(|s| *s = s.max(scale))
+                    .or_insert(scale);
+            }
+        }
+    }
+    for balloon in &plan.balloons {
+        let scale = plan
+            .views
+            .iter()
+            .find(|v| v.id == balloon.view)
+            .map_or(0.0, |v| v.scale);
+        for id in &balloon.features {
+            opening_owners
+                .entry(id)
+                .and_modify(|s| *s = s.max(scale))
+                .or_insert(scale);
+        }
+    }
     let mut openings = std::collections::BTreeSet::new();
     let mut native_openings = std::collections::BTreeSet::new();
     // A schedule's hole sizes still owe readable geometry in the balloon's
@@ -1578,7 +1793,13 @@ fn readability_uncached(analysis: &Analysis, plan: &Plan) -> Readability {
                 .find(|f| f.id == *id && f.kind == "hole")
                 && let Some(size) = feature.parameters.get("diameter").and_then(|v| v.as_f64())
                 && size > 0.0
-                && size * scale + 1e-6 < MIN_OPENING
+                && size
+                    * opening_owners
+                        .get(feature.id.as_str())
+                        .copied()
+                        .unwrap_or(scale)
+                    + 1e-6
+                    < MIN_OPENING
             {
                 openings.insert(feature.id.as_str());
             }
@@ -1592,12 +1813,28 @@ fn readability_uncached(analysis: &Analysis, plan: &Plan) -> Readability {
     });
     for v in plan.views.iter().filter(|v| v.id != "v:iso") {
         if v.detail.is_none() && v.scale + 1e-6 < modelled {
-            result.depiction += 1;
+            let regions = crate::detail::depiction_details(analysis, v.scale);
+            let covered = !regions.is_empty()
+                && regions.iter().all(|region| {
+                    plan.views.iter().any(|crop| {
+                        crop.scale + 1e-6 >= modelled
+                            && crop.detail.as_ref().is_some_and(|d| {
+                                d.kind == "readability-depiction"
+                                    && (0..3).all(|k| {
+                                        d.bounds[0][k] <= region.bounds[0][k] + 1e-6
+                                            && d.bounds[1][k] + 1e-6 >= region.bounds[1][k]
+                                    })
+                            })
+                    })
+                });
+            if !covered {
+                result.depiction += 1;
+            }
         }
-        for depiction in manufacturing
+        for (owner, depiction) in manufacturing
             .owned
             .iter()
-            .filter_map(|o| o.depiction.as_ref())
+            .filter_map(|o| o.depiction.as_ref().map(|d| (&o.owner, d)))
         {
             if v.direction[depiction.axis].abs() > 1e-6 || v.cut.is_some() {
                 continue;
@@ -1605,6 +1842,15 @@ fn readability_uncached(analysis: &Analysis, plan: &Plan) -> Readability {
             if let crate::pmi_lowering::DepictionKind::Thread { minor } = depiction.kind
                 && v.line_style.thread_depiction != Some(false)
                 && (depiction.diameter - minor) * 0.5 * v.scale + 1e-6 < MIN_DEPICTION_GAP
+                && !plan.views.iter().any(|crop| {
+                    crop.scale * (depiction.diameter - minor) * 0.5 + 1e-6 >= MIN_DEPICTION_GAP
+                        && crop.direction[depiction.axis].abs() < 1e-6
+                        && crop.detail.as_ref().is_some_and(|d| {
+                            d.dimensions.contains(&format!("d:{owner}/step.diameter"))
+                                && d.bounds[0][depiction.axis] < depiction.span[1]
+                                && d.bounds[1][depiction.axis] > depiction.span[0]
+                        })
+                })
             {
                 result.depiction += 1;
             }
@@ -1651,7 +1897,13 @@ fn readability_uncached(analysis: &Analysis, plan: &Plan) -> Readability {
             };
             if let Some(size) = feature.parameters.get(parameter).and_then(|n| n.as_f64())
                 && size > 0.0
-                && size * v.scale + 1e-6 < MIN_OPENING
+                && size
+                    * opening_owners
+                        .get(feature.id.as_str())
+                        .copied()
+                        .unwrap_or(v.scale)
+                    + 1e-6
+                    < MIN_OPENING
             {
                 openings.insert(feature.id.as_str());
             }
@@ -2482,6 +2734,29 @@ fn pack_reserved(
         include(&mut groups[i], [b[0], b[1]]);
         include(&mut groups[i], [b[2], b[3]]);
     }
+    let pack_details = template.views.iter().any(|v| v.detail.is_some())
+        && template
+            .views
+            .iter()
+            .filter_map(|v| v.detail.as_ref())
+            .all(|d| !d.authored && d.kind.starts_with("readability"));
+    if pack_details {
+        for (i, view) in template.views.iter().enumerate() {
+            if let Some(detail) = &view.detail {
+                let ink = crate::dims::font()
+                    .text(&crate::detail::caption(detail), crate::section::FONT_SIZE);
+                let at = crate::detail::caption_at(view);
+                let caption = [
+                    at[0] + ink.min[0],
+                    at[1] + ink.min[1],
+                    at[0] + ink.max[0],
+                    at[1] + ink.max[1],
+                ];
+                include(&mut groups[i], [caption[0], caption[1]]);
+                include(&mut groups[i], [caption[2], caption[3]]);
+            }
+        }
+    }
     let mut shifts = vec![[0.0; 2]; count];
     let column: Vec<usize> = template
         .views
@@ -2550,7 +2825,7 @@ fn pack_reserved(
         .views
         .iter()
         .enumerate()
-        .filter(|(_, v)| v.id != "v:iso")
+        .filter(|(_, v)| v.id != "v:iso" && !(pack_details && v.detail.is_some()))
         .map(|(i, _)| moved(groups[i], shifts[i]))
         .collect();
     let tb = p.sheet.title_block;
@@ -2567,6 +2842,40 @@ fn pack_reserved(
         b[3] += lift;
     }
     let [w, h] = p.sheet.page;
+    if pack_details {
+        let mut obstacles = boxes.clone();
+        obstacles.push(tb);
+        let mut detail_indices: Vec<_> = template
+            .views
+            .iter()
+            .enumerate()
+            .filter(|(_, v)| v.detail.is_some())
+            .map(|(i, _)| i)
+            .collect();
+        detail_indices.sort_by(|a, b| {
+            let area = |i: usize| (groups[i][2] - groups[i][0]) * (groups[i][3] - groups[i][1]);
+            area(*b).total_cmp(&area(*a)).then(a.cmp(b))
+        });
+        for i in detail_indices {
+            let size = [
+                groups[i][2] - groups[i][0] + 2.0,
+                groups[i][3] - groups[i][1] + 2.0,
+            ];
+            let rect = crate::layout::largest_empty_rect(
+                [MARGIN, MARGIN, w - MARGIN, h - MARGIN],
+                &obstacles,
+                size,
+            );
+            if rect[2] - rect[0] + 1e-6 < size[0] || rect[3] - rect[1] + 1e-6 < size[1] {
+                return None;
+            }
+            shifts[i] = [rect[0] + 1.0 - groups[i][0], rect[1] + 1.0 - groups[i][1]];
+            let occupied = moved(groups[i], shifts[i]);
+            obstacles.push(occupied);
+            boxes.push(occupied);
+        }
+    }
+
     if boxes.iter().any(|b| {
         b[0] < MARGIN - 1e-6
             || b[1] < MARGIN - 1e-6

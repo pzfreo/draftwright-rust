@@ -616,6 +616,9 @@ pub struct Scaled {
     pub angular: Vec<(String, Rect)>,
     /// An identity, a width and a height.
     pub derived: Vec<(String, f64, f64)>,
+    /// Automatic readability crops share free rectangles at their edges so a
+    /// first small crop does not strand the space needed by its neighbour.
+    pub pack_derived_at_edges: bool,
 }
 
 /// Which principal views the sheet carries.
@@ -1335,8 +1338,12 @@ fn geometry_with(
             derived_fit = false;
             break;
         }
-        let (cx, cy) = ((r[0] + r[2]) / 2.0, (r[1] + r[3]) / 2.0);
-        let b = [cx - w / 2.0, cy - h / 2.0, cx + w / 2.0, cy + h / 2.0];
+        let b = if scaled.pack_derived_at_edges {
+            [r[0], r[1], r[0] + w, r[1] + h]
+        } else {
+            let (cx, cy) = ((r[0] + r[2]) / 2.0, (r[1] + r[3]) / 2.0);
+            [cx - w / 2.0, cy - h / 2.0, cx + w / 2.0, cy + h / 2.0]
+        };
         derived.push((id.clone(), b));
         derived_obstacles.push(b);
         obstacles.push(b);

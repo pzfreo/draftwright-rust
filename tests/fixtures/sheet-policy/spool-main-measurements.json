@@ -1,0 +1,351 @@
+{
+  "source_commit": "0e393afcda459277deecf78dff5fce1d3758e599",
+  "source_sha256": "d1852dcd9ffe049d1031353d815b4c8e675f66608f5a1d800bc928ef23746b74",
+  "measurements": [
+    {
+      "feature": "envelope",
+      "parameter": "od.diameter",
+      "value": 130.0
+    },
+    {
+      "feature": "f:turned_step:1",
+      "parameter": "step.diameter",
+      "value": 130.0
+    },
+    {
+      "feature": "f:turned_step:2",
+      "parameter": "step.diameter",
+      "value": 130.0
+    },
+    {
+      "feature": "pmi:dimension.diameter:f87",
+      "parameter": "diameter",
+      "value": 130.0
+    },
+    {
+      "feature": "pmi:dimension.diameter:f70",
+      "parameter": "diameter",
+      "value": 130.0
+    },
+    {
+      "feature": "envelope",
+      "parameter": "height.length",
+      "value": 140.0
+    },
+    {
+      "feature": "f:turned_step:3",
+      "parameter": "step.diameter",
+      "value": 70.0
+    },
+    {
+      "feature": "pmi:dimension.diameter:f89",
+      "parameter": "diameter",
+      "value": 70.0
+    },
+    {
+      "feature": "f:turned_step:2",
+      "parameter": "step.length",
+      "value": 5.0
+    },
+    {
+      "feature": "f:turned_step:3",
+      "parameter": "step.length",
+      "value": 103.0
+    },
+    {
+      "feature": "f:turned_step:1",
+      "parameter": "step.length",
+      "value": 5.0
+    },
+    {
+      "feature": "f:hole:1",
+      "parameter": "bore.diameter",
+      "value": 10.0
+    },
+    {
+      "feature": "f:hole:2",
+      "parameter": "bore.diameter",
+      "value": 10.0
+    },
+    {
+      "feature": "f:hole:3",
+      "parameter": "bore.diameter",
+      "value": 10.0
+    },
+    {
+      "feature": "f:hole:4",
+      "parameter": "bore.diameter",
+      "value": 10.0
+    },
+    {
+      "feature": "f:hole:5",
+      "parameter": "bore.diameter",
+      "value": 10.0
+    },
+    {
+      "feature": "f:hole:6",
+      "parameter": "bore.diameter",
+      "value": 10.0
+    },
+    {
+      "feature": "f:hole_pattern:1",
+      "parameter": "bolt_circle.diameter",
+      "value": 90.0
+    },
+    {
+      "feature": "pmi:dimension.diameter:f0,16,17,18,20,21",
+      "parameter": "diameter",
+      "value": 10.0
+    },
+    {
+      "feature": "f:hole:8",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:9",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:10",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:11",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:12",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:13",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:14",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:15",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:16",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:17",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:18",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:19",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole_pattern:2",
+      "parameter": "bolt_circle.diameter",
+      "value": 110.0
+    },
+    {
+      "feature": "f:hole:23",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:22",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:24",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:20",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:21",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:28",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:29",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:31",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:25",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:26",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:30",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole:27",
+      "parameter": "bore.diameter",
+      "value": 8.0
+    },
+    {
+      "feature": "f:hole_pattern:3",
+      "parameter": "bolt_circle.diameter",
+      "value": 110.0
+    },
+    {
+      "feature": "f:hole:7",
+      "parameter": "bore.diameter",
+      "value": 62.0
+    },
+    {
+      "feature": "f:hole:7",
+      "parameter": "spotface.diameter",
+      "value": 70.0
+    },
+    {
+      "feature": "f:hole:7",
+      "parameter": "spotface.depth",
+      "value": 10.0
+    },
+    {
+      "feature": "pmi:dimension.diameter:f55",
+      "parameter": "diameter",
+      "value": 62.0
+    },
+    {
+      "feature": "f:chamfer:1",
+      "parameter": "chamfer.length",
+      "value": 1.0
+    },
+    {
+      "feature": "f:chamfer:2",
+      "parameter": "chamfer.length",
+      "value": 1.0
+    },
+    {
+      "feature": "f:chamfer:3",
+      "parameter": "chamfer.length",
+      "value": 1.0
+    },
+    {
+      "feature": "f:chamfer:4",
+      "parameter": "chamfer.length",
+      "value": 1.0
+    },
+    {
+      "feature": "f:chamfer:5",
+      "parameter": "chamfer.length",
+      "value": 1.0
+    },
+    {
+      "feature": "f:chamfer:6",
+      "parameter": "chamfer.length",
+      "value": 1.0
+    },
+    {
+      "feature": "f:chamfer:7",
+      "parameter": "chamfer.length",
+      "value": 1.0
+    },
+    {
+      "feature": "f:chamfer:8",
+      "parameter": "chamfer.length",
+      "value": 1.0
+    },
+    {
+      "feature": "f:chamfer:9",
+      "parameter": "chamfer.length",
+      "value": 1.0
+    },
+    {
+      "feature": "f:chamfer:10",
+      "parameter": "chamfer.length",
+      "value": 1.0
+    },
+    {
+      "feature": "f:chamfer:11",
+      "parameter": "chamfer.length",
+      "value": 1.0
+    },
+    {
+      "feature": "f:chamfer:12",
+      "parameter": "chamfer.length",
+      "value": 1.0
+    },
+    {
+      "feature": "f:chamfer:13",
+      "parameter": "chamfer.length",
+      "value": 1.0
+    },
+    {
+      "feature": "f:chamfer:14",
+      "parameter": "chamfer.length",
+      "value": 1.0
+    },
+    {
+      "feature": "f:chamfer:15",
+      "parameter": "chamfer.length",
+      "value": 1.0
+    },
+    {
+      "feature": "f:chamfer:16",
+      "parameter": "chamfer.length",
+      "value": 1.0
+    },
+    {
+      "feature": "f:fillet:1",
+      "parameter": "fillet.radius",
+      "value": 10.0
+    },
+    {
+      "feature": "f:fillet:2",
+      "parameter": "fillet.radius",
+      "value": 10.0
+    },
+    {
+      "feature": "f:hole:7",
+      "parameter": "location.length.x",
+      "value": 65.0
+    },
+    {
+      "feature": "f:hole:7",
+      "parameter": "location.length.y",
+      "value": 65.0
+    }
+  ]
+}

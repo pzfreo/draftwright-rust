@@ -279,9 +279,9 @@ fn a_try_with_hole_locations_too_close_to_read_is_not_taken() {
     );
     assert!(said.message.contains("physically fitting drawing is kept"));
     for tried in [
-        "A3 1:5 (below minimum readable feature/extent/depiction scale",
-        "A2 1:2 (dimensioned step span fails its paper-space floor",
-        "A0 2:1 (dimensioned step span fails its paper-space floor",
+        "A3 1:1 (principal projection row/column exceeds usable paper",
+        "A2 1:2 fill",
+        "A0 2:1 fill",
     ] {
         assert!(
             plan.sheet.basis.contains(tried),
@@ -322,14 +322,14 @@ fn a_valid_plan_is_reconsidered_for_fill() {
     }
 }
 
-/// A4 wins when it is readable. A low-fill A4 whose steps are too small must
-/// enlarge (including allocation); a smaller readable paper precedes a fill gain.
+/// A4 remains the whole-part default. Local floors get enlarged crops; the
+/// A4-to-A3 exception must be completely readable and never reaches A2+.
 #[test]
-fn readable_a4_precedes_fill_but_unreadable_steps_require_enlargement() {
+fn local_floors_use_details_and_never_buy_large_paper() {
     let Some(dir) = corpus::dir() else { return };
     for (file, expected) in [
         ("mfcadpp/10060.step", ("A4", "1:1")),
-        ("mfcadpp/10000.step", ("A1", "5:1")),
+        ("mfcadpp/10000.step", ("A4", "1:1")),
     ] {
         let path = dir.join(file);
         let plan = api::plan_from(&path, Features::Native, &Spec::default()).unwrap();
@@ -340,7 +340,7 @@ fn readable_a4_precedes_fill_but_unreadable_steps_require_enlargement() {
             draftwright::sheet_fit::readability(&analysis, &plan).failures(),
             0
         );
-        if expected.0 != "A4" {
+        if file.ends_with("10000.step") {
             let compressed =
                 api::plan_analysed(&analysis, &spec(json!({"size":"A4", "scale":"1:1"}))).unwrap();
             assert!(
@@ -352,38 +352,38 @@ fn readable_a4_precedes_fill_but_unreadable_steps_require_enlargement() {
                 "the native pocket must also exceed 2 mm: {file}"
             );
             assert!(plan.sheet.basis.contains("A4 multi-sheet:"));
+            assert_eq!(plan.sheet.scale, "1:1");
+            assert!(plan.views.iter().filter(|v| v.detail.is_some()).count() >= 1);
         }
     }
 }
 
-/// A newly measured step failure cannot buy a long or obstructed callout. The
-/// established A4 drawing remains a reported refusal when all readable
-/// enlargements violate the independent, unchanged leader quality limits.
+/// Local step intervals recover in a detail on the established A4 drawing.
+/// Whole-part enlargements still cannot buy longer or obstructed callouts.
 #[test]
-fn an_exhausted_step_search_reports_its_retained_a4_failure() {
+fn compressed_steps_recover_in_an_a4_detail_without_buying_longer_callouts() {
     let Some(dir) = corpus::dir() else { return };
     let path = dir.join("mfcadpp/10063.step");
     let plan = api::plan_from(&path, Features::Native, &Spec::default()).unwrap();
     let analysis = api::analyse_from(&path, Features::Native).unwrap();
     assert_eq!(sheet(&plan), ("A4", "1:1"));
-    assert!(draftwright::sheet_fit::readability(&analysis, &plan).steps > 0);
+    assert_eq!(
+        draftwright::sheet_fit::readability(&analysis, &plan).failures(),
+        0
+    );
+    assert!(plan.views.iter().any(|v| v.detail.is_some()));
     assert!(
-        plan.problems
+        !plan
+            .problems
             .iter()
-            .any(|p| p.code == "layout_recovery_exhausted" && p.severity == "warning")
+            .any(|p| p.code == "layout_recovery_exhausted")
     );
     assert!(!plan.problems.iter().any(|p| p.code.ends_with("_dropped")
         || matches!(
             p.code.as_str(),
             "annotation_off_sheet" | "annotation_over_title_block"
         )));
-    for paper in ["A4", "A3", "A2", "A1", "A0"] {
-        assert!(
-            plan.sheet.basis.contains(&format!("{paper} multi-sheet:")),
-            "{}",
-            plan.sheet.basis
-        );
-    }
+    assert!(plan.sheet.basis.contains("A4 multi-sheet:"));
     assert!(
         plan.sheet
             .basis
@@ -489,12 +489,7 @@ fn ftc07_reports_its_readability_refusal_on_the_established_fitted_sheet() {
     };
     let chosen = api::plan_analysed(&analysis, &never).unwrap();
     assert_eq!(sheet(&chosen), ("A2", "1:2"));
-    assert!(
-        chosen
-            .sheet
-            .basis
-            .starts_with("readability refusal on A2 at 1:2")
-    );
+    assert!(chosen.sheet.basis.starts_with("whole-part paper A2 at 1:2"));
     assert!(draftwright::sheet_fit::readability(&analysis, &chosen).failures() > 0);
     assert!(
         chosen
@@ -504,10 +499,7 @@ fn ftc07_reports_its_readability_refusal_on_the_established_fitted_sheet() {
     );
     sheet_rule::assert_rule("ftc07", &chosen);
     assert!(
-        chosen
-            .sheet
-            .basis
-            .contains("A1 1:1 (dimensioned step span fails its paper-space floor"),
+        chosen.sheet.basis.contains("A2 1:2 fill"),
         "{}",
         chosen.sheet.basis
     );

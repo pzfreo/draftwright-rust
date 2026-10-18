@@ -174,6 +174,13 @@ pub(super) fn proofs(
                     std::rc::Rc::new(p)
                 })
             })?;
+            if v.detail.is_some() {
+                // The edge evidence remains in model coordinates. A crop has
+                // its own projected centre, so its paper-to-model transform
+                // must not borrow the principal view's centre from the memo.
+                std::rc::Rc::make_mut(&mut proof).centre =
+                    crate::detail::crop_extent(analysis, v).1;
+            }
             // A cutting-plane line this view marks is fixed ink; its letters are boxes.
             for cut in views.iter().filter_map(|q| q.cut.as_ref()) {
                 let name = v.id.trim_start_matches("v:");
@@ -1014,6 +1021,41 @@ mod tests {
             label_at: [-3., 2.],
             rotation: 0.,
         }
+    }
+
+    #[test]
+    fn cropped_interior_proof_maps_the_crops_own_centre_without_mutating_its_parent() {
+        let mut a: Analysis = serde_json::from_value(serde_json::json!({
+            "schema":crate::model::ANALYSIS_SCHEMA,
+            "binding":{"source_sha256":"interior-crop","part":"test","face_count":1,"loader":"test"},
+            "envelope":[[-50,-50,-1],[50,50,0]],"iso_bounds":[0,0,0,0]
+        })).unwrap();
+        a.edge_ink = Some(ink(vec![vec![[20., -30.], [20., 30.]]]));
+        let parent = view();
+        let mut crop = parent.clone();
+        crop.id = "v:detail_a".into();
+        crop.at = [100., 100.];
+        crop.scale = 2.;
+        crop.detail = Some(crate::detail::Detail {
+            label: "A".into(),
+            axis: 0,
+            source_view: parent.id.clone(),
+            source_cut: None,
+            kind: "readability".into(),
+            bounds: [[10., -10., -1.], [30., 10., 0.]],
+            marked_bounds: [[10., -10., -1.], [30., 10., 0.]],
+            dimensions: vec![],
+            scale: 2.,
+            authored: false,
+            partial_profile: true,
+        });
+        crate::planning::with(&a, || {
+            let evidence = proofs(&a, &[parent.clone(), crop.clone()]);
+            assert!(!evidence[&parent.id].blank(&parent, [18., 1., 22., 3.]));
+            assert!(!evidence[&crop.id].blank(&crop, [96., 102., 104., 106.]));
+            assert!(evidence[&crop.id].blank(&crop, [108., 102., 112., 106.]));
+            assert!(evidence[&parent.id].blank(&parent, [-2., 1., 2., 3.]));
+        });
     }
 
     #[test]

@@ -68,6 +68,88 @@ pub fn tried(basis: &str) -> Vec<Tried> {
 /// precede larger paper; their individual sheets are checked by sheets tests.
 pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, String) {
     let basis = &plan.sheet.basis;
+    if let Some(measured) = basis.strip_prefix("whole-part measured fit ") {
+        let pair = measured.split(';').next().unwrap();
+        assert_eq!(pair, format!("{} at {}", plan.sheet.size, plan.sheet.scale));
+        assert!(matches!(plan.sheet.size.as_str(), "A4" | "A3"));
+        assert!(basis.contains(
+            "complete principal and annotation blocks fit, zero readability failures, no new routes"
+        ));
+        assert!(plan.dimensions.iter().all(|d| d.placed.is_some()));
+        assert!(!plan.problems.iter().any(|p| matches!(
+            p.code.as_str(),
+            "annotation_off_sheet" | "views_do_not_fit" | "page_fit_uncertain"
+        )));
+        if plan.sheet.size == "A3" {
+            assert!(basis.contains(
+                "A4: complete same-scale principal and annotation blocks do not fit cleanly"
+            ));
+        }
+        return (plan.sheet.size.clone(), plan.sheet.scale.clone());
+    }
+    if let Some(seed_basis) = basis.strip_prefix("whole-part fitted seed ") {
+        let pair = seed_basis.split(';').next().unwrap();
+        assert_eq!(pair, format!("{} at {}", plan.sheet.size, plan.sheet.scale));
+        assert!(
+            basis.contains(
+                "general readability: 0 text/arrow fit failures, 0 dimension-lane failures"
+            )
+        );
+        assert!(basis.contains("physical bounds and measurements retained"));
+        assert!(basis.contains("rejected search:"));
+        return (plan.sheet.size.clone(), plan.sheet.scale.clone());
+    }
+    if let Some(header) = basis.strip_prefix("whole-part paper ") {
+        let (pair, _) = header.split_once(';').unwrap();
+        let (paper, scale) = pair.split_once(" at ").unwrap();
+        let (ordinary, details) = basis
+            .split_once("; whole-part trials: ")
+            .unwrap()
+            .1
+            .split_once("; local-detail trials: ")
+            .unwrap();
+        let enlarged = basis.contains("; local readability recovered by enlarged detail;");
+        let a3_exception =
+            basis.contains("; local readability A3 exception after failed A4 details;");
+        let mut base = plan.clone();
+        base.sheet.size = paper.into();
+        base.sheet.scale = scale.into();
+        base.sheet.basis = ordinary.into();
+        assert_follows(name, &base, seed);
+        if enlarged || a3_exception {
+            if a3_exception {
+                assert_eq!(plan.sheet.size, "A3");
+            } else {
+                assert!(plan.views.iter().any(|v| {
+                    v.detail
+                        .as_ref()
+                        .is_some_and(|d| !d.authored && d.scale > plan.sheet.scale_factor)
+                }));
+            }
+            assert!(
+                sheet_index(&plan.sheet.size) <= sheet_index(paper)
+                    || (paper == "A4" && plan.sheet.size == "A3")
+            );
+            assert!(
+                !plan
+                    .problems
+                    .iter()
+                    .any(|q| q.code == "layout_recovery_exhausted")
+            );
+            assert!(details.contains("0 unreadable step spans, 0 openings below 2 mm, 0 text/arrow fit failures, 0 depiction gaps below 0.7 mm, 0 dimension-lane failures"));
+        } else {
+            assert_eq!(
+                (&plan.sheet.size, &plan.sheet.scale),
+                (&paper.to_string(), &scale.to_string())
+            );
+            assert!(
+                plan.problems
+                    .iter()
+                    .any(|q| q.code == "layout_recovery_exhausted")
+            );
+        }
+        return (plan.sheet.size.clone(), plan.sheet.scale.clone());
+    }
     if basis.starts_with("screen-first fitted-reference retention on ") {
         assert!(basis.contains("established clean readable drawing retained"));
         assert!(basis.contains("retained readability [0 unreadable step spans, 0 openings below 2 mm, 0 text/arrow fit failures, 0 depiction gaps below 0.7 mm, 0 dimension-lane failures]"));

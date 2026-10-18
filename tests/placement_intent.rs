@@ -368,7 +368,12 @@ fn seeded_edits_on_slice_parts_preserve_pinned_geometry() {
                 s = pin(&s, &base, &id, random(&mut rng, 3));
                 pins.insert(id);
             }
-            let pinned = model::plan_recovered(&a, &s).unwrap();
+            let pinned = model::plan_recovered(&a, &s).unwrap_or_else(|error| {
+                panic!(
+                    "{name} seed={seed}: {error:?}; spec {}",
+                    serde_json::to_string(&s).unwrap()
+                )
+            });
             let snapshot: BTreeMap<_, _> = pins
                 .iter()
                 .map(|id| (id.clone(), geometry(&pinned, id)))

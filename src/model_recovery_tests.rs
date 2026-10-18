@@ -255,7 +255,7 @@ fn recess_scale_reference_uses_the_established_fitted_choice_before_a4_ranking()
 }
 
 #[test]
-fn native_pocket_mouths_require_readable_ordinary_ink_and_short_proven_routes() {
+fn native_pocket_mouths_use_bounded_readability_details_and_short_proven_routes() {
     let root = std::env::var_os("DRAFTWRIGHT_CORPUS")
         .map(std::path::PathBuf::from)
         .or_else(|| {
@@ -280,6 +280,38 @@ fn native_pocket_mouths_require_readable_ordinary_ink_and_short_proven_routes() 
     assert!(crate::sheet_fit::readability(&a, &first).native_openings > 0);
     let recovered = plan_recovered(&a, &Spec::default()).unwrap();
     assert_eq!(crate::sheet_fit::readability(&a, &recovered).failures(), 0);
+    assert!(matches!(recovered.sheet.size.as_str(), "A4" | "A3"));
+    assert_eq!(recovered.sheet.scale, "1:1");
+    let local_interval = recovered
+        .dimensions
+        .iter()
+        .find(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.parameter.starts_with("step_interval.length"))
+        })
+        .expect("exact adjacent-height interval in a local crop");
+    let mut missing_interval = recovered.clone();
+    missing_interval
+        .dimensions
+        .retain(|d| d.id != local_interval.id);
+    assert!(
+        crate::sheet_fit::readability(&a, &missing_interval).steps > 0,
+        "a crop alone cannot qualify an unannotated baseline interval"
+    );
+
+    let disabled: Spec =
+        serde_json::from_value(serde_json::json!({"sheet":{"automatic_details":false}})).unwrap();
+    let without = plan_recovered(&a, &disabled).unwrap();
+    assert_eq!(without.sheet.size, "A4");
+    assert!(without.views.iter().all(|v| v.detail.is_none()));
+    assert!(crate::sheet_fit::readability(&a, &without).failures() > 0);
+    assert!(
+        without
+            .problems
+            .iter()
+            .any(|p| p.code == "layout_recovery_exhausted")
+    );
     assert!(carried(&first).is_subset(&carried(&recovered)));
     assert!(no_new_drawing_issues(&first, &recovered));
     // Enlarging a native mouth must preserve the independently recorded leader
@@ -317,8 +349,8 @@ fn native_pocket_mouths_require_readable_ordinary_ink_and_short_proven_routes() 
         assert!(length <= before.as_f64().unwrap() + 2.0 + 1e-6, "{id}");
     }
     assert!(
-        recovered.views.iter().all(|v| v.detail.is_none()),
-        "a readable ordinary drawing must not buy an oversized detail"
+        recovered.views.iter().any(|v| v.detail.is_some()),
+        "local mouth and height floors require enlarged details"
     );
 }
 
@@ -445,4 +477,35 @@ fn native_corridor_violations_in_the_seed_cannot_veto_the_fitted_reference() {
             "{name}: lost a measurement"
         );
     }
+}
+
+#[test]
+fn short_reference_text_and_a_bore_callout_fit_their_local_carriers() {
+    let Some(root) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
+        assert!(std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"));
+        return;
+    };
+    let (_, a) = analyse_native(&std::path::Path::new(&root).join("mfcadpp/10119.step")).unwrap();
+    let reference = plan_recovered(&a, &Spec::default()).unwrap();
+    assert!(matches!(reference.sheet.size.as_str(), "A4" | "A3"));
+    assert_eq!(crate::sheet_fit::readability(&a, &reference).failures(), 0);
+    crate::planning::with(&a, || {
+        established_drawing(&a, &Spec::default()).unwrap();
+        let mut spec: Spec = serde_json::from_value(
+            serde_json::json!({"sheet":{"size":"A3","scale":"1:1","automatic_details":true}}),
+        )
+        .unwrap();
+        for name in crate::detail::NAMES {
+            spec.views.entry(name.into()).or_default();
+        }
+        let mut p = plan_escalated_with(&a, &spec, true, None, true).unwrap();
+        crate::sheet_fit::repair_readability(&a, &mut p);
+        crate::sheet_fit::retain_callouts(&a, &reference, &mut p);
+        assert_eq!(crate::sheet_fit::readability(&a, &p).failures(), 0);
+        assert!(drawn_sheets_fit(&a, &p));
+        assert!(findings(&p).clean());
+        assert!(crate::sheet_fit::routes_no_worse(&a, &reference, &p));
+        assert!(no_new_drawing_issues(&reference, &p));
+        assert!(carries_required(&reference, &p));
+    });
 }

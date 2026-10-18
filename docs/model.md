@@ -914,12 +914,23 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   moving entire carriers without rerouting any witness or leader. Actual fit,
   measurement retention, readability and physical findings are checked again;
   explicit view placements and authored details are retained.
-  Optional details are tried only when an ordinary drawing cannot provide the
-  smaller readable paper; authored details remain explicit intent.
+  Paper and main scale are chosen by the whole part: principal fit, annotation,
+  text/arrows, 10/7 mm lanes, and general geometric legibility. Local openings,
+  native pocket/channel mouths, short steps and depiction gaps cannot purchase
+  A2/A1/A0. They use automatic enlarged details on the whole part's paper, grouped
+  where their complete witnesses fit. Only a completely readable clean A3 detail
+  result may follow a failed A4 detail search. Otherwise retain the smaller-paper
+  drawing with its measured refusal. `sheet.automatic_details: false` disables
+  automatic crops; authored details remain explicit intent.
+
+  Adjacent baseline heights retain both original coordinates. Their exact local
+  difference is a reference dimension in a crop around the recorded supports,
+  with the two baseline IDs in `determined_by`. Only that placed interval at a
+  readable crop scale qualifies the original compressed geometry.
 
   Native-recess integration preserves the established scale cap for fill-driven
-  growth; a measured readability failure may still request necessary enlargement.
-  A fallback cannot buy larger paper without reducing its readability failures.
+  growth. Necessary whole-drawing failures may still request larger paper;
+  local feature floors are recovered through the bounded detail search.
   Before spending paper, bounded free-dimension trials can separate overlapping
   parallel spans, move an exterior stack just far enough to meet its first-line
   clearance while preserving seven-millimetre gaps, and put text cleanly outside
@@ -1010,13 +1021,13 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   This includes existing principal-profile tangent evidence for conical and other
   curved silhouettes, plus square-on cylindrical generators clipped to trimmed
   face evidence and detail crops, rather than B-rep edges alone.
-  A retained route cannot grow by more than 2 mm, including when the model
-  grows to meet the global feature/depiction floor. Every readability component,
+  A retained route cannot grow by more than 2 mm, including when a detail
+  grows to meet a local feature/depiction floor. Every readability component,
   contact, finding and parallel-run limit remains independent.
   The search tries the other established arrangements before rejecting paper. It
   can shorten a clear outgoing shaft or transport a proven attachment and its
   paper-space elbow/label offset, or try bounded short exits at the same feature or a physically visible
-  circular bore rim when a global readability floor requires enlargement. A shorter
+  circular bore rim when local readability requires enlargement. A shorter
   shoulder or a straight leader may fit the same length budget. Interior exits need
   the ordinary whole-annotation proof; exterior text keeps 1 mm clear, and a leader
   cannot borrow more than 0.5 mm of a resolved centre stroke. It then repeats
@@ -1027,8 +1038,9 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   merges segments from every model and extension index before measuring a run,
   including continuous runs that cross between indexes.
   Impossible principal projection rows/columns are rejected before solving, as are
-  scales below the preparation floor once a complete fitted drawing exists; these
-  trials can qualify neither readability nor the historical retained reference.
+  historical-reference scales below the preparation floor once a complete fitted
+  drawing exists. New main-view trials use the general extent/absolute floor;
+  local feature floors are tested at their actual dimension/detail carriers.
   A complete readable ordinary layout keeps the established placement pipeline,
   rather than comparing its routes with an unreadably compressed raw estimate.
   Settled GD&T blocks can still be composed from a same-scale A0 template and moved

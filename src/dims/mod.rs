@@ -161,6 +161,7 @@ fn chosen_views(
     wants: &mut [Want],
     spec: &Spec,
     frames: &BTreeMap<&str, Frame>,
+    defer_details: bool,
 ) -> Result<Vec<Problem>, Invalid> {
     let mut problems = Vec::new();
     for w in wants.iter_mut() {
@@ -172,6 +173,11 @@ fn chosen_views(
         }) else {
             continue;
         };
+        // Principal strip estimation precedes the late crop geometry. Its
+        // carrier choice is validated by the full inventory after detail_routes.
+        if defer_details && crate::detail::NAMES.contains(&v) {
+            continue;
+        }
         let able: Vec<&'static str> = w.views.iter().copied().filter(|c| carries(w, c)).collect();
         let Some(&v) = able.iter().find(|c| **c == v) else {
             return Err(Invalid {
@@ -939,6 +945,11 @@ fn detail_levels_uncached(a: &Analysis) -> Vec<(String, f64)> {
         .collect()
 }
 
+mod readability;
+pub(crate) use readability::{
+    details as readability_details, interval_id as readability_interval_id,
+};
+
 /// Route the exact owned requirements through the same placement and tolerance pipeline.
 /// A baseline with a witness outside the crop stays on the parent; its local band size
 /// is recovered inside the detail under the saved chain ID.
@@ -1247,7 +1258,7 @@ fn lanes_uncached(
         })
         .collect();
     if spec.dimensions.values().any(|d| d.between.is_some()) {
-        problems.extend(chosen_views(&mut wants, spec, &frames)?);
+        problems.extend(chosen_views(&mut wants, spec, &frames, true)?);
     }
     plates::prefer_readable(analysis, &mut wants, &frames, None);
     let (chosen, _) = route(&mut wants, &frames, analysis);
@@ -1575,7 +1586,7 @@ pub(crate) fn reserve_linear_intent(
             )
         })
         .collect();
-    chosen_views(&mut wants, spec, &frames)?;
+    chosen_views(&mut wants, spec, &frames, true)?;
     plates::prefer_readable(analysis, &mut wants, &frames, Some(spec));
     let (chosen, _) = route(&mut wants, &frames, analysis);
     let owner = placement::owners(analysis, &wants, &chosen);
@@ -1591,6 +1602,21 @@ pub(crate) fn reserve_linear_intent(
         let (Some(view), Some(side)) = (chosen[i], sides[i]) else {
             continue;
         };
+        if spec
+            .dimensions
+            .get(&w.id)
+            .and_then(|d| {
+                d.place
+                    .as_ref()
+                    .and_then(|p| p.view.as_deref())
+                    .or(d.view.as_deref())
+            })
+            .is_some_and(|v| crate::detail::NAMES.contains(&v))
+        {
+            // Its requested lane belongs to the crop's own reservation. Keep
+            // the ordinary parent band without adding this late carrier's tier.
+            continue;
+        }
         if let Some(p) = spec
             .dimensions
             .get(&w.id)
@@ -2273,9 +2299,10 @@ fn plan_inventory_ordered(
                 .then(|| (name, Frame::new(analysis, v)))
         })
         .collect();
+    readability::append_intervals(analysis, spec, &mut wants, views);
     detail_routes(analysis, &mut wants, views);
     let authored_ownership = authored::ownership(analysis, spec, &wants);
-    problems.extend(chosen_views(&mut wants, spec, &frames)?);
+    problems.extend(chosen_views(&mut wants, spec, &frames, false)?);
     plates::prefer_readable(analysis, &mut wants, &frames, Some(spec));
     let (mut chosen, mut end_on) = route(&mut wants, &frames, analysis);
     // Display intent may not silently undo the established one-owner span grouping.
@@ -4024,6 +4051,7 @@ pub(crate) fn placement_options_with_spec(
     {
         return BTreeMap::new();
     }
+    readability::append_intervals(analysis, spec, &mut wants, views);
     detail_routes(analysis, &mut wants, views);
     let original = wants.clone();
     let frames: BTreeMap<&str, Frame> = views

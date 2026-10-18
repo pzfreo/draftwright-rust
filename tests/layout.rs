@@ -185,6 +185,7 @@ fn scaled(c: &Value, derived: &Value, scale: f64) -> Scaled {
             .iter()
             .map(|d| (d[0].as_str().unwrap().to_string(), f(&d[1]), f(&d[2])))
             .collect(),
+        ..Scaled::default()
     }
 }
 

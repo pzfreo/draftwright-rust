@@ -47,6 +47,24 @@ pub(super) fn consolidate(
     omitted: &mut Vec<Omitted>,
 ) -> References {
     let mut references = References::new();
+    // A local readability interval is determined by its two retained baseline
+    // coordinates. It is informational, so it cannot create a second tolerance
+    // loop merely to make the geometry visible in an enlarged crop.
+    for (w, ..) in kept.iter_mut() {
+        if let Some(pair) = w.id.strip_prefix("d:step_level/step_interval.length.")
+            && let Some((lower, upper)) = pair.split_once('.')
+        {
+            let endpoint = |id: &str| {
+                if id == "overall" {
+                    "d:envelope/height.length".to_string()
+                } else {
+                    format!("d:step_level/step_height.length.{id}")
+                }
+            };
+            references.insert(w.id.clone(), vec![endpoint(lower), endpoint(upper)]);
+            w.terms = vec![format!("({})", w.terms.join(" "))];
+        }
+    }
     if a.solid_count.is_some_and(|n| n > 1) {
         return references;
     }
