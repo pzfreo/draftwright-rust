@@ -141,4 +141,4 @@ canonical Node 22 acceptance artifacts are under `target/acceptance/`.
 Acceptance measured the served tool definitions, including names/descriptions, at
 **42,438 bytes**, plus **724 instruction bytes**. Its **10,791 fixed-context tokens**
 are the script's `ceil(bytes/4)` estimate, not an actual tokenizer measurement.
-The schema-only budget remains **34,389 bytes**.
+The schema-only budget was **34,389 bytes** at #83; later additions bring the current total to **34,477 bytes** (`SCHEMA_BUDGET` in `tools/generate_mcp_schemas.py`).
