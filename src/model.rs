@@ -2959,7 +2959,7 @@ fn recover_with_reference(
         }
     };
     if spec.sheet.scale.is_some() || crate::placement_intent::has_pins(spec) {
-        return recover_candidates_before(
+        let detailed = recover_candidates_before(
             analysis,
             spec,
             first,
@@ -2969,7 +2969,31 @@ fn recover_with_reference(
             reference_only,
             None,
             route_reference,
-        );
+        )?;
+        if !reference_only
+            && detailed.views.iter().any(|v| {
+                v.detail
+                    .as_ref()
+                    .is_some_and(|d| !d.authored && d.kind.starts_with("readability"))
+            })
+        {
+            // A fixed main frame authorizes trying a crop, not publishing an
+            // unqualified one. Explicitly authored details remain in both passes.
+            let mut plain = spec.clone();
+            plain.sheet.automatic_details = Some(false);
+            let ordinary = recover_with_reference(
+                analysis,
+                &plain,
+                plan_escalated(analysis, &plain)?,
+                minimum,
+                reference_only,
+                route_reference,
+            )?;
+            if !crate::detail::readable_automatic(analysis, &ordinary, &detailed) {
+                return Ok(local_readability_refusal(analysis, spec, ordinary));
+            }
+        }
+        return Ok(detailed);
     }
     // Establish the independently fitted routes before any local-paper bound.
     // A raw seed is not allowed to become a weaker quality reference merely

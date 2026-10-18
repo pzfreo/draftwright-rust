@@ -856,6 +856,44 @@ fn a_detail_caption_is_drawn_in_its_reserved_crop_slot() {
 }
 
 #[test]
+fn fixed_main_paper_and_scale_do_not_authorize_an_unqualified_automatic_crop() {
+    let Some(dir) = corpus::dir() else { return };
+    let (_, a) = model::analyse_native(&dir.join("nist/nist_ftc_07_asme1_rd.stp")).unwrap();
+    let mut spec: Spec = serde_json::from_value(json!({
+        "sheet":{"size":"A2", "scale":"1:2", "automatic_details":false}
+    }))
+    .unwrap();
+    let ordinary = model::plan_recovered(&a, &spec).unwrap();
+    spec.sheet.automatic_details = Some(true);
+    let p = model::plan_recovered(&a, &spec).unwrap();
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        ("A2", "1:2")
+    );
+    assert_eq!(p.spec.sheet.automatic_details, Some(true));
+    assert!(p.views.iter().all(|v| v.detail.is_none()));
+    assert!(
+        p.problems
+            .iter()
+            .any(|p| p.code == "layout_recovery_exhausted")
+    );
+    for before in ordinary
+        .dimensions
+        .iter()
+        .filter(|d| !d.reference && d.placed.is_some())
+    {
+        let after = p.dimensions.iter().find(|d| d.id == before.id).unwrap();
+        assert!(after.placed.is_some() && !after.reference);
+        assert_eq!(after.view, before.view);
+        assert_eq!(after.value, before.value);
+        assert_eq!(
+            serde_json::to_value(&after.measurements).unwrap(),
+            serde_json::to_value(&before.measurements).unwrap()
+        );
+    }
+}
+
+#[test]
 fn nearby_readability_needs_share_one_detail_without_shrinking_the_parent() {
     let Some(dir) = corpus::dir() else { return };
     let (part, a) = model::analyse_native(&dir.join("mfcadpp_holdout/520.step")).unwrap();
