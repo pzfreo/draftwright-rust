@@ -7154,7 +7154,11 @@ fn render_annotations_with_cuts(
                 dims.push(Item::Edge(Curve::Line(a, b)));
             }
             let row = block.title.as_str();
-            let laid = font.text(&crate::notes::ink(row), crate::notes::TEXT);
+            let laid = crate::output::centred_label_ink(
+                crate::tables::text_ink(row, font),
+                block.title_at,
+                dims,
+            );
             label(
                 laid,
                 block.title_at,
@@ -7171,7 +7175,11 @@ fn render_annotations_with_cuts(
                 .iter()
                 .zip(&p.rows_at)
                 .filter_map(|(row, at)| {
-                    let laid = font.text(&crate::notes::ink(row), crate::notes::TEXT);
+                    let laid = crate::output::centred_label_ink(
+                        crate::tables::text_ink(row, font),
+                        *at,
+                        dims,
+                    );
                     label(
                         laid,
                         *at,
@@ -7278,7 +7286,11 @@ fn render_annotations_with_cuts(
             for (cell, at) in row.iter().zip(positions) {
                 let Some(at) = at else { continue };
                 let run = (cell.trim(), crate::dims::FONT, crate::tables::TEXT);
-                let laid = font.text(&crate::tables::ink(cell), crate::tables::TEXT);
+                let laid = crate::output::centred_label_ink(
+                    crate::tables::text_ink(cell, font),
+                    *at,
+                    dims,
+                );
                 let index = label(laid, *at, dims, Some(run));
                 if table.id.starts_with("gear_data_") {
                     gear_runs.extend(index);
@@ -7353,7 +7365,11 @@ fn render_annotations_with_cuts(
             let mut runs = Vec::new();
             for (cell, at) in row.iter().zip(at) {
                 let Some(at) = at else { continue };
-                let laid = font.text(&crate::tables::ink(cell), crate::tables::TEXT);
+                let laid = crate::output::centred_label_ink(
+                    crate::tables::text_ink(cell, font),
+                    *at,
+                    dims,
+                );
                 runs.extend(label(
                     laid,
                     *at,
@@ -7426,45 +7442,13 @@ fn render_annotations_with_cuts(
                         // Reuse the established callout symbols in scheduled size cells;
                         // a font's missing-glyph box must not stand for recess or depth.
                         let ink = crate::hole_table::size_ink(cell, font);
-                        let centre = [0, 1].map(|k| 0.5 * (ink.min[k] + ink.max[k]));
-                        let local = |p: [f64; 2]| [p[0] - centre[0], p[1] - centre[1]];
-                        for [a, b] in ink.strokes {
-                            let a = local(a);
-                            let b = local(b);
-                            dims.push(Item::Edge(Curve::Line(
-                                [at[0] + a[0], at[1] + a[1]],
-                                [at[0] + b[0], at[1] + b[1]],
-                            )));
-                        }
-                        Laid {
-                            contours: ink
-                                .glyphs
-                                .into_iter()
-                                .flatten()
-                                .map(|c| {
-                                    c.into_iter()
-                                        .map(|s| match s {
-                                            Segment::Line(a, b) => {
-                                                Segment::Line(local(a), local(b))
-                                            }
-                                            Segment::Quad(a, b, c) => {
-                                                Segment::Quad(local(a), local(b), local(c))
-                                            }
-                                            Segment::Cubic(a, b, c, d) => Segment::Cubic(
-                                                local(a),
-                                                local(b),
-                                                local(c),
-                                                local(d),
-                                            ),
-                                        })
-                                        .collect()
-                                })
-                                .collect(),
-                            min: local(ink.min),
-                            max: local(ink.max),
-                        }
+                        crate::output::centred_label_ink(ink, *at, dims)
                     } else {
-                        font.text(&crate::tables::ink(cell), crate::tables::TEXT)
+                        crate::output::centred_label_ink(
+                            crate::tables::text_ink(cell, font),
+                            *at,
+                            dims,
+                        )
                     };
                     let index = label(laid, *at, dims, Some(run));
                     if r >= headers
