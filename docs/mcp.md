@@ -189,14 +189,14 @@ here covers the complete shared S4B S0 op sequence on all four slice parts.
 
 ## Reproducible acceptance
 
-- `cargo test --release --test stateless http_` runs the HTTP byte-limit, absolute
+- `cargo test --release --test interface stateless::http_` runs the HTTP byte-limit, absolute
   head/body deadline, bare-LF refusal and queued-ping regressions. These tests also
   run in the existing Linux CI nextest shards; the Python probe below is optional.
 - `python3 tools/check_http_limits.py target/release/draftwright --report target/http-limits.json`
   checks oversized request lines/headers, aggregate overflow, newline-free input, head/body
   trickles and a queued valid ping after each refusal. It also checks the exact head-budget
   boundary with multibyte UTF-8, body cap, Origin rules, loopback binding and valid JSON-RPC.
-- `DRAFTWRIGHT_CORPUS=... DRAFTWRIGHT_CORPUS_REQUIRED=1 cargo test --release --test stateless -- --nocapture`
+- `DRAFTWRIGHT_CORPUS=... DRAFTWRIGHT_CORPUS_REQUIRED=1 cargo test --release --test interface stateless:: -- --nocapture`
   checks schema contracts, 4 KB budgets, fresh-process warm-cache equality, Session/serve/HTTP
   op-sequence parity, refusal/concurrency behaviour, transports and render embedding.
 - Install `jsonschema==4.25.1` into a Python environment, then run
@@ -214,7 +214,7 @@ D1 adds the real-model call client and finished-task checker; see
 [`tools/mcp-eval/README.md`](../tools/mcp-eval/README.md) for starting HTTP, listing tools,
 calling, logging bytes/tokens and scoring. Served descriptions explain each tool without
 requiring source access. Schemas factor repeated shapes through local JSON Pointer targets while
-remaining standalone. `cargo test --release --test engine_version` checks the source hash,
+remaining standalone. `cargo test --release --test interface engine_version::` checks the source hash,
 cache namespace, tool descriptions and the exact 34,389-byte per-session schema total (28 documents, 14 tools).
 See [the measurement](mcp-schema-budget.md) for baseline attribution and per-tool sizes.
 
@@ -427,8 +427,8 @@ The context budget is 34,389 bytes after replacing repeated nested Spec definiti
 with the typed outline. Nested Spec fields no longer increase that total; generated
 private schemas retain the existing server validation constraints.
 
-`cargo test --release --test sheets_mcp` covers addressing, filtering, move/replay,
-render selection and schema controls. `cargo test --release --test multi_sheet_latency
+`cargo test --release --test interface sheets_mcp::` covers addressing, filtering, move/replay,
+render selection and schema controls. `cargo test --release --test interface multi_sheet_latency::
 -- --nocapture` measures the fixed-A4 string_post 5:1 overflow case, including JSON
 delta encoding, and reports actual sheet steps. It retains the 150 ms bound unless
 `DRAFTWRIGHT_LATENCY_GATE=0`; local loaded-machine timings do not establish speed.

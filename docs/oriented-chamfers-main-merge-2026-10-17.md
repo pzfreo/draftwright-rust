@@ -92,7 +92,7 @@ source passes that test alone at p90 43.866 ms. That report is retained under
 `contention-checks/`; the isolated log is in `followup-checks/isolated-session.log`.
 
 The final full nextest invocation uses an artifact-local configuration with
-`threads-required = 12` for `binary(session) | binary(multi_sheet_latency)`.
+`threads-required = 12` for `binary(=interface) & test(/^(session|multi_sheet_latency)::/)`.
 Every test remains selected; latency tests reserve all 12 slots so their
 wall-clock measurements do not compete with corpus-wide work. Other tests use
 12-way execution. The repository's nextest configuration, every timing bound and

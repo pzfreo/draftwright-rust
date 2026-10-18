@@ -188,7 +188,7 @@ harnesses completed. The two failures were retained and reported:
 | `stateless::http_slow_body_shares_head_deadline_and_serves_queued_ping` | `read_to_end` returned macOS `ConnectionReset` (OS error 54) before the test reached its timing assertion. The exact test passed unchanged in isolation in **10.64 s**, including its 408 response, 9–12 second deadline assertion and queued ping. This is reported separately from the latency gate; HTTP implementation and test timing remain unchanged. |
 
 The isolated recheck used the same corpus-required workspace release command with
-`--test stateless http_slow_body_shares_head_deadline_and_serves_queued_ping -- --exact --nocapture`
+`--test interface stateless::http_slow_body_shares_head_deadline_and_serves_queued_ping -- --exact --nocapture`
 and one test thread. Its log is `http-slow-body-recheck.log`. The original full-run
 failure remains in `full-suite.log`; the successful recheck does not replace it.
 No other full-suite target failed. Nothing was pushed.
@@ -252,8 +252,8 @@ same required corpus and one test thread:
 ```sh
 DRAFTWRIGHT_CORPUS=/Users/paul/repos/quiddity/tests/corpus \
 DRAFTWRIGHT_CORPUS_REQUIRED=1 CARGO_BUILD_JOBS=4 RUST_TEST_THREADS=1 \
-cargo test --workspace --release --test stateless \
-  http_slow_head_has_absolute_deadline_and_serves_queued_ping -- --exact --nocapture
+cargo test --workspace --release --test interface \
+  stateless::http_slow_head_has_absolute_deadline_and_serves_queued_ping -- --exact --nocapture
 ```
 
 The original failure remains in `full-suite.log`; its successful isolated recheck

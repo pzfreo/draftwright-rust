@@ -30,6 +30,8 @@ operations, SVG/PDF bytes and TypeScript declarations. Each published `v*` GitHu
 builds a web-target package and attaches `draftwright-wasm-<version>.tgz` and its SHA-256
 checksum. It is not published to npm. The native package and binaries remain at the workspace
 root; plain `cargo build` and `cargo test` keep their existing scope.
+Integration tests use [eight explicit binaries](docs/test-binaries.md); that guide lists
+the source modules and commands for running one former test file.
 
 See [docs/wasm.md](docs/wasm.md) for the API, local build, measured sizes, parity test and
 editor migration.

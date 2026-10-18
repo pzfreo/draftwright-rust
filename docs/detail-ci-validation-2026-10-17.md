@@ -54,7 +54,7 @@ and full suite were then rerun; their final outcomes are above. The initial sess
 gates passed; the final suite and acceptance timing gates use their original bounds.
 
 The full-suite command was `cargo test --workspace --release --no-fail-fast`. The focused
-cross-process check was `cargo nextest run --release --test pmi_thread_knurl --test-threads 4`.
+cross-process check was `cargo nextest run --release --test analysis pmi_thread_knurl:: --test-threads 4`.
 
 Every quality-pins cell ran exactly as CI, with a fresh baseline:
 

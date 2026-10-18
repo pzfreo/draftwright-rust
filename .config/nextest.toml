@@ -8,7 +8,7 @@
 # Latency gates measure interactive edits; run them without competing test processes.
 # Their native 150 ms assertions remain enabled, including in local shard simulations.
 [[profile.default.overrides]]
-filter = 'test(=r5_multi_sheet_latency) | (binary(=session) & test(_benchmark_deltas))'
+filter = 'test(=multi_sheet_latency::r5_multi_sheet_latency) | (binary(=interface) & test(/^session::/) & test(_benchmark_deltas))'
 threads-required = "num-cpus"
 
 # Aggregate audits retain their global assertions and use at most four scoped workers.
@@ -16,10 +16,10 @@ threads-required = "num-cpus"
 # The ci profile inherits the same reservation.
 [[profile.default.overrides]]
 filter = '''
-    binary(items) & not test(=a_problems_fix_resolves_it)
-    | test(=only_sheet_problems_have_the_sheet_as_subject)
-    | test(=no_problem_message_carries_an_internal_id)
-    | test(=all_quality_parts_interior_lines_arrows_and_tips_clear_rendered_ink)
+    (binary(=audits) & test(/^items::/)) & not test(=items::a_problems_fix_resolves_it)
+    | test(=problem_wording::only_sheet_problems_have_the_sheet_as_subject)
+    | test(=problem_wording::no_problem_message_carries_an_internal_id)
+    | test(=interior_placement::all_quality_parts_interior_lines_arrows_and_tips_clear_rendered_ink)
     | test(pinning_every_callout_at_its_reported_offset_moves_nothing::)
 '''
 threads-required = 2
@@ -27,7 +27,7 @@ threads-required = 2
 # Whole-corpus wording audits are still long even with bounded workers. Start them before
 # individual NIST cases so their final part does not become the shard's last task.
 [[profile.default.overrides]]
-filter = 'test(=only_sheet_problems_have_the_sheet_as_subject) | test(=no_problem_message_carries_an_internal_id)'
+filter = 'test(=problem_wording::only_sheet_problems_have_the_sheet_as_subject) | test(=problem_wording::no_problem_message_carries_an_internal_id)'
 priority = 100
 
 [profile.ci]
@@ -40,26 +40,26 @@ fail-fast = false
 # Share this ordering with the default full-suite run; ci inherits the same overrides.
 [[profile.default.overrides]]
 filter = '''
-    test(=on_the_quality_parts_too)
-    | test(=every_plan_item_has_a_state_and_every_problem_subject_is_a_live_item)
-    | test(=only_sheet_problems_have_the_sheet_as_subject)
-    | test(=no_problem_message_carries_an_internal_id)
-    | test(=all_quality_parts_interior_lines_arrows_and_tips_clear_rendered_ink)
-    | test(=common_labels_are_drawn_with_leaders_and_searchable)
-    | test(=pmi_callout_wording_is_reserved_drawn_searchable_and_structured_symbols_refuse_it)
-    | test(=ctc_02_frames_and_datum_symbols_are_inside_their_bands_and_on_the_sheet)
+    test(=items::on_the_quality_parts_too)
+    | test(=items::every_plan_item_has_a_state_and_every_problem_subject_is_a_live_item)
+    | test(=problem_wording::only_sheet_problems_have_the_sheet_as_subject)
+    | test(=problem_wording::no_problem_message_carries_an_internal_id)
+    | test(=interior_placement::all_quality_parts_interior_lines_arrows_and_tips_clear_rendered_ink)
+    | test(=pmi_labels::common_labels_are_drawn_with_leaders_and_searchable)
+    | test(=label_text::pmi_callout_wording_is_reserved_drawn_searchable_and_structured_symbols_refuse_it)
+    | test(=gdt_band::ctc_02_frames_and_datum_symbols_are_inside_their_bands_and_on_the_sheet)
     | test(nist_ctc_02_asme1_ap242_e2)
     | test(nist_ftc_10_asme1_ap242_e2)
     | test(nist_stc_09_asme1_ap242_e4)
     | test(pinning_every_callout_at_its_reported_offset_moves_nothing::)
-    | test(=the_drawings_problems_reach_review_and_render)
-    | test(=cgb242_is_drawn_whole)
-    | test(=lint_on_the_ports_own_drawings_is_known)
-    | test(=native_features_match_the_bridge_or_are_listed)
-    | test(=structural_findings_on_the_ports_own_drawings_are_known)
-    | test(=face_areas_differ_from_opencascades_only_as_listed)
-    | binary(trust_rules)
-    | test(=corpus_parts_render_natively_naming_what_is_not_recognised)
-    | test(=a_turned_parts_coaxial_bosses_are_profile_bands_and_a_groove_floor_is_the_grooves)
+    | test(=model::the_drawings_problems_reach_review_and_render)
+    | test(=output::cgb242_is_drawn_whole)
+    | test(=lint::lint_on_the_ports_own_drawings_is_known)
+    | test(=native::native_features_match_the_bridge_or_are_listed)
+    | test(=lint_structural::structural_findings_on_the_ports_own_drawings_are_known)
+    | test(=bridge::face_areas_differ_from_opencascades_only_as_listed)
+    | (binary(=audits) & test(/^trust_rules::/))
+    | test(=cli_native::corpus_parts_render_natively_naming_what_is_not_recognised)
+    | test(=dims_slots::a_turned_parts_coaxial_bosses_are_profile_bands_and_a_groove_floor_is_the_grooves)
 '''
 priority = 80

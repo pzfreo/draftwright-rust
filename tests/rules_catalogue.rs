@@ -61,27 +61,39 @@ fn field<'a>(e: &'a Entry, key: &str) -> &'a str {
     e.fields.get(key).map_or("", |v| v.as_str())
 }
 
-/// Every function name defined in the crate's sources and tests.
+/// Function names, source-qualified names, and integration target/module-qualified names.
+/// Qualified citations must resolve through an explicit Cargo target and its root module.
 fn functions() -> BTreeSet<String> {
+    fn in_file(path: &Path) -> BTreeSet<String> {
+        let text = std::fs::read_to_string(path).unwrap();
+        let mut out = BTreeSet::new();
+        for (i, _) in text.match_indices("fn ") {
+            let before = text[..i].chars().next_back();
+            if before.is_some_and(|c| c.is_alphanumeric() || c == '_') {
+                continue;
+            }
+            let name: String = text[i + 3..]
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+                .collect();
+            if !name.is_empty() {
+                out.insert(name);
+            }
+        }
+        out
+    }
     fn walk(dir: &Path, out: &mut BTreeSet<String>) {
         for entry in std::fs::read_dir(dir).unwrap() {
             let path = entry.unwrap().path();
             if path.is_dir() {
                 walk(&path, out);
             } else if path.extension().is_some_and(|x| x == "rs") {
-                let text = std::fs::read_to_string(&path).unwrap();
-                for (i, _) in text.match_indices("fn ") {
-                    let before = text[..i].chars().next_back();
-                    if before.is_some_and(|c| c.is_alphanumeric() || c == '_') {
-                        continue;
-                    }
-                    let name: String = text[i + 3..]
-                        .chars()
-                        .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
-                        .collect();
-                    if !name.is_empty() {
-                        out.insert(name);
-                    }
+                for name in in_file(&path) {
+                    out.insert(format!(
+                        "{}::{name}",
+                        path.strip_prefix(root()).unwrap().display()
+                    ));
+                    out.insert(name);
                 }
             }
         }
@@ -89,10 +101,43 @@ fn functions() -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     walk(&root().join("src"), &mut out);
     walk(&root().join("tests"), &mut out);
+    let manifest = std::fs::read_to_string(root().join("Cargo.toml")).unwrap();
+    for target in manifest.split("[[test]]").skip(1) {
+        let value = |key: &str| {
+            target
+                .lines()
+                .find_map(|line| {
+                    line.strip_prefix(key)
+                        .and_then(|s| s.strip_prefix(" = \""))
+                        .and_then(|s| s.strip_suffix('"'))
+                })
+                .unwrap()
+        };
+        let binary = value("name");
+        let path = root().join(value("path"));
+        for name in in_file(&path) {
+            out.insert(format!("{binary}::{name}"));
+        }
+        let mut module_file = None;
+        for line in std::fs::read_to_string(&path).unwrap().lines() {
+            if let Some(relative) = line
+                .strip_prefix("#[path = \"")
+                .and_then(|s| s.strip_suffix("\"]"))
+            {
+                module_file = Some(path.parent().unwrap().join(relative));
+            } else if let Some(module) = line.strip_prefix("mod ").and_then(|s| s.strip_suffix(';'))
+                && let Some(file) = module_file.take()
+            {
+                for name in in_file(&file) {
+                    out.insert(format!("{binary}::{module}::{name}"));
+                }
+            }
+        }
+    }
     out
 }
 
-/// The test names a `rust_test` value cites: the last `::` segment of each path, a bare name, or
+/// The names a `rust_test` value cites: a qualified path, a bare name, or
 /// one in a list separated by `;`, `,` or spaces; file paths alone (`tests/x.rs`) name no test.
 fn cited(value: &str) -> Vec<String> {
     value
@@ -102,10 +147,21 @@ fn cited(value: &str) -> Vec<String> {
                 .trim_matches(|c| matches!(c, '`' | '(' | ')' | '.'))
         })
         .filter(|p| !p.is_empty() && !p.ends_with(".rs") && *p != "and")
-        .map(|p| p.rsplit("::").next().unwrap().to_string())
+        .map(|p| {
+            // Source citations may include an inline unit-test module. Validate
+            // their file and function; integration citations also bind the target
+            // and original source module to the explicit Cargo module graph.
+            if p.starts_with("src/")
+                && let Some((file, name)) = p.split_once("::")
+            {
+                format!("{file}::{}", name.rsplit("::").next().unwrap())
+            } else {
+                p.to_string()
+            }
+        })
         .filter(|n| {
             n.chars()
-                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || "_:/ .".contains(c))
         })
         .collect()
 }

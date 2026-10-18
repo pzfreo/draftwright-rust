@@ -416,7 +416,7 @@ Every Cargo stage sourced `$HOME/.cargo/env` and used `CARGO_BUILD_JOBS=4 RUST_T
 | `tools/ci_acceptance.py --check-results quality`, unchanged baseline | PASS | 0.055 |
 | `python3 -I tools/check_leader_routes.py`, committed fixture | PASS | 8.117 |
 | Leader routes against all 30 original released drawings | PASS | 8.046 |
-| Explicit `cargo test --release --test rules_catalogue` | PASS | 1.669 |
+| Explicit `cargo test --release --test audits rules_catalogue::` | PASS | 1.669 |
 
 The complete suite finished 107 test groups: **1076 passed, 0 failed, 0 ignored**. The separately requested catalogue run also passed all six tests.
 
