@@ -595,6 +595,31 @@ fn authored_corner_angle_keeps_the_plate_sheet_and_scale() {
     );
 }
 
+#[test]
+fn authored_corner_on_fixed_paper_spends_only_remaining_gutter_slack() {
+    let (_, a) = plate();
+    let x = planes(&a, 0);
+    let z = planes(&a, 2);
+    for gutter in [0, 25, 1000] {
+        let spec = parse(json!({
+            "sheet":{"size":"A4","scale":"2:1","view_gutter":gutter},
+            "dimensions":{"d:authored:corner":{
+                "kind":"angle", "between":[x[0].0,z.last().unwrap().0],
+                "view":"front", "tolerance":"±0.5"
+            }}
+        }));
+        let p = model::plan_recovered(&a, &spec).unwrap();
+        assert_eq!((&*p.sheet.size, &*p.sheet.scale), ("A4", "2:1"));
+        assert!(
+            !p.problems
+                .iter()
+                .any(|p| p.code == "page_fit_uncertain" || p.code == "annotation_off_sheet"),
+            "gutter {gutter}: {:?}",
+            p.problems
+        );
+    }
+}
+
 // Independent of the placer's collision helper: include the rendered arrow flares.
 fn dimension_strokes(p: &draftwright::dims::Placed) -> Vec<[[f64; 2]; 2]> {
     let mut lines = p.lines.clone();

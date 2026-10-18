@@ -52,6 +52,7 @@ pub mod stateless;
 mod notches;
 mod oriented_chamfers;
 mod planning;
+mod view_gutters;
 
 pub mod iso_caption;
 

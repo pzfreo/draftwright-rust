@@ -97,6 +97,8 @@ mod timezone;
 mod title_block;
 #[path = "../title_block_material.rs"]
 mod title_block_material;
+#[path = "../view_gutters.rs"]
+mod view_gutters;
 #[path = "../views.rs"]
 mod views;
 #[path = "../views_layout_rules.rs"]

@@ -1466,6 +1466,10 @@ fn settable(
             "sheet/title".into(),
             json!({"fields":crate::title_block::KEYS.map(|k|k.0),"forms":["text"]}),
         );
+        fields.insert(
+            "sheet/view_gutter".into(),
+            json!({"forms":["non-negative paper mm (default 25; 0 disables)"]}),
+        );
         fields.insert("sheet/fit_limits".into(), choices(json!([false, true])));
         fields.insert("sheet/fit_deviations".into(), choices(json!([false, true])));
         fields.insert(
