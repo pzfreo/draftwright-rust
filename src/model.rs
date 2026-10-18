@@ -8589,7 +8589,7 @@ fn render_annotations_with_cuts(
         captions.push((crate::detail::caption(d), crate::detail::caption_at(v)));
         caption_names.push(format!("detail_caption_{}", d.label));
         if let Some(source) = plan.views.iter().find(|s| s.id == d.source_view) {
-            let labels: Vec<_> = plan
+            let mut labels: Vec<_> = plan
                 .dimensions
                 .iter()
                 .filter_map(|d| d.placed.as_ref().map(|p| p.label_box))
@@ -8600,6 +8600,18 @@ fn render_annotations_with_cuts(
                 )
                 .chain(plan.balloons.iter().filter_map(|b| b.label_box))
                 .collect();
+            // Marker letters are late furniture too. Later markers must avoid
+            // captions and letters already placed, including adjacent crops of
+            // the same parent region.
+            labels.extend(captions.iter().map(|(text, at)| {
+                let glyph = font.text(text, crate::section::FONT_SIZE);
+                [
+                    at[0] + glyph.min[0],
+                    at[1] + glyph.min[1],
+                    at[0] + glyph.max[0],
+                    at[1] + glyph.max[1],
+                ]
+            }));
             let mut avoid = labels.clone();
             avoid.extend(
                 plan.dimensions

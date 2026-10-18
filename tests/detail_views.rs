@@ -857,3 +857,34 @@ fn a_detail_caption_is_drawn_in_its_reserved_crop_slot() {
         "drawing must use the row protected during placement"
     );
 }
+
+#[test]
+fn adjacent_readability_crops_keep_distinct_parent_letters() {
+    let Some(dir) = corpus::dir() else { return };
+    let (part, a) = model::analyse_native(&dir.join("mfcadpp_holdout/520.step")).unwrap();
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert_eq!(p.sheet.size, "A4");
+    assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
+    assert!(p.views.iter().filter(|v| v.detail.is_some()).count() >= 2);
+    let font = draftwright::text::Font::open(
+        &Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("fonts")
+            .join(draftwright::dims::FONT),
+    )
+    .unwrap();
+    let drawing = model::render(&part, &a, &p, &font).unwrap();
+    let letters: Vec<_> = drawing
+        .sheet
+        .items
+        .iter()
+        .filter(|i| i.name.starts_with("detail_marker_label_"))
+        .collect();
+    assert_eq!(letters.len(), 2);
+    let (a, b) = (letters[0].label.unwrap(), letters[1].label.unwrap());
+    assert!(a[2] + 1.0 <= b[0] || b[2] + 1.0 <= a[0] || a[3] + 1.0 <= b[1] || b[3] + 1.0 <= a[1]);
+    assert!(
+        draftwright::lint::structural::check(&drawing)
+            .iter()
+            .all(|i| !i.id.contains("detail_marker_label_A+detail_marker_label_B"))
+    );
+}
