@@ -3041,6 +3041,9 @@ fn recover_callouts(
     first: Plan,
     minimum: Option<f64>,
 ) -> Result<Plan, Invalid> {
+    let retained_readability = (findings(&first).clean()
+        && drawn_quality_reference(analysis, &first))
+    .then(|| crate::sheet_fit::readability(analysis, &first).failures());
     let mut best = recover_uncached_with(analysis, spec, first, minimum, false)?;
     if crate::placement_intent::has_pins(spec) {
         return Ok(best);
@@ -3065,8 +3068,9 @@ fn recover_callouts(
         if candidate.sheet.size == "A4"
             && clean(&candidate)
             && crate::sheet_fit::illegible_steps(analysis, &candidate) == 0
-            && crate::sheet_fit::readability(analysis, &candidate).failures()
-                <= crate::sheet_fit::readability(analysis, &best).failures()
+            && retained_readability.is_none_or(|failures| {
+                crate::sheet_fit::readability(analysis, &candidate).failures() <= failures
+            })
             && carried(&best).is_subset(&carried(&candidate))
         {
             candidate.sheet.basis += "; auto compact manufacturing callouts fit cleanly on A4; retain the smaller paper before enlargement";

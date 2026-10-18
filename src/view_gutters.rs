@@ -562,7 +562,46 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
             Some((id.clone(), i, tip))
         })
         .collect();
-    let measured: Vec<_> = plan.views.iter().map(|v| measured(plan, v)).collect();
+    let automatic = !crate::placement_intent::has_pins(&plan.spec)
+        && plan.spec.views.values().all(|v| v.place.is_none());
+    let moved_bounds: Vec<_> = bounds
+        .iter()
+        .zip(&deltas)
+        .map(|(b, d)| {
+            let mut b = *b;
+            move_box(&mut b, *d);
+            b
+        })
+        .collect();
+    let measured: Vec<_> = plan
+        .views
+        .iter()
+        .enumerate()
+        .map(|(i, v)| {
+            let b = moved_bounds[i];
+            let sheet = std::iter::once(&plan.sheet)
+                .chain(&plan.sheets)
+                .find(|s| s.number == v.sheet)
+                .unwrap();
+            // Gutters already reserve this settled ink. A retained drawing may
+            // still carry its earlier, narrower principal band: commit the real
+            // reservation only when it clears the border, title and every peer.
+            let repair = automatic
+                && plan
+                    .problems
+                    .iter()
+                    .any(|p| p.code == "annotation_outside_area" && p.subjects.contains(&v.id))
+                && b[0] >= MARGIN
+                && b[1] >= MARGIN
+                && b[2] <= sheet.page[0] - MARGIN
+                && b[3] <= sheet.page[1] - MARGIN
+                && separation(b, sheet.title_block).2 >= 0.0
+                && plan.views.iter().enumerate().all(|(j, peer)| {
+                    i == j || peer.sheet != v.sheet || separation(b, moved_bounds[j]).2 >= 0.0
+                });
+            measured(plan, v) || repair
+        })
+        .collect();
     for (((v, b), delta), measured) in plan.views.iter_mut().zip(bounds).zip(&deltas).zip(measured)
     {
         move_point(&mut v.at, *delta);
@@ -634,6 +673,26 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
         plan.callout_tips
             .insert(id, (v.id.clone(), [tip[0] - v.at[0], tip[1] - v.at[1]]));
     }
+    // Revalidate this reservation diagnostic against the transported actual ink;
+    // all other findings retain their existing checks and thresholds.
+    plan.problems.retain(|p| {
+        if p.code != "annotation_outside_area" {
+            return true;
+        }
+        let Some(d) = plan.dimensions.iter().find(|d| p.subjects.contains(&d.id)) else {
+            return true;
+        };
+        let Some(b) = crate::dims::ink_box(d) else {
+            return true;
+        };
+        let Some(v) = plan.views.iter().find(|v| v.id == d.view) else {
+            return true;
+        };
+        b[0] < v.area[0] - 1e-6
+            || b[1] < v.area[1] - 1e-6
+            || b[2] > v.area[2] + 1e-6
+            || b[3] > v.area[3] + 1e-6
+    });
     plan.sheet.fill = crate::sheet_fit::fill(analysis, plan);
 }
 

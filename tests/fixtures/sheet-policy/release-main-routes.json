@@ -506,6 +506,618 @@
         "size": "A4",
         "scale": "1:1"
       }
+    },
+    "fixtures/identity/plate_intent.step.gz": {
+      "source_sha256": "76a2bdfe9ca8c0d99f152e6d60e1de74efe61dec3ef26c6bf82bd1a7d82c4559",
+      "pairs": [
+        [
+          "annotation_leader_crossing",
+          [
+            "d:f:hole:7/bore.diameter",
+            "d:pmi:dimension.linear.basic:f1,10/linear.basic"
+          ],
+          []
+        ],
+        [
+          "annotation_leader_crossing",
+          [
+            "pmi:geometric_tolerance.position:f12:ref=A,B,C:mod=diameter_zone",
+            "d:pmi:dimension.linear.basic:f1,10/linear.basic"
+          ],
+          []
+        ],
+        [
+          "annotation_leader_crossing",
+          [
+            "pmi:geometric_tolerance.position:f6,7,8,10,11,13:ref=A,B,C:mod=diameter_zone,maximum_material_requirement",
+            "d:pmi:dimension.linear.basic:f1,12/linear.basic"
+          ],
+          []
+        ],
+        [
+          "annotation_leader_crossing",
+          [
+            "pmi:geometric_tolerance.position:f6,7,8,10,11,13:ref=A,B,C:mod=diameter_zone,maximum_material_requirement",
+            "d:pmi:dimension.linear.basic:f1,10/linear.basic"
+          ],
+          []
+        ],
+        [
+          "extension_through_feature",
+          [
+            "d:f:hole_pattern:1/grid_pitch.length.col",
+            "f:hole:4"
+          ],
+          []
+        ],
+        [
+          "extension_through_feature",
+          [
+            "d:pmi:dimension.linear.basic:f1,10/linear.basic",
+            "f:hole:6"
+          ],
+          []
+        ],
+        [
+          "extension_through_feature",
+          [
+            "d:pmi:dimension.linear.basic:f1,10/linear.basic",
+            "f:hole:8"
+          ],
+          []
+        ],
+        [
+          "leader_through_feature",
+          [
+            "pmi:geometric_tolerance.position:f6,7,8,10,11,13:ref=A,B,C:mod=diameter_zone,maximum_material_requirement",
+            "f:hole:7"
+          ],
+          []
+        ]
+      ],
+      "measurements": [
+        {
+          "feature": "envelope",
+          "parameter": "depth.length",
+          "value": 60.0
+        },
+        {
+          "feature": "envelope",
+          "parameter": "height.length",
+          "value": 10.0
+        },
+        {
+          "feature": "envelope",
+          "parameter": "width.length",
+          "value": 100.0
+        },
+        {
+          "feature": "f:hole:1",
+          "parameter": "bore.diameter",
+          "value": 6.6
+        },
+        {
+          "feature": "f:hole:1",
+          "parameter": "location.length.x",
+          "value": 20.0
+        },
+        {
+          "feature": "f:hole:1",
+          "parameter": "location.length.y",
+          "value": 15.0
+        },
+        {
+          "feature": "f:hole:2",
+          "parameter": "bore.diameter",
+          "value": 6.6
+        },
+        {
+          "feature": "f:hole:2",
+          "parameter": "location.length.x",
+          "value": 50.0
+        },
+        {
+          "feature": "f:hole:2",
+          "parameter": "location.length.y",
+          "value": 15.0
+        },
+        {
+          "feature": "f:hole:3",
+          "parameter": "bore.diameter",
+          "value": 6.6
+        },
+        {
+          "feature": "f:hole:3",
+          "parameter": "location.length.x",
+          "value": 80.0
+        },
+        {
+          "feature": "f:hole:3",
+          "parameter": "location.length.y",
+          "value": 15.0
+        },
+        {
+          "feature": "f:hole:4",
+          "parameter": "bore.diameter",
+          "value": 8.0
+        },
+        {
+          "feature": "f:hole:4",
+          "parameter": "location.length.x",
+          "value": 50.0
+        },
+        {
+          "feature": "f:hole:4",
+          "parameter": "location.length.y",
+          "value": 30.0
+        },
+        {
+          "feature": "f:hole:5",
+          "parameter": "bore.diameter",
+          "value": 6.6
+        },
+        {
+          "feature": "f:hole:5",
+          "parameter": "location.length.x",
+          "value": 20.0
+        },
+        {
+          "feature": "f:hole:5",
+          "parameter": "location.length.y",
+          "value": 45.0
+        },
+        {
+          "feature": "f:hole:6",
+          "parameter": "bore.diameter",
+          "value": 6.6
+        },
+        {
+          "feature": "f:hole:6",
+          "parameter": "location.length.x",
+          "value": 50.0
+        },
+        {
+          "feature": "f:hole:6",
+          "parameter": "location.length.y",
+          "value": 45.0
+        },
+        {
+          "feature": "f:hole:7",
+          "parameter": "bore.diameter",
+          "value": 4.2
+        },
+        {
+          "feature": "f:hole:7",
+          "parameter": "location.length.x",
+          "value": 95.0
+        },
+        {
+          "feature": "f:hole:7",
+          "parameter": "location.length.y",
+          "value": 30.0
+        },
+        {
+          "feature": "f:hole:8",
+          "parameter": "bore.diameter",
+          "value": 6.6
+        },
+        {
+          "feature": "f:hole:8",
+          "parameter": "location.length.x",
+          "value": 80.0
+        },
+        {
+          "feature": "f:hole:8",
+          "parameter": "location.length.y",
+          "value": 45.0
+        },
+        {
+          "feature": "f:hole_pattern:1",
+          "parameter": "grid_pitch.length.col",
+          "value": 30.0
+        },
+        {
+          "feature": "f:hole_pattern:1",
+          "parameter": "grid_pitch.length.row",
+          "value": 30.0
+        },
+        {
+          "feature": "f:hole_pattern:1",
+          "parameter": "location.length.x",
+          "value": 50.0
+        },
+        {
+          "feature": "f:hole_pattern:1",
+          "parameter": "location.length.y",
+          "value": 30.0
+        },
+        {
+          "feature": "pmi:dimension.diameter:f6,7,8,10,11,13",
+          "parameter": "diameter",
+          "value": 6.6
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f0,10",
+          "parameter": "linear.basic",
+          "value": 20.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f0,11",
+          "parameter": "linear.basic",
+          "value": 50.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f0,12",
+          "parameter": "linear.basic",
+          "value": 95.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f0,13",
+          "parameter": "linear.basic",
+          "value": 80.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f0,6",
+          "parameter": "linear.basic",
+          "value": 20.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f0,7",
+          "parameter": "linear.basic",
+          "value": 50.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f0,8",
+          "parameter": "linear.basic",
+          "value": 80.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f1,10",
+          "parameter": "linear.basic",
+          "value": 45.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f1,11",
+          "parameter": "linear.basic",
+          "value": 45.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f1,12",
+          "parameter": "linear.basic",
+          "value": 30.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f1,13",
+          "parameter": "linear.basic",
+          "value": 45.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f1,6",
+          "parameter": "linear.basic",
+          "value": 15.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f1,7",
+          "parameter": "linear.basic",
+          "value": 15.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f1,8",
+          "parameter": "linear.basic",
+          "value": 15.0
+        },
+        {
+          "feature": "pmi:manufacturing_requirement.internal_thread:f12",
+          "parameter": "thread",
+          "value": 4.2
+        }
+      ]
+    },
+    "fixtures/identity/plate_intent_rewritten.step.gz": {
+      "source_sha256": "d2fae995b887e39e81db7a176856453ce48ab6e8eb3e295958df16d0e9c21d41",
+      "pairs": [
+        [
+          "annotation_leader_crossing",
+          [
+            "d:f:hole:7/bore.diameter",
+            "d:pmi:dimension.linear.basic:f1,10/linear.basic"
+          ],
+          []
+        ],
+        [
+          "annotation_leader_crossing",
+          [
+            "pmi:geometric_tolerance.position:f12:ref=A,B,C:mod=diameter_zone",
+            "d:pmi:dimension.linear.basic:f1,10/linear.basic"
+          ],
+          []
+        ],
+        [
+          "annotation_leader_crossing",
+          [
+            "pmi:geometric_tolerance.position:f6,7,8,10,11,13:ref=A,B,C:mod=diameter_zone,maximum_material_requirement",
+            "d:pmi:dimension.linear.basic:f1,12/linear.basic"
+          ],
+          []
+        ],
+        [
+          "annotation_leader_crossing",
+          [
+            "pmi:geometric_tolerance.position:f6,7,8,10,11,13:ref=A,B,C:mod=diameter_zone,maximum_material_requirement",
+            "d:pmi:dimension.linear.basic:f1,10/linear.basic"
+          ],
+          []
+        ],
+        [
+          "extension_through_feature",
+          [
+            "d:f:hole_pattern:1/grid_pitch.length.col",
+            "f:hole:4"
+          ],
+          []
+        ],
+        [
+          "extension_through_feature",
+          [
+            "d:pmi:dimension.linear.basic:f1,10/linear.basic",
+            "f:hole:6"
+          ],
+          []
+        ],
+        [
+          "extension_through_feature",
+          [
+            "d:pmi:dimension.linear.basic:f1,10/linear.basic",
+            "f:hole:8"
+          ],
+          []
+        ],
+        [
+          "leader_through_feature",
+          [
+            "pmi:geometric_tolerance.position:f6,7,8,10,11,13:ref=A,B,C:mod=diameter_zone,maximum_material_requirement",
+            "f:hole:7"
+          ],
+          []
+        ]
+      ],
+      "measurements": [
+        {
+          "feature": "envelope",
+          "parameter": "depth.length",
+          "value": 60.0
+        },
+        {
+          "feature": "envelope",
+          "parameter": "height.length",
+          "value": 10.0
+        },
+        {
+          "feature": "envelope",
+          "parameter": "width.length",
+          "value": 100.0
+        },
+        {
+          "feature": "f:hole:1",
+          "parameter": "bore.diameter",
+          "value": 6.6
+        },
+        {
+          "feature": "f:hole:1",
+          "parameter": "location.length.x",
+          "value": 20.0
+        },
+        {
+          "feature": "f:hole:1",
+          "parameter": "location.length.y",
+          "value": 15.0
+        },
+        {
+          "feature": "f:hole:2",
+          "parameter": "bore.diameter",
+          "value": 6.6
+        },
+        {
+          "feature": "f:hole:2",
+          "parameter": "location.length.x",
+          "value": 50.0
+        },
+        {
+          "feature": "f:hole:2",
+          "parameter": "location.length.y",
+          "value": 15.0
+        },
+        {
+          "feature": "f:hole:3",
+          "parameter": "bore.diameter",
+          "value": 6.6
+        },
+        {
+          "feature": "f:hole:3",
+          "parameter": "location.length.x",
+          "value": 80.0
+        },
+        {
+          "feature": "f:hole:3",
+          "parameter": "location.length.y",
+          "value": 15.0
+        },
+        {
+          "feature": "f:hole:4",
+          "parameter": "bore.diameter",
+          "value": 8.0
+        },
+        {
+          "feature": "f:hole:4",
+          "parameter": "location.length.x",
+          "value": 50.0
+        },
+        {
+          "feature": "f:hole:4",
+          "parameter": "location.length.y",
+          "value": 30.0
+        },
+        {
+          "feature": "f:hole:5",
+          "parameter": "bore.diameter",
+          "value": 6.6
+        },
+        {
+          "feature": "f:hole:5",
+          "parameter": "location.length.x",
+          "value": 20.0
+        },
+        {
+          "feature": "f:hole:5",
+          "parameter": "location.length.y",
+          "value": 45.0
+        },
+        {
+          "feature": "f:hole:6",
+          "parameter": "bore.diameter",
+          "value": 6.6
+        },
+        {
+          "feature": "f:hole:6",
+          "parameter": "location.length.x",
+          "value": 50.0
+        },
+        {
+          "feature": "f:hole:6",
+          "parameter": "location.length.y",
+          "value": 45.0
+        },
+        {
+          "feature": "f:hole:7",
+          "parameter": "bore.diameter",
+          "value": 4.2
+        },
+        {
+          "feature": "f:hole:7",
+          "parameter": "location.length.x",
+          "value": 95.0
+        },
+        {
+          "feature": "f:hole:7",
+          "parameter": "location.length.y",
+          "value": 30.0
+        },
+        {
+          "feature": "f:hole:8",
+          "parameter": "bore.diameter",
+          "value": 6.6
+        },
+        {
+          "feature": "f:hole:8",
+          "parameter": "location.length.x",
+          "value": 80.0
+        },
+        {
+          "feature": "f:hole:8",
+          "parameter": "location.length.y",
+          "value": 45.0
+        },
+        {
+          "feature": "f:hole_pattern:1",
+          "parameter": "grid_pitch.length.col",
+          "value": 30.0
+        },
+        {
+          "feature": "f:hole_pattern:1",
+          "parameter": "grid_pitch.length.row",
+          "value": 30.0
+        },
+        {
+          "feature": "f:hole_pattern:1",
+          "parameter": "location.length.x",
+          "value": 50.0
+        },
+        {
+          "feature": "f:hole_pattern:1",
+          "parameter": "location.length.y",
+          "value": 30.0
+        },
+        {
+          "feature": "pmi:dimension.diameter:f6,7,8,10,11,13",
+          "parameter": "diameter",
+          "value": 6.6
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f0,10",
+          "parameter": "linear.basic",
+          "value": 20.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f0,11",
+          "parameter": "linear.basic",
+          "value": 50.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f0,12",
+          "parameter": "linear.basic",
+          "value": 95.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f0,13",
+          "parameter": "linear.basic",
+          "value": 80.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f0,6",
+          "parameter": "linear.basic",
+          "value": 20.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f0,7",
+          "parameter": "linear.basic",
+          "value": 50.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f0,8",
+          "parameter": "linear.basic",
+          "value": 80.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f1,10",
+          "parameter": "linear.basic",
+          "value": 45.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f1,11",
+          "parameter": "linear.basic",
+          "value": 45.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f1,12",
+          "parameter": "linear.basic",
+          "value": 30.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f1,13",
+          "parameter": "linear.basic",
+          "value": 45.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f1,6",
+          "parameter": "linear.basic",
+          "value": 15.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f1,7",
+          "parameter": "linear.basic",
+          "value": 15.0
+        },
+        {
+          "feature": "pmi:dimension.linear.basic:f1,8",
+          "parameter": "linear.basic",
+          "value": 15.0
+        },
+        {
+          "feature": "pmi:manufacturing_requirement.internal_thread:f12",
+          "parameter": "thread",
+          "value": 4.2
+        }
+      ]
     }
   }
 }

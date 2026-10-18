@@ -15,6 +15,58 @@ fn named(size: &str, scale: &str) -> Spec {
 }
 
 #[test]
+fn compact_manufacturing_defaults_keep_identity_plate_routes_and_coordinates() {
+    let recorded: serde_json::Value = serde_json::from_str(include_str!(
+        "fixtures/sheet-policy/release-main-routes.json"
+    ))
+    .unwrap();
+    for name in ["plate_intent.step.gz", "plate_intent_rewritten.step.gz"] {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/identity")
+            .join(name);
+        let a = draftwright::api::analyse_from(&path, draftwright::api::Features::Native).unwrap();
+        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        let baseline = &recorded["parts"][format!("fixtures/identity/{name}")];
+        assert_eq!(a.binding.source_sha256, baseline["source_sha256"]);
+        assert_eq!((&*p.sheet.size, &*p.sheet.scale), ("A4", "1:5"));
+        assert!(p.sheets.is_empty());
+        assert!(p.gdt.iter().all(|g| g.placed.is_some()));
+        let pairs: std::collections::BTreeSet<(String, Vec<String>, Vec<String>)> =
+            serde_json::from_value(baseline["pairs"].clone()).unwrap();
+        for q in p.problems.iter().filter(|q| {
+            matches!(
+                q.code.as_str(),
+                "annotation_leader_crossing"
+                    | "extension_through_feature"
+                    | "leader_through_feature"
+            )
+        }) {
+            assert!(pairs.contains(&(q.code.clone(), q.subjects.clone(), q.refs.clone())));
+        }
+        let required: Vec<draftwright::dims::Measurement> =
+            serde_json::from_value(baseline["measurements"].clone()).unwrap();
+        let mut claims: Vec<_> = p
+            .dimensions
+            .iter()
+            .filter(|d| d.placed.is_some())
+            .flat_map(|d| &d.measurements)
+            .collect();
+        claims.extend(
+            p.notes
+                .iter()
+                .filter(|n| n.placed.is_some())
+                .flat_map(|n| &n.measurements),
+        );
+        for table in p.hole_table.iter().chain(&p.hole_tables) {
+            assert!(table.blocks.iter().all(|b| b.placed.is_some()));
+            claims.extend(table.rows.iter().flat_map(|r| &r.measurements));
+            claims.extend(&table.covered);
+        }
+        assert!(required.iter().all(|m| claims.contains(&m)));
+    }
+}
+
+#[test]
 fn clean_readable_a4_precedes_larger_paper() {
     let a = part();
     let first = model::plan_escalated(&a, &named("A2", "1:1")).unwrap();

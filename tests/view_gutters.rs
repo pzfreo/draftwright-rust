@@ -151,6 +151,10 @@ fn pin_replay_keeps_the_ftc09_schedule_and_its_clearance() {
         model::analyse_native(&corpus.join("nist/nist_ftc_09_asme1_rd.stp")).unwrap();
     let base = model::plan_recovered(&analysis, &Spec::default()).unwrap();
     assert_eq!(base.hole_tables.len(), 1);
+    assert!(!base.problems.iter().any(|p| matches!(
+        p.code.as_str(),
+        "annotation_outside_area" | "annotation_ink_overlap"
+    )));
     let table = base.hole_tables[0].blocks[0].placed.as_ref().unwrap().cells;
     let iso = base.views.iter().find(|v| v.id == "v:iso").unwrap();
     assert!(gap(iso.area, table) >= draftwright::tables::PAD);
