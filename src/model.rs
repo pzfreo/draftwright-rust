@@ -512,6 +512,9 @@ pub struct Plan {
     pub table_outcome: crate::hole_table::TableOutcome,
     #[serde(skip)]
     pub(crate) table_restore: Option<Box<Plan>>,
+    /// Canonical schedule membership follows held frames, independent of rerouted labels.
+    #[serde(skip)]
+    pub(crate) canonical_schedules: Option<crate::hole_table::CanonicalSchedules>,
     pub views: Vec<PlannedView>,
     /// Required late sheet furniture, reserved before the notes and tables.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -3421,7 +3424,20 @@ fn recover_with_reference(
             }
         }
 
-        let a3_exception = before_paper == Some(2) && detailed.sheet.size == "A3";
+        // A declined crop cannot purchase larger paper by disappearing from
+        // the winning trial. Keep a complete single-sheet whole-part drawing
+        // and report its remaining local need. General fit/floor failures and
+        // an existing multi-sheet allocation still admit ordinary A3 recovery.
+        let ordinary_single_whole_fits = ordinary.sheets.is_empty()
+            && findings(&ordinary).clean()
+            && ordinary.sheet.scale_factor + 1e-6 >= request_floor
+            && crate::sheet_fit::readability(analysis, &ordinary).whole_drawing_failures() == 0
+            && undrawn_gdt(&ordinary) == 0
+            && drawn_sheets_fit(analysis, &ordinary)
+            && required.is_subset(&carried(&ordinary));
+        let a3_exception = before_paper == Some(2)
+            && detailed.sheet.size == "A3"
+            && (paper(&detailed) <= paper(&ordinary) || !ordinary_single_whole_fits);
         let detailed_complete = (before_paper.is_none()
             || a3_exception
             || detailed
@@ -4892,6 +4908,33 @@ fn recover_candidates_before(
     ))
 }
 
+/// The same unpinned policy must supply held frames and their canonical schedules.
+pub(crate) fn pin_base_spec(spec: &Spec) -> Spec {
+    let mut base = Spec::default();
+    base.sheet.size = spec.sheet.size.clone();
+    base.sheet.scale = spec.sheet.scale.clone();
+    base.sheet.projection = spec.sheet.projection.clone();
+    base.sheet.fit_deviations = spec.sheet.fit_deviations;
+    base.sheet.fit_limits = spec.sheet.fit_limits;
+    base.sheet.automatic_details = spec.sheet.automatic_details;
+    base.hole_table = spec.hole_table;
+    base.iso_scale_factor = spec.iso_scale_factor;
+    base.dimension_schemes = spec.dimension_schemes.clone();
+    if spec.dimensions.values().any(|d| d.between.is_some()) {
+        base.dimension_source = spec.dimension_source;
+        base.dimensions = spec.dimensions.clone();
+        for d in base.dimensions.values_mut() {
+            d.place = None;
+            d.view = None;
+            d.tolerance = None;
+            d.fit = None;
+            d.text = None;
+            d.style = None;
+        }
+    }
+    base
+}
+
 /// [`plan`] with draftwright's bounded layout recovery applied ([`recover`]): the plan every
 /// caller (the library's [`crate::api`], so the command line, the JSON-lines service and MCP)
 /// is given. A plan that cannot be made is refused as [`plan`] refuses it.
@@ -4936,6 +4979,7 @@ fn schedule_signature(plan: &Plan) -> [u8; 32] {
             &plan.dimensions,
             &plan.omitted,
             &plan.hole_tables,
+            &plan.canonical_schedules,
             conflicts,
         ))
         .expect("schedule source serializes"),
@@ -5811,28 +5855,7 @@ fn plan_with_presentation(
     let mut problems = Vec::new();
     // The spec the plan follows: across a revision, without the entries that cannot be trusted.
     let canonical = if crate::placement_intent::has_pins(spec) {
-        let mut base = Spec::default();
-        base.sheet.size = spec.sheet.size.clone();
-        base.sheet.scale = spec.sheet.scale.clone();
-        base.sheet.projection = spec.sheet.projection.clone();
-        base.sheet.fit_deviations = spec.sheet.fit_deviations;
-        base.sheet.fit_limits = spec.sheet.fit_limits;
-        base.sheet.automatic_details = spec.sheet.automatic_details;
-        base.hole_table = spec.hole_table;
-        base.iso_scale_factor = spec.iso_scale_factor;
-        base.dimension_schemes = spec.dimension_schemes.clone();
-        if spec.dimensions.values().any(|d| d.between.is_some()) {
-            base.dimension_source = spec.dimension_source;
-            base.dimensions = spec.dimensions.clone();
-            for d in base.dimensions.values_mut() {
-                d.place = None;
-                d.view = None;
-                d.tolerance = None;
-                d.fit = None;
-                d.text = None;
-                d.style = None;
-            }
-        }
+        let base = pin_base_spec(spec);
         Some(if complete_views {
             plan_recovered(analysis, &base)?
         } else {
@@ -7818,6 +7841,10 @@ fn plan_with_presentation(
         sheets: Vec::new(),
         table_outcome: crate::hole_table::TableOutcome::None,
         table_restore: None,
+        canonical_schedules: canonical
+            .as_ref()
+            .filter(|_| crate::placement_intent::has_pins(&spec))
+            .map(crate::hole_table::CanonicalSchedules::of),
         views,
         captions,
         callout_widths: {

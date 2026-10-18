@@ -1956,6 +1956,22 @@ fn datum_corner(analysis: &Analysis, axes: &[usize]) -> Option<[f64; 3]> {
         .then_some(analysis.envelope[0])
 }
 
+/// Schedule membership belonging to the unpinned drawing's held frames.
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct CanonicalSchedules {
+    pub tables: Vec<HoleTable>,
+    pub covered_pins: BTreeSet<String>,
+}
+
+impl CanonicalSchedules {
+    pub(crate) fn of(plan: &Plan) -> Self {
+        Self {
+            tables: plan.hole_tables.clone(),
+            covered_pins: plan.omitted.iter().filter(|o| matches!(&o.state, crate::items::State::Covered { by } if by.starts_with("hole_schedule_"))).map(|o| o.id.clone()).collect(),
+        }
+    }
+}
+
 /// Use the measured ladder spacing and the existing leader/feature crossing findings. The
 /// threshold is in annotation density, never in a part's identity. Bolt circles already have
 /// their PCD note and are left intact unless the author explicitly requests a schedule.
@@ -1979,11 +1995,21 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
     // default table does not resurrect its ladder. Callout pins remain additive, so a visible
     // authored callout is never replaced.
     let canonical = if crate::placement_intent::has_pins(&plan.spec) {
-        let mut base = crate::model::Spec::default();
-        base.sheet.size = plan.spec.sheet.size.clone();
-        base.sheet.scale = plan.spec.sheet.scale.clone();
-        base.hole_table = plan.spec.hole_table;
-        crate::model::plan_recovered(analysis, &base).ok()
+        if plan.canonical_schedules.is_some() {
+            None
+        } else {
+            let mut base = crate::model::pin_base_spec(&plan.spec);
+            if plan.views.iter().any(|v| {
+                v.detail
+                    .as_ref()
+                    .is_some_and(|d| !d.authored && d.kind.ends_with("-context"))
+            }) {
+                for name in crate::detail::NAMES {
+                    base.views.entry(name.into()).or_default();
+                }
+            }
+            crate::model::plan_recovered(analysis, &base).ok()
+        }
     } else if plan.spec.hole_table == Setting::Auto
         && crate::dims::has_new_native_recess_dimensions(analysis)
         && plan.gdt.is_empty()
@@ -2000,12 +2026,12 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
     } else {
         None
     };
-    let covered_pins: BTreeSet<String> = canonical
-        .iter()
-        .flat_map(|p| &p.omitted)
-        .filter(|o| matches!(&o.state, crate::items::State::Covered { by } if by.starts_with("hole_schedule_")))
-        .map(|o| o.id.clone())
-        .collect();
+    let canonical_tables = plan
+        .canonical_schedules
+        .as_ref()
+        .map(|c| c.tables.as_slice())
+        .or_else(|| canonical.as_ref().map(|p| p.hole_tables.as_slice()));
+    let covered_pins: BTreeSet<String> = plan.canonical_schedules.as_ref().map(|c| c.covered_pins.clone()).unwrap_or_else(|| canonical.iter().flat_map(|p| &p.omitted).filter(|o| matches!(&o.state, crate::items::State::Covered { by } if by.starts_with("hole_schedule_"))).map(|o| o.id.clone()).collect());
     let read: BTreeMap<_, _> = holes::read(analysis)
         .into_iter()
         .filter_map(|(f, h)| Some((f.id.as_str(), h.ok()?)))
@@ -2026,11 +2052,24 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
             continue;
         }
         let axes: Vec<_> = (0..3).filter(|k| *k != axis).collect();
+        let held_features: Option<BTreeSet<_>> = plan
+            .canonical_schedules
+            .as_ref()
+            .filter(|_| plan.spec.hole_table == Setting::Auto)
+            .and_then(|c| {
+                c.tables
+                    .iter()
+                    .find(|t| t.view.as_deref() == Some(view.id.as_str()))
+            })
+            .map(|t| t.rows.iter().map(|r| r.feature.as_str()).collect());
         let callouts: Vec<_> = plan
             .dimensions
             .iter()
             .filter(|d| {
-                d.view == view.id
+                (d.view == view.id
+                    || held_features
+                        .as_ref()
+                        .is_some_and(|members| bores(d).iter().any(|f| members.contains(f))))
                     && d.kind == "callout"
                     && d.measurements
                         .iter()
@@ -2078,9 +2117,8 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                 ) && callouts.iter().any(|d| p.subjects.contains(&d.id))
             })
             .count();
-        let wanted = match &canonical {
-            Some(base) if plan.spec.hole_table == Setting::Auto => base
-                .hole_tables
+        let wanted = match canonical_tables {
+            Some(tables) if plan.spec.hole_table == Setting::Auto => tables
                 .iter()
                 .any(|t| t.id == format!("hole_schedule_{}", view.id.trim_start_matches("v:"))),
             _ => n >= 6 && (crowded > 0 || locations.len() > 8 || conflicts > 0),
@@ -2144,6 +2182,13 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                 .collect::<Vec<_>>()
                 .join(" ");
             for f in bores(d) {
+                if held_features
+                    .as_ref()
+                    .is_some_and(|members| !members.contains(f))
+                {
+                    continue;
+                }
+
                 let h = &read[f];
                 let mut measurements: Vec<_> = d
                     .measurements
@@ -2332,7 +2377,11 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
             plan.dimensions
                 .iter()
                 .filter(|d| replaced.contains(&d.id))
-                .cloned(),
+                .map(|d| {
+                    let mut owned = (*d).clone();
+                    owned.view = view.id.clone();
+                    owned
+                }),
         );
         selection.replaced.extend(replaced);
         selection.tables.push(HoleTable {

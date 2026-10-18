@@ -598,3 +598,36 @@ fn an_initial_large_profile_does_not_veto_a_useful_same_paper_crop() {
             .any(|d| d.view == details[0].id && !d.reference && d.placed.is_some())
     );
 }
+
+#[test]
+fn refusing_a_crop_keeps_the_ordinary_paper_even_if_plain_a3_is_readable() {
+    let Some(corpus) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
+        assert!(std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"));
+        return;
+    };
+    let (_, a) =
+        model::analyse_native(&Path::new(&corpus).join("mfcadpp_holdout/274.step")).unwrap();
+    let p = model::plan_recovered(&a, &model::Spec::default()).unwrap();
+    let without: model::Spec =
+        serde_json::from_value(json!({"sheet":{"automatic_details":false}})).unwrap();
+    let ordinary = model::plan_recovered(&a, &without).unwrap();
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        ("A4", "1:1")
+    );
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        (ordinary.sheet.size.as_str(), ordinary.sheet.scale.as_str())
+    );
+    assert!(p.sheets.is_empty());
+    assert!(p.views.iter().all(|v| v.detail.is_none()));
+    assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
+    let r = sheet_fit::readability(&a, &p);
+    assert_eq!(r.whole_drawing_failures(), 0);
+    assert!(r.failures() > 0);
+    assert!(
+        p.problems
+            .iter()
+            .any(|q| q.code == "layout_recovery_exhausted")
+    );
+}
