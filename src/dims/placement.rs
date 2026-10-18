@@ -3314,8 +3314,27 @@ fn settle_where(
         // reported), its label off the views and the title block, and its lines out of the
         // title block.
         let off_already = !page.on_sheet(p);
+        let linear = p.arrows.len() == 2
+            && p.lines.len() >= 3
+            && (p.arrows[0][0][usize::from(p.rotation == 0.)]
+                - p.arrows[1][0][usize::from(p.rotation == 0.)])
+            .abs()
+                < 1e-6;
+        let outward = linear.then(|| super::label_lanes::outward_heads(p));
+        let peers: Vec<_> = others().collect();
         let found = slides(p, page.drawable)
-            .find(|c| (off_already || page.on_sheet(c)) && page.clear_of_furniture(c) && clear(c));
+            .chain(outward.iter().flat_map(|outward| {
+                super::label_lanes::alternatives_placed(outward, page.drawable, &peers)
+            }))
+            .find(|c| {
+                (off_already || page.on_sheet(c))
+                    && page.clear_of_furniture(c)
+                    && clear(c)
+                    && c.arrows
+                        .iter()
+                        .flat_map(|a| super::leaders::head(*a))
+                        .all(|s| peers.iter().all(|q| !crosses(s, q.label_box)))
+            });
         if let Some(c) = found {
             items[i] = Some(c);
         }

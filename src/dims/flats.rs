@@ -134,6 +134,21 @@ fn definitions(members: &[&Flat]) -> usize {
     }
 }
 
+fn opposed(members: &[&Flat]) -> bool {
+    if members
+        .iter()
+        .any(|m| m.feature.parameters.contains_key("opposed"))
+    {
+        members
+            .iter()
+            .all(|m| m.feature.parameters.get("opposed").and_then(Value::as_bool) == Some(true))
+    } else {
+        // Older saved Analyses carry no plane proof. Only an opposed reflected set
+        // establishes A/F there; a lone record never establishes a second flat.
+        members.len() > 1 && definitions(members) == 1
+    }
+}
+
 fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let mut problems = Vec::new();
     let mut flats = Vec::new();
@@ -168,11 +183,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             g[0].direction,
             (g[0].across * 1e12).round() as i64,
             text(g[0].across),
-            g[0].feature
-                .parameters
-                .get("opposed")
-                .and_then(Value::as_bool)
-                != Some(false),
+            opposed(&g),
         );
         if !batches.contains_key(&k) {
             order.push(k.clone());
@@ -205,16 +216,10 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             terms.push(format!("{n}×"));
         }
         terms.push(text(first.across));
-        if first
-            .feature
-            .parameters
-            .get("opposed")
-            .and_then(Value::as_bool)
-            != Some(false)
-        {
+        if k.4 {
             terms.push("A/F".into());
         }
-        let faces = members.len();
+        let faces: usize = members.iter().map(|m| m.feature.faces.len()).sum();
         out.push(Want {
             id: super::want_id(&first.feature.id, "flat.length"),
             views: vec![view],
@@ -233,6 +238,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 "a flat's transverse size is called out where it is seen edge-on, looking down its stock ({}); {}",
                 AXES[q],
                 match (n, faces) {
+                    (1, _) if !k.4 => format!("one flat on {faces} coplanar face(s), measured to the opposite outside diameter"),
                     (1, 1) => "one face".to_string(),
                     (1, f) => format!("its {f} faces reflect through the stock's axis, one definition"),
                     (n, f) => format!("{n} equal definitions ({f} faces) are called out once and counted"),

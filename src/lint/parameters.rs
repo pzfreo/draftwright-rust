@@ -70,6 +70,17 @@ pub fn fmt(v: f64) -> String {
                 .parse::<f64>()
                 .is_ok_and(|n| (n - v).abs() <= 1e-6 + 1e-12)
         {
+            if places == 3
+                && text
+                    .parse::<f64>()
+                    .is_ok_and(|n| (n - v).abs() > 1e-6 + 1e-12)
+            {
+                return if text.parse::<f64>() == Ok(0.) {
+                    "0.000".into()
+                } else {
+                    text
+                };
+            }
             let text = if places == 0 {
                 text.as_str()
             } else {

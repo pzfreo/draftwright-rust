@@ -97,10 +97,10 @@ fn a_moved_label_keeps_clear_of_strokes_it_never_touched() {
 #[test]
 fn short_native_dimensions_keep_their_text_on_their_span() {
     for (name, labels) in [
-        ("mfcadpp/1000.step", vec!["6.9", "8.9", "10.9"]),
-        ("mfcadpp/10020.step", vec!["4.5", "1.2"]),
-        ("mfcadpp/10007.step", vec!["14.0"]),
-        ("gramel/string_post.step", vec!["3.8", "6.5", "7.6"]),
+        ("mfcadpp/1000.step", vec!["6.925", "8.854", "10.854"]),
+        ("mfcadpp/10020.step", vec!["4.458", "1.233"]),
+        ("mfcadpp/10007.step", vec!["14.031"]),
+        ("gramel/string_post.step", vec!["3.75", "6.5", "7.6"]),
     ] {
         let Some(p) = plan(name) else {
             eprintln!("SKIPPED: the corpus is not found");

@@ -94,14 +94,9 @@ pub fn key(analysis: &Analysis, f: &Feature) -> Result<(Key, f64, f64), String> 
     ))
 }
 
-/// Python's `_fmt`: a whole number, else one decimal.
+/// Use lint's independent live nominal policy for text comparisons.
 fn short(v: f64) -> String {
-    let r = v.round();
-    if (v - r).abs() < 1e-6 {
-        format!("{r}")
-    } else {
-        format!("{v:.1}")
-    }
+    super::parameters::fmt(v)
 }
 
 /// Whether one of *marks* claims both of *f*'s sizes and prints both.

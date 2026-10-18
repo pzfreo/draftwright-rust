@@ -54,7 +54,7 @@ fn stock(f: &Feature) -> Option<Stock> {
 fn same_stock(a: &Feature, b: &Feature) -> bool {
     stock(a).is_some_and(|key| Some(key) == stock(b))
 }
-fn axis_point(f: &Feature, frame: &[[f64; 3]; 4]) -> Option<[f64; 3]> {
+fn axis_point(part: &Part, f: &Feature, frame: &[[f64; 3]; 4]) -> Option<[f64; 3]> {
     let p = &f.parameters;
     let axis = p.get("axis")?.as_str()?;
     let k = ["x", "y", "z"].iter().position(|a| *a == axis)?;
@@ -69,9 +69,42 @@ fn axis_point(f: &Feature, frame: &[[f64; 3]; 4]) -> Option<[f64; 3]> {
         return None;
     }
     q[k] = -dot(q, direction) / direction[k];
-    Some(std::array::from_fn(|i| {
-        frame[0][i] + (0..3).map(|j| q[j] * frame[j + 1][i]).sum::<f64>()
-    }))
+    let point: [f64; 3] =
+        std::array::from_fn(|i| frame[0][i] + (0..3).map(|j| q[j] * frame[j + 1][i]).sum::<f64>());
+    let direction: [f64; 3] =
+        std::array::from_fn(|i| (0..3).map(|j| direction[j] * frame[j + 1][i]).sum::<f64>());
+    // Provider axis-line coordinates are rounded. Recover the same exact cylinder axis
+    // from the source B-rep before measuring a flat's axis offset.
+    let centre = part.face_centre(*f.faces.first()?)?;
+    part.faces
+        .iter()
+        .filter_map(|face| {
+            let Surface::Cylinder {
+                frame: cylinder, ..
+            } = &face.surface
+            else {
+                return None;
+            };
+            let d = cylinder.z;
+            if dot(d, direction).abs() / (dot(d, d) * dot(direction, direction)).sqrt() < 1. - 1e-9
+            {
+                return None;
+            }
+            let from_axis = delta(point, cylinder.origin);
+            let along = dot(from_axis, d) / dot(d, d);
+            let foot: [f64; 3] = std::array::from_fn(|k| cylinder.origin[k] + along * d[k]);
+            let error = dot(delta(foot, point), delta(foot, point));
+            if error > 1e-4 {
+                return None;
+            }
+            let along = dot(delta(centre, cylinder.origin), d) / dot(d, d);
+            Some((
+                error,
+                std::array::from_fn(|k| cylinder.origin[k] + along * d[k]),
+            ))
+        })
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, point)| point)
 }
 
 pub(super) fn merge(part: &Part, frame: &[[f64; 3]; 4], features: &mut Vec<Feature>) {
@@ -109,7 +142,7 @@ pub(super) fn merge(part: &Part, frame: &[[f64; 3]; 4], features: &mut Vec<Featu
         let Some((origin, normal)) = plane(part, &features[i]) else {
             continue;
         };
-        let opposite = axis_point(&features[i], frame).is_some_and(|axis| {
+        let opposite = axis_point(part, &features[i], frame).is_some_and(|axis| {
             features.iter().enumerate().any(|(j, f)| {
                 i != j
                     && f.kind == "flat"
@@ -121,7 +154,7 @@ pub(super) fn merge(part: &Part, frame: &[[f64; 3]; 4], features: &mut Vec<Featu
                     })
             })
         });
-        if let Some(axis) = axis_point(&features[i], frame) {
+        if let Some(axis) = axis_point(part, &features[i], frame) {
             features[i].parameters.insert(
                 "axis_distance".into(),
                 json!(dot(delta(origin, axis), normal).abs()),

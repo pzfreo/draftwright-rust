@@ -50,6 +50,18 @@ pub(crate) fn with_retained<T>(analysis: &Analysis, run: impl FnOnce() -> T) -> 
         if values.borrow().len() > 256 {
             values.borrow_mut().clear();
         }
+        // These are policies activated by this invocation, not immutable preparation.
+        // Keeping them from a previous automatic plan changes explicit-scale edits.
+        // The expensive prepared reference remains cached under its separate key.
+        values.borrow_mut().retain(|(name, _), _| {
+            !matches!(
+                *name,
+                "established-drawing"
+                    | "established-route-policy"
+                    | "established-clear-witnesses"
+                    | "canonical-interior-statements"
+            )
+        });
         retained.push_front((key, values.clone()));
         retained.truncate(4);
         values

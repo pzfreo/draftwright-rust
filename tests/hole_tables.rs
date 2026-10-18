@@ -231,6 +231,33 @@ fn rows_match(name: &str) {
     };
     let plan = model::plan(analysis, &Spec::default()).unwrap();
     let ours: Vec<HoleRow> = hole_table::table_rows(analysis, &plan);
+    // All nominal cells have exact new-policy expectations. Then replay the independent
+    // archived Python comparison at its historical display precision, retaining its row set,
+    // mismatch ledger and minimum matched-row assertion unchanged.
+    let expected = fixture("nominal_hole_table_rows.json");
+    assert_eq!(
+        serde_json::to_value(ours.iter().map(|r| &r.cells).collect::<Vec<_>>()).unwrap(),
+        expected[name]
+    );
+    let ours: Vec<_> = ours
+        .into_iter()
+        .map(|mut row| {
+            for cell in row.cells.iter_mut().skip(1) {
+                let (prefix, value) = cell
+                    .strip_prefix('ø')
+                    .map_or(("", cell.as_str()), |v| ("ø", v));
+                if let Ok(value) = value.parse::<f64>() {
+                    let rounded = value.round();
+                    *cell = if (value - rounded).abs() < 1e-6 {
+                        format!("{prefix}{rounded}")
+                    } else {
+                        format!("{prefix}{value:.1}")
+                    };
+                }
+            }
+            row
+        })
+        .collect();
     let tags = hole_table::tags(ours.len());
     assert!(
         ours.iter()

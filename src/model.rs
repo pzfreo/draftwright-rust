@@ -1782,33 +1782,39 @@ pub(crate) fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
 pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     let key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
         .expect("presentation inputs serialize");
-    let reference = crate::planning::memo(analysis, "established-drawing", key, || {
-        let mut reference = analysis.clone();
-        reference.features.retain(|f| f.kind != "section_recess");
-        let mut base = Spec {
-            hole_table: spec.hole_table,
-            ..Spec::default()
-        };
-        base.sheet.projection = spec.sheet.projection.clone();
-        crate::planning::with(&reference, || {
-            // This recipe precedes the added notch bands as well as native recesses.
-            // Otherwise a displaced leader becomes its own established route, and
-            // refinement cannot detect the new model-edge or arrowhead contact.
-            // Only the comparison scope omits these annotations; the final solve
-            // retains the original source evidence and every notch requirement.
-            crate::planning::store(
-                &reference,
-                "v_notches",
-                Vec::new(),
-                Vec::<crate::lint::notch_evidence::Notch>::new(),
-            );
-            // Preserve the established presentation when reserving old routes.
-            // The actual drawing may move an occluded circular statement to its
-            // visible profile after those other routes have claimed their ink.
-            crate::planning::store(&reference, "canonical-circular-recipes", Vec::new(), true);
-            plan_recovered(&reference, &base)
-        })
-    });
+    let reference = crate::planning::memo(
+        analysis,
+        "prepared-established-drawing",
+        key.clone(),
+        || {
+            let mut reference = analysis.clone();
+            reference.features.retain(|f| f.kind != "section_recess");
+            let mut base = Spec {
+                hole_table: spec.hole_table,
+                ..Spec::default()
+            };
+            base.sheet.projection = spec.sheet.projection.clone();
+            crate::planning::with(&reference, || {
+                // This recipe precedes the added notch bands as well as native recesses.
+                // Otherwise a displaced leader becomes its own established route, and
+                // refinement cannot detect the new model-edge or arrowhead contact.
+                // Only the comparison scope omits these annotations; the final solve
+                // retains the original source evidence and every notch requirement.
+                crate::planning::store(
+                    &reference,
+                    "v_notches",
+                    Vec::new(),
+                    Vec::<crate::lint::notch_evidence::Notch>::new(),
+                );
+                // Preserve the established presentation when reserving old routes.
+                // The actual drawing may move an occluded circular statement to its
+                // visible profile after those other routes have claimed their ink.
+                crate::planning::store(&reference, "canonical-circular-recipes", Vec::new(), true);
+                plan_recovered(&reference, &base)
+            })
+        },
+    );
+    crate::planning::store(analysis, "established-drawing", key, reference.clone());
     if let Ok(plan) = &reference {
         crate::planning::store(analysis, "established-route-policy", Vec::new(), true);
         let clear: BTreeSet<_> = plan
@@ -4513,6 +4519,15 @@ fn plan_with_presentation(
                 &natural_fixed,
                 &footprint_cache,
             );
+            crate::dims::settle_after_furniture(
+                analysis,
+                &base,
+                &sheet,
+                &views,
+                &mut natural,
+                &natural_fixed,
+                &footprint_cache,
+            );
             (before, natural)
         };
         let bounded_notches = !crate::notches::requirements(analysis).is_empty();
@@ -4587,7 +4602,7 @@ fn plan_with_presentation(
         &mut inventory,
         &settle_fixed,
     );
-    let mut rerouted = crate::dims::settle_after_furniture(
+    let mut rerouted = crate::dims::refine_inventory(
         analysis,
         &label_spec,
         &sheet,
@@ -4596,7 +4611,7 @@ fn plan_with_presentation(
         &settle_fixed,
         &footprint_cache,
     );
-    rerouted.extend(crate::dims::refine_inventory(
+    rerouted.extend(crate::dims::settle_after_furniture(
         analysis,
         &label_spec,
         &sheet,
@@ -4668,6 +4683,7 @@ fn plan_with_presentation(
             );
         }
     }
+    crate::sheet_fit::reserve_nominal_bounds(analysis, &sheet, &mut views, &inventory, &gdt);
     let settled_ids: BTreeSet<&str> = dimensions
         .iter()
         .chain(&reserved)

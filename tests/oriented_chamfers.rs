@@ -411,7 +411,7 @@ fn native_oriented_records_are_checked_and_non45_callouts_state_both_values() {
                 .any(|m| m.parameter == "oriented_chamfer.angle")
         })
         .unwrap();
-    assert_eq!(d.label, "10 × 26.6°");
+    assert_eq!(d.label, "10 × 26.57°");
     assert!(d.placed.is_some());
     let drawing = model::render(
         part,
@@ -677,7 +677,7 @@ fn an_existing_physical_bevel_leg_owns_the_same_notch_depth_once() {
         })
         .unwrap();
     assert_eq!(depth.id, "d:f:chamfer:1/chamfer.length");
-    assert_eq!(depth.label, "10.6 × 10.6°");
+    assert_eq!(depth.label, "10.62 × 10.61°");
     assert!(
         p.dimensions
             .iter()

@@ -605,7 +605,9 @@ fn an_incomplete_bolt_circle_states_pcd_and_each_angle() {
     angles.sort_by(f64::total_cmp);
     assert_eq!(
         angles,
-        [30., 60., 90., 120., 150., 210., 240., 270., 300., 330.]
+        [
+            30., 60.004, 90., 119.996, 150., 210., 240.004, 270., 299.996, 330.
+        ]
     );
     assert!(table.blocks[0].rows[0][1].contains("PCD"));
     assert!(

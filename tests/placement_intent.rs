@@ -205,7 +205,7 @@ fn placement_vocabulary_is_validated_without_page_coordinates() {
                     .iter()
                     .any(|id| base.dimensions.iter().any(|d| d.id == *id))
         }) {
-            assert!(!problem.fix.is_empty());
+            assert!(!problem.fix.is_empty(), "{problem:?}");
             model::edit(
                 &Spec::default(),
                 &serde_json::to_value(&problem.fix).unwrap(),

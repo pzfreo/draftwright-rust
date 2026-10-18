@@ -13,6 +13,17 @@ pub(crate) fn format(value: f64) -> String {
                 .parse::<f64>()
                 .is_ok_and(|v| (v - value).abs() <= 1e-6 + 1e-12)
         {
+            if places == 3
+                && text
+                    .parse::<f64>()
+                    .is_ok_and(|n| (n - value).abs() > 1e-6 + 1e-12)
+            {
+                return if text.parse::<f64>() == Ok(0.) {
+                    "0.000".into()
+                } else {
+                    text
+                };
+            }
             let text = if places == 0 {
                 text.as_str()
             } else {
@@ -28,6 +39,88 @@ pub(crate) fn format(value: f64) -> String {
     unreachable!()
 }
 
+/// Refresh on the final live carriers, including notes and table-owned measurements.
+pub(crate) fn report(plan: &mut crate::model::Plan) {
+    plan.problems.retain(|p| p.code != "nominal_rounded");
+    let spec = &plan.spec;
+    let mut problems = std::collections::BTreeMap::new();
+    let mut check = |id: &str, measurements: &[crate::dims::Measurement], text: &str| {
+        for m in measurements {
+            let measurement = format!("d:{}/{}", m.feature, m.parameter);
+            if spec.precision.contains_key(&measurement)
+                || (id
+                    .rsplit_once('/')
+                    .is_some_and(|(_, role)| role == m.parameter)
+                    && spec.precision.contains_key(id))
+                || ((id.starts_with("d:authored:") || id.starts_with("d:scheme:"))
+                    && spec.precision.contains_key(id))
+            {
+                continue;
+            }
+            let printed = format(m.value);
+            // Symbolic thread designations and table references can replace a nominal.
+            // Report only a numeric term that is actually printed on this carrier.
+            let printed_here = text
+                .split(|c: char| !c.is_ascii_digit() && c != '.' && c != '-')
+                .filter_map(|token| token.parse::<f64>().ok())
+                .any(|v| printed.parse::<f64>().is_ok_and(|n| (v - n).abs() < 1e-12));
+            if printed_here
+                && printed
+                    .parse::<f64>()
+                    .is_ok_and(|v| (v - clean(m.value)).abs() > 1e-6 + 1e-12)
+            {
+                problems.insert((id.to_string(), measurement.clone()), crate::model::Problem {
+                    id: format!("p:nominal_rounded:{id}:{measurement}"),
+                    code: "nominal_rounded".into(), severity: "info".into(),
+                    message: format!("The dimension {text:?} has modelled nominal {} but prints {printed} at the default three-place limit.", clean(m.value)),
+                    subjects: vec![id.into()], ..Default::default()
+                });
+            }
+        }
+    };
+    for d in &plan.dimensions {
+        if d.placed.is_some() {
+            check(&d.id, &d.measurements, &d.label);
+        }
+    }
+    for n in &plan.notes {
+        if n.placed.is_some() {
+            check(&n.id, &n.measurements, &n.text);
+        }
+    }
+    for t in &plan.hole_tables {
+        let text = t
+            .rows
+            .iter()
+            .flat_map(|r| &r.cells)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(" ");
+        check(&t.id, &t.covered, &text);
+        for r in &t.rows {
+            check(&t.id, &r.measurements, &r.cells.join(" "));
+        }
+    }
+    if let Some(t) = &plan.radius_table
+        && t.table.placed.is_some()
+    {
+        for (r, cells) in t.rows.iter().zip(t.table.rows.iter().skip(1)) {
+            let measurements = [
+                ("radius_centre.location.x", r.centre[0]),
+                ("radius_centre.location.y", r.centre[1]),
+                ("blend.radius", r.radius),
+            ]
+            .map(|(parameter, value)| crate::dims::Measurement {
+                feature: r.feature.clone(),
+                parameter: parameter.into(),
+                value,
+            });
+            check(&r.dimension, &measurements, &cells.join(" "));
+        }
+    }
+    plan.problems.extend(problems.into_values());
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -40,6 +133,8 @@ mod tests {
             (247.64999999, "247.65"),
             (1.875, "1.875"),
             (1.23456, "1.235"),
+            (4.0001, "4.000"),
+            (-0.0001, "0.000"),
             (-0.0000001, "0"),
             (4.750001, "4.75"),
             (-4.75, "-4.75"),
@@ -47,53 +142,4 @@ mod tests {
             assert_eq!(super::format(value), text);
         }
     }
-}
-
-/// Refresh on the final live carriers, including notes and table-owned measurements.
-pub(crate) fn report(plan: &mut crate::model::Plan) {
-    plan.problems.retain(|p| p.code != "nominal_rounded");
-    let spec = &plan.spec;
-    let mut problems = std::collections::BTreeMap::new();
-    let mut check = |id: &str, measurements: &[crate::dims::Measurement]| {
-        for m in measurements {
-            let measurement = format!("d:{}/{}", m.feature, m.parameter);
-            if spec.precision.contains_key(&measurement)
-                || (id
-                    .rsplit_once('/')
-                    .is_some_and(|(_, role)| role == m.parameter)
-                    && spec.precision.contains_key(id))
-            {
-                continue;
-            }
-            let printed = format(m.value);
-            if printed
-                .parse::<f64>()
-                .is_ok_and(|v| (v - clean(m.value)).abs() > 1e-6 + 1e-12)
-            {
-                problems.insert((id.to_string(), measurement.clone()), crate::model::Problem {
-                    id: format!("p:nominal_rounded:{id}:{measurement}"),
-                    code: "nominal_rounded".into(), severity: "info".into(),
-                    message: format!("Dimension {id} ({measurement}) has modelled nominal {} but prints {printed} at the default three-place limit. Set its measurement precision to show more places.", clean(m.value)),
-                    subjects: vec![id.into()], ..Default::default()
-                });
-            }
-        }
-    };
-    for d in &plan.dimensions {
-        if d.placed.is_some() {
-            check(&d.id, &d.measurements);
-        }
-    }
-    for n in &plan.notes {
-        if n.placed.is_some() {
-            check(&n.id, &n.measurements);
-        }
-    }
-    for t in &plan.hole_tables {
-        check(&t.id, &t.covered);
-        for r in &t.rows {
-            check(&t.id, &r.measurements);
-        }
-    }
-    plan.problems.extend(problems.into_values());
 }

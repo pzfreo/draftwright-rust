@@ -290,7 +290,7 @@ fn bosses_sharing_a_height_across_one_span_state_it_once_counted() {
                 "f:polygonal_boss:3",
                 "f:polygonal_boss:4",
             ],
-            "4× 2.5",
+            "4× 2.54",
         ),
     ] {
         let a = native(&dir, file);

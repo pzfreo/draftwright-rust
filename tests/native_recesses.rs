@@ -168,7 +168,7 @@ fn rounded_pocket_corner_radius_reaches_native_ink_and_lint() {
         .iter()
         .find(|d| d.id.contains("pocket_corner_radius"))
         .unwrap();
-    assert_eq!(radius.label, "20× R3.9");
+    assert_eq!(radius.label, "20× R3.94");
     assert_eq!(
         radius
             .measurements
@@ -220,7 +220,7 @@ fn rounded_pocket_corner_radius_reaches_native_ink_and_lint() {
         .find(|d| d.id.contains("pocket_corner_radius"))
         .unwrap();
     assert_eq!(radius.measurements.len(), 20);
-    assert_eq!(radius.label, "20× R3.9");
+    assert_eq!(radius.label, "20× R3.94");
     let drawing = model::render(&part, &fallback, &plan, &font()).unwrap();
     let mut marks = lint::marks(&drawing);
     assert!(lint::pockets::corner_coverage(&fallback, &marks).is_empty());
@@ -604,14 +604,17 @@ fn native_blind_slots_use_the_existing_approved_recess_callout_grammars() {
         (
             "mfcadpp/10047.step",
             vec![
-                "ROUND-BOTTOM OPEN SLOT 1 BOTTOM FLAT × R0.5 × 2.4 LONG",
-                "ROUND-BOTTOM OPEN SLOT 1 BOTTOM FLAT × R4.4 × 4.7 LONG",
+                "ROUND-BOTTOM OPEN SLOT 1 BOTTOM FLAT × R0.541 × 2.42 LONG",
+                "ROUND-BOTTOM OPEN SLOT 1 BOTTOM FLAT × R4.396 × 4.662 LONG",
             ],
         ),
-        ("mfcadpp/10245.step", vec!["OPEN SLOT 3.3 × 9.2 × 2.0 DEEP"]),
+        (
+            "mfcadpp/10245.step",
+            vec!["OPEN SLOT 3.344 × 9.15 × 2.049 DEEP"],
+        ),
         (
             "mfcadpp_regressions/11512.step",
-            vec!["OPEN SLOT 2.5 × 11.7 × 6.7 DEEP"],
+            vec!["OPEN SLOT 2.458 × 11.672 × 6.674 DEEP"],
         ),
     ] {
         let (_, a) = model::analyse_native(&root.join(file)).unwrap();

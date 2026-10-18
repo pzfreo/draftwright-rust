@@ -461,12 +461,46 @@ fn leaders_do_not_run_beside_centre_lines(file: &str) {
 }
 
 /// A label that must stay across the end of an axis shortens that axis's overrun (ISO 128-24)
-/// rather than being parted from its shelf by the stroke: FTC-10's ⌀5.5 ↧ 35 keeps its round-3
-/// place, joined to its shelf, and hole 13's axis stops short of it, still past the hole.
+/// rather than being parted from its shelf by the stroke: FTC-10's prescribed ⌀5.5 ↧ 35
+/// stays joined to its shelf, and hole 13's axis stops short of it, still past the hole.
 #[test]
 fn a_label_across_an_axis_end_trims_the_overrun() {
     let Some(dir) = corpus::dir() else { return };
-    let (analysis, p, _) = drawing(&dir.join("nist/nist_ftc_10_asme1_rb.stp"));
+    let file = dir.join("nist/nist_ftc_10_asme1_rb.stp");
+    let sheet: Spec = serde_json::from_value(serde_json::json!({
+        "sheet": {"size": "A1", "scale": "2:1"}
+    }))
+    .unwrap();
+    let (analysis, base, _) = drawing_with(&file, &sheet);
+    // Longer faithful labels can select a different automatic station. Prescribe
+    // the scenario this test proves: this label straddles the far axis overrun.
+    // Its measured tip, shelf gap, axis column and physical span stay independently checked.
+    let natural = base
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:hole:17/bore.diameter")
+        .unwrap()
+        .placed
+        .as_ref()
+        .unwrap();
+    let side = base.views.iter().find(|v| v.id == "v:side").unwrap();
+    let axis = side
+        .line_work
+        .iter()
+        .find(|w| w.id == "ink:v:side:f:hole:13")
+        .unwrap();
+    let a = axis.curves[0].start();
+    let b = axis.curves[0].end();
+    let elbow = [a[0] - 5., a[1].max(b[1]) + 0.5];
+    let tip = natural.lines[0][0];
+    let spec: Spec = serde_json::from_value(serde_json::json!({
+        "sheet": {"size": base.sheet.size, "scale": base.sheet.scale},
+        "dimensions": {"d:f:hole:17/bore.diameter": {"place": {
+            "view": "side", "pinned": true, "offset": [elbow[0] - tip[0], elbow[1] - tip[1]]
+        }}}
+    }))
+    .unwrap();
+    let p = model::plan_recovered(&analysis, &spec).unwrap();
     let d = p
         .dimensions
         .iter()

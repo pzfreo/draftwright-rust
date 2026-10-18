@@ -1209,11 +1209,12 @@ pub(crate) fn settle_after_furniture(
 ) -> BTreeMap<String, Vec<Problem>> {
     let mut updated = BTreeMap::new();
     let mut wants = None;
+    let mut profile_proofs = None;
     let page = Page::new(analysis, sheet, views);
-    let bounded_notches = !crate::notches::requirements(analysis).is_empty();
     for i in 0..items.len() {
         let d = &items[i];
         if d.kind != "callout"
+            || d.region == Some(super::CandidateRegion::Interior)
             || spec
                 .dimensions
                 .get(&d.id)
@@ -1222,16 +1223,26 @@ pub(crate) fn settle_after_furniture(
             continue;
         }
         let Some(old) = &d.placed else { continue };
-        if !obstacles
+        // Longer faithful nominal labels can contact already settled dimensions as well
+        // as furniture. Reconsider those routes against the complete live inventory.
+        let conflicts = obstacles
             .iter()
             .chain(
                 items
                     .iter()
-                    .filter(|d| bounded_notches && d.kind == "linear"),
+                    .enumerate()
+                    .filter(|(j, _)| *j != i)
+                    .map(|(_, d)| d),
             )
             .filter_map(|d| d.placed.as_ref())
-            .any(|p| super::text_contact(old, p))
-        {
+            .any(|p| {
+                super::text_contact(old, p)
+                    || old
+                        .lines
+                        .iter()
+                        .any(|a| p.lines.iter().chain(&p.arrows).any(|b| lines_meet(*a, *b)))
+            });
+        if !conflicts {
             continue;
         }
         let Some(w) = wants
@@ -1249,8 +1260,12 @@ pub(crate) fn settle_after_furniture(
         let view = v.id.trim_start_matches("v:");
         let ink = label_ink(&d.terms, font());
         let footprint = cache.get(analysis, v);
-        let model = if grazing(&frame, w).is_some() {
-            cache.model(analysis, v)
+        let model = cache.model(analysis, v);
+        let profile_proof = if boss_profile(w) {
+            profile_proofs
+                .get_or_insert_with(|| super::interior::proofs(analysis, views))
+                .get(&v.id)
+                .map(|proof| (v, proof.as_ref()))
         } else {
             None
         };
@@ -1266,9 +1281,10 @@ pub(crate) fn settle_after_furniture(
             area: page.area(view),
             sites: page_sites(&frame, sites),
             directed: false,
-            corridors: false,
+            // Enable the existing bounded corridor retry for a newly contacted route.
+            corridors: true,
             short_profile: boss_profile(w),
-            profile_proof: None,
+            profile_proof,
             silhouette: grazing(&frame, w),
             model: model.as_ref().map(|m| &m.as_ref().0),
             steer: std::cell::Cell::new(None),
@@ -1307,20 +1323,88 @@ pub(crate) fn settle_after_furniture(
                     .iter()
                     .any(|m| m.parameter == "polygon_across_flats.length"),
         );
-        let Some(next) = candidates
-            .into_iter()
-            .filter(|c| {
-                c.text < before.text
-                    && c.hard <= before.hard
-                    && c.crossings <= before.crossings
-                    && c.feature_crossings <= before.feature_crossings
-                    && c.furniture <= before.furniture
-                    && page.fits(&c.placed(), view)
+        let extensions: Vec<_> = others
+            .iter()
+            .enumerate()
+            .filter(|(_, d)| d.kind == "linear")
+            .flat_map(|(i, d)| {
+                d.placed
+                    .as_ref()
+                    .into_iter()
+                    .flat_map(move |p| p.lines.iter().take(2).map(move |line| (i, *line)))
             })
-            .min_by_key(Candidate::score)
-        else {
-            continue;
+            .collect();
+        let prior_extensions = extension_contacts(&extensions, &old.lines, old.label_box);
+        // Score the final collision predicate as well as the router's indexed tiers.
+        // Near-parallel runs and contacts with the other's arrow shaft must disappear
+        // on the live ink, including the reverse direction of a callout pair.
+        let live_contacts = |p: &Placed| -> std::collections::BTreeSet<usize> {
+            others
+                .iter()
+                .enumerate()
+                .filter_map(|(i, d)| {
+                    let q = d.placed.as_ref()?;
+                    let forward = p
+                        .lines
+                        .iter()
+                        .any(|a| q.lines.iter().chain(&q.arrows).any(|b| lines_meet(*a, *b)));
+                    let reverse = d.kind == "callout"
+                        && q.lines
+                            .iter()
+                            .any(|a| p.lines.iter().chain(&p.arrows).any(|b| lines_meet(*a, *b)));
+                    (forward || reverse).then_some(i)
+                })
+                .collect()
         };
+        let prior_live = live_contacts(old);
+        let acceptable = |c: &Candidate| {
+            let live = live_contacts(&c.placed());
+            let contacts = extension_contacts(&extensions, &c.segments(), c.label_box);
+            (c.text < before.text || live.len() < prior_live.len())
+                && live.is_subset(&prior_live)
+                && c.text <= before.text
+                && c.hard <= before.hard
+                && c.crossings <= before.crossings
+                && c.feature_crossings <= before.feature_crossings
+                && c.furniture <= before.furniture
+                && c.grazing <= before.grazing
+                && c.beside <= before.beside
+                && c.clearance <= before.clearance
+                && model_crossings(&job, c) <= model_crossings(&job, &before)
+                && contacts.0 <= prior_extensions.0
+                && contacts.1 <= prior_extensions.1
+                && page.fits(&c.placed(), view)
+        };
+        let next = candidates
+            .into_iter()
+            .filter(&acceptable)
+            .min_by_key(Candidate::score)
+            .or_else(|| {
+                // The final label may have grown into a peer's corridor. Keep its proven
+                // attachment and try bounded half-mm elbow/shelf translations, nearest first.
+                // Every material, furniture, text and arrowhead gate still applies.
+                for ring in 1_i32..=14 {
+                    for dx in -ring..=ring {
+                        for dy in -ring..=ring {
+                            if dx.abs().max(dy.abs()) != ring {
+                                continue;
+                            }
+                            let elbow = [
+                                elbow[0] + f64::from(dx) * 0.5,
+                                elbow[1] + f64::from(dy) * 0.5,
+                            ];
+                            let right = elbow[0] >= tip[0];
+                            if let Some(c) = measure(&job, tip, elbow, right, &fixed, &page)
+                                && acceptable(&c)
+                            {
+                                return Some(c);
+                            }
+                        }
+                    }
+                }
+                None
+            });
+        let Some(next) = next else { continue };
         let mut printed = w.clone();
         printed.terms.clone_from(&d.terms);
         updated.insert(

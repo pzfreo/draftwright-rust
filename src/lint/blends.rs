@@ -249,7 +249,7 @@ mod tests {
         let mut row = Mark {
             name: format!("{RADIUS_TABLE}/f:blend:1"),
             view: Some("v:plan".into()),
-            text: "PLAN 12.346 67.89 R0.2".into(),
+            text: "PLAN 12.346 67.890 R0.25".into(),
             claims: vec![Claim {
                 feature: "f:blend:1".into(),
                 parameter: "blend.radius".into(),
@@ -257,10 +257,10 @@ mod tests {
         };
         assert!(verified_row(&a, &row));
         for text in [
-            "PLAN 12.3 67.9 R0.2",
-            "PLAN 12.346 67.89 R0.4",
-            "PLAN 12.346 67.89 R67.89",
-            "PLAN 12.346 67.89 R0.2e5",
+            "PLAN 12.3 67.9 R0.25",
+            "PLAN 12.346 67.890 R0.4",
+            "PLAN 12.346 67.890 R67.89",
+            "PLAN 12.346 67.890 R0.25e5",
         ] {
             row.text = text.into();
             assert!(!verified_row(&a, &row), "{text}");
@@ -268,7 +268,7 @@ mod tests {
         a.features[0].parameters.insert("radius".into(), json!(2.1));
         a.blend_sites
             .insert("f:blend:1".into(), vec![[14.4456, 67.8901, 0.0]]);
-        row.text = "PLAN 12.346 67.89 R.2".into();
+        row.text = "PLAN 12.346 67.890 R.2".into();
         assert!(!verified_row(&a, &row));
     }
 }

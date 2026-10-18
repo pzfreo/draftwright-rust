@@ -2,7 +2,7 @@
   {
     "part": "cadgenbench_inputs/cgb245.step",
     "view": "plan",
-    "label": "15.0",
+    "label": "14.97",
     "rotation": 0,
     "items": [
       "d:f:slot:1/slot_length.length",
@@ -10,20 +10,7 @@
     ],
     "verdict": "identical-features",
     "draftwright": "m_slot0_length '15.0' and m_slot1_length '15.0' in the plan, one per slot (slots at x -103.4 and +103.4).",
-    "reason": "Two slots of the same 14.97 length at mirrored positions: their lengths lie on different spans, so each is a dimension of its own feature. draftwright's slot width coalescing (`_slot_shared_width_key`) needs the same view, width axis and the same two width edges, which these do not share; the port's `share` (src/dims/mod.rs) applies the same one-span rule, extended to slot lengths and boss heights."
-  },
-  {
-    "part": "mfcadpp/10060.step",
-    "view": "side",
-    "label": "19.3",
-    "rotation": 0,
-    "items": [
-      "d:f:hole:1/location.length.y",
-      "d:step_level/step_position.length.y19_256"
-    ],
-    "verdict": "distinct-quantities",
-    "draftwright": "dim_shoulder_y0 '19.3' (step_position.length 19.256) and dim_loc_side_y1931 '19.3' (the hole's y location 19.31), both in the side view: the same repeat.",
-    "reason": "A step shoulder's position (19.256) and a hole's y location (19.310) are different quantities 0.054 mm apart that both print 19.3 at the sheet's one-decimal precision; neither conveys the other."
+    "reason": "Two slots of the same 14.97 length at mirrored positions: their lengths lie on different spans, so each is a dimension of its own feature. draftwright's slot width coalescing (`_slot_shared_width_key`) needs the same view, width axis and the same two width edges, which these do not share; the port's `share` (src/dims/mod.rs) applies the same one-span rule, extended to slot lengths and boss heights. Default nominal precision now preserves the modelled hundredths; these same item IDs and distinct physical spans remain repeated."
   },
   {
     "part": "nist/nist_ctc_01_asme1_rd.stp",
@@ -67,7 +54,7 @@
   {
     "part": "nist/nist_ftc_08_asme1_rc.stp",
     "view": "plan",
-    "label": "31.8",
+    "label": "31.75",
     "rotation": 90,
     "items": [
       "d:f:slot:2/slot_length.length",
@@ -75,12 +62,12 @@
     ],
     "verdict": "identical-features",
     "draftwright": "m_slot1_length '31.8' and m_slot2_length '31.8' in the plan, one per slot (y = -46.4 and +46.4).",
-    "reason": "Two slots of the same 31.75 length at mirrored positions: their lengths lie on different spans, each its own dimension; draftwright's slot width coalescing (`_slot_shared_width_key`) needs the same view, width axis and the same two width edges, which these do not share; the port's `share` (src/dims/mod.rs) applies the same one-span rule, extended to slot lengths and boss heights."
+    "reason": "Two slots of the same 31.75 length at mirrored positions: their lengths lie on different spans, each its own dimension; draftwright's slot width coalescing (`_slot_shared_width_key`) needs the same view, width axis and the same two width edges, which these do not share; the port's `share` (src/dims/mod.rs) applies the same one-span rule, extended to slot lengths and boss heights. Default nominal precision now preserves the modelled hundredths; these same item IDs and distinct physical spans remain repeated."
   },
   {
     "part": "nist/nist_ftc_09_asme1_rd.stp",
     "view": "front",
-    "label": "6.3",
+    "label": "6.34",
     "rotation": 90,
     "items": [
       "d:f:slot:1/slot_width.length",
@@ -88,6 +75,6 @@
     ],
     "verdict": "identical-features",
     "draftwright": "plans slot0's and slot1's widths as two dimensions and drops both for room (lint slot_dim_dropped 'slot0 width' and 'slot1 width'); m_slot0_pos '130.2' claims both slots' common location.",
-    "reason": "Two 6.34-wide slots side by side at one x station have their widths on different spans along z, each its own dimension; draftwright's slot width coalescing (`_slot_shared_width_key`) needs the same view, width axis and the same two width edges, which these do not share; the port's `share` (src/dims/mod.rs) applies the same one-span rule, extended to slot lengths and boss heights."
+    "reason": "Two 6.34-wide slots side by side at one x station have their widths on different spans along z, each its own dimension; draftwright's slot width coalescing (`_slot_shared_width_key`) needs the same view, width axis and the same two width edges, which these do not share; the port's `share` (src/dims/mod.rs) applies the same one-span rule, extended to slot lengths and boss heights. Default nominal precision now preserves the modelled hundredths; these same item IDs and distinct physical spans remain repeated."
   }
 ]

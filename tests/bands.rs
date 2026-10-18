@@ -240,7 +240,7 @@ fn a_boss_on_its_centre_establishes_a_small_bolt_circle() {
     );
     let c = callouts(&a);
     let labels: Vec<&str> = c.iter().map(|(l, _)| l.as_str()).collect();
-    assert_eq!(labels, ["4× ⌀2.4 THRU EQ SP ON ø34.4 BC", "2× ⌀2.4 THRU"]);
+    assert_eq!(labels, ["4× ⌀2.4 THRU EQ SP ON ø34.42 BC", "2× ⌀2.4 THRU"]);
     assert!(
         c[0].1
             .contains("corroborated by a hole or boss on its centre")

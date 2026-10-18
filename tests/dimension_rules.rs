@@ -59,19 +59,19 @@ fn labels(plan: &Plan, kind: &str) -> Vec<String> {
     l
 }
 
-/// draftwright's `_fmt`, case for case (Python's own results).
+/// Faithful nominals intentionally depart from Python's one-decimal `_fmt`.
 #[test]
 fn numbers_print_as_draftwright_prints_them() {
     for (v, s) in [
-        (12.9898, "13.0"),
+        (12.9898, "12.990"),
         (5.0, "5"),
-        (0.25, "0.2"),
-        (4.45, "4.5"),
-        (72.39, "72.4"),
+        (0.25, "0.25"),
+        (4.45, "4.45"),
+        (72.39, "72.39"),
         (-0.0, "0"),
-        (-0.04, "0.0"),
-        (276.25, "276.2"),
-        (247.649_999_999_9, "247.7"),
+        (-0.04, "-0.04"),
+        (276.25, "276.25"),
+        (247.649_999_999_9, "247.65"),
         (5.000_000_1, "5"),
     ] {
         assert_eq!(dims::fmt(v), s, "{v}");

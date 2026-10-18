@@ -4038,5 +4038,105 @@
     },
     "verdict": "rust-correct",
     "evidence": "Beyond Python: the port projects the AP242 turned_knurl #6564 (straight, diametral pitch 0.8, 78 teeth, major diameter 20) to a structured knurl record; draftwright's Part 21 pass never reads a turned_knurl, so its census holds no source. Its pitch is lowered as the linear pitch because its tooth count agrees (pi*20/0.8 = 78.5); the record is still not drawn here (one face is not cylindrical, reported pmi_not_lowered). tests/pmi_thread_knurl.rs checks the drawn and the pitch/teeth-mismatch cases on the editor's spindle knurl."
+  },
+  {
+    "field": "label",
+    "file": "bracket_positions.step.gz",
+    "port": "dimension:#31343",
+    "python": "130.8",
+    "record": "dimension:0:1:4:3",
+    "rust": "130.831",
+    "verdict": "rust-correct",
+    "evidence": "Default nominal precision intentionally departs from Python: preserve the modelled hundredths/thousandths up to three places; tolerance text is unchanged (drawn-values-2026-10-18)."
+  },
+  {
+    "field": "label",
+    "file": "bracket_positions.step.gz",
+    "port": "dimension:#31351",
+    "python": "33.5",
+    "record": "dimension:0:1:4:4",
+    "rust": "33.512",
+    "verdict": "rust-correct",
+    "evidence": "Default nominal precision intentionally departs from Python: preserve the modelled hundredths/thousandths up to three places; tolerance text is unchanged (drawn-values-2026-10-18)."
+  },
+  {
+    "field": "label",
+    "file": "bracket_positions.step.gz",
+    "port": "dimension:#31359",
+    "python": "91.4",
+    "record": "dimension:0:1:4:5",
+    "rust": "91.431",
+    "verdict": "rust-correct",
+    "evidence": "Default nominal precision intentionally departs from Python: preserve the modelled hundredths/thousandths up to three places; tolerance text is unchanged (drawn-values-2026-10-18)."
+  },
+  {
+    "field": "label",
+    "file": "bracket_positions.step.gz",
+    "port": "dimension:#31375",
+    "python": "53.6",
+    "record": "dimension:0:1:4:7",
+    "rust": "53.581",
+    "verdict": "rust-correct",
+    "evidence": "Default nominal precision intentionally departs from Python: preserve the modelled hundredths/thousandths up to three places; tolerance text is unchanged (drawn-values-2026-10-18)."
+  },
+  {
+    "field": "label",
+    "file": "bracket_positions.step.gz",
+    "port": "dimension:#31401",
+    "python": "74.9",
+    "record": "dimension:0:1:4:9",
+    "rust": "74.943",
+    "verdict": "rust-correct",
+    "evidence": "Default nominal precision intentionally departs from Python: preserve the modelled hundredths/thousandths up to three places; tolerance text is unchanged (drawn-values-2026-10-18)."
+  },
+  {
+    "field": "label",
+    "file": "bracket_positions.step.gz",
+    "port": "dimension:#31417",
+    "python": "40.0",
+    "record": "dimension:0:1:4:11",
+    "rust": "39.969",
+    "verdict": "rust-correct",
+    "evidence": "Default nominal precision intentionally departs from Python: preserve the modelled hundredths/thousandths up to three places; tolerance text is unchanged (drawn-values-2026-10-18)."
+  },
+  {
+    "field": "label",
+    "file": "bracket_positions.step.gz",
+    "port": "dimension:#31433",
+    "python": "60.8",
+    "record": "dimension:0:1:4:13",
+    "rust": "60.771",
+    "verdict": "rust-correct",
+    "evidence": "Default nominal precision intentionally departs from Python: preserve the modelled hundredths/thousandths up to three places; tolerance text is unchanged (drawn-values-2026-10-18)."
+  },
+  {
+    "field": "label",
+    "file": "bracket_positions.step.gz",
+    "port": "dimension:#31441",
+    "python": "98.8",
+    "record": "dimension:0:1:4:14",
+    "rust": "98.816",
+    "verdict": "rust-correct",
+    "evidence": "Default nominal precision intentionally departs from Python: preserve the modelled hundredths/thousandths up to three places; tolerance text is unchanged (drawn-values-2026-10-18)."
+  },
+  {
+    "field": "label",
+    "file": "nist_stc_06_asme1_ap242-e3.stp.gz",
+    "port": "dimension:#9432",
+    "python": "R3.2 ±0.508",
+    "record": "dimension:0:1:4:12",
+    "rust": "R3.175 ±0.508",
+    "verdict": "rust-correct",
+    "evidence": "Default nominal precision intentionally departs from Python: preserve the modelled hundredths/thousandths up to three places; tolerance text is unchanged (drawn-values-2026-10-18)."
+  },
+  {
+    "field": "label",
+    "file": "nist_stc_06_asme1_ap242-e3.stp.gz",
+    "port": "dimension:#11201",
+    "python": "ø31.8 ±0.2032",
+    "record": "dimension:0:1:4:92",
+    "rust": "ø31.75 ±0.2032",
+    "verdict": "rust-correct",
+    "evidence": "Default nominal precision intentionally departs from Python: preserve the modelled hundredths/thousandths up to three places; tolerance text is unchanged (drawn-values-2026-10-18)."
   }
 ]

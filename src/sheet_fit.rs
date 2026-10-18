@@ -1079,6 +1079,46 @@ pub(crate) fn reserve_annotation_bounds(
     }) {
         return;
     }
+    reserve_bounds(analysis, sheet, views, inventory, gdt, None);
+}
+
+/// Longer default nominals need their actual paper reservation, including the
+/// run-on of a short linear dimension. Reclaim only vacant neighbouring bands;
+/// every view, annotation, border and title-block gate remains the same.
+pub(crate) fn reserve_nominal_bounds(
+    analysis: &Analysis,
+    sheet: &crate::model::PlannedSheet,
+    views: &mut [crate::model::PlannedView],
+    inventory: &[crate::dims::PlannedDimension],
+    gdt: &[crate::dims::gdt::PlannedGdt],
+) {
+    let grown: std::collections::BTreeSet<_> = inventory
+        .iter()
+        .filter(|d| d.kind == "linear")
+        .filter(|d| {
+            d.measurements.iter().any(|m| {
+                let number = crate::nominal::format(m.value);
+                number
+                    .split_once('.')
+                    .is_some_and(|(_, fraction)| fraction.len() > 1)
+                    && d.label.contains(&number)
+            })
+        })
+        .map(|d| d.id.clone())
+        .collect();
+    if !grown.is_empty() {
+        reserve_bounds(analysis, sheet, views, inventory, gdt, Some(&grown));
+    }
+}
+
+fn reserve_bounds(
+    analysis: &Analysis,
+    sheet: &crate::model::PlannedSheet,
+    views: &mut [crate::model::PlannedView],
+    inventory: &[crate::dims::PlannedDimension],
+    gdt: &[crate::dims::gdt::PlannedGdt],
+    selected: Option<&std::collections::BTreeSet<String>>,
+) {
     let mut bounds: Vec<(&str, Rect, bool)> = inventory
         .iter()
         .filter_map(|d| Some((d.view.as_str(), crate::dims::ink_box(d)?, true)))
@@ -1151,9 +1191,16 @@ pub(crate) fn reserve_annotation_bounds(
             }
         }
     }
+    if let Some(ids) = selected {
+        bounds = inventory
+            .iter()
+            .filter(|d| ids.contains(&d.id))
+            .filter_map(|d| Some((d.view.as_str(), crate::dims::ink_box(d)?, true)))
+            .collect();
+    }
     bounds.extend(
         gdt.iter()
-            .filter(|g| g.kind != "control_frame")
+            .filter(|g| selected.is_none() && g.kind != "control_frame")
             .filter_map(|g| {
                 let p = g.placed.as_ref()?;
                 let mut b = p.label_box;
