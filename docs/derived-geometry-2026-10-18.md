@@ -283,7 +283,11 @@ nearby frame are clear of dimension ink, with A below. Commits remain local; not
 After merging #112, a knurl's note form must retain the owned PMI size's own
 qualifier and tolerance before the manufacturing reference. GRM-03 therefore
 prints `ø10 MAX SEE MFG 2`; MFG 2 carries the complete knurl wording. The planted
-tolerance regression exercises `auto`, `note`, `compact` and `full` presentation.
+tolerance regression exercises `auto`, `note`, `compact` and `full` presentation,
+both with the original manufacturing set and with a lone knurl. A manufacturing
+`MAX AFTER KNURL` term cannot mask the independent size qualifier before note
+conversion. The manufacturing identity also retains its exact source precision;
+only explicit dimension limits replace that nominal identity.
 
 Callout reflow also exposed an arrangement-level tie: the boundary-only datum
 layout could retain B's 113.22 mm leader when the local layout had the same
@@ -298,3 +302,23 @@ B's leader is **2.4 mm**, with **zero crossings**; the drawing has **two total
 datum-leader crossings**, both on A. The PNG in `artifacts/derived-dw/merge/` was
 visually inspected: B is clear beside the upper shoulder, and MAX remains on
 the diameter leader. SVG, PDF, plan, render report and metrics are alongside it.
+
+The final source is `bf98176b`. Checks use the required corpus and eight build/test
+workers as above, with logs under `artifacts/derived-dw/merge/`.
+
+| Merge check | Result |
+| --- | --- |
+| `cargo fmt --all --check` | PASS |
+| `cargo clippy --workspace --all-targets --release -- -D warnings` | PASS |
+| Focused GRM-03 and source-precision regressions | PASS: 9/9 |
+| Requested nextest binaries | PASS: core 279, dimensions 331, rendering 461, audits 158; **1,229/1,229**, zero skipped, 434.126 s |
+| `python3 tools/check_test_binaries.py` | PASS: 8 binaries, 139 reachable files, 1,288 integration tests; documented counts corrected |
+| Final GRM-03 render | SVG/PDF/PNG regenerated; PNG byte-identical to the inspected image; metrics in `GRM-03-metrics.json` |
+
+The first selected-binary run passed 1,227/1,229: two existing bolt/knurl checks
+caught the same accidental rounding of the exact source diameter 6.25 to 6.2.
+The code now retains the manufacturing identity's precision while adding the
+size's own band and qualifier. Both unchanged precision expectations pass in the
+focused check and the final complete selected-binary run. No baseline, tolerance,
+placement threshold or test exclusion changed. The full suite was not run;
+`CHANGELOG.md` is untouched. Commits remain local; nothing was pushed.
