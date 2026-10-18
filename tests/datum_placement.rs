@@ -184,3 +184,112 @@ fn planar_datum_stands_on_a_face_extension_line() {
         "triangle must stand on the drawn extension"
     );
 }
+
+#[test]
+fn grm03_datums_are_separated_and_b_has_a_short_clear_leader() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pmi/step/GRM-03_thumbwheel_drive_screw_AP242_PMI.step.gz");
+    let (_, a) = model::analyse_native(&path).unwrap();
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        (plan.sheet.size.as_str(), plan.sheet.scale.as_str()),
+        ("A4", "5:1")
+    );
+    let datum = |letter: &str| {
+        plan.gdt
+            .iter()
+            .find(|g| g.kind == "datum_feature" && g.label == letter)
+            .unwrap()
+    };
+    let (a, b) = (datum("A"), datum("B"));
+    let (pa, pb) = (a.placed.as_ref().unwrap(), b.placed.as_ref().unwrap());
+    let height = pa.label_box[3] - pa.label_box[1];
+    assert!(
+        (pa.tip[0] - pb.tip[0]).hypot(pa.tip[1] - pb.tip[1]) > height,
+        "datum attachments must be separated by more than one symbol height: {pa:?} / {pb:?}"
+    );
+    assert!(
+        pb.tip[1] > pa.tip[1] + height,
+        "B must attach on the side away from A"
+    );
+    let length: f64 = pb
+        .lines
+        .iter()
+        .map(|[a, b]| (b[0] - a[0]).hypot(b[1] - a[1]))
+        .sum();
+    assert!(
+        length < 20.0,
+        "B's leader should stay near the shoulder: {length} mm"
+    );
+    let b_crossings: Vec<_> = plan
+        .problems
+        .iter()
+        .filter(|p| p.code == "annotation_leader_crossing" && p.subjects.contains(&b.id))
+        .collect();
+    assert!(
+        b_crossings.is_empty(),
+        "B must cross no dimension, leader or witness: {b_crossings:#?}"
+    );
+    let datum_ids = [&a.id, &b.id];
+    let crossings = plan
+        .problems
+        .iter()
+        .filter(|p| {
+            p.code == "annotation_leader_crossing"
+                && p.subjects.iter().any(|s| datum_ids.contains(&s))
+        })
+        .count();
+    assert!(
+        crossings <= 3,
+        "datum-leader crossings exceed main's count: {crossings}"
+    );
+    // Check the full filled triangles independently of the letter boxes and leaders.
+    for fa in &pa.fills {
+        for fb in &pb.fills {
+            let bounds = |f: &Vec<[f64; 2]>| {
+                f.iter().fold(
+                    [
+                        f64::INFINITY,
+                        f64::INFINITY,
+                        f64::NEG_INFINITY,
+                        f64::NEG_INFINITY,
+                    ],
+                    |r, p| {
+                        [
+                            r[0].min(p[0]),
+                            r[1].min(p[1]),
+                            r[2].max(p[0]),
+                            r[3].max(p[1]),
+                        ]
+                    },
+                )
+            };
+            let (a, b) = (bounds(fa), bounds(fb));
+            assert!(
+                a[2] < b[0] || b[2] < a[0] || a[3] < b[1] || b[3] < a[1],
+                "filled datum triangles must not overlap or touch: {a:?} / {b:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn overlapping_datum_triangles_are_errors_even_with_separate_letter_boxes() {
+    let (_, plan) = spindle();
+    assert!(gdt::symbol_collisions(&plan.gdt).is_empty());
+    let mut datums: Vec<_> = plan
+        .gdt
+        .iter()
+        .filter(|g| g.kind == "datum_feature")
+        .cloned()
+        .collect();
+    assert_eq!(datums.len(), 2);
+    // Corrupt only the filled ink: keeping the letters and leaders apart must
+    // not conceal a symbol overlap (including a placement pinned by an editor).
+    datums[1].placed.as_mut().unwrap().fills = datums[0].placed.as_ref().unwrap().fills.clone();
+    let issues = gdt::symbol_collisions(&datums);
+    assert_eq!(issues.len(), 1, "{issues:?}");
+    assert_eq!(issues[0].code, "datum_symbol_overlap");
+    assert_eq!(issues[0].severity, "error");
+    assert!(datums.iter().all(|g| issues[0].subjects.contains(&g.id)));
+}

@@ -4437,7 +4437,8 @@ pub(crate) fn collisions_cached(
                     && views.iter().find(|v| v.id == d.view).is_some_and(|v| {
                         interior_proofs.get(&v.id).is_some_and(|proof| {
                             proof.blank(v, lb)
-                                || (d.measurements.iter().any(|m| m.parameter == "notch.angle")
+                                || ((d.id.starts_with("pmi:datum.")
+                                    || d.measurements.iter().any(|m| m.parameter == "notch.angle"))
                                     && proof.exterior_annotation_clear(v, p))
                         })
                     }))

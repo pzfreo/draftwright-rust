@@ -277,7 +277,10 @@ fn build_camera(
         })
         .filter(|face| !face.chords.is_empty())
         .collect();
-    if faces.is_empty() {
+    // An entirely turned part has no plane square to a side view, but its
+    // curved-face covers still prove exterior paper. `blank` continues to
+    // require a containing planar face for every interior label.
+    if exterior_faces.is_empty() && ink.curved.is_empty() {
         return None;
     }
     let mut boxes = Vec::new();
@@ -464,8 +467,20 @@ impl Proof {
     /// with the same ink margins as face-interior labels. Curved faces use their
     /// full bounds (including end-on cylinders), so this fails closed near them.
     pub(super) fn exterior_annotation_clear(&self, v: &PlannedView, p: &Placed) -> bool {
-        let lo = self.model_point(v, [p.label_box[0], p.label_box[1]]);
-        let hi = self.model_point(v, [p.label_box[2], p.label_box[3]]);
+        self.exterior_clear(v, p.label_box, &p.lines, &p.arrows)
+    }
+
+    /// Prove annotation ink on exterior paper within the view's overall bounds.
+    /// Shared by compact datum placement and collision reporting.
+    pub(super) fn exterior_clear(
+        &self,
+        v: &PlannedView,
+        label: [f64; 4],
+        lines: &[[P2; 2]],
+        arrows: &[[P2; 2]],
+    ) -> bool {
+        let lo = self.model_point(v, [label[0], label[1]]);
+        let hi = self.model_point(v, [label[2], label[3]]);
         let b = [lo[0], lo[1], hi[0], hi[1]];
         let c = 0.5 / v.scale + SLACK;
         let middle = [(b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0];
@@ -488,8 +503,8 @@ impl Proof {
                         % 2
                         == 0
             })
-            && p.lines.iter().all(|s| self.segment_clear(v, *s, false))
-            && p.arrows.iter().all(|s| self.arrow_clear(v, *s, false))
+            && lines.iter().all(|s| self.segment_clear(v, *s, false))
+            && arrows.iter().all(|s| self.arrow_clear(v, *s, false))
     }
 
     /// A visible profile attachment and its complete exterior ink. Unlike an
@@ -1111,6 +1126,44 @@ mod tests {
 
     fn proof(ink: &EdgeInk) -> Proof {
         build(ink, &view(), [0., 0.]).unwrap()
+    }
+
+    #[test]
+    fn a_turned_part_proves_exterior_paper_without_a_planar_interior() {
+        let mut ink = EdgeInk {
+            references: Default::default(),
+            edges: vec![],
+            planes: vec![],
+            curved: vec![CurvedFace {
+                bounds: [[0.0, -5.0, -5.0], [20.0, 5.0, 5.0]],
+                cylinder: Some(Cylinder {
+                    origin: [0.0; 3],
+                    axis: [1.0, 0.0, 0.0],
+                    radius: 5.0,
+                }),
+            }],
+        };
+        let v = view();
+        let p = proof(&ink);
+        let label = [3.0, 8.0, 9.0, 14.0];
+        assert!(
+            !p.blank(&v, label),
+            "no planar face can carry an interior label"
+        );
+        assert!(p.exterior_clear(&v, label, &[[[4.0, 6.5], [4.0, 8.0]]], &[]));
+        assert!(
+            !p.exterior_clear(&v, [3.0, -1.0, 9.0, 1.0], &[], &[]),
+            "empty line-work cannot excuse a box inside the cylinder"
+        );
+        assert!(
+            !p.exterior_clear(&v, label, &[[[4.0, -1.0], [4.0, 8.0]]], &[]),
+            "the shaft must also stay off the cylinder's silhouette"
+        );
+        ink.curved.clear();
+        assert!(
+            build(&ink, &v, [0.0; 2]).is_none(),
+            "missing surface evidence fails closed"
+        );
     }
 
     fn semicircle() -> Vec<P2> {
