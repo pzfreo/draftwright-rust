@@ -4,6 +4,17 @@ All notable changes to draftwright-rust are recorded here, in the style of
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixed
+
+- Keep radius leaders on the drawn part of trimmed arcs (quarter-cylinder edges, obround
+  and slot-pattern ends) instead of the full construction circle.
+- Prefer perpendicular location witnesses on either side and finite-gap witnesses before
+  any oblique fallback; a fallback uses parallel 30° witnesses clear of material and other
+  dimensions. On the 30 quality parts oblique witnesses fall from 16 dimensions to none.
+- Lint radius-leader targets on circular steps and slot ends, and oblique witness ink.
+
 ## 0.1.0-alpha.5 (2026-10-18)
 
 ### Added
