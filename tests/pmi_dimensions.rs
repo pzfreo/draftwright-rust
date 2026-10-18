@@ -1439,7 +1439,7 @@ fn grm03_draws_all_ten_derived_dimensions_with_their_requirements_once() {
             1
         );
         if id == 914 {
-            assert!(d.label.contains("10 MAX"), "{}", d.label);
+            assert_eq!(d.label, "ø10 MAX SEE MFG 2");
         }
         if r.upper_tol.is_some() || r.lower_tol.is_some() {
             assert!(
@@ -1565,21 +1565,26 @@ fn derived_requirements_preserve_tolerance_bands_on_owned_and_standalone_dimensi
         r.lower_tol = Some(-0.01);
         r.label = label.into();
     }
-    let plan = model::plan(&a, &Spec::default()).unwrap();
-    for id in [841, 1040, 914] {
-        let r = records(&a).iter().find(|r| r.part21_id == id).unwrap();
-        let d = stating(&plan, &a, r).unwrap();
-        assert!(d.placed.is_some(), "{d:?}");
-        assert!(
-            d.label.contains("+0.02") && d.label.contains("-0.01"),
-            "{d:?}"
-        );
-        if id == 914 {
-            assert!(d.label.contains(" MAX"), "{d:?}");
+    for style in ["auto", "note", "compact", "full"] {
+        let spec = serde_json::from_value(serde_json::json!({
+            "sheet": {"callouts": {"style": style}}
+        }))
+        .unwrap();
+        let plan = model::plan(&a, &spec).unwrap();
+        for id in [841, 1040, 914] {
+            let r = records(&a).iter().find(|r| r.part21_id == id).unwrap();
+            let d = stating(&plan, &a, r).unwrap();
+            assert!(d.placed.is_some(), "{style}: {d:?}");
             assert!(
-                d.label.find(" MAX").unwrap() < d.label.find(" SEE").unwrap(),
-                "{d:?}"
+                d.label.contains("+0.02") && d.label.contains("-0.01"),
+                "{style}: {d:?}"
             );
+            if id == 914 {
+                assert!(d.label.contains(" MAX"), "{style}: {d:?}");
+                if let Some(see) = d.label.find(" SEE") {
+                    assert!(d.label.find(" MAX").unwrap() < see, "{style}: {d:?}");
+                }
+            }
         }
     }
     // An incomplete chain must not hand its remaining source lengths to the hidden
