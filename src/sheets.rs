@@ -319,6 +319,71 @@ thread_local! {
 
 fn run(analysis: &Analysis, spec: &Spec, minimum: Option<f64>) -> Result<Plan, Invalid> {
     RUNS.with(|runs| runs.set(runs.get() + 1));
+    // A short material declaration lives entirely inside the reserved title cell.
+    // Reuse the same pure main solve across those edits, then restore the actual
+    // title before allocation, scoring and rendering. PMI material precedence and
+    // overflowing text take the complete ordinary path instead.
+    if let Some(material) = spec.sheet.title.get("material")
+        && !matches!(&analysis.pmi, Some(crate::pmi::Reading::Read(r)) if r.title_material().is_some())
+    {
+        let [w, h] = crate::title_block::measure(material);
+        if w <= 0.35 * layout::title_block_width(297.0) && h <= crate::title_block::ROW_H {
+            let mut prepared = spec.clone();
+            prepared.sheet.title.remove("material");
+            let mut plan = run_prepared(analysis, &prepared, minimum)?;
+            if material_in_reserved_cells(&mut plan, material) {
+                return Ok(plan);
+            }
+            // A nonstandard reserved cell can refuse reuse. Count the second
+            // real main solve when falling back, just as allocation prefixes do.
+            RUNS.with(|runs| runs.set(runs.get() + 1));
+        }
+    }
+    run_prepared(analysis, spec, minimum)
+}
+
+// Refuse reuse unless the real text fits every actual sheet cell. No problem,
+// status or source-material finding is removed to qualify a cached main solve.
+fn material_in_reserved_cells(plan: &mut Plan, material: &str) -> bool {
+    let trimmed = material.trim();
+    let value = (!trimmed.is_empty()).then(|| trimmed.to_string());
+    let fits = std::iter::once(&plan.sheet)
+        .chain(&plan.sheets)
+        .all(|sheet| {
+            sheet
+                .title_cells
+                .iter()
+                .find(|c| c.field == "material")
+                .is_some_and(|cell| {
+                    let mut cell = cell.clone();
+                    cell.value = value.clone();
+                    crate::title_block::problems(&[cell], sheet.page).is_empty()
+                })
+        });
+    if !fits {
+        return false;
+    }
+    plan.spec
+        .sheet
+        .title
+        .insert("material".into(), material.into());
+    for sheet in std::iter::once(&mut plan.sheet).chain(&mut plan.sheets) {
+        sheet.title.insert("material".into(), material.into());
+        for cell in sheet
+            .title_cells
+            .iter_mut()
+            .filter(|c| c.field == "material")
+        {
+            cell.value = value.clone();
+        }
+    }
+    if let Some(restore) = &mut plan.table_restore {
+        return material_in_reserved_cells(restore, material);
+    }
+    true
+}
+
+fn run_prepared(analysis: &Analysis, spec: &Spec, minimum: Option<f64>) -> Result<Plan, Invalid> {
     crate::planning::with(analysis, || {
         if let Some(minimum) = minimum {
             // R5 capacity constrains auxiliary packing, not the layout of an
@@ -1787,6 +1852,47 @@ pub(crate) fn overlap(a: [f64; 4], b: [f64; 4]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn material_reuse_matches_the_complete_main_solve_including_overflow() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/parts/prismatic.step");
+        let (_, analysis) = model::analyse_native(&path).unwrap();
+        for material in [
+            "Steel".into(),
+            "R5 0".into(),
+            "  Steel  ".into(),
+            " \n ".into(),
+            String::new(),
+            "W".repeat(100),
+        ] {
+            let spec: Spec = serde_json::from_value(json!({
+                "sheet": {"size": "A4", "scale": "1:1", "title": {"material": material}}
+            }))
+            .unwrap();
+            let expected = run_prepared(&analysis, &spec, None).unwrap();
+            let actual = run(&analysis, &spec, None).unwrap();
+            assert_eq!(
+                serde_json::to_value(&actual).unwrap(),
+                serde_json::to_value(&expected).unwrap()
+            );
+            assert_eq!(actual.sheet.title.get("material"), Some(&material));
+            if material.len() == 100 {
+                assert!(
+                    actual
+                        .problems
+                        .iter()
+                        .any(|p| p.code == "title_field_overflow")
+                );
+                assert!(
+                    actual
+                        .problems
+                        .iter()
+                        .any(|p| p.code == "annotation_off_sheet")
+                );
+            }
+        }
+    }
 
     #[test]
     fn only_an_identical_source_pmi_refusal_survives_paper_rescue() {
