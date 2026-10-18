@@ -604,7 +604,7 @@ fn planned_uncached(stem: &str) -> (draftwright::haecceity::Part, Analysis, Plan
 pmi_cases!(every_record_and_source_is_drawn_or_reported);
 fn every_record_and_source_is_drawn_or_reported(only: &str) {
     for (file, _, bytes) in inputs(only).into_iter().filter(|(file, _, _)| file == only) {
-        let (_, a) = analysed(&file, &bytes);
+        let (part, a) = analysed(&file, &bytes);
         let plan = cache::default_plan(&a, false);
         let Some(Reading::Read(report)) = &a.pmi else {
             panic!("{file}: its PMI is read");
@@ -671,14 +671,31 @@ fn every_record_and_source_is_drawn_or_reported(only: &str) {
                 _ => {}
             }
         }
+        let drawing = std::cell::OnceCell::new();
         for s in report
             .sources
             .iter()
             .filter(|s| s.outcome == draftwright::pmi::Outcome::NotExtracted)
         {
+            // A title-block material is drawn outside the frame/symbol inventory. Check the
+            // rendered claim so the census still accounts for every source exactly once.
+            let drawn = s.id.starts_with("material:") && {
+                let drawing = drawing.get_or_init(|| {
+                    let font = draftwright::text::Font::open(
+                        &root().join("fonts").join(draftwright::dims::FONT),
+                    )
+                    .unwrap();
+                    model::render(&part, &a, &plan, &font).unwrap()
+                });
+                drawing
+                    .annotations
+                    .iter()
+                    .any(|n| n.name.strip_prefix("pmi:") == Some(s.id.as_str()))
+            };
+            let reported = named("pmi_not_extracted", &s.id);
             assert!(
-                named("pmi_not_extracted", &s.id),
-                "{file}: {} reported",
+                drawn != reported,
+                "{file}: {} is drawn ({drawn}) or reported ({reported}), not both",
                 s.id
             );
         }

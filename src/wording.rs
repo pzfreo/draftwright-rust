@@ -8,13 +8,6 @@ use crate::bridge::Feature;
 use crate::dims::fmt;
 use crate::model::Analysis;
 
-/// Reader names belong in structured diagnostics, while the message explains the limitation.
-pub(crate) fn reader_reason(reason: &str) -> String {
-    reason
-        .replace(" (haecceity reads it without one)", "")
-        .replace("haecceity", "the STEP reader")
-}
-
 /// *s* to start a sentence with: its first letter a capital, or, for a label that starts with a
 /// number or symbol (`30.1`, `⌀8 THRU`), `The dimension` before it.
 pub fn capital(s: &str) -> String {

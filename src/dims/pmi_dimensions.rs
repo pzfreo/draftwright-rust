@@ -754,7 +754,7 @@ fn refusal(r: &Record, code: &str, why: &str) -> Problem {
             } else {
                 &r.label
             },
-            crate::wording::reader_reason(why)
+            crate::pmi::reader_reason(why)
         ),
         subjects: Vec::new(),
         refs,

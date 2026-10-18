@@ -138,7 +138,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 Severity::Error,
                 format!(
                     "STEP annotations could not be read: {}. Add the requirements to the Spec and review them manually.",
-                    crate::wording::reader_reason(why)
+                    crate::pmi::reader_reason(why)
                 ),
             );
             finding.evidence = Some(why.clone());
@@ -235,7 +235,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             severity,
             format!(
                 "AP242 source {id} did not produce a drawing item: {}",
-                crate::wording::reader_reason(&reason)
+                crate::pmi::reader_reason(&reason)
             ),
         );
         finding.evidence = Some(reason);

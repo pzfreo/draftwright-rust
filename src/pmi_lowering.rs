@@ -244,7 +244,7 @@ fn lower_uncached(
                             "PMI {} ({}) is not drawn: {}.",
                             r.source_id,
                             r.label,
-                            crate::wording::reader_reason(&reasons.join("; "))
+                            crate::pmi::reader_reason(&reasons.join("; "))
                         ),
                         subjects: Vec::new(),
                         refs: std::iter::once(r.source_id.clone())
@@ -269,7 +269,7 @@ fn lower_uncached(
                             "PMI surface finish {} ({}) is not drawn: {}.",
                             r.source_id,
                             r.label,
-                            crate::wording::reader_reason(&reasons.join("; "))
+                            crate::pmi::reader_reason(&reasons.join("; "))
                         ),
                         subjects: Vec::new(),
                         refs: std::iter::once(r.source_id.clone())
@@ -382,7 +382,7 @@ fn labelled(
                 r.kind.replace('_', " "),
                 r.source_id,
                 r.label,
-                crate::wording::reader_reason(&reasons.join("; "))
+                crate::pmi::reader_reason(&reasons.join("; "))
             ),
             subjects: Vec::new(),
             refs: std::iter::once(r.source_id.clone())
@@ -589,7 +589,7 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
                 r.kind.replace('_', " "),
                 r.source_id,
                 r.label,
-                crate::wording::reader_reason(why)
+                crate::pmi::reader_reason(why)
             ),
             subjects: Vec::new(),
             refs: vec![r.source_id.clone(), why.to_string()],
@@ -3332,7 +3332,7 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
                     r.kind.replace('_', " "),
                     r.source_id,
                     r.label,
-                    crate::wording::reader_reason(&why)
+                    crate::pmi::reader_reason(&why)
                 ),
                 subjects: Vec::new(),
                 refs: vec![r.source_id.clone(), why],
