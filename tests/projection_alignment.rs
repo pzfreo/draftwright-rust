@@ -44,13 +44,18 @@ fn legacy_alignments_plan_byte_identically() {
         if align != "none" {
             value["views"] = json!({"plan":{"place":{"relative_to":"front","side":"above","gap":15,"align":align,"pinned":true}}});
         }
-        // Floats are rounded to 0.01 mm so libm differences between platforms do not count.
-        let bytes = serde_json::to_vec(&rounded(serde_json::to_value(planned(&a, value)).unwrap()))
-            .unwrap();
+        // Floats are rounded to 0.01 mm and the analysis hash is dropped, so platform
+        // floating-point differences (libm, analysis bytes) do not count.
+        let mut plan = serde_json::to_value(planned(&a, value)).unwrap();
+        plan.as_object_mut().unwrap().remove("analysis_sha256");
+        let bytes = serde_json::to_vec(&rounded(plan)).unwrap();
         let hash: String = Sha256::digest(&bytes)
             .iter()
             .map(|b| format!("{b:02x}"))
             .collect();
+        if hash != fields[2] {
+            eprintln!("{}", String::from_utf8_lossy(&bytes));
+        }
         assert_eq!(hash, fields[2], "sheets={sheets}, align={align}");
     }
 }
