@@ -848,6 +848,7 @@ fn table_obstacles(analysis: &Analysis, plan: &Plan, dims: &[PlannedDimension]) 
     out.extend(
         plan.tables
             .iter()
+            .chain(plan.radius_table.iter().map(|t| &t.table))
             .filter(|t| t.sheet == plan.sheet.number)
             .filter_map(|t| t.placed.as_ref().map(|p| p.cells)),
     );
@@ -959,6 +960,7 @@ fn fixed_obstacles(
     out.extend(
         plan.tables
             .iter()
+            .chain(plan.radius_table.iter().map(|t| &t.table))
             .filter(|t| t.sheet == plan.sheet.number)
             .filter_map(|t| t.placed.as_ref().map(|p| p.cells)),
     );
