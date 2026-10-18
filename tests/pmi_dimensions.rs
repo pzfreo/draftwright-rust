@@ -569,10 +569,14 @@ fn the_open_questions_stay_refused(stem: &str) {
         let p = plan
             .problems
             .iter()
-            .find(|p| p.code == "pmi_not_lowered" && p.refs == [r.source_id.clone()])
+            .find(|p| p.code == "pmi_not_lowered" && p.refs.first() == Some(&r.source_id))
             .unwrap();
         assert!(
-            p.message.contains("open question for the maintainer"),
+            p.message
+                .contains("add the required dimension in the Spec and review it manually")
+                && p.refs
+                    .iter()
+                    .any(|r| r.contains("open question for the maintainer")),
             "{}",
             p.message
         );
@@ -630,9 +634,15 @@ fn a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins() {
         "{}",
         c.basis
     );
-    assert!(edited.problems.iter().any(|p| p.code == "pmi_not_lowered"
-        && p.refs.contains(&source)
-        && p.message.contains("wins over an imported one")));
+    assert!(edited.problems.iter().any(|p| {
+        p.code == "pmi_not_lowered"
+            && p.refs.contains(&source)
+            && p.message
+                .contains("Remove the Spec override to use the STEP tolerance")
+            && p.refs
+                .iter()
+                .any(|r| r.contains("lower_ap242_hole_tolerances"))
+    }));
 
     // A fit on every hole wins the same way, and only the fit is printed.
     let holes: Vec<String> = callout
@@ -664,14 +674,15 @@ fn a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins() {
     assert!(problems.iter().any(|p| p.code == "pmi_not_lowered"
         && p.refs.contains(&source)
         && p.message.contains("its own fit")
-        && !p.message.contains("withheld")));
+        && !p.message.contains("cannot be printed")));
     // A fit on some of them is withheld: the label states neither, and the report says so.
     let (c, problems) = fitted(&holes[..1]);
     assert_eq!(c.label, "6× ⌀10 THRU EQ SP ON ø90 BC");
     assert!(problems.iter().any(|p| p.code == "tolerance_withheld"));
     assert!(problems.iter().any(|p| p.code == "pmi_not_lowered"
         && p.refs.contains(&source)
-        && p.message.contains("withheld")));
+        && p.message.contains("cannot be printed")
+        && p.refs.contains(&"tolerance_withheld".into())));
 }
 
 #[test]
@@ -1028,7 +1039,7 @@ fn what_the_faces_do_not_prove_is_reported_not_guessed() {
     let reason = |plan: &Plan| {
         plan.problems
             .iter()
-            .find(|p| p.refs == [source.clone()])
+            .find(|p| p.refs.first() == Some(&source))
             .map(|p| (p.code.clone(), p.message.clone()))
             .unwrap()
     };

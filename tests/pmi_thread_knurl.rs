@@ -410,8 +410,11 @@ fn a_diagonal_turned_knurl_is_reported_not_drawn() {
     let plan = model::plan(&a, &Spec::default()).unwrap();
     assert!(
         plan.problems.iter().any(|p| p.code == "pmi_not_extracted"
-            && p.message.contains("knurl:0:0 (turned_knurl)")
-            && p.message.contains("not projected")),
+            && p.message.contains("A STEP knurl is not drawn")
+            && p.message.contains("Add the requirement to the Spec")
+            && p.refs.contains(&"knurl:0:0".into())
+            && p.refs.contains(&"turned_knurl".into())
+            && p.refs.iter().any(|r| r.contains("not projected"))),
         "{:#?}",
         plan.problems
     );

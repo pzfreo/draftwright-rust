@@ -727,10 +727,16 @@ pub(super) fn lower(cx: &Context, wants: &mut [Want]) -> Lowered {
 
 fn refusal(r: &Record, code: &str, why: &str) -> Problem {
     let open = if why.contains("supplemental geometry") || why.contains("stated without limits") {
-        " (an open question for the maintainer: it stays undrawn until it is decided)"
+        "; add the required dimension in the Spec and review it manually"
     } else {
         ""
     };
+    let mut refs = vec![r.source_id.clone(), why.to_string()];
+    if !open.is_empty() {
+        refs.push(
+            "an open question for the maintainer: it stays undrawn until it is decided".into(),
+        );
+    }
     Problem {
         id: format!("p:{code}:{}", r.source_id),
         code: code.into(),
@@ -741,16 +747,17 @@ fn refusal(r: &Record, code: &str, why: &str) -> Problem {
         }
         .into(),
         message: format!(
-            "PMI dimension {} ({}) is not drawn: {why}{open}.",
+            "PMI dimension {} ({}) is not drawn: {}{open}.",
             r.source_id,
             if r.label.is_empty() {
                 &r.kind
             } else {
                 &r.label
-            }
+            },
+            crate::pmi::reader_reason(why)
         ),
         subjects: Vec::new(),
-        refs: vec![r.source_id.clone()],
+        refs,
         ..Default::default()
     }
 }
@@ -1130,21 +1137,23 @@ pub(super) fn yield_to_spec(
         let label = if printed {
             String::new()
         } else {
-            format!(
-                "; the spec's {what} is withheld (tolerance_withheld), so the label states no tolerance"
-            )
+            format!("; the Spec's {what} cannot be printed, so the label states no tolerance")
         };
         for s in &note.banded {
+            let mut refs = vec![s.clone(), "draftwright lower_ap242_hole_tolerances".into()];
+            if !printed {
+                refs.push("tolerance_withheld".into());
+            }
             problems.push(Problem {
                 id: format!("p:pmi_not_lowered:{s}"),
                 code: "pmi_not_lowered".into(),
                 severity: "error".into(),
                 message: format!(
-                    "PMI dimension {s} ({band} on {}) is not drawn: the spec gives that size its own {what}, and a requirement already authored on a size wins over an imported one (draftwright's lower_ap242_hole_tolerances){label}.",
+                    "The STEP tolerance {band} on {} is not drawn because the Spec supplies its own {what}{label}. Remove the Spec override to use the STEP tolerance.",
                     super::wording_of(w)
                 ),
                 subjects: vec![w.id.clone()],
-                refs: vec![s.clone()],
+                refs,
                 ..Default::default()
             });
         }

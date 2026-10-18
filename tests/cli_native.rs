@@ -12,7 +12,7 @@ use std::process::Command;
 use draftwright::api::{self, Features};
 use draftwright::bridge::native;
 use draftwright::model::{self, ANALYSIS_SCHEMA, NOT_IN_NATIVE_DOCUMENT};
-use serde_json::Value;
+use serde_json::{Value, json};
 
 const FIXTURES: [&str; 5] = ["boss_circle", "plate", "prismatic", "turned", "two_grids"];
 
@@ -107,10 +107,20 @@ fn without_features_the_command_line_recognises_with_rust_quiddity() {
         assert_eq!(warning.is_some(), !unrecognised(&a).is_empty(), "{name}");
         if let Some(p) = warning {
             assert_eq!(p["severity"], "warning");
-            assert_eq!(p["refs"], serde_json::to_value(unrecognised(&a)).unwrap());
+            let refs = p["refs"].as_array().unwrap();
+            for family in unrecognised(&a) {
+                assert!(refs.contains(&json!(family)), "{name}: {p}");
+            }
+            assert!(refs.contains(&json!(recogniser(&a))), "{name}: {p}");
             assert!(
-                p["message"].as_str().unwrap().contains(recogniser(&a)),
+                !p["message"].as_str().unwrap().contains(recogniser(&a)),
                 "{name}: {p}"
+            );
+            assert!(
+                p["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains("feature_declarations")
             );
         }
     }
@@ -285,7 +295,11 @@ fn corpus_parts_render_natively_naming_what_is_not_recognised() {
         let warning = not_recognised(&r["problems"]);
         assert_eq!(warning.is_some(), !expected.is_empty(), "{name}");
         if let Some(p) = warning {
-            assert_eq!(p["refs"], serde_json::to_value(&expected).unwrap());
+            let refs = p["refs"].as_array().unwrap();
+            for family in &expected {
+                assert!(refs.contains(&json!(family)), "{name}: {p}");
+            }
+            assert!(refs.contains(&a["recognition"]["recogniser"]));
         }
 
         // With Python's JSON, its own features and no such problem.

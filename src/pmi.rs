@@ -2298,6 +2298,13 @@ impl PartReader<'_> {
 /// The reason prefix of a record whose face, edge or reference does not resolve: not read.
 const UNRESOLVED: &str = "unresolved";
 
+/// Reader names belong in structured diagnostics, while the message explains the limitation.
+pub(crate) fn reader_reason(reason: &str) -> String {
+    reason
+        .replace(" (haecceity reads it without one)", "")
+        .replace("haecceity", "the STEP reader")
+}
+
 /// The reason of an item read but not projected.
 const NOT_PROJECTED: &str = "read by haecceity; not projected to a draftwright record (the port \
                              projects dimensions, geometric tolerances, datums, manufacturing \

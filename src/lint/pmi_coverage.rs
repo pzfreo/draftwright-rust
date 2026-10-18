@@ -132,12 +132,17 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let report = match &analysis.pmi {
         Some(Reading::Read(r)) => r,
         Some(Reading::Refused(why)) => {
-            let mut out = vec![issue(
+            let mut finding = issue(
                 "pmi_not_extracted",
                 "part",
                 Severity::Error,
-                format!("AP242 PMI could not be inventoried: {why}"),
-            )];
+                format!(
+                    "STEP annotations could not be read: {}. Add the requirements to the Spec and review them manually.",
+                    crate::pmi::reader_reason(why)
+                ),
+            );
+            finding.evidence = Some(why.clone());
+            let mut out = vec![finding];
             out.extend(unreconciled(&on_sheet));
             return out;
         }
@@ -157,17 +162,25 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         } else {
             Severity::Error
         };
-        out.push(sourced(
+        let mut finding = sourced(
             "pmi_not_extracted",
             &s.id,
             severity,
             format!(
-                "AP242 {} {} was discovered but not extracted: {}",
-                category_name(s.category),
-                s.id,
-                s.reason
+                "A STEP {} annotation is not fully represented on the drawing. Add the requirement to the Spec and review it manually.",
+                s.id.split(':')
+                    .next()
+                    .unwrap_or("unknown")
+                    .replace('_', " ")
             ),
+        );
+        finding.evidence = Some(format!(
+            "AP242 {} {} was discovered but not extracted: {}",
+            category_name(s.category),
+            s.id,
+            s.reason
         ));
+        out.push(finding);
     }
     // Lowering does not depend on which views are drawn, only where an item goes. A drawing-wide
     // requirement lowers to the sheet (the title block, the finish symbol, a general note).
@@ -216,12 +229,17 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         } else {
             Severity::Error
         };
-        out.push(sourced(
+        let mut finding = sourced(
             "pmi_not_lowered",
             id,
             severity,
-            format!("AP242 source {id} did not produce a drawing item: {reason}"),
-        ));
+            format!(
+                "AP242 source {id} did not produce a drawing item: {}",
+                crate::pmi::reader_reason(&reason)
+            ),
+        );
+        finding.evidence = Some(reason);
+        out.push(finding);
     }
     for r in &report.records {
         let id = r.source_id.as_str();

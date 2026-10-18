@@ -214,7 +214,14 @@ fn m6_on_the_plate_hole_pattern_prints_on_its_callout() {
     let refused = problems(&plan, "pmi_not_lowered");
     assert_eq!(refused.len(), 1, "{:?}", plan.problems);
     assert_eq!(refused[0].severity, "error");
-    assert_eq!(refused[0].refs, ["spec:features/f:hole:1/thread"]);
+    assert_eq!(
+        refused[0].refs.first().map(String::as_str),
+        Some("spec:features/f:hole:1/thread")
+    );
+    assert!(
+        refused[0].refs.len() > 1,
+        "the original refusal diagnostic is retained"
+    );
     assert!(
         refused[0]
             .message

@@ -6,14 +6,37 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Added
+
+- Pin a projected view's gap with `views/<name>/place/align: "projection"` while keeping
+  geometry on its projection line despite asymmetric dimension bands. Valid front/plan
+  and front/side pairs offer it first in `item_options`; other pairs refuse it with choices.
+
 ### Fixed
 
+- Default drawing numbers to a leading part-number token in the STEP product name, then
+  the file stem (including numeric names such as `10000`), before `DWG-001`. Explicit Spec
+  numbers, including blanks, win; readable titles retain the part number (#103).
+- Cover the tester's original GRM-03 AP242 material (`CZ121 / CW614N / CuZn39Pb3`)
+  through reading, title-block rendering and coverage lint. Its CAx-IF property already
+  projects on main; #108's warning fix applies without a new reader or kernel change (#101).
 - Keep radius leaders on the drawn part of trimmed arcs (quarter-cylinder edges, obround
   and slot-pattern ends) instead of the full construction circle.
 - Prefer perpendicular location witnesses on either side and finite-gap witnesses before
   any oblique fallback; a fallback uses parallel 30° witnesses clear of material and other
   dimensions. On the 30 quality parts oblique witnesses fall from 16 dimensions to none.
 - Lint radius-leader targets on circular steps and slot ends, and oblique witness ink.
+- Stop reporting a STEP material as undrawn when the title block states it; retain the
+  warning when a blank or conflicting Spec material replaces it.
+- Describe missed feature recognition and unsupported STEP annotations in drawing language,
+  with Spec remedies; retain tool/version and reader diagnostics in structured references.
+- Prefer meaningful STEP product names for default titles, otherwise print readable file
+  stems with spaces. Explicit Spec titles, including blanks, keep precedence.
+- Explain that hole tables require X/Y locations from a datum corner and recommend the
+  retained individual dimensions when those locations are absent.
+- Clarify that view placement gaps measure between annotation bands, not part outlines,
+  in the Spec schema, MCP item options and documentation. Tools/list stays at 34,477
+  compact schema bytes.
 
 ## 0.1.0-alpha.5 (2026-10-18)
 

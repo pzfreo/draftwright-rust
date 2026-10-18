@@ -1,0 +1,4 @@
+[
+  {"id":"v:front","direction":[0,-1,0],"up":[0,0,1],"at":[80,103.41],"area":[17.82,86.41,142,120.59],"scale":1,"default":true,"basis":"issue #109","state":{"kind":"shown"}},
+  {"id":"v:plan","direction":[0,0,1],"up":[0,1,0],"at":[80,168.59],"area":[16.87,130.59,224.751,282.47],"scale":1,"default":true,"basis":"issue #109","state":{"kind":"shown"}}
+]

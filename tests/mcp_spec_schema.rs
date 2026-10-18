@@ -30,6 +30,10 @@ fn discovery() -> Value {
 #[test]
 fn schema_discovery_needs_no_part_or_cache_and_refuses_arguments() {
     let result = discovery();
+    let gap = result["spec"]["$defs"]["view_place"]["properties"]["gap"]["description"]
+        .as_str()
+        .unwrap();
+    assert!(gap.contains("annotation bands") && gap.contains("not their part outlines"));
     assert_eq!(
         result["spec"]["properties"]["iso_scale_factor"]["anyOf"][0]["type"],
         "number"

@@ -92,6 +92,13 @@ pub struct FilePart {
 pub struct Analysis {
     pub schema: String,
     pub binding: Binding,
+    /// STEP product name for the single part or selected assembly member. Older analyses
+    /// omit it and use the binding's file stem for the default drawing title.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub product_name: Option<String>,
+    /// Source file stem when an assembly selection makes `binding.part` the product name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_stem: Option<String>,
     /// The part's box in its own frame, mm.
     pub envelope: [[f64; 3]; 2],
     /// Absent in older analyses; several solids make completeness findings informational.
@@ -691,7 +698,8 @@ pub struct Problem {
     /// What else it names that is no item of the plan or feature of the Analysis: a PMI
     /// record's source (its Part 21 provenance, `geometric_tolerance:#123`), a source not read,
     /// a family the recogniser does not give, a view the plan does not draw, a spec entry not
-    /// applied. Pinned leader crossings also repeat the callout ID as pin provenance.
+    /// applied. Tool/version provenance and original reader diagnostics also live here.
+    /// Pinned leader crossings repeat the callout ID as pin provenance.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub refs: Vec<String>,
     /// The edit that resolves it, as [`edit`] takes it, where there is one.
@@ -1018,6 +1026,13 @@ fn analyse_step_input(
             loader: LOADER.into(),
             part_index: chosen,
         },
+        product_name: defs.as_ref().ok().and_then(|defs| {
+            chosen
+                .or_else(|| (defs.len() == 1).then_some(0))
+                .and_then(|i| defs.get(i))
+                .map(|d| d.name.clone())
+        }),
+        source_stem: chosen.map(|_| stem),
         envelope: [b.min, b.max],
         solid_count: Some(part.solids.len()),
         stock_faces: (0..part.faces.len())
@@ -3156,7 +3171,7 @@ fn plan_escalated_uncached(
                 && p.dimensions.iter().any(|d| d.measurements.iter().any(|m| m.parameter == "bore.diameter")) {
                 // About the holes, not the sheet (#25): its subjects are the hole callouts kept.
                 let callouts = p.dimensions.iter().filter(|d| d.measurements.iter().any(|m| m.parameter == "bore.diameter")).map(|d| d.id.clone()).collect();
-                p.problems.push(Problem { id:"p:hole_table_unavailable:sheet".into(), code:"hole_table_unavailable".into(), severity:"warning".into(), message:"A hole table was requested, but no eligible holes have a proven datum corner in a carrying view; the original dimensions are kept.".into(), subjects:callouts, ..Default::default() });
+                p.problems.push(Problem { id:"p:hole_table_unavailable:sheet".into(), code:"hole_table_unavailable".into(), severity:"warning".into(), message:"A hole table needs holes located in X and Y from a datum corner. This part has no holes located that way; use the individual hole dimensions shown instead.".into(), subjects:callouts, ..Default::default() });
             }
             if !selection.tables.is_empty() {
                 let mut scheduled =
@@ -3620,32 +3635,68 @@ fn plan_with_presentation(
         });
     }
     if !analysis.unrecognised.is_empty() {
-        let named = analysis
+        let mut known = Vec::new();
+        let mut unknown = Vec::new();
+        for u in &analysis.unrecognised {
+            let family = u.family.replace('_', " ");
+            match u.records {
+                Some(n) => {
+                    let name = if n == 1 {
+                        if let Some(stem) = family.strip_suffix("ies") {
+                            format!("{stem}y")
+                        } else if family.ends_with("sses") {
+                            family.trim_end_matches("es").to_string()
+                        } else {
+                            family.strip_suffix('s').unwrap_or(&family).to_string()
+                        }
+                    } else {
+                        family.clone()
+                    };
+                    known.push(format!("{n} {name}"));
+                }
+                None => unknown.push(family),
+            }
+        }
+        let mut message = String::new();
+        if !known.is_empty() {
+            let consequence = if analysis
+                .unrecognised
+                .iter()
+                .filter_map(|u| u.records)
+                .eq([1])
+            {
+                "This feature is"
+            } else {
+                "These features are"
+            };
+            message = format!(
+                "Unrecognised features on this part: {}. {consequence} not dimensioned, sectioned or checked. ",
+                known.join(", ")
+            );
+        }
+        if !unknown.is_empty() {
+            message += &format!(
+                "Recognition does not cover {}; whether this part has any is unknown. ",
+                unknown.join(", ")
+            );
+        }
+        message += "If a missed feature matches a supported type, declare it in the Spec's feature_declarations using its face fingerprints. Otherwise, add the required dimensions and review it manually.";
+        let mut refs: Vec<String> = analysis
             .unrecognised
             .iter()
-            .map(|u| match u.records {
-                Some(n) => format!("{} ({n} on this part)", u.family),
-                None => format!("{} (not in its document)", u.family),
-            })
-            .collect::<Vec<_>>();
-        let recogniser = analysis
-            .recognition
-            .as_ref()
-            .map_or("the recogniser", |r| r.recogniser.as_str());
+            .map(|u| u.family.clone())
+            .collect();
+        if let Some(r) = &analysis.recognition {
+            refs.push(r.recogniser.clone());
+        }
+        refs.push("Python quiddity's recognition (tools/recognise.py) gives these families".into());
         problems.push(Problem {
             id: "p:features_not_recognised:part".into(),
             code: "features_not_recognised".into(),
             severity: "warning".into(),
-            message: format!(
-                "The features come from {recogniser}, which does not give these families: {}. Features of them are not dimensioned, sectioned or linted; Python quiddity's recognition (tools/recognise.py) gives them.",
-                named.join(", ")
-            ),
+            message,
             subjects: Vec::new(),
-            refs: analysis
-                .unrecognised
-                .iter()
-                .map(|u| u.family.clone())
-                .collect(),
+            refs,
             ..Default::default()
         });
     }
@@ -4418,10 +4469,10 @@ fn plan_with_presentation(
     let mut title = spec.sheet.title.clone();
     title
         .entry("title".into())
-        .or_insert_with(|| analysis.binding.part.to_uppercase());
+        .or_insert_with(|| crate::title_block::default_title(analysis));
     title
         .entry("number".into())
-        .or_insert_with(|| "DWG-001".into());
+        .or_insert_with(|| crate::title_block::default_number(analysis));
     // The file's one usable material, unless the spec states one, even blank (draftwright's
     // `_resolve_title_document_defaults`).
     if let Some(crate::pmi::Reading::Read(r)) = &analysis.pmi
@@ -5602,6 +5653,35 @@ fn plan_with_presentation(
     plan.sheet.fill = crate::sheet_fit::fill(analysis, &plan);
     if let Some((basis, _)) = plan.sheet.basis.rsplit_once("; drawn-item fill ") {
         plan.sheet.basis = format!("{basis}; drawn-item fill {:.1}%", plan.sheet.fill * 100.0);
+    }
+    // PMI placement has now added all source warnings. A material stated in the finished
+    // title block is drawn; retain its census and any real blank/conflicting override warning.
+    if let Some(crate::pmi::Reading::Read(r)) = &analysis.pmi
+        && let Some(m) = r.title_material()
+    {
+        let source = m.census_id();
+        let drawn = plan.sheet.title_cells.iter().any(|cell| {
+            cell.field == "material"
+                && cell
+                    .value
+                    .as_deref()
+                    .is_some_and(|v| v.trim() == m.designation.trim())
+        });
+        if drawn {
+            plan.problems
+                .retain(|p| p.code != "pmi_not_extracted" || p.refs.first() != Some(&source));
+        } else {
+            for p in plan
+                .problems
+                .iter_mut()
+                .filter(|p| p.code == "pmi_not_extracted" && p.refs.first() == Some(&source))
+            {
+                p.message = format!(
+                    "The STEP material {:?} is not stated in the title block because the Spec overrides it. Set sheet/title/material to the STEP material, or review the override.",
+                    m.designation.trim()
+                );
+            }
+        }
     }
     plan.status = crate::completeness::status(&plan.problems);
     if reusable {
