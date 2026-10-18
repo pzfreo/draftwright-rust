@@ -1996,6 +1996,8 @@ pub struct Owned {
     /// How the owner's profile views draw it ([`crate::cosmetic`]): an external thread's
     /// minor diameter or a knurl's band; none for an internal thread.
     pub depiction: Option<Depiction>,
+    requirement: Aspect,
+    presentation_reason: &'static str,
 }
 
 /// Where and what a turned step's thread or knurl is drawn, in the drawing's frame (as
@@ -2033,14 +2035,38 @@ pub struct Manufacturing {
     pub tags: Vec<(String, String)>,
 }
 
+impl Owned {
+    pub(crate) fn presentation_reason(&self) -> &'static str {
+        self.presentation_reason
+    }
+    pub(crate) fn knurl_values(&self) -> Option<(&str, f64, Option<f64>)> {
+        match &self.requirement {
+            Aspect::Knurl(k) => Some((&k.pattern, k.pitch, k.maximum_diameter)),
+            _ => None,
+        }
+    }
+    pub(crate) fn thread(&self) -> Option<&Thread> {
+        match &self.requirement {
+            Aspect::Thread(t) => Some(t),
+            _ => None,
+        }
+    }
+}
+
 impl Manufacturing {
     /// What *o*'s owner's callout prints for it: its suffix, or `SEE MFG n` when the table
     /// states it (`manufacturing_callout_suffix`).
     pub fn printed(&self, o: &Owned) -> String {
-        self.tags
-            .iter()
-            .find(|(s, _)| *s == o.source)
-            .map_or_else(|| o.suffix.clone(), |(_, tag)| format!("SEE {tag}"))
+        self.tags.iter().find(|(s, _)| *s == o.source).map_or_else(
+            || o.suffix.clone(),
+            |(_, tag)| {
+                if o.suffix.contains(&format!("SEE {tag}")) {
+                    o.suffix.clone()
+                } else {
+                    format!("SEE {tag}")
+                }
+            },
+        )
     }
 
     /// The requirements feature *id* carries, its thread before its knurl (`_manufacturing_suffix`).
@@ -2055,16 +2081,9 @@ impl Manufacturing {
     /// designates a thread (`M10 x 1.5-6g RH`, not `ø10 M10 x 1.5-6g RH`). Beyond
     /// draftwright, which prints the diameter before it (draftwright-rust #23).
     pub fn replaces_diameter(&self, id: &str) -> bool {
-        self.on(id).iter().any(|o| {
-            o.aspect == "thread"
-                && matches!(
-                    o.depiction,
-                    Some(Depiction {
-                        kind: DepictionKind::Thread { .. },
-                        ..
-                    })
-                )
-                && self.printed(o) == o.suffix
+        self.on(id).iter().any(|o| match &o.requirement {
+            Aspect::Thread(t) => !t.internal && self.printed(o) == o.suffix,
+            Aspect::Knurl(_) => false,
         })
     }
 
@@ -2094,7 +2113,10 @@ impl Manufacturing {
             .any(|(o, p)| o.through && *p == o.suffix);
         let text = printed.join("; ");
         (
-            text.split_whitespace().map(str::to_string).collect(),
+            text.split(' ')
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .collect(),
             through,
         )
     }
@@ -2157,22 +2179,50 @@ fn wrap(text: &str, width: usize) -> Vec<String> {
 /// A thread requirement (draftwright's `ThreadRequirement`), from its words, its structured
 /// statement, or both reconciled.
 #[derive(Clone, Debug, PartialEq)]
-struct Thread {
-    internal: bool,
-    designation: String,
-    nominal: f64,
-    pitch: f64,
-    class: String,
-    hand: String,
-    full_available_length: bool,
-    minimum_full_thread: Option<f64>,
-    drill_diameter: Option<f64>,
-    drill_depth: Option<f64>,
-    drill_point_angle: Option<f64>,
-    through: bool,
+pub(crate) struct Thread {
+    pub(crate) internal: bool,
+    pub(crate) designation: String,
+    pub(crate) nominal: f64,
+    pub(crate) pitch: f64,
+    pub(crate) class: String,
+    pub(crate) hand: String,
+    pub(crate) full_available_length: bool,
+    pub(crate) minimum_full_thread: Option<f64>,
+    pub(crate) drill_diameter: Option<f64>,
+    pub(crate) drill_depth: Option<f64>,
+    pub(crate) drill_point_angle: Option<f64>,
+    pub(crate) through: bool,
 }
 
 impl Thread {
+    /// Compare rendered designation ink with this source requirement alone. Lint uses
+    /// this pure parser without consulting presentation settings or the planned label.
+    pub(crate) fn designation_matches(&self, text: &str) -> bool {
+        crate::spec_notes::metric(text).is_ok_and(|(diameter, pitch)| {
+            (diameter - self.nominal).abs() < 1e-6
+                && (pitch - self.pitch).abs() < 1e-6
+                && (self.class.is_empty()
+                    || text.split_once('-').is_some_and(|(_, tail)| {
+                        tail.split_whitespace().next() == Some(self.class.as_str())
+                    }))
+                && text.ends_with("LH") == (self.hand == "LH")
+        })
+    }
+
+    /// Conventional metric tapping drills. Fractional coarse pitches at M8/M9/M12
+    /// use the available drill sizes in Walter's Threading Technical Compendium;
+    /// do not classify those stated drills as non-standard by subtracting pitch.
+    pub(crate) fn conventional_drill(&self) -> bool {
+        let recommended = [(8.0, 1.25, 6.8), (9.0, 1.25, 7.8), (12.0, 1.75, 10.2)]
+            .into_iter()
+            .find(|&(d, p, _)| {
+                same_number(d, self.nominal, 1e-9) && same_number(p, self.pitch, 1e-9)
+            })
+            .map_or(self.nominal - self.pitch, |(_, _, drill)| drill);
+        self.drill_diameter
+            .is_some_and(|d| same_number(d, recommended, 1e-6))
+    }
+
     /// `ThreadRequirement.__post_init__`'s refusals.
     fn check(self) -> Result<Self, String> {
         for (name, v) in [("nominal_diameter", self.nominal), ("pitch", self.pitch)] {
@@ -2212,20 +2262,21 @@ impl Thread {
             } else {
                 ""
             };
-            return format!("{}{length}", self.designation);
+            let explicit = self
+                .minimum_full_thread
+                .map(|v| format!("; {} MIN FULL THREAD", g6(v)))
+                .unwrap_or_default();
+            return format!("{}{length}{explicit}", self.designation);
         }
         let mut terms = vec![self.designation.clone()];
         if self.through {
             terms.push("THRU".into());
         }
         if let Some(full) = self.minimum_full_thread {
-            terms.push(format!("{} MIN FULL THREAD", crate::dims::fmt(full)));
+            terms.push(format!("{} MIN FULL THREAD", g6(full)));
         }
         if let Some(angle) = self.drill_point_angle {
-            terms.push(format!(
-                "{}° CONVENTIONAL DRILL POINT",
-                crate::dims::fmt(angle)
-            ));
+            terms.push(format!("{}° CONVENTIONAL DRILL POINT", g6(angle)));
         }
         terms.join("; ")
     }
@@ -2262,7 +2313,7 @@ impl Knurl {
 
     /// `callout_suffix`: compact terms after the owner's diameter.
     fn suffix(&self) -> String {
-        let magnitude = |v: f64| crate::pmi::fmt_magnitude(v, None);
+        let magnitude = g6;
         let mut terms = Vec::new();
         if self.maximum_diameter.is_some() {
             terms.push("MAX AFTER KNURL".to_string());
@@ -2290,7 +2341,7 @@ impl Knurl {
     fn text(&self) -> String {
         match self.maximum_diameter {
             None => self.suffix(),
-            Some(d) => format!("ø{} {}", crate::pmi::fmt_magnitude(d, None), self.suffix()),
+            Some(d) => format!("ø{} {}", g6(d), self.suffix()),
         }
     }
 }
@@ -2589,6 +2640,7 @@ fn structured_names(kind: &str) -> &'static [&'static str] {
             "tapping drill depth",
             "minimum full thread",
             "full thread length",
+            "full thread depth",
             "drill diameter",
             "drill depth",
         ],
@@ -2747,16 +2799,19 @@ fn structured_thread(
         if through && (f.has("tapping drill depth") || f.has("drill depth")) {
             return Err("structured through tap cannot declare a blind drill depth".into());
         }
-        full = if f.has("full thread length") {
-            if !prose.is_some_and(|p| p.minimum_full_thread.is_some()) {
-                return Err("structured full thread length needs a matching minimum-full-thread prose requirement".into());
+        for name in [
+            "minimum full thread",
+            "full thread length",
+            "full thread depth",
+        ] {
+            if f.has(name) {
+                let value = f.number(name)?;
+                if full.is_some_and(|v| !same_number(v, value, 1e-6)) {
+                    return Err("structured full thread depth aliases disagree".into());
+                }
+                full = Some(value);
             }
-            Some(f.alias("minimum full thread", "full thread length")?)
-        } else if f.has("minimum full thread") {
-            Some(f.number("minimum full thread")?)
-        } else {
-            None
-        };
+        }
         if through && let Some(full) = full {
             let fits = match cylinders {
                 [c] => full <= c.interval[1] - c.interval[0] + 0.01,
@@ -3108,11 +3163,10 @@ fn internal_owner(c: &Cylinder, o: &Owner, envelope: [[f64; 3]; 2]) -> bool {
 type Proposal = (usize, Aspect, Option<Depiction>);
 
 /// A requirement read from its record.
+#[derive(Clone, Debug, PartialEq)]
 enum Aspect {
     Thread(Thread),
     Knurl(Knurl),
-    /// A thread the Spec authors ([`authored`]): its suffix.
-    Authored(String),
 }
 
 /// A thread or knurl the Spec authors on feature `feature` (its record's field): the owner it
@@ -3213,11 +3267,42 @@ fn authored(
             ));
         }
     }
-    let mut suffix = designation.to_string();
-    if let Some(l) = length {
-        suffix += &format!("; {} MIN FULL THREAD", num(l));
+    let internal = matches!(o.kind, "hole" | "pattern");
+    let class = designation
+        .split_once('-')
+        .map(|(_, rest)| rest.split_whitespace().next().unwrap_or(""))
+        .unwrap_or("")
+        .to_string();
+    let hand = if designation.ends_with("LH") {
+        "LH"
+    } else {
+        "RH"
     }
-    Ok((i, Aspect::Authored(suffix)))
+    .to_string();
+    Ok((
+        i,
+        Aspect::Thread(
+            Thread {
+                internal,
+                designation,
+                nominal,
+                pitch,
+                class,
+                hand,
+                full_available_length: !internal && length.is_none(),
+                minimum_full_thread: length,
+                drill_diameter: internal.then_some(o.diameter),
+                drill_depth: if internal && !o.through {
+                    o.depth
+                } else {
+                    None
+                },
+                drill_point_angle: None,
+                through: internal && o.through && length.is_none(),
+            }
+            .check()?,
+        ),
+    ))
 }
 
 /// `_manufacturing_owner_matches`: whether *o* owns requirement *a* on cylinder *c*.
@@ -3347,8 +3432,24 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
         let proposal = (|| {
             // A thread or knurl the Spec authors names its feature ([`crate::spec_notes`]).
             if r.source_id.starts_with(crate::spec_gdt::SOURCE_PREFIX) {
-                return authored(r, &candidates, analysis)
-                    .map(|(owner, aspect)| (owner, aspect, None));
+                return authored(r, &candidates, analysis).map(|(owner, aspect)| {
+                    let o = &candidates[owner];
+                    let depiction = match &aspect {
+                        Aspect::Thread(t) if !t.internal && t.full_available_length => {
+                            o.span.map(|span| Depiction {
+                                axis: o.axis,
+                                on: o.at,
+                                span,
+                                diameter: o.diameter,
+                                kind: DepictionKind::Thread {
+                                    minor: t.nominal - 1.226_87 * t.pitch,
+                                },
+                            })
+                        }
+                        _ => None,
+                    };
+                    (owner, aspect, depiction)
+                });
             }
             let mut reasons = blockers(r);
             let g = r.geometry.clone().unwrap_or_default();
@@ -3384,8 +3485,6 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
                 Aspect::Knurl(k) => k.maximum_diameter,
                 Aspect::Thread(t) if t.internal => t.drill_diameter,
                 Aspect::Thread(t) => Some(t.nominal),
-                // The file's records are never authored ([`authored`] reads the Spec's).
-                Aspect::Authored(_) => None,
             };
             if !expected.is_some_and(|d| same_number(2.0 * c.radius, d, 0.01)) {
                 return Err(disagree());
@@ -3441,7 +3540,6 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
             let span = c.interval;
             let kind = match &aspect {
                 Aspect::Thread(t) if t.internal => None,
-                Aspect::Authored(_) => None,
                 // ISO 724's basic minor diameter of an external thread, d3 = d − 1.22687·P.
                 Aspect::Thread(t) => Some(DepictionKind::Thread {
                     minor: t.nominal - 1.226_87 * t.pitch,
@@ -3464,7 +3562,7 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
     }
     // One requirement of each aspect per owner.
     let aspect_name = |a: &Aspect| match a {
-        Aspect::Thread(_) | Aspect::Authored(_) => "thread",
+        Aspect::Thread(_) => "thread",
         Aspect::Knurl(_) => "knurl",
     };
     let mut claims: BTreeMap<(usize, &'static str), usize> = BTreeMap::new();
@@ -3489,9 +3587,19 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
                     ))
                 } else {
                     let (suffix, text, through) = match &aspect {
-                        Aspect::Thread(t) => (t.suffix(), t.suffix(), t.through),
+                        Aspect::Thread(t) => {
+                            let mut text = t.suffix();
+                            if let Some(d) = t.drill_diameter {
+                                text += &format!("; ⌀{}", g6(d));
+                                if let Some(depth) = t.drill_depth {
+                                    text += &format!(" ↧ {}", g6(depth));
+                                } else {
+                                    text += " THRU";
+                                }
+                            }
+                            (t.suffix(), text, t.through)
+                        }
                         Aspect::Knurl(k) => (k.suffix(), k.text(), false),
-                        Aspect::Authored(s) => (s.clone(), s.clone(), false),
                     };
                     out.owned.push(Owned {
                         id: id.to_string(),
@@ -3502,6 +3610,8 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
                         text,
                         through,
                         depiction,
+                        requirement: aspect,
+                        presentation_reason: "source wording",
                     });
                     None
                 }
@@ -3541,6 +3651,203 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
             .collect();
     }
     out
+}
+
+/// ISO 261 coarse pitch may be omitted; ISO 965 class and left hand remain explicit.
+fn short_designation(t: &Thread) -> String {
+    let mut s = format!("M{}", g6(t.nominal));
+    if !crate::spec_notes::COARSE
+        .iter()
+        .any(|&(d, p)| same_number(d, t.nominal, 1e-9) && same_number(p, t.pitch, 1e-9))
+    {
+        s += &format!(" x {}", g6(t.pitch));
+    }
+    if !t.class.is_empty() {
+        s += &format!("-{}", t.class);
+    }
+    if t.hand == "LH" {
+        s += " LH";
+    }
+    s
+}
+
+fn depiction_enabled(o: &Owned, spec: &crate::model::Spec) -> bool {
+    let Some(d) = &o.depiction else {
+        return false;
+    };
+    // Require an enabled, non-omitted principal profile view. A cylinder length alone
+    // never proves thread extent. Section and isometric views do not draw cosmetics.
+    [("front", 1), ("plan", 2), ("side", 0)]
+        .into_iter()
+        .any(|(name, toward)| {
+            if toward == d.axis {
+                return false;
+            }
+            let view = spec.views.get(name);
+            if view.is_some_and(|v| v.omit) {
+                return false;
+            }
+            match d.kind {
+                DepictionKind::Thread { .. } => {
+                    view.and_then(|v| v.thread_depiction)
+                        .or(spec.sheet.thread_depiction)
+                        != Some(false)
+                }
+                DepictionKind::Knurl { .. } => {
+                    view.and_then(|v| v.knurl_depiction)
+                        .or(spec.sheet.knurl_depiction)
+                        != Some(false)
+                }
+            }
+        })
+}
+
+/// Presentation of each source requirement, shared by demand, placement and table reservation.
+/// The source requirement and complete note text remain unchanged for independent lint.
+pub fn manufacturing_for(analysis: &Analysis, spec: &crate::model::Spec) -> Manufacturing {
+    use crate::callouts::{BREAK, Style};
+    let mut m = manufacturing(analysis);
+    m.tags.clear();
+    let candidates = owners(analysis);
+    let mut scheduled = Vec::new();
+    for o in &mut m.owned {
+        let style = crate::callouts::style(spec, &o.owner);
+        let owner = candidates.iter().find(|c| c.id == o.owner);
+        let diameter = owner.map_or(0.0, |c| c.diameter);
+        let shown = depiction_enabled(o, spec);
+        let (identity, mut compact, auxiliary) = match &o.requirement {
+            Aspect::Thread(t) => {
+                let identity = short_designation(t);
+                let mut label = identity.clone();
+                if t.through {
+                    label += " THRU";
+                }
+                if let Some(depth) = t.minimum_full_thread {
+                    label += &if t.internal {
+                        format!(" ↧ {}", g6(depth))
+                    } else {
+                        format!("; {} MIN FULL THREAD", g6(depth))
+                    };
+                }
+                if !t.internal && t.full_available_length && !shown {
+                    label += ", FULL AVAILABLE LENGTH";
+                }
+                // Blind taps retain the exact source drill dimensions on a second line.
+                // Through taps omit only a conventional tapping drill.
+                if t.internal
+                    && (!t.through || !t.conventional_drill())
+                    && let Some(d) = t.drill_diameter
+                {
+                    label += &format!(" {BREAK} ⌀{}", g6(d));
+                    if let Some(depth) = t.drill_depth {
+                        label += &format!(" ↧ {}", g6(depth));
+                    } else {
+                        label += " THRU";
+                    }
+                }
+                (identity, label, t.drill_point_angle.is_some())
+            }
+            Aspect::Knurl(k) => {
+                let identity = format!("ø{}", g6(k.maximum_diameter.unwrap_or(diameter)));
+                let mut label = identity.clone();
+                if k.maximum_diameter.is_some() {
+                    label += " MAX AFTER KNURL";
+                }
+                label += &format!(
+                    " {BREAK} {} KNURL P{}",
+                    k.pattern.to_uppercase(),
+                    g6(k.pitch)
+                );
+                if k.full_width && !shown {
+                    label += " FULL WIDTH";
+                }
+                // Keep chamfer limits unless the drawing explicitly dimensions the matching
+                // chamfers. Complete source text remains in the process note as well.
+                if let Some(c) = k.edge_chamfer {
+                    let dimensioned = o
+                        .depiction
+                        .as_ref()
+                        .is_some_and(|d| crate::dims::chamfer_stated(analysis, spec, c, d));
+                    if !dimensioned {
+                        label += &format!(" TO C{} CHAMFERS", g6(c));
+                    }
+                }
+                (identity, label, !k.processes.is_empty())
+            }
+        };
+        let full = match &o.requirement {
+            Aspect::Thread(t) if t.internal => {
+                let mut label = format!("⌀{}", g6(diameter));
+                if let Some(depth) = t.drill_depth {
+                    label += &format!(" ↧ {}", g6(depth));
+                } else if !t.through {
+                    label += " THRU";
+                }
+                label + " " + &o.suffix
+            }
+            Aspect::Knurl(k) => format!(
+                "ø{} {}",
+                g6(k.maximum_diameter.unwrap_or(diameter)),
+                o.suffix
+            ),
+            _ => o.suffix.clone(),
+        };
+        let terms = |s: &str| {
+            s.split(' ')
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        };
+        let measured = if auxiliary && style != Style::Full {
+            match compact.split_once('\n') {
+                Some((first, rest)) => {
+                    format!("{} SEE MFG 1 \n {}", first.trim_end(), rest.trim_start())
+                }
+                None => format!("{compact} SEE MFG 1"),
+            }
+        } else {
+            compact.clone()
+        };
+        let too_long = crate::callouts::lines(&crate::callouts::wrap(&terms(&measured))).len() > 2;
+        let note = style == Style::Note || (style == Style::Auto && too_long);
+        o.presentation_reason = match style {
+            Style::Full => "full wording requested",
+            Style::Note => {
+                "note form requested; the source-bound manufacturing note states the complete requirement"
+            }
+            Style::Auto if too_long => {
+                "auto selected note form: compact callout would exceed two lines; complete wording in the source-bound manufacturing note"
+            }
+            _ if auxiliary => {
+                "compact identity; secondary manufacturing terms moved to the source-bound manufacturing note"
+            }
+            Style::Compact => "compact wording requested",
+            _ => {
+                "compact default; thread/knurl extent retained explicitly or evidenced by the drawing"
+            }
+        };
+        if note || (style != Style::Full && auxiliary) {
+            scheduled.push(o.source.clone());
+            if note {
+                compact = identity;
+            }
+        }
+        o.suffix = if style == Style::Full { full } else { compact };
+    }
+    scheduled.sort();
+    for (i, source) in scheduled.into_iter().enumerate() {
+        let tag = format!("MFG {}", i + 1);
+        if let Some(o) = m.owned.iter_mut().find(|o| o.source == source) {
+            // Reference on the identity line, keeping blind tap/drill lines separate.
+            if let Some((first, rest)) = o.suffix.split_once('\n') {
+                o.suffix = format!("{} SEE {tag} \n {}", first.trim_end(), rest.trim_start());
+            } else {
+                o.suffix += &format!(" SEE {tag}");
+            }
+        }
+        m.tags.push((source, tag));
+    }
+    m
 }
 
 #[cfg(test)]
@@ -3718,6 +4025,15 @@ mod tests {
     #[test]
     fn long_requirements_go_to_the_table_in_source_order() {
         let owned = |source: &str, suffix: &str| Owned {
+            presentation_reason: "source wording",
+            requirement: Aspect::Knurl(Knurl {
+                pattern: "straight".into(),
+                pitch: 1.0,
+                full_width: false,
+                edge_chamfer: None,
+                maximum_diameter: None,
+                processes: Vec::new(),
+            }),
             id: format!("pmi:manufacturing_requirement.internal_thread:t={source}"),
             source: source.into(),
             owner: format!("f:{source}"),

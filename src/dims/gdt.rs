@@ -382,11 +382,22 @@ fn datum_frame(letter: &str) -> Laid {
 
 /// A label's text laid out from its lower left corner, a text height tall.
 fn label(s: &str) -> Laid {
-    let w = width(s, TEXT).max(0.5 * TEXT);
+    let lines = crate::callouts::prose(s);
+    let h = TEXT + (lines.len() - 1) as f64 * crate::callouts::line_spacing();
     let mut laid = Laid::default();
-    laid.letters.push(text(s, [w / 2.0, TEXT / 2.0], TEXT));
-    laid.runs.push(text(s, [w / 2.0, TEXT / 2.0], TEXT));
-    laid.size = [w, TEXT];
+    let mut w: f64 = 0.5 * TEXT;
+    for (i, line) in lines.iter().enumerate() {
+        let text_line = line;
+        let line_width = width(text_line, TEXT);
+        w = w.max(line_width);
+        let at = [
+            line_width / 2.0,
+            h - TEXT / 2.0 - i as f64 * crate::callouts::line_spacing(),
+        ];
+        laid.letters.push(text(text_line, at, TEXT));
+        laid.runs.push(text(text_line, at, TEXT));
+    }
+    laid.size = [w, h];
     laid
 }
 

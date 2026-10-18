@@ -410,10 +410,9 @@ fn every_planning_entry_point_applies_the_recovery() {
     assert_eq!(named.sheet.size, "A2");
 }
 
-/// Native FTC-07's smallest complete fit is A2 at 1:2. A1 at 1:1 would be allowed only
-/// because it is its immediate neighbour and enlarges the dimensioned views; since the Stage H
-/// chain rules (h-chains) its A1 1:1 drawing lays a pitch line through a hole callout (a hard
-/// finding), so it is no candidate and the smallest fit is kept.
+/// FTC-07's smallest complete fit remains A2 at 1:2. Wrapping clears the old
+/// pitch-line clash at A1 1:1, but that enlargement lengthens established leaders
+/// beyond their unchanged two-millimetre budget, so the complete A2 is retained.
 #[test]
 fn ftc07_uses_one_paper_step_only_with_enlargement() {
     let Some(dir) = corpus::dir() else {
@@ -438,12 +437,75 @@ fn ftc07_uses_one_paper_step_only_with_enlargement() {
         .split("; ")
         .find(|c| c.starts_with("A1 1:1 "))
         .unwrap_or_else(|| panic!("{}", chosen.sheet.basis));
-    assert!(a1.contains("hard layout finding"), "{a1}");
+    assert!(a1.contains("leader length quality veto"), "{a1}");
+    assert!(
+        chosen
+            .sheet
+            .basis
+            .contains("lengthens an established leader by more than 2 mm")
+    );
+    assert!(
+        !chosen.problems.iter().any(|p| matches!(
+            p.code.as_str(),
+            "annotation_overlap" | "annotation_ink_overlap" | "annotation_off_sheet"
+        )),
+        "{:?}",
+        chosen.problems
+    );
     let first =
         model::plan_escalated(&analysis, &spec(json!({"size":"A3", "scale":"1:5"}))).unwrap();
     let again = model::recover(&analysis, &Spec::default(), first).unwrap();
     assert_eq!(sheet(&again), sheet(&plan));
     assert!(again.sheet.basis.contains("additional view conflicts"));
+}
+
+/// Wrapped compound bores retain the established physical route budget after
+/// schedules and native recess annotations finish restoring their own geometry.
+#[test]
+fn wrapped_counterbores_keep_the_existing_short_leader_budget() {
+    let Some(dir) = corpus::dir() else {
+        return;
+    };
+    let plan = api::plan_from(
+        &dir.join("nist/nist_ftc_06_asme1_rd.stp"),
+        Features::Native,
+        &Spec::default(),
+    )
+    .unwrap();
+    assert_eq!(sheet(&plan), ("A1", "1:2"));
+    assert_eq!(
+        plan.hole_tables
+            .iter()
+            .map(|t| t.id.as_str())
+            .collect::<Vec<_>>(),
+        ["hole_schedule_front"]
+    );
+    let baseline: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/leader_routes.json")).unwrap();
+    for id in [
+        "d:f:hole:5/bore.diameter",
+        "d:f:hole_pattern:2/bore.diameter",
+    ] {
+        let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
+        assert_eq!(d.label.lines().count(), 2);
+        let p = d.placed.as_ref().unwrap();
+        let length: f64 = p
+            .lines
+            .iter()
+            .map(|s| (s[1][0] - s[0][0]).hypot(s[1][1] - s[0][1]))
+            .sum();
+        let before = baseline["parts"]["nist_ftc_06_asme1_rd"][id]["length"]
+            .as_f64()
+            .unwrap();
+        assert!(length <= before + 2.0 + 1e-6, "{id}: {before} -> {length}");
+        assert!(d.basis.contains("final wrapped-callout polish"));
+    }
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "annotation_ink_overlap")
+    );
 }
 
 /// The port's own gate in `model::recover` (a try with more annotations over a view not their

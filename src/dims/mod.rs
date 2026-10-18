@@ -59,6 +59,7 @@ pub mod angular;
 pub(crate) mod authored;
 pub(crate) mod blends;
 mod bosses;
+mod callouts;
 mod edges;
 mod envelope;
 mod established;
@@ -1104,6 +1105,7 @@ pub(crate) fn callout_bands(
         return Ok(Vec::new());
     }
     let (mut wants, ..) = wants(analysis);
+    callouts::apply(analysis, spec, &mut wants);
     let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
     authored::append(analysis, spec, &mut wants)?;
     if !scheme_covered.is_empty() {
@@ -1142,8 +1144,8 @@ pub(crate) fn callout_bands(
             let (side, depth) = match side {
                 Side::Left => ("left", ink.max[0] - ink.min[0] + SHOULDER),
                 Side::Right => ("right", ink.max[0] - ink.min[0] + SHOULDER),
-                Side::Above => ("above", TEXT + LIFT),
-                Side::Below => ("below", TEXT + LIFT),
+                Side::Above => ("above", (ink.max[1] - ink.min[1]).max(TEXT) + LIFT),
+                Side::Below => ("below", (ink.max[1] - ink.min[1]).max(TEXT) + LIFT),
             };
             Some(crate::layout::CalloutBand {
                 view,
@@ -1212,6 +1214,7 @@ fn lanes_uncached(
     callout_columns: bool,
 ) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
     let (mut wants, mut problems, notes) = wants(analysis);
+    callouts::apply(analysis, spec, &mut wants);
     let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
     authored::append(analysis, spec, &mut wants)?;
     if scheme_covered.is_empty() {
@@ -1562,6 +1565,7 @@ pub(crate) fn reserve_linear_intent(
         return Ok(());
     }
     let (mut wants, _, _) = wants(analysis);
+    callouts::apply(analysis, spec, &mut wants);
     let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
     if !spec.dimension_schemes.is_empty() {
         authored::append(analysis, spec, &mut wants)?;
@@ -2155,6 +2159,7 @@ fn plan_inventory_ordered(
     stage: u8,
 ) -> Result<(Planned, Vec<PlannedDimension>), Invalid> {
     let (mut wants, mut problems, notes) = wants(analysis);
+    callouts::apply(analysis, spec, &mut wants);
     let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
     authored::append(analysis, spec, &mut wants)?;
     let retired: Vec<_> = if scheme_covered.is_empty() {
@@ -2291,7 +2296,7 @@ fn plan_inventory_ordered(
                 scheme_covered[&w.id]
             ),
             id: w.id,
-            label: w.terms.join(" "),
+            label: crate::callouts::label(&w.terms),
         })
         .collect();
     let mut kept = Vec::new();
@@ -2340,7 +2345,7 @@ fn plan_inventory_ordered(
         if let Some(basis) = with_set.get(&w.id) {
             match spec.dimension_source {
                 DimensionSource::Auto => omitted.push(Omitted {
-                    label: w.terms.join(" "),
+                    label: crate::callouts::label(&w.terms),
                     id: w.id,
                     basis: basis.clone(),
                     state: State::OmittedByUser,
@@ -2351,7 +2356,7 @@ fn plan_inventory_ordered(
         }
         match spec.dimension_source {
             DimensionSource::Auto if entry.is_some_and(|e| e.omit) => omitted.push(Omitted {
-                label: w.terms.join(" "),
+                label: crate::callouts::label(&w.terms),
                 id: w.id,
                 basis: "authored: the spec omits it".into(),
                 state: State::OmittedByUser,
@@ -2359,7 +2364,7 @@ fn plan_inventory_ordered(
             DimensionSource::Authored if entry.is_none() => {
                 if let Some(by) = authored_ownership.covered.get(&w.id) {
                     omitted.push(Omitted {
-                        label: w.terms.join(" "), id: w.id,
+                        label: crate::callouts::label(&w.terms), id: w.id,
                         basis: format!("spec-authored: this quantity is stated by {by}; the unlisted automatic candidate is withheld (one owner)"),
                         state: State::Covered { by: by.clone() },
                     });
@@ -2380,7 +2385,7 @@ fn plan_inventory_ordered(
                     ..Default::default()
                 });
                 omitted.push(Omitted {
-                    label: w.terms.join(" "),
+                    label: crate::callouts::label(&w.terms),
                     id: w.id,
                     basis: "authored: not in the spec's complete set (dimension_source authored)"
                         .into(),
@@ -3159,7 +3164,7 @@ fn plan_inventory_ordered(
                 .into(),
                 view,
                 value: w.value,
-                label: w.terms.join(" "),
+                label: crate::callouts::label(&w.terms),
                 terms: w.terms.clone(),
                 measurements: w.measurements.clone(),
                 default: true,
@@ -3302,7 +3307,7 @@ fn plan_inventory_ordered(
             .into(),
             view: format!("v:{view}"),
             value: w.value,
-            label: w.terms.join(" "),
+            label: crate::callouts::label(&w.terms),
             terms: w.terms,
             measurements: w.measurements,
             default: default && from_spec.is_empty(),
@@ -3636,7 +3641,7 @@ fn share_statements(
             let w = &kept[i].0;
             omitted.push(Omitted {
                 id: w.id.clone(),
-                label: w.terms.join(" "),
+                label: crate::callouts::label(&w.terms),
                 basis: format!(
                     "conveyed by {owner}: it states the same {} ({}) across the same span in {}, in the same view (one span, one dimension: ARCH0009-6)",
                     s.0, s.5, AXES[s.2]
@@ -3761,7 +3766,7 @@ fn share_pmi(
             };
             omitted.push(Omitted {
                 id: w.id.clone(),
-                label: w.terms.join(" "),
+                label: crate::callouts::label(&w.terms),
                 basis: format!(
                     "conveyed by {owner}: it states the same {} across the same span in {}, in the same view; {how} (one span, one dimension: ARCH0009-6)",
                     fmt(w.value),
@@ -3864,15 +3869,21 @@ pub fn render(
                 items.push(Item::Edge(Curve::Line(a, b)));
             }
         }
-        text.push(TextRun {
-            text: d.terms.join(" "),
-            at: f([0.5 * (ink.min[0] + ink.max[0]), 0.0]),
-            size: TEXT,
-            rotation: p.rotation,
-            font: FONT.into(),
-            h_align: HAlign::Center,
-            v_align: VAlign::Baseline,
-        });
+        for (i, terms) in crate::callouts::lines(&d.terms).iter().enumerate() {
+            let line = label_ink(terms, font);
+            text.push(TextRun {
+                text: terms.join(" "),
+                at: f([
+                    0.5 * (line.min[0] + line.max[0]),
+                    -(i as f64) * crate::callouts::line_spacing(),
+                ]),
+                size: TEXT,
+                rotation: p.rotation,
+                font: FONT.into(),
+                h_align: HAlign::Center,
+                v_align: VAlign::Baseline,
+            });
+        }
         annotations.push(Annotation {
             approved_claims: Vec::new(),
             approved_text: None,
@@ -3959,6 +3970,7 @@ pub(crate) fn placement_options_with_spec(
     spec: &Spec,
 ) -> BTreeMap<String, Value> {
     let (mut wants, ..) = wants(analysis);
+    callouts::apply(analysis, spec, &mut wants);
     if schemes::apply(analysis, spec, &mut wants).is_err()
         || authored::append(analysis, spec, &mut wants).is_err()
     {
@@ -4210,6 +4222,40 @@ pub(crate) fn recheck_cached(
         .collect()
 }
 
+/// A matching chamfer requirement is actually retained by this Spec's dimension set.
+pub(crate) fn chamfer_stated(
+    analysis: &Analysis,
+    spec: &Spec,
+    size: f64,
+    band: &crate::pmi_lowering::Depiction,
+) -> bool {
+    let dimensions = wants(analysis).0;
+    // Both named boundary chamfers must be dimensioned. An unrelated bevel of the
+    // same size elsewhere on the part cannot stand for a knurl's end conditions.
+    band.span.iter().all(|end| {
+        dimensions.iter().any(|w| {
+            w.measurements.iter().any(|m| {
+                m.parameter == "chamfer.length"
+                    && (m.value - size).abs() < 1e-6
+                    && feature_origin(analysis, &m.feature).is_some_and(|at| {
+                        (at[band.axis] - end).abs() <= size + 0.01
+                            && (0..3)
+                                .filter(|k| *k != band.axis)
+                                .map(|k| (at[k] - band.on[k]).powi(2))
+                                .sum::<f64>()
+                                .sqrt()
+                                <= band.diameter / 2.0 + size + 0.01
+                    })
+            }) && !spec.dimensions.get(&w.id).is_some_and(|d| d.omit)
+                && (spec.dimension_source == DimensionSource::Auto
+                    || spec.dimensions.contains_key(&w.id))
+                && w.views
+                    .iter()
+                    .any(|v| !spec.views.get(*v).is_some_and(|v| v.omit))
+        })
+    })
+}
+
 /// Semantic roles available to a feature note, including compound callout terms.
 pub(crate) fn measurement_ids(analysis: &Analysis) -> BTreeSet<String> {
     wants(analysis)
@@ -4288,7 +4334,24 @@ mod tests {
             let precise = callout_bands(&analysis, &spec).unwrap();
             assert_eq!(precise.len(), 1);
             assert_eq!(precise[0].side, side);
-            assert!(precise[0].depth > bare[0].depth + 20.0);
+            let plan = crate::model::plan(&analysis, &spec).unwrap();
+            let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
+            assert!(d.label.contains("6.000000000000000"));
+            assert!(d.label.lines().count() > 1);
+            let ink = label_ink(&d.terms, font());
+            let width = ink.max[0] - ink.min[0];
+            assert!(width <= crate::callouts::WIDTH);
+            assert_eq!(precise[0].depth, FIRST + (width + SHOULDER) + 2.0);
+            // Precision still adds over 20 mm of text. Wrapping now reserves the
+            // widest line, rather than letting that text grow one unbounded column.
+            let unwrapped: Vec<_> = d
+                .terms
+                .iter()
+                .filter(|s| !crate::callouts::is_break(s))
+                .cloned()
+                .collect();
+            let ink = label_ink(&unwrapped, font());
+            assert!(FIRST + ink.max[0] - ink.min[0] + SHOULDER + 2.0 > bare[0].depth + 20.0);
         }
     }
 

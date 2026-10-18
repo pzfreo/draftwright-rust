@@ -593,7 +593,7 @@ fn a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins() {
         .iter()
         .find(|d| d.id == "d:f:hole_pattern:1/bore.diameter")
         .unwrap();
-    assert_eq!(callout.label, "6× ⌀10 +0.09 -0.0 THRU EQ SP ON ø90 BC");
+    assert_eq!(callout.label, "6× ⌀10 +0.09 -0.0 THRU EQ\nSP ON ø90 BC");
     assert!(callout.basis.contains("lower_ap242_hole_tolerances"));
     let feature = callout
         .measurements
@@ -625,7 +625,7 @@ fn a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins() {
         .iter()
         .find(|d| d.id == callout.id)
         .unwrap();
-    assert_eq!(c.label, "6× ⌀10 ±0.05 THRU EQ SP ON ø90 BC");
+    assert_eq!(c.label, "6× ⌀10 ±0.05 THRU EQ SP ON\nø90 BC");
     assert!(
         c.measurements
             .iter()
@@ -672,7 +672,7 @@ fn a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins() {
         (c, edited.problems)
     };
     let (c, problems) = fitted(&holes);
-    assert_eq!(c.label, "6× ⌀10 H7 THRU EQ SP ON ø90 BC");
+    assert_eq!(c.label, "6× ⌀10 H7 THRU EQ SP ON ø90\nBC");
     assert!(problems.iter().any(|p| p.code == "pmi_not_lowered"
         && p.refs.contains(&source)
         && p.message.contains("its own fit")

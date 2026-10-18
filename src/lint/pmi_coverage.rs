@@ -790,6 +790,81 @@ pub(super) fn source_sites(
     out
 }
 
+// Read designation and role-bound values from all source-bound leader/note runs.
+// Numeric fields are compared with the parsed source, never with generated label text.
+pub(super) fn thread_text_states(t: &crate::pmi_lowering::Thread, text: &str) -> bool {
+    let words: Vec<_> = text
+        .split_whitespace()
+        .map(|s| s.trim_end_matches([';', ',']))
+        .collect();
+    let equal = |s: &str, value: f64| {
+        s.trim_end_matches([';', ','])
+            .parse::<f64>()
+            .is_ok_and(|v| (v - value).abs() < 1e-6)
+    };
+    let designation = words.iter().enumerate().any(|(i, word)| {
+        if !word.starts_with('M') {
+            return false;
+        }
+        (1..=5).filter(|n| i + n <= words.len()).any(|n| {
+            let s = words[i..i + n].join(" ");
+            let s = s.trim_end_matches([';', ',']);
+            t.designation_matches(s)
+        })
+    });
+    if !designation {
+        return false;
+    }
+    if let Some(depth) = t.minimum_full_thread {
+        let full = words
+            .windows(4)
+            .any(|w| equal(w[0], depth) && w[1..] == ["MIN", "FULL", "THREAD"])
+            || words[..words
+                .iter()
+                .position(|w| w.starts_with(['⌀', 'ø', 'Ø']))
+                .unwrap_or(words.len())]
+                .windows(2)
+                .any(|w| w[0] == "↧" && equal(w[1], depth));
+        if !full {
+            return false;
+        }
+    }
+    if t.through
+        && !words
+            .iter()
+            .any(|w| w.trim_end_matches([';', ',']) == "THRU")
+    {
+        return false;
+    }
+    if !t.internal {
+        return true;
+    }
+    let conventional_through = t.through && t.conventional_drill();
+    if conventional_through {
+        return true;
+    }
+    let Some(drill) = t.drill_diameter else {
+        return true;
+    };
+    words.iter().enumerate().any(|(i, word)| {
+        let Some(size) = word.strip_prefix(['⌀', 'ø', 'Ø']) else {
+            return false;
+        };
+        if !equal(size, drill) {
+            return false;
+        }
+        match t.drill_depth {
+            Some(depth) => words[i + 1..]
+                .split(|w| w.starts_with(['⌀', 'ø', 'Ø']))
+                .next()
+                .unwrap_or(&[])
+                .windows(2)
+                .any(|w| w[0] == "↧" && equal(w[1], depth)),
+            None => true,
+        }
+    })
+}
+
 /// A short manufacturing leader needs exactly one complete, source-matched rendered row.
 /// Read only the drawing and the source reading; searchable text in an unrelated table
 /// cannot supply the requirement or borrow another source's reference.
@@ -809,6 +884,71 @@ pub fn manufacturing_references(analysis: &Analysis, drawing: &Drawing) -> Vec<L
     let header_complete =
         headers.len() == 1 && normal(&headers[0].text) == "REF MANUFACTURING REQUIREMENT";
     let mut issues = Vec::new();
+    for o in &manufacturing.owned {
+        let related: Vec<_> = marks
+            .iter()
+            .filter(|m| {
+                m.claims
+                    .iter()
+                    .any(|c| c.feature == o.id && c.parameter == o.aspect)
+            })
+            .collect();
+        if related.is_empty() {
+            continue;
+        }
+        let mut text = related
+            .iter()
+            .map(|m| m.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        for a in drawing.annotations.iter().filter(|a| {
+            a.name.starts_with("manufacturing_requirements/")
+                && a.approved_claims.len() == 1
+                && a.approved_claims[0].feature == o.id
+                && a.approved_claims[0].parameter == o.aspect
+        }) {
+            text.push(' ');
+            text += &super::schedule_evidence::text(drawing, a);
+        }
+        let states = if let Some(t) = o.thread() {
+            thread_text_states(t, &text)
+        } else if let Some((pattern, pitch, maximum)) = o.knurl_values() {
+            let words: Vec<_> = text
+                .split_whitespace()
+                .map(|w| w.trim_end_matches([';', ',']))
+                .collect();
+            let same = |s: &str, expected: f64| {
+                s.parse::<f64>().is_ok_and(|v| (v - expected).abs() < 1e-6)
+            };
+            words.windows(3).any(|w| {
+                w[0] == pattern.to_uppercase()
+                    && w[1] == "KNURL"
+                    && w[2].strip_prefix('P').is_some_and(|s| same(s, pitch))
+            }) && maximum.is_none_or(|d| {
+                words.windows(4).any(|w| {
+                    w[0].strip_prefix(['ø', '⌀', 'Ø'])
+                        .is_some_and(|s| same(s, d))
+                        && w[1..] == ["MAX", "AFTER", "KNURL"]
+                })
+            })
+        } else {
+            true
+        };
+        if !states {
+            let mut finding = issue(
+                "pmi_source_text_mismatch",
+                &o.id,
+                Severity::Error,
+                format!(
+                    "The rendered manufacturing callout and its note do not state the source designation, pitch, depth or diameter values for {}",
+                    o.source
+                ),
+            );
+            finding.sources = vec![o.source.clone()];
+            finding.annotation = related.first().map(|m| m.name.clone());
+            issues.push(finding);
+        }
+    }
     for leader in marks
         .iter()
         .filter(|m| !m.name.starts_with("manufacturing_requirements/"))
@@ -852,11 +992,7 @@ pub fn manufacturing_references(analysis: &Analysis, drawing: &Drawing) -> Vec<L
                 && header_complete
                 && rows.len() == 1
                 && owned.iter().any(|o| {
-                    manufacturing
-                        .tags
-                        .iter()
-                        .any(|(source, t)| source == &o.source && t == &tag)
-                        && rows[0].approved_claims.len() == 1
+                    rows[0].approved_claims.len() == 1
                         && rows[0].approved_claims[0].feature == o.id
                         && rows[0].approved_claims[0].parameter == o.aspect
                         && normal(&super::schedule_evidence::text(drawing, rows[0]))

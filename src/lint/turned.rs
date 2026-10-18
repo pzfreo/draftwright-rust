@@ -219,7 +219,22 @@ fn judged<'a>(
                 .any(|c| c.feature == id && c.parameter == parameter)
         })
         .collect();
-    match claiming.iter().find(|m| holes::states(&m.text, value)) {
+    let states = |m: &&&Mark| {
+        if parameter.ends_with("diameter")
+            && let Some(nominal) = m
+                .text
+                .split_whitespace()
+                .filter_map(|w| w.strip_prefix('M'))
+                .find(|w| w.starts_with(|c: char| c.is_ascii_digit()))
+        {
+            let end = nominal
+                .find(|c: char| !(c.is_ascii_digit() || c == '.'))
+                .unwrap_or(nominal.len());
+            return holes::states(&nominal[..end], value);
+        }
+        holes::states(&m.text, value)
+    };
+    match claiming.iter().find(states) {
         Some(m) => (State::Placed, Some(m)),
         None => match claiming.first() {
             Some(m) => (State::Unverifiable, Some(m)),
@@ -554,6 +569,20 @@ mod tests {
             .into_iter()
             .map(|o| format!("{} {} {:?}", o.feature, o.parameter, o.state))
             .collect()
+    }
+
+    #[test]
+    fn a_thread_designation_states_its_nominal_not_its_tolerance_class() {
+        let correct = mark("thread", "M6-6g", "f:turned_step:2", "step.diameter");
+        assert_eq!(
+            judged(&[correct], "f:turned_step:2", "step.diameter", 6.0).0,
+            State::Placed
+        );
+        let wrong = mark("thread", "M5-6g", "f:turned_step:2", "step.diameter");
+        assert_eq!(
+            judged(&[wrong], "f:turned_step:2", "step.diameter", 6.0).0,
+            State::Unverifiable
+        );
     }
 
     /// Each band's length and diameter are placed when a claiming annotation prints them,

@@ -39,11 +39,15 @@ fn requested_precision_reaches_extents_chains_ladders_and_locations() {
             assert_eq!(d.measurements, original.measurements);
             if d.placed.is_some() {
                 let annotation = drawing.annotations.iter().find(|a| a.name == d.id).unwrap();
-                assert!(
+                // Each wrapped line has its own searchable run; all lines must match.
+                assert_eq!(
                     annotation
                         .runs
                         .iter()
-                        .any(|&i| drawing.text[i].text == d.label)
+                        .map(|&i| drawing.text[i].text.as_str())
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                    d.label
                 );
                 if d.kind == "linear" {
                     assert!(
@@ -104,8 +108,8 @@ fn compound_terms_keep_their_own_precision_and_tolerances() {
         })
         .unwrap();
     assert!(d.label.contains("⌀6.25 ±0.0005 ↧ 4.75"), "{}", d.label);
-    assert!(d.label.contains("⌴ ⌀8.75 ↧ 1.875"), "{}", d.label);
-    assert!(d.label.contains("⌵ ⌀10.25 × 82.50°"), "{}", d.label);
+    assert!(d.label.contains("⌴\n⌀8.75 ↧ 1.875"), "{}", d.label);
+    assert!(d.label.contains("⌵ ⌀10.25 ×\n82.50°"), "{}", d.label);
     let ink = dims::label_ink(
         &d.terms,
         &draftwright::text::Font::open(&root().join("fonts").join(dims::FONT)).unwrap(),

@@ -159,13 +159,19 @@ impl Font {
             .sum()
     }
 
+    /// Baseline advance for multiline text, using the face's vertical metrics.
+    pub fn line_spacing(&self, size: f64) -> f64 {
+        let face = self.face();
+        (face.ascender() as f64 - face.descender() as f64 + face.line_gap() as f64) * size
+            / face.units_per_em() as f64
+    }
+
     /// *text* at *size* as the pen lays it: the first line's baseline on y = 0, starting at
     /// x = 0, not centred. `min` and `max` are its ink's box (both zero when it has no ink).
     pub fn baseline(&self, text: &str, size: f64) -> Laid {
         let face = self.face();
         let scale = size / face.units_per_em() as f64;
-        let line =
-            (face.ascender() as f64 - face.descender() as f64 + face.line_gap() as f64) * scale;
+        let line = self.line_spacing(size);
         let mut contours = Vec::new();
         for (row, chars) in text.split('\n').enumerate() {
             let mut pen = 0.0;
