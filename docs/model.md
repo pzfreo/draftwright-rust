@@ -925,11 +925,19 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   unannotated depiction crops are refused. Compact crops include surrounding
   outline (maximum 3:1 aspect ratio) and use the same bounds for the parent marker.
   Captions and letters retain normal text clearance. Useful partial improvements
-  can remain with explicit refusals for every unresolved local floor. Larger
-  paper can still carry larger clean main views without automatic details.
+  can remain with explicit refusals for every unresolved local floor. A declined
+  crop keeps a fitting single-sheet whole-part drawing; removing the crop from
+  an A3 trial cannot make that larger paper eligible. Ordinary A3 recovery still
+  addresses a failed whole-part floor/fit or an existing multi-sheet allocation.
   A smaller-paper choice that cuts the established main scale by more than half
-  is refused in favour of the established fitted drawing. `sheet.automatic_details: false` disables
-  automatic crops; authored details remain explicit intent.
+  is refused in favour of the established fitted drawing. Halving a principal
+  view with at least eight real controls and unresolved local geometry is also
+  refused. Useful fitted profile controls stay enlarged when a replacement crop
+  would lose their context, using the ordinary drawing's settled parent routes.
+  Holding labels preserves the selected details and the exact canonical schedule
+  membership and scalar coverage; rerouted labels cannot remove table rows.
+  `sheet.automatic_details: false` disables automatic crops; authored details
+  remain explicit intent.
 
   Adjacent baseline heights retain both original coordinates. Their exact local
   difference may accompany a controlling annotation in a compact nearby crop,

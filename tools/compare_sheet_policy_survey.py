@@ -107,7 +107,7 @@ def reasons(plan):
         ordinary = basis.split('; whole-part trials: ', 1)[1].split('; local-detail trials: ', 1)[0]
         selected = selected.group(1)
         if selected == 'A4' and plan['sheet']['size'] == 'A3':
-            prefix = 'A4 detail exception: no clean A4 detail fits; A3 has zero readability failures. '
+            prefix = 'Ordinary A3 recovery: A4 misses a whole-part floor/fit or needs multiple sheets; no automatic detail purchases paper. '
         elif PAPERS.index(plan['sheet']['size']) < PAPERS.index(selected):
             prefix = f"Whole-part annotation fit needs {selected}; local details allow {plan['sheet']['size']}. "
     else:
