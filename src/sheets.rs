@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use sha2::{Digest, Sha256};
 
 use crate::items::{Op, State};
 use crate::model::{self, Analysis, Invalid, Plan, PlannedSheet, PlannedView, Problem, Spec};
@@ -315,6 +316,7 @@ fn working(analysis: &Analysis, spec: &Spec, moved: &BTreeMap<String, u32>) -> S
 thread_local! {
     // Monotonic per-thread count lets an outer allocation include its nested small-paper tries.
     static RUNS: Cell<usize> = const { Cell::new(0) };
+    static MAIN_DEPTH: Cell<usize> = const { Cell::new(0) };
 }
 
 fn run(analysis: &Analysis, spec: &Spec, minimum: Option<f64>) -> Result<Plan, Invalid> {
@@ -384,6 +386,66 @@ fn material_in_reserved_cells(plan: &mut Plan, material: &str) -> bool {
 }
 
 fn run_prepared(analysis: &Analysis, spec: &Spec, minimum: Option<f64>) -> Result<Plan, Invalid> {
+    struct Depth;
+    impl Drop for Depth {
+        fn drop(&mut self) {
+            MAIN_DEPTH.with(|depth| depth.set(depth.get() - 1));
+        }
+    }
+    let outer = MAIN_DEPTH.with(|depth| {
+        let outer = depth.get() == 0;
+        depth.set(depth.get() + 1);
+        outer
+    });
+    let _depth = Depth;
+    // Construct the seed from immutable Analysis and complete Spec. Retain a
+    // Session's authored placement/scale main or a pure R5 trial, never a
+    // caller-supplied seed. The allocator still executes every actual prefix.
+    let placed = spec.sheet.scale.is_some()
+        || spec.views.values().any(|v| v.place.is_some())
+        || spec.dimensions.values().any(|d| d.place.is_some())
+        || spec.annotations.values().any(|a| a.place.is_some());
+    let memo = ((outer && placed) || minimum.is_some())
+        .then(crate::planning::session_main)
+        .flatten();
+    let policy = memo
+        .as_ref()
+        .map(|_| crate::planning::main_policy(analysis));
+    let key = memo.as_ref().map(|_| {
+        let analysis_key: [u8; 32] =
+            Sha256::digest(serde_json::to_vec(analysis).expect("Analysis serializes")).into();
+        let bytes = serde_json::to_vec(&(analysis_key, spec, minimum.map(f64::to_bits), &policy))
+            .expect("session main inputs serialize");
+        Sha256::digest(bytes).into()
+    });
+    if let Some(plan) = memo
+        .as_ref()
+        .zip(key.as_ref())
+        .and_then(|(memo, key)| memo.get(key))
+    {
+        return Ok(plan);
+    }
+    let before = RUNS.with(Cell::get);
+    let plan = run_prepared_uncached(analysis, spec, minimum);
+    if RUNS.with(Cell::get) == before
+        && policy
+            .as_ref()
+            .is_some_and(|before| crate::planning::main_policy(analysis) == *before)
+        && let Ok(plan) = &plan
+        && let Some((memo, key)) = memo.zip(key)
+    {
+        // Nested allocations and scope-policy changes must execute again.
+        // Cached pure preparation cannot hide real runs or policy side effects.
+        memo.insert(key, plan.clone());
+    }
+    plan
+}
+
+fn run_prepared_uncached(
+    analysis: &Analysis,
+    spec: &Spec,
+    minimum: Option<f64>,
+) -> Result<Plan, Invalid> {
     crate::planning::with(analysis, || {
         if let Some(minimum) = minimum {
             // R5 capacity constrains auxiliary packing, not the layout of an

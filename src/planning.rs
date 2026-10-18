@@ -6,11 +6,11 @@
 use sha2::{Digest, Sha256};
 use std::any::Any;
 use std::cell::RefCell;
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use crate::model::Analysis;
+use crate::model::{Analysis, Plan};
 
 type Values = BTreeMap<(&'static str, Vec<u8>), Box<dyn Any>>;
 
@@ -22,6 +22,43 @@ struct Active {
 
 thread_local! {
     static ACTIVE: RefCell<Option<Active>> = const { RefCell::new(None) };
+}
+
+// Session-owned exact main preparation is separate from the disposable
+// per-candidate arena. Preview and commit can exceed that arena's entry budget.
+thread_local! {
+    static SESSION_MAIN: RefCell<Option<Arc<BoundedMemo<Plan>>>> = const { RefCell::new(None) };
+}
+
+pub(crate) fn with_session_main<T>(memo: Arc<BoundedMemo<Plan>>, run: impl FnOnce() -> T) -> T {
+    struct Restore(Option<Arc<BoundedMemo<Plan>>>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            SESSION_MAIN.with(|active| *active.borrow_mut() = self.0.take());
+        }
+    }
+    let previous = SESSION_MAIN.with(|active| active.replace(Some(memo)));
+    let _scope = Restore(previous);
+    run()
+}
+
+pub(crate) fn session_main() -> Option<Arc<BoundedMemo<Plan>>> {
+    SESSION_MAIN.with(|active| active.borrow().clone())
+}
+
+#[derive(serde::Serialize, PartialEq, Eq)]
+pub(crate) struct MainPolicy {
+    recipes_and_routes: (bool, bool),
+    clear_witnesses: Option<BTreeSet<String>>,
+    interior_statements: Option<BTreeSet<String>>,
+}
+
+pub(crate) fn main_policy(analysis: &Analysis) -> MainPolicy {
+    MainPolicy {
+        recipes_and_routes: policy_key(analysis),
+        clear_witnesses: lookup(analysis, "established-clear-witnesses", &[]),
+        interior_statements: lookup(analysis, "canonical-interior-statements", &[]),
+    }
 }
 
 type Retained = VecDeque<([u8; 32], Rc<RefCell<Values>>)>;

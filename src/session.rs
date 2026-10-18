@@ -354,17 +354,32 @@ pub struct Stats {
     pub annotations: usize,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 struct Planner {
     calls: usize,
     sheet_steps: usize,
+    main: std::sync::Arc<crate::planning::BoundedMemo<Plan>>,
+}
+impl Default for Planner {
+    fn default() -> Self {
+        Self {
+            calls: 0,
+            sheet_steps: 0,
+            main: std::sync::Arc::new(crate::planning::BoundedMemo::new(32)),
+        }
+    }
 }
 impl Planner {
     fn plan(&mut self, analysis: &Analysis, spec: &Spec) -> Result<Plan, Error> {
         self.calls += 1;
-        Ok(crate::planning::with_retained(analysis, || {
-            crate::sheets::allocate_counted(analysis, spec, &mut self.sheet_steps)
-        })?)
+        Ok(crate::planning::with_session_main(
+            self.main.clone(),
+            || {
+                crate::planning::with_retained(analysis, || {
+                    crate::sheets::allocate_counted(analysis, spec, &mut self.sheet_steps)
+                })
+            },
+        )?)
     }
 }
 struct Evaluation {
