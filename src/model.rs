@@ -1772,6 +1772,24 @@ pub(crate) fn carries_required(required: &Plan, candidate: &Plan) -> bool {
     carried(required).is_subset(&carried(candidate))
 }
 
+/// A local recovery changes carriers, not an explicit fit/tolerance label's
+/// presentation. Nominal table coverage alone cannot replace that placed ink.
+fn retains_explicit_dimension_ink(reference: &Plan, candidate: &Plan) -> bool {
+    if reference.spec.features.is_empty() && reference.spec.dimensions.is_empty() {
+        return true;
+    }
+    reference
+        .dimensions
+        .iter()
+        .filter(|d| d.placed.is_some() && !d.from_spec.is_empty())
+        .all(|d| {
+            candidate
+                .dimensions
+                .iter()
+                .any(|c| c.id == d.id && c.placed.is_some() && c.terms == d.terms)
+        })
+}
+
 /// Check actual bounds independently on each sheet; coincident coordinates on different
 /// pages are expected. Keep the single-sheet gate identical.
 pub(crate) fn drawn_sheets_fit(analysis: &Analysis, plan: &Plan) -> bool {
@@ -2996,6 +3014,7 @@ fn recover_with_reference(
                 && legibility(&detailed) == 0
                 && drawn_sheets_fit(analysis, &detailed)
                 && required.is_subset(&carried(&detailed))
+                && retains_explicit_dimension_ink(&ordinary, &detailed)
                 && no_new_drawing_issues(&ordinary, &detailed)
                 && crate::sheet_fit::routes_no_worse(analysis, &ordinary, &detailed)
                 && route_reference.is_none_or(|reference| {
@@ -3041,6 +3060,7 @@ fn recover_with_reference(
             && required.is_subset(&carried(&detailed));
         if !reference_only {
             if detailed_complete
+                && retains_explicit_dimension_ink(&ordinary, &detailed)
                 && (!complete
                     || paper(&detailed) < paper(&ordinary)
                     || (paper(&detailed) == paper(&ordinary)
@@ -3073,7 +3093,10 @@ fn recover_with_reference(
                     "whole-part paper {} at {}; {recovery}; whole-part trials: {}; local-detail trials: {}",
                     ordinary.sheet.size,
                     ordinary.sheet.scale,
-                    ordinary.sheet.basis,
+                    ordinary
+                        .sheet
+                        .basis
+                        .replace("drawn-item fill", "candidate coverage"),
                     detailed.sheet.basis
                 );
                 record_sheet_choice(&first, &mut detailed);
@@ -3088,7 +3111,10 @@ fn recover_with_reference(
                 ordinary.sheet.size,
                 ordinary.sheet.scale,
                 ordinary.sheet.basis,
-                detailed.sheet.basis
+                detailed
+                    .sheet
+                    .basis
+                    .replace("drawn-item fill", "candidate coverage")
             );
             return Ok(local_readability_refusal(analysis, spec, ordinary));
         }
@@ -4346,11 +4372,14 @@ fn recover_candidates_before(
         } else {
             "The drawing and its findings are kept"
         };
-        let shortfall = if first.sheet.scale_factor < min_legible_scale {
+        // Report the existing local floor separately from the general scale
+        // used to choose paper. Diagnostics must not turn it into a paper demand.
+        let diagnostic_floor = crate::sheet_fit::min_legible_scale(analysis).max(min_legible_scale);
+        let shortfall = if first.sheet.scale_factor < diagnostic_floor {
             format!(
                 " The retained scale {} is below {}.",
                 first.sheet.scale,
-                scale_name(min_legible_scale)
+                scale_name(diagnostic_floor)
             )
         } else {
             String::new()
@@ -4361,7 +4390,7 @@ fn recover_candidates_before(
             severity: if illegible { "warning" } else { "info" }.into(),
             message: format!(
                 "No standard sheet and legible scale yields a valid complete drawing. {retained}: {readability}. Its minimum feature/extent/depiction scale is {}.{shortfall} Tried {}.",
-                scale_name(min_legible_scale), tried.join("; ")
+                scale_name(diagnostic_floor), tried.join("; ")
             ),
             subjects: vec!["sheet".into()],
             ..Default::default()
