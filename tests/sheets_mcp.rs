@@ -329,3 +329,59 @@ fn r5_schemas_admit_all_sheet_controls() {
         );
     }
 }
+
+#[test]
+fn projection_alignment_options_follow_the_anchor_and_refusals_name_valid_choices() {
+    let (cache, key) = open("projection-alignment");
+    let ordinary = json!(["start", "middle", "end", "outside"]);
+    let projected = json!(["projection", "start", "middle", "end", "outside"]);
+    for view in ["front", "plan", "side", "iso"] {
+        let options = checked(
+            &cache,
+            "item_options",
+            json!({"part_ref":key,"id":format!("v:{view}")}),
+        );
+        assert_eq!(
+            options["settable"][format!("views/{view}/place/align")]["choices"],
+            if view == "iso" { &ordinary } else { &projected }.clone()
+        );
+    }
+    for (view, anchor, side, applies) in [
+        ("plan", "front", "above", true),
+        ("side", "front", "right", true),
+        ("front", "plan", "below", true),
+        ("front", "side", "left", true),
+        ("plan", "side", "above", false),
+        ("side", "plan", "right", false),
+        ("iso", "front", "right", false),
+        ("plan", "iso", "above", false),
+    ] {
+        let spec =
+            json!({"views":{view:{"place":{"relative_to":anchor,"side":side,"align":"middle"}}}});
+        let options = checked(
+            &cache,
+            "item_options",
+            json!({"part_ref":key,"spec":spec,"id":format!("v:{view}")}),
+        );
+        assert_eq!(
+            options["settable"][format!("views/{view}/place/align")]["choices"],
+            if applies { &projected } else { &ordinary }.clone(),
+            "{view} against {anchor}"
+        );
+        let args = json!({"part_ref":key,"spec":spec,"ops":[{"op":"set","path":format!("views/{view}/place"),"value":{"relative_to":anchor,"side":side,"align":"projection","gap":15,"pinned":true}}]});
+        if applies {
+            checked(&cache, "preview_ops", args);
+        } else {
+            let error = mcp::call(&cache, "preview_ops", &args).unwrap_err();
+            assert_eq!(error.code, "invalid");
+            assert!(error.message.contains("cannot be projection"), "{error}");
+            assert!(
+                error
+                    .message
+                    .contains("valid choices are start, middle, end, outside"),
+                "{error}"
+            );
+            assert_eq!(serde_json::to_value(error.choices).unwrap(), ordinary);
+        }
+    }
+}

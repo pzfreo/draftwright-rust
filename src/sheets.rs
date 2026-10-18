@@ -1115,7 +1115,7 @@ fn shift(view: &mut PlannedView, delta: [f64; 2]) {
 }
 
 fn relate(spec: &Spec, views: &mut [PlannedView]) {
-    use crate::placement_intent::{Side, Slot};
+    use crate::placement_intent::{Side, ViewAlign};
     let mut done = BTreeSet::new();
     for _ in 0..views.len() {
         for i in 0..views.len() {
@@ -1144,9 +1144,10 @@ fn relate(spec: &Spec, views: &mut [PlannedView]) {
             let horizontal = matches!(place.side, Side::Left | Side::Right);
             let k = usize::from(horizontal);
             let along = match place.align {
-                Slot::Start => b[k] - a[k],
-                Slot::Middle => (b[k] + b[k + 2] - a[k] - a[k + 2]) / 2.,
-                Slot::End | Slot::Outside => b[k + 2] - a[k + 2],
+                ViewAlign::Start => b[k] - a[k],
+                ViewAlign::Middle => (b[k] + b[k + 2] - a[k] - a[k + 2]) / 2.,
+                ViewAlign::End | ViewAlign::Outside => b[k + 2] - a[k + 2],
+                ViewAlign::Projection => parent.at[k] - views[i].at[k],
             };
             let across = match place.side {
                 Side::Above => b[3] + place.gap - a[1],
@@ -1595,6 +1596,35 @@ pub(crate) fn overlap(a: [f64; 4], b: [f64; 4]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn issue109_sheet_relations_distinguish_projection_from_legacy_area_alignment() {
+        // Captured issue areas reproduce the editor's shifts exactly in the area resolver.
+        for (align, shift_x) in [
+            ("start", 0.95),
+            ("middle", -40.9005),
+            ("end", -82.751),
+            ("outside", -82.751),
+            ("projection", 0.),
+        ] {
+            for gap in [0., 5., 15., 30.] {
+                let mut pair: Vec<PlannedView> = serde_json::from_str(include_str!(
+                    "../tests/fixtures/projection_alignment/issue109.views.json"
+                ))
+                .unwrap();
+                let spec: Spec = serde_json::from_value(json!({"views":{"plan":{"place":{
+                    "relative_to":"front", "side":"above", "align":align, "gap":gap
+                }}}}))
+                .unwrap();
+                relate(&spec, &mut pair);
+                assert!(
+                    (pair[1].at[0] - pair[0].at[0] - shift_x).abs() < 1e-6,
+                    "{align}"
+                );
+                assert!((pair[1].area[1] - pair[0].area[3] - gap).abs() < 1e-6);
+            }
+        }
+    }
 
     #[test]
     fn explicit_under_floor_steps_do_not_block_small_sheet_rescue() {

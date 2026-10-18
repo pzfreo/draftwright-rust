@@ -306,15 +306,18 @@
           ]
         },
         "gap": {
-          "type": "number"
+          "type": "number",
+          "description": "Clear paper mm between view areas, including dimension bands (default 10)."
         },
         "align": {
           "enum": [
             "start",
             "middle",
             "end",
-            "outside"
-          ]
+            "outside",
+            "projection"
+          ],
+          "description": "projection keeps geometry origins aligned across side (x above/below, y left/right), only for front/plan or front/side in either direction, first or third angle. Gap stays between areas including bands. Other values retain existing alignment."
         },
         "pinned": {
           "type": "boolean"
