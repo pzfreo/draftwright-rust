@@ -2393,3 +2393,13 @@ Large MCP `item_options` replies keep the complete descriptor map in `structured
 When repeating it as text would exceed the existing 4,096-byte reply cap, the text channel
 contains an `id`/`detail_ref` stub. Text-only clients read the identical complete JSON with
 `resources/read {"uri":"draftwright:<detail_ref>"}`. Native/session options keep every field.
+
+Automatic drawings prefer 12 mm of blank paper between neighbouring views' annotation
+bands. This spacing is applied after sheet, scale, detail and sheet-allocation decisions,
+using settled ink: it translates complete views and their annotations without resizing
+anything. The gutter shrinks continuously to zero when the selected paper has no room,
+with the frame, title block, tables, notes, projection alignment and pinned annotation
+stations held clear. Isometrics use their drawn footprint and scale caption, rather than
+claiming all of their otherwise empty fitting rectangle. Relative view placements retain
+their authored `views/<name>/place/gap`, including zero. `sheet/view_gutter` sets the
+preferred paper-mm spacing (finite, non-negative); `0` disables this final spacing pass.

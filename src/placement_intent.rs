@@ -465,12 +465,29 @@ pub(crate) fn views(
             {
                 let a = views[i].area;
                 let margin = crate::layout::MARGIN;
-                let region = [
-                    a[0].max(margin),
-                    a[1].max(margin),
-                    a[2].min(page[0] - margin),
-                    a[3].min(page[1] - margin),
-                ];
+                // A settled automatic iso carries its ink band, not the old empty
+                // fitting rectangle. Offer the remaining paper on the authored side
+                // before resolving obstacles; the pinned gap still locates that region.
+                let region = match p.side {
+                    Side::Right | Side::Above => [
+                        a[0].max(margin),
+                        a[1].max(margin),
+                        page[0] - margin,
+                        page[1] - margin,
+                    ],
+                    Side::Left => [
+                        margin,
+                        a[1].max(margin),
+                        a[2].min(page[0] - margin),
+                        page[1] - margin,
+                    ],
+                    Side::Below => [
+                        a[0].max(margin),
+                        margin,
+                        page[0] - margin,
+                        a[3].min(page[1] - margin),
+                    ],
+                };
                 let occupied: Vec<_> = c
                     .views
                     .iter()

@@ -384,9 +384,22 @@ fn every_planning_entry_point_applies_the_recovery() {
     };
     let plan = api::plan_analysed(&analysis, &no_tables).unwrap();
     let as_json = serde_json::to_value(&plan).unwrap();
+    // Final gutters follow raw recovery; they preserve its sheet, scales and view inventory.
+    let raw = recovered(&analysis, &no_tables);
+    assert_eq!(sheet(&plan), sheet(&raw));
+    assert_eq!(
+        plan.views
+            .iter()
+            .map(|v| (&v.id, v.scale))
+            .collect::<Vec<_>>(),
+        raw.views
+            .iter()
+            .map(|v| (&v.id, v.scale))
+            .collect::<Vec<_>>()
+    );
     assert_eq!(
         as_json,
-        serde_json::to_value(recovered(&analysis, &no_tables)).unwrap()
+        serde_json::to_value(model::plan_recovered(&analysis, &no_tables).unwrap()).unwrap()
     );
     assert_eq!(sheet(&plan), ("A2", "1:2"));
     assert!(codes(&plan).contains(&"layout_recovery_exhausted"));

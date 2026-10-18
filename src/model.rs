@@ -425,6 +425,11 @@ pub struct SheetSpec {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub knurl_depiction: Option<bool>,
 
+    /// Preferred blank paper between view annotation bands, mm (default 12).
+    /// Spent only after sheet and scale selection; zero disables automatic gutters.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(deserialize_with = "view_gutter")]
+    pub view_gutter: Option<f64>,
     /// `A4` … `A0`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub size: Option<String>,
@@ -452,6 +457,16 @@ pub struct SheetSpec {
     /// symbol beside the title block, as an AP242 one on the part is drawn ([`crate::spec_notes`]).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_finish: Option<crate::spec_notes::FinishSpec>,
+}
+
+fn view_gutter<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<f64>, D::Error> {
+    let gutter = Option::<f64>::deserialize(d)?;
+    if gutter.is_some_and(|g| !g.is_finite() || g < 0.0) {
+        return Err(serde::de::Error::custom(
+            "sheet/view_gutter must be finite and non-negative",
+        ));
+    }
+    Ok(gutter)
 }
 
 fn projection_method<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
@@ -3125,6 +3140,16 @@ fn plan_with_presentation(
             &[],
         ));
     }
+    if spec
+        .sheet
+        .view_gutter
+        .is_some_and(|g| !g.is_finite() || g < 0.0)
+    {
+        return Err(invalid(
+            "sheet/view_gutter must be finite and non-negative.",
+            &[],
+        ));
+    }
     let merged = crate::spec_gdt::effective(analysis, spec)?;
     let analysis = merged.as_ref();
     crate::sheets::validate(spec)?;
@@ -3145,6 +3170,7 @@ fn plan_with_presentation(
         base.sheet.scale = spec.sheet.scale.clone();
         base.sheet.projection = spec.sheet.projection.clone();
         base.sheet.fit_deviations = spec.sheet.fit_deviations;
+        base.sheet.view_gutter = spec.sheet.view_gutter;
         base.sheet.fit_limits = spec.sheet.fit_limits;
         base.hole_table = spec.hole_table;
         base.iso_scale_factor = spec.iso_scale_factor;

@@ -938,6 +938,18 @@
             }
           ]
         },
+        "view_gutter": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "description": "Preferred blank view gutter in paper mm, default 12; shrinks to fit at the selected sheet and scale."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "size": {
           "anyOf": [
             {
