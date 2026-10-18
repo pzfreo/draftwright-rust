@@ -637,7 +637,7 @@ fn conflict(a: &Placed, b: &Placed) -> bool {
 
 /// A spacing preference, applied only after material and settled-ink clearance.
 fn prefers_centre_row(frame: &Frame, w: &Want, v: &PlannedView, prismatic: bool) -> bool {
-    let Shape::Callout { sites } = &w.shape else {
+    let Shape::Callout { sites, .. } = &w.shape else {
         return false;
     };
     prismatic
@@ -660,7 +660,7 @@ fn callouts(
     recess_context: bool,
     centre_row: bool,
 ) -> Vec<Placed> {
-    let Shape::Callout { sites } = &w.shape else {
+    let Shape::Callout { sites, arcs } = &w.shape else {
         return Vec::new();
     };
     let radial = w.measurements.iter().any(|m| {
@@ -726,7 +726,16 @@ fn callouts(
     for (rotation, lane) in stations {
         let (s, c) = rotation.to_radians().sin_cos();
         let d = [u[0] * c - u[1] * s, u[0] * s + u[1] * c];
-        let tips: Vec<_> = if radial {
+        let tips: Vec<_> = if !arcs.is_empty() {
+            arcs.iter()
+                .filter_map(|arc| {
+                    let (centre, radius, span) = arc.projected(|p| frame.page(p));
+                    let angle = d[1].atan2(d[0]);
+                    span.contains(angle, 1e-9)
+                        .then_some([centre[0] + radius * d[0], centre[1] + radius * d[1]])
+                })
+                .collect()
+        } else if radial {
             sites
                 .iter()
                 .take(64)
@@ -1322,6 +1331,7 @@ mod tests {
             basis: "test".into(),
             turning: None,
             shape: Shape::Callout {
+                arcs: Vec::new(),
                 sites: vec![([0., 0., 0.], 5.)],
             },
         };
@@ -1364,6 +1374,7 @@ mod tests {
             basis: "test".into(),
             turning: None,
             shape: Shape::Callout {
+                arcs: Vec::new(),
                 sites: vec![([0., 0., 0.], 5.)],
             },
         };

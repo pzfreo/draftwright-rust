@@ -532,3 +532,79 @@ fn the_plan_and_lint_agree_on_a_leader_cutting_back_into_the_material() {
         "{planned:#?} {linted:#?}"
     );
 }
+
+/// Build the native regression part through the public analysis and rendering APIs.
+fn drawing_10000() -> Option<(Analysis, model::Plan, Drawing)> {
+    let corpus = std::env::var("DRAFTWRIGHT_CORPUS")
+        .unwrap_or_else(|_| "/Users/paul/repos/quiddity/tests/corpus".into());
+    let path = Path::new(&corpus).join("mfcadpp/10000.step");
+    if !path.is_file() {
+        assert!(std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").is_err());
+        return None;
+    }
+    let (part, a) = model::analyse_native(&path).unwrap();
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let drawing = model::render(&part, &a, &plan, &font()).unwrap();
+    Some((a, plan, drawing))
+}
+
+#[test]
+fn circular_step_radius_tip_follows_the_trimmed_arc_10000() {
+    let Some((a, plan, drawing)) = drawing_10000() else {
+        return;
+    };
+    let radius = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id.ends_with("/circular_step_radius.radius"))
+        .unwrap();
+    let p = radius.placed.as_ref().unwrap();
+    let tip = p.lines[0][0];
+    let frame = &drawing.sheet.frames["side"];
+    let view = draftwright::haecceity::hlr::View::new(frame.direction, frame.up).unwrap();
+    let centre = view.map([0, 1, 2].map(|k| (a.envelope[0][k] + a.envelope[1][k]) / 2.0));
+    let page = |q| {
+        let q = view.map(q);
+        [0, 1].map(|k| frame.at[k] + frame.scale * (q[k] - centre[k]))
+    };
+    let feature = &radius.measurements[0].feature;
+    assert!(
+        a.profile_arcs[feature].iter().any(|arc| {
+            // Check against the actual edge's parameter interval, without using
+            // the placement's span clamp or lint's target predicate.
+            let c = page(arc.centre);
+            if ((tip[0] - c[0]).hypot(tip[1] - c[1]) - arc.radius * frame.scale).abs() > 0.002 {
+                return false;
+            }
+            let points: Vec<_> = (0..=1000)
+                .map(|i| page(arc.point(arc.start + arc.sweep * f64::from(i) / 1000.0)))
+                .collect();
+            points
+                .iter()
+                .any(|q| (q[0] - tip[0]).hypot(q[1] - tip[1]) < 0.02)
+        }),
+        "tip {tip:?} must touch the trimmed quarter arc"
+    );
+    assert!(
+        !lint::lint(&a, &drawing)
+            .iter()
+            .any(|i| i.code.starts_with("radius_leader_target_"))
+    );
+    let mut broken = drawing.clone();
+    let item = broken
+        .sheet
+        .items
+        .iter_mut()
+        .find(|d| d.name == radius.id)
+        .unwrap();
+    let arc = &a.profile_arcs[feature][0];
+    let absent = page(arc.point(arc.start + arc.sweep + std::f64::consts::FRAC_PI_4));
+    item.lines[0][0] = absent;
+    assert!(
+        lint::lint(&a, &broken)
+            .iter()
+            .any(|i| i.code == "radius_leader_target_mismatch"
+                && i.annotation.as_deref() == Some(radius.id.as_str()))
+    );
+}
+

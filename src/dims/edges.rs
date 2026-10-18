@@ -295,7 +295,10 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 .flat_map(|e| e.measurements.iter().cloned())
                 .collect(),
             basis,
-            shape: Shape::Callout { sites },
+            shape: Shape::Callout {
+                sites,
+                arcs: Vec::new(),
+            },
             turning: None,
         });
     }

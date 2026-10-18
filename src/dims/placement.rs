@@ -620,9 +620,9 @@ pub(super) fn lanes<'a>(
                     (1, key((b[0] - a[0]).hypot(b[1] - a[1]))),
                 )
             }
-            Shape::Callout { sites } => {
+            Shape::Callout { sites, arcs } => {
                 let side = callout_strip(view);
-                let (tip, _) = callout_tip(f, sites, side == Side::Above);
+                let (tip, _) = callout_tip(f, sites, arcs, side == Side::Above);
                 (side, (3, -key(tip[0])))
             }
             // An angle is placed about its vertex, in no strip ([`super::angular`]).
@@ -3153,7 +3153,7 @@ pub(super) fn intent(
             }
             place_linear(frame, &w.shape, &w.terms, side, lane)?
         }
-        Shape::Callout { sites } => {
+        Shape::Callout { sites, arcs } => {
             let (site, _) = sites.first()?;
             let c = frame.page(*site);
             let o = frame.outline();
@@ -3172,7 +3172,7 @@ pub(super) fn intent(
             let mut elbow = c;
             elbow[k] = line;
             elbow[1 - k] = o[1 - k] + f * (o[3 - k] - o[1 - k]);
-            let tip = super::leaders::intent_tip(frame, sites, elbow);
+            let tip = super::leaders::intent_tip(frame, sites, arcs, elbow);
             let left = match side {
                 Side::Left => true,
                 Side::Right => false,
@@ -3396,7 +3396,12 @@ fn slides(p: &Placed, drawable: [f64; 4]) -> Box<dyn Iterator<Item = Placed> + '
 
 /// The leader's tip: on the rim, at 45° towards the strip and right, of the site nearest the
 /// strip's right-hand end; and that site's radius on the page.
-fn callout_tip(frame: &Frame, sites: &[(P3, f64)], up: bool) -> (P2, f64) {
+fn callout_tip(
+    frame: &Frame,
+    sites: &[(P3, f64)],
+    arcs: &[crate::arc::ProfileArc],
+    up: bool,
+) -> (P2, f64) {
     let r = std::f64::consts::FRAC_1_SQRT_2;
     let v = if up { 1.0 } else { -1.0 };
     sites
@@ -3404,7 +3409,17 @@ fn callout_tip(frame: &Frame, sites: &[(P3, f64)], up: bool) -> (P2, f64) {
         .map(|(c, radius)| {
             let p = frame.page(*c);
             let rr = frame.s * radius;
-            (([p[0] + r * rr, p[1] + v * r * rr], rr), p[0] + v * p[1])
+            let tip = if arcs.is_empty() {
+                [p[0] + r * rr, p[1] + v * r * rr]
+            } else {
+                super::leaders::intent_tip(
+                    frame,
+                    sites,
+                    arcs,
+                    [p[0] + r * (rr + 1.0), p[1] + v * r * (rr + 1.0)],
+                )
+            };
+            ((tip, rr), p[0] + v * p[1])
         })
         .max_by(|a, b| a.1.total_cmp(&b.1))
         .expect("a callout has a site")

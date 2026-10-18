@@ -183,7 +183,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             id: want_id(&group[0].id, "blend.radius"), views: vec![view], value: r,
             terms, measurements: measurements(group),
             basis: "equal displayed blend radii are stated once, with an exact measurement claim for every occurrence and a leader on a proven trimmed surface".into(),
-            shape: Shape::Callout { sites: projected_sites(view, sites.iter().map(|(p, _)| *p)).into_iter().map(|p| (p, 0.0)).collect() }, turning: None,
+            shape: Shape::Callout { arcs: Vec::new(),  sites: projected_sites(view, sites.iter().map(|(p, _)| *p)).into_iter().map(|p| (p, 0.0)).collect() }, turning: None,
         });
     }
     (wants, problems)
@@ -336,7 +336,10 @@ pub(crate) fn consolidate(
             terms: dimensions[j].terms.clone(),
             measurements: dimensions[j].measurements.clone(),
             basis: dimensions[j].basis.clone(),
-            shape: Shape::Callout { sites: Vec::new() },
+            shape: Shape::Callout {
+                arcs: Vec::new(),
+                sites: Vec::new(),
+            },
             turning: None,
         };
         dimensions[j].placed = Some(super::placement::relabel(placed, &was, &want));

@@ -142,6 +142,7 @@ pub(super) fn append(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<()
                 };
                 (
                     Shape::Callout {
+                        arcs: Vec::new(),
                         sites: m.sites.iter().take(32).map(|&p| (p, 0.0)).collect(),
                     },
                     views,
