@@ -76,6 +76,7 @@ mod leaders;
 pub(crate) use label_lanes::{in_lane, settle_inventory};
 pub(crate) use leaders::settle_after_furniture;
 pub(crate) use placement::collisions_cached as label_collisions;
+pub(crate) use placement::nearest_shared_witnesses;
 pub(crate) mod levels;
 mod notches;
 mod oriented_slots;
@@ -571,11 +572,15 @@ pub(crate) fn has_new_native_recess_dimensions(analysis: &Analysis) -> bool {
 }
 
 pub(crate) fn has_recess_dimensions(analysis: &Analysis) -> bool {
-    let (canonical, established) = crate::planning::policy_key(analysis);
+    let (canonical, established, comparison) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "recess-presence",
-        vec![u8::from(canonical), u8::from(established)],
+        vec![
+            u8::from(canonical),
+            u8::from(established),
+            u8::from(comparison),
+        ],
         || has_recess_dimensions_uncached(analysis),
     )
 }
@@ -896,11 +901,15 @@ pub(crate) fn inspection_datum(a: &Analysis) -> Option<(usize, f64)> {
 }
 
 pub(crate) fn detail_levels(a: &Analysis) -> Vec<(String, f64)> {
-    let (canonical, established) = crate::planning::policy_key(a);
+    let (canonical, established, comparison) = crate::planning::policy_key(a);
     crate::planning::memo(
         a,
         "detail-linear-levels",
-        vec![u8::from(canonical), u8::from(established)],
+        vec![
+            u8::from(canonical),
+            u8::from(established),
+            u8::from(comparison),
+        ],
         || detail_levels_uncached(a),
     )
 }
@@ -1714,11 +1723,15 @@ pub(crate) fn authored_placement_clear(spec: &Spec, dims: &[PlannedDimension]) -
 /// A slot chain must have room for its arrows and its own text between its ends.
 /// New recess annotations reserve extra paper rather than reducing these existing chains.
 pub(crate) fn recess_chain_scale(analysis: &Analysis) -> f64 {
-    let (canonical, established) = crate::planning::policy_key(analysis);
+    let (canonical, established, comparison) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "recess-readable-scale",
-        vec![u8::from(canonical), u8::from(established)],
+        vec![
+            u8::from(canonical),
+            u8::from(established),
+            u8::from(comparison),
+        ],
         || recess_chain_scale_uncached(analysis),
     )
 }
@@ -2727,10 +2740,17 @@ fn plan_inventory_ordered(
             .iter()
             .any(|m| m.feature.starts_with("f:section_recess:"))
     });
-    if matches!(stage, 0 | 3) && recess_context && intended.iter().all(Option::is_none) {
-        leaders::seed_established(analysis, spec, views, &all, &chosen, &mut placed, &page);
-    }
+    let nominal_context = leaders::nominal_context(analysis, spec, &all);
+    let nominal_seeded = if matches!(stage, 0 | 3)
+        && (recess_context || nominal_context)
+        && intended.iter().all(Option::is_none)
+    {
+        leaders::seed_established(analysis, spec, views, &all, &chosen, &mut placed, &page)
+    } else {
+        false
+    };
     if (recess_context
+        || nominal_seeded
         || spec
             .dimensions
             .values()

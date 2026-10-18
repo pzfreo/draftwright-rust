@@ -293,7 +293,9 @@ fn semantic_pmi_callouts_remain_source_carrying_beside_the_schedule() {
     };
     let plan = model::plan_escalated(&analysis, &always).unwrap();
     assert!(tables(&plan).as_array().is_some_and(|t| !t.is_empty()));
-    assert_eq!(plan.spec, always);
+    let mut expected = always.clone();
+    expected.binding = Some(analysis.binding.clone());
+    assert_eq!(plan.spec, expected);
     assert!(plan.sheet.default);
     assert!(!plan.problems.iter().any(|p| {
         p.code == "annotation_off_sheet" && plan.gdt.iter().any(|g| p.subjects.contains(&g.id))

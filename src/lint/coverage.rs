@@ -61,6 +61,10 @@ const AXES: [&str; 3] = ["x", "y", "z"];
 
 /// A nominal as live labels print it: shortest within 1e-6, up to three places.
 pub fn fmt(v: f64) -> String {
+    if crate::nominal::comparison() {
+        return crate::nominal::format(v);
+    }
+
     let v = (v * 1e6).round() / 1e6;
     for places in 0..=3 {
         let text = format!("{v:.places$}");

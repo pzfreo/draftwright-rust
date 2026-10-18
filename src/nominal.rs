@@ -1,11 +1,50 @@
 //! Default nominal display intentionally departs from Python's one-decimal `_fmt`.
 //! Tolerance magnitudes and explicit measurement precision have separate policies.
+thread_local! {
+    // Unrendered placement comparison only. Live plans always leave this scope first.
+    static COMPARISON: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Authored PMI owns its layout and precision; compact nominal recipes are
+/// only a comparison for automatically generated dimensions.
+pub(crate) fn geometry_eligible(analysis: &crate::model::Analysis) -> bool {
+    analysis
+        .recognition
+        .as_ref()
+        .is_some_and(|r| r.recogniser.starts_with("quiddity-rust "))
+        && !matches!(&analysis.pmi, Some(crate::pmi::Reading::Read(report)) if !report.records.is_empty())
+}
+
+pub(crate) fn comparison() -> bool {
+    COMPARISON.get()
+}
+
+pub(crate) fn with_comparison<T>(run: impl FnOnce() -> T) -> T {
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            COMPARISON.set(self.0);
+        }
+    }
+    let _restore = Restore(COMPARISON.replace(true));
+    run()
+}
+
 pub(crate) fn clean(value: f64) -> f64 {
     (value * 1e6).round() / 1e6
 }
 
 pub(crate) fn format(value: f64) -> String {
     let value = clean(value);
+    if comparison() {
+        let rounded = value.round();
+        return if (value - rounded).abs() < 1e-6 {
+            format!("{}", if rounded == 0. { 0 } else { rounded as i64 })
+        } else {
+            let text = format!("{value:.1}");
+            if text == "-0.0" { "0.0".into() } else { text }
+        };
+    }
     for places in 0..=3 {
         let text = format!("{value:.places$}");
         if places == 3
@@ -41,6 +80,9 @@ pub(crate) fn format(value: f64) -> String {
 
 /// Refresh on the final live carriers, including notes and table-owned measurements.
 pub(crate) fn report(plan: &mut crate::model::Plan) {
+    if comparison() {
+        return;
+    }
     plan.problems.retain(|p| p.code != "nominal_rounded");
     let spec = &plan.spec;
     let mut problems = std::collections::BTreeMap::new();
@@ -62,8 +104,7 @@ pub(crate) fn report(plan: &mut crate::model::Plan) {
             // Report only a numeric term that is actually printed on this carrier.
             let printed_here = text
                 .split(|c: char| !c.is_ascii_digit() && c != '.' && c != '-')
-                .filter_map(|token| token.parse::<f64>().ok())
-                .any(|v| printed.parse::<f64>().is_ok_and(|n| (v - n).abs() < 1e-12));
+                .any(|token| token == printed);
             if printed_here
                 && printed
                     .parse::<f64>()
@@ -88,7 +129,7 @@ pub(crate) fn report(plan: &mut crate::model::Plan) {
             check(&n.id, &n.measurements, &n.text);
         }
     }
-    for t in &plan.hole_tables {
+    for t in plan.hole_table.iter().chain(&plan.hole_tables) {
         let text = t
             .rows
             .iter()
@@ -123,6 +164,20 @@ pub(crate) fn report(plan: &mut crate::model::Plan) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn comparison_widths_cannot_escape_into_live_nominals() {
+        super::with_comparison(|| {
+            assert_eq!(super::format(4.75), "4.8");
+            assert_eq!(crate::pmi::fmt(4.75, None), "4.8");
+            assert_eq!(crate::lint::coverage::fmt(4.75), "4.8");
+        });
+        assert_eq!(super::format(4.75), "4.75");
+        assert_eq!(crate::pmi::fmt(4.75, None), "4.75");
+        assert_eq!(crate::lint::coverage::fmt(4.75), "4.75");
+        let _ = std::panic::catch_unwind(|| super::with_comparison(|| panic!("comparison failed")));
+        assert_eq!(super::format(4.75), "4.75");
+    }
+
     #[test]
     fn shortest_nominals_remove_noise_without_rounding_hundredths() {
         for (value, text) in [

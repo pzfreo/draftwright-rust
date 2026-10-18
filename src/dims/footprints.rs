@@ -141,8 +141,7 @@ impl Cache {
                 .entry(key)
                 .or_insert_with(|| {
                     crate::planning::memo(analysis, "projected-model-index", frame_key, || {
-                        let (edges, bounds) = super::leaders::view_ink(analysis, ink, view);
-                        Rc::new((super::leaders::SegmentIndex::new(edges), bounds))
+                        Rc::new(super::leaders::SegmentIndex::for_view(analysis, ink, view))
                     })
                 })
                 .clone(),

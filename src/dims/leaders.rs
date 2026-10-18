@@ -750,6 +750,123 @@ pub(super) fn place(
     )
 }
 
+fn default_nominal_intent(spec: &crate::model::Spec) -> bool {
+    spec.dimension_schemes.is_empty()
+        && spec.features.values().all(|f| *f == Default::default())
+        && spec
+            .annotations
+            .values()
+            .all(|a| a.text.is_none() && a.place.as_ref().is_none_or(|p| *p == Default::default()))
+        && spec.dimensions.values().all(|d| {
+            let mut d = d.clone();
+            d.omit = false;
+            if d.place.as_ref().is_some_and(|p| {
+                *p == Default::default() || crate::placement_intent::automatic_pin(p)
+            }) {
+                d.place = None;
+            }
+            d == Default::default()
+        })
+}
+
+pub(super) fn nominal_context(
+    analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
+    items: &[Want],
+) -> bool {
+    crate::nominal::geometry_eligible(analysis)
+        && !crate::nominal::comparison()
+        && default_nominal_intent(spec)
+        && spec.precision.is_empty()
+        && !crate::placement_intent::has_pins(spec)
+        && items.iter().flat_map(|w| &w.measurements).any(|m| {
+            crate::nominal::format(m.value)
+                .split_once('.')
+                .is_some_and(|(_, fraction)| fraction.len() > 1)
+        })
+}
+
+fn nominal_reference(
+    analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
+    items: &[Want],
+) -> Option<crate::model::Plan> {
+    if !nominal_context(analysis, spec, items) {
+        return None;
+    }
+    if !crate::dims::has_new_native_recess_dimensions(analysis) {
+        return None;
+    }
+    let reference_key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
+        .expect("reference inputs serialize");
+    crate::planning::lookup::<Result<crate::model::Plan, crate::model::Invalid>>(
+        analysis,
+        "established-drawing",
+        &reference_key,
+    )
+    .and_then(Result::ok)
+}
+
+// A late comparison cannot influence view selection, lane ownership or sheet search.
+// It contributes remeasured alternatives only after the complete inventory has settled.
+fn settled_nominal_reference(
+    analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
+    items: &[PlannedDimension],
+) -> Option<crate::model::Plan> {
+    if crate::nominal::comparison()
+        || !crate::nominal::geometry_eligible(analysis)
+        || !default_nominal_intent(spec)
+        || !spec.precision.is_empty()
+        || (crate::placement_intent::has_pins(spec)
+            && !crate::placement_intent::automatic_pins_only(spec))
+        || !spec.views.values().all(|v| *v == Default::default())
+        || !spec.faces.is_empty()
+        || !spec.notes.is_empty()
+        || !spec.tables.is_empty()
+        || spec.sheets.as_ref().is_some_and(|s| {
+            let mut policy = s.clone();
+            policy.max = None;
+            policy != Default::default()
+        })
+        || spec.iso_scale_factor.is_some()
+        || spec.envelope_tolerance.is_some()
+        || !spec.gears.is_empty()
+        || !spec.feature_declarations.is_empty()
+        || !items.iter().flat_map(|d| &d.measurements).any(|m| {
+            crate::nominal::format(m.value)
+                .split_once('.')
+                .is_some_and(|(_, fraction)| fraction.len() > 1)
+        })
+    {
+        return None;
+    }
+    use sha2::{Digest, Sha256};
+    static MEMO: crate::planning::BoundedMemo<Option<crate::model::Plan>> =
+        crate::planning::BoundedMemo::new(16);
+    let analysis_key: [u8; 32] =
+        crate::planning::memo(analysis, "analysis_digest", Vec::new(), || {
+            Sha256::digest(serde_json::to_vec(analysis).expect("Analysis serializes")).into()
+        });
+    let mut recipe = crate::model::Spec {
+        hole_table: spec.hole_table,
+        ..Default::default()
+    };
+    recipe.sheet.projection = spec.sheet.projection.clone();
+    let key: [u8; 32] = Sha256::digest(
+        serde_json::to_vec(&(analysis_key, &recipe)).expect("nominal recipe serializes"),
+    )
+    .into();
+    if let Some(reference) = MEMO.get(&key) {
+        return reference;
+    }
+    let base = analysis.clone();
+    let reference =
+        crate::nominal::with_comparison(|| crate::model::plan_recovered(&base, &recipe).ok());
+    MEMO.insert(key, reference.clone());
+    reference
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn place_with_obstacles(
     analysis: &crate::model::Analysis,
@@ -769,9 +886,7 @@ pub(super) fn place_with_obstacles(
     }) {
         return Vec::new();
     }
-    // Candidate retries can reach the same settled inventory. Retain the exact
-    // solve only within this immutable Analysis, with every routing input in
-    // the key. Frames are derived from these planned views and the Analysis.
+    let reference = nominal_reference(analysis, spec, items);
     let route_policy =
         crate::planning::lookup::<bool>(analysis, "established-route-policy", &[]).unwrap_or(false);
     let frame_geometry: Vec<_> = frames
@@ -792,13 +907,25 @@ pub(super) fn place_with_obstacles(
         page,
         obstacles,
         route_policy,
+        crate::nominal::comparison(),
+        &reference,
     ))
     .expect("leader solve inputs serialize");
     let (next, problems) = crate::planning::memo(analysis, "settled-leader-solve", key, || {
         let mut next = placed.to_vec();
         let problems = place_with_obstacles_uncached(
-            analysis, spec, cache, views, frames, items, views_of, sides, &mut next, page,
+            analysis,
+            spec,
+            cache,
+            views,
+            frames,
+            items,
+            views_of,
+            sides,
+            &mut next,
+            page,
             obstacles,
+            reference.as_ref(),
         );
         (next, problems)
     });
@@ -819,6 +946,7 @@ fn place_with_obstacles_uncached(
     placed: &mut [Option<Placed>],
     page: &Page,
     obstacles: &[PlannedDimension],
+    reference: Option<&crate::model::Plan>,
 ) -> Vec<Problem> {
     let on = || {
         placed
@@ -981,7 +1109,37 @@ fn place_with_obstacles_uncached(
         .collect();
     let mut inventories: Vec<_> = measured.iter().map(|v| v.0.clone()).collect();
     let mut baseline: Vec<_> = measured.iter().map(|v| v.1.clone()).collect();
-    let baseline_original: Vec<_> = measured.iter().map(|v| v.2.clone()).collect();
+    let mut baseline_original: Vec<_> = measured.iter().map(|v| v.2.clone()).collect();
+    if let Some(reference) = reference {
+        for (k, (i, job)) in jobs.iter().enumerate() {
+            let w = &items[*i];
+            let Some(old) = reference.dimensions.iter().find(|d| {
+                d.id == w.id && d.measurements.iter().all(|m| w.measurements.contains(m))
+            }) else {
+                continue;
+            };
+            let Some(p) = nominal_route(reference, old, views, w) else {
+                continue;
+            };
+            if p.lines.len() != 2 {
+                continue;
+            }
+            let [tip, elbow] = p.lines[0];
+            let end = p.lines[1][1];
+            if let Some(c) = measure_at(job, tip, elbow, end, end[0] >= elbow[0], &fixed, page) {
+                inventories[k].push(c.clone());
+                baseline[k].push(c.clone());
+                baseline_original[k].push(c);
+                for inventory in [
+                    &mut inventories[k],
+                    &mut baseline[k],
+                    &mut baseline_original[k],
+                ] {
+                    inventory.sort_by_key(Candidate::score);
+                }
+            }
+        }
+    }
     // Semantic PMI claims its strips after dimensions. Until those strips participate in the
     // joint solve, retain the established objective rather than planning PMI twice as a probe.
     let defects = |inv: &[Vec<Candidate>], selected: &[usize]| {
@@ -1212,6 +1370,10 @@ pub(crate) fn settle_after_furniture(
     obstacles: &[PlannedDimension],
     cache: &super::footprints::Cache,
 ) -> BTreeMap<String, Vec<Problem>> {
+    super::nearest_shared_witnesses(analysis, spec, views, items);
+    let compact = crate::nominal::comparison();
+    let bounded_notches = !crate::notches::requirements(analysis).is_empty();
+    let reference = settled_nominal_reference(analysis, spec, items);
     let mut updated = BTreeMap::new();
     let mut wants = None;
     let mut profile_proofs = None;
@@ -1219,7 +1381,7 @@ pub(crate) fn settle_after_furniture(
     for i in 0..items.len() {
         let d = &items[i];
         if d.kind != "callout"
-            || d.region == Some(super::CandidateRegion::Interior)
+            || (!compact && d.region == Some(super::CandidateRegion::Interior))
             || spec
                 .dimensions
                 .get(&d.id)
@@ -1230,28 +1392,55 @@ pub(crate) fn settle_after_furniture(
         let Some(old) = &d.placed else { continue };
         // Longer faithful nominal labels can contact already settled dimensions as well
         // as furniture. Reconsider those routes against the complete live inventory.
-        let conflicts = obstacles
-            .iter()
-            .chain(
-                items
-                    .iter()
-                    .enumerate()
-                    .filter(|(j, _)| *j != i)
-                    .map(|(_, d)| d),
-            )
-            .filter_map(|d| d.placed.as_ref())
-            .any(|p| {
-                super::text_contact(old, p)
-                    || old
-                        .lines
+        let conflicts = if compact {
+            obstacles
+                .iter()
+                .chain(
+                    items
                         .iter()
-                        .any(|a| p.lines.iter().chain(&p.arrows).any(|b| lines_meet(*a, *b)))
-            });
-        if !conflicts {
+                        .filter(|d| bounded_notches && d.kind == "linear"),
+                )
+                .filter_map(|d| d.placed.as_ref())
+                .any(|p| super::text_contact(old, p))
+        } else {
+            obstacles
+                .iter()
+                .chain(
+                    items
+                        .iter()
+                        .enumerate()
+                        .filter(|(j, _)| *j != i)
+                        .map(|(_, d)| d),
+                )
+                .filter_map(|d| d.placed.as_ref())
+                .any(|p| {
+                    super::text_contact(old, p)
+                        || old
+                            .lines
+                            .iter()
+                            .any(|a| p.lines.iter().chain(&p.arrows).any(|b| lines_meet(*a, *b)))
+                })
+        };
+        if !conflicts && reference.is_none() {
             continue;
         }
         let Some(w) = wants
-            .get_or_insert_with(|| super::wants(analysis).0)
+            .get_or_insert_with(|| {
+                let mut wants = super::wants(analysis).0;
+                let frames = views
+                    .iter()
+                    .filter_map(|v| {
+                        let name = v.id.strip_prefix("v:")?;
+                        (super::NAMES.contains(&name) || crate::detail::NAMES.contains(&name))
+                            .then(|| (name, Frame::new(analysis, v)))
+                    })
+                    .collect();
+                // Late repairs need the same proven profile sites as the initial
+                // router, including section and detail transformations.
+                super::detail_routes(analysis, &mut wants, views);
+                super::route(&mut wants, &frames, analysis);
+                wants
+            })
             .iter()
             .find(|w| w.id == d.id)
         else {
@@ -1266,8 +1455,12 @@ pub(crate) fn settle_after_furniture(
         let view = v.id.trim_start_matches("v:");
         let ink = label_ink(&d.terms, font());
         let footprint = cache.get(analysis, v);
-        let model = cache.model(analysis, v);
-        let profile_proof = if boss_profile(w) {
+        let model = if !compact || grazing(&frame, w).is_some() {
+            cache.model(analysis, v)
+        } else {
+            None
+        };
+        let profile_proof = if !compact && boss_profile(w) {
             profile_proofs
                 .get_or_insert_with(|| super::interior::proofs(analysis, views))
                 .get(&v.id)
@@ -1288,7 +1481,7 @@ pub(crate) fn settle_after_furniture(
             sites: page_sites(&frame, sites, arcs),
             directed: false,
             // Enable the existing bounded corridor retry for a newly contacted route.
-            corridors: true,
+            corridors: !compact,
             short_profile: boss_profile(w),
             profile_proof,
             silhouette: grazing(&frame, w),
@@ -1318,7 +1511,7 @@ pub(crate) fn settle_after_furniture(
         else {
             continue;
         };
-        let (candidates, ..) = inventory(
+        let (mut candidates, ..) = inventory(
             &job,
             &fixed,
             &page,
@@ -1329,6 +1522,91 @@ pub(crate) fn settle_after_furniture(
                     .iter()
                     .any(|m| m.parameter == "polygon_across_flats.length"),
         );
+        let budget = reference
+            .as_ref()
+            .and_then(|r| r.dimensions.iter().find(|b| b.id == d.id))
+            .and_then(|b| b.placed.as_ref())
+            .map(|p| length(&p.lines) + 2.0);
+        if reference.is_some() {
+            let delta = [elbow[0] - tip[0], elbow[1] - tip[1]];
+            let norm = delta[0].hypot(delta[1]);
+            for reach in [MIN_LEADER, 7.0, 8.0, 9.0, 11.0, 14.0, norm] {
+                let elbow = [0, 1].map(|k| tip[k] + delta[k] * reach / norm);
+                for right in [false, true] {
+                    for shoulder in [0.75, 3.0] {
+                        let end = [
+                            elbow[0] + if right { shoulder } else { -shoulder },
+                            elbow[1],
+                        ];
+                        let attached = moved_rim_tip(&job.sites, tip, elbow);
+                        if let Some(c) =
+                            measure_at(&job, attached, elbow, end, right, &fixed, &page)
+                        {
+                            candidates.push(c);
+                        }
+                    }
+                }
+            }
+        }
+        let established = reference.as_ref().and_then(|reference| {
+            let old = reference.dimensions.iter().find(|old| {
+                old.id == d.id
+                    && old.view == d.view
+                    && old.measurements.iter().all(|m| d.measurements.contains(m))
+            })?;
+            let old_view = reference.views.iter().find(|old_view| {
+                old_view.id == d.view
+                    && old_view.direction == v.direction
+                    && old_view.up == v.up
+                    && old_view.cut == v.cut
+                    && old_view.detail == v.detail
+            })?;
+            let p = old.placed.as_ref()?;
+            let [old_tip, old_elbow] = p.lines[0];
+            let factor = v.scale / old_view.scale;
+            let map = |q: P2| [0, 1].map(|k| v.at[k] + factor * (q[k] - old_view.at[k]));
+            let tip = map(old_tip);
+            let mapped_elbow = map(old_elbow);
+            let delta = [mapped_elbow[0] - tip[0], mapped_elbow[1] - tip[1]];
+            let norm = delta[0].hypot(delta[1]);
+            if norm < 1e-9 {
+                return None;
+            }
+            let elbow = [0, 1].map(|k| tip[k] + delta[k] * norm.max(MIN_LEADER) / norm);
+            let right = p.lines[1][1][0] >= old_elbow[0];
+            let shoulder = (p.lines[1][1][0] - old_elbow[0]).abs();
+            let end = [
+                elbow[0] + if right { shoulder } else { -shoulder },
+                elbow[1],
+            ];
+            let budget = length(&p.lines) + 2.0;
+            let baseline = measure_at(&job, tip, elbow, end, right, &fixed, &page)?;
+            // Model attachments scale with the projection, but the shoulder and
+            // minimum readable leader length remain paper measurements.
+            if norm > 1e-9 {
+                for reach in [MIN_LEADER, 7.0, 8.0, 9.0, 11.0, 14.0, norm] {
+                    let elbow = [0, 1].map(|k| tip[k] + delta[k] * reach / norm);
+                    for right in [right, !right] {
+                        for shoulder in [0.75, 3.0, shoulder] {
+                            let end = [
+                                elbow[0] + if right { shoulder } else { -shoulder },
+                                elbow[1],
+                            ];
+                            let attached = moved_rim_tip(&job.sites, tip, elbow);
+                            if let Some(c) =
+                                measure_at(&job, attached, elbow, end, right, &fixed, &page)
+                            {
+                                candidates.push(c);
+                            }
+                        }
+                    }
+                }
+            }
+            Some((baseline, budget))
+        });
+        if let Some((c, _)) = &established {
+            candidates.push(c.clone());
+        }
         let extensions: Vec<_> = others
             .iter()
             .enumerate()
@@ -1358,58 +1636,185 @@ pub(crate) fn settle_after_furniture(
                         && q.lines
                             .iter()
                             .any(|a| p.lines.iter().chain(&p.arrows).any(|b| lines_meet(*a, *b)));
-                    (forward || reverse).then_some(i)
+                    (forward || reverse || super::text_contact(p, q)).then_some(i)
                 })
                 .collect()
         };
         let prior_live = live_contacts(old);
+        let heads_clear = |c: &Candidate| {
+            head(arrow(c.tip, c.elbow)).iter().all(|h| {
+                extensions
+                    .iter()
+                    .all(|(_, e)| !touches_box(*h, grow(segment_bounds(*e), 0.2)))
+            })
+        };
+        let outline_clear = |c: &Candidate| {
+            !job.model.is_some_and(|ink| {
+                ink.crosses_box(grow(c.label_box, LABEL_PAD))
+                    || ink.crosses_box(grow(segment_bounds([c.elbow, c.elbow]), LABEL_PAD))
+            })
+        };
+        // Good routes have no growth repair to perform. In particular, do not
+        // spend a local search budget moving an already clear neighbouring callout.
+        if reference.is_some()
+            && before.clear()
+            && before.feature_crossings == 0
+            && before.beside == 0
+            && before.grazing == 0
+            && prior_live.is_empty()
+            && prior_extensions == (0, 0)
+            && heads_clear(&before)
+            && outline_clear(&before)
+            && budget.is_none_or(|budget| length(&before.segments()) <= budget + 1e-6)
+            && established
+                .as_ref()
+                .is_none_or(|(b, _)| model_crossings(&job, &before) <= model_crossings(&job, b))
+        {
+            continue;
+        }
         let acceptable = |c: &Candidate| {
+            // A shorter shelf still reads in the direction its shaft leaves the rim.
+            if (c.elbow[0] - c.tip[0]) * (c.end[0] - c.elbow[0]) < -1e-9 {
+                return false;
+            }
+            if compact {
+                return c.text < before.text
+                    && c.hard <= before.hard
+                    && c.crossings <= before.crossings
+                    && c.feature_crossings <= before.feature_crossings
+                    && c.furniture <= before.furniture
+                    && page.fits(&c.placed(), view);
+            }
+            if budget.is_some_and(|budget| length(&c.segments()) > budget + 1e-6) {
+                return false;
+            }
             let live = live_contacts(&c.placed());
             let contacts = extension_contacts(&extensions, &c.segments(), c.label_box);
-            (c.text < before.text || live.len() < prior_live.len())
+            (c.text < before.text
+                || live.len() < prior_live.len()
+                || (reference.is_some()
+                    && (c.score() < before.score()
+                        || model_crossings(&job, c) < model_crossings(&job, &before)
+                        || contacts < prior_extensions)))
                 && live.is_subset(&prior_live)
                 && c.text <= before.text
                 && c.hard <= before.hard
                 && c.crossings <= before.crossings
-                && c.feature_crossings <= before.feature_crossings
+                && c.feature_crossings
+                    <= established
+                        .as_ref()
+                        .map_or(before.feature_crossings, |(b, _)| {
+                            before.feature_crossings.max(b.feature_crossings)
+                        })
                 && c.furniture <= before.furniture
+                // The exterior shoulder must not trade an annotation contact for
+                // a new pass through its own view, even if another hard cost fell.
+                && (!super::placement::crosses([c.elbow, c.end], job.outline)
+                    || super::placement::crosses([before.elbow, before.end], job.outline))
                 && c.grazing <= before.grazing
                 && c.beside <= before.beside
-                && c.clearance <= before.clearance
-                && model_crossings(&job, c) <= model_crossings(&job, &before)
+                && (reference.is_none() || c.beside == 0)
+                && c.clearance
+                    <= established
+                        .as_ref()
+                        .map_or(before.clearance, |(b, _)| before.clearance.max(b.clearance))
+                && model_crossings(&job, c)
+                    <= established
+                        .as_ref()
+                        .map_or(model_crossings(&job, &before), |(b, _)| {
+                            model_crossings(&job, &before).max(model_crossings(&job, b))
+                        })
                 && contacts.0 <= prior_extensions.0
                 && contacts.1 <= prior_extensions.1
-                && page.fits(&c.placed(), view)
+                && (reference.is_none() || {
+                    let outline = job.model;
+                    (!outline.is_some_and(|ink| {
+                        ink.new_physical_crossing(&c.segments(), &before.segments())
+                    }) || model_crossings(&job, c) < model_crossings(&job, &before)
+                        || established.as_ref().is_some_and(|(baseline, _)| {
+                            !outline.is_some_and(|ink| {
+                                ink.new_physical_crossing(&c.segments(), &baseline.segments())
+                            })
+                        }))
+                        && outline_clear(c)
+                        && heads_clear(c)
+                })
+                && (page.fits(&c.placed(), view)
+                    || (reference.is_some() && {
+                        let mut reserved = views.to_vec();
+                        let mut ink = items.to_vec();
+                        ink[i].placed = Some(c.placed());
+                        crate::sheet_fit::reserve_nominal_bounds(
+                            analysis,
+                            sheet,
+                            &mut reserved,
+                            &ink,
+                            &[],
+                        );
+                        Page::new(analysis, sheet, &reserved).fits(&c.placed(), view)
+                    }))
         };
-        let next = candidates
+        let partial = candidates
             .into_iter()
             .filter(&acceptable)
-            .min_by_key(Candidate::score)
+            .min_by_key(Candidate::score);
+        let next = partial
+            .clone()
+            .filter(|c| reference.is_none() || c.clear())
             .or_else(|| {
                 // The final label may have grown into a peer's corridor. Keep its proven
                 // attachment and try bounded half-mm elbow/shelf translations, nearest first.
                 // Every material, furniture, text and arrowhead gate still applies.
-                for ring in 1_i32..=14 {
-                    for dx in -ring..=ring {
-                        for dy in -ring..=ring {
-                            if dx.abs().max(dy.abs()) != ring {
-                                continue;
-                            }
-                            let elbow = [
-                                elbow[0] + f64::from(dx) * 0.5,
-                                elbow[1] + f64::from(dy) * 0.5,
-                            ];
-                            let right = elbow[0] >= tip[0];
-                            if let Some(c) = measure(&job, tip, elbow, right, &fixed, &page)
-                                && acceptable(&c)
-                            {
-                                return Some(c);
+                if compact {
+                    return None;
+                }
+                let mut centres = vec![(tip, elbow)];
+                if let Some((b, _)) = &established {
+                    centres.push((b.tip, b.elbow));
+                }
+                for (tip, elbow) in centres {
+                    for ring in 1_i32..=if reference.is_some() { 24 } else { 14 } {
+                        for dx in -ring..=ring {
+                            for dy in -ring..=ring {
+                                if dx.abs().max(dy.abs()) != ring {
+                                    continue;
+                                }
+                                let elbow = [
+                                    elbow[0] + f64::from(dx) * 0.5,
+                                    elbow[1] + f64::from(dy) * 0.5,
+                                ];
+                                if reference.is_none() {
+                                    let right = elbow[0] >= tip[0];
+                                    if let Some(c) = measure(&job, tip, elbow, right, &fixed, &page)
+                                        && acceptable(&c)
+                                    {
+                                        return Some(c);
+                                    }
+                                    continue;
+                                }
+                                for right in [elbow[0] >= tip[0], elbow[0] < tip[0]] {
+                                    for shoulder in [0.75, 3.0] {
+                                        let end = [
+                                            elbow[0] + if right { shoulder } else { -shoulder },
+                                            elbow[1],
+                                        ];
+                                        let attached = moved_rim_tip(&job.sites, tip, elbow);
+                                        if let Some(c) = measure_at(
+                                            &job, attached, elbow, end, right, &fixed, &page,
+                                        ) && acceptable(&c)
+                                            && c.clear()
+                                        {
+                                            return Some(c);
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
                 None
-            });
+            })
+            .or(partial);
         let Some(next) = next else { continue };
         let mut printed = w.clone();
         printed.terms.clone_from(&d.terms);
@@ -1467,42 +1872,74 @@ pub(super) fn seed_established(
     chosen: &[Option<&str>],
     placed: &mut [Option<Placed>],
     page: &Page,
-) {
+) -> bool {
+    let native_corridors = items
+        .iter()
+        .flat_map(|w| &w.measurements)
+        .any(|m| m.feature.starts_with("f:section_recess:"));
     let key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
         .expect("presentation inputs serialize");
-    let Some(reference) = crate::planning::lookup::<
-        Result<crate::model::Plan, crate::model::Invalid>,
-    >(analysis, "established-drawing", &key)
-    .and_then(Result::ok) else {
-        return;
+    let nominal = nominal_reference(analysis, spec, items);
+    let is_nominal = nominal.is_some();
+    let Some(reference) = nominal.or_else(|| {
+        crate::planning::lookup::<Result<crate::model::Plan, crate::model::Invalid>>(
+            analysis,
+            "established-drawing",
+            &key,
+        )
+        .and_then(Result::ok)
+    }) else {
+        return false;
     };
+    let mut seeded = false;
     for (i, w) in items.iter().enumerate() {
         if placed[i].is_some() || !matches!(w.shape, Shape::Callout { .. }) {
             continue;
         }
-        let Some(d) = reference
-            .dimensions
-            .iter()
-            .find(|d| d.id == w.id && d.kind == "callout")
-        else {
+        if is_nominal
+            && w.measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:section_recess:"))
+        {
+            continue;
+        }
+        let Some(d) = reference.dimensions.iter().find(|d| {
+            d.id == w.id
+                && d.kind == "callout"
+                && d.measurements.iter().all(|m| w.measurements.contains(m))
+        }) else {
             continue;
         };
         if reference.problems.iter().any(|p| {
             p.subjects.contains(&d.id)
-                && matches!(
+                && (matches!(
                     p.code.as_str(),
                     "annotation_line_over_view" | "annotation_leader_long"
-                )
+                ) || (!native_corridors
+                    && matches!(
+                        p.code.as_str(),
+                        "annotation_leader_crossing"
+                            | "annotation_ink_overlap"
+                            | "annotation_overlap"
+                            | "annotation_over_view"
+                    )))
         }) {
             continue;
         }
-        let Some(p) = translated(&reference, d, views, w) else {
+        let p = if is_nominal {
+            nominal_route(&reference, d, views, w)
+        } else {
+            translated(&reference, d, views, w)
+        };
+        let Some(p) = p else {
             continue;
         };
         if chosen[i].is_some_and(|v| d.view == format!("v:{v}") && page.fits(&p, v)) {
             placed[i] = Some(p);
+            seeded = true;
         }
     }
+    seeded
 }
 
 fn translated(
@@ -1523,6 +1960,42 @@ fn translated(
     for q in p.lines.iter_mut().chain(&mut p.arrows).flatten() {
         q[0] += delta[0];
         q[1] += delta[1];
+    }
+    for (k, shift) in delta.into_iter().enumerate() {
+        p.label_at[k] += shift;
+        p.label_box[k] += shift;
+        p.label_box[k + 2] += shift;
+    }
+    Some(p)
+}
+
+fn nominal_route(
+    before: &crate::model::Plan,
+    d: &PlannedDimension,
+    views: &[crate::model::PlannedView],
+    w: &Want,
+) -> Option<Placed> {
+    let old = before.views.iter().find(|v| v.id == d.view)?;
+    let now = views.iter().find(|v| {
+        v.id == d.view
+            && v.direction == old.direction
+            && v.up == old.up
+            && v.scale == old.scale
+            && v.cut == old.cut
+            && v.detail == old.detail
+    })?;
+    let mut p = super::placement::relabel(d.placed.as_ref()?, &d.terms, w);
+    // The shoulder is a paper leader, not a width measurement of the text.
+    // Keep it short when the accurately printed nominal gains digits.
+    p.lines = d.placed.as_ref()?.lines.clone();
+    let [tip_at, elbow_at] = *p.lines.first()?;
+    let [_, end_at] = *p.lines.last()?;
+    if (elbow_at[0] - tip_at[0]) * (end_at[0] - elbow_at[0]) < -1e-6 {
+        return None;
+    }
+    let delta = [0, 1].map(|k| now.at[k] - old.at[k]);
+    for q in p.lines.iter_mut().chain(&mut p.arrows).flatten() {
+        crate::placement_intent::move_point(q, delta);
     }
     for (k, shift) in delta.into_iter().enumerate() {
         p.label_at[k] += shift;
@@ -1682,33 +2155,38 @@ fn refine_uncached(
     // Bare API plans do not run sheet recovery. Give their final callout repair
     // an established same-scale recipe without changing the lane solve or its
     // inventory. The final drawing always uses the full original Analysis.
-    let reference = established_reference.or_else(|| {
-        if !items.iter().any(|w| {
-            w.measurements
-                .iter()
-                .any(|m| m.feature.starts_with("f:section_recess:"))
-        }) || obstacles.iter().any(|d| d.kind == "callout")
-        {
-            return None;
-        }
-        let key = serde_json::to_vec(&(&sheet.size, &sheet.scale, &spec.sheet.projection))
-            .expect("bare route inputs serialize");
-        crate::planning::memo(analysis, "bare-leader-reference", key, || {
-            let mut base = analysis.clone();
-            base.features.retain(|f| f.kind != "section_recess");
-            let mut recipe = crate::model::Spec::default();
-            recipe.sheet.size = Some(sheet.size.clone());
-            recipe.sheet.scale = Some(sheet.scale.clone());
-            recipe.sheet.projection = spec.sheet.projection.clone();
-            crate::model::plan(&base, &recipe).ok()
-        })
-    });
+    let reference = nominal_reference(analysis, spec, items)
+        .or(established_reference)
+        .or_else(|| {
+            if !items.iter().any(|w| {
+                w.measurements
+                    .iter()
+                    .any(|m| m.feature.starts_with("f:section_recess:"))
+            }) || obstacles.iter().any(|d| d.kind == "callout")
+            {
+                return None;
+            }
+            let key = serde_json::to_vec(&(&sheet.size, &sheet.scale, &spec.sheet.projection))
+                .expect("bare route inputs serialize");
+            crate::planning::memo(analysis, "bare-leader-reference", key, || {
+                let mut base = analysis.clone();
+                base.features.retain(|f| f.kind != "section_recess");
+                let mut recipe = crate::model::Spec::default();
+                recipe.sheet.size = Some(sheet.size.clone());
+                recipe.sheet.scale = Some(sheet.scale.clone());
+                recipe.sheet.projection = spec.sheet.projection.clone();
+                crate::model::plan(&base, &recipe).ok()
+            })
+        });
     let legacy = |i: usize| {
         reference.as_ref().and_then(|p| {
             p.dimensions.iter().find(|d| {
                 d.id == items[i].id
                     && d.kind == "callout"
                     && d.view.strip_prefix("v:") == views_of[i]
+                    && d.measurements
+                        .iter()
+                        .all(|m| items[i].measurements.contains(m))
             })
         })
     };
@@ -1909,7 +2387,7 @@ fn refine_uncached(
         // Include slides along that exact shaft, preserving its real attachment
         // and the normal material, length and witness gates.
         let established = legacy(i)
-            .and_then(|d| translated(reference.as_ref()?, d, views, w))
+            .and_then(|d| nominal_route(reference.as_ref()?, d, views, w))
             .or_else(|| (edited_text && repair_text).then(|| old.clone()));
         let clear_new_text = repair_text
             && !w.measurements.is_empty()
@@ -2623,9 +3101,42 @@ fn grow(b: [f64; 4], d: f64) -> [f64; 4] {
 /// A conservative broad phase for the final route checks. Dense models have
 /// thousands of tessellated edge segments; a candidate still receives the exact
 /// same predicates, but only against segments whose closed bounds can meet it.
+struct PhysicalEdge {
+    bounds: [f64; 4],
+    chords: Vec<[P2; 2]>,
+}
+impl PhysicalEdge {
+    fn new(chords: Vec<[P2; 2]>) -> Self {
+        let bounds = chords.iter().flatten().fold(
+            [
+                f64::INFINITY,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+                f64::NEG_INFINITY,
+            ],
+            |b, p| {
+                [
+                    b[0].min(p[0]),
+                    b[1].min(p[1]),
+                    b[2].max(p[0]),
+                    b[3].max(p[1]),
+                ]
+            },
+        );
+        Self { bounds, chords }
+    }
+    fn crossed_by(&self, lines: &[[P2; 2]]) -> bool {
+        lines.iter().any(|line| {
+            boxes_meet(self.bounds, segment_bounds(*line))
+                && self.chords.iter().any(|edge| segments_cross(*line, *edge))
+        })
+    }
+}
+
 pub(super) struct SegmentIndex {
     bounds: [f64; 4],
     ink: Vec<[P2; 2]>,
+    physical: Vec<PhysicalEdge>,
     children: Option<Box<[SegmentIndex; 2]>>,
     counts: std::cell::RefCell<std::collections::HashMap<[u64; 4], usize>>,
     besides: std::cell::RefCell<std::collections::HashMap<[u64; 4], bool>>,
@@ -2634,6 +3145,36 @@ pub(super) struct SegmentIndex {
 }
 
 impl SegmentIndex {
+    pub(super) fn for_view(
+        analysis: &crate::model::Analysis,
+        ink: &crate::model::projected_ink::EdgeInk,
+        view: &crate::model::PlannedView,
+    ) -> (Self, Vec<[f64; 4]>) {
+        let (model, uncertain) = view_ink(analysis, ink, view);
+        let mut physical = Vec::new();
+        if view.id != "v:iso"
+            && view.cut.is_none()
+            && !view.detail.as_ref().is_some_and(|d| d.source_cut.is_some())
+        {
+            let frame = Frame::new(analysis, view);
+            let mut n = 0;
+            for edge in &ink.edges {
+                let chords: Vec<_> = edge
+                    .windows(2)
+                    .map(|p| [frame.page(p[0]), frame.page(p[1])])
+                    .collect();
+                n += chords.len();
+                if !chords.is_empty() {
+                    physical.push(PhysicalEdge::new(chords));
+                }
+            }
+            physical.extend(model[n..].iter().map(|s| PhysicalEdge::new(vec![*s])));
+        }
+        let mut index = Self::new(model);
+        index.physical = physical;
+        (index, uncertain)
+    }
+
     pub(super) fn new(mut ink: Vec<[P2; 2]>) -> Self {
         let bounds = ink.iter().map(|s| segment_bounds(*s)).fold(
             [
@@ -2667,6 +3208,7 @@ impl SegmentIndex {
         Self {
             bounds,
             ink,
+            physical: Vec::new(),
             children,
             counts: std::cell::RefCell::default(),
             besides: std::cell::RefCell::default(),
@@ -2884,6 +3426,17 @@ impl SegmentIndex {
                     && !old.iter().any(|line| segments_cross(*line, *edge))
             })
         }
+    }
+
+    /// Compare original CAD edges, not the sampled chords of the same curve.
+    /// Different parts of one curved edge retain its physical identity.
+    pub(super) fn new_physical_crossing(&self, next: &[[P2; 2]], old: &[[P2; 2]]) -> bool {
+        if self.physical.is_empty() {
+            return self.new_crossing(next, old);
+        }
+        self.physical
+            .iter()
+            .any(|edge| edge.crossed_by(next) && !edge.crossed_by(old))
     }
 
     pub(super) fn crosses_box(&self, bounds: [f64; 4]) -> bool {
@@ -3315,6 +3868,22 @@ fn rim_tip(site: Site, elbow: P2) -> P2 {
         return [c[0] + r * a.cos(), c[1] + r * a.sin()];
     }
     [c[0] + r * d[0] / n, c[1] + r * d[1] / n]
+}
+
+/// Reattach to the same proven rim when a bounded growth repair moves its elbow.
+fn moved_rim_tip(sites: &[Site], anchor: P2, elbow: P2) -> P2 {
+    let on = |s: &Site| ((s.0[0] - anchor[0]).hypot(s.0[1] - anchor[1]) - s.1).abs();
+    let site = *sites
+        .iter()
+        .min_by(|a, b| on(a).total_cmp(&on(b)))
+        .expect("a callout has a site");
+    // A retained profile attachment can be a proven surface point rather
+    // than one of this group's representative sites. Do not jump to another
+    // occurrence when only its elbow is being repaired.
+    if on(&site) > 1e-6 {
+        return anchor;
+    }
+    rim_tip(site, elbow)
 }
 
 /// An explicit shoulder keeps its station; attach radially to its nearest proven feature site.
@@ -5670,6 +6239,26 @@ mod arc_tip_tests {
     use super::*;
 
     #[test]
+    fn physical_edge_identity_survives_curve_sampling_but_rejects_another_edge() {
+        let curve = vec![
+            [[0., -1.], [0., 1.]],
+            [[0., 1.], [1., 1.]],
+            [[1., 1.], [1., -1.]],
+        ];
+        let other = [[2., -1.], [2., 1.]];
+        let mut all = curve.clone();
+        all.push(other);
+        let mut index = SegmentIndex::new(all);
+        index.physical = vec![PhysicalEdge::new(curve), PhysicalEdge::new(vec![other])];
+        let old = [[[-0.5, 0.], [0.5, 0.]], [[0.5, 0.], [0.5, 0.5]]];
+        let same = [[[0.5, 0.], [1.5, 0.]], [[1.5, 0.], [1.5, 0.5]]];
+        let different = [[[1.5, 0.], [2.5, 0.]], [[2.5, 0.], [2.5, 0.5]]];
+        assert!(index.new_crossing(&same, &old));
+        assert!(!index.new_physical_crossing(&same, &old));
+        assert!(index.new_physical_crossing(&different, &old));
+    }
+
+    #[test]
     fn a_radius_tip_is_constrained_to_its_trimmed_span() {
         use std::f64::consts::PI;
         let site = (
@@ -5685,6 +6274,18 @@ mod arc_tip_tests {
         let tip = rim_tip(site, [-20.0, -20.0]);
         assert!((tip[0] + 8.5 / 2.0_f64.sqrt()).abs() < 1e-9);
         assert!((tip[1] + 8.5 / 2.0_f64.sqrt()).abs() < 1e-9);
+        // Growing a nominal can move the shoulder outside the arc's angular
+        // range. The repair must retain the drawn quarter rather than attach
+        // to the unused portion of its construction circle.
+        let repaired = moved_rim_tip(&[site], tip, [-20.0, 20.0]);
+        assert!((repaired[0] + 8.5).abs() < 1e-9 && repaired[1].abs() < 1e-9);
+        // A retained proven point need not be a representative site of the
+        // complete group. Moving its shoulder cannot jump to another occurrence.
+        let retained = [-8.5, 0.0];
+        assert_eq!(
+            moved_rim_tip(&[([4.0, 4.0], 0.0, None)], retained, [-20.0, 5.0]),
+            retained
+        );
         // A full-circle hole retains its unconstrained radial attachment.
         let hole = rim_tip(([0.0, 0.0], 8.5, None), [-20.0, 20.0]);
         assert!(hole[1] > 0.0);

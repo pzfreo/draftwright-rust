@@ -3196,6 +3196,10 @@ pub fn fmt(v: f64, decimals: Option<usize>) -> String {
             }
         }
         None => {
+            if crate::nominal::comparison() {
+                return crate::nominal::format(v);
+            }
+
             let v = (v * 1e6).round() / 1e6;
             for places in 0..=3 {
                 let text = format!("{v:.places$}");

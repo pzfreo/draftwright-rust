@@ -1092,9 +1092,28 @@ pub(crate) fn reserve_nominal_bounds(
     inventory: &[crate::dims::PlannedDimension],
     gdt: &[crate::dims::gdt::PlannedGdt],
 ) {
-    let grown: std::collections::BTreeSet<_> = inventory
+    if !crate::nominal::geometry_eligible(analysis) {
+        let grown: std::collections::BTreeSet<_> = inventory
+            .iter()
+            .filter(|d| d.kind == "linear")
+            .filter(|d| {
+                d.measurements.iter().any(|m| {
+                    let number = crate::nominal::format(m.value);
+                    number
+                        .split_once('.')
+                        .is_some_and(|(_, fraction)| fraction.len() > 1)
+                        && d.label.contains(&number)
+                })
+            })
+            .map(|d| d.id.clone())
+            .collect();
+        if !grown.is_empty() {
+            reserve_bounds(analysis, sheet, views, inventory, gdt, Some(&grown));
+        }
+        return;
+    }
+    let grown_views: std::collections::BTreeSet<_> = inventory
         .iter()
-        .filter(|d| d.kind == "linear")
         .filter(|d| {
             d.measurements.iter().any(|m| {
                 let number = crate::nominal::format(m.value);
@@ -1104,6 +1123,11 @@ pub(crate) fn reserve_nominal_bounds(
                     && d.label.contains(&number)
             })
         })
+        .map(|d| d.view.clone())
+        .collect();
+    let grown: std::collections::BTreeSet<_> = inventory
+        .iter()
+        .filter(|d| grown_views.contains(&d.view))
         .map(|d| d.id.clone())
         .collect();
     if !grown.is_empty() {
@@ -1191,6 +1215,17 @@ fn reserve_bounds(
             }
         }
     }
+    // The isometric has reclaimable bands too. Protect its material and the
+    // caption's measured ink instead of treating every unused corner as ink.
+    let mut caption_ink = inventory.to_vec();
+    caption_ink.extend(crate::centrelines::obstacles(views));
+    caption_ink.extend(gdt.iter().filter_map(crate::dims::gdt::proxy));
+    for caption in crate::iso_caption::plan(analysis, sheet, views, &caption_ink) {
+        if let Some(i) = views.iter().position(|v| v.id == caption.view) {
+            include(&mut protected[i], [caption.ink[0], caption.ink[1]]);
+            include(&mut protected[i], [caption.ink[2], caption.ink[3]]);
+        }
+    }
     if let Some(ids) = selected {
         bounds = inventory
             .iter()
@@ -1249,7 +1284,8 @@ fn reserve_bounds(
             if i == j || !overlap(candidate, areas[j]) {
                 continue;
             }
-            if !reclaim || views[j].id == "v:iso" {
+            if !reclaim || (views[j].id == "v:iso" && !crate::nominal::geometry_eligible(analysis))
+            {
                 clear = false;
                 break;
             }

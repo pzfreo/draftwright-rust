@@ -1622,7 +1622,8 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
         crate::planning::memo(analysis, "analysis_digest", Vec::new(), || {
             Sha256::digest(serde_json::to_vec(analysis).expect("Analysis serializes")).into()
         });
-    let bytes = serde_json::to_vec(&(analysis_key, spec, &first)).expect("plan inputs serialize");
+    let bytes = serde_json::to_vec(&(analysis_key, spec, &first, crate::nominal::comparison()))
+        .expect("plan inputs serialize");
     let key: [u8; 32] = Sha256::digest(&bytes).into();
     if let Some(plan) = MEMO.get(&key) {
         return Ok(plan);
@@ -1831,6 +1832,8 @@ pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Pl
                 // The actual drawing may move an occluded circular statement to its
                 // visible profile after those other routes have claimed their ink.
                 crate::planning::store(&reference, "canonical-circular-recipes", Vec::new(), true);
+                // Early reservations must use the same faithful nominal widths
+                // as the drawing. Compact labels are only a late route budget.
                 plan_recovered(&reference, &base)
             })
         },
@@ -3185,6 +3188,11 @@ fn plan_with_presentation(
         for f in base.features.values_mut() {
             f.fit = None;
         }
+        // Clearing the edit must produce the actual unedited specification.
+        // Empty entries otherwise disable established-layout retention.
+        base.dimensions
+            .retain(|_, d| *d != DimensionSpec::default());
+        base.features.retain(|_, f| *f != FeatureSpec::default());
         Some(if complete_views {
             plan_recovered(analysis, &base)?
         } else {
@@ -4513,6 +4521,7 @@ fn plan_with_presentation(
     problems.extend(more);
     // A label that had to stay across an axis end shortens that axis's overrun; what follows
     // keeps clear of the trimmed furniture.
+    crate::dims::nearest_shared_witnesses(analysis, spec, &views, &mut dimensions);
     crate::centrelines::trim(&mut views, &dimensions);
     furniture = crate::centrelines::obstacles(&views);
     furniture.extend(fixed.iter().cloned());
@@ -4668,6 +4677,7 @@ fn plan_with_presentation(
         &settle_fixed,
         &footprint_cache,
     );
+    crate::dims::nearest_shared_witnesses(analysis, spec, &views, &mut inventory);
     rerouted.extend(crate::dims::settle_after_furniture(
         analysis,
         &label_spec,
@@ -4746,7 +4756,11 @@ fn plan_with_presentation(
                         .find(|o| o.id == d.id)
                         .map(|o| &o.state)
                     && let Some(owner) = reference.dimensions.iter().find(|o| {
-                        &o.id == by && o.view == d.view && o.kind == "linear" && o.region.is_none()
+                        &o.id == by
+                            && o.view == d.view
+                            && o.kind == "linear"
+                            && o.region.is_none()
+                            && (o.value - d.value).abs() < 1e-6
                     })
                     && let (Some(p), Some(q)) = (&d.placed, &owner.placed)
                     && p.rotation == q.rotation
@@ -4800,6 +4814,27 @@ fn plan_with_presentation(
             .any(|id| settled_ids.contains(id.as_str()))
     });
     problems.extend(rerouted.into_values().flatten());
+    crate::dims::blends::consolidate(&mut dimensions, spec, given);
+    if annotation_text_edited(spec) && canonical.is_some() {
+        // A fillet's final count includes blends consolidated after routing.
+        // Compare complete claims before deciding that this peer was edited.
+        for d in &mut dimensions {
+            if d.measurements
+                .iter()
+                .any(|m| m.parameter == "fillet.radius")
+                && d.measurements.iter().any(|m| m.parameter == "blend.radius")
+                && let Some(before) = held.iter().find(|b| {
+                    b.id == d.id
+                        && b.view == d.view
+                        && b.terms == d.terms
+                        && b.measurements == d.measurements
+                })
+            {
+                d.placed = before.placed.clone();
+                d.region = before.region;
+            }
+        }
+    }
     let mut ink = dimensions.clone();
     ink.extend(reserved);
     problems.extend(crate::dims::label_collisions(
@@ -4809,7 +4844,6 @@ fn plan_with_presentation(
         &views,
         &footprint_cache,
     ));
-    crate::dims::blends::consolidate(&mut dimensions, spec, given);
     crate::dims::blends::clear_covered_findings(&dimensions, &mut problems);
     let radius_table = crate::dims::blends::tabulate_obstructed(
         analysis,

@@ -450,3 +450,47 @@ fn default_nominals_preserve_hundredths_and_report_the_three_place_limit() {
             .any(|p| p.code == "nominal_rounded" && p.subjects.contains(&id))
     );
 }
+
+#[test]
+fn rescue_hole_table_reports_its_printed_three_place_nominal_limit() {
+    let (part, mut a) = analysed("scattered_holes");
+    let mut changed = 0;
+    for f in &mut a.features {
+        if f.id == "f:hole:10" {
+            f.parameters.insert("diameter".into(), json!(5.000003));
+            changed += 1;
+        }
+    }
+    assert!(changed > 0);
+    let spec = Spec {
+        hole_table: draftwright::hole_table::Setting::Always,
+        ..Default::default()
+    };
+    let mut plan = model::plan_recovered(&a, &spec).unwrap();
+    let table = plan
+        .hole_tables
+        .pop()
+        .expect("the scattered holes produce a real placed schedule");
+    assert!(!table.blocks.is_empty());
+    assert!(
+        table
+            .rows
+            .iter()
+            .flat_map(|r| &r.cells)
+            .any(|c| c == "⌀5.000 THRU")
+    );
+    let id = table.id.clone();
+    // The rescue table has the same real cells/blocks, through the legacy carrier.
+    plan.hole_table = Some(table);
+    draftwright::completeness::report(&a, &mut plan);
+    let problem = plan
+        .problems
+        .iter()
+        .find(|p| p.code == "nominal_rounded" && p.subjects.contains(&id))
+        .unwrap();
+    assert_eq!(problem.severity, "info");
+    assert!(problem.message.contains("5.000003") && problem.message.contains("prints 5.000 at"));
+    let font = draftwright::text::Font::open(&root().join("fonts").join(dims::FONT)).unwrap();
+    let drawing = model::render(&part, &a, &plan, &font).unwrap();
+    assert!(drawing.text.iter().any(|t| t.text.contains("5.000")));
+}
