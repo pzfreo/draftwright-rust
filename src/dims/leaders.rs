@@ -699,7 +699,10 @@ fn side_index(side: Side) -> usize {
 
 /// Routing needs only this immutable classification. Lowering a dense AP242
 /// document again for every callout discards identical items and diagnostics.
-fn has_semantic_pmi(analysis: &crate::model::Analysis, frames: &BTreeMap<&str, Frame>) -> bool {
+pub(super) fn has_semantic_pmi(
+    analysis: &crate::model::Analysis,
+    frames: &BTreeMap<&str, Frame>,
+) -> bool {
     let key = ["front", "plan", "side"]
         .map(|name| u8::from(frames.contains_key(name)))
         .to_vec();

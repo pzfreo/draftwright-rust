@@ -2207,6 +2207,7 @@ fn clear_linear_ordered(
             .iter()
             .any(|m| m.feature.starts_with("f:section_recess:"))
     });
+    let semantic_pmi = super::leaders::has_semantic_pmi(analysis, frames);
     let mut order: Vec<_> = (0..items.len()).collect();
     let movable = |i: usize| {
         recess(i)
@@ -2403,15 +2404,18 @@ fn clear_linear_ordered(
         }
         // Prefer the least obstructed of the opposite strip's first eight lanes.
         // Keeping a reported label conflict is better than adding body crossings.
+        let paper = page.drawable();
+        let max_lane = (((paper[2] - paper[0]).max(paper[3] - paper[1]) / super::LANE).ceil()
+            as usize)
+            .max(16);
         let choices: Vec<_> = if recess_context {
             [side, opposite(side)]
                 .into_iter()
-                .flat_map(|side| (0..16).map(move |lane| (side, lane)))
+                .flat_map(|side| (0..max_lane).map(move |lane| (side, lane)))
                 .collect()
         } else {
             (0..8).map(|lane| (opposite(side), lane)).collect()
         };
-        let leader_corridor = others.iter().any(|q| q.arrows.len() == 1 && conflict(p, q));
         let repair_witnesses: Vec<_> = placed
             .iter()
             .map(|q| q.as_ref().is_some_and(|q| page.witnesses_fit(q, view)))
@@ -2468,203 +2472,200 @@ fn clear_linear_ordered(
             rotation: 0.,
             label_box: [0.; 4],
         });
-        let candidates = choices
-            .into_iter()
-            .flat_map(|(target, lane)| {
-                // Crossing counts and peer repairs cannot be negative. Skip
-                // preparing strokes whose best possible score already loses.
-                if best_rank
-                    .get()
-                    .is_some_and(|best| best <= ((0, 0), 0, target != side, lane))
-                {
-                    return Vec::new();
-                }
-                let Some(c) = place(&frames[view], &items[i], target, lane) else {
-                    return Vec::new();
-                };
-                let c = LinearStroke::new(&c);
-                let mut strokes = vec![c];
-                if recess_context
-                    && recess_corridor
-                    && items[i]
-                        .measurements
-                        .iter()
-                        .any(|m| m.parameter.contains("location"))
-                {
-                    // Keep a location witness's gap clear of a leader attached
-                    // near the same small opening. Its measured ends do not move.
-                    let normal = usize::from(c.rotation == 0.0);
-                    let out = if matches!(target, Side::Below | Side::Left) {
-                        -1.0
-                    } else {
-                        1.0
+        let mut found = None;
+        // Exhaust perpendicular lanes on both sides, including finite start gaps,
+        // before considering any oblique witness. Crossing minimisation alone must
+        // never trade a readable ordinary location for a diagonal through the body.
+        for oblique in [false, true] {
+            best_rank.set(None);
+            let candidates = choices
+                .iter()
+                .copied()
+                .flat_map(|(target, lane)| {
+                    // Crossing counts and peer repairs cannot be negative. Skip
+                    // preparing strokes whose best possible score already loses.
+                    if best_rank
+                        .get()
+                        .is_some_and(|best| best <= ((0, 0), 0, target != side, lane))
+                    {
+                        return Vec::new();
+                    }
+                    let Some(c) = place(&frames[view], &items[i], target, lane) else {
+                        return Vec::new();
                     };
-                    for extra in [0.25, 0.5, 1.0] {
-                        let mut spaced = c;
-                        if spaced
+                    let c = LinearStroke::new(&c);
+                    let mut strokes = vec![c];
+                    if recess_context
+                        && recess_corridor
+                        && items[i]
+                            .measurements
+                            .iter()
+                            .any(|m| m.parameter.contains("location"))
+                    {
+                        // Keep a location witness's gap clear of a leader attached
+                        // near the same small opening. Its measured ends do not move.
+                        let normal = usize::from(c.rotation == 0.0);
+                        let out = if matches!(target, Side::Below | Side::Left) {
+                            -1.0
+                        } else {
+                            1.0
+                        };
+                        for extra in [0.25, 0.5, 1.0] {
+                            let mut spaced = c;
+                            if spaced
+                                .lines
+                                .iter()
+                                .take(2)
+                                .any(|l| (l[1][normal] - l[0][normal]).abs() <= extra + 1.0)
+                            {
+                                continue;
+                            }
+                            for line in spaced.lines.iter_mut().take(2) {
+                                line[0][normal] += out * extra;
+                            }
+                            strokes.push(spaced);
+                        }
+                        // A hole location starts at its axis, whereas the bore
+                        // leader starts on its opening rim. On the opposite strip,
+                        // start the free witness two millimetres beyond that rim,
+                        // rather than through its own leader's attachment corridor.
+                        // The datum witness keeps its original gap.
+                        if let Shape::Linear { a_edge, b_edge, .. } = items[i].shape
+                            && a_edge != b_edge
+                        {
+                            let rim = items[i]
+                                .measurements
+                                .iter()
+                                .filter_map(|m| {
+                                    let f = analysis
+                                        .features
+                                        .iter()
+                                        .find(|f| f.id == m.feature && f.kind == "hole")?;
+                                    Some(f.parameters.get("diameter")?.as_f64()? * v.scale / 2.0)
+                                })
+                                .fold(0.0_f64, f64::max);
+                            let end = usize::from(a_edge);
+                            let extra = rim + 1.0;
+                            if rim > 0.0
+                                && (c.lines[end][1][normal] - c.lines[end][0][normal]).abs()
+                                    > extra + 1.0
+                            {
+                                let mut spaced = c;
+                                spaced.lines[end][0][normal] += out * extra;
+                                strokes.push(spaced);
+                            }
+                        }
+                    }
+                    if recess_context && !semantic_pmi {
+                        let normal = usize::from(c.rotation == 0.0);
+                        let out = if matches!(target, Side::Below | Side::Left) {
+                            -1.0
+                        } else {
+                            1.0
+                        };
+                        // Keep the projected coordinate, but begin its finite
+                        // witness beyond the near side of the projected body when
+                        // its original support would traverse a recess. This is the
+                        // same perpendicular coordinate with a longer start gap;
+                        // no measured station or arrow is shifted sideways.
+                        let outline = frames[view].outline();
+                        let face = outline[normal + if out > 0.0 { 2 } else { 0 }];
+                        let mut near_face = c;
+                        for line in near_face.lines.iter_mut().take(2) {
+                            let from = face + out * GAP;
+                            if out * (from - line[0][normal]) > 0.0 {
+                                line[0][normal] = from;
+                            }
+                        }
+                        if near_face
                             .lines
                             .iter()
                             .take(2)
-                            .any(|l| (l[1][normal] - l[0][normal]).abs() <= extra + 1.0)
+                            .all(|l| out * (l[1][normal] - l[0][normal]) > 1.0)
                         {
-                            continue;
+                            strokes.push(near_face);
                         }
-                        for line in spaced.lines.iter_mut().take(2) {
-                            line[0][normal] += out * extra;
-                        }
-                        strokes.push(spaced);
                     }
-                    // A hole location starts at its axis, whereas the bore
-                    // leader starts on its opening rim. On the opposite strip,
-                    // start the free witness two millimetres beyond that rim,
-                    // rather than through its own leader's attachment corridor.
-                    // The datum witness keeps its original gap.
-                    if let Shape::Linear { a_edge, b_edge, .. } = items[i].shape
-                        && a_edge != b_edge
-                    {
-                        let rim = items[i]
+                    if new_recess
+                        && items[i]
                             .measurements
                             .iter()
-                            .filter_map(|m| {
-                                let f = analysis
-                                    .features
+                            .all(|m| m.parameter == "channel_width.length")
+                    {
+                        for peer in items.iter().filter(|peer| {
+                            peer.id != items[i].id
+                                && peer
+                                    .measurements
                                     .iter()
-                                    .find(|f| f.id == m.feature && f.kind == "hole")?;
-                                Some(f.parameters.get("diameter")?.as_f64()? * v.scale / 2.0)
-                            })
-                            .fold(0.0_f64, f64::max);
-                        let end = usize::from(a_edge);
-                        let extra = rim + 1.0;
-                        if rim > 0.0
-                            && (c.lines[end][1][normal] - c.lines[end][0][normal]).abs()
-                                > extra + 1.0
-                        {
-                            let mut spaced = c;
-                            spaced.lines[end][0][normal] += out * extra;
-                            strokes.push(spaced);
+                                    .any(|m| items[i].measurements.contains(m))
+                        }) {
+                            let mut alternative = items[i].clone();
+                            alternative.shape = peer.shape.clone();
+                            if let Some(p) = place(&frames[view], &alternative, target, lane) {
+                                strokes.push(LinearStroke::new(&p));
+                            }
                         }
                     }
-                }
-                if new_recess
-                    && items[i]
-                        .measurements
-                        .iter()
-                        .all(|m| m.parameter == "channel_width.length")
-                {
-                    for peer in items.iter().filter(|peer| {
-                        peer.id != items[i].id
-                            && peer
-                                .measurements
-                                .iter()
-                                .any(|m| items[i].measurements.contains(m))
-                    }) {
-                        let mut alternative = items[i].clone();
-                        alternative.shape = peer.shape.clone();
-                        if let Some(p) = place(&frames[view], &alternative, target, lane) {
+                    if recess_context
+                        && before.0 > 0
+                        && items[i].measurements.iter().any(|m| {
+                            m.feature == "step_level"
+                                && m.parameter.starts_with("step_height.length")
+                        })
+                        && let Shape::Linear {
+                            a,
+                            b,
+                            axis,
+                            a_edge,
+                            b_edge,
+                            order,
+                        } = items[i].shape
+                        && axis == 2
+                        && let Some(support) = analysis
+                            .level_supports
+                            .iter()
+                            .rev()
+                            .find(|s| (s.z - b[2]).abs() < 1e-3)
+                    {
+                        // A height witnesses the same recorded face at either end
+                        // of its support. Use its other real edge when a newly read
+                        // recess occupies the old, right-hand witness corridor.
+                        let mut alternate = items[i].clone();
+                        let mut from = a;
+                        let mut to = b;
+                        from[0] = support.x_span[0];
+                        to[0] = support.x_span[0];
+                        alternate.shape = Shape::Linear {
+                            a: from,
+                            b: to,
+                            axis,
+                            a_edge,
+                            b_edge,
+                            order,
+                        };
+                        if let Some(p) = place(&frames[view], &alternate, target, lane) {
                             strokes.push(LinearStroke::new(&p));
                         }
                     }
-                }
-                if recess_context
-                    && before.0 > 0
-                    && items[i].measurements.iter().any(|m| {
-                        m.feature == "step_level" && m.parameter.starts_with("step_height.length")
-                    })
-                    && let Shape::Linear {
-                        a,
-                        b,
-                        axis,
-                        a_edge,
-                        b_edge,
-                        order,
-                    } = items[i].shape
-                    && axis == 2
-                    && let Some(support) = analysis
-                        .level_supports
-                        .iter()
-                        .rev()
-                        .find(|s| (s.z - b[2]).abs() < 1e-3)
-                {
-                    // A height witnesses the same recorded face at either end
-                    // of its support. Use its other real edge when a newly read
-                    // recess occupies the old, right-hand witness corridor.
-                    let mut alternate = items[i].clone();
-                    let mut from = a;
-                    let mut to = b;
-                    from[0] = support.x_span[0];
-                    to[0] = support.x_span[0];
-                    alternate.shape = Shape::Linear {
-                        a: from,
-                        b: to,
-                        axis,
-                        a_edge,
-                        b_edge,
-                        order,
-                    };
-                    if let Some(p) = place(&frames[view], &alternate, target, lane) {
-                        strokes.push(LinearStroke::new(&p));
-                    }
-                }
-                if recess_context
-                    && (before.0 > 0 || leader_corridor || (new_recess && label_conflict))
-                {
-                    let bases = if new_recess && held {
-                        strokes.clone()
-                    } else {
-                        vec![c]
-                    };
-                    // A finite start gap and an oblique witness are compatible
-                    // alternatives; neither may exclude the other's clear route.
-                    for base in bases {
-                        let k = usize::from(base.rotation != 0.0);
-                        let normal = 1 - k;
-                        // Skew moves only along the measured axis. A head already
-                        // outside the paper in the normal axis cannot be repaired
-                        // by any of these alternatives.
-                        let paper = page.drawable();
-                        if base
-                            .arrows
-                            .iter()
-                            .flat_map(|a| super::leaders::head(*a))
-                            .flatten()
-                            .any(|q| {
-                                q[normal] < paper[normal] - 1e-6
-                                    || q[normal] > paper[normal + 2] + 1e-6
-                            })
-                        {
-                            continue;
+                    if oblique {
+                        if !recess_context {
+                            return Vec::new();
                         }
-                        let mut aligned = base;
-                        if let Shape::Linear { a_edge, b_edge, .. } = items[i].shape {
-                            if a_edge && !b_edge {
-                                aligned.lines[0][0][normal] = aligned.lines[1][0][normal];
+                        let bases = std::mem::take(&mut strokes);
+                        for base in bases {
+                            let k = usize::from(base.rotation != 0.0);
+                            let normal = 1 - k;
+                            // The same 30-degree inclination from the perpendicular for
+                            // both witnesses; origins retain their measured stations.
+                            if (base.lines[0][0][normal] - base.lines[1][0][normal]).abs() > 1e-6 {
+                                continue;
                             }
-                            if b_edge && !a_edge {
-                                aligned.lines[1][0][normal] = aligned.lines[0][0][normal];
-                            }
-                        }
-                        if (aligned.lines[0][0][normal] - aligned.lines[1][0][normal]).abs() < 1e-6
-                        {
-                            let dimension = aligned.arrows[0][0][normal];
-                            let run = aligned.lines[..2]
-                                .iter()
-                                .map(|l| (dimension - l[0][normal]).abs())
-                                .fold(f64::INFINITY, f64::min);
-                            // Fine stations matter near a small pocket: the safe witness
-                            // corridor may be narrower than half a dimension lane.
-                            let distances = (1..=28)
-                                .map(|n| f64::from(n) * 0.5)
-                                .chain([0.125, 0.25, 0.375, 0.5, 0.577].map(|s| s * run));
-                            for shift in distances.flat_map(|s| [s, -s]) {
-                                if shift.abs() > 0.577 * run {
-                                    continue;
-                                }
-                                let mut skew = aligned;
+                            for slope in [1.0 / 3.0_f64.sqrt(), -1.0 / 3.0_f64.sqrt()] {
+                                let mut skew = base;
+                                let dimension = base.arrows[0][0][normal];
+                                let shift = slope * (dimension - base.lines[0][0][normal]);
                                 for l in skew.lines.iter_mut().take(2) {
-                                    let run = dimension - l[0][normal];
-                                    if run.abs() > 1e-9 {
-                                        l[1][k] += shift * (l[1][normal] - l[0][normal]) / run;
-                                    }
+                                    l[1][k] += slope * (l[1][normal] - l[0][normal]);
                                 }
                                 for q in skew
                                     .lines
@@ -2678,256 +2679,311 @@ fn clear_linear_ordered(
                                 skew.label_at[k] += shift;
                                 skew.label_box[k] += shift;
                                 skew.label_box[k + 2] += shift;
+                                // Compare with this lane's perpendicular option, not a
+                                // blocked incumbent on a different side of the part.
+                                let mut base_placed = p.clone();
+                                base.write(&mut base_placed);
+                                let mut skew_placed = p.clone();
+                                skew.write(&mut skew_placed);
+                                let material =
+                                    crate::material::solids(analysis, |p| frames[view].page(p));
+                                let traversal = |c: &Placed| {
+                                    c.lines
+                                        .iter()
+                                        .take(2)
+                                        .map(|l| {
+                                            crate::material::intervals(&material, *l)
+                                                .iter()
+                                                .map(|(a, b)| b - a)
+                                                .sum::<f64>()
+                                        })
+                                        .sum::<f64>()
+                                };
+                                let skew_hits = crossings(&skew_placed);
+                                let base_hits = crossings(&base_placed);
+                                if skew_hits.0 > base_hits.0
+                                    || skew_hits.1 > base_hits.1
+                                    || traversal(&skew_placed) > traversal(&base_placed) + 1e-6
+                                    || traversal(&skew_placed) > crate::material::FLOOR
+                                    || others.iter().any(|q| {
+                                        skew_placed.lines.iter().take(2).any(|l| {
+                                            crosses(*l, q.label_box)
+                                                || q.lines
+                                                    .iter()
+                                                    .copied()
+                                                    .chain(
+                                                        q.arrows
+                                                            .iter()
+                                                            .flat_map(|a| super::leaders::head(*a)),
+                                                    )
+                                                    .any(|t| super::leaders::lines_meet(*l, t))
+                                        })
+                                    })
+                                {
+                                    continue;
+                                }
                                 strokes.push(skew);
                             }
                         }
                     }
-                }
-                strokes
-                    .into_iter()
-                    .map(|c| (target, lane, c))
-                    .collect::<Vec<_>>()
-            })
-            .flat_map(|(target, lane, stroke)| {
-                let mut trial = physical_trial.borrow_mut();
-                stroke.write(&mut trial);
-                let stroke = &*trial;
-                // Visit strokes in exactly the original order, but do not prepare
-                // every later stroke's labels before the first one can win.
-                // Label slides cannot repair an invalid physical witness.
-                if !page.witnesses_fit(stroke, view)
-                    || fixed_witnesses.contact(stroke, transverse_allowed)
-                {
-                    return Vec::new();
-                }
-                // Feature crossings precede dense model-edge crossings in
-                // the unchanged rank. With nonnegative remaining counts, an
-                // already losing feature tier needs no model measurement.
-                if recess_context {
-                    let bound = (feature_crossings(stroke), 0);
-                    if (bound > before && !(new_recess && label_conflict))
-                        || (!label_conflict && bound >= before)
-                        || best_rank
-                            .get()
-                            .is_some_and(|best| best <= (bound, 0, target != side, lane))
+                    strokes
+                        .into_iter()
+                        .map(|c| (target, lane, c))
+                        .collect::<Vec<_>>()
+                })
+                .flat_map(|(target, lane, stroke)| {
+                    let mut trial = physical_trial.borrow_mut();
+                    stroke.write(&mut trial);
+                    let stroke = &*trial;
+                    // Visit strokes in exactly the original order, but do not prepare
+                    // every later stroke's labels before the first one can win.
+                    // Label slides cannot repair an invalid physical witness.
+                    if !page.witnesses_fit(stroke, view)
+                        || fixed_witnesses.contact(stroke, transverse_allowed)
                     {
                         return Vec::new();
                     }
-                }
-                let hits = crossings(stroke);
-
-                if (hits > before && !(new_recess && label_conflict))
-                    || (!label_conflict && hits >= before)
-                {
-                    return Vec::new();
-                }
-                // Text moves cannot change the two witness crossing tiers. Even
-                // with zero peer repairs this stroke cannot improve the first
-                // accepted candidate, so retain the original tie order cheaply.
-                let lower_bound = (hits, 0, target != side, lane);
-                if best_rank.get().is_some_and(|best| best <= lower_bound) {
-                    return Vec::new();
-                }
-                let constant_contact = all_witnesses.contact(stroke, transverse_allowed);
-                let mut choices = vec![stroke.clone()];
-                let needs_text = !page.fits(stroke, view)
-                    || constant_contact
-                    || all_peer_ink.mutable_contact(stroke)
-                    || super::label_lanes::off_span(stroke, others.iter().copied())
-                    || others.iter().any(|q| {
-                        super::label_lanes::off_span(q, std::iter::once(stroke))
-                            && !super::label_lanes::off_span(q, std::iter::once(p))
-                    });
-                if recess_context && needs_text {
-                    choices.extend(super::label_lanes::centered_short(stroke));
-                    choices.extend(
-                        super::label_lanes::alternatives_placed(stroke, page.drawable(), &others)
-                            .take(8),
-                    );
-                }
-                choices
-                    .into_iter()
-                    .map(|c| (target, lane, c, constant_contact))
-                    .collect::<Vec<_>>()
-            })
-            .filter_map(|(target, lane, c, constant_contact)| {
-                if location_order_conflict(target, &c, placed) || !page.fits(&c, view) {
-                    return None;
-                }
-                let hits = crossings(&c);
-                if (hits > before && !(new_recess && label_conflict))
-                    || (!label_conflict && hits >= before)
-                {
-                    return None;
-                }
-                if fixed_peer_ink.mutable_contact(&c) || peer_witnesses.crosses_box(c.label_box) {
-                    return None;
-                }
-                let mut repairs: Vec<(usize, Placed)> = Vec::new();
-                if recess_context {
-                    // A new witness may pass between a short peer's arrow and its
-                    // text. Re-seat that text at its other arrow in the same solve;
-                    // the measured span and witness lane remain fixed.
-                    for (j, q) in placed
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(j, q)| Some((j, q.as_ref()?)))
-                    {
-                        if j == i {
-                            continue;
-                        }
-                        let new_span = super::label_lanes::off_span(q, std::iter::once(&c))
-                            && !super::label_lanes::off_span(q, std::iter::once(p));
-                        let text_crossed = c.lines.iter().any(|l| crosses(*l, q.label_box));
-                        if !new_span && !text_crossed {
-                            continue;
-                        }
-                        if locked.get(j).copied().unwrap_or(false) || repairs.len() >= 8 {
-                            return None;
-                        }
-                        if chosen[j] != Some(view) || sides[j].is_none() || q.arrows.len() != 2 {
-                            continue;
-                        }
-                        if !repair_witnesses[j] {
-                            return None;
-                        }
-                        let peers = repair_peers[j].get_or_init(|| {
-                            placed
-                                .iter()
-                                .enumerate()
-                                .filter(|(t, _)| *t != i && *t != j)
-                                .filter_map(|(_, q)| q.as_ref())
-                                .chain(obstacles.iter().filter_map(|d| d.placed.as_ref()))
-                                .collect::<Vec<_>>()
-                        });
-                        let rest: Vec<_> =
-                            peers.iter().copied().chain(std::iter::once(&c)).collect();
-                        let repaired =
-                            super::label_lanes::alternatives_placed(q, page.drawable(), &rest)
-                                .find(|r| {
-                                    if !page.fits(r, view)
-                                        || conflict(r, &c)
-                                        || super::label_lanes::off_span(r, std::iter::once(&c))
-                                    {
-                                        return false;
-                                    }
-
-                                    // Only the current witness varies during this search.
-                                    // A peer label's clearance against the unchanged drawing
-                                    // is identical at each repeated label/line position.
-                                    let bits: [u64; 8] = r
-                                        .label_box
-                                        .iter()
-                                        .copied()
-                                        .chain(r.lines[2].into_iter().flatten())
-                                        .map(f64::to_bits)
-                                        .collect::<Vec<_>>()
-                                        .try_into()
-                                        .expect("repair geometry");
-                                    let key = (j, bits);
-                                    let cached = repair_clearance.borrow().get(&key).copied();
-                                    cached.unwrap_or_else(|| {
-                                        let (labels, lines) = repair_static[j].get_or_init(|| {
-                                            // Original contacts are allowed. A pure text slide
-                                            // changes only the label and line run-on against
-                                            // every remaining fixed peer.
-                                            let constraints: Vec<_> = peers
-                                                .iter()
-                                                .copied()
-                                                .filter(|t| !conflict(q, t))
-                                                .collect();
-                                            let labels: Vec<_> =
-                                                constraints.iter().map(|t| t.label_box).collect();
-                                            let lines = super::leaders::SegmentIndex::new(
-                                                constraints
-                                                    .iter()
-                                                    .flat_map(|t| {
-                                                        t.lines.iter().copied().chain(
-                                                            t.arrows.iter().flat_map(|a| {
-                                                                super::leaders::head(*a)
-                                                            }),
-                                                        )
-                                                    })
-                                                    .collect(),
-                                            );
-                                            (labels, lines)
-                                        });
-                                        let clear =
-                                            !super::label_lanes::off_span(r, peers.iter().copied())
-                                                && labels.iter().all(|label| {
-                                                    !boxes_overlap(r.label_box, *label)
-                                                        && !crosses(r.lines[2], *label)
-                                                })
-                                                && !lines.crosses_box(r.label_box);
-                                        let mut saved = repair_clearance.borrow_mut();
-                                        if saved.len() >= 4096 {
-                                            saved.clear();
-                                        }
-                                        saved.insert(key, clear);
-                                        clear
-                                    })
-                                });
-                        if let Some(r) = repaired {
-                            repairs.push((j, r));
+                    // Feature crossings precede dense model-edge crossings in
+                    // the unchanged rank. With nonnegative remaining counts, an
+                    // already losing feature tier needs no model measurement.
+                    if recess_context {
+                        let bound = (feature_crossings(stroke), 0);
+                        if (bound > before && !(new_recess && label_conflict))
+                            || (!label_conflict && bound >= before)
+                            || best_rank
+                                .get()
+                                .is_some_and(|best| best <= (bound, 0, target != side, lane))
+                        {
+                            return Vec::new();
                         }
                     }
-                }
-                let final_peers: Vec<_> = placed
-                    .iter()
-                    .enumerate()
-                    .filter(|(j, _)| *j != i)
-                    .filter_map(|(j, q)| {
-                        repairs
-                            .iter()
-                            .find(|(t, _)| *t == j)
-                            .map(|(_, r)| r)
-                            .or(q.as_ref())
-                    })
-                    .chain(obstacles.iter().filter_map(|d| d.placed.as_ref()))
-                    .collect();
-                let pair_contact = if repairs.is_empty() {
-                    constant_contact || all_peer_ink.mutable_contact(&c)
-                } else {
-                    final_peers.iter().any(|q| conflict(&c, q))
-                };
-                if pair_contact
-                    || (recess_context
-                        && (super::label_lanes::off_span(&c, final_peers.iter().copied())
-                            || final_peers.iter().any(|q| {
-                                super::label_lanes::off_span(q, std::iter::once(&c))
-                                    && !super::label_lanes::off_span(q, std::iter::once(p))
-                            })))
-                {
-                    return None;
-                }
-                for (j, r) in &repairs {
-                    let old = placed[*j].as_ref().unwrap();
-                    if final_peers
-                        .iter()
-                        .any(|q| !std::ptr::eq(*q, r) && conflict(r, q) && !conflict(old, q))
+                    let hits = crossings(stroke);
+
+                    if (hits > before && !(new_recess && label_conflict))
+                        || (!label_conflict && hits >= before)
+                    {
+                        return Vec::new();
+                    }
+                    // Text moves cannot change the two witness crossing tiers. Even
+                    // with zero peer repairs this stroke cannot improve the first
+                    // accepted candidate, so retain the original tie order cheaply.
+                    let lower_bound = (hits, 0, target != side, lane);
+                    if best_rank.get().is_some_and(|best| best <= lower_bound) {
+                        return Vec::new();
+                    }
+                    let constant_contact = all_witnesses.contact(stroke, transverse_allowed);
+                    let mut choices = vec![stroke.clone()];
+                    let needs_text = !page.fits(stroke, view)
+                        || constant_contact
+                        || all_peer_ink.mutable_contact(stroke)
+                        || super::label_lanes::off_span(stroke, others.iter().copied())
+                        || others.iter().any(|q| {
+                            super::label_lanes::off_span(q, std::iter::once(stroke))
+                                && !super::label_lanes::off_span(q, std::iter::once(p))
+                        });
+                    if recess_context && needs_text {
+                        choices.extend(super::label_lanes::centered_short(stroke));
+                        choices.extend(
+                            super::label_lanes::alternatives_placed(
+                                stroke,
+                                page.drawable(),
+                                &others,
+                            )
+                            .take(8),
+                        );
+                    }
+                    choices
+                        .into_iter()
+                        .map(|c| (target, lane, c, constant_contact))
+                        .collect::<Vec<_>>()
+                })
+                .filter_map(|(target, lane, c, constant_contact)| {
+                    if location_order_conflict(target, &c, placed) || !page.fits(&c, view) {
+                        return None;
+                    }
+                    let hits = crossings(&c);
+                    if (hits > before && !(new_recess && label_conflict))
+                        || (!label_conflict && hits >= before)
                     {
                         return None;
                     }
+                    if fixed_peer_ink.mutable_contact(&c) || peer_witnesses.crosses_box(c.label_box)
+                    {
+                        return None;
+                    }
+                    let mut repairs: Vec<(usize, Placed)> = Vec::new();
+                    if recess_context {
+                        // A new witness may pass between a short peer's arrow and its
+                        // text. Re-seat that text at its other arrow in the same solve;
+                        // the measured span and witness lane remain fixed.
+                        for (j, q) in placed
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(j, q)| Some((j, q.as_ref()?)))
+                        {
+                            if j == i {
+                                continue;
+                            }
+                            let new_span = super::label_lanes::off_span(q, std::iter::once(&c))
+                                && !super::label_lanes::off_span(q, std::iter::once(p));
+                            let text_crossed = c.lines.iter().any(|l| crosses(*l, q.label_box));
+                            if !new_span && !text_crossed {
+                                continue;
+                            }
+                            if locked.get(j).copied().unwrap_or(false) || repairs.len() >= 8 {
+                                return None;
+                            }
+                            if chosen[j] != Some(view) || sides[j].is_none() || q.arrows.len() != 2
+                            {
+                                continue;
+                            }
+                            if !repair_witnesses[j] {
+                                return None;
+                            }
+                            let peers = repair_peers[j].get_or_init(|| {
+                                placed
+                                    .iter()
+                                    .enumerate()
+                                    .filter(|(t, _)| *t != i && *t != j)
+                                    .filter_map(|(_, q)| q.as_ref())
+                                    .chain(obstacles.iter().filter_map(|d| d.placed.as_ref()))
+                                    .collect::<Vec<_>>()
+                            });
+                            let rest: Vec<_> =
+                                peers.iter().copied().chain(std::iter::once(&c)).collect();
+                            let repaired =
+                                super::label_lanes::alternatives_placed(q, page.drawable(), &rest)
+                                    .find(|r| {
+                                        if !page.fits(r, view)
+                                            || conflict(r, &c)
+                                            || super::label_lanes::off_span(r, std::iter::once(&c))
+                                        {
+                                            return false;
+                                        }
+
+                                        // Only the current witness varies during this search.
+                                        // A peer label's clearance against the unchanged drawing
+                                        // is identical at each repeated label/line position.
+                                        let bits: [u64; 8] = r
+                                            .label_box
+                                            .iter()
+                                            .copied()
+                                            .chain(r.lines[2].into_iter().flatten())
+                                            .map(f64::to_bits)
+                                            .collect::<Vec<_>>()
+                                            .try_into()
+                                            .expect("repair geometry");
+                                        let key = (j, bits);
+                                        let cached = repair_clearance.borrow().get(&key).copied();
+                                        cached.unwrap_or_else(|| {
+                                            let (labels, lines) =
+                                                repair_static[j].get_or_init(|| {
+                                                    // Original contacts are allowed. A pure text slide
+                                                    // changes only the label and line run-on against
+                                                    // every remaining fixed peer.
+                                                    let constraints: Vec<_> = peers
+                                                        .iter()
+                                                        .copied()
+                                                        .filter(|t| !conflict(q, t))
+                                                        .collect();
+                                                    let labels: Vec<_> = constraints
+                                                        .iter()
+                                                        .map(|t| t.label_box)
+                                                        .collect();
+                                                    let lines = super::leaders::SegmentIndex::new(
+                                                        constraints
+                                                            .iter()
+                                                            .flat_map(|t| {
+                                                                t.lines.iter().copied().chain(
+                                                                    t.arrows.iter().flat_map(|a| {
+                                                                        super::leaders::head(*a)
+                                                                    }),
+                                                                )
+                                                            })
+                                                            .collect(),
+                                                    );
+                                                    (labels, lines)
+                                                });
+                                            let clear = !super::label_lanes::off_span(
+                                                r,
+                                                peers.iter().copied(),
+                                            ) && labels.iter().all(|label| {
+                                                !boxes_overlap(r.label_box, *label)
+                                                    && !crosses(r.lines[2], *label)
+                                            }) && !lines.crosses_box(r.label_box);
+                                            let mut saved = repair_clearance.borrow_mut();
+                                            if saved.len() >= 4096 {
+                                                saved.clear();
+                                            }
+                                            saved.insert(key, clear);
+                                            clear
+                                        })
+                                    });
+                            if let Some(r) = repaired {
+                                repairs.push((j, r));
+                            }
+                        }
+                    }
+                    let final_peers: Vec<_> = placed
+                        .iter()
+                        .enumerate()
+                        .filter(|(j, _)| *j != i)
+                        .filter_map(|(j, q)| {
+                            repairs
+                                .iter()
+                                .find(|(t, _)| *t == j)
+                                .map(|(_, r)| r)
+                                .or(q.as_ref())
+                        })
+                        .chain(obstacles.iter().filter_map(|d| d.placed.as_ref()))
+                        .collect();
+                    let pair_contact = if repairs.is_empty() {
+                        constant_contact || all_peer_ink.mutable_contact(&c)
+                    } else {
+                        final_peers.iter().any(|q| conflict(&c, q))
+                    };
+                    if pair_contact
+                        || (recess_context
+                            && (super::label_lanes::off_span(&c, final_peers.iter().copied())
+                                || final_peers.iter().any(|q| {
+                                    super::label_lanes::off_span(q, std::iter::once(&c))
+                                        && !super::label_lanes::off_span(q, std::iter::once(p))
+                                })))
+                    {
+                        return None;
+                    }
+                    for (j, r) in &repairs {
+                        let old = placed[*j].as_ref().unwrap();
+                        if final_peers
+                            .iter()
+                            .any(|q| !std::ptr::eq(*q, r) && conflict(r, q) && !conflict(old, q))
+                        {
+                            return None;
+                        }
+                    }
+                    Some((hits, target, lane, c, repairs))
+                });
+            for candidate in candidates {
+                let score = (
+                    candidate.0,
+                    candidate.4.len(),
+                    candidate.1 != side,
+                    candidate.2,
+                );
+                let optimal = candidate.0 == (0, 0) && candidate.4.is_empty();
+                if best_rank.get().is_none_or(|best| score < best) {
+                    best_rank.set(Some(score));
+                    found = Some(candidate);
                 }
-                Some((hits, target, lane, c, repairs))
-            });
-        let mut found = None;
-        for candidate in candidates {
-            let score = (
-                candidate.0,
-                candidate.4.len(),
-                candidate.1 != side,
-                candidate.2,
-            );
-            let optimal = candidate.0 == (0, 0) && candidate.4.is_empty();
-            if best_rank.get().is_none_or(|best| score < best) {
-                best_rank.set(Some(score));
-                found = Some(candidate);
+                // Current-strip lanes precede opposite-strip lanes, each increasing.
+                // Once both crossing tiers and repairs are zero, every later lane
+                // loses or ties the original lexicographic rank on either strip.
+                if optimal {
+                    break;
+                }
             }
-            // Current-strip lanes precede opposite-strip lanes, each increasing.
-            // Once both crossing tiers and repairs are zero, every later lane
-            // loses or ties the original lexicographic rank on either strip.
-            if optimal {
+
+            if found.is_some() {
                 break;
             }
         }

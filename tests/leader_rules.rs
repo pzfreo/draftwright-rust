@@ -608,3 +608,44 @@ fn circular_step_radius_tip_follows_the_trimmed_arc_10000() {
     );
 }
 
+#[test]
+fn hole_location_uses_perpendicular_witnesses_and_rejects_oblique_crossings_10000() {
+    let Some((_, plan, drawing)) = drawing_10000() else {
+        return;
+    };
+    let location = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:hole:1/location.length.y")
+        .unwrap();
+    assert_eq!(location.view, "v:side");
+    let p = location.placed.as_ref().unwrap();
+    assert!(
+        p.lines[..2]
+            .iter()
+            .all(|l| (l[1][0] - l[0][0]).abs() < 1e-9),
+        "17.5 must have vertical witnesses: {p:?}"
+    );
+    assert!(
+        !lint::structural::check(&drawing)
+            .iter()
+            .any(|i| i.code == "oblique_witness_crossing")
+    );
+
+    let mut broken = drawing.clone();
+    let item = broken
+        .sheet
+        .items
+        .iter_mut()
+        .find(|d| d.name == location.id)
+        .unwrap();
+    for line in item.lines.iter_mut().take(2) {
+        line[1][0] += (line[1][1] - line[0][1]) / 3.0_f64.sqrt();
+    }
+    assert!(
+        lint::structural::check(&broken)
+            .iter()
+            .any(|i| i.code == "oblique_witness_crossing"
+                && i.annotation.as_deref() == Some(location.id.as_str()))
+    );
+}
