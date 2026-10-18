@@ -87,6 +87,14 @@ pub(super) fn apply(analysis: &Analysis, spec: &Spec, wants: &mut [Want]) {
                 && let Some((identity, rest)) = text.split_once(' ')
                 && identity.starts_with(['ø', '⌀', 'Ø'])
             {
+                // Keep the manufacturing identity's source precision (e.g. 6.25,
+                // where the generic geometry label rounds to 6.2). Only a size
+                // stated as two explicit limits replaces that nominal identity.
+                let diameter = match diameter.split_once(' ') {
+                    Some((_, band)) if band.starts_with("- ") => diameter,
+                    Some((_, band)) => format!("{identity} {band}"),
+                    None => identity.to_string(),
+                };
                 // A common MAX already on the size also qualifies MAX AFTER KNURL.
                 let rest = if diameter.ends_with(" MAX") {
                     rest.strip_prefix("MAX ").unwrap_or(rest)
