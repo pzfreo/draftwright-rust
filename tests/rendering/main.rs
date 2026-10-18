@@ -57,6 +57,8 @@ mod pmi_drawings;
 mod pmi_labels;
 #[path = "../png.rs"]
 mod png;
+#[path = "../projection_alignment.rs"]
+mod projection_alignment;
 #[path = "../render_caches.rs"]
 mod render_caches;
 #[path = "../render_panics.rs"]

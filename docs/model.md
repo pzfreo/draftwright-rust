@@ -727,9 +727,18 @@ is always relative to another view (ADR R1 invariant 1), typically its projectio
 `gap` is the clear paper distance between the views’ annotation bands, not their part
 outlines (default 10 mm, 0–1000). The reserved view area includes annotation bands,
 so the visible part outlines will usually be farther apart than `gap`;
-`align` is `start`, `middle` (default) or `end` along the other axis (`outside` also aligns
-ends). Dependencies resolve before packing; cycles and self-anchors are refused. Missing anchors
-are reported, with the entry retained. Unpinned views fit around fixed footprints; an automatic
+`align` is `start`, `middle` (default), `end` or `outside`
+(`outside` also aligns ends). These existing choices retain their saved-Spec behavior.
+Use `align: "projection"` to change the gap while keeping the projected geometry's origins
+aligned across `side`: x for above/below, y for left/right, regardless of lopsided bands.
+It applies only to `plan` against `front` or `side` against `front`, in either direction,
+in first- and third-angle projection. Keep the conventional side for the selected projection.
+For example, `views/plan/place = {"relative_to":"front","side":"above","gap":15,
+"align":"projection","pinned":true}` keeps the plan on the front's x in third angle.
+Other pairs refuse `projection` and name `start`, `middle`, `end`, `outside` as valid choices.
+Projection relations preserve the principal group during packing so an automatic partner
+cannot slide off its projection line. Dependencies resolve before packing; cycles and self-anchors
+are refused. Missing anchors are reported, with the entry retained. Unpinned views fit around fixed footprints; an automatic
 isometric may be reduced to fit the space left. A pinned isometric first resolves the requested
 relative region, clips it to the drawing area and fits its ink in the largest free rectangle
 inside that region. Its resulting position and scale are then fixed. Principal view pins keep

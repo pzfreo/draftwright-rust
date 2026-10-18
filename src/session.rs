@@ -1254,9 +1254,23 @@ fn settable(
                 choices(json!(["above", "below", "left", "right"])),
             );
             fields.insert(format!("{base}/place/gap"), json!({"range":[0,1000],"consequences":["Clear paper distance in mm between the views’ annotation bands, not their part outlines (default 10 mm)."]}));
+            let name = id.trim_start_matches("v:");
+            let anchor = session
+                .spec()
+                .views
+                .get(name)
+                .and_then(|v| v.place.as_ref())
+                .map(|p| p.relative_to.as_str())
+                .or_else(|| {
+                    view_anchors
+                        .iter()
+                        .map(|v| v.trim_start_matches("v:"))
+                        .find(|anchor| crate::placement_intent::projection_related(name, anchor))
+                })
+                .unwrap_or("");
             fields.insert(
                 format!("{base}/place/align"),
-                choices(json!(["start", "middle", "end", "outside"])),
+                choices(json!(crate::placement_intent::align_choices(name, anchor))),
             );
         } else {
             let mut views: Vec<_> = placements.iter().filter_map(|p| p.view.clone()).collect();

@@ -244,6 +244,17 @@ controls authored in the Spec"; the full Spec schema's `faces` in `schemas/spec.
 and the drawing number is `sheet/title/number`. Compatible view/side pairs remain in
 `placements`; candidates require preview/apply, and a view relation needs both
 `relative_to` and `side`. Set several subfields by setting their complete `place` object.
+
+For `plan`/`front` and `side`/`front` pairs (either direction), `place/align` choices list
+`projection` first. It keeps geometry origins aligned across `side` and changes only the
+clear gap between areas, including dimension bands; use it when nudging a projected view.
+Choices reflect the current `relative_to`, or available projection partners before a relation
+is authored. Other pairs, including `plan`/`side`, isometrics and details, offer only
+`start`, `middle`, `end`, `outside`; requesting `projection` is refused with those choices.
+First and third angle use the same alignment and their respective conventional sides.
+Omitting `place` and existing alignment values keep their previous planning behavior.
+See the [#109 reproduction and verification](projection-alignment.md) for measured examples.
+
 A callout also lists `place/offset` (`range` per component of the pair): its bend's `[dx, dy]`
 from its automatic leader tip in paper mm, which can put the label inside the view. It is a
 pinned form of its own: set `{"offset":[dx,dy],"pinned":true}` with no side, lane or along
