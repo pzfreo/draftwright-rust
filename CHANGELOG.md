@@ -8,6 +8,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- Default drawing numbers to a leading part-number token in the STEP product name, then
+  the file stem (including numeric names such as `10000`), before `DWG-001`. Explicit Spec
+  numbers, including blanks, win; readable titles retain the part number (#103).
 - Keep radius leaders on the drawn part of trimmed arcs (quarter-cylinder edges, obround
   and slot-pattern ends) instead of the full construction circle.
 - Prefer perpendicular location witnesses on either side and finite-gap witnesses before
