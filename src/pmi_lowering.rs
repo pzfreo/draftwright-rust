@@ -194,11 +194,11 @@ fn lower_uncached(
             code: "pmi_not_extracted".into(),
             severity: if requirement { "error" } else { "info" }.into(),
             message: format!(
-                "PMI source {} ({}) is not read, so it is not drawn: {}.",
-                s.id, s.entity, s.reason
+                "A STEP {} is not drawn because its annotation is not supported. Add the requirement to the Spec and review it manually.",
+                s.id.split(':').next().unwrap_or("annotation").replace('_', " ")
             ),
             subjects: Vec::new(),
-            refs: vec![s.id.clone()],
+            refs: vec![s.id.clone(), s.entity.clone(), s.reason.clone()],
             ..Default::default()
         });
     }
@@ -244,10 +244,12 @@ fn lower_uncached(
                             "PMI {} ({}) is not drawn: {}.",
                             r.source_id,
                             r.label,
-                            reasons.join("; ")
+                            crate::wording::reader_reason(&reasons.join("; "))
                         ),
                         subjects: Vec::new(),
-                        refs: vec![r.source_id.clone()],
+                        refs: std::iter::once(r.source_id.clone())
+                            .chain(reasons)
+                            .collect(),
                         ..Default::default()
                     }),
                 }
@@ -267,10 +269,12 @@ fn lower_uncached(
                             "PMI surface finish {} ({}) is not drawn: {}.",
                             r.source_id,
                             r.label,
-                            reasons.join("; ")
+                            crate::wording::reader_reason(&reasons.join("; "))
                         ),
                         subjects: Vec::new(),
-                        refs: vec![r.source_id.clone()],
+                        refs: std::iter::once(r.source_id.clone())
+                            .chain(reasons)
+                            .collect(),
                         ..Default::default()
                     }),
                 }
@@ -305,13 +309,12 @@ fn lower_uncached(
                     code: "pmi_not_lowered".into(),
                     severity: if face { "warning" } else { "info" }.into(),
                     message: format!(
-                        "PMI {} {} ({}) is read but not drawn: drawing it is not ported yet.",
+                        "The STEP {} annotation ({}) is not supported for drawing. Add the requirement to the Spec and review it manually.",
                         r.kind.replace('_', " "),
-                        r.source_id,
                         r.label
                     ),
                     subjects: Vec::new(),
-                    refs: vec![r.source_id.clone()],
+                    refs: vec![r.source_id.clone(), "drawing it is not ported yet".into()],
                     ..Default::default()
                 });
             }
@@ -379,10 +382,12 @@ fn labelled(
                 r.kind.replace('_', " "),
                 r.source_id,
                 r.label,
-                reasons.join("; ")
+                crate::wording::reader_reason(&reasons.join("; "))
             ),
             subjects: Vec::new(),
-            refs: vec![r.source_id.clone()],
+            refs: std::iter::once(r.source_id.clone())
+                .chain(reasons)
+                .collect(),
             ..Default::default()
         }),
     }
@@ -580,13 +585,14 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
             code: "pmi_not_lowered".into(),
             severity: "error".into(),
             message: format!(
-                "PMI {} {} ({}) is not drawn: {why}.",
+                "PMI {} {} ({}) is not drawn: {}.",
                 r.kind.replace('_', " "),
                 r.source_id,
-                r.label
+                r.label,
+                crate::wording::reader_reason(why)
             ),
             subjects: Vec::new(),
-            refs: vec![r.source_id.clone()],
+            refs: vec![r.source_id.clone(), why.to_string()],
             ..Default::default()
         })
     };
@@ -3322,13 +3328,14 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
                 code: "pmi_not_lowered".into(),
                 severity: "error".into(),
                 message: format!(
-                    "PMI {} {} ({}) is not drawn: {why}.",
+                    "PMI {} {} ({}) is not drawn: {}.",
                     r.kind.replace('_', " "),
                     r.source_id,
-                    r.label
+                    r.label,
+                    crate::wording::reader_reason(&why)
                 ),
                 subjects: Vec::new(),
-                refs: vec![r.source_id.clone()],
+                refs: vec![r.source_id.clone(), why],
                 ..Default::default()
             });
         }

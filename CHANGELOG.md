@@ -73,6 +73,15 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- Stop reporting a STEP material as undrawn when the title block states it; retain the
+  warning when a blank or conflicting Spec material replaces it.
+- Describe missed feature recognition and unsupported STEP annotations in drawing language,
+  with Spec remedies; retain tool/version and reader diagnostics in structured references.
+- Prefer meaningful STEP product names for default titles, otherwise print readable file
+  stems with spaces. Explicit Spec titles, including blanks, keep precedence.
+- Explain that hole tables require X/Y locations from a datum corner and recommend the
+  retained individual dimensions when those locations are absent.
+
 - Preserve archived Python 0.3.9 pocket callouts and individual datum locations.
 - Repair displaced location witnesses through foreign features and overlapping
   callout text with bounded route moves that retain the existing physical guards.

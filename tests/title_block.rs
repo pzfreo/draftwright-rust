@@ -692,3 +692,81 @@ fn the_drawn_by_cell_credits_draftwright_and_carries_the_link() {
     );
     assert_eq!(title_block::attribution("   "), "draftwright");
 }
+
+#[test]
+fn default_titles_prefer_meaningful_products_and_preserve_explicit_titles() {
+    let bytes = std::fs::read_to_string(fixture("parts/plate.step")).unwrap();
+    // A real STEP read, with no PMI required for the product name.
+    let bytes = bytes.replace(
+        "PRODUCT('COMPOUND','COMPOUND'",
+        "PRODUCT('Clamp plate','Clamp plate'",
+    );
+    let (_, a) =
+        model::analyse_native_bytes("string_post-tapped.step.gz", bytes.as_bytes()).unwrap();
+    assert_eq!(a.product_name.as_deref(), Some("Clamp plate"));
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(cell(&p, "title").value.as_deref(), Some("CLAMP PLATE"));
+    assert_eq!(a.binding.part, "string_post-tapped");
+
+    for product in [
+        None,
+        Some(""),
+        Some("  "),
+        Some("Part1"),
+        Some("Part 12"),
+        Some("Body"),
+        Some("Body.001"),
+        Some("Solid"),
+        Some("COMPOUND"),
+    ] {
+        let mut a = a.clone();
+        a.product_name = product.map(String::from);
+        let p = model::plan(&a, &Spec::default()).unwrap();
+        assert_eq!(
+            cell(&p, "title").value.as_deref(),
+            Some("STRING POST TAPPED"),
+            "{product:?}"
+        );
+        for title in ["Explicit drawing title", ""] {
+            let mut s = Spec::default();
+            s.sheet.title.insert("title".into(), title.into());
+            let p = model::plan(&a, &s).unwrap();
+            assert_eq!(p.sheet.title["title"], title);
+        }
+    }
+    let mut s = Spec::default();
+    s.sheet
+        .title
+        .insert("title".into(), "Override product".into());
+    assert_eq!(
+        model::plan(&a, &s).unwrap().sheet.title["title"],
+        "Override product"
+    );
+    // A selected assembly member's binding is its product name, so preserve the file stem
+    // separately when a generic CAD name needs the same fallback.
+    let assembly = std::fs::read_to_string(fixture("assembly/assembly.step"))
+        .unwrap()
+        .replace("PRODUCT('pin','pin'", "PRODUCT('Body1','Body1'");
+    let (_, selected) = model::analyse_step_part(
+        Path::new("string_post-tapped.step"),
+        assembly.as_bytes(),
+        Some(1),
+    )
+    .unwrap();
+    assert_eq!(selected.binding.part, "Body1");
+    assert_eq!(selected.source_stem.as_deref(), Some("string_post-tapped"));
+    assert_eq!(
+        model::plan(&selected, &Spec::default())
+            .unwrap()
+            .sheet
+            .title["title"],
+        "STRING POST TAPPED"
+    );
+    let mut legacy = serde_json::to_value(&a).unwrap();
+    legacy.as_object_mut().unwrap().remove("product_name");
+    let legacy: Analysis = serde_json::from_value(legacy).unwrap();
+    assert_eq!(
+        model::plan(&legacy, &Spec::default()).unwrap().sheet.title["title"],
+        "STRING POST TAPPED"
+    );
+}

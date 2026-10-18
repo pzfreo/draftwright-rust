@@ -120,8 +120,20 @@ fn the_title_block_states_the_files_material_as_draftwright_does(only: &str) {
         .into_iter()
         .filter(|(_, (file, _))| file == only)
     {
-        let (_, a) = analysed(&file, &bytes);
+        let (part, a) = analysed(&file, &bytes);
         let plan = model::plan(&a, &Spec::default()).unwrap();
+        if python.contains_key(stem.as_str()) {
+            assert!(
+                !plan
+                    .problems
+                    .iter()
+                    .any(|p| p.code == "pmi_not_extracted"
+                        && p.refs.contains(&"material:0:0".into())),
+                "{stem}: {:?}",
+                plan.problems
+            );
+            assert!(material_unreported(&a, &render(&part, &a, &plan)), "{stem}");
+        }
         assert_eq!(
             material(&plan).as_deref(),
             python.get(stem.as_str()).copied(),
@@ -149,6 +161,11 @@ fn a_material_the_spec_states_wins_even_blank() {
     // The spec's material is drawn instead; it is not the file's, so the file's is not drawn.
     let plan = model::plan(&a, &spec_with_material("Brass CW614N")).unwrap();
     assert_eq!(material(&plan).as_deref(), Some("Brass CW614N"));
+    assert!(
+        plan.problems
+            .iter()
+            .any(|p| p.code == "pmi_not_extracted" && p.refs.contains(&"material:0:0".into()))
+    );
     let d = render(&part, &a, &plan);
     assert!(!d.annotations.iter().any(|n| n.name == "pmi:material:0:0"));
     assert!(!material_unreported(&a, &d));
@@ -156,6 +173,12 @@ fn a_material_the_spec_states_wins_even_blank() {
     // A blank one clears the cell (draftwright's explicit empty value).
     let plan = model::plan(&a, &spec_with_material("")).unwrap();
     assert_eq!(material(&plan), None);
+    assert!(
+        plan.problems
+            .iter()
+            .any(|p| p.code == "pmi_not_extracted" && p.refs.contains(&"material:0:0".into()))
+    );
+    assert!(!material_unreported(&a, &render(&part, &a, &plan)));
 
     // The same material, stated by the spec, still states the file's.
     let plan = model::plan(&a, &spec_with_material("Steel C45")).unwrap();

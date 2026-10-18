@@ -63,8 +63,12 @@ edited.
   quiddity's JSON, which the bridge reads in full; for Rust quiddity's recognition
   (`model::analyse_native`, the command line's default) the families its document has that
   `bridge::native` does not read. Unified recesses and
-  their patterns are represented by recognition/3. `plan` reports unread families as one `features_not_recognised` warning. `plan` reads older
-  analyses with none; `render` and `review` draw only from this version.
+  their patterns are represented by recognition/3. `plan` reports unread families as one
+  `features_not_recognised` warning naming the affected geometry and suggesting
+  `feature_declarations` for supported missed features. Unknown occurrence counts are stated
+  as unknown. Tool/version provenance and original reader diagnostics stay in problem `refs`
+  (and lint `evidence`), outside drawing-user messages. `plan` reads older analyses with none;
+  `render` and `review` draw only from this version.
 - **Principal profiles** (`draftwright.analysis/6`, `principal_profiles`): for each solid of a
   part of several (else the whole part), its box and each principal boundary face (a plane flat
   across one axis on that box), with its inner loops' edges and its outer loop's arcs: the B-rep
@@ -219,6 +223,14 @@ cross-hole axial positions use that origin, shortest nearest the part. The old `
 IDs remain valid: J4's coverage records connect conveyed band lengths to their baseline
 positions. Explicitly toleranced band lengths remain independent controlling requirements;
 their tolerances are never silently transferred to a cumulative position.
+
+The default drawing title prefers a meaningful STEP product name for a single part or
+selected assembly member. Empty names and generic CAD names such as `Part1`, `Body`
+and `Solid` fall back to the file stem. Underscores and hyphens become spaces and
+the title is printed in upper case. An explicit `sheet/title/title` always wins.
+`product_name` retains the STEP name; a selected assembly member also retains `source_stem`
+so generic member names still fall back to the source file. Older analyses without those
+fields use their binding's display name.
 
 ### Spec: what the author decided
 
@@ -712,7 +724,9 @@ Existing angular PMI keeps its measured sector: `lane` increases the radius in p
 Views use `{relative_to, side, gap?, align?, pinned?}`. `relative_to` names another view
 (`front`, `plan`, `side`, `iso`, `section_aa`, `detail_a`–`detail_h`); the page is never an anchor, so a view's place
 is always relative to another view (ADR R1 invariant 1), typically its projection partner.
-`gap` is the clear paper distance between view footprints (default 10 mm, 0–1000);
+`gap` is the clear paper distance between the views’ annotation bands, not their part
+outlines (default 10 mm, 0–1000). The reserved view area includes annotation bands,
+so the visible part outlines will usually be farther apart than `gap`;
 `align` is `start`, `middle` (default) or `end` along the other axis (`outside` also aligns
 ends). Dependencies resolve before packing; cycles and self-anchors are refused. Missing anchors
 are reported, with the entry retained. Unpinned views fit around fixed footprints; an automatic

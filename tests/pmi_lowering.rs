@@ -725,7 +725,9 @@ fn what_lowering_cannot_prove_is_reported_not_guessed() {
         );
         problems
             .into_iter()
-            .find(|p| p.code == "pmi_not_lowered" && p.refs == [source.to_string()])
+            .find(|p| {
+                p.code == "pmi_not_lowered" && p.refs.first().map(String::as_str) == Some(source)
+            })
             .map(|p| p.message)
             .unwrap_or_else(|| panic!("{source} reported"))
     };
@@ -813,7 +815,7 @@ fn a_part_placed_twice_is_not_annotated_on_one_placement_by_guess() {
         if matches!(r.category, Category::GeometricTolerance | Category::Datum) {
             assert!(plan.gdt.iter().all(|g| g.source != r.source_id));
             assert!(plan.problems.iter().any(|p| p.code == "pmi_not_lowered"
-                && p.refs == [r.source_id.clone()]
+                && p.refs.first() == Some(&r.source_id)
                 && p.message.contains("placements of the part")));
         }
     }
