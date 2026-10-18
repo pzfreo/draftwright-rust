@@ -918,15 +918,24 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   text/arrows, 10/7 mm lanes, and general geometric legibility. Local openings,
   native pocket/channel mouths, short steps and depiction gaps cannot purchase
   A2/A1/A0. They use automatic enlarged details on the whole part's paper, grouped
-  where their complete witnesses fit. Only a completely readable clean A3 detail
-  result may follow a failed A4 detail search. Otherwise retain the smaller-paper
-  drawing with its measured refusal. `sheet.automatic_details: false` disables
+  where their complete witnesses fit, with at most two automatic readability
+  details on a sheet. They cannot reduce the main scale or increase the paper
+  relative to the drawing without automatic details. Each must move a placed
+  controlling dimension or callout from its parent; reference-only crops and
+  unannotated depiction crops are refused. Compact crops include surrounding
+  outline (maximum 3:1 aspect ratio) and use the same bounds for the parent marker.
+  Captions and letters retain normal text clearance. Useful partial improvements
+  can remain with explicit refusals for every unresolved local floor. Larger
+  paper can still carry larger clean main views without automatic details.
+  A smaller-paper choice that cuts the established main scale by more than half
+  is refused in favour of the established fitted drawing. `sheet.automatic_details: false` disables
   automatic crops; authored details remain explicit intent.
 
   Adjacent baseline heights retain both original coordinates. Their exact local
-  difference is a reference dimension in a crop around the recorded supports,
-  with the two baseline IDs in `determined_by`. Only that placed interval at a
-  readable crop scale qualifies the original compressed geometry.
+  difference may accompany a controlling annotation in a compact nearby crop,
+  with the two baseline IDs in `determined_by`. It never earns a crop by itself.
+  Only that placed interval at a readable crop scale qualifies the original
+  compressed geometry; refused crops leave the original failure reported.
 
   Native-recess integration preserves the established scale cap for fill-driven
   growth. Necessary whole-drawing failures may still request larger paper;

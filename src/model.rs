@@ -1512,6 +1512,13 @@ fn protect_retained_routes(
             .iter()
             .position(|(name, ..)| *name == p.sheet.size)
     };
+    // A substantial reduction in the main views loses useful shape and dimension
+    // separation even when local counters happen to pass. Prefer the established
+    // clean paper when downsizing would cut the main scale by more than half.
+    let main_scale_loss = spec.sheet.size.is_none()
+        && spec.sheet.scale.is_none()
+        && paper(&candidate) < paper(reference)
+        && candidate.sheet.scale_factor * 2.0 + 1e-6 < reference.sheet.scale_factor;
     let worse_readability = if paper(&candidate) < paper(reference) {
         crate::sheet_fit::readability(analysis, &candidate).whole_drawing_failures()
             > crate::sheet_fit::readability(analysis, reference).whole_drawing_failures()
@@ -1526,6 +1533,7 @@ fn protect_retained_routes(
             >= crate::sheet_fit::readability(analysis, reference).failures();
     if !drawn_quality_reference(analysis, reference)
         || (!unjustified_paper
+            && !main_scale_loss
             && !worse_readability
             && no_new_drawing_issues(reference, &candidate)
             && crate::sheet_fit::routes_no_worse(analysis, reference, &candidate)
@@ -1555,8 +1563,13 @@ fn protect_retained_routes(
             kept.sheet.size, kept.sheet.scale
         )
     };
+    let scale_reason = if main_scale_loss {
+        "; smaller paper refused: main views would lose more than half their linear scale"
+    } else {
+        ""
+    };
     kept.sheet.basis = format!(
-        "{outcome}; retained readability [{readable}]; retained basis: {}; no new crossing pairs are allowed; rejected drawing {} at {}; candidates: {}",
+        "{outcome}{scale_reason}; retained readability [{readable}]; retained basis: {}; no new crossing pairs are allowed; rejected drawing {} at {}; candidates: {}",
         kept.sheet.basis,
         candidate.sheet.size,
         candidate.sheet.scale,
@@ -2821,7 +2834,8 @@ fn recover_with_reference(
             && initial_readability.whole_drawing_failures() == 0
             && drawn_quality_reference(analysis, &first)
             && route_reference.is_none_or(|reference| {
-                no_new_drawing_issues(reference, &first)
+                first.sheet.scale_factor * 2.0 + 1e-6 >= reference.sheet.scale_factor
+                    && no_new_drawing_issues(reference, &first)
                     && crate::sheet_fit::routes_no_worse(analysis, reference, &first)
             }))
         .then(|| {
@@ -2951,18 +2965,17 @@ fn recover_with_reference(
         if !reference_only {
             detailed_spec.sheet.automatic_details = Some(true);
         }
-        let mut detail_attempts = vec![(detailed_spec.clone(), minimum)];
-        if !reference_only && ordinary.sheet.size == "A4" && minimum.is_none() {
-            detail_attempts.insert(
-                0,
-                (detailed_spec.clone(), Some(ordinary.sheet.scale_factor)),
-            );
-        }
+        let detail_floor = if reference_only {
+            minimum
+        } else {
+            Some(ordinary.sheet.scale_factor.max(minimum.unwrap_or(0.0)))
+        };
+        let mut detail_attempts = vec![(detailed_spec.clone(), detail_floor)];
         if !reference_only && minimum.is_none() {
             for name in crate::detail::NAMES {
                 detailed_spec.views.entry(name.into()).or_default();
             }
-            detail_attempts.push((detailed_spec, minimum));
+            detail_attempts.push((detailed_spec, detail_floor));
         }
         let mut best_detail: Option<Plan> = None;
         for (detailed_spec, detail_minimum) in detail_attempts {
@@ -2981,6 +2994,44 @@ fn recover_with_reference(
                     Some(&ordinary)
                 },
             )?;
+            // Settle annotation blocks with one larger scratch frame if nominal
+            // reservations stranded the crop. Only a packed result on the exact
+            // ordinary paper and main scale can qualify for publication.
+            if !reference_only
+                && ordinary.sheets.is_empty()
+                && let Some(index) = paper(&ordinary)
+                && let Some((name, ..)) = layout::PAGES.get(index + 1)
+            {
+                let mut roomy = detailed_spec.clone();
+                roomy.sheet.size = Some((*name).into());
+                roomy.sheet.scale = Some(ordinary.sheet.scale.clone());
+                if let Ok(mut template) = plan_escalated_with(analysis, &roomy, true, None, true) {
+                    crate::sheet_fit::correct_estimate(analysis, &mut template);
+                    crate::sheet_fit::repair_readability(analysis, &mut template);
+                    crate::sheet_fit::retain_callouts(analysis, &ordinary, &mut template);
+                    let mut recipient = template.clone();
+                    recipient.sheet = ordinary.sheet.clone();
+                    if let Some(mut packed) =
+                        crate::sheet_fit::pack_settled_views(analysis, &template, &recipient)
+                        && crate::detail::readable_automatic(analysis, &ordinary, &packed)
+                        && findings(&packed).clean()
+                        && drawn_sheets_fit(analysis, &packed)
+                        && required.is_subset(&carried(&packed))
+                        && retains_explicit_dimension_ink(&ordinary, &packed)
+                        && no_new_drawing_issues(&ordinary, &packed)
+                        && crate::sheet_fit::routes_no_worse(analysis, &ordinary, &packed)
+                        && legibility(&packed) < legibility(&ordinary)
+                        && (legibility(&packed) < legibility(&detailed)
+                            || !crate::detail::readable_automatic(analysis, &ordinary, &detailed))
+                    {
+                        packed.sheet.basis = format!(
+                            "same-paper detail blocks at the unchanged main scale; {}",
+                            template.sheet.basis
+                        );
+                        detailed = packed;
+                    }
+                }
+            }
             // A qualified detailed drawing can reveal that the nominal annotation
             // reservations, rather than real ink, blocked A4. Pack its measured view
             // blocks on the original paper before spending the A3 exception.
@@ -3019,10 +3070,14 @@ fn recover_with_reference(
                     detailed = packed;
                 }
             }
-            let qualified = minimum.is_none_or(|floor| detailed.sheet.scale_factor >= floor)
+            let useful = crate::detail::readable_automatic(analysis, &ordinary, &detailed);
+            let improved = legibility(&detailed) < legibility(&ordinary)
+                && crate::sheet_fit::readability(analysis, &detailed).whole_drawing_failures() == 0;
+            let qualified = useful
+                && minimum.is_none_or(|floor| detailed.sheet.scale_factor >= floor)
                 && detail_minimum.is_none_or(|floor| detailed.sheet.scale_factor >= floor)
                 && findings(&detailed).clean()
-                && legibility(&detailed) == 0
+                && (legibility(&detailed) == 0 || improved)
                 && drawn_sheets_fit(analysis, &detailed)
                 && required.is_subset(&carried(&detailed))
                 && retains_explicit_dimension_ink(&ordinary, &detailed)
@@ -3034,7 +3089,8 @@ fn recover_with_reference(
                 });
             if qualified
                 && best_detail.as_ref().is_none_or(|best| {
-                    legibility(best) != 0
+                    !crate::detail::readable_automatic(analysis, &ordinary, best)
+                        || legibility(&detailed) < legibility(best)
                         || !findings(best).clean()
                         || paper(&detailed) < paper(best)
                         || (paper(&detailed) == paper(best)
@@ -3065,7 +3121,12 @@ fn recover_with_reference(
                 .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored)))
             && findings(&detailed).clean()
             && detailed.sheet.scale_factor + 1e-6 >= request_floor
-            && legibility(&detailed) == 0
+            && crate::detail::readable_automatic(analysis, &ordinary, &detailed)
+            && (legibility(&detailed) == 0
+                || (legibility(&detailed) < legibility(&ordinary)
+                    && crate::sheet_fit::readability(analysis, &detailed)
+                        .whole_drawing_failures()
+                        == 0))
             && undrawn_gdt(&detailed) == 0
             && drawn_sheets_fit(analysis, &detailed)
             && required.is_subset(&carried(&detailed));
@@ -3096,7 +3157,11 @@ fn recover_with_reference(
                     .iter()
                     .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
                 {
-                    "local readability recovered by enlarged detail"
+                    if legibility(&detailed) == 0 {
+                        "local readability recovered by enlarged detail"
+                    } else {
+                        "local readability partially improved by enlarged detail; remaining needs refused"
+                    }
                 } else {
                     "local readability A3 exception after failed A4 details"
                 };
@@ -3111,7 +3176,7 @@ fn recover_with_reference(
                     detailed.sheet.basis
                 );
                 record_sheet_choice(&first, &mut detailed);
-                return Ok(detailed);
+                return Ok(local_readability_refusal(analysis, spec, detailed));
             }
             if complete {
                 restore_search_spec(&mut ordinary, spec);
@@ -3228,7 +3293,7 @@ fn local_readability_refusal(analysis: &Analysis, spec: &Spec, mut plan: Plan) -
         plan.problems.push(Problem {
             id: "p:layout_recovery_exhausted:sheet".into(),
             code: "layout_recovery_exhausted".into(), severity: "warning".into(),
-            message: format!("No clean enlarged detail fits the whole-part paper; the smaller drawing and every measurement are retained. Readability: {r}."),
+            message: format!("No further qualifying enlarged detail fits the unchanged main scale and paper; every measurement is retained. Readability: {r}."),
             subjects: vec!["sheet".into()], ..Default::default()
         });
     }
@@ -3596,6 +3661,7 @@ fn recover_candidates_before(
     let mut retained_thumbnail = None;
     type FittingRank = (usize, usize, usize, usize, usize, usize);
     let mut fitting_incomplete: Option<(FittingRank, Plan)> = None;
+    let mut partial_detail: Option<Plan> = None;
     let historical_salvage =
         reference_only && first.gdt.is_empty() && !drawn_items_fit(analysis, &first);
     let mut historical_fitting: Option<((usize, usize, usize), Plan)> = None;
@@ -3724,7 +3790,7 @@ fn recover_candidates_before(
                 }
             }
             let named = normalized_sheet_candidate(analysis, named, scale);
-            if (reference_only || (allow_automatic && physical_fit_seen))
+            if (reference_only || (allow_automatic && physical_fit_seen && !require_automatic))
                 && crate::sheet_fit::unavoidable_steps_at_scale(
                     analysis,
                     &named,
@@ -4109,6 +4175,28 @@ fn recover_candidates_before(
                     fitting_incomplete = Some((rank, p.clone()));
                 }
             }
+            // A useful crop need not fabricate a reference-only companion to
+            // erase every local failure. Retain a strictly improving, otherwise
+            // clean same-paper detail and report each unresolved floor unchanged.
+            if require_automatic
+                && !reference_only
+                && actual_fit
+                && layout_hard == 0
+                && f.dropped == 0
+                && over == 0
+                && readability.whole_drawing_failures() == 0
+                && readability.failures()
+                    < crate::sheet_fit::readability(analysis, reference).failures()
+                && crate::detail::readable_automatic(analysis, reference, &p)
+                && no_new_drawing_issues(reference, &p)
+                && crate::sheet_fit::routes_no_worse(analysis, reference, &p)
+                && partial_detail.as_ref().is_none_or(|best| {
+                    readability.failures()
+                        < crate::sheet_fit::readability(analysis, best).failures()
+                })
+            {
+                partial_detail = Some(p.clone());
+            }
             // Valid and complete: no hard finding, nothing dropped or undrawn, and no more
             // annotations over another view than the seed (the port's own gate).
             if !complete_candidate(f, over)
@@ -4279,6 +4367,13 @@ fn recover_candidates_before(
     let Some((choice, (i, s))) =
         crate::sheet_fit::choose(&keys, spec.sheet.size.is_some(), seed_kept)
     else {
+        if let Some(mut detail) = partial_detail {
+            detail.sheet.basis = format!(
+                "useful same-paper detail; unresolved local floors retained; candidates: {}",
+                tried.join("; ")
+            );
+            return Ok(local_readability_refusal(analysis, spec, detail));
+        }
         let retained_keys: Vec<_> = retained_candidates.iter().map(|(c, _)| *c).collect();
         if let Some((choice, _)) = crate::sheet_fit::retained_refusal_choice(
             &retained_keys,
@@ -8671,21 +8766,15 @@ fn render_annotations_with_cuts(
         layers[1].items.extend(geometry.hidden);
     }
     for v in &plan.views {
+        if let Some(d) = &v.detail {
+            captions.push((crate::detail::caption(d), crate::detail::caption_at(v)));
+            caption_names.push(format!("detail_caption_{}", d.label));
+        }
+    }
+    for v in &plan.views {
         let Some(d) = &v.detail else { continue };
-        captions.push((crate::detail::caption(d), crate::detail::caption_at(v)));
-        caption_names.push(format!("detail_caption_{}", d.label));
         if let Some(source) = plan.views.iter().find(|s| s.id == d.source_view) {
-            let mut labels: Vec<_> = plan
-                .dimensions
-                .iter()
-                .filter_map(|d| d.placed.as_ref().map(|p| p.label_box))
-                .chain(
-                    plan.gdt
-                        .iter()
-                        .filter_map(|g| g.placed.as_ref().map(|p| p.label_box)),
-                )
-                .chain(plan.balloons.iter().filter_map(|b| b.label_box))
-                .collect();
+            let mut labels = crate::detail::text_obstacles(plan);
             // Marker letters are late furniture too. Later markers must avoid
             // captions and letters already placed, including adjacent crops of
             // the same parent region.
@@ -8699,6 +8788,7 @@ fn render_annotations_with_cuts(
                 ]
             }));
             let mut avoid = labels.clone();
+            avoid.push(plan.sheet.title_block);
             avoid.extend(
                 plan.dimensions
                     .iter()

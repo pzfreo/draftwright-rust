@@ -1313,6 +1313,20 @@ pub(crate) fn repair_readability(analysis: &Analysis, plan: &mut Plan) {
                 trial.problems.retain(|p| !codes.contains(&p.code));
                 trial.problems.extend(checked);
                 enclose_free_ink(analysis, &mut trial);
+                // Moving a complete lane stack can outgrow its old corridor.
+                // Repack the measured view blocks on this same paper/scale,
+                // then apply every original association and route gate again.
+                if !crate::model::no_new_drawing_issues(plan, &trial)
+                    && let Some(packed) = pack_settled_views(analysis, &trial, &trial)
+                    && readability(analysis, &packed).failures() < before.failures()
+                {
+                    trial = packed;
+                }
+                if !crate::model::no_new_drawing_issues(plan, &trial)
+                    && let Some(spaced) = separate_projection_rows(analysis, plan, &trial)
+                {
+                    trial = spaced;
+                }
                 if crate::model::no_new_drawing_issues(plan, &trial)
                     && routes_no_worse(analysis, plan, &trial)
                     && crate::model::drawn_sheets_fit(analysis, &trial)
@@ -1332,6 +1346,72 @@ pub(crate) fn repair_readability(analysis: &Analysis, plan: &mut Plan) {
             }
         }
     }
+}
+
+/// Open an existing projection corridor without changing any scale or route.
+/// A moved dimension stack can need a few more millimetres between aligned rows.
+fn separate_projection_rows(a: &Analysis, reference: &Plan, template: &Plan) -> Option<Plan> {
+    if !template.sheets.is_empty()
+        || !template.gdt.is_empty()
+        || !template.notes.is_empty()
+        || !template.tables.is_empty()
+        || template.hole_table.is_some()
+        || !template.hole_tables.is_empty()
+        || crate::placement_intent::has_pins(&template.spec)
+        || template.spec.views.values().any(|v| v.place.is_some())
+        || template
+            .views
+            .iter()
+            .any(|v| v.cut.is_some() || v.detail.is_some())
+    {
+        return None;
+    }
+    let cache = crate::dims::footprints::Cache::default();
+    for gap in [crate::dims::LANE, 2.0 * crate::dims::LANE] {
+        for below in 0..=gap as usize {
+            let mut p = template.clone();
+            let delta = |id: &str| match id {
+                "v:front" | "v:side" => -(below as f64),
+                "v:plan" => gap - below as f64,
+                _ => 0.0,
+            };
+            for v in &mut p.views {
+                let dy = delta(&v.id);
+                v.at[1] += dy;
+                v.area[1] += dy;
+                v.area[3] += dy;
+                crate::centrelines::shift(v, [0.0, dy]);
+            }
+            for d in &mut p.dimensions {
+                let dy = delta(&d.view);
+                if let Some(q) = &mut d.placed {
+                    for point in q.lines.iter_mut().chain(&mut q.arrows).flatten() {
+                        point[1] += dy;
+                    }
+                    q.label_at[1] += dy;
+                    q.label_box[1] += dy;
+                    q.label_box[3] += dy;
+                }
+            }
+            let checked = crate::dims::recheck_cached(a, &p, &cache);
+            let codes: std::collections::BTreeSet<_> =
+                crate::dims::recheck_cached(a, template, &cache)
+                    .into_iter()
+                    .chain(checked.iter().cloned())
+                    .map(|q| q.code)
+                    .collect();
+            p.problems.retain(|q| !codes.contains(&q.code));
+            p.problems.extend(checked);
+            enclose_free_ink(a, &mut p);
+            if crate::model::no_new_drawing_issues(reference, &p)
+                && routes_no_worse(a, reference, &p)
+                && crate::model::drawn_sheets_fit(a, &p)
+            {
+                return Some(p);
+            }
+        }
+    }
+    None
 }
 
 /// Usable-paper fill target. The lower bound triggers enlargement on the same

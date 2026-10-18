@@ -279,25 +279,53 @@ fn native_pocket_mouths_use_bounded_readability_details_and_short_proven_routes(
     let first = plan_recovered(&a, &forced).unwrap();
     assert!(crate::sheet_fit::readability(&a, &first).native_openings > 0);
     let recovered = plan_recovered(&a, &Spec::default()).unwrap();
-    assert_eq!(crate::sheet_fit::readability(&a, &recovered).failures(), 0);
+    let readability = crate::sheet_fit::readability(&a, &recovered);
+    assert_eq!(readability.failures(), 1);
+    assert_eq!(readability.steps, 1);
+    assert_eq!(readability.native_openings, 0);
+    assert!(
+        recovered
+            .problems
+            .iter()
+            .any(|p| p.code == "layout_recovery_exhausted")
+    );
     assert!(matches!(recovered.sheet.size.as_str(), "A4" | "A3"));
     assert_eq!(recovered.sheet.scale, "1:1");
-    let local_interval = recovered
-        .dimensions
-        .iter()
-        .find(|d| {
-            d.measurements
-                .iter()
-                .any(|m| m.parameter.starts_with("step_interval.length"))
-        })
-        .expect("exact adjacent-height interval in a local crop");
-    let mut missing_interval = recovered.clone();
-    missing_interval
-        .dimensions
-        .retain(|d| d.id != local_interval.id);
     assert!(
-        crate::sheet_fit::readability(&a, &missing_interval).steps > 0,
-        "a crop alone cannot qualify an unannotated baseline interval"
+        recovered
+            .dimensions
+            .iter()
+            .all(|d| !d.id.contains("/step_interval.length."))
+    );
+    let slot = recovered
+        .views
+        .iter()
+        .find(|v| v.detail.is_some())
+        .expect("useful slot detail");
+    assert_eq!(
+        recovered
+            .views
+            .iter()
+            .filter(|v| v.detail.is_some())
+            .count(),
+        1
+    );
+    assert!(
+        recovered
+            .dimensions
+            .iter()
+            .any(|d| d.view == slot.id && !d.reference && d.placed.is_some())
+    );
+    let mut underscaled = recovered.clone();
+    underscaled
+        .views
+        .iter_mut()
+        .find(|v| v.id == slot.id)
+        .unwrap()
+        .scale = 1.0;
+    assert_eq!(
+        crate::sheet_fit::readability(&a, &underscaled).native_openings,
+        1
     );
 
     let disabled: Spec =
@@ -494,7 +522,14 @@ fn short_reference_text_and_a_bore_callout_fit_their_local_carriers() {
         .iter()
         .find(|d| d.id == "d:f:hole:1/bore.diameter")
         .unwrap();
-    assert!(bore.view.starts_with("v:detail_"));
+    assert_eq!(
+        (
+            reference.sheet.size.as_str(),
+            reference.sheet.scale.as_str()
+        ),
+        ("A3", "5:1")
+    );
+    assert_eq!(bore.view, "v:front");
     let pin:Spec=serde_json::from_value(serde_json::json!({"dimensions":{&bore.id:{"place":{"view":bore.view.trim_start_matches("v:"),"pinned":true}}}})).unwrap();
     let pinned = plan_recovered(&a, &pin).unwrap();
     let actual = pinned.dimensions.iter().find(|d| d.id == bore.id).unwrap();
@@ -520,4 +555,83 @@ fn short_reference_text_and_a_bore_callout_fit_their_local_carriers() {
         assert!(no_new_drawing_issues(&reference, &p));
         assert!(carries_required(&reference, &p));
     });
+}
+
+#[test]
+fn automatic_readability_details_require_useful_moved_ink_and_preserve_the_main_drawing() {
+    let Some(root) = std::env::var_os("DRAFTWRIGHT_CORPUS").map(std::path::PathBuf::from) else {
+        assert!(std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"));
+        return;
+    };
+    let (_, a) = analyse_native(&root.join("mfcadpp_holdout/520.step")).unwrap();
+    let disabled: Spec =
+        serde_json::from_value(serde_json::json!({"sheet":{"automatic_details":false}})).unwrap();
+    let parent = plan_recovered(&a, &disabled).unwrap();
+    let good = plan_recovered(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        (good.sheet.size.as_str(), good.sheet.scale.as_str()),
+        ("A4", "1:1")
+    );
+    assert_eq!(good.views.iter().filter(|v| v.detail.is_some()).count(), 1);
+    assert!(crate::detail::readable_automatic(&a, &parent, &good));
+    let mut bad = good.clone();
+    bad.sheet.scale_factor *= 0.5;
+    assert!(!crate::detail::readable_automatic(&a, &parent, &bad));
+    let mut bad = good.clone();
+    bad.sheet.size = "A3".into();
+    assert!(!crate::detail::readable_automatic(&a, &parent, &bad));
+    let id = good
+        .views
+        .iter()
+        .find(|v| v.detail.is_some())
+        .unwrap()
+        .id
+        .clone();
+    let mut bad = good.clone();
+    for d in bad.dimensions.iter_mut().filter(|d| d.view == id) {
+        d.reference = true;
+    }
+    assert!(!crate::detail::readable_automatic(&a, &parent, &bad));
+    let mut bad = good.clone();
+    bad.views
+        .iter_mut()
+        .find(|v| v.id == id)
+        .unwrap()
+        .detail
+        .as_mut()
+        .unwrap()
+        .marked_bounds[0][0] += 1.0;
+    assert!(!crate::detail::readable_automatic(&a, &parent, &bad));
+    let mut bad = good.clone();
+    let d = bad
+        .views
+        .iter_mut()
+        .find(|v| v.id == id)
+        .unwrap()
+        .detail
+        .as_mut()
+        .unwrap();
+    d.bounds[1][2] = d.bounds[0][2] + 0.01;
+    d.marked_bounds = d.bounds;
+    assert!(!crate::detail::readable_automatic(&a, &parent, &bad));
+    let mut bad = good.clone();
+    let mut second = good.views.iter().find(|v| v.id == id).unwrap().clone();
+    second.id = "v:detail_h".into();
+    second.detail.as_mut().unwrap().label = "H".into();
+    let copies: Vec<_> = good
+        .dimensions
+        .iter()
+        .filter(|d| d.view == id)
+        .map(|d| {
+            let mut d = d.clone();
+            d.view = second.id.clone();
+            d
+        })
+        .collect();
+    bad.dimensions.extend(copies);
+    bad.views.push(second);
+    assert!(
+        !crate::detail::readable_automatic(&a, &parent, &bad),
+        "touching captions cannot qualify"
+    );
 }

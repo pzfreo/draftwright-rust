@@ -116,7 +116,31 @@ pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, S
         base.sheet.scale = scale.into();
         base.sheet.basis = ordinary.into();
         assert_follows(name, &base, seed);
-        if enlarged || a3_exception {
+        let partial = basis.contains(
+            "local readability partially improved by enlarged detail; remaining needs refused",
+        );
+        if partial {
+            assert_eq!(plan.sheet.size, paper);
+            assert!(plan.sheet.scale_factor >= factor(scale));
+            assert!(
+                plan.problems
+                    .iter()
+                    .any(|q| q.code == "layout_recovery_exhausted" && q.severity == "warning")
+            );
+            let crops: Vec<_> = plan
+                .views
+                .iter()
+                .filter(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
+                .collect();
+            assert!(!crops.is_empty() && crops.len() <= 2);
+            for crop in crops {
+                assert!(
+                    plan.dimensions
+                        .iter()
+                        .any(|d| d.view == crop.id && d.placed.is_some() && !d.reference)
+                );
+            }
+        } else if enlarged || a3_exception {
             if a3_exception {
                 assert_eq!(plan.sheet.size, "A3");
             } else {

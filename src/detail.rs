@@ -378,14 +378,21 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
     if section_letter {
         allocated.insert(format!("detail_{}", section_label(spec).to_lowercase()));
     }
+    let mut automatic_readability = 0;
     let mut add = |mut d: Detail| {
+        if d.kind.starts_with("readability") {
+            if automatic_readability == 2 || !context_bounds(a, &mut d) {
+                return;
+            }
+            automatic_readability += 1;
+        }
         d.dimensions.retain(|id| {
             id.starts_with("d:step_level/step_interval.length.")
                 || !out
                     .iter()
                     .any(|(_, previous)| previous.dimensions.contains(id))
         });
-        if d.dimensions.is_empty() && d.kind != "readability-depiction" {
+        if d.dimensions.is_empty() {
             return;
         }
         let Some(name) = NAMES.iter().find(|n| !allocated.contains(**n)) else {
@@ -733,6 +740,163 @@ pub(crate) fn depiction_details(a: &Analysis, sheet: f64) -> Vec<Detail> {
     result
 }
 
+/// Expand a crop around its actual witnesses so it carries surrounding outline.
+/// The marker and the clipped view always describe the same model-space region.
+/// If the part envelope cannot supply a compact region, decline the proposal.
+pub(crate) fn context_bounds(a: &Analysis, d: &mut Detail) -> bool {
+    let projected = axes(d.source_view.trim_start_matches("v:"));
+    let longest = projected
+        .iter()
+        .map(|&k| d.bounds[1][k] - d.bounds[0][k])
+        .fold(0.0, f64::max);
+    let minimum = (longest / 3.0).max(8.0 / d.scale);
+    for k in projected {
+        let width = (d.bounds[1][k] - d.bounds[0][k]).max(minimum);
+        let lo = ((d.bounds[0][k] + d.bounds[1][k] - width) / 2.0)
+            .max(a.envelope[0][k])
+            .min((a.envelope[1][k] - width).max(a.envelope[0][k]));
+        d.bounds[0][k] = lo;
+        d.bounds[1][k] = (lo + width).min(a.envelope[1][k]);
+    }
+    d.marked_bounds = d.bounds;
+    let [w, h] = size(d);
+    w.min(h) > 0.0 && w.max(h) <= 3.0 * w.min(h) + 1e-6
+}
+
+/// Text and page blocks used by both detail qualification and rendering.
+pub(crate) fn text_obstacles(p: &crate::model::Plan) -> Vec<Rect> {
+    p.dimensions
+        .iter()
+        .filter_map(|d| d.placed.as_ref().map(|q| q.label_box))
+        .chain(
+            p.gdt
+                .iter()
+                .filter_map(|g| g.placed.as_ref().map(|q| q.label_box)),
+        )
+        .chain(p.balloons.iter().filter_map(|b| b.label_box))
+        .chain(p.captions.iter().map(|c| c.ink))
+        .chain(
+            p.notes
+                .iter()
+                .filter_map(|n| n.placed.as_ref().map(|q| q.cells)),
+        )
+        .chain(
+            p.tables
+                .iter()
+                .filter_map(|t| t.placed.as_ref().map(|q| q.cells)),
+        )
+        .collect()
+}
+
+/// Finished automatic crops have to earn their paper with a moved controlling
+/// annotation. Test actual ownership after redundancy and placement, not wants.
+pub(crate) fn readable_automatic(
+    a: &Analysis,
+    parent: &crate::model::Plan,
+    p: &crate::model::Plan,
+) -> bool {
+    let automatic: Vec<_> = p
+        .views
+        .iter()
+        .filter(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
+        .collect();
+    if automatic.is_empty() {
+        return true;
+    }
+    if p.sheet.scale_factor + 1e-6 < parent.sheet.scale_factor
+        || crate::layout::PAGES
+            .iter()
+            .position(|page| page.0 == p.sheet.size)
+            > crate::layout::PAGES
+                .iter()
+                .position(|page| page.0 == parent.sheet.size)
+        || automatic
+            .iter()
+            .filter(|v| v.detail.as_ref().unwrap().kind.starts_with("readability"))
+            .count()
+            > 2
+    {
+        return false;
+    }
+    for v in automatic {
+        let d = v.detail.as_ref().unwrap();
+        if !d.kind.starts_with("readability") {
+            continue;
+        }
+        let [w, h] = size(d);
+        if d.bounds != d.marked_bounds
+            || w.max(h) > 3.0 * w.min(h) + 1e-6
+            || !p.dimensions.iter().any(|dimension| {
+                dimension.view == v.id
+                    && !dimension.reference
+                    && dimension.placed.is_some()
+                    && parent.dimensions.iter().any(|old| {
+                        old.id == dimension.id
+                            && old.view == d.source_view
+                            && !old.reference
+                            && old.placed.is_some()
+                    })
+            })
+        {
+            return false;
+        }
+    }
+    // All captions are obstacles from the outset. Simulate the renderer's letter
+    // placement against every caption and previous letter, with normal text gap.
+    let text_box = |text: &str, at: [f64; 2]| {
+        let glyph = crate::dims::font().text(text, crate::section::FONT_SIZE);
+        [
+            at[0] + glyph.min[0],
+            at[1] + glyph.min[1],
+            at[0] + glyph.max[0],
+            at[1] + glyph.max[1],
+        ]
+    };
+    let clear = |b: Rect, other: Rect| {
+        b[2] + 1.75 <= other[0]
+            || other[2] + 1.75 <= b[0]
+            || b[3] + 1.75 <= other[1]
+            || other[3] + 1.75 <= b[1]
+    };
+    let mut labels = text_obstacles(p);
+    for v in p.views.iter().filter(|v| v.detail.is_some()) {
+        let b = text_box(&caption(v.detail.as_ref().unwrap()), caption_at(v));
+        if labels.iter().any(|other| !clear(b, *other)) {
+            return false;
+        }
+        labels.push(b);
+    }
+    for v in p.views.iter().filter(|v| v.detail.is_some()) {
+        let d = v.detail.as_ref().unwrap();
+        let Some(source) = p.views.iter().find(|s| s.id == d.source_view) else {
+            return false;
+        };
+        let mut avoid = labels.clone();
+        avoid.push(p.sheet.title_block);
+        avoid.extend(
+            p.dimensions
+                .iter()
+                .filter_map(|d| d.placed.as_ref())
+                .flat_map(|q| q.lines.iter())
+                .map(|s| {
+                    [
+                        s[0][0].min(s[1][0]) - 0.5,
+                        s[0][1].min(s[1][1]) - 0.5,
+                        s[0][0].max(s[1][0]) + 0.5,
+                        s[0][1].max(s[1][1]) + 0.5,
+                    ]
+                }),
+        );
+        let (_, at) = marker(a, d, source, &p.views, p.sheet.page, &avoid);
+        let b = text_box(&d.label, at);
+        if labels.iter().any(|other| !clear(b, *other)) {
+            return false;
+        }
+        labels.push(b);
+    }
+    true
+}
+
 pub(crate) fn size(d: &Detail) -> [f64; 2] {
     let axes = if d.source_view == "v:side" {
         [1, 2]
@@ -744,7 +908,7 @@ pub(crate) fn size(d: &Detail) -> [f64; 2] {
     axes.map(|k| (d.bounds[1][k] - d.bounds[0][k]) * d.scale)
 }
 fn pads(d: &Detail) -> [f64; 4] {
-    if d.kind == "readability-depiction" {
+    let mut pads = if d.kind == "readability-depiction" {
         [8.0, 8.0, 12.0, 8.0]
     } else if (d.kind.starts_with("readability-height-interval")
         && d.dimensions
@@ -789,7 +953,16 @@ fn pads(d: &Detail) -> [f64; 4] {
             12.0
         };
         [12.0, 42.0, 28.0, top]
+    };
+    if d.kind.starts_with("readability") {
+        let half_caption = (crate::dims::font().advance(&caption(d), crate::section::FONT_SIZE)
+            + crate::section::FONT_SIZE)
+            / 2.0;
+        let half_view = size(d)[0] / 2.0;
+        pads[0] = pads[0].max(half_caption - half_view);
+        pads[1] = pads[1].max(half_caption - half_view);
     }
+    pads
 }
 pub(crate) fn at(d: &Detail, area: Rect) -> [f64; 2] {
     let [w, h] = size(d);
@@ -820,7 +993,6 @@ pub(crate) fn scaled(a: &Analysis, spec: &Spec, sheet: f64) -> Scaled {
                 )
             })
             .collect(),
-        ..Scaled::default()
     };
     if scaled.pack_derived_at_edges {
         scaled.derived.sort_by(|a, b| {
@@ -852,7 +1024,7 @@ pub(crate) fn caption(d: &Detail) -> String {
         "DETAIL {} ({}){}",
         d.label,
         crate::model::scale_name(d.scale),
-        if d.partial_profile {
+        if d.partial_profile && !d.kind.starts_with("readability") {
             " — PARTIAL PROFILE"
         } else {
             ""
@@ -1091,14 +1263,19 @@ pub(crate) fn marker(
             })
         }),
     );
+    let gap = if d.kind.starts_with("readability") {
+        1.75
+    } else {
+        1.0
+    };
     let label_at = positions
         .into_iter()
         .find(|p| {
             let b = [
-                p[0] + glyph.min[0] - 1.0,
-                p[1] + glyph.min[1] - 1.0,
-                p[0] + glyph.max[0] + 1.0,
-                p[1] + glyph.max[1] + 1.0,
+                p[0] + glyph.min[0] - gap,
+                p[1] + glyph.min[1] - gap,
+                p[0] + glyph.max[0] + gap,
+                p[1] + glyph.max[1] + gap,
             ];
             b[0] >= crate::layout::MARGIN
                 && b[1] >= crate::layout::MARGIN

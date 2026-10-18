@@ -2127,20 +2127,20 @@ fn grm03_locates_every_turned_shoulder_and_keeps_the_isometric() {
             recovered.sheet.size.as_str(),
             recovered.sheet.scale.as_str()
         ),
-        ("A4", "2:1")
+        ("A3", "10:1")
     );
-    // This captured recognition cannot retain its routes in a flange crop.
-    // Keep A4 and report that exact local refusal rather than buying A3.
+    // Keep the large clean main views: downsizing to A4 would cut their
+    // linear scale by five, even if an isolated flange could be enlarged.
     let readable = draftwright::sheet_fit::readability(analysis, &recovered);
-    assert_eq!(readable.failures(), 1);
-    assert_eq!(readable.steps, 1);
+    assert_eq!(readable.failures(), 0);
+    assert_eq!(readable.steps, 0);
     assert_eq!(readable.whole_drawing_failures(), 0);
     assert!(recovered.views.iter().all(|v| v.detail.is_none()));
     assert!(
         recovered
             .problems
             .iter()
-            .any(|p| p.code == "layout_recovery_exhausted" && p.severity == "warning")
+            .all(|p| p.code != "layout_recovery_exhausted" || p.severity != "warning")
     );
     assert!(recovered.views.iter().any(|v| v.id == "v:iso"));
     assert_eq!(

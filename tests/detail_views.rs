@@ -859,13 +859,22 @@ fn a_detail_caption_is_drawn_in_its_reserved_crop_slot() {
 }
 
 #[test]
-fn adjacent_readability_crops_keep_distinct_parent_letters() {
+fn nearby_readability_needs_share_one_detail_without_shrinking_the_parent() {
     let Some(dir) = corpus::dir() else { return };
     let (part, a) = model::analyse_native(&dir.join("mfcadpp_holdout/520.step")).unwrap();
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
     assert_eq!(p.sheet.size, "A4");
     assert_eq!(draftwright::sheet_fit::readability(&a, &p).failures(), 0);
-    assert!(p.views.iter().filter(|v| v.detail.is_some()).count() >= 2);
+    assert_eq!(p.sheet.scale, "1:1");
+    assert_eq!(p.views.iter().filter(|v| v.detail.is_some()).count(), 1);
+    let detail = p.views.iter().find(|v| v.detail.is_some()).unwrap();
+    let crop = detail.detail.as_ref().unwrap();
+    assert_eq!(crop.bounds, crop.marked_bounds);
+    assert!(
+        p.dimensions
+            .iter()
+            .any(|d| d.view == detail.id && d.placed.is_some() && !d.reference)
+    );
     let font = draftwright::text::Font::open(
         &Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("fonts")
@@ -879,9 +888,29 @@ fn adjacent_readability_crops_keep_distinct_parent_letters() {
         .iter()
         .filter(|i| i.name.starts_with("detail_marker_label_"))
         .collect();
-    assert_eq!(letters.len(), 2);
-    let (a, b) = (letters[0].label.unwrap(), letters[1].label.unwrap());
-    assert!(a[2] + 1.0 <= b[0] || b[2] + 1.0 <= a[0] || a[3] + 1.0 <= b[1] || b[3] + 1.0 <= a[1]);
+    assert_eq!(letters.len(), 1);
+    for item in drawing
+        .sheet
+        .items
+        .iter()
+        .filter(|i| i.name.starts_with("detail_"))
+    {
+        if let Some(a) = item.label {
+            for other in drawing.sheet.items.iter().filter(|i| i.name != item.name) {
+                if let Some(b) = other.label {
+                    assert!(
+                        a[2] + 1.75 <= b[0]
+                            || b[2] + 1.75 <= a[0]
+                            || a[3] + 1.75 <= b[1]
+                            || b[3] + 1.75 <= a[1],
+                        "{} touches {}",
+                        item.name,
+                        other.name
+                    );
+                }
+            }
+        }
+    }
     assert!(
         draftwright::lint::structural::check(&drawing)
             .iter()

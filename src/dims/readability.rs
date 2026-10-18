@@ -55,7 +55,7 @@ pub(crate) fn details(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<crate::detai
             (gap > 0.0).then_some((o.owner, crate::sheet_fit::MIN_DEPICTION_GAP / gap))
         })
         .collect();
-    for w in inventory {
+    for w in &inventory {
         let mut needed = w
             .measurements
             .iter()
@@ -201,7 +201,7 @@ pub(crate) fn details(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<crate::detai
             .into(),
             bounds,
             marked_bounds: bounds,
-            dimensions: vec![w.id],
+            dimensions: vec![w.id.clone()],
             scale,
             authored: false,
             partial_profile: true,
@@ -214,19 +214,6 @@ pub(crate) fn details(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<crate::detai
         };
         if let Some(previous) = crops.iter_mut().find(|p| {
             p.source_view == d.source_view
-                && (p.kind == d.kind
-                    || (annotation_context
-                        && ((p.scale - d.scale).abs() < 1e-6 || {
-                            let (larger, smaller) = if p.scale > d.scale {
-                                (p.bounds, d.bounds)
-                            } else {
-                                (d.bounds, p.bounds)
-                            };
-                            axes.iter().all(|&k| {
-                                larger[0][k] <= smaller[0][k] + 1e-6
-                                    && larger[1][k] + 1e-6 >= smaller[1][k]
-                            })
-                        })))
                 && axes.iter().all(|&k| {
                     p.bounds[0][k] <= d.bounds[1][k] + (20.0 / p.scale.max(d.scale)).max(pad)
                         && d.bounds[0][k] <= p.bounds[1][k] + (20.0 / p.scale.max(d.scale)).max(pad)
@@ -255,6 +242,22 @@ pub(crate) fn details(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<crate::detai
             previous.scale = previous.scale.max(d.scale);
         } else {
             crops.push(d);
+        }
+    }
+    // An interval is useful only alongside a real parent annotation. Never
+    // create a reference-only detail to satisfy a numerical readability floor.
+    crops.retain(|d| {
+        d.dimensions
+            .iter()
+            .any(|id| inventory.iter().any(|w| w.id == *id))
+    });
+    for crop in &mut crops {
+        if crop
+            .dimensions
+            .iter()
+            .any(|id| id.contains("/step_interval.length."))
+        {
+            crop.kind = "readability-height-interval-context".into();
         }
     }
     crops
