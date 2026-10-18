@@ -19,6 +19,35 @@ use crate::model::{Invalid, Problem};
 use crate::output::Curve;
 use crate::text::{Font, Laid, P, Segment};
 
+/// Prefer a leading part number in the product name, then the source file's stem.
+/// Keep its spelling: alphanumeric segments joined by single hyphens, with at least
+/// one digit. Underscores, spaces and other punctuation separate it from a description.
+pub(crate) fn default_number(analysis: &crate::model::Analysis) -> String {
+    let leading_number = |name: &str| {
+        let token = name
+            .trim_start()
+            .split(|c: char| !c.is_ascii_alphanumeric() && c != '-')
+            .next()
+            .unwrap_or_default();
+        (token.bytes().any(|c| c.is_ascii_digit())
+            && token.split('-').all(|segment| !segment.is_empty()))
+        .then(|| token.to_string())
+    };
+    analysis
+        .product_name
+        .as_deref()
+        .and_then(leading_number)
+        .or_else(|| {
+            leading_number(
+                analysis
+                    .source_stem
+                    .as_deref()
+                    .unwrap_or(&analysis.binding.part),
+            )
+        })
+        .unwrap_or_else(|| "DWG-001".into())
+}
+
 /// A drawing title from the STEP product, falling back to the source file's stem.
 /// Bindings retain their original identity; only the displayed title is normalised.
 pub(crate) fn default_title(analysis: &crate::model::Analysis) -> String {

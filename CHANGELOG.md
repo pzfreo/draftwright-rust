@@ -14,6 +14,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- Default drawing numbers to a leading part-number token in the STEP product name, then
+  the file stem (including numeric names such as `10000`), before `DWG-001`. Explicit Spec
+  numbers, including blanks, win; readable titles retain the part number (#103).
+- Cover the tester's original GRM-03 AP242 material (`CZ121 / CW614N / CuZn39Pb3`)
+  through reading, title-block rendering and coverage lint. Its CAx-IF property already
+  projects on main; #108's warning fix applies without a new reader or kernel change (#101).
 - Keep radius leaders on the drawn part of trimmed arcs (quarter-cylinder edges, obround
   and slot-pattern ends) instead of the full construction circle.
 - Prefer perpendicular location witnesses on either side and finite-gap witnesses before
