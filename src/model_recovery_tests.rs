@@ -508,7 +508,7 @@ fn native_corridor_violations_in_the_seed_cannot_veto_the_fitted_reference() {
 }
 
 #[test]
-fn short_reference_text_and_a_bore_callout_fit_their_local_carriers() {
+fn refusing_a_label_only_bore_crop_keeps_the_readable_parent_and_its_pin() {
     let Some(root) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
         assert!(std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"));
         return;
@@ -545,15 +545,18 @@ fn short_reference_text_and_a_bore_callout_fit_their_local_carriers() {
         for name in crate::detail::NAMES {
             spec.views.entry(name.into()).or_default();
         }
-        let mut p = plan_escalated_with(&a, &spec, true, None, true).unwrap();
-        crate::sheet_fit::repair_readability(&a, &mut p);
-        crate::sheet_fit::retain_callouts(&a, &reference, &mut p);
-        assert_eq!(crate::sheet_fit::readability(&a, &p).failures(), 0);
-        assert!(drawn_sheets_fit(&a, &p));
-        assert!(findings(&p).clean());
-        assert!(crate::sheet_fit::routes_no_worse(&a, &reference, &p));
-        assert!(no_new_drawing_issues(&reference, &p));
-        assert!(carries_required(&reference, &p));
+        let refused = plan_escalated_with(&a, &spec, true, None, true).unwrap_err();
+        assert_eq!(refused.message, NO_AUTOMATIC_DETAIL);
+        assert!(refused.choices.is_empty());
+        // The accepted parent, including the independently reconstructed pin,
+        // must keep every original finished-drawing assertion. A label-only
+        // bore crop no longer supplies an artificial smaller-scale success.
+        assert_eq!(crate::sheet_fit::readability(&a, &pinned).failures(), 0);
+        assert!(drawn_sheets_fit(&a, &pinned));
+        assert!(findings(&pinned).clean());
+        assert!(crate::sheet_fit::routes_no_worse(&a, &reference, &pinned));
+        assert!(no_new_drawing_issues(&reference, &pinned));
+        assert!(carries_required(&reference, &pinned));
     });
 }
 
