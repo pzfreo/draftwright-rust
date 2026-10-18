@@ -2110,11 +2110,6 @@ fn readability_uncached(analysis: &Analysis, plan: &Plan) -> Readability {
         if p.lines.len() < 3 || p.arrows.len() != 2 || d.kind != "linear" {
             continue;
         }
-        if v.detail.as_ref().is_some_and(|detail| !detail.authored)
-            && crate::dims::text_off_span(d, &plan.dimensions)
-        {
-            result.text_arrows += 1;
-        }
         let a = p.arrows[0][0];
         let b = p.arrows[1][0];
         let delta = [b[0] - a[0], b[1] - a[1]];

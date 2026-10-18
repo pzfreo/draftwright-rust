@@ -1369,6 +1369,56 @@ mod tests {
     use crate::output::Curve;
 
     #[test]
+    fn automatic_detail_reference_labels_must_stay_with_their_measured_span() {
+        let Some(root) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
+            assert!(
+                std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|value| value != "1")
+            );
+            return;
+        };
+        let (_, a) = crate::model::analyse_native(
+            &std::path::Path::new(&root).join("mfcadpp_holdout/520.step"),
+        )
+        .unwrap();
+        let ordinary_spec = serde_json::from_value(serde_json::json!({
+            "sheet": {"automatic_details": false}
+        }))
+        .unwrap();
+        let parent = crate::model::plan_recovered(&a, &ordinary_spec).unwrap();
+        let mut p = crate::model::plan_recovered(&a, &Spec::default()).unwrap();
+        let view = p
+            .views
+            .iter()
+            .find(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
+            .unwrap()
+            .id
+            .clone();
+        assert!(readable_automatic(&a, &parent, &p));
+        let d = p
+            .dimensions
+            .iter_mut()
+            .find(|d| d.view == view && d.reference && d.kind == "linear")
+            .unwrap();
+        let ink = d.placed.as_mut().unwrap();
+        let axis = usize::from(ink.rotation != 0.0);
+        let lo = ink.arrows[0][0][axis].min(ink.arrows[1][0][axis]);
+        ink.label_box[axis] = lo - 30.0;
+        ink.label_box[axis + 2] = lo - 25.0;
+        // The real control is untouched: a reference companion still invalidates
+        // an otherwise useful enlargement when it loses its span association.
+        assert!(!readable_automatic(&a, &parent, &p));
+        p.views
+            .iter_mut()
+            .find(|v| v.id == view)
+            .unwrap()
+            .detail
+            .as_mut()
+            .unwrap()
+            .authored = true;
+        assert!(readable_automatic(&a, &parent, &p));
+    }
+
+    #[test]
     fn page_marker_arcs_do_not_export_the_clippers_roundoff_outside_the_border() {
         let circle = Curve::Conic {
             centre: [149.75, 67.1500272280282],

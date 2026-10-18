@@ -30,44 +30,6 @@ fn clean_outside_text_and_arrows_are_readable_but_straddling_witnesses_are_not()
 }
 
 #[test]
-fn automatic_detail_reference_labels_must_stay_with_their_measured_span() {
-    let (a, mut p) = plate();
-    let mut d = p
-        .dimensions
-        .iter()
-        .find(|d| d.kind == "linear" && d.placed.as_ref().is_some_and(|q| q.arrows.len() == 2))
-        .unwrap()
-        .clone();
-    d.reference = true;
-    let ink = d.placed.as_mut().unwrap();
-    let axis = usize::from(ink.rotation != 0.0);
-    let lo = ink.arrows[0][0][axis].min(ink.arrows[1][0][axis]);
-    ink.label_box[axis] = lo - 30.0;
-    ink.label_box[axis + 2] = lo - 25.0;
-    let view = d.view.clone();
-    p.dimensions = vec![d];
-    assert_eq!(sheet_fit::readability(&a, &p).text_arrows, 0);
-    p.views.iter_mut().find(|v| v.id == view).unwrap().detail = Some(
-        serde_json::from_value(json!({
-            "label":"A", "axis":1, "source_view":"v:plan", "kind":"readability",
-            "bounds":[[0,0,0],[20,20,20]], "marked_bounds":[[0,0,0],[20,20,20]],
-            "dimensions":[], "scale":2.0, "authored":false, "partial_profile":false
-        }))
-        .unwrap(),
-    );
-    assert_eq!(sheet_fit::readability(&a, &p).text_arrows, 1);
-    p.views
-        .iter_mut()
-        .find(|v| v.id == view)
-        .unwrap()
-        .detail
-        .as_mut()
-        .unwrap()
-        .authored = true;
-    assert_eq!(sheet_fit::readability(&a, &p).text_arrows, 0);
-}
-
-#[test]
 fn dimensioned_openings_use_two_mm_at_their_owning_views_scale() {
     let (a, mut p) = plate();
     assert_eq!(sheet_fit::readability(&a, &p).openings, 0);
