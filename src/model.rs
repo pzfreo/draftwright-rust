@@ -4169,7 +4169,7 @@ fn plan_with_presentation(
         .or_insert_with(|| crate::title_block::default_title(analysis));
     title
         .entry("number".into())
-        .or_insert_with(|| "DWG-001".into());
+        .or_insert_with(|| crate::title_block::default_number(analysis));
     // The file's one usable material, unless the spec states one, even blank (draftwright's
     // `_resolve_title_document_defaults`).
     if let Some(crate::pmi::Reading::Read(r)) = &analysis.pmi
