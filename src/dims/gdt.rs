@@ -44,8 +44,9 @@
 //! equal clearances, fewer crossings win. When the original arrangement separates datum
 //! triangles, a new arrangement must not introduce any annotation contact (unique unordered
 //! pairs, independent of reporting direction). An original arrangement with touching triangles
-//! is already illegal: datum-only repair is tried first and may trade soft contacts for fewer
-//! symbol overlaps, retaining all findings. Later frames must not be displaced merely to clear
+//! is already illegal: repair may trade soft contacts for fewer symbol overlaps, retaining
+//! all findings. Joint attachment reservations are used only when ordinary placement cannot
+//! separate the triangles. Later frames must not be displaced merely to clear
 //! an earlier leader in an already legal arrangement. Unavoidable collisions are
 //! retained and reported (Policy B). Explicit placement intents retain their strip/tier rules.
 //! If the full rearrangement introduces contact, the datum changes are also tried alone.
@@ -654,7 +655,14 @@ type Choice<'a> = (Grade, &'a str, Candidate, P2, usize);
 /// Compact datum tiers, starting with the normal triangle, shaft and frame clearances.
 /// Exact obstacle grading rejects any intervening dimension, extension or text. The outer
 /// edge must precede the first stroke across the frame's strip, with the usual clearance.
-fn inside_tiers(side: &str, tip: P2, outline: [f64; 4], size: P2, ink: &[[P2; 2]]) -> Vec<f64> {
+fn inside_tiers(
+    side: &str,
+    tip: P2,
+    outline: [f64; 4],
+    size: P2,
+    ink: &[[P2; 2]],
+    local: bool,
+) -> Vec<f64> {
     let d = outward(side);
     let sign = d[0] + d[1];
     // Start at the attachment, not at the far end of the entire view. A shoulder
@@ -675,7 +683,12 @@ fn inside_tiers(side: &str, tip: P2, outline: [f64; 4], size: P2, ink: &[[P2; 2]
     // shoulder changes its phase; replacing the old grid would lose clear
     // placements between crowded dimension lanes on unrelated parts.
     let boundary = first_tier(Shape::Datum, side, tip, outline, &[], size) * sign;
-    let mut positions: Vec<_> = [first, boundary]
+    let starts = if local {
+        vec![first, boundary]
+    } else {
+        vec![boundary]
+    };
+    let mut positions: Vec<_> = starts
         .into_iter()
         .flat_map(|start| {
             (0..TIERS)
@@ -1205,12 +1218,17 @@ pub(crate) fn plan_anchored(
     // Preserve the actual old arrangement as the contact reference. Triangle
     // reservations belong to the corrective searches, never to that seed.
     // An already illegal seed needs symbol separation before soft contacts:
-    // try moving datums alone first, and keep every resulting warning visible.
-    let searches = if seed_overlaps > 0 {
-        [Search::Datums, Search::All]
-    } else {
-        [Search::All, Search::Datums]
-    };
+    // try ordinary placement first, reserving sites jointly only if it cannot
+    // separate the triangles. Keep every resulting warning visible.
+    // Keep the previous complete compact arrangement as a candidate too.
+    // Its triangles are checked independently: an already legal, clearer
+    // drawing must not be lost when the new attachment choices are expanded.
+    let searches = [
+        Search::Baseline,
+        Search::All,
+        Search::Datums,
+        Search::Separate,
+    ];
     let score = |candidate: &(Vec<PlannedGdt>, Vec<Problem>)| {
         let datums: BTreeSet<_> = candidate
             .0
@@ -1235,6 +1253,9 @@ pub(crate) fn plan_anchored(
     let mut best = seed;
     let mut original = true;
     for search in searches {
+        if search == Search::Separate && (seed_overlaps == 0 || best_score.0 == 0) {
+            continue;
+        }
         if search == Search::Datums && !datum_search_can_change {
             continue;
         }
@@ -1259,8 +1280,8 @@ pub(crate) fn plan_anchored(
             }
             // Try the datum-only arrangement too if a legal full arrangement
             // still crosses dimensions. Keep the first clear arrangement, and
-            // stop mandatory triangle repair as soon as it has no hard overlap.
-            if best_score.0 == 0 && (best_score.1 == 0 || seed_overlaps > 0) {
+            // stop once the datum symbols and their leaders are both clear.
+            if best_score.0 == 0 && best_score.1 == 0 {
                 return best;
             }
         }
@@ -1273,6 +1294,8 @@ enum Search {
     Seed,
     Datums,
     All,
+    Separate,
+    Baseline,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1288,6 +1311,7 @@ fn plan_search(
     allowed: Option<&BTreeSet<(String, Vec<String>)>>,
 ) -> Option<(Vec<PlannedGdt>, Vec<Problem>)> {
     let compact = search != Search::Seed;
+    let protect = compact && search != Search::Baseline;
     let recess_frames = dims.iter().any(|d| {
         d.measurements
             .iter()
@@ -1372,7 +1396,7 @@ fn plan_search(
                 .and_then(|a| a.place.as_ref())
                 .is_some_and(|p| p.pinned),
             a.view,
-            compact && !matches!(&a.glyph, Glyph::Datum { surface, .. } if surface == "plane"),
+            protect && !matches!(&a.glyph, Glyph::Datum { surface, .. } if surface == "plane"),
             a.side,
         )
             .cmp(&(
@@ -1382,7 +1406,7 @@ fn plan_search(
                     .and_then(|a| a.place.as_ref())
                     .is_some_and(|p| p.pinned),
                 b.view,
-                compact && !matches!(&b.glyph, Glyph::Datum { surface, .. } if surface == "plane"),
+                protect && !matches!(&b.glyph, Glyph::Datum { surface, .. } if surface == "plane"),
                 b.side,
             ))
             .then(order)
@@ -1402,12 +1426,12 @@ fn plan_search(
                 .copied()
         })
         .collect();
-    let exterior = if compact && items.iter().any(|i| matches!(i.glyph, Glyph::Datum { .. })) {
+    let exterior = if protect && items.iter().any(|i| matches!(i.glyph, Glyph::Datum { .. })) {
         super::interior::exterior_proofs(analysis, views)
     } else {
         BTreeMap::new()
     };
-    let mut reservations = if compact && allowed.is_none() {
+    let mut reservations = if search == Search::Separate {
         separated_sites(analysis, spec, &items, &frames, &page)
     } else {
         BTreeMap::new()
@@ -1546,7 +1570,7 @@ fn plan_search(
                 move_point(&mut t.at, delta);
             }
             labels.push(p.label_box);
-            if compact {
+            if protect {
                 labels.extend(p.fills.iter().map(|f| fill_box(f)));
                 triangles.extend(p.fills.iter().cloned());
             }
@@ -1584,7 +1608,7 @@ fn plan_search(
                         .and_then(|v| exterior.get(&v.id).map(|proof| (v, proof.as_ref())))
                 })
                 .flatten(),
-            protect_triangles: compact,
+            protect_triangles: protect,
             triangles: triangles
                 .iter()
                 .chain(reservations.values())
@@ -1649,7 +1673,7 @@ fn plan_search(
                 };
                 for side in choices {
                     let positions = if inside && datum {
-                        inside_tiers(side, *tip, frame.outline(), laid.size, &ink)
+                        inside_tiers(side, *tip, frame.outline(), laid.size, &ink, protect)
                     } else if inside {
                         // Frame ink can fit between the face and the first
                         // dimension lane too. Exact obstacle grading, including
@@ -1700,14 +1724,16 @@ fn plan_search(
                         if let Some(line) = extension {
                             c.lines.push(*line);
                         }
-                        let compact_datum = compact && datum && !authored;
+                        let compact_datum = protect && datum && !authored;
                         let shorter = compact_datum
                             && best
                                 .as_ref()
                                 .is_some_and(|b| c.leader_length() < b.2.leader_length() - 1e-6);
                         let g = if intent.is_some_and(|p| p.pinned) {
                             (0, 0)
-                        } else if search == Search::All || (compact && datum) {
+                        } else if matches!(search, Search::All | Search::Baseline)
+                            || (compact && datum)
+                        {
                             // A shorter equal-grade datum can now win the tie, so
                             // its crossings must be exact rather than pruned at a tie.
                             obstacles.grade(
@@ -1773,7 +1799,7 @@ fn plan_search(
             }
         }
         labels.push(chosen.label_box);
-        if compact {
+        if protect {
             labels.extend(chosen.fills.iter().map(|f| fill_box(f)));
             triangles.extend(chosen.fills.iter().cloned());
         }

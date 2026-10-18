@@ -357,3 +357,8 @@ fn stc10_coincident_projected_datums_do_not_touch() {
 fn ftc07_coincident_projected_datums_do_not_touch() {
     dense_datums_are_separate("nist_ftc_07_asme1_ap242-e2.stp.gz", 5);
 }
+
+#[test]
+fn stc09_nearby_projected_datums_do_not_touch() {
+    dense_datums_are_separate("nist_stc_09_asme1_ap242-e4.stp.gz", 5);
+}

@@ -183,10 +183,15 @@ fn prepared_proofs(
             let canonical =
                 crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[])
                     .unwrap_or(false);
-            let key = serde_json::to_vec(&(v.direction, v.up, canonical))
+            let key = serde_json::to_vec(&(v.direction, v.up, canonical, exterior))
                 .expect("projection inputs serialize");
             let mut proof = crate::planning::memo(analysis, "interior", key, || {
-                build(ink, v, centre).map(|mut p| {
+                let prepared = if exterior {
+                    build_camera_with_exterior(ink, v.direction, v.up, centre, true)
+                } else {
+                    build(ink, v, centre)
+                };
+                prepared.map(|mut p| {
                     // Replay the established comparison's old attachment recipe.
                     // Actual drawings always require visible physical attachments.
                     p.require_visible_attachment = !canonical;
@@ -240,6 +245,16 @@ fn build_camera(
     direction: [f64; 3],
     up: [f64; 3],
     centre: P2,
+) -> Option<Proof> {
+    build_camera_with_exterior(ink, direction, up, centre, false)
+}
+
+fn build_camera_with_exterior(
+    ink: &crate::model::projected_ink::EdgeInk,
+    direction: [f64; 3],
+    up: [f64; 3],
+    centre: P2,
+    exterior: bool,
 ) -> Option<Proof> {
     let view = haecceity::hlr::View::new(direction, up)?;
     let d = direction;
@@ -298,6 +313,9 @@ fn build_camera(
         })
         .filter(|face| !face.chords.is_empty())
         .collect();
+    if !exterior && faces.is_empty() {
+        return None;
+    }
     // An entirely turned part has no plane square to a side view, but its
     // curved-face covers still prove exterior paper. `blank` continues to
     // require a containing planar face for every interior label.
@@ -1165,7 +1183,7 @@ mod tests {
             }],
         };
         let v = view();
-        let p = proof(&ink);
+        let p = build_camera_with_exterior(&ink, v.direction, v.up, [0.0; 2], true).unwrap();
         let label = [3.0, 8.0, 9.0, 14.0];
         assert!(
             !p.blank(&v, label),
@@ -1182,7 +1200,7 @@ mod tests {
         );
         ink.curved.clear();
         assert!(
-            build(&ink, &v, [0.0; 2]).is_none(),
+            build_camera_with_exterior(&ink, v.direction, v.up, [0.0; 2], true).is_none(),
             "missing surface evidence fails closed"
         );
     }
