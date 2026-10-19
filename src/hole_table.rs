@@ -2334,7 +2334,7 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
         let mut number = 0;
         let mut last = String::new();
         for r in &mut rows {
-            if r.cells[1] != last {
+            if group == 0 || r.cells[1] != last {
                 group += 1;
                 number = 0;
                 last = r.cells[1].clone();
