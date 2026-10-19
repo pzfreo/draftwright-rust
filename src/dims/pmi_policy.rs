@@ -191,6 +191,20 @@ pub(crate) fn origin_point(a: &Analysis, s: &Spec) -> [f64; 3] {
     std::array::from_fn(|k| selected[k].as_ref().map_or(a.envelope[0][k], |o| o.0))
 }
 
+pub(crate) fn origin_description(a: &Analysis, s: &Spec) -> String {
+    let (selected, _) = selected_origins(a, s);
+    AXES.iter()
+        .enumerate()
+        .map(|(k, axis)| {
+            format!(
+                "{axis}: {}",
+                selected[k].as_ref().map_or("box minimum", |o| o.1.as_str())
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 /// Source-only rooted location evidence, used when a schedule would otherwise add coordinates.
 pub(crate) fn source_locations(a: &Analysis, p: &crate::model::Plan) -> BTreeSet<(String, usize)> {
     located_by(a, p, |d| {

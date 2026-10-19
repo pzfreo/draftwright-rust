@@ -1873,7 +1873,12 @@ fn schedule_cells(t: &HoleTable) -> Vec<Vec<String>> {
         String::new(),
         String::new(),
         String::new(),
-        "FROM MIN".into(),
+        if t.basis.contains("; origin: ") {
+            "ORIGIN"
+        } else {
+            "FROM MIN"
+        }
+        .into(),
     ];
     let mut header = vec![
         "TAG".into(),
@@ -2384,7 +2389,13 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
         selection.tables.push(HoleTable {
             sheet: 1,
             id: format!("hole_schedule_{}", view.id.trim_start_matches("v:")), view: Some(view.id.clone()), origin: Some(origin), pcd, covered: Vec::new(),
-            rows, default: plan.spec.hole_table == Setting::Auto, basis: format!("plan-time hole schedule: {n} holes, {crowded} crowded ordinates, {conflicts} leader crossings; local X/Y from the marked datum corner"), state: crate::items::State::Shown, blocks: Vec::new(),
+            rows, default: plan.spec.hole_table == Setting::Auto, basis: {
+                let mut basis = format!("plan-time hole schedule: {n} holes, {crowded} crowded ordinates, {conflicts} leader crossings; local X/Y from the marked datum corner");
+                if crate::dims::pmi_policy::carries(analysis) || !plan.spec.origin.is_empty() {
+                    basis += &format!("; origin: {}", crate::dims::pmi_policy::origin_description(analysis, &plan.spec));
+                }
+                basis
+            }, state: crate::items::State::Shown, blocks: Vec::new(),
         });
     }
     // Consolidated wants otherwise reappear when their table-owned survivor leaves the lanes.
