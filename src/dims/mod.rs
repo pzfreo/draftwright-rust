@@ -4167,6 +4167,209 @@ pub(crate) fn placement_options_with_spec(
         .collect()
 }
 
+/// Check existing placement intents against settled ink, without planning a sheet.
+/// This is remedy validation only: it never installs the trial geometry.
+pub(crate) fn local_placement_fix(
+    analysis: &Analysis,
+    plan: &crate::model::Plan,
+    problem: &Problem,
+    options: &BTreeMap<String, Value>,
+) -> Option<crate::fixes::Fix> {
+    use crate::placement_intent::{Along, Place, Slot};
+    let mut raw = wants(analysis).0;
+    callouts::apply(analysis, &plan.spec, &mut raw);
+    schemes::apply(analysis, &plan.spec, &mut raw).ok()?;
+    authored::append(analysis, &plan.spec, &mut raw).ok()?;
+    detail_routes(analysis, &mut raw, &plan.views);
+    let mut all = plan.dimensions.clone();
+    all.extend(plan.gdt.iter().filter_map(gdt::proxy));
+    let cache = footprints::Cache::default();
+    let same = |a: &Problem, b: &Problem| a.code == b.code && a.subjects == b.subjects;
+    let before = recheck_cached(analysis, plan, &cache);
+    if !before.iter().any(|p| same(p, problem)) {
+        return None;
+    }
+    for id in &problem.subjects {
+        let Some(index) = plan.dimensions.iter().position(|d| &d.id == id) else {
+            continue;
+        };
+        let d = &plan.dimensions[index];
+        if plan
+            .spec
+            .dimensions
+            .get(id)
+            .and_then(|d| d.place.as_ref())
+            .is_some_and(|p| p.pinned)
+        {
+            continue;
+        }
+        let Some(original) = raw.iter().find(|w| w.id == *id) else {
+            continue;
+        };
+        let Some(views) = options.get(id).and_then(|o| o["views"].as_array()) else {
+            continue;
+        };
+        // Current carrier first; other compatible carriers are still one item's place edit.
+        let mut views: Vec<_> = views.iter().collect();
+        views.sort_by_key(|v| v["view"].as_str() != d.view.strip_prefix("v:"));
+        for option in views {
+            let Some(name) = option["view"].as_str() else {
+                continue;
+            };
+            let Some(view) = plan
+                .views
+                .iter()
+                .find(|v| v.id.strip_prefix("v:") == Some(name))
+            else {
+                continue;
+            };
+            let frames = BTreeMap::from([(name, Frame::new(analysis, view))]);
+            let frame = &frames[name];
+            let mut want = original.clone();
+            want.terms = d.terms.clone();
+            want.measurements = d.measurements.clone();
+            want.views.retain(|v| *v == name);
+            if want.views.is_empty()
+                || route(std::slice::from_mut(&mut want), &frames, analysis).0[0] != Some(name)
+            {
+                continue;
+            }
+            let sheet = std::iter::once(&plan.sheet)
+                .chain(&plan.sheets)
+                .find(|s| s.number == view.sheet)?;
+            let mut offer = |placed: Placed, place: &Place| {
+                all[index] = d.clone();
+                all[index].placed = Some(placed);
+                all[index].view = view.id.clone();
+                if d.kind == "callout"
+                    && leader_reentry(analysis, &plan.views, &all[index])
+                        > leader_reentry(analysis, &plan.views, d) + 1e-6
+                {
+                    return None;
+                }
+                let after =
+                    placement::collisions_for(analysis, &all, sheet, &plan.views, &cache, id);
+                if after.iter().any(|p| same(p, problem))
+                    || after
+                        .iter()
+                        .any(|p| p.severity == "error" && !before.iter().any(|old| same(p, old)))
+                {
+                    return None;
+                }
+                let ops = vec![Op::set(
+                    format!("dimensions/{}/place", crate::items::key(id)),
+                    serde_json::to_value(place).unwrap(),
+                )];
+                crate::model::edit(&plan.spec, &serde_json::to_value(&ops).unwrap()).ok()?;
+                let description = if let Some(offset) = place.offset {
+                    format!(
+                        "Move {} by a local pinned offset [{:.1}, {:.1}] mm; preview the placement.",
+                        d.label, offset[0], offset[1]
+                    )
+                } else {
+                    format!(
+                        "Move {} in the {name} view to the {} side, lane {}; preview the placement.",
+                        d.label,
+                        place.side?.name(),
+                        place.lane?
+                    )
+                };
+                Some(crate::fixes::Fix::new(description, ops))
+            };
+            for side in option["sides"].as_array().into_iter().flatten() {
+                let side: crate::placement_intent::Side =
+                    serde_json::from_value(side.clone()).ok()?;
+                let strip = match side {
+                    crate::placement_intent::Side::Above => placement::Side::Above,
+                    crate::placement_intent::Side::Below => placement::Side::Below,
+                    crate::placement_intent::Side::Left => placement::Side::Left,
+                    crate::placement_intent::Side::Right => placement::Side::Right,
+                };
+                for lane in 0..=1 {
+                    for along in [Slot::Middle, Slot::Start, Slot::End, Slot::Outside] {
+                        let place = Place {
+                            view: Some(name.into()),
+                            side: Some(side),
+                            lane: Some(lane),
+                            along: Some(Along::Slot(along)),
+                            offset: None,
+                            pinned: false,
+                        };
+                        let Some(placed) = placement::intent(
+                            frame,
+                            &want,
+                            &place,
+                            strip,
+                            lane,
+                            plan.canonical_callout_width(&view.id).unwrap_or(0.0),
+                        ) else {
+                            continue;
+                        };
+                        if let Some(fix) = offer(placed, &place) {
+                            return Some(fix);
+                        }
+                    }
+                }
+            }
+            // Existing offset pins can shorten a leader or move a witness locally,
+            // including into proven blank paper inside its carrier. Keep the current
+            // automatic frame as the offset origin; never invent a new anchor.
+            if view.id == d.view
+                && plan
+                    .spec
+                    .dimensions
+                    .get(id)
+                    .is_none_or(|d| d.place.is_none())
+                && let Some(held) = d.placed.as_ref()
+                && matches!(d.kind.as_str(), "linear" | "callout")
+            {
+                let base = if d.kind == "callout" {
+                    let [tip, bend] = *held.lines.first()?;
+                    [bend[0] - tip[0], bend[1] - tip[1]]
+                } else {
+                    [0.0, 0.0]
+                };
+                for distance in [LANE, 2.0 * LANE, 3.0 * LANE, 4.0 * LANE] {
+                    for [dx, dy] in [
+                        [0., 1.],
+                        [0., -1.],
+                        [1., 0.],
+                        [-1., 0.],
+                        [1., 1.],
+                        [-1., 1.],
+                        [1., -1.],
+                        [-1., -1.],
+                    ] {
+                        let offset = [base[0] + distance * dx, base[1] + distance * dy];
+                        let held = Some((held, d.terms.as_slice()));
+                        let placed = if d.kind == "callout" {
+                            leaders::offset_intent(frame, &want, offset, held)
+                        } else {
+                            placement::offset_intent(frame, &want, offset, held)
+                        };
+                        let Some(placed) = placed else {
+                            continue;
+                        };
+                        let place = Place {
+                            view: Some(name.into()),
+                            side: None,
+                            lane: None,
+                            along: None,
+                            offset: Some(offset),
+                            pinned: true,
+                        };
+                        if let Some(fix) = offer(placed, &place) {
+                            return Some(fix);
+                        }
+                    }
+                }
+            }
+        }
+        all[index] = d.clone();
+    }
+    None
+}
+
 /// A readable symbolic class with no numeric limits stated: a hole class on proven internal
 /// cylinders, or a shaft class on proven external ones (#30).
 pub(crate) fn symbolic_bore(r: &crate::pmi::Record) -> bool {

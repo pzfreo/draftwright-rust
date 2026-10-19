@@ -655,6 +655,7 @@ fn without_typed_state(mut plan: Value) -> Value {
     for p in plan["problems"].as_array_mut().unwrap() {
         let p = p.as_object_mut().unwrap();
         p.remove("fix");
+        p.remove("fixes");
         let refs = p.remove("refs").unwrap_or(json!([]));
         let refs = refs.as_array().unwrap();
         let subjects = p["subjects"].as_array_mut().unwrap();

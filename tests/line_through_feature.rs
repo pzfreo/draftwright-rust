@@ -202,5 +202,17 @@ fn underside_cavity_containment_is_not_a_crossing_and_extensions_are_report_only
         .filter(|p| p.code == "extension_through_feature")
         .collect();
     assert!(!extensions.is_empty());
-    assert!(extensions.iter().all(|p| p.fix.is_empty()));
+    // Reporting keeps the existing ink. #126 adds opt-in local repairs, while
+    // this Spec's hole_table: never must not acquire a sheet-wide table remedy.
+    assert!(extensions.iter().any(|p| !p.fix.is_empty()));
+    for problem in extensions {
+        let path = format!(
+            "dimensions/{}/place",
+            draftwright::items::key(&problem.subjects[0])
+        );
+        for fix in problem.offered_fixes() {
+            assert_eq!(fix.scope(), draftwright::fixes::Scope::Local);
+            assert!(fix.ops.iter().all(|op| op.path == path));
+        }
+    }
 }

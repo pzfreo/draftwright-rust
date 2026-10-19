@@ -198,3 +198,75 @@ fn a_shared_line_left_by_an_edit_is_a_new_error() {
             .any(|i| i.code == "dimension_line_shared" && i.severity == lint::Severity::Error)
     );
 }
+
+#[path = "common/corpus.rs"]
+mod corpus;
+
+/// #126: geometry-only CTC-01 at the reported authored paper/scale. These are
+/// candidates just like the existing annotation fixes, not full preview plans.
+#[test]
+fn ctc01_crossings_offer_local_edits_and_identify_the_sheet_remedy() {
+    let Some(root) = corpus::dir() else { return };
+    let (_, analysis) = model::analyse_native(&root.join("nist/nist_ctc_01_asme1_rd.stp")).unwrap();
+    let spec =
+        serde_json::from_value(serde_json::json!({"sheet":{"size":"A3","scale":"1:5"}})).unwrap();
+    let plan = model::plan_recovered(&analysis, &spec).unwrap();
+    assert_eq!((&*plan.sheet.size, &*plan.sheet.scale), ("A3", "1:5"));
+    let crossings: Vec<_> = plan
+        .problems
+        .iter()
+        .filter(|p| {
+            matches!(
+                p.code.as_str(),
+                "annotation_leader_crossing" | "extension_through_feature"
+            )
+        })
+        .collect();
+    assert_eq!(
+        crossings
+            .iter()
+            .filter(|p| p.code == "annotation_leader_crossing")
+            .count(),
+        2
+    );
+    assert_eq!(
+        crossings
+            .iter()
+            .filter(|p| p.code == "extension_through_feature")
+            .count(),
+        9
+    );
+    for p in crossings {
+        let fixes = p.offered_fixes();
+        assert!(!fixes.is_empty(), "{}", p.id);
+        assert_eq!(
+            fixes[0].scope(),
+            draftwright::fixes::Scope::Local,
+            "{}: {fixes:?}",
+            p.id
+        );
+        assert_eq!(p.fix, fixes[0].ops);
+        // Existing placement fixes validate the edit and compatible placement, with
+        // preview/apply responsible for evaluating the resulting layout.
+        model::edit(&spec, &serde_json::to_value(&fixes[0].ops).unwrap()).unwrap();
+        assert!(fixes[0].ops.iter().all(|op| op.path.starts_with("dimensions/") || op.path.starts_with("annotations/")));
+    }
+    let remedies = plan
+        .problems
+        .iter()
+        .find(|p| p.code == "annotation_leader_crossing")
+        .unwrap()
+        .offered_fixes();
+    let sheet = remedies
+        .iter()
+        .find(|f| f.ops.iter().any(|op| op.path == "hole_table"))
+        .unwrap();
+    assert_eq!(sheet.scope(), draftwright::fixes::Scope::Sheet);
+    let description = sheet.description();
+    assert!(
+        description.contains("Re-plans the sheet")
+            && description.contains("hole table")
+            && description.contains("1:10"),
+        "{description}"
+    );
+}

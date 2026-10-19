@@ -2353,3 +2353,26 @@ fn slot_patterns_are_checked_on_both_sheets() {
         );
     }
 }
+
+#[test]
+fn prose_advice_has_conservative_scope_without_inventing_spec_edits() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let (_, analysis) =
+        draftwright::model::analyse_native(&root.join("tests/fixtures/parts/mounting_plate.step"))
+            .unwrap();
+    let issues = draftwright::lint::check(&analysis, &[]);
+    let mut offered = 0;
+    for issue in issues.iter().filter(|i| i.fix.is_some()) {
+        let wire = serde_json::to_value(issue).unwrap();
+        assert_eq!(wire["scope"], "sheet");
+        assert_eq!(wire["fix"].as_str(), issue.fix.as_deref());
+        assert!(
+            wire["fix_description"]
+                .as_str()
+                .unwrap()
+                .starts_with("Re-plans the sheet:")
+        );
+        offered += 1;
+    }
+    assert!(offered > 0);
+}

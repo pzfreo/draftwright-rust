@@ -506,6 +506,7 @@ pub fn problems(cells: &[TitleCell], page: [f64; 2]) -> Vec<Problem> {
                 subjects: vec!["sheet".into()],
                 refs: vec!["title_block/general_tolerance".into(), "sheet/title/tolerance".into()],
                 fix: vec![crate::items::Op::set("sheet/title/tolerance", serde_json::json!("UNSPECIFIED"))],
+                fixes: Vec::new(),
             });
         }
         let Some(v) = &c.value else { continue };

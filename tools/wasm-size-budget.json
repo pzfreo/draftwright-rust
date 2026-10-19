@@ -1,8 +1,8 @@
 {
   "format": "draftwright.wasm-size-budget/1",
-  "ceiling_bytes": 15700000,
+  "ceiling_bytes": 17300000,
   "baseline": {
-    "measured_on": "2026-10-16",
+    "measured_on": "2026-10-19",
     "rust": "1.99.0",
     "wasm_pack": "0.15.0",
     "target": "web",
@@ -10,9 +10,9 @@
     "optimization": "wasm-pack default wasm-opt (version 117)",
     "brotli_version": "1.2.0",
     "brotli_lgwin": 22,
-    "raw_bytes": 13602172,
-    "gzip_level_9_bytes": 4486165,
-    "brotli_quality_11_bytes": 2992302
+    "raw_bytes": 15649337,
+    "gzip_level_9_bytes": 5268772,
+    "brotli_quality_11_bytes": 3524890
   },
-  "policy": "Raw WASM ceiling: baseline + 15%, rounded up to 100,000 bytes. Raising it requires a reviewed JSON edit."
+  "policy": "Raw WASM ceiling: baseline + 10%, rounded up to 100,000 bytes. Raising it requires a reviewed JSON edit. Re-baselined 2026-10-19 (maintainer-approved) on main's CI build after feature growth since 2026-10-16 (PMI notes, references, sheets)."
 }

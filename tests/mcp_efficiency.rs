@@ -208,12 +208,30 @@ fn one_feature_problem_query_returns_all_member_fixes() {
         ]}),
     );
     let version = &edited["spec_version"];
-    let result = call(
-        &cache,
-        "list_problems",
-        json!({"part_ref":summary["part_ref"],"spec_version":version,"filter":{"feature":"f:slot:1"}}),
-    );
-    let problems = result["items"].as_array().unwrap();
+    let mut cursor = 0;
+    let mut problems = Vec::new();
+    loop {
+        let result = call(
+            &cache,
+            "list_problems",
+            json!({
+                "part_ref":summary["part_ref"], "spec_version":version,
+                "filter":{"feature":"f:slot:1"}, "cursor":cursor
+            }),
+        );
+        for row in result["items"].as_array().unwrap() {
+            problems.push(if let Some(key) = row["detail_ref"].as_str() {
+                serde_json::from_slice::<Value>(&cache.artifact_bytes(key).unwrap()).unwrap()
+            } else {
+                row.clone()
+            });
+        }
+        let Some(next) = result["next_cursor"].as_u64() else {
+            break;
+        };
+        assert!(next > cursor);
+        cursor = next;
+    }
     assert_eq!(
         problems
             .iter()
@@ -226,9 +244,8 @@ fn one_feature_problem_query_returns_all_member_fixes() {
             .iter()
             .all(|p| p["code"] != "annotation_outside_area")
     );
-    assert_eq!(result["next_cursor"], Value::Null);
     let mut ops = Vec::new();
-    for p in problems {
+    for p in &problems {
         ops.extend(
             p["fix"]
                 .as_array()
@@ -250,20 +267,23 @@ fn one_feature_problem_query_returns_all_member_fixes() {
             .unwrap(),
     )
     .unwrap();
-    assert_eq!(delta["problems_resolved"].as_array().unwrap().len(), 4);
-    for p in problems
+    let added = delta["problems_added"].as_array().unwrap();
+    let resolved = delta["problems_resolved"].as_array().unwrap();
+    let gone: Vec<_> = resolved
         .iter()
-        .filter(|p| p["code"] != "extension_through_feature")
-    {
-        assert!(
-            delta["problems_resolved"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|resolved| resolved["id"] == p["id"])
-        );
+        .filter(|p| !added.iter().any(|q| q["id"] == p["id"]))
+        .collect();
+    // The new local pitch fix also clears both slot crossings. Other records can
+    // refresh their scoped alternatives without becoming new physical findings.
+    assert_eq!(gone.len(), 6);
+    for p in &problems {
+        assert!(gone.iter().any(|resolved| resolved["id"] == p["id"]));
     }
-    assert!(delta["problems_added"].as_array().unwrap().is_empty());
+    assert!(
+        added
+            .iter()
+            .all(|p| resolved.iter().any(|q| q["id"] == p["id"]))
+    );
 }
 
 #[test]
@@ -546,4 +566,92 @@ fn compact_prefix_suffix_choices_and_authored_dimension_outputs_stay_strict() {
     ] {
         assert!(mcp::validate(&output, &result(dimension)).is_err());
     }
+}
+
+#[test]
+fn crossing_remedies_are_scoped_and_ordered_in_mcp_rows() {
+    let Some(root) = corpus::dir() else { return };
+    let cache = Cache::new(Path::new(env!("CARGO_TARGET_TMPDIR")).join("fix-scope-mcp"));
+    let spec = json!({"sheet":{"size":"A3","scale":"1:5"}});
+    let summary = call(
+        &cache,
+        "inspect_part",
+        json!({
+            "step":root.join("nist/nist_ctc_01_asme1_rd.stp"), "spec":spec
+        }),
+    );
+    for detail in [false, true] {
+        for code in ["annotation_leader_crossing", "extension_through_feature"] {
+            let mut cursor = 0;
+            let mut count = 0;
+            loop {
+                let rows = call(
+                    &cache,
+                    "list_problems",
+                    json!({
+                        "part_ref":summary["part_ref"], "spec":spec,
+                        "filter":{"code":code}, "detail":detail,"cursor":cursor
+                    }),
+                );
+                for row in rows["items"].as_array().unwrap() {
+                    let full;
+                    let row = if let Some(key) = row["detail_ref"].as_str() {
+                        full = serde_json::from_slice::<Value>(&cache.artifact_bytes(key).unwrap())
+                            .unwrap();
+                        &full
+                    } else {
+                        row
+                    };
+                    let fixes = row["fixes"].as_array().unwrap();
+                    assert!(!fixes.is_empty(), "{row}");
+                    assert_eq!(fixes[0]["scope"], "local");
+                    assert_eq!(row["fix"], fixes[0]["ops"]);
+                    let rank = |fix: &Value| match fix["scope"].as_str().unwrap() {
+                        "local" => 0,
+                        "view" => 1,
+                        "sheet" => 2,
+                        _ => panic!("{fix}"),
+                    };
+                    assert!(fixes.windows(2).all(|f| rank(&f[0]) <= rank(&f[1])));
+                    let sheet = fixes
+                        .iter()
+                        .find(|f| {
+                            f["ops"]
+                                .as_array()
+                                .unwrap()
+                                .iter()
+                                .any(|op| op["path"] == "hole_table")
+                        })
+                        .unwrap();
+                    assert_eq!(sheet["scope"], "sheet");
+                    assert!(
+                        sheet["description"]
+                            .as_str()
+                            .unwrap()
+                            .contains("Re-plans the sheet")
+                    );
+                    count += 1;
+                }
+                let Some(next) = rows["next_cursor"].as_u64() else {
+                    break;
+                };
+                cursor = next;
+            }
+            assert_eq!(
+                count,
+                match code {
+                    "annotation_leader_crossing" => 2,
+                    "extension_through_feature" => 9,
+                    _ => unreachable!(),
+                }
+            );
+        }
+    }
+    let options = call(
+        &cache,
+        "item_options",
+        json!({"part_ref":summary["part_ref"],"spec":spec,"id":"sheet"}),
+    );
+    assert_eq!(options["settable"]["hole_table"]["scope"], "sheet");
+    assert_eq!(options["operation_scopes"]["scale"], "sheet");
 }

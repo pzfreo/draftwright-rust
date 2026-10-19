@@ -188,11 +188,12 @@ Run the safeguard tests with `python3 -m unittest discover -s tools -p 'test_was
 `tools/wasm-size-budget.json` records the baseline raw, gzip level 9 and Brotli quality 11
 (lgwin 22 for both the Python module and CLI)
 sizes measured on the web target with the `wasm-release` profile and wasm-pack's default
-wasm-opt pass. Its `ceiling_bytes` is about 15% above the raw baseline, rounded up to the
+wasm-opt pass. Its `ceiling_bytes` is 10% above the raw baseline, rounded up to the
 next 100,000 bytes. `tools/wasm_size.py` enforces that raw-byte ceiling in CI and release
 builds; equality passes. It prints actual transfer sizes and remaining headroom on every
-run. The initial ceiling is **15,700,000 bytes**, leaving **2,097,828 bytes** of headroom
-(15.42% above the measured baseline). Brotli reporting requires the Python `brotli` module
+run. The initial ceiling (2026-10-16) was **15,700,000 bytes**, 15% above a 13,602,172-byte
+baseline. On 2026-10-19 the maintainer re-baselined on main's 15,649,337-byte build with a
+**17,300,000-byte** ceiling (10.5% headroom). Brotli reporting requires the Python `brotli` module
 or the `brotli` CLI; enforcement
 has no optional dependencies. Gzip/Brotli sizes are recorded for deployment planning and
 are not separate gates. A budget increase requires a deliberate reviewed JSON edit; the

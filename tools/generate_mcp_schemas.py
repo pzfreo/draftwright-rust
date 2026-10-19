@@ -23,8 +23,11 @@ state={'anyOf':[obj({'kind':{'enum':['shown','omitted_by_user','not_authored']}}
 op={'anyOf':[obj({'op':{'enum':['set','add']},'path':S,'value':{}},['op','path','value']),obj({'op':{'const':'remove'},'path':S},['op','path'])]}
 place=obj({'view':{'enum':['front','plan','side',*[f'detail_{c}' for c in 'abcdefgh']]},'side':{'enum':['above','below','left','right']},'lane':{'type':'integer','minimum':0,'maximum':1000},'along':{'anyOf':[{'enum':['start','middle','end','outside']},{'type':'number','minimum':0,'maximum':1}]},'offset':arr(N,minItems=2,maxItems=2),'pinned':B})
 compact=obj({'sheet':SHEET,'id':S,'kind':S,'label':nullable(S),'view':nullable(S),'state':ref('state')},['id','kind','label','view','state'])
-item=obj({'item':{'type':'object'},'value':nullable(N),'dimension_kind':nullable(S),'placement':nullable({'type':'object'}),'anchors':arr(S),'features':arr(S),'basis':S,'operations':arr(S)},['item','value','dimension_kind','placement','anchors','features','basis','operations'])
-problem=obj({'id':S,'code':S,'severity':S,'message':S,'subjects':arr(S),'refs':arr(S),'fix':arr(ref('op'))},['id','code','severity','message','subjects'])
+scope={'enum':['local','view','sheet']}
+operation_scopes={'type':'object','additionalProperties':scope}
+fix=obj({'scope':scope,'description':S,'ops':arr(ref('op'))},['scope','description','ops'])
+item=obj({'operation_scopes':operation_scopes,'item':{'type':'object'},'value':nullable(N),'dimension_kind':nullable(S),'placement':nullable({'type':'object'}),'anchors':arr(S),'features':arr(S),'basis':S,'operations':arr(S)},['item','value','dimension_kind','placement','anchors','features','basis','operations'])
+problem=obj({'id':S,'code':S,'severity':S,'message':S,'subjects':arr(S),'refs':arr(S),'fix':arr(ref('op')),'fixes':arr(fix)},['id','code','severity','message','subjects'])
 rectangle=arr(N,minItems=4,maxItems=4)
 filter_=obj({'sheet':nullable(SHEET),'view':nullable(S),'kind':nullable(S),'state':nullable(ref('state')),'feature':nullable(S),'region':nullable(rectangle),'near':nullable(S),'radius':nullable({'type':'number','minimum':0})})
 problem_filter=obj({'code':nullable(S),'severity':nullable({'enum':['info','warning','error']}),'subject':nullable(S),'feature':nullable(S)})
@@ -56,7 +59,7 @@ del spec['properties']['feature_declarations']['items']['type']
 spec_read={**spec,'properties':{**spec['properties'],'dimensions':{'additionalProperties':{k:v for k,v in dimension.items() if k != 'type'}},'annotations':{'additionalProperties':{'properties':{'text':ref('x')}}}}}
 defs={'x':label_text,'state':state,'spec':spec,'spec_read':spec_read,'op':op,'item':item,'compact':compact,'problem':problem,'error':obj({'code':{'enum':['invalid','failed']},'message':S,'choices':arr(S)},['code','message'])}
 stub=obj({'id':nullable(S),'detail_ref':S},['id','detail_ref'])
-problem_small=obj({'id':S,'code':S,'severity':S,'subjects':arr(S),'fix':arr(ref('op'))},['id','code','severity','subjects'])
+problem_small=obj({'id':S,'code':S,'severity':S,'subjects':arr(S),'fix':arr(ref('op')),'fixes':arr(fix)},['id','code','severity','subjects'])
 defs.update({'stub':stub, 'problem_small':problem_small})
 row_item={'anyOf':[ref('compact'),ref('item'),ref('stub')]}
 row_problem={'anyOf':[ref('problem'),ref('problem_small'),ref('stub')]}
@@ -70,9 +73,9 @@ artifact=obj({'artifact_ref':S,'mime_type':{'enum':['image/png','application/pdf
 tools={
 'inspect_part':(obj({**common,'step':S,'features':S,'part':I,'detail':B,'problem_filter':problem_filter}),obj({**summary['properties'],'problem_page':paged({'anyOf':[ref('problem_small'),ref('stub')]})},summary['required'])),
 'list_items':(obj({**common,**paging,'filter':filter_},['part_ref']),paged(row_item)),
-'get_item':(obj({**common,'id':S,'detail':B},['part_ref','id']),obj({'item':{'anyOf':[ref('item'), obj({**compact['properties'],'basis':S,'value':nullable(N),'operations':arr(S)},[*compact['required'],'basis','value','operations'])]}},['item'])),
+'get_item':(obj({**common,'id':S,'detail':B},['part_ref','id']),obj({'item':{'anyOf':[ref('item'), obj({**compact['properties'],'basis':S,'value':nullable(N),'operations':arr(S),'operation_scopes':operation_scopes},[*compact['required'],'basis','value','operations'])]}},['item'])),
 'list_problems':(obj({**common,**paging,'filter':problem_filter},['part_ref']),paged(row_problem)),
-'item_options':(obj({**common,'id':S},['part_ref','id']),obj({'id':S,'operations':arr(S),'placements':arr(place),'view_anchors':arr(S),'scales':arr(S),'settable':{'type':'object','additionalProperties':obj({'choices':arr({}),'range':arr(N,minItems=2,maxItems=2),'integer':B,'forms':arr(S),'fields':arr(S),'paths':arr(S),'consequences':arr(S)})}},['id','operations','placements','view_anchors','scales','settable'])),
+'item_options':(obj({**common,'id':S},['part_ref','id']),obj({'id':S,'operations':arr(S),'operation_scopes':operation_scopes,'placements':arr(place),'view_anchors':arr(S),'scales':arr(S),'settable':{'type':'object','additionalProperties':obj({'scope':scope,'choices':arr({}),'range':arr(N,minItems=2,maxItems=2),'integer':B,'forms':arr(S),'fields':arr(S),'paths':arr(S),'consequences':arr(S)})}},['id','operations','placements','view_anchors','scales','settable'])),
 'preview_ops':(obj({**common,**paging,'ops':arr(ref('op'),maxItems=MAX_OPS)},['part_ref','ops']),delta),
 'apply_ops':(obj({**common,**paging,'ops':arr(ref('op'),maxItems=MAX_OPS),'parent':S},['part_ref','ops','parent']),obj({'spec_version':S,'delta':delta},['spec_version','delta'])),
 'view_sheet':(obj({**common,'region':rectangle,'overlay_ids':{'type':['boolean','array'],'items':S},'sheet':SHEET,'dpi':{'type':'number','exclusiveMinimum':0,'maximum':400}},['part_ref']),artifact),
@@ -230,7 +233,7 @@ def group_properties(schema, top=True, inherited_type=None):
         full['minProperties'] = len(props)
         if compact_size(full) < compact_size(schema): schema = full
     # Keep Spec's shallow keys explicit for client models.
-    if schema.get('description', '').startswith('Typed outline only.'):
+    if isinstance(schema.get('description'), str) and schema['description'].startswith('Typed outline only.'):
         return schema
     original, original_props = schema, props
     groups = defaultdict(list)
@@ -335,7 +338,8 @@ Path('schemas/mcp-validation.json').write_text(json.dumps(validation, indent=2) 
 # View-gap descriptions are in the on-demand Spec only and add zero tools/list bytes.
 # projection alignment and its description live in the on-demand Spec: +0 advertised bytes.
 # callouts/style: +0 tools/list bytes (nested on-demand Spec vocabulary only).
-# PMI policy and the shallow origin object add exactly 804 advertised bytes.
-SCHEMA_BUDGET = 35281
+# Scoped alternatives and operation/path scopes add 1,916 advertised bytes;
+# PMI policy and the shallow origin object add 804.
+SCHEMA_BUDGET = 37197
 assert total <= SCHEMA_BUDGET, f'schemas: {total} bytes (budget {SCHEMA_BUDGET})'
 print(f'{len(tools)} tools; {total} compact schema bytes')

@@ -823,33 +823,6 @@
   "file": "hw_every_kind.step",
   "python": null,
   "rust": "info",
-  "source": "attribute_set:0:0",
-  "verdict": "undetermined",
-  "evidence": "A part note in words haecceity's writer states as a 'semantic text' user defined attribute on the part (#6677 'coating': 'Anodise to MIL-A-8625 Type II, black'; NIST's form, quiddity-rust decision 5 of 2026-10-09). draftwright never sees it (its census holds no source; XCAF keeps at most the last 'semantic text', and draftwright makes no record of it), so its drawing silently lacks the note. The port's reading holds it and reports it as info, not projected to a record. Neither draws it. Whether such part notes are drawing requirements the port should draw as general notes (and so report as an error until drawn, not info) is a new question for the maintainer (docs/next-session.md)."
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_every_kind.step",
-  "python": null,
-  "rust": "info",
-  "source": "attribute_set:0:1",
-  "verdict": "undetermined",
-  "evidence": "A part note in words haecceity's writer states as a 'semantic text' user defined attribute on the part (#6683 'heat treatment': 'None'; NIST's form, quiddity-rust decision 5 of 2026-10-09). draftwright never sees it (its census holds no source; XCAF keeps at most the last 'semantic text', and draftwright makes no record of it), so its drawing silently lacks the note. The port's reading holds it and reports it as info, not projected to a record. Neither draws it. Whether such part notes are drawing requirements the port should draw as general notes (and so report as an error until drawn, not info) is a new question for the maintainer (docs/next-session.md)."
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_every_kind.step",
-  "python": null,
-  "rust": "info",
-  "source": "attribute_set:0:2",
-  "verdict": "undetermined",
-  "evidence": "A part note in words haecceity's writer states as a 'semantic text' user defined attribute on the part (#6689 'edges': 'Break sharp edges 0.2 max'; specify-core's Python files state an edge condition as a requirement, drawn by both as a general note, e.g. thumbwheel_thread_knurl.step's #784; NIST's form, quiddity-rust decision 5 of 2026-10-09). draftwright never sees it (its census holds no source; XCAF keeps at most the last 'semantic text', and draftwright makes no record of it), so its drawing silently lacks the note. The port's reading holds it and reports it as info, not projected to a record. Neither draws it. Whether such part notes are drawing requirements the port should draw as general notes (and so report as an error until drawn, not info) is a new question for the maintainer (docs/next-session.md)."
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_every_kind.step",
-  "python": null,
-  "rust": "info",
   "source": "attribute_set:0:3",
   "verdict": "rust-correct",
   "evidence": "A user defined attribute on a feature (#6671 'gauge': 'plug', GENERAL_PROPERTY 'inspection' on feature 4's shape aspect). draftwright's census does not hold it; the port reports it as info, not projected, as it reports other attribute sets (e.g. nist_ctc_01's attribute_set:0:2, rust-correct). Neither draws it; an inspection attribute is not a drawing requirement draftwright states."
