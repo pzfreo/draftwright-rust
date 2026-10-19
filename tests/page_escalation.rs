@@ -338,7 +338,7 @@ fn local_floors_use_details_and_never_buy_large_paper() {
         let analysis = api::analyse_from(&path, Features::Native).unwrap();
         assert_eq!(
             draftwright::sheet_fit::readability(&analysis, &plan).failures(),
-            2 * usize::from(file.ends_with("10000.step"))
+            usize::from(file.ends_with("10000.step"))
         );
         if file.ends_with("10000.step") {
             let compressed =
@@ -353,7 +353,20 @@ fn local_floors_use_details_and_never_buy_large_paper() {
             );
             assert!(plan.sheet.basis.contains("A4 "));
             assert_eq!(plan.sheet.scale, "1:1");
-            assert_eq!(plan.views.iter().filter(|v| v.detail.is_some()).count(), 0);
+            // The bounded 2:1 slot detail resolves the pocket mouth while the
+            // unsupported short step remains explicit on the same A4 sheet.
+            assert_eq!(plan.views.iter().filter(|v| v.detail.is_some()).count(), 1);
+            assert_eq!(
+                draftwright::sheet_fit::readability(&analysis, &plan).native_openings,
+                0
+            );
+            let detail = plan.views.iter().find(|v| v.detail.is_some()).unwrap();
+            assert_eq!(detail.scale, 2.0);
+            assert!(
+                plan.dimensions
+                    .iter()
+                    .any(|d| { d.view == detail.id && !d.reference && d.placed.is_some() })
+            );
             assert!(
                 plan.problems
                     .iter()
