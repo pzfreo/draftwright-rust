@@ -35,7 +35,7 @@
 //!   own a default `surface_texture`, one on faces a `surface_finish`. Part-level `semantic
 //!   text` attribute sets are manufacturing requirements too (`PartReader::part_notes`):
 //!   general notes, surface treatments, heat treatments and edge conditions, with text and
-//!   optional order/index fields; they need no presentation.
+//!   optional one-based `note index` (or legacy order/index) fields; they need no presentation.
 //! - The faces a record applies to replace draftwright's XCAF shapes: `faces`, the drawing's face
 //!   indices (haecceity's, the file's own order, as [`crate::bridge`] uses), `face_ids` their
 //!   `ADVANCED_FACE` instances, and `face_groups`, a location's two sides or a size's one
@@ -988,21 +988,26 @@ impl PartReader<'_> {
                 r.blockers
                     .push("part semantic text note is not text".into());
             }
-            // Specify currently writes no ordering field. Accept either conventional name,
-            // in its text or integer form; absent indices retain the model's instance order.
+            // Specify's one-based integer `note index` is surfaced by haecceity. Keep the
+            // older order/index names too; absent indices retain the model's instance order.
             for (name, value) in &a.items {
-                if matches!(normalized(name).as_str(), "order" | "index") {
+                let name = normalized(name);
+                if matches!(name.as_str(), "order" | "index" | "note index") {
                     let index = match value {
                         AttributeValue::Text(t) => t.trim().parse::<u64>().ok(),
                         AttributeValue::Integer(n) => u64::try_from(*n).ok(),
                         _ => None,
-                    };
+                    }
+                    .filter(|&n| name != "note index" || n > 0);
                     if let Some(index) = index {
                         r.fields
                             .push(("note order".into(), Field::Text(index.to_string())));
                     } else {
-                        r.blockers
-                            .push("part note order/index is not a non-negative integer".into());
+                        r.blockers.push(if name == "note index" {
+                            "part note index is not a positive integer".into()
+                        } else {
+                            "part note order/index is not a non-negative integer".into()
+                        });
                     }
                 }
             }

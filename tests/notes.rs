@@ -490,14 +490,19 @@ fn the_block_matches_draftwrights_on_corpus_parts() {
 }
 
 /// Patch the existing plate with hand-built semantic text; geometry is never duplicated.
-fn with_part_notes(fragment: &str) -> (Part, Analysis) {
-    static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+fn part_notes_step(fragment: &str) -> String {
     let source = std::fs::read_to_string(fixture("parts/plate.step")).unwrap();
     let source = source.replace(
         "ENDSEC;\nEND-ISO-10303-21;",
         &format!("{fragment}\nENDSEC;\nEND-ISO-10303-21;"),
     );
     assert!(source.contains("#50002="));
+    source
+}
+
+fn with_part_notes(fragment: &str) -> (Part, Analysis) {
+    static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let source = part_notes_step(fragment);
     let path = std::env::temp_dir().join(format!(
         "draftwright-part-notes-{}-{}.step",
         std::process::id(),
@@ -594,6 +599,92 @@ fn part_semantic_text_notes_are_read_and_drawn_before_spec_notes() {
         draftwright::lint::lint(a, &altered)
             .iter()
             .any(|i| i.code == "pmi_source_text_mismatch")
+    );
+}
+
+#[test]
+fn specify_general_notes_are_drawn_in_one_based_note_index_order() {
+    use draftwright::haecceity::{p21, pmi, step};
+    let fragment = include_str!("fixtures/pmi/part_notes_indexed.inc");
+    let bytes = part_notes_step(fragment).into_bytes();
+    let defs = step::read_part_definitions(&bytes).unwrap();
+    let doc = p21::Document::parse(bytes).unwrap();
+    let read = pmi::read(&doc, &defs).unwrap();
+    // Check the dependency's actual reading, not only draftwright's projected fields.
+    let indices: Vec<_> = read.parts[0]
+        .attributes
+        .iter()
+        .flat_map(|a| &a.items)
+        .filter(|(name, _)| name == "note index")
+        .map(|(_, value)| match value {
+            pmi::AttributeValue::Integer(n) => *n,
+            other => panic!("note index was not surfaced as an integer: {other:?}"),
+        })
+        .collect();
+    assert_eq!(indices, [3, 1, 2]);
+    let (part, a) = with_part_notes(fragment);
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        plan.notes
+            .iter()
+            .map(|n| (n.number, n.text.as_str()))
+            .collect::<Vec<_>>(),
+        [
+            (1, "Inspect bore"),
+            (2, "DEBURR ALL EDGES"),
+            (3, "ETCH PART NUMBER")
+        ]
+    );
+    assert!(plan.notes.iter().all(|n| n.placed.is_some()));
+    let drawing = model::render(&part, &a, &plan, &font()).unwrap();
+    for note in &plan.notes {
+        assert_eq!(
+            drawing
+                .text
+                .iter()
+                .filter(|t| t.text == note.rows[0])
+                .count(),
+            1
+        );
+    }
+    assert_clear(&a, &plan);
+    assert!(
+        !draftwright::lint::lint(&a, &drawing)
+            .iter()
+            .any(|p| p.code.starts_with("pmi_"))
+    );
+}
+
+#[test]
+fn unindexed_part_notes_follow_indexed_notes_in_file_order() {
+    let fragment = include_str!("fixtures/pmi/part_notes_indexed.inc")
+        .replace("(#50000,#50001)", "(#50000)")
+        .replace("(#50020,#50021)", "(#50020)")
+        // Larger than the file instance IDs: an index is never compared with a file ID.
+        .replace("'note index',1", "'note index',100000");
+    let (_, a) = with_part_notes(&fragment);
+    let plan = model::plan(&a, &drawing_notes()).unwrap();
+    assert_eq!(
+        plan.notes
+            .iter()
+            .map(|n| n.text.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "Inspect bore",
+            "ETCH PART NUMBER",
+            "DEBURR ALL EDGES",
+            "DO NOT SCALE",
+            "DIMENSIONS IN MM"
+        ]
+    );
+    let (_, a) = with_part_notes(&fragment.replace("(#50010,#50011)", "(#50010)"));
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        plan.notes
+            .iter()
+            .map(|n| n.text.as_str())
+            .collect::<Vec<_>>(),
+        ["ETCH PART NUMBER", "Inspect bore", "DEBURR ALL EDGES"]
     );
 }
 

@@ -1333,8 +1333,10 @@ there is no automatic migration.
   canonical records and item IDs as the standard names.
   `src/pmi.rs` exposes each as a manufacturing-requirement record without requiring graphic
   presentation or producer metadata. `pmi_lowering::sheet_requirements` lowers all these kinds
-  in one function. Notes keep model instance order; a non-negative integer `order` or `index`
-  item (integer or decimal text) takes precedence. Spec notes follow in their list order.
+  in one function. Specify's one-based `INTEGER_REPRESENTATION_ITEM('note index', n)`
+  orders the notes; legacy non-negative `order` or `index` items (integer or decimal text)
+  are also accepted. Indexed notes come first in index order, then unindexed notes in model
+  instance order; equal indices keep model instance order. Spec notes follow in their list order.
   The default surface finish retains its symbol beside the title block.
 - **No requirement and wording.** Trimmed, case-insensitive `None`, `N/A`, `NA`, `-`, empty
   or whitespace-only part-note values declare no requirement. The raw record stays read;

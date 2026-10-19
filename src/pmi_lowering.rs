@@ -34,7 +34,8 @@
 //!   the one general tolerance fills the title block's tolerance cell, the one default surface
 //!   texture (`Ra 3.2 µm unless otherwise specified`) is drawn beside the title block, and each
 //!   part note (semantic text: general note, surface treatment, heat treatment or edge
-//!   condition) is a general note, in model order before the Spec notes; two of one default are
+//!   condition) is a general note before the Spec notes: indexed notes first by `note index`,
+//!   then unindexed notes in model order; two of one default are
 //!   ambiguous and neither is drawn. PMI note omission and Spec duplicate reconciliation use
 //!   [`crate::notes`]; the model and existing Spec notes are never migrated by planning.
 //!   No-requirement values remain read as info, without ink or a Problem. Bare coating and
@@ -633,7 +634,7 @@ pub struct SheetRequirement {
 /// and the problems met: the one general tolerance not blocked (its designation: the prose before
 /// any `;`, or the structured tolerance class, which must agree with it), the one surface
 /// texture stated as `Ra <value> µm unless otherwise specified`, and every part note on no
-/// face or edge, with text, in model order (an explicit note order/index takes precedence).
+/// face or edge, with text: explicit note indices first, then unindexed notes in model order.
 /// Two general tolerances, or two surface textures, are ambiguous:
 /// neither is drawn. A record the reading blocked, or one whose statement is not a supported
 /// default, is said with its reason (`pmi_not_lowered`). Other document kinds draftwright knows
@@ -789,7 +790,7 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
             crate::pmi::Field::Text(t) if key == "note order" => t.parse::<u64>().ok(),
             _ => None,
         });
-        (r.part, order.unwrap_or(r.part21_id), r.part21_id)
+        (r.part, order.is_none(), order.unwrap_or(0), r.part21_id)
     });
     for r in notes {
         if !r.faces.is_empty() || !r.edges.is_empty() {
