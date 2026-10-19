@@ -149,9 +149,6 @@ pub(crate) fn edges(a: &Analysis, marks: &[Mark]) -> Vec<Edge> {
                     && p.is_finite()
                     && q.is_finite()
                     && (super::holes::states(&mark.text, (q - p).abs())
-                        || (mark.claims.iter().any(|c| {
-                            c.feature.starts_with("scheme:") && c.parameter.starts_with("ordinate.")
-                        }) && super::holes::states(&mark.text, -(q - p).abs()))
                         || mark.text.split_once('×').is_some_and(|(n, rest)| {
                             n.trim()
                                 .parse::<f64>()
@@ -433,14 +430,20 @@ pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge>
                     a.scheme_station(from, span.axis),
                     a.scheme_station(to, span.axis),
                 )
-                && super::holes::states(
-                    &mark.text,
-                    if style == "ordinate" {
-                        q[span.axis] - p[span.axis]
-                    } else {
-                        (q[span.axis] - p[span.axis]).abs()
-                    },
-                )
+                && mark
+                    .text
+                    .split_whitespace()
+                    .next()
+                    .and_then(|s| s.parse::<f64>().ok())
+                    .is_some_and(|n| {
+                        let value = if style == "ordinate" {
+                            q[span.axis] - p[span.axis]
+                        } else {
+                            (q[span.axis] - p[span.axis]).abs()
+                        };
+                        n.signum() == value.signum()
+                            && super::holes::states(&mark.text, value.abs())
+                    })
             {
                 let node = |key: &str| {
                     node_feature(a, key.strip_prefix("axis:").unwrap_or(key), span.axis)
