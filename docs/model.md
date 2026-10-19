@@ -469,6 +469,8 @@ eligible centre furniture in the isometric; it does not fabricate an axis or fea
 `centre_marks` controls end-on crosses, while `centre_lines` controls profile axes and
 pitch circles. They are independent. Thread and knurl switches affect conventional
 ink only: manufacturing requirements, dimensions, callouts and coverage remain.
+The isometric omits hidden edges by default, as pictorial views conventionally do;
+`views/iso/hidden: true` (or `sheet/hidden: true`) draws them, with visible precedence.
 Cosmetic depiction still requires a proven profile feature. Sections always omit hidden
 edges and cosmetic threads/knurls, even with `true`; centre switches do not remove the
 cutting-plane chain line, section arrows or hatching.
