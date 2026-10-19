@@ -711,8 +711,17 @@ fn r5_allowing_extra_sheets_preserves_the_finished_sheet() {
         "mfcadpp/10063.step",
     ] {
         let a = analysed(name);
-        let mut ordinary = value(&a, &Spec::default());
-        let mut allowed = value(&a, &spec(json!({"sheets":{"max":2}})));
+        // Hold paper fixed while varying only R5's overflow permission. A free-paper
+        // Spec now applies the A4 preference, while an explicit max retains old policy.
+        let paper = model::plan_recovered(&a, &Spec::default())
+            .unwrap()
+            .sheet
+            .size;
+        let mut ordinary = value(&a, &spec(json!({"sheet":{"size":paper}})));
+        let mut allowed = value(
+            &a,
+            &spec(json!({"sheet":{"size":paper},"sheets":{"max":2}})),
+        );
         assert!(allowed.get("sheets").is_none(), "{name}");
         for p in [&mut ordinary, &mut allowed] {
             p.as_object_mut().unwrap().remove("spec");
