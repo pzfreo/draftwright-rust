@@ -4,6 +4,25 @@ use crate::lint::location::{self, Edge};
 use crate::model::PmiMode;
 use crate::pmi::{Category, Reading};
 
+thread_local! {
+    static PLAN_DEPTH: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Candidate sheets keep their existing layout grade. Completeness findings belong to the
+/// finished public plan, after bounded recovery has selected its drawing.
+pub(crate) fn planning<T>(run: impl FnOnce() -> T) -> T {
+    struct Restore(usize);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            PLAN_DEPTH.set(self.0);
+        }
+    }
+    let before = PLAN_DEPTH.get();
+    PLAN_DEPTH.set(before + 1);
+    let _restore = Restore(before);
+    run()
+}
+
 type Kept = (Want, bool, Option<&'static str>, Vec<&'static str>);
 pub(crate) fn carries(a: &Analysis) -> bool {
     matches!(&a.pmi, Some(Reading::Read(r)) if !r.records.is_empty())
@@ -648,6 +667,9 @@ pub(crate) fn ignore(
 }
 
 pub(crate) fn audit(a: &Analysis, s: &Spec, p: &mut crate::model::Plan) {
+    if PLAN_DEPTH.get() > 1 {
+        return;
+    }
     crate::planning::with(a, || audit_inner(a, s, p));
 }
 

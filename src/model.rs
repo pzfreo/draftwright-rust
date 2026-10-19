@@ -3165,6 +3165,10 @@ fn recover_candidates(
 /// caller (the library's [`crate::api`], so the command line, the JSON-lines service and MCP)
 /// is given. A plan that cannot be made is refused as [`plan`] refuses it.
 pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    crate::dims::pmi_policy::planning(|| plan_recovered_inner(analysis, spec))
+}
+
+fn plan_recovered_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     if spec.pmi == PmiMode::Ignore && crate::dims::pmi_policy::carries(analysis) {
         return crate::dims::pmi_policy::ignore(analysis, spec, plan_recovered);
     }
@@ -3629,6 +3633,10 @@ fn gdt_misplaced(plan: &Plan) -> (usize, usize) {
 /// drawing's findings. That recovery is [`recover`], applied by [`plan_recovered`], never here:
 /// its tries are plans made by this function (ISSUE-1299-a).
 pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    crate::dims::pmi_policy::planning(|| plan_inner(analysis, spec))
+}
+
+fn plan_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     if spec.pmi == PmiMode::Ignore && crate::dims::pmi_policy::carries(analysis) {
         return crate::dims::pmi_policy::ignore(analysis, spec, plan);
     }
