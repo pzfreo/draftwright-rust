@@ -429,10 +429,18 @@ pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge>
             .claims
             .iter()
             .find(|c| c.parameter.contains("pitch.length"));
-        if let Some(c) = pitch
-            && let Some(p) = pattern(a, &c.feature)
-            && !super::schemes::supports(a, &c.feature, &c.parameter, &mark.text).is_empty()
+        let mut expanded_pitch = false;
+        for c in mark
+            .claims
+            .iter()
+            .filter(|c| c.parameter.contains("pitch.length"))
         {
+            let Some(p) = pattern(a, &c.feature) else {
+                continue;
+            };
+            if super::schemes::supports(a, &c.feature, &c.parameter, &mark.text).is_empty() {
+                continue;
+            }
             let centre = station(a, &p.id, span.axis);
             if let Some(centre) = centre {
                 for id in &p.members {
@@ -468,8 +476,11 @@ pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge>
                         }
                     }
                 }
-                continue;
+                expanded_pitch = true;
             }
+        }
+        if expanded_pitch {
+            continue;
         }
         let location = mark
             .claims
@@ -484,11 +495,8 @@ pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge>
                 members.push(c.feature.clone());
             }
             if let Some(p) = pattern(a, &c.feature) {
-                if pitch.is_some() {
-                    members.extend(p.members.iter().cloned());
-                } else {
-                    members.push(p.id.clone());
-                }
+                members.extend(p.members.iter().cloned());
+                members.push(p.id.clone());
             }
         }
         members.sort();
