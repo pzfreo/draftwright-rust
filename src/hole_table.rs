@@ -2433,8 +2433,29 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
         let axes: Vec<_> = (0..3).filter(|k| *k != axis).collect();
         for row in &mut table.rows {
             for (column, &k) in axes.iter().enumerate() {
-                if retained.contains(&(row.feature.clone(), k)) {
+                if let Some(owners) = retained.get(&(row.feature.clone(), k)) {
                     row.cells[2 + column].clear();
+                    // Recovery follows the surviving graph owner, even when the
+                    // schedule no longer needs a coordinate cell for this member.
+                    if let Some(by) = owners.first() {
+                        let id =
+                            format!("d:{}/location.length.{}", row.feature, ["x", "y", "z"][k]);
+                        if !plan
+                            .dimensions
+                            .iter()
+                            .any(|d| d.id == id && d.placed.is_some())
+                        {
+                            selection.aliases.push(crate::dims::Omitted {
+                                id,
+                                label: String::new(),
+                                basis: format!(
+                                    "located by retained dimension chain: {}",
+                                    owners.join(", ")
+                                ),
+                                state: crate::items::State::Covered { by: by.clone() },
+                            });
+                        }
+                    }
                     row.measurements.retain(|m| {
                         m.parameter != format!("location.length.{}", ["x", "y", "z"][k])
                     });
@@ -2442,12 +2463,12 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
             }
         }
     }
-    selection.aliases = plan
-        .omitted
-        .iter()
-        .filter(|o| selection.replaced.contains(&o.id))
-        .cloned()
-        .collect();
+    selection.aliases.extend(
+        plan.omitted
+            .iter()
+            .filter(|o| selection.replaced.contains(&o.id))
+            .cloned(),
+    );
     selection
 }
 

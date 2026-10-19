@@ -193,13 +193,15 @@ pub(crate) fn source_locations(a: &Analysis, p: &crate::model::Plan) -> BTreeSet
     located_by(a, p, |d| {
         d.measurements.iter().any(|m| m.feature.starts_with("pmi:"))
     })
+    .into_keys()
+    .collect()
 }
 
 pub(crate) fn retained_locations(
     a: &Analysis,
     p: &crate::model::Plan,
     replaced: &BTreeSet<String>,
-) -> BTreeSet<(String, usize)> {
+) -> BTreeMap<(String, usize), Vec<String>> {
     located_by(a, p, |d| !replaced.contains(&d.id))
 }
 
@@ -207,9 +209,9 @@ fn located_by(
     a: &Analysis,
     p: &crate::model::Plan,
     include: impl Fn(&crate::dims::PlannedDimension) -> bool,
-) -> BTreeSet<(String, usize)> {
+) -> BTreeMap<(String, usize), Vec<String>> {
     if !carries(a) {
-        return BTreeSet::new();
+        return BTreeMap::new();
     }
     let marks: Vec<_> = p
         .dimensions
@@ -237,7 +239,12 @@ fn located_by(
             (0..3).filter_map(|k| {
                 let node = location::node_feature(a, &f.id, k)?;
                 let at = location::station(a, &f.id, k)?;
-                location::proof(a, &edges, &roots[k], k, at, Some(&node)).map(|_| (f.id.clone(), k))
+                location::proof(a, &edges, &roots[k], k, at, Some(&node)).map(|path| {
+                    (
+                        (f.id.clone(), k),
+                        path.into_iter().map(|i| edges[i].owner.clone()).collect(),
+                    )
+                })
             })
         })
         .collect()
