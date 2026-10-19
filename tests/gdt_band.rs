@@ -34,6 +34,10 @@ fn root() -> PathBuf {
 /// An AP242 fixture's Analysis (`tests/fixtures/pmi/step/<stem>.*.gz`), from a scratch file of
 /// its own.
 fn analysed(stem: &str) -> Analysis {
+    part_and_analysis(stem).1
+}
+
+fn part_and_analysis(stem: &str) -> (std::sync::Arc<draftwright::haecceity::Part>, Analysis) {
     let dir = root().join("tests/fixtures/pmi/step");
     let gz = std::fs::read_dir(&dir)
         .unwrap()
@@ -55,7 +59,7 @@ fn analysed(stem: &str) -> Analysis {
     let part = out.join(format!("{:?}.part", std::thread::current().id()));
     std::fs::write(&part, &bytes).unwrap();
     std::fs::rename(&part, &path).unwrap();
-    cache::native(&path).1
+    cache::native(&path)
 }
 
 /// The plan's GD&T items reported with *code*.
@@ -205,30 +209,40 @@ fn the_reservation_stacks_overlapping_items_in_tiers_beyond_the_dimensions() {
 /// its first drawing on its own paper (A1 at 1:5) rather than a larger, still invalid sheet, and
 /// says honestly that the scale is below the floor its smallest hole needs.
 #[test]
-fn stc09_without_a_complete_fit_keeps_its_first_drawing_and_reports_the_floor() {
-    let a = analysed("nist_stc_09_asme1_ap242-e4");
+fn stc09_recovery_retains_pmi_controls_and_reports_the_legibility_shortfall() {
+    let (part, a) = part_and_analysis("nist_stc_09_asme1_ap242-e4");
     let first = model::plan_escalated(&a, &Spec::default()).unwrap();
     let p = cache::default_plan(&a, true);
-    assert_eq!(
-        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        (first.sheet.size.as_str(), first.sheet.scale.as_str())
-    );
-    // Recovery retains the first geometry; the final allocator may add slack-only gutters.
-    let mut unspaced = Spec::default();
-    unspaced.sheet.view_gutter = Some(0.0);
-    let unspaced = model::plan_recovered(&a, &unspaced).unwrap();
-    assert_eq!(
-        serde_json::to_value(&unspaced.views).unwrap(),
-        serde_json::to_value(&first.views).unwrap()
-    );
-    assert_eq!(
-        p.views.iter().map(|v| (&v.id, v.scale)).collect::<Vec<_>>(),
-        first
-            .views
+    // PMI precedence can change the initial schedule's scale. Recovery must
+    // retain its source controls and rooted locations across presentation changes.
+    for g in first.gdt.iter().filter(|g| g.placed.is_some()) {
+        assert!(
+            p.gdt
+                .iter()
+                .any(|later| later.id == g.id && later.placed.is_some())
+        );
+    }
+    let source = |p: &Plan| {
+        p.dimensions
             .iter()
-            .map(|v| (&v.id, v.scale))
-            .collect::<Vec<_>>()
-    );
+            .filter(|d| d.placed.is_some())
+            .flat_map(|d| &d.measurements)
+            .filter(|m| m.feature.starts_with("pmi:"))
+            .map(|m| (m.feature.clone(), m.parameter.clone()))
+            .collect::<std::collections::BTreeSet<_>>()
+    };
+    assert!(source(&first).is_subset(&source(&p)));
+    let font = draftwright::text::Font::new(draftwright::api::MONO.to_vec()).unwrap();
+    let missing = |p: &Plan| {
+        let drawing = model::render(&part, &a, p, &font).unwrap();
+        draftwright::lint::lint(&a, &drawing)
+            .into_iter()
+            .filter(|issue| issue.code == "feature_not_located")
+            .map(|issue| issue.id)
+            .collect::<std::collections::BTreeSet<_>>()
+    };
+    let lost: Vec<_> = missing(&p).difference(&missing(&first)).cloned().collect();
+    assert!(lost.is_empty(), "source locations lost: {lost:?}");
     assert!(p.sheet.scale_factor < draftwright::sheet_fit::min_legible_scale(&a));
     let said = p
         .problems
