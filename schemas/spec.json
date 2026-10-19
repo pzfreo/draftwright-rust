@@ -49,6 +49,28 @@
         "authored"
       ]
     },
+    "pmi": {
+      "enum": [
+        "strict",
+        "first",
+        "ignore"
+      ]
+    },
+    "origin": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "string"
+        },
+        "y": {
+          "type": "string"
+        },
+        "z": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
     "hole_table": {
       "enum": [
         "auto",
@@ -1426,6 +1448,28 @@
             "auto",
             "authored"
           ]
+        },
+        "pmi": {
+          "enum": [
+            "strict",
+            "first",
+            "ignore"
+          ]
+        },
+        "origin": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "string"
+            },
+            "y": {
+              "type": "string"
+            },
+            "z": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
         },
         "hole_table": {
           "enum": [

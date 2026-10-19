@@ -61,6 +61,26 @@
             "authored"
           ]
         },
+        "pmi": {
+          "enum": [
+            "strict",
+            "first",
+            "ignore"
+          ]
+        },
+        "origin": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "propertyNames": {
+            "enum": [
+              "x",
+              "y",
+              "z"
+            ]
+          }
+        },
         "hole_table": {
           "enum": [
             "auto",

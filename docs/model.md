@@ -2420,3 +2420,32 @@ reserve their drawn geometry, annotation ink and captions. Relative view
 placements retain their authored `views/<name>/place/gap`, including zero.
 `sheet/view_gutter` sets the preferred maximum paper-mm spacing (finite,
 non-negative); `0` disables this final spacing pass.
+
+### PMI and location origins
+
+`pmi` is `"first"` by default. Semantic PMI takes precedence over generated dimensions:
+a feature already located by a chain of PMI dimensions to an origin receives no second
+engine location on that axis. PMI sizes similarly own their feature's size. Pattern
+pitches yield to individual basic locations, and PMI pitches plus a member location
+convey the other member locations. Covered engine IDs remain in the omitted ledger
+with the IDs of their PMI owners.
+
+`pmi: "strict"` draws the part's semantic dimensions, callouts, GD&T and cited datum
+symbols, without generated dimensions or callouts. With `dimension_source: "authored"`,
+listed engine IDs can be added. Missing locations and sizes are reported as Problems.
+`pmi: "ignore"` draws the ordinary generated drawing and reports the number of PMI
+items withheld; analysis still reads and reports the PMI. With no PMI, all three modes
+produce the ordinary drawing.
+
+`origin` overrides location origins by part axis, for example
+`"origin": {"x": "face:5", "y": "min", "z": "max"}`. Values are `"min"`, `"max"`,
+or a face/feature reference resolving to a plane normal to that axis. Otherwise the
+first usable planar datum in letter order (A, B, C) supplies the origin; absent a usable
+datum, the box minimum remains the origin. Unusable datums produce an informational
+Problem. Dimension basis text names the selected origin. Datum symbols are drawn only
+when a geometric tolerance cites them; using a datum as a dimension origin alone does
+not draw its symbol.
+
+The located-once check uses the dimensions actually drawn. `feature_not_located`
+means no dimension chain reaches an origin; `feature_located_twice` names independent
+chains locating the same feature axis. Authored PMI is retained even when redundant.

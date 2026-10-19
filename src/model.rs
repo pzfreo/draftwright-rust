@@ -236,6 +236,12 @@ pub struct Spec {
     /// `authored` (exactly the dimensions listed, a complete set: ADR4-5).
     #[serde(skip_serializing_if = "DimensionSource::is_auto")]
     pub dimension_source: DimensionSource,
+    /// Whether semantic PMI is exclusive, preferred (default), or withheld.
+    #[serde(skip_serializing_if = "PmiMode::is_first")]
+    pub pmi: PmiMode,
+    /// Location origins by part axis: min, max, or a planar face/feature reference.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub origin: BTreeMap<String, String>,
     /// Authored location networks, by stable author name. Empty preserves automatic planning.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub dimension_schemes: BTreeMap<String, crate::dimension_scheme::Scheme>,
@@ -279,6 +285,21 @@ pub struct Spec {
     /// Authored external spur gear requirements, never inferred from geometry.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub gears: Vec<crate::gears::GearSpec>,
+}
+
+/// How the part's semantic PMI participates in a drawing.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PmiMode {
+    Strict,
+    #[default]
+    First,
+    Ignore,
+}
+impl PmiMode {
+    fn is_first(&self) -> bool {
+        *self == Self::First
+    }
 }
 
 /// The two sources of dimension intent (ADR4-5).
@@ -397,6 +418,8 @@ impl Default for Spec {
             sheets: None,
             views: BTreeMap::new(),
             dimension_source: DimensionSource::Auto,
+            pmi: PmiMode::First,
+            origin: BTreeMap::new(),
             dimension_schemes: BTreeMap::new(),
             hole_table: crate::hole_table::Setting::Auto,
             dimensions: BTreeMap::new(),
