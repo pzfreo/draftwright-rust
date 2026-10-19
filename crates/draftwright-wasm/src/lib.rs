@@ -71,13 +71,31 @@ impl Session {
     pub fn render_svg(&self) -> Result<String, Error> {
         Ok(self.0.drawing().svg())
     }
-    /// The drawing as a PDF, from the engine's own writer with its bundled fonts embedded.
-    pub fn render_pdf(&self) -> Vec<u8> {
-        self.0.drawing().pdf(&|name| match name {
-            "IBMPlexMono-Regular.ttf" => Some(api::MONO.to_vec()),
-            draftwright::title_block::FONT => Some(draftwright::title_block::FONT_DATA.to_vec()),
-            _ => None,
-        })
+    /// One sheet's SVG fragments, as `fragments()` gives sheet 1's.
+    pub fn sheet_fragments_json(&self, sheet: u32) -> Result<String, Error> {
+        Ok(serde_json::to_string(&self.0.svg_fragments_on_sheet(None, sheet)?).unwrap())
+    }
+    /// One sheet's SVG.
+    pub fn render_sheet_svg(&self, sheet: u32) -> Result<String, Error> {
+        Ok(self.0.drawing_on_sheet(sheet)?.svg())
+    }
+    /// The drawing as a PDF, a page per sheet, from the engine's own writer with its bundled
+    /// fonts embedded.
+    pub fn render_pdf(&self) -> Result<Vec<u8>, Error> {
+        let sheets = std::iter::once(1).chain(self.0.plan().sheets.iter().map(|s| s.number));
+        let drawings = sheets
+            .map(|sheet| self.0.drawing_on_sheet(sheet))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(draftwright::output::Drawing::pdf_pages(
+            &drawings,
+            &|name| match name {
+                "IBMPlexMono-Regular.ttf" => Some(api::MONO.to_vec()),
+                draftwright::title_block::FONT => {
+                    Some(draftwright::title_block::FONT_DATA.to_vec())
+                }
+                _ => None,
+            },
+        ))
     }
     pub fn set_pmi(&mut self, source: &str, bytes: &[u8]) -> Result<(), Error> {
         if source != self.source_sha256() {
@@ -258,8 +276,19 @@ pub mod wasm {
             self.0.render_svg().map(String::into_bytes).map_err(js)
         }
         #[wasm_bindgen(js_name = renderPdf)]
-        pub fn render_pdf(&self) -> Vec<u8> {
-            self.0.render_pdf()
+        pub fn render_pdf(&self) -> Result<Vec<u8>, JsValue> {
+            self.0.render_pdf().map_err(js)
+        }
+        #[wasm_bindgen(js_name = sheetFragments)]
+        pub fn sheet_fragments(&self, sheet: u32) -> Result<String, JsValue> {
+            self.0.sheet_fragments_json(sheet).map_err(js)
+        }
+        #[wasm_bindgen(js_name = sheetSvg)]
+        pub fn sheet_svg(&self, sheet: u32) -> Result<Vec<u8>, JsValue> {
+            self.0
+                .render_sheet_svg(sheet)
+                .map(String::into_bytes)
+                .map_err(js)
         }
     }
 }

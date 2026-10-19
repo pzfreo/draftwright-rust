@@ -6,6 +6,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### WASM API
+
+- `sheetFragments(sheet)` and `sheetSvg(sheet)` give any sheet's fragments and SVG, as
+  `fragments()` and `renderSvg()` give sheet 1's; `renderPdf()` has a page per sheet and
+  throws an API error instead of returning bytes unconditionally.
+
 ### Added
 
 - Pin a projected view's gap with `views/<name>/place/align: "projection"` while keeping

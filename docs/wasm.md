@@ -68,7 +68,9 @@ Rust panics invoke `console_error_panic_hook`; they are traps, not recoverable A
 | `new Engine(name, bytes)` | Analyse STEP with native Rust recognition and open a default `session::Session`. Name supplies the title and diagnostics; no file is read. |
 | `apply(opsJson, commit)` | Delta JSON. `commit=false` computes a delta without changing the session. |
 | `applyFragments(opsJson)` | Commits; JSON `{delta, fragments, pmi, placementOptions?}` with compact changed-item markers and collection `present` flags. View edits include new placement options. |
-| `fragments()` | Complete `svg_fragments(None)` JSON. |
+| `fragments()` | Complete `svg_fragments(None)` JSON: sheet 1. |
+| `sheetFragments(sheet)` | The same for one sheet (1 and the numbers in the plan's `sheets`); invalid error with the sheet numbers as choices otherwise. |
+| `sheetSvg(sheet)` | `Uint8Array`: one sheet's UTF-8 SVG; same sheet check. |
 | `preview(opsJson)` | Snapshot JSON with the hypothetical plan/spec/SVG/problems; session stays unchanged. Other snapshot metadata comes from the current session. |
 | `snapshot()` | JSON `{problems, plan, spec, svg, placementOptions, provenance, analysis, pmi}`. `svg` here is text. |
 | `undo()`, `redo()` | Delta JSON; invalid error if the corresponding history is empty. |
@@ -79,7 +81,7 @@ Rust panics invoke `console_error_panic_hook`; they are traps, not recoverable A
 | `planCount()` | Cumulative planner count (useful for checking one replan per edit). |
 | `faceCount()`, `featureCount()` | Loaded face count and recognised feature count. |
 | `placementOptions()` | JSON map from editable item IDs to labels, per-view sides and allowed operations. |
-| `renderSvg()`, `renderPdf()` | `Uint8Array`: UTF-8 SVG or PDF with bundled fonts. |
+| `renderSvg()`, `renderPdf()` | `Uint8Array`: sheet 1's UTF-8 SVG, or the PDF with a page per sheet and bundled fonts. |
 | `start()` | Installs the panic hook once; wasm-bindgen invokes it automatically at initialization. |
 
 The helpers preserve the editor wrapper's packet shape, source validation, Spec migration,
