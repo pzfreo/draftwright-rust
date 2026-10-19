@@ -1527,6 +1527,7 @@ fn carried(plan: &Plan) -> BTreeSet<(String, String)> {
                 .filter(|n| n.placed.is_some())
                 .flat_map(|n| &n.measurements),
         )
+        .filter(|m| !m.feature.starts_with("station_"))
         .map(|m| (m.feature.clone(), m.parameter.clone()))
         .collect();
     // Coverage follows its controlling ink through presentation changes too: a
@@ -2259,13 +2260,18 @@ fn recover_callouts(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Pla
     if crate::placement_intent::has_pins(spec) {
         return Ok(best);
     }
-    let clean =
-        |p: &Plan| findings(p).clean() && drawn_sheets_fit(analysis, p) && undrawn_gdt(p) == 0;
+    let clean = |p: &Plan| {
+        findings(p).clean()
+            && drawn_sheets_fit(analysis, p)
+            && undrawn_gdt(p) == 0
+            && p.sheet.scale_factor >= crate::sheet_fit::min_legible_scale(analysis)
+    };
     if best.sheet.size == "A4" && clean(&best) {
         return Ok(best);
     }
     let m = crate::pmi_lowering::manufacturing_for(analysis, spec);
     if spec.sheet.size.is_none()
+        && best.gdt.is_empty()
         && m.owned
             .iter()
             .any(|o| crate::callouts::style(spec, &o.owner) == crate::callouts::Style::Auto)

@@ -44,6 +44,7 @@ fn claims(dims: &[super::PlannedDimension]) -> BTreeSet<(String, String, u64)> {
     dims.iter()
         .filter(|d| d.placed.is_some())
         .flat_map(|d| &d.measurements)
+        .filter(|m| !m.feature.starts_with("station_"))
         .map(|m| (m.feature.clone(), m.parameter.clone(), m.value.to_bits()))
         .collect()
 }
