@@ -1769,8 +1769,11 @@ fn protect_retained_routes(
         && (candidate.sheet.scale_factor * 2.0 + 1e-6 < reference.sheet.scale_factor
             || dense_reduction);
     let worse_readability = if paper(&candidate) < paper(reference) {
-        crate::sheet_fit::readability(analysis, &candidate).whole_drawing_failures()
-            > crate::sheet_fit::readability(analysis, reference).whole_drawing_failures()
+        // Smaller paper must preserve measured steps and openings too.
+        // Unannotated depiction density does not set their readability floor.
+        let after = crate::sheet_fit::readability(analysis, &candidate);
+        let before = crate::sheet_fit::readability(analysis, reference);
+        after.failures() - after.depiction > before.failures() - before.depiction
     } else {
         crate::sheet_fit::readability(analysis, &candidate).failures()
             > crate::sheet_fit::readability(analysis, reference).failures()
@@ -1796,6 +1799,8 @@ fn protect_retained_routes(
     }
     let mut kept = reference.clone();
     restore_search_spec(&mut kept, spec);
+    // Settle the fitted reference's witness lanes on its retained paper/scale.
+    crate::sheet_fit::repair_readability(analysis, &mut kept);
     kept.sheet.default = true;
     let readable = crate::sheet_fit::readability(analysis, &kept);
     let qualified = findings(&kept).clean()
@@ -1823,7 +1828,7 @@ fn protect_retained_routes(
         ""
     };
     kept.sheet.basis = format!(
-        "{outcome}{scale_reason}; retained readability [{readable}]; retained basis: {}; no new crossing pairs are allowed; rejected drawing {} at {}; candidates: {}",
+        "{outcome}{scale_reason}; retained readability [{readable}]; retained basis: {}; no new crossing pairs are allowed; rejected drawing {} at {}; rejected search: {}",
         kept.sheet.basis,
         candidate.sheet.size,
         candidate.sheet.scale,
@@ -3656,7 +3661,12 @@ fn recover_with_reference(
                         && no_new_drawing_issues(&ordinary, &packed)
                         && crate::sheet_fit::routes_no_worse(analysis, &ordinary, &packed)
                         && legibility(&packed) < legibility(&ordinary)
+                        // A no-crop fallback has not qualified this detail trial.
                         && (legibility(&packed) < legibility(&detailed)
+                            || !detailed
+                                .views
+                                .iter()
+                                .any(|v| v.detail.as_ref().is_some_and(|d| !d.authored))
                             || !crate::detail::readable_automatic(analysis, &ordinary, &detailed))
                     {
                         packed.sheet.basis = format!(
@@ -4442,8 +4452,13 @@ fn recover_candidates_before(
                 seed_clean && extra_corridors(&first) == 0 && extra_existing_crossings(&first) == 0;
         }
         if reference_only
-            && smallest.is_some_and(|(paper, _)| {
-                i > paper + 1 || (i >= LARGE_SHEET && paper < LARGE_SHEET)
+            && smallest.is_some_and(|(paper, scale)| {
+                // The adjacent historical sheet may still be needed to retain
+                // the established scale, even after a reduced estimate fits.
+                i > paper + 1
+                    || (i >= LARGE_SHEET
+                        && paper < LARGE_SHEET
+                        && established_scale.is_none_or(|cap| scale >= cap))
             })
         {
             break;
@@ -4784,7 +4799,16 @@ fn recover_candidates_before(
             f.dropped += required.difference(&carried(&p)).count();
             f.dropped += undrawn_gdt(&p);
             let over = over_views(&p).saturating_sub(over_views(&first));
-            let crossings = feature_crossings(&p).saturating_sub(feature_crossings(&first));
+            // Reconstruct the historical drawing against its fitted pre-recess
+            // routes. A sub-floor raw seed may avoid crossings only by shrinking
+            // the old controls; it cannot veto their established larger drawing.
+            let crossing_reference = if reference_only {
+                established_plan.as_ref().unwrap_or(&first)
+            } else {
+                &first
+            };
+            let crossings =
+                feature_crossings(&p).saturating_sub(feature_crossings(crossing_reference));
             // The established no-table recovery may fit physically while its
             // crowded ordinates still need a schedule. Preserve that baseline:
             // returning the raw off-sheet estimate prevents table installation.
