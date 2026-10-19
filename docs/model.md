@@ -518,6 +518,7 @@ and its reuse of complete single sheets, including readability refusals, are unc
 New layout/readability problems reject a candidate; baseline problems with the same
 code and subjects are tolerated. This includes callout leaders or text within
 1 mm of extension lines, compared by item pair. Outline strokes must clear the frame.
+Placement pins retain the unpinned drawing's paper, scale and allocation.
 `Plan.sheet_candidates` records trials and
 `sheet.basis` explains the choice. Explicit `sheet/size`, `sheet/scale`, or
 `sheets.max` keeps the established planner unchanged.

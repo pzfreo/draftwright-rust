@@ -3179,7 +3179,7 @@ fn recover_candidates(
 }
 
 // Shared canonical inputs for pin placement and the editor's label anchor metadata.
-fn pin_base(spec: &Spec) -> Spec {
+pub(crate) fn pin_base(spec: &Spec) -> Spec {
     let mut base = Spec::default();
     base.sheet.size = spec.sheet.size.clone();
     base.sheet.scale = spec.sheet.scale.clone();
@@ -3854,11 +3854,20 @@ fn plan_with_presentation(
         if crate::planning::is_fixed_pair() {
             // A trial's omitted automatic crops belong to its canonical frame too.
             // Reintroducing them here moves the peers of an otherwise bare pin.
+            // Allocation destinations and pins do not belong to this single-sheet reference.
             base.views = spec
                 .views
                 .iter()
                 .filter(|(_, view)| view.omit)
-                .map(|(name, view)| (name.clone(), view.clone()))
+                .map(|(name, _)| {
+                    (
+                        name.clone(),
+                        ViewSpec {
+                            omit: true,
+                            ..Default::default()
+                        },
+                    )
+                })
                 .collect();
         }
         // Pins in recovered planning replay the finished recovered drawing,

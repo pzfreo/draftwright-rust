@@ -302,12 +302,12 @@ fn requests(printer: &str) -> [(&str, usize); 3] {
 }
 
 pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    if automatic(spec) && crate::placement_intent::has_pins(spec) {
+        return pinned(analysis, spec);
+    }
     let original_binding = spec.binding.clone();
     let mut baseline = model::plan_automatic(analysis, spec)?;
-    if spec.sheet.size.is_some()
-        || spec.sheet.scale.is_some()
-        || spec.sheets.as_ref().and_then(|s| s.max).is_some()
-    {
+    if !automatic(spec) {
         return Ok(baseline);
     }
     if baseline.sheet.size == "A4" && baseline.sheets.is_empty() {
@@ -376,16 +376,7 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                 if max > 1 {
                     forced.sheets.get_or_insert_with(Default::default).max = Some(max as u32);
                 }
-                for (name, detail) in crate::detail::requests(fit_analysis, &forced, scale) {
-                    if !detail.authored
-                        && !baseline
-                            .views
-                            .iter()
-                            .any(|v| v.id == format!("v:{name}") && v.detail.is_some())
-                    {
-                        forced.views.entry(name).or_default().omit = true;
-                    }
-                }
+                omit_absent_details(fit_analysis, &mut forced, &baseline, scale);
                 match crate::planning::fixed_pair(|| model::plan_automatic(analysis, &forced)) {
                     Ok(mut plan) => {
                         let codes: BTreeSet<_> = failures(fit_analysis, &plan, floor)
@@ -458,6 +449,93 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
     );
     explain(&mut baseline, candidates, &reason);
     Ok(baseline)
+}
+
+fn automatic(spec: &Spec) -> bool {
+    spec.sheet.size.is_none()
+        && spec.sheet.scale.is_none()
+        && spec.sheets.as_ref().and_then(|s| s.max).is_none()
+}
+
+fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    // Offsets belong to the unpinned drawing's frame. A drag may clear a
+    // rejected candidate's crossing, but must not change paper and its origin.
+    // Select that canonical frame first, then replay the existing fixed-pair R5
+    // machinery; there is no new search or placement repair for pins.
+    let mut base = model::pin_base(spec);
+    base.sheets = spec.sheets.clone();
+    let canonical = select(analysis, &base)?;
+    let count = 1 + canonical.sheets.len();
+    let migrated = model::migrate(spec, analysis)?;
+    let intent = crate::recognition_corrections::canonical(analysis, &migrated)?.into_owned();
+    // The unpinned automatic baseline is already memoised by canonical selection.
+    // Keep its ordinary pin replay when no forced paper was selected; a fixed-pair
+    // replay can have a different nominal presentation even at the same scale.
+    let raw = model::plan_automatic(analysis, &base)?;
+    let mut plan = if raw.sheet.size == canonical.sheet.size
+        && raw.sheet.scale == canonical.sheet.scale
+        && raw.sheets.len() == canonical.sheets.len()
+    {
+        model::plan_automatic(analysis, spec)?
+    } else {
+        let mut forced = intent.clone();
+        forced.binding = spec.binding.clone();
+        forced.sheet.size = Some(canonical.sheet.size.clone());
+        forced.sheet.scale = Some(canonical.sheet.scale.clone());
+        if count > 1 {
+            forced.sheets.get_or_insert_with(Default::default).max = Some(count as u32);
+            for view in canonical.views.iter().filter(|v| v.sheet > 1) {
+                forced
+                    .views
+                    .entry(view.id.trim_start_matches("v:").into())
+                    .or_default()
+                    .sheet = Some(view.sheet);
+            }
+            if let Some(table) = canonical.hole_table.as_ref().filter(|t| t.sheet > 1) {
+                forced.sheets.as_mut().unwrap().hole_table = Some(table.sheet);
+            }
+            for table in &mut forced.tables {
+                if let Some(placed) = canonical
+                    .tables
+                    .iter()
+                    .find(|t| t.id == table.id && t.sheet > 1)
+                {
+                    table.sheet = Some(placed.sheet);
+                }
+            }
+        }
+        omit_absent_details(
+            analysis,
+            &mut forced,
+            &canonical,
+            canonical.sheet.scale_factor,
+        );
+        crate::planning::fixed_pair(|| model::plan_automatic(analysis, &forced))?
+    };
+    plan.spec = intent;
+    plan.sheet.default = canonical.sheet.default;
+    for sheet in &mut plan.sheets {
+        sheet.default = canonical.sheet.default;
+    }
+    let reason = format!(
+        "{}: canonical {count} sheet(s) at {} retained for placement pins",
+        canonical.sheet.size, canonical.sheet.scale
+    );
+    explain(&mut plan, canonical.sheet_candidates, &reason);
+    Ok(plan)
+}
+
+fn omit_absent_details(analysis: &Analysis, forced: &mut Spec, baseline: &Plan, scale: f64) {
+    for (name, detail) in crate::detail::requests(analysis, forced, scale) {
+        if !detail.authored
+            && !baseline
+                .views
+                .iter()
+                .any(|v| v.id == format!("v:{name}") && v.detail.is_some())
+        {
+            forced.views.entry(name).or_default().omit = true;
+        }
+    }
 }
 
 fn reuse_baseline(plan: &mut Plan, mut candidates: Vec<Candidate>, max: usize) {
@@ -580,6 +658,38 @@ mod tests {
                     .any(|c| c.outcome.contains("leader_on_extension")),
                 "{file}"
             );
+        }
+    }
+
+    #[test]
+    fn automatic_pins_keep_canonical_paper_scale_and_sheet_count() {
+        let Some(a) = corpus("gramel/GRM-03_thumbwheel_drive_screw.step") else {
+            return;
+        };
+        let tapped = model::analyse_native(
+            &Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/pmi/step/string_post_tapped.step.gz"),
+        )
+        .unwrap()
+        .1;
+        for a in [&tapped, &a] {
+            let canonical = model::plan_recovered(a, &Spec::default()).unwrap();
+            let id = &canonical
+                .dimensions
+                .iter()
+                .find(|d| d.kind == "callout" && d.placed.is_some())
+                .unwrap()
+                .id;
+            let s: Spec = serde_json::from_value(json!({
+                "dimensions": {id: {"place": {"pinned": true}}}
+            }))
+            .unwrap();
+            let pinned = model::plan_recovered(a, &s).unwrap();
+            let choice = |p: &Plan| (p.sheet.size.clone(), p.sheet.scale.clone(), p.sheets.len());
+            assert_eq!(choice(&pinned), choice(&canonical));
+            assert!(pinned.spec.sheet.size.is_none());
+            assert!(pinned.spec.sheet.scale.is_none());
+            assert!(pinned.spec.sheets.as_ref().and_then(|s| s.max).is_none());
         }
     }
 
