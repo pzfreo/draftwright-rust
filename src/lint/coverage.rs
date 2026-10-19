@@ -62,37 +62,34 @@ const AXES: [&str; 3] = ["x", "y", "z"];
 /// A nominal as live labels print it: shortest within 1e-6, up to three places.
 pub fn fmt(v: f64) -> String {
     let v = (v * 1e6).round() / 1e6;
-    for places in 0..=3 {
-        let text = format!("{v:.places$}");
-        if places == 3
-            || text
-                .parse::<f64>()
-                .is_ok_and(|n| (n - v).abs() <= 1e-6 + 1e-12)
-        {
-            if places == 3
-                && text
-                    .parse::<f64>()
-                    .is_ok_and(|n| (n - v).abs() > 1e-6 + 1e-12)
-            {
-                return if text.parse::<f64>() == Ok(0.) {
-                    "0.000".into()
-                } else {
-                    text
-                };
-            }
-            let text = if places == 0 {
-                text.as_str()
-            } else {
-                text.trim_end_matches('0').trim_end_matches('.')
-            };
-            return if text == "-0" {
-                "0".into()
-            } else {
-                text.into()
-            };
-        }
+    let places = (0..3)
+        .find(|&places| {
+            let factor = 10_f64.powi(places as i32);
+            ((v * factor).round() / factor - v).abs() <= 1e-6 + 1e-12
+        })
+        .unwrap_or(3);
+    let text = format!("{v:.places$}");
+    if places == 3
+        && text
+            .parse::<f64>()
+            .is_ok_and(|n| (n - v).abs() > 1e-6 + 1e-12)
+    {
+        return if text.parse::<f64>() == Ok(0.) {
+            "0.000".into()
+        } else {
+            text
+        };
     }
-    unreachable!()
+    let text = if places == 0 {
+        text.as_str()
+    } else {
+        text.trim_end_matches('0').trim_end_matches('.')
+    };
+    if text == "-0" {
+        "0".into()
+    } else {
+        text.into()
+    }
 }
 
 /// The diameters a text prints: each number after `ø`, `Ø` or `⌀` (Python's `_DIAM_RE`).

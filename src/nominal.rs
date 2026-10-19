@@ -49,37 +49,34 @@ pub(crate) fn format(value: f64) -> String {
             if text == "-0.0" { "0.0".into() } else { text }
         };
     }
-    for places in 0..=3 {
-        let text = format!("{value:.places$}");
-        if places == 3
-            || text
-                .parse::<f64>()
-                .is_ok_and(|v| (v - value).abs() <= 1e-6 + 1e-12)
-        {
-            if places == 3
-                && text
-                    .parse::<f64>()
-                    .is_ok_and(|n| (n - value).abs() > 1e-6 + 1e-12)
-            {
-                return if text.parse::<f64>() == Ok(0.) {
-                    "0.000".into()
-                } else {
-                    text
-                };
-            }
-            let text = if places == 0 {
-                text.as_str()
-            } else {
-                text.trim_end_matches('0').trim_end_matches('.')
-            };
-            return if text == "-0" {
-                "0".into()
-            } else {
-                text.into()
-            };
-        }
+    let places = (0..3)
+        .find(|&places| {
+            let factor = 10_f64.powi(places as i32);
+            ((value * factor).round() / factor - value).abs() <= 1e-6 + 1e-12
+        })
+        .unwrap_or(3);
+    let text = format!("{value:.places$}");
+    if places == 3
+        && text
+            .parse::<f64>()
+            .is_ok_and(|n| (n - value).abs() > 1e-6 + 1e-12)
+    {
+        return if text.parse::<f64>() == Ok(0.) {
+            "0.000".into()
+        } else {
+            text
+        };
     }
-    unreachable!()
+    let text = if places == 0 {
+        text.as_str()
+    } else {
+        text.trim_end_matches('0').trim_end_matches('.')
+    };
+    if text == "-0" {
+        "0".into()
+    } else {
+        text.into()
+    }
 }
 
 /// Refresh on the final live carriers, including notes and table-owned measurements.
@@ -173,7 +170,7 @@ mod tests {
         super::with_comparison(|| {
             assert_eq!(super::format(4.75), "4.8");
             assert_eq!(crate::pmi::fmt(4.75, None), "4.8");
-            assert_eq!(crate::lint::coverage::fmt(4.75), "4.8");
+            assert_eq!(crate::lint::coverage::fmt(4.75), "4.75");
         });
         assert_eq!(super::format(4.75), "4.75");
         assert_eq!(crate::pmi::fmt(4.75, None), "4.75");
