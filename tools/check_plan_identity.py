@@ -2,7 +2,8 @@
 
 The 30 quality parts must be a subset. Run --record with an origin/main release
 binary into a fresh directory, then --reference that directory with the new binary.
-No JSON normalisation or SVG filtering: raw bytes and sheet counts must agree.
+By default raw bytes and sheet counts must agree. --ignore-fix-metadata excludes
+only problems[].fix/fixes; every other Plan field and raw SVG byte must still agree.
 """
 import argparse
 import hashlib
@@ -18,6 +19,14 @@ plan_time = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(plan_time)
 
 
+def without_fix_metadata(data):
+    plan = json.loads(data)
+    for problem in plan['problems']:
+        problem.pop('fix', None)
+        problem.pop('fixes', None)
+    return json.dumps(plan, sort_keys=True, separators=(',', ':')).encode()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', type=Path, default=ROOT / 'target/release/draftwright')
@@ -26,6 +35,8 @@ def main():
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--record', action='store_true')
     mode.add_argument('--reference', type=Path)
+    parser.add_argument('--ignore-fix-metadata', action='store_true',
+                        help='Compare all plan fields except problems[].fix/fixes; SVG remains byte-exact')
     parser.add_argument('--check-only', action='store_true', help='Compare already captured outputs')
     args = parser.parse_args()
     if args.check_only and (args.record or not args.out.is_dir()):
@@ -68,17 +79,27 @@ def main():
             raise ValueError(f'{part}: no sheet SVG')
         manifest[part.stem] = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in outputs}
         if reference is not None:
-            if manifest[part.stem] != reference[part.stem]:
+            if not args.ignore_fix_metadata and manifest[part.stem] != reference[part.stem]:
                 raise ValueError(f'{part.stem}: plan bytes or sheet SVG bytes/count changed')
+            if set(manifest[part.stem]) != set(reference[part.stem]):
+                raise ValueError(f'{part.stem}: sheet outputs/count changed')
             for p in outputs:
-                if p.read_bytes() != (args.reference / part.stem / p.name).read_bytes():
+                current = p.read_bytes()
+                prior = (args.reference / part.stem / p.name).read_bytes()
+                if args.ignore_fix_metadata and p.name == 'plan.json':
+                    current, prior = without_fix_metadata(current), without_fix_metadata(prior)
+                if current != prior:
                     raise ValueError(f'{part.stem}/{p.name}: bytes changed')
         print(f'{part.stem}: {len(outputs) - 1} sheets OK', flush=True)
+    if args.ignore_fix_metadata:
+        print('Only problems[].fix/fixes excluded; all other plan fields and exact SVG bytes compared.')
     if reference is not None and manifest.keys() != reference.keys():
         raise ValueError('reference part set changed')
     (args.out / 'manifest.json').write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\n')
     print(f'{len(files)} survey parts / {len(quality)} quality parts: ' +
-          ('reference capture complete' if args.record else 'exact plan JSON and SVG PASS'))
+          ('reference capture complete' if args.record else
+         'plan identity (fix metadata excluded) and exact SVG PASS' if args.ignore_fix_metadata else
+         'exact plan JSON and SVG PASS'))
 
 
 if __name__ == '__main__':

@@ -1,5 +1,5 @@
-//! General notes: the spec's `notes` (`n:<k>`, set in the spec), then the part's AP242 edge
-//! conditions (`pmi:<source>`, [`crate::pmi_lowering::sheet_requirements`]), drawn as
+//! General notes: the part's AP242 notes (`pmi:<identity>`,
+//! [`crate::pmi_lowering::sheet_requirements`]), then the Spec's drawing notes (`n:<k>`), drawn as
 //! draftwright draws its document notes (`render_document_notes`): one `GENERAL NOTES` table whose rows are
 //! `document_note_rows`' (each note numbered by its place in the list, `1  BREAK ALL SHARP
 //! EDGES`, wrapped at 48 characters with continuation rows indented three spaces), in IBM Plex
@@ -15,8 +15,9 @@
 //! undrawn; one that no sheet can hold at a standard scale is not reserved, so it never shrinks
 //! the views (draftwright would take a computed scale for it).
 //!
-//! Differences from draftwright: the PMI's notes follow the spec's, so a spec note keeps its
-//! number, where draftwright numbers its notes in its model's order; a continuation row keeps its three-space indent, where
+//! A Spec note matching a part note is covered by it, with an offered fix removing the Spec
+//! copy. Omission uses `annotations/<id>/omit`, keeping an undrawn item in the plan.
+//! Differences from draftwright: a continuation row keeps its three-space indent, where
 //! draftwright's left alignment on each row's ink drops it; the views' areas are kept clear,
 //! where draftwright's late placement sees the views' drawn boxes and the annotations' ink.
 
@@ -56,7 +57,7 @@ pub struct PlannedNote {
     pub id: String,
     /// The note as the spec gives it, without surrounding whitespace.
     pub text: String,
-    /// Its number in the block: its place in the spec's list, from 1.
+    /// Its number in the block, from 1; zero for an omitted or covered note.
     pub number: usize,
     /// The rows it is printed as, numbered and wrapped.
     pub rows: Vec<String>,
@@ -67,6 +68,118 @@ pub struct PlannedNote {
     /// Where it is drawn; absent when the block has no place, and a problem says so.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub placed: Option<PlacedNote>,
+}
+
+/// Combine model notes and drawing notes without changing either source. Omitted and
+/// covered items stay in the inventory but reserve no space and take no printed number.
+pub(crate) fn reconcile(
+    requirements: &[crate::pmi_lowering::SheetRequirement],
+    analysis: &Analysis,
+    spec: &crate::model::Spec,
+) -> (Vec<NoteSpec>, Vec<PlannedNote>, Vec<Problem>) {
+    let mut active = Vec::new();
+    let mut inactive = Vec::new();
+    let mut problems = Vec::new();
+    let omitted = |id: &str| spec.annotations.get(id).is_some_and(|a| a.omit);
+    let undrawn = |id: &str, text: &str, basis: String, state: State, default| PlannedNote {
+        id: id.into(),
+        text: text.trim().into(),
+        number: 0,
+        rows: vec![text.trim().into()],
+        default,
+        basis,
+        state,
+        placed: None,
+        from_spec: Vec::new(),
+        measurements: Vec::new(),
+    };
+    let model_notes: Vec<_> = requirements
+        .iter()
+        .filter(|r| r.kind == "document_note")
+        .collect();
+    for r in &model_notes {
+        if omitted(&r.id) {
+            inactive.push(undrawn(
+                &r.id,
+                &r.value,
+                format!("{}; omitted by the spec", r.basis),
+                State::OmittedByUser,
+                false,
+            ));
+        } else {
+            active.push(NoteSpec {
+                id: r.id.clone(),
+                text: r.value.clone(),
+            });
+        }
+    }
+    let normalized = |text: &str| {
+        text.split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase()
+    };
+    for (i, n) in spec.notes.iter().enumerate() {
+        let matches: Vec<_> = model_notes
+            .iter()
+            .filter(|r| {
+                normalized(&r.value) == normalized(&n.text)
+                    || matches!(&analysis.pmi, Some(crate::pmi::Reading::Read(report)) if report.records.iter().any(|record| record.source_id == r.source && normalized(&record.label) == normalized(&n.text)))
+            })
+            .collect();
+        for r in &matches {
+            let mut remaining = spec.notes.clone();
+            remaining.remove(i);
+            problems.push(Problem {
+                id: format!("p:note_duplicated_in_spec:{}:{}", r.source, n.id),
+                code: "note_duplicated_in_spec".into(), severity: "info".into(),
+                message: format!("The Spec note {:?} repeats the part's PMI note {:?}. Keep the requirement in the model; remove the Spec copy.", n.text, r.value),
+                subjects: vec![r.id.clone(), n.id.clone()],
+                refs: vec![r.source.clone(), format!("notes/{i}")],
+                fix: vec![crate::items::Op::set("notes", serde_json::to_value(remaining).expect("notes serialise"))],
+                fixes: Vec::new(),
+            });
+        }
+        if let Some(r) = matches.iter().find(|r| !omitted(&r.id)) {
+            inactive.push(undrawn(
+                &n.id,
+                &n.text,
+                format!(
+                    "authored: the spec's note {} (notes/{i}), stated by PMI {}",
+                    n.id, r.source
+                ),
+                State::Covered { by: r.id.clone() },
+                false,
+            ));
+        } else {
+            active.push(n.clone());
+        }
+    }
+    (active, inactive, problems)
+}
+
+/// Restore the original Spec list paths after PMI insertion and duplicate suppression.
+pub(crate) fn provenance(
+    notes: &mut [PlannedNote],
+    requirements: &[crate::pmi_lowering::PlannedRequirement],
+    spec: &crate::model::Spec,
+) {
+    for note in notes {
+        if let Some(r) = requirements.iter().find(|r| r.id == note.id) {
+            note.basis = format!(
+                "{}; general note {} in the {TITLE} block before the spec's notes",
+                r.basis, note.number
+            );
+        } else if let Some(i) = spec.notes.iter().position(|n| n.id == note.id) {
+            note.basis = spec_basis(&note.id, i, note.number);
+        }
+    }
+}
+
+fn spec_basis(id: &str, index: usize, number: usize) -> String {
+    format!(
+        "authored: the spec's note {id} (notes/{index}), general note {number} in the {TITLE} block, which goes towards the sheet's top right as draftwright places its document notes"
+    )
 }
 
 /// A note's place in the block, mm on the page.
@@ -372,7 +485,7 @@ fn plan_with_rows(
                 }
             });
             first += rows.len();
-            // A PMI edge condition's note is named by its record's item ID; its basis names the
+            // A PMI part note is named by its record's item ID; its basis names the
             // record's source.
             let source = n.id.starts_with("pmi:").then(|| {
                 ids.source(&n.id)
@@ -388,14 +501,10 @@ fn plan_with_rows(
                 default: source.is_some(),
                 basis: match source {
                     Some(s) => format!(
-                        "source-authored: the part's AP242 edge condition {s}, general note {} in the {TITLE} block after the spec's notes (draftwright's DocumentNote)",
+                        "source-authored: the part's AP242 note {s}, general note {} in the {TITLE} block before the spec's notes (draftwright's DocumentNote)",
                         i + 1
                     ),
-                    None => format!(
-                        "authored: the spec's note {} (notes/{i}), general note {} in the {TITLE} block, which goes towards the sheet's top right as draftwright places its document notes",
-                        n.id,
-                        i + 1
-                    ),
+                    None => spec_basis(&n.id, i, i + 1),
                 },
                 state: State::placed_or(placed.is_some(), "notes_not_placed"),
                 placed,

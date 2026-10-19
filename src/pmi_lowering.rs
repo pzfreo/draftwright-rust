@@ -33,8 +33,13 @@
 //! - **Drawing-wide requirements** ([`sheet_requirements`], `lower_ap242_document_requirements`):
 //!   the one general tolerance fills the title block's tolerance cell, the one default surface
 //!   texture (`Ra 3.2 µm unless otherwise specified`) is drawn beside the title block, and each
-//!   edge condition (`Break sharp edges 0.2 max`) is a general note; two of one default are
-//!   ambiguous and neither is drawn.
+//!   part note (semantic text: general note, surface treatment, heat treatment or edge
+//!   condition) is a general note before the Spec notes: indexed notes first by `note index`,
+//!   then unindexed notes in model order; two of one default are
+//!   ambiguous and neither is drawn. PMI note omission and Spec duplicate reconciliation use
+//!   [`crate::notes`]; the model and existing Spec notes are never migrated by planning.
+//!   No-requirement values remain read as info, without ink or a Problem. Bare coating and
+//!   heat-treatment values get their kind as a prefix; process prose stays as authored.
 //!
 //! What is not lowered is said, never guessed: a record whose reading left blockers (datum
 //! targets, composite relations, projected or non-uniform zones, datum modifiers, common
@@ -47,8 +52,8 @@
 //! from where their faces put them ([`dimension_geometry`], here).
 //!
 //! draftwright draws its PMI only when asked (`pmi="annotate"`; its default is off). The port has
-//! no such option: a part's PMI is drawn whenever it has some (a question for the maintainer in
-//! the stream's report).
+//! no such option: a part's PMI is drawn whenever it has some. Drawing-wide part notes are
+//! lowered together in [`sheet_requirements`], so a PMI policy can gate that operation.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -538,12 +543,71 @@ pub fn label_geometry(part: &Part, r: &Record) -> Geometry {
 }
 
 /// The drawing-wide manufacturing requirements the sheet carries
-/// ([`sheet_requirements`]): general tolerances, a default surface texture, edge conditions.
+/// ([`sheet_requirements`]): general tolerances, a default surface texture and part notes.
 pub fn sheet_kind(kind: &str) -> bool {
     matches!(
         kind,
-        "general_tolerances" | "surface_texture" | "edge_condition"
+        "general_tolerances"
+            | "surface_texture"
+            | "edge_condition"
+            | "general_note"
+            | "surface_treatment"
+            | "heat_treatment"
     )
+}
+
+/// Canonical part-note kinds, including the NIST/haecceity spellings.
+pub(crate) fn part_note_kind(name: &str) -> Option<&'static str> {
+    match name {
+        "general note" => Some("general_note"),
+        "surface treatment" | "coating" => Some("surface_treatment"),
+        "heat treatment" => Some("heat_treatment"),
+        "edge condition" | "edges" => Some("edge_condition"),
+        _ => None,
+    }
+}
+
+/// Explicit absence of a part requirement, preserved in the reading and inventory as info.
+pub(crate) fn no_part_requirement(r: &Record) -> bool {
+    r.category == Category::ManufacturingRequirement
+        && r.blockers.is_empty()
+        && matches!(
+            r.kind.as_str(),
+            "general_note" | "surface_treatment" | "heat_treatment" | "edge_condition"
+        )
+        && matches!(
+            r.label.trim().to_ascii_lowercase().as_str(),
+            "" | "none" | "n/a" | "na" | "-"
+        )
+}
+
+/// Keep process prose as authored; qualify a bare coating/heat-treatment value. This small
+/// vocabulary is deliberately lexical, not an interpretation of manufacturing parameters.
+fn part_note_text(r: &Record) -> String {
+    let text = r.label.trim();
+    let title = match r.kind.as_str() {
+        "surface_treatment" => "Coating",
+        "heat_treatment" => "Heat treatment",
+        _ => return text.into(),
+    };
+    let process = text
+        .to_ascii_lowercase()
+        .split(|c: char| !c.is_ascii_alphabetic())
+        .any(|word| {
+            matches!(word, "plate" | "plated" | "plating")
+                || [
+                    "anodis", "anodiz", "paint", "coat", "harden", "temper", "nitrid", "treat",
+                    "anneal", "carbur", "quench", "passivat", "oxid", "phosphat", "galvanis",
+                    "galvaniz",
+                ]
+                .iter()
+                .any(|stem| word.starts_with(stem))
+        });
+    if process {
+        text.into()
+    } else {
+        format!("{title}: {text}")
+    }
 }
 
 /// A drawing-wide requirement the sheet states.
@@ -553,7 +617,8 @@ pub struct SheetRequirement {
     pub id: String,
     pub source: String,
     /// `general_tolerance` (the title block's tolerance cell), `default_surface_finish` (a
-    /// surface texture symbol beside the title block) or `document_note` (a general note).
+    /// surface texture symbol beside the title block), `document_note` (a general note), or
+    /// `no_requirement` (an explicit absence: read as info, with no drawing).
     pub kind: &'static str,
     /// What the sheet states: the tolerance's designation, the finish's Ra value in µm, the
     /// note's text.
@@ -568,8 +633,9 @@ pub struct SheetRequirement {
 /// The Analysis's drawing-wide requirements (draftwright's `lower_ap242_document_requirements`),
 /// and the problems met: the one general tolerance not blocked (its designation: the prose before
 /// any `;`, or the structured tolerance class, which must agree with it), the one surface
-/// texture stated as `Ra <value> µm unless otherwise specified`, and every edge condition on no
-/// face or edge, with text. Two general tolerances, or two surface textures, are ambiguous:
+/// texture stated as `Ra <value> µm unless otherwise specified`, and every part note on no
+/// face or edge, with text: explicit note indices first, then unindexed notes in model order.
+/// Two general tolerances, or two surface textures, are ambiguous:
 /// neither is drawn. A record the reading blocked, or one whose statement is not a supported
 /// default, is said with its reason (`pmi_not_lowered`). Other document kinds draftwright knows
 /// (a datum scheme, a model representation note) are reported as not ported.
@@ -603,6 +669,24 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
         .collect();
     let ids = report.identities();
     for r in &records {
+        if no_part_requirement(r) {
+            // No requirement is authored: retain the read source, never demand a fix or ink.
+            if let Ok(id) = ids.id(&r.source_id) {
+                out.push(SheetRequirement {
+                    id: id.into(),
+                    source: r.source_id.clone(),
+                    kind: "no_requirement",
+                    value: r.label.clone(),
+                    removal: String::new(),
+                    basis: format!(
+                        "info: AP242 {} {} states no requirement; read, with no drawing needed",
+                        r.kind.replace('_', " "),
+                        r.source_id
+                    ),
+                });
+            }
+            continue;
+        }
         let mut why = dedup(r.blockers.clone());
         why.extend(ids.id(&r.source_id).err());
         if !why.is_empty() {
@@ -612,7 +696,9 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
     let open: Vec<&Record> = records
         .iter()
         .copied()
-        .filter(|r| r.blockers.is_empty() && ids.ids.contains_key(&r.source_id))
+        .filter(|r| {
+            !no_part_requirement(r) && r.blockers.is_empty() && ids.ids.contains_key(&r.source_id)
+        })
         .collect();
     let id = |r: &Record| ids.ids[&r.source_id].clone();
     let of =
@@ -689,23 +775,39 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
             }
         }
     }
-    for r in of("edge_condition") {
-        if r.label.trim().is_empty() {
-            refuse(&mut problems, r, "document requirement text is empty");
-        } else if !r.faces.is_empty() || !r.edges.is_empty() {
+    let mut notes: Vec<_> = open
+        .iter()
+        .copied()
+        .filter(|r| {
+            matches!(
+                r.kind.as_str(),
+                "edge_condition" | "general_note" | "surface_treatment" | "heat_treatment"
+            )
+        })
+        .collect();
+    notes.sort_by_key(|r| {
+        let order = r.fields.iter().find_map(|(key, value)| match value {
+            crate::pmi::Field::Text(t) if key == "note order" => t.parse::<u64>().ok(),
+            _ => None,
+        });
+        (r.part, order.is_none(), order.unwrap_or(0), r.part21_id)
+    });
+    for r in notes {
+        if !r.faces.is_empty() || !r.edges.is_empty() {
             refuse(
                 &mut problems,
                 r,
-                "face-specific edge condition cannot be a document-wide note",
+                "face-specific requirement cannot be a document-wide note",
             );
         } else {
             out.push(SheetRequirement {
                 id: id(r),
                 source: r.source_id.clone(),
                 kind: "document_note",
-                value: r.label.trim().to_string(),
+                value: part_note_text(r),
                 basis: format!(
-                    "source-authored: the AP242 edge condition '{}' ({}), a general note (draftwright's DocumentNote)",
+                    "source-authored: the AP242 {} '{}' ({}), a general note (draftwright's DocumentNote)",
+                    r.kind.replace('_', " "),
                     r.label.trim(),
                     r.source_id
                 ),
@@ -722,13 +824,13 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
 pub struct PlannedRequirement {
     /// The record's item ID, `pmi:<identity>`; `source` is its Part 21 provenance.
     pub id: String,
-    /// `general_tolerance`, `default_surface_finish` or `document_note`.
+    /// `general_tolerance`, `default_surface_finish`, `document_note` or `no_requirement`.
     pub kind: String,
     pub source: String,
     /// What the sheet states: the designation, `Ra <value>`, the note's text.
     pub text: String,
     /// What carries it: `title_block` (its tolerance cell), `sheet` (the symbol beside the title
-    /// block), or `notes` (the general note of the same ID).
+    /// block), `notes` (the general note of the same ID), or `none` (no requirement authored).
     pub carrier: String,
     pub basis: String,
     /// Shown, or not drawable as its carrier is not (a general note with no place).
@@ -766,6 +868,10 @@ pub fn plan_sheet(
             placed: None,
         };
         match r.kind {
+            "no_requirement" => {
+                planned.carrier = "none".into();
+                planned.state = crate::items::State::NotAuthored;
+            }
             "general_tolerance" => {
                 planned.carrier = "title_block".into();
                 match given.get("tolerance") {

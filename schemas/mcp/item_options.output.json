@@ -6,6 +6,16 @@
         "id": {
           "type": "string"
         },
+        "operation_scopes": {
+          "type": "object",
+          "additionalProperties": {
+            "enum": [
+              "local",
+              "view",
+              "sheet"
+            ]
+          }
+        },
         "placements": {
           "type": "array",
           "items": {
@@ -71,6 +81,13 @@
           "additionalProperties": {
             "type": "object",
             "properties": {
+              "scope": {
+                "enum": [
+                  "local",
+                  "view",
+                  "sheet"
+                ]
+              },
               "choices": {
                 "type": "array",
                 "items": {}
@@ -91,8 +108,15 @@
           }
         }
       },
+      "required": [
+        "id",
+        "operations",
+        "placements",
+        "view_anchors",
+        "scales",
+        "settable"
+      ],
       "additionalProperties": false,
-      "minProperties": 6,
       "patternProperties": {
         "^(operations|view_anchors|scales)$(?!\n)": {
           "$ref": "#/A"

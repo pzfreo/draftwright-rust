@@ -1162,7 +1162,8 @@ fn lint_issue_serialization_preserves_every_inspection_channel() {
             "requirements":[{"feature":"f:hole:2","parameter":"location.length.x"}],
             "measurements":["f:hole:2/location.length.x"], "sources":["dimension:#42"], "stage":"placement",
             "annotation":"hole_schedule_plan/A2/x", "related":["hole_schedule_plan/A1/x"],
-            "evidence":"empty cell", "fix":"Restore the X coordinate cell."
+            "evidence":"empty cell", "fix":"Restore the X coordinate cell.",
+            "scope":"sheet", "fix_description":"Re-plans the sheet: Restore the X coordinate cell."
         })
     );
 }

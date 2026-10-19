@@ -12,7 +12,7 @@
         "completeness": {
           "type": "object",
           "additionalProperties": {
-            "$ref": "#/C"
+            "$ref": "#/D"
           },
           "required": [
             "claimed_faces",
@@ -42,7 +42,7 @@
             }
           },
           "additionalProperties": {
-            "$ref": "#/D"
+            "$ref": "#/C"
           },
           "required": [
             "size",
@@ -83,10 +83,10 @@
                 ]
               },
               "size": {
-                "$ref": "#/D"
+                "$ref": "#/C"
               },
               "scale": {
-                "$ref": "#/D"
+                "$ref": "#/C"
               },
               "page": {
                 "$ref": "#/B"
@@ -105,7 +105,7 @@
             "type": "object",
             "properties": {
               "id": {
-                "$ref": "#/D"
+                "$ref": "#/C"
               },
               "label": {
                 "type": [
@@ -131,39 +131,29 @@
                         "$ref": "#/A"
                       },
                       "fix": {
+                        "$ref": "#/E"
+                      },
+                      "fixes": {
                         "type": "array",
                         "items": {
-                          "anyOf": [
-                            {
-                              "properties": {
-                                "op": {
-                                  "enum": [
-                                    "set",
-                                    "add"
-                                  ]
-                                },
-                                "path": {
-                                  "$ref": "#/D"
-                                },
-                                "value": {}
-                              },
-                              "additionalProperties": false,
-                              "minProperties": 3
+                          "type": "object",
+                          "properties": {
+                            "scope": {
+                              "enum": [
+                                "local",
+                                "view",
+                                "sheet"
+                              ]
                             },
-                            {
-                              "properties": {
-                                "op": {
-                                  "const": "remove"
-                                },
-                                "path": {
-                                  "$ref": "#/D"
-                                }
-                              },
-                              "additionalProperties": false,
-                              "minProperties": 2
+                            "description": {
+                              "$ref": "#/C"
+                            },
+                            "ops": {
+                              "$ref": "#/E"
                             }
-                          ],
-                          "type": "object"
+                          },
+                          "additionalProperties": false,
+                          "minProperties": 3
                         }
                       }
                     },
@@ -176,7 +166,7 @@
                     "additionalProperties": false,
                     "patternProperties": {
                       "^(id|code|severity)$(?!\n)": {
-                        "$ref": "#/D"
+                        "$ref": "#/C"
                       }
                     }
                   },
@@ -189,7 +179,7 @@
                         ]
                       },
                       "detail_ref": {
-                        "$ref": "#/D"
+                        "$ref": "#/C"
                       }
                     },
                     "additionalProperties": false,
@@ -200,7 +190,7 @@
               }
             },
             "total": {
-              "$ref": "#/C"
+              "$ref": "#/D"
             },
             "next_cursor": {
               "type": [
@@ -230,10 +220,10 @@
       "additionalProperties": false,
       "patternProperties": {
         "^(part|spec_version|(part|plan)_ref)$(?!\n)": {
-          "$ref": "#/D"
+          "$ref": "#/C"
         },
         "^(face_count|items|problems)$(?!\n)": {
-          "$ref": "#/C"
+          "$ref": "#/D"
         }
       }
     },
@@ -251,7 +241,7 @@
             ]
           },
           "message": {
-            "$ref": "#/D"
+            "$ref": "#/C"
           }
         },
         "required": [
@@ -268,7 +258,7 @@
   ],
   "A": {
     "items": {
-      "$ref": "#/D"
+      "$ref": "#/C"
     },
     "type": "array"
   },
@@ -281,10 +271,46 @@
     "type": "array"
   },
   "C": {
+    "type": "string"
+  },
+  "D": {
     "minimum": 0,
     "type": "integer"
   },
-  "D": {
-    "type": "string"
+  "E": {
+    "items": {
+      "anyOf": [
+        {
+          "properties": {
+            "op": {
+              "enum": [
+                "set",
+                "add"
+              ]
+            },
+            "path": {
+              "$ref": "#/C"
+            },
+            "value": {}
+          },
+          "additionalProperties": false,
+          "minProperties": 3
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "remove"
+            },
+            "path": {
+              "$ref": "#/C"
+            }
+          },
+          "additionalProperties": false,
+          "minProperties": 2
+        }
+      ],
+      "type": "object"
+    },
+    "type": "array"
   }
 }

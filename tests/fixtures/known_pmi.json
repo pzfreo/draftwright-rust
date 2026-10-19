@@ -485,6 +485,48 @@
   },
   {
     "file": "hw_every_kind.step.gz",
+    "record": "manufacturing_requirement:#6679",
+    "port": null,
+    "field": "record",
+    "python": null,
+    "rust": {
+      "category": "manufacturing_requirement",
+      "kind": "surface_treatment",
+      "label": "Anodise to MIL-A-8625 Type II, black"
+    },
+    "verdict": "rust-correct",
+    "evidence": "PMI practice semantic text property #6679 on the part uses the NIST/haecceity item name 'coating'. The port accepts that spelling as canonical surface_treatment and draws the requirement. Python draftwright does not project this attribute set. Issue #123 requires the same reading independently of the authoring tool."
+  },
+  {
+    "file": "hw_every_kind.step.gz",
+    "record": "manufacturing_requirement:#6691",
+    "port": null,
+    "field": "record",
+    "python": null,
+    "rust": {
+      "category": "manufacturing_requirement",
+      "kind": "edge_condition",
+      "label": "Break sharp edges 0.2 max"
+    },
+    "verdict": "rust-correct",
+    "evidence": "PMI practice semantic text property #6691 on the part uses the NIST/haecceity item name 'edges'. The port accepts that spelling as canonical edge_condition and draws the requirement. Python draftwright does not project this attribute set. Issue #123 requires the same reading independently of the authoring tool."
+  },
+  {
+    "file": "hw_every_kind.step.gz",
+    "record": "manufacturing_requirement:#6685",
+    "port": null,
+    "field": "record",
+    "python": null,
+    "rust": {
+      "category": "manufacturing_requirement",
+      "kind": "heat_treatment",
+      "label": "None"
+    },
+    "verdict": "rust-correct",
+    "evidence": "The part's semantic text property #6685 states heat treatment 'None'. The port retains the raw read requirement with an informational no-requirement reason; no drawing or Problem is needed for that explicit absence. Python draftwright omits the attribute set entirely."
+  },
+  {
+    "file": "hw_every_kind.step.gz",
     "record": "dimension:0:1:4:3",
     "port": "dimension:#6615",
     "field": "value",

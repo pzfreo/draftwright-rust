@@ -522,7 +522,7 @@ fn a_sheet_the_spec_names_is_never_escalated() {
                     p.message.starts_with(message.trim_end_matches('.')),
                     "{name}"
                 );
-                (p.message, p.fix) = (message, Vec::new());
+                (p.message, p.fix, p.fixes) = (message, Vec::new(), Vec::new());
             }
             assert_eq!(serde_json::to_value(&kept).unwrap(), before, "{name}");
         }

@@ -155,7 +155,7 @@ impl Session {
                         .push(serde_json::to_value(side).unwrap().as_str().unwrap().into());
                 }
             }
-            let mut entry = serde_json::json!({"label": answer.item.label, "views": views.into_iter().map(|(view,sides)| serde_json::json!({"view":view,"sides":sides})).collect::<Vec<_>>(), "operations": options.operations});
+            let mut entry = serde_json::json!({"label": answer.item.label, "views": views.into_iter().map(|(view,sides)| serde_json::json!({"view":view,"sides":sides})).collect::<Vec<_>>(), "operations": options.operations, "operation_scopes":options.operation_scopes});
             if let Some(kind @ ("callout" | "linear")) = answer.dimension_kind.as_deref() {
                 entry["offset"] = kind.into();
             }
@@ -315,6 +315,33 @@ pub mod wasm {
 mod tests {
     use super::*;
     use serde_json::{Value, json};
+
+    #[test]
+    fn json_exposes_scoped_fixes_and_placement_operations() {
+        let s = Session::open(
+            "editor-plate.step",
+            include_bytes!("../../../tests/fixtures/samples/editor-plate.step"),
+        )
+        .unwrap();
+        let options: Value = serde_json::from_str(&s.placement_options_json().unwrap()).unwrap();
+        let id = "d:f:hole_pattern:1/bore.diameter";
+        assert_eq!(options[id]["operation_scopes"]["place"], "local");
+        assert_eq!(options["v:iso"]["operation_scopes"]["omit"], "view");
+        let snapshot: Value = serde_json::from_str(&s.snapshot().unwrap()).unwrap();
+        assert_eq!(snapshot["problems"], snapshot["plan"]["problems"]);
+        let mut fixes = 0;
+        for problem in snapshot["problems"].as_array().unwrap() {
+            if problem["fix"].is_array() {
+                assert_eq!(problem["fix"], problem["fixes"][0]["ops"]);
+                assert!(
+                    ["local", "view", "sheet"]
+                        .contains(&problem["fixes"][0]["scope"].as_str().unwrap())
+                );
+                fixes += 1;
+            }
+        }
+        assert!(fixes > 0);
+    }
 
     #[test]
     fn offset_queries_advertise_forms_and_pin_an_interior_callout_without_bouncing() {

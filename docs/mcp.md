@@ -215,7 +215,7 @@ D1 adds the real-model call client and finished-task checker; see
 calling, logging bytes/tokens and scoring. Served descriptions explain each tool without
 requiring source access. Schemas factor repeated shapes through local JSON Pointer targets while
 remaining standalone. `cargo test --release --test core engine_version::` checks the source hash,
-cache namespace, tool descriptions and the exact 34,477-byte per-session schema total (28 documents, 14 tools).
+cache namespace, tool descriptions and the exact 36,393-byte per-session schema total (28 documents, 14 tools).
 See [the measurement](mcp-schema-budget.md) for baseline attribution and per-tool sizes.
 
 `inspect_part.key_items` is a deterministic, 700-byte index: envelope dimensions and
@@ -223,7 +223,11 @@ representative feature sizes/dimensions. Use `list_items` for the complete list.
 `inspect_part.problem_filter` batches opening and a problem query; its `problem_page`
 has the same paging contract as `list_problems`. A problem filter's `feature` matches
 all associated item subjects and the feature itself; `subject` remains exact and all
-filter fields combine. Default problem rows now carry `fix` ops. A `page_fit_uncertain` row's fix
+filter fields combine. Default and detailed problem rows carry ordered `fixes` alternatives, each with `scope`
+(`local`, `view`, `sheet`), `description` and one atomic `ops` bundle; `fix` retains the
+preferred bundle for older clients. Local alternatives precede view and sheet remedies.
+Sheet descriptions explicitly name the sheet-wide change. Item answers and options add
+`operation_scopes`, and each `settable` descriptor includes path-derived `scope`. A `page_fit_uncertain` row's fix
 sets the nearest sheet size and/or scale that fit (`docs/model.md`); `sheet/references` (boolean, default false) opts into automatic parenthesized reference
 dimensions; pins and per-dimension reference style keep explicit intent. `sheet/projection` (`first`
 or `third`) is a spec path like `sheet/size` and `sheet/scale`, and the regenerated schemas

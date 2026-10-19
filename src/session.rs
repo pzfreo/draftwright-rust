@@ -58,6 +58,8 @@ pub struct ItemAnswer {
     pub features: Vec<String>,
     pub basis: String,
     pub operations: Vec<String>,
+    #[serde(default)]
+    pub operation_scopes: BTreeMap<String, crate::fixes::Scope>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -113,6 +115,8 @@ pub struct LabelOffset {
 pub struct Options {
     pub id: String,
     pub operations: Vec<String>,
+    #[serde(default)]
+    pub operation_scopes: BTreeMap<String, crate::fixes::Scope>,
     /// Conservative, valid placements on the current carrier. Collisions remain problems.
     pub placements: Vec<Place>,
     pub view_anchors: Vec<String>,
@@ -1066,13 +1070,17 @@ impl Session {
             return Ok(Options {
                 id: id.into(),
                 operations: vec!["add".into()],
+                operation_scopes: BTreeMap::from([(
+                    "add".into(),
+                    crate::fixes::path_scope("feature_declarations"),
+                )]),
                 placements: vec![],
                 view_anchors: vec![],
                 scales: vec![],
-                settable: BTreeMap::from([(
+                settable: scoped_fields(BTreeMap::from([(
                     "feature_declarations".into(),
                     serde_json::json!({"fields":[fingerprint],"forms":["add {id: f:declared:<name>, kind: hole|boss|turned_step|slot|pocket, faces: [fingerprint,…]}"]}),
-                )]),
+                )])),
             });
         }
         if id.starts_with("f:") {
@@ -1116,10 +1124,13 @@ impl Session {
             return Ok(Options {
                 id: id.into(),
                 operations: vec!["set".into(), "remove".into()],
+                operation_scopes: ["set", "remove"]
+                    .map(|op| (op.into(), crate::fixes::path_scope("features")))
+                    .into(),
                 placements: vec![],
                 view_anchors: vec![],
                 scales: vec![],
-                settable: fields,
+                settable: scoped_fields(fields),
             });
         }
         Ok(self.options_for(self.item(id)?, &self.placement_choices()))
@@ -1193,6 +1204,7 @@ impl Session {
             settable: settable(self, &item, &placements, &view_anchors),
             id: id.into(),
             operations: item.operations,
+            operation_scopes: item.operation_scopes,
             placements,
             view_anchors,
             scales: if item.item.kind == "sheet" {
@@ -1232,6 +1244,12 @@ fn settable(
     if id == "sheet" {
         fields.insert("dimension_schemes/<name>".into(), json!({"forms":["{scheme:chain|baseline|ordinate,axis:x|y|z,view?:front|plan|side,targets?:[ID|fingerprint],from?:min|max|reference}"],"consequences":["Requires targets or view; rejects overlapping owners. Remove for auto."]}));
         fields.insert("dimensions/d:authored:<name>".into(), json!({"forms":["{between:[reference,reference],along:x|y|z|true,kind:linear}","{kind:diameter|radius,between:[face reference]}","{kind:angle,between:[reference,reference]}"],"consequences":["References are stable keys from Analysis.edge_ink.references; duplicate quantities are refused with their existing owner ID"]}));
+    }
+    if item.item.kind == "note" && id.starts_with("pmi:") {
+        fields.insert(
+            format!("annotations/{}/omit", items::key(id)),
+            choices(json!([false, true])),
+        );
     }
     if !base.is_empty() {
         fields.insert(format!("{base}/omit"), choices(json!([false, true])));
@@ -1526,6 +1544,24 @@ fn settable(
             json!({"fields":["ra","removal"]}),
         );
     }
+    scoped_fields(fields)
+}
+
+fn scoped_fields(mut fields: BTreeMap<String, Value>) -> BTreeMap<String, Value> {
+    for (path, descriptor) in &mut fields {
+        let scope = descriptor["paths"]
+            .as_array()
+            .map(|paths| {
+                let ops: Vec<_> = paths
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(|path| Op::set(path, Value::Null))
+                    .collect();
+                crate::fixes::scope(&ops)
+            })
+            .unwrap_or_else(|| crate::fixes::path_scope(path));
+        descriptor["scope"] = serde_json::to_value(scope).unwrap();
+    }
     fields
 }
 
@@ -1628,6 +1664,7 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                 features: Vec::new(),
                 basis: String::new(),
                 operations: Vec::new(),
+                operation_scopes: BTreeMap::new(),
                 item: item.clone(),
             };
             if item.kind == "sheet" {
@@ -1731,6 +1768,8 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                 a.features = n.measurements.iter().map(|m| m.feature.clone()).collect();
                 if n.id.starts_with("n:f:blend:") {
                     a.operations = ["omit", "text", "place"].map(String::from).into();
+                } else if n.id.starts_with("pmi:") {
+                    a.operations = vec!["omit".into()];
                 }
             }
             if let Some(r) = plan.requirements.iter().find(|r| &r.id == id) {
@@ -1769,6 +1808,30 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                     b.at[1] + b.radius,
                 ]));
             }
+            a.operation_scopes = a
+                .operations
+                .iter()
+                .map(|operation| {
+                    let base = if item.kind == "sheet" {
+                        "sheet".into()
+                    } else if item.kind == "view" {
+                        format!("views/{}", items::key(id.trim_start_matches("v:")))
+                    } else if item.kind == "dimension" {
+                        format!("dimensions/{}", items::key(id))
+                    } else {
+                        format!("annotations/{}", items::key(id))
+                    };
+                    let field = match operation.as_str() {
+                        "pin" => "place/pinned",
+                        "move_to_sheet" => "sheet",
+                        other => other,
+                    };
+                    (
+                        operation.clone(),
+                        crate::fixes::path_scope(&format!("{base}/{field}")),
+                    )
+                })
+                .collect();
             a
         })
         .collect()

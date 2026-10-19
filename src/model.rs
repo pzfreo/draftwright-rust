@@ -255,7 +255,7 @@ pub struct Spec {
         deserialize_with = "crate::dims::precision::read"
     )]
     pub precision: BTreeMap<String, u8>,
-    /// Placement and omission of semantic PMI frames, datums and labels, by stable ID.
+    /// Placement and omission of semantic PMI frames, datums, labels and part notes, by stable ID.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub annotations: BTreeMap<String, crate::placement_intent::AnnotationSpec>,
     /// Per feature, by its ID (`f:<kind>:<n>`).
@@ -748,7 +748,7 @@ pub struct Cut {
     pub marked_in: String,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize)]
 pub struct Problem {
     pub id: String,
     pub code: String,
@@ -768,6 +768,56 @@ pub struct Problem {
     /// The edit that resolves it, as [`edit`] takes it, where there is one.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub fix: Vec<crate::items::Op>,
+    /// Alternative operation bundles; use `offered_fixes` for local → view → sheet order.
+    #[serde(default)]
+    pub fixes: Vec<crate::fixes::Fix>,
+}
+
+impl PartialEq for Problem {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.code == other.code
+            && self.severity == other.severity
+            && self.message == other.message
+            && self.subjects == other.subjects
+            && self.refs == other.refs
+            && self.offered_fixes() == other.offered_fixes()
+    }
+}
+impl Problem {
+    pub fn offered_fixes(&self) -> Vec<crate::fixes::Fix> {
+        let mut fixes = self.fixes.clone();
+        if !self.fix.is_empty() && !fixes.iter().any(|f| f.ops == self.fix) {
+            fixes.insert(
+                0,
+                crate::fixes::Fix::new("Apply the corrective Spec edits.", self.fix.clone()),
+            );
+        }
+        fixes.sort_by_key(crate::fixes::Fix::scope);
+        fixes
+    }
+}
+impl Serialize for Problem {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut s = serializer.serialize_struct("Problem", 8)?;
+        s.serialize_field("id", &self.id)?;
+        s.serialize_field("code", &self.code)?;
+        s.serialize_field("severity", &self.severity)?;
+        s.serialize_field("message", &self.message)?;
+        s.serialize_field("subjects", &self.subjects)?;
+        if !self.refs.is_empty() {
+            s.serialize_field("refs", &self.refs)?;
+        }
+        let fixes = self.offered_fixes();
+        if let Some(fix) = fixes.first() {
+            s.serialize_field("fix", &fix.ops)?;
+        }
+        if !fixes.is_empty() {
+            s.serialize_field("fixes", &fixes)?;
+        }
+        s.end()
+    }
 }
 
 /// A request that cannot be met as asked: what was wrong, and what would be accepted.
@@ -1722,10 +1772,14 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
 /// recovery picks for it, else the pinned scale on the smallest sheet that holds it, else the
 /// automatic pair. A pair is offered only when, pinned, its finished drawing fits. Only for a
 /// spec that pins both (each search unpins one, so this never recurses).
-fn fit_fix(
-    analysis: &Analysis,
-    spec: &Spec,
-) -> Result<Option<(Vec<crate::items::Op>, String, String)>, Invalid> {
+struct FittingFix {
+    ops: Vec<crate::items::Op>,
+    size: String,
+    scale: String,
+    hole_table: bool,
+}
+
+fn fit_fix(analysis: &Analysis, spec: &Spec) -> Result<Option<FittingFix>, Invalid> {
     if crate::planning::is_fixed_pair() {
         return Ok(None);
     }
@@ -1777,7 +1831,12 @@ fn fit_fix(
         if pair.1 != *scale {
             ops.push(crate::items::Op::set("sheet/scale", pair.1.clone().into()));
         }
-        return Ok(Some((ops, pair.0, pair.1)));
+        return Ok(Some(FittingFix {
+            ops,
+            size: pair.0,
+            scale: pair.1,
+            hole_table: p.hole_table.is_some() || !p.hole_tables.is_empty(),
+        }));
     }
     Ok(None)
 }
@@ -2561,13 +2620,21 @@ fn recover_candidates(
                     1,
                 );
                 first.status = crate::completeness::status(&first.problems);
-            } else if let Some((fix, size, scale)) = fit_fix(analysis, spec)? {
+            } else if let Some(fix) = fit_fix(analysis, spec)? {
                 let p = &mut first.problems[i];
                 p.message = format!(
-                    "{}; {size} at {scale} fits.",
-                    p.message.trim_end_matches('.')
+                    "{}; {} at {} fits.",
+                    p.message.trim_end_matches('.'),
+                    fix.size,
+                    fix.scale
                 );
-                p.fix = fix;
+                let description = if fix.hole_table {
+                    format!("Use a hole table at {} on {}.", fix.scale, fix.size)
+                } else {
+                    format!("Use {} at {}.", fix.size, fix.scale)
+                };
+                p.fix = fix.ops.clone();
+                p.fixes = vec![crate::fixes::Fix::new(description, fix.ops)];
             }
         }
         return Ok(first);
@@ -3320,6 +3387,7 @@ fn plan_automatic_uncached(analysis: &Analysis, spec: &Spec) -> Result<Plan, Inv
             }
         }
     }
+    crate::fixes::attach(analysis, &mut plan);
     Ok(plan)
 }
 
@@ -3739,6 +3807,7 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         if !crate::placement_intent::has_pins(spec) {
             plan.record_dimension_labels();
         }
+        crate::fixes::attach(analysis, &mut plan);
         Ok(plan)
     })
 }
@@ -4044,6 +4113,7 @@ fn plan_with_presentation(
                 ),
                 subjects: Vec::new(),
                 refs: inactive.clone(),
+                fixes: Vec::new(),
                 // The message's first remedy: the entries removed, the spec binds to this
                 // revision.
                 fix: inactive_entries
@@ -4143,6 +4213,13 @@ fn plan_with_presentation(
         let mut lowered = crate::pmi_lowering::lower(analysis, &|_| true).0;
         crate::label_text::annotations(&mut lowered, &effective)?;
         let mut annotation_ids: Vec<String> = lowered.into_iter().map(|i| i.id).collect();
+        annotation_ids.extend(
+            crate::pmi_lowering::sheet_requirements(analysis)
+                .0
+                .into_iter()
+                .filter(|r| matches!(r.kind, "document_note" | "no_requirement"))
+                .map(|r| r.id),
+        );
         annotation_ids.extend(crate::dims::blends::note_ids(analysis));
         for id in effective.annotations.keys() {
             if !annotation_ids.contains(id) {
@@ -4353,6 +4430,7 @@ fn plan_with_presentation(
         message: format!("Section A\u{2013}A is not drawn: {why}."),
         subjects: Vec::new(),
         refs: vec![format!("v:{SECTION}")],
+        fixes: Vec::new(),
         fix,
     };
     match &demand.section {
@@ -4402,20 +4480,12 @@ fn plan_with_presentation(
     // The tables are reserved towards their corners and the general notes block top right, in
     // draftwright's order, unless only a fallback would make room for them: then each is placed
     // where it can be, or reported (crate::tables, crate::notes).
-    // The part's drawing-wide PMI requirements (crate::pmi_lowering): its edge conditions are
-    // general notes after the spec's.
+    // Part PMI notes precede the drawing's own notes; reconciliation never changes the Spec.
     let (requirements, more) = crate::pmi_lowering::sheet_requirements(analysis);
     problems.extend(more);
-    let mut notes_given = spec.notes.clone();
-    notes_given.extend(
-        requirements
-            .iter()
-            .filter(|r| r.kind == "document_note")
-            .map(|r| NoteSpec {
-                id: r.id.clone(),
-                text: r.value.clone(),
-            }),
-    );
+    let (mut notes_given, omitted_notes, more) =
+        crate::notes::reconcile(&requirements, analysis, spec);
+    problems.extend(more);
     let mut radius_notes = crate::dims::blends::notes(analysis);
     for (note, _) in &mut radius_notes {
         if let Some(text) = spec.annotations.get(&note.id).and_then(|a| a.text.as_ref()) {
@@ -5645,6 +5715,7 @@ fn plan_with_presentation(
         .partition(|n| radius_notes.iter().any(|(r, _)| r.id == n.id));
     let (mut notes, mut notes_block, more) =
         crate::notes::plan(&authored, analysis, &sheet, &views, &ink);
+    crate::notes::provenance(&mut notes, &requirements, spec);
     problems.extend(more);
     // Authored tables keep their established priority; automatic radii use the space left.
     let (mut tables, more) = crate::tables::plan(
@@ -5832,6 +5903,8 @@ fn plan_with_presentation(
         });
     }
     dimensions.retain(|d| !matches!(&d.state, ItemState::Covered { by } if by.starts_with("n:") || by == crate::dims::blends::RADIUS_TABLE));
+
+    notes.extend(omitted_notes);
 
     // A drawing-wide requirement carried by a general note is drawn as that note is.
     for r in requirements.iter_mut().filter(|r| r.carrier == "notes") {

@@ -477,6 +477,7 @@ fn rust_projection(
                     .iter()
                     .any(|n| n.id == q.id && n.placed.is_some()),
                 "sheet" => q.placed.is_some(),
+                "none" => false,
                 _ => true,
             };
             if placed {
@@ -507,6 +508,17 @@ fn rust_projection(
     }
     drawn.sort_by_key(|v| v.to_string());
     drawn.dedup();
+    if plan
+        .requirements
+        .iter()
+        .any(|q| q.id == feature && q.kind == "no_requirement")
+    {
+        assert!(
+            drawn.is_empty(),
+            "a no-requirement value must never be drawn"
+        );
+        return json!({"outcome": "no_requirement", "codes": []});
+    }
     if !drawn.is_empty() {
         return json!({"drawn": drawn});
     }
