@@ -843,7 +843,8 @@ fn notes_without_part_pmi_keep_baseline_plan_and_drawing_bytes() {
             .map(|b| format!("{b:02x}"))
             .collect::<String>()
     };
-    // Captured on 2b4a2fa2, before part-note reading/lowering, on the same fixtures and Specs.
+    // SVG and PDF captured on 2b4a2fa2, before part-note reading/lowering; plan hashes re-pinned
+    // when #126 added fix scopes to the Plan (SVG and PDF unchanged).
     let baseline: Value =
         serde_json::from_str(include_str!("fixtures/pmi/notes_identity.json")).unwrap();
     assert_eq!(baseline.as_array().unwrap().len(), 4);
