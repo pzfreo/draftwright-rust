@@ -1109,11 +1109,17 @@ fn bookkeeping_attributes_are_not_unsupported_pmi() {
         .map(|(index, _)| index)
         .collect();
     assert_eq!(bookkeeping.len(), 2);
+    // A part `semantic text` set is a part note (#123), read and drawn, not bookkeeping.
+    let note = reread.parts[0]
+        .attributes
+        .iter()
+        .position(|a| a.name == "semantic text")
+        .unwrap();
     let (_, analysis) = analysed_uncached("bookkeeping.step", &written.bytes);
     let Some(Reading::Read(report)) = &analysis.pmi else {
         panic!("bookkeeping provenance retained")
     };
-    assert!(report.records.is_empty());
+    assert_eq!(report.records.len(), 1, "{:#?}", report.records);
     for index in &bookkeeping {
         let source = report
             .sources
@@ -1130,8 +1136,8 @@ fn bookkeeping_attributes_are_not_unsupported_pmi() {
         .iter()
         .filter(|p| p.code == "pmi_not_extracted")
         .collect();
-    assert_eq!(unsupported.len(), 4, "{unsupported:#?}");
-    for index in (0..6).filter(|index| !bookkeeping.contains(index)) {
+    assert_eq!(unsupported.len(), 3, "{unsupported:#?}");
+    for index in (0..6).filter(|index| !bookkeeping.contains(index) && *index != note) {
         assert_eq!(
             unsupported
                 .iter()

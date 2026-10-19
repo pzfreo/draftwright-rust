@@ -225,9 +225,16 @@ fn consistent(what: &str, plan: &Plan, a: &Analysis, spec: &Spec) -> usize {
                 .notes
                 .iter()
                 .any(|n| n.id == r.id && n.placed.is_some()),
+            "none" => false,
             _ => true,
         };
-        check(&r.id, &r.state, drawn);
+        if r.kind == "no_requirement" {
+            assert_eq!(r.carrier, "none");
+            assert_eq!(r.state, State::NotAuthored);
+            assert!(!drawn);
+        } else {
+            check(&r.id, &r.state, drawn);
+        }
     }
     for o in &plan.omitted {
         match &o.state {

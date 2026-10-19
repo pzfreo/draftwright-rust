@@ -775,6 +775,77 @@
  },
  {
   "file": "hw_every_kind.step",
+  "record": "manufacturing_requirement:#6679",
+  "port": "manufacturing_requirement:#6679",
+  "field": "record",
+  "python": null,
+  "rust": {
+   "drawing": {
+    "drawn": [
+     {
+      "boxed": false,
+      "kind": "document_note",
+      "rides_on": null,
+      "text": "Anodise to MIL-A-8625 Type II, black",
+      "view": null
+     }
+    ]
+   },
+   "record": {
+    "kind": "surface_treatment",
+    "label": "Anodise to MIL-A-8625 Type II, black"
+   }
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part semantic text property #6679 uses the NIST/haecceity alias 'coating'. The port reads it as surface_treatment and draws the model text as a general note under issue #123. Python draftwright omits the attribute set. The reading difference is documented in known_pmi.json."
+ },
+ {
+  "file": "hw_every_kind.step",
+  "record": "manufacturing_requirement:#6691",
+  "port": "manufacturing_requirement:#6691",
+  "field": "record",
+  "python": null,
+  "rust": {
+   "drawing": {
+    "drawn": [
+     {
+      "boxed": false,
+      "kind": "document_note",
+      "rides_on": null,
+      "text": "Break sharp edges 0.2 max",
+      "view": null
+     }
+    ]
+   },
+   "record": {
+    "kind": "edge_condition",
+    "label": "Break sharp edges 0.2 max"
+   }
+  },
+  "verdict": "rust-correct",
+  "evidence": "Part semantic text property #6691 uses the NIST/haecceity alias 'edges'. The port reads it as edge_condition and draws the model text as a general note under issue #123. Python draftwright omits the attribute set. The reading difference is documented in known_pmi.json."
+ },
+ {
+  "file": "hw_every_kind.step",
+  "record": "manufacturing_requirement:#6685",
+  "port": "manufacturing_requirement:#6685",
+  "field": "record",
+  "python": null,
+  "rust": {
+   "drawing": {
+    "outcome": "no_requirement",
+    "codes": []
+   },
+   "record": {
+    "kind": "heat_treatment",
+    "label": "None"
+   }
+  },
+  "verdict": "rust-correct",
+  "evidence": "The semantic text heat treatment property #6685 says 'None', an explicit absence of a requirement. The port preserves it as read informational data, with no note row and no Problem. Python draftwright does not project it. This is no_requirement, not a dropped or refused drawing item."
+ },
+ {
+  "file": "hw_every_kind.step",
   "record": "datum:0:1:4:9",
   "port": null,
   "field": "record",
