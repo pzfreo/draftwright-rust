@@ -657,3 +657,20 @@ fn retained_pmi_callouts_do_not_repeat_sizes_or_locations_in_generated_tables() 
         "the fixture must exercise retained PMI size callouts"
     );
 }
+
+#[test]
+fn schedule_aliases_keep_existing_source_covered_ids_unique() {
+    use std::io::Read as _;
+    let mut step = Vec::new();
+    flate2::read::GzDecoder::new(
+        include_bytes!("fixtures/pmi/step/bracket_positions.step.gz").as_slice(),
+    )
+    .read_to_end(&mut step)
+    .unwrap();
+    let p = plan(&analysed(&step), &Spec::default());
+    assert!(!p.hole_tables.is_empty());
+    let mut ids = std::collections::BTreeSet::new();
+    for item in draftwright::items::items(&p) {
+        assert!(ids.insert(item.id.clone()), "duplicate item {}", item.id);
+    }
+}

@@ -2434,7 +2434,7 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
         for row in &mut table.rows {
             for (column, &k) in axes.iter().enumerate() {
                 if let Some(owners) = retained.get(&(row.feature.clone(), k)) {
-                    row.cells[2 + column].clear();
+                    let label = std::mem::take(&mut row.cells[2 + column]);
                     // Recovery follows the surviving graph owner, even when the
                     // schedule no longer needs a coordinate cell for this member.
                     if let Some(by) = owners.first() {
@@ -2447,7 +2447,7 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                         {
                             selection.aliases.push(crate::dims::Omitted {
                                 id,
-                                label: String::new(),
+                                label,
                                 basis: format!(
                                     "located by retained dimension chain: {}",
                                     owners.join(", ")
@@ -3078,7 +3078,21 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
             plan.dimensions.push(d);
         }
     }
-    plan.omitted.extend(selection.aliases.clone());
+    // A source-owned coordinate may already have its covered entry in the
+    // replanned ladder. Keep that original label and provenance exactly once.
+    let mut ids: BTreeSet<_> = plan
+        .dimensions
+        .iter()
+        .map(|d| d.id.clone())
+        .chain(plan.omitted.iter().map(|o| o.id.clone()))
+        .collect();
+    plan.omitted.extend(
+        selection
+            .aliases
+            .iter()
+            .filter(|o| ids.insert(o.id.clone()))
+            .cloned(),
+    );
     plan.hole_tables = schedules;
     for mark in &mut marks {
         let ink = crate::dims::label_ink(std::slice::from_ref(&mark.tag), crate::dims::font());
