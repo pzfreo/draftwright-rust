@@ -6,10 +6,9 @@
         "anyOf": [
           {
             "additionalProperties": false,
-            "minProperties": 8,
             "patternProperties": {
               "^(anchors|features|operations)$(?!\n)": {
-                "$ref": "#/A"
+                "$ref": "#/B"
               }
             },
             "properties": {
@@ -25,6 +24,9 @@
               "item": {
                 "type": "object"
               },
+              "operation_scopes": {
+                "$ref": "#/A"
+              },
               "placement": {
                 "type": [
                   "object",
@@ -37,7 +39,17 @@
                   "null"
                 ]
               }
-            }
+            },
+            "required": [
+              "item",
+              "value",
+              "dimension_kind",
+              "placement",
+              "anchors",
+              "features",
+              "basis",
+              "operations"
+            ]
           },
           {
             "additionalProperties": false,
@@ -53,8 +65,11 @@
               }
             },
             "properties": {
-              "operations": {
+              "operation_scopes": {
                 "$ref": "#/A"
+              },
+              "operations": {
+                "$ref": "#/B"
               },
               "sheet": {
                 "enum": [
@@ -142,7 +157,7 @@
         "additionalProperties": false,
         "properties": {
           "choices": {
-            "$ref": "#/A"
+            "$ref": "#/B"
           },
           "code": {
             "enum": [
@@ -167,6 +182,16 @@
     }
   ],
   "A": {
+    "additionalProperties": {
+      "enum": [
+        "local",
+        "view",
+        "sheet"
+      ]
+    },
+    "type": "object"
+  },
+  "B": {
     "items": {
       "type": "string"
     },

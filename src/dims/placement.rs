@@ -4624,6 +4624,30 @@ pub(crate) fn collisions_cached(
     views: &[PlannedView],
     cache: &super::footprints::Cache,
 ) -> Vec<Problem> {
+    collisions_impl(analysis, dims, sheet, views, cache, None)
+}
+
+/// The same predicates, restricted to findings a changed item can affect.
+/// Peers remain available as obstacles; unchanged peer/peer pairs need no recheck.
+pub(super) fn collisions_for(
+    analysis: &Analysis,
+    dims: &[PlannedDimension],
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    cache: &super::footprints::Cache,
+    id: &str,
+) -> Vec<Problem> {
+    collisions_impl(analysis, dims, sheet, views, cache, Some(id))
+}
+
+fn collisions_impl(
+    analysis: &Analysis,
+    dims: &[PlannedDimension],
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    cache: &super::footprints::Cache,
+    only: Option<&str>,
+) -> Vec<Problem> {
     let mut problems = Vec::new();
     let drawable = drawable(sheet);
     let interior_proofs = super::interior::proofs(analysis, views);
@@ -4667,6 +4691,9 @@ pub(crate) fn collisions_cached(
         });
     };
     for (d, p) in &placed {
+        if only.is_some_and(|id| d.id.as_str() != id) {
+            continue;
+        }
         if let Some(f) = footprints.get(d.view.as_str()) {
             let (code, shafts): (&str, &[[P2; 2]]) = match d.kind.as_str() {
                 "callout" => ("leader_through_feature", &p.lines[..p.lines.len().min(1)]),
@@ -4818,6 +4845,9 @@ pub(crate) fn collisions_cached(
     }
     for (i, (a, pa)) in placed.iter().enumerate() {
         for (b, pb) in &placed[i + 1..] {
+            if only.is_some_and(|id| a.id.as_str() != id && b.id.as_str() != id) {
+                continue;
+            }
             // #32: two linear dimensions on one dimension line over overlapping spans (an
             // explicit lane the stack could not re-space): their arrows and extension lines run
             // into each other, whatever crossing the move cleared.
@@ -4861,7 +4891,7 @@ pub(crate) fn collisions_cached(
     }
     for (a, pa) in &placed {
         for (b, pb) in &placed {
-            if a.id == b.id {
+            if a.id == b.id || only.is_some_and(|id| a.id.as_str() != id && b.id.as_str() != id) {
                 continue;
             }
             // A callout's leader is judged by its rendered ink, its arrowhead's flare included
@@ -4917,6 +4947,42 @@ pub(crate) fn collisions_cached(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn item_collision_checks_preserve_all_findings_involving_that_item() {
+        let analysis: Analysis = serde_json::from_value(serde_json::json!({
+            "schema": crate::model::ANALYSIS_SCHEMA,
+            "binding":{"source_sha256":"", "part":"plate", "face_count":0, "loader":"test"},
+            "envelope":[[0,0,0],[100,60,10]], "iso_bounds":[0,0,100,60]
+        }))
+        .unwrap();
+        let plan = crate::model::plan(&analysis, &crate::model::Spec::default()).unwrap();
+        let mut dimensions = plan.dimensions.clone();
+        let mut changed = 0;
+        for d in dimensions.iter_mut().filter(|d| d.placed.is_some()).take(2) {
+            let p = d.placed.as_mut().unwrap();
+            p.label_box = [-3., -3., 3., 3.];
+            p.label_at = [0., 0.];
+            changed += 1;
+        }
+        assert_eq!(changed, 2);
+        let cache = super::super::footprints::Cache::default();
+        let complete = collisions_cached(&analysis, &dimensions, &plan.sheet, &plan.views, &cache);
+        assert!(complete.iter().any(|p| p.code == "annotation_overlap"));
+        assert!(complete.iter().any(|p| p.code == "annotation_off_sheet"));
+        for id in dimensions.iter().map(|d| d.id.as_str()).chain(["absent"]) {
+            let expected: Vec<_> = complete
+                .iter()
+                .filter(|p| p.subjects.iter().any(|s| s == id))
+                .cloned()
+                .collect();
+            assert_eq!(
+                collisions_for(&analysis, &dimensions, &plan.sheet, &plan.views, &cache, id),
+                expected,
+                "{id}"
+            );
+        }
+    }
+
     #[test]
     fn indexed_peer_ink_matches_the_complete_linear_collision_predicate() {
         for peer_arrows in 0..=2 {

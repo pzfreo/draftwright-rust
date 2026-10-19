@@ -156,9 +156,23 @@ pub struct LintIssue {
     /// Why the evidence was not accepted, where some was found.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub evidence: Option<String>,
-    /// What would put it right, in words a caller can act on.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Prose advice has no Spec operations: its scope is conservatively sheet-wide.
+    #[serde(flatten, serialize_with = "serialize_fix_advice")]
     pub fix: Option<String>,
+}
+
+fn serialize_fix_advice<S: serde::Serializer>(
+    fix: &Option<String>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    use serde::ser::SerializeMap;
+    let mut map = serializer.serialize_map(None)?;
+    if let Some(fix) = fix {
+        map.serialize_entry("fix", fix)?;
+        map.serialize_entry("scope", &crate::remedy_scope::UNBOUND_SCOPE)?;
+        map.serialize_entry("fix_description", &format!("Re-plans the sheet: {fix}"))?;
+    }
+    map.end()
 }
 
 /// An annotation as lint sees it: the text it prints and the measurements it claims.
