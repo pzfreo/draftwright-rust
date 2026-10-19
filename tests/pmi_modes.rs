@@ -529,6 +529,15 @@ fn ignore_renders_the_plain_drawing_including_cosmetic_ink() {
             ..Default::default()
         },
     );
+    let locating = |p: &model::Plan| {
+        p.problems
+            .iter()
+            .filter(|p| p.code == "feature_not_located" || p.code == "feature_located_twice")
+            .map(|p| &p.id)
+            .cloned()
+            .collect::<std::collections::BTreeSet<_>>()
+    };
+    assert_eq!(locating(&expected), locating(&ignored));
     let font = draftwright::text::Font::new(draftwright::api::MONO.to_vec()).unwrap();
     let mut first = model::render(&part, &plain, &expected, &font).unwrap();
     let mut second = model::render(&part, &a, &ignored, &font).unwrap();

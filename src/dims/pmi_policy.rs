@@ -661,8 +661,10 @@ pub(crate) fn ignore(
         refs: vec!["part".into()],
         ..Default::default()
     });
-    // Audit the drawn set against the original feature inventory, including in ignore mode.
-    audit(a, s, &mut p);
+    // Keep the same feature inventory, but hidden source datums are not drawing origins.
+    // Explicit Spec controls remain part of the plain drawing and its origin frame.
+    let effective = crate::spec_gdt::effective(&plain, s)?;
+    audit(effective.as_ref(), s, &mut p);
     Ok(p)
 }
 
