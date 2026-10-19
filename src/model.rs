@@ -1840,8 +1840,12 @@ pub(crate) fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
 /// The established automatic presentation, shared by scale and hole-table
 /// decisions. This comparison never replaces the full native final inventory.
 pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
-    let key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
-        .expect("presentation inputs serialize");
+    let key = serde_json::to_vec(&(
+        spec.hole_table,
+        &spec.sheet.projection,
+        spec.sheet.references,
+    ))
+    .expect("presentation inputs serialize");
     let reference = crate::planning::memo(
         analysis,
         "prepared-established-drawing",
@@ -1854,6 +1858,7 @@ pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Pl
                 ..Spec::default()
             };
             base.sheet.projection = spec.sheet.projection.clone();
+            base.sheet.references = spec.sheet.references;
             crate::planning::with(&reference, || {
                 // This recipe precedes the added notch bands as well as native recesses.
                 // Otherwise a displaced leader becomes its own established route, and

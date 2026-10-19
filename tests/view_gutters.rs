@@ -149,13 +149,16 @@ fn pin_replay_keeps_the_ftc09_schedule_and_its_clearance() {
     let Some(corpus) = corpus::dir() else { return };
     let (_, analysis) =
         model::analyse_native(&corpus.join("nist/nist_ftc_09_asme1_rd.stp")).unwrap();
-    let base = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    // This regression pins a slot-wall reference; opt into its original ink.
+    let reference_spec: Spec =
+        serde_json::from_value(json!({"sheet":{"references":true}})).unwrap();
+    let base = model::plan_recovered(&analysis, &reference_spec).unwrap();
     assert_eq!(base.hole_tables.len(), 1);
     let table = base.hole_tables[0].blocks[0].placed.as_ref().unwrap().cells;
     let iso = base.views.iter().find(|v| v.id == "v:iso").unwrap();
     assert!(gap(iso.area, table) >= draftwright::tables::PAD);
 
-    let spec = serde_json::from_value(json!({"dimensions":{
+    let spec = serde_json::from_value(json!({"sheet":{"references":true},"dimensions":{
         "d:step_level/step_height.length.h47_625":{"place":{"pinned":true}}
     }}))
     .unwrap();

@@ -353,7 +353,7 @@ pub(super) fn consolidate(
                     .trim_end_matches(')')
                     .into(),
                 basis: format!(
-                    "conveyed by {}: other stated dimensions determine this interval ({})",
+                    "conveyed by {}: other stated dimensions determine this interval; dependencies: {}",
                     owner,
                     by.join(", ")
                 ),

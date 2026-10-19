@@ -116,7 +116,12 @@ pub(crate) fn retain(analysis: &Analysis, spec: &Spec, current: &Plan) -> Option
         return None;
     }
 
-    let key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection)).ok()?;
+    let key = serde_json::to_vec(&(
+        spec.hole_table,
+        &spec.sheet.projection,
+        spec.sheet.references,
+    ))
+    .ok()?;
     let before = crate::planning::lookup::<Result<Plan, crate::model::Invalid>>(
         analysis,
         "established-drawing",
