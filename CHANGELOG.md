@@ -6,6 +6,13 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### WASM API
+
+- `calloutOffset(address)` and `labelOffset(address)` return a callout's or linear dimension's
+  automatic anchor, current label position and offset (paper mm), so an editor can pin a label
+  dropped anywhere, inside a view included, with `place.offset`. `placementOptions` marks items
+  that accept an offset (`"offset": "callout" | "linear"`).
+
 ## 0.1.0-alpha.6 (2026-10-19)
 
 ### WASM API

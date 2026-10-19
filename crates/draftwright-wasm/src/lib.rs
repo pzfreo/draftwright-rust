@@ -132,6 +132,12 @@ impl Session {
         }
         Ok(())
     }
+    pub fn callout_offset_json(&self, address: &str) -> Result<String, Error> {
+        Ok(serde_json::to_string(&self.0.callout_offset(address)?).unwrap())
+    }
+    pub fn label_offset_json(&self, address: &str) -> Result<String, Error> {
+        Ok(serde_json::to_string(&self.0.label_offset(address)?).unwrap())
+    }
     pub fn placement_options_json(&self) -> Result<String, Error> {
         let mut out = serde_json::Map::new();
         let mut choices = self.0.all_options();
@@ -149,7 +155,11 @@ impl Session {
                         .push(serde_json::to_value(side).unwrap().as_str().unwrap().into());
                 }
             }
-            out.insert(answer.item.id, serde_json::json!({"label": answer.item.label, "views": views.into_iter().map(|(view,sides)| serde_json::json!({"view":view,"sides":sides})).collect::<Vec<_>>(), "operations": options.operations}));
+            let mut entry = serde_json::json!({"label": answer.item.label, "views": views.into_iter().map(|(view,sides)| serde_json::json!({"view":view,"sides":sides})).collect::<Vec<_>>(), "operations": options.operations});
+            if let Some(kind @ ("callout" | "linear")) = answer.dimension_kind.as_deref() {
+                entry["offset"] = kind.into();
+            }
+            out.insert(answer.item.id, entry);
         }
         Ok(serde_json::Value::Object(out).to_string())
     }
@@ -267,6 +277,14 @@ pub mod wasm {
         pub fn pmi(&self) -> String {
             self.0.pmi_json()
         }
+        #[wasm_bindgen(js_name = calloutOffset)]
+        pub fn callout_offset(&self, address: &str) -> Result<String, JsValue> {
+            self.0.callout_offset_json(address).map_err(js)
+        }
+        #[wasm_bindgen(js_name = labelOffset)]
+        pub fn label_offset(&self, address: &str) -> Result<String, JsValue> {
+            self.0.label_offset_json(address).map_err(js)
+        }
         #[wasm_bindgen(js_name = placementOptions)]
         pub fn placement_options(&self) -> Result<String, JsValue> {
             self.0.placement_options_json().map_err(js)
@@ -290,5 +308,83 @@ pub mod wasm {
                 .map(String::into_bytes)
                 .map_err(js)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::{Value, json};
+
+    #[test]
+    fn offset_queries_advertise_forms_and_pin_an_interior_callout_without_bouncing() {
+        let mut s = Session::open(
+            "editor-plate.step",
+            include_bytes!("../../../tests/fixtures/samples/editor-plate.step"),
+        )
+        .unwrap();
+        let id = "d:f:hole_pattern:1/bore.diameter";
+        let before =
+            s.0.plan()
+                .dimensions
+                .iter()
+                .find(|d| d.id == id)
+                .unwrap()
+                .placed
+                .clone()
+                .unwrap();
+        let at: Value = serde_json::from_str(&s.callout_offset_json(id).unwrap()).unwrap();
+        assert_eq!(
+            at,
+            serde_json::to_value(s.0.callout_offset(id).unwrap()).unwrap()
+        );
+        assert_eq!(at.as_object().unwrap().len(), 4);
+        let view = s.0.plan().views.iter().find(|v| v.id == "v:plan").unwrap();
+        let bend = before.lines[0][1];
+        assert!(
+            (bend[0] - view.at[0]).abs() < 50. * view.scale
+                && (bend[1] - view.at[1]).abs() < 30. * view.scale
+        );
+        s.apply_json(&json!([{"op":"set","path":format!("dimensions/{}/place",draftwright::items::key(id)),"value":{"offset":at["offset"],"pinned":true}}]).to_string(),true).unwrap();
+        assert_eq!(
+            s.0.plan()
+                .dimensions
+                .iter()
+                .find(|d| d.id == id)
+                .unwrap()
+                .placed
+                .as_ref(),
+            Some(&before)
+        );
+        s.0.undo().unwrap();
+        let linear = "d:envelope/width.length";
+        let label: Value = serde_json::from_str(&s.label_offset_json(linear).unwrap()).unwrap();
+        assert_eq!(
+            label,
+            serde_json::to_value(s.0.label_offset(linear).unwrap()).unwrap()
+        );
+        assert_eq!(
+            label
+                .as_object()
+                .unwrap()
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>(),
+            ["anchor", "label", "offset", "view"]
+        );
+        let options: Value = serde_json::from_str(&s.placement_options_json().unwrap()).unwrap();
+        assert_eq!(options[id]["offset"], "callout");
+        assert_eq!(options[linear]["offset"], "linear");
+        assert!(
+            options
+                .as_object()
+                .unwrap()
+                .values()
+                .any(|entry| entry.get("offset").is_none())
+        );
+        assert!(s.callout_offset_json(linear).is_err());
+        assert!(s.label_offset_json(id).is_err());
+        assert!(s.callout_offset_json("unknown").is_err());
+        assert!(s.label_offset_json("unknown").is_err());
     }
 }
