@@ -27,6 +27,7 @@ def main():
     parser.add_argument('out', type=Path)
     parser.add_argument('--part', action='append', type=Path, default=[])
     parser.add_argument('--corpus-only', action='store_true', help='Review changed corpus inputs only')
+    parser.add_argument('--after-only', action='store_true', help='Reuse the existing before review and render only the new build')
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     sources = read(args.before / 'manifest.json')
@@ -46,13 +47,14 @@ def main():
             for stage in (args.before, args.after)]
         selected[key] = {'name': str(part), 'path': str(part),
                          'before': choice(plans[0]), 'after': choice(plans[1])}
-    for label in ('before', 'after'):
+    stages = [('after', args.after)] if args.after_only else [('before', args.before), ('after', args.after)]
+    for label, _ in stages:
         (args.out / label).mkdir(exist_ok=True)
 
     def render(item):
         key, source = item
         stem = key[:12] + '-' + Path(source['path']).stem
-        for label, stage in (('before', args.before), ('after', args.after)):
+        for label, stage in stages:
             output = args.out / label / stem
             result = subprocess.run([str((stage / 'draftwright').resolve()), 'render',
                                      source['path'], '-o', str(output), '--formats',

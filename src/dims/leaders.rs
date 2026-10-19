@@ -969,7 +969,7 @@ fn settled_nominal_reference(
             crate::planning::isolated(analysis, || {
                 crate::planning::store(analysis, "canonical-circular-recipes", Vec::new(), true);
                 if recovered_recipe {
-                    crate::model::plan_recovered(analysis, &recipe).ok()
+                    crate::model::plan_automatic(analysis, &recipe).ok()
                 } else {
                     crate::model::plan_escalated(analysis, &recipe).ok()
                 }

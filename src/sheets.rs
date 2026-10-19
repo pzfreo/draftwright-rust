@@ -81,6 +81,17 @@ pub(crate) fn floor(spec: &Spec) -> Option<f64> {
         })
 }
 
+/// Only permission to allocate more sheets; no authored allocation constraints.
+pub(crate) fn max_only(spec: &Spec) -> bool {
+    spec.sheets.as_ref().is_none_or(|s| {
+        (SheetsSpec {
+            max: None,
+            ..s.clone()
+        }) == Default::default()
+    }) && spec.views.values().all(|v| v.sheet.is_none())
+        && spec.tables.iter().all(|t| t.sheet.is_none())
+}
+
 fn maximum(spec: &Spec) -> u32 {
     spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(1)
 }
@@ -327,6 +338,28 @@ pub(crate) fn count_runs<T>(steps: &mut usize, run: impl FnOnce() -> T) -> T {
 }
 
 fn run(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    if crate::planning::is_fixed_pair() && max_only(spec) {
+        // A max-only permission changes allocation, not the recovered sheet-1
+        // drawing. Reuse it before R5 moves any auxiliary group. Precision is
+        // deferred consistently until the fixed candidate's allocation finishes.
+        let mut single = spec.clone();
+        single.sheets = None;
+        let key = serde_json::to_vec(&(
+            &single,
+            crate::planning::policy_key(analysis),
+            crate::planning::nominals_deferred(),
+        ))
+        .expect("fixed sheet inputs serialize");
+        let mut plan = crate::planning::memo(analysis, "fixed-sheet-run", key, || {
+            run_uncached(analysis, &single)
+        })?;
+        plan.spec = spec.clone();
+        return Ok(plan);
+    }
+    run_uncached(analysis, spec)
+}
+
+fn run_uncached(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     RUNS.with(|runs| runs.set(runs.get() + 1));
     crate::planning::with(analysis, || {
         model::recover(analysis, spec, model::plan_escalated(analysis, spec)?)

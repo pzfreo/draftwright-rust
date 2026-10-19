@@ -1697,6 +1697,9 @@ fn fit_fix(
     analysis: &Analysis,
     spec: &Spec,
 ) -> Result<Option<(Vec<crate::items::Op>, String, String)>, Invalid> {
+    if crate::planning::is_fixed_pair() {
+        return Ok(None);
+    }
     let (Some(size), Some(scale)) = (&spec.sheet.size, &spec.sheet.scale) else {
         return Ok(None);
     };
@@ -3156,6 +3159,7 @@ pub(crate) fn plan_automatic(analysis: &Analysis, spec: &Spec) -> Result<Plan, I
         spec,
         crate::planning::nominals_deferred(),
         crate::planning::policy_key(analysis),
+        crate::planning::is_fixed_pair(),
     ))
     .expect("planning inputs serialize");
     crate::planning::memo(analysis, "finished-plan", key, || {
@@ -3174,14 +3178,12 @@ fn plan_automatic_uncached(analysis: &Analysis, spec: &Spec) -> Result<Plan, Inv
     let merged = crate::spec_gdt::effective(analysis, spec)?;
     let analysis = merged.as_ref();
     crate::planning::with(analysis, || {
-        if let Some(sheets) = &spec.sheets
-            && sheets.max.is_some_and(|n| n > 1)
-            && (crate::sheets::SheetsSpec {
-                max: None,
-                ..sheets.clone()
-            }) == Default::default()
-            && spec.views.values().all(|v| v.sheet.is_none())
-            && spec.tables.iter().all(|t| t.sheet.is_none())
+        if spec
+            .sheets
+            .as_ref()
+            .and_then(|s| s.max)
+            .is_some_and(|n| n > 1)
+            && crate::sheets::max_only(spec)
         {
             // Permission to add sheets must not change an already complete
             // single-sheet drawing, including its final precision repairs.
@@ -3199,7 +3201,10 @@ fn plan_automatic_uncached(analysis: &Analysis, spec: &Spec) -> Result<Plan, Inv
         if spec.sheet.scale.is_none() && crate::dims::has_new_native_recess_dimensions(analysis) {
             established_drawing(analysis, spec)?;
         }
-        if spec.sheets.is_none() && crate::nominal::geometry_eligible(analysis) {
+        if (spec.sheets.is_none()
+            || (crate::planning::is_fixed_pair() && crate::sheets::max_only(spec)))
+            && crate::nominal::geometry_eligible(analysis)
+        {
             let mut plan =
                 crate::planning::defer_nominals(|| crate::sheets::allocate(analysis, spec))?;
             finish_nominal_plan(analysis, spec, &mut plan);
@@ -3384,6 +3389,7 @@ fn plan_escalated_with(
     candidate_arrangement: Option<layout::Arrangement>,
     require_automatic: bool,
 ) -> Result<Plan, Invalid> {
+    let automatic_pair = automatic_pair || crate::planning::is_fixed_pair();
     let analysis_key: [u8; 32] =
         crate::planning::memo(analysis, "analysis_digest", Vec::new(), || {
             Sha256::digest(serde_json::to_vec(analysis).expect("Analysis serializes")).into()
@@ -6199,6 +6205,31 @@ fn settle_finished_nominals(
     // an earlier repair. Reconsider the complete printed inventory before
     // fixing the final callouts, with the usual page and peer protections.
     crate::dims::settle_inventory(analysis, spec, &plan.sheet, &plan.views, &mut items, &fixed);
+    // The fixed sheet trial already placed faithful text. Keep its settled routes
+    // when the inventory is unchanged and a fresh audit is clear, rather than
+    // searching for another clear presentation. Authored/latent inventory and
+    // ordinary explicit plans retain the complete finishing pass.
+    if crate::planning::is_fixed_pair()
+        && route_leaders
+        && omitted.is_empty()
+        && items.len() == plan.dimensions.len()
+        && items.iter().zip(&plan.dimensions).all(|(a, b)| {
+            a.id == b.id
+                && a.placed == b.placed
+                && a.label == b.label
+                && a.terms == b.terms
+                && a.basis == b.basis
+        })
+        && !plan
+            .problems
+            .iter()
+            .any(crate::sheet_policy::layout_problem)
+        && !crate::dims::recheck_cached(analysis, plan, &cache)
+            .iter()
+            .any(crate::sheet_policy::layout_problem)
+    {
+        return;
+    }
     let mut reports = BTreeMap::new();
     if route_leaders {
         reports.extend(crate::dims::refine_inventory(

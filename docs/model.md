@@ -506,8 +506,11 @@ printer, `"A4"` (default) or `"A3"`; other values are refused. A4 printers try o
 up to two A4 sheets, then one A3. A3 printers try one A4, one A3, then A3 overflow
 (up to nine sheets). The first passing candidate wins; otherwise keep the baseline.
 A baseline already equal to or better than the next request ends the search.
-Outline footprints at the readability floor cheaply rule out impossible paper sizes.
-Forced candidates use the ordinary explicit-paper scale choice and R5 allocation.
+Baseline reserved footprints cheaply rule out impossible paper/count requests: outlines
+scale, while annotation bands and furniture stay in paper mm. Each trial fixes the paper
+and largest estimated standard scale above the readability floor, with at most one
+smaller-scale retry. Trials retain the baseline’s automatic detail inventory. R5 allocation
+and its reuse of complete single sheets are unchanged.
 New layout/readability problems reject a candidate; baseline problems with the same
 code and subjects are tolerated. Outline strokes must clear the frame.
 `Plan.sheet_candidates` records trials and

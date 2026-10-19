@@ -12,6 +12,8 @@ pub struct Candidate {
     pub size: String,
     pub max: usize,
     pub outcome: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scales: Vec<String>,
 }
 
 // Layout/readability failures only: overlaps and crossings, ink outside its frame/bands,
@@ -63,12 +65,16 @@ fn problem_key(p: &model::Problem) -> (String, Vec<String>) {
     (p.code.clone(), subjects)
 }
 
+pub(crate) fn layout_problem(problem: &model::Problem) -> bool {
+    FAILING_CODES.contains(&problem.code.as_str())
+        && (problem.code != "layout_recovery_exhausted" || problem.severity != "info")
+}
+
 fn failures(analysis: &Analysis, plan: &Plan, floor: f64) -> BTreeSet<(String, Vec<String>)> {
     let mut failures: BTreeSet<_> = plan
         .problems
         .iter()
-        .filter(|p| FAILING_CODES.contains(&p.code.as_str()))
-        .filter(|p| p.code != "layout_recovery_exhausted" || p.severity != "info")
+        .filter(|p| layout_problem(p))
         .map(problem_key)
         .collect();
     // The outline box has no stroke width. At the frame its visible stroke is already
@@ -93,6 +99,11 @@ fn failures(analysis: &Analysis, plan: &Plan, floor: f64) -> BTreeSet<(String, V
             failures.insert(("annotation_off_sheet".into(), vec![view.id.clone()]));
         }
     }
+    // Internal automatic pairs suppress the explicit-scale warning, but must
+    // still meet the automatic planner's existing printed-step minimum.
+    if sheet_fit::illegible_steps(analysis, plan) > 0 {
+        failures.insert(("legibility_floor_breached".into(), vec!["sheet".into()]));
+    }
     if plan.sheet.scale_factor + 1e-9 < floor {
         failures.insert(("legibility_floor_breached".into(), vec!["sheet".into()]));
     }
@@ -104,45 +115,137 @@ fn failures(analysis: &Analysis, plan: &Plan, floor: f64) -> BTreeSet<(String, V
     failures
 }
 
-/// Necessary outline-only fit, deliberately optimistic: no annotation bands or furniture
-/// clearance. Principals share sheet 1; auxiliary views may move under R5. Ignore optional
-/// details and the freely resized isometric. A refusal therefore cannot discard a real fit.
-fn outlines_fit(analysis: &Analysis, baseline: &Plan, size: &str, max: usize, floor: f64) -> bool {
-    let (_, w, h) = layout::PAGES.iter().find(|p| p.0 == size).unwrap();
-    let available = [w - 2.0 * layout::MARGIN, h - 2.0 * layout::MARGIN];
-    let mut principal = std::collections::BTreeMap::new();
-    let mut area = 0.0;
-    for v in &baseline.views {
-        if v.id == "v:iso" || v.detail.is_some() {
-            continue;
+/// Baseline outline sizes and reserved paper-mm bands. Outlines change with scale;
+/// annotation lanes, captions and other furniture do not. Optional details and the
+/// freely resized isometric are omitted, making the necessary fit test optimistic.
+struct Estimate {
+    views: Vec<(String, [f64; 2], [f64; 2])>,
+    blocks: Vec<[f64; 2]>,
+    first_area: f64,
+    scale: f64,
+    aligned: bool,
+}
+
+impl Estimate {
+    fn new(analysis: &Analysis, baseline: &Plan) -> Self {
+        let outlines = sheet_fit::footprints(analysis, baseline);
+        let bands = crate::view_gutters::bands(analysis, baseline);
+        let views = baseline
+            .views
+            .iter()
+            .zip(outlines)
+            .zip(bands)
+            .filter(|((v, _), _)| v.id != "v:iso" && v.detail.is_none())
+            .map(|((v, outline), band)| {
+                let size = [outline[2] - outline[0], outline[3] - outline[1]];
+                let fixed = std::array::from_fn(|k| {
+                    (outline[k] - band[k]).max(0.0) + (band[k + 2] - outline[k + 2]).max(0.0)
+                });
+                (v.id.clone(), size, fixed)
+            })
+            .collect();
+        let mut boxes: Vec<_> = baseline
+            .notes_block
+            .iter()
+            .chain(&baseline.radius_notes_block)
+            .map(|n| n.cells)
+            .collect();
+        boxes.extend(
+            baseline
+                .radius_table
+                .iter()
+                .filter_map(|t| t.table.placed.as_ref().map(|p| p.cells)),
+        );
+        // R5 moves the rescue hole_table and declared tables, but general
+        // notes, radius furniture and principal-view hole schedules stay on 1.
+        for t in &baseline.hole_tables {
+            boxes.extend(
+                t.blocks
+                    .iter()
+                    .filter_map(|b| b.placed.as_ref().map(|p| p.cells)),
+            );
         }
-        let view = crate::haecceity::hlr::View::new(v.direction, v.up).unwrap();
-        let (outline, _) = model::extent(analysis, &view);
-        let footprint = outline.map(|extent| extent * floor);
-        if (0..2).any(|k| footprint[k] > available[k]) {
-            return false;
+        let first_area = boxes.iter().map(|b| (b[2] - b[0]) * (b[3] - b[1])).sum();
+        boxes.extend(
+            baseline
+                .tables
+                .iter()
+                .filter_map(|t| t.placed.as_ref().map(|p| p.cells)),
+        );
+        for t in baseline.hole_table.iter() {
+            boxes.extend(
+                t.blocks
+                    .iter()
+                    .filter_map(|b| b.placed.as_ref().map(|p| p.cells)),
+            );
         }
-        area += footprint[0] * footprint[1];
-        if ["v:front", "v:plan", "v:side"].contains(&v.id.as_str()) {
-            principal.insert(v.id.as_str(), footprint);
+        Self {
+            views,
+            first_area,
+            blocks: boxes
+                .into_iter()
+                .map(|b| [b[2] - b[0], b[3] - b[1]])
+                .collect(),
+            scale: baseline.sheet.scale_factor,
+            aligned: baseline.spec.views.values().all(|v| v.place.is_none()),
         }
     }
-    // The existing minimum blank gutter, without the surrounding annotation corridors.
-    const GUTTER: f64 = 6.0;
-    if baseline.spec.views.values().all(|v| v.place.is_none())
-        && let Some(front) = principal.get("v:front")
-        && (principal
-            .get("v:side")
-            .is_some_and(|side| front[0] + side[0] + GUTTER > available[0])
-            || principal
+
+    fn fits(&self, size: &str, max: usize, scale: f64) -> bool {
+        let (_, w, h) = layout::PAGES.iter().find(|p| p.0 == size).unwrap();
+        let available = [w - 2.0 * layout::MARGIN, h - 2.0 * layout::MARGIN];
+        let mut principal = std::collections::BTreeMap::new();
+        let mut area = 0.0;
+        let mut principal_area = 0.0;
+        for (id, outline, band) in &self.views {
+            let footprint =
+                std::array::from_fn::<_, 2, _>(|k| outline[k] * scale / self.scale + band[k]);
+            if (0..2).any(|k| footprint[k] > available[k]) {
+                return false;
+            }
+            area += footprint[0] * footprint[1];
+            if ["v:front", "v:plan", "v:side"].contains(&id.as_str()) {
+                principal_area += footprint[0] * footprint[1];
+                principal.insert(id.as_str(), footprint);
+            }
+        }
+        // R5 keeps the aligned principal projections together on sheet 1.
+        const GUTTER: f64 = 6.0;
+        if self.aligned
+            && let Some(front) = principal.get("v:front")
+            && (principal.get("v:side").is_some_and(|side| {
+                front[0] + side[0] + GUTTER - shared_band(&self.views, "v:front", "v:side", 0)
+                    > available[0]
+            }) || principal
                 .get("v:plan")
                 .is_some_and(|plan| front[1] + plan[1] + GUTTER > available[1]))
-    {
-        return false;
+        {
+            return false;
+        }
+        for block in &self.blocks {
+            if (0..2).any(|k| block[k] > available[k]) {
+                return false;
+            }
+            area += block[0] * block[1];
+        }
+        let drawing_area = available[0] * available[1]
+            - layout::title_block_width(*w) * crate::title_block::top([0.0; 4]);
+        principal_area + self.first_area <= drawing_area && area <= drawing_area * max as f64
     }
-    let drawing_area = available[0] * available[1]
-        - layout::title_block_width(*w) * crate::title_block::top([0.0; 4]);
-    area <= drawing_area * max as f64
+
+    fn scale(&self, size: &str, max: usize, floor: f64) -> Option<f64> {
+        layout::SCALES
+            .into_iter()
+            .filter(|s| *s + 1e-9 >= floor)
+            .find(|s| self.fits(size, max, *s))
+    }
+}
+
+// Opposing annotation bands can share the common base corridor. Keep the
+// remaining dimension tiers and callout widths in paper mm.
+fn shared_band(views: &[(String, [f64; 2], [f64; 2])], a: &str, b: &str, k: usize) -> f64 {
+    let band = |id| views.iter().find(|v| v.0 == id).map_or(0.0, |v| v.2[k]);
+    band(a).min(band(b)).min(layout::DIM_PAD)
 }
 
 fn requests(printer: &str) -> [(&str, usize); 3] {
@@ -154,11 +257,16 @@ fn requests(printer: &str) -> [(&str, usize); 3] {
 }
 
 pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    let original_binding = spec.binding.clone();
     let mut baseline = model::plan_automatic(analysis, spec)?;
     if spec.sheet.size.is_some()
         || spec.sheet.scale.is_some()
         || spec.sheets.as_ref().and_then(|s| s.max).is_some()
     {
+        return Ok(baseline);
+    }
+    if baseline.sheet.size == "A4" && baseline.sheets.is_empty() {
+        reuse_baseline(&mut baseline, Vec::new(), 1);
         return Ok(baseline);
     }
     let spec = &baseline.spec.clone();
@@ -170,72 +278,126 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
     let mut baseline_failures = failures(fit_analysis, &baseline, floor);
     // Match every baseline problem by code + subject, including informational findings.
     baseline_failures.extend(baseline.problems.iter().map(problem_key));
+    let mut estimate = None;
     let mut candidates = Vec::new();
+    let mut single: Option<(String, Plan, String)> = None;
     for (size, max) in requests(printer) {
         // A baseline already as good in this preference order needs no forced replay.
         if baseline.sheet.size == size && baseline.sheets.len() < max {
-            let reason = format!(
-                "{size}: automatic baseline at {} ({} sheet(s))",
-                baseline.sheet.scale,
-                1 + baseline.sheets.len()
-            );
+            reuse_baseline(&mut baseline, candidates, max);
+            return Ok(baseline);
+        }
+        // R5's existing max-only shortcut keeps a complete one-sheet result,
+        // even when the paper policy refuses it for a softer annotation finding.
+        // Permission to overflow must not replace that result at another scale.
+        if max > 1
+            && let Some((paper, plan, outcome)) = &single
+            && paper == size
+            && model::findings(plan).clean()
+            && model::drawn_sheets_fit(fit_analysis, plan)
+            && crate::sheets::max_only(spec)
+        {
             candidates.push(Candidate {
                 size: size.into(),
                 max,
-                outcome: "automatic baseline reused".into(),
+                outcome: format!("single-sheet R5 result reused: {outcome}"),
+                scales: Vec::new(),
             });
-            explain(&mut baseline, candidates, &reason);
-            return Ok(baseline);
+            continue;
         }
-        let outcome;
-        if !outlines_fit(fit_analysis, &baseline, size, max, floor) {
-            outcome = format!(
-                "outline footprints cannot fit at {}",
-                model::scale_name(floor)
-            );
-        } else {
-            let mut forced = spec.clone();
-            forced.sheet.size = Some(size.into());
-            if max > 1 {
-                forced.sheets.get_or_insert_with(Default::default).max = Some(max as u32);
-            }
-            match model::plan_automatic(analysis, &forced) {
-                Ok(mut plan) => {
-                    let codes: BTreeSet<_> = failures(fit_analysis, &plan, floor)
-                        .difference(&baseline_failures)
-                        .map(|(code, _)| code.clone())
-                        .collect();
-                    if codes.is_empty() {
-                        let reason = format!(
-                            "{size}: clean at {} ({} sheet(s))",
-                            plan.sheet.scale,
-                            1 + plan.sheets.len()
-                        );
-                        candidates.push(Candidate {
-                            size: size.into(),
-                            max,
-                            outcome: reason.clone(),
-                        });
-                        plan.spec = spec.clone();
-                        plan.sheet.default = true;
-                        for sheet in &mut plan.sheets {
-                            sheet.default = true;
-                        }
-                        explain(&mut plan, candidates, &reason);
-                        return Ok(plan);
-                    }
-                    outcome = format!(
-                        "layout/readability problems ({})",
-                        codes.into_iter().collect::<Vec<_>>().join(", ")
-                    );
+        let mut scales = Vec::new();
+        let mut outcome = format!(
+            "reserved footprints cannot fit at {}",
+            model::scale_name(floor)
+        );
+        if let Some(scale) = estimate
+            .get_or_insert_with(|| Estimate::new(fit_analysis, &baseline))
+            .scale(size, max, floor)
+        {
+            // Explicit scale bypasses the explicit-paper scale search. At most one
+            // smaller standard scale is tried, using the ordinary planner each time.
+            let smaller = layout::SCALES
+                .into_iter()
+                .find(|s| *s < scale && *s + 1e-9 >= floor);
+            for scale in std::iter::once(scale).chain(smaller) {
+                scales.push(model::scale_name(scale));
+                let mut forced = spec.clone();
+                // Binding an unbound result to this same Analysis does not change
+                // intent. Keep the caller's binding so baseline candidate keys match.
+                forced.binding = original_binding.clone();
+                forced.sheet.size = Some(size.into());
+                forced.sheet.scale = Some(model::scale_name(scale));
+                if max > 1 {
+                    forced.sheets.get_or_insert_with(Default::default).max = Some(max as u32);
                 }
-                Err(error) => outcome = format!("cannot plan: {}", error.message),
+                for (name, detail) in crate::detail::requests(fit_analysis, &forced, scale) {
+                    if !detail.authored
+                        && !baseline
+                            .views
+                            .iter()
+                            .any(|v| v.id == format!("v:{name}") && v.detail.is_some())
+                    {
+                        forced.views.entry(name).or_default().omit = true;
+                    }
+                }
+                match crate::planning::fixed_pair(|| model::plan_automatic(analysis, &forced)) {
+                    Ok(mut plan) => {
+                        let codes: BTreeSet<_> = failures(fit_analysis, &plan, floor)
+                            .difference(&baseline_failures)
+                            .map(|(code, _)| code.clone())
+                            .collect();
+                        if codes.is_empty() {
+                            let reason = format!(
+                                "{size}: clean at {} ({} sheet(s))",
+                                plan.sheet.scale,
+                                1 + plan.sheets.len()
+                            );
+                            candidates.push(Candidate {
+                                size: size.into(),
+                                max,
+                                outcome: reason.clone(),
+                                scales,
+                            });
+                            plan.spec = spec.clone();
+                            plan.sheet.default = true;
+                            for sheet in &mut plan.sheets {
+                                sheet.default = true;
+                            }
+                            explain(&mut plan, candidates, &reason);
+                            return Ok(plan);
+                        }
+                        let below_minimum = codes.contains("legibility_floor_breached");
+                        outcome = format!(
+                            "layout/readability problems at {} ({})",
+                            model::scale_name(scale),
+                            codes.into_iter().collect::<Vec<_>>().join(", ")
+                        );
+                        if max == 1 {
+                            single = Some((size.into(), plan.clone(), outcome.clone()));
+                        }
+                        // Reducing again cannot repair a printed-size minimum.
+                        if below_minimum
+                            || (model::findings(&plan).hard == 0
+                                && !plan
+                                    .problems
+                                    .iter()
+                                    .any(|p| crate::hole_table::DROPS.contains(&p.code.as_str())))
+                        {
+                            break;
+                        }
+                    }
+                    Err(error) => {
+                        outcome = format!("cannot plan: {}", error.message);
+                        break;
+                    }
+                }
             }
         }
         candidates.push(Candidate {
             size: size.into(),
             max,
             outcome,
+            scales,
         });
     }
     let reason = format!(
@@ -244,6 +406,22 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
     );
     explain(&mut baseline, candidates, &reason);
     Ok(baseline)
+}
+
+fn reuse_baseline(plan: &mut Plan, mut candidates: Vec<Candidate>, max: usize) {
+    let size = plan.sheet.size.clone();
+    let reason = format!(
+        "{size}: automatic baseline at {} ({} sheet(s))",
+        plan.sheet.scale,
+        1 + plan.sheets.len()
+    );
+    candidates.push(Candidate {
+        size,
+        max,
+        outcome: "automatic baseline reused".into(),
+        scales: Vec::new(),
+    });
+    explain(plan, candidates, &reason);
 }
 
 fn explain(plan: &mut Plan, candidates: Vec<Candidate>, reason: &str) {
@@ -285,6 +463,160 @@ mod tests {
             return None;
         }
         Some(model::analyse_native(&root.join(file)).unwrap().1)
+    }
+
+    /// Opt-in survey of the *unrestricted* explicit-paper planner. Normal tests
+    /// exercise the bound below; this audit is deliberately separate from timing.
+    #[test]
+    #[ignore = "set DRAFTWRIGHT_SHEET_BOUND_SURVEY to a JSON array of analysis/baseline/selected paths"]
+    fn corpus_bound_survey() {
+        let path = std::env::var("DRAFTWRIGHT_SHEET_BOUND_SURVEY").unwrap();
+        let rows: Vec<serde_json::Value> =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        let mut results = Vec::new();
+        let mut counterexamples = Vec::new();
+        for row in rows {
+            let read = |key: &str| std::fs::read(row[key].as_str().unwrap()).unwrap();
+            let analysis: Analysis = serde_json::from_slice(&read("analysis")).unwrap();
+            let baseline: Plan = serde_json::from_slice(&read("baseline")).unwrap();
+            let selected: Plan = serde_json::from_slice(&read("selected")).unwrap();
+            if !selected
+                .sheet_candidates
+                .iter()
+                .any(|r| r.outcome.starts_with("reserved footprints cannot fit"))
+            {
+                continue;
+            }
+            // Match production's baseline preparation scope, including its
+            // existing canonical and established-route policies.
+            crate::planning::with(&analysis, || {
+                let baseline = model::plan_automatic(&analysis, &baseline.spec).unwrap();
+                let floor = sheet_fit::min_legible_scale(&analysis)
+                    .max(crate::sheets::floor(&baseline.spec).unwrap_or(0.0));
+                let estimate = Estimate::new(&analysis, &baseline);
+                let mut inherited = failures(&analysis, &baseline, floor);
+                inherited.extend(baseline.problems.iter().map(problem_key));
+                for request in &selected.sheet_candidates {
+                    if !request
+                        .outcome
+                        .starts_with("reserved footprints cannot fit")
+                    {
+                        continue;
+                    }
+                    assert!(estimate.scale(&request.size, request.max, floor).is_none());
+                    let mut forced = baseline.spec.clone();
+                    forced.sheet.size = Some(request.size.clone());
+                    forced.sheet.scale = None;
+                    if request.max > 1 {
+                        forced.sheets.get_or_insert_with(Default::default).max =
+                            Some(request.max as u32);
+                    }
+                    let full_path = format!(
+                        "{path}.{}-{}-{}.full.json",
+                        row["name"].as_str().unwrap(),
+                        request.size,
+                        request.max
+                    );
+                    let full = if let Ok(bytes) = std::fs::read(&full_path) {
+                        Ok(serde_json::from_slice::<Plan>(&bytes).unwrap())
+                    } else {
+                        let result = model::plan_automatic(&analysis, &forced);
+                        if let Ok(plan) = &result {
+                            std::fs::write(&full_path, serde_json::to_vec(plan).unwrap()).unwrap();
+                        }
+                        result
+                    };
+                    let codes: BTreeSet<_> = match &full {
+                        Ok(plan) => failures(&analysis, plan, floor)
+                            .difference(&inherited)
+                            .map(|(c, _)| c.clone())
+                            .collect(),
+                        Err(error) => BTreeSet::from([error.message.clone()]),
+                    };
+                    if codes.is_empty() {
+                        counterexamples.push(format!(
+                            "{} {} max={}",
+                            row["name"], request.size, request.max
+                        ));
+                    }
+                    let result = json!({"name":row["name"], "size":request.size, "max":request.max, "codes":codes,
+                        "full_choice":full.as_ref().ok().map(|p| (&p.sheet.size, &p.sheet.scale, 1+p.sheets.len()))});
+                    eprintln!("{}", result);
+                    results.push(result);
+                }
+            });
+        }
+        std::fs::write(
+            format!("{path}.results.json"),
+            serde_json::to_vec_pretty(&results).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            counterexamples.is_empty(),
+            "false refusals: {counterexamples:?}"
+        );
+    }
+
+    #[test]
+    fn paper_bands_and_furniture_do_not_shrink_with_the_outline() {
+        let estimate = Estimate {
+            views: vec![("v:front".into(), [100.0, 80.0], [280.0, 15.0])],
+            blocks: Vec::new(),
+            first_area: 0.0,
+            scale: 1.0,
+            aligned: true,
+        };
+        // An outline-only test would accept A4 at 1:10. A fixed-width
+        // annotation reservation exceeds it even with additional sheets.
+        assert_eq!(estimate.scale("A4", 1, 0.1), None);
+        assert_eq!(estimate.scale("A4", 2, 0.1), None);
+        assert_eq!(estimate.scale("A3", 1, 0.1), Some(1.0));
+        let with_table = Estimate {
+            blocks: vec![[401.0, 20.0]],
+            ..estimate
+        };
+        assert_eq!(with_table.scale("A3", 9, 0.1), None);
+    }
+
+    #[test]
+    fn bounded_trials_keep_the_recorded_a4_reductions() {
+        for (file, scale) in [
+            ("mfcadpp/10020.step", "1:1"),
+            ("mfcadpp/10033.step", "1:1"),
+            ("mfcadpp/10163.step", "1:2"),
+        ] {
+            let Some(a) = corpus(file) else {
+                return;
+            };
+            let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+            assert_eq!(
+                (
+                    p.sheet.size.as_str(),
+                    p.sheet.scale.as_str(),
+                    p.sheets.len()
+                ),
+                ("A4", scale, 0),
+                "{file}: {}",
+                p.sheet.basis
+            );
+            assert!(p.sheet_candidates.iter().all(|c| c.scales.len() <= 2));
+        }
+    }
+
+    #[test]
+    fn fixed_pair_scope_does_not_leak_into_explicit_requests() {
+        assert!(!crate::planning::is_fixed_pair());
+        crate::planning::fixed_pair(|| {
+            assert!(crate::planning::is_fixed_pair());
+            crate::nominal::with_comparison(|| assert!(!crate::planning::is_fixed_pair()));
+            assert!(crate::planning::is_fixed_pair());
+            let panicked = std::panic::catch_unwind(|| {
+                crate::planning::fixed_pair(|| panic!("trial refused"))
+            });
+            assert!(panicked.is_err());
+            assert!(crate::planning::is_fixed_pair());
+        });
+        assert!(!crate::planning::is_fixed_pair());
     }
 
     #[test]
