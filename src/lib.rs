@@ -33,6 +33,7 @@ pub mod placement_intent;
 pub mod pmi;
 pub mod pmi_lowering;
 pub mod png;
+pub mod remedy_scope;
 pub mod section;
 pub mod session;
 pub mod sheet_fit;

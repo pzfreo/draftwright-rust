@@ -3,13 +3,7 @@
 use crate::items::Op;
 use serde::{Deserialize, Serialize, ser::SerializeStruct};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Scope {
-    Local,
-    View,
-    Sheet,
-}
+pub use crate::remedy_scope::Scope;
 
 /// First matching pattern wins; `*` matches one escaped key and `**` its descendants.
 /// Keep sheet allocation before view intent. Only known item fields are local: new or
@@ -60,15 +54,38 @@ pub fn path_scope(path: &str) -> Scope {
                     .all(|(a, b)| *a == "*" || a == b))
             .then_some(*scope)
         })
-        .unwrap_or(Sheet)
+        .unwrap_or(crate::remedy_scope::UNBOUND_SCOPE)
+}
+
+// An object-valued set addresses its nested Spec paths too. Keep the root's
+// conservative scope: replacing a collection may remove entries absent in its value.
+fn value_scope(path: &str, value: &serde_json::Value) -> Scope {
+    let mut scope = path_scope(path);
+    if scope == Scope::Sheet {
+        return scope;
+    }
+    if let serde_json::Value::Object(fields) = value {
+        for (name, value) in fields {
+            scope = scope.max(value_scope(
+                &format!("{path}/{}", crate::items::key(name)),
+                value,
+            ));
+        }
+    }
+    scope
 }
 
 pub fn scope(ops: &[Op]) -> Scope {
     let broadest = ops
         .iter()
-        .map(|op| path_scope(&op.path))
+        .map(|op| {
+            op.value.as_ref().map_or_else(
+                || path_scope(&op.path),
+                |value| value_scope(&op.path, value),
+            )
+        })
         .max()
-        .unwrap_or(Scope::Sheet);
+        .unwrap_or(crate::remedy_scope::UNBOUND_SCOPE);
     if broadest == Scope::Sheet {
         return broadest;
     }
@@ -97,10 +114,15 @@ pub fn scope(ops: &[Op]) -> Scope {
 
 /// One alternative: its operations apply together. Scope is always derived, including
 /// when reading old or externally supplied JSON; a caller cannot understate it.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Fix {
     pub description: String,
     pub ops: Vec<Op>,
+}
+impl PartialEq for Fix {
+    fn eq(&self, other: &Self) -> bool {
+        self.ops == other.ops && self.description() == other.description()
+    }
 }
 impl Fix {
     pub fn new(description: impl Into<String>, ops: Vec<Op>) -> Self {
@@ -129,6 +151,27 @@ impl Fix {
                     "sheet/size" => format!("paper {}", value.unwrap_or("automatic".into())),
                     "sheet/scale" => format!("scale {}", value.unwrap_or("automatic".into())),
                     "hole_table" => format!("hole table {}", value.unwrap_or("auto".into())),
+                    "sheets/max" => format!("sheet count {}", value.unwrap_or("automatic".into())),
+                    "sheets/hole_table" => format!(
+                        "hole table allocation {}",
+                        value.unwrap_or("automatic".into())
+                    ),
+                    "dimension_source" => {
+                        format!("dimension source {}", value.unwrap_or("auto".into()))
+                    }
+                    path if path.starts_with("dimension_schemes/") => format!(
+                        "{} dimension scheme {}",
+                        op.op,
+                        path.trim_start_matches("dimension_schemes/")
+                    ),
+                    path if path.starts_with("pmi") => {
+                        format!("PMI mode {}", value.unwrap_or("automatic".into()))
+                    }
+                    path if path.ends_with("/sheet") => format!(
+                        "{} sheet allocation {}",
+                        path.trim_end_matches("/sheet").replace('/', " "),
+                        value.unwrap_or("automatic".into())
+                    ),
                     path => format!(
                         "{} {path}{}",
                         op.op,
@@ -151,6 +194,122 @@ impl Serialize for Fix {
         s.serialize_field("description", &self.description())?;
         s.serialize_field("ops", &self.ops)?;
         s.end()
+    }
+}
+
+pub(crate) fn attach(analysis: &crate::model::Analysis, plan: &mut crate::model::Plan) {
+    use sha2::{Digest, Sha256};
+    // Preview and commit revisit identical settled ink. Reuse only exact input
+    // results, in the planner's existing bounded cache, without another search.
+    static MEMO: crate::planning::BoundedMemo<Vec<crate::model::Problem>> =
+        crate::planning::BoundedMemo::new(64);
+    let key: [u8; 32] = Sha256::digest(
+        serde_json::to_vec(&(&*plan, crate::planning::policy_key(analysis)))
+            .expect("fix inputs serialize"),
+    )
+    .into();
+    if let Some(problems) = MEMO.get(&key) {
+        plan.problems = problems;
+        return;
+    }
+    crate::planning::with(analysis, || attach_inner(analysis, plan));
+    MEMO.insert(key, plan.problems.clone());
+}
+
+/// Add remedies only after selecting the drawing. As with the existing placement
+/// fixes, compatibility and Spec edits are checked; layout effects need preview/apply.
+/// No planner or full preview is invoked to generate a suggestion.
+fn attach_inner(analysis: &crate::model::Analysis, plan: &mut crate::model::Plan) {
+    let relevant = |p: &crate::model::Problem| {
+        matches!(
+            p.code.as_str(),
+            "annotation_leader_crossing"
+                | "extension_through_feature"
+                | "leader_through_feature"
+                | "annotation_overlap"
+                | "annotation_ink_overlap"
+                | "label_centerline_overlap"
+        )
+    };
+    if !plan.problems.iter().any(relevant) {
+        return;
+    }
+    let options = crate::dims::placement_options_with_spec(analysis, &plan.views, &plan.spec);
+    // Reuse schedule eligibility only, without installing or laying out a table.
+    // Always + no pins avoids select's canonical-plan branches.
+    let sheet_remedy = if !crate::placement_intent::has_pins(&plan.spec)
+        && plan.spec.hole_table == crate::hole_table::Setting::Auto
+        && plan.hole_tables.is_empty()
+        && plan.hole_table.is_none()
+        && plan.spec.dimension_source == crate::model::DimensionSource::Auto
+    {
+        let mut table = plan.clone();
+        table.spec.hole_table = crate::hole_table::Setting::Always;
+        let selection = crate::hole_table::select(analysis, &table);
+        crate::layout::SCALES
+            .into_iter()
+            .find(|scale| {
+                *scale < plan.sheet.scale_factor
+                    && *scale >= crate::sheet_fit::min_legible_scale(analysis)
+                    && *scale >= crate::sheets::floor(&plan.spec).unwrap_or(0.0)
+            })
+            .filter(|_| !selection.tables.is_empty())
+            .map(|scale| {
+                let scale = crate::model::scale_name(scale);
+                Fix::new(
+                    format!("Try a hole table at {scale}; preview the sheet-wide result."),
+                    vec![
+                        Op::set("hole_table", serde_json::json!("always")),
+                        Op::set("sheet/scale", serde_json::json!(scale)),
+                    ],
+                )
+            })
+    } else {
+        None
+    };
+    let snapshot = plan.clone();
+    for problem in plan.problems.iter_mut().filter(|p| relevant(p)) {
+        // finish() can run more than once; don't duplicate earlier remedies.
+        if problem
+            .fixes
+            .iter()
+            .any(|f| f.description.ends_with("preview the placement."))
+        {
+            continue;
+        }
+        let old = problem.offered_fixes();
+        let mut local = Vec::new();
+        // Keep existing annotation/pin remedies; otherwise validate compatible item
+        // placements with the existing ink checks, never a full sheet preview.
+        if (problem.fix.is_empty()
+            || problem
+                .subjects
+                .first()
+                .is_some_and(|id| plan.dimensions.iter().any(|d| &d.id == id)))
+            && let Some(fix) =
+                crate::dims::local_placement_fix(analysis, &snapshot, problem, &options)
+        {
+            local.push(fix);
+        }
+        if local.is_empty() {
+            local.extend(old);
+        } else {
+            local.extend(old.into_iter().filter(|f| f.scope() != Scope::Local));
+        }
+        if let Some(fix) = &sheet_remedy {
+            local.push(fix.clone());
+        }
+        let mut unique = Vec::<Fix>::new();
+        for fix in local {
+            if !unique.iter().any(|f| f.ops == fix.ops) {
+                unique.push(fix);
+            }
+        }
+        unique.sort_by_key(Fix::scope);
+        if let Some(fix) = unique.first() {
+            problem.fix = fix.ops.clone();
+        }
+        problem.fixes = unique;
     }
 }
 
@@ -187,6 +346,7 @@ mod tests {
         assert!(description.contains("Re-plans the sheet"));
         assert!(description.contains("hole table always") && description.contains("1:10"));
         let reread: Problem = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(p, reread);
         assert_eq!(serde_json::to_value(reread).unwrap(), wire);
         let understated: Fix = serde_json::from_value(serde_json::json!({
             "scope":"local", "description":"Change paper", "ops":[{"op":"set","path":"sheet/size","value":"A3"}]
@@ -256,6 +416,35 @@ mod tests {
                 Op::remove("views/front/omit"),
                 Op::remove("views/side/omit")
             ]),
+            Sheet
+        );
+        assert_eq!(
+            scope(&[Op::set("views/iso", serde_json::json!({"sheet":2}))]),
+            Sheet
+        );
+        assert_eq!(
+            scope(&[Op::set(
+                "views/detail_a",
+                serde_json::json!({"detail":{"around":"f:hole:1","scale_factor":2}})
+            )]),
+            View
+        );
+        assert_eq!(
+            scope(&[Op::set(
+                "dimensions/d",
+                serde_json::json!({"place":{"lane":1},"omit":false})
+            )]),
+            Local
+        );
+        assert_eq!(
+            scope(&[Op::set(
+                "dimensions/d",
+                serde_json::json!({"new_field":true})
+            )]),
+            Sheet
+        );
+        assert_eq!(
+            scope(&[Op::set("dimensions", serde_json::json!({"d":{}}))]),
             Sheet
         );
         assert_eq!(scope(&[]), Sheet);

@@ -729,7 +729,7 @@ pub struct Cut {
     pub marked_in: String,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize)]
 pub struct Problem {
     pub id: String,
     pub code: String,
@@ -754,6 +754,17 @@ pub struct Problem {
     pub fixes: Vec<crate::fixes::Fix>,
 }
 
+impl PartialEq for Problem {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.code == other.code
+            && self.severity == other.severity
+            && self.message == other.message
+            && self.subjects == other.subjects
+            && self.refs == other.refs
+            && self.offered_fixes() == other.offered_fixes()
+    }
+}
 impl Problem {
     pub fn offered_fixes(&self) -> Vec<crate::fixes::Fix> {
         let mut fixes = self.fixes.clone();
@@ -3332,6 +3343,7 @@ pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
             }
         }
     }
+    crate::fixes::attach(analysis, &mut plan);
     Ok(plan)
 }
 
@@ -3750,6 +3762,7 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         if !crate::placement_intent::has_pins(spec) {
             plan.record_dimension_labels();
         }
+        crate::fixes::attach(analysis, &mut plan);
         Ok(plan)
     })
 }

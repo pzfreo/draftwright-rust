@@ -1542,12 +1542,12 @@ fn scoped_fields(mut fields: BTreeMap<String, Value>) -> BTreeMap<String, Value>
         let scope = descriptor["paths"]
             .as_array()
             .map(|paths| {
-                paths
+                let ops: Vec<_> = paths
                     .iter()
                     .filter_map(Value::as_str)
-                    .map(crate::fixes::path_scope)
-                    .max()
-                    .unwrap_or(crate::fixes::Scope::Sheet)
+                    .map(|path| Op::set(path, Value::Null))
+                    .collect();
+                crate::fixes::scope(&ops)
             })
             .unwrap_or_else(|| crate::fixes::path_scope(path));
         descriptor["scope"] = serde_json::to_value(scope).unwrap();

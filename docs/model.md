@@ -925,17 +925,20 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   preferred operation bundle for older clients. Alternatives are ordered `local`, `view`,
   then `sheet`. Scope comes only from the Spec paths in the operations, using the table in
   `src/fixes.rs`; a bundle takes its broadest scope, edits to multiple item/view owners are `sheet`, and
-  unknown paths default to `sheet`.
+  unknown paths default to `sheet`. Object-valued edits include their nested Spec paths;
+  replacing a whole collection retains its conservative sheet scope.
   `local` edits one item's placement, side, lane, along, offset, text, style, omission or
   tolerance. `view` edits a view's placement, scale or omission, or adds/removes a detail or
   section. `sheet` edits paper, sheet scale/count/allocation, hole-table selection,
   dimension source/schemes, PMI mode, or other drawing-wide intent. Sheet descriptions
   explicitly say “Re-plans the sheet” and name the effect. Scope describes authored intent;
   it is not a guarantee that the solver keeps every other item stationary.
-  Placement remedies use existing compatible placements and remain candidates for
-  preview/apply, just like the existing placement fixes; generating them performs no full
-  preview and changes no ink. Lint's prose `fix` advice remains advice, rather than an
-  executable Spec operation bundle. The Plan, Session, MCP and WASM JSON expose the same
+  New crossing/label remedies use existing compatible placements, checked against the
+  settled ink with the existing collision predicates; they remain candidates for preview/apply
+  because applying intent may re-space peers. Generating them performs no full preview and
+  changes no ink. Eligible hole schedules can be offered at the next legible ISO sheet scale
+  as an explicit sheet alternative after local remedies. Lint's prose `fix` advice has no Spec operations, so it carries conservative `scope: sheet`
+  and an explicit `fix_description`; the original `fix` text remains available for older clients. The Plan, Session, MCP and WASM JSON expose the same
   scoped alternatives. Session item/options `operation_scopes` maps operation names to scope,
   and every `settable` descriptor has `scope` (the broadest scope of its `paths`, if grouped).
 - **A problem's message is in drawing language** (#24; `src/wording.rs`): it names a dimension
