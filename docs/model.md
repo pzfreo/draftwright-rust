@@ -267,7 +267,7 @@ mention takes its default.
 
 The design also includes `views/sections` (for example `"sections": [{"id": "A", "through": "f:hole:3"}]`). Feature `anchor` is read for recognition corrections, below; a feature's `note` is read since K1b (below).
 
-- **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`),
+- **Fields read:** `sheet` (`size`, `scale`, `preferred_printer`, `title`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`),
   `iso_scale_factor`, `dimension_source`, `dimension_schemes/<name>` (`scheme`, `axis`, `targets`, `view`, `from`), `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `fit`, `text`, `style`, `place`, `kind`, `between`, `along`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`, `text` for prose callouts and automatic notes), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`, `anchor`, `reclassify`, `suppress`, `split`, `pattern`), `feature_declarations`,
   `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
@@ -500,18 +500,24 @@ not relax safety margins or change sheet-size, scale, detail, fit or datum polic
 
 #### Sheet allocation (R5, Stage I)
 
-`sheets.max` allows 1–9 sheets. An explicit count is binding. With no count,
-the normal search starts with one sheet; a small part with no valid complete A4/A3
-single-sheet drawing tries R5 allocation on A4/A3 before A2 or larger (up to the
-existing nine-sheet bound). Named paper keeps the original default of one.
-See the [R5 small-part amendment](adr/R5-multi-sheet.md#small-part-overflow-amendment-2026-10-16). `sheets.smallest_scale` is an ISO
-5455 scale floor, `keep_together` is a list of groups of view names (also allowing
-`hole_table`), `hole_table` assigns a rescue hole table if escalation actually makes
-one, and `gdt_on_sheet_1` records that requirement. A hole-table assignment does not
-request or force a table. Existing per-view legibility schedules remain on sheet 1.
-`views/<name>/sheet` assigns an auxiliary view; principal views accept only 1.
-`tables/<index>/sheet` assigns a corner table. All sheets share the first sheet's
-paper size, title and drawing number.
+Automatic paper is screen first, print second: plan today's automatic baseline once,
+then prefer a clean A4 drawing. `sheet/preferred_printer` is the largest available
+printer, `"A4"` (default) or `"A3"`; other values are refused. A4 printers try one A4,
+up to two A4 sheets, then one A3. A3 printers try one A4, one A3, then A3 overflow
+(up to nine sheets). The first passing candidate wins; otherwise keep the baseline.
+A baseline already equal to or better than the next request ends the search.
+Outline footprints at the readability floor cheaply rule out impossible paper sizes.
+Forced candidates use the ordinary explicit-paper scale choice and R5 allocation.
+New layout/readability problems reject a candidate; baseline problems with the same
+code and subjects are tolerated. `Plan.sheet_candidates` records trials and
+`sheet.basis` explains the choice. Explicit `sheet/size`, `sheet/scale`, or
+`sheets.max` keeps the established planner unchanged.
+
+`sheets.max` allows 1–9 sheets. `sheets.smallest_scale` is an ISO 5455 floor,
+`keep_together` groups view names (also `hole_table`), `hole_table` assigns a rescue
+table if one is made, and `gdt_on_sheet_1` records that requirement.
+`views/<name>/sheet` assigns auxiliaries; principals accept only 1.
+`tables/<index>/sheet` assigns a corner table. All sheets share paper, title and number.
 
 An assignment must be within `1..sheets.max`, must agree with its keep-together
 group, and must put a view with `place.relative_to` on its anchor's sheet. Those
@@ -521,31 +527,8 @@ an explicit sheet assignment remains possible for an auxiliary group. A stated
 scale or lower the floor. List-index edits are supported only for
 `tables/<index>/sheet`, with `set` and `remove`.
 
-The [2026-10-16 audit](second-sheet-audit.csv) lists all 68 small A2+ cases found
-among 2,150 native default/spec cases over 190 corpus and fixture STEP inputs
-(baseline `53aa9f3f`, origin/main at the start of the change). All 63 source hashes
-in the captured single-sheet spec fixture are covered. Three selections
-improved: 10224 and 10255 use one A3 sheet at 2:1 after measured section
-correction; GRM-03's fixed 10:1 spec fits one A3. The
-[follow-up review](second-sheet-review.md) records the original candidate failures,
-auxiliary-page composition and references checked against drawn target positions.
-The 44 named large-paper requests stay as authored. Every other small
-large-paper case records both failed practical-paper allocations. The report's
-required-drop count includes unreadably crowded location dimensions. When no
-allocation prefix is clean, the reported best step may be the original one-sheet
-step; each audit's `audit.json` retains every paper/scale and moved-prefix trial.
-All 742 cases whose full-size views need larger paper retain their size, scale
-and count.
-
-Run `cargo run --release --example sheet_policy_audit -- CORPUS OUT` against each
-revision, then `python3 -I tools/compare_sheet_policy.py BEFORE/audit.json
-AFTER/audit.json OUT` to reproduce the case table and the unchanged-large-part gate.
-
-Without sheet controls a valid single A4/A3 drawing keeps the existing planner path.
-A floor alone enters the existing recovery. With `sheets.max > 1`, each allocation
-prefix uses the existing finished-sheet recovery with the floor, including table
-recovery. There are at most four prefixes; H6's exhaustive selection supersedes
-R5's older six-retry estimate. Larger paper is tried before moving auxiliary content.
+With `sheets.max > 1`, each allocation prefix uses the existing finished-sheet
+recovery, including table recovery. Larger paper is tried before moving auxiliary content.
 The cumulative overflow order is isometric, section A–A, then a rescue hole table
 withdrawn for lack of table room. Assigned content moves first; a group containing a
 principal or a placement pin does not move automatically. Sections that fit stay
@@ -917,8 +900,9 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
 - **Nothing the plan approves vanishes silently.** An item that can't be drawn is reported
   against its ID, never dropped. This is carried over from the Python version's ADR 4
   invariant 9.
-- **Automatic sheet and scale are chosen on finished drawings** (maintainer, 2026-10-12,
-  H6; `model::plan_recovered` / `model::recover`, policy in `sheet_fit::choose`). Each
+- **The baseline and explicit-paper scale are chosen on finished drawings** (maintainer, 2026-10-12,
+  H6; `model::plan_recovered` / `model::recover`, policy in `sheet_fit::choose`).
+  The A4-first policy above wraps this baseline search. Each
   standard sheet and scale at or above the legibility floor is planned and judged. A
   candidate is valid and complete when it has no hard layout finding, its drawn items and
   views fit inside the border and off the title block, it drops or loses no measurement

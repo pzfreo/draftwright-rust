@@ -1461,6 +1461,10 @@ fn settable(
             choices(json!(crate::layout::PAGES.map(|p| p.0))),
         );
         fields.insert(
+            "sheet/preferred_printer".into(),
+            choices(json!(["A4", "A3"])),
+        );
+        fields.insert(
             "sheet/scale".into(),
             choices(json!(crate::layout::SCALES.map(model::scale_name))),
         );

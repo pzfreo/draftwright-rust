@@ -53,6 +53,7 @@ mod nominal;
 mod notches;
 mod oriented_chamfers;
 mod planning;
+pub mod sheet_policy;
 mod view_gutters;
 
 pub mod iso_caption;
