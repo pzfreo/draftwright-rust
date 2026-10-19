@@ -2173,6 +2173,10 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                 })
                 .collect::<Vec<_>>()
                 .join(" ");
+            // A source-carrying callout remains drawn. Its size is not repeated by
+            // the generated schedule; rows add only the missing coordinates.
+            let source_callout =
+                d.placed.is_some() && d.measurements.iter().any(|m| m.feature.starts_with("pmi:"));
             for f in bores(d) {
                 let h = &read[f];
                 let mut measurements: Vec<_> = d
@@ -2181,7 +2185,17 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                     .filter(|m| m.feature == f)
                     .cloned()
                     .collect();
-                let mut cells = vec![String::new(), label.clone()];
+                if source_callout {
+                    measurements.clear();
+                }
+                let mut cells = vec![
+                    String::new(),
+                    if source_callout {
+                        String::new()
+                    } else {
+                        label.clone()
+                    },
+                ];
                 for &k in &axes {
                     let parameter = format!("location.length.{}", ["x", "y", "z"][k]);
                     if source_locations.contains(&(f.to_string(), k)) {
@@ -2233,7 +2247,7 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                 });
             }
             // A pin keeps its complete callout. The row is additive for that item.
-            // Semantic PMI keeps its source-carrying callout; the schedule is additive for it.
+            // Semantic PMI keeps its source-carrying callout; the schedule adds coordinates.
             // Its lowering/reporting contract follows that native owner, as pins follow theirs.
             let semantic = d.measurements.iter().any(|m| m.feature.starts_with("pmi:"));
             let authored_size = plan.spec.hole_table == Setting::Auto
