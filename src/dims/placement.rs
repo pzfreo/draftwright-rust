@@ -3452,6 +3452,116 @@ pub(super) fn relabel(held: &Placed, was: &[String], w: &Want) -> Placed {
     p
 }
 
+/// Pin a linear label relative to the canonical ink transported into this view.
+/// Keep measured stations fixed and rebuild each witness towards the new line independently.
+pub(super) fn offset_intent(
+    frame: &Frame,
+    w: &Want,
+    offset: P2,
+    held: Option<(&Placed, &[String])>,
+) -> Option<Placed> {
+    let (held, terms) = held?;
+    let mut p = relabel(held, terms, w);
+    if offset.iter().all(|v| v.abs() < 1e-6) {
+        return Some(p);
+    }
+    let radians = p.rotation.to_radians();
+    let u = match p.rotation {
+        0.0 => [1.0, 0.0],
+        90.0 => [0.0, 1.0],
+        _ => [radians.cos(), radians.sin()],
+    };
+    let n = [-u[1], u[0]];
+    let dot = |a: P2, b: P2| a[0] * b[0] + a[1] * b[1];
+    let shift = dot(offset, n);
+    let line = *p.lines.get(2)?;
+    let height = dot(line[0], n) + shift;
+    let move_to = |a: P2, h: f64| [0, 1].map(|k| a[k] + (h - dot(a, n)) * n[k]);
+    // Linear edge endpoints are silhouette stations. Choose the nearest of the two
+    // feature edges, allowing a witness to approach an interior line from either side.
+    let sources = match &w.shape {
+        Shape::Linear {
+            a,
+            b,
+            a_edge,
+            b_edge,
+            ..
+        } => {
+            let k = usize::from(p.rotation == 0.0);
+            let target = move_to(line[0], height)[k];
+            [(*a, *a_edge), (*b, *b_edge)].map(|(a, edge)| {
+                let mut a = frame.page(a);
+                if edge {
+                    let o = frame.outline();
+                    a[k] = if (target - o[k]).abs() <= (target - o[k + 2]).abs() {
+                        o[k]
+                    } else {
+                        o[k + 2]
+                    };
+                }
+                a
+            })
+        }
+        Shape::Aligned { a, b } => {
+            let mut sources = [frame.page(*a), frame.page(*b)];
+            sources.sort_by(|a, b| dot(*a, u).total_cmp(&dot(*b, u)));
+            sources
+        }
+        _ => return None,
+    };
+    p.lines.truncate(3);
+    for (i, source) in sources.into_iter().enumerate() {
+        let out = if height >= dot(source, n) { 1.0 } else { -1.0 };
+        p.lines[i] = [
+            move_to(source, dot(source, n) + out * GAP),
+            move_to(source, height + out * OVERSHOOT),
+        ];
+    }
+    // The anchor is the canonical label origin, independent of wording edits.
+    p.label_at = [held.label_at[0] + offset[0], held.label_at[1] + offset[1]];
+    let ink = label_ink(&w.terms, font());
+    p.label_box = label_box(&ink, p.label_at, p.rotation);
+    let mut tips = sources.map(|source| move_to(source, height));
+    tips.sort_by(|a, b| dot(*a, u).total_cmp(&dot(*b, u)));
+    let [lo, hi] = tips.map(|t| dot(t, u));
+    let text_lo = dot(p.label_at, u) + ink.min[0];
+    let text_hi = dot(p.label_at, u) + ink.max[0];
+    let outside = text_lo < lo + ARROW + SLIDE_CLEAR || text_hi > hi - ARROW - SLIDE_CLEAR;
+    let along = |a: P2, d: f64| [0, 1].map(|k| a[k] + d * u[k]);
+    p.arrows = if outside {
+        vec![
+            arrow(tips[0], along(tips[0], -1.0)),
+            arrow(tips[1], along(tips[1], 1.0)),
+        ]
+    } else {
+        vec![
+            arrow(tips[0], along(tips[0], 1.0)),
+            arrow(tips[1], along(tips[1], -1.0)),
+        ]
+    };
+    let extent = if outside {
+        [
+            if text_hi < lo {
+                (lo - ARROW - 0.5).min(text_hi + 0.5)
+            } else {
+                lo - ARROW - 0.5
+            },
+            if text_lo > hi {
+                (hi + ARROW + 0.5).max(text_lo - 0.5)
+            } else {
+                hi + ARROW + 0.5
+            },
+        ]
+    } else {
+        [lo, hi]
+    };
+    p.lines[2] = [
+        along(tips[0], extent[0] - lo),
+        along(tips[1], extent[1] - hi),
+    ];
+    Some(p)
+}
+
 /// Resolve intent independently of the other annotations, then let the solver fill around it.
 pub(super) fn intent(
     frame: &Frame,

@@ -2546,11 +2546,37 @@ fn plan_inventory_ordered(
             .get(&w.id)
             .and_then(|e| e.place.as_ref())
             .is_some_and(|p| p.offset.is_some())
-            && !matches!(w.shape, Shape::Callout { .. })
+            && !matches!(
+                w.shape,
+                Shape::Callout { .. } | Shape::Linear { .. } | Shape::Aligned { .. }
+            )
         {
             return Err(Invalid {
-                message: format!("The placement offset of {} applies only to callouts.", w.id),
+                message: format!(
+                    "The placement offset of {} applies only to callouts and linear dimensions.",
+                    w.id
+                ),
                 choices: vec!["side".into(), "lane".into(), "along".into()],
+            });
+        }
+        if spec
+            .dimensions
+            .get(&w.id)
+            .and_then(|e| e.place.as_ref())
+            .is_some_and(|p| p.offset.is_some())
+            && matches!(w.shape, Shape::Linear { .. } | Shape::Aligned { .. })
+            && !held.iter().any(|d| {
+                d.id == w.id
+                    && d.placed.is_some()
+                    && chosen[i].is_some_and(|v| d.view == format!("v:{v}"))
+            })
+        {
+            return Err(Invalid {
+                message: format!(
+                    "{} has no automatic linear placement in the requested view",
+                    w.id
+                ),
+                choices: vec![],
             });
         }
         if let Some(p) = spec.dimensions.get(&w.id).and_then(|e| e.place.as_ref())
@@ -2588,7 +2614,11 @@ fn plan_inventory_ordered(
                     .iter()
                     .find(|d| d.id == w.id && d.view == format!("v:{v}"))
                     .and_then(|d| Some((d.placed.as_ref()?, d.terms.as_slice())));
-                return leaders::offset_intent(&frames[v], w, offset, held);
+                return if matches!(w.shape, Shape::Callout { .. }) {
+                    leaders::offset_intent(&frames[v], w, offset, held)
+                } else {
+                    placement::offset_intent(&frames[v], w, offset, held)
+                };
             }
             if crate::placement_intent::automatic_pin(p)
                 && let Some(d) = held

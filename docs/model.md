@@ -680,7 +680,7 @@ scheme entry and session options describe its forms.
 #### Placement (`place`, S3)
 
 Dimensions (linear dimensions and callouts, including holes, fillets and chamfers) and PMI
-frames, datum symbols and labels share `{view?, side?, lane?, along?, pinned?}`; callouts
+frames, datum symbols and labels share `{view?, side?, lane?, along?, pinned?}`; callouts and linear dimensions
 also take `offset` (below):
 
 | Field | Meaning |
@@ -689,8 +689,8 @@ also take `offset` (below):
 | `side` | `above`, `below`, `left` or `right` of the carrying view's projected envelope. A linear dimension uses the two sides parallel to its measured span; incompatible sides are refused with the choices. |
 | `lane` | Zero-based order out from the view, 0–1000. Linear lanes use the existing paper spacing; callout columns on the left/right use the widest canonical label on that view plus shoulder and clearance, so labels at the same along position have distinct columns; PMI tiers use their glyph's size and clearance. Without strip/label fields a pin keeps the automatic ink. For an explicit strip placement, an omitted lane uses the automatic linear lane or the nearest PMI tier. |
 | `along` | A fraction 0–1, or `start`, `middle`, `end`, `outside` (1.25). A linear label is centred at that fraction of its witness span; at `outside` it sits just past the line's far end, the dimension line run on to it, as a span too short for its label has it (#32: 1.25 of a long span stranded the text). Leadered labels use that fraction of the view's extent along the strip, keeping their original feature attachment. |
-| `offset` | Callouts only: `[dx, dy]`, each within ±1000 paper mm (y up), the bend's offset from the callout's automatic leader tip. Requires `pinned: true` and excludes `side`, `lane` and `along`. |
-| `pinned` | Defaults to false. True fixes the resolved geometry before automatic layout; without side, lane or along it keeps the canonical automatic ink (its lines and arrows; a label whose own text changes, such as a new tolerance, is re-set from its current text, centred where the old one was, or for a callout from the end of its shoulder); a free item can be adjusted around obstacles. |
+| `offset` | `[dx, dy]`, each within ±1000 paper mm (y up): a callout bend from its automatic leader tip, or a linear label from its canonical automatic label position. Requires `pinned: true` and excludes `side`, `lane` and `along`. |
+| `pinned` | Defaults to false. True fixes the resolved geometry before automatic layout; without side, lane, along or offset it keeps the canonical automatic ink (its lines and arrows; a label whose own text changes, such as a new tolerance, is re-set from its current text, centred where the old one was, or for a callout from the end of its shoulder); a free item can be adjusted around obstacles. |
 
 An unpinned callout with only `side` (and optionally `view`) keeps participating in the
 shared leader solve. Its candidates stay on that side, its printed label reserves paper space
@@ -718,6 +718,19 @@ leader (no automatic placement, e.g. a pattern given by a hole table) has no tip
 offset is taken from the callout's first site centre in that view and the leader goes to the
 nearest site; `callout_offset` reports only the canonical view and refuses the callout there. The bend and label are never slid; a crossing is the
 `leader_through_feature` warning above, and a label over the view is `annotation_over_view`.
+
+For a linear dimension, `offset` is the displacement of its label origin from the canonical
+plan's automatic label origin, in paper mm (y up). Both positions travel with the carrying
+view's origin. `[0, 0]` pins the automatic ink as a bare pin. The perpendicular component moves
+the dimension line; each witness extends or shortens towards it from its own feature, so the
+line can lie inside the view, between feature edges. The parallel component moves the text
+along the line. Text outside the witnesses gets outside arrows and a dimension-line run-on,
+using the existing text settlement clearances. Measured stations and values never change.
+This also applies to automatic ladder rungs and authored baseline, chain and ordinate members,
+and to aligned linear spans. The canonical placement must be drawn in the requested view;
+an offset into another carrier view is refused. Pins are obstacles for the free solvers and
+are never slid to avoid collisions; existing problems such as `annotation_over_view` report
+conflicts. `offset` cannot be combined with `side`, `lane` or `along`, and requires `pinned: true`.
 
 Existing angular PMI keeps its measured sector: `lane` increases the radius in paper steps and
 `along` selects a fraction of its arc. A requested `side` is reported as
@@ -2134,8 +2147,19 @@ callout exactly where it is. `tip` is kept relative to its view's origin, so it 
 frame as the drawn bend after packing moves views. It reads planning metadata only and refuses
 non-callouts, a callout drawn without a leader, and one pinned into a non-canonical view. Editors with their own Plan read the same tip with
 `plan.automatic_callout_tip(id) -> Option<(view, [x, y])>` (`None` on a deserialised Plan).
-These Rust session queries are available to editor bindings; they add no MCP tool or
-JSON-lines operation.
+For linear dimensions, `Session::label_offset(address)` returns
+`LabelOffset { view, anchor, label, offset }`, all coordinates in paper mm (y up). `anchor` is
+the canonical automatic label origin transported with the current view; `label` is the label
+origin as drawn now, and `offset = label - anchor`. Pin a drop at `p` with
+`{"offset": p - anchor, "pinned": true}`. The returned offset reproduces the current position;
+for an automatic dimension it is zero. The query performs no planning or projection and
+refuses non-linear items, missing automatic placements and items not drawn in the canonical
+view. `plan.automatic_dimension_label(id)` reads the retained anchor (`None` after Plan
+deserialisation).
+
+The WASM Engine exposes these live queries as `calloutOffset(address)` and `labelOffset(address)`;
+use them when the editor holds a deserialised Plan. Both return JSON strings and preserve the
+session's API refusals. They add no MCP tool or JSON-lines operation.
 
 Editors that keep their own session can call public
 `dims::label_rows(&analysis, view, width)` directly. Pass the greater of the
