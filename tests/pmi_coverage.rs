@@ -379,7 +379,8 @@ fn severity(i: &LintIssue) -> String {
 }
 
 /// The alpha 1 gate on *file*: every record of the reading is drawn (an annotation names or
-/// claims its item ID, `pmi:<identity>`) or reported by lint as not lowered or not rendered, never both; every
+/// claims its item ID, `pmi:<identity>`) or reported by lint as not lowered or not rendered,
+/// never both; explicit no-requirement values instead stay read as info without either. Every
 /// source not read, or read in part, is reported as not extracted, unless it is drawn (a material
 /// the title block states), never both.
 fn gate(file: &str, a: &Analysis, drawing: &Drawing, found: &[LintIssue]) {
@@ -401,6 +402,29 @@ fn gate(file: &str, a: &Analysis, drawing: &Drawing, found: &[LintIssue]) {
             .any(|x| x.name == name || x.claims.iter().any(|c| c.feature == name));
         let said =
             reported("pmi_not_lowered", &r.source_id) || reported("pmi_not_rendered", &r.source_id);
+        // Explicit absence is read information, not a missing drawing requirement. Check
+        // the value independently of lowering and require its extracted informational source.
+        if r.category == Category::ManufacturingRequirement
+            && r.blockers.is_empty()
+            && matches!(
+                r.kind.as_str(),
+                "general_note" | "surface_treatment" | "heat_treatment" | "edge_condition"
+            )
+            && matches!(
+                r.label.trim().to_ascii_lowercase().as_str(),
+                "" | "none" | "n/a" | "na" | "-"
+            )
+        {
+            let source = report.sources.iter().find(|s| s.id == r.source_id).unwrap();
+            assert_eq!(source.outcome, Outcome::Extracted);
+            assert!(source.reason.starts_with("info: no requirement stated"));
+            assert!(
+                !on_sheet && !said,
+                "{file}: {} needs neither ink nor a failure finding",
+                r.source_id
+            );
+            continue;
+        }
         assert!(
             on_sheet != said,
             "{file}: {} is drawn ({on_sheet}) or reported ({said}), not both",
