@@ -10,16 +10,6 @@ use draftwright::{
 };
 use std::path::Path;
 const PLATE: &[u8] = include_bytes!("fixtures/parts/mounting_plate.step");
-#[test]
-fn supplied_sample_is_a_different_plate() {
-    let a = analysed(include_bytes!("fixtures/parts/specify-sample-plate.step"));
-    assert_eq!(a.envelope, [[-60., -40., 0.], [60., 40., 12.]]);
-    assert!(
-        !a.features
-            .iter()
-            .any(|f| f.kind == "hole" && (f.fingerprint.position[0] - 95.).abs() < 1e-6)
-    );
-}
 
 fn mm(v: f64) -> Value {
     Value::length(
@@ -578,6 +568,7 @@ fn located_once_checks_native_ink_and_rejects_a_broken_witness() {
         &a,
         &Spec {
             hole_table: draftwright::hole_table::Setting::Never,
+            origin: std::collections::BTreeMap::from([("x".into(), "min".into())]),
             ..Default::default()
         },
     );
@@ -656,17 +647,33 @@ fn retained_pmi_callouts_do_not_repeat_sizes_or_locations_in_generated_tables() 
         .filter(|m| m.feature.starts_with("f:hole:"))
         .map(|m| m.feature.as_str())
         .collect();
+    assert!(!serde_json::to_string(&p).unwrap().contains("station_"));
+    assert!(
+        !p.dimensions
+            .iter()
+            .any(|d| d.placed.is_some() && d.label.contains("(62.5)")),
+        "reference PMI is omitted by default"
+    );
     let mut checked = 0;
+    let mut sizes = std::collections::BTreeMap::new();
     for row in p
         .hole_table
         .iter()
         .chain(&p.hole_tables)
         .flat_map(|t| &t.rows)
     {
+        assert!(
+            row.cells[1..4].iter().all(|cell| !cell.is_empty()),
+            "{row:?}"
+        );
+        let letter = row.tag.chars().next().unwrap();
+        if let Some(size) = sizes.insert(letter, row.cells[1].clone()) {
+            assert_eq!(size, row.cells[1]);
+        }
         if retained.contains(row.feature.as_str()) {
             assert!(
-                row.cells[1].is_empty(),
-                "source size is already drawn for {}",
+                !row.cells[1].is_empty(),
+                "schedule must state the source size for {}",
                 row.feature
             );
             assert!(

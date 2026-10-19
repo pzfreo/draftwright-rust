@@ -307,7 +307,6 @@ pub(crate) fn consolidate(
             || !dimensions[i]
                 .measurements
                 .iter()
-                .filter(|m| !m.feature.starts_with("station_"))
                 .all(|m| m.parameter == "blend.radius")
             || overridden(spec, given, &dimensions[i].id)
         {
@@ -317,7 +316,6 @@ pub(crate) fn consolidate(
             d.placed.is_some()
                 && d.measurements
                     .iter()
-                    .filter(|m| !m.feature.starts_with("station_"))
                     .all(|m| m.parameter == "fillet.radius")
                 && !d.measurements.is_empty()
                 && fmt(d.value) == fmt(dimensions[i].value)
@@ -372,7 +370,6 @@ pub(crate) fn cover_fillets(
                 && !d.measurements.is_empty()
                 && d.measurements
                     .iter()
-                    .filter(|m| !m.feature.starts_with("station_"))
                     .all(|m| m.parameter == "fillet.radius")
                 && fmt(d.value) == fmt(value)
                 && !overridden(spec, given, &d.id)
@@ -510,10 +507,7 @@ pub(crate) fn tabulate_obstructed(
         for d in dimensions.iter().filter(|d| {
             d.placed.is_some()
                 && d.measurements.len() > 1
-                && d.measurements
-                    .iter()
-                    .filter(|m| !m.feature.starts_with("station_"))
-                    .all(|m| m.parameter == "blend.radius")
+                && d.measurements.iter().all(|m| m.parameter == "blend.radius")
         }) {
             *counted_by_view.entry(&d.view).or_default() += 1;
         }
@@ -523,11 +517,7 @@ pub(crate) fn tabulate_obstructed(
     for (i, d) in dimensions.iter().enumerate() {
         if d.placed.is_none()
             || d.measurements.is_empty()
-            || !d
-                .measurements
-                .iter()
-                .filter(|m| !m.feature.starts_with("station_"))
-                .all(|m| m.parameter == "blend.radius")
+            || !d.measurements.iter().all(|m| m.parameter == "blend.radius")
             || spec.precision.contains_key(&d.id)
             || d.measurements.iter().any(|m| {
                 spec.precision

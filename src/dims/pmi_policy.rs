@@ -216,24 +216,7 @@ fn located_by(
     if !carries(a) {
         return BTreeMap::new();
     }
-    let marks: Vec<_> = p
-        .dimensions
-        .iter()
-        .filter(|d| d.placed.is_some() && !d.reference && include(d))
-        .map(|d| crate::lint::Mark {
-            name: d.id.clone(),
-            view: Some(d.view.clone()),
-            text: d.label.clone(),
-            claims: d
-                .measurements
-                .iter()
-                .map(|m| crate::output::Claim {
-                    feature: m.feature.clone(),
-                    parameter: m.parameter.clone(),
-                })
-                .collect(),
-        })
-        .collect();
+    let marks = dimension_marks(a, p, include);
     let edges = location::edges(a, &marks);
     let roots = location::drawing_roots(a, &marks);
     a.features
@@ -254,8 +237,10 @@ fn located_by(
 }
 
 pub(super) fn origins(a: &Analysis, s: &Spec, wants: &mut [Want]) -> Vec<Problem> {
+    if !carries(a) && s.origin.is_empty() {
+        return Vec::new();
+    }
     let (selected, mut problems) = selected_origins(a, s);
-    let graph = carries(a) || !s.origin.is_empty();
     for w in wants {
         if let Shape::Linear {
             a: p,
@@ -284,23 +269,6 @@ pub(super) fn origins(a: &Analysis, s: &Spec, wants: &mut [Want]) -> Vec<Problem
                         message:"A feature lies on the selected datum; its location has no nonzero distance to draw.".into(),
                         subjects:w.measurements.iter().filter(|m|a.features.iter().any(|f|f.id==m.feature)).map(|m|m.feature.clone()).collect(),..Default::default()});
                 }
-                if let Some(reference) = s.origin.get(AXES[*k]) {
-                    w.measurements.push(Measurement {
-                        feature: format!("station_origin:{k}|{reference}"),
-                        parameter: "origin".into(),
-                        value: *v,
-                    });
-                }
-            }
-            if graph {
-                let spans = raw_spans(a, w);
-                for e in spans {
-                    w.measurements.push(Measurement {
-                        feature: location::span_claim(e.axis, e.a, e.b),
-                        parameter: "station.distance".into(),
-                        value: (e.b - e.a).abs(),
-                    });
-                }
             }
         }
     }
@@ -310,26 +278,6 @@ pub(super) fn origins(a: &Analysis, s: &Spec, wants: &mut [Want]) -> Vec<Problem
 pub(super) fn on_origin(w: &Want) -> bool {
     matches!(&w.shape,Shape::Linear{a,b,axis,..} if (a[*axis]-b[*axis]).abs()<1e-9)
         && w.measurements.iter().any(|m| location_role(&m.parameter))
-}
-
-/// Capture all drawn physical constraints, including dimensions added by authored schemes.
-pub(super) fn annotate(a: &Analysis, s: &Spec, wants: &mut [Want]) {
-    if !carries(a) && s.origin.is_empty() {
-        return;
-    }
-    for w in wants {
-        let edges = raw_spans(a, w);
-        for e in edges {
-            let feature = location::span_claim(e.axis, e.a, e.b);
-            if !w.measurements.iter().any(|m| m.feature == feature) {
-                w.measurements.push(Measurement {
-                    feature,
-                    parameter: "station.distance".into(),
-                    value: (e.b - e.a).abs(),
-                });
-            }
-        }
-    }
 }
 
 fn spans(a: &Analysis, w: &Want) -> Vec<Edge> {
@@ -485,9 +433,7 @@ pub(super) fn cover(
                 .0
                 .measurements
                 .iter()
-                .filter(|m| {
-                    !m.feature.starts_with("station_span:") && !m.parameter.contains("pitch.length")
-                })
+                .filter(|m| !m.parameter.contains("pitch.length"))
                 .cloned()
                 .collect::<Vec<_>>();
             omitted.push(Omitted {
@@ -583,9 +529,7 @@ pub(super) fn cover(
                 .0
                 .measurements
                 .iter()
-                .filter(|m| {
-                    !m.feature.starts_with("station_span:") && !m.parameter.contains("pitch.length")
-                })
+                .filter(|m| !m.parameter.contains("pitch.length"))
                 .cloned()
                 .collect();
             if let Some(j) = kept.iter().position(|(w, ..)| w.id == owner) {
@@ -612,9 +556,7 @@ pub(super) fn cover(
                 .parameter
                 .clone();
             let target = &mut kept[i].0;
-            target.measurements.retain(|m| {
-                !location_role(&m.parameter) && !m.feature.starts_with("station_span:")
-            });
+            target.measurements.retain(|m| !location_role(&m.parameter));
             target
                 .measurements
                 .extend(members.iter().map(|id| Measurement {
@@ -635,7 +577,6 @@ pub(super) fn cover(
                 p[*axis] = origin;
             }
             target.basis += "; only the member axes not already located by PMI";
-            annotate(a, &Spec::default(), std::slice::from_mut(target));
             edges.extend(self::spans(a, target));
         } else {
             edges.extend(spans);
@@ -693,17 +634,21 @@ pub(crate) fn ignore(
 }
 
 pub(crate) fn audit(a: &Analysis, s: &Spec, p: &mut crate::model::Plan) {
-    if PLAN_DEPTH.get() > 1 {
+    if PLAN_DEPTH.get() > 1 || (!carries(a) && s.origin.is_empty()) {
         return;
     }
     crate::planning::with(a, || audit_inner(a, s, p));
 }
 
-fn audit_inner(a: &Analysis, s: &Spec, p: &mut crate::model::Plan) {
+fn dimension_marks(
+    a: &Analysis,
+    p: &crate::model::Plan,
+    include: impl Fn(&PlannedDimension) -> bool,
+) -> Vec<crate::lint::Mark> {
     let mut marks: Vec<_> = p
         .dimensions
         .iter()
-        .filter(|d| d.placed.is_some() && !d.reference)
+        .filter(|d| d.placed.is_some() && !d.reference && include(d))
         .map(|d| crate::lint::Mark {
             name: d.id.clone(),
             view: Some(d.view.clone()),
@@ -721,7 +666,7 @@ fn audit_inner(a: &Analysis, s: &Spec, p: &mut crate::model::Plan) {
     for (mark, d) in marks.iter_mut().zip(
         p.dimensions
             .iter()
-            .filter(|d| d.placed.is_some() && !d.reference),
+            .filter(|d| d.placed.is_some() && !d.reference && include(d)),
     ) {
         if d.kind != "linear" {
             continue;
@@ -754,6 +699,23 @@ fn audit_inner(a: &Analysis, s: &Spec, p: &mut crate::model::Plan) {
             });
         }
     }
+    for (axis, reference) in &p.spec.origin {
+        let k = AXES.iter().position(|v| v == axis).unwrap();
+        marks.push(crate::lint::Mark {
+            name: format!("origin/{axis}"),
+            view: None,
+            text: String::new(),
+            claims: vec![crate::output::Claim {
+                feature: format!("station_origin:{k}|{reference}"),
+                parameter: "origin".into(),
+            }],
+        });
+    }
+    marks
+}
+
+fn audit_inner(a: &Analysis, s: &Spec, p: &mut crate::model::Plan) {
+    let mut marks = dimension_marks(a, p, |_| true);
     // A placed coordinate schedule is a drawn locating network too. Verify its cell value
     // in its declared datum frame, then carry that physical edge to the same shared checker.
     for table in p

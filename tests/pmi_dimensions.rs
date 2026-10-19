@@ -1002,7 +1002,7 @@ fn pmi_heights_from_a_datum_are_drawn_as_a_baseline_not_a_chain() {
                 .unwrap_or_else(|| panic!("datum {keep_datum}: {want} not drawn: {labels:?}"));
             assert!(!d.reference, "{}", d.id);
         }
-        for gone in ["22", "18", "(12)"] {
+        for gone in ["22", "18", "(12)", "12", "34", "52"] {
             assert!(
                 !labels.iter().any(|l| l == gone),
                 "datum {keep_datum}: {gone}: {labels:?}"
@@ -1015,16 +1015,6 @@ fn pmi_heights_from_a_datum_are_drawn_as_a_baseline_not_a_chain() {
                 .any(|d| d.reference || d.label.starts_with('(')),
             "datum {keep_datum}: {labels:?}"
         );
-        for d in plan
-            .dimensions
-            .iter()
-            .filter(|d| ["12", "34", "52"].contains(&d.label.as_str()))
-        {
-            assert!(
-                d.measurements.iter().any(|m| m.feature.starts_with("pmi:")),
-                "generated duplicate: {d:?}"
-            );
-        }
     }
 }
 
@@ -1191,22 +1181,32 @@ fn the_same_part_gives_the_same_plan_and_bytes(stem: &str) {
 /// placed PMI or location dimensions share a label and value (every one of them here runs from
 /// the part's left or front face), and every basic record is claimed by a planned dimension.
 #[test]
-fn pmi_basics_retain_every_authored_statement_and_cover_generated_locations() {
+fn a_span_the_pmi_states_is_drawn_once() {
     let (_, a, plan) = planned("hw_assembly_plate_pin_intent");
-    // Every authored basic remains. Repeated source statements are reported, while the
-    // generated locations and pitches give way to the rooted PMI network.
+    let mut seen = BTreeSet::new();
+    for d in plan
+        .dimensions
+        .iter()
+        .filter(|d| d.placed.is_some() && d.view == "v:plan")
+    {
+        // The PMI dimensions and the default locations; a pitch of the same value spans
+        // something else.
+        if !(d.id.contains("/linear") || d.id.contains("/location.")) {
+            continue;
+        }
+        assert!(
+            seen.insert((d.label.clone(), d.value.to_bits())),
+            "{} repeats {:?} in the plan view",
+            d.id,
+            d.label
+        );
+    }
     let conveyed: Vec<_> = plan
         .omitted
         .iter()
         .filter(|o| o.basis.contains("the part's PMI"))
         .collect();
-    assert!(
-        conveyed.len() >= 3
-            && conveyed
-                .iter()
-                .any(|o| o.basis.contains("rooted location network")),
-        "{conveyed:?}"
-    );
+    assert!(conveyed.len() >= 8, "{conveyed:?}");
     for r in records(&a).iter().filter(|r| r.kind == "linear" && r.basic) {
         assert!(
             stating(&plan, &a, r).is_some(),

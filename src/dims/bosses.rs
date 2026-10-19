@@ -241,7 +241,6 @@ pub(super) fn prefer_established(analysis: &Analysis, wants: &mut [Want]) {
             || !w
                 .measurements
                 .iter()
-                .filter(|m| !m.feature.starts_with("station_"))
                 .all(|m| m.parameter == "boss.diameter")
             || interior.contains(&w.id)
         {
@@ -271,7 +270,6 @@ pub(super) fn route_profile(analysis: &Analysis, w: &mut Want, view: &str) {
         || !w
             .measurements
             .iter()
-            .filter(|m| !m.feature.starts_with("station_"))
             .all(|m| m.parameter == "boss.diameter")
     {
         return;

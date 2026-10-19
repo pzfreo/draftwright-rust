@@ -223,16 +223,21 @@ fn toleranced(text: &str) -> bool {
 }
 
 pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
-    // Station evidence belongs to the rooted check, not the legacy semantic claim ledger.
-    let semantic: Vec<_> = marks
-        .iter()
-        .map(|m| {
-            let mut m = m.clone();
-            m.claims.retain(|c| !c.feature.starts_with("station_"));
-            m
-        })
-        .collect();
-    let marks = &semantic;
+    // Native location ink is local audit evidence, outside the semantic claim ledger.
+    let semantic;
+    let marks = if super::location::active(a, marks) {
+        semantic = marks
+            .iter()
+            .map(|m| {
+                let mut m = m.clone();
+                m.claims.retain(|c| !c.feature.starts_with("station_"));
+                m
+            })
+            .collect::<Vec<_>>();
+        &semantic
+    } else {
+        marks
+    };
     if a.solid_count.is_some_and(|n| n > 1) {
         return Vec::new();
     }
@@ -245,9 +250,6 @@ pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         }
         let mut own_spans = Vec::new();
         for c in &m.claims {
-            if c.feature.starts_with("station_") {
-                continue;
-            }
             let key = (&c.feature, &c.parameter);
             let repeated = claims.insert(key, i).filter(|j| *j != i);
             if let Some(j) = repeated {

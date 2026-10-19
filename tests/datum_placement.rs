@@ -219,6 +219,68 @@ fn planar_datum_stands_on_a_face_extension_line() {
 }
 
 #[test]
+fn cited_spindle_datums_have_separate_attachments_and_short_leaders() {
+    let (_, plan) = spindle();
+    let datum = |letter: &str| {
+        plan.gdt
+            .iter()
+            .find(|g| g.kind == "datum_feature" && g.label == letter)
+            .unwrap()
+    };
+    let (a, b) = (datum("A"), datum("B"));
+    let (pa, pb) = (a.placed.as_ref().unwrap(), b.placed.as_ref().unwrap());
+    let height = pa.label_box[3] - pa.label_box[1];
+    assert!(
+        (pa.tip[0] - pb.tip[0]).hypot(pa.tip[1] - pb.tip[1]) > height,
+        "{pa:?} / {pb:?}"
+    );
+    let length: f64 = pb
+        .lines
+        .iter()
+        .map(|[a, b]| (b[0] - a[0]).hypot(b[1] - a[1]))
+        .sum();
+    assert!(length < 20., "B leader: {length}");
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "annotation_leader_crossing" && p.subjects.contains(&b.id)),
+        "{:?}",
+        plan.problems
+            .iter()
+            .filter(|p| p.subjects.contains(&b.id))
+            .collect::<Vec<_>>()
+    );
+    for fa in &pa.fills {
+        for fb in &pb.fills {
+            let bounds = |f: &Vec<[f64; 2]>| {
+                f.iter().fold(
+                    [
+                        f64::INFINITY,
+                        f64::INFINITY,
+                        f64::NEG_INFINITY,
+                        f64::NEG_INFINITY,
+                    ],
+                    |r, p| {
+                        [
+                            r[0].min(p[0]),
+                            r[1].min(p[1]),
+                            r[2].max(p[0]),
+                            r[3].max(p[1]),
+                        ]
+                    },
+                )
+            };
+            let (a, b) = (bounds(fa), bounds(fb));
+            assert!(
+                a[2] < b[0] || b[2] < a[0] || a[3] < b[1] || b[3] < a[1],
+                "triangles overlap: {a:?} / {b:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn grm03_origin_datums_have_no_symbols_without_a_tolerance_citation() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/pmi/step/GRM-03_thumbwheel_drive_screw_AP242_PMI.step.gz");

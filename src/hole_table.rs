@@ -184,11 +184,7 @@ enum Dropped {
 /// A hole callout or hole location, by what it measures.
 fn hole_item(d: &PlannedDimension) -> Option<Dropped> {
     let hole = |f: &str| f.starts_with("f:hole:") || f.starts_with("f:hole_pattern:");
-    let ms: Vec<_> = d
-        .measurements
-        .iter()
-        .filter(|m| !m.feature.starts_with("station_"))
-        .collect();
+    let ms: Vec<_> = d.measurements.iter().collect();
     if d.kind == "callout"
         && ms.iter().any(|m| m.parameter == "bore.diameter")
         && ms.iter().all(|m| hole(&m.feature))
@@ -744,15 +740,12 @@ fn rows(
             d.kind == "linear"
                 && d.view == "v:plan"
                 && !d.measurements.is_empty()
-                && d.measurements
-                    .iter()
-                    .filter(|m| !m.feature.starts_with("station_"))
-                    .all(|m| {
-                        matches!(
-                            m.parameter.as_str(),
-                            "location.length.x" | "location.length.y"
-                        )
-                    })
+                && d.measurements.iter().all(|m| {
+                    matches!(
+                        m.parameter.as_str(),
+                        "location.length.x" | "location.length.y"
+                    )
+                })
         })
         .collect();
     let location = |f: &str, axis: &str| {
@@ -832,7 +825,6 @@ fn rows(
             && d.from_spec.is_empty()
             && d.measurements
                 .iter()
-                .filter(|m| !m.feature.starts_with("station_"))
                 .all(|m| matches!(m.parameter.as_str(), "bore.diameter" | "bore.depth"))
         {
             replace.push(i);
@@ -842,7 +834,6 @@ fn rows(
         if !crate::label_text::overridden(d)
             && d.measurements
                 .iter()
-                .filter(|m| !m.feature.starts_with("station_"))
                 .all(|m| tabulated.contains(m.feature.as_str()))
         {
             replace.push(*i);
@@ -2067,13 +2058,10 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
             .filter(|d| {
                 d.view == view.id
                     && !d.measurements.is_empty()
-                    && d.measurements
-                        .iter()
-                        .filter(|m| !m.feature.starts_with("station_"))
-                        .all(|m| {
-                            m.feature.starts_with("f:hole")
-                                && m.parameter.starts_with("location.length.")
-                        })
+                    && d.measurements.iter().all(|m| {
+                        m.feature.starts_with("f:hole")
+                            && m.parameter.starts_with("location.length.")
+                    })
             })
             .collect();
         let crowded: usize = axes
@@ -2173,8 +2161,7 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                 })
                 .collect::<Vec<_>>()
                 .join(" ");
-            // A source-carrying callout remains drawn. Its size is not repeated by
-            // the generated schedule; rows add only the missing coordinates.
+            // A schedule repeats every size, including sizes owned by retained PMI.
             let source_callout =
                 d.placed.is_some() && d.measurements.iter().any(|m| m.feature.starts_with("pmi:"));
             for f in bores(d) {
@@ -2188,20 +2175,9 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                 if source_callout {
                     measurements.clear();
                 }
-                let mut cells = vec![
-                    String::new(),
-                    if source_callout {
-                        String::new()
-                    } else {
-                        label.clone()
-                    },
-                ];
+                let mut cells = vec![String::new(), label.clone()];
                 for &k in &axes {
                     let parameter = format!("location.length.{}", ["x", "y", "z"][k]);
-                    if source_locations.contains(&(f.to_string(), k)) {
-                        cells.push(String::new());
-                        continue;
-                    }
                     let distance = h.at[k] - origin[k];
                     let measured = plan.dimensions.iter().find(|d| {
                         d.measurements
@@ -2232,11 +2208,15 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                                 },
                             ),
                     );
-                    measurements.push(Measurement {
-                        feature: f.into(),
-                        parameter,
-                        value: distance,
-                    });
+                    // An already rooted coordinate is a schedule restatement in the
+                    // same origin frame, not an additional independent locating control.
+                    if !source_locations.contains(&(f.to_string(), k)) {
+                        measurements.push(Measurement {
+                            feature: f.into(),
+                            parameter,
+                            value: distance,
+                        });
+                    }
                 }
                 cells.push(entry_cell(analysis, view.direction, h.at, h.direction));
                 rows.push(HoleRow {
@@ -2375,17 +2355,14 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                 && !d.from_spec.iter().any(|s| s == "tolerance")
                 && !crate::label_text::overridden(d)
                 && !d.measurements.is_empty()
-                && d.measurements
-                    .iter()
-                    .filter(|m| !m.feature.starts_with("station_"))
-                    .all(|m| {
-                        (features.contains(m.feature.as_str())
-                            && m.parameter.starts_with("location.length."))
-                            || (patterns.contains(m.feature.as_str())
-                                && (m.parameter.starts_with("location.length.")
-                                    || m.parameter.starts_with("pitch.")
-                                    || m.parameter.starts_with("grid_pitch.")))
-                    })
+                && d.measurements.iter().all(|m| {
+                    (features.contains(m.feature.as_str())
+                        && m.parameter.starts_with("location.length."))
+                        || (patterns.contains(m.feature.as_str())
+                            && (m.parameter.starts_with("location.length.")
+                                || m.parameter.starts_with("pitch.")
+                                || m.parameter.starts_with("grid_pitch.")))
+                })
             {
                 replaced.insert(d.id.clone());
             }
@@ -2434,7 +2411,7 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
         for row in &mut table.rows {
             for (column, &k) in axes.iter().enumerate() {
                 if let Some(owners) = retained.get(&(row.feature.clone(), k)) {
-                    let label = std::mem::take(&mut row.cells[2 + column]);
+                    let label = row.cells[2 + column].clone();
                     // Recovery follows the surviving graph owner, even when the
                     // schedule no longer needs a coordinate cell for this member.
                     if let Some(by) = owners.first() {

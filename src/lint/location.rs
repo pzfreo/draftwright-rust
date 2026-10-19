@@ -110,6 +110,14 @@ pub(crate) fn drawing_roots(a: &Analysis, marks: &[Mark]) -> [Vec<f64>; 3] {
         {
             out[k].push(p[k]);
         }
+        if let Some(word) = c.feature.strip_prefix("station_root:")
+            && let Some((axis, value)) = word.split_once('|')
+            && let (Ok(k), Ok(v)) = (axis.parse::<usize>(), value.parse::<f64>())
+            && k < 3
+            && v.is_finite()
+        {
+            out[k].push(v);
+        }
         if let Some(word) = c.feature.strip_prefix("station_origin:")
             && let Some((axis, reference)) = word.split_once('|')
             && let Ok(k) = axis.parse::<usize>()
@@ -263,7 +271,15 @@ pub(crate) fn drawn_constraints(
     drawing: &crate::output::Drawing,
     marks: &mut [Mark],
 ) {
-    if drawing.sheet.frames.is_empty() {
+    if drawing.sheet.frames.is_empty()
+        || (!crate::dims::pmi_policy::carries(a)
+            && !drawing.annotations.iter().any(|annotation| {
+                annotation.coordinate_origin.is_some()
+                    && drawing.sheet.items.iter().any(|item| {
+                        item.name == annotation.name && item.kind == crate::output::Kind::Dimension
+                    })
+            }))
+    {
         return;
     }
     for mark in marks {
@@ -272,6 +288,19 @@ pub(crate) fn drawn_constraints(
         };
         if item.kind != crate::output::Kind::Dimension || item.elbow.is_some() {
             continue;
+        }
+        if let Some(origin) = drawing
+            .annotations
+            .iter()
+            .find(|a| a.name == mark.name)
+            .and_then(|a| a.coordinate_origin)
+        {
+            for (k, v) in origin.into_iter().enumerate() {
+                mark.claims.push(crate::output::Claim {
+                    feature: format!("station_root:{k}|{v}"),
+                    parameter: "origin".into(),
+                });
+            }
         }
         mark.claims
             .retain(|c| !c.feature.starts_with("station_span:") && c.feature != "station_ink");
@@ -379,6 +408,41 @@ pub(crate) fn station(a: &Analysis, id: &str, k: usize) -> Option<f64> {
     a.scheme_station(id, k).ok().map(|p| p[k])
 }
 
+/// A cylindrical datum establishes its own axis, even though it cannot be a
+/// planar origin for ± dimensions. Only features coaxial in both radial axes qualify.
+fn datum_axis_root(a: &Analysis, feature: &str, k: usize) -> bool {
+    let Some(f) = a.features.iter().find(|f| f.id == feature) else {
+        return false;
+    };
+    let Some(direction) = f.fingerprint.axis else {
+        return false;
+    };
+    let Some(axis) = direction.iter().position(|v| v.abs() > 1. - EPS) else {
+        return false;
+    };
+    if axis == k {
+        return false;
+    }
+    let Some(Reading::Read(r)) = &a.pmi else {
+        return false;
+    };
+    let radial: Vec<_> = (0..3).filter(|v| *v != axis).collect();
+    r.records
+        .iter()
+        .filter(|r| r.category == Category::Datum)
+        .flat_map(|r| &r.faces)
+        .any(|&i| {
+            a.face_attachments.get(i).is_some_and(|face| {
+                face.surface.as_deref() == Some("cylinder")
+                    && face.exact_axis == Some(axis)
+                    && face.support.len() == 2
+                    && radial.iter().enumerate().all(|(j, &k)| {
+                        station(a, feature, k).is_some_and(|v| (v - face.support[j]).abs() < EPS)
+                    })
+            })
+        })
+}
+
 /// A completely located pattern also fixes its centre, without an extra centre ordinate.
 pub(crate) fn proof(
     a: &Analysis,
@@ -388,6 +452,9 @@ pub(crate) fn proof(
     at: f64,
     node: Option<&str>,
 ) -> Option<Vec<usize>> {
+    if node.is_some_and(|feature| datum_axis_root(a, feature, axis)) {
+        return Some(Vec::new());
+    }
     if let Some(path) = route(edges, roots, axis, at, node, &BTreeSet::new()) {
         return Some(path);
     }
@@ -732,6 +799,9 @@ pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let roots = drawing_roots(a, marks);
     let mut issues = Vec::new();
     for (feature, k, at) in targets(a) {
+        if datum_axis_root(a, &feature, k) {
+            continue;
+        }
         let parameter = format!("location.length.{}", AXES[k]);
         let first = route(
             &edges,
@@ -927,10 +997,9 @@ pub(crate) fn evidence(a: &Analysis, marks: &[Mark]) -> Vec<Mark> {
 
 pub(crate) fn active(a: &Analysis, marks: &[Mark]) -> bool {
     matches!(&a.pmi,Some(Reading::Read(r)) if !r.records.is_empty())
-        || marks
-            .iter()
-            .flat_map(|m| &m.claims)
-            .any(|c| c.feature.starts_with("station_span:") || c.feature == "station_ink")
+        || marks.iter().flat_map(|m| &m.claims).any(|c| {
+            c.feature.starts_with("station_origin:") || c.feature.starts_with("station_root:")
+        })
 }
 
 #[cfg(test)]

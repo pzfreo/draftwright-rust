@@ -385,55 +385,6 @@
       "count": 1,
       "verdict": "rust-correct",
       "reason": "Reported whatever the drawing says, as Python's lint reports it on its own sheet of this part, message for message (tests/lint_coverage.rs::backstop_on_the_ports_own_drawings_is_known): the opening through m10127's face at y 32.268 is a three-edge loop (a triangle, box x 4.117..12.874, z 19.370..27.307), neither a circle, rectangle, obround or rounded rectangle nor the end of a section recess, so no feature of the drawing vocabulary states it (src/lint/profiles.rs; the loop's verdicts equal draftwright's, pythons_principal_profile_scan_is_reproduced). It is left for definition by hand."
-    },
-    {
-      "part": "cgb245",
-      "code": "feature_not_located",
-      "count": 2,
-      "verdict": "rust-correct",
-      "reason": "Issue 122 drawn-set location graph: The slot length locates each slot along its run, but no drawn constraint roots its transverse centreline."
-    },
-    {
-      "part": "ctc01",
-      "code": "feature_not_located",
-      "count": 4,
-      "verdict": "rust-correct",
-      "reason": "Issue 122 drawn-set location graph: The two square boss axes and two slot transverse centrelines have no drawn dimension chain to an origin; sizes alone do not locate them."
-    },
-    {
-      "part": "ftc06",
-      "code": "feature_not_located",
-      "count": 12,
-      "verdict": "rust-correct",
-      "reason": "Issue 122 drawn-set location graph: Twelve transverse boss-axis requirements have no drawn dimension chain to an origin. The check reports the existing drawing without adding dimensions to no-PMI parts."
-    },
-    {
-      "part": "grm03",
-      "code": "feature_not_located",
-      "count": 2,
-      "verdict": "rust-correct",
-      "reason": "Issue 122 drawn-set location graph: The coaxial bore has no transverse dimension chains. Its implicit relation to the turning axis is not an explicit linear locating statement."
-    },
-    {
-      "part": "m10127",
-      "code": "feature_not_located",
-      "count": 4,
-      "verdict": "rust-correct",
-      "reason": "Issue 122 drawn-set location graph: Two boss-axis coordinates and two step-face stations have no drawn dimension chain to an origin."
-    },
-    {
-      "part": "spool132",
-      "code": "feature_not_located",
-      "count": 62,
-      "verdict": "rust-correct",
-      "reason": "Issue 122 drawn-set location graph: The hole axes have no explicit rooted linear locating chains. The size and bolt-circle statements do not supply the missing per-axis location/clocking constraints."
-    },
-    {
-      "part": "string_post",
-      "code": "feature_not_located",
-      "count": 3,
-      "verdict": "rust-correct",
-      "reason": "Issue 122 drawn-set location graph: Three hole-axis coordinates have no drawn dimension chain to an origin; the previously implicit location is now reported."
     }
   ],
   "ledgers": [

@@ -1556,7 +1556,6 @@ fn carried(plan: &Plan) -> BTreeSet<(String, String)> {
                 .filter(|n| n.placed.is_some())
                 .flat_map(|n| &n.measurements),
         )
-        .filter(|m| !m.feature.starts_with("station_"))
         .map(|m| (m.feature.clone(), m.parameter.clone()))
         .collect();
     // Coverage follows its controlling ink through presentation changes too: a
@@ -1889,8 +1888,12 @@ pub(crate) fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
 
 pub(crate) fn established_key(spec: &Spec) -> Vec<u8> {
     if spec.pmi == PmiMode::First && spec.origin.is_empty() {
-        serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection, spec.sheet.references))
-            .expect("presentation inputs serialize")
+        serde_json::to_vec(&(
+            spec.hole_table,
+            &spec.sheet.projection,
+            spec.sheet.references,
+        ))
+        .expect("presentation inputs serialize")
     } else {
         serde_json::to_vec(&(
             spec.hole_table,
@@ -2291,18 +2294,13 @@ fn recover_callouts(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Pla
     if crate::placement_intent::has_pins(spec) {
         return Ok(best);
     }
-    let clean = |p: &Plan| {
-        findings(p).clean()
-            && drawn_sheets_fit(analysis, p)
-            && undrawn_gdt(p) == 0
-            && p.sheet.scale_factor >= crate::sheet_fit::min_legible_scale(analysis)
-    };
+    let clean =
+        |p: &Plan| findings(p).clean() && drawn_sheets_fit(analysis, p) && undrawn_gdt(p) == 0;
     if best.sheet.size == "A4" && clean(&best) {
         return Ok(best);
     }
     let m = crate::pmi_lowering::manufacturing_for(analysis, spec);
     if spec.sheet.size.is_none()
-        && best.gdt.is_empty()
         && m.owned
             .iter()
             .any(|o| crate::callouts::style(spec, &o.owner) == crate::callouts::Style::Auto)
@@ -2639,7 +2637,6 @@ fn recover_candidates(
         .is_some_and(|i| i >= LARGE_SHEET);
     // A large first estimate of a small part is no sheet to keep: it vetoes nothing.
     let mut seed_kept = seed_clean
-        && first.sheet.scale_factor >= min_legible_scale
         && !suppressed_detail
         && !(first_large && is_small(&mut small_part)?)
         && established_scale.is_none_or(|s| first.sheet.scale_factor <= s)
@@ -3439,19 +3436,11 @@ fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan,
     if crate::hole_table::install(analysis, &mut scheduled, &selection) {
         // A genuine geometry recovery still belongs to the final plan; a resolved ladder's
         // exhausted-loss message does not. Preserve the successful recovery's trace.
-        let unreadable = scheduled.sheet.scale_factor
-            < crate::sheet_fit::min_legible_scale(analysis)
-            || crate::sheet_fit::illegible_steps(analysis, &scheduled) > 0;
         scheduled.problems.extend(
             baseline
                 .problems
                 .iter()
-                .filter(|p| {
-                    p.code == "layout_replanned"
-                        || (unreadable
-                            && p.code == "layout_recovery_exhausted"
-                            && p.severity == "warning")
-                })
+                .filter(|p| p.code == "layout_replanned")
                 .cloned(),
         );
         if baseline
@@ -8540,6 +8529,18 @@ fn render_annotations_with_cuts(
     for annotation in &mut annotations {
         if annotation.approved_text.is_some() {
             annotation.approved_claims = annotation.claims.clone();
+        }
+    }
+    if !plan.spec.origin.is_empty() {
+        let origin = crate::dims::pmi_policy::origin_point(analysis, &plan.spec);
+        for a in &mut annotations {
+            if plan
+                .dimensions
+                .iter()
+                .any(|d| d.id == a.name && d.kind == "linear")
+            {
+                a.coordinate_origin = Some(origin);
+            }
         }
     }
     Ok(Drawing {

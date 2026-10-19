@@ -217,6 +217,14 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
         let Some(origin) = a.coordinate_origin else {
             continue;
         };
+        if drawing
+            .sheet
+            .items
+            .iter()
+            .any(|item| item.name == a.name && item.kind == crate::output::Kind::Dimension)
+        {
+            continue;
+        }
         // Verify the printed cell in its own datum frame before translating its evidence into
         // the envelope frame used by the existing hole/pattern coverage checks.
         let proof = mark.claims.first().and_then(|c| {

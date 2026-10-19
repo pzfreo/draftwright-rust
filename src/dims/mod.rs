@@ -596,14 +596,11 @@ pub(crate) fn nominal_inspection_views(
                 && w.measurements
                     .iter()
                     .any(|m| m.parameter == "bore.diameter")
-                && w.measurements
-                    .iter()
-                    .filter(|m| !m.feature.starts_with("station_"))
-                    .all(|m| {
-                        fmt(m.value)
-                            .split_once('.')
-                            .is_none_or(|(_, tail)| tail.len() <= 1)
-                    });
+                && w.measurements.iter().all(|m| {
+                    fmt(m.value)
+                        .split_once('.')
+                        .is_none_or(|(_, tail)| tail.len() <= 1)
+                });
             established_bore
                 || (!recesses
                     && w.measurements.iter().any(|m| {
@@ -1173,7 +1170,7 @@ pub(crate) fn callout_bands(
     callouts::apply(analysis, spec, &mut wants);
     let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
     authored::append(analysis, spec, &mut wants)?;
-    pmi_policy::annotate(analysis, spec, &mut wants);
+
     if !scheme_covered.is_empty() {
         wants.retain(|w| !scheme_covered.contains_key(&w.id));
     }
@@ -1283,7 +1280,7 @@ fn lanes_uncached(
     callouts::apply(analysis, spec, &mut wants);
     let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
     authored::append(analysis, spec, &mut wants)?;
-    pmi_policy::annotate(analysis, spec, &mut wants);
+
     if scheme_covered.is_empty() {
         wants.retain(|w| !excluded.contains(&w.id));
     } else {
@@ -1650,7 +1647,6 @@ pub(crate) fn reserve_linear_intent(
     let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
     if !spec.dimension_schemes.is_empty() {
         authored::append(analysis, spec, &mut wants)?;
-        pmi_policy::annotate(analysis, spec, &mut wants);
     }
     if scheme_covered.is_empty() {
         wants.retain(|w| !excluded.contains(&w.id));
@@ -2066,7 +2062,6 @@ fn plan_inventory_uncached(
         !d.measurements.is_empty()
             && d.measurements
                 .iter()
-                .filter(|m| !m.feature.starts_with("station_"))
                 .all(|m| m.feature.starts_with("f:section_recess:"))
     };
     if !first.0.0.iter().any(|d| d.kind == "linear" && new(d))
@@ -2263,7 +2258,7 @@ fn plan_inventory_ordered(
     callouts::apply(analysis, spec, &mut wants);
     let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
     authored::append(analysis, spec, &mut wants)?;
-    pmi_policy::annotate(analysis, spec, &mut wants);
+
     let retired: Vec<_> = if scheme_covered.is_empty() {
         Vec::new()
     } else {
@@ -3012,7 +3007,6 @@ fn plan_inventory_ordered(
                     && !w.measurements.is_empty()
                     && w.measurements
                         .iter()
-                        .filter(|m| !m.feature.starts_with("station_"))
                         .all(|m| m.feature.starts_with("f:section_recess:"))
             })
             .map(|(i, _)| (i, placed[i].take()))
@@ -3849,6 +3843,88 @@ fn share_pmi(
 ) {
     notches::share_pmi(analysis, kept, given, omitted);
     pmi_policy::cover(analysis, kept, given, omitted);
+    const SAME_SPAN: f64 = 1e-6;
+    let pmi = |w: &Want| {
+        w.measurements
+            .first()
+            .is_some_and(|m| m.feature.starts_with("pmi:") && m.parameter.starts_with("linear"))
+    };
+    let span =
+        |(w, _, view, _): &(Want, bool, Option<&'static str>, Vec<&'static str>)| match w.shape {
+            Shape::Linear { a, b, axis, .. } => Some((
+                view.unwrap_or(w.views[0]),
+                axis,
+                a[axis].min(b[axis]),
+                a[axis].max(b[axis]),
+            )),
+            Shape::Callout { .. } | Shape::Angular { .. } | Shape::Aligned { .. } => None,
+        };
+    let mut gone = BTreeSet::new();
+    let order: Vec<usize> = {
+        let mut o: Vec<usize> = (0..kept.len()).filter(|&i| pmi(&kept[i].0)).collect();
+        o.sort_by(|&x, &y| kept[x].0.id.cmp(&kept[y].0.id));
+        o
+    };
+    for &p in &order {
+        if gone.contains(&p) {
+            continue;
+        }
+        let Some(sp) = span(&kept[p]) else { continue };
+        let owner = kept[p].0.id.clone();
+        let mut claims = Vec::new();
+        for i in 0..kept.len() {
+            if i == p || gone.contains(&i) {
+                continue;
+            }
+            let Some(si) = span(&kept[i]) else { continue };
+            let same = sp.0 == si.0
+                && sp.1 == si.1
+                && (sp.2 - si.2).abs() <= SAME_SPAN
+                && (sp.3 - si.3).abs() <= SAME_SPAN;
+            if !same {
+                continue;
+            }
+            let (w, _, ..) = &kept[i];
+            let how = if pmi(w) {
+                if w.terms != kept[p].0.terms
+                    || pmi_dimensions::basic(&w.measurements)
+                        != pmi_dimensions::basic(&kept[p].0.measurements)
+                {
+                    continue;
+                }
+                "the part's PMI states the same span again"
+            } else {
+                continue;
+            };
+            omitted.push(Omitted {
+                id: w.id.clone(),
+                label: crate::callouts::label(&w.terms),
+                basis: format!(
+                    "conveyed by {owner}: it states the same {} across the same span in {}, in the same view; {how} (one span, one dimension: ARCH0009-6)",
+                    fmt(w.value),
+                    AXES[sp.1]
+                ),
+                state: State::Covered { by: owner.clone() },
+            });
+            claims.extend(w.measurements.iter().cloned());
+            gone.insert(i);
+        }
+        if !claims.is_empty() {
+            let w = &mut kept[p].0;
+            w.measurements.extend(claims);
+            w.basis += "; one span, one dimension: it also states what the others across the same span stated (ARCH0009-6)";
+        }
+    }
+    let mut i = 0;
+    kept.retain(|_| {
+        i += 1;
+        !gone.contains(&(i - 1))
+    });
+    let mut i = 0;
+    given.retain(|_| {
+        i += 1;
+        !gone.contains(&(i - 1))
+    });
     notches::share_bevel_depths(analysis, kept, given, omitted);
 }
 
@@ -4216,7 +4292,6 @@ pub(crate) fn refine_inventory(
                 || !w
                     .measurements
                     .iter()
-                    .filter(|m| !m.feature.starts_with("station_"))
                     .all(|m| m.feature.starts_with("f:section_recess:"))
                     && !(crate::nominal::geometry_eligible(analysis)
                         && !crate::nominal::comparison()
