@@ -54,12 +54,15 @@ use crate::output::{Drawing, Kind};
 use crate::pmi::{Category, Identities, Outcome, Reading, Record, Report};
 use crate::pmi_lowering::{lower, manufacturing, sheet_requirements};
 
-/// Python's `_SUPPORTED_MANUFACTURING_REQUIREMENTS`.
-const MANUFACTURING: [&str; 5] = [
+/// Supported manufacturing requirements, including part semantic text.
+const MANUFACTURING: [&str; 8] = [
     "external_thread",
     "internal_thread",
     "knurl",
     "edge_condition",
+    "general_note",
+    "surface_treatment",
+    "heat_treatment",
     "surface_finish",
 ];
 
@@ -376,7 +379,7 @@ fn manufacturing_text(report: &Report, marks: &[Mark], ids: &Identities) -> Vec<
         };
         let words: Vec<&str> = m.text.split_whitespace().collect();
         let states = match r.kind.as_str() {
-            "edge_condition" => {
+            "edge_condition" | "general_note" | "surface_treatment" | "heat_treatment" => {
                 // The general notes block numbers each note's first row. Its annotation owns
                 // only that note's runs, including every wrapped continuation row.
                 let note = match words.first().and_then(|s| s.parse::<usize>().ok()) {
@@ -766,7 +769,12 @@ pub(super) fn source_sites(
         } else if general_note {
             matches!(
                 r.kind.as_str(),
-                "edge_condition" | "datum_scheme" | "model_representation"
+                "edge_condition"
+                    | "general_note"
+                    | "surface_treatment"
+                    | "heat_treatment"
+                    | "datum_scheme"
+                    | "model_representation"
             )
         } else {
             true

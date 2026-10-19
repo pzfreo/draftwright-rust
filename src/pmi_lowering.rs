@@ -33,8 +33,10 @@
 //! - **Drawing-wide requirements** ([`sheet_requirements`], `lower_ap242_document_requirements`):
 //!   the one general tolerance fills the title block's tolerance cell, the one default surface
 //!   texture (`Ra 3.2 µm unless otherwise specified`) is drawn beside the title block, and each
-//!   edge condition (`Break sharp edges 0.2 max`) is a general note; two of one default are
-//!   ambiguous and neither is drawn.
+//!   part note (semantic text: general note, surface treatment, heat treatment or edge
+//!   condition) is a general note, in model order before the Spec notes; two of one default are
+//!   ambiguous and neither is drawn. PMI note omission and Spec duplicate reconciliation use
+//!   [`crate::notes`]; the model and existing Spec notes are never migrated by planning.
 //!
 //! What is not lowered is said, never guessed: a record whose reading left blockers (datum
 //! targets, composite relations, projected or non-uniform zones, datum modifiers, common
@@ -47,8 +49,8 @@
 //! from where their faces put them ([`dimension_geometry`], here).
 //!
 //! draftwright draws its PMI only when asked (`pmi="annotate"`; its default is off). The port has
-//! no such option: a part's PMI is drawn whenever it has some (a question for the maintainer in
-//! the stream's report).
+//! no such option: a part's PMI is drawn whenever it has some. Drawing-wide part notes are
+//! lowered together in [`sheet_requirements`], so a PMI policy can gate that operation.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -538,11 +540,16 @@ pub fn label_geometry(part: &Part, r: &Record) -> Geometry {
 }
 
 /// The drawing-wide manufacturing requirements the sheet carries
-/// ([`sheet_requirements`]): general tolerances, a default surface texture, edge conditions.
+/// ([`sheet_requirements`]): general tolerances, a default surface texture and part notes.
 pub fn sheet_kind(kind: &str) -> bool {
     matches!(
         kind,
-        "general_tolerances" | "surface_texture" | "edge_condition"
+        "general_tolerances"
+            | "surface_texture"
+            | "edge_condition"
+            | "general_note"
+            | "surface_treatment"
+            | "heat_treatment"
     )
 }
 
@@ -568,8 +575,9 @@ pub struct SheetRequirement {
 /// The Analysis's drawing-wide requirements (draftwright's `lower_ap242_document_requirements`),
 /// and the problems met: the one general tolerance not blocked (its designation: the prose before
 /// any `;`, or the structured tolerance class, which must agree with it), the one surface
-/// texture stated as `Ra <value> µm unless otherwise specified`, and every edge condition on no
-/// face or edge, with text. Two general tolerances, or two surface textures, are ambiguous:
+/// texture stated as `Ra <value> µm unless otherwise specified`, and every part note on no
+/// face or edge, with text, in model order (an explicit note order/index takes precedence).
+/// Two general tolerances, or two surface textures, are ambiguous:
 /// neither is drawn. A record the reading blocked, or one whose statement is not a supported
 /// default, is said with its reason (`pmi_not_lowered`). Other document kinds draftwright knows
 /// (a datum scheme, a model representation note) are reported as not ported.
@@ -689,14 +697,31 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
             }
         }
     }
-    for r in of("edge_condition") {
+    let mut notes: Vec<_> = open
+        .iter()
+        .copied()
+        .filter(|r| {
+            matches!(
+                r.kind.as_str(),
+                "edge_condition" | "general_note" | "surface_treatment" | "heat_treatment"
+            )
+        })
+        .collect();
+    notes.sort_by_key(|r| {
+        let order = r.fields.iter().find_map(|(key, value)| match value {
+            crate::pmi::Field::Text(t) if key == "note order" => t.parse::<u64>().ok(),
+            _ => None,
+        });
+        (r.part, order.unwrap_or(r.part21_id), r.part21_id)
+    });
+    for r in notes {
         if r.label.trim().is_empty() {
             refuse(&mut problems, r, "document requirement text is empty");
         } else if !r.faces.is_empty() || !r.edges.is_empty() {
             refuse(
                 &mut problems,
                 r,
-                "face-specific edge condition cannot be a document-wide note",
+                "face-specific requirement cannot be a document-wide note",
             );
         } else {
             out.push(SheetRequirement {
@@ -705,7 +730,8 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
                 kind: "document_note",
                 value: r.label.trim().to_string(),
                 basis: format!(
-                    "source-authored: the AP242 edge condition '{}' ({}), a general note (draftwright's DocumentNote)",
+                    "source-authored: the AP242 {} '{}' ({}), a general note (draftwright's DocumentNote)",
+                    r.kind.replace('_', " "),
                     r.label.trim(),
                     r.source_id
                 ),

@@ -488,3 +488,331 @@ fn the_block_matches_draftwrights_on_corpus_parts() {
     }
     assert!(sheets_compared > 0);
 }
+
+/// Patch the existing plate with hand-built semantic text; geometry is never duplicated.
+fn with_part_notes(fragment: &str) -> (Part, Analysis) {
+    static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let source = std::fs::read_to_string(fixture("parts/plate.step")).unwrap();
+    let source = source.replace(
+        "ENDSEC;\nEND-ISO-10303-21;",
+        &format!("{fragment}\nENDSEC;\nEND-ISO-10303-21;"),
+    );
+    assert!(source.contains("#50002="));
+    let path = std::env::temp_dir().join(format!(
+        "draftwright-part-notes-{}-{}.step",
+        std::process::id(),
+        N.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    std::fs::write(&path, source).unwrap();
+    let out = model::analyse(&path).unwrap();
+    std::fs::remove_file(path).unwrap();
+    out
+}
+
+fn part_notes() -> &'static (Part, Analysis) {
+    static NOTES: OnceLock<(Part, Analysis)> = OnceLock::new();
+    NOTES.get_or_init(|| with_part_notes(include_str!("fixtures/pmi/part_notes.inc")))
+}
+
+fn drawing_notes() -> Spec {
+    spec(
+        json!({"notes": [{"id": "n:1", "text": "DO NOT SCALE"}, {"id": "n:2", "text": "DIMENSIONS IN MM"}]}),
+    )
+}
+
+#[test]
+fn part_semantic_text_notes_are_read_and_drawn_before_spec_notes() {
+    use draftwright::pmi::{Category, Reading};
+    let (part, a) = part_notes();
+    let Some(Reading::Read(report)) = &a.pmi else {
+        panic!("PMI not read")
+    };
+    let records: Vec<_> = report
+        .records
+        .iter()
+        .filter(|r| r.category == Category::ManufacturingRequirement)
+        .collect();
+    assert_eq!(
+        records.iter().map(|r| r.kind.as_str()).collect::<Vec<_>>(),
+        ["general_note", "surface_treatment", "heat_treatment"]
+    );
+    assert!(
+        records
+            .iter()
+            .all(|r| r.blockers.is_empty() && r.faces.is_empty())
+    );
+    let s = drawing_notes();
+    let plan = model::plan(a, &s).unwrap();
+    assert_eq!(plan.spec.notes, s.notes);
+    assert_eq!(
+        plan.notes
+            .iter()
+            .map(|n| n.text.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "ETCH PART NUMBER",
+            "ANODIZE BLACK",
+            "HARDEN TO 40 HRC",
+            "DO NOT SCALE",
+            "DIMENSIONS IN MM"
+        ]
+    );
+    assert_eq!(
+        plan.notes.iter().map(|n| n.number).collect::<Vec<_>>(),
+        [1, 2, 3, 4, 5]
+    );
+    assert!(plan.notes.iter().all(|n| n.placed.is_some()));
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "pmi_not_lowered" || p.code == "pmi_not_extracted")
+    );
+    let drawing = model::render(part, a, &plan, &font()).unwrap();
+    for n in &plan.notes {
+        assert_eq!(
+            drawing.text.iter().filter(|t| t.text == n.rows[0]).count(),
+            1
+        );
+    }
+    let again = model::render(part, a, &model::plan(a, &s).unwrap(), &font()).unwrap();
+    assert_eq!(drawing.pdf(&output::fonts), again.pdf(&output::fonts));
+    let issues = draftwright::lint::lint(a, &drawing);
+    assert!(
+        !issues.iter().any(|i| i.code.starts_with("pmi_")),
+        "{issues:?}"
+    );
+    // The independent text audit rejects a changed requirement on its correct source item.
+    let mut altered = drawing.clone();
+    let annotation = altered
+        .annotations
+        .iter()
+        .find(|a| a.name == plan.notes[1].id)
+        .unwrap();
+    altered.text[annotation.runs[0]].text = "2  PAINT RED".into();
+    assert!(
+        draftwright::lint::lint(a, &altered)
+            .iter()
+            .any(|i| i.code == "pmi_source_text_mismatch")
+    );
+}
+
+#[test]
+fn part_notes_honour_explicit_order_and_index() {
+    let fragment = include_str!("fixtures/pmi/part_notes.inc")
+        .replace("(#50000)", "(#50000,#50030)")
+        .replace("(#50010)", "(#50010,#50031)")
+        .replace("(#50020)", "(#50020,#50032)");
+    let fragment = format!(
+        "{fragment}\n#50030=DESCRIPTIVE_REPRESENTATION_ITEM('order','2');\n#50031=INTEGER_REPRESENTATION_ITEM('index',3);\n#50032=DESCRIPTIVE_REPRESENTATION_ITEM('index','1');"
+    );
+    let (_, a) = with_part_notes(&fragment);
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        plan.notes
+            .iter()
+            .map(|n| n.text.as_str())
+            .collect::<Vec<_>>(),
+        ["HARDEN TO 40 HRC", "ETCH PART NUMBER", "ANODIZE BLACK"]
+    );
+}
+
+#[test]
+fn part_note_omit_uses_the_annotation_item_id_and_keeps_an_omitted_record() {
+    use draftwright::items::State;
+    let (_, a) = part_notes();
+    let before = model::plan(a, &drawing_notes()).unwrap();
+    let note = &before.notes[1];
+    let s = model::edit(&drawing_notes(), &json!([{"op": "set", "path": format!("annotations/{}/omit", draftwright::items::key(&note.id)), "value": true}])).unwrap();
+    let plan = model::plan(a, &s).unwrap();
+    let omitted = plan.notes.iter().find(|n| n.id == note.id).unwrap();
+    assert_eq!(omitted.state, State::OmittedByUser);
+    assert!(omitted.placed.is_none());
+    assert_eq!(omitted.number, 0);
+    assert_eq!(
+        plan.notes
+            .iter()
+            .filter(|n| n.placed.is_some())
+            .map(|n| (n.number, n.text.as_str()))
+            .collect::<Vec<_>>(),
+        [
+            (1, "ETCH PART NUMBER"),
+            (2, "HARDEN TO 40 HRC"),
+            (3, "DO NOT SCALE"),
+            (4, "DIMENSIONS IN MM")
+        ]
+    );
+    let item = draftwright::items::items(&plan)
+        .into_iter()
+        .find(|i| i.id == note.id)
+        .unwrap();
+    assert_eq!(item.state, State::OmittedByUser);
+    assert_eq!(
+        plan.requirements
+            .iter()
+            .find(|r| r.id == note.id)
+            .unwrap()
+            .state,
+        State::OmittedByUser
+    );
+    assert_eq!(
+        before.notes[1].text,
+        model::plan(a, &drawing_notes()).unwrap().notes[1].text
+    );
+    let (part, analysis) = with_part_notes(include_str!("fixtures/pmi/part_notes.inc"));
+    let session = draftwright::session::Session::new(part, analysis, s).unwrap();
+    let options = session.options(&note.id).unwrap();
+    assert_eq!(options.operations, ["omit"]);
+    let path = format!("annotations/{}/omit", draftwright::items::key(&note.id));
+    assert_eq!(options.settable[&path]["choices"], json!([false, true]));
+    assert!(!options.settable.keys().any(|key| key.starts_with(&format!(
+        "annotations/{}/place",
+        draftwright::items::key(&note.id)
+    ))));
+}
+
+#[test]
+fn duplicate_spec_note_is_covered_once_and_its_offered_fix_removes_only_the_spec_copy() {
+    use draftwright::items::State;
+    let (part, a) = part_notes();
+    let mut s = drawing_notes();
+    s.notes.push(notes::NoteSpec {
+        id: "n:8".into(),
+        text: "  etch\tPART\n number  ".into(),
+    });
+    let plan = model::plan(a, &s).unwrap();
+    assert_eq!(plan.spec.notes, s.notes);
+    let p = plan
+        .problems
+        .iter()
+        .find(|p| p.code == "note_duplicated_in_spec")
+        .unwrap();
+    assert_eq!(p.severity, "info");
+    assert_eq!(p.subjects, [plan.notes[0].id.clone(), "n:8".into()]);
+    assert!(p.refs.contains(&"manufacturing_requirement:#50002".into()));
+    assert!(p.refs.contains(&"notes/2".into()));
+    let covered = plan.notes.iter().find(|n| n.id == "n:8").unwrap();
+    assert_eq!(
+        covered.state,
+        State::Covered {
+            by: plan.notes[0].id.clone()
+        }
+    );
+    assert!(covered.placed.is_none());
+    let drawing = model::render(part, a, &plan, &font()).unwrap();
+    assert_eq!(
+        drawing
+            .text
+            .iter()
+            .filter(|t| t.text.contains("ETCH PART NUMBER"))
+            .count(),
+        1
+    );
+    let fixed = model::edit(&s, &serde_json::to_value(&p.fix).unwrap()).unwrap();
+    assert_eq!(fixed.notes, drawing_notes().notes);
+    let after = model::plan(a, &fixed).unwrap();
+    assert!(
+        !after
+            .problems
+            .iter()
+            .any(|p| p.code == "note_duplicated_in_spec")
+    );
+    assert_eq!(
+        plan.notes
+            .iter()
+            .filter(|n| n.placed.is_some())
+            .collect::<Vec<_>>(),
+        after.notes.iter().collect::<Vec<_>>()
+    );
+    // Omitting the model copy keeps an existing drawing copy visible until its fix is applied.
+    let omitted = model::edit(&s, &json!([{"op": "set", "path": format!("annotations/{}/omit", draftwright::items::key(&plan.notes[0].id)), "value": true}])).unwrap();
+    let omitted = model::plan(a, &omitted).unwrap();
+    assert!(
+        omitted
+            .notes
+            .iter()
+            .find(|n| n.id == "n:8")
+            .unwrap()
+            .placed
+            .is_some()
+    );
+}
+
+#[test]
+fn notes_without_part_pmi_keep_baseline_plan_and_drawing_bytes() {
+    use sha2::{Digest, Sha256};
+    let hash = |bytes: &[u8]| {
+        Sha256::digest(bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>()
+    };
+    // Captured on 2b4a2fa2, before part-note reading/lowering, on the same fixtures and Specs.
+    let baseline: Value =
+        serde_json::from_str(include_str!("fixtures/pmi/notes_identity.json")).unwrap();
+    assert_eq!(baseline.as_array().unwrap().len(), 4);
+    for case in baseline.as_array().unwrap() {
+        let file = case["file"].as_str().unwrap();
+        let (part, a) = model::analyse(&fixture(&format!("parts/{file}.step"))).unwrap();
+        let s = if case["notes"] == true {
+            drawing_notes()
+        } else {
+            Spec::default()
+        };
+        let plan = model::plan(&a, &s).unwrap();
+        let drawing = model::render(&part, &a, &plan, &font()).unwrap();
+        assert_eq!(
+            hash(&serde_json::to_vec(&plan).unwrap()),
+            case["plan"],
+            "{file}: plan"
+        );
+        assert_eq!(hash(drawing.svg().as_bytes()), case["svg"], "{file}: SVG");
+        assert_eq!(
+            hash(&drawing.pdf(&output::fonts)),
+            case["pdf"],
+            "{file}: PDF"
+        );
+    }
+}
+
+#[test]
+fn semantic_text_edges_and_default_finish_keep_their_carriers() {
+    let fragment = format!(
+        "{}\n{}",
+        include_str!("fixtures/pmi/part_notes.inc"),
+        r#"
+#50040=DESCRIPTIVE_REPRESENTATION_ITEM('edge condition','BREAK SHARP EDGES');
+#50041=GENERAL_PROPERTY('','semantic text',$);
+#50042=PROPERTY_DEFINITION('semantic text','user defined attribute',#4);
+#50043=REPRESENTATION('',(#50040),#713);
+#50044=PROPERTY_DEFINITION_REPRESENTATION(#50042,#50043);
+#50045=GENERAL_PROPERTY_ASSOCIATION('',$,#50041,#50042);
+#50050=DESCRIPTIVE_REPRESENTATION_ITEM('material removal condition','any process allowed');
+#50051=PROPERTY_DEFINITION('surface texture','',#4);
+#50052=REPRESENTATION('surface texture',(#50050),#713);
+#50053=PROPERTY_DEFINITION_REPRESENTATION(#50051,#50052);
+#50054=DESCRIPTIVE_REPRESENTATION_ITEM('measuring method','Ra');
+#50055=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MICRO.,.METRE.));
+#50056=(LENGTH_MEASURE_WITH_UNIT()MEASURE_REPRESENTATION_ITEM()MEASURE_WITH_UNIT(LENGTH_MEASURE(1.6),#50055)REPRESENTATION_ITEM('characteristic value'));
+#50057=PROPERTY_DEFINITION('surface_condition','',#4);
+#50058=SURFACE_TEXTURE_REPRESENTATION('surface texture parameter',(#50054,#50056),#713);
+#50059=PROPERTY_DEFINITION_REPRESENTATION(#50057,#50058);
+#50060=PROPERTY_DEFINITION_RELATIONSHIP('surface texture parameter','',#50051,#50057);
+#50061=GENERAL_PROPERTY('','surface_condition',$);
+#50062=GENERAL_PROPERTY_ASSOCIATION('',$,#50061,#50057);
+"#
+    );
+    let (_, a) = with_part_notes(&fragment);
+    let plan = model::plan(&a, &drawing_notes()).unwrap();
+    assert_eq!(plan.notes[3].text, "BREAK SHARP EDGES");
+    assert_eq!(plan.notes[4].text, "DO NOT SCALE");
+    let finish = plan
+        .requirements
+        .iter()
+        .find(|r| r.kind == "default_surface_finish")
+        .unwrap();
+    assert_eq!(finish.text, "Ra 1.6");
+    assert_eq!(finish.carrier, "sheet");
+    assert!(finish.placed.is_some());
+    assert!(!plan.notes.iter().any(|n| n.text.contains("Ra")));
+}
