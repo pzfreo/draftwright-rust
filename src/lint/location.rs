@@ -760,6 +760,8 @@ pub fn sizes(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             m.claims.iter().any(|c| {
                 c.feature == f.id
                     && !c.parameter.starts_with("location")
+                    && !c.parameter.starts_with("seat_location.")
+                    && !c.parameter.starts_with("step_position.")
                     && !c.parameter.starts_with("grouping")
                     && c.parameter != "thread"
             })
