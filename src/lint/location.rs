@@ -38,16 +38,17 @@ pub(crate) fn route(
             if e.axis != axis || excluded.contains(&i) {
                 continue;
             }
-            let (q, next_node) = if (p - e.a).abs() < EPS && node == e.a_feature {
+            let (q, next_node) = if node == e.a_feature && (node.is_some() || (p - e.a).abs() < EPS)
+            {
                 (e.b, e.b_feature.clone())
-            } else if (p - e.b).abs() < EPS && node == e.b_feature {
+            } else if node == e.b_feature && (node.is_some() || (p - e.b).abs() < EPS) {
                 (e.a, e.a_feature.clone())
             } else {
                 continue;
             };
             if seen
                 .iter()
-                .any(|(v, n)| (q - v).abs() < EPS && *n == next_node)
+                .any(|(v, n)| *n == next_node && (n.is_some() || (q - v).abs() < EPS))
             {
                 continue;
             }
@@ -123,10 +124,12 @@ pub(crate) fn edges(a: &Analysis, marks: &[Mark]) -> Vec<Edge> {
     };
     for mark in marks.iter().filter(|m| !m.text.starts_with('(')) {
         let mut spans = Vec::new();
-        let physical = mark
-            .claims
-            .iter()
-            .any(|c| c.feature.starts_with("station_span:") || c.feature.starts_with("pmi:"));
+        let ink = mark.claims.iter().any(|c| c.feature == "station_ink");
+        let physical = ink
+            || mark
+                .claims
+                .iter()
+                .any(|c| c.feature.starts_with("station_span:") || c.feature.starts_with("pmi:"));
         for c in &mark.claims {
             if let Some(word) = c.feature.strip_prefix("station_span:") {
                 let words: Vec<_> = word.split('|').collect();
@@ -145,7 +148,8 @@ pub(crate) fn edges(a: &Analysis, marks: &[Mark]) -> Vec<Edge> {
                 {
                     spans.push((k, p, q));
                 }
-            } else if let Some((r, ids)) = &report
+            } else if !ink
+                && let Some((r, ids)) = &report
                 && c.feature.starts_with("pmi:")
             {
                 for record in r
@@ -202,12 +206,82 @@ pub(crate) fn edges(a: &Analysis, marks: &[Mark]) -> Vec<Edge> {
     typed
 }
 
+/// Re-measure a principal-axis constraint from the actual two witnesses and the drawn view
+/// transform. This also works for cropped details: the frame names the whole-part centre.
+pub fn ink_span(
+    a: &Analysis,
+    frame: &crate::output::DrawnFrame,
+    lines: &[[[f64; 2]; 2]],
+) -> Option<(usize, f64, f64)> {
+    let ink = crate::output::linear_ink(lines)?;
+    if !frame.scale.is_finite() || frame.scale <= 0. {
+        return None;
+    }
+    let view = haecceity::hlr::View::new(frame.direction, frame.up)?;
+    let (axis, sign) = (0..3).find_map(|k| {
+        let mut unit = [0.; 3];
+        unit[k] = 1.;
+        let q = view.map(unit);
+        ((q[ink.k].abs() - 1.).abs() < EPS && q[1 - ink.k].abs() < EPS).then_some((k, q[ink.k]))
+    })?;
+    let station = |e: &[[f64; 2]; 2]| {
+        let run = e[1][1 - ink.k] - e[0][1 - ink.k];
+        let p = e[0][ink.k]
+            + (lines[2][0][1 - ink.k] - e[0][1 - ink.k]) * (e[1][ink.k] - e[0][ink.k]) / run;
+        0.5 * (a.envelope[0][axis] + a.envelope[1][axis])
+            + sign * (p - frame.at[ink.k]) / frame.scale
+    };
+    Some((axis, station(&lines[0]), station(&lines[1])))
+}
+
+/// Ink evidence is local to lint. It is never written into the drawing or its Spec.
+pub(crate) fn drawn_constraints(
+    a: &Analysis,
+    drawing: &crate::output::Drawing,
+    marks: &mut [Mark],
+) {
+    if drawing.sheet.frames.is_empty() {
+        return;
+    }
+    for mark in marks {
+        let Some(item) = drawing.sheet.items.iter().find(|d| d.name == mark.name) else {
+            continue;
+        };
+        if item.kind != crate::output::Kind::Dimension || item.elbow.is_some() {
+            continue;
+        }
+        mark.claims
+            .retain(|c| !c.feature.starts_with("station_span:") && c.feature != "station_ink");
+        mark.claims.push(crate::output::Claim {
+            feature: "station_ink".into(),
+            parameter: "witnesses".into(),
+        });
+        let span = mark
+            .view
+            .as_deref()
+            .and_then(|v| drawing.sheet.frames.get(v.trim_start_matches("v:")))
+            .and_then(|f| ink_span(a, f, &item.lines));
+        if let Some((axis, p, q)) = span {
+            mark.claims.push(crate::output::Claim {
+                feature: span_claim(axis, p, q),
+                parameter: "station.distance".into(),
+            });
+        }
+    }
+}
+
 /// Feature axes remain distinct even when they share a coordinate in a projection.
 pub(crate) fn node_feature(a: &Analysis, id: &str, k: usize) -> Option<String> {
     if let Some(p) = pattern(a, id)
         && p.members.iter().all(|id| node_feature(a, id, k).is_some())
     {
         return Some(id.into());
+    }
+    if let Some(f) = a.features.iter().find(|f| f.id == id && f.kind == "slot") {
+        return ["location_slot.length", "location_slot_across.length"]
+            .iter()
+            .any(|role| super::redundancy::span(a, &f.id, role).is_some_and(|span| span.axis == k))
+            .then(|| id.into());
     }
     a.features
         .iter()
@@ -222,8 +296,40 @@ pub(crate) fn node_feature(a: &Analysis, id: &str, k: usize) -> Option<String> {
         .map(|f| f.id.clone())
 }
 
-pub(crate) fn pattern<'a>(a: &'a Analysis, id: &str) -> Option<&'a crate::bridge::HolePattern> {
-    a.recognition.as_ref()?.patterns.iter().find(|p| p.id == id)
+pub(crate) fn pattern<'a>(
+    a: &'a Analysis,
+    id: &str,
+) -> Option<std::borrow::Cow<'a, crate::bridge::HolePattern>> {
+    if let Some(p) = a
+        .recognition
+        .as_ref()
+        .and_then(|r| r.patterns.iter().find(|p| p.id == id))
+    {
+        return Some(std::borrow::Cow::Borrowed(p));
+    }
+    let f = a
+        .features
+        .iter()
+        .find(|f| f.id == id && f.kind == "slot_pattern")?;
+    let members = f
+        .parameters
+        .get("slots")?
+        .as_array()?
+        .iter()
+        .filter_map(|s| s.as_str().map(str::to_string))
+        .collect();
+    Some(std::borrow::Cow::Owned(crate::bridge::HolePattern {
+        id: f.id.clone(),
+        arrangement: if f.parameters.contains_key("col_pitch") {
+            "grid"
+        } else {
+            "linear"
+        }
+        .into(),
+        members,
+        faces: f.faces.clone(),
+        parameters: f.parameters.clone(),
+    }))
 }
 
 pub(crate) fn station(a: &Analysis, id: &str, k: usize) -> Option<f64> {
@@ -233,6 +339,10 @@ pub(crate) fn station(a: &Analysis, id: &str, k: usize) -> Option<f64> {
         return (!points.is_empty()).then(|| points.iter().sum::<f64>() / points.len() as f64);
     }
     if let Some(f) = a.features.iter().find(|f| f.id == id) {
+        if f.kind == "slot" {
+            let p = super::slots::centre(f).ok()?;
+            return Some(crate::bridge::holes::to_part(&crate::bridge::holes::frame(a), p)[k]);
+        }
         if let Some(v) = a.axis_station(id, k) {
             return Some(v);
         }
@@ -294,7 +404,8 @@ pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge>
                         f.kind != "hole_pattern"
                             && node_feature(a, &f.id, e.axis).is_some()
                             && r.faces.iter().any(|i| f.faces.contains(i))
-                            && station(a, &f.id, e.axis).is_some_and(|p| (p - at).abs() < EPS)
+                            && station(a, &f.id, e.axis)
+                                .is_some_and(|p| (p - at).abs() < super::redundancy::TOL)
                     })
                     .collect();
                 if candidates.len() == 1 {
@@ -320,6 +431,7 @@ pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge>
             .find(|c| c.parameter.contains("pitch.length"));
         if let Some(c) = pitch
             && let Some(p) = pattern(a, &c.feature)
+            && !super::schemes::supports(a, &c.feature, &c.parameter, &mark.text).is_empty()
         {
             let centre = station(a, &p.id, span.axis);
             if let Some(centre) = centre {
@@ -371,11 +483,7 @@ pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge>
             if node_feature(a, &c.feature, span.axis).is_some() {
                 members.push(c.feature.clone());
             }
-            if let Some(p) = a
-                .recognition
-                .as_ref()
-                .and_then(|r| r.patterns.iter().find(|p| p.id == c.feature))
-            {
+            if let Some(p) = pattern(a, &c.feature) {
                 if pitch.is_some() {
                     members.extend(p.members.iter().cloned());
                 } else {
@@ -396,11 +504,15 @@ pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge>
         };
         let left: Vec<_> = members
             .iter()
-            .filter(|id| at(id).is_some_and(|p| (p[span.axis] - span.a).abs() < EPS))
+            .filter(|id| {
+                at(id).is_some_and(|p| (p[span.axis] - span.a).abs() < super::redundancy::TOL)
+            })
             .collect();
         let right: Vec<_> = members
             .iter()
-            .filter(|id| at(id).is_some_and(|p| (p[span.axis] - span.b).abs() < EPS))
+            .filter(|id| {
+                at(id).is_some_and(|p| (p[span.axis] - span.b).abs() < super::redundancy::TOL)
+            })
             .collect();
         if pitch.is_some() && !left.is_empty() && !right.is_empty() {
             for l in &left {
@@ -424,6 +536,17 @@ pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge>
                     out.push(e);
                 }
             }
+        } else if location
+            && right.is_empty()
+            && members.len() == 1
+            && mark
+                .claims
+                .iter()
+                .any(|c| c.parameter.starts_with("location_slot."))
+        {
+            let mut e = span;
+            e.b_feature = Some(members[0].clone());
+            out.push(e);
         } else if location && !right.is_empty() {
             for r in right {
                 let mut e = span.clone();
@@ -452,7 +575,11 @@ pub(crate) fn targets(a: &Analysis) -> Vec<(String, usize, f64)> {
             "slot" => {
                 for role in ["location_slot.length", "location_slot_across.length"] {
                     if let Some(span) = super::redundancy::span(a, &f.id, role) {
-                        out.push((f.id.clone(), span.axis, span.hi));
+                        out.push((
+                            f.id.clone(),
+                            span.axis,
+                            station(a, &f.id, span.axis).unwrap_or(span.hi),
+                        ));
                     }
                 }
             }
@@ -500,15 +627,6 @@ pub(crate) fn targets(a: &Analysis) -> Vec<(String, usize, f64)> {
 }
 
 pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
-    // Preserve the established non-PMI drawing/lint contract.
-    if !matches!(&a.pmi, Some(Reading::Read(r)) if !r.records.is_empty())
-        && !marks
-            .iter()
-            .flat_map(|m| &m.claims)
-            .any(|c| c.feature.starts_with("station_span:"))
-    {
-        return vec![];
-    }
     let edges = edges(a, marks);
     let roots = drawing_roots(a, marks);
     let mut issues = Vec::new();
@@ -523,7 +641,21 @@ pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             &BTreeSet::new(),
         );
         let (code, involved) = match first {
-            None => ("feature_not_located", Vec::new()),
+            None => {
+                let node = node_feature(a, &feature, k);
+                let involved: Vec<_> = edges
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, e)| {
+                        e.axis == k
+                            && ((e.a_feature == node && (node.is_some() || (e.a - at).abs() < EPS))
+                                || (e.b_feature == node
+                                    && (node.is_some() || (e.b - at).abs() < EPS)))
+                    })
+                    .map(|(i, _)| i)
+                    .collect();
+                ("feature_not_located", involved)
+            }
             Some(first) => {
                 if first.is_empty() {
                     continue;
@@ -602,11 +734,12 @@ pub fn sizes(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             })
         }) || report.as_ref().is_some_and(|(r, ids)| {
             r.records.iter().any(|r| {
-                r.category == Category::Dimension
-                    && matches!(
-                        r.kind.as_str(),
-                        "diameter" | "radius" | "thickness" | "linear"
-                    )
+                (r.category == Category::ManufacturingRequirement
+                    || (r.category == Category::Dimension
+                        && matches!(
+                            r.kind.as_str(),
+                            "diameter" | "radius" | "thickness" | "linear"
+                        )))
                     && !r.faces.is_empty()
                     && r.faces.iter().all(|i| f.faces.contains(i))
                     && ids.id(&r.source_id).ok().is_some_and(|id| {
@@ -694,7 +827,7 @@ pub(crate) fn active(a: &Analysis, marks: &[Mark]) -> bool {
         || marks
             .iter()
             .flat_map(|m| &m.claims)
-            .any(|c| c.feature.starts_with("station_span:"))
+            .any(|c| c.feature.starts_with("station_span:") || c.feature == "station_ink")
 }
 
 #[cfg(test)]

@@ -158,8 +158,13 @@ fn cylinder_datum_uses_the_other_proven_silhouette() {
     let Some(draftwright::pmi::Reading::Read(report)) = &a.pmi else {
         unreachable!()
     };
-    let geometry = report.records[0].geometry.as_ref().unwrap();
-    let face = &a.face_attachments[report.records[0].faces[0]];
+    let datum = report
+        .records
+        .iter()
+        .find(|r| r.category == draftwright::pmi::Category::Datum && r.label == "B")
+        .unwrap();
+    let geometry = datum.geometry.as_ref().unwrap();
+    let face = &a.face_attachments[datum.faces[0]];
     assert_eq!(face.surface.as_deref(), Some("cylinder"));
     assert!(!geometry.sites.is_empty());
     let view = p.views.iter().find(|v| v.id == "v:front").unwrap();

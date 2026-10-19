@@ -235,6 +235,9 @@ pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         }
         let mut own_spans = Vec::new();
         for c in &m.claims {
+            if c.feature.starts_with("station_") {
+                continue;
+            }
             let key = (&c.feature, &c.parameter);
             let repeated = claims.insert(key, i).filter(|j| *j != i);
             if let Some(j) = repeated {

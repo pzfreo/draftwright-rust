@@ -47,6 +47,8 @@ mod plate_coverage;
 mod pmi_angular;
 #[path = "../pmi_dimensions.rs"]
 mod pmi_dimensions;
+#[path = "../pmi_modes.rs"]
+mod pmi_modes;
 #[path = "../precision.rs"]
 mod precision;
 #[path = "../repeated_dimensions.rs"]

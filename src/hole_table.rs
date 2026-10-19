@@ -1981,6 +1981,7 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
     {
         return selection;
     }
+    let source_locations = crate::dims::pmi_policy::source_locations(analysis, plan);
     // Placement pins keep the canonical (unpinned) plan's sheet and frames (`model::plan_with`);
     // they keep its hole presentation too, so each view is scheduled exactly when the canonical
     // plan schedules it. Re-measuring the trigger on the pinned layout would let a pin's held
@@ -2098,9 +2099,12 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
             continue;
         }
         // Use the theoretical intersection of the minimum datum planes.
-        let Some(origin) = datum_corner(analysis, &axes) else {
+        let Some(mut origin) = datum_corner(analysis, &axes) else {
             continue;
         };
+        if crate::dims::pmi_policy::carries(analysis) || !plan.spec.origin.is_empty() {
+            origin = crate::dims::pmi_policy::origin_point(analysis, &plan.spec);
+        }
         let mut rows = Vec::new();
         let mut replaced = BTreeSet::new();
         for d in &callouts {
@@ -2168,6 +2172,10 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                 let mut cells = vec![String::new(), label.clone()];
                 for &k in &axes {
                     let parameter = format!("location.length.{}", ["x", "y", "z"][k]);
+                    if source_locations.contains(&(f.to_string(), k)) {
+                        cells.push(String::new());
+                        continue;
+                    }
                     let distance = h.at[k] - origin[k];
                     let measured = plan.dimensions.iter().find(|d| {
                         d.measurements

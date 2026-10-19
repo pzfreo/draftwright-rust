@@ -119,7 +119,7 @@ fn location_role(p: &str) -> bool {
         || p.starts_with("step_position.length")
         || p.starts_with("step_height.length.h")
 }
-pub(super) fn origins(a: &Analysis, s: &Spec, wants: &mut [Want]) -> Vec<Problem> {
+fn selected_origins(a: &Analysis, s: &Spec) -> ([Option<(f64, String)>; 3], Vec<Problem>) {
     let mut selected: [Option<(f64, String)>; 3] = [None, None, None];
     let mut problems = Vec::new();
     let mut unusable = false;
@@ -161,6 +161,57 @@ pub(super) fn origins(a: &Analysis, s: &Spec, wants: &mut [Want]) -> Vec<Problem
             selected[k] = origin(a, r, k).map(|v| (v, format!("origin/{axis} {r}")));
         }
     }
+    (selected, problems)
+}
+
+pub(crate) fn origin_point(a: &Analysis, s: &Spec) -> [f64; 3] {
+    let (selected, _) = selected_origins(a, s);
+    std::array::from_fn(|k| selected[k].as_ref().map_or(a.envelope[0][k], |o| o.0))
+}
+
+/// Source-only rooted location evidence, used when a schedule would otherwise add coordinates.
+pub(crate) fn source_locations(a: &Analysis, p: &crate::model::Plan) -> BTreeSet<(String, usize)> {
+    if !carries(a) {
+        return BTreeSet::new();
+    }
+    let marks: Vec<_> = p
+        .dimensions
+        .iter()
+        .filter(|d| {
+            d.placed.is_some()
+                && !d.reference
+                && d.measurements.iter().any(|m| m.feature.starts_with("pmi:"))
+        })
+        .map(|d| crate::lint::Mark {
+            name: d.id.clone(),
+            view: Some(d.view.clone()),
+            text: d.label.clone(),
+            claims: d
+                .measurements
+                .iter()
+                .map(|m| crate::output::Claim {
+                    feature: m.feature.clone(),
+                    parameter: m.parameter.clone(),
+                })
+                .collect(),
+        })
+        .collect();
+    let edges = location::edges(a, &marks);
+    let roots = location::drawing_roots(a, &marks);
+    a.features
+        .iter()
+        .flat_map(|f| {
+            (0..3).filter_map(|k| {
+                let node = location::node_feature(a, &f.id, k)?;
+                let at = location::station(a, &f.id, k)?;
+                location::proof(a, &edges, &roots[k], k, at, Some(&node)).map(|_| (f.id.clone(), k))
+            })
+        })
+        .collect()
+}
+
+pub(super) fn origins(a: &Analysis, s: &Spec, wants: &mut [Want]) -> Vec<Problem> {
+    let (selected, mut problems) = selected_origins(a, s);
     let graph = carries(a) || !s.origin.is_empty();
     for w in wants {
         if let Shape::Linear {
@@ -170,7 +221,9 @@ pub(super) fn origins(a: &Analysis, s: &Spec, wants: &mut [Want]) -> Vec<Problem
             ..
         } = &mut w.shape
         {
-            if w.measurements.iter().any(|m| location_role(&m.parameter))
+            if w.measurements
+                .first()
+                .is_some_and(|m| location_role(&m.parameter))
                 && let Some((v, name)) = &selected[*k]
             {
                 // These candidates are always oriented from the original origin to the feature.
@@ -339,9 +392,10 @@ pub(super) fn cover(
         if authored(w)
             || !*default
             || !given[i].is_empty()
-            || w.measurements
-                .iter()
-                .any(|m| location_role(&m.parameter) || m.parameter.contains("pitch.length"))
+            || (!w.measurements.iter().any(|m| m.feature == "envelope")
+                && w.measurements
+                    .iter()
+                    .any(|m| location_role(&m.parameter) || m.parameter.contains("pitch.length")))
         {
             continue;
         }
@@ -424,10 +478,11 @@ pub(super) fn cover(
     });
     for i in order {
         let (w, default, ..) = kept[i].clone();
-        if authored(&w) || !default || !given[i].is_empty() {
+        if gone.contains(&i) || authored(&w) || !default || !given[i].is_empty() {
             continue;
         }
-        let is_location = w.measurements.iter().any(|m| location_role(&m.parameter));
+        let is_location = w.measurements.iter().any(|m| location_role(&m.parameter))
+            || w.basis.contains("first rung of the profile's baseline");
         let pitch = w
             .measurements
             .iter()
@@ -495,6 +550,8 @@ pub(super) fn cover(
             }
             gone.insert(i);
         } else if is_location
+            && !uncontrolled.is_empty()
+            && !owners.is_empty()
             && uncontrolled.len() < spans.len()
             && uncontrolled.iter().all(|e| e.b_feature.is_some())
         {
@@ -591,10 +648,7 @@ pub(crate) fn ignore(
 }
 
 pub(crate) fn audit(a: &Analysis, s: &Spec, p: &mut crate::model::Plan) {
-    if !carries(a) && s.origin.is_empty() {
-        return;
-    }
-    let marks: Vec<_> = p
+    let mut marks: Vec<_> = p
         .dimensions
         .iter()
         .filter(|d| d.placed.is_some() && !d.reference)
@@ -612,6 +666,112 @@ pub(crate) fn audit(a: &Analysis, s: &Spec, p: &mut crate::model::Plan) {
                 .collect(),
         })
         .collect();
+    for (mark, d) in marks.iter_mut().zip(
+        p.dimensions
+            .iter()
+            .filter(|d| d.placed.is_some() && !d.reference),
+    ) {
+        if d.kind != "linear" {
+            continue;
+        }
+        let Some(view) = p.views.iter().find(|v| v.id == d.view) else {
+            continue;
+        };
+        let at = if view.detail.is_some() {
+            Frame::new(a, view).page([0, 1, 2].map(|k| 0.5 * (a.envelope[0][k] + a.envelope[1][k])))
+        } else {
+            view.at
+        };
+        let frame = crate::output::DrawnFrame {
+            direction: view.direction,
+            up: view.up,
+            at,
+            scale: view.scale,
+        };
+        mark.claims
+            .retain(|c| !c.feature.starts_with("station_span:") && c.feature != "station_ink");
+        mark.claims.push(crate::output::Claim {
+            feature: "station_ink".into(),
+            parameter: "witnesses".into(),
+        });
+        if let Some((axis, q, r)) = location::ink_span(a, &frame, &d.placed.as_ref().unwrap().lines)
+        {
+            mark.claims.push(crate::output::Claim {
+                feature: location::span_claim(axis, q, r),
+                parameter: "station.distance".into(),
+            });
+        }
+    }
+    // A placed coordinate schedule is a drawn locating network too. Verify its cell value
+    // in its declared datum frame, then carry that physical edge to the same shared checker.
+    for table in p
+        .hole_table
+        .iter()
+        .chain(&p.hole_tables)
+        .filter(|t| t.blocks.iter().any(|b| b.placed.is_some()))
+    {
+        let origin = table.origin.unwrap_or(a.envelope[0]);
+        for row in &table.rows {
+            for m in &row.measurements {
+                let Some(k) = AXES
+                    .iter()
+                    .position(|axis| m.parameter == format!("location.length.{axis}"))
+                else {
+                    continue;
+                };
+                let Some(at) = location::station(a, &m.feature, k) else {
+                    continue;
+                };
+                let value = at - origin[k];
+                if !row
+                    .cells
+                    .iter()
+                    .any(|s| crate::lint::holes::states(s, value))
+                {
+                    continue;
+                }
+                let mut claims = vec![
+                    crate::output::Claim {
+                        feature: m.feature.clone(),
+                        parameter: m.parameter.clone(),
+                    },
+                    crate::output::Claim {
+                        feature: "station_ink".into(),
+                        parameter: "coordinate".into(),
+                    },
+                    crate::output::Claim {
+                        feature: location::span_claim(k, origin[k], at),
+                        parameter: "station.distance".into(),
+                    },
+                ];
+                let reference = s.origin.get(AXES[k]).cloned().or_else(|| {
+                    a.face_attachments
+                        .iter()
+                        .enumerate()
+                        .find(|(_, f)| {
+                            f.surface.as_deref() == Some("plane")
+                                && f.axis == Some(k)
+                                && f.sites
+                                    .first()
+                                    .is_some_and(|p| (p[k] - origin[k]).abs() < 1e-6)
+                        })
+                        .map(|(i, _)| format!("face:{i}"))
+                });
+                if let Some(reference) = reference {
+                    claims.push(crate::output::Claim {
+                        feature: format!("station_origin:{k}|{reference}"),
+                        parameter: "origin".into(),
+                    });
+                }
+                marks.push(crate::lint::Mark {
+                    name: format!("{}/{}/{}", table.id, row.tag, AXES[k]),
+                    view: table.view.clone(),
+                    text: format!("{value}"),
+                    claims,
+                });
+            }
+        }
+    }
     p.problems.retain(|p| {
         !matches!(
             p.code.as_str(),
@@ -671,6 +831,30 @@ pub(crate) fn audit(a: &Analysis, s: &Spec, p: &mut crate::model::Plan) {
                 ..Default::default()
             });
         }
+    }
+    for problem in p.problems.iter_mut().filter(|p| {
+        matches!(
+            p.code.as_str(),
+            "feature_not_located" | "feature_located_twice" | "feature_not_sized"
+        )
+    }) {
+        for table in p.hole_table.iter().chain(&p.hole_tables) {
+            for row in &table.rows {
+                for axis in AXES {
+                    let cell = format!("{}/{}/{axis}", table.id, row.tag);
+                    problem.message = problem
+                        .message
+                        .replace(&cell, &format!("table coordinate {} {axis}", row.tag));
+                }
+            }
+            for id in &mut problem.subjects {
+                if id.starts_with(&format!("{}/", table.id)) {
+                    *id = table.id.clone();
+                }
+            }
+        }
+        let mut seen = BTreeSet::new();
+        problem.subjects.retain(|s| seen.insert(s.clone()));
     }
     p.status = crate::completeness::status(&p.problems);
 }
