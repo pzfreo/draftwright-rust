@@ -1370,6 +1370,7 @@ fn route_reports(
 
 /// Retry free callouts hit by furniture placed after the initial joint solve. Only an
 /// actual text contact triggers the full side/row/tier search; unaffected routes stay fixed.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn settle_after_furniture(
     analysis: &crate::model::Analysis,
     spec: &crate::model::Spec,
@@ -1378,6 +1379,7 @@ pub(crate) fn settle_after_furniture(
     items: &mut [PlannedDimension],
     obstacles: &[PlannedDimension],
     cache: &super::footprints::Cache,
+    final_inventory: bool,
 ) -> BTreeMap<String, Vec<Problem>> {
     // Authored PMI keeps the established furniture repair policy. The wider
     // nominal search belongs to automatically generated geometry statements.
@@ -2048,7 +2050,8 @@ pub(crate) fn settle_after_furniture(
             // A pre-existing ink run can be retained only with its established
             // text too. If no precise label has a clear route, restore that
             // compact label on the exact same shaft; never move a held leader.
-            if !compact
+            if final_inventory
+                && !compact
                 && drawn_run(&before)
                 && let Some((baseline, _)) = &established
                 && before
@@ -2085,10 +2088,13 @@ pub(crate) fn settle_after_furniture(
                 {
                     let terms = previous.terms.clone();
                     let id = d.id.clone();
+                    let mut restored = old.clone();
+                    restored.label_at = c.label_at;
+                    restored.label_box = c.label_box;
                     updated.insert(id, route_reports(w, view, footprint.solids(), [tip, elbow]));
                     items[i].label = terms.join(" ");
                     items[i].terms = terms;
-                    items[i].placed = Some(c.placed());
+                    items[i].placed = Some(restored);
                     items[i].basis += "; established one-decimal text retained because the precise label has no route clear of the existing model-ink run";
                 }
             }

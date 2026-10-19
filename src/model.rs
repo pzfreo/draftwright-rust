@@ -3357,7 +3357,8 @@ fn plan_escalated_uncached(
                 // Temporary retention pins are gone now: validate the actual
                 // returned inventory against the caller's automatic policy.
                 if crate::nominal::geometry_eligible(analysis) && !crate::nominal::comparison()
-                    && !annotation_text_edited(spec) && !crate::placement_intent::has_pins(spec)
+                    && !annotation_text_edited(spec)
+                    && (!crate::placement_intent::has_pins(spec) || crate::placement_intent::automatic_pins_only(spec))
                     && !spec.dimensions.values().any(|d| d.omit)
                 {settle_finished_nominals(analysis, spec, &mut p, &[], 3);}
             }
@@ -5030,6 +5031,7 @@ fn plan_with_presentation(
                 &mut natural,
                 &natural_fixed,
                 &footprint_cache,
+                false,
             );
             (before, natural)
         };
@@ -5133,6 +5135,7 @@ fn plan_with_presentation(
         &mut inventory,
         &settle_fixed,
         &footprint_cache,
+        false,
     ));
     for d in &mut dimensions {
         if let Some(settled) = inventory.iter().find(|settled| settled.id == d.id) {
@@ -5889,7 +5892,8 @@ fn plan_with_presentation(
     if crate::nominal::geometry_eligible(analysis)
         && !crate::nominal::comparison()
         && !annotation_text_edited(given)
-        && !crate::placement_intent::has_pins(given)
+        && (!crate::placement_intent::has_pins(given)
+            || crate::placement_intent::automatic_pins_only(given))
     {
         settle_finished_nominals(analysis, given, &mut plan, &omitted_ink, 3);
     }
@@ -5950,6 +5954,7 @@ fn settle_finished_nominals(
         &mut items,
         &fixed,
         &cache,
+        true,
     ));
     if reports.is_empty()
         && items

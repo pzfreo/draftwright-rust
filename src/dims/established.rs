@@ -375,6 +375,7 @@ pub(crate) fn retain(analysis: &Analysis, spec: &Spec, current: &Plan) -> Option
             &mut inventory,
             &fixed,
             &cache,
+            false,
         );
     }
     for d in &mut dims {
