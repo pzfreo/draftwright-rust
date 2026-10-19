@@ -404,7 +404,8 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                             return Ok(plan);
                         }
                         let below_minimum = codes.contains("legibility_floor_breached");
-                        let crossed_leaders = codes.contains("annotation_leader_crossing");
+                        let crossed_leaders = codes.contains("annotation_leader_crossing")
+                            || codes.contains("leader_on_extension");
                         outcome = format!(
                             "layout/readability problems at {} ({})",
                             model::scale_name(scale),
