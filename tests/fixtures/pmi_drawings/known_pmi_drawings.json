@@ -8065,418 +8065,6 @@
   "evidence": "S5 native symbolic-bore port: this source declares its literal ISO 286 H7/H11 class without numeric limits. Proven internal cylinders correlate uniquely to the recognised bore owner; its native text now retains the class without computing unstated limits or duplicating the dimension. Python drops the class (and draws the 62 mm bore separately). The symbolic-fit regression and unchanged exact-one-outcome/NIST open-question tests verify the reading and owner. Maintainer decision 2026-10-16: the default drawing states the class alone; sheet/fit_deviations explicitly adds stacked upper/lower deviations."
  },
  {
-  "file": "assembly_plate_pin.step",
-  "record": "dimension:0:1:4:6",
-  "port": "dimension:#1358",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": null,
-     "text": "15",
-     "view": "plan"
-    }
-   ]
-  },
-  "rust": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": "linear.basic",
-     "text": "15",
-     "view": "plan"
-    }
-   ]
-  },
-  "verdict": "rust-correct",
-  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): the port draws this record's span once, on the PMI dimension that states the same span with the same label, which claims this record; draftwright draws each record standalone, so the sheet repeated it."
- },
- {
-  "file": "assembly_plate_pin.step",
-  "record": "dimension:0:1:4:7",
-  "port": "dimension:#1366",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": null,
-     "text": "50",
-     "view": "plan"
-    }
-   ]
-  },
-  "rust": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": "linear.basic",
-     "text": "50",
-     "view": "plan"
-    }
-   ]
-  },
-  "verdict": "rust-correct",
-  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): the port draws this record's span once, on the PMI dimension that states the same span with the same label, which claims this record; draftwright draws each record standalone, so the sheet repeated it."
- },
- {
-  "file": "assembly_plate_pin.step",
-  "record": "dimension:0:1:4:8",
-  "port": "dimension:#1374",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": null,
-     "text": "15",
-     "view": "plan"
-    }
-   ]
-  },
-  "rust": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": "linear.basic",
-     "text": "15",
-     "view": "plan"
-    }
-   ]
-  },
-  "verdict": "rust-correct",
-  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): the port draws this record's span once, on the PMI dimension that states the same span with the same label, which claims this record; draftwright draws each record standalone, so the sheet repeated it."
- },
- {
-  "file": "assembly_plate_pin.step",
-  "record": "dimension:0:1:4:9",
-  "port": "dimension:#1382",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": null,
-     "text": "80",
-     "view": "plan"
-    }
-   ]
-  },
-  "rust": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": "linear.basic",
-     "text": "80",
-     "view": "plan"
-    }
-   ]
-  },
-  "verdict": "rust-correct",
-  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): the port draws this record's span once, on the PMI dimension that states the same span with the same label, which claims this record; draftwright draws each record standalone, so the sheet repeated it."
- },
- {
-  "file": "assembly_plate_pin.step",
-  "record": "dimension:0:1:4:10",
-  "port": "dimension:#1390",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": null,
-     "text": "45",
-     "view": "plan"
-    }
-   ]
-  },
-  "rust": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": "linear.basic",
-     "text": "45",
-     "view": "plan"
-    }
-   ]
-  },
-  "verdict": "rust-correct",
-  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): the port draws this record's span once, on the PMI dimension that states the same span with the same label, which claims this record; draftwright draws each record standalone, so the sheet repeated it."
- },
- {
-  "file": "assembly_plate_pin.step",
-  "record": "dimension:0:1:4:11",
-  "port": "dimension:#1398",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": null,
-     "text": "20",
-     "view": "plan"
-    }
-   ]
-  },
-  "rust": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": "linear.basic",
-     "text": "20",
-     "view": "plan"
-    }
-   ]
-  },
-  "verdict": "rust-correct",
-  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): the port draws this record's span once, on the PMI dimension that states the same span with the same label, which claims this record; draftwright draws each record standalone, so the sheet repeated it."
- },
- {
-  "file": "assembly_plate_pin.step",
-  "record": "dimension:0:1:4:14",
-  "port": "dimension:#1422",
-  "field": "drawing",
-  "python": {
-   "codes": [
-    "plan_incomplete",
-    "pmi_dropped"
-   ],
-   "outcome": "dropped"
-  },
-  "rust": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": "linear.basic",
-     "text": "45",
-     "view": "plan"
-    }
-   ]
-  },
-  "verdict": "rust-correct",
-  "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete, pmi_dropped); the port states its span once, on the PMI dimension of the same span and label, which claims it (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions)."
- },
- {
-  "file": "hw_assembly_plate_pin_intent.step",
-  "record": "dimension:0:1:4:6",
-  "port": "dimension:#1376",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": null,
-     "text": "15",
-     "view": "plan"
-    }
-   ]
-  },
-  "rust": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": "linear.basic",
-     "text": "15",
-     "view": "plan"
-    }
-   ]
-  },
-  "verdict": "rust-correct",
-  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): the port draws this record's span once, on the PMI dimension that states the same span with the same label, which claims this record; draftwright draws each record standalone, so the sheet repeated it."
- },
- {
-  "file": "hw_assembly_plate_pin_intent.step",
-  "record": "dimension:0:1:4:7",
-  "port": "dimension:#1381",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": null,
-     "text": "50",
-     "view": "plan"
-    }
-   ]
-  },
-  "rust": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": "linear.basic",
-     "text": "50",
-     "view": "plan"
-    }
-   ]
-  },
-  "verdict": "rust-correct",
-  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): the port draws this record's span once, on the PMI dimension that states the same span with the same label, which claims this record; draftwright draws each record standalone, so the sheet repeated it."
- },
- {
-  "file": "hw_assembly_plate_pin_intent.step",
-  "record": "dimension:0:1:4:8",
-  "port": "dimension:#1386",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": null,
-     "text": "15",
-     "view": "plan"
-    }
-   ]
-  },
-  "rust": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": "linear.basic",
-     "text": "15",
-     "view": "plan"
-    }
-   ]
-  },
-  "verdict": "rust-correct",
-  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): the port draws this record's span once, on the PMI dimension that states the same span with the same label, which claims this record; draftwright draws each record standalone, so the sheet repeated it."
- },
- {
-  "file": "hw_assembly_plate_pin_intent.step",
-  "record": "dimension:0:1:4:9",
-  "port": "dimension:#1391",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": null,
-     "text": "80",
-     "view": "plan"
-    }
-   ]
-  },
-  "rust": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": "linear.basic",
-     "text": "80",
-     "view": "plan"
-    }
-   ]
-  },
-  "verdict": "rust-correct",
-  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): the port draws this record's span once, on the PMI dimension that states the same span with the same label, which claims this record; draftwright draws each record standalone, so the sheet repeated it."
- },
- {
-  "file": "hw_assembly_plate_pin_intent.step",
-  "record": "dimension:0:1:4:10",
-  "port": "dimension:#1396",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": null,
-     "text": "45",
-     "view": "plan"
-    }
-   ]
-  },
-  "rust": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": "linear.basic",
-     "text": "45",
-     "view": "plan"
-    }
-   ]
-  },
-  "verdict": "rust-correct",
-  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): the port draws this record's span once, on the PMI dimension that states the same span with the same label, which claims this record; draftwright draws each record standalone, so the sheet repeated it."
- },
- {
-  "file": "hw_assembly_plate_pin_intent.step",
-  "record": "dimension:0:1:4:11",
-  "port": "dimension:#1401",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": null,
-     "text": "20",
-     "view": "plan"
-    }
-   ]
-  },
-  "rust": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": "linear.basic",
-     "text": "20",
-     "view": "plan"
-    }
-   ]
-  },
-  "verdict": "rust-correct",
-  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): the port draws this record's span once, on the PMI dimension that states the same span with the same label, which claims this record; draftwright draws each record standalone, so the sheet repeated it."
- },
- {
-  "file": "hw_assembly_plate_pin_intent.step",
-  "record": "dimension:0:1:4:14",
-  "port": "dimension:#1416",
-  "field": "drawing",
-  "python": {
-   "codes": [
-    "plan_incomplete",
-    "pmi_dropped"
-   ],
-   "outcome": "dropped"
-  },
-  "rust": {
-   "drawn": [
-    {
-     "boxed": true,
-     "kind": "dimension",
-     "rides_on": "linear.basic",
-     "text": "45",
-     "view": "plan"
-    }
-   ]
-  },
-  "verdict": "rust-correct",
-  "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete, pmi_dropped); the port states its span once, on the PMI dimension of the same span and label, which claims it (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions)."
- },
- {
   "file": "hw_thread_replaced.step",
   "record": "manufacturing_requirement:#6564",
   "port": "manufacturing_requirement:#6564",
@@ -8496,36 +8084,6 @@
   },
   "verdict": "rust-correct",
   "evidence": "Beyond Python: the port projects the AP242 turned_knurl #6564 (straight, pitch 0.8 agreeing with its 78 teeth on major diameter 20) to a structured knurl record; draftwright's Part 21 pass never reads a turned_knurl, so it has no record. Its one face (#961) is not cylindrical, so native lowering reports it pmi_not_lowered rather than drawing it. tests/pmi_thread_knurl.rs checks the drawn case on the editor's spindle knurl."
- },
- {
-  "file": "nist_ftc_07_asme1_ap242-e2.stp",
-  "record": "dimension:0:1:4:91",
-  "port": "dimension:#15466",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "dimension",
-     "rides_on": null,
-     "text": "0.30 ±0.02 INCH",
-     "view": "side"
-    }
-   ]
-  },
-  "rust": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "dimension",
-     "rides_on": "linear",
-     "text": "0.30 ±0.02 INCH",
-     "view": "side"
-    }
-   ]
-  },
-  "verdict": "rust-correct",
-  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): the port draws this record's span once, on the PMI dimension that states the same span with the same label, which claims this record; draftwright draws each record standalone, so the sheet repeated it."
  },
  {
   "field": "drawing",
@@ -8980,5 +8538,57 @@
   },
   "verdict": "rust-correct",
   "evidence": "Only nominal display changes to shortest faithful decimals up to three places; tolerances, claims and rendering outcomes are retained (drawn-values-2026-10-18)."
+ },
+ {
+  "field": "drawing",
+  "file": "assembly_plate_pin.step",
+  "port": "dimension:#1422",
+  "python": {
+   "codes": [
+    "plan_incomplete",
+    "pmi_dropped"
+   ],
+   "outcome": "dropped"
+  },
+  "record": "dimension:0:1:4:14",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": true,
+     "kind": "dimension",
+     "rides_on": null,
+     "text": "45",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "Issue 122 retains every authored PMI dimension as its own source statement, including repeated basic locations. This 45 basic dimension remains drawn on its native source owner instead of riding another PMI dimension; engine locations and pitches yield to the rooted PMI network. Python dropped this source, so that remaining difference is intentional."
+ },
+ {
+  "field": "drawing",
+  "file": "hw_assembly_plate_pin_intent.step",
+  "port": "dimension:#1416",
+  "python": {
+   "codes": [
+    "plan_incomplete",
+    "pmi_dropped"
+   ],
+   "outcome": "dropped"
+  },
+  "record": "dimension:0:1:4:14",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": true,
+     "kind": "dimension",
+     "rides_on": null,
+     "text": "45",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "Issue 122 retains every authored PMI dimension as its own source statement, including repeated basic locations. This 45 basic dimension remains drawn on its native source owner instead of riding another PMI dimension; engine locations and pitches yield to the rooted PMI network. Python dropped this source, so that remaining difference is intentional."
  }
 ]
