@@ -103,7 +103,8 @@ edited.
   them; or `refused` with the reason when a file naming semantic PMI cannot be read. Absent when
   the file has none (presentation alone is counted). `plan` lowers it (below); older analyses
   read with none. Manufacturing requirements (threads and knurls with their structured fields
-  and faces, general tolerances, surface texture and edge notes; AP242 surface textures, a
+  and faces, general tolerances, surface texture and part notes (semantic text on the part:
+  `general note`, `surface treatment`, `heat treatment`, `edge condition`); AP242 surface textures, a
   part's as a default `surface_texture`, a face's as a `surface_finish` with its material removal
   condition and parameters in `fields`), surface labels and common
   labels are records too; a surface or common label carries its proven sites (`geometry`, below)
@@ -261,7 +262,7 @@ mention takes its default.
     "pmi:datum.A:f12:t=A": { "place": { "view": "front", "side": "left",
                                       "lane": 0, "pinned": true } }
   },
-  "notes": [ { "id": "n:1", "text": "BREAK ALL SHARP EDGES" } ]
+  "notes": [ { "id": "n:1", "text": "DO NOT SCALE" } ]
 }
 ```
 
@@ -1346,16 +1347,54 @@ the ink in the PDF and the SVG so it can be searched and copied, and read by lin
 
 ### General notes
 
-`src/notes.rs` reads the spec's `notes`, a list of `{id, text}` in the order they are numbered,
-and draws them as draftwright draws its document notes (`render_document_notes`):
+`src/notes.rs` combines the part's PMI notes with the Spec's `notes`, a list of `{id, text}`,
+and draws them as draftwright draws its document notes (`render_document_notes`). Notes about
+making the part (deburr, etch, coating, heat treatment) belong in the model's PMI. Drawing-only
+notes ("DO NOT SCALE", "DIMENSIONS IN MM") belong in the Spec. Existing Spec notes stay there;
+there is no automatic migration.
 
+- **PMI notes first.** Part-level `semantic text` attribute sets (PMI practice §7.4) carry one
+  note per set: `general note`, `surface treatment` (also `coating`), `heat treatment` or
+  `edge condition` (also `edges`, the NIST/haecceity spelling). Aliases produce the same
+  canonical records and item IDs as the standard names.
+  `src/pmi.rs` exposes each as a manufacturing-requirement record without requiring graphic
+  presentation or producer metadata. `pmi_lowering::sheet_requirements` lowers all these kinds
+  in one function. Specify's one-based `INTEGER_REPRESENTATION_ITEM('note index', n)`
+  orders the notes; legacy non-negative `order` or `index` items (integer or decimal text)
+  are also accepted. Indexed notes come first in index order, then unindexed notes in model
+  instance order; equal indices keep model instance order. Spec notes follow in their list order.
+  The default surface finish retains its symbol beside the title block.
+- **No requirement and wording.** Trimmed, case-insensitive `None`, `N/A`, `NA`, `-`, empty
+  or whitespace-only part-note values declare no requirement. The raw record stays read;
+  its source reason and inventory basis say `info`, and its planned requirement has kind
+  `no_requirement`, carrier `none`, state `not_authored`, and no place. It creates no Problem
+  and no note row. Other general/edge notes retain their text. A coating or heat-treatment
+  value gets `Coating: ` or `Heat treatment: ` unless it names a process. This is a small
+  lexical rule: alphabetic word tokens, ignoring case, recognize `plate`/`plated`/`plating`
+  and stems `anodis`, `anodiz`, `paint`, `coat`, `harden`, `temper`, `nitrid`, `treat`,
+  `anneal`, `carbur`, `quench`, `passivat`, `oxid`, `phosphat`, `galvanis`, `galvaniz`.
+  Thus `Anodise black` and `Harden to HRC 40` stay as authored; `Black` becomes
+  `Coating: Black`, and `HRC 40` becomes `Heat treatment: HRC 40`. It does not interpret
+  material specifications or invent process parameters.
+- **Omit a PMI note.** Use `annotations/<PMI item ID>/omit: true`, the same stable identity and
+  path convention as other PMI annotations, for example
+  `annotations/pmi:manufacturing_requirement.general_note/omit`. The note remains in the model
+  and in the plan/items inventory as `omitted_by_user`, with no place and number zero; it
+  reserves no block space. This does not remove a matching existing Spec note.
+- **Duplicates.** Text matching ignores case and normalizes whitespace runs, and accepts
+  either the raw model value or its kind-prefixed drawing text. A matching Spec
+  note is drawn once through the PMI item; the Spec item remains `covered` by it, with number
+  zero. Info Problem `note_duplicated_in_spec` names both items and the PMI source and Spec
+  path. Its offered fix sets `notes` to the list with that Spec copy removed. Planning never
+  edits the Spec itself.
 - **Refused** (by `plan` and `edit`, with the next free ID as the choice): an ID not of the form
   `n:<k>` (`k` a whole number from 1, no leading zeros), two notes with one ID, a note whose text
   is empty or only whitespace. An absent or empty list is not serialised, so a spec without
   notes reads and writes as before.
 - **Plan items** (`notes`): `{id, text, number, rows, default: false, basis, placed}`. `number`
-  is the note's place in the list (draftwright numbers by position, so the IDs stay while the
-  numbers follow the order); `rows` are `document_note_rows`' (`1  BREAK ALL SHARP EDGES`, wrapped
+  is the note's place in the combined visible list (the IDs stay while the
+  numbers follow the order); `default` is true for model notes; `rows` are
+  `document_note_rows`' (`1  BREAK ALL SHARP EDGES`, wrapped
   at 48 characters as Python's `textwrap` wraps them, never splitting a word, continuation rows
   indented three spaces); `placed` is each row's ink centre and the note's cells. The block
   (`notes_block`: the `GENERAL NOTES` heading, its ink centre and the table's box) is drawn
@@ -1372,7 +1411,7 @@ and draws them as draftwright draws its document notes (`render_document_notes`)
 - **Render.** Each row is drawn as glyphs and is one invisible text run of the row as the plan
   states it (continuation rows without their indent), so the notes can be searched and copied
   from the PDF and the SVG; `⌀` is drawn as `ø`, as draftwright's `_font_safe_text` does.
-- **Edits.** `{"op": "add", "path": "notes", "value": {"text": "DEBURR"}}` appends a note; one
+- **Edits.** `{"op": "add", "path": "notes", "value": {"text": "DO NOT SCALE"}}` appends a note; one
   given no `id` takes the next free `n:<k>`. A note is changed or removed by setting `notes`.
 - **Differences from draftwright**, with verdicts (`tests/notes.rs` compares the block with
   draftwright's on m10127 and ctc01, `tests/fixtures/notes.json` from `tools/capture_notes.py`):
@@ -1740,8 +1779,10 @@ different PMI one is `step_general_tolerance_disagreement`, a warning); its one 
 otherwise specified` is ISO 1302's symbol at the left end of the band above the title block
 (`sheet`, its collisions reported as a dimension's), as is an AP242 surface texture on the part
 itself (F2: read as that default, its material removal condition drawn as ISO 1302's bar or
-circle, `placed.arcs` holding the circle; the field is absent otherwise); each edge condition on no face is a general
-note `pmi:<identity>` after the spec's notes (`notes`). Two of one default are ambiguous and
+circle, `placed.arcs` holding the circle; the field is absent otherwise). Part-level edge
+conditions, general notes, surface treatments and heat treatments become general notes
+`pmi:<identity>` before the Spec notes (`notes`), in model order, with omission and duplicate
+reconciliation as described under General notes. Two of one default are ambiguous and
 neither is drawn (`pmi_not_lowered`). Each is an annotation of the drawing by its ID, over the
 runs that state it. A turned part keeps a view a PMI item is drawn in (draftwright's
 `annotation_view_required`). Compared with draftwright's drawings by `tests/pmi_drawings.rs`.

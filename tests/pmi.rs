@@ -872,8 +872,10 @@ fn every_item_and_finding_is_accounted_for_and_the_output_is_deterministic() {
                         x.part == p && ids.iter().all(|id| x.instances.binary_search(id).is_ok())
                     });
                     let source = r.sources.iter().any(|s| {
-                        s.outcome == Outcome::NotExtracted
-                            && (s.id == format!("{item}:{p}:{i}") || s.instances == *ids)
+                        (s.id == format!("{item}:{p}:{i}") || s.instances == *ids)
+                            && (s.outcome == Outcome::NotExtracted
+                                || (s.category == Category::Other
+                                    && s.reason.starts_with("Draftwright record ")))
                     });
                     assert!(in_record || source, "{name}: {item} {p}:{i} lost");
                 }

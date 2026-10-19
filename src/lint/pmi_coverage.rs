@@ -54,12 +54,15 @@ use crate::output::{Drawing, Kind};
 use crate::pmi::{Category, Identities, Outcome, Reading, Record, Report};
 use crate::pmi_lowering::{lower, manufacturing, sheet_requirements};
 
-/// Python's `_SUPPORTED_MANUFACTURING_REQUIREMENTS`.
-const MANUFACTURING: [&str; 5] = [
+/// Supported manufacturing requirements, including part semantic text.
+const MANUFACTURING: [&str; 8] = [
     "external_thread",
     "internal_thread",
     "knurl",
     "edge_condition",
+    "general_note",
+    "surface_treatment",
+    "heat_treatment",
     "surface_finish",
 ];
 
@@ -203,7 +206,10 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     lowered.retain(|s| ids.ids.contains_key(*s));
     for r in &report.records {
         let id = r.source_id.as_str();
-        if on_sheet.contains(id) || lowered.contains(id) {
+        if crate::pmi_lowering::no_part_requirement(r)
+            || on_sheet.contains(id)
+            || lowered.contains(id)
+        {
             continue;
         }
         let reason = match dimension(r) {
@@ -243,7 +249,10 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     }
     for r in &report.records {
         let id = r.source_id.as_str();
-        if lowered.contains(id) && !on_sheet.contains(id) {
+        if !crate::pmi_lowering::no_part_requirement(r)
+            && lowered.contains(id)
+            && !on_sheet.contains(id)
+        {
             out.push(sourced(
                 "pmi_not_rendered",
                 id,
@@ -376,14 +385,22 @@ fn manufacturing_text(report: &Report, marks: &[Mark], ids: &Identities) -> Vec<
         };
         let words: Vec<&str> = m.text.split_whitespace().collect();
         let states = match r.kind.as_str() {
-            "edge_condition" => {
+            "edge_condition" | "general_note" | "surface_treatment" | "heat_treatment" => {
                 // The general notes block numbers each note's first row. Its annotation owns
                 // only that note's runs, including every wrapped continuation row.
                 let note = match words.first().and_then(|s| s.parse::<usize>().ok()) {
                     Some(n) if n > 0 => &words[1..],
                     _ => &words[..],
                 };
-                !note.is_empty() && note == r.label.split_whitespace().collect::<Vec<_>>()
+                let source = r.label.split_whitespace().collect::<Vec<_>>();
+                let qualified = match r.kind.as_str() {
+                    "surface_treatment" => note.strip_prefix(&["Coating:"]),
+                    "heat_treatment" => note.strip_prefix(&["Heat", "treatment:"]),
+                    _ => None,
+                };
+                !crate::pmi_lowering::no_part_requirement(r)
+                    && !note.is_empty()
+                    && (note == source || qualified.is_some_and(|text| text == source))
             }
             "surface_finish" => {
                 let parameters: Vec<_> = r
@@ -766,7 +783,12 @@ pub(super) fn source_sites(
         } else if general_note {
             matches!(
                 r.kind.as_str(),
-                "edge_condition" | "datum_scheme" | "model_representation"
+                "edge_condition"
+                    | "general_note"
+                    | "surface_treatment"
+                    | "heat_treatment"
+                    | "datum_scheme"
+                    | "model_representation"
             )
         } else {
             true

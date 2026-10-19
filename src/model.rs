@@ -255,7 +255,7 @@ pub struct Spec {
         deserialize_with = "crate::dims::precision::read"
     )]
     pub precision: BTreeMap<String, u8>,
-    /// Placement and omission of semantic PMI frames, datums and labels, by stable ID.
+    /// Placement and omission of semantic PMI frames, datums, labels and part notes, by stable ID.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub annotations: BTreeMap<String, crate::placement_intent::AnnotationSpec>,
     /// Per feature, by its ID (`f:<kind>:<n>`).
@@ -4138,6 +4138,13 @@ fn plan_with_presentation(
         let mut lowered = crate::pmi_lowering::lower(analysis, &|_| true).0;
         crate::label_text::annotations(&mut lowered, &effective)?;
         let mut annotation_ids: Vec<String> = lowered.into_iter().map(|i| i.id).collect();
+        annotation_ids.extend(
+            crate::pmi_lowering::sheet_requirements(analysis)
+                .0
+                .into_iter()
+                .filter(|r| matches!(r.kind, "document_note" | "no_requirement"))
+                .map(|r| r.id),
+        );
         annotation_ids.extend(crate::dims::blends::note_ids(analysis));
         for id in effective.annotations.keys() {
             if !annotation_ids.contains(id) {
@@ -4398,20 +4405,12 @@ fn plan_with_presentation(
     // The tables are reserved towards their corners and the general notes block top right, in
     // draftwright's order, unless only a fallback would make room for them: then each is placed
     // where it can be, or reported (crate::tables, crate::notes).
-    // The part's drawing-wide PMI requirements (crate::pmi_lowering): its edge conditions are
-    // general notes after the spec's.
+    // Part PMI notes precede the drawing's own notes; reconciliation never changes the Spec.
     let (requirements, more) = crate::pmi_lowering::sheet_requirements(analysis);
     problems.extend(more);
-    let mut notes_given = spec.notes.clone();
-    notes_given.extend(
-        requirements
-            .iter()
-            .filter(|r| r.kind == "document_note")
-            .map(|r| NoteSpec {
-                id: r.id.clone(),
-                text: r.value.clone(),
-            }),
-    );
+    let (mut notes_given, omitted_notes, more) =
+        crate::notes::reconcile(&requirements, analysis, spec);
+    problems.extend(more);
     let mut radius_notes = crate::dims::blends::notes(analysis);
     for (note, _) in &mut radius_notes {
         if let Some(text) = spec.annotations.get(&note.id).and_then(|a| a.text.as_ref()) {
@@ -5641,6 +5640,7 @@ fn plan_with_presentation(
         .partition(|n| radius_notes.iter().any(|(r, _)| r.id == n.id));
     let (mut notes, mut notes_block, more) =
         crate::notes::plan(&authored, analysis, &sheet, &views, &ink);
+    crate::notes::provenance(&mut notes, &requirements, spec);
     problems.extend(more);
     // Authored tables keep their established priority; automatic radii use the space left.
     let (mut tables, more) = crate::tables::plan(
@@ -5828,6 +5828,8 @@ fn plan_with_presentation(
         });
     }
     dimensions.retain(|d| !matches!(&d.state, ItemState::Covered { by } if by.starts_with("n:") || by == crate::dims::blends::RADIUS_TABLE));
+
+    notes.extend(omitted_notes);
 
     // A drawing-wide requirement carried by a general note is drawn as that note is.
     for r in requirements.iter_mut().filter(|r| r.carrier == "notes") {

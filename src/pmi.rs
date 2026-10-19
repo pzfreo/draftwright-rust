@@ -32,7 +32,10 @@
 //!   `CommonLabel`, a `dimension` of kind `common_label`) (`PartReader::labels`). Their `value`
 //!   is `None` (draftwright's placeholder 0). AP242 surface textures (ISO 1302), which
 //!   draftwright does not read, are records too (`PartReader::semantic_textures`): the part's
-//!   own a default `surface_texture`, one on faces a `surface_finish`.
+//!   own a default `surface_texture`, one on faces a `surface_finish`. Part-level `semantic
+//!   text` attribute sets are manufacturing requirements too (`PartReader::part_notes`):
+//!   general notes, surface treatments, heat treatments and edge conditions, with text and
+//!   optional one-based `note index` (or legacy order/index) fields; they need no presentation.
 //! - The faces a record applies to replace draftwright's XCAF shapes: `faces`, the drawing's face
 //!   indices (haecceity's, the file's own order, as [`crate::bridge`] uses), `face_ids` their
 //!   `ADVANCED_FACE` instances, and `face_groups`, a location's two sides or a size's one
@@ -44,8 +47,9 @@
 //!   proven stations, or its cylinders: [`crate::pmi_lowering::dimension_geometry`]).
 //! - [`Source`] is `PmiSourceEntity`: what was not read, and why, as a `not_extracted` source;
 //!   every read record is a source too (`extracted`, or `partially_extracted` with its
-//!   blockers). Not read: every haecceity finding not on a record's instances; every item
-//!   haecceity reads that the port does not project (attribute sets that are no label or
+//!   blockers). Recognised Draftwright bookkeeping is an `extracted` source of category
+//!   `other`, with no drawing record or requirement. Not read: every haecceity finding not on a record's instances; every item
+//!   haecceity reads that the port does not project (attribute sets that are no part note, label or
 //!   structured requirement, general tolerance tables, AP242 `thread` and `turned_knurl`
 //!   features the port does not read as records, material,
 //!   standards, datum targets, tolerance relations); and every record whose face or edge does
@@ -169,7 +173,8 @@ pub struct Record {
     pub instances: Vec<u64>,
     pub blockers: Vec<String>,
     /// A structured requirement's named fields (draftwright's `structured_fields`): a thread's
-    /// designation, fit class and pitch, a knurl's pattern and pitch, a general tolerance's class.
+    /// designation, fit class and pitch, a knurl's pattern and pitch, a general tolerance's class,
+    /// or a semantic part note's explicit `note order` index.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub fields: Vec<(String, Field)>,
     /// Where a geometric tolerance or datum attaches, derived from its faces for lowering
@@ -670,13 +675,25 @@ pub fn report_part(
             continue;
         }
         let subject = f.ids.first().copied().unwrap_or(0);
+        let bookkeeping = is_legacy_answers(doc, subject);
         sources.push(Source {
             id: format!("finding:#{subject}"),
             category: category_of_entity(&f.entity),
             entity: f.entity.clone(),
             instances: f.ids.clone(),
-            outcome: Outcome::NotExtracted,
-            reason: format!("haecceity {}: {}", f.kind.as_str(), f.detail),
+            outcome: if bookkeeping {
+                Outcome::Extracted
+            } else {
+                Outcome::NotExtracted
+            },
+            reason: if bookkeeping {
+                format!(
+                    "Draftwright stored answers (not a drawing requirement); {}",
+                    f.detail
+                )
+            } else {
+                format!("haecceity {}: {}", f.kind.as_str(), f.detail)
+            },
         });
     }
     for r in &mut records {
@@ -719,7 +736,11 @@ pub fn report_part(
             } else {
                 Outcome::PartiallyExtracted
             },
-            reason: r.blockers.join("; "),
+            reason: if r.blockers.is_empty() && crate::pmi_lowering::no_part_requirement(r) {
+                "info: no requirement stated; read, with no drawing needed".into()
+            } else {
+                r.blockers.join("; ")
+            },
         })
         .collect();
     record_sources.append(&mut sources);
@@ -880,6 +901,39 @@ struct Presentation {
     reasons: Vec<String>,
 }
 
+/// Part-owned bookkeeping written by Specify's `resume::attribute_set` and the editor/MCP
+/// project exporter. Match the names and single text item, as Specify's `resume::is_answers`
+/// does; similarly named foreign properties and feature attributes remain reportable.
+fn is_draftwright_record(a: &pmi::AttributeSet) -> bool {
+    matches!(
+        a.name.as_str(),
+        "pmi-assist answers" | "draftwright editor project"
+    ) && a.on.is_none()
+        && matches!(a.items.as_slice(), [(name, AttributeValue::Text(_))] if name == &a.name)
+}
+
+/// Python Specify's earlier stored-answer form, documented by Specify's `resume` module:
+/// a property on the product definition, described 'schema 1', with one named text item.
+/// It has no UDA association, so haecceity reports it as an unmodelled property.
+fn is_legacy_answers(doc: &Document, id: u64) -> bool {
+    const NAME: &str = "pmi-assist answers";
+    if text_of(doc, id, "PROPERTY_DEFINITION", 0) != NAME
+        || text_of(doc, id, "PROPERTY_DEFINITION", 1) != "schema 1"
+        || !ref_of(doc, id, "PROPERTY_DEFINITION", 2)
+            .is_some_and(|owner| attributes(doc, owner, "PRODUCT_DEFINITION").is_some())
+    {
+        return false;
+    }
+    let reps = representations(doc, id);
+    let [rep] = reps.iter().copied().collect::<Vec<_>>()[..] else {
+        return false;
+    };
+    let items = refs_of(doc, rep, "REPRESENTATION", 1);
+    matches!(items.as_slice(), [item]
+        if text_of(doc, *item, "DESCRIPTIVE_REPRESENTATION_ITEM", 0) == NAME
+        && matches!(attributes(doc, *item, "DESCRIPTIVE_REPRESENTATION_ITEM"), Some(a) if matches!(a.get(1), Some(Attribute::String(_)))))
+}
+
 struct PartReader<'a> {
     doc: &'a Document,
     p: usize,
@@ -917,6 +971,9 @@ impl PartReader<'_> {
         for r in self.semantic_textures(&mut used) {
             self.keep(r, records, sources);
         }
+        for r in self.part_notes(&mut used) {
+            self.keep(r, records, sources);
+        }
         // Structured requirements first: their attribute sets are not labels.
         for r in self.requirements(sources, &mut used) {
             self.keep(r, records, sources);
@@ -925,6 +982,84 @@ impl PartReader<'_> {
             self.keep(r, records, sources);
         }
         self.not_projected(sources, &used);
+    }
+
+    /// PMI practice §7.4 semantic text on the part, one attribute set per note. These
+    /// sets have no presentation requirement and are read independently of their producer.
+    fn part_notes(&self, used: &mut Used) -> Vec<Record> {
+        let mut out = Vec::new();
+        let normalized = |s: &str| {
+            s.split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .to_lowercase()
+        };
+        for (i, a) in self.pmi.attributes.iter().enumerate() {
+            if used.attributes[i] || a.on.is_some() || normalized(&a.name) != "semantic text" {
+                continue;
+            }
+            let notes: Vec<_> = a
+                .items
+                .iter()
+                .filter(|(kind, _)| {
+                    crate::pmi_lowering::part_note_kind(&normalized(kind)).is_some()
+                })
+                .collect();
+            if notes.is_empty() {
+                continue;
+            }
+            let ids = self.prov.attributes.get(i).map_or(&[][..], Vec::as_slice);
+            let Some(pdef) = self.property(ids) else {
+                continue;
+            };
+            used.attributes[i] = true;
+            let mut blockers = Vec::new();
+            if notes.len() != 1 {
+                blockers.push("part semantic text must state one note per attribute set".into());
+            }
+            let (kind, value) = notes[0];
+            let mut r = self.record(
+                Category::ManufacturingRequirement,
+                pdef,
+                ids,
+                Support::default(),
+                blockers,
+            );
+            r.kind = crate::pmi_lowering::part_note_kind(&normalized(kind))
+                .expect("filtered part note kind")
+                .into();
+            if let AttributeValue::Text(text) = value {
+                r.label = text.clone();
+            } else {
+                r.blockers
+                    .push("part semantic text note is not text".into());
+            }
+            // Specify's one-based integer `note index` is surfaced by haecceity. Keep the
+            // older order/index names too; absent indices retain the model's instance order.
+            for (name, value) in &a.items {
+                let name = normalized(name);
+                if matches!(name.as_str(), "order" | "index" | "note index") {
+                    let index = match value {
+                        AttributeValue::Text(t) => t.trim().parse::<u64>().ok(),
+                        AttributeValue::Integer(n) => u64::try_from(*n).ok(),
+                        _ => None,
+                    }
+                    .filter(|&n| name != "note index" || n > 0);
+                    if let Some(index) = index {
+                        r.fields
+                            .push(("note order".into(), Field::Text(index.to_string())));
+                    } else {
+                        r.blockers.push(if name == "note index" {
+                            "part note index is not a positive integer".into()
+                        } else {
+                            "part note order/index is not a non-negative integer".into()
+                        });
+                    }
+                }
+            }
+            out.push(r);
+        }
+        out
     }
 
     // AP242 turned_knurl as a structured knurl: its pattern, its major diameter as the maximum
@@ -1147,8 +1282,8 @@ impl PartReader<'_> {
         }
     }
 
-    /// Items haecceity reads that the port does not project and did not *use* in a record, each
-    /// a source not read.
+    /// Items haecceity reads that the port does not project and did not *use* in a record.
+    /// Known bookkeeping stays an extracted metadata source; unsupported items are not read.
     fn not_projected(&self, sources: &mut Vec<Source>, used: &Used) {
         let pmi = self.pmi;
         let prov = self.prov;
@@ -1223,6 +1358,8 @@ impl PartReader<'_> {
         for (item, category, n, ids, used) in groups {
             for i in (0..n).filter(|&i| !used.get(i).copied().unwrap_or(false)) {
                 let instances = ids.get(i).cloned().unwrap_or_default();
+                let bookkeeping =
+                    item == "attribute_set" && is_draftwright_record(&pmi.attributes[i]);
                 sources.push(Source {
                     id: format!("{item}:{}:{i}", self.p),
                     category,
@@ -1230,8 +1367,19 @@ impl PartReader<'_> {
                         .first()
                         .map_or_else(String::new, |&id| entity_name(self.doc, id)),
                     instances,
-                    outcome: Outcome::NotExtracted,
-                    reason: format!("{NOT_PROJECTED} ({})", item.replace('_', " ")),
+                    outcome: if bookkeeping {
+                        Outcome::Extracted
+                    } else {
+                        Outcome::NotExtracted
+                    },
+                    reason: if bookkeeping {
+                        format!(
+                            "Draftwright record {:?} (not a drawing requirement)",
+                            pmi.attributes[i].name
+                        )
+                    } else {
+                        format!("{NOT_PROJECTED} ({})", item.replace('_', " "))
+                    },
                 });
             }
         }
@@ -2111,7 +2259,9 @@ impl PartReader<'_> {
                 });
                 continue;
             };
-            if note.text.is_empty() {
+            if note.text.is_empty()
+                && crate::pmi_lowering::part_note_kind(&note.kind.to_lowercase()).is_none()
+            {
                 sources.push(Source {
                     id: format!("manufacturing_requirement:#{pdef}"),
                     category: Category::ManufacturingRequirement,
@@ -2124,7 +2274,9 @@ impl PartReader<'_> {
             }
             let words = note.kind.to_lowercase();
             let words: Vec<&str> = words.split_whitespace().collect();
-            let kind = if words.is_empty() {
+            let kind = if let Some(kind) = crate::pmi_lowering::part_note_kind(&words.join(" ")) {
+                kind.to_string()
+            } else if words.is_empty() {
                 "manufacturing_requirement".to_string()
             } else {
                 words.join("_")

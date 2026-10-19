@@ -1245,6 +1245,12 @@ fn settable(
         fields.insert("dimension_schemes/<name>".into(), json!({"forms":["{scheme:chain|baseline|ordinate,axis:x|y|z,view?:front|plan|side,targets?:[ID|fingerprint],from?:min|max|reference}"],"consequences":["Requires targets or view; rejects overlapping owners. Remove for auto."]}));
         fields.insert("dimensions/d:authored:<name>".into(), json!({"forms":["{between:[reference,reference],along:x|y|z|true,kind:linear}","{kind:diameter|radius,between:[face reference]}","{kind:angle,between:[reference,reference]}"],"consequences":["References are stable keys from Analysis.edge_ink.references; duplicate quantities are refused with their existing owner ID"]}));
     }
+    if item.item.kind == "note" && id.starts_with("pmi:") {
+        fields.insert(
+            format!("annotations/{}/omit", items::key(id)),
+            choices(json!([false, true])),
+        );
+    }
     if !base.is_empty() {
         fields.insert(format!("{base}/omit"), choices(json!([false, true])));
         if item.item.kind == "view" {
@@ -1758,6 +1764,8 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                 a.features = n.measurements.iter().map(|m| m.feature.clone()).collect();
                 if n.id.starts_with("n:f:blend:") {
                     a.operations = ["omit", "text", "place"].map(String::from).into();
+                } else if n.id.starts_with("pmi:") {
+                    a.operations = vec!["omit".into()];
                 }
             }
             if let Some(r) = plan.requirements.iter().find(|r| &r.id == id) {
