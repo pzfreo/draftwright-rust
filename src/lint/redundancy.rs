@@ -223,6 +223,16 @@ fn toleranced(text: &str) -> bool {
 }
 
 pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
+    // Station evidence belongs to the rooted check, not the legacy semantic claim ledger.
+    let semantic: Vec<_> = marks
+        .iter()
+        .map(|m| {
+            let mut m = m.clone();
+            m.claims.retain(|c| !c.feature.starts_with("station_"));
+            m
+        })
+        .collect();
+    let marks = &semantic;
     if a.solid_count.is_some_and(|n| n > 1) {
         return Vec::new();
     }
