@@ -416,6 +416,9 @@ impl Default for Spec {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct SheetSpec {
+    /// Draw automatically determined dimensions in parentheses; omitted by default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub references: Option<bool>,
     /// Shared thread and knurl callout presentation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub callouts: Option<crate::callouts::Settings>,
@@ -573,6 +576,9 @@ pub struct Plan {
     /// document.
     #[serde(skip)]
     pub(crate) callout_tips: BTreeMap<String, (String, [f64; 2])>,
+    /// Canonical linear label positions relative to their carrier origins; editor metadata.
+    #[serde(skip)]
+    pub(crate) dimension_labels: BTreeMap<String, (String, [f64; 2])>,
     /// Dimensions the spec leaves out, and why (ADR4-8: an authored omission says so).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub omitted: Vec<Omitted>,
@@ -615,6 +621,29 @@ pub struct Plan {
 }
 
 impl Plan {
+    /// A linear dimension's canonical label position in paper mm. Planning metadata only.
+    pub fn automatic_dimension_label(&self, id: &str) -> Option<(&str, [f64; 2])> {
+        let (view, label) = self.dimension_labels.get(id)?;
+        let at = self.views.iter().find(|v| v.id == *view)?.at;
+        Some((view, [at[0] + label[0], at[1] + label[1]]))
+    }
+
+    fn record_dimension_labels(&mut self) {
+        self.dimension_labels = self
+            .dimensions
+            .iter()
+            .filter(|d| d.kind == "linear")
+            .filter_map(|d| {
+                let label = d.placed.as_ref()?.label_at;
+                let at = self.views.iter().find(|v| v.id == d.view)?.at;
+                Some((
+                    d.id.clone(),
+                    (d.view.clone(), [label[0] - at[0], label[1] - at[1]]),
+                ))
+            })
+            .collect();
+    }
+
     /// Widest canonical callout in a view, in paper mm. None for a view without
     /// callouts or a deserialised Plan: this metadata is retained only by planning.
     pub fn canonical_callout_width(&self, view: &str) -> Option<f64> {
@@ -1859,8 +1888,12 @@ pub(crate) fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
 /// The established automatic presentation, shared by scale and hole-table
 /// decisions. This comparison never replaces the full native final inventory.
 pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
-    let key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
-        .expect("presentation inputs serialize");
+    let key = serde_json::to_vec(&(
+        spec.hole_table,
+        &spec.sheet.projection,
+        spec.sheet.references,
+    ))
+    .expect("presentation inputs serialize");
     let reference = crate::planning::memo(
         analysis,
         "prepared-established-drawing",
@@ -1873,6 +1906,7 @@ pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Pl
                 ..Spec::default()
             };
             base.sheet.projection = spec.sheet.projection.clone();
+            base.sheet.references = spec.sheet.references;
             crate::planning::with(&reference, || {
                 // This recipe precedes the added notch bands as well as native recesses.
                 // Otherwise a displaced leader becomes its own established route, and
@@ -3144,6 +3178,35 @@ fn recover_candidates(
     Ok(chosen)
 }
 
+// Shared canonical inputs for pin placement and the editor's label anchor metadata.
+fn pin_base(spec: &Spec) -> Spec {
+    let mut base = Spec::default();
+    base.sheet.size = spec.sheet.size.clone();
+    base.sheet.scale = spec.sheet.scale.clone();
+    base.sheet.preferred_printer = spec.sheet.preferred_printer.clone();
+    base.sheet.projection = spec.sheet.projection.clone();
+    base.sheet.fit_deviations = spec.sheet.fit_deviations;
+    base.sheet.references = spec.sheet.references;
+    base.sheet.view_gutter = spec.sheet.view_gutter;
+    base.sheet.fit_limits = spec.sheet.fit_limits;
+    base.hole_table = spec.hole_table;
+    base.iso_scale_factor = spec.iso_scale_factor;
+    base.dimension_schemes = spec.dimension_schemes.clone();
+    if spec.dimensions.values().any(|d| d.between.is_some()) {
+        base.dimension_source = spec.dimension_source;
+        base.dimensions = spec.dimensions.clone();
+        for d in base.dimensions.values_mut() {
+            d.place = None;
+            d.view = None;
+            d.tolerance = None;
+            d.fit = None;
+            d.text = None;
+            d.style = None;
+        }
+    }
+    base
+}
+
 /// [`plan`] with draftwright's bounded layout recovery applied ([`recover`]): the plan every
 /// caller (the library's [`crate::api`], so the command line, the JSON-lines service and MCP)
 /// is given. A plan that cannot be made is refused as [`plan`] refuses it.
@@ -3177,7 +3240,7 @@ fn plan_automatic_uncached(analysis: &Analysis, spec: &Spec) -> Result<Plan, Inv
     // Analysis (and the planning memo, keyed by its address) sees them ([`crate::spec_gdt`]).
     let merged = crate::spec_gdt::effective(analysis, spec)?;
     let analysis = merged.as_ref();
-    crate::planning::with(analysis, || {
+    let mut plan = crate::planning::with(analysis, || {
         if spec
             .sheets
             .as_ref()
@@ -3214,7 +3277,50 @@ fn plan_automatic_uncached(analysis: &Analysis, spec: &Spec) -> Result<Plan, Inv
         } else {
             crate::sheets::allocate(analysis, spec)
         }
-    })
+    })?;
+    if !crate::placement_intent::has_pins(spec) {
+        type Labels = BTreeMap<String, (String, [f64; 2])>;
+        static LABELS: crate::planning::BoundedMemo<Labels> = crate::planning::BoundedMemo::new(64);
+        let base = pin_base(spec);
+        let key: [u8; 32] = Sha256::digest(
+            serde_json::to_vec(&(
+                &plan.analysis_sha256,
+                &base,
+                crate::nominal::comparison(),
+                crate::planning::nominals_deferred(),
+            ))
+            .expect("canonical label inputs serialize"),
+        )
+        .into();
+        if spec.dimensions.values().any(|d| {
+            d.place.is_some()
+                || d.view.is_some()
+                || d.tolerance.is_some()
+                || d.fit.is_some()
+                || d.text.is_some()
+                || d.style.is_some()
+        }) || spec.features.values().any(|f| f.fit.is_some())
+        {
+            // A side/lane placement or wording edit must not become a new offset origin.
+            // Retain canonical metadata without changing the drawing's solve or wire shape.
+            plan.dimension_labels = if let Some(labels) = LABELS.get(&key) {
+                labels
+            } else {
+                // Metadata preparation must not fill the live edit's retained solve cache.
+                let labels =
+                    crate::planning::isolated(analysis, || plan_recovered(analysis, &base))?
+                        .dimension_labels;
+                LABELS.insert(key, labels.clone());
+                labels
+            };
+        } else {
+            plan.record_dimension_labels();
+            if spec == &base {
+                LABELS.insert(key, plan.dimension_labels.clone());
+            }
+        }
+    }
+    Ok(plan)
 }
 
 /// A selected ladder can lose a location when its long witness meets a longer
@@ -3630,6 +3736,9 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     crate::planning::with(analysis, || {
         let mut plan = plan_with(analysis, spec, false, false, None, false, false)?;
         finish_nominal_plan(analysis, spec, &mut plan);
+        if !crate::placement_intent::has_pins(spec) {
+            plan.record_dimension_labels();
+        }
         Ok(plan)
     })
 }
@@ -3741,17 +3850,7 @@ fn plan_with_presentation(
     let mut problems = Vec::new();
     // The spec the plan follows: across a revision, without the entries that cannot be trusted.
     let canonical = if crate::placement_intent::has_pins(spec) {
-        let mut base = Spec::default();
-        base.sheet.size = spec.sheet.size.clone();
-        base.sheet.scale = spec.sheet.scale.clone();
-        base.sheet.preferred_printer = spec.sheet.preferred_printer.clone();
-        base.sheet.projection = spec.sheet.projection.clone();
-        base.sheet.fit_deviations = spec.sheet.fit_deviations;
-        base.sheet.view_gutter = spec.sheet.view_gutter;
-        base.sheet.fit_limits = spec.sheet.fit_limits;
-        base.hole_table = spec.hole_table;
-        base.iso_scale_factor = spec.iso_scale_factor;
-        base.dimension_schemes = spec.dimension_schemes.clone();
+        let mut base = pin_base(spec);
         if crate::planning::is_fixed_pair() {
             // A trial's omitted automatic crops belong to its canonical frame too.
             // Reintroducing them here moves the peers of an otherwise bare pin.
@@ -3762,25 +3861,32 @@ fn plan_with_presentation(
                 .map(|(name, view)| (name.clone(), view.clone()))
                 .collect();
         }
-        if spec.dimensions.values().any(|d| d.between.is_some()) {
-            base.dimension_source = spec.dimension_source;
-            base.dimensions = spec.dimensions.clone();
-            for d in base.dimensions.values_mut() {
-                d.place = None;
-                d.view = None;
-                d.tolerance = None;
-                d.fit = None;
-                d.text = None;
-                d.style = None;
-            }
-        }
         // Pins in recovered planning replay the finished recovered drawing,
         // including precision repairs, even in its first unexpanded candidate.
-        Some(if complete_views || crate::planning::nominals_deferred() {
-            plan_automatic(analysis, &base)?
-        } else {
-            plan(analysis, &base)?
-        })
+        let replay = |base: &Spec| {
+            if complete_views || crate::planning::nominals_deferred() {
+                plan_automatic(analysis, base)
+            } else {
+                plan(analysis, base)
+            }
+        };
+        let mut canonical = replay(&base)?;
+        if spec.sheet.references != Some(true)
+            && spec.dimensions.iter().any(|(id, d)| {
+                d.place.as_ref().is_some_and(|p| p.pinned)
+                    && canonical.omitted.iter().any(|o| {
+                        &o.id == id
+                            && o.basis
+                                .contains("other stated dimensions determine this interval")
+                    })
+            })
+        {
+            // A pin on an auxiliary dimension is explicit intent to keep its historical ink,
+            // even when the sheet no longer opts into references or the chain was edited.
+            base.sheet.references = Some(true);
+            canonical = replay(&base)?;
+        }
+        Some(canonical)
     } else if spec.sheet.scale.is_none() && annotation_text_edited(spec) {
         // Tolerance, fit and wording edits change annotation ink, not the part projections.
         // Keep authored geometry in the complete unedited frame too.
@@ -3844,8 +3950,10 @@ fn plan_with_presentation(
             // #12: an offset that puts the bend where the canonical plan has it pins the
             // automatic placement, so it is planned as a bare pin: the ink stays as it is.
             if let Some(p) = d.place.as_mut()
-                && p.view.is_none()
-                && d.view.is_none()
+                && p.view.as_ref().or(d.view.as_ref()).is_none_or(|view| {
+                    crate::placement_intent::carrier(base, id).as_deref()
+                        == Some(format!("v:{view}").as_str())
+                })
                 && p.offset
                     .is_some_and(|o| crate::placement_intent::automatic_offset(base, id, o))
             {
@@ -5787,6 +5895,10 @@ fn plan_with_presentation(
             widths
         },
         callout_tips,
+        dimension_labels: canonical
+            .as_ref()
+            .map(|p| p.dimension_labels.clone())
+            .unwrap_or_default(),
         dimensions,
         omitted,
         notes,

@@ -99,6 +99,16 @@ pub struct CalloutOffset {
     pub offset: [f64; 2],
 }
 
+/// A linear label and its canonical anchor in paper mm (y up), in the current view frame.
+/// Pin a drop at `p` with `{offset: p - anchor, pinned: true}`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct LabelOffset {
+    pub view: String,
+    pub anchor: [f64; 2],
+    pub label: [f64; 2],
+    pub offset: [f64; 2],
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Options {
     pub id: String,
@@ -532,6 +542,34 @@ impl Session {
             offset: [bend[0] - tip[0], bend[1] - tip[1]],
         })
     }
+    /// The linear label's displacement from its canonical position, without replanning.
+    /// Refuses non-linear items, missing automatic placements and other carrier views.
+    pub fn label_offset(&self, address: &str) -> Result<LabelOffset, Error> {
+        let item = self.item(address)?;
+        if item.dimension_kind.as_deref() != Some("linear") {
+            return Err(Error::invalid("a label offset requires a linear dimension"));
+        }
+        let id = item.item.id.as_str();
+        let (view, anchor) = self.plan().automatic_dimension_label(id).ok_or_else(|| {
+            Error::invalid(format!(
+                "{id} has no automatic placement to measure an offset from"
+            ))
+        })?;
+        let label = self
+            .plan()
+            .dimensions
+            .iter()
+            .find(|d| d.id == id && d.view == view)
+            .and_then(|d| d.placed.as_ref().map(|p| p.label_at))
+            .ok_or_else(|| Error::invalid(format!("{id} is not drawn in {view}")))?;
+        Ok(LabelOffset {
+            view: view.into(),
+            anchor,
+            label,
+            offset: [label[0] - anchor[0], label[1] - anchor[1]],
+        })
+    }
+
     pub fn state(&self) -> &State {
         &self.state
     }
@@ -1294,8 +1332,8 @@ fn settable(
                 format!("{base}/place/along"),
                 json!({"choices":["start","middle","end","outside"],"range":[0,1]}),
             );
-            // #12: a pinned callout's bend from its automatic leader tip, [dx, dy] paper mm.
-            if item.dimension_kind.as_deref() == Some("callout") {
+            // Free placement: callout bend from tip, or linear label from canonical label.
+            if matches!(item.dimension_kind.as_deref(), Some("callout" | "linear")) {
                 fields.insert(
                     format!("{base}/place/offset"),
                     json!({"range":[-1000,1000]}),
@@ -1476,6 +1514,7 @@ fn settable(
             "sheet/view_gutter".into(),
             json!({"forms":["non-negative paper mm (default 25; 0 disables)"]}),
         );
+        fields.insert("sheet/references".into(), choices(json!([false, true])));
         fields.insert("sheet/fit_limits".into(), choices(json!([false, true])));
         fields.insert("sheet/fit_deviations".into(), choices(json!([false, true])));
         fields.insert(

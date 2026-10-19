@@ -330,3 +330,330 @@ fn pmi_fragments_pins_and_problem_changes_replay() {
     assert_eq!(serde_json::to_vec(s.state()).unwrap(), initial);
     assert_eq!(serde_json::to_vec(&replay).unwrap(), initial);
 }
+
+fn linear_ink(s: &Session, id: &str) -> draftwright::dims::Placed {
+    s.plan()
+        .dimensions
+        .iter()
+        .find(|d| d.id == id)
+        .unwrap()
+        .placed
+        .clone()
+        .unwrap()
+}
+
+fn pin_linear(s: &mut Session, id: &str, offset: [f64; 2]) {
+    s.apply(
+        &[Op::set(
+            format!("dimensions/{}/place", key(id)),
+            json!({"offset":offset,"pinned":true}),
+        )],
+        true,
+    )
+    .unwrap();
+}
+
+fn near_point(a: [f64; 2], b: [f64; 2]) {
+    assert!(
+        (a[0] - b[0]).abs() < 1e-8 && (a[1] - b[1]).abs() < 1e-8,
+        "{a:?} != {b:?}"
+    );
+}
+
+#[test]
+fn linear_offsets_pin_inside_outside_and_keep_measured_stations() {
+    let mut s = open("plate").unwrap();
+    // Cover both horizontal and vertical dimensions.
+    let ids: Vec<_> = s
+        .plan()
+        .dimensions
+        .iter()
+        .filter(|d| d.kind == "linear" && d.placed.is_some())
+        .map(|d| d.id.clone())
+        .collect();
+    assert!(ids.len() >= 2);
+    let mut rotations = std::collections::BTreeSet::new();
+    for id in ids {
+        let before = linear_ink(&s, &id);
+        rotations.insert(before.rotation as i32);
+        let at = s.label_offset(&id).unwrap();
+        near_point(at.offset, [0., 0.]);
+        let view = s
+            .plan()
+            .views
+            .iter()
+            .find(|v| v.id == at.view)
+            .unwrap()
+            .clone();
+        let value = s
+            .plan()
+            .dimensions
+            .iter()
+            .find(|d| d.id == id)
+            .unwrap()
+            .value;
+        // JSON round trip of an automatic position is a bare pin, with identical ink.
+        let offset = serde_json::from_str(&serde_json::to_string(&at.offset).unwrap()).unwrap();
+        pin_linear(&mut s, &id, offset);
+        assert_eq!(linear_ink(&s, &id), before);
+        s.undo().unwrap();
+        let k = usize::from(before.rotation != 0.);
+        for displacement in [-3., 3.] {
+            let mut target = before.label_at;
+            target[1 - k] = view.at[1 - k] + displacement;
+            let offset = [target[0] - at.anchor[0], target[1] - at.anchor[1]];
+            pin_linear(&mut s, &id, offset);
+            let p = linear_ink(&s, &id);
+            near_point(p.label_at, target);
+            near_point(s.label_offset(&id).unwrap().offset, offset);
+            assert_eq!(
+                s.plan()
+                    .dimensions
+                    .iter()
+                    .find(|d| d.id == id)
+                    .unwrap()
+                    .value,
+                value
+            );
+            let mut old_stations: Vec<_> = before.arrows.iter().map(|a| a[0][k]).collect();
+            let mut new_stations: Vec<_> = p.arrows.iter().map(|a| a[0][k]).collect();
+            old_stations.sort_by(f64::total_cmp);
+            new_stations.sort_by(f64::total_cmp);
+            assert_eq!(new_stations, old_stations);
+            for line in &p.lines[..2] {
+                // Every witness aims towards its own dimension line, from either side.
+                let height = p.arrows[0][0][1 - k];
+                assert!((line[1][1 - k] - line[0][1 - k]) * (height - line[0][1 - k]) >= 0.);
+            }
+            // Reading and reapplying a dragged offset must not move it either.
+            let again = s.label_offset(&id).unwrap();
+            pin_linear(&mut s, &id, again.offset);
+            assert_eq!(linear_ink(&s, &id), p);
+        }
+        // Text beyond the witnesses gets outside arrows and a line run-on.
+        let mut offset = [0., 0.];
+        offset[k] = 100.;
+        offset[1 - k] = 12.;
+        pin_linear(&mut s, &id, offset);
+        let p = linear_ink(&s, &id);
+        let lo = p
+            .arrows
+            .iter()
+            .map(|a| a[0][k])
+            .fold(f64::INFINITY, f64::min);
+        let hi = p
+            .arrows
+            .iter()
+            .map(|a| a[0][k])
+            .fold(f64::NEG_INFINITY, f64::max);
+        assert!(p.arrows.iter().all(|a| if a[0][k] == lo {
+            a[1][k] < lo
+        } else {
+            a[1][k] > hi
+        }));
+        near_point(
+            p.label_at,
+            [at.anchor[0] + offset[0], at.anchor[1] + offset[1]],
+        );
+        s.apply(
+            &[Op::remove(format!("dimensions/{}/place", key(&id)))],
+            true,
+        )
+        .unwrap();
+    }
+    assert!(rotations.contains(&0) && rotations.contains(&90));
+}
+
+#[test]
+fn linear_offset_refusals_are_transactional() {
+    let mut s = open("plate").unwrap();
+    let id = "d:envelope/width.length";
+    let before = serde_json::to_vec(s.state()).unwrap();
+    for place in [
+        json!({"offset":[1,2]}),
+        json!({"offset":[1,2],"pinned":true,"side":"above"}),
+        json!({"offset":[1,2],"pinned":true,"lane":0}),
+        json!({"offset":[1,2],"pinned":true,"along":"middle"}),
+        json!({"offset":[1001,2],"pinned":true}),
+        json!({"offset":[1],"pinned":true}),
+    ] {
+        assert!(
+            s.apply(
+                &[Op::set(format!("dimensions/{}/place", key(id)), place)],
+                true
+            )
+            .is_err()
+        );
+        assert_eq!(serde_json::to_vec(s.state()).unwrap(), before);
+    }
+    assert!(s.label_offset("v:plan").is_err());
+    assert!(s.label_offset("unknown").is_err());
+    let callout = s
+        .plan()
+        .dimensions
+        .iter()
+        .find(|d| d.kind == "callout")
+        .unwrap()
+        .id
+        .clone();
+    assert!(s.label_offset(&callout).is_err());
+    s.apply(
+        &[Op::set(format!("dimensions/{}/omit", key(id)), json!(true))],
+        true,
+    )
+    .unwrap();
+    assert!(s.label_offset(id).is_err());
+}
+
+#[test]
+fn linear_offsets_cover_baselines_chains_and_automatic_ladder_rungs() {
+    let fixture =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/scattered_holes.step");
+    for style in ["automatic", "baseline", "chain", "ordinate"] {
+        let (part, analysis) = if style == "automatic" {
+            let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/recognition/steps/plates_pads_levels_and_slanted_steps.step");
+            let (part, mut analysis) = model::analyse(&path).unwrap();
+            let mut recognition = String::new();
+            use std::io::Read;
+            flate2::read::GzDecoder::new(
+                std::fs::File::open(path.with_extension("json.gz")).unwrap(),
+            )
+            .read_to_string(&mut recognition)
+            .unwrap();
+            model::recognise(&part, &mut analysis, &recognition).unwrap();
+            (part, analysis)
+        } else {
+            model::analyse_native(&fixture).unwrap()
+        };
+        let spec: Spec = if style == "automatic" {
+            Spec::default()
+        } else {
+            serde_json::from_value(json!({"dimension_schemes":{"locations":{"scheme":style,"axis":"x","view":"plan"}}})).unwrap()
+        };
+        let mut s = Session::new(part, analysis, spec).unwrap();
+        let ids: Vec<_> = s
+            .plan()
+            .dimensions
+            .iter()
+            .filter(|d| {
+                d.kind == "linear"
+                    && d.placed.is_some()
+                    && if style == "automatic" {
+                        d.id.contains("step_height")
+                    } else {
+                        d.id.starts_with("d:scheme:")
+                    }
+            })
+            .map(|d| d.id.clone())
+            .collect();
+        assert!(!ids.is_empty(), "{style}");
+        for id in ids {
+            let before = linear_ink(&s, &id);
+            let at = s.label_offset(&id).unwrap();
+            pin_linear(&mut s, &id, at.offset);
+            assert_eq!(linear_ink(&s, &id), before, "{style} {id}");
+            s.undo().unwrap();
+            pin_linear(&mut s, &id, [2., -15.]);
+            let after = s.label_offset(&id).unwrap();
+            near_point(after.offset, [2., -15.]);
+            near_point(after.label, [after.anchor[0] + 2., after.anchor[1] - 15.]);
+            assert_eq!(linear_ink(&s, &id).arrows.len(), before.arrows.len());
+            s.undo().unwrap();
+        }
+    }
+}
+
+#[test]
+fn linear_offset_collisions_are_reported_and_never_slide_the_pin() {
+    let mut s = open("plate").unwrap();
+    let id = "d:envelope/width.length";
+    let at = s.label_offset(id).unwrap();
+    let other = s
+        .plan()
+        .views
+        .iter()
+        .find(|v| v.id != at.view && v.id != "v:iso")
+        .unwrap();
+    let target = other.at;
+    pin_linear(
+        &mut s,
+        id,
+        [target[0] - at.anchor[0], target[1] - at.anchor[1]],
+    );
+    near_point(linear_ink(&s, id).label_at, target);
+    assert!(
+        s.plan()
+            .problems
+            .iter()
+            .any(|p| p.code == "annotation_over_view" && p.subjects.iter().any(|s| s == id)),
+        "{:?}",
+        s.plan().problems
+    );
+    // An unrelated text edit leaves the pinned offset in its carrier frame.
+    s.apply(&[Op::set("sheet/title/material", json!("Steel"))], true)
+        .unwrap();
+    near_point(linear_ink(&s, id).label_at, target);
+}
+
+#[test]
+fn linear_offset_query_keeps_the_canonical_anchor_after_a_lane_edit() {
+    let mut s = open("plate").unwrap();
+    let id = "d:envelope/width.length";
+    let before = s.label_offset(id).unwrap();
+    s.apply(
+        &[Op::set(
+            format!("dimensions/{}/place", key(id)),
+            json!({"lane":2}),
+        )],
+        true,
+    )
+    .unwrap();
+    let at = s.label_offset(id).unwrap();
+    near_point(at.anchor, before.anchor);
+    assert_ne!(at.label, before.label);
+    let ink = linear_ink(&s, id);
+    pin_linear(&mut s, id, at.offset);
+    near_point(linear_ink(&s, id).label_at, ink.label_at);
+}
+
+#[test]
+fn aligned_linear_offset_preserves_the_measured_span() {
+    use draftwright::model::dimension_geometry::Reference;
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/plate.step");
+    let (part, analysis) = model::analyse_native(&fixture).unwrap();
+    let vertices: Vec<_> = analysis
+        .dimension_references()
+        .iter()
+        .filter_map(|(id, refs)| match refs.as_slice() {
+            [Reference::Vertex { point }] => Some((id, point)),
+            _ => None,
+        })
+        .collect();
+    let (a, b) = vertices
+        .iter()
+        .flat_map(|a| vertices.iter().map(move |b| (a, b)))
+        .find(|(a, b)| {
+            (a.1[1] - b.1[1]).abs() < 1e-7
+                && (a.1[0] - b.1[0]).abs() > 1e-3
+                && (a.1[2] - b.1[2]).abs() > 1e-3
+        })
+        .unwrap();
+    let spec = serde_json::from_value(json!({"dimensions":{"d:authored:diagonal":{"between":[a.0,b.0],"along":"true","view":"front"}}})).unwrap();
+    let mut s = Session::new(part, analysis, spec).unwrap();
+    let id = "d:authored:diagonal";
+    let before = linear_ink(&s, id);
+    assert!(before.rotation != 0. && before.rotation != 90.);
+    let stats = s.stats();
+    let at = s.label_offset(id).unwrap();
+    assert_eq!(s.stats(), stats);
+    pin_linear(&mut s, id, at.offset);
+    assert_eq!(linear_ink(&s, id), before);
+    pin_linear(&mut s, id, [5., -8.]);
+    let p = linear_ink(&s, id);
+    near_point(p.label_at, [at.anchor[0] + 5., at.anchor[1] - 8.]);
+    let span = |p: &draftwright::dims::Placed| {
+        (p.arrows[0][0][0] - p.arrows[1][0][0]).hypot(p.arrows[0][0][1] - p.arrows[1][0][1])
+    };
+    assert!((span(&p) - span(&before)).abs() < 1e-8);
+}

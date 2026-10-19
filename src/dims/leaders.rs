@@ -799,8 +799,12 @@ fn nominal_reference(
     if !crate::dims::has_new_native_recess_dimensions(analysis) {
         return None;
     }
-    let reference_key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
-        .expect("reference inputs serialize");
+    let reference_key = serde_json::to_vec(&(
+        spec.hole_table,
+        &spec.sheet.projection,
+        spec.sheet.references,
+    ))
+    .expect("reference inputs serialize");
     crate::planning::lookup::<Result<crate::model::Plan, crate::model::Invalid>>(
         analysis,
         "established-drawing",
@@ -845,8 +849,12 @@ fn settled_nominal_reference(
     {
         return None;
     }
-    let legacy_key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
-        .expect("reference inputs serialize");
+    let legacy_key = serde_json::to_vec(&(
+        spec.hole_table,
+        &spec.sheet.projection,
+        spec.sheet.references,
+    ))
+    .expect("reference inputs serialize");
     let legacy = crate::planning::lookup::<Result<crate::model::Plan, crate::model::Invalid>>(
         analysis,
         "established-drawing",
@@ -959,6 +967,7 @@ fn settled_nominal_reference(
             size: (!recovered_recipe).then(|| sheet.size.clone()),
             scale: (!recovered_recipe).then(|| crate::model::scale_name(sheet.scale_factor)),
             projection: spec.sheet.projection.clone(),
+            references: spec.sheet.references,
             ..Default::default()
         },
         ..Default::default()
@@ -976,8 +985,12 @@ fn settled_nominal_reference(
             })
         })
     })?;
-    let legacy_key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
-        .expect("reference inputs serialize");
+    let legacy_key = serde_json::to_vec(&(
+        spec.hole_table,
+        &spec.sheet.projection,
+        spec.sheet.references,
+    ))
+    .expect("reference inputs serialize");
     let legacy = crate::planning::lookup::<Result<crate::model::Plan, crate::model::Invalid>>(
         analysis,
         "established-drawing",
@@ -2398,8 +2411,12 @@ pub(super) fn seed_established(
         .iter()
         .flat_map(|w| &w.measurements)
         .any(|m| m.feature.starts_with("f:section_recess:"));
-    let key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
-        .expect("presentation inputs serialize");
+    let key = serde_json::to_vec(&(
+        spec.hole_table,
+        &spec.sheet.projection,
+        spec.sheet.references,
+    ))
+    .expect("presentation inputs serialize");
     let nominal = nominal_reference(analysis, spec, items);
     let is_nominal = nominal.is_some();
     let Some(reference) = nominal.or_else(|| {
@@ -2564,8 +2581,12 @@ pub(super) fn refine(
     if analysis.edge_ink.is_none() {
         return BTreeMap::new();
     }
-    let reference_key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
-        .expect("presentation inputs serialize");
+    let reference_key = serde_json::to_vec(&(
+        spec.hole_table,
+        &spec.sheet.projection,
+        spec.sheet.references,
+    ))
+    .expect("presentation inputs serialize");
     // The reference is immutable for this key within the Analysis scope.
     let has_reference =
         crate::planning::lookup::<Result<crate::model::Plan, crate::model::Invalid>>(
@@ -2686,8 +2707,12 @@ fn refine_uncached(
         })
     };
     let centre_run = |p: &Placed| centre_lines(&p.lines);
-    let reference_key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
-        .expect("presentation inputs serialize");
+    let reference_key = serde_json::to_vec(&(
+        spec.hole_table,
+        &spec.sheet.projection,
+        spec.sheet.references,
+    ))
+    .expect("presentation inputs serialize");
     let established_reference = crate::planning::lookup::<
         Result<crate::model::Plan, crate::model::Invalid>,
     >(analysis, "established-drawing", &reference_key)
@@ -2707,8 +2732,13 @@ fn refine_uncached(
             {
                 return None;
             }
-            let key = serde_json::to_vec(&(&sheet.size, &sheet.scale, &spec.sheet.projection))
-                .expect("bare route inputs serialize");
+            let key = serde_json::to_vec(&(
+                &sheet.size,
+                &sheet.scale,
+                &spec.sheet.projection,
+                spec.sheet.references,
+            ))
+            .expect("bare route inputs serialize");
             crate::planning::memo(analysis, "bare-leader-reference", key, || {
                 let mut base = analysis.clone();
                 base.features.retain(|f| f.kind != "section_recess");
@@ -2716,6 +2746,7 @@ fn refine_uncached(
                 recipe.sheet.size = Some(sheet.size.clone());
                 recipe.sheet.scale = Some(sheet.scale.clone());
                 recipe.sheet.projection = spec.sheet.projection.clone();
+                recipe.sheet.references = spec.sheet.references;
                 crate::model::plan(&base, &recipe).ok()
             })
         });

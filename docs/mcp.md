@@ -224,7 +224,8 @@ representative feature sizes/dimensions. Use `list_items` for the complete list.
 has the same paging contract as `list_problems`. A problem filter's `feature` matches
 all associated item subjects and the feature itself; `subject` remains exact and all
 filter fields combine. Default problem rows now carry `fix` ops. A `page_fit_uncertain` row's fix
-sets the nearest sheet size and/or scale that fit (`docs/model.md`); `sheet/projection` (`first`
+sets the nearest sheet size and/or scale that fit (`docs/model.md`); `sheet/references` (boolean, default false) opts into automatic parenthesized reference
+dimensions; pins and per-dimension reference style keep explicit intent. `sheet/projection` (`first`
 or `third`) is a spec path like `sheet/size` and `sheet/scale`, and the regenerated schemas
 (the `spec_schema` response / `schemas/spec.json`) list it.
 
