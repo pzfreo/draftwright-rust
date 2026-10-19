@@ -829,11 +829,13 @@ fn duplicate_spec_note_is_covered_once_and_its_offered_fix_removes_only_the_spec
     );
 }
 
-// The hashes were captured on macOS; plan, SVG and PDF bytes carry floating-point output that
-// differs on Linux, so this byte-identity check runs on macOS only.
-#[cfg(target_os = "macos")]
 #[test]
 fn notes_without_part_pmi_keep_baseline_plan_and_drawing_bytes() {
+    // The hashes were captured on macOS; plan, SVG and PDF bytes carry floating-point output
+    // that differs on Linux, so this byte-identity check runs on macOS only.
+    if !cfg!(target_os = "macos") {
+        return;
+    }
     use sha2::{Digest, Sha256};
     let hash = |bytes: &[u8]| {
         Sha256::digest(bytes)
