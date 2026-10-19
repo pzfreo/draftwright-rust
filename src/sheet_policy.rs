@@ -122,6 +122,7 @@ struct Estimate {
     views: Vec<(String, [f64; 2], [f64; 2])>,
     blocks: Vec<[f64; 2]>,
     first_area: f64,
+    first_blocks: usize,
     scale: f64,
     aligned: bool,
 }
@@ -166,6 +167,7 @@ impl Estimate {
             );
         }
         let first_area = boxes.iter().map(|b| (b[2] - b[0]) * (b[3] - b[1])).sum();
+        let first_blocks = boxes.len();
         boxes.extend(
             baseline
                 .tables
@@ -182,6 +184,7 @@ impl Estimate {
         Self {
             views,
             first_area,
+            first_blocks,
             blocks: boxes
                 .into_iter()
                 .map(|b| [b[2] - b[0], b[3] - b[1]])
@@ -222,8 +225,22 @@ impl Estimate {
         {
             return false;
         }
-        for block in &self.blocks {
+        for (i, block) in self.blocks.iter().enumerate() {
             if (0..2).any(|k| block[k] > available[k]) {
+                return false;
+            }
+            // A tall block that cannot stack vertically with either aligned
+            // principal must fit beside both, allowing their shared corridor.
+            // R5 may move declared furniture, but not the principal schedules.
+            if self.aligned
+                && (max == 1 || i < self.first_blocks)
+                && let (Some(front), Some(side)) =
+                    (principal.get("v:front"), principal.get("v:side"))
+                && block[1] + front[1] > available[1]
+                && block[1] + side[1] > available[1]
+                && block[0] + front[0] + side[0] - shared_band(&self.views, "v:front", "v:side", 0)
+                    > available[0]
+            {
                 return false;
             }
             area += block[0] * block[1];
@@ -563,6 +580,7 @@ mod tests {
             views: vec![("v:front".into(), [100.0, 80.0], [280.0, 15.0])],
             blocks: Vec::new(),
             first_area: 0.0,
+            first_blocks: 0,
             scale: 1.0,
             aligned: true,
         };
@@ -576,6 +594,33 @@ mod tests {
             ..estimate
         };
         assert_eq!(with_table.scale("A3", 9, 0.1), None);
+    }
+
+    #[test]
+    fn tall_furniture_must_fit_beside_both_aligned_principals() {
+        let estimate = Estimate {
+            views: vec![
+                ("v:front".into(), [200.0, 100.0], [0.0; 2]),
+                ("v:side".into(), [70.0, 100.0], [0.0; 2]),
+            ],
+            blocks: vec![[150.0, 238.0]],
+            first_area: 150.0 * 238.0,
+            first_blocks: 1,
+            scale: 1.0,
+            aligned: true,
+        };
+        // Total area and every individual side fit A3. The tall schedule
+        // forces both aligned projections beside it; their widths do not.
+        assert!(!estimate.fits("A3", 1, 1.0));
+        assert!(!estimate.fits("A3", 2, 1.0));
+        assert!(estimate.fits("A3", 1, 0.5));
+        let movable = Estimate {
+            first_blocks: 0,
+            first_area: 0.0,
+            ..estimate
+        };
+        assert!(!movable.fits("A3", 1, 1.0));
+        assert!(movable.fits("A3", 2, 1.0));
     }
 
     #[test]
