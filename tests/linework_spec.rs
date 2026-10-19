@@ -84,7 +84,9 @@ fn hidden_precedence_defaults_and_cache_reuse() {
         .find(|(id, _)| id == "v:iso")
         .unwrap()
         .1;
-    assert!(!original_iso.hidden.is_empty());
+    // The orientation view has no hidden edges by default; the Spec can ask for them.
+    assert!(original_iso.hidden.is_empty());
+    let mut requested: Option<serde_json::Value> = None;
     for (sheet_hidden, iso_hidden) in [(false, true), (true, false), (false, true)] {
         let p = model::plan(
             &a,
@@ -107,10 +109,9 @@ fn hidden_precedence_defaults_and_cache_reuse() {
             serde_json::to_value(&original_iso.visible).unwrap()
         );
         if iso_hidden {
-            assert_eq!(
-                serde_json::to_value(&iso.hidden).unwrap(),
-                serde_json::to_value(&original_iso.hidden).unwrap()
-            );
+            assert!(!iso.hidden.is_empty());
+            let drawn = serde_json::to_value(&iso.hidden).unwrap();
+            assert_eq!(requested.get_or_insert_with(|| drawn.clone()), &drawn);
         } else {
             assert!(iso.hidden.is_empty());
         }
