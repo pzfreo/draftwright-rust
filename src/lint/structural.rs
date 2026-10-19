@@ -78,6 +78,9 @@ const BOUNDS_ROUNDOFF: f64 = 1e-9;
 /// Half the title block's border stroke (draftwright's `_TB_LINE_WIDTH / 2`): the border may
 /// straddle the drawable area's edge.
 const TITLE_HALF_STROKE: f64 = 0.075;
+/// Combined half-widths of the heaviest frame and content strokes, in mm.
+/// Lint owns this measurement independently of sheet selection and placement.
+const BORDER_STROKE_CLEARANCE: f64 = 0.5;
 /// Conservative label-less furniture bounds, or a label and centreline, overlap when they
 /// share more than this, mm, in both directions. Actual text pairs use BOUNDS_ROUNDOFF.
 const OVERLAP: f64 = 0.5;
@@ -1102,7 +1105,7 @@ fn drawable_border_contacts(drawing: &Drawing) -> Vec<LintIssue> {
     let Some(area) = drawing.sheet.drawable else {
         return Vec::new();
     };
-    let pad = crate::sheet_fit::BORDER_CLEARANCE;
+    let pad = BORDER_STROKE_CLEARANCE;
     let touches = |b: [f64; 4]| {
         b[0] <= area[0] + pad + BOUNDS_ROUNDOFF
             || b[1] <= area[1] + pad + BOUNDS_ROUNDOFF
