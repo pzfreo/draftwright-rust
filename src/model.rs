@@ -3752,6 +3752,16 @@ fn plan_with_presentation(
         base.hole_table = spec.hole_table;
         base.iso_scale_factor = spec.iso_scale_factor;
         base.dimension_schemes = spec.dimension_schemes.clone();
+        if crate::planning::is_fixed_pair() {
+            // A trial's omitted automatic crops belong to its canonical frame too.
+            // Reintroducing them here moves the peers of an otherwise bare pin.
+            base.views = spec
+                .views
+                .iter()
+                .filter(|(_, view)| view.omit)
+                .map(|(name, view)| (name.clone(), view.clone()))
+                .collect();
+        }
         if spec.dimensions.values().any(|d| d.between.is_some()) {
             base.dimension_source = spec.dimension_source;
             base.dimensions = spec.dimensions.clone();
