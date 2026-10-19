@@ -6690,7 +6690,7 @@ impl Projections {
                 v.at[1] + v.scale * (q[1] - centre[1]),
             ]
         };
-        for piece in self.view(part, v)? {
+        for piece in self.view(part, analysis, v)? {
             let mut moved = piece.clone();
             moved.points = piece.points.iter().map(|q| place(*q)).collect();
             moved.exact = piece
@@ -6747,7 +6747,12 @@ impl Projections {
         Ok(geometry)
     }
 
-    fn view(&mut self, part: &Part, v: &PlannedView) -> Result<Vec<Projected>, Unresolved> {
+    fn view(
+        &mut self,
+        part: &Part,
+        analysis: &Analysis,
+        v: &PlannedView,
+    ) -> Result<Vec<Projected>, Unresolved> {
         let cut = projection_cut(v);
         // Crops share their source camera's HLR; only the placed/trimmed geometry key
         // includes crop bounds. A second enlarged region needs no new kernel projection.
@@ -6764,7 +6769,10 @@ impl Projections {
         self.stats.projections += 1;
         let pieces = match cut.and_then(|c| Plane::new(c.origin, c.normal)) {
             Some(plane) => project_section(part, &view, &plane),
-            None => project(part, &view),
+            None => match projected_ink::prepared(&analysis.binding, v.direction, v.up) {
+                Some(pieces) => Ok(pieces),
+                None => project(part, &view),
+            },
         }?;
         self.views.insert(key, pieces.clone());
         self.dirty = true;

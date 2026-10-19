@@ -7093,6 +7093,16 @@ mod arc_tip_tests {
         let plan = model::plan(&analysis, &Spec::default()).unwrap();
         let geometry =
             model::render_geometry(&part, &analysis, &plan, &mut Projections::default()).unwrap();
+        // Reusing recognition's exact projection must produce the same visible
+        // and hidden geometry as a cold kernel projection of every camera.
+        let mut cold = analysis.clone();
+        cold.binding.source_sha256 = "uncached projection reference".into();
+        let reference =
+            model::render_geometry(&part, &cold, &plan, &mut Projections::default()).unwrap();
+        assert_eq!(
+            serde_json::to_value(&geometry).unwrap(),
+            serde_json::to_value(&reference).unwrap(),
+        );
         let mut views = 0;
         let mut hidden = false;
         for view in plan

@@ -40,6 +40,30 @@ pub struct ResolvedView {
     pub hidden: Vec<crate::output::Curve>,
 }
 
+// Recognition and rendering use identical kernel cameras. Retain the prepared
+// pieces as well as the compact planner evidence: a second HLR of a dense
+// axial view can cost much more than every label repair combined.
+static PREPARED: crate::planning::BoundedMemo<Vec<Projected>> =
+    crate::planning::BoundedMemo::new(4);
+
+fn camera_key(binding: &Binding, direction: [f64; 3], up: [f64; 3]) -> [u8; 32] {
+    Sha256::digest(
+        serde_json::to_vec(&(binding, direction.map(f64::to_bits), up.map(f64::to_bits)))
+            .expect("projection camera serializes"),
+    )
+    .into()
+}
+
+/// Native inspection's exact kernel pieces, before any sheet placement or crop.
+/// Cuts have different geometry and must never use this uncut-camera evidence.
+pub(super) fn prepared(
+    binding: &Binding,
+    direction: [f64; 3],
+    up: [f64; 3],
+) -> Option<Vec<Projected>> {
+    PREPARED.get(&camera_key(binding, direction, up))
+}
+
 /// Immutable geometric evidence; no Part is retained by the planner.
 pub(crate) fn resolved(
     part: &Part,
@@ -59,7 +83,14 @@ pub(crate) fn resolved(
         .filter(|(name, _, _)| names.contains(name))
         .filter_map(|(_, direction, up)| {
             let view = View::new(*direction, *up)?;
-            let pieces = project(part, &view).ok()?;
+            let key = camera_key(binding, *direction, *up);
+            let pieces = if let Some(pieces) = PREPARED.get(&key) {
+                pieces
+            } else {
+                let pieces = project(part, &view).ok()?;
+                PREPARED.insert(key, pieces.clone());
+                pieces
+            };
             let mut resolved = ResolvedView {
                 direction: *direction,
                 up: *up,
