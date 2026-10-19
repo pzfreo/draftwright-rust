@@ -751,11 +751,13 @@ fn audit_inner(a: &Analysis, s: &Spec, p: &mut crate::model::Plan) {
                     continue;
                 };
                 let value = at - origin[k];
-                if !row
-                    .cells
-                    .iter()
-                    .any(|s| crate::lint::holes::states(s, value))
-                {
+                if !row.cells.iter().any(|s| {
+                    s.split_whitespace()
+                        .next()
+                        .and_then(|n| n.parse::<f64>().ok())
+                        .is_some_and(|n| n.signum() == value.signum())
+                        && crate::lint::holes::states(s, value.abs())
+                }) {
                     continue;
                 }
                 let mut claims = vec![

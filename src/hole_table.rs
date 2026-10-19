@@ -2343,6 +2343,17 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                     .filter_map(|d| d.id.strip_prefix("d:")?.split('/').next())
                     .filter(|f| f.starts_with("f:hole_pattern:")),
             )
+            .chain(
+                analysis
+                    .recognition
+                    .iter()
+                    .flat_map(|r| &r.patterns)
+                    .filter(|p| {
+                        crate::dims::pmi_policy::carries(analysis)
+                            && p.members.iter().all(|id| features.contains(id.as_str()))
+                    })
+                    .map(|p| p.id.as_str()),
+            )
             .collect();
         for d in &plan.dimensions {
             if d.view == view.id

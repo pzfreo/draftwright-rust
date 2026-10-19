@@ -39,7 +39,16 @@ pub(crate) fn route(
     while cursor < queue.len() {
         let (p, node, path) = queue[cursor].clone();
         cursor += 1;
-        if node.is_none() && roots.iter().any(|r| (r - p).abs() < super::redundancy::TOL) {
+        // A feature on an origin plane needs no additional zero-length dimension.
+        // Analytic feature axes use the tighter tolerance; rounded planes use TOL.
+        if roots.iter().any(|r| {
+            (r - p).abs()
+                < if node.is_none() {
+                    super::redundancy::TOL
+                } else {
+                    EPS
+                }
+        }) {
             return Some(path);
         }
         for (i, e) in edges.iter().enumerate() {
@@ -956,6 +965,14 @@ mod tests {
             )
             .is_some()
         );
+    }
+    #[test]
+    fn a_feature_axis_on_the_origin_needs_no_zero_dimension() {
+        assert_eq!(
+            route(&[], &[0.], 0, 0., Some("hole"), &BTreeSet::new()),
+            Some(vec![])
+        );
+        assert!(route(&[], &[0.], 0, 0.005, Some("hole"), &BTreeSet::new()).is_none());
     }
     #[test]
     fn coincident_feature_axes_remain_distinct_nodes() {
