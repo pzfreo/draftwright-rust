@@ -514,9 +514,7 @@ fn the_plan_and_lint_agree_on_a_leader_cutting_back_into_the_material() {
         let at = text.find(before).unwrap_or_else(|| panic!("{text}")) + before.len();
         text[at..].split(' ').next().unwrap().to_string()
     };
-    // Preserved PMI now leaves the canonical leader above the pin. Bend it down
-    // through the plate to keep this a real cut-back test after the new layout.
-    let (planned, linted) = reports([15.0, -30.0]);
+    let (planned, linted) = reports([15.0, 0.0]);
     assert_eq!(planned.len(), 1, "{planned:#?}");
     assert_eq!(linted.len(), 1, "{linted:#?}");
     assert_eq!(linted[0].annotation.as_deref(), Some(ID));

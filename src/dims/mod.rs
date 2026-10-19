@@ -3884,7 +3884,7 @@ fn share_pmi(
             if !same {
                 continue;
             }
-            let (w, _, ..) = &kept[i];
+            let (w, ..) = &kept[i];
             let how = if pmi(w) {
                 if w.terms != kept[p].0.terms
                     || pmi_dimensions::basic(&w.measurements)

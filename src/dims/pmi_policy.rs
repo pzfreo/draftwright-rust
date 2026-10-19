@@ -28,7 +28,7 @@ pub(crate) fn carries(a: &Analysis) -> bool {
     matches!(&a.pmi, Some(Reading::Read(r)) if !r.records.is_empty())
 }
 pub(crate) fn strict(a: &Analysis, s: &Spec) -> bool {
-    carries(a) && s.pmi == PmiMode::Strict
+    s.pmi == PmiMode::Strict && carries(a)
 }
 pub(super) fn authored(w: &Want) -> bool {
     w.id.starts_with("d:pmi:") || w.measurements.iter().any(|m| m.feature.starts_with("pmi:"))
@@ -248,27 +248,25 @@ pub(super) fn origins(a: &Analysis, s: &Spec, wants: &mut [Want]) -> Vec<Problem
             axis: k,
             ..
         } = &mut w.shape
-        {
-            if w.measurements
+            && w.measurements
                 .first()
                 .is_some_and(|m| location_role(&m.parameter))
-                && let Some((v, name)) = &selected[*k]
-            {
-                // These candidates are always oriented from the original origin to the feature.
-                p[*k] = *v;
-                w.value = (q[*k] - v).abs();
-                w.terms = vec![fmt(w.value)];
-                for m in &mut w.measurements {
-                    if location_role(&m.parameter) {
-                        m.value = w.value;
-                    }
+            && let Some((v, name)) = &selected[*k]
+        {
+            // These candidates are always oriented from the original origin to the feature.
+            p[*k] = *v;
+            w.value = (q[*k] - v).abs();
+            w.terms = vec![fmt(w.value)];
+            for m in &mut w.measurements {
+                if location_role(&m.parameter) {
+                    m.value = w.value;
                 }
-                w.basis += &format!("; measured from {name}");
-                if w.value < 1e-9 {
-                    problems.push(Problem{id:format!("p:location_on_datum:{}",w.id),code:"location_on_datum".into(),severity:"info".into(),
+            }
+            w.basis += &format!("; measured from {name}");
+            if w.value < 1e-9 {
+                problems.push(Problem{id:format!("p:location_on_datum:{}",w.id),code:"location_on_datum".into(),severity:"info".into(),
                         message:"A feature lies on the selected datum; its location has no nonzero distance to draw.".into(),
                         subjects:w.measurements.iter().filter(|m|a.features.iter().any(|f|f.id==m.feature)).map(|m|m.feature.clone()).collect(),..Default::default()});
-                }
             }
         }
     }
@@ -345,6 +343,31 @@ fn raw_spans(a: &Analysis, w: &Want) -> Vec<Edge> {
 }
 
 pub(super) fn cover(
+    a: &Analysis,
+    kept: &mut Vec<Kept>,
+    given: &mut Vec<Vec<String>>,
+    omitted: &mut Vec<Omitted>,
+) {
+    if !carries(a) {
+        return;
+    }
+    // Recovery revisits the same world-space constraints at several paper scales.
+    // Include every input (view choices, labels and authored tolerances included)
+    // so only identical precedence decisions share this pass-local result.
+    let key = serde_json::to_vec(&(&*kept, &*given)).expect("precedence inputs serialize");
+    let (items, terms, covered) = crate::planning::memo(a, "pmi-precedence", key, || {
+        let mut items = kept.clone();
+        let mut terms = given.clone();
+        let mut covered = Vec::new();
+        cover_uncached(a, &mut items, &mut terms, &mut covered);
+        (items, terms, covered)
+    });
+    *kept = items;
+    *given = terms;
+    omitted.extend(covered);
+}
+
+fn cover_uncached(
     a: &Analysis,
     kept: &mut Vec<Kept>,
     given: &mut Vec<Vec<String>>,
@@ -507,6 +530,20 @@ pub(super) fn cover(
                 )
             };
             if let (Some(p), Some(q)) = (first, second) {
+                if p.is_empty()
+                    && let Some(feature) = &s.b_feature
+                    && location::datum_axis_owner(a, feature, s.axis).is_some()
+                    && let Some(witness) = edges.iter().find(|e| {
+                        e.axis == s.axis
+                            && (e.a.min(e.b) - s.a.min(s.b)).abs() < 1e-6
+                            && (e.a.max(e.b) - s.a.max(s.b)).abs() < 1e-6
+                    })
+                {
+                    // The datum axis already roots this coaxial element. Keep its
+                    // numeric claim on a live source witness of that same interval;
+                    // an uncited datum symbol is not a drawn measurement owner.
+                    owners.insert(witness.owner.clone());
+                }
                 for j in p.into_iter().chain(q) {
                     owners.insert(edges[j].owner.clone());
                 }

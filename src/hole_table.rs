@@ -2239,7 +2239,14 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                 replaced.insert(d.id.clone());
             }
         }
-        if rows.is_empty() {
+        if rows.is_empty()
+            || (plan.spec.hole_table == Setting::Auto
+                && crate::dims::pmi_policy::carries(analysis)
+                && replaced.is_empty())
+        {
+            // A source-only schedule keeps every callout in the lanes and adds a
+            // second size presentation without freeing one label corridor. Keep
+            // its ordinary inline geometry; an explicit schedule remains available.
             continue;
         }
         let mut pcd: Option<PitchCircle> = None;

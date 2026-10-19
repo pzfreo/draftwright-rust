@@ -2477,4 +2477,12 @@ not draw its symbol.
 
 The located-once check uses the dimensions actually drawn. `feature_not_located`
 means no dimension chain reaches an origin; `feature_located_twice` names independent
-chains locating the same feature axis. Authored PMI is retained even when redundant.
+chains locating the same feature axis. Identical PMI spans with identical text share
+one drawn dimension, which claims every source record. Distinct authored constraints
+are retained even when redundant. The check runs for parts carrying PMI or a Spec origin;
+plain parts keep their existing location checks. A cylindrical datum establishes coaxial
+features, while principal planar datums supply ± dimension origins.
+
+Hole schedules state every size and coordinate, including coordinates already supplied
+by retained PMI. Those cells restate the same origin frame and do not add an independent
+locating constraint.

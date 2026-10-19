@@ -272,7 +272,7 @@ pub(crate) fn drawn_constraints(
     marks: &mut [Mark],
 ) {
     if drawing.sheet.frames.is_empty()
-        || (!crate::dims::pmi_policy::carries(a)
+        || (!matches!(&a.pmi, Some(Reading::Read(r)) if !r.records.is_empty())
             && !drawing.annotations.iter().any(|annotation| {
                 annotation.coordinate_origin.is_some()
                     && drawing.sheet.items.iter().any(|item| {
@@ -410,37 +410,35 @@ pub(crate) fn station(a: &Analysis, id: &str, k: usize) -> Option<f64> {
 
 /// A cylindrical datum establishes its own axis, even though it cannot be a
 /// planar origin for ± dimensions. Only features coaxial in both radial axes qualify.
-fn datum_axis_root(a: &Analysis, feature: &str, k: usize) -> bool {
-    let Some(f) = a.features.iter().find(|f| f.id == feature) else {
-        return false;
-    };
-    let Some(direction) = f.fingerprint.axis else {
-        return false;
-    };
-    let Some(axis) = direction.iter().position(|v| v.abs() > 1. - EPS) else {
-        return false;
-    };
+pub(crate) fn datum_axis_owner(a: &Analysis, feature: &str, k: usize) -> Option<String> {
+    let f = a.features.iter().find(|f| f.id == feature)?;
+    let direction = f.fingerprint.axis?;
+    let axis = direction.iter().position(|v| v.abs() > 1. - EPS)?;
     if axis == k {
-        return false;
+        return None;
     }
-    let Some(Reading::Read(r)) = &a.pmi else {
-        return false;
+    let Some(Reading::Read(report)) = &a.pmi else {
+        return None;
     };
     let radial: Vec<_> = (0..3).filter(|v| *v != axis).collect();
-    r.records
+    let record = report
+        .records
         .iter()
         .filter(|r| r.category == Category::Datum)
-        .flat_map(|r| &r.faces)
-        .any(|&i| {
-            a.face_attachments.get(i).is_some_and(|face| {
-                face.surface.as_deref() == Some("cylinder")
-                    && face.exact_axis == Some(axis)
-                    && face.support.len() == 2
-                    && radial.iter().enumerate().all(|(j, &k)| {
-                        station(a, feature, k).is_some_and(|v| (v - face.support[j]).abs() < EPS)
-                    })
+        .find(|r| {
+            r.faces.iter().any(|&i| {
+                a.face_attachments.get(i).is_some_and(|face| {
+                    face.surface.as_deref() == Some("cylinder")
+                        && face.exact_axis == Some(axis)
+                        && face.support.len() == 2
+                        && radial.iter().enumerate().all(|(j, &k)| {
+                            station(a, feature, k)
+                                .is_some_and(|v| (v - face.support[j]).abs() < EPS)
+                        })
+                })
             })
-        })
+        })?;
+    Some(record.source_id.clone())
 }
 
 /// A completely located pattern also fixes its centre, without an extra centre ordinate.
@@ -452,7 +450,7 @@ pub(crate) fn proof(
     at: f64,
     node: Option<&str>,
 ) -> Option<Vec<usize>> {
-    if node.is_some_and(|feature| datum_axis_root(a, feature, axis)) {
+    if node.is_some_and(|feature| datum_axis_owner(a, feature, axis).is_some()) {
         return Some(Vec::new());
     }
     if let Some(path) = route(edges, roots, axis, at, node, &BTreeSet::new()) {
@@ -492,8 +490,13 @@ fn pitch_states(a: &Analysis, p: &crate::bridge::HolePattern, k: usize, text: &s
 }
 
 pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge> {
+    if spans.is_empty() {
+        return Vec::new();
+    }
     let report = match &a.pmi {
-        Some(Reading::Read(r)) => Some((r, r.identities())),
+        Some(Reading::Read(r)) if mark.claims.iter().any(|c| c.feature.starts_with("pmi:")) => {
+            Some((r, r.identities()))
+        }
         _ => None,
     };
     let mut out = Vec::new();
@@ -799,7 +802,7 @@ pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let roots = drawing_roots(a, marks);
     let mut issues = Vec::new();
     for (feature, k, at) in targets(a) {
-        if datum_axis_root(a, &feature, k) {
+        if datum_axis_owner(a, &feature, k).is_some() {
             continue;
         }
         let parameter = format!("location.length.{}", AXES[k]);

@@ -2301,6 +2301,9 @@ fn recover_callouts(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Pla
     }
     let m = crate::pmi_lowering::manufacturing_for(analysis, spec);
     if spec.sheet.size.is_none()
+        // A PMI frame remains an authored annotation after its engine dimensions
+        // become covered. Compact manufacturing text alone cannot justify shrinking it.
+        && (!crate::dims::pmi_policy::carries(analysis) || best.gdt.is_empty())
         && m.owned
             .iter()
             .any(|o| crate::callouts::style(spec, &o.owner) == crate::callouts::Style::Auto)

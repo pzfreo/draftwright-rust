@@ -606,7 +606,7 @@ fn located_once_checks_native_ink_and_rejects_a_broken_witness() {
 }
 
 #[test]
-fn retained_pmi_callouts_do_not_repeat_sizes_or_locations_in_generated_tables() {
+fn generated_hole_schedules_state_each_size_and_coordinate_without_extra_locators() {
     use std::io::Read as _;
     let mut step = Vec::new();
     flate2::read::GzDecoder::new(
@@ -699,7 +699,14 @@ fn schedule_aliases_keep_existing_source_covered_ids_unique() {
     )
     .read_to_end(&mut step)
     .unwrap();
-    let p = plan(&analysed(&step), &Spec::default());
+    // Exercise installation independently of whether a source-only table frees a corridor.
+    let p = plan(
+        &analysed(&step),
+        &Spec {
+            hole_table: draftwright::hole_table::Setting::Always,
+            ..Default::default()
+        },
+    );
     assert!(!p.hole_tables.is_empty());
     let mut ids = std::collections::BTreeSet::new();
     for item in draftwright::items::items(&p) {
