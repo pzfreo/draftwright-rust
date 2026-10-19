@@ -155,24 +155,6 @@
  {
   "code": "pmi_not_extracted",
   "file": "assembly_plate_pin.step",
-  "python": null,
-  "rust": "info",
-  "source": "finding:#1697",
-  "verdict": "rust-correct",
-  "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: property \"pmi-assist answers\" (\"schema 1\") is not a construct the reader knows; not read\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "assembly_plate_pin.step",
-  "python": null,
-  "rust": "info",
-  "source": "finding:#1701",
-  "verdict": "rust-correct",
-  "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: property \"pmi-assist answers\" (\"schema 1\") is not a construct the reader knows; not read\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "assembly_plate_pin.step",
   "python": "error",
   "rust": null,
   "source": "manufacturing_requirement:#1526",
@@ -414,15 +396,6 @@
   "evidence": "draftwright's record manufacturing_requirement:#1667 has no counterpart in the port's reading: as known_pmi.json's 'record' difference, Python's record is part 1's 'default tolerances' (#1667, ISO 2768-f) left unpaired: as for #1571, draftwright pairs a general tolerance only when the file has exactly one. The port reads part 1's requirement in words #1662 ('ISO 2768-f') and its class #1667 ('ISO 2768-f') as one record, manufacturing_requirement:#1662, with #1667's 'tolerance class' field. draftwright's lint reports its own record; the port reports the requirement under the record it reads. draftwright: \"AP242 source manufacturing_requirement:#1667 remains a raw 'general_tolerances' PMI fallback in the typed IR\""
  },
  {
-  "code": "pmi_not_extracted",
-  "file": "bolt_thread_knurl.step",
-  "python": null,
-  "rust": "info",
-  "source": "finding:#546",
-  "verdict": "rust-correct",
-  "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: property \"pmi-assist answers\" (\"schema 1\") is not a construct the reader knows; not read\""
- },
- {
   "code": "pmi_not_rendered",
   "file": "bolt_thread_knurl.step",
   "python": {
@@ -469,15 +442,6 @@
   "source": "manufacturing_requirement:#495",
   "verdict": "rust-correct",
   "evidence": "#495 is the structured statement of the requirement the port reads as manufacturing_requirement:#475 (among its instances); draftwright's typed feature carries it as a second source ID and its lint reports each ID. Both lower it to the same owner, turned step f:turned_step:2 (ø6.25) (lower_ap242_manufacturing_requirements: its one cylinder, of the stated size, within the step's span), and both plan the manufacturing requirements table (two requirements, the knurl's suffix 56 characters) with draftwright's rows; but draftwright's renderer draws no diameter for that step (its overall diameter prints no thread, its step diameters are not drawn), so its own lint finds the requirement not drawn, while the port's callout d:f:turned_step:2/step.diameter reads 'ø6.2 SEE MFG 2' and its table MFG 2 'ø6.25 MAX AFTER KNURL; STRAIGHT KNURL P1; CUT/FORMED PERMITTED'. The port states the requirement where draftwright's drawing loses it (stream d-pmi-thread-knurl-owner-callouts). draftwright: \"AP242 source manufacturing_requirement:#495 reached typed drafting IR but produced no annotation\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "bracket_positions.step",
-  "python": null,
-  "rust": "info",
-  "source": "finding:#31570",
-  "verdict": "rust-correct",
-  "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: property \"pmi-assist answers\" (\"schema 1\") is not a construct the reader knows; not read\""
  },
  {
   "code": "pmi_not_lowered",
@@ -960,15 +924,6 @@
   "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright refuses it at extraction (dimension:0:1:4:5, pmi_not_extracted), the port reads the record and its lowering makes the same check (pmi_not_lowered); both: \"linear reference relationship does not lie in a principal projection plane (delta=(47.7419, 83.1979, -5) mm)\" (its faces #17, a cylinder, and #1757, a cone: every_kind puts its items on faces by index)."
  },
  {
-  "code": "pmi_not_extracted",
-  "file": "hw_every_kind.step",
-  "python": null,
-  "rust": "info",
-  "source": "finding:#6509",
-  "verdict": "rust-correct",
-  "evidence": "Not a draftwright requirement (specify-core's 'pmi-assist answers' property, which haecceity does not model); draftwright's census does not hold it, the port reports it as info, as the plan does (as string_post_tapped.step's finding:#3221, rust-correct). port: \"haecceity not-modelled: property \"pmi-assist answers\" (\"schema 1\") is not a construct the reader knows; not read\""
- },
- {
   "code": "pmi_not_lowered",
   "file": "hw_every_kind.step",
   "python": null,
@@ -1080,24 +1035,6 @@
   "evidence": "The same statement and cause as string_post_tapped.step's dimension:#3115 (specify-core's): Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'linear reference-station span 7.54603 mm differs from nominal 1.2 mm; plane-to-bore location has no proven face-supported axis witness'. port: \"linear reference-station span 7.54603 mm differs from nominal 1.2 mm; plane-to-bore location has no proven face-supported axis witness\""
  },
  {
-  "code": "pmi_not_extracted",
-  "file": "hw_thread_removed.step",
-  "python": null,
-  "rust": "info",
-  "source": "finding:#6509",
-  "verdict": "rust-correct",
-  "evidence": "Not a draftwright requirement (specify-core's 'pmi-assist answers' property, which haecceity does not model); draftwright's census does not hold it, the port reports it as info, as the plan does (as string_post_tapped.step's finding:#3221, rust-correct). port: \"haecceity not-modelled: property \"pmi-assist answers\" (\"schema 1\") is not a construct the reader knows; not read\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_thread_replaced.step",
-  "python": null,
-  "rust": "info",
-  "source": "finding:#6509",
-  "verdict": "rust-correct",
-  "evidence": "Not a draftwright requirement (specify-core's 'pmi-assist answers' property, which haecceity does not model); draftwright's census does not hold it, the port reports it as info, as the plan does (as string_post_tapped.step's finding:#3221, rust-correct). port: \"haecceity not-modelled: property \"pmi-assist answers\" (\"schema 1\") is not a construct the reader knows; not read\""
- },
- {
   "code": "pmi_not_lowered",
   "file": "hw_thread_replaced.step",
   "python": null,
@@ -1126,15 +1063,6 @@
   "source": "dimension:#651",
   "verdict": "rust-correct",
   "evidence": "The same instance, statement and cause as thumbwheel_thread_knurl.step's entry for dimension:#651 (this file is haecceity's U10 add onto specify-core's thumbwheel_thread_knurl file, which keeps the instance): As known_pmi_dimensions.json's 'outcome' difference for dimension:0:1:4:1 (port dimension:#651): draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø10 - ø0.028' is not drawn because its source data is unresolved: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm; pmi_not_extracted: AP242 dimension dimension:0:1:4:1 was discovered but not extracted: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀10 -0.013 -0.028'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. draftwright: \"cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_thumbwheel_notes_add.step",
-  "python": null,
-  "rust": "info",
-  "source": "finding:#825",
-  "verdict": "rust-correct",
-  "evidence": "Not a draftwright requirement (specify-core's 'pmi-assist answers' property, which haecceity does not model); draftwright's census does not hold it, the port reports it as info, as the plan does (as string_post_tapped.step's finding:#3221, rust-correct). port: \"haecceity not-modelled: property \"pmi-assist answers\" (\"schema 1\") is not a construct the reader knows; not read\""
  },
  {
   "code": "pmi_not_extracted",
@@ -12751,15 +12679,6 @@
  },
  {
   "code": "pmi_not_extracted",
-  "file": "spool_fits.step",
-  "python": null,
-  "rust": "info",
-  "source": "finding:#6509",
-  "verdict": "rust-correct",
-  "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: property \"pmi-assist answers\" (\"schema 1\") is not a construct the reader knows; not read\""
- },
- {
-  "code": "pmi_not_extracted",
   "file": "string_post_tapped.step",
   "python": {
    "id": "dimension:0:1:4:3",
@@ -12769,15 +12688,6 @@
   "source": "dimension:#3115",
   "verdict": "equivalent",
   "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'linear reference-station span 7.54603 mm differs from nominal 1.2 mm; plane-to-bore location has no proven face-supported axis witness'. draftwright: \"linear reference-station span 7.54603 mm differs from nominal 1.2 mm; plane-to-bore location has no proven face-supported axis witness\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "string_post_tapped.step",
-  "python": null,
-  "rust": "info",
-  "source": "finding:#3221",
-  "verdict": "rust-correct",
-  "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: property \"pmi-assist answers\" (\"schema 1\") is not a construct the reader knows; not read\""
  },
  {
   "code": "pmi_not_lowered",
@@ -12799,15 +12709,6 @@
   "source": "dimension:#651",
   "verdict": "rust-correct",
   "evidence": "As known_pmi_dimensions.json's 'outcome' difference for dimension:0:1:4:1 (port dimension:#651): draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø10 - ø0.028' is not drawn because its source data is unresolved: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm; pmi_not_extracted: AP242 dimension dimension:0:1:4:1 was discovered but not extracted: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀10 -0.013 -0.028'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. draftwright: \"cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm\""
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "thumbwheel_thread_knurl.step",
-  "python": null,
-  "rust": "info",
-  "source": "finding:#825",
-  "verdict": "rust-correct",
-  "evidence": "Not a draftwright requirement (a property, attribute set, standard or reader finding haecceity did not read); draftwright's census does not hold it, the port reports it as info, as the plan does. port: \"haecceity not-modelled: property \"pmi-assist answers\" (\"schema 1\") is not a construct the reader knows; not read\""
  },
  {
   "code": "pmi_not_lowered",

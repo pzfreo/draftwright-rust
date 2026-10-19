@@ -47,7 +47,8 @@
 //!   proven stations, or its cylinders: [`crate::pmi_lowering::dimension_geometry`]).
 //! - [`Source`] is `PmiSourceEntity`: what was not read, and why, as a `not_extracted` source;
 //!   every read record is a source too (`extracted`, or `partially_extracted` with its
-//!   blockers). Not read: every haecceity finding not on a record's instances; every item
+//!   blockers). Recognised Draftwright bookkeeping is an `extracted` source of category
+//!   `other`, with no drawing record or requirement. Not read: every haecceity finding not on a record's instances; every item
 //!   haecceity reads that the port does not project (attribute sets that are no part note, label or
 //!   structured requirement, general tolerance tables, AP242 `thread` and `turned_knurl`
 //!   features the port does not read as records, material,
@@ -674,13 +675,25 @@ pub fn report_part(
             continue;
         }
         let subject = f.ids.first().copied().unwrap_or(0);
+        let bookkeeping = is_legacy_answers(doc, subject);
         sources.push(Source {
             id: format!("finding:#{subject}"),
             category: category_of_entity(&f.entity),
             entity: f.entity.clone(),
             instances: f.ids.clone(),
-            outcome: Outcome::NotExtracted,
-            reason: format!("haecceity {}: {}", f.kind.as_str(), f.detail),
+            outcome: if bookkeeping {
+                Outcome::Extracted
+            } else {
+                Outcome::NotExtracted
+            },
+            reason: if bookkeeping {
+                format!(
+                    "Draftwright stored answers (not a drawing requirement); {}",
+                    f.detail
+                )
+            } else {
+                format!("haecceity {}: {}", f.kind.as_str(), f.detail)
+            },
         });
     }
     for r in &mut records {
@@ -886,6 +899,39 @@ struct Presentation {
     /// A thread's callouts have several supports: draftwright keeps none of them.
     ambiguous: bool,
     reasons: Vec<String>,
+}
+
+/// Part-owned bookkeeping written by Specify's `resume::attribute_set` and the editor/MCP
+/// project exporter. Match the names and single text item, as Specify's `resume::is_answers`
+/// does; similarly named foreign properties and feature attributes remain reportable.
+fn is_draftwright_record(a: &pmi::AttributeSet) -> bool {
+    matches!(
+        a.name.as_str(),
+        "pmi-assist answers" | "draftwright editor project"
+    ) && a.on.is_none()
+        && matches!(a.items.as_slice(), [(name, AttributeValue::Text(_))] if name == &a.name)
+}
+
+/// Python Specify's earlier stored-answer form, documented by Specify's `resume` module:
+/// a property on the product definition, described 'schema 1', with one named text item.
+/// It has no UDA association, so haecceity reports it as an unmodelled property.
+fn is_legacy_answers(doc: &Document, id: u64) -> bool {
+    const NAME: &str = "pmi-assist answers";
+    if text_of(doc, id, "PROPERTY_DEFINITION", 0) != NAME
+        || text_of(doc, id, "PROPERTY_DEFINITION", 1) != "schema 1"
+        || !ref_of(doc, id, "PROPERTY_DEFINITION", 2)
+            .is_some_and(|owner| attributes(doc, owner, "PRODUCT_DEFINITION").is_some())
+    {
+        return false;
+    }
+    let reps = representations(doc, id);
+    let [rep] = reps.iter().copied().collect::<Vec<_>>()[..] else {
+        return false;
+    };
+    let items = refs_of(doc, rep, "REPRESENTATION", 1);
+    matches!(items.as_slice(), [item]
+        if text_of(doc, *item, "DESCRIPTIVE_REPRESENTATION_ITEM", 0) == NAME
+        && matches!(attributes(doc, *item, "DESCRIPTIVE_REPRESENTATION_ITEM"), Some(a) if matches!(a.get(1), Some(Attribute::String(_)))))
 }
 
 struct PartReader<'a> {
@@ -1236,8 +1282,8 @@ impl PartReader<'_> {
         }
     }
 
-    /// Items haecceity reads that the port does not project and did not *use* in a record, each
-    /// a source not read.
+    /// Items haecceity reads that the port does not project and did not *use* in a record.
+    /// Known bookkeeping stays an extracted metadata source; unsupported items are not read.
     fn not_projected(&self, sources: &mut Vec<Source>, used: &Used) {
         let pmi = self.pmi;
         let prov = self.prov;
@@ -1312,6 +1358,8 @@ impl PartReader<'_> {
         for (item, category, n, ids, used) in groups {
             for i in (0..n).filter(|&i| !used.get(i).copied().unwrap_or(false)) {
                 let instances = ids.get(i).cloned().unwrap_or_default();
+                let bookkeeping =
+                    item == "attribute_set" && is_draftwright_record(&pmi.attributes[i]);
                 sources.push(Source {
                     id: format!("{item}:{}:{i}", self.p),
                     category,
@@ -1319,8 +1367,19 @@ impl PartReader<'_> {
                         .first()
                         .map_or_else(String::new, |&id| entity_name(self.doc, id)),
                     instances,
-                    outcome: Outcome::NotExtracted,
-                    reason: format!("{NOT_PROJECTED} ({})", item.replace('_', " ")),
+                    outcome: if bookkeeping {
+                        Outcome::Extracted
+                    } else {
+                        Outcome::NotExtracted
+                    },
+                    reason: if bookkeeping {
+                        format!(
+                            "Draftwright record {:?} (not a drawing requirement)",
+                            pmi.attributes[i].name
+                        )
+                    } else {
+                        format!("{NOT_PROJECTED} ({})", item.replace('_', " "))
+                    },
                 });
             }
         }
