@@ -155,7 +155,7 @@ impl Session {
                         .push(serde_json::to_value(side).unwrap().as_str().unwrap().into());
                 }
             }
-            let mut entry = serde_json::json!({"label": answer.item.label, "views": views.into_iter().map(|(view,sides)| serde_json::json!({"view":view,"sides":sides})).collect::<Vec<_>>(), "operations": options.operations});
+            let mut entry = serde_json::json!({"label": answer.item.label, "views": views.into_iter().map(|(view,sides)| serde_json::json!({"view":view,"sides":sides})).collect::<Vec<_>>(), "operations": options.operations, "operation_scopes":options.operation_scopes});
             if let Some(kind @ ("callout" | "linear")) = answer.dimension_kind.as_deref() {
                 entry["offset"] = kind.into();
             }

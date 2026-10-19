@@ -4,7 +4,7 @@
     {
       "properties": {
         "spec_version": {
-          "$ref": "#/B"
+          "$ref": "#/D"
         },
         "delta": {
           "properties": {
@@ -43,16 +43,16 @@
                                     ]
                                   },
                                   "id": {
-                                    "$ref": "#/B"
+                                    "$ref": "#/D"
                                   },
                                   "kind": {
-                                    "$ref": "#/B"
+                                    "$ref": "#/D"
                                   },
                                   "label": {
-                                    "$ref": "#/C"
+                                    "$ref": "#/E"
                                   },
                                   "view": {
-                                    "$ref": "#/C"
+                                    "$ref": "#/E"
                                   },
                                   "state": {
                                     "anyOf": [
@@ -75,7 +75,7 @@
                                             "const": "covered"
                                           },
                                           "by": {
-                                            "$ref": "#/B"
+                                            "$ref": "#/D"
                                           }
                                         },
                                         "additionalProperties": false,
@@ -87,7 +87,7 @@
                                             "const": "not_drawable"
                                           },
                                           "reason_code": {
-                                            "$ref": "#/B"
+                                            "$ref": "#/D"
                                           }
                                         },
                                         "additionalProperties": false,
@@ -109,6 +109,16 @@
                               {
                                 "type": "object",
                                 "properties": {
+                                  "operation_scopes": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                      "enum": [
+                                        "local",
+                                        "view",
+                                        "sheet"
+                                      ]
+                                    }
+                                  },
                                   "item": {
                                     "type": "object"
                                   },
@@ -119,7 +129,7 @@
                                     ]
                                   },
                                   "dimension_kind": {
-                                    "$ref": "#/C"
+                                    "$ref": "#/E"
                                   },
                                   "placement": {
                                     "type": [
@@ -128,14 +138,23 @@
                                     ]
                                   },
                                   "basis": {
-                                    "$ref": "#/B"
+                                    "$ref": "#/D"
                                   }
                                 },
+                                "required": [
+                                  "item",
+                                  "value",
+                                  "dimension_kind",
+                                  "placement",
+                                  "anchors",
+                                  "features",
+                                  "basis",
+                                  "operations"
+                                ],
                                 "additionalProperties": false,
-                                "minProperties": 8,
                                 "patternProperties": {
                                   "^(anchors|features|operations)$(?!\n)": {
-                                    "$ref": "#/A"
+                                    "$ref": "#/B"
                                   }
                                 }
                               },
@@ -155,7 +174,7 @@
                             "const": "removed"
                           },
                           "id": {
-                            "$ref": "#/B"
+                            "$ref": "#/D"
                           }
                         },
                         "additionalProperties": false,
@@ -176,7 +195,10 @@
                                 "type": "object",
                                 "properties": {
                                   "fix": {
-                                    "$ref": "#/D"
+                                    "$ref": "#/C"
+                                  },
+                                  "fixes": {
+                                    "$ref": "#/A"
                                   }
                                 },
                                 "required": [
@@ -189,10 +211,10 @@
                                 "additionalProperties": false,
                                 "patternProperties": {
                                   "^(id|code|severity|message)$(?!\n)": {
-                                    "$ref": "#/B"
+                                    "$ref": "#/D"
                                   },
                                   "^(subjects|refs)$(?!\n)": {
-                                    "$ref": "#/A"
+                                    "$ref": "#/B"
                                   }
                                 }
                               },
@@ -200,10 +222,13 @@
                                 "type": "object",
                                 "properties": {
                                   "subjects": {
-                                    "$ref": "#/A"
+                                    "$ref": "#/B"
                                   },
                                   "fix": {
-                                    "$ref": "#/D"
+                                    "$ref": "#/C"
+                                  },
+                                  "fixes": {
+                                    "$ref": "#/A"
                                   }
                                 },
                                 "required": [
@@ -215,7 +240,7 @@
                                 "additionalProperties": false,
                                 "patternProperties": {
                                   "^(id|code|severity)$(?!\n)": {
-                                    "$ref": "#/B"
+                                    "$ref": "#/D"
                                   }
                                 }
                               },
@@ -250,7 +275,7 @@
               "minProperties": 3
             },
             "delta_ref": {
-              "$ref": "#/B"
+              "$ref": "#/D"
             },
             "plans": {
               "type": "integer",
@@ -269,7 +294,7 @@
         "additionalProperties": false,
         "properties": {
           "choices": {
-            "$ref": "#/A"
+            "$ref": "#/B"
           },
           "code": {
             "enum": [
@@ -278,7 +303,7 @@
             ]
           },
           "message": {
-            "$ref": "#/B"
+            "$ref": "#/D"
           }
         },
         "required": [
@@ -297,10 +322,10 @@
     "type": "object",
     "properties": {
       "id": {
-        "$ref": "#/C"
+        "$ref": "#/E"
       },
       "detail_ref": {
-        "$ref": "#/B"
+        "$ref": "#/D"
       }
     },
     "additionalProperties": false,
@@ -308,20 +333,34 @@
   },
   "A": {
     "items": {
-      "$ref": "#/B"
+      "additionalProperties": false,
+      "minProperties": 3,
+      "properties": {
+        "description": {
+          "$ref": "#/D"
+        },
+        "ops": {
+          "$ref": "#/C"
+        },
+        "scope": {
+          "enum": [
+            "local",
+            "view",
+            "sheet"
+          ]
+        }
+      },
+      "type": "object"
     },
     "type": "array"
   },
   "B": {
-    "type": "string"
+    "items": {
+      "$ref": "#/D"
+    },
+    "type": "array"
   },
   "C": {
-    "type": [
-      "string",
-      "null"
-    ]
-  },
-  "D": {
     "items": {
       "anyOf": [
         {
@@ -333,7 +372,7 @@
               ]
             },
             "path": {
-              "$ref": "#/B"
+              "$ref": "#/D"
             },
             "value": {}
           },
@@ -346,7 +385,7 @@
               "const": "remove"
             },
             "path": {
-              "$ref": "#/B"
+              "$ref": "#/D"
             }
           },
           "additionalProperties": false,
@@ -356,5 +395,14 @@
       "type": "object"
     },
     "type": "array"
+  },
+  "D": {
+    "type": "string"
+  },
+  "E": {
+    "type": [
+      "string",
+      "null"
+    ]
   }
 }

@@ -43,7 +43,7 @@ fn description(tool: &str) -> &'static str {
             "Read one stable item id: label, state, value, explanation (basis) and allowed operations. Supply part_ref plus spec or spec_version. detail=true includes resolved geometry, anchors and features. IDs accept sheet:<n>/<id>; a wrong sheet offers the correct address. An absent sheet means sheet 1. Unknown IDs return nearest valid IDs."
         }
         "list_problems" => {
-            "List drawing problems by code, severity, subject item ID or feature ID (all its dimensions/annotations) for part_ref plus spec or spec_version. Follow next_cursor for all problems. Default rows include corrective Spec ops; detail=true adds explanations. Use filter.feature for one query covering a whole feature."
+            "List drawing problems by code, severity, subject item ID or feature ID (all its dimensions/annotations) for part_ref plus spec or spec_version. Follow next_cursor for all problems. Rows include fixes ordered local, view, sheet, each with scope, description and ops; fix retains the preferred bundle. Sheet remedies explicitly re-plan the sheet. detail=true adds explanations. Use filter.feature for one query covering a whole feature."
         }
         "item_options" => {
             "Get every settable Spec path with choices, ranges and tolerance forms, compatible view anchors, scales and relative placements for an item id in part_ref plus spec or spec_version. IDs accept sheet:<n>/<id>. Views offer move_to_sheet at views/<name>/sheet with choices and keep_together/relative_to consequences. Linear dimensions accept only sides parallel to their span. Fits use features/<feature-id>/fit, not dimension tolerance; classes are valid for the feature kind and diameter. Datums and GD&T frames use features/<feature-id>/datum (a letter) and features/<feature-id>/controls (a list of {characteristic, tolerance, datums?, diameter?, modifier?}); finish {ra, removal?}, thread {designation, length?}, knurl {pattern, pitch} and note (text) sit beside them, and sheet/default_finish on the sheet. Descriptors with paths share choices across all those paths. View/sheet hidden, centre_marks, centre_lines, thread_depiction and knurl_depiction are booleans; view settings win. Combine place subfields into one place object when setting a view relation. For projected gaps use align=projection (front with plan/side, either direction): geometry stays aligned across side, gap is between areas including bands. Related anchors offer it first. Use a recognised feature or pattern id (f:...) to query recognition controls: features/<id>/reclassify, suppress, split or pattern {arrangement, members}; add {id, kind, faces} to feature_declarations. Sheet options explain declarations; item_options with id face:<index> reads one face fingerprint. Options are candidates; preview_ops checks their effects. Large replies keep full structuredContent; the text channel gives a lossless detail_ref readable with resources/read {uri:draftwright:<detail_ref>}."
@@ -332,7 +332,9 @@ pub fn page(cache: &Cache, rows: Vec<Value>, args: &Value) -> Result<Value, Erro
     )
 }
 fn problem_summary(p: &crate::model::Problem) -> Value {
-    json!({"id":p.id,"code":p.code,"severity":p.severity,"subjects":p.subjects,"fix":p.fix})
+    let fixes = p.offered_fixes();
+    let preferred = fixes.first().map(|f| f.ops.as_slice()).unwrap_or_default();
+    json!({"id":p.id,"code":p.code,"severity":p.severity,"subjects":p.subjects,"fix":preferred,"fixes":fixes})
 }
 fn delta_page(cache: &Cache, delta: &Delta, args: &Value) -> Result<Value, Error> {
     let detail = args["detail"].as_bool().unwrap_or(false);
@@ -638,6 +640,7 @@ fn dispatch(cache: &Cache, tool: &str, args: &Value) -> Result<Value, Error> {
                 c["basis"] = json!(i.basis);
                 c["value"] = json!(i.value);
                 c["operations"] = json!(i.operations);
+                c["operation_scopes"] = json!(i.operation_scopes);
                 c
             };
             Ok(json!({"item":answer}))
@@ -1074,6 +1077,29 @@ pub fn run(args: &[String]) -> Result<(), Error> {
 
 #[cfg(test)]
 mod batch_tests {
+    #[test]
+    fn summaries_keep_scoped_alternatives_in_order() {
+        use crate::{fixes::Fix, items::Op, model::Problem};
+        let problem = Problem {
+            fix: vec![Op::remove("sheet/scale")],
+            fixes: vec![
+                Fix::new("Move view", vec![Op::remove("views/iso/place")]),
+                Fix::new(
+                    "Move label",
+                    vec![Op::set("dimensions/d/place/lane", json!(1))],
+                ),
+            ],
+            ..Default::default()
+        };
+        let summary = super::problem_summary(&problem);
+        let wire = serde_json::to_value(&problem).unwrap();
+        assert_eq!(summary["fixes"], wire["fixes"]);
+        assert_eq!(summary["fix"], wire["fix"]);
+        assert_eq!(summary["fixes"][0]["scope"], "local");
+        assert_eq!(summary["fixes"][1]["scope"], "view");
+        assert_eq!(summary["fixes"][2]["scope"], "sheet");
+    }
+
     use super::*;
     use crate::stateless::{MAX_OPS, work};
     use std::time::Instant;

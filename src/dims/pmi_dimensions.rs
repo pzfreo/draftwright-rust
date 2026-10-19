@@ -1249,6 +1249,7 @@ pub(super) fn omitted(
                 ),
                 subjects: vec![o.id.clone()],
                 refs: vec![source.to_string()],
+                fixes: Vec::new(),
                 // Shown again, the item states it.
                 fix: match o.state {
                     crate::items::State::OmittedByUser => vec![crate::items::Op::remove(format!(

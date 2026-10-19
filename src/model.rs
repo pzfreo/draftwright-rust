@@ -729,7 +729,7 @@ pub struct Cut {
     pub marked_in: String,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct Problem {
     pub id: String,
     pub code: String,
@@ -749,6 +749,45 @@ pub struct Problem {
     /// The edit that resolves it, as [`edit`] takes it, where there is one.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub fix: Vec<crate::items::Op>,
+    /// Alternative operation bundles; use `offered_fixes` for local → view → sheet order.
+    #[serde(default)]
+    pub fixes: Vec<crate::fixes::Fix>,
+}
+
+impl Problem {
+    pub fn offered_fixes(&self) -> Vec<crate::fixes::Fix> {
+        let mut fixes = self.fixes.clone();
+        if !self.fix.is_empty() && !fixes.iter().any(|f| f.ops == self.fix) {
+            fixes.insert(
+                0,
+                crate::fixes::Fix::new("Apply the corrective Spec edits.", self.fix.clone()),
+            );
+        }
+        fixes.sort_by_key(crate::fixes::Fix::scope);
+        fixes
+    }
+}
+impl Serialize for Problem {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut s = serializer.serialize_struct("Problem", 8)?;
+        s.serialize_field("id", &self.id)?;
+        s.serialize_field("code", &self.code)?;
+        s.serialize_field("severity", &self.severity)?;
+        s.serialize_field("message", &self.message)?;
+        s.serialize_field("subjects", &self.subjects)?;
+        if !self.refs.is_empty() {
+            s.serialize_field("refs", &self.refs)?;
+        }
+        let fixes = self.offered_fixes();
+        if let Some(fix) = fixes.first() {
+            s.serialize_field("fix", &fix.ops)?;
+        }
+        if !fixes.is_empty() {
+            s.serialize_field("fixes", &fixes)?;
+        }
+        s.end()
+    }
 }
 
 /// A request that cannot be met as asked: what was wrong, and what would be accepted.
@@ -1703,10 +1742,14 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
 /// recovery picks for it, else the pinned scale on the smallest sheet that holds it, else the
 /// automatic pair. A pair is offered only when, pinned, its finished drawing fits. Only for a
 /// spec that pins both (each search unpins one, so this never recurses).
-fn fit_fix(
-    analysis: &Analysis,
-    spec: &Spec,
-) -> Result<Option<(Vec<crate::items::Op>, String, String)>, Invalid> {
+struct FittingFix {
+    ops: Vec<crate::items::Op>,
+    size: String,
+    scale: String,
+    hole_table: bool,
+}
+
+fn fit_fix(analysis: &Analysis, spec: &Spec) -> Result<Option<FittingFix>, Invalid> {
     let (Some(size), Some(scale)) = (&spec.sheet.size, &spec.sheet.scale) else {
         return Ok(None);
     };
@@ -1755,7 +1798,12 @@ fn fit_fix(
         if pair.1 != *scale {
             ops.push(crate::items::Op::set("sheet/scale", pair.1.clone().into()));
         }
-        return Ok(Some((ops, pair.0, pair.1)));
+        return Ok(Some(FittingFix {
+            ops,
+            size: pair.0,
+            scale: pair.1,
+            hole_table: p.hole_table.is_some() || !p.hole_tables.is_empty(),
+        }));
     }
     Ok(None)
 }
@@ -2539,13 +2587,21 @@ fn recover_candidates(
                     1,
                 );
                 first.status = crate::completeness::status(&first.problems);
-            } else if let Some((fix, size, scale)) = fit_fix(analysis, spec)? {
+            } else if let Some(fix) = fit_fix(analysis, spec)? {
                 let p = &mut first.problems[i];
                 p.message = format!(
-                    "{}; {size} at {scale} fits.",
-                    p.message.trim_end_matches('.')
+                    "{}; {} at {} fits.",
+                    p.message.trim_end_matches('.'),
+                    fix.size,
+                    fix.scale
                 );
-                p.fix = fix;
+                let description = if fix.hole_table {
+                    format!("Use a hole table at {} on {}.", fix.scale, fix.size)
+                } else {
+                    format!("Use {} at {}.", fix.size, fix.scale)
+                };
+                p.fix = fix.ops.clone();
+                p.fixes = vec![crate::fixes::Fix::new(description, fix.ops)];
             }
         }
         return Ok(first);
@@ -3969,6 +4025,7 @@ fn plan_with_presentation(
                 ),
                 subjects: Vec::new(),
                 refs: inactive.clone(),
+                fixes: Vec::new(),
                 // The message's first remedy: the entries removed, the spec binds to this
                 // revision.
                 fix: inactive_entries
@@ -4278,6 +4335,7 @@ fn plan_with_presentation(
         message: format!("Section A\u{2013}A is not drawn: {why}."),
         subjects: Vec::new(),
         refs: vec![format!("v:{SECTION}")],
+        fixes: Vec::new(),
         fix,
     };
     match &demand.section {

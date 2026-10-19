@@ -10,7 +10,10 @@
               {
                 "properties": {
                   "fix": {
-                    "$ref": "#/B"
+                    "$ref": "#/C"
+                  },
+                  "fixes": {
+                    "$ref": "#/A"
                   }
                 },
                 "required": [
@@ -23,20 +26,23 @@
                 "additionalProperties": false,
                 "patternProperties": {
                   "^(id|code|severity|message)$(?!\n)": {
-                    "type": "string"
+                    "$ref": "#/D"
                   },
                   "^(subjects|refs)$(?!\n)": {
-                    "$ref": "#/A"
+                    "$ref": "#/B"
                   }
                 }
               },
               {
                 "properties": {
                   "subjects": {
-                    "$ref": "#/A"
+                    "$ref": "#/B"
                   },
                   "fix": {
-                    "$ref": "#/B"
+                    "$ref": "#/C"
+                  },
+                  "fixes": {
+                    "$ref": "#/A"
                   }
                 },
                 "required": [
@@ -48,7 +54,7 @@
                 "additionalProperties": false,
                 "patternProperties": {
                   "^(id|code|severity)$(?!\n)": {
-                    "type": "string"
+                    "$ref": "#/D"
                   }
                 }
               },
@@ -61,7 +67,7 @@
                     ]
                   },
                   "detail_ref": {
-                    "type": "string"
+                    "$ref": "#/D"
                   }
                 },
                 "additionalProperties": false,
@@ -91,7 +97,7 @@
         "additionalProperties": false,
         "properties": {
           "choices": {
-            "$ref": "#/A"
+            "$ref": "#/B"
           },
           "code": {
             "enum": [
@@ -100,7 +106,7 @@
             ]
           },
           "message": {
-            "type": "string"
+            "$ref": "#/D"
           }
         },
         "required": [
@@ -117,11 +123,34 @@
   ],
   "A": {
     "items": {
-      "type": "string"
+      "additionalProperties": false,
+      "minProperties": 3,
+      "properties": {
+        "description": {
+          "$ref": "#/D"
+        },
+        "ops": {
+          "$ref": "#/C"
+        },
+        "scope": {
+          "enum": [
+            "local",
+            "view",
+            "sheet"
+          ]
+        }
+      },
+      "type": "object"
     },
     "type": "array"
   },
   "B": {
+    "items": {
+      "$ref": "#/D"
+    },
+    "type": "array"
+  },
+  "C": {
     "items": {
       "anyOf": [
         {
@@ -133,7 +162,7 @@
               ]
             },
             "path": {
-              "type": "string"
+              "$ref": "#/D"
             },
             "value": {}
           },
@@ -146,7 +175,7 @@
               "const": "remove"
             },
             "path": {
-              "type": "string"
+              "$ref": "#/D"
             }
           },
           "additionalProperties": false,
@@ -156,5 +185,8 @@
       "type": "object"
     },
     "type": "array"
+  },
+  "D": {
+    "type": "string"
   }
 }

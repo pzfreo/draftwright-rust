@@ -88,6 +88,16 @@
               },
               {
                 "properties": {
+                  "operation_scopes": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "enum": [
+                        "local",
+                        "view",
+                        "sheet"
+                      ]
+                    }
+                  },
                   "item": {
                     "type": "object"
                   },
@@ -110,8 +120,17 @@
                     "$ref": "#/C"
                   }
                 },
+                "required": [
+                  "item",
+                  "value",
+                  "dimension_kind",
+                  "placement",
+                  "anchors",
+                  "features",
+                  "basis",
+                  "operations"
+                ],
                 "additionalProperties": false,
-                "minProperties": 8,
                 "patternProperties": {
                   "^(anchors|features|operations)$(?!\n)": {
                     "$ref": "#/B"
