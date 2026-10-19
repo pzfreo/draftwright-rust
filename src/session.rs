@@ -335,6 +335,13 @@ impl Delta {
         let mut problems = state.problems.clone();
         problems.retain(|p| !self.problems_resolved.contains(p));
         problems.extend(self.problems_added.clone());
+        // A changed remedy is metadata for the same finding. Its complete update
+        // travels in PlanDelta, without a false resolved/new warning pair.
+        for problem in &mut problems {
+            if let Some(updated) = plan.problems.iter().find(|p| same_finding(p, problem)) {
+                *problem = updated.clone();
+            }
+        }
         // Plan problems keep planner order; render-only problems follow them.
         let plan: Plan = plan;
         problems.sort_by_key(|p| {
@@ -1947,13 +1954,21 @@ fn difference(old: &State, new: &State, analysis: &Analysis, plans: usize) -> De
         problems_added: new
             .problems
             .iter()
-            .filter(|p| !old.problems.contains(p))
+            .filter(|p| {
+                !old.problems
+                    .iter()
+                    .any(|q| unchanged_problem(q, p, old, new))
+            })
             .cloned()
             .collect(),
         problems_resolved: old
             .problems
             .iter()
-            .filter(|p| !new.problems.contains(p))
+            .filter(|p| {
+                !new.problems
+                    .iter()
+                    .any(|q| unchanged_problem(p, q, old, new))
+            })
             .cloned()
             .collect(),
         plan: patch(&old.plan, &new.plan),
@@ -1972,4 +1987,20 @@ fn difference(old: &State, new: &State, analysis: &Analysis, plans: usize) -> De
             != new.problems.iter().map(|p| &p.id).collect::<Vec<_>>())
         .then(|| new.problems.iter().map(|p| p.id.clone()).collect()),
     }
+}
+
+// Finding identity includes its engineering/layout evidence, but not its remedies.
+// Only settled Plan problems have a separate lossless metadata patch; render-only
+// problems retain complete equality in the added/resolved stream.
+fn same_finding(a: &model::Problem, b: &model::Problem) -> bool {
+    a.id == b.id
+        && a.code == b.code
+        && a.severity == b.severity
+        && a.message == b.message
+        && a.subjects == b.subjects
+        && a.refs == b.refs
+}
+
+fn unchanged_problem(a: &model::Problem, b: &model::Problem, old: &State, new: &State) -> bool {
+    a == b || (same_finding(a, b) && old.plan.problems.contains(a) && new.plan.problems.contains(b))
 }
