@@ -322,7 +322,11 @@ fn no_toleranced_dimension_is_drawn_as_reference() {
     let (part, mut a) = model::analyse(&fixture("parts/boss_circle.step")).unwrap();
     let json = std::fs::read_to_string(fixture("recognition/boss_circle.json")).unwrap();
     model::recognise(&part, &mut a, &json).unwrap();
-    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let plan = model::plan(
+        &a,
+        &serde_json::from_value(json!({"sheet":{"references":true}})).unwrap(),
+    )
+    .unwrap();
     let reference = plan
         .dimensions
         .iter()
@@ -416,7 +420,11 @@ fn a_boss_height_on_a_stated_level_is_a_reference() {
     let (part, mut a) = model::analyse(&fixture("parts/boss_circle.step")).unwrap();
     let json = std::fs::read_to_string(fixture("recognition/boss_circle.json")).unwrap();
     model::recognise(&part, &mut a, &json).unwrap();
-    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let plan = model::plan(
+        &a,
+        &serde_json::from_value(json!({"sheet":{"references":true}})).unwrap(),
+    )
+    .unwrap();
     let get = |id: &str| plan.dimensions.iter().find(|d| d.id == id).unwrap();
     let boss = get("d:f:boss:1/boss_height.length");
     assert_eq!((boss.label.as_str(), boss.reference), ("(3)", true));

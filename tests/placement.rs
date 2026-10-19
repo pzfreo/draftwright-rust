@@ -548,6 +548,25 @@ fn omitting_one_dimension_moves_no_other() {
                         let Some(p) = d.placed.as_ref() else {
                             panic!("{name}: {} is not drawn", d.id);
                         };
+                        // A previously auxiliary interval becomes controlling when any
+                        // determining dimension is withdrawn. It states its own span; the
+                        // unrelated items below still retain their exact established ink.
+                        if full.omitted.iter().any(|o| {
+                            o.id == d.id
+                                && o.basis
+                                    .contains("other stated dimensions determine this interval")
+                        }) {
+                            assert!(!d.reference, "{name}: {} stayed reference", d.id);
+                            let view = plan.views.iter().find(|v| v.id == d.view).unwrap();
+                            let (a, b) = (p.arrows[0][0], p.arrows[1][0]);
+                            assert!(
+                                ((a[0] - b[0]).hypot(a[1] - b[1]) - d.value * view.scale).abs()
+                                    < 1e-6,
+                                "{name}: {} does not state its promoted interval",
+                                d.id
+                            );
+                            continue;
+                        }
                         // In the lane of the item it was merged into: its dimension line on that
                         // item's (the merged items hold no lane of their own).
                         let lane = |p: &dims::Placed| {
@@ -670,6 +689,23 @@ fn omitting_one_dimension_moves_no_other() {
                         continue;
                     }
                     let was = full.dimensions.iter().find(|e| e.id == d.id).unwrap();
+                    if full.omitted.iter().any(|o| {
+                        back.contains(&o.id.as_str())
+                            && o.basis
+                                .contains("other stated dimensions determine this interval")
+                            && conveyed_owners(&o.basis).contains(&d.id.as_str())
+                    }) {
+                        // Restoring an auxiliary interval may reflow the participating
+                        // chain's text. Its measured supports and arrows remain fixed.
+                        assert_eq!(
+                            (d.view.as_str(), d.value, d.label.as_str()),
+                            (was.view.as_str(), was.value, was.label.as_str())
+                        );
+                        let (now, old) = (d.placed.as_ref().unwrap(), was.placed.as_ref().unwrap());
+                        assert_eq!(&now.lines[..2], &old.lines[..2], "{} witnesses", d.id);
+                        assert_eq!(now.arrows, old.arrows, "{} arrows", d.id);
+                        continue;
+                    }
                     reference_geometry::assert_local(was, d);
                 }
             }

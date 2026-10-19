@@ -52,9 +52,9 @@ with tempfile.TemporaryDirectory(prefix='s7-schema-') as cache:
     for spec in ({'dimensions\n': {}}, {'sheet': {'centre_marks\n': True}},
                  {'sheet': {'fit_limits\n': True}}):
         assert not nullable.is_valid({'part_ref': 'part', 'spec': spec}), spec
-    for sheet in [{'size': None, 'fit_limits': None}, {'size': 'A4', 'fit_limits': True}]:
+    for sheet in [{'size': None, 'fit_limits': None}, {'size': 'A4', 'fit_limits': True, 'references': True}]:
         nullable.validate({'part_ref': 'part', 'spec': {'sheet': sheet}})
-    for sheet in [{'size': 42}, {'fit_limits': 'yes'}]:
+    for sheet in [{'size': 42}, {'fit_limits': 'yes'}, {'references': 'yes'}, {'references': 1}]:
         assert not nullable.is_valid({'part_ref': 'part', 'spec': {'sheet': sheet}})
     for around in ['f:turned_step:3', ['f:groove:1', 'face:4']]:
         for source in ['front', 'plan', 'side', 'section_aa', 'section_bb', None]:

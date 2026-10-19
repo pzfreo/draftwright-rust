@@ -8,8 +8,9 @@ on a loaded machine runs high, so compare builds on the same machine at the same
 (user and system) is given beside it, and on macOS the instructions retired (`/usr/bin/time -l`,
 in millions), which load does not change: the measure to compare builds by on a busy machine.
 
-Usage: python3 -I tools/plan_timing.py <draftwright binary> <work dir> [--runs N] [--plans]
+Usage: python3 -I tools/plan_timing.py <draftwright binary> <work dir> [--runs N] [--plans] [--wall-only]
        <step files...>
+Use --wall-only when sandboxing prevents macOS instruction counters.
 (the parts: tools/quality_parts.txt, paths relative to $DRAFTWRIGHT_CORPUS). The Analyses are
 kept in <work dir>/analysis and reused; with --plans the plans go to <work dir>/plans."""
 import os, re, statistics, subprocess, sys, time
@@ -20,6 +21,8 @@ if "--runs" in args:
     i = args.index("--runs")
     runs = int(args[i + 1])
     del args[i:i + 2]
+wall_only = "--wall-only" in args
+args = [a for a in args if a != "--wall-only"]
 plans = "--plans" in args
 args = [a for a in args if a != "--plans"]
 dw, work, files = args[0], args[1], args[2:]
@@ -28,7 +31,7 @@ if plans:
     os.makedirs(f"{work}/plans", exist_ok=True)
 
 # On macOS each run is counted by /usr/bin/time -l (instructions retired); elsewhere, wall and CPU.
-counted = ["/usr/bin/time", "-l"] if sys.platform == "darwin" and os.path.exists("/usr/bin/time") else []
+counted = ["/usr/bin/time", "-l"] if not wall_only and sys.platform == "darwin" and os.path.exists("/usr/bin/time") else []
 
 for f in files:
     name = os.path.basename(f).split(".")[0]
