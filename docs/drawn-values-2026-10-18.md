@@ -282,15 +282,15 @@ The retry preserves every carried measurement, the geometry’s minimum opening,
 step readability, text association, and the existing layout/ink/leader budgets.
 Finished outward-arrow placement supplies the proof when the estimate for text
 inside a slot chain is too conservative. No numerical acceptance limit changes.
-One routing exception retains one decimal: FTC-08's
-`d:f:fillet:7/fillet.radius` prints `8× R1.5` for the eight claimed fillets
+At the initial release validation, FTC-08's
+`d:f:fillet:7/fillet.radius` printed `8× R1.5` for the eight claimed fillets
 `f:fillet:5` through `f:fillet:12`, whose modelled radii remain 1.524 mm.
 The precise `8× R1.524` label cannot find a route within the established
 hidden-edge, length and clearance budgets; retaining its original shaft and
 compact text preserves the baseline's existing 3.275 mm ink run. Its label,
 terms, placement box and inspection basis all carry that same decision.
-Every other printed nominal in the 30 quality parts retains the faithful
-precision policy.
+The CI repair and final compact-label exceptions are recorded in
+[the 19 October validation](ci-116-performance-2026-10-19.md).
 
 The NTS caption is reconciled after the final gutter translations, against the
 finished views and fixed schedules. Four exact upstream spool132 wrapping
