@@ -523,7 +523,10 @@ fn body_strip(frame: &Frame, w: &Want, horizontal: bool) -> Option<Side> {
             b_edge: false,
             ..
         } if !w.measurements.is_empty()
-            && w.measurements.iter().all(|m| m.parameter == "step.length") =>
+            && w.measurements
+                .iter()
+                .filter(|m| !m.feature.starts_with("station_"))
+                .all(|m| m.parameter == "step.length") =>
         {
             Some(silhouette_gap(frame, *a, horizontal).0)
         }
@@ -662,6 +665,7 @@ pub(super) fn lanes<'a>(
                     || (!w.measurements.is_empty()
                         && w.measurements
                             .iter()
+                            .filter(|m| !m.feature.starts_with("station_"))
                             .all(|m| m.feature.starts_with("f:section_recess:"))),
                 rank.0,
                 rank.1,
@@ -1155,7 +1159,12 @@ pub(super) fn body_chains(
     };
     let mut groups: Vec<Vec<usize>> = Vec::new();
     for (i, w) in items.iter().enumerate() {
-        if w.measurements.is_empty() || !w.measurements.iter().all(|m| m.parameter == "step.length")
+        if w.measurements.is_empty()
+            || !w
+                .measurements
+                .iter()
+                .filter(|m| !m.feature.starts_with("station_"))
+                .all(|m| m.parameter == "step.length")
         {
             continue;
         }
@@ -1706,6 +1715,7 @@ pub(crate) fn nearest_shared_witnesses(
         if !d
             .measurements
             .iter()
+            .filter(|m| !m.feature.starts_with("station_"))
             .all(|m| m.parameter == first.parameter && (m.value - first.value).abs() < 1e-6)
         {
             continue;
@@ -2232,6 +2242,7 @@ fn clear_linear_uncached(
         !w.measurements.is_empty()
             && w.measurements
                 .iter()
+                .filter(|m| !m.feature.starts_with("station_"))
                 .all(|m| m.feature.starts_with("f:section_recess:"))
     };
     let count = items
@@ -2377,6 +2388,7 @@ fn clear_linear_ordered(
             && items[i]
                 .measurements
                 .iter()
+                .filter(|m| !m.feature.starts_with("station_"))
                 .all(|m| m.feature.starts_with("f:section_recess:"))
     };
     let recess_context = items.iter().any(|w| {
@@ -2861,6 +2873,7 @@ fn clear_linear_ordered(
                         && items[i]
                             .measurements
                             .iter()
+                            .filter(|m| !m.feature.starts_with("station_"))
                             .all(|m| m.parameter == "channel_width.length")
                     {
                         for peer in items.iter().filter(|peer| {

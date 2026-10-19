@@ -164,7 +164,10 @@ pub(crate) fn retain(analysis: &Analysis, spec: &Spec, current: &Plan) -> Option
         let Some(old) = before.dimensions.iter().find(|o| {
             o.id == d.id
                 && o.view == d.view
-                && o.measurements.iter().all(|m| d.measurements.contains(m))
+                && o.measurements
+                    .iter()
+                    .filter(|m| !m.feature.starts_with("station_"))
+                    .all(|m| d.measurements.contains(m))
         }) else {
             continue;
         };
@@ -223,6 +226,7 @@ pub(crate) fn retain(analysis: &Analysis, spec: &Spec, current: &Plan) -> Option
             && w.views.len() > 1
             && w.measurements
                 .iter()
+                .filter(|m| !m.feature.starts_with("station_"))
                 .all(|m| m.feature.starts_with("f:section_recess:"))
             && !held.iter().any(|d| d.id == w.id)
             && current.dimensions.iter().any(|d| d.id == w.id)
@@ -241,6 +245,7 @@ pub(crate) fn retain(analysis: &Analysis, spec: &Spec, current: &Plan) -> Option
                 !a.measurements.is_empty()
                     && a.measurements
                         .iter()
+                        .filter(|m| !m.feature.starts_with("station_"))
                         .all(|m| carrier.measurements.contains(m))
                     && a.views.contains(view)
             }) {
@@ -417,6 +422,7 @@ pub(crate) fn retain(analysis: &Analysis, spec: &Spec, current: &Plan) -> Option
             (!d.measurements.is_empty()
                 && d.measurements
                     .iter()
+                    .filter(|m| !m.feature.starts_with("station_"))
                     .all(|m| m.feature.starts_with("f:section_recess:")))
                 || (route_only && restore.contains(&d.id))
         })

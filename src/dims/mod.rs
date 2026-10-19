@@ -596,11 +596,14 @@ pub(crate) fn nominal_inspection_views(
                 && w.measurements
                     .iter()
                     .any(|m| m.parameter == "bore.diameter")
-                && w.measurements.iter().all(|m| {
-                    fmt(m.value)
-                        .split_once('.')
-                        .is_none_or(|(_, tail)| tail.len() <= 1)
-                });
+                && w.measurements
+                    .iter()
+                    .filter(|m| !m.feature.starts_with("station_"))
+                    .all(|m| {
+                        fmt(m.value)
+                            .split_once('.')
+                            .is_none_or(|(_, tail)| tail.len() <= 1)
+                    });
             established_bore
                 || (!recesses
                     && w.measurements.iter().any(|m| {
@@ -2049,6 +2052,7 @@ fn plan_inventory_uncached(
         !d.measurements.is_empty()
             && d.measurements
                 .iter()
+                .filter(|m| !m.feature.starts_with("station_"))
                 .all(|m| m.feature.starts_with("f:section_recess:"))
     };
     if !first.0.0.iter().any(|d| d.kind == "linear" && new(d))
@@ -2964,6 +2968,7 @@ fn plan_inventory_ordered(
                     && !w.measurements.is_empty()
                     && w.measurements
                         .iter()
+                        .filter(|m| !m.feature.starts_with("station_"))
                         .all(|m| m.feature.starts_with("f:section_recess:"))
             })
             .map(|(i, _)| (i, placed[i].take()))
@@ -4167,6 +4172,7 @@ pub(crate) fn refine_inventory(
                 || !w
                     .measurements
                     .iter()
+                    .filter(|m| !m.feature.starts_with("station_"))
                     .all(|m| m.feature.starts_with("f:section_recess:"))
                     && !(crate::nominal::geometry_eligible(analysis)
                         && !crate::nominal::comparison()

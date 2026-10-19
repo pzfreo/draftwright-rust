@@ -184,7 +184,11 @@ enum Dropped {
 /// A hole callout or hole location, by what it measures.
 fn hole_item(d: &PlannedDimension) -> Option<Dropped> {
     let hole = |f: &str| f.starts_with("f:hole:") || f.starts_with("f:hole_pattern:");
-    let ms = &d.measurements;
+    let ms: Vec<_> = d
+        .measurements
+        .iter()
+        .filter(|m| !m.feature.starts_with("station_"))
+        .collect();
     if d.kind == "callout"
         && ms.iter().any(|m| m.parameter == "bore.diameter")
         && ms.iter().all(|m| hole(&m.feature))
@@ -740,12 +744,15 @@ fn rows(
             d.kind == "linear"
                 && d.view == "v:plan"
                 && !d.measurements.is_empty()
-                && d.measurements.iter().all(|m| {
-                    matches!(
-                        m.parameter.as_str(),
-                        "location.length.x" | "location.length.y"
-                    )
-                })
+                && d.measurements
+                    .iter()
+                    .filter(|m| !m.feature.starts_with("station_"))
+                    .all(|m| {
+                        matches!(
+                            m.parameter.as_str(),
+                            "location.length.x" | "location.length.y"
+                        )
+                    })
         })
         .collect();
     let location = |f: &str, axis: &str| {
@@ -825,6 +832,7 @@ fn rows(
             && d.from_spec.is_empty()
             && d.measurements
                 .iter()
+                .filter(|m| !m.feature.starts_with("station_"))
                 .all(|m| matches!(m.parameter.as_str(), "bore.diameter" | "bore.depth"))
         {
             replace.push(i);
@@ -834,6 +842,7 @@ fn rows(
         if !crate::label_text::overridden(d)
             && d.measurements
                 .iter()
+                .filter(|m| !m.feature.starts_with("station_"))
                 .all(|m| tabulated.contains(m.feature.as_str()))
         {
             replace.push(*i);
@@ -2058,10 +2067,13 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
             .filter(|d| {
                 d.view == view.id
                     && !d.measurements.is_empty()
-                    && d.measurements.iter().all(|m| {
-                        m.feature.starts_with("f:hole")
-                            && m.parameter.starts_with("location.length.")
-                    })
+                    && d.measurements
+                        .iter()
+                        .filter(|m| !m.feature.starts_with("station_"))
+                        .all(|m| {
+                            m.feature.starts_with("f:hole")
+                                && m.parameter.starts_with("location.length.")
+                        })
             })
             .collect();
         let crowded: usize = axes
@@ -2338,14 +2350,17 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                 && !d.from_spec.iter().any(|s| s == "tolerance")
                 && !crate::label_text::overridden(d)
                 && !d.measurements.is_empty()
-                && d.measurements.iter().all(|m| {
-                    (features.contains(m.feature.as_str())
-                        && m.parameter.starts_with("location.length."))
-                        || (patterns.contains(m.feature.as_str())
-                            && (m.parameter.starts_with("location.length.")
-                                || m.parameter.starts_with("pitch.")
-                                || m.parameter.starts_with("grid_pitch.")))
-                })
+                && d.measurements
+                    .iter()
+                    .filter(|m| !m.feature.starts_with("station_"))
+                    .all(|m| {
+                        (features.contains(m.feature.as_str())
+                            && m.parameter.starts_with("location.length."))
+                            || (patterns.contains(m.feature.as_str())
+                                && (m.parameter.starts_with("location.length.")
+                                    || m.parameter.starts_with("pitch.")
+                                    || m.parameter.starts_with("grid_pitch.")))
+                    })
             {
                 replaced.insert(d.id.clone());
             }

@@ -31,7 +31,7 @@ pub(crate) fn route(
     while cursor < queue.len() {
         let (p, node, path) = queue[cursor].clone();
         cursor += 1;
-        if node.is_none() && roots.iter().any(|r| (r - p).abs() < EPS) {
+        if node.is_none() && roots.iter().any(|r| (r - p).abs() < super::redundancy::TOL) {
             return Some(path);
         }
         for (i, e) in edges.iter().enumerate() {
@@ -873,6 +873,20 @@ mod tests {
             a_feature: None,
             b_feature: None,
         }
+    }
+    #[test]
+    fn rounded_recognition_stations_still_reach_the_physical_origin() {
+        assert!(
+            route(
+                &[edge(-0.000369, 5.5, "baseline")],
+                &[0.],
+                0,
+                5.5,
+                None,
+                &BTreeSet::new()
+            )
+            .is_some()
+        );
     }
     #[test]
     fn coincident_feature_axes_remain_distinct_nodes() {

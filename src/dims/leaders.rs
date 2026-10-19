@@ -635,6 +635,7 @@ fn boss_profile(w: &Want) -> bool {
         && !w.measurements.is_empty()
         && w.measurements
             .iter()
+            .filter(|m| !m.feature.starts_with("station_"))
             .all(|m| m.parameter == "boss.diameter")
         && matches!(&w.shape, Shape::Callout { sites, .. } if !sites.is_empty() && sites.iter().all(|(_, r)| *r == 0.0))
 }
@@ -871,11 +872,14 @@ fn settled_nominal_reference(
             .iter()
             .filter(|d| d.kind == "callout" && d.placed.is_some())
             .all(|d| {
-                d.measurements.iter().all(|m| {
-                    crate::nominal::format(m.value)
-                        .split_once('.')
-                        .is_none_or(|(_, tail)| tail.len() <= 1)
-                })
+                d.measurements
+                    .iter()
+                    .filter(|m| !m.feature.starts_with("station_"))
+                    .all(|m| {
+                        crate::nominal::format(m.value)
+                            .split_once('.')
+                            .is_none_or(|(_, tail)| tail.len() <= 1)
+                    })
             });
     let recess_statement = items.iter().any(|d| {
         d.kind == "callout"
@@ -912,11 +916,14 @@ fn settled_nominal_reference(
             d.measurements
                 .iter()
                 .any(|m| m.parameter == "bore.diameter")
-                && d.measurements.iter().all(|m| {
-                    crate::nominal::format(m.value)
-                        .split_once('.')
-                        .is_none_or(|(_, tail)| tail.len() <= 1)
-                })
+                && d.measurements
+                    .iter()
+                    .filter(|m| !m.feature.starts_with("station_"))
+                    .all(|m| {
+                        crate::nominal::format(m.value)
+                            .split_once('.')
+                            .is_none_or(|(_, tail)| tail.len() <= 1)
+                    })
                 && d.placed
                     .as_ref()
                     .is_some_and(|p| length(&p.lines) > MIN_LEADER + SHOULDER)
@@ -925,6 +932,7 @@ fn settled_nominal_reference(
         let Some(p) = &d.placed else { return false };
         if d.measurements
             .iter()
+            .filter(|m| !m.feature.starts_with("station_"))
             .all(|m| m.feature.starts_with("f:section_recess:"))
         {
             return false;
@@ -1238,7 +1246,11 @@ fn place_with_obstacles_uncached(
         for (k, (i, job)) in jobs.iter().enumerate() {
             let w = &items[*i];
             let Some(old) = reference.dimensions.iter().find(|d| {
-                d.id == w.id && d.measurements.iter().all(|m| w.measurements.contains(m))
+                d.id == w.id
+                    && d.measurements
+                        .iter()
+                        .filter(|m| !m.feature.starts_with("station_"))
+                        .all(|m| w.measurements.contains(m))
             }) else {
                 continue;
             };
@@ -1556,7 +1568,10 @@ pub(crate) fn settle_after_furniture(
                     b.id == d.id
                         && b.view == d.view
                         && b.region == d.region
-                        && b.measurements.iter().all(|m| d.measurements.contains(m))
+                        && b.measurements
+                            .iter()
+                            .filter(|m| !m.feature.starts_with("station_"))
+                            .all(|m| d.measurements.contains(m))
                 })
                 .and_then(|b| b.placed.as_ref())
                 .map(|p| length(&p.lines))
@@ -1766,6 +1781,7 @@ pub(crate) fn settle_after_furniture(
         let new_recess = legacy_reference.is_some_and(|r| matching(r).is_none())
             && d.measurements
                 .iter()
+                .filter(|m| !m.feature.starts_with("station_"))
                 .all(|m| m.feature.starts_with("f:section_recess:"));
         let budget = reference.as_ref().map(|r| {
             r.dimensions
@@ -1824,7 +1840,11 @@ pub(crate) fn settle_after_furniture(
                 old.id == d.id
                     && old.view == d.view
                     && old.region == d.region
-                    && old.measurements.iter().all(|m| d.measurements.contains(m))
+                    && old
+                        .measurements
+                        .iter()
+                        .filter(|m| !m.feature.starts_with("station_"))
+                        .all(|m| d.measurements.contains(m))
             })?;
             let old_view = reference.views.iter().find(|old_view| {
                 old_view.id == d.view
@@ -2423,7 +2443,10 @@ pub(super) fn seed_established(
         let Some(d) = reference.dimensions.iter().find(|d| {
             d.id == w.id
                 && d.kind == "callout"
-                && d.measurements.iter().all(|m| w.measurements.contains(m))
+                && d.measurements
+                    .iter()
+                    .filter(|m| !m.feature.starts_with("station_"))
+                    .all(|m| w.measurements.contains(m))
         }) else {
             continue;
         };
@@ -2721,6 +2744,7 @@ fn refine_uncached(
                     && d.view.strip_prefix("v:") == views_of[i]
                     && d.measurements
                         .iter()
+                        .filter(|m| !m.feature.starts_with("station_"))
                         .all(|m| items[i].measurements.contains(m))
             })
         })
@@ -2935,6 +2959,7 @@ fn refine_uncached(
             && !w.measurements.is_empty()
             && w.measurements
                 .iter()
+                .filter(|m| !m.feature.starts_with("station_"))
                 .all(|m| m.feature.starts_with("f:section_recess:"));
         let repair_cross = callout_crossing(i, &old, placed);
         let old_run = model_run(w, &old);

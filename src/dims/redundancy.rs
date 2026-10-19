@@ -163,6 +163,7 @@ pub(super) fn consolidate(
         let boss = !measurements.is_empty()
             && measurements
                 .iter()
+                .filter(|m| !m.feature.starts_with("station_"))
                 .all(|m| m.parameter == "boss_height.length");
         let found = path(&edges, s).or_else(|| {
             let with: Vec<_> = edges.iter().chain(&rungs).copied().collect();
@@ -207,12 +208,24 @@ pub(super) fn consolidate(
                     }
                 }
                 if kept[i].2 != kept[j].2
-                    && kept[i].0.measurements.iter().all(|m| {
-                        m.feature.starts_with("f:hole:") || m.feature.starts_with("f:hole_pattern:")
-                    })
-                    && kept[j].0.measurements.iter().all(|m| {
-                        m.feature.starts_with("f:hole:") || m.feature.starts_with("f:hole_pattern:")
-                    })
+                    && kept[i]
+                        .0
+                        .measurements
+                        .iter()
+                        .filter(|m| !m.feature.starts_with("station_"))
+                        .all(|m| {
+                            m.feature.starts_with("f:hole:")
+                                || m.feature.starts_with("f:hole_pattern:")
+                        })
+                    && kept[j]
+                        .0
+                        .measurements
+                        .iter()
+                        .filter(|m| !m.feature.starts_with("station_"))
+                        .all(|m| {
+                            m.feature.starts_with("f:hole:")
+                                || m.feature.starts_with("f:hole_pattern:")
+                        })
                 {
                     edges.push((s, i));
                     continue;
