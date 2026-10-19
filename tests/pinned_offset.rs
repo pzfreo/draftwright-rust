@@ -171,20 +171,12 @@ fn offset_is_a_pinned_callout_form_of_its_own() {
             "{place}"
         );
     }
-    let linear = format!("dimensions/{}/place", key("d:envelope/width.length"));
-    assert!(
-        s.apply(
-            &[Op::set(linear, json!({"offset":[5,5],"pinned":true}))],
-            false
-        )
-        .is_err()
-    );
     assert!(s.callout_offset("d:envelope/width.length").is_err());
-    // Options advertise the field for callouts only.
+    // Options advertise both supported free placement forms.
     let fields = s.options(ID).unwrap().settable;
     assert!(fields.contains_key(&format!("{path}/offset")));
     let fields = s.options("d:envelope/width.length").unwrap().settable;
-    assert!(!fields.keys().any(|k| k.ends_with("/place/offset")));
+    assert!(fields.keys().any(|k| k.ends_with("/place/offset")));
 }
 
 // Every callout drawn with a leader on several parts, pinned at the offset callout_offset

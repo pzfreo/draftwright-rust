@@ -18,8 +18,8 @@ pub struct Place {
     pub lane: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub along: Option<Along>,
-    /// A pinned callout's bend relative to its automatic leader tip, `[dx, dy]` in paper mm
-    /// (y up). It can put the label inside the view; it excludes side, lane and along.
+    /// A pinned callout's bend from its automatic tip, or a linear label from its
+    /// canonical label position, `[dx, dy]` in paper mm (y up). Excludes side/lane/along.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub offset: Option<[f64; 2]>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
@@ -164,7 +164,9 @@ pub(crate) fn check(s: &Spec) -> Result<(), Invalid> {
         if let Some(o) = p.offset {
             if s.annotations.contains_key(id) {
                 return Err(error(
-                    format!("The placement offset of {id} applies only to callouts."),
+                    format!(
+                        "The placement offset of {id} applies only to callouts and linear dimensions."
+                    ),
                     ["side", "lane", "along"].map(String::from).to_vec(),
                 ));
             }
@@ -1039,9 +1041,16 @@ pub(crate) fn automatic_pins_only(spec: &Spec) -> bool {
         && spec.features.values().all(|f| f.fit.is_none())
 }
 
-/// Whether `offset` puts callout `id`'s bend where `base` draws it, from its leader tip: the
-/// offset [`crate::session::Session::callout_offset`] reports for an automatic callout (#12).
+/// Whether an offset preserves canonical ink: zero for linear labels, or the
+/// automatic bend minus the leader tip for callouts.
 pub(crate) fn automatic_offset(base: &Plan, id: &str, offset: [f64; 2]) -> bool {
+    if base
+        .dimensions
+        .iter()
+        .any(|d| d.id == id && d.kind == "linear" && d.placed.is_some())
+    {
+        return offset.iter().all(|v| v.abs() < 1e-6);
+    }
     base.dimensions
         .iter()
         .find(|d| d.id == id && d.kind == "callout")
