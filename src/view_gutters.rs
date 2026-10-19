@@ -30,12 +30,12 @@ fn measured(plan: &Plan, v: &crate::model::PlannedView) -> bool {
 
 /// Reserved annotation bands, enlarged to contain settled ink and view furniture.
 /// Empty iso fitting regions and generic section padding are available paper.
-fn bands(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
+fn bands(analysis: &Analysis, plan: &Plan, reservations: bool) -> Vec<Rect> {
     let mut bounds: Vec<_> = plan
         .views
         .iter()
         .map(|v| {
-            if measured(plan, v) && v.id == "v:iso" {
+            if v.id == "v:iso" && (!reservations || measured(plan, v)) {
                 let b = analysis.iso_bounds;
                 [
                     v.at[0] + v.scale * b[0],
@@ -43,7 +43,7 @@ fn bands(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
                     v.at[0] + v.scale * b[2],
                     v.at[1] + v.scale * b[3],
                 ]
-            } else if measured(plan, v) {
+            } else if !reservations || measured(plan, v) {
                 let (size, _) = crate::detail::crop_extent(analysis, v);
                 [
                     v.at[0] - v.scale * size[0] / 2.0,
@@ -227,6 +227,7 @@ fn translations(
     analysis: &Analysis,
     plan: &Plan,
     bounds: &[Rect],
+    frame_bounds: &[Rect],
     preferred: f64,
     above_title: bool,
 ) -> Option<Vec<[f64; 2]>> {
@@ -337,12 +338,12 @@ fn translations(
             hard[k].push(Edge {
                 from: i,
                 to: n,
-                limit: bounds[i][k] - inset - 1e-5,
+                limit: frame_bounds[i][k] - inset - 1e-5,
             });
             hard[k].push(Edge {
                 from: n,
                 to: i,
-                limit: sheet.page[k] - inset - bounds[i][k + 2] - 1e-5,
+                limit: sheet.page[k] - inset - frame_bounds[i][k + 2] - 1e-5,
             });
         }
         let mut obstacles = vec![sheet.title_block];
@@ -500,10 +501,15 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
     if plan.views.len() < 2 {
         return;
     }
-    let bounds = bands(analysis, plan);
+    let mut bounds = bands(analysis, plan, true);
+    let automatic = !crate::placement_intent::has_pins(&plan.spec)
+        && plan.spec.views.values().all(|v| v.place.is_none());
+    // Empty reserved bands may reach the frame; only complete ink needs its
+    // white margin. Do not make an otherwise feasible composition immovable.
+    let frame_bounds = bands(analysis, plan, false);
     // Zero disables extra view separation, not clearance from the frame.
     if preferred == 0.0
-        && plan.views.iter().zip(&bounds).all(|(v, b)| {
+        && plan.views.iter().zip(&frame_bounds).all(|(v, b)| {
             let sheet = std::iter::once(&plan.sheet)
                 .chain(&plan.sheets)
                 .find(|s| s.number == v.sheet)
@@ -516,10 +522,16 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
     {
         return;
     }
-    let Some(mut deltas) = translations(analysis, plan, &bounds, preferred, false) else {
-        return;
-    };
-    if let Some(lifted) = translations(analysis, plan, &bounds, preferred, true) {
+    let deltas =
+        translations(analysis, plan, &bounds, &frame_bounds, preferred, false).or_else(|| {
+            // A caption can overlap an unused principal reservation even when
+            // every stroke clears its actual ink. Spend that empty padding when
+            // it otherwise prevents a safe inward move; retain all real ink.
+            bounds.clone_from(&frame_bounds);
+            translations(analysis, plan, &bounds, &frame_bounds, preferred, false)
+        });
+    let Some(mut deltas) = deltas else { return };
+    if let Some(lifted) = translations(analysis, plan, &bounds, &frame_bounds, preferred, true) {
         let score = |d: &[[f64; 2]]| {
             let mut smallest = preferred;
             let mut total = 0.0;
@@ -578,8 +590,7 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
             Some((id.clone(), i, tip))
         })
         .collect();
-    let automatic = !crate::placement_intent::has_pins(&plan.spec)
-        && plan.spec.views.values().all(|v| v.place.is_none());
+
     let moved_bounds: Vec<_> = bounds
         .iter()
         .zip(&deltas)
@@ -627,6 +638,18 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
             v.area = b;
         }
         move_box(&mut v.area, *delta);
+        if automatic {
+            // Transported blank padding is not occupied paper. Keep its public
+            // reservation on the sheet while the complete ink remains inset.
+            let sheet = std::iter::once(&plan.sheet)
+                .chain(&plan.sheets)
+                .find(|s| s.number == v.sheet)
+                .expect("view sheet");
+            for k in 0..2 {
+                v.area[k] = v.area[k].max(MARGIN);
+                v.area[k + 2] = v.area[k + 2].min(sheet.page[k] - MARGIN);
+            }
+        }
         crate::centrelines::shift(v, *delta);
     }
     let delta = |id: &str| {
@@ -746,7 +769,12 @@ mod tests {
             bounds[3][1] += lift;
             bounds[3][3] += lift;
             plan.views[3].at[1] += lift;
-            let d = translations(&analysis, &plan, &bounds, PREFERRED, false).unwrap();
+            let frame_bounds: Vec<_> = bounds
+                .iter()
+                .map(|b| [b[0] + 2.1, b[1] + 2.1, b[2] - 2.1, b[3] - 2.1])
+                .collect();
+            let d =
+                translations(&analysis, &plan, &bounds, &frame_bounds, PREFERRED, false).unwrap();
             assert!(d[1][1] > 1.0 && d[2][0] > 1.0);
             assert_eq!(d[0][1], d[2][1]);
             assert_eq!(d[0][1], d[3][1]);
@@ -773,14 +801,20 @@ mod tests {
             plan.views.iter().map(|v| v.id.as_str()).collect::<Vec<_>>(),
             ["v:front", "v:plan", "v:side"]
         );
-        let free = translations(&analysis, &plan, &bounds, PREFERRED, false).unwrap();
+        let frame_bounds: Vec<_> = bounds
+            .iter()
+            .map(|b| [b[0] + 2.1, b[1] + 2.1, b[2] - 2.1, b[3] - 2.1])
+            .collect();
+        let free =
+            translations(&analysis, &plan, &bounds, &frame_bounds, PREFERRED, false).unwrap();
         assert!(free[1][1] > 1.0 && free[2][0] > 1.0);
 
         plan.spec = serde_json::from_value(json!({"views":{"plan":{"place":{
             "relative_to":"front", "side":"above", "gap":0, "pinned":true
         }}}}))
         .unwrap();
-        let pinned = translations(&analysis, &plan, &bounds, PREFERRED, false).unwrap();
+        let pinned =
+            translations(&analysis, &plan, &bounds, &frame_bounds, PREFERRED, false).unwrap();
         assert_eq!(pinned[0], [0.0; 2]);
         assert_eq!(pinned[1], [0.0; 2]);
 
@@ -803,7 +837,8 @@ mod tests {
             "d:covered":{"place":{"pinned":true}}
         }}))
         .unwrap();
-        let pinned = translations(&analysis, &plan, &bounds, PREFERRED, false).unwrap();
+        let pinned =
+            translations(&analysis, &plan, &bounds, &frame_bounds, PREFERRED, false).unwrap();
         assert_eq!(pinned[2], [0.0; 2]);
     }
 }

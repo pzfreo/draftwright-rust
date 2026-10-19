@@ -2443,8 +2443,35 @@ pub fn border_contacts(analysis: &Analysis, plan: &Plan) -> Vec<(u32, Rect)> {
             local.radius_table = None;
             local.requirements.clear();
         }
+        // The fill metric omits some thin furniture and secondary schedules.
+        // Frame auditing must include that ink too, without changing fill.
+        let mut ink = footprints(analysis, &local);
+        ink.extend(
+            local
+                .views
+                .iter()
+                .flat_map(|v| &v.line_work)
+                .flat_map(|w| &w.curves)
+                .map(|c| c.bbox()),
+        );
+        ink.extend(local.captions.iter().map(|c| c.ink));
+        ink.extend(local.radius_notes_block.iter().map(|b| b.cells));
+        ink.extend(
+            local
+                .radius_table
+                .iter()
+                .filter_map(|t| t.table.placed.as_ref().map(|p| p.cells)),
+        );
+        ink.extend(
+            local
+                .hole_tables
+                .iter()
+                .flat_map(|t| &t.blocks)
+                .filter_map(|b| b.placed.as_ref().map(|p| p.cells)),
+        );
+        ink.extend(local.balloons.iter().filter_map(|b| b.label_box));
         let inset = MARGIN + BORDER_CLEARANCE;
-        contacts.extend(footprints(analysis, &local).into_iter().filter_map(|b| {
+        contacts.extend(ink.into_iter().filter_map(|b| {
             (b[0] <= inset + 1e-6
                 || b[1] <= inset + 1e-6
                 || b[2] >= sheet.page[0] - inset - 1e-6

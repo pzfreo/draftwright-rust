@@ -88,7 +88,7 @@ fn assert_clear(analysis: &Analysis, plan: &Plan) {
         .filter_map(|t| t.placed.as_ref().map(|p| (t.id.as_str(), p.cells)))
         .collect();
     for (k, &(id, b)) in placed.iter().enumerate() {
-        assert!(inside(b, [10.0, 10.0, w - 10.0, h - 10.0]), "{id} {b:?}");
+        assert!(inside(b, [12.0, 12.0, w - 12.0, h - 12.0]), "{id} {b:?}");
         assert!(!overlaps(b, plan.sheet.title_block), "{id}");
         for v in &plan.views {
             let vb = if v.id == "v:iso" {
@@ -507,7 +507,7 @@ fn tables_match_draftwrights_on_corpus_parts() {
                     t.id
                 );
             }
-            // On the same sheet, the same corner of the drawing area, flush with it. (On
+            // Keep the captured corner, with the new two mm of frame clearance. (On
             // m10127's smaller sheet the BOM's corner is taken by the front view's area, so it
             // goes to the next free place: not comparable.)
             let corner = pt["prefer"].as_str().unwrap();
@@ -523,17 +523,18 @@ fn tables_match_draftwrights_on_corpus_parts() {
                 (p.cells[1], pb[1])
             };
             if comparable {
-                let same_corner = (x - px).abs() < 1e-6 && (y - py_).abs() < 1e-6;
+                let same_corner = (x - px - tables::PAD).abs() < 1e-6
+                    && (y - py_ - tables::PAD).abs() < 1e-6;
                 let origin = [
                     if right {
-                        w - px - (p.cells[2] - p.cells[0])
+                        w - px - tables::PAD - (p.cells[2] - p.cells[0])
                     } else {
-                        px
+                        px + tables::PAD
                     },
                     if top {
-                        h - py_ - (p.cells[3] - p.cells[1])
+                        h - py_ - tables::PAD - (p.cells[3] - p.cells[1])
                     } else {
-                        py_
+                        py_ + tables::PAD
                     },
                 ];
                 let original_corner = [

@@ -55,6 +55,26 @@ fn roomy_sheet_has_preferred_gutters_and_projection_origins() {
 
 #[test]
 fn gutter_never_changes_automatic_sheet_scale_or_view_scales() {
+    // Empty principal reservations can reach the frame while actual ink fits.
+    // They must not prevent the independent isometric from moving inward.
+    if let Some(corpus) = corpus::dir() {
+        for file in ["mfcadpp/10155.step", "mfcadpp_holdout/196.step"] {
+            let (_, a) = model::analyse_native(&corpus.join(file)).unwrap();
+            for gutter in [0, 25, 1000] {
+                let spec = serde_json::from_value(json!({"sheet":{"view_gutter":gutter}})).unwrap();
+                let p = model::plan_recovered(&a, &spec).unwrap();
+                assert_eq!(
+                    (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+                    ("A4", "1:1")
+                );
+                assert!(p.sheets.is_empty());
+                assert!(
+                    draftwright::sheet_fit::border_contacts(&a, &p).is_empty(),
+                    "{file}"
+                );
+            }
+        }
+    }
     let bare = plan(json!({"sheet":{"view_gutter":0}}));
     assert!(draftwright::sheet_fit::border_contacts(plate(), &bare).is_empty());
     for gutter in [6, 12, 1000] {

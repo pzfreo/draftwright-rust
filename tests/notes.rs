@@ -84,7 +84,7 @@ fn assert_clear(analysis: &Analysis, plan: &Plan) {
         .expect("the block is placed")
         .cells;
     let [w, h] = plan.sheet.page;
-    assert!(inside(block, [10.0, 10.0, w - 10.0, h - 10.0]), "{block:?}");
+    assert!(inside(block, [12.0, 12.0, w - 12.0, h - 12.0]), "{block:?}");
     assert!(!overlaps(block, plan.sheet.title_block));
     for v in &plan.views {
         let b = if v.id == "v:iso" {
@@ -436,7 +436,7 @@ fn the_block_matches_draftwrights_on_corpus_parts() {
             .iter()
             .map(|v| v.as_f64().unwrap())
             .collect();
-        // Same height, rows and top-right corner; wider by the continuation rows' indent, give
+        // Same height, rows and top-right preference, inset two mm from the frame; wider by the rows' indent, give
         // or take the side bearings of the letters that start the rows (rust-correct:
         // draftwright drops the indent), so the left edge is further left by that much.
         assert!((block[3] - block[1] - size[1]).abs() < 1e-9, "{name}");
@@ -449,14 +449,14 @@ fn the_block_matches_draftwrights_on_corpus_parts() {
             // Details reserve furniture space before the notes. A different corner is
             // justified only by actual occupied ink at Python's established corner.
             let corner = [
-                w - (pw - pb[2]) - (block[2] - block[0]),
-                h - (ph - pb[3]) - size[1],
-                w - (pw - pb[2]),
-                h - (ph - pb[3]),
+                w - (pw - pb[2]) - notes::PAD - (block[2] - block[0]),
+                h - (ph - pb[3]) - notes::PAD - size[1],
+                w - (pw - pb[2]) - notes::PAD,
+                h - (ph - pb[3]) - notes::PAD,
             ];
             assert!(
-                ((w - block[2] - (pw - pb[2])).abs() < 1e-6
-                    && (h - block[3] - (ph - pb[3])).abs() < 1e-6)
+                ((w - block[2] - (pw - pb[2]) - notes::PAD).abs() < 1e-6
+                    && (h - block[3] - (ph - pb[3]) - notes::PAD).abs() < 1e-6)
                     || plan.views.iter().any(|v| overlaps(
                         corner,
                         [
@@ -476,8 +476,8 @@ fn the_block_matches_draftwrights_on_corpus_parts() {
             );
         } else {
             assert!(
-                (w - block[2] - (pw - pb[2])).abs() < 1e-6
-                    && (h - block[3] - (ph - pb[3])).abs() < 1e-6,
+                (w - block[2] - (pw - pb[2]) - notes::PAD).abs() < 1e-6
+                    && (h - block[3] - (ph - pb[3]) - notes::PAD).abs() < 1e-6,
                 "{name} {block:?} {pb:?}"
             );
         }

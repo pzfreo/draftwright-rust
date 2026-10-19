@@ -218,7 +218,9 @@ pub(crate) fn place(
     corner: Corner,
 ) -> Option<[f64; 2]> {
     let [pw, ph] = sheet.page;
-    let region = [MARGIN, MARGIN, pw - MARGIN, ph - MARGIN];
+    // Table rulings and note cells need white paper outside their complete ink.
+    let inset = MARGIN + PAD;
+    let region = [inset, inset, pw - inset, ph - inset];
     layout::fit_auxiliary_box(size, region, obstacles, corner, PAD)
 }
 
