@@ -170,15 +170,35 @@ fn compare(before: &Path, after: &Path) {
             })
             .map(|d| d.id.clone())
             .collect();
+        let span = |p: &model::Plan, d: &draftwright::dims::PlannedDimension| {
+            let view = p.views.iter().find(|v| v.id == d.view)?;
+            let placed = d.placed.as_ref()?;
+            draftwright::lint::location::ink_span(
+                &a,
+                &draftwright::output::DrawnFrame {
+                    direction: view.direction,
+                    up: view.up,
+                    at: view.at,
+                    scale: view.scale,
+                },
+                &placed.lines,
+            )
+        };
         let origins: Vec<_> = new
             .dimensions
             .iter()
             .filter(|d| {
                 d.basis.contains("measured from")
-                    && old
-                        .dimensions
-                        .iter()
-                        .any(|b| b.id == d.id && (b.value - d.value).abs() > 1e-6)
+                    && old.dimensions.iter().any(|b| {
+                        b.id == d.id
+                            && span(&old, b).zip(span(&new, d)).is_some_and(
+                                |((k, x, y), (j, u, v))| {
+                                    k != j
+                                        || (x.min(y) - u.min(v)).abs() > 1e-5
+                                        || (x.max(y) - u.max(v)).abs() > 1e-5
+                                },
+                            )
+                    })
             })
             .map(|d| d.id.clone())
             .collect();
