@@ -588,3 +588,72 @@ fn located_once_checks_native_ink_and_rejects_a_broken_witness() {
         "source claims cannot repair missing witness ink"
     );
 }
+
+#[test]
+fn retained_pmi_callouts_do_not_repeat_sizes_or_locations_in_generated_tables() {
+    use std::io::Read as _;
+    let mut step = Vec::new();
+    flate2::read::GzDecoder::new(
+        include_bytes!("fixtures/pmi/step/nist_ftc_10_asme1_ap242-e2.stp.gz").as_slice(),
+    )
+    .read_to_end(&mut step)
+    .unwrap();
+    let a = analysed(&step);
+    let p = plan(&a, &Spec::default());
+    let tables: std::collections::BTreeSet<_> = p
+        .hole_table
+        .iter()
+        .chain(&p.hole_tables)
+        .map(|t| t.id.as_str())
+        .collect();
+    assert!(
+        !tables.is_empty(),
+        "the regression needs a generated coordinate schedule"
+    );
+    assert!(
+        !p.problems.iter().any(|q| q.code == "feature_located_twice"
+            && q.subjects.iter().any(|s| tables.contains(s.as_str()))),
+        "{:?}",
+        p.problems
+            .iter()
+            .filter(|q| q.code == "feature_located_twice")
+            .collect::<Vec<_>>()
+    );
+    let retained: std::collections::BTreeSet<_> = p
+        .dimensions
+        .iter()
+        .filter(|d| {
+            d.kind == "callout"
+                && d.placed.is_some()
+                && d.measurements.iter().any(|m| m.feature.starts_with("pmi:"))
+        })
+        .flat_map(|d| &d.measurements)
+        .filter(|m| m.feature.starts_with("f:hole:"))
+        .map(|m| m.feature.as_str())
+        .collect();
+    let mut checked = 0;
+    for row in p
+        .hole_table
+        .iter()
+        .chain(&p.hole_tables)
+        .flat_map(|t| &t.rows)
+    {
+        if retained.contains(row.feature.as_str()) {
+            assert!(
+                row.cells[1].is_empty(),
+                "source size is already drawn for {}",
+                row.feature
+            );
+            assert!(
+                row.measurements
+                    .iter()
+                    .all(|m| m.parameter.starts_with("location."))
+            );
+            checked += 1;
+        }
+    }
+    assert!(
+        checked > 0,
+        "the fixture must exercise retained PMI size callouts"
+    );
+}
