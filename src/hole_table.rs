@@ -2802,6 +2802,12 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
                     for k in 0..TAG_STEPS {
                         let at = around(g, r, k);
                         let b = boxed(g, at);
+                        // A blocked label cannot win at any crossing cost. Check
+                        // the unchanged clearance predicate before scoring its
+                        // leader through a dense model's projected edges.
+                        if !clear(g, b, &labels, &leaders) {
+                            continue;
+                        }
                         let Some(leader) = tag_leader(g.hole, g.radius, at, b) else {
                             continue;
                         };
@@ -2828,9 +2834,7 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
                         if cost >= bound {
                             continue;
                         }
-                        if clear(g, b, &labels, &leaders)
-                            && leader_clear(leader, &labels, &leaders, &g.others)
-                        {
+                        if leader_clear(leader, &labels, &leaders, &g.others) {
                             best = Some((cost, at, leader));
                         }
                     }
