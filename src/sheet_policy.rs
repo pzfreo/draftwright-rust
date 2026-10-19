@@ -26,6 +26,7 @@ const FAILING_CODES: &[&str] = &[
     "annotation_ink_overlap",
     "datum_symbol_overlap",
     "annotation_leader_crossing",
+    "leader_on_extension",
     "leader_through_feature",
     "extension_through_feature",
     "annotation_off_sheet",
@@ -77,6 +78,14 @@ fn failures(analysis: &Analysis, plan: &Plan, floor: f64) -> BTreeSet<(String, V
         .filter(|p| layout_problem(p))
         .map(problem_key)
         .collect();
+    // This quality finding is measured from final ink, rather than emitted as a
+    // Problem. Use the placer's corridor predicate, including its 1 mm clearance,
+    // and compare code + item pair just like the reported crossing findings.
+    failures.extend(
+        crate::dims::leader_on_extension(&plan.dimensions)
+            .into_iter()
+            .map(|subjects| ("leader_on_extension".into(), subjects)),
+    );
     // The outline box has no stroke width. At the frame its visible stroke is already
     // outside the drawing area. Use the renderer's line width, and the existing off-sheet
     // code/subject comparison; do not move or recover any candidate's geometry.
@@ -508,6 +517,72 @@ mod tests {
         Some(model::analyse_native(&root.join(file)).unwrap().1)
     }
 
+    #[test]
+    fn extension_clearance_uses_padding_and_baseline_item_pairs() {
+        let a = fixture();
+        let mut p = model::plan_automatic(&a, &Spec::default()).unwrap();
+        let mut linear = p.dimensions[0].clone();
+        linear.id = "linear".into();
+        linear.kind = "linear".into();
+        let ink = linear.placed.as_mut().unwrap();
+        ink.lines = vec![
+            [[20., 20.], [20., 40.]],
+            [[20., 20.], [20., 40.]],
+            [[20., 40.], [30., 40.]],
+        ];
+        ink.arrows = vec![[[20., 40.], [22., 40.]], [[30., 40.], [28., 40.]]];
+        let mut callout = linear.clone();
+        callout.id = "callout".into();
+        callout.kind = "callout".into();
+        let ink = callout.placed.as_mut().unwrap();
+        ink.lines = vec![[[21., 30.], [25., 30.]]];
+        ink.arrows.truncate(1);
+        ink.label_box = [22., 10., 25., 12.];
+        p.dimensions = vec![linear, callout];
+        let contacts = |p: &Plan| {
+            failures(&a, p, 0.)
+                .into_iter()
+                .filter(|(code, _)| code == "leader_on_extension")
+                .collect::<BTreeSet<_>>()
+        };
+        let inherited = contacts(&p);
+        assert_eq!(
+            inherited.len(),
+            1,
+            "inclusive 1 mm corridor; one pair per owner"
+        );
+        assert!(contacts(&p).difference(&inherited).next().is_none());
+        p.dimensions[1].id = "another-callout".into();
+        assert_eq!(contacts(&p).difference(&inherited).count(), 1);
+        p.dimensions[1].placed.as_mut().unwrap().lines[0][0][0] = 21.001;
+        assert!(contacts(&p).is_empty());
+        p.dimensions[1].placed.as_mut().unwrap().label_box = [21., 25., 24., 27.];
+        assert_eq!(contacts(&p).len(), 1, "padded text also counts");
+        p.dimensions[1].placed = None;
+        assert!(contacts(&p).is_empty());
+    }
+
+    #[test]
+    fn smaller_sheets_do_not_gain_extension_contacts() {
+        for file in [
+            "gramel/GRM-03_thumbwheel_drive_screw.step",
+            "ttt_inputs/sm-hanger.step",
+        ] {
+            let Some(a) = corpus(file) else { continue };
+            let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+            assert!(
+                crate::dims::leader_on_extension(&p.dimensions).is_empty(),
+                "{file}"
+            );
+            assert!(
+                p.sheet_candidates
+                    .iter()
+                    .any(|c| c.outcome.contains("leader_on_extension")),
+                "{file}"
+            );
+        }
+    }
+
     /// Opt-in survey of the *unrestricted* explicit-paper planner. Normal tests
     /// exercise the bound below; this audit is deliberately separate from timing.
     #[test]
@@ -717,12 +792,13 @@ mod tests {
     }
 
     #[test]
-    fn bounded_trials_keep_the_recorded_reductions() {
+    fn bounded_trials_keep_clean_reductions_and_reject_new_ink() {
         for (file, size, scale) in [
             ("mfcadpp/10020.step", "A4", "1:1"),
-            ("mfcadpp/10033.step", "A4", "1:1"),
+            // The former A4 reduction gains a leader/extension contact.
+            ("mfcadpp/10033.step", "A3", "2:1"),
             ("mfcadpp/10163.step", "A4", "1:2"),
-            ("mfcadpp/10278.step", "A4", "1:1"),
+            ("mfcadpp/10278.step", "A0", "10:1"),
             ("cadgenbench_inputs/cgb245.step", "A3", "1:5"),
             ("nist/nist_ftc_07_asme1_rd.stp", "A3", "1:5"),
         ] {

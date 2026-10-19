@@ -516,7 +516,8 @@ Trials retain the baseline’s
 automatic detail inventory. R5 allocation
 and its reuse of complete single sheets, including readability refusals, are unchanged.
 New layout/readability problems reject a candidate; baseline problems with the same
-code and subjects are tolerated. Outline strokes must clear the frame.
+code and subjects are tolerated. This includes callout leaders or text within
+1 mm of extension lines, compared by item pair. Outline strokes must clear the frame.
 `Plan.sheet_candidates` records trials and
 `sheet.basis` explains the choice. Explicit `sheet/size`, `sheet/scale`, or
 `sheets.max` keeps the established planner unchanged.
