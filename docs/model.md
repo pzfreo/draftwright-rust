@@ -268,7 +268,7 @@ mention takes its default.
 
 The design also includes `views/sections` (for example `"sections": [{"id": "A", "through": "f:hole:3"}]`). Feature `anchor` is read for recognition corrections, below; a feature's `note` is read since K1b (below).
 
-- **Fields read:** `sheet` (`size`, `scale`, `title`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`),
+- **Fields read:** `sheet` (`size`, `scale`, `title`, `references`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`),
   `iso_scale_factor`, `dimension_source`, `dimension_schemes/<name>` (`scheme`, `axis`, `targets`, `view`, `from`), `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `fit`, `text`, `style`, `place`, `kind`, `between`, `along`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`, `text` for prose callouts and automatic notes), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`, `anchor`, `reclassify`, `suppress`, `split`, `pattern`), `feature_declarations`,
   `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
@@ -1227,17 +1227,21 @@ until an angled step is dimensioned or the port has a completeness report.
 One measurement has one owner (`src/dims/redundancy.rs`). Matching physical
 support-plane intervals share a surviving statement and a typed `covered` omission;
 a functional outside diameter or A/F can own an equal overall interval. Equal values
-alone prove nothing. A stated overall length keeps one otherwise redundant chain
-member as a parenthesized reference dimension; a member the spec tolerances, or one that states
-the part's PMI, is never the one (#33). Independent drawing lint reports
+alone prove nothing. A stated overall length makes one otherwise redundant chain
+member a typed `covered` omission by default, with all determining dimension IDs in its
+basis; a member the spec tolerances, or one that states the part's PMI, is never the one (#33).
+The same omission policy applies to slot-wall shoulders, floor intervals and boss heights
+closed by a stated ladder rung. `sheet/references` is a boolean (default `false`);
+`true` restores these auxiliary dimensions as parenthesized references. A pinned reference
+stays drawn, and explicit per-dimension `style: "reference"` remains supported. Independent drawing lint reports
 `duplicate_measurement` and `closed_dimension_chain` from printed claims and Analysis
 stations, excluding parenthesized references. Point ordinates, height-ladder datums
 and counted/compound statements retain their existing ownership contracts. Reference
 choice does not change when another member gains a tolerance. Omission can make an
 unpinned reference controlling, reflowing its text at the same centre and witnesses.
 A pinned reference keeps its ink and raises `pinned_reference_chain_changed` if its
-controlling chain is edited; its offered fix releases the pin. A dimension drawn in brackets
-carries `reference: true` and, in `determined_by`, the IDs of the dimensions that determine it,
+controlling chain is edited; its offered fix releases the pin. With references opted in,
+pinned, or explicitly styled, a dimension drawn in brackets carries `reference: true` and, in `determined_by`, the IDs of the dimensions that determine it,
 in the order its basis names them: a chain's stated total and other members, the stated overall
 and slot length for a floor interval, a slot's width and location for a shoulder on its wall
 (#26; `tests/problem_wording.rs`). Both fields are optional on the wire and absent on a
@@ -1249,7 +1253,8 @@ ISSUE-1154-a): an item the set leaves out that the automatic plan would cover by
 set keeps is `covered` by that owner, with the automatic basis, rather than `not_authored`, and
 the owner carries the same claims; an owner the set leaves out takes nothing. A boss height
 closed by a stated ladder rung and the overall height (a boss standing on a face level) is the
-chain's reference member, determined by the rung and the overall height. Lint reports a
+chain's covered member by default (a reference when opted in), determined by the rung
+and the overall height. Lint reports a
 bracketed label that prints a tolerance or a fit (`toleranced_reference`: a reference dimension
 is only for a redundant, untoleranced one) and a linear or grid pattern's pitch printed beside
 every member's own location along that axis (`over_dimensioned_pattern`, ADR4-U1).

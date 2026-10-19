@@ -21,6 +21,7 @@ def main():
     ap.add_argument('--binary', type=Path, required=True)
     ap.add_argument('--out', type=Path, required=True)
     ap.add_argument('--manifest', type=Path, help='Replay an existing unique-content survey exactly')
+    ap.add_argument('--analysis-dir', type=Path, help='Reuse matching saved Analyses by part stem for planner-only comparisons')
     ap.add_argument('--audit-legibility', action='store_true', help='Retain Analysis and audit dimensioned step spans at owning-view scale')
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
@@ -56,7 +57,14 @@ def main():
     (args.out / 'manifest.json').write_text(json.dumps(inputs, indent=2) + '\n')
     def run(item):
         key, source = item
-        reply = subprocess.run([str(binary.resolve()), 'plan', source['path']], capture_output=True, timeout=3600)
+        analysis = args.analysis_dir / (Path(source['path']).name.split('.')[0] + '.json') if args.analysis_dir else None
+        if analysis is not None and analysis.is_file():
+            if json.loads(analysis.read_bytes())['binding']['source_sha256'] != key:
+                raise ValueError(f'analysis input changed: {analysis}')
+            command = [str(binary.resolve()), 'plan', '--analysis', str(analysis)]
+        else:
+            command = [str(binary.resolve()), 'plan', source['path']]
+        reply = subprocess.run(command, capture_output=True, timeout=3600)
         (args.out / (key + '.plan.json')).write_bytes(reply.stdout)
         if reply.returncode:
             row = {**source, 'refused': reply.stderr.decode() + reply.stdout.decode()}

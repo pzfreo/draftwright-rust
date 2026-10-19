@@ -149,13 +149,16 @@ fn pin_replay_keeps_the_ftc09_schedule_and_its_clearance() {
     let Some(corpus) = corpus::dir() else { return };
     let (_, analysis) =
         model::analyse_native(&corpus.join("nist/nist_ftc_09_asme1_rd.stp")).unwrap();
-    let base = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    // This regression pins a slot-wall reference; opt into its original ink.
+    let reference_spec: Spec =
+        serde_json::from_value(json!({"sheet":{"references":true}})).unwrap();
+    let base = model::plan_recovered(&analysis, &reference_spec).unwrap();
     assert_eq!(base.hole_tables.len(), 1);
     let table = base.hole_tables[0].blocks[0].placed.as_ref().unwrap().cells;
     let iso = base.views.iter().find(|v| v.id == "v:iso").unwrap();
     assert!(gap(iso.area, table) >= draftwright::tables::PAD);
 
-    let spec = serde_json::from_value(json!({"dimensions":{
+    let spec = serde_json::from_value(json!({"sheet":{"references":true},"dimensions":{
         "d:step_level/step_height.length.h47_625":{"place":{"pinned":true}}
     }}))
     .unwrap();
@@ -234,5 +237,39 @@ fn mixed_view_and_item_pins_keep_settled_peers_in_the_guttered_frame() {
                 .clone()
         };
         assert_eq!(width(&replay), width(&base));
+    }
+}
+
+#[test]
+fn omitted_references_leave_the_isometric_caption_clear_of_projection_bands() {
+    let Some(corpus) = corpus::dir() else { return };
+    let (_, analysis) = model::analyse_native(&corpus.join("mfcadpp/10047.step")).unwrap();
+    for references in [false, true] {
+        for gutter in [0, 25] {
+            let spec = serde_json::from_value(json!({
+                "sheet": {"references": references, "view_gutter": gutter}
+            }))
+            .unwrap();
+            let p = model::plan_recovered(&analysis, &spec).unwrap();
+            assert!(
+                minimum(&p) >= 0.0,
+                "references={references}, gutter={gutter}"
+            );
+            let caption = p.captions.iter().find(|c| c.view == "v:iso").unwrap();
+            for v in p.views.iter().filter(|v| v.id != caption.view) {
+                assert!(
+                    gap(caption.ink, v.area) >= 0.0,
+                    "{} caption overlaps {}: {:?}, {:?}",
+                    caption.id,
+                    v.id,
+                    caption.ink,
+                    v.area
+                );
+            }
+            assert_eq!(
+                p.dimensions.iter().filter(|d| d.reference).count(),
+                if references { 3 } else { 0 }
+            );
+        }
     }
 }
