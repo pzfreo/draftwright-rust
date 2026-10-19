@@ -8,6 +8,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## 0.1.0-alpha.6 (2026-10-19)
 
+### WASM API
+
+- `sheetFragments(sheet)` and `sheetSvg(sheet)` give any sheet's fragments and SVG, as
+  `fragments()` and `renderSvg()` give sheet 1's; `renderPdf()` has a page per sheet and
+  throws an API error instead of returning bytes unconditionally.
+
 ### Added
 
 - Pin a projected view's gap with `views/<name>/place/align: "projection"` while keeping
@@ -23,6 +29,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Changed
 
+- Omit hidden edges from the isometric by default, as pictorial views conventionally do;
+  `views/iso/hidden: true` or `sheet/hidden: true` still draws them (#117).
 - Shorten thread and knurl callouts to the ISO 965 / ISO 6410 short forms: `M5-6g` without
   the coarse pitch or RH, the designation alone on a threaded diameter, two-line blind tapped
   holes (`M2-6H ↧ 2.5` over `⌀1.6 ↧ 4`), and horizontal knurl callouts with process wording in

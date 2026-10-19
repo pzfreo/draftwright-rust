@@ -211,3 +211,20 @@ test('geometry-authored dimensions replay with identical native/WASM references 
     }
   } finally { engine.free(); }
 });
+
+test('each sheet has its own fragments and SVG, and the PDF a page per sheet', () => {
+  const engine = new Engine('prismatic.step', readFileSync(new URL('../tests/fixtures/parts/prismatic.step', import.meta.url)));
+  try {
+    invalid(() => engine.sheetFragments(2));
+    engine.apply(JSON.stringify([{ op: 'set', path: 'sheets', value: { max: 2 } }, { op: 'set', path: 'views/iso/sheet', value: 2 }]), true);
+    const views = fragments => Object.keys(JSON.parse(fragments)).filter(id => id.startsWith('v:'));
+    assert.ok(!views(engine.fragments()).includes('v:iso'));
+    assert.deepEqual(views(engine.sheetFragments(1)), views(engine.fragments()));
+    assert.deepEqual(views(engine.sheetFragments(2)), ['v:iso']);
+    assert.equal(decoder.decode(engine.sheetSvg(1)), decoder.decode(engine.renderSvg()));
+    assert.match(decoder.decode(engine.sheetSvg(2)), /^<\?xml/);
+    invalid(() => engine.sheetSvg(3));
+    const pdf = Buffer.from(engine.renderPdf()).toString('latin1');
+    assert.equal(pdf.match(/\/Type\s*\/Page\b/g)?.length, 2);
+  } finally { engine.free(); }
+});

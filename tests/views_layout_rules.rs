@@ -589,7 +589,16 @@ fn isometric_hidden_ink_obeys_visible_line_precedence() {
             .join("cadgenbench_inputs/cgb207.step"),
     )
     .unwrap();
-    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let default = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let g =
+        model::render_geometry(&part, &a, &default, &mut model::Projections::default()).unwrap();
+    let iso = &g.views.iter().find(|(id, _)| id == "v:iso").unwrap().1;
+    assert!(
+        iso.hidden.is_empty(),
+        "the isometric omits hidden edges by default"
+    );
+    // Requested hidden edges still yield to visible ink.
+    let p = model::plan_recovered(&a, &spec(json!({"views": {"iso": {"hidden": true}}}))).unwrap();
     let g = model::render_geometry(&part, &a, &p, &mut model::Projections::default()).unwrap();
     let iso = &g.views.iter().find(|(id, _)| id == "v:iso").unwrap().1;
     let visible: Vec<_> = iso

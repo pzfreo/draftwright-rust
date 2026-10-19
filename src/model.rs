@@ -6655,13 +6655,12 @@ impl Projections {
         v: &PlannedView,
     ) -> Result<ViewGeometry, Unresolved> {
         let (size, centre) = crate::detail::crop_extent(analysis, v);
+        // Orientation views carry no hidden edges unless the Spec asks for them
+        // (pictorial practice, ISO 128-30 / ASME Y14.3); the others draw them.
+        let hidden = v.line_style.hidden.unwrap_or(v.id != "v:iso");
         let key = projection_key(v);
         let placement = bits(&[
-            &[
-                v.scale,
-                f64::from(v.id == "v:iso"),
-                f64::from(v.line_style.hidden != Some(false)),
-            ],
+            &[v.scale, f64::from(v.id == "v:iso"), f64::from(hidden)],
             &centre,
             &v.at,
         ]);
@@ -6713,13 +6712,11 @@ impl Projections {
                         items.push(Item::Edge(curve));
                     }
                 }
-                None if piece.visible || v.line_style.hidden != Some(false) => {
-                    geometry.undrawn += 1
-                }
+                None if piece.visible || hidden => geometry.undrawn += 1,
                 None => {}
             }
         }
-        if projection_cut(v).is_some() || v.line_style.hidden == Some(false) {
+        if projection_cut(v).is_some() || !hidden {
             geometry.hidden.clear();
         } else {
             // Visible ink takes precedence in orientation views too. A scale or
