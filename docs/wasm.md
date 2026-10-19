@@ -80,7 +80,9 @@ Rust panics invoke `console_error_panic_hook`; they are traps, not recoverable A
 | `spec()`, `pmi()`, `plan()` | Current Spec, PMI report or Plan JSON. |
 | `planCount()` | Cumulative planner count (useful for checking one replan per edit). |
 | `faceCount()`, `featureCount()` | Loaded face count and recognised feature count. |
-| `placementOptions()` | JSON map from editable item IDs to labels, per-view sides and allowed operations. |
+| `placementOptions()` | JSON map from editable item IDs to labels, per-view sides and allowed operations. `offset: "callout"` or `offset: "linear"` advertises free placement; absent for other forms. |
+| `calloutOffset(address)` | JSON `{view, tip:[x,y], bend:[x,y], offset:[dx,dy]}` from `Session::callout_offset`: paper mm, y up. Pin a dragged bend `b` with `{offset: b - tip, pinned: true}`. Refuses non-callouts, missing automatic leaders and non-canonical carriers. |
+| `labelOffset(address)` | JSON `{view, anchor:[x,y], label:[x,y], offset:[dx,dy]}` from `Session::label_offset`: paper mm, y up. Pin a dragged linear label origin `p` with `{offset: p - anchor, pinned: true}`. Refuses non-linear items, missing automatic placements and non-canonical carriers. |
 | `renderSvg()`, `renderPdf()` | `Uint8Array`: sheet 1's UTF-8 SVG, or the PDF with a page per sheet and bundled fonts. |
 | `start()` | Installs the panic hook once; wasm-bindgen invokes it automatically at initialization. |
 
@@ -219,3 +221,10 @@ body via `gh release edit`, preserving other notes and replacing its own line on
 It never fails the release: one package necessarily releases first after a kernel bump.
 Fetch, parsing and release-note-edit errors are warnings as well. Running locally without
 `--release` only reads GitHub; it does not edit any release.
+
+Free placements can lie inside a view. The query anchors travel with the view origin; re-read
+them after edits to views or sheets. Pinning the returned offset preserves the current
+position, including automatic callouts already drawn inside the view. Linear offsets move the
+dimension line perpendicular to its span and the text along it, retaining the measured value.
+Offsets require `pinned: true`, exclude `side`, `lane` and `along`, and accept each component
+within ±1000 mm. Collisions remain pinned and are reported through the existing problems.

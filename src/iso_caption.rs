@@ -90,7 +90,22 @@ pub(crate) fn plan(
     let mut obstacles: Vec<_> = views
         .iter()
         .filter(|v| v.sheet == sheet.number)
-        .map(|v| view_box(analysis, v))
+        .map(|v| {
+            let b = view_box(analysis, v);
+            if v.id == iso.id {
+                b
+            } else {
+                // The caption belongs to the isometric's composed footprint.
+                // A clear silhouette does not release a neighbouring view's
+                // reserved ladder band for that footprint to occupy.
+                [
+                    b[0].min(v.area[0]),
+                    b[1].min(v.area[1]),
+                    b[2].max(v.area[2]),
+                    b[3].max(v.area[3]),
+                ]
+            }
+        })
         .collect();
     obstacles.push(sheet.title_block);
     obstacles.extend(crate::sheet_fit::furniture_bounds(analysis, sheet, views));

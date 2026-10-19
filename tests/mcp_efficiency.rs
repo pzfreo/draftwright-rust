@@ -144,7 +144,14 @@ fn options_explain_sheet_and_bare_view_keys() {
         description.contains("annotation bands") && description.contains("not their part outlines")
     );
     let sheet = call(&cache, "item_options", query(&summary, "sheet"));
-    for field in ["size", "scale", "title", "fit_limits", "fit_deviations"] {
+    for field in [
+        "size",
+        "scale",
+        "title",
+        "fit_limits",
+        "fit_deviations",
+        "references",
+    ] {
         assert!(sheet["settable"].get(format!("sheet/{field}")).is_some());
     }
     assert!(

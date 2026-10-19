@@ -965,6 +965,7 @@ fn settled_nominal_reference(
             size: (!recovered_recipe).then(|| sheet.size.clone()),
             scale: (!recovered_recipe).then(|| crate::model::scale_name(sheet.scale_factor)),
             projection: spec.sheet.projection.clone(),
+            references: spec.sheet.references,
             ..Default::default()
         },
         ..Default::default()
@@ -2724,8 +2725,13 @@ fn refine_uncached(
             {
                 return None;
             }
-            let key = serde_json::to_vec(&(&sheet.size, &sheet.scale, &spec.sheet.projection))
-                .expect("bare route inputs serialize");
+            let key = serde_json::to_vec(&(
+                &sheet.size,
+                &sheet.scale,
+                &spec.sheet.projection,
+                spec.sheet.references,
+            ))
+            .expect("bare route inputs serialize");
             crate::planning::memo(analysis, "bare-leader-reference", key, || {
                 let mut base = analysis.clone();
                 base.features.retain(|f| f.kind != "section_recess");
@@ -2733,6 +2739,7 @@ fn refine_uncached(
                 recipe.sheet.size = Some(sheet.size.clone());
                 recipe.sheet.scale = Some(sheet.scale.clone());
                 recipe.sheet.projection = spec.sheet.projection.clone();
+                recipe.sheet.references = spec.sheet.references;
                 crate::model::plan(&base, &recipe).ok()
             })
         });

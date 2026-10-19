@@ -159,7 +159,7 @@ fn the_spindles_bracketed_length_is_a_reference_with_what_determines_it() {
     for f in a.features.iter_mut().filter(|f| f.kind == "turned_step") {
         f.parameters["profile"]["body_key"] = json!([f.id]);
     }
-    let plan = cache::default_plan(&a, true);
+    let plan = model::plan_recovered(&a, &spec(json!({"sheet":{"references":true}}))).unwrap();
     let d = plan
         .dimensions
         .iter()

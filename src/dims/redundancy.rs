@@ -1,9 +1,9 @@
-//! One owner per support-plane interval; a stated total leaves one chain link as reference.
+//! One owner per support-plane interval; determined dimensions are optional references.
 
 use super::{Omitted, Shape, Want};
 use crate::items::State;
 use crate::lint::redundancy::{Span, TOL, path};
-use crate::model::Analysis;
+use crate::model::{Analysis, Spec};
 
 type Kept = (Want, bool, Option<&'static str>, Vec<&'static str>);
 
@@ -42,6 +42,7 @@ fn interval(analysis: &Analysis, w: &Want) -> Option<Span> {
 
 pub(super) fn consolidate(
     a: &Analysis,
+    spec: &Spec,
     kept: &mut Vec<Kept>,
     given: &mut Vec<Vec<String>>,
     omitted: &mut Vec<Omitted>,
@@ -323,6 +324,67 @@ pub(super) fn consolidate(
         }
     }
     shoulders_on_slot_walls(a, kept, given, &gone, &mut references);
+    if spec.sheet.references != Some(true) && !references.is_empty() {
+        let mut suppressed = std::collections::BTreeMap::new();
+        for (i, (w, ..)) in kept.iter().enumerate() {
+            let Some(by) = references.get(&w.id) else {
+                continue;
+            };
+            let explicit = spec
+                .dimensions
+                .get(&w.id)
+                .is_some_and(|d| d.style.is_some() || d.place.as_ref().is_some_and(|p| p.pinned));
+            if gone.contains(&i) || explicit {
+                continue;
+            }
+            // The station walk also treats coincident supports (within recognition's
+            // tolerance) as a zero-edge reference. Credit the dimension stating that
+            // datum, rather than leaving an empty determining basis or a bracketed zero.
+            let by = if by.is_empty() {
+                interval(a, w)
+                    .and_then(|target| {
+                        edges
+                            .iter()
+                            .find(|(s, j)| {
+                                !gone.contains(j)
+                                    && s.axis == target.axis
+                                    && ((s.lo - target.lo).abs() <= TOL
+                                        || (s.hi - target.lo).abs() <= TOL)
+                            })
+                            .map(|(_, j)| vec![kept[*j].0.id.clone()])
+                    })
+                    .unwrap_or_default()
+            } else {
+                by.clone()
+            };
+            let Some(owner) = by.first() else { continue };
+            suppressed.insert(w.id.clone(), owner.clone());
+            omitted.push(Omitted {
+                id: w.id.clone(),
+                label: w.terms[0]
+                    .trim_start_matches('(')
+                    .trim_end_matches(')')
+                    .into(),
+                basis: format!(
+                    "conveyed by {}: other stated dimensions determine this interval; dependencies: {}",
+                    owner,
+                    by.join(", ")
+                ),
+                state: State::Covered { by: by[0].clone() },
+            });
+            gone.insert(i);
+        }
+        // A coincident datum may already have yielded to a now-omitted reference.
+        // Keep the covered ledger pointing to a drawn determining dimension.
+        for o in omitted.iter_mut() {
+            if let State::Covered { by } = &mut o.state {
+                while let Some(owner) = suppressed.get(by) {
+                    o.basis += &format!("; conveyed by {owner}: determines {by}");
+                    by.clone_from(owner);
+                }
+            }
+        }
+    }
     let mut i = 0;
     given.retain(|_| {
         let keep = !gone.contains(&i);

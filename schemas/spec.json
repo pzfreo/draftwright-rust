@@ -1036,6 +1036,17 @@
             }
           ]
         },
+        "references": {
+          "anyOf": [
+            {
+              "type": "boolean",
+              "description": "Draw redundant dimensions in parentheses (default false); pins and explicit reference style retain ink."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "projection": {
           "anyOf": [
             {
