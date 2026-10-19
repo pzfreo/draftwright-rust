@@ -528,6 +528,56 @@ fn one_pmi_axis_does_not_cover_an_unrelated_coincident_hole_axis() {
     assert!(engine, "the unrelated ⌀8 hole still needs its y location");
 }
 #[test]
+fn a_shared_pmi_span_locates_every_record_it_claims() {
+    let mut authored = PartPmi::default();
+    distance(&mut authored, 1, 12, 30., true);
+    distance(&mut authored, 1, 9, 30., true);
+    let written = bytes(authored);
+    let (part, a) = model::analyse_native_step(Path::new("plate.step"), &written).unwrap();
+    let p = plan(
+        &a,
+        &Spec {
+            hole_table: draftwright::hole_table::Setting::Never,
+            ..Default::default()
+        },
+    );
+    let shared: Vec<_> = p
+        .dimensions
+        .iter()
+        .filter(|d| {
+            d.placed.is_some()
+                && d.label == "30"
+                && d.measurements.iter().any(|m| m.feature.starts_with("pmi:"))
+        })
+        .collect();
+    assert_eq!(shared.len(), 1, "{shared:?}");
+    assert_eq!(
+        shared[0]
+            .measurements
+            .iter()
+            .filter(|m| m.feature.starts_with("pmi:"))
+            .count(),
+        2
+    );
+    assert!(
+        !p.problems
+            .iter()
+            .any(|q| q.code == "feature_not_located" || q.code == "feature_located_twice"),
+        "{:?}",
+        p.problems
+    );
+    let font = draftwright::text::Font::new(draftwright::api::MONO.to_vec()).unwrap();
+    let drawing = model::render(&part, &a, &p, &font).unwrap();
+    let issues = draftwright::lint::lint(&a, &drawing);
+    assert!(
+        !issues
+            .iter()
+            .any(|q| q.code == "feature_not_located" || q.code == "feature_located_twice"),
+        "{issues:?}"
+    );
+}
+
+#[test]
 fn ignore_renders_the_plain_drawing_including_cosmetic_ink() {
     let (part, a) = model::analyse_native_step(
         Path::new("plate.step"),

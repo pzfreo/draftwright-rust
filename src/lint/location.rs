@@ -548,44 +548,50 @@ pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge>
             }
             continue;
         }
-        let source = report.as_ref().and_then(|(report, ids)| {
-            report.records.iter().find(|r| {
-                r.category == Category::Dimension
-                    && ids
-                        .id(&r.source_id)
-                        .ok()
-                        .is_some_and(|id| mark.claims.iter().any(|c| c.feature == id))
+        let sources: Vec<_> = report
+            .as_ref()
+            .into_iter()
+            .flat_map(|(report, ids)| {
+                report.records.iter().filter(move |r| {
+                    r.category == Category::Dimension
+                        && ids
+                            .id(&r.source_id)
+                            .ok()
+                            .is_some_and(|id| mark.claims.iter().any(|c| c.feature == id))
+                })
             })
-        });
-        if let Some(r) = source {
-            let mut e = span;
-            let feature = |side: usize, at: f64| {
-                let candidates: Vec<_> = a
-                    .features
-                    .iter()
-                    .filter(|f| {
-                        f.kind != "hole_pattern"
-                            && node_feature(a, &f.id, e.axis).is_some()
-                            && r.faces.iter().any(|i| f.faces.contains(i))
-                            && station(a, &f.id, e.axis)
-                                .is_some_and(|p| (p - at).abs() < super::redundancy::TOL)
-                    })
-                    .collect();
-                if candidates.len() == 1 {
-                    return Some(candidates[0].id.clone());
-                }
-                r.face_groups
-                    .get(side)
-                    .and_then(|faces| {
-                        candidates
-                            .iter()
-                            .find(|f| faces.iter().any(|i| f.faces.contains(i)))
-                    })
-                    .map(|f| f.id.clone())
-            };
-            e.a_feature = feature(0, e.a);
-            e.b_feature = feature(1, e.b);
-            out.push(e);
+            .collect();
+        if !sources.is_empty() {
+            for r in sources {
+                let mut e = span.clone();
+                let feature = |side: usize, at: f64| {
+                    let candidates: Vec<_> = a
+                        .features
+                        .iter()
+                        .filter(|f| {
+                            f.kind != "hole_pattern"
+                                && node_feature(a, &f.id, e.axis).is_some()
+                                && r.faces.iter().any(|i| f.faces.contains(i))
+                                && station(a, &f.id, e.axis)
+                                    .is_some_and(|p| (p - at).abs() < super::redundancy::TOL)
+                        })
+                        .collect();
+                    if candidates.len() == 1 {
+                        return Some(candidates[0].id.clone());
+                    }
+                    r.face_groups
+                        .get(side)
+                        .and_then(|faces| {
+                            candidates
+                                .iter()
+                                .find(|f| faces.iter().any(|i| f.faces.contains(i)))
+                        })
+                        .map(|f| f.id.clone())
+                };
+                e.a_feature = feature(0, e.a);
+                e.b_feature = feature(1, e.b);
+                out.push(e);
+            }
             continue;
         }
         let pitch = mark
