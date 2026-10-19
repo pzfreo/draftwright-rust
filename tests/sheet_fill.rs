@@ -867,15 +867,27 @@ fn connector109_keeps_a_readable_ordinary_main_without_an_unannotated_crop() {
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A2", "1:2"),
+        ("A3", "1:5"),
         "{}",
         p.sheet.basis
     );
     let readable = draftwright::sheet_fit::readability(&a, &p);
-    assert_eq!((readable.depiction, readable.failures()), (0, 0));
+    assert_eq!(
+        (
+            readable.steps,
+            readable.openings,
+            readable.native_openings,
+            readable.text_arrows,
+            readable.lanes
+        ),
+        (0, 0, 0, 0, 0)
+    );
+    assert_eq!(readable.depiction, 2);
+    assert!(draftwright::sheet_fit::border_contacts(&a, &p).is_empty());
+    assert!(p.sheets.is_empty());
     assert!(p.views.iter().all(|v| v.detail.is_none()));
     assert!(
-        !p.problems
+        p.problems
             .iter()
             .any(|q| q.code == "layout_recovery_exhausted" && q.severity == "warning")
     );

@@ -1538,6 +1538,9 @@ fn separate_projection_rows(a: &Analysis, reference: &Plan, template: &Plan) -> 
 pub const FILL_BAND: [f64; 2] = [0.60, 0.85];
 /// Clearance around each drawn item, page mm.
 pub const FILL_CLEARANCE: f64 = 1.0;
+/// Ink clearance from the frame, including stroke width and visible white paper.
+/// Gutters reserve two mm; auditing requires at least one and a half mm.
+pub const BORDER_CLEARANCE: f64 = 1.5;
 /// Minimum visible opening across a hole or slot, page mm. Small edge treatments do
 /// not set the whole-sheet scale; their sizes are stated by callouts.
 pub const MIN_OPENING: f64 = 2.0;
@@ -2415,6 +2418,41 @@ pub fn footprints(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
     }
     out.extend(furniture_footprints(analysis, plan));
     out
+}
+
+/// Independent census check of complete placed ink, on each physical page.
+/// Do not clip at the border (as the fill metric must), or count empty bands.
+pub fn border_contacts(analysis: &Analysis, plan: &Plan) -> Vec<(u32, Rect)> {
+    let mut contacts = Vec::new();
+    for sheet in std::iter::once(&plan.sheet).chain(&plan.sheets) {
+        let mut local = plan.clone();
+        local.sheet = sheet.clone();
+        local.views.retain(|v| v.sheet == sheet.number);
+        let carries = |id: &str| local.views.iter().any(|v| v.id == id);
+        local.dimensions.retain(|d| carries(&d.view));
+        local.gdt.retain(|g| carries(&g.view));
+        local.balloons.retain(|b| carries(&b.view));
+        local.captions.retain(|c| carries(&c.view));
+        local.tables.retain(|t| t.sheet == sheet.number);
+        local.hole_table = local.hole_table.filter(|t| t.sheet == sheet.number);
+        local.hole_tables.retain(|t| t.sheet == sheet.number);
+        if sheet.number > 1 {
+            local.notes.clear();
+            local.notes_block = None;
+            local.radius_notes_block = None;
+            local.radius_table = None;
+            local.requirements.clear();
+        }
+        let inset = MARGIN + BORDER_CLEARANCE;
+        contacts.extend(footprints(analysis, &local).into_iter().filter_map(|b| {
+            (b[0] <= inset + 1e-6
+                || b[1] <= inset + 1e-6
+                || b[2] >= sheet.page[0] - inset - 1e-6
+                || b[3] >= sheet.page[1] - inset - 1e-6)
+                .then_some((sheet.number, b))
+        }));
+    }
+    contacts
 }
 
 /// Usable-area share. Clip at the border and subtract title-block intersections from the union.

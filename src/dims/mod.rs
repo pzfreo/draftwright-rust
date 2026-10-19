@@ -2256,7 +2256,10 @@ fn plan_inventory_uncached(
                 || (native && p.code == "extension_through_feature"))
                 && p.subjects
                     .first()
-                    .is_some_and(|id| plan.0.iter().any(|d| &d.id == id && new(d)))
+                    .is_some_and(|id| plan.0.iter().any(|d| &d.id == id && new(d))
+                        // New recess geometry can obstruct an existing hole or
+                        // form callout too. Give it the same bounded joint solve.
+                        || (native && p.subjects.get(1).is_some_and(|f| f.starts_with("f:section_recess:"))))
         })
     };
     let a = score(&first.0);
@@ -2279,7 +2282,6 @@ fn plan_inventory_uncached(
                 .iter()
                 .filter(|d| {
                     d.kind == "callout"
-                        && new(d)
                         && !best.0.2.iter().any(|p| {
                             p.subjects.contains(&d.id)
                                 && matches!(
@@ -3191,17 +3193,18 @@ fn plan_inventory_ordered(
     // only the complete, independently adjudicated result can win.
     if stage == 2 {
         for (i, w) in all.iter().enumerate() {
-            if matches!(w.shape, Shape::Callout { .. })
-                && w.measurements
-                    .iter()
-                    .any(|m| m.feature.starts_with("f:section_recess:"))
-                && let Some(d) = held.iter().find(|d| {
+            if matches!(w.shape, Shape::Callout { .. }) {
+                if let Some(d) = held.iter().find(|d| {
                     d.id == w.id
                         && d.terms == w.terms
                         && chosen[i].is_some_and(|v| d.view == format!("v:{v}"))
-                })
-            {
-                placed[i] = d.placed.clone();
+                }) {
+                    placed[i] = d.placed.clone();
+                } else if !fixed[i] {
+                    // Existing controls obstructed by new geometry must take
+                    // part in the joint solve too, rather than staying frozen.
+                    placed[i] = None;
+                }
             }
         }
     }

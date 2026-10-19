@@ -117,6 +117,7 @@ pub fn check(drawing: &Drawing) -> Vec<LintIssue> {
     issues.extend(dimension_lines(drawing));
     issues.extend(oblique_witnesses(drawing));
     issues.extend(annotation_bounds(drawing));
+    issues.extend(drawable_border_contacts(drawing));
     issues.extend(view_annotations(drawing));
     issues.extend(view_boxes(drawing));
     // Stream K7: what each label states against what its ink draws (`super::fidelity`).
@@ -1091,6 +1092,57 @@ fn annotation_bounds(drawing: &Drawing) -> Vec<LintIssue> {
             );
             issues.push(i);
         }
+    }
+    issues
+}
+
+/// Unlike the legacy overshoot check, this includes contact and stroke width.
+/// The title block is intentionally attached to the frame; drawing content is not.
+fn drawable_border_contacts(drawing: &Drawing) -> Vec<LintIssue> {
+    let Some(area) = drawing.sheet.drawable else {
+        return Vec::new();
+    };
+    let pad = crate::sheet_fit::BORDER_CLEARANCE;
+    let touches = |b: [f64; 4]| {
+        b[0] <= area[0] + pad + BOUNDS_ROUNDOFF
+            || b[1] <= area[1] + pad + BOUNDS_ROUNDOFF
+            || b[2] >= area[2] - pad - BOUNDS_ROUNDOFF
+            || b[3] >= area[3] - pad - BOUNDS_ROUNDOFF
+    };
+    let mut issues = Vec::new();
+    for (name, bounds, view) in drawing
+        .sheet
+        .items
+        .iter()
+        .filter(|d| d.kind != Kind::TitleBlock)
+        .map(|d| (&d.name, d.ink, false))
+        .chain(drawing.sheet.views.iter().map(|v| (&v.name, v.bbox, true)))
+        .chain(
+            drawing
+                .layers
+                .iter()
+                .filter(|l| matches!(l.name.as_str(), "hidden" | "thin"))
+                .filter_map(|l| crate::output::items_bbox(&l.items).map(|b| (&l.name, b, false))),
+        )
+    {
+        if !touches(bounds) {
+            continue;
+        }
+        let mut finding = issue(
+            format!("l:drawable_border_contact:{name}"),
+            "drawable_border_contact",
+            Severity::Error,
+            format!(
+                "{name} is on or too close to the drawing frame; keep the complete ink at least {pad} mm clear."
+            ),
+        );
+        if view {
+            finding.view = Some(name.clone());
+        } else {
+            finding.annotation = Some(name.clone());
+        }
+        finding.at = Some([bounds[0], bounds[1]]);
+        issues.push(finding);
     }
     issues
 }

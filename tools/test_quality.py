@@ -282,6 +282,24 @@ class SheetEscalations(unittest.TestCase):
 
 
 class CentreLineInk(unittest.TestCase):
+    def test_border_contact_is_checked_without_line_work_and_fails_quality(self):
+        plan = {'sheet': {'scale': '1:1'}, 'dimensions': [], 'views': [], 'problems': [],
+                'completeness': {'claimed_faces': 0, 'faces': 0, 'unplanned_features': 0}}
+        finding = {'id': 'l:drawable_border_contact:v:front', 'code': 'drawable_border_contact'}
+        replies = [subprocess.CompletedProcess([], 0, '{}', ''),
+                   subprocess.CompletedProcess([], 0, json.dumps(plan), ''),
+                   subprocess.CompletedProcess([], 0, json.dumps({'structural': [finding], 'lint': []}), '')]
+        with tempfile.TemporaryDirectory() as out, patch.object(quality.subprocess, 'run', side_effect=replies), patch.object(quality, 'svg_linework', return_value={}):
+            _, result = quality.one('part.step', 'dw', out)
+            self.assertEqual(result['off_sheet'], 1)
+            self.assertEqual(result['border_contacts'], [finding['id']])
+            self.assertIn(finding['id'], result['off_sheet_items'])
+            self.assertFalse(quality.pin_bar(result, result))
+            baseline = Path(out) / 'input.json'
+            baseline.write_text(json.dumps({'part': result}))
+            with patch.object(sys, 'argv', ['quality.py', '--baseline', str(baseline), 'dw', out, 'part.step']), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(quality.main(), 1)
+
     def test_a_real_label_centreline_contact_counts_as_ink(self):
         plan = {'sheet': {'scale': '1:1'}, 'dimensions': [], 'problems': [],
                 'completeness': {'claimed_faces': 0, 'faces': 0, 'unplanned_features': 0},
@@ -315,7 +333,7 @@ class FeatureCrossings(unittest.TestCase):
                    subprocess.CompletedProcess([], 0, json.dumps(plan), '')]
         with tempfile.TemporaryDirectory() as out, patch.object(quality.subprocess, 'run', side_effect=replies), patch.object(quality, 'furniture_boxes', return_value=[]):
             (Path(out) / 'part.svg').write_text('<svg/>')
-            _, result = quality.one('part.step', 'dw', out)
+            _, result = quality.one('part.step', 'dw', out, review=False)
         self.assertEqual(result['line_through_feature'], 4)
 
     def test_status_headers_select_shared_columns_and_reject_a_regression(self):
@@ -389,7 +407,7 @@ class Completeness(unittest.TestCase):
         replies = [subprocess.CompletedProcess([], 0, '{}', ''),
                    subprocess.CompletedProcess([], 0, json.dumps(plan), '')]
         with tempfile.TemporaryDirectory() as out, patch.object(quality.subprocess, 'run', side_effect=replies), patch.object(quality, 'svg_linework', return_value={}):
-            _, result = quality.one('part.step', 'dw', out)
+            _, result = quality.one('part.step', 'dw', out, review=False)
         self.assertEqual(result['claimed_faces'], 3)
         self.assertEqual(result['faces'], 52)
         self.assertEqual(result['unplanned_features'], 7)
@@ -399,7 +417,7 @@ class Completeness(unittest.TestCase):
         replies = [subprocess.CompletedProcess([], 0, '{}', ''),
                    subprocess.CompletedProcess([], 0, json.dumps(plan), '')]
         with tempfile.TemporaryDirectory() as out, patch.object(quality.subprocess, 'run', side_effect=replies), patch.object(quality, 'svg_linework', return_value={}):
-            _, result = quality.one('part.step', 'dw', out)
+            _, result = quality.one('part.step', 'dw', out, review=False)
         self.assertIn('error', result)
 
     def test_checker_rejects_less_coverage_more_unplanned_or_changed_denominator(self):
@@ -456,7 +474,7 @@ class RandomPins(unittest.TestCase):
         replies = [subprocess.CompletedProcess([], 0, json.dumps(render), ''),
                    subprocess.CompletedProcess([], 0, json.dumps(plan), '')]
         with tempfile.TemporaryDirectory() as out, patch.object(quality.subprocess, 'run', side_effect=replies), patch.object(quality, 'svg_linework', return_value={'hidden_on_visible': 0, 'section_hidden': 0}):
-            _, result = quality.one('part.step', 'dw', out)
+            _, result = quality.one('part.step', 'dw', out, review=False)
         self.assertEqual(result['off_sheet'], 2)
         self.assertEqual(result['off_sheet_items'], ['d:a/length', 'v:plan'])
 
@@ -480,7 +498,7 @@ class SheetFill(unittest.TestCase):
                    subprocess.CompletedProcess([], 0, json.dumps({'envelope': [[0,0,0],[50,50,10]]}), '')]
         with tempfile.TemporaryDirectory() as out, patch.object(quality.subprocess, 'run', side_effect=replies), patch.object(quality, 'furniture_boxes', return_value=[]):
             (Path(out) / 'part.svg').write_text('<svg/>')
-            _, result = quality.one('part.step', 'dw', out)
+            _, result = quality.one('part.step', 'dw', out, review=False)
         self.assertAlmostEqual(result['fill'], 100 * 52 * 52 / (10000 - 30 * 32), places=2)
         self.assertEqual((result['sheet'], result['scale']), ('A4', '1:1'))
         with contextlib.redirect_stdout(io.StringIO()) as output:

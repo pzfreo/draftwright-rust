@@ -585,7 +585,8 @@ def one(f, dw, out, spec=None, timeout=600, review=True):
         fill = 0.0
     codes = collections.Counter(x["code"] for x in rend.get("problems", []))
     # Render reports planning problems. Centre-line contacts are judged on actual drawn labels.
-    if review and any(v.get("line_work") or v.get("cut") for v in plan["views"]):
+    border_contacts = []
+    if review:
         try:
             q = subprocess.run([dw, "review", f, *extra], capture_output=True, text=True, timeout=timeout)
         except subprocess.TimeoutExpired as error:
@@ -596,8 +597,10 @@ def one(f, dw, out, spec=None, timeout=600, review=True):
             return name, {"error": (q.stdout + q.stderr)[:200]}
         if q.returncode or "structural" not in review:
             return name, {"error": json.dumps(review)[:200]}
+        border_contacts = [i['id'] for i in review['structural'] if i['code'] == 'drawable_border_contact']
         for code in ("label_centerline_overlap", "leader_centerline_overlap",
-                     "label_section_furniture_overlap", "oblique_witness_crossing"):
+                     "label_section_furniture_overlap", "oblique_witness_crossing",
+                     "drawable_border_contact"):
             codes[code] = max(codes[code], sum(i["code"] == code for i in review["structural"]))
         for code in ("radius_leader_target_mismatch", "radius_leader_target_unverifiable"):
             codes[code] = max(codes[code], sum(i["code"] == code for i in review.get("lint", [])))
@@ -631,10 +634,12 @@ def one(f, dw, out, spec=None, timeout=600, review=True):
         suffix = '' if number == 1 else f'.sheet{number}'
         linework.update(svg_linework(f"{out}/{name}{suffix}.svg", page))
     return name, {
-        "off_sheet": codes.get("annotation_off_sheet", 0) + codes.get("pinned_view_off_sheet", 0),
+        "off_sheet": codes.get("annotation_off_sheet", 0) + codes.get("pinned_view_off_sheet", 0)
+                     + codes.get("drawable_border_contact", 0),
         "off_sheet_items": sorted({subject for problem in rend.get("problems", [])
                                    if problem["code"] in {"annotation_off_sheet", "pinned_view_off_sheet"}
-                                   for subject in problem.get("subjects", [])}),
+                                   for subject in problem.get("subjects", [])} | set(border_contacts)),
+        "border_contacts": border_contacts,
         "repeated_measure": rep_meas, "repeated_drawn": rep_span, "repeated_label": rep_label,
         "repeated_span": sum(len(g['items']) - 1 for g in repeated),
         "repeated_span_groups": repeated,
@@ -706,7 +711,7 @@ def pin_bar(before, after):
     no_new = after["off_sheet"] <= before["off_sheet"]
     if "off_sheet_items" in before and "off_sheet_items" in after:
         no_new = not (set(after["off_sheet_items"]) - set(before["off_sheet_items"]))
-    return after["ink"] <= 1.5 * before["ink"] and no_new
+    return after["ink"] <= 1.5 * before["ink"] and no_new and not after.get('border_contacts')
 
 
 def pinned_one(f, args, baseline):
@@ -785,7 +790,7 @@ def main():
             json.dump(report, output, indent=1, sort_keys=True)
         return int(any("error" in p for p in parts.values()) or (args.require_go and not report["go"]))
     table(res)
-    return int(any("error" in v for v in res.values())
+    return int(any("error" in v or v.get('border_contacts') for v in res.values())
                or (args.require_no_repeated_span and any(v['repeated_span'] for v in res.values())))
 
 

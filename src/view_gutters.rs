@@ -330,19 +330,19 @@ fn translations(
             .chain(&plan.sheets)
             .find(|s| s.number == v.sheet)
             .expect("view sheet");
-        // Principal bands already contain blank annotation padding. The iso band
-        // is measured ink, so keep its caption one mm inside the drawn frame.
-        let inset = MARGIN + if v.id == "v:iso" { 1.0 } else { 0.0 };
+        // Settled bounds include real witnesses and silhouette ink, not only
+        // empty annotation padding. Reserve visible white space at every edge.
+        let inset = MARGIN + 2.0;
         for k in 0..2 {
             hard[k].push(Edge {
                 from: i,
                 to: n,
-                limit: (bounds[i][k] - inset - 1e-5).max(0.0),
+                limit: bounds[i][k] - inset - 1e-5,
             });
             hard[k].push(Edge {
                 from: n,
                 to: i,
-                limit: (sheet.page[k] - inset - bounds[i][k + 2] - 1e-5).max(0.0),
+                limit: sheet.page[k] - inset - bounds[i][k + 2] - 1e-5,
             });
         }
         let mut obstacles = vec![sheet.title_block];
@@ -497,12 +497,28 @@ fn translations(
 
 pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
     let preferred = plan.spec.sheet.view_gutter.unwrap_or(PREFERRED);
-    if preferred == 0.0 || plan.views.len() < 2 {
+    if plan.views.len() < 2 {
         return;
     }
     let bounds = bands(analysis, plan);
-    let mut deltas = translations(analysis, plan, &bounds, preferred, false)
-        .expect("the established composition remains feasible");
+    // Zero disables extra view separation, not clearance from the frame.
+    if preferred == 0.0
+        && plan.views.iter().zip(&bounds).all(|(v, b)| {
+            let sheet = std::iter::once(&plan.sheet)
+                .chain(&plan.sheets)
+                .find(|s| s.number == v.sheet)
+                .expect("view sheet");
+            b[0] >= MARGIN + 2.0
+                && b[1] >= MARGIN + 2.0
+                && b[2] <= sheet.page[0] - MARGIN - 2.0
+                && b[3] <= sheet.page[1] - MARGIN - 2.0
+        })
+    {
+        return;
+    }
+    let Some(mut deltas) = translations(analysis, plan, &bounds, preferred, false) else {
+        return;
+    };
     if let Some(lifted) = translations(analysis, plan, &bounds, preferred, true) {
         let score = |d: &[[f64; 2]]| {
             let mut smallest = preferred;

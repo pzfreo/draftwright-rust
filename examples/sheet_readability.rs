@@ -26,7 +26,7 @@ fn main() {
         )
         .unwrap();
         let r = sheet_fit::readability(&a, &p);
-        rows.insert(name.to_owned(), json!({"minimum_scale":sheet_fit::min_legible_scale(&a), "failures":r.failures(), "steps":r.steps,"openings":r.openings+r.native_openings,"native_openings":r.native_openings,"text_arrows":r.text_arrows,"depiction":r.depiction,"lanes":r.lanes,"reason":r.to_string()}));
+        rows.insert(name.to_owned(), json!({"border_contacts":sheet_fit::border_contacts(&a, &p), "minimum_scale":sheet_fit::min_legible_scale(&a), "failures":r.failures(), "steps":r.steps,"openings":r.openings+r.native_openings,"native_openings":r.native_openings,"text_arrows":r.text_arrows,"depiction":r.depiction,"lanes":r.lanes,"reason":r.to_string()}));
     }
     println!("{}", serde_json::to_string_pretty(&rows).unwrap());
 }

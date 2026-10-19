@@ -188,6 +188,7 @@ def main():
                 assert min(spans) > 0 and max(spans) <= 3 * min(spans) + 1e-6, source['name']
                 assert any(d['view'] == view['id'] and d.get('placed') and not d.get('reference') for d in new['dimensions']), source['name']
         assert key in before_read and key in after_read, source['name']
+        assert not after_read[key]['border_contacts'], (source['name'], 'ink touches drawable border', after_read[key]['border_contacts'])
         assert not after_read[key]['failures'] or any(
             q['code'] == 'layout_recovery_exhausted' for q in new['problems']), source['name']
         for stage, plan in (('before', old), ('after', new)):

@@ -47,5 +47,40 @@
   "count": 1,
   "verdict": "rust-correct",
   "reason": "Stream K7 nominal_rounded (info, once per sheet): every linear dimension here agrees with its drawn span (no label_vs_measured); some print the sheet's one decimal place where the model has more (the largest is named in the message). Ordinary within the general tolerance; the port's spec has no display precision to raise."
+ },
+ {
+  "part": "cgb245",
+  "code": "drawable_border_contact",
+  "count": 1,
+  "verdict": "rust-correct",
+  "reason": "The unrecovered model::plan fixture has ink within the new 1.5 mm drawable-border clearance. The structural audit must report this error; the finished automatic census is checked separately after recovery and gutters."
+ },
+ {
+  "part": "ctc01",
+  "code": "drawable_border_contact",
+  "count": 2,
+  "verdict": "rust-correct",
+  "reason": "The unrecovered model::plan fixture has ink within the new 1.5 mm drawable-border clearance. The structural audit must report this error; the finished automatic census is checked separately after recovery and gutters."
+ },
+ {
+  "part": "ftc06",
+  "code": "drawable_border_contact",
+  "count": 1,
+  "verdict": "rust-correct",
+  "reason": "The unrecovered model::plan fixture has ink within the new 1.5 mm drawable-border clearance. The structural audit must report this error; the finished automatic census is checked separately after recovery and gutters."
+ },
+ {
+  "part": "grm03",
+  "code": "drawable_border_contact",
+  "count": 1,
+  "verdict": "rust-correct",
+  "reason": "The unrecovered model::plan fixture has ink within the new 1.5 mm drawable-border clearance. The structural audit must report this error; the finished automatic census is checked separately after recovery and gutters."
+ },
+ {
+  "part": "spool132",
+  "code": "drawable_border_contact",
+  "count": 1,
+  "verdict": "rust-correct",
+  "reason": "The unrecovered model::plan fixture has ink within the new 1.5 mm drawable-border clearance. The structural audit must report this error; the finished automatic census is checked separately after recovery and gutters."
  }
 ]

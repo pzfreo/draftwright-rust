@@ -144,6 +144,45 @@ fn item(name: &str, kind: Kind, ink: [f64; 4], label: Option<[f64; 4]>) -> Drawn
     }
 }
 
+#[test]
+fn drawable_border_contact_checks_complete_ink_and_views_on_every_edge() {
+    for bounds in [
+        [10.0, 40.0, 30.0, 60.0],
+        [40.0, 10.0, 60.0, 30.0],
+        [270.0, 40.0, 287.0, 60.0],
+        [40.0, 180.0, 60.0, 200.0],
+        [9.0, 40.0, 30.0, 60.0],
+        [10.25, 40.0, 30.0, 60.0],
+    ] {
+        // The label may be safely inside while a witness/leader touches the frame.
+        let mut drawing = sheet(
+            &[("v:front", bounds)],
+            vec![
+                item(
+                    "callout",
+                    Kind::Dimension,
+                    bounds,
+                    Some([20.0, 45.0, 25.0, 50.0]),
+                ),
+                item("title", Kind::TitleBlock, [200.0, 10.0, 287.0, 35.0], None),
+            ],
+        );
+        let contacts: Vec<_> = structural::check(&drawing)
+            .into_iter()
+            .filter(|i| i.code == "drawable_border_contact")
+            .collect();
+        assert_eq!(contacts.len(), 2);
+        assert!(contacts.iter().all(|i| i.severity == Severity::Error));
+        drawing.sheet.views[0].bbox = [12.0, 40.0, 30.0, 60.0];
+        drawing.sheet.items[0].ink = [12.0, 40.0, 30.0, 60.0];
+        assert!(
+            !structural::check(&drawing)
+                .iter()
+                .any(|i| i.code == "drawable_border_contact")
+        );
+    }
+}
+
 /// A label whose ink is its text.
 fn label(name: &str, b: [f64; 4]) -> Drawn {
     item(name, Kind::Dimension, b, Some(b))
@@ -216,18 +255,31 @@ fn views_overlap_when_their_boxes_do() {
 #[test]
 fn a_view_stays_inside_the_drawable_area() {
     let at_edge = [10.0 - 0.5e-9, 20.0, 100.0, 200.0];
-    assert!(structural::check(&sheet(&[("v:front", at_edge)], Vec::new())).is_empty());
+    assert_eq!(
+        codes(&structural::check(&sheet(
+            &[("v:front", at_edge)],
+            Vec::new()
+        ))),
+        ["drawable_border_contact"]
+    );
     let past = [10.0 - 2e-9, 20.0, 100.0, 200.5];
     let found = structural::check(&sheet(&[("v:front", past)], Vec::new()));
-    assert_eq!(codes(&found), ["view_out_of_bounds", "view_out_of_bounds"]);
+    assert_eq!(
+        codes(&found),
+        [
+            "drawable_border_contact",
+            "view_out_of_bounds",
+            "view_out_of_bounds"
+        ]
+    );
     assert!(found.iter().all(|i| i.severity == Severity::Error));
     assert!(
-        found[0].message.contains("(left by 0.0 mm)"),
+        found[1].message.contains("(left by 0.0 mm)"),
         "{}",
         found[0].message
     );
     assert!(
-        found[1].message.contains("(above by 0.5 mm)"),
+        found[2].message.contains("(above by 0.5 mm)"),
         "{}",
         found[1].message
     );
@@ -242,11 +294,17 @@ fn every_annotation_stays_inside_the_drawable_area() {
         [10.0, 50.0, 60.0, 60.0],
         Some([30.0, 55.0, 40.0, 58.0]),
     );
-    assert!(structural::check(&sheet(&[], vec![inside.clone()])).is_empty());
+    assert_eq!(
+        codes(&structural::check(&sheet(&[], vec![inside.clone()]))),
+        ["drawable_border_contact"]
+    );
     let mut out = inside;
     out.ink[1] = 9.0;
     let found = structural::check(&sheet(&[], vec![out]));
-    assert_eq!(codes(&found), ["annotation_out_of_bounds"]);
+    assert_eq!(
+        codes(&found),
+        ["annotation_out_of_bounds", "drawable_border_contact"]
+    );
     assert_eq!(found[0].severity, Severity::Error);
     assert_eq!(found[0].annotation.as_deref(), Some("d:a"));
     assert!(
@@ -903,7 +961,9 @@ fn structural_findings_on_the_ports_own_drawings_are_known() {
                     || FIDELITY.contains(&issue.code.as_str())
                     || matches!(
                         issue.code.as_str(),
-                        "leader_centerline_overlap" | "label_section_furniture_overlap"
+                        "leader_centerline_overlap"
+                            | "label_section_furniture_overlap"
+                            | "drawable_border_contact"
                     ),
                 "{name}: {} {} [{}]",
                 issue.code,
@@ -923,7 +983,9 @@ fn structural_findings_on_the_ports_own_drawings_are_known() {
             "{k:?}"
         );
         assert!(
-            CODES.contains(&k.code.as_str()) || FIDELITY.contains(&k.code.as_str()),
+            CODES.contains(&k.code.as_str())
+                || FIDELITY.contains(&k.code.as_str())
+                || k.code == "drawable_border_contact",
             "{k:?}"
         );
         let old = listed.insert((k.part.clone(), k.code.clone()), k.count);

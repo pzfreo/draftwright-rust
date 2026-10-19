@@ -16,6 +16,15 @@ fn plate() -> (model::Analysis, model::Plan) {
 #[test]
 fn clean_outside_text_and_arrows_are_readable_but_straddling_witnesses_are_not() {
     let (a, mut p) = plate();
+    assert!(sheet_fit::border_contacts(&a, &p).is_empty());
+    let mut border = p.clone();
+    border
+        .dimensions
+        .iter_mut()
+        .find_map(|d| d.placed.as_mut())
+        .unwrap()
+        .lines[0][0][0] = 10.0;
+    assert!(!sheet_fit::border_contacts(&a, &border).is_empty());
     assert_eq!(sheet_fit::readability(&a, &p).text_arrows, 0);
     let d = p
         .dimensions
@@ -200,16 +209,17 @@ fn one_readable_a3_precedes_two_a4_sheets_when_fill_needs_enlargement() {
 }
 
 #[test]
-fn a3_explains_the_a4_prismatic_readability_refusal() {
+fn clear_joint_routes_keep_the_prismatic_part_on_a4() {
     let Some(dir) = corpus::dir() else { return };
     let (_, a) = model::analyse_native(&dir.join("mfcadpp/10103.step")).unwrap();
     let p = model::plan_recovered(&a, &model::Spec::default()).unwrap();
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A3", "5:1")
+        ("A4", "2:1")
     );
     assert_eq!(sheet_fit::readability(&a, &p).failures(), 0);
-    assert!(p.sheet.basis.contains("A4 "));
+    assert!(sheet_fit::border_contacts(&a, &p).is_empty());
+    assert!(p.sheets.is_empty());
     let spec = serde_json::from_value(json!({"sheet":{"size":"A4","scale":"1:1"}})).unwrap();
     let compressed = model::plan_recovered(&a, &spec).unwrap();
     assert!(sheet_fit::readability(&a, &compressed).steps > 0);
@@ -330,11 +340,13 @@ fn rejected_local_floor_up_moves_are_bounded_to_practical_paper() {
             assert_eq!(plan.sheet.size, "A4");
             assert_eq!(
                 r.failures(),
-                8,
-                "current main's six native intervals and two openings remain refused without new crossing pairs"
+                4,
+                "joint routes recover the openings and two intervals; four remaining intervals stay explicitly refused"
             );
-            assert_eq!(r.steps, 6);
-            assert_eq!(r.native_openings, 1);
+            assert_eq!(r.steps, 4);
+            assert_eq!((r.openings, r.native_openings), (0, 0));
+            assert!(sheet_fit::border_contacts(&a, &plan).is_empty());
+            assert!(plan.sheets.is_empty());
             assert!(
                 plan.problems
                     .iter()
@@ -553,7 +565,7 @@ fn readable_bores_keep_the_whole_profile_without_circle_only_crops() {
 }
 
 #[test]
-fn a_readable_whole_profile_keeps_its_controls_without_aperture_crops() {
+fn small_native_part_uses_a4_with_the_controlling_profile_and_clear_borders() {
     let Some(corpus) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
         assert!(std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"));
         return;
@@ -562,9 +574,12 @@ fn a_readable_whole_profile_keeps_its_controls_without_aperture_crops() {
     let p = model::plan_recovered(&a, &model::Spec::default()).unwrap();
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A1", "5:1")
+        ("A4", "1:1")
     );
-    assert!(p.views.iter().all(|v| v.detail.is_none()));
+    let crop = p.views.iter().find(|v| v.detail.is_some()).unwrap();
+    assert_eq!(crop.scale, 2.0);
+    assert!(sheet_fit::border_contacts(&a, &p).is_empty());
+    assert!(p.sheets.is_empty());
     let controls: std::collections::BTreeSet<_> = p
         .dimensions
         .iter()
@@ -590,16 +605,16 @@ fn a_readable_whole_profile_keeps_its_controls_without_aperture_crops() {
         p.dimensions
             .iter()
             .filter(|d| controls.contains(d.id.as_str()))
-            .all(|d| !d.reference && d.placed.is_some())
+            .all(|d| !d.reference && d.placed.is_some() && d.view == crop.id)
     );
     assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
     let r = sheet_fit::readability(&a, &p);
     assert_eq!(
         (r.native_openings, r.failures(), r.whole_drawing_failures()),
-        (0, 0, 0)
+        (1, 1, 0)
     );
     assert!(
-        !p.problems
+        p.problems
             .iter()
             .any(|q| q.code == "layout_recovery_exhausted")
     );

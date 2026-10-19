@@ -1578,7 +1578,10 @@ fn retains_enlarged_ink(analysis: &Analysis, before: &Plan, after: &Plan) -> boo
 fn crowded_reduction(analysis: &Analysis, reference: &Plan, candidate: &Plan) -> bool {
     candidate.sheet.scale_factor * 2.0 <= reference.sheet.scale_factor + 1e-6
         && crate::sheet_fit::readability(analysis, reference).failures() == 0
-        && crate::sheet_fit::readability(analysis, candidate).failures() > 0
+        && {
+            let r = crate::sheet_fit::readability(analysis, candidate);
+            r.failures() > r.depiction
+        }
         && candidate
             .views
             .iter()
@@ -1759,6 +1762,10 @@ fn protect_retained_routes(
     let main_scale_loss = spec.sheet.size.is_none()
         && spec.sheet.scale.is_none()
         && paper(&candidate) < paper(reference)
+        && {
+            let r = crate::sheet_fit::readability(analysis, &candidate);
+            r.failures() > r.depiction
+        }
         && (candidate.sheet.scale_factor * 2.0 + 1e-6 < reference.sheet.scale_factor
             || dense_reduction);
     let worse_readability = if paper(&candidate) < paper(reference) {
@@ -3459,8 +3466,7 @@ fn recover_with_reference(
             && initial_readability.failures() == 0
             && ordinary.sheet.scale_factor < first.sheet.scale_factor
             && (ordinary_readability.openings > initial_readability.openings
-                || ordinary_readability.native_openings > initial_readability.native_openings
-                || ordinary_readability.depiction > initial_readability.depiction)
+                || ordinary_readability.native_openings > initial_readability.native_openings)
             && first.views.iter().all(|v| v.detail.is_none())
         {
             let mut readable = recover_candidates_before(

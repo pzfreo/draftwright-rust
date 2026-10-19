@@ -56,8 +56,10 @@ fn roomy_sheet_has_preferred_gutters_and_projection_origins() {
 #[test]
 fn gutter_never_changes_automatic_sheet_scale_or_view_scales() {
     let bare = plan(json!({"sheet":{"view_gutter":0}}));
+    assert!(draftwright::sheet_fit::border_contacts(plate(), &bare).is_empty());
     for gutter in [6, 12, 1000] {
         let p = plan(json!({"sheet":{"view_gutter":gutter}}));
+        assert!(draftwright::sheet_fit::border_contacts(plate(), &p).is_empty());
         assert_eq!(
             (&p.sheet.size, &p.sheet.scale),
             (&bare.sheet.size, &bare.sheet.scale)
