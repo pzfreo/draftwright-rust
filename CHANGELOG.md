@@ -6,23 +6,51 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+## 0.1.0-alpha.6 (2026-10-19)
+
 ### Added
 
 - Pin a projected view's gap with `views/<name>/place/align: "projection"` while keeping
   geometry on its projection line despite asymmetric dimension bands. Valid front/plan
   and front/side pairs offer it first in `item_options`; other pairs refuse it with choices.
+- Leave blank gutters between views by default: spare paper is shared between the gaps, up
+  to 25 mm, and shrinks toward 0 only when needed to fit. Gutters never change the sheet size
+  or scale; rows and columns move together, and pinned views keep their positions. Override
+  with `sheet/view_gutter` (`0` disables).
+- Choose thread and knurl callout form with `sheet/callouts/style` (`auto`, `compact`, `full`
+  or `note`), overridden per feature by `features/<id>/callouts/style`. `auto` moves a
+  callout that would still need more than two lines to `<size> SEE MFG n`.
+
+### Changed
+
+- Shorten thread and knurl callouts to the ISO 965 / ISO 6410 short forms: `M5-6g` without
+  the coarse pitch or RH, the designation alone on a threaded diameter, two-line blind tapped
+  holes (`M2-6H ↧ 2.5` over `⌀1.6 ↧ 4`), and horizontal knurl callouts with process wording in
+  the numbered manufacturing note. Callouts wrap at 48 mm with real font metrics. 8 of the 11
+  thread and knurl parts now fit on A4, up from 2 (#94).
 
 ### Fixed
 
+- Print the modelled value: labels use the shortest form, up to three decimals, that equals
+  it (`4.75`, not `4.8`); per-measurement Spec precision still wins (#92). Two audited
+  exceptions keep a compact label where the longer one cannot be routed: NIST FTC-08's
+  `8× R1.5` (modelled 1.524) and mfcadpp/1004's `⌀7.4 ↧ 5.9` (modelled 7.447, 5.86).
+- Dimension a single flat by its distance (`7.4`) without `A/F`; `A/F` needs proven opposed
+  flats (#93).
+- Read the structured `full thread depth` property, so a tapped hole whose depth is given only
+  by that property keeps its thread callout.
+- Draw `⌀ ↧ ⌴ ⌵` in tables and numbered notes as in callout labels (SVG, PNG and PDF), keeping
+  the text searchable. GRM-03's table printed `⌀1.6 □ 8`.
 - Draw AP242 dimensions and tolerances on resolved derived axes and planes, preserving
   authored values, tolerances and MAX/MIN/AVG qualifiers. GRM-03 now carries its ten
   semantic sizes and lengths instead of geometric fallback dimensions.
+- Keep datum symbols apart during placement so no two overlap or touch. NIST FTC-07 moves
+  from A2 at 1:5 to A1 at 1:1; FTC-10, STC-09 and STC-10 also change.
 - Default drawing numbers to a leading part-number token in the STEP product name, then
   the file stem (including numeric names such as `10000`), before `DWG-001`. Explicit Spec
   numbers, including blanks, win; readable titles retain the part number (#103).
-- Cover the tester's original GRM-03 AP242 material (`CZ121 / CW614N / CuZn39Pb3`)
-  through reading, title-block rendering and coverage lint. Its CAx-IF property already
-  projects on main; #108's warning fix applies without a new reader or kernel change (#101).
+- Print GRM-03's CAx-IF material (`CZ121 / CW614N / CuZn39Pb3`) in the title block without a
+  false undrawn warning (#101).
 - Keep radius leaders on the drawn part of trimmed arcs (quarter-cylinder edges, obround
   and slot-pattern ends) instead of the full construction circle.
 - Prefer perpendicular location witnesses on either side and finite-gap witnesses before
