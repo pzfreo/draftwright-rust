@@ -292,7 +292,8 @@ fn r5_session_fragments_and_steps() {
         serde_json::to_value(&replay).unwrap(),
         serde_json::to_value(s.state()).unwrap()
     );
-    assert_eq!(serde_json::to_value(s.stats()).unwrap()["sheet_steps"], 2);
+    // Preview prepared this exact single-sheet prefix; commit reuses the finished result.
+    assert_eq!(serde_json::to_value(s.stats()).unwrap()["sheet_steps"], 1);
     s.undo().unwrap().apply_to(&mut replay).unwrap();
     let font = draftwright::text::Font::new(draftwright::api::MONO.to_vec()).unwrap();
     assert_eq!(

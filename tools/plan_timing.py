@@ -10,6 +10,8 @@ in millions), which load does not change: the measure to compare builds by on a 
 
 Usage: python3 -I tools/plan_timing.py <draftwright binary> <work dir> [--runs N] [--plans]
        <step files...>
+Use --no-instructions when the macOS sandbox denies /usr/bin/time's sysctl counters;
+wall and child CPU time are still recorded.
 (the parts: tools/quality_parts.txt, paths relative to $DRAFTWRIGHT_CORPUS). The Analyses are
 kept in <work dir>/analysis and reused; with --plans the plans go to <work dir>/plans."""
 import os, re, statistics, subprocess, sys, time
@@ -22,13 +24,16 @@ if "--runs" in args:
     del args[i:i + 2]
 plans = "--plans" in args
 args = [a for a in args if a != "--plans"]
+no_instructions = "--no-instructions" in args
+args = [a for a in args if a != "--no-instructions"]
 dw, work, files = args[0], args[1], args[2:]
 os.makedirs(f"{work}/analysis", exist_ok=True)
 if plans:
     os.makedirs(f"{work}/plans", exist_ok=True)
 
 # On macOS each run is counted by /usr/bin/time -l (instructions retired); elsewhere, wall and CPU.
-counted = ["/usr/bin/time", "-l"] if sys.platform == "darwin" and os.path.exists("/usr/bin/time") else []
+counted = (["/usr/bin/time", "-l"] if not no_instructions and sys.platform == "darwin"
+           and os.path.exists("/usr/bin/time") else [])
 
 for f in files:
     name = os.path.basename(f).split(".")[0]

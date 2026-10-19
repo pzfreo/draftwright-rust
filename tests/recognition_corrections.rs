@@ -265,19 +265,21 @@ fn split_and_regroup_use_the_ordinary_grid_planner_and_saved_ids() {
 }
 
 #[test]
-fn split_grid_a4_is_a_complete_fit_and_a3_is_selected_only_by_fill() {
+fn split_grid_prefers_complete_a4_over_fill_enlargement() {
     let (part, a) = plate();
     let pattern = &a.recognition.as_ref().unwrap().patterns[0];
     let split = spec(json!({"features":{&pattern.id:{"split":true}}}));
     let automatic = model::plan_recovered(&a, &split).unwrap();
     assert_eq!(automatic.dimensions.len(), 13);
     assert!(automatic.sheet.basis.contains("smallest fit A4 at 1:1"));
-    assert!(automatic.sheet.basis.contains(
-        "A4 1:1 fill 52.2% (valid and complete, 0 additional view conflicts, 0 additional material crossings"
-    ), "{}", automatic.sheet.basis);
+    assert!(
+        automatic.sheet.basis.contains("A4: clean at 1:1"),
+        "{}",
+        automatic.sheet.basis
+    );
     assert_eq!(
         (&*automatic.sheet.size, &*automatic.sheet.scale),
-        ("A3", "2:1")
+        ("A4", "1:1")
     );
 
     let mut pinned = split;
