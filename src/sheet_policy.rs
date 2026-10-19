@@ -36,6 +36,8 @@ const FAILING_CODES: &[&str] = &[
     "views_do_not_fit",
     "views_overlap",
     "view_on_title_block",
+    "turned_profile_superimposed",
+    "turned_chain_no_clear_lane",
     "dimension_line_shared",
     "dimension_text_stray",
     "legibility_floor_breached",
