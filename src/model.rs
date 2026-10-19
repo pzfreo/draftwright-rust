@@ -3001,10 +3001,11 @@ fn recover_candidates(
                 } else {
                     said(f, drops(&p))
                 };
+                let selection_fill = crate::sheet_fit::selection_fill(analysis, &p);
                 tried.push(format!(
                     "{name} {} fill {:.1}% ({}, {over} additional view conflicts, {crossings} additional material crossings, {} annotation conflicts, {unreadable_steps} unreadable step spans, {})",
                     p.sheet.scale,
-                    p.sheet.fill * 100.0,
+                    selection_fill * 100.0,
                     verdict,
                     ink_findings(&p),
                     p.sheet.arrangement
@@ -3062,7 +3063,7 @@ fn recover_candidates(
                         sheet: i,
                         scale,
                         width: p.sheet.page[0],
-                        fill: p.sheet.fill,
+                        fill: selection_fill,
                         extra_crossings: crossings,
                     },
                     p,
@@ -3264,6 +3265,9 @@ fn recover_candidates(
         FILL_BAND[1] * 100.0,
         tried.join("; ")
     );
+    if crate::sheet_fit::selection_fill(analysis, &chosen) != chosen.sheet.fill {
+        chosen.sheet.basis += "; candidate scores omit source-only notes; the notes remain drawn and sheet.fill measures all ink";
+    }
     if retained.is_some() {
         chosen.sheet.basis += "; the established dimensioned-view scale retained while making room for recess information";
     }
@@ -3330,7 +3334,15 @@ fn plan_recovered_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invali
     if spec.pmi == PmiMode::Ignore && crate::dims::pmi_policy::carries(analysis) {
         return crate::dims::pmi_policy::ignore(analysis, spec, plan_recovered);
     }
-    crate::planning::with(analysis, || crate::sheet_policy::select(analysis, spec))
+    crate::planning::with(analysis, || {
+        let mut plan = crate::sheet_policy::select(analysis, spec)?;
+        let effective = crate::spec_gdt::effective(analysis, &plan.spec)?;
+        crate::dims::pmi_policy::audit(effective.as_ref(), &plan.spec.clone(), &mut plan);
+        if crate::dims::pmi_policy::carries(effective.as_ref()) || !spec.origin.is_empty() {
+            crate::fixes::attach(effective.as_ref(), &mut plan);
+        }
+        Ok(plan)
+    })
 }
 
 /// The established planner, also used unchanged for explicit controls and forced candidates.
@@ -3439,7 +3451,6 @@ fn plan_automatic_uncached(analysis: &Analysis, spec: &Spec) -> Result<Plan, Inv
             }
         }
     }
-    crate::dims::pmi_policy::audit(analysis, spec, &mut plan);
     crate::fixes::attach(analysis, &mut plan);
     Ok(plan)
 }

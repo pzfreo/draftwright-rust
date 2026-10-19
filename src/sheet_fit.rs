@@ -242,6 +242,10 @@ pub(crate) fn furniture_bounds(
 /// Drawn bounds per item, including witnesses and leaders, excluding border and title block.
 /// Principal views use the projected part envelope; the isometric uses its measured bounds.
 pub fn footprints(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
+    footprints_with_notes(analysis, plan, true)
+}
+
+fn footprints_with_notes(analysis: &Analysis, plan: &Plan, notes: bool) -> Vec<Rect> {
     let mut out = Vec::new();
     for v in &plan.views {
         let b = if v.id == "v:iso" {
@@ -286,7 +290,9 @@ pub fn footprints(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
         }
         out.push(b);
     }
-    out.extend(plan.notes_block.iter().map(|n| n.cells));
+    if notes {
+        out.extend(plan.notes_block.iter().map(|n| n.cells));
+    }
     out.extend(
         plan.tables
             .iter()
@@ -323,10 +329,30 @@ pub fn footprints(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
 
 /// Usable-area share. Clip at the border and subtract title-block intersections from the union.
 pub fn fill(analysis: &Analysis, plan: &Plan) -> f64 {
+    fill_boxes(plan, footprints(analysis, plan))
+}
+
+/// Source-only notes keep their paper size at every scale. After PMI covers engine
+/// dimensions, counting this furniture as diagram fill can favour tiny geometry on
+/// smaller paper. Keep the full footprint for fitting and reported fill, but compare
+/// the dimensioned drawing itself when choosing between valid PMI/GD&T candidates.
+pub(crate) fn selection_fill(analysis: &Analysis, plan: &Plan) -> f64 {
+    if !plan.gdt.is_empty()
+        && !plan.notes.is_empty()
+        && plan.notes.iter().all(|n| n.id.starts_with("pmi:"))
+        && crate::dims::pmi_policy::carries(analysis)
+    {
+        fill_boxes(plan, footprints_with_notes(analysis, plan, false))
+    } else {
+        plan.sheet.fill
+    }
+}
+
+fn fill_boxes(plan: &Plan, boxes: Vec<Rect>) -> f64 {
     let [w, h] = plan.sheet.page;
     let mut tb = plan.sheet.title_block;
     tb[3] = crate::title_block::top(tb);
-    let boxes: Vec<Rect> = footprints(analysis, plan)
+    let boxes: Vec<Rect> = boxes
         .into_iter()
         .map(|b| {
             [
