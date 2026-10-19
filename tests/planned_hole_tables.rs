@@ -505,10 +505,14 @@ fn the_cgb245_view_pin_reproducer_keeps_its_schedule() {
     let ordinary = model::plan_recovered(&analysis, &setting("never")).unwrap();
     let iso = base.views.iter().find(|v| v.id == "v:iso").unwrap();
     let before = ordinary.views.iter().find(|v| v.id == "v:iso").unwrap();
-    assert_eq!(
-        (iso.at, iso.area, iso.scale),
-        (before.at, before.area, before.scale)
-    );
+    // The printer policy can choose different paper with and without the schedule.
+    // Orientation retention compares frames only when their paper and scale agree.
+    if (&base.sheet.size, &base.sheet.scale) == (&ordinary.sheet.size, &ordinary.sheet.scale) {
+        assert_eq!(
+            (iso.at, iso.area, iso.scale),
+            (before.at, before.area, before.scale)
+        );
+    }
     for k in 0..2 {
         assert!(iso.at[k] + iso.scale * analysis.iso_bounds[k] >= draftwright::layout::MARGIN);
         assert!(

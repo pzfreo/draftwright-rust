@@ -13,7 +13,7 @@ Usage: python3 -I tools/plan_timing.py <draftwright binary> <work dir> [--runs N
 Use --wall-only when sandboxing prevents macOS instruction counters.
 (the parts: tools/quality_parts.txt, paths relative to $DRAFTWRIGHT_CORPUS). The Analyses are
 kept in <work dir>/analysis and reused; with --plans the plans go to <work dir>/plans."""
-import os, re, statistics, subprocess, sys, time
+import os, re, resource, statistics, subprocess, sys, time
 
 args = sys.argv[1:]
 runs = 5
@@ -45,14 +45,16 @@ for f in files:
             out.write(a.stdout)
     times, cpus, instrs = [], [], []
     for _ in range(runs):
-        before = os.times()
+        # os.times() quantises child CPU to 10 ms on macOS: a 27 ms baseline
+        # can appear to cost 20 ms and produce a spurious per-part regression.
+        before = resource.getrusage(resource.RUSAGE_CHILDREN)
         t = time.perf_counter()
         p = subprocess.run(counted + [dw, "plan", "--analysis", analysis], capture_output=True,
                            timeout=600)
         times.append((time.perf_counter() - t) * 1000)
-        after = os.times()
-        cpus.append((after.children_user + after.children_system
-                     - before.children_user - before.children_system) * 1000)
+        after = resource.getrusage(resource.RUSAGE_CHILDREN)
+        cpus.append((after.ru_utime + after.ru_stime
+                     - before.ru_utime - before.ru_stime) * 1000)
         m = re.search(rb"(\d+)\s+instructions retired", p.stderr)
         if m:
             instrs.append(int(m.group(1)) / 1e6)

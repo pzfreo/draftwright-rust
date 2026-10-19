@@ -994,6 +994,19 @@
             }
           ]
         },
+        "preferred_printer": {
+          "anyOf": [
+            {
+              "enum": [
+                "A4",
+                "A3"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "fit_limits": {
           "anyOf": [
             {

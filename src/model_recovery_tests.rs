@@ -219,3 +219,89 @@ fn covered_aliases_follow_a_location_into_a_drawn_schedule_only() {
         "a cycle without drawn ink is not coverage"
     );
 }
+
+#[test]
+fn clear_fixed_sheet_finish_preserves_inventory_and_passes_fresh_audit() {
+    let dir = std::env::var_os("DRAFTWRIGHT_CORPUS")
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME")
+                .map(|h| std::path::PathBuf::from(h).join("repos/quiddity/tests/corpus"))
+        })
+        .filter(|p| p.is_dir());
+    let Some(dir) = dir else {
+        assert!(std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"));
+        return;
+    };
+    for (file, scale) in [
+        ("cadgenbench_inputs/cgb241.step", "1:10"),
+        ("mfcadpp/10163.step", "1:2"),
+    ] {
+        let (_, a) = analyse_native(&dir.join(file)).unwrap();
+        crate::planning::with(&a, || {
+            plan_automatic(&a, &Spec::default()).unwrap();
+            let mut spec: Spec =
+                serde_json::from_value(serde_json::json!({"sheet":{"size":"A4","scale":scale}}))
+                    .unwrap();
+            let factor = layout::SCALES
+                .into_iter()
+                .find(|s| scale_name(*s) == scale)
+                .unwrap();
+            for (name, detail) in crate::detail::requests(&a, &spec, factor) {
+                if !detail.authored {
+                    spec.views.entry(name).or_default().omit = true;
+                }
+            }
+            let raw = crate::planning::fixed_pair(|| {
+                crate::planning::defer_nominals(|| crate::sheets::allocate(&a, &spec))
+            })
+            .unwrap();
+            assert!(
+                !raw.problems.iter().any(crate::sheet_policy::layout_problem),
+                "{file}: expected clear settled ink"
+            );
+            let mut fast = raw.clone();
+            crate::planning::fixed_pair(|| finish_nominal_plan(&a, &spec, &mut fast));
+            let mut full = raw;
+            finish_nominal_plan(&a, &spec, &mut full);
+            for plan in [&fast, &full] {
+                assert!(
+                    !plan
+                        .problems
+                        .iter()
+                        .any(crate::sheet_policy::layout_problem),
+                    "{file}: finishing introduced a layout problem"
+                );
+                assert!(
+                    !crate::dims::recheck_cached(
+                        &a,
+                        plan,
+                        &crate::dims::footprints::Cache::default(),
+                    )
+                    .iter()
+                    .any(crate::sheet_policy::layout_problem),
+                    "{file}: finished ink failed a fresh audit"
+                );
+            }
+            // The full pass may choose different, equally clear routes. It must
+            // carry exactly the same statements, text and omission decisions.
+            let inventory = |plan: &Plan| {
+                let mut value = serde_json::to_value(plan).unwrap();
+                for dimension in value["dimensions"].as_array_mut().unwrap() {
+                    dimension.as_object_mut().unwrap().remove("placed");
+                }
+                for view in value["views"].as_array_mut().unwrap() {
+                    // Settled areas include leader extents; the view's scale,
+                    // origin and source geometry must remain identical.
+                    view.as_object_mut().unwrap().remove("area");
+                }
+                value.as_object_mut().unwrap().remove("sheet");
+                value
+            };
+            assert!(
+                inventory(&fast) == inventory(&full),
+                "{file}: changed inventory"
+            );
+        });
+    }
+}

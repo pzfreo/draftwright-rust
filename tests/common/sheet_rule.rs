@@ -77,6 +77,69 @@ fn in_band(f: f64) -> bool {
 /// Asserts *plan*'s automatic sheet follows the rule over its recorded candidates; *seed* is the
 /// first estimate's (sheet, scale). Returns the smallest fit.
 pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, String) {
+    if plan
+        .sheet_candidates
+        .last()
+        .is_some_and(|c| c.outcome.starts_with(&format!("{}: clean at ", c.size)))
+    {
+        let expected = if plan.spec.sheet.preferred_printer.as_deref() == Some("A3") {
+            [("A4", 1), ("A3", 1), ("A3", 9)]
+        } else {
+            [("A4", 1), ("A4", 2), ("A3", 1)]
+        };
+        assert!(plan.sheet_candidates.len() <= expected.len());
+        for (candidate, request) in plan.sheet_candidates.iter().zip(expected) {
+            assert_eq!(
+                (candidate.size.as_str(), candidate.max),
+                request,
+                "{name}: trial order"
+            );
+            assert!(
+                candidate.scales.len() <= 2,
+                "{name}: unbounded scale search"
+            );
+            if candidate.scales.len() == 2 {
+                let indices: Vec<_> = candidate
+                    .scales
+                    .iter()
+                    .map(|scale| {
+                        let (numerator, denominator) = scale.split_once(':').unwrap();
+                        let factor =
+                            numerator.parse::<f64>().unwrap() / denominator.parse::<f64>().unwrap();
+                        draftwright::layout::SCALES
+                            .iter()
+                            .position(|s| *s == factor)
+                            .unwrap()
+                    })
+                    .collect();
+                assert_eq!(
+                    indices[1],
+                    indices[0] + 1,
+                    "{name}: retry must be the next smaller standard scale"
+                );
+            }
+        }
+        let winner = plan.sheet_candidates.last().unwrap();
+        assert!(
+            plan.sheet_candidates[..plan.sheet_candidates.len() - 1]
+                .iter()
+                .all(|c| !c.outcome.starts_with(&format!("{}: clean at ", c.size)))
+        );
+        assert_eq!(winner.size, plan.sheet.size, "{name}: paper report");
+        assert_eq!(
+            winner.scales.last(),
+            Some(&plan.sheet.scale),
+            "{name}: scale report"
+        );
+        assert!(plan.sheets.len() < winner.max, "{name}: sheet count");
+        assert!(plan.sheet.default);
+        assert!(
+            plan.sheet
+                .basis
+                .contains(&format!("sheet choice: {}", winner.outcome))
+        );
+        return (plan.sheet.size.clone(), plan.sheet.scale.clone());
+    }
     let basis = &plan.sheet.basis;
     let all = tried(basis);
     let estimate = format!("first estimate {} at {} (", seed.0, seed.1);

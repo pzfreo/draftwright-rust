@@ -16,6 +16,7 @@ import json
 import math
 from pathlib import Path
 import re
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 
@@ -271,6 +272,8 @@ def main():
     p.add_argument('drawings', type=Path)
     p.add_argument('--baseline', type=Path, default=ROOT / 'tests/fixtures/leader_routes.json')
     p.add_argument('--record', type=Path)
+    p.add_argument('--record-part', action='append', default=[],
+                   help='Update only these reviewed parts in the existing record')
     p.add_argument('--require-improvement', action='store_true')
     p.add_argument('--report', type=Path)
     args = p.parse_args()
@@ -278,7 +281,18 @@ def main():
     contacts = {name: quality.leader_on_extension(json.loads(
         (args.drawings / (name+'.plan.json')).read_text())) for name in result}
     if args.record:
-        args.record.write_text(json.dumps(dict(base='0419fa6c1ebc81226cb577639276ea45eb9df3a1', parts=result, contacts=contacts), indent=2, sort_keys=True)+'\n')
+        if args.record_part:
+            record = json.loads(args.record.read_text())
+            revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+            for part in args.record_part:
+                if part not in result or part not in record['parts']:
+                    p.error(f'unknown recorded part: {part}')
+                record['parts'][part] = result[part]
+                record['contacts'][part] = contacts[part]
+                record.setdefault('updated_parts', {})[part] = revision
+        else:
+            record = dict(base='0419fa6c1ebc81226cb577639276ea45eb9df3a1', parts=result, contacts=contacts)
+        args.record.write_text(json.dumps(record, indent=2, sort_keys=True)+'\n')
         return 0
     baseline = json.loads(args.baseline.read_text())
     failures = check(baseline['parts'], result)

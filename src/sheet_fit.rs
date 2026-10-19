@@ -56,17 +56,14 @@ pub(crate) fn min_geometry_scale(analysis: &Analysis) -> f64 {
 /// The 3 mm em includes unused font space; a 2.5 mm flange can still exceed its ink.
 pub const MIN_STEP_SPAN: f64 = crate::dims::CAP;
 
-/// Primary axial step spans need at least one capital height on paper. A collision-free
-/// label alone does not make a compressed profile readable. Small treatments
-/// stated by notes (grooves, chamfers and radii) do not set this floor. Baseline
-/// stations still owe the physical interval they replace; enlarged detail owners
-/// use their own scale, never the parent sheet's.
-pub fn illegible_steps(analysis: &Analysis, plan: &Plan) -> usize {
-    let mut checked = std::collections::BTreeSet::new();
+fn step_spans<'a>(
+    analysis: &'a Analysis,
+    plan: &'a Plan,
+) -> impl Iterator<Item = (&'a str, f64, f64)> {
     plan.dimensions
         .iter()
         .filter(|d| d.placed.is_some())
-        .flat_map(|d| {
+        .flat_map(move |d| {
             let scale = plan
                 .views
                 .iter()
@@ -82,12 +79,30 @@ pub fn illegible_steps(analysis: &Analysis, plan: &Plan) -> usize {
                     .find(|f| f.id == m.feature && f.kind == "turned_step")?;
                 let length =
                     f.parameters.get("hi")?.as_f64()? - f.parameters.get("lo")?.as_f64()?;
-                (length.is_finite() && length > 0.0 && length * scale + 1e-6 < MIN_STEP_SPAN)
-                    .then_some(m.feature.as_str())
+                (length.is_finite() && length > 0.0).then_some((m.feature.as_str(), length, scale))
             })
         })
-        .filter(|feature| checked.insert(*feature))
+}
+
+/// Primary axial step spans need at least one capital height on paper. A collision-free
+/// label alone does not make a compressed profile readable. Small treatments
+/// stated by notes (grooves, chamfers and radii) do not set this floor. Baseline
+/// stations still owe the physical interval they replace; enlarged detail owners
+/// use their own scale, never the parent sheet's.
+pub fn illegible_steps(analysis: &Analysis, plan: &Plan) -> usize {
+    let mut checked = std::collections::BTreeSet::new();
+    step_spans(analysis, plan)
+        .filter(|(_, length, scale)| length * scale + 1e-6 < MIN_STEP_SPAN)
+        .filter(|(feature, _, _)| checked.insert(*feature))
         .count()
+}
+
+/// Existing printed-step minimum, before snapping to a standard sheet scale.
+/// Only applicable when every owning view follows the common sheet scale.
+pub(crate) fn min_step_scale(analysis: &Analysis, plan: &Plan) -> f64 {
+    step_spans(analysis, plan)
+        .map(|(_, length, _)| (MIN_STEP_SPAN - 1e-6) / length)
+        .fold(0.0, f64::max)
 }
 
 fn include(b: &mut Rect, p: [f64; 2]) {

@@ -22,6 +22,7 @@ struct Active {
 
 thread_local! {
     static ACTIVE: RefCell<Option<Active>> = const { RefCell::new(None) };
+    static FIXED_PAIR: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static DEFER_NOMINALS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
@@ -40,6 +41,23 @@ pub(crate) fn defer_nominals<T>(run: impl FnOnce() -> T) -> T {
 
 pub(crate) fn nominals_deferred() -> bool {
     DEFER_NOMINALS.get()
+}
+
+/// A bounded automatic sheet trial: use the ordinary automatic candidate's
+/// presentation, but do not search for a suggested paper/scale fix on rejection.
+pub(crate) fn fixed_pair<T>(run: impl FnOnce() -> T) -> T {
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            FIXED_PAIR.set(self.0);
+        }
+    }
+    let _restore = Restore(FIXED_PAIR.replace(true));
+    run()
+}
+
+pub(crate) fn is_fixed_pair() -> bool {
+    FIXED_PAIR.get() && !crate::nominal::comparison()
 }
 
 type Retained = VecDeque<([u8; 32], Rc<RefCell<Values>>)>;

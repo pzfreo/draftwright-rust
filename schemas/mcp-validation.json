@@ -57,6 +57,13 @@
           "sheet": {
             "type": "object",
             "properties": {
+              "preferred_printer": {
+                "enum": [
+                  null,
+                  "A4",
+                  "A3"
+                ]
+              },
               "title": {
                 "type": "object",
                 "additionalProperties": {
@@ -301,6 +308,13 @@
           "sheet": {
             "type": "object",
             "properties": {
+              "preferred_printer": {
+                "enum": [
+                  null,
+                  "A4",
+                  "A3"
+                ]
+              },
               "title": {
                 "type": "object",
                 "additionalProperties": {
@@ -626,6 +640,13 @@
           "sheet": {
             "type": "object",
             "properties": {
+              "preferred_printer": {
+                "enum": [
+                  null,
+                  "A4",
+                  "A3"
+                ]
+              },
               "title": {
                 "type": "object",
                 "additionalProperties": {
@@ -856,6 +877,13 @@
           "sheet": {
             "type": "object",
             "properties": {
+              "preferred_printer": {
+                "enum": [
+                  null,
+                  "A4",
+                  "A3"
+                ]
+              },
               "title": {
                 "type": "object",
                 "additionalProperties": {
@@ -1104,6 +1132,13 @@
           "sheet": {
             "type": "object",
             "properties": {
+              "preferred_printer": {
+                "enum": [
+                  null,
+                  "A4",
+                  "A3"
+                ]
+              },
               "title": {
                 "type": "object",
                 "additionalProperties": {
@@ -1330,6 +1365,13 @@
           "sheet": {
             "type": "object",
             "properties": {
+              "preferred_printer": {
+                "enum": [
+                  null,
+                  "A4",
+                  "A3"
+                ]
+              },
               "title": {
                 "type": "object",
                 "additionalProperties": {
@@ -1606,6 +1648,13 @@
           "sheet": {
             "type": "object",
             "properties": {
+              "preferred_printer": {
+                "enum": [
+                  null,
+                  "A4",
+                  "A3"
+                ]
+              },
               "title": {
                 "type": "object",
                 "additionalProperties": {
@@ -1886,6 +1935,13 @@
           "sheet": {
             "type": "object",
             "properties": {
+              "preferred_printer": {
+                "enum": [
+                  null,
+                  "A4",
+                  "A3"
+                ]
+              },
               "title": {
                 "type": "object",
                 "additionalProperties": {
@@ -2144,6 +2200,13 @@
           "sheet": {
             "type": "object",
             "properties": {
+              "preferred_printer": {
+                "enum": [
+                  null,
+                  "A4",
+                  "A3"
+                ]
+              },
               "title": {
                 "type": "object",
                 "additionalProperties": {
@@ -2374,6 +2437,13 @@
           "sheet": {
             "type": "object",
             "properties": {
+              "preferred_printer": {
+                "enum": [
+                  null,
+                  "A4",
+                  "A3"
+                ]
+              },
               "title": {
                 "type": "object",
                 "additionalProperties": {
@@ -2595,6 +2665,13 @@
           "sheet": {
             "type": "object",
             "properties": {
+              "preferred_printer": {
+                "enum": [
+                  null,
+                  "A4",
+                  "A3"
+                ]
+              },
               "title": {
                 "type": "object",
                 "additionalProperties": {

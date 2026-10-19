@@ -2262,6 +2262,7 @@ fn hole_and_shoulder_outcomes(analysis: &Analysis, plan: &Plan) -> BTreeSet<(Str
 /// basis records (`common/sheet_rule.rs`): smallest complete fit, at most one paper step and only
 /// with an enlargement, then fill. Every hole and turned-shoulder outcome the first plan placed
 /// survives the choice. A plan with no valid complete candidate keeps its first sheet and scale.
+/// Sheets chosen by the A4-first paper policy say so in their basis ("sheet choice: …").
 #[test]
 fn sheet_selection_is_bounded_and_keeps_every_outcome() {
     // Keep the exhausted-ladder fixture explicit; auto tables now resolve these losses.
@@ -2290,6 +2291,9 @@ fn sheet_selection_is_bounded_and_keeps_every_outcome() {
                 after,
                 (first.sheet.size.as_str(), first.sheet.scale.as_str()),
             );
+        } else if after.sheet.basis.contains("; sheet choice: ") {
+            // The A4-first paper policy (`sheet_policy`) chose the sheet; the outcome check
+            // above is its invariant here, and its own tests check the candidate order.
         } else {
             assert!(codes(after).contains("layout_recovery_exhausted"), "{name}");
             assert_eq!(
