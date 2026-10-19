@@ -80,8 +80,11 @@ pub(super) fn strict_callouts(a: &Analysis, wants: &mut [Want]) {
 }
 
 fn origin(a: &Analysis, reference: &str, k: usize) -> Option<f64> {
-    if let Some(word) = reference.strip_prefix("face:") {
-        let f = a.face_attachments.get(word.parse::<usize>().ok()?)?;
+    if let Some(index) = reference
+        .strip_prefix("face:")
+        .and_then(|word| word.parse::<usize>().ok())
+    {
+        let f = a.face_attachments.get(index)?;
         return (f.surface.as_deref() == Some("plane") && f.axis == Some(k))
             .then(|| f.sites.first().map(|p| p[k]))
             .flatten();

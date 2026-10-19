@@ -305,6 +305,31 @@ fn datum_origins_and_individual_basics_replace_pattern_pitches() {
                 && d.value == 95.
                 && d.basis.contains("origin/x min"))
     );
+    let key = a
+        .dimension_references()
+        .iter()
+        .find_map(|(key, values)| match values.as_slice() {
+            [model::dimension_geometry::Reference::Plane { origin, normal, .. }]
+                if normal[0].abs() > 0.999 && (origin[0] - a.envelope[0][0]).abs() < 1e-6 =>
+            {
+                Some(key.clone())
+            }
+            _ => None,
+        })
+        .unwrap();
+    assert!(key.starts_with("face:v1:"));
+    let s = Spec {
+        origin: std::collections::BTreeMap::from([("x".into(), key.clone())]),
+        ..Default::default()
+    };
+    assert!(
+        plan(&a, &s)
+            .dimensions
+            .iter()
+            .any(|d| d.id.ends_with("location.length.x")
+                && d.value == 95.
+                && d.basis.contains(&key))
+    );
 }
 #[test]
 fn invalid_modes_origins_and_transactional_edits_are_refused() {
