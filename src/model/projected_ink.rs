@@ -41,16 +41,22 @@ pub struct ResolvedView {
 }
 
 /// Immutable geometric evidence; no Part is retained by the planner.
-pub(super) fn resolved(part: &Part, binding: &Binding) -> Vec<ResolvedView> {
+pub(crate) fn resolved(
+    part: &Part,
+    binding: &Binding,
+    names: &std::collections::BTreeSet<&str>,
+) -> Vec<ResolvedView> {
     static MEMO: crate::planning::BoundedMemo<Vec<ResolvedView>> =
         crate::planning::BoundedMemo::new(4);
     let key: [u8; 32] =
-        Sha256::digest(serde_json::to_vec(binding).expect("binding serializes")).into();
+        Sha256::digest(serde_json::to_vec(&(binding, names)).expect("projection inputs serialize"))
+            .into();
     if let Some(ink) = MEMO.get(&key) {
         return ink;
     }
     let ink: Vec<_> = VIEWS[..3]
         .iter()
+        .filter(|(name, _, _)| names.contains(name))
         .filter_map(|(_, direction, up)| {
             let view = View::new(*direction, *up)?;
             let pieces = project(part, &view).ok()?;

@@ -75,6 +75,7 @@ mod wording;
 pub(crate) use pmi_dimensions::basic as is_basic;
 mod leaders;
 pub(crate) use label_lanes::{in_lane, settle_inventory};
+pub(crate) use leaders::default_nominal_intent;
 pub(crate) use leaders::settle_after_furniture;
 pub(crate) use placement::collisions_cached as label_collisions;
 pub(crate) use placement::nearest_shared_witnesses;
@@ -560,6 +561,52 @@ fn wants(
         crate::planning::memo(analysis, "wants", Vec::new(), || wants_uncached(analysis));
     bosses::prefer_established(analysis, &mut result.0);
     result
+}
+
+/// Exact visibility is useful only for established fractional callouts that may
+/// need a different corridor. Integer statements and newly added recesses use
+/// the conservative projected edge evidence without running hidden-line removal.
+pub(crate) fn nominal_inspection_views(
+    analysis: &Analysis,
+) -> std::collections::BTreeSet<&'static str> {
+    if !crate::nominal::geometry_eligible(analysis)
+        || analysis.features.iter().any(|f| f.kind == "turned_step")
+    {
+        return Default::default();
+    }
+    let recesses = has_new_native_recess_dimensions(analysis);
+    let hole_count = analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "hole")
+        .count();
+    wants(analysis)
+        .0
+        .iter()
+        .filter(|w| {
+            if !matches!(w.shape, Shape::Callout { .. }) {
+                return false;
+            }
+            // A table-sized inventory need not eagerly project every raw bore.
+            // Smaller established bore labels still need the actual visible
+            // outline even when their nominal text did not grow.
+            let established_bore = hole_count < crate::hole_table::MIN_HOLES
+                && w.measurements
+                    .iter()
+                    .any(|m| m.parameter == "bore.diameter")
+                && w.measurements.iter().all(|m| {
+                    fmt(m.value)
+                        .split_once('.')
+                        .is_none_or(|(_, tail)| tail.len() <= 1)
+                });
+            established_bore
+                || (!recesses
+                    && w.measurements.iter().any(|m| {
+                        !m.feature.starts_with("f:section_recess:") && fmt(m.value).contains('.')
+                    }))
+        })
+        .filter_map(|w| w.views.first().copied())
+        .collect()
 }
 
 /// Captured bridge documents already carried their recess inventory. Only a
