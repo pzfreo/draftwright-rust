@@ -87,7 +87,7 @@ mod corpus;
 mod sheet_rule;
 
 #[test]
-fn grm03_prefers_a4_without_losing_measurements() {
+fn grm03_rejects_a4_extension_contacts_without_losing_measurements() {
     let Some(dir) = corpus::dir() else {
         return;
     };
@@ -97,11 +97,20 @@ fn grm03_prefers_a4_without_losing_measurements() {
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A4", "5:1")
+        ("A3", "10:1")
     );
-    // Readable A4 wins before fill-driven enlargement to A3.
+    // A4 adds a contact absent from the automatic A3 drawing.
+    assert!(
+        p.sheet_candidates
+            .iter()
+            .any(|c| c.outcome.contains("leader_on_extension"))
+    );
     let fill = draftwright::sheet_fit::fill(&a, &p);
-    assert!((0.30..=0.40).contains(&fill), "GRM-03 fill {fill:.4}");
+    assert!(
+        (draftwright::sheet_fit::FILL_BAND[0]..=draftwright::sheet_fit::FILL_BAND[1])
+            .contains(&fill),
+        "GRM-03 fill {fill:.4}"
+    );
     assert!(p.views.iter().all(|v| v.detail.is_none()));
     assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
     sheet_rule::assert_rule("grm03", &p);
