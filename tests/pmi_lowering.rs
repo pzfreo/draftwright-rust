@@ -1039,3 +1039,129 @@ fn the_same_bytes_in_every_time_zone() {
     assert!(String::from_utf8_lossy(&utc[0]).contains("0.75"));
     assert_eq!(render("Asia/Kolkata"), utc);
 }
+
+/// The writer's exact part-owned bookkeeping forms state no drawing requirement. Other
+/// attributes, including part-note semantic text (#127), must still be accounted for once.
+#[test]
+fn bookkeeping_attributes_are_not_unsupported_pmi() {
+    use draftwright::haecceity::{p21::Document, pmi, step::read_part_definitions};
+    use pmi::write::{self, Mode, PresentationPolicy};
+    use pmi::{AttributeSet, AttributeValue, PartId, PartPmi};
+
+    let bytes = std::fs::read(root().join("tests/fixtures/parts/plate.step")).unwrap();
+    let defs = read_part_definitions(&bytes).unwrap();
+    let doc = Document::parse(bytes).unwrap();
+    let names = [
+        "pmi-assist answers",
+        "draftwright editor project",
+        "foreign attributes",
+        "semantic text",
+    ];
+    let mut attributes: Vec<AttributeSet> = names
+        .iter()
+        .map(|name| AttributeSet {
+            name: (*name).into(),
+            on: None,
+            description: None,
+            general_property: None,
+            items: vec![(
+                if *name == "semantic text" {
+                    "edge condition"
+                } else {
+                    name
+                }
+                .to_string(),
+                AttributeValue::Text("eyJ4IjoxfQ==".into()),
+            )],
+        })
+        .collect();
+    let mut wrong_item = attributes[0].clone();
+    wrong_item.items[0].0 = "requirement".into();
+    attributes.push(wrong_item);
+    let mut extra_item = attributes[1].clone();
+    extra_item
+        .items
+        .push(("requirement".into(), AttributeValue::Text("inspect".into())));
+    attributes.push(extra_item);
+    let edit = (
+        PartId(0),
+        PartPmi {
+            attributes,
+            ..Default::default()
+        },
+    );
+    let (edit, _) =
+        write::write(&doc, &defs, &[edit], Mode::Add, PresentationPolicy::Refuse).unwrap();
+    let written = doc.apply(&edit).unwrap();
+    // The STEP reader's property order differs from the writer's input order.
+    let reread = pmi::read(&Document::parse(written.bytes.clone()).unwrap(), &defs).unwrap();
+    let bookkeeping: Vec<_> = reread.parts[0]
+        .attributes
+        .iter()
+        .enumerate()
+        .filter(|(_, a)| {
+            matches!(
+                a.name.as_str(),
+                "pmi-assist answers" | "draftwright editor project"
+            ) && a.items.len() == 1
+                && a.items[0].0 == a.name
+        })
+        .map(|(index, _)| index)
+        .collect();
+    assert_eq!(bookkeeping.len(), 2);
+    let (_, analysis) = analysed_uncached("bookkeeping.step", &written.bytes);
+    let Some(Reading::Read(report)) = &analysis.pmi else {
+        panic!("bookkeeping provenance retained")
+    };
+    assert!(report.records.is_empty());
+    for index in &bookkeeping {
+        let source = report
+            .sources
+            .iter()
+            .find(|s| s.id == format!("attribute_set:0:{index}"))
+            .unwrap();
+        assert_eq!(source.category, Category::Other);
+        assert_eq!(source.outcome, draftwright::pmi::Outcome::Extracted);
+        assert!(!source.instances.is_empty());
+        assert!(source.reason.starts_with("Draftwright record "));
+    }
+    let (_, problems) = lower(&analysis, &|_| true);
+    let unsupported: Vec<_> = problems
+        .iter()
+        .filter(|p| p.code == "pmi_not_extracted")
+        .collect();
+    assert_eq!(unsupported.len(), 4, "{unsupported:#?}");
+    for index in (0..6).filter(|index| !bookkeeping.contains(index)) {
+        assert_eq!(
+            unsupported
+                .iter()
+                .filter(|p| p.refs[0] == format!("attribute_set:0:{index}"))
+                .count(),
+            1
+        );
+    }
+}
+
+#[test]
+fn legacy_specify_answers_are_not_unsupported_pmi() {
+    let bytes = std::fs::read(root().join("tests/fixtures/parts/plate.step")).unwrap();
+    let text = String::from_utf8(bytes).unwrap();
+    let at = text.rfind("ENDSEC;").unwrap();
+    let extra = "
+#10000=DESCRIPTIVE_REPRESENTATION_ITEM('pmi-assist answers','eyJ4IjoxfQ==');
+#10001=REPRESENTATION('pmi-assist answers',(#10000),#713);
+#10002=PROPERTY_DEFINITION('pmi-assist answers','schema 1',#5);
+#10003=PROPERTY_DEFINITION_REPRESENTATION(#10002,#10001);
+#10004=PROPERTY_DEFINITION('foreign answers','schema 1',#5);
+#10005=PROPERTY_DEFINITION_REPRESENTATION(#10004,#10001);
+";
+    let bytes = format!("{}{extra}{}", &text[..at], &text[at..]);
+    let (_, analysis) = analysed_uncached("legacy-answers.step", bytes.as_bytes());
+    let (_, problems) = lower(&analysis, &|_| true);
+    let unsupported: Vec<_> = problems
+        .iter()
+        .filter(|p| p.code == "pmi_not_extracted")
+        .collect();
+    assert_eq!(unsupported.len(), 1, "{unsupported:#?}");
+    assert_eq!(unsupported[0].refs[0], "finding:#10004");
+}
