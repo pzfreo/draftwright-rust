@@ -289,8 +289,8 @@ The precise `8× R1.524` label cannot find a route within the established
 hidden-edge, length and clearance budgets; retaining its original shaft and
 compact text preserves the baseline's existing 3.275 mm ink run. Its label,
 terms, placement box and inspection basis all carry that same decision.
-The CI repair and final compact-label exceptions are recorded in
-[the 19 October validation](ci-116-performance-2026-10-19.md).
+The CI repair keeps one further compact exception: mfcadpp/1004 hole 1 prints
+`⌀7.4 ↧ 5.9` (modelled 7.44654 and 5.86) to preserve its existing ink run.
 
 The NTS caption is reconciled after the final gutter translations, against the
 finished views and fixed schedules. Four exact upstream spool132 wrapping
