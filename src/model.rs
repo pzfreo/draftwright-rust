@@ -3226,6 +3226,19 @@ pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
         }
     })?;
     if !crate::placement_intent::has_pins(spec) {
+        type Labels = BTreeMap<String, (String, [f64; 2])>;
+        static LABELS: crate::planning::BoundedMemo<Labels> = crate::planning::BoundedMemo::new(64);
+        let base = pin_base(spec);
+        let key: [u8; 32] = Sha256::digest(
+            serde_json::to_vec(&(
+                &plan.analysis_sha256,
+                &base,
+                crate::nominal::comparison(),
+                crate::planning::nominals_deferred(),
+            ))
+            .expect("canonical label inputs serialize"),
+        )
+        .into();
         if spec.dimensions.values().any(|d| {
             d.place.is_some()
                 || d.view.is_some()
@@ -3237,10 +3250,21 @@ pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
         {
             // A side/lane placement or wording edit must not become a new offset origin.
             // Retain canonical metadata without changing the drawing's solve or wire shape.
-            let base = plan_recovered(analysis, &pin_base(spec))?;
-            plan.dimension_labels = base.dimension_labels;
+            plan.dimension_labels = if let Some(labels) = LABELS.get(&key) {
+                labels
+            } else {
+                // Metadata preparation must not fill the live edit's retained solve cache.
+                let labels =
+                    crate::planning::isolated(analysis, || plan_recovered(analysis, &base))?
+                        .dimension_labels;
+                LABELS.insert(key, labels.clone());
+                labels
+            };
         } else {
             plan.record_dimension_labels();
+            if spec == &base {
+                LABELS.insert(key, plan.dimension_labels.clone());
+            }
         }
     }
     Ok(plan)
@@ -6118,9 +6142,6 @@ fn plan_with_presentation(
                 (final_intent, omitted_ink),
             );
         }
-    }
-    if canonical.is_none() {
-        plan.record_dimension_labels();
     }
     plan.status = crate::completeness::status(&plan.problems);
     if reusable {
