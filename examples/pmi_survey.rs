@@ -70,12 +70,11 @@ fn marks(a: &model::Analysis, p: &model::Plan) -> Vec<draftwright::lint::Mark> {
                 else {
                     continue;
                 };
-                let Some(at) = a
-                    .features
-                    .iter()
-                    .find(|f| f.id == m.feature)
-                    .map(|f| f.fingerprint.position[k])
-                else {
+                let Some(at) = a.features.iter().find(|f| f.id == m.feature).and_then(|f| {
+                    draftwright::bridge::holes::Hole::read(f, &draftwright::bridge::holes::frame(a))
+                        .ok()
+                        .map(|h| h.at[k])
+                }) else {
                     continue;
                 };
                 let value = at - origin[k];

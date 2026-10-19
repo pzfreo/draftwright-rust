@@ -208,11 +208,13 @@ pub struct Measurement {
 }
 
 impl Analysis {
-    /// A reference's station and physical witness. No Spec coordinate is accepted.
     /// A transverse analytic feature-axis station, independent of profile/notch evidence.
     pub(crate) fn axis_station(&self, id: &str, k: usize) -> Option<f64> {
         match self.dimension_reference(&format!("axis:{id}")).ok()? {
             Reference::Cylinder { origin, axis, .. } if axis[k].abs() < 1e-6 => Some(origin[k]),
+            Reference::Edge { ends } if (ends[0][k] - ends[1][k]).abs() < 1e-6 => {
+                Some(0.5 * (ends[0][k] + ends[1][k]))
+            }
             _ => None,
         }
     }

@@ -339,6 +339,11 @@ pub(crate) fn station(a: &Analysis, id: &str, k: usize) -> Option<f64> {
         return (!points.is_empty()).then(|| points.iter().sum::<f64>() / points.len() as f64);
     }
     if let Some(f) = a.features.iter().find(|f| f.id == id) {
+        if f.kind == "hole"
+            && let Ok(h) = crate::bridge::holes::Hole::read(f, &crate::bridge::holes::frame(a))
+        {
+            return Some(h.at[k]);
+        }
         if f.kind == "slot" {
             let p = super::slots::centre(f).ok()?;
             return Some(crate::bridge::holes::to_part(&crate::bridge::holes::frame(a), p)[k]);
@@ -376,6 +381,24 @@ pub(crate) fn proof(
         )?);
     }
     Some(path)
+}
+
+fn pitch_states(a: &Analysis, p: &crate::bridge::HolePattern, k: usize, text: &str) -> bool {
+    let Some(mut xs): Option<Vec<_>> = p.members.iter().map(|id| station(a, id, k)).collect()
+    else {
+        return false;
+    };
+    xs.sort_by(f64::total_cmp);
+    xs.dedup_by(|x, y| (*x - *y).abs() < EPS);
+    let (count, body) = text.split_once('×').map_or((Some(1), text), |(n, body)| {
+        (n.trim().parse::<usize>().ok(), body.trim())
+    });
+    xs.len() >= 2
+        && count == Some(xs.len() - 1)
+        && super::holes::states(body, xs[1] - xs[0])
+        && xs
+            .windows(2)
+            .all(|q| ((q[1] - q[0]) - (xs[1] - xs[0])).abs() < super::redundancy::TOL)
 }
 
 pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge> {
@@ -438,7 +461,7 @@ pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge>
             let Some(p) = pattern(a, &c.feature) else {
                 continue;
             };
-            if super::schemes::supports(a, &c.feature, &c.parameter, &mark.text).is_empty() {
+            if !pitch_states(a, &p, span.axis, &mark.text) {
                 continue;
             }
             let centre = station(a, &p.id, span.axis);
