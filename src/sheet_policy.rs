@@ -324,12 +324,16 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
             reuse_baseline(&mut baseline, candidates, max);
             return Ok(baseline);
         }
-        // R5's existing max-only shortcut keeps a complete one-sheet result,
-        // even when the paper policy refuses it for a softer annotation finding.
-        // Permission to overflow must not replace that result at another scale.
+        let target_scale = estimate
+            .get_or_insert_with(|| Estimate::new(fit_analysis, &baseline))
+            .scale(size, max, bound_floor);
+        // R5's max-only shortcut can reuse a complete one-sheet result at
+        // this fixed scale, including a softer annotation finding. A result
+        // from a smaller retry is not the same explicit-paper/scale request.
         if max > 1
             && let Some((paper, plan, outcome)) = &single
             && paper == size
+            && target_scale.is_some_and(|scale| (plan.sheet.scale_factor - scale).abs() < 1e-9)
             && model::findings(plan).clean()
             && model::drawn_sheets_fit(fit_analysis, plan)
             && crate::sheets::max_only(spec)
@@ -347,10 +351,7 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
             "reserved footprints cannot fit at {}",
             model::scale_name(bound_floor)
         );
-        if let Some(scale) = estimate
-            .get_or_insert_with(|| Estimate::new(fit_analysis, &baseline))
-            .scale(size, max, bound_floor)
-        {
+        if let Some(scale) = target_scale {
             // Explicit scale bypasses the explicit-paper scale search. At most one
             // smaller standard scale is tried, using the ordinary planner each time.
             let smaller = layout::SCALES
