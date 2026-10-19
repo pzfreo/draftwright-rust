@@ -246,7 +246,7 @@ fn one_feature_problem_query_returns_all_member_fixes() {
     assert_eq!(delta["problems_resolved"].as_array().unwrap().len(), 4);
     for p in problems
         .iter()
-        .filter(|p| p["code"] != "extension_through_feature")
+        .filter(|p| !p["fix"].as_array().is_none_or(Vec::is_empty))
     {
         assert!(
             delta["problems_resolved"]
@@ -274,11 +274,12 @@ fn inspection_batches_a_filtered_problem_page_with_registration() {
     );
     assert_eq!(result["problem_page"], problems);
     let actual = result["problem_page"]["items"].as_array().unwrap();
-    assert_eq!(actual.len(), 1);
-    assert!(
-        actual
-            .iter()
-            .all(|p| p["code"] == "extension_through_feature")
+    assert_eq!(actual.len(), 2);
+    let codes: std::collections::BTreeSet<_> =
+        actual.iter().map(|p| p["code"].as_str().unwrap()).collect();
+    assert_eq!(
+        codes,
+        std::collections::BTreeSet::from(["extension_through_feature", "feature_not_located"])
     );
     let all = call(
         &cache,

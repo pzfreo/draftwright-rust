@@ -100,7 +100,7 @@ fn geometry_choices_respect_visibility_and_stable_identity() {
     );
 }
 #[test]
-fn fragments_partition_full_ink_and_annotation_edits_keep_view_svg() {
+fn fragments_partition_full_ink_and_annotation_edits_keep_unchanged_view_svg() {
     let mut s = session();
     let full = s.drawing().svg();
     let fragments = s.svg_fragments(None);
@@ -124,8 +124,23 @@ fn fragments_partition_full_ink_and_annotation_edits_keep_view_svg() {
         )
         .unwrap();
     let changed = s.svg_fragments(Some(&delta));
-    assert!(!changed.keys().any(|id| id.starts_with("v:")));
-    assert_eq!(fragments["v:front"], s.svg_fragments(None)["v:front"]);
+    let full_after = s.svg_fragments(None);
+    let expected: std::collections::BTreeSet<_> = full_after
+        .iter()
+        .filter(|(id, svg)| id.starts_with("v:") && fragments.get(*id) != Some(*svg))
+        .map(|(id, _)| id.clone())
+        .collect();
+    let actual: std::collections::BTreeSet<_> = changed
+        .keys()
+        .filter(|id| id.starts_with("v:"))
+        .cloned()
+        .collect();
+    assert_eq!(
+        actual, expected,
+        "only transformed geometry fragments are invalidated"
+    );
+    assert!(!changed.contains_key("v:front"));
+    assert_eq!(fragments["v:front"], full_after["v:front"]);
 }
 #[test]
 fn pmi_replacement_is_transactional_and_keeps_the_plan_render_oracle() {

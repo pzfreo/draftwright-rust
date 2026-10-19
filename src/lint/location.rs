@@ -767,7 +767,7 @@ pub fn sizes(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             })
         }) || report.as_ref().is_some_and(|(r, ids)| {
             r.records.iter().any(|r| {
-                (r.category == Category::ManufacturingRequirement
+                ((r.category == Category::ManufacturingRequirement && r.kind.ends_with("thread"))
                     || (r.category == Category::Dimension
                         && matches!(
                             r.kind.as_str(),
