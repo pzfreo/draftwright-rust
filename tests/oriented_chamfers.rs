@@ -484,10 +484,9 @@ fn bounded_notches_reserve_acute_arcs_and_leave_dense_general_profiles_alone() {
                     .any(|p| p.code == "annotation_outside_area")
             );
             // Native recesses add two complete pocket callouts, their four datum
-            // locations and the hex-pocket depth. Keep main's enlarged drawing
-            // rather than dropping those requirements to regain the old A4.
-            assert_eq!(p.sheet.size, "A3");
-            assert_eq!(p.sheet.scale, "2:1");
+            // locations and the hex-pocket depth. A4 retains every requirement.
+            assert_eq!(p.sheet.size, "A4");
+            assert_eq!(p.sheet.scale, "1:1");
             for (feature, parameters) in [
                 (
                     "f:section_recess:1",

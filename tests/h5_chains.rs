@@ -331,11 +331,14 @@ fn references_become_controlling_without_moving_other_ink() {
 #[test]
 fn a_pinned_reference_keeps_its_ink_and_reports_a_broken_controlling_chain() {
     let a = chain_profile("gramel/GRM-03_thumbwheel_drive_screw.step");
-    // A pin holds the ink of the drawing it was taken from: the recovered one (H6 moves GRM-03
-    // to A3 10:1), as the pinned plan below is recovered too.
-    let full = model::plan_recovered(&a, &references()).unwrap();
+    // A pin holds the ink of the drawing it was taken from: the recovered one, as the pinned
+    // plan below is recovered too. One sheet keeps the established frame: with free paper,
+    // the omission can select a different small-sheet scale before the pin is read.
+    let base: Spec =
+        serde_json::from_value(json!({"sheet":{"references":true},"sheets":{"max":1}})).unwrap();
+    let full = model::plan_recovered(&a, &base).unwrap();
     let reference = full.dimensions.iter().find(|d| d.label == "(0.5)").unwrap();
-    let spec = model::edit(&references(), &json!([
+    let spec = model::edit(&base, &json!([
         {"op":"set", "path":"sheet/references", "value":false},
         {"op":"set", "path":format!("dimensions/{}/place", draftwright::items::key(&reference.id)), "value":{"pinned":true}},
         {"op":"set", "path":"dimensions/d:envelope~1width.length/omit", "value":true}

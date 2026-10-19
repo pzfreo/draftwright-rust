@@ -1998,7 +1998,7 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
         base.sheet.size = plan.spec.sheet.size.clone();
         base.sheet.scale = plan.spec.sheet.scale.clone();
         base.hole_table = plan.spec.hole_table;
-        crate::model::plan_recovered(analysis, &base).ok()
+        crate::model::plan_automatic(analysis, &base).ok()
     } else if plan.spec.hole_table == Setting::Auto
         && crate::dims::has_new_native_recess_dimensions(analysis)
         && plan.gdt.is_empty()

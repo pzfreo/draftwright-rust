@@ -465,6 +465,12 @@ pub struct SheetSpec {
     /// `A4` … `A0`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub size: Option<String>,
+    /// Largest available printer: `A4` (default) or `A3`, for automatic sheet selection.
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "preferred_printer"
+    )]
+    pub preferred_printer: Option<String>,
     /// `n:m`, from ISO 5455's series.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scale: Option<String>,
@@ -499,6 +505,16 @@ fn view_gutter<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<f64>, D:
         ));
     }
     Ok(gutter)
+}
+
+fn preferred_printer<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+    let value = Option::<String>::deserialize(d)?;
+    if value.as_deref().is_some_and(|v| !["A4", "A3"].contains(&v)) {
+        return Err(serde::de::Error::custom(
+            "sheet/preferred_printer must be A4 or A3",
+        ));
+    }
+    Ok(value)
 }
 
 fn projection_method<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
@@ -560,6 +576,9 @@ pub struct Plan {
     pub sheet: PlannedSheet,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sheets: Vec<PlannedSheet>,
+    /// Ordered automatic paper trials, including cheap footprint refusals.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sheet_candidates: Vec<crate::sheet_policy::Candidate>,
     /// Escalation evidence for allocation; never inferred from a problem sentence.
     #[serde(skip)]
     pub table_outcome: crate::hole_table::TableOutcome,
@@ -1784,6 +1803,9 @@ struct FittingFix {
 }
 
 fn fit_fix(analysis: &Analysis, spec: &Spec) -> Result<Option<FittingFix>, Invalid> {
+    if crate::planning::is_fixed_pair() {
+        return Ok(None);
+    }
     let (Some(size), Some(scale)) = (&spec.sheet.size, &spec.sheet.scale) else {
         return Ok(None);
     };
@@ -2003,9 +2025,9 @@ pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Pl
                 // Keep the established compact corridors as an unrendered
                 // comparison; live placements are remeasured at faithful widths.
                 if crate::nominal::geometry_eligible(&reference) {
-                    crate::nominal::with_comparison(|| plan_recovered(&reference, &base))
+                    crate::nominal::with_comparison(|| plan_automatic(&reference, &base))
                 } else {
-                    plan_recovered(&reference, &base)
+                    plan_automatic(&reference, &base)
                 }
             })
         },
@@ -3267,10 +3289,11 @@ fn recover_candidates(
 }
 
 // Shared canonical inputs for pin placement and the editor's label anchor metadata.
-fn pin_base(spec: &Spec) -> Spec {
+pub(crate) fn pin_base(spec: &Spec) -> Spec {
     let mut base = Spec::default();
     base.sheet.size = spec.sheet.size.clone();
     base.sheet.scale = spec.sheet.scale.clone();
+    base.sheet.preferred_printer = spec.sheet.preferred_printer.clone();
     base.sheet.projection = spec.sheet.projection.clone();
     base.sheet.fit_deviations = spec.sheet.fit_deviations;
     base.sheet.references = spec.sheet.references;
@@ -3307,6 +3330,26 @@ fn plan_recovered_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invali
     if spec.pmi == PmiMode::Ignore && crate::dims::pmi_policy::carries(analysis) {
         return crate::dims::pmi_policy::ignore(analysis, spec, plan_recovered);
     }
+    crate::planning::with(analysis, || crate::sheet_policy::select(analysis, spec))
+}
+
+/// The established planner, also used unchanged for explicit controls and forced candidates.
+pub(crate) fn plan_automatic(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    // R5's max-only shortcut asks for the same single-sheet plan before allocation.
+    // Reuse that complete result when the paper policy has just requested it already.
+    let key = serde_json::to_vec(&(
+        spec,
+        crate::planning::nominals_deferred(),
+        crate::planning::policy_key(analysis),
+        crate::planning::is_fixed_pair(),
+    ))
+    .expect("planning inputs serialize");
+    crate::planning::memo(analysis, "finished-plan", key, || {
+        plan_automatic_uncached(analysis, spec)
+    })
+}
+
+fn plan_automatic_uncached(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     // Recovery may restore the caller's intent after a trial; retain the migrated keys
     // and schema there too, rather than restoring a version-1 spec onto a version-2 plan.
     let spec = &migrate(spec, analysis)?;
@@ -3317,20 +3360,18 @@ fn plan_recovered_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invali
     let merged = crate::spec_gdt::effective(analysis, spec)?;
     let analysis = merged.as_ref();
     let mut plan = crate::planning::with(analysis, || {
-        if let Some(sheets) = &spec.sheets
-            && sheets.max.is_some_and(|n| n > 1)
-            && (crate::sheets::SheetsSpec {
-                max: None,
-                ..sheets.clone()
-            }) == Default::default()
-            && spec.views.values().all(|v| v.sheet.is_none())
-            && spec.tables.iter().all(|t| t.sheet.is_none())
+        if spec
+            .sheets
+            .as_ref()
+            .and_then(|s| s.max)
+            .is_some_and(|n| n > 1)
+            && crate::sheets::max_only(spec)
         {
             // Permission to add sheets must not change an already complete
             // single-sheet drawing, including its final precision repairs.
             let mut single = spec.clone();
             single.sheets = None;
-            let mut plan = plan_recovered(analysis, &single)?;
+            let mut plan = plan_automatic(analysis, &single)?;
             if findings(&plan).clean()
                 && undrawn_gdt(&plan) == 0
                 && drawn_items_fit(analysis, &plan)
@@ -3342,7 +3383,10 @@ fn plan_recovered_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invali
         if spec.sheet.scale.is_none() && crate::dims::has_new_native_recess_dimensions(analysis) {
             established_drawing(analysis, spec)?;
         }
-        if spec.sheets.is_none() && crate::nominal::geometry_eligible(analysis) {
+        if (spec.sheets.is_none()
+            || (crate::planning::is_fixed_pair() && crate::sheets::max_only(spec)))
+            && crate::nominal::geometry_eligible(analysis)
+        {
             let mut plan =
                 crate::planning::defer_nominals(|| crate::sheets::allocate(analysis, spec))?;
             finish_nominal_plan(analysis, spec, &mut plan);
@@ -3432,7 +3476,7 @@ fn retain_dropped_location(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
             side: Some(side),
             ..Default::default()
         });
-    let Ok(mut trial) = plan_recovered(analysis, &trial_spec) else {
+    let Ok(mut trial) = plan_automatic(analysis, &trial_spec) else {
         return;
     };
     // Match sheet recovery's validity/completeness ordering: a visible line
@@ -3572,6 +3616,7 @@ fn plan_escalated_with(
     candidate_arrangement: Option<layout::Arrangement>,
     require_automatic: bool,
 ) -> Result<Plan, Invalid> {
+    let automatic_pair = automatic_pair || crate::planning::is_fixed_pair();
     let analysis_key: [u8; 32] =
         crate::planning::memo(analysis, "analysis_digest", Vec::new(), || {
             Sha256::digest(serde_json::to_vec(analysis).expect("Analysis serializes")).into()
@@ -3888,6 +3933,17 @@ fn plan_with_presentation(
         ));
     }
     let spec = &crate::recognition_corrections::bind(analysis, migrate(spec, analysis)?)?;
+    if spec
+        .sheet
+        .preferred_printer
+        .as_deref()
+        .is_some_and(|v| !["A4", "A3"].contains(&v))
+    {
+        return Err(invalid(
+            "sheet/preferred_printer must be A4 or A3.",
+            &["A4", "A3"],
+        ));
+    }
     crate::dims::authored::check(spec)?;
     crate::dimension_scheme::check(spec)?;
     crate::dims::pmi_policy::validate(analysis, spec)?;
@@ -3926,11 +3982,30 @@ fn plan_with_presentation(
     // The spec the plan follows: across a revision, without the entries that cannot be trusted.
     let canonical = if crate::placement_intent::has_pins(spec) {
         let mut base = pin_base(spec);
+        if crate::planning::is_fixed_pair() {
+            // A trial's omitted automatic crops belong to its canonical frame too.
+            // Reintroducing them here moves the peers of an otherwise bare pin.
+            // Allocation destinations and pins do not belong to this single-sheet reference.
+            base.views = spec
+                .views
+                .iter()
+                .filter(|(_, view)| view.omit)
+                .map(|(name, _)| {
+                    (
+                        name.clone(),
+                        ViewSpec {
+                            omit: true,
+                            ..Default::default()
+                        },
+                    )
+                })
+                .collect();
+        }
         // Pins in recovered planning replay the finished recovered drawing,
         // including precision repairs, even in its first unexpanded candidate.
         let replay = |base: &Spec| {
             if complete_views || crate::planning::nominals_deferred() {
-                plan_recovered(analysis, base)
+                plan_automatic(analysis, base)
             } else {
                 plan(analysis, base)
             }
@@ -3974,7 +4049,7 @@ fn plan_with_presentation(
             .retain(|_, d| *d != DimensionSpec::default());
         base.features.retain(|_, f| *f != FeatureSpec::default());
         Some(if complete_views {
-            plan_recovered(analysis, &base)?
+            plan_automatic(analysis, &base)?
         } else {
             plan(analysis, &base)?
         })
@@ -5950,6 +6025,7 @@ fn plan_with_presentation(
         completeness: crate::completeness::Completeness::default(),
         sheet,
         sheets: Vec::new(),
+        sheet_candidates: Vec::new(),
         table_outcome: crate::hole_table::TableOutcome::None,
         table_restore: None,
         views,
@@ -6399,6 +6475,31 @@ fn settle_finished_nominals(
     // an earlier repair. Reconsider the complete printed inventory before
     // fixing the final callouts, with the usual page and peer protections.
     crate::dims::settle_inventory(analysis, spec, &plan.sheet, &plan.views, &mut items, &fixed);
+    // The fixed sheet trial already placed faithful text. Keep its settled routes
+    // when the inventory is unchanged and a fresh audit is clear, rather than
+    // searching for another clear presentation. Authored/latent inventory and
+    // ordinary explicit plans retain the complete finishing pass.
+    if crate::planning::is_fixed_pair()
+        && route_leaders
+        && omitted.is_empty()
+        && items.len() == plan.dimensions.len()
+        && items.iter().zip(&plan.dimensions).all(|(a, b)| {
+            a.id == b.id
+                && a.placed == b.placed
+                && a.label == b.label
+                && a.terms == b.terms
+                && a.basis == b.basis
+        })
+        && !plan
+            .problems
+            .iter()
+            .any(crate::sheet_policy::layout_problem)
+        && !crate::dims::recheck_cached(analysis, plan, &cache)
+            .iter()
+            .any(crate::sheet_policy::layout_problem)
+    {
+        return;
+    }
     let mut reports = BTreeMap::new();
     if route_leaders {
         reports.extend(crate::dims::refine_inventory(

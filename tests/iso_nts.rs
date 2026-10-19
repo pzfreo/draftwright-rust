@@ -118,7 +118,15 @@ fn an_isometric_drawn_off_the_sheet_scale_is_captioned() {
 #[test]
 fn an_isometric_at_the_sheet_scale_has_no_caption() {
     // Fitted by a measured refit to within 5 % of the sheet scale: kept at it, uncaptioned.
-    let (plan, drawing) = draw("issue_1247_angled_blind_step.step");
+    // Keep the original automatic fill search for this normalization fixture.
+    let spec = model::Spec {
+        sheets: Some(draftwright::sheets::SheetsSpec {
+            max: Some(1),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let (plan, drawing) = draw_spec("issue_1247_angled_blind_step.step", &spec);
     assert_eq!(iso_ratio(&plan), 1.0);
     assert!(caption(&drawing).is_none());
     assert!(!drawing.text.iter().any(|t| t.text == NTS_CAPTION));

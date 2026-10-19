@@ -87,7 +87,7 @@ mod corpus;
 mod sheet_rule;
 
 #[test]
-fn grm03_prefers_larger_principals_without_losing_measurements() {
+fn grm03_rejects_a4_extension_contacts_without_losing_measurements() {
     let Some(dir) = corpus::dir() else {
         return;
     };
@@ -99,9 +99,18 @@ fn grm03_prefers_larger_principals_without_losing_measurements() {
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
         ("A3", "10:1")
     );
-    // Remeasured A3 10:1 crop-free drawing: 60.95% of usable paper.
+    // A4 adds a contact absent from the automatic A3 drawing.
+    assert!(
+        p.sheet_candidates
+            .iter()
+            .any(|c| c.outcome.contains("leader_on_extension"))
+    );
     let fill = draftwright::sheet_fit::fill(&a, &p);
-    assert!((0.60..=0.85).contains(&fill), "GRM-03 fill {fill:.4}");
+    assert!(
+        (draftwright::sheet_fit::FILL_BAND[0]..=draftwright::sheet_fit::FILL_BAND[1])
+            .contains(&fill),
+        "GRM-03 fill {fill:.4}"
+    );
     assert!(p.views.iter().all(|v| v.detail.is_none()));
     assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
     sheet_rule::assert_rule("grm03", &p);
@@ -418,7 +427,7 @@ fn section_correction_preserves_the_gdt_string_posts_readable_scale() {
 }
 
 /// Conservative section bands must not force a second sheet when the settled ink fits.
-fn assert_small_single_sheet(name: &str) {
+fn assert_small_single_sheet(name: &str, expected: (&str, &str)) {
     let Some(dir) = corpus::dir() else { return };
     let a = model::analyse_native(&dir.join(format!("mfcadpp/{name}.step")))
         .unwrap()
@@ -430,10 +439,7 @@ fn assert_small_single_sheet(name: &str) {
         p.sheet.basis
     );
     assert!(p.sheets.is_empty(), "{name}: {}", p.sheet.basis);
-    assert_eq!(
-        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A3", "2:1")
-    );
+    assert_eq!((p.sheet.size.as_str(), p.sheet.scale.as_str()), expected);
     assert!(
         p.views
             .iter()
@@ -444,7 +450,7 @@ fn assert_small_single_sheet(name: &str) {
     for (i, v) in p.views.iter().enumerate() {
         let [x0, y0, x1, y1] = v.area;
         assert!(
-            x0 >= 10. && y0 >= 10. && x1 <= 410. && y1 <= 287.,
+            x0 >= 10. && y0 >= 10. && x1 <= p.sheet.page[0] - 10. && y1 <= p.sheet.page[1] - 10.,
             "{name}: {} {:?}",
             v.id,
             v.area
@@ -473,13 +479,13 @@ fn assert_small_single_sheet(name: &str) {
 }
 
 #[test]
-fn small_10224_fits_one_a3_sheet() {
-    assert_small_single_sheet("10224");
+fn small_10224_fits_one_a4_sheet() {
+    assert_small_single_sheet("10224", ("A4", "1:1"));
 }
 
 #[test]
 fn small_10255_fits_one_a3_sheet() {
-    assert_small_single_sheet("10255");
+    assert_small_single_sheet("10255", ("A3", "2:1"));
 }
 
 /// This 279 mm principal projection already needs large paper at full size.
@@ -548,12 +554,14 @@ fn small_overflow_respects_explicit_auxiliary_assignment() {
 }
 
 #[test]
-fn large_paper_fallthrough_records_both_failed_small_allocations() {
+fn explicit_sheet_bound_preserves_large_paper_fallthrough() {
     let Some(dir) = corpus::dir() else { return };
     let a = model::analyse_native(&dir.join("mfcadpp/10190.step"))
         .unwrap()
         .1;
-    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    // An explicit bound retains the established automatic search.
+    let spec = serde_json::from_value(json!({"sheets":{"max":9}})).unwrap();
+    let p = model::plan_recovered(&a, &spec).unwrap();
     assert_eq!(p.sheet.size, "A1");
     assert!(p.sheets.is_empty());
     for paper in ["A4", "A3"] {

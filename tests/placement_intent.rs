@@ -854,12 +854,21 @@ fn a_bare_pin_relays_its_own_label_when_its_text_changes() {
     let mut checked = BTreeMap::<String, usize>::new();
     for (name, a) in slice() {
         let base = model::plan_recovered(&a, &Spec::default()).unwrap();
+        // Hold the frame while changing text; automatic paper may otherwise change with it.
+        let fixed = Spec {
+            sheet: model::SheetSpec {
+                size: Some(base.sheet.size.clone()),
+                scale: Some(base.sheet.scale.clone()),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
         for d in base
             .dimensions
             .iter()
             .filter(|d| d.placed.is_some() && d.kind != "angular")
         {
-            let pinned = set(&Spec::default(), &d.id, "place", json!({"pinned":true}));
+            let pinned = set(&fixed, &d.id, "place", json!({"pinned":true}));
             let held = model::plan_recovered(&a, &pinned).unwrap();
             let Ok(toleranced) = model::edit(
                 &pinned,
@@ -873,7 +882,7 @@ fn a_bare_pin_relays_its_own_label_when_its_text_changes() {
             let free = model::plan_recovered(
                 &a,
                 &model::edit(
-                    &Spec::default(),
+                    &fixed,
                     &json!([{"op":"set","path":format!("{}/tolerance",path(&d.id)),"value":"±0.25"}]),
                 )
                 .unwrap(),

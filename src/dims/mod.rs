@@ -346,6 +346,33 @@ pub(crate) fn ink_box(d: &PlannedDimension) -> Option<[f64; 4]> {
     ))
 }
 
+/// The quality survey's `leader_on_extension` pairs: callout leader or text within
+/// the placer's 1 mm extension corridor. Keep item identities for baseline comparison.
+pub(crate) fn leader_on_extension(dimensions: &[PlannedDimension]) -> BTreeSet<Vec<String>> {
+    let extensions: Vec<_> = dimensions
+        .iter()
+        .filter_map(|d| {
+            let p = d.placed.as_ref()?;
+            (p.lines.len() >= 3 && p.arrows.len() == 2).then(|| (&d.id, &p.lines[..2]))
+        })
+        .collect();
+    let mut pairs = BTreeSet::new();
+    for d in dimensions.iter().filter(|d| d.kind == "callout") {
+        let Some(p) = &d.placed else { continue };
+        if p.lines.is_empty() || (p.lines.len() >= 3 && p.arrows.len() == 2) {
+            continue;
+        }
+        for (id, lines) in &extensions {
+            if **id != d.id && leaders::meets_extensions(lines, &p.lines, p.label_box) {
+                let mut subjects = vec![d.id.clone(), (*id).clone()];
+                subjects.sort();
+                pairs.insert(subjects);
+            }
+        }
+    }
+    pairs
+}
+
 /// A dimension's ink, mm on the page.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

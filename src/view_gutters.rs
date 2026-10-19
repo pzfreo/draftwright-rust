@@ -30,7 +30,7 @@ fn measured(plan: &Plan, v: &crate::model::PlannedView) -> bool {
 
 /// Reserved annotation bands, enlarged to contain settled ink and view furniture.
 /// Empty iso fitting regions and generic section padding are available paper.
-fn bands(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
+pub(crate) fn bands(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
     let mut bounds: Vec<_> = plan
         .views
         .iter()
