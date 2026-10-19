@@ -643,6 +643,7 @@ type Site = (P2, f64, Option<crate::arc::Span>);
 
 /// One callout's job: its view's outline, its sites on the page (centre, radius), its label's ink
 /// box about its baseline origin, and how far past each edge the strip's dimensions reach.
+#[derive(Clone)]
 struct Job<'a> {
     side: Option<crate::placement_intent::Side>,
     view: &'a str,
@@ -651,6 +652,7 @@ struct Job<'a> {
     /// The view's reserved area (box and bands), when the sheet has it.
     area: Option<[f64; 4]>,
     sites: Vec<Site>,
+    radial: bool,
     /// For a turned step's diameter, whose sites lie on its silhouette: the silhouette's
     /// direction on the page ([`grazing`]).
     silhouette: Option<P2>,
@@ -750,6 +752,241 @@ pub(super) fn place(
     )
 }
 
+pub(crate) fn default_nominal_intent(spec: &crate::model::Spec) -> bool {
+    spec.dimension_schemes.is_empty()
+        && spec.features.values().all(|f| *f == Default::default())
+        && spec
+            .annotations
+            .values()
+            .all(|a| a.text.is_none() && a.place.as_ref().is_none_or(|p| *p == Default::default()))
+        && spec.dimensions.values().all(|d| {
+            let mut d = d.clone();
+            d.omit = false;
+            if d.place.as_ref().is_some_and(|p| {
+                *p == Default::default() || crate::placement_intent::automatic_pin(p)
+            }) {
+                d.place = None;
+            }
+            d == Default::default()
+        })
+}
+
+pub(super) fn nominal_context(
+    analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
+    items: &[Want],
+) -> bool {
+    crate::nominal::geometry_eligible(analysis)
+        && !crate::nominal::comparison()
+        && default_nominal_intent(spec)
+        && spec.precision.is_empty()
+        && !crate::placement_intent::has_pins(spec)
+        && items.iter().flat_map(|w| &w.measurements).any(|m| {
+            crate::nominal::format(m.value)
+                .split_once('.')
+                .is_some_and(|(_, fraction)| fraction.len() > 1)
+        })
+}
+
+fn nominal_reference(
+    analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
+    items: &[Want],
+) -> Option<crate::model::Plan> {
+    if !nominal_context(analysis, spec, items) {
+        return None;
+    }
+    if !crate::dims::has_new_native_recess_dimensions(analysis) {
+        return None;
+    }
+    let reference_key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
+        .expect("reference inputs serialize");
+    crate::planning::lookup::<Result<crate::model::Plan, crate::model::Invalid>>(
+        analysis,
+        "established-drawing",
+        &reference_key,
+    )
+    .and_then(Result::ok)
+}
+
+#[derive(Clone)]
+struct NominalReferences {
+    full: crate::model::Plan,
+    legacy: Option<crate::model::Plan>,
+}
+
+// A late comparison cannot influence view selection, lane ownership or sheet search.
+// It contributes remeasured alternatives only after the complete inventory has settled.
+fn settled_nominal_reference(
+    analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
+    sheet: &crate::model::PlannedSheet,
+    items: &[PlannedDimension],
+) -> Option<NominalReferences> {
+    if crate::nominal::comparison()
+        || !crate::nominal::geometry_eligible(analysis)
+        || !default_nominal_intent(spec)
+        || !spec.precision.is_empty()
+        || (crate::placement_intent::has_pins(spec)
+            && !crate::placement_intent::automatic_pins_only(spec))
+        || !spec.views.values().all(|v| *v == Default::default())
+        || !spec.faces.is_empty()
+        || !spec.notes.is_empty()
+        || !spec.tables.is_empty()
+        || spec.sheets.as_ref().is_some_and(|s| {
+            let mut policy = s.clone();
+            policy.max = None;
+            policy != Default::default()
+        })
+        || spec.iso_scale_factor.is_some()
+        || spec.envelope_tolerance.is_some()
+        || !spec.gears.is_empty()
+        || !spec.feature_declarations.is_empty()
+    {
+        return None;
+    }
+    let legacy_key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
+        .expect("reference inputs serialize");
+    let legacy = crate::planning::lookup::<Result<crate::model::Plan, crate::model::Invalid>>(
+        analysis,
+        "established-drawing",
+        &legacy_key,
+    )
+    .and_then(Result::ok);
+    let unchanged_fractional = items
+        .iter()
+        .filter(|d| {
+            d.kind == "callout"
+                && d.placed.is_some()
+                && !d
+                    .measurements
+                    .iter()
+                    .any(|m| m.feature.starts_with("f:section_recess:"))
+        })
+        .any(|d| {
+            d.measurements.iter().any(|m| {
+                let n = crate::nominal::format(m.value);
+                n.split_once('.').is_some_and(|(_, tail)| tail.len() == 1)
+            })
+        })
+        && items
+            .iter()
+            .filter(|d| d.kind == "callout" && d.placed.is_some())
+            .all(|d| {
+                d.measurements.iter().all(|m| {
+                    crate::nominal::format(m.value)
+                        .split_once('.')
+                        .is_none_or(|(_, tail)| tail.len() <= 1)
+                })
+            });
+    let recess_statement = items.iter().any(|d| {
+        d.kind == "callout"
+            && d.placed.is_some()
+            && d.measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:section_recess:"))
+    });
+    if let Some(full) = legacy.as_ref().filter(|r| {
+        recess_statement && r.sheet.scale_factor == sheet.scale_factor && !unchanged_fractional
+    }) {
+        return Some(NominalReferences {
+            full: full.clone(),
+            legacy: Some(full.clone()),
+        });
+    }
+    let extensions: Vec<_> = items
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| d.kind == "linear")
+        .flat_map(|(i, d)| {
+            d.placed
+                .iter()
+                .flat_map(move |p| p.lines.iter().take(2).map(move |s| (i, *s)))
+        })
+        .collect();
+    // An established bore can need its canonical route budget even when
+    // its text stayed integral; a displaced visible-rim recipe is not a budget.
+    let canonical_bores = analysis
+        .edge_ink
+        .as_ref()
+        .is_some_and(|ink| !ink.resolved.is_empty())
+        && items.iter().filter(|d| d.kind == "callout").any(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.parameter == "bore.diameter")
+                && d.measurements.iter().all(|m| {
+                    crate::nominal::format(m.value)
+                        .split_once('.')
+                        .is_none_or(|(_, tail)| tail.len() <= 1)
+                })
+                && d.placed
+                    .as_ref()
+                    .is_some_and(|p| length(&p.lines) > MIN_LEADER + SHOULDER)
+        });
+    let needs_reference = items.iter().filter(|d| d.kind == "callout").any(|d| {
+        let Some(p) = &d.placed else { return false };
+        if d.measurements
+            .iter()
+            .all(|m| m.feature.starts_with("f:section_recess:"))
+        {
+            return false;
+        }
+        let grew = d.measurements.iter().any(|m| {
+            crate::nominal::format(m.value)
+                .split_once('.')
+                .is_some_and(|(_, tail)| tail.len() > 1)
+        });
+        let contact = extension_contacts(&extensions, &p.lines, p.label_box).1 > 0
+            || extensions.iter().any(|(_, e)| {
+                head(p.arrows[0])
+                    .iter()
+                    .any(|h| touches_box(*h, grow(segment_bounds(*e), 0.2)))
+            });
+        (contact
+            && d.measurements
+                .iter()
+                .any(|m| crate::nominal::format(m.value).contains('.')))
+            || (grew && length(&p.lines) > MIN_LEADER + SHOULDER)
+    });
+    if !needs_reference && !canonical_bores && legacy.is_none() {
+        return None;
+    }
+    let recovered_recipe =
+        canonical_bores || unchanged_fractional || (legacy.is_some() && !recess_statement);
+    let recipe = crate::model::Spec {
+        hole_table: spec.hole_table,
+        sheet: crate::model::SheetSpec {
+            size: (!recovered_recipe).then(|| sheet.size.clone()),
+            scale: (!recovered_recipe).then(|| crate::model::scale_name(sheet.scale_factor)),
+            projection: spec.sheet.projection.clone(),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let key = serde_json::to_vec(&recipe).expect("reference intent serializes");
+    let full = crate::planning::memo(analysis, "selected-nominal-reference", key, || {
+        crate::nominal::with_comparison(|| {
+            crate::planning::isolated(analysis, || {
+                crate::planning::store(analysis, "canonical-circular-recipes", Vec::new(), true);
+                if recovered_recipe {
+                    crate::model::plan_recovered(analysis, &recipe).ok()
+                } else {
+                    crate::model::plan_escalated(analysis, &recipe).ok()
+                }
+            })
+        })
+    })?;
+    let legacy_key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
+        .expect("reference inputs serialize");
+    let legacy = crate::planning::lookup::<Result<crate::model::Plan, crate::model::Invalid>>(
+        analysis,
+        "established-drawing",
+        &legacy_key,
+    )
+    .and_then(Result::ok);
+    Some(NominalReferences { full, legacy })
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn place_with_obstacles(
     analysis: &crate::model::Analysis,
@@ -769,9 +1006,7 @@ pub(super) fn place_with_obstacles(
     }) {
         return Vec::new();
     }
-    // Candidate retries can reach the same settled inventory. Retain the exact
-    // solve only within this immutable Analysis, with every routing input in
-    // the key. Frames are derived from these planned views and the Analysis.
+    let reference = nominal_reference(analysis, spec, items);
     let route_policy =
         crate::planning::lookup::<bool>(analysis, "established-route-policy", &[]).unwrap_or(false);
     let frame_geometry: Vec<_> = frames
@@ -792,13 +1027,25 @@ pub(super) fn place_with_obstacles(
         page,
         obstacles,
         route_policy,
+        crate::nominal::comparison(),
+        &reference,
     ))
     .expect("leader solve inputs serialize");
     let (next, problems) = crate::planning::memo(analysis, "settled-leader-solve", key, || {
         let mut next = placed.to_vec();
         let problems = place_with_obstacles_uncached(
-            analysis, spec, cache, views, frames, items, views_of, sides, &mut next, page,
+            analysis,
+            spec,
+            cache,
+            views,
+            frames,
+            items,
+            views_of,
+            sides,
+            &mut next,
+            page,
             obstacles,
+            reference.as_ref(),
         );
         (next, problems)
     });
@@ -819,6 +1066,7 @@ fn place_with_obstacles_uncached(
     placed: &mut [Option<Placed>],
     page: &Page,
     obstacles: &[PlannedDimension],
+    reference: Option<&crate::model::Plan>,
 ) -> Vec<Problem> {
     let on = || {
         placed
@@ -929,6 +1177,13 @@ fn place_with_obstacles_uncached(
                 outline: f.outline(),
                 area: page.area(view),
                 sites: page_sites(f, sites, arcs),
+                radial: !crate::nominal::comparison()
+                    && w.measurements.iter().any(|m| {
+                        m.parameter == "slot_end_radius.radius"
+                            && crate::nominal::format(m.value)
+                                .split_once('.')
+                                .is_some_and(|(_, tail)| tail.len() > 1)
+                    }),
                 silhouette: grazing(f, w),
                 model: models.get(view).map(|m| &m.as_ref().0),
                 short_profile: boss_profile(w),
@@ -981,7 +1236,37 @@ fn place_with_obstacles_uncached(
         .collect();
     let mut inventories: Vec<_> = measured.iter().map(|v| v.0.clone()).collect();
     let mut baseline: Vec<_> = measured.iter().map(|v| v.1.clone()).collect();
-    let baseline_original: Vec<_> = measured.iter().map(|v| v.2.clone()).collect();
+    let mut baseline_original: Vec<_> = measured.iter().map(|v| v.2.clone()).collect();
+    if let Some(reference) = reference {
+        for (k, (i, job)) in jobs.iter().enumerate() {
+            let w = &items[*i];
+            let Some(old) = reference.dimensions.iter().find(|d| {
+                d.id == w.id && d.measurements.iter().all(|m| w.measurements.contains(m))
+            }) else {
+                continue;
+            };
+            let Some(p) = nominal_route(reference, old, views, w) else {
+                continue;
+            };
+            if p.lines.len() != 2 {
+                continue;
+            }
+            let [tip, elbow] = p.lines[0];
+            let end = p.lines[1][1];
+            if let Some(c) = measure_at(job, tip, elbow, end, end[0] >= elbow[0], &fixed, page) {
+                inventories[k].push(c.clone());
+                baseline[k].push(c.clone());
+                baseline_original[k].push(c);
+                for inventory in [
+                    &mut inventories[k],
+                    &mut baseline[k],
+                    &mut baseline_original[k],
+                ] {
+                    inventory.sort_by_key(Candidate::score);
+                }
+            }
+        }
+    }
     // Semantic PMI claims its strips after dimensions. Until those strips participate in the
     // joint solve, retain the established objective rather than planning PMI twice as a probe.
     let defects = |inv: &[Vec<Candidate>], selected: &[usize]| {
@@ -1203,6 +1488,7 @@ fn route_reports(
 
 /// Retry free callouts hit by furniture placed after the initial joint solve. Only an
 /// actual text contact triggers the full side/row/tier search; unaffected routes stay fixed.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn settle_after_furniture(
     analysis: &crate::model::Analysis,
     spec: &crate::model::Spec,
@@ -1211,41 +1497,168 @@ pub(crate) fn settle_after_furniture(
     items: &mut [PlannedDimension],
     obstacles: &[PlannedDimension],
     cache: &super::footprints::Cache,
+    final_inventory: bool,
 ) -> BTreeMap<String, Vec<Problem>> {
+    // Authored PMI keeps the established furniture repair policy. The wider
+    // nominal search belongs to automatically generated geometry statements.
+    let compact = (!final_inventory
+        && crate::nominal::geometry_eligible(analysis)
+        && default_nominal_intent(spec))
+        || crate::nominal::comparison()
+        || crate::nominal::authored_pmi(analysis);
+    if !compact {
+        super::nearest_shared_witnesses(analysis, spec, views, items);
+    }
+    let bounded_notches = !crate::notches::requirements(analysis).is_empty();
+    let references = final_inventory
+        .then(|| settled_nominal_reference(analysis, spec, sheet, items))
+        .flatten();
+    let full_reference = references.as_ref().map(|r| &r.full);
+    let legacy_reference = references.as_ref().and_then(|r| r.legacy.as_ref());
+    let all_extensions: Vec<_> = items
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| d.kind == "linear")
+        .flat_map(|(i, d)| {
+            d.placed
+                .iter()
+                .flat_map(move |p| p.lines.iter().take(2).map(move |s| (i, *s)))
+        })
+        .collect();
     let mut updated = BTreeMap::new();
     let mut wants = None;
+    let mut profile_proofs = None;
     let page = Page::new(analysis, sheet, views);
-    let bounded_notches = !crate::notches::requirements(analysis).is_empty();
     for i in 0..items.len() {
         let d = &items[i];
+        let pin = spec.dimensions.get(&d.id).and_then(|e| e.place.as_ref());
+        let held = pin.is_some();
+        let radius = final_inventory
+            && d.measurements.iter().any(|m| {
+                m.parameter == "slot_end_radius.radius"
+                    && crate::nominal::format(m.value)
+                        .split_once('.')
+                        .is_some_and(|(_, tail)| tail.len() > 1)
+            });
         if d.kind != "callout"
-            || spec
-                .dimensions
-                .get(&d.id)
-                .is_some_and(|e| e.place.is_some())
+            || (!compact && d.region == Some(super::CandidateRegion::Interior))
+            || pin.is_some_and(|p| {
+                !crate::placement_intent::automatic_pin(p)
+                    || !crate::nominal::geometry_eligible(analysis)
+            })
         {
             continue;
         }
         let Some(old) = &d.placed else { continue };
-        if !obstacles
-            .iter()
-            .chain(
-                items
-                    .iter()
-                    .filter(|d| bounded_notches && d.kind == "linear"),
-            )
-            .filter_map(|d| d.placed.as_ref())
-            .any(|p| super::text_contact(old, p))
-        {
+        // Preserve established corridors against the pre-recess comparison,
+        // rather than treating a displaced full-inventory route as its own budget.
+        let matching = |r: &crate::model::Plan| {
+            r.dimensions
+                .iter()
+                .find(|b| {
+                    b.id == d.id
+                        && b.view == d.view
+                        && b.region == d.region
+                        && b.measurements.iter().all(|m| d.measurements.contains(m))
+                })
+                .and_then(|b| b.placed.as_ref())
+                .map(|p| length(&p.lines))
+        };
+        let reference = match (legacy_reference, full_reference) {
+            (Some(legacy), Some(full))
+                if matching(legacy)
+                    .is_some_and(|l| matching(full).is_none_or(|f| l <= f + 1e-6)) =>
+            {
+                Some(legacy)
+            }
+            (_, full) => full,
+        };
+        // Longer faithful nominal labels can contact already settled dimensions as well
+        // as furniture. Reconsider those routes against the complete live inventory.
+        let conflicts = if compact {
+            obstacles
+                .iter()
+                .chain(
+                    items
+                        .iter()
+                        .filter(|d| bounded_notches && d.kind == "linear"),
+                )
+                .filter_map(|d| d.placed.as_ref())
+                .any(|p| super::text_contact(old, p))
+        } else {
+            obstacles
+                .iter()
+                .chain(
+                    items
+                        .iter()
+                        .enumerate()
+                        .filter(|(j, _)| *j != i)
+                        .map(|(_, d)| d),
+                )
+                .filter_map(|d| d.placed.as_ref())
+                .any(|p| {
+                    super::text_contact(old, p)
+                        || old
+                            .lines
+                            .iter()
+                            .any(|a| p.lines.iter().chain(&p.arrows).any(|b| lines_meet(*a, *b)))
+                })
+        };
+        let padded_contact =
+            final_inventory && extension_contacts(&all_extensions, &old.lines, old.label_box).1 > 0;
+        if !conflicts && reference.is_none() && !radius && !padded_contact {
             continue;
         }
         let Some(w) = wants
-            .get_or_insert_with(|| super::wants(analysis).0)
+            .get_or_insert_with(|| {
+                let mut wants = super::wants(analysis).0;
+                let frames = views
+                    .iter()
+                    .filter_map(|v| {
+                        let name = v.id.strip_prefix("v:")?;
+                        (super::NAMES.contains(&name) || crate::detail::NAMES.contains(&name))
+                            .then(|| (name, Frame::new(analysis, v)))
+                    })
+                    .collect();
+                // Late repairs need the same proven profile sites as the initial
+                // router, including section and detail transformations.
+                if !compact {
+                    super::detail_routes(analysis, &mut wants, views);
+                    super::route(&mut wants, &frames, analysis);
+                }
+                wants
+            })
             .iter()
             .find(|w| w.id == d.id)
         else {
             continue;
         };
+        let mut printed = w.clone();
+        printed.terms.clone_from(&d.terms);
+        printed.measurements.clone_from(&d.measurements);
+        if !compact
+            && crate::nominal::geometry_eligible(analysis)
+            && let Shape::Callout { sites, arcs } = &mut printed.shape
+        {
+            // Consolidation may leave one printed callout claiming several
+            // equivalent occurrences. Every claimed occurrence visible in this
+            // view remains a valid attachment after its raw alias is conveyed.
+            for peer in wants.as_ref().into_iter().flatten().filter(|peer| {
+                peer.id != d.id
+                    && peer.views.contains(&d.view.trim_start_matches("v:"))
+                    && peer.measurements.iter().any(|m| d.measurements.contains(m))
+            }) {
+                if let Shape::Callout {
+                    sites: more,
+                    arcs: span,
+                } = &peer.shape
+                {
+                    sites.extend(more.iter().copied());
+                    arcs.extend(span.iter().cloned());
+                }
+            }
+        }
+        let w = &printed;
         let (Shape::Callout { sites, arcs }, Some(v)) =
             (&w.shape, views.iter().find(|v| v.id == d.view))
         else {
@@ -1255,8 +1668,21 @@ pub(crate) fn settle_after_furniture(
         let view = v.id.trim_start_matches("v:");
         let ink = label_ink(&d.terms, font());
         let footprint = cache.get(analysis, v);
-        let model = if grazing(&frame, w).is_some() {
+        let model = if !compact || grazing(&frame, w).is_some() {
             cache.model(analysis, v)
+        } else {
+            None
+        };
+        let inspection = if compact {
+            None
+        } else {
+            model.as_ref().and_then(|ink| ink.0.inspection(analysis, v))
+        };
+        let profile_proof = if !compact && boss_profile(w) {
+            profile_proofs
+                .get_or_insert_with(|| super::interior::proofs(analysis, views))
+                .get(&v.id)
+                .map(|proof| (v, proof.as_ref()))
         } else {
             None
         };
@@ -1271,10 +1697,18 @@ pub(crate) fn settle_after_furniture(
             outline: frame.outline(),
             area: page.area(view),
             sites: page_sites(&frame, sites, arcs),
+            radial: !crate::nominal::comparison()
+                && w.measurements.iter().any(|m| {
+                    m.parameter == "slot_end_radius.radius"
+                        && crate::nominal::format(m.value)
+                            .split_once('.')
+                            .is_some_and(|(_, tail)| tail.len() > 1)
+                }),
             directed: false,
-            corridors: false,
+            // Enable the existing bounded corridor retry for a newly contacted route.
+            corridors: !compact,
             short_profile: boss_profile(w),
-            profile_proof: None,
+            profile_proof,
             silhouette: grazing(&frame, w),
             model: model.as_ref().map(|m| &m.as_ref().0),
             steer: std::cell::Cell::new(None),
@@ -1296,35 +1730,611 @@ pub(crate) fn settle_after_furniture(
                 .enumerate()
                 .filter_map(|(j, d)| Some((j, d.placed.as_ref()?))),
         );
+        let ordinary_inventory = || {
+            inventory(
+                &job,
+                &fixed,
+                &page,
+                false,
+                job.stroke_pad > 0.0
+                    && !crate::notches::requirements(analysis).is_empty()
+                    && w.measurements
+                        .iter()
+                        .any(|m| m.parameter == "polygon_across_flats.length"),
+            )
+            .0
+        };
+        let mut ordinary =
+            (!held && (!final_inventory || job.silhouette.is_some())).then(ordinary_inventory);
         let [tip, elbow] = old.lines[0];
         let end = old.lines[1][1];
         let Some(before) = measure_at(&job, tip, elbow, end, end[0] >= elbow[0], &fixed, &page)
         else {
             continue;
         };
-        let (candidates, ..) = inventory(
-            &job,
-            &fixed,
-            &page,
-            false,
-            job.stroke_pad > 0.0
-                && !crate::notches::requirements(analysis).is_empty()
-                && w.measurements
+        let radial = |c: &Candidate| {
+            !radius
+                || job.sites.iter().any(|&(centre, r, _)| {
+                    let u = [c.tip[0] - centre[0], c.tip[1] - centre[1]];
+                    let v = [c.elbow[0] - c.tip[0], c.elbow[1] - c.tip[1]];
+                    let norm = u[0].hypot(u[1]) * v[0].hypot(v[1]);
+                    r > 0.0
+                        && (u[0].hypot(u[1]) - r).abs()
+                            <= frame.scale() * crate::model::projected_ink::GRID
+                        && (u[0] * v[1] - u[1] * v[0]).abs() <= 1e-9 * norm
+                        && u[0] * v[0] + u[1] * v[1] > 0.0
+                })
+        };
+        let mut candidates = Vec::new();
+        let new_recess = legacy_reference.is_some_and(|r| matching(r).is_none())
+            && d.measurements
+                .iter()
+                .all(|m| m.feature.starts_with("f:section_recess:"));
+        let budget = reference.as_ref().map(|r| {
+            r.dimensions
+                .iter()
+                .find(|b| b.id == d.id && b.region == d.region)
+                .and_then(|b| b.placed.as_ref())
+                .map_or(length(&old.lines), |p| {
+                    // A new recess has no established paper corridor. Its compact
+                    // comparison may use a different scale; map that model reach
+                    // before comparing it with the current paper route.
+                    let reach = if new_recess {
+                        r.views
+                            .iter()
+                            .find(|q| q.id == d.view)
+                            .map_or(length(&p.lines), |q| {
+                                let shaft = length(&p.lines[..1]) * v.scale / q.scale;
+                                shaft + length(&p.lines[1..])
+                            })
+                    } else {
+                        length(&p.lines)
+                    };
+                    reach.min(length(&old.lines))
+                })
+                + 2.0
+        });
+        // A repair cannot lengthen an already shorter live corridor simply
+        // because the compact recipe took a longer path on another sheet.
+        if !held && reference.is_some() {
+            let delta = [elbow[0] - tip[0], elbow[1] - tip[1]];
+            let norm = delta[0].hypot(delta[1]);
+            for reach in [MIN_LEADER, 7.0, 8.0, 9.0, 11.0, 14.0, norm] {
+                let elbow = [0, 1].map(|k| tip[k] + delta[k] * reach / norm);
+                for right in [false, true] {
+                    for shoulder in [0.75, 3.0] {
+                        let end = [
+                            elbow[0] + if right { shoulder } else { -shoulder },
+                            elbow[1],
+                        ];
+                        let attached = moved_rim_tip(
+                            &job.sites,
+                            tip,
+                            elbow,
+                            frame.scale() * crate::model::projected_ink::GRID,
+                        );
+                        if let Some(c) =
+                            measure_at(&job, attached, elbow, end, right, &fixed, &page)
+                        {
+                            candidates.push(c);
+                        }
+                    }
+                }
+            }
+        }
+        let established = reference.as_ref().and_then(|reference| {
+            let old = reference.dimensions.iter().find(|old| {
+                old.id == d.id
+                    && old.view == d.view
+                    && old.region == d.region
+                    && old.measurements.iter().all(|m| d.measurements.contains(m))
+            })?;
+            let old_view = reference.views.iter().find(|old_view| {
+                old_view.id == d.view
+                    && old_view.direction == v.direction
+                    && old_view.up == v.up
+                    && old_view.cut == v.cut
+                    && old_view.detail == v.detail
+            })?;
+            let p = old.placed.as_ref()?;
+            let [old_tip, old_elbow] = p.lines[0];
+            let factor = v.scale / old_view.scale;
+            let map = |q: P2| [0, 1].map(|k| v.at[k] + factor * (q[k] - old_view.at[k]));
+            let tip = map(old_tip);
+            let mapped_elbow = map(old_elbow);
+            let delta = [mapped_elbow[0] - tip[0], mapped_elbow[1] - tip[1]];
+            let norm = delta[0].hypot(delta[1]);
+            if norm < 1e-9 {
+                return None;
+            }
+            let elbow = [0, 1].map(|k| tip[k] + delta[k] * norm.max(MIN_LEADER) / norm);
+            let right = p.lines[1][1][0] >= old_elbow[0];
+            let shoulder = (p.lines[1][1][0] - old_elbow[0]).abs();
+            let end = [
+                elbow[0] + if right { shoulder } else { -shoulder },
+                elbow[1],
+            ];
+            let budget = length(&p.lines) + 2.0;
+            let baseline = measure_at(&job, tip, elbow, end, right, &fixed, &page)?;
+            // Model attachments scale with the projection, but the shoulder and
+            // minimum readable leader length remain paper measurements.
+            if !held && norm > 1e-9 {
+                for reach in [MIN_LEADER, 7.0, 8.0, 9.0, 11.0, 14.0, norm] {
+                    let elbow = [0, 1].map(|k| tip[k] + delta[k] * reach / norm);
+                    for right in [right, !right] {
+                        for shoulder in [0.75, 3.0, shoulder] {
+                            let end = [
+                                elbow[0] + if right { shoulder } else { -shoulder },
+                                elbow[1],
+                            ];
+                            let attached = moved_rim_tip(
+                                &job.sites,
+                                tip,
+                                elbow,
+                                frame.scale() * crate::model::projected_ink::GRID,
+                            );
+                            if let Some(c) =
+                                measure_at(&job, attached, elbow, end, right, &fixed, &page)
+                            {
+                                candidates.push(c);
+                            }
+                        }
+                    }
+                }
+            }
+            Some((baseline, budget))
+        });
+        if let Some((c, _)) = &established {
+            candidates.push(c.clone());
+        }
+        let extensions: Vec<_> = others
+            .iter()
+            .enumerate()
+            .filter(|(_, d)| d.kind == "linear")
+            .flat_map(|(i, d)| {
+                d.placed
+                    .as_ref()
+                    .into_iter()
+                    .flat_map(move |p| p.lines.iter().take(2).map(move |line| (i, *line)))
+            })
+            .collect();
+        let prior_extensions = extension_contacts(&extensions, &old.lines, old.label_box);
+        let extension_ink: Vec<_> = extensions.iter().map(|(_, e)| *e).collect();
+        let extension_run =
+            |c: &Candidate| c.segments().iter().any(|s| runs_beside(*s, &extension_ink));
+        // Score the final collision predicate as well as the router's indexed tiers.
+        // Near-parallel runs and contacts with the other's arrow shaft must disappear
+        // on the live ink, including the reverse direction of a callout pair.
+        let live_contacts = |p: &Placed| -> std::collections::BTreeSet<usize> {
+            others
+                .iter()
+                .enumerate()
+                .filter_map(|(i, d)| {
+                    let q = d.placed.as_ref()?;
+                    let forward = p
+                        .lines
+                        .iter()
+                        .any(|a| q.lines.iter().chain(&q.arrows).any(|b| lines_meet(*a, *b)));
+                    let reverse = d.kind == "callout"
+                        && q.lines
+                            .iter()
+                            .any(|a| p.lines.iter().chain(&p.arrows).any(|b| lines_meet(*a, *b)));
+                    (forward || reverse || super::text_contact(p, q)).then_some(i)
+                })
+                .collect()
+        };
+        let prior_live = live_contacts(old);
+        let count_heads = |c: &Candidate, extensions: &[(usize, [P2; 2])]| {
+            extensions
+                .iter()
+                .filter(|(_, e)| {
+                    head(arrow(c.tip, c.elbow))
+                        .iter()
+                        .any(|h| touches_box(*h, grow(segment_bounds(*e), 0.2)))
+                })
+                .count()
+        };
+        let head_contacts = |c: &Candidate| count_heads(c, &extensions);
+        let outline_pad = LABEL_PAD
+            + (crate::model::projected_ink::TOLERANCE + crate::model::projected_ink::GRID)
+                * v.scale;
+        let outline_contacts = |c: &Candidate| {
+            job.model.map_or((0, 0), |ink| {
+                let ink = inspection.map_or(ink, |r| &r.visible);
+                (
+                    ink.touching(grow(c.label_box, outline_pad)),
+                    ink.touching(grow(segment_bounds([c.elbow, c.elbow]), outline_pad)),
+                )
+            })
+        };
+        let hidden_contacts =
+            |c: &Candidate| inspection.map(|ink| ink.hidden.route_crossings(c.segments()));
+        let drawn_run = |c: &Candidate| {
+            let drawn = inspection.map(|ink| &ink.drawn).or_else(|| {
+                (final_inventory && crate::nominal::geometry_eligible(analysis))
+                    .then_some(job.model)
+                    .flatten()
+            });
+            drawn.is_some_and(|ink| c.segments().iter().any(|s| ink.runs_beside(*s)))
+                || extension_run(c)
+        };
+        let baseline = established.as_ref().map_or(&before, |(b, _)| b);
+        // Spend the established drawing's crossing budget, rather than making
+        // an incidental reduction on a long detour permanent. This permits a
+        // shorter corridor while staying no worse than the established ink.
+        let hidden_limit = hidden_contacts(baseline).or_else(|| hidden_contacts(&before));
+        let hidden_clear = |c: &Candidate| {
+            hidden_contacts(c)
+                .zip(hidden_limit)
+                .is_none_or(|(now, limit)| now <= limit)
+        };
+        let historical_extensions: Vec<_> = reference
+            .iter()
+            .flat_map(|r| {
+                r.dimensions
                     .iter()
-                    .any(|m| m.parameter == "polygon_across_flats.length"),
+                    .enumerate()
+                    .filter(|(_, d)| d.kind == "linear")
+                    .filter_map(|(i, d)| {
+                        let old = r.views.iter().find(|v| v.id == d.view)?;
+                        let now = views.iter().find(|v| {
+                            v.id == d.view && v.direction == old.direction && v.up == old.up
+                        })?;
+                        let p = d.placed.as_ref()?;
+                        let factor = now.scale / old.scale;
+                        Some(p.lines.iter().take(2).map(move |line| {
+                            (
+                                i,
+                                line.map(|q| {
+                                    [0, 1].map(|k| now.at[k] + factor * (q[k] - old.at[k]))
+                                }),
+                            )
+                        }))
+                    })
+                    .flatten()
+            })
+            .collect();
+        let head_limit = if historical_extensions.is_empty() {
+            head_contacts(&before)
+        } else {
+            count_heads(baseline, &historical_extensions)
+        };
+        let current_outline = outline_contacts(&before);
+        let baseline_outline = outline_contacts(baseline);
+        let outline_limit = (
+            current_outline.0.min(baseline_outline.0),
+            current_outline.1.min(baseline_outline.1),
         );
-        let Some(next) = candidates
-            .into_iter()
-            .filter(|c| {
-                c.text < before.text
+        let heads_clear = |c: &Candidate| head_contacts(c) <= head_limit;
+        let outline_clear = |c: &Candidate| {
+            let contacts = outline_contacts(c);
+            let pad = grow(c.label_box, LABEL_PAD);
+            let page_pad = page.drawable();
+            contacts.0 <= outline_limit.0
+                && contacts.1 <= outline_limit.1
+                && (reference.is_none()
+                    || (pad[0] >= page_pad[0]
+                        && pad[1] >= page_pad[1]
+                        && pad[2] <= page_pad[2]
+                        && pad[3] <= page_pad[3]))
+        };
+        // A pre-existing ink run can be retained only with its established
+        // text too. Retain that compact label on its exact shaft before
+        // searching for another corridor; never move a held leader.
+        if final_inventory
+            && inspection.is_none()
+            && !compact
+            && drawn_run(&before)
+            && let Some((baseline, _)) = &established
+            && before
+                .segments()
+                .iter()
+                .flatten()
+                .zip(baseline.segments().iter().flatten())
+                .all(|(a, b)| (a[0] - b[0]).hypot(a[1] - b[1]) <= 1e-6)
+            && let Some(previous) = reference.and_then(|r| {
+                r.dimensions
+                    .iter()
+                    .find(|b| b.id == d.id && b.view == d.view && b.region == d.region)
+            })
+            && previous.terms != d.terms
+        {
+            let ink = label_ink(&previous.terms, font());
+            let mut compact_job = job.clone();
+            compact_job.ink_min = ink.min;
+            compact_job.ink_max = ink.max;
+            if let Some(c) = measure_at(
+                &compact_job,
+                tip,
+                elbow,
+                end,
+                end[0] >= elbow[0],
+                &fixed,
+                &page,
+            ) && (0..2).all(|k| {
+                c.label_box[k] >= old.label_box[k] - 1e-6
+                    && c.label_box[k + 2] <= old.label_box[k + 2] + 1e-6
+            }) && c.text <= before.text
+                && c.hard <= before.hard
+                && c.crossings <= before.crossings
+            {
+                let terms = previous.terms.clone();
+                let id = d.id.clone();
+                let mut restored = old.clone();
+                restored.label_at = c.label_at;
+                restored.label_box = c.label_box;
+                updated.insert(id, route_reports(w, view, footprint.solids(), [tip, elbow]));
+                items[i].label = terms.join(" ");
+                items[i].terms = terms;
+                items[i].placed = Some(restored);
+                items[i].basis +=
+                    "; established one-decimal text retained on its unchanged model-ink run";
+                continue;
+            }
+        }
+        if drawn_run(&before)
+            && established.as_ref().is_some_and(|(b, _)| {
+                before
+                    .segments()
+                    .iter()
+                    .flatten()
+                    .zip(b.segments().iter().flatten())
+                    .all(|(a, b)| (a[0] - b[0]).hypot(a[1] - b[1]) <= 1e-6)
+            })
+            && reference.is_some_and(|r| {
+                r.dimensions
+                    .iter()
+                    .any(|b| b.id == d.id && b.terms == d.terms)
+            })
+            && prior_live.is_empty()
+            && prior_extensions.1 == 0
+            && heads_clear(&before)
+        {
+            continue;
+        }
+        let historical_ink_clear = |c: &Candidate| {
+            inspection.is_some()
+                || established.as_ref().is_none_or(|(b, _)| {
+                    !job.model
+                        .is_some_and(|ink| ink.new_physical_crossing(&c.segments(), &b.segments()))
+                })
+        };
+        // Good routes have no growth repair to perform. In particular, do not
+        // spend a local search budget moving an already clear neighbouring callout.
+        if (reference.is_some() || radius)
+            && before.clear()
+            && radial(&before)
+            && before.feature_crossings == 0
+            && before.beside == 0
+            && before.grazing == 0
+            && prior_live.is_empty()
+            && prior_extensions == (0, 0)
+            && heads_clear(&before)
+            && outline_clear(&before)
+            && hidden_clear(&before)
+            && historical_ink_clear(&before)
+            && !drawn_run(&before)
+            && budget.is_none_or(|budget| length(&before.segments()) <= budget + 1e-6)
+            && established
+                .as_ref()
+                .is_none_or(|(b, _)| model_crossings(&job, &before) <= model_crossings(&job, b))
+        {
+            continue;
+        }
+        if !held {
+            let mut ordinary = ordinary.take().unwrap_or_else(ordinary_inventory);
+            ordinary.extend(candidates);
+            candidates = ordinary;
+        }
+        let acceptable = |c: &Candidate| {
+            // A moved radius statement must point towards its actual arc centre.
+            if !radial(c) {
+                return false;
+            }
+            // A shorter shelf still reads in the direction its shaft leaves the rim.
+            if (c.elbow[0] - c.tip[0]) * (c.end[0] - c.elbow[0]) < -1e-9 {
+                return false;
+            }
+            if compact {
+                return c.text < before.text
                     && c.hard <= before.hard
                     && c.crossings <= before.crossings
                     && c.feature_crossings <= before.feature_crossings
                     && c.furniture <= before.furniture
-                    && page.fits(&c.placed(), view)
-            })
-            .min_by_key(Candidate::score)
-        else {
+                    && page.fits(&c.placed(), view);
+            }
+            if budget.is_some_and(|budget| length(&c.segments()) > budget + 1e-6) {
+                return false;
+            }
+            let live = live_contacts(&c.placed());
+            let contacts = extension_contacts(&extensions, &c.segments(), c.label_box);
+            (c.text < before.text
+                || !radial(&before)
+                || live.len() < prior_live.len()
+                || contacts.1 < prior_extensions.1
+                || (reference.is_some()
+                    && (c.score() < before.score()
+                        || c.feature_crossings < before.feature_crossings
+                        || model_crossings(&job, c) < model_crossings(&job, &before)
+                        || contacts < prior_extensions
+                        || !heads_clear(&before)
+                        || !outline_clear(&before)
+                        || !hidden_clear(&before)
+                        || (drawn_run(&before) && !drawn_run(c)))))
+                && live.is_subset(&prior_live)
+                && c.text <= before.text
+                && c.hard <= before.hard
+                && c.crossings <= before.crossings
+                && c.feature_crossings
+                    <= established
+                        .as_ref()
+                        .map_or(before.feature_crossings, |(b, _)| {
+                            before.feature_crossings.max(b.feature_crossings)
+                        })
+                && c.furniture <= before.furniture
+                // The exterior shoulder must not trade an annotation contact for
+                // a new pass through its own view, even if another hard cost fell.
+                && (!super::placement::crosses([c.elbow, c.end], job.outline)
+                    || super::placement::crosses([before.elbow, before.end], job.outline))
+                && c.grazing <= before.grazing
+                && c.beside <= before.beside
+                && c.clearance
+                    <= established
+                        .as_ref()
+                        .map_or(before.clearance, |(b, _)| before.clearance.max(b.clearance))
+                && model_crossings(&job, c)
+                    <= established
+                        .as_ref()
+                        .map_or(model_crossings(&job, &before), |(b, _)| {
+                            model_crossings(&job, &before).max(model_crossings(&job, b))
+                        })
+                && contacts.0 <= prior_extensions.0
+                && contacts.1 <= prior_extensions.1
+                && !drawn_run(c)
+                && hidden_clear(c)
+                && historical_ink_clear(c)
+                && (reference.is_none() || {
+                    let outline = job.model;
+                    (!outline.is_some_and(|ink| {
+                        ink.new_physical_crossing(&c.segments(), &before.segments())
+                    }) || model_crossings(&job, c) < model_crossings(&job, &before)
+                        // A genuine hard-contact repair may use another edge at
+                        // the established intersection budget; a shorter route
+                        // alone does not license that exchange.
+                        || ((c.hard < before.hard || hidden_contacts(c).zip(hidden_contacts(&before)).is_some_and(|(a,b)|a<b)) && established.as_ref().is_some_and(|(b, _)| model_crossings(&job, c) <= model_crossings(&job, b)))
+                        || established.as_ref().is_some_and(|(baseline, _)| {
+                            !outline.is_some_and(|ink| {
+                                ink.new_physical_crossing(&c.segments(), &baseline.segments())
+                            })
+                        }))
+                        && outline_clear(c)
+                        && heads_clear(c)
+                })
+                && (page.fits(&c.placed(), view)
+                    || (reference.is_some() && {
+                        let mut reserved = views.to_vec();
+                        let mut ink = items.to_vec();
+                        ink[i].placed = Some(c.placed());
+                        crate::sheet_fit::reserve_nominal_bounds(
+                            analysis,
+                            sheet,
+                            &mut reserved,
+                            &ink,
+                            &[],
+                        );
+                        Page::new(analysis, sheet, &reserved).fits(&c.placed(), view)
+                    }))
+        };
+        let rank = |c: &Candidate| {
+            let contacts = extension_contacts(&extensions, &c.segments(), c.label_box);
+            // Hidden and physical crossing budgets are enforced above. Within
+            // those budgets prefer a clear, short readable corridor; one fewer
+            // hidden edge must not buy an unnecessarily long detour.
+            (
+                c.hard,
+                c.text,
+                c.feature_crossings,
+                head_contacts(c),
+                outline_contacts(c),
+                contacts.1,
+                c.beside,
+                contacts.0,
+                (length(&c.segments()) * 1e6).round() as i64,
+                established.as_ref().map_or(0, |(b, _)| {
+                    job.model.map_or(0, |ink| {
+                        ink.new_physical_count(&c.segments(), &b.segments())
+                    })
+                }),
+                hidden_contacts(c).unwrap_or(0),
+                c.score(),
+            )
+        };
+        let partial = candidates.into_iter().filter(&acceptable).min_by(|a, b| {
+            if compact {
+                a.score().cmp(&b.score())
+            } else {
+                rank(a).cmp(&rank(b))
+            }
+        });
+        let next = if held {
+            None
+        } else {
+            partial
+                .clone()
+                .filter(|c| reference.is_none() || c.clear())
+                .or_else(|| {
+                    // The final label may have grown into a peer's corridor. Keep its proven
+                    // attachment and try bounded half-mm elbow/shelf translations, nearest first.
+                    // Every material, furniture, text and arrowhead gate still applies.
+                    if compact {
+                        return None;
+                    }
+                    let mut fallback = partial.clone();
+                    let mut centres = vec![(tip, elbow)];
+                    if let Some((b, _)) = &established {
+                        centres.push((b.tip, b.elbow));
+                    }
+                    for (tip, elbow) in centres {
+                        for ring in 1_i32..=if reference.is_some() { 32 } else { 14 } {
+                            for dx in -ring..=ring {
+                                for dy in -ring..=ring {
+                                    if dx.abs().max(dy.abs()) != ring {
+                                        continue;
+                                    }
+                                    let elbow = [
+                                        elbow[0] + f64::from(dx) * 0.5,
+                                        elbow[1] + f64::from(dy) * 0.5,
+                                    ];
+                                    if reference.is_none() {
+                                        let right = elbow[0] >= tip[0];
+                                        if let Some(c) =
+                                            measure(&job, tip, elbow, right, &fixed, &page)
+                                            && acceptable(&c)
+                                        {
+                                            return Some(c);
+                                        }
+                                        continue;
+                                    }
+                                    for right in [elbow[0] >= tip[0], elbow[0] < tip[0]] {
+                                        for shoulder in [0.75, 3.0] {
+                                            let end = [
+                                                elbow[0] + if right { shoulder } else { -shoulder },
+                                                elbow[1],
+                                            ];
+                                            let attached = moved_rim_tip(
+                                                &job.sites,
+                                                tip,
+                                                elbow,
+                                                frame.scale() * crate::model::projected_ink::GRID,
+                                            );
+                                            if let Some(c) = measure_at(
+                                                &job, attached, elbow, end, right, &fixed, &page,
+                                            ) && acceptable(&c)
+                                            {
+                                                if c.clear() {
+                                                    return Some(c);
+                                                }
+                                                // Dense views can retain an old crossing while
+                                                // repairing a padded text/head/outline contact.
+                                                // Keep that improvement if no clear route exists.
+                                                if fallback
+                                                    .as_ref()
+                                                    .is_none_or(|b| c.score() < b.score())
+                                                {
+                                                    fallback = Some(c);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    fallback
+                })
+                .or(partial)
+        };
+        let Some(next) = next else {
             continue;
         };
         let mut printed = w.clone();
@@ -1383,42 +2393,91 @@ pub(super) fn seed_established(
     chosen: &[Option<&str>],
     placed: &mut [Option<Placed>],
     page: &Page,
-) {
+) -> bool {
+    let native_corridors = items
+        .iter()
+        .flat_map(|w| &w.measurements)
+        .any(|m| m.feature.starts_with("f:section_recess:"));
     let key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
         .expect("presentation inputs serialize");
-    let Some(reference) = crate::planning::lookup::<
-        Result<crate::model::Plan, crate::model::Invalid>,
-    >(analysis, "established-drawing", &key)
-    .and_then(Result::ok) else {
-        return;
+    let nominal = nominal_reference(analysis, spec, items);
+    let is_nominal = nominal.is_some();
+    let Some(reference) = nominal.or_else(|| {
+        crate::planning::lookup::<Result<crate::model::Plan, crate::model::Invalid>>(
+            analysis,
+            "established-drawing",
+            &key,
+        )
+        .and_then(Result::ok)
+    }) else {
+        return false;
     };
+    let mut seeded = false;
     for (i, w) in items.iter().enumerate() {
         if placed[i].is_some() || !matches!(w.shape, Shape::Callout { .. }) {
             continue;
         }
-        let Some(d) = reference
-            .dimensions
-            .iter()
-            .find(|d| d.id == w.id && d.kind == "callout")
-        else {
+        if is_nominal
+            && w.measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:section_recess:"))
+        {
+            continue;
+        }
+        let Some(d) = reference.dimensions.iter().find(|d| {
+            d.id == w.id
+                && d.kind == "callout"
+                && d.measurements.iter().all(|m| w.measurements.contains(m))
+        }) else {
             continue;
         };
         if reference.problems.iter().any(|p| {
             p.subjects.contains(&d.id)
-                && matches!(
+                && (matches!(
                     p.code.as_str(),
                     "annotation_line_over_view" | "annotation_leader_long"
-                )
+                ) || (!native_corridors
+                    && matches!(
+                        p.code.as_str(),
+                        "annotation_leader_crossing"
+                            | "annotation_ink_overlap"
+                            | "annotation_overlap"
+                            | "annotation_over_view"
+                    )))
         }) {
             continue;
         }
-        let Some(p) = translated(&reference, d, views, w) else {
+        let p = if is_nominal {
+            nominal_route(&reference, d, views, w)
+        } else {
+            translated(&reference, d, views, w)
+        };
+        let Some(p) = p else {
             continue;
         };
+        if !crate::nominal::comparison()
+            && w.measurements.iter().any(|m| {
+                m.parameter == "slot_end_radius.radius"
+                    && crate::nominal::format(m.value)
+                        .split_once('.')
+                        .is_some_and(|(_, tail)| tail.len() > 1)
+            })
+            && let Shape::Callout { sites, arcs } = &w.shape
+            && let Some(v) = views.iter().find(|v| v.id == d.view)
+            && !radial_shaft(
+                &page_sites(&Frame::new(analysis, v), sites, arcs),
+                p.lines[0][0],
+                p.lines[0][1],
+            )
+        {
+            continue;
+        }
         if chosen[i].is_some_and(|v| d.view == format!("v:{v}") && page.fits(&p, v)) {
             placed[i] = Some(p);
+            seeded = true;
         }
     }
+    seeded
 }
 
 fn translated(
@@ -1439,6 +2498,42 @@ fn translated(
     for q in p.lines.iter_mut().chain(&mut p.arrows).flatten() {
         q[0] += delta[0];
         q[1] += delta[1];
+    }
+    for (k, shift) in delta.into_iter().enumerate() {
+        p.label_at[k] += shift;
+        p.label_box[k] += shift;
+        p.label_box[k + 2] += shift;
+    }
+    Some(p)
+}
+
+fn nominal_route(
+    before: &crate::model::Plan,
+    d: &PlannedDimension,
+    views: &[crate::model::PlannedView],
+    w: &Want,
+) -> Option<Placed> {
+    let old = before.views.iter().find(|v| v.id == d.view)?;
+    let now = views.iter().find(|v| {
+        v.id == d.view
+            && v.direction == old.direction
+            && v.up == old.up
+            && v.scale == old.scale
+            && v.cut == old.cut
+            && v.detail == old.detail
+    })?;
+    let mut p = super::placement::relabel(d.placed.as_ref()?, &d.terms, w);
+    // The shoulder is a paper leader, not a width measurement of the text.
+    // Keep it short when the accurately printed nominal gains digits.
+    p.lines = d.placed.as_ref()?.lines.clone();
+    let [tip_at, elbow_at] = *p.lines.first()?;
+    let [_, end_at] = *p.lines.last()?;
+    if (elbow_at[0] - tip_at[0]) * (end_at[0] - elbow_at[0]) < -1e-6 {
+        return None;
+    }
+    let delta = [0, 1].map(|k| now.at[k] - old.at[k]);
+    for q in p.lines.iter_mut().chain(&mut p.arrows).flatten() {
+        crate::placement_intent::move_point(q, delta);
     }
     for (k, shift) in delta.into_iter().enumerate() {
         p.label_at[k] += shift;
@@ -1601,33 +2696,38 @@ fn refine_uncached(
     // Bare API plans do not run sheet recovery. Give their final callout repair
     // an established same-scale recipe without changing the lane solve or its
     // inventory. The final drawing always uses the full original Analysis.
-    let reference = established_reference.or_else(|| {
-        if !items.iter().any(|w| {
-            w.measurements
-                .iter()
-                .any(|m| m.feature.starts_with("f:section_recess:"))
-        }) || obstacles.iter().any(|d| d.kind == "callout")
-        {
-            return None;
-        }
-        let key = serde_json::to_vec(&(&sheet.size, &sheet.scale, &spec.sheet.projection))
-            .expect("bare route inputs serialize");
-        crate::planning::memo(analysis, "bare-leader-reference", key, || {
-            let mut base = analysis.clone();
-            base.features.retain(|f| f.kind != "section_recess");
-            let mut recipe = crate::model::Spec::default();
-            recipe.sheet.size = Some(sheet.size.clone());
-            recipe.sheet.scale = Some(sheet.scale.clone());
-            recipe.sheet.projection = spec.sheet.projection.clone();
-            crate::model::plan(&base, &recipe).ok()
-        })
-    });
+    let reference = nominal_reference(analysis, spec, items)
+        .or(established_reference)
+        .or_else(|| {
+            if !items.iter().any(|w| {
+                w.measurements
+                    .iter()
+                    .any(|m| m.feature.starts_with("f:section_recess:"))
+            }) || obstacles.iter().any(|d| d.kind == "callout")
+            {
+                return None;
+            }
+            let key = serde_json::to_vec(&(&sheet.size, &sheet.scale, &spec.sheet.projection))
+                .expect("bare route inputs serialize");
+            crate::planning::memo(analysis, "bare-leader-reference", key, || {
+                let mut base = analysis.clone();
+                base.features.retain(|f| f.kind != "section_recess");
+                let mut recipe = crate::model::Spec::default();
+                recipe.sheet.size = Some(sheet.size.clone());
+                recipe.sheet.scale = Some(sheet.scale.clone());
+                recipe.sheet.projection = spec.sheet.projection.clone();
+                crate::model::plan(&base, &recipe).ok()
+            })
+        });
     let legacy = |i: usize| {
         reference.as_ref().and_then(|p| {
             p.dimensions.iter().find(|d| {
                 d.id == items[i].id
                     && d.kind == "callout"
                     && d.view.strip_prefix("v:") == views_of[i]
+                    && d.measurements
+                        .iter()
+                        .all(|m| items[i].measurements.contains(m))
             })
         })
     };
@@ -1835,7 +2935,7 @@ fn refine_uncached(
         // Include slides along that exact shaft, preserving its real attachment
         // and the normal material, length and witness gates.
         let established = legacy(i)
-            .and_then(|d| translated(reference.as_ref()?, d, views, w))
+            .and_then(|d| nominal_route(reference.as_ref()?, d, views, w))
             .or_else(|| (edited_text && repair_text).then(|| old.clone()));
         let clear_new_text = repair_text
             && !w.measurements.is_empty()
@@ -1882,6 +2982,13 @@ fn refine_uncached(
             outline: frame.outline(),
             area: page.area(view),
             sites: page_sites.clone(),
+            radial: !crate::nominal::comparison()
+                && w.measurements.iter().any(|m| {
+                    m.parameter == "slot_end_radius.radius"
+                        && crate::nominal::format(m.value)
+                            .split_once('.')
+                            .is_some_and(|(_, tail)| tail.len() > 1)
+                }),
             silhouette: grazing(frame, w),
             model: None,
             short_profile: boss_profile(w),
@@ -2592,9 +3699,186 @@ fn grow(b: [f64; 4], d: f64) -> [f64; 4] {
 /// A conservative broad phase for the final route checks. Dense models have
 /// thousands of tessellated edge segments; a candidate still receives the exact
 /// same predicates, but only against segments whose closed bounds can meet it.
+struct PhysicalEdge {
+    bounds: [f64; 4],
+    chords: Vec<[P2; 2]>,
+}
+impl PhysicalEdge {
+    fn new(chords: Vec<[P2; 2]>) -> Self {
+        let bounds = chords.iter().flatten().fold(
+            [
+                f64::INFINITY,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+                f64::NEG_INFINITY,
+            ],
+            |b, p| {
+                [
+                    b[0].min(p[0]),
+                    b[1].min(p[1]),
+                    b[2].max(p[0]),
+                    b[3].max(p[1]),
+                ]
+            },
+        );
+        Self { bounds, chords }
+    }
+    fn crossed_by(&self, lines: &[[P2; 2]]) -> bool {
+        lines.iter().any(|line| {
+            boxes_meet(self.bounds, segment_bounds(*line))
+                && self.chords.iter().any(|edge| segments_cross(*line, *edge))
+        })
+    }
+}
+
+struct ResolvedInk {
+    visible: SegmentIndex,
+    hidden: SegmentIndex,
+    drawn: SegmentIndex,
+}
+
+fn resolved_ink(
+    analysis: &crate::model::Analysis,
+    ink: &crate::model::projected_ink::EdgeInk,
+    v: &crate::model::PlannedView,
+) -> Option<ResolvedInk> {
+    use crate::output::{Curve, Item};
+    if crate::nominal::authored_pmi(analysis)
+        || v.id == "v:iso"
+        || v.cut.is_some()
+        || v.detail.is_some()
+    {
+        return None;
+    }
+    let actual = haecceity::hlr::View::new(v.direction, v.up)?;
+    let source = ink.resolved.iter().find(|r| {
+        r.direction
+            .iter()
+            .zip(actual.toward)
+            .all(|(a, b)| (a - b).abs() < 1e-9)
+    })?;
+    let camera = haecceity::hlr::View::new(source.direction, source.up)?;
+    let frame = Frame::new(analysis, v);
+    let map = |p: P2| frame.page([0, 1, 2].map(|k| camera.x[k] * p[0] + camera.y[k] * p[1]));
+    let origin = map([0., 0.]);
+    let transform = |c: &Curve| match c {
+        Curve::Line(a, b) => Curve::Line(map(*a), map(*b)),
+        Curve::Conic {
+            centre,
+            radii,
+            x_axis,
+            y_axis,
+            t0,
+            t1,
+        } => {
+            let axis = |p: P2| {
+                let q = map(p);
+                [0, 1].map(|k| (q[k] - origin[k]) / v.scale)
+            };
+            Curve::Conic {
+                centre: map(*centre),
+                radii: radii.map(|r| r * v.scale),
+                x_axis: axis(*x_axis),
+                y_axis: axis(*y_axis),
+                t0: *t0,
+                t1: *t1,
+            }
+        }
+        Curve::Beziers(p) => Curve::Beziers(
+            p.iter()
+                .map(|p| p.iter().map(|p| map(*p)).collect())
+                .collect(),
+        ),
+        Curve::Rational(p) => Curve::Rational(
+            p.iter()
+                .map(|p| {
+                    p.iter()
+                        .map(|p| {
+                            let q = map([p[0], p[1]]);
+                            [
+                                q[0] + origin[0] * (p[2] - 1.),
+                                q[1] + origin[1] * (p[2] - 1.),
+                                p[2],
+                            ]
+                        })
+                        .collect()
+                })
+                .collect(),
+        ),
+    };
+    let visible: Vec<_> = source
+        .visible
+        .iter()
+        .map(|c| Item::Edge(crate::linework::stable_curve(transform(c))))
+        .collect();
+    let hidden = if v.line_style.hidden == Some(false) {
+        Vec::new()
+    } else {
+        crate::linework::hidden(
+            &visible,
+            source
+                .hidden
+                .iter()
+                .map(|c| Item::Edge(crate::linework::stable_curve(transform(c))))
+                .collect(),
+        )
+    };
+    fn flatten(c: &Curve, a: f64, b: f64, depth: usize, into: &mut Vec<[P2; 2]>) {
+        let (p, q) = (c.at(a), c.at(b));
+        let flat = [0.25, 0.5, 0.75].iter().all(|t| {
+            let x = c.at(a + t * (b - a));
+            (x[0] - p[0] - t * (q[0] - p[0])).hypot(x[1] - p[1] - t * (q[1] - p[1])) <= 0.002
+        });
+        if depth >= 20 || flat {
+            into.push([p, q]);
+        } else {
+            let m = (a + b) * 0.5;
+            flatten(c, a, m, depth + 1, into);
+            flatten(c, m, b, depth + 1, into);
+        }
+    }
+    let sample = |items: &[Item]| {
+        let mut lines = Vec::new();
+        for item in items {
+            if let Item::Edge(c) = item {
+                let c = crate::output::inspection_curve(c);
+                match c {
+                    Curve::Line(a, b) => lines.push([a, b]),
+                    Curve::Beziers(pieces) => {
+                        for p in pieces {
+                            if p.len() == 2 {
+                                lines.push([p[0], p[1]]);
+                            } else {
+                                flatten(&Curve::Beziers(vec![p]), 0., 1., 0, &mut lines);
+                            }
+                        }
+                    }
+                    _ => {
+                        for i in 0..4 {
+                            flatten(&c, i as f64 / 4., (i + 1) as f64 / 4., 0, &mut lines);
+                        }
+                    }
+                }
+            }
+        }
+        lines
+    };
+    let visible = sample(&visible);
+    let hidden = sample(&hidden);
+    let drawn = SegmentIndex::new(visible.iter().chain(&hidden).copied().collect());
+    Some(ResolvedInk {
+        visible: SegmentIndex::new(visible),
+        hidden: SegmentIndex::exported(hidden),
+        drawn,
+    })
+}
+
 pub(super) struct SegmentIndex {
     bounds: [f64; 4],
     ink: Vec<[P2; 2]>,
+    physical: Vec<PhysicalEdge>,
+    resolved: std::cell::OnceCell<Option<Box<ResolvedInk>>>,
+    exported: bool,
     children: Option<Box<[SegmentIndex; 2]>>,
     counts: std::cell::RefCell<std::collections::HashMap<[u64; 4], usize>>,
     besides: std::cell::RefCell<std::collections::HashMap<[u64; 4], bool>>,
@@ -2603,6 +3887,46 @@ pub(super) struct SegmentIndex {
 }
 
 impl SegmentIndex {
+    pub(super) fn for_view(
+        analysis: &crate::model::Analysis,
+        ink: &crate::model::projected_ink::EdgeInk,
+        view: &crate::model::PlannedView,
+    ) -> (Self, Vec<[f64; 4]>) {
+        let (model, uncertain) = view_ink(analysis, ink, view);
+        let mut physical = Vec::new();
+        if view.id != "v:iso"
+            && view.cut.is_none()
+            && !view.detail.as_ref().is_some_and(|d| d.source_cut.is_some())
+        {
+            let frame = Frame::new(analysis, view);
+            let mut n = 0;
+            for edge in &ink.edges {
+                let chords: Vec<_> = edge
+                    .windows(2)
+                    .map(|p| [frame.page(p[0]), frame.page(p[1])])
+                    .collect();
+                n += chords.len();
+                if !chords.is_empty() {
+                    physical.push(PhysicalEdge::new(chords));
+                }
+            }
+            physical.extend(model[n..].iter().map(|s| PhysicalEdge::new(vec![*s])));
+        }
+        let mut index = Self::new(model);
+        index.physical = physical;
+        (index, uncertain)
+    }
+
+    fn inspection<'a>(
+        &'a self,
+        analysis: &crate::model::Analysis,
+        view: &crate::model::PlannedView,
+    ) -> Option<&'a ResolvedInk> {
+        self.resolved
+            .get_or_init(|| resolved_ink(analysis, analysis.edge_ink.as_ref()?, view).map(Box::new))
+            .as_deref()
+    }
+
     pub(super) fn new(mut ink: Vec<[P2; 2]>) -> Self {
         let bounds = ink.iter().map(|s| segment_bounds(*s)).fold(
             [
@@ -2636,6 +3960,9 @@ impl SegmentIndex {
         Self {
             bounds,
             ink,
+            physical: Vec::new(),
+            resolved: std::cell::OnceCell::new(),
+            exported: false,
             children,
             counts: std::cell::RefCell::default(),
             besides: std::cell::RefCell::default(),
@@ -2806,6 +4133,20 @@ impl SegmentIndex {
         }
     }
 
+    fn exported(ink: Vec<[P2; 2]>) -> Self {
+        fn mark(index: &mut SegmentIndex) {
+            index.exported = true;
+            if let Some(children) = &mut index.children {
+                for child in children.iter_mut() {
+                    mark(child);
+                }
+            }
+        }
+        let mut index = Self::new(ink);
+        mark(&mut index);
+        index
+    }
+
     // Count each projected edge once, even when both legs cross it. This is
     // the router's original full-scan predicate, queried through the same tree.
     fn route_crossings(&self, lines: [[P2; 2]; 2]) -> usize {
@@ -2834,7 +4175,15 @@ impl SegmentIndex {
         } else {
             self.ink
                 .iter()
-                .filter(|edge| lines.iter().any(|line| segments_cross(*line, **edge)))
+                .filter(|edge| {
+                    lines.iter().any(|line| {
+                        if self.exported {
+                            exported_cross(*line, **edge)
+                        } else {
+                            segments_cross(*line, **edge)
+                        }
+                    })
+                })
                 .count()
         }
     }
@@ -2853,6 +4202,27 @@ impl SegmentIndex {
                     && !old.iter().any(|line| segments_cross(*line, *edge))
             })
         }
+    }
+
+    fn new_physical_count(&self, next: &[[P2; 2]], old: &[[P2; 2]]) -> usize {
+        if self.physical.is_empty() {
+            return usize::from(self.new_crossing(next, old));
+        }
+        self.physical
+            .iter()
+            .filter(|edge| edge.crossed_by(next) && !edge.crossed_by(old))
+            .count()
+    }
+
+    /// Compare original CAD edges, not the sampled chords of the same curve.
+    /// Different parts of one curved edge retain its physical identity.
+    pub(super) fn new_physical_crossing(&self, next: &[[P2; 2]], old: &[[P2; 2]]) -> bool {
+        if self.physical.is_empty() {
+            return self.new_crossing(next, old);
+        }
+        self.physical
+            .iter()
+            .any(|edge| edge.crossed_by(next) && !edge.crossed_by(old))
     }
 
     pub(super) fn crosses_box(&self, bounds: [f64; 4]) -> bool {
@@ -3284,6 +4654,28 @@ fn rim_tip(site: Site, elbow: P2) -> P2 {
         return [c[0] + r * a.cos(), c[1] + r * a.sin()];
     }
     [c[0] + r * d[0] / n, c[1] + r * d[1] / n]
+}
+
+/// Reattach to the same proven rim when a bounded growth repair moves its elbow.
+fn moved_rim_tip(sites: &[Site], anchor: P2, elbow: P2, grid: f64) -> P2 {
+    let on = |s: &Site| ((s.0[0] - anchor[0]).hypot(s.0[1] - anchor[1]) - s.1).abs();
+    // Arc sampling also contributes zero-radius surface points. Prefer the
+    // actual circle at that point so moving the elbow keeps a radial shaft.
+    // Stored comparison tips use the model's grid; allow that rounding when
+    // identifying their rim, then compute the new attachment on the true arc.
+    let site = *sites
+        .iter()
+        .filter(|s| s.1 > 0.0 && on(s) <= grid.max(1e-6))
+        .min_by(|a, b| on(a).total_cmp(&on(b)))
+        .or_else(|| sites.iter().min_by(|a, b| on(a).total_cmp(&on(b))))
+        .expect("a callout has a site");
+    // A retained profile attachment can be a proven surface point rather
+    // than one of this group's representative sites. Do not jump to another
+    // occurrence when only its elbow is being repaired.
+    if on(&site) > grid.max(1e-6) {
+        return anchor;
+    }
+    rim_tip(site, elbow)
 }
 
 /// An explicit shoulder keeps its station; attach radially to its nearest proven feature site.
@@ -3863,6 +5255,18 @@ fn measure_at(
     Some(c)
 }
 
+fn radial_shaft(sites: &[Site], tip: P2, elbow: P2) -> bool {
+    sites.iter().any(|&(centre, r, _)| {
+        let u = [tip[0] - centre[0], tip[1] - centre[1]];
+        let v = [elbow[0] - tip[0], elbow[1] - tip[1]];
+        let norm = u[0].hypot(u[1]) * v[0].hypot(v[1]);
+        r > 0.0
+            && (u[0].hypot(u[1]) - r).abs() < crate::lint::leaders::TOLERANCE
+            && (u[0] * v[1] - u[1] * v[0]).abs() <= 1e-9 * norm
+            && u[0] * v[0] + u[1] * v[1] > 0.0
+    })
+}
+
 fn measure_at_bounds(
     job: &Job,
     tip: P2,
@@ -3871,6 +5275,9 @@ fn measure_at_bounds(
     right: bool,
     page: &Page,
 ) -> Option<Candidate> {
+    if job.radial && !radial_shaft(&job.sites, tip, elbow) {
+        return None;
+    }
     if job.sites.iter().any(|s| s.2.is_some())
         && !job.sites.iter().any(|&(c, r, span)| {
             span.is_some_and(|span| {
@@ -4235,6 +5642,13 @@ pub fn clear_routes(
         outline: f.outline(),
         area: page.area(view),
         sites: page_sites(f, sites, arcs),
+        radial: !crate::nominal::comparison()
+            && w.measurements.iter().any(|m| {
+                m.parameter == "slot_end_radius.radius"
+                    && crate::nominal::format(m.value)
+                        .split_once('.')
+                        .is_some_and(|(_, tail)| tail.len() > 1)
+            }),
         silhouette: grazing(f, w),
         model: None,
         short_profile: false,
@@ -4348,6 +5762,15 @@ fn through(s: [P2; 2], p: P2) -> bool {
     let u = [s[1][0] - s[0][0], s[1][1] - s[0][1]];
     let n = u[0].hypot(u[1]);
     n > 1e-9 && ((p[0] - s[0][0]) * u[1] - (p[1] - s[0][1]) * u[0]).abs() / n < 1e-3
+}
+
+// SVG endpoint rounding can turn an analytic endpoint touch into a crossing.
+// Use the exported-ink product predicate for those curves, independently of the
+// router's analytic endpoint tolerance.
+fn exported_cross(a: [P2; 2], b: [P2; 2]) -> bool {
+    let side = |p: P2, q: P2, r: P2| (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+    side(a[0], a[1], b[0]) * side(a[0], a[1], b[1]) < -1e-12
+        && side(b[0], b[1], a[0]) * side(b[0], b[1], a[1]) < -1e-12
 }
 
 /// Whether two segments cross at a point inside both (touching ends and collinear runs do not
@@ -4976,7 +6399,11 @@ mod tests {
             if !unchanged {
                 let sine = (r[0] * shaft[1] - r[1] * shaft[0]).abs()
                     / (r[0].hypot(r[1]) * shaft[0].hypot(shaft[1]));
-                assert!(sine < 1e-9, "{}: moved radius leader must be radial", d.id);
+                assert!(
+                    sine < 1e-9,
+                    "{}: moved radius leader must be radial; tip={tip:?}, elbow={elbow:?}, centre={centre:?}, sites={sites:?}",
+                    d.id
+                );
                 assert!(r[0] * shaft[0] + r[1] * shaft[1] > 0.0);
             }
             checked += 1;
@@ -5646,6 +7073,135 @@ mod arc_tip_tests {
     use super::*;
 
     #[test]
+    fn resolved_visibility_survives_analysis_round_trip_and_matches_rendered_curves() {
+        use crate::model::{self, Analysis, Projections, Spec};
+        use crate::output::{Curve, Item};
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/parts/grm02.step");
+        let (part, mut analysis) = model::analyse_native(&path).unwrap();
+        // Resolved visibility is optional evidence. Exercise its serialized
+        // contract explicitly for all three principal projections.
+        let resolved = crate::model::projected_ink::resolved(
+            &part,
+            &analysis.binding,
+            &super::super::NAMES.into_iter().collect(),
+        );
+        analysis.edge_ink.as_mut().unwrap().resolved = resolved;
+        let analysis: Analysis =
+            serde_json::from_slice(&serde_json::to_vec(&analysis).unwrap()).unwrap();
+        assert_eq!(analysis.edge_ink.as_ref().unwrap().resolved.len(), 3);
+        let plan = model::plan(&analysis, &Spec::default()).unwrap();
+        let geometry =
+            model::render_geometry(&part, &analysis, &plan, &mut Projections::default()).unwrap();
+        // Reusing recognition's exact projection must produce the same visible
+        // and hidden geometry as a cold kernel projection of every camera.
+        let mut cold = analysis.clone();
+        cold.binding.source_sha256 = "uncached projection reference".into();
+        let reference =
+            model::render_geometry(&part, &cold, &plan, &mut Projections::default()).unwrap();
+        assert_eq!(
+            serde_json::to_value(&geometry).unwrap(),
+            serde_json::to_value(&reference).unwrap(),
+        );
+        let mut views = 0;
+        let mut hidden = false;
+        for view in plan
+            .views
+            .iter()
+            .filter(|v| v.id != "v:iso" && v.cut.is_none() && v.detail.is_none())
+        {
+            let (index, _) =
+                SegmentIndex::for_view(&analysis, analysis.edge_ink.as_ref().unwrap(), view);
+            let resolved = index
+                .inspection(&analysis, view)
+                .expect("principal ink is in the serialized Analysis");
+            let drawn = &geometry
+                .views
+                .iter()
+                .find(|(id, _)| id == &view.id)
+                .unwrap()
+                .1;
+            hidden |= !drawn.hidden.is_empty();
+            let b = Frame::new(&analysis, view).outline();
+            for i in 0..19 {
+                let y = |f: f64| b[1] + (i as f64 + f) / 19. * (b[3] - b[1]);
+                let line = [[b[0] - 3., y(0.37)], [b[2] + 3., y(0.79)]];
+                for (expected, actual) in [
+                    (&drawn.visible, &resolved.visible),
+                    (&drawn.hidden, &resolved.hidden),
+                ] {
+                    // Independent dense sampling of the renderer's actual curves,
+                    // rather than the router's adaptive sampler or coarse B-rep edges.
+                    let crossings: usize = expected
+                        .iter()
+                        .map(|item| match item {
+                            Item::Edge(c) => {
+                                let n = if matches!(c, Curve::Line(..)) {
+                                    1
+                                } else {
+                                    4096
+                                };
+                                (0..n)
+                                    .filter(|i| {
+                                        segments_cross(
+                                            line,
+                                            [
+                                                c.at(*i as f64 / n as f64),
+                                                c.at((*i + 1) as f64 / n as f64),
+                                            ],
+                                        )
+                                    })
+                                    .count()
+                            }
+                            _ => 0,
+                        })
+                        .sum();
+                    assert_eq!(actual.crossings(line), crossings, "{} query {i}", view.id);
+                }
+            }
+            views += 1;
+        }
+        assert!(views >= 2 && hidden);
+    }
+
+    #[test]
+    fn exported_hidden_ink_counts_rounded_endpoint_crossings() {
+        // FTC-10: the analytic leader meets the hidden edge's endpoint.
+        // Rounding the SVG endpoint to six places leaves a strict crossing.
+        let route = [
+            [[311.05331089993444, 300.0213243599738], [323.5, 305.]],
+            [[323.5, 305.], [324.25, 305.]],
+        ];
+        let edge = [[314.902, 303.], [318.5, 303.]];
+        assert!(!segments_cross(route[0], edge));
+        let mut ink = vec![edge];
+        ink.extend((0..40).map(|i| [[i as f64, 0.], [i as f64, 10.]]));
+        let exported = SegmentIndex::exported(ink);
+        assert_eq!(exported.route_crossings(route), 1);
+        assert_eq!(exported.route_crossings(route), 1);
+    }
+
+    #[test]
+    fn physical_edge_identity_survives_curve_sampling_but_rejects_another_edge() {
+        let curve = vec![
+            [[0., -1.], [0., 1.]],
+            [[0., 1.], [1., 1.]],
+            [[1., 1.], [1., -1.]],
+        ];
+        let other = [[2., -1.], [2., 1.]];
+        let mut all = curve.clone();
+        all.push(other);
+        let mut index = SegmentIndex::new(all);
+        index.physical = vec![PhysicalEdge::new(curve), PhysicalEdge::new(vec![other])];
+        let old = [[[-0.5, 0.], [0.5, 0.]], [[0.5, 0.], [0.5, 0.5]]];
+        let same = [[[0.5, 0.], [1.5, 0.]], [[1.5, 0.], [1.5, 0.5]]];
+        let different = [[[1.5, 0.], [2.5, 0.]], [[2.5, 0.], [2.5, 0.5]]];
+        assert!(index.new_crossing(&same, &old));
+        assert!(!index.new_physical_crossing(&same, &old));
+        assert!(index.new_physical_crossing(&different, &old));
+    }
+
+    #[test]
     fn a_radius_tip_is_constrained_to_its_trimmed_span() {
         use std::f64::consts::PI;
         let site = (
@@ -5661,6 +7217,28 @@ mod arc_tip_tests {
         let tip = rim_tip(site, [-20.0, -20.0]);
         assert!((tip[0] + 8.5 / 2.0_f64.sqrt()).abs() < 1e-9);
         assert!((tip[1] + 8.5 / 2.0_f64.sqrt()).abs() < 1e-9);
+        // Growing a nominal can move the shoulder outside the arc's angular
+        // range. The repair must retain the drawn quarter rather than attach
+        // to the unused portion of its construction circle.
+        let repaired = moved_rim_tip(
+            &[site],
+            tip,
+            [-20.0, 20.0],
+            crate::model::projected_ink::GRID,
+        );
+        assert!((repaired[0] + 8.5).abs() < 1e-9 && repaired[1].abs() < 1e-9);
+        // A retained proven point need not be a representative site of the
+        // complete group. Moving its shoulder cannot jump to another occurrence.
+        let retained = [-8.5, 0.0];
+        assert_eq!(
+            moved_rim_tip(
+                &[([4.0, 4.0], 0.0, None)],
+                retained,
+                [-20.0, 5.0],
+                crate::model::projected_ink::GRID
+            ),
+            retained
+        );
         // A full-circle hole retains its unconstrained radial attachment.
         let hole = rim_tip(([0.0, 0.0], 8.5, None), [-20.0, 20.0]);
         assert!(hole[1] > 0.0);

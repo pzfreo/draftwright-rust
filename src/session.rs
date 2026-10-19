@@ -363,7 +363,9 @@ impl Planner {
     fn plan(&mut self, analysis: &Analysis, spec: &Spec) -> Result<Plan, Error> {
         self.calls += 1;
         Ok(crate::planning::with_retained(analysis, || {
-            crate::sheets::allocate_counted(analysis, spec, &mut self.sheet_steps)
+            crate::sheets::count_runs(&mut self.sheet_steps, || {
+                model::plan_recovered(analysis, spec)
+            })
         })?)
     }
 }

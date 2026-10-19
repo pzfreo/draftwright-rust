@@ -273,8 +273,9 @@ pub(crate) fn clear_covered_findings(
 fn overridden(spec: &crate::model::Spec, given: &crate::model::Spec, id: &str) -> bool {
     // A bare pin gets a computed carrier in the effective Spec. Only authored placement
     // choices override grouping; inactive entries in the original Spec have no authority.
-    spec.dimensions.get(id).is_some_and(|s| {
-        s.omit
+    spec.precision.contains_key(id)
+        || spec.dimensions.get(id).is_some_and(|s| {
+            s.omit
             || s.text.is_some()
             || s.style.is_some()
             || s.tolerance.is_some()
@@ -291,7 +292,7 @@ fn overridden(spec: &crate::model::Spec, given: &crate::model::Spec, id: &str) -
                 })
             // An offset at the automatic bend is planned as a bare pin (#12).
             || s.place.as_ref().is_some_and(|p| p.offset.is_some())
-    })
+        })
 }
 
 /// The recogniser's fillet/blend distinction is not a second radius requirement on paper.
@@ -517,6 +518,11 @@ pub(crate) fn tabulate_obstructed(
         if d.placed.is_none()
             || d.measurements.is_empty()
             || !d.measurements.iter().all(|m| m.parameter == "blend.radius")
+            || spec.precision.contains_key(&d.id)
+            || d.measurements.iter().any(|m| {
+                spec.precision
+                    .contains_key(&want_id(&m.feature, &m.parameter))
+            })
             || spec.dimensions.get(&d.id).is_some_and(|s| {
                 s.place.is_some() || s.tolerance.is_some() || s.text.is_some() || s.style.is_some()
             })

@@ -75,8 +75,10 @@ mod wording;
 pub(crate) use pmi_dimensions::basic as is_basic;
 mod leaders;
 pub(crate) use label_lanes::{in_lane, settle_inventory};
+pub(crate) use leaders::default_nominal_intent;
 pub(crate) use leaders::settle_after_furniture;
 pub(crate) use placement::collisions_cached as label_collisions;
+pub(crate) use placement::nearest_shared_witnesses;
 pub(crate) mod levels;
 mod notches;
 mod oriented_slots;
@@ -372,17 +374,10 @@ pub struct Omitted {
     pub state: crate::items::State,
 }
 
-/// draftwright's number format (`_fmt`): a whole number bare, anything else to one decimal.
-/// Geometric noise below 1e-6 mm is removed first, so 247.64999999 reads as 247.65 does.
+/// Shortest nominal within 1e-6 after noise removal, bounded to three decimal places.
+/// Unlike Python's `_fmt`, this preserves modelled hundredths and thousandths.
 pub fn fmt(v: f64) -> String {
-    let v = (v * 1e6).round() / 1e6;
-    let r = v.round();
-    if (v - r).abs() < 1e-6 {
-        format!("{}", if r == 0.0 { 0 } else { r as i64 })
-    } else {
-        let text = format!("{v:.1}");
-        if text == "-0.0" { "0.0".into() } else { text }
-    }
+    crate::nominal::format(v)
 }
 
 type P3 = [f64; 3];
@@ -568,6 +563,52 @@ fn wants(
     result
 }
 
+/// Exact visibility is useful only for established fractional callouts that may
+/// need a different corridor. Integer statements and newly added recesses use
+/// the conservative projected edge evidence without running hidden-line removal.
+pub(crate) fn nominal_inspection_views(
+    analysis: &Analysis,
+) -> std::collections::BTreeSet<&'static str> {
+    if !crate::nominal::geometry_eligible(analysis)
+        || analysis.features.iter().any(|f| f.kind == "turned_step")
+    {
+        return Default::default();
+    }
+    let recesses = has_new_native_recess_dimensions(analysis);
+    let hole_count = analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "hole")
+        .count();
+    wants(analysis)
+        .0
+        .iter()
+        .filter(|w| {
+            if !matches!(w.shape, Shape::Callout { .. }) {
+                return false;
+            }
+            // A table-sized inventory need not eagerly project every raw bore.
+            // Smaller established bore labels still need the actual visible
+            // outline even when their nominal text did not grow.
+            let established_bore = hole_count < crate::hole_table::MIN_HOLES
+                && w.measurements
+                    .iter()
+                    .any(|m| m.parameter == "bore.diameter")
+                && w.measurements.iter().all(|m| {
+                    fmt(m.value)
+                        .split_once('.')
+                        .is_none_or(|(_, tail)| tail.len() <= 1)
+                });
+            established_bore
+                || (!recesses
+                    && w.measurements.iter().any(|m| {
+                        !m.feature.starts_with("f:section_recess:") && fmt(m.value).contains('.')
+                    }))
+        })
+        .filter_map(|w| w.views.first().copied())
+        .collect()
+}
+
 /// Captured bridge documents already carried their recess inventory. Only a
 /// native reading adds that information relative to the released reader.
 pub(crate) fn has_new_native_recess_dimensions(analysis: &Analysis) -> bool {
@@ -579,11 +620,15 @@ pub(crate) fn has_new_native_recess_dimensions(analysis: &Analysis) -> bool {
 }
 
 pub(crate) fn has_recess_dimensions(analysis: &Analysis) -> bool {
-    let (canonical, established) = crate::planning::policy_key(analysis);
+    let (canonical, established, comparison) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "recess-presence",
-        vec![u8::from(canonical), u8::from(established)],
+        vec![
+            u8::from(canonical),
+            u8::from(established),
+            u8::from(comparison),
+        ],
         || has_recess_dimensions_uncached(analysis),
     )
 }
@@ -648,6 +693,7 @@ fn wants_uncached(
             }
         }
     }
+    flats::share_locations(&cx, &mut out);
     // A planner may dimension some records of a kind it does not claim (the section recesses
     // that are blind slots): those are not reported.
     let stated: BTreeSet<String> = out
@@ -903,11 +949,15 @@ pub(crate) fn inspection_datum(a: &Analysis) -> Option<(usize, f64)> {
 }
 
 pub(crate) fn detail_levels(a: &Analysis) -> Vec<(String, f64)> {
-    let (canonical, established) = crate::planning::policy_key(a);
+    let (canonical, established, comparison) = crate::planning::policy_key(a);
     crate::planning::memo(
         a,
         "detail-linear-levels",
-        vec![u8::from(canonical), u8::from(established)],
+        vec![
+            u8::from(canonical),
+            u8::from(established),
+            u8::from(comparison),
+        ],
         || detail_levels_uncached(a),
     )
 }
@@ -1724,11 +1774,15 @@ pub(crate) fn authored_placement_clear(spec: &Spec, dims: &[PlannedDimension]) -
 /// A slot chain must have room for its arrows and its own text between its ends.
 /// New recess annotations reserve extra paper rather than reducing these existing chains.
 pub(crate) fn recess_chain_scale(analysis: &Analysis) -> f64 {
-    let (canonical, established) = crate::planning::policy_key(analysis);
+    let (canonical, established, comparison) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "recess-readable-scale",
-        vec![u8::from(canonical), u8::from(established)],
+        vec![
+            u8::from(canonical),
+            u8::from(established),
+            u8::from(comparison),
+        ],
         || recess_chain_scale_uncached(analysis),
     )
 }
@@ -1775,6 +1829,20 @@ fn recess_chain_scale_uncached(analysis: &Analysis) -> f64 {
             Some((ink.max[0] - ink.min[0] + 2.0 * ARROW + 2.0) / w.value)
         })
         .fold(0.0, f64::max)
+}
+
+/// Finished short-span labels must remain associated with their own arrows.
+pub(crate) fn labels_on_spans(dims: &[PlannedDimension]) -> bool {
+    dims.iter().filter(|d| d.kind == "linear").all(|d| {
+        d.placed.as_ref().is_none_or(|p| {
+            !label_lanes::off_span(
+                p,
+                dims.iter()
+                    .filter(|q| q.id != d.id && q.kind == "linear" && q.view == d.view)
+                    .filter_map(|q| q.placed.as_ref()),
+            )
+        })
+    })
 }
 
 /// The finite 1 mm leader/extension corridors used by the shared solve and QA.
@@ -2738,10 +2806,17 @@ fn plan_inventory_ordered(
             .iter()
             .any(|m| m.feature.starts_with("f:section_recess:"))
     });
-    if matches!(stage, 0 | 3) && recess_context && intended.iter().all(Option::is_none) {
-        leaders::seed_established(analysis, spec, views, &all, &chosen, &mut placed, &page);
-    }
+    let nominal_context = leaders::nominal_context(analysis, spec, &all);
+    let nominal_seeded = if matches!(stage, 0 | 3)
+        && (recess_context || nominal_context)
+        && intended.iter().all(Option::is_none)
+    {
+        leaders::seed_established(analysis, spec, views, &all, &chosen, &mut placed, &page)
+    } else {
+        false
+    };
     if (recess_context
+        || nominal_seeded
         || spec
             .dimensions
             .values()
@@ -4161,6 +4236,9 @@ pub(crate) fn refine_inventory(
                     .measurements
                     .iter()
                     .all(|m| m.feature.starts_with("f:section_recess:"))
+                    && !(crate::nominal::geometry_eligible(analysis)
+                        && !crate::nominal::comparison()
+                        && matches!(items[i].shape, Shape::Linear { order: 0, .. }))
             {
                 sides[i] = None;
             }

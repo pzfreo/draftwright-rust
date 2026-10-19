@@ -56,7 +56,7 @@ fn added_route_crossings(analysis: &Analysis, before: &Plan, now: &Plan) -> BTre
     };
     let mut changed = BTreeSet::new();
     for view in &now.views {
-        let model = super::leaders::view_ink(analysis, ink, view).0;
+        let model = super::leaders::SegmentIndex::for_view(analysis, ink, view).0;
         for d in now
             .dimensions
             .iter()
@@ -79,12 +79,7 @@ fn added_route_crossings(analysis: &Analysis, before: &Plan, now: &Plan) -> BTre
             for q in lines.iter_mut().flatten() {
                 move_point(q, shift);
             }
-            if model.iter().any(|e| {
-                p.lines
-                    .iter()
-                    .any(|s| super::leaders::segments_cross(*s, *e))
-                    && !lines.iter().any(|s| super::leaders::segments_cross(*s, *e))
-            }) {
+            if model.new_physical_crossing(&p.lines, &lines) {
                 changed.insert(d.id.clone());
             }
         }
@@ -164,11 +159,11 @@ pub(crate) fn retain(analysis: &Analysis, spec: &Spec, current: &Plan) -> Option
     let mut trial = current.clone();
     let mut held = Vec::new();
     let mut held_spec = spec.clone();
+    let wants = super::wants(analysis).0;
     for d in &current.dimensions {
         let Some(old) = before.dimensions.iter().find(|o| {
             o.id == d.id
                 && o.view == d.view
-                && o.terms == d.terms
                 && o.measurements.iter().all(|m| d.measurements.contains(m))
         }) else {
             continue;
@@ -182,6 +177,26 @@ pub(crate) fn retain(analysis: &Analysis, spec: &Spec, current: &Plan) -> Option
             d.placed.clone()?
         };
         if restored {
+            let mut w = wants.iter().find(|w| w.id == d.id)?.clone();
+            w.terms.clone_from(&d.terms);
+            p = super::placement::relabel(&p, &old.terms, &w);
+            // A longer label may outgrow an old inside-arrow span. Leave
+            // that item free for the accurate solve instead of pinning its
+            // text across its own witnesses or arrowheads.
+            if old.terms != d.terms
+                && matches!(w.shape, super::Shape::Linear { .. })
+                && (p
+                    .lines
+                    .iter()
+                    .take(2)
+                    .any(|line| super::placement::crosses(*line, p.label_box))
+                    || p.arrows
+                        .iter()
+                        .flat_map(|a| super::leaders::head(*a))
+                        .any(|line| super::placement::crosses(line, p.label_box)))
+            {
+                continue;
+            }
             for q in p.lines.iter_mut().chain(&mut p.arrows).flatten() {
                 move_point(q, shift);
             }
@@ -203,7 +218,6 @@ pub(crate) fn retain(analysis: &Analysis, spec: &Spec, current: &Plan) -> Option
     // A seat's axis coordinates are visible in either orthogonal view that
     // shows the measured axis. New locations may use the less occupied profile;
     // established dimensions and frames keep their views and exact geometry.
-    let wants = super::wants(analysis).0;
     for w in &wants {
         if !route_only
             && w.views.len() > 1
@@ -243,6 +257,9 @@ pub(crate) fn retain(analysis: &Analysis, spec: &Spec, current: &Plan) -> Option
             .gdt
             .iter()
             .find(|o| o.id == g.id && o.view == g.view)?;
+        if old.cells != g.cells || old.label != g.label {
+            return None;
+        }
         let shift = delta(&before, &trial.views, &old.view)?;
         let mut p = old.placed.clone()?;
         move_point(&mut p.tip, shift);
@@ -346,6 +363,21 @@ pub(crate) fn retain(analysis: &Analysis, spec: &Spec, current: &Plan) -> Option
         &fixed,
         &cache,
     );
+    let growth = crate::nominal::geometry_eligible(analysis) && !crate::nominal::comparison();
+    if growth {
+        // Retention pins are a solve recipe, not author constraints. Repair the
+        // final live leaders against the original Spec after applying that recipe.
+        super::settle_after_furniture(
+            analysis,
+            spec,
+            &trial.sheet,
+            &trial.views,
+            &mut inventory,
+            &fixed,
+            &cache,
+            false,
+        );
+    }
     for d in &mut dims {
         if let Some(settled) = inventory.iter().find(|s| s.id == d.id) {
             d.placed = settled.placed.clone();
@@ -392,6 +424,15 @@ pub(crate) fn retain(analysis: &Analysis, spec: &Spec, current: &Plan) -> Option
         &added,
         &trial.gdt,
     );
+    if growth {
+        crate::sheet_fit::reserve_nominal_bounds(
+            analysis,
+            &trial.sheet,
+            &mut trial.views,
+            &trial.dimensions,
+            &trial.gdt,
+        );
+    }
     let ids: BTreeSet<_> = trial
         .dimensions
         .iter()

@@ -743,6 +743,7 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
         };
         others[i].id = format!("f:{}:{n}", others[i].kind);
     }
+    super::flats::merge(part, &IDENTITY, &mut others);
     name_slot_members(&mut others)?;
     check_oriented_slot_patterns(&others, &oriented_patterns)?;
     super::recess_patterns::append(part, &IDENTITY, &mut others, &recess_patterns)?;

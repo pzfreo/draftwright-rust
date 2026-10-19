@@ -157,7 +157,7 @@ fn grm05_states_its_step_diameters_and_lengths_as_draftwright_does() {
         strs(&[
             ("d:envelope/od.diameter", "ø10"),
             ("d:envelope/height.length", "32"),
-            ("d:f:turned_step:2/step.diameter", "ø6.2"),
+            ("d:f:turned_step:2/step.diameter", "ø6.25"),
             ("d:f:turned_step:3/step.diameter", "ø6"),
             ("d:f:turned_step:1/step.length", "14"),
             ("d:f:turned_step:2/step_position.length", "19"),
@@ -202,7 +202,7 @@ fn turned_corpus_parts_state_their_steps_as_draftwright_does() {
         ("grm03", "ø10", Some("23.5")),
         ("string_post", "ø7.5", Some("14.8")),
         ("spool132", "2× ø130", Some("140")),
-        ("connector109", "ø130.9", Some("420")),
+        ("connector109", "ø130.94", Some("420")),
     ] {
         let a = sheet_part(&corpus, name);
         let plan = model::plan(&a, &Spec::default()).unwrap();
@@ -243,6 +243,15 @@ fn turned_corpus_parts_state_their_steps_as_draftwright_does() {
                 )
             })
             .collect();
+        // Captured Python labels stay archived; only their expected nominal text changes.
+        for (_, label) in &mut python {
+            *label = match label.as_str() {
+                "ø103.1" => "ø103.12".into(),
+                "ø130.9" => "ø130.94".into(),
+                "ø6.2" => "ø6.25".into(),
+                _ => label.clone(),
+            };
+        }
         if name == "grm03" {
             python.retain(|(_, l)| l != "ø10");
         }
@@ -355,8 +364,8 @@ fn repeated_lengths_and_twin_flanges_are_stated_once() {
             ("d:envelope/od.diameter", "2× ø30"),
             ("d:envelope/height.length", "70"),
             ("d:f:turned_step:2/step.diameter", "ø20"),
-            ("d:f:turned_step:1/step.length", "23.3"),
-            ("d:f:turned_step:2/step_position.length", "46.7"),
+            ("d:f:turned_step:1/step.length", "23.34"),
+            ("d:f:turned_step:2/step_position.length", "46.66"),
         ])
     );
     let chain = plan

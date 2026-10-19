@@ -21,6 +21,14 @@ use crate::bridge::Feature;
 use crate::bridge::holes::frame;
 use crate::model::Analysis;
 
+fn qualifier(f: &Feature) -> &'static str {
+    if f.parameters.get("opposed").and_then(Value::as_bool) == Some(false) {
+        ""
+    } else {
+        " A/F"
+    }
+}
+
 /// One physical across-flats requirement: the flats that share it, in Analysis order.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FlatGroup<'a> {
@@ -95,7 +103,7 @@ pub fn wanted(analysis: &Analysis) -> Vec<Wanted<'_>> {
                 feature: f,
                 parameter: "flat.length".into(),
                 callout: values.as_ref().map_or("its across-flats size".into(), |v| {
-                    format!("{} A/F", fmt(v[0]))
+                    format!("{}{}", fmt(v[0]), qualifier(f))
                 }),
                 values,
             }
@@ -135,7 +143,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         let mut s = format!("flat {}", ids.join(" and "));
         let p = &f.parameters;
         if let Ok(a) = parameters::size(f, "across") {
-            s += &format!(" {} A/F", fmt(a));
+            s += &format!(" {}{}", fmt(a), qualifier(f));
         }
         if let Some(d) = parameters::direction(&frame, p.get("axis_direction"))
             .or_else(|| parameters::direction(&frame, p.get("axis")))
@@ -153,9 +161,28 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         }
         s
     };
+    let mut wanted = wanted(analysis);
+    for w in &mut wanted {
+        if w.feature.parameters.get("opposed").and_then(Value::as_bool) == Some(false)
+            && marks.iter().any(|m| {
+                m.claims
+                    .iter()
+                    .any(|c| c.feature == w.feature.id && c.parameter == "flat_offset.length")
+            })
+            && let Some(offset) = w
+                .feature
+                .parameters
+                .get("axis_distance")
+                .and_then(Value::as_f64)
+        {
+            w.parameter = "flat_offset.length".into();
+            w.callout = format!("{} from axis", fmt(offset));
+            w.values = Ok(vec![offset]);
+        }
+    }
     let mut issues = parameters::coverage(
         "flat",
-        &wanted(analysis),
+        &wanted,
         &marks,
         noun,
         "an across-flats dimension, in a view that sees the flats edge-on",

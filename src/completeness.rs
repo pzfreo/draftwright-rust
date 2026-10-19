@@ -33,6 +33,7 @@ pub struct Completeness {
 
 /// Refresh after escalation, which can move a hole's measurements into a table.
 pub fn report(analysis: &Analysis, plan: &mut Plan) {
+    crate::nominal::report(plan);
     plan.problems
         .retain(|p| p.code != "relief_profiles_per_model");
     let severity = if analysis.solid_count.is_some_and(|n| n > 1) {

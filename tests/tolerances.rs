@@ -105,14 +105,14 @@ fn ftc06_prints_the_authored_bands_as_draftwright_does() {
     // Equal to draftwright's labels.
     for (id, python) in [
         ("d:envelope/width.length", "304.8 ±0.02"),
-        ("d:envelope/depth.length", "97.8 +0.1 -0.02"),
+        ("d:envelope/depth.length", "97.79 +0.1 -0.02"),
         (
             "d:f:hole_pattern:2/bore.diameter",
-            "4× ⌀7.1 ±0.03 THRU ⌴\n⌀10.2 ↧ 7.9",
+            "4× ⌀7.137 ±0.03 THRU ⌴\n⌀10.16 ↧ 7.94",
         ),
         ("d:f:hole_pattern:1/grid_pitch.length.row", "127 ±0.1"),
-        ("d:f:hole:11/bore.diameter", "2× ⌀6.3 H7 ↧ 12.7"),
-        ("d:f:boss:5/boss.diameter", "2× ø31.8 g6"),
+        ("d:f:hole:11/bore.diameter", "2× ⌀6.35 H7 ↧ 12.7"),
+        ("d:f:boss:5/boss.diameter", "2× ø31.75 g6"),
     ] {
         assert_eq!(label(&plan, id), python, "{id}");
     }
@@ -122,7 +122,7 @@ fn ftc06_prints_the_authored_bands_as_draftwright_does() {
         Differs {
             id: "d:envelope/height.length",
             python: "247.7 ±0.0",
-            rust: "247.7",
+            rust: "247.65",
             verdict: "rust-correct",
         },
         // ARCH0019-3: draftwright splits the four bosses into "3× ø44.5" and "ø44.5 h6", and
@@ -132,13 +132,13 @@ fn ftc06_prints_the_authored_bands_as_draftwright_does() {
         Differs {
             id: "d:f:boss:1/boss.diameter",
             python: "3× ø44.5 | ø44.5 h6",
-            rust: "4× ø44.5",
+            rust: "4× ø44.45",
             verdict: "rust-wrong",
         },
         Differs {
             id: "d:f:boss:6/boss.diameter",
             python: "ø22.9 h6 | ø22.9 h7",
-            rust: "2× ø22.9",
+            rust: "2× ø22.86",
             verdict: "rust-wrong",
         },
     ];
@@ -561,12 +561,12 @@ fn a_toleranced_height_keeps_its_own_dimension() {
     let toleranced = spec(json!({ "dimensions": { (id): { "tolerance": "±0.1" } } }));
     assert_eq!(
         heights(&model::plan(&a, &toleranced).unwrap()),
-        ["32.3 ±0.1"]
+        ["32.268 ±0.1"]
     );
     let extent = spec(json!({
         "dimensions": { "d:envelope/depth.length": { "tolerance": "±0.1" } }
     }));
     let plan = model::plan(&a, &extent).unwrap();
     assert!(heights(&plan).is_empty());
-    assert_eq!(label(&plan, "d:envelope/depth.length"), "32.3 ±0.1");
+    assert_eq!(label(&plan, "d:envelope/depth.length"), "32.268 ±0.1");
 }

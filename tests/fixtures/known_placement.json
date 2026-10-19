@@ -2,9 +2,9 @@
   {
     "part": "cgb245",
     "code": "annotation_outside_area",
-    "count": 4,
+    "count": 1,
     "verdict": "rust-wrong",
-    "reason": "The plan's band above is draftwright's estimate (layout::Strips::reserve reserves the side's bands and the band right of the front and the plan, not the bands facing open paper): three x locations (297.9, 308.4, 372) and a slot location (286.0) above the plan run 5.6 to 26.6 mm past it, into open paper. Since stream d-quality-lanes the band right of the front and the plan holds the front's height-ladder lanes, so the rungs, the overall height and the y locations that fell through to the strip right of the plan (dims::placement::fall_through, ISSUE-1215-e) lie inside it, the side view moved clear of them, and 18× R4 stands inside the front's area (17 before; the rungs' own verdicts, undetermined pending the maintainer, are in known_dimensions.json). 30 before stream d-placement-fit, 24 before d-callout-leaders."
+    "reason": "The longer nominal linear labels now reserve their measured footprints by reclaiming only vacant neighbouring bands, with all neighbouring view, dimension and GD&T ink protected. The three decimal-valued locations formerly outside the estimated plan band are inside that measured reservation. The unchanged integer station 372 still extends 6.5 mm beyond the band; its existing finding remains required. No physical ink or leader exception is added."
   },
   {
     "part": "cgb245",
@@ -19,13 +19,6 @@
     "count": 8,
     "verdict": "rust-wrong",
     "reason": "The front's and the plan's bands are draftwright's estimates (layout::Strips::reserve reserves the port's lanes for the side's bands and the band right of the front and the plan only): plan items above and beside the plan (locations, pitches) and front items below the front run past them; the front's polygonal boss height (6.9 mm) past the front's band. No callout is left past its band: the front callouts (2× ⌀20 ↧ 45, 2× C5) that stood 2.1 mm below the front now stand inside its area. Since stream d-quality-ink a callout prefers a place inside its view's area (below crossings, above length, src/dims/leaders.rs). A callout whose label stands just outside its view (where draftwright puts it) runs a few millimetres past the estimated band, which the layout sizes for lanes, not for leaders beside the view. 20 before stream d-placement-fit, 15 before d-callout-leaders. 11 before drawing quality 3 (the layout keeps the isometric off the views' bands, docs/quality-2026-10-09.md): the location that ran off the sheet now has a lane on it."
-  },
-  {
-    "part": "string_post",
-    "code": "annotation_outside_area",
-    "count": 1,
-    "verdict": "rust-wrong",
-    "reason": "The captured Python recognition turns this profile about X. Its remaining 1 mm local head length runs 1.5 mm beyond the original estimated front band; the other former chain overrun is removed by the default inspection baseline. Native recognition turns the post about Z and the head length belongs to its enlarged detail. This retains the one pre-existing estimate overrun while requiring the eliminated second finding to stay absent."
   },
   {
     "part": "connector109",

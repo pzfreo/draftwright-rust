@@ -132,22 +132,22 @@ fn m1000_pocket_hex_pocket_and_seat_are_stated_as_draftwright_states_them() {
     assert_eq!(
         stating(&plan, &a),
         strs(&[
-            ("location_pocket.location.x", "plan", "39.3"),
-            ("location_pocket.location.y", "plan", "10.2"),
-            ("pocket_width.length", "plan", "2 × 2.8 × 3.4 DEEP"),
+            ("location_pocket.location.x", "plan", "39.335"),
+            ("location_pocket.location.y", "plan", "10.187"),
+            ("pocket_width.length", "plan", "2 × 2.81 × 3.446 DEEP"),
             (
                 "polygon_across_flats.length",
                 "side",
-                "HEX 1.9 A/F × 2.1 DEEP"
+                "HEX 1.935 A/F × 2.104 DEEP"
             ),
             (
                 "seat_diameter.diameter",
                 "front",
-                "ø2 × 12.6 LONG × 180° ARC"
+                "ø2 × 12.593 LONG × 180° ARC"
             ),
-            ("seat_location.location.x", "front", "48.4"),
-            ("seat_location.location.y", "side", "6.3"),
-            ("seat_location.location.z", "front", "23.1"),
+            ("seat_location.location.x", "front", "48.414"),
+            ("seat_location.location.y", "side", "6.297"),
+            ("seat_location.location.z", "front", "23.139"),
         ])
     );
     let pocket = plan
@@ -187,9 +187,13 @@ fn m10046_pocket_is_called_out_and_located_in_the_view_that_looks_into_it() {
     assert_eq!(
         stating(&plan, &a),
         strs(&[
-            ("location_pocket.x", "front", "23.0"),
-            ("location_pocket.z", "front", "7.7"),
-            ("pocket_width.length", "front", "5.0 × 11.7 × 10.6 DEEP"),
+            ("location_pocket.x", "front", "22.963"),
+            ("location_pocket.z", "front", "7.691"),
+            (
+                "pocket_width.length",
+                "front",
+                "5.042 × 11.698 × 10.559 DEEP"
+            ),
         ])
     );
     // A sloping witness still passes through its arrow tip, including the
@@ -224,7 +228,7 @@ fn m10127_hex_pocket_states_its_size_across_flats_and_depth() {
         strs(&[(
             "polygon_across_flats.length",
             "front",
-            "HEX 4.2 A/F × 10.0 DEEP"
+            "HEX 4.236 A/F × 9.96 DEEP"
         )])
     );
     let hex = &plan
@@ -264,10 +268,12 @@ fn ftc06_channels_state_their_widths_in_the_view_along_them() {
     assert_eq!(
         stating(&plan, &a),
         strs(&[
-            ("channel_width.length", "front", "2× 3.1"),
-            ("channel_width.length", "front", "3.1"),
+            // Distinct modelled widths must no longer merge through one-decimal text.
+            ("channel_width.length", "front", "3.102"),
+            ("channel_width.length", "front", "3.103"),
+            ("channel_width.length", "front", "3.132"),
             ("channel_width.length", "plan", "2× 12.7"),
-            ("channel_width.length", "side", "2× 3.1"),
+            ("channel_width.length", "side", "2× 3.103"),
         ])
     );
     let claims: Vec<_> = plan
@@ -347,7 +353,7 @@ fn identical_hex_pockets_and_coaxial_seats_are_counted_once() {
     // draftwright batches hexagonal pockets by axis, opening and label, and coaxial seats by
     // axis, centre and label (`polygonal_prism_jobs`, `circular_recess_jobs`).
     let h = by(&hex);
-    assert_eq!(h.label, "2× HEX 1.9 A/F × 2.1 DEEP");
+    assert_eq!(h.label, "2× HEX 1.935 A/F × 2.104\nDEEP");
     let features: Vec<&str> = h.measurements.iter().map(|m| m.feature.as_str()).collect();
     assert_eq!(
         features,
@@ -359,7 +365,7 @@ fn identical_hex_pockets_and_coaxial_seats_are_counted_once() {
         ]
     );
     let s = by(&seat);
-    assert_eq!(s.label, "2× ø2 × 12.6 LONG × 180° ARC");
+    assert_eq!(s.label, "2× ø2 × 12.593 LONG × 180°\nARC");
     assert_eq!(s.measurements.len(), 6);
     // Across the axis the two seats share their locations; along it each has its own.
     let located: Vec<(String, usize)> = plan
@@ -383,10 +389,10 @@ fn identical_hex_pockets_and_coaxial_seats_are_counted_once() {
     assert_eq!(
         located,
         [
-            ("48.4".to_string(), 2),
-            ("23.1".to_string(), 2),
-            ("6.3".to_string(), 1),
-            ("26.3".to_string(), 1),
+            ("48.414".to_string(), 2),
+            ("23.139".to_string(), 2),
+            ("6.297".to_string(), 1),
+            ("26.297".to_string(), 1),
         ]
     );
 }
@@ -474,7 +480,7 @@ fn identical_located_seats_keep_all_claims_and_promote_a_survivor() {
                 .any(|m| m.feature == original && m.parameter == "seat_diameter.diameter")
         })
         .unwrap();
-    assert_eq!(carrier.label, "2× ø2 × 12.6 LONG × 180° ARC");
+    assert_eq!(carrier.label, "2× ø2 × 12.593 LONG × 180°\nARC");
     for feature in [&original[..], "f:section_recess:99"] {
         for parameter in [
             "seat_diameter.diameter",
@@ -510,6 +516,6 @@ fn identical_located_seats_keep_all_claims_and_promote_a_survivor() {
             })
         })
         .unwrap();
-    assert_eq!(promoted.label, "ø2 × 12.6 LONG × 180° ARC");
+    assert_eq!(promoted.label, "ø2 × 12.593 LONG × 180° ARC");
     assert!(promoted.placed.is_some());
 }

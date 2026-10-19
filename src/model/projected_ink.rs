@@ -1,9 +1,10 @@
-//! The part's edges and faces as compact, view-independent evidence for interior placement.
+//! The part's edges and faces as compact evidence for annotation placement.
 //!
 //! The planner has no Part (ADR R1), so it cannot run hidden-line removal. Every curve the
 //! renderer draws in an orthographic, uncut view is a projected edge (visible or hidden) or a
 //! curved face's silhouette. The Analysis therefore carries each edge once, sampled to a coarse
-//! chord tolerance, the planar faces by their edges (for material containment), and the curved
+//! chord tolerance, plus optional resolved principal curves with their visibility, the planar
+//! faces by their edges (for material containment), and the curved
 //! faces by what bounds their silhouettes. The planner projects these into any view itself, a
 //! linear map: a superset of the drawn ink, so "clear of this" implies "clear of what is drawn".
 use super::*;
@@ -19,12 +20,97 @@ pub struct EdgeInk {
     /// Exact recognition-independent dimension references, keyed by versioned fingerprint.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub references: BTreeMap<String, Vec<super::dimension_geometry::Reference>>,
+    /// Resolved principal ink, preserving the renderer's visibility classification.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub resolved: Vec<ResolvedView>,
     /// Every edge of the part as a polyline in the part's frame, within [`TOLERANCE`].
     pub edges: Vec<Vec<[f64; 3]>>,
     /// Planar faces: their normal and the edges (indices into `edges`) of all their loops.
     pub planes: Vec<PlanarFace>,
     /// Non-planar faces: what bounds their silhouettes in any view.
     pub curved: Vec<CurvedFace>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ResolvedView {
+    pub direction: [f64; 3],
+    pub up: [f64; 3],
+    pub visible: Vec<crate::output::Curve>,
+    pub hidden: Vec<crate::output::Curve>,
+}
+
+// Recognition and rendering use identical kernel cameras. Retain the prepared
+// pieces as well as the compact planner evidence: a second HLR of a dense
+// axial view can cost much more than every label repair combined.
+static PREPARED: crate::planning::BoundedMemo<Vec<Projected>> =
+    crate::planning::BoundedMemo::new(4);
+
+fn camera_key(binding: &Binding, direction: [f64; 3], up: [f64; 3]) -> [u8; 32] {
+    Sha256::digest(
+        serde_json::to_vec(&(binding, direction.map(f64::to_bits), up.map(f64::to_bits)))
+            .expect("projection camera serializes"),
+    )
+    .into()
+}
+
+/// Native inspection's exact kernel pieces, before any sheet placement or crop.
+/// Cuts have different geometry and must never use this uncut-camera evidence.
+pub(super) fn prepared(
+    binding: &Binding,
+    direction: [f64; 3],
+    up: [f64; 3],
+) -> Option<Vec<Projected>> {
+    PREPARED.get(&camera_key(binding, direction, up))
+}
+
+/// Immutable geometric evidence; no Part is retained by the planner.
+pub(crate) fn resolved(
+    part: &Part,
+    binding: &Binding,
+    names: &std::collections::BTreeSet<&str>,
+) -> Vec<ResolvedView> {
+    static MEMO: crate::planning::BoundedMemo<Vec<ResolvedView>> =
+        crate::planning::BoundedMemo::new(4);
+    let key: [u8; 32] =
+        Sha256::digest(serde_json::to_vec(&(binding, names)).expect("projection inputs serialize"))
+            .into();
+    if let Some(ink) = MEMO.get(&key) {
+        return ink;
+    }
+    let ink: Vec<_> = VIEWS[..3]
+        .iter()
+        .filter(|(name, _, _)| names.contains(name))
+        .filter_map(|(_, direction, up)| {
+            let view = View::new(*direction, *up)?;
+            let key = camera_key(binding, *direction, *up);
+            let pieces = if let Some(pieces) = PREPARED.get(&key) {
+                pieces
+            } else {
+                let pieces = project(part, &view).ok()?;
+                PREPARED.insert(key, pieces.clone());
+                pieces
+            };
+            let mut resolved = ResolvedView {
+                direction: *direction,
+                up: *up,
+                visible: Vec::new(),
+                hidden: Vec::new(),
+            };
+            for piece in pieces {
+                if let Some(curve) = crate::output::projected(&piece) {
+                    if piece.visible {
+                        resolved.visible.push(curve);
+                    } else {
+                        resolved.hidden.push(curve);
+                    }
+                }
+            }
+            Some(resolved)
+        })
+        .collect();
+    MEMO.insert(key, ink.clone());
+    ink
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -141,6 +227,7 @@ pub(super) fn evidence(part: &Part) -> EdgeInk {
         }
     }
     EdgeInk {
+        resolved: Vec::new(),
         references: super::dimension_geometry::evidence(part),
         edges,
         planes,

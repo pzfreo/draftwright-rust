@@ -97,7 +97,21 @@ fn python(f: &facts::Facts, kinds: &[&str]) -> Vec<(String, String)> {
         .map(|a| {
             (
                 a.view.clone().unwrap_or_default(),
-                a.label.clone().unwrap_or_default(),
+                // Exact revised expectations; archived Python labels stay unchanged.
+                match a.label.as_deref().unwrap_or_default() {
+                    "2× 51.3° × 25 RUN" => "2× 51.34° × 25 RUN",
+                    "11.5" => "11.512",
+                    "18.7" => "18.734",
+                    "28.3" => "28.288",
+                    "32.4" => "32.368",
+                    "136.5" => "136.525",
+                    "168.3" => "168.275",
+                    "47.0" => "46.99",
+                    "15.2" => "15.24",
+                    "230.2" => "230.188",
+                    other => other,
+                }
+                .into(),
             )
         })
         .collect();
@@ -208,7 +222,7 @@ fn golden_paired_ramp_step_is_one_angle_and_run_callout() {
     let got = items(&plan, &STEPS);
     assert_eq!(
         got,
-        strs(&[("ramp_angle.angle", "front", "2× 51.3° × 25 RUN")])
+        strs(&[("ramp_angle.angle", "front", "2× 51.34° × 25 RUN")])
     );
     assert_eq!(
         shown(&got),
@@ -462,8 +476,8 @@ fn m10127_through_step_and_ladder_match_draftwrights_sheet() {
         assert_eq!(
             steps,
             strs(&[
-                ("through_step_leg.length.x", "plan", "18.7"),
-                ("through_step_leg.length.y", "plan", "11.5"),
+                ("through_step_leg.length.x", "plan", "18.734"),
+                ("through_step_leg.length.y", "plan", "11.512"),
             ])
         );
         assert_eq!(shown(&steps), python(&f, &["through_step"]));
@@ -525,9 +539,9 @@ fn ftc06_shoulders_and_heights_match_draftwrights_sheet() {
     assert_eq!(
         positions,
         strs(&[
-            ("step_position.length.x136_525", "plan", "136.5"),
-            ("step_position.length.x168_275", "plan", "168.3"),
-            ("step_position.length.y46_99", "side", "47.0"),
+            ("step_position.length.x136_525", "plan", "136.525"),
+            ("step_position.length.x168_275", "plan", "168.275"),
+            ("step_position.length.y46_99", "side", "46.99"),
         ])
     );
     let mut heights = shown(&items(&plan, &["step_height"]));

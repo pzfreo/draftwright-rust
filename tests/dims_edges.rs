@@ -157,9 +157,9 @@ fn chamfers_are_called_out_c_or_leg_and_angle() {
     assert_eq!(
         labels(&plan),
         [
-            ("1 × 26.6°".to_string(), "v:plan".to_string()),
+            ("1 × 26.57°".to_string(), "v:plan".to_string()),
             ("2× C1".into(), "v:plan".into()),
-            ("4.5 × 42.1°".into(), "v:plan".into()),
+            ("4.47 × 42.1°".into(), "v:plan".into()),
         ]
     );
     for c in callouts(&plan) {

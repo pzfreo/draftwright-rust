@@ -260,11 +260,11 @@
    "outcome": "refused"
   },
   "rust": {
-   "detail": "3× ⌀22.2 ±0.254 THRU",
+   "detail": "3× ⌀22.225 ±0.254 THRU",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.875 ±0.01 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '3× ⌀22.2 ±0.254 THRU'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.875 ±0.01 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '3× ⌀22.2 ±0.254 THRU'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "file": "nist_ftc_07_asme1_ap242-e2.stp",
@@ -478,11 +478,11 @@
    "outcome": "refused"
   },
   "rust": {
-   "detail": "2× ⌀6.3 ±0.2032 ↧ 12.7",
+   "detail": "2× ⌀6.35 ±0.2032 ↧ 12.7",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.250 ±0.008 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists; pmi_not_extracted: AP242 dimension dimension:0:1:4:3 was discovered but not extracted: Part21 dimension correspondence is ambiguous for 'Hole Callout  (Radi). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '2× ⌀6.3 ±0.2032 ↧ 12.7'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.250 ±0.008 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists; pmi_not_extracted: AP242 dimension dimension:0:1:4:3 was discovered but not extracted: Part21 dimension correspondence is ambiguous for 'Hole Callout  (Radi). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '2× ⌀6.3 ±0.2032 ↧ 12.7'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -510,11 +510,11 @@
    "outcome": "dropped"
   },
   "rust": {
-   "detail": "7× ⌀4.0 ±0.2032 THRU",
+   "detail": "7× ⌀3.969 ±0.2032 THRU",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø4.0 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count). The two ⌀4.0 records (dimension:#10191, 3 holes, and dimension:#10311, 4 holes) state the same tolerance, and the port calls out the seven identical holes once, the one callout carrying both records' tolerance (its plan's dimension measurements name both)."
+  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø4.0 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count). The two ⌀4.0 records (dimension:#10191, 3 holes, and dimension:#10311, 4 holes) state the same tolerance, and the port calls out the seven identical holes once, the one callout carrying both records' tolerance (its plan's dimension measurements name both). Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -522,9 +522,9 @@
   "port": "dimension:#10215",
   "field": "label",
   "python": "⌀8.0 ±0.2032 THRU",
-  "rust": "2× ⌀8.0 ±0.2032 THRU",
+  "rust": "2× ⌀8.001 ±0.2032 THRU",
   "verdict": "rust-correct",
-  "evidence": "Both give the AP242 tolerance to the hole callout; haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count), and the port's callout counts the holes the requirement applies to, draftwright's names one."
+  "evidence": "Both give the AP242 tolerance to the hole callout; haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count), and the port's callout counts the holes the requirement applies to, draftwright's names one. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -532,9 +532,9 @@
   "port": "dimension:#10239",
   "field": "label",
   "python": "⌀7.1 ±0.2032 THRU",
-  "rust": "3× ⌀7.1 ±0.2032 THRU",
+  "rust": "3× ⌀7.137 ±0.2032 THRU",
   "verdict": "rust-correct",
-  "evidence": "Both give the AP242 tolerance to the hole callout; haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count), and the port's callout counts the holes the requirement applies to, draftwright's names one."
+  "evidence": "Both give the AP242 tolerance to the hole callout; haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count), and the port's callout counts the holes the requirement applies to, draftwright's names one. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -546,11 +546,11 @@
    "outcome": "dropped"
   },
   "rust": {
-   "detail": "2× ⌀5.6 ±0.2032 THRU",
+   "detail": "2× ⌀5.613 ±0.2032 THRU",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø5.6 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count)."
+  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø5.6 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count). Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -562,11 +562,11 @@
    "outcome": "dropped"
   },
   "rust": {
-   "detail": "7× ⌀4.0 ±0.2032 THRU",
+   "detail": "7× ⌀3.969 ±0.2032 THRU",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø4.0 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count). The two ⌀4.0 records (dimension:#10191, 3 holes, and dimension:#10311, 4 holes) state the same tolerance, and the port calls out the seven identical holes once, the one callout carrying both records' tolerance (its plan's dimension measurements name both)."
+  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø4.0 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count). The two ⌀4.0 records (dimension:#10191, 3 holes, and dimension:#10311, 4 holes) state the same tolerance, and the port calls out the seven identical holes once, the one callout carrying both records' tolerance (its plan's dimension measurements name both). Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -594,11 +594,11 @@
    "outcome": "dropped"
   },
   "rust": {
-   "detail": "4× ⌀5.9 ±0.2032 THRU (2×2)",
+   "detail": "4× ⌀5.944 ±0.2032 THRU\n(2×2)",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø5.9 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID."
+  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø5.9 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -610,11 +610,11 @@
    "outcome": "dropped"
   },
   "rust": {
-   "detail": "4× ⌀5.9 ±0.2032 THRU (2×2)",
+   "detail": "4× ⌀5.944 ±0.2032 THRU\n(2×2)",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø5.9 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID."
+  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø5.9 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -626,11 +626,11 @@
    "outcome": "dropped"
   },
   "rust": {
-   "detail": "4× ⌀5.9 ±0.2032 THRU (2×2)",
+   "detail": "4× ⌀5.944 ±0.2032 THRU\n(2×2)",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø5.9 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID."
+  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø5.9 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -642,11 +642,11 @@
    "outcome": "dropped"
   },
   "rust": {
-   "detail": "3× ⌀6.3 +0.0762 -0.0 THRU",
+   "detail": "3× ⌀6.35 +0.0762 -0.0 THRU",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø6.3 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count)."
+  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø6.3 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count). Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -654,9 +654,9 @@
   "port": "dimension:#9889",
   "field": "label",
   "python": "⌀6.3 +0.0762 -0.0 THRU",
-  "rust": "3× ⌀6.3 +0.0762 -0.0 THRU",
+  "rust": "3× ⌀6.35 +0.0762 -0.0 THRU",
   "verdict": "rust-correct",
-  "evidence": "Both give the AP242 tolerance to the hole callout; haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count), and the port's callout counts the holes the requirement applies to, draftwright's names one."
+  "evidence": "Both give the AP242 tolerance to the hole callout; haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count), and the port's callout counts the holes the requirement applies to, draftwright's names one. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -668,11 +668,11 @@
    "outcome": "dropped"
   },
   "rust": {
-   "detail": "4× ⌀6.3 ±0.2032 THRU",
+   "detail": "4× ⌀6.35 ±0.2032 THRU",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø6.3 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count)."
+  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø6.3 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count). Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "file": "spool_fits.step",
@@ -1016,9 +1016,9 @@
   "port": "dimension:#15130",
   "python": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6",
   "record": "dimension:0:1:4:85",
-  "rust": "4× ⌀6.3 +0.0762 -0.0 ↧\n7.6 (2×2)",
+  "rust": "4× ⌀6.35 +0.0762 -0.0 ↧\n7.62 (2×2)",
   "verdict": "equivalent",
-  "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+  "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "field": "label",
@@ -1026,9 +1026,9 @@
   "port": "dimension:#15238",
   "python": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6",
   "record": "dimension:0:1:4:87",
-  "rust": "4× ⌀6.3 +0.0762 -0.0 ↧\n7.6 (2×2)",
+  "rust": "4× ⌀6.35 +0.0762 -0.0 ↧\n7.62 (2×2)",
   "verdict": "equivalent",
-  "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+  "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "field": "label",
@@ -1036,9 +1036,9 @@
   "port": "dimension:#15344",
   "python": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6",
   "record": "dimension:0:1:4:89",
-  "rust": "4× ⌀6.3 +0.0762 -0.0 ↧\n7.6 (2×2)",
+  "rust": "4× ⌀6.35 +0.0762 -0.0 ↧\n7.62 (2×2)",
   "verdict": "equivalent",
-  "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+  "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "field": "label",
@@ -1046,9 +1046,9 @@
   "port": "dimension:#15389",
   "python": "4× ⌀6.3 +0.0762 -0.0254 ↧ 7.6 (2×2)",
   "record": "dimension:0:1:4:90",
-  "rust": "4× ⌀6.3 +0.0762 -0.0254 ↧\n7.6 (2×2)",
-  "verdict": "equivalent",
-  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+  "rust": "4× ⌀6.35 +0.0762 -0.0254\n↧ 7.62 (2×2)",
+  "verdict": "rust-correct",
+  "evidence": "Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "field": "outcome",
@@ -1062,11 +1062,11 @@
   },
   "record": "dimension:0:1:4:96",
   "rust": {
-   "detail": "4× ⌀15.1 +0.3048 -0.0508\nTHRU",
+   "detail": "4× ⌀15.082 +0.3048 -0.0508\nTHRU",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.594 +0.012/-0.002 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀15.1 +0.3048 -0.0508 THRU'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.594 +0.012/-0.002 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀15.1 +0.3048 -0.0508 THRU'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "field": "outcome",
@@ -1080,11 +1080,11 @@
   },
   "record": "dimension:0:1:4:97",
   "rust": {
-   "detail": "4× ⌀7.1 +0.1524 -0.0254\nTHRU ⌴ ⌀11.1 ↧ 7.6 (2×2)",
+   "detail": "4× ⌀7.137 +0.1524 -0.0254\nTHRU ⌴ ⌀11.11 ↧ 7.62\n(2×2)",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.281 +0.006/-0.001 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀7.1 +0.1524 -0.0254 THRU ⌴ ⌀11.1 ↧ 7.6 (2×2)'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.281 +0.006/-0.001 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀7.1 +0.1524 -0.0254 THRU ⌴ ⌀11.1 ↧ 7.6 (2×2)'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "field": "outcome",
@@ -1098,11 +1098,11 @@
   },
   "record": "dimension:0:1:4:100",
   "rust": {
-   "detail": "4× ⌀15.1 +0.3048 -0.0508\nTHRU",
+   "detail": "4× ⌀15.082 +0.3048 -0.0508\nTHRU",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.594 +0.012/-0.002 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀15.1 +0.3048 -0.0508 THRU'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.594 +0.012/-0.002 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀15.1 +0.3048 -0.0508 THRU'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "field": "outcome",
@@ -1185,11 +1185,11 @@
   },
   "record": "dimension:0:1:4:7",
   "rust": {
-   "detail": "4× ⌀10.5 ±0.2032 THRU ⌴\n⌀15.9 ↧ 12.7 (2×2)",
+   "detail": "4× ⌀10.541 ±0.2032 THRU ⌴\n⌀15.88 ↧ 12.7 (2×2)",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.415 ±0.008 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists; pmi_not_extracted: AP242 dimension dimension:0:1:4:7 was discovered but not extracted: Part21 dimension correspondence is ambiguous for 'Hole Callout  (Radi). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀10.5 ±0.2032 THRU ⌴ ⌀15.9 ↧ 12.7 (2×2)'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.415 ±0.008 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists; pmi_not_extracted: AP242 dimension dimension:0:1:4:7 was discovered but not extracted: Part21 dimension correspondence is ambiguous for 'Hole Callout  (Radi). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀10.5 ±0.2032 THRU ⌴ ⌀15.9 ↧ 12.7 (2×2)'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "field": "outcome",
@@ -1203,11 +1203,11 @@
   },
   "record": "dimension:0:1:4:9",
   "rust": {
-   "detail": "2× ⌀14.3 ±0.2032 THRU ⌴\n⌀20.6 ↧ 14.3",
+   "detail": "2× ⌀14.287 ±0.2032 THRU ⌴\n⌀20.64 ↧ 14.29",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.562 ±0.008 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '2× ⌀14.3 ±0.2032 THRU ⌴ ⌀20.6 ↧ 14.3'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.562 ±0.008 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '2× ⌀14.3 ±0.2032 THRU ⌴ ⌀20.6 ↧ 14.3'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "field": "outcome",
@@ -1221,11 +1221,11 @@
   },
   "record": "dimension:0:1:4:93",
   "rust": {
-   "detail": "4× ⌀7.1 ±0.2032 THRU ⌴\n⌀10.2 ↧ 7.9",
+   "detail": "4× ⌀7.137 ±0.2032 THRU ⌴\n⌀10.16 ↧ 7.94",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.281 ±0.008 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀7.1 ±0.2032 THRU ⌴ ⌀10.2 ↧ 7.9'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.281 ±0.008 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀7.1 ±0.2032 THRU ⌴ ⌀10.2 ↧ 7.9'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
   "field": "outcome",
@@ -1338,5 +1338,25 @@
   "rust": "6× ⌀10 H11 THRU EQ SP ON\n⌀90 BC",
   "verdict": "rust-correct",
   "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed on that owner alone by default (maintainer decision 2026-10-16; sheet/fit_deviations opts into stacked deviations) (draftwright's fits table; the maintainer's decision of 2026-10-11, hidden by sheet/fit_limits: false), and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+ },
+ {
+  "field": "label",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "port": "dimension:#10143",
+  "python": "⌀9.5 ±0.2032 THRU",
+  "record": "dimension:0:1:4:102",
+  "rust": "⌀9.525 ±0.2032 THRU",
+  "verdict": "rust-correct",
+  "evidence": "Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
+ },
+ {
+  "field": "label",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "port": "dimension:#10263",
+  "python": "⌀19.1 ±0.2032 THRU",
+  "record": "dimension:0:1:4:107",
+  "rust": "⌀19.05 ±0.2032 THRU",
+  "verdict": "rust-correct",
+  "evidence": "Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  }
 ]

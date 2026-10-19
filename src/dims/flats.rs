@@ -1,4 +1,4 @@
-//! Machined flats (quiddity's `Flat`, draftwright's `FlatFeature`): one `52.6 A/F` callout per
+//! Machined flats (quiddity's `Flat`, draftwright's `FlatFeature`): one callout per
 //! across-flats definition (`render_flats`, `_flat_label` and `_flat_definition_count` in
 //! `annotations/from_model.py`; the decimals from `_compile_groups` in `model/compiled.py`).
 //!
@@ -8,12 +8,11 @@
 //!   faces, a hex's six), and one per face otherwise.
 //! - **Callouts:** definitions with the same presentation axis, direction and printed size share
 //!   one callout, counted (`2× 17 A/F`) when there is more than one; the callout states every
-//!   face's `flat.length`.
+//!   face's `flat.length`. A/F requires proven parallel opposite flats; a single flat
+//!   retains Python's flat-to-opposite-OD size, without the A/F qualifier.
 //! - **View:** the flats are seen edge-on looking down the stock: [`end_on`] the record's axis
 //!   (draftwright's `presentation_axis`, which draws an exact x/z slant in the side view).
-//! - **Decimals:** with one size the usual format; when the sheet's flats differ in size, the
-//!   fewest decimals (up to two) that tell them apart, for every flat (draftwright's
-//!   `flat_auto_decimals`, there over the sizes the spec keeps, here over every flat).
+//! - **Decimals:** the common shortest faithful nominal format, up to three places.
 //! - **Leader site:** the faces' `at`.
 //!
 //! A flat whose record lacks its size, position or axis, or whose direction does not lie along
@@ -135,23 +134,18 @@ fn definitions(members: &[&Flat]) -> usize {
     }
 }
 
-/// draftwright's flat decimals: none (the usual format) for one size; otherwise the fewest, up to
-/// two, that tell the sizes (to 0.01) apart.
-fn decimals(flats: &[Flat]) -> Option<usize> {
-    let mut sizes: Vec<i64> = flats
+fn opposed(members: &[&Flat]) -> bool {
+    if members
         .iter()
-        .map(|f| (f.across * 100.0).round() as i64)
-        .collect();
-    sizes.sort_unstable();
-    sizes.dedup();
-    if sizes.len() < 2 {
-        None
-    } else if sizes.iter().any(|s| s % 10 != 0) {
-        Some(2)
-    } else if sizes.iter().any(|s| s % 100 != 0) {
-        Some(1)
+        .any(|m| m.feature.parameters.contains_key("opposed"))
+    {
+        members
+            .iter()
+            .all(|m| m.feature.parameters.get("opposed").and_then(Value::as_bool) == Some(true))
     } else {
-        None
+        // Older saved Analyses carry no plane proof. Only an opposed reflected set
+        // establishes A/F there; a lone record never establishes a second flat.
+        members.len() > 1 && definitions(members) == 1
     }
 }
 
@@ -164,11 +158,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             Err(why) => problems.push(not_dimensioned(f, &why)),
         }
     }
-    let places = decimals(&flats);
-    let text = |a: f64| match places {
-        Some(n) => format!("{a:.n$}"),
-        None => fmt(a),
-    };
+    let text = fmt;
     // Stock regions, then callouts of equal definitions, each in order of its first face.
     let mut regions: Vec<Vec<&Flat>> = Vec::new();
     for (i, f) in flats.iter().enumerate() {
@@ -184,7 +174,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             None => regions.push(vec![f]),
         }
     }
-    type Batch = (usize, [i64; 3], i64, String);
+    type Batch = (usize, [i64; 3], i64, String, bool);
     let mut order: Vec<Batch> = Vec::new();
     let mut batches: BTreeMap<Batch, Vec<Vec<&Flat>>> = BTreeMap::new();
     for g in regions {
@@ -193,6 +183,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             g[0].direction,
             (g[0].across * 1e12).round() as i64,
             text(g[0].across),
+            opposed(&g),
         );
         if !batches.contains_key(&k) {
             order.push(k.clone());
@@ -224,8 +215,11 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         if n > 1 {
             terms.push(format!("{n}×"));
         }
-        terms.extend([text(first.across), "A/F".into()]);
-        let faces = members.len();
+        terms.push(text(first.across));
+        if k.4 {
+            terms.push("A/F".into());
+        }
+        let faces: usize = members.iter().map(|m| m.feature.faces.len()).sum();
         out.push(Want {
             id: super::want_id(&first.feature.id, "flat.length"),
             views: vec![view],
@@ -241,9 +235,10 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 .collect(),
             turning: None,
             basis: format!(
-                "a flat's size across flats is called out where it is seen edge-on, looking down its stock ({}); {}",
+                "a flat's transverse size is called out where it is seen edge-on, looking down its stock ({}); {}",
                 AXES[q],
                 match (n, faces) {
+                    (1, _) if !k.4 => format!("one flat on {faces} coplanar face(s), measured to the opposite outside diameter"),
                     (1, 1) => "one face".to_string(),
                     (1, f) => format!("its {f} faces reflect through the stock's axis, one definition"),
                     (n, f) => format!("{n} equal definitions ({f} faces) are called out once and counted"),
@@ -255,4 +250,61 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         });
     }
     (out, problems)
+}
+
+/// A live linear span can also state a single flat: its endpoints must touch the flat's
+/// actual plane and measure either its axis offset or its flat-to-far-side height.
+/// This provenance survives omission of the separate flat callout and reaches lint.
+pub(super) fn share_locations(cx: &Context, wants: &mut [Want]) {
+    let analysis = cx.analysis;
+    for f in analysis.features.iter().filter(|f| {
+        f.kind == "flat" && f.parameters.get("opposed").and_then(Value::as_bool) == Some(false)
+    }) {
+        let Some(plane) = f.parameters.get("flat_plane") else {
+            continue;
+        };
+        let Some(origin) = point(plane.get("at")) else {
+            continue;
+        };
+        let Some(normal) = point(plane.get("normal")) else {
+            continue;
+        };
+        let origin = cx.frame.point(origin);
+        let normal = (0..3).fold([0.; 3], |p, j| {
+            super::add(p, super::scale3(cx.frame.0[j + 1], normal[j]))
+        });
+        let Some(k) = principal(normal) else { continue };
+        let Some(across) = f.parameters.get("across").and_then(Value::as_f64) else {
+            continue;
+        };
+        let Some(offset) = f.parameters.get("axis_distance").and_then(Value::as_f64) else {
+            continue;
+        };
+        for w in wants.iter_mut() {
+            let Shape::Linear { a, b, axis, .. } = &w.shape else {
+                continue;
+            };
+            if *axis != k || ![a[k], b[k]].iter().any(|v| (v - origin[k]).abs() <= 1e-6) {
+                continue;
+            }
+            let parameter = if (w.value - across).abs() <= 1e-6 {
+                "flat.length"
+            } else if (w.value - offset).abs() <= 1e-6 {
+                "flat_offset.length"
+            } else {
+                continue;
+            };
+            if !w
+                .measurements
+                .iter()
+                .any(|m| m.feature == f.id && m.parameter == parameter)
+            {
+                w.measurements.push(Measurement {
+                    feature: f.id.clone(),
+                    parameter: parameter.into(),
+                    value: w.value,
+                });
+            }
+        }
+    }
 }

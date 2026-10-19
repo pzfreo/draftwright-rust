@@ -226,7 +226,11 @@ fn a_pocket_leader_starts_on_its_rim_on_the_matching_axis() {
         axes_used[i] = true;
         for q in &plan.problems {
             assert!(
-                !q.subjects.contains(&callout.id) || q.code == "annotation_outside_area",
+                !q.subjects.contains(&callout.id) || q.code == "annotation_outside_area"
+                    // Curved depths need more than three places: the required info problem
+                    // is compatible with the unchanged rim and clear-placement assertions.
+                    || (q.code == "nominal_rounded" && q.severity == "info"
+                        && q.message.contains("three-place limit")),
                 "{}: {} {:?}",
                 p.part,
                 q.code,
@@ -312,7 +316,7 @@ fn a_cylindrical_mouth_states_its_greatest_depth() {
             .find(|d| d.id.contains("section_recess") && d.kind == "callout")
             .unwrap()
             .label,
-        "6 × 6 × 11.1 MAX DEEP"
+        "6 × 6 × 11.079 MAX DEEP"
     );
 
     let base = recognition("curved_centered");
@@ -704,7 +708,7 @@ fn a_hex_pocket_needs_a_regular_hexagon_and_keeps_each_claim() {
 /// requirements. On draftwright's whistle frame, as in its tests, three section recesses read as
 /// circular seats along y: ⌀14.3 (to 0.0003 mm), 6 long, a 62.89° arc (to 0.0001°, a minor arc,
 /// not a rectangular channel), their axis 11.1 above the bottom (to 0.0003 mm). The plan states
-/// six requirements for each seat and nothing twice: one callout `3× ø14.3 × 6 LONG × 62.9° ARC`
+/// six requirements for each seat and nothing twice: one callout `3× ø14.3 × 6 LONG × 62.889° ARC`
 /// (draftwright's label) claiming each seat's diameter, run and sweep (nine claims), and five
 /// location dimensions carrying nine claims, as draftwright's: one x and one z shared by the
 /// coaxial seats (`11.1`) and a y for each. Not ported: declared seats and the refusal of a
@@ -740,7 +744,7 @@ fn a_circular_seat_keeps_its_arc_and_six_requirements() {
         .iter()
         .find(|d| d.id.ends_with("/seat_diameter.diameter"))
         .unwrap();
-    assert_eq!(callout.label, "3× ø14.3 × 6 LONG × 62.9°\nARC");
+    assert_eq!(callout.label, "3× ø14.300 × 6 LONG ×\n62.889° ARC");
     assert_eq!(callout.measurements.len(), 9);
     for m in &callout.measurements {
         let (want, within) = match m.parameter.as_str() {
@@ -816,7 +820,7 @@ fn a_circular_seat_keeps_its_arc_and_six_requirements() {
                 .filter(|m| m.parameter == "seat_location.location.z")
                 .count()
         ),
-        ("11.1", 3)
+        ("11.100", 3)
     );
     assert!((z.measurements[0].value - 11.1).abs() < 3e-4);
     let x = locations
@@ -835,7 +839,7 @@ fn a_circular_seat_keeps_its_arc_and_six_requirements() {
                 .filter(|m| m.parameter == "seat_location.location.x")
                 .count()
         ),
-        ("15.6", 3)
+        ("15.650", 3)
     );
 }
 

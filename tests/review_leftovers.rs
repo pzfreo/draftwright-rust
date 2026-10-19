@@ -33,10 +33,11 @@ fn adjacent_labels_have_readable_separation() {
     let Some(plan) = plan("mfcadpp/10127.step", "2f119c6b") else {
         return;
     };
+    // Follow the same two spans with their faithful nominal labels; keep the gap assertion.
     let labels: Vec<_> = plan
         .dimensions
         .iter()
-        .filter(|d| d.view == "v:side" && ["23.9", "32.3"].contains(&d.label.as_str()))
+        .filter(|d| d.view == "v:side" && ["23.890", "32.268"].contains(&d.label.as_str()))
         .collect();
     assert_eq!(labels.len(), 2);
     let a = labels[0].placed.as_ref().unwrap().label_box;
@@ -101,7 +102,7 @@ fn edited_dimensions_do_not_add_extension_crossings_through_the_part() {
     {
         let tolerance = match d.label.as_str() {
             "25.4" => "±0.007".to_string(),
-            "3× 72.4" => "±0.006".to_string(),
+            "3× 72.39" => "±0.006".to_string(),
             _ => format!("±{:.3}", (i + 1) as f64 / 1000.0),
         };
         spec.dimensions.entry(d.id.clone()).or_default().tolerance = Some(tolerance);
@@ -145,7 +146,7 @@ fn edited_dimensions_do_not_add_extension_crossings_through_the_part() {
     let targets: Vec<_> = base
         .dimensions
         .iter()
-        .filter(|d| ["25.4", "3× 72.4"].contains(&d.label.as_str()))
+        .filter(|d| ["25.4", "3× 72.39"].contains(&d.label.as_str()))
         .collect();
     assert_eq!(targets.len(), 2);
     for d in targets {

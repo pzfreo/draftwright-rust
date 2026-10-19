@@ -60,7 +60,7 @@
       "id": "m10127-fit-through-hole",
       "part": "m10127",
       "source": "own: a fit on a hole, read back from the drawn label",
-      "prompt": "On part 10127's drawing, give the ⌀8.1 through hole an H7 fit, so that its callout shows the fit.",
+      "prompt": "On part 10127's drawing, give the ⌀8.094 through hole an H7 fit, so that its callout shows the fit.",
       "success": [
         { "type": "dimension", "quantity": "f:hole:1/bore.diameter", "planned": true, "label_includes": "H7" },
         { "type": "kept_others", "except": [] }

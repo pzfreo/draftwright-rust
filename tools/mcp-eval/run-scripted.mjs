@@ -68,7 +68,8 @@ try {
         case 'grm03-sheet-scale-keep-intent':
           await keepIntent(apply,keyItem(i=>i.label?.includes('5')&&i.id.endsWith('/step.diameter')).id);break;
         case 'm10127-fit-through-hole':{
-          const hole=keyItem(i=>i.id.endsWith('/bore.diameter')&&i.label?.includes('8.1'));
+          // The through bore now prints 8.094 at the three-place limit; previously it printed 8.1.
+          const hole=keyItem(i=>i.id.endsWith('/bore.diameter')&&i.label?.includes('8.094'));
           // H7 is requested by the task, as in the pre-E2 instrument.
           await apply([set(`features/${segment(hole.id.slice(2).split('/')[0])}/fit`,'H7')]);break;
         }

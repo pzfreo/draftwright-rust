@@ -1681,6 +1681,156 @@ fn linear_label_bounds(terms: &[String]) -> (P2, P2) {
     })
 }
 
+/// Shared spans and a straight row's constant coordinate can use the nearest
+/// claimed member. Only shorten perpendicular strokes; measured stations stay fixed.
+pub(crate) fn nearest_shared_witnesses(
+    analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
+    views: &[crate::model::PlannedView],
+    dimensions: &mut [super::PlannedDimension],
+) {
+    if !crate::nominal::geometry_eligible(analysis) {
+        return;
+    }
+    let mut wants = None;
+    for d in dimensions.iter_mut().filter(|d| d.kind == "linear") {
+        if d.measurements.is_empty()
+            || spec
+                .dimensions
+                .get(&d.id)
+                .is_some_and(|s| s.place.is_some())
+        {
+            continue;
+        }
+        let first = &d.measurements[0];
+        if !d
+            .measurements
+            .iter()
+            .all(|m| m.parameter == first.parameter && (m.value - first.value).abs() < 1e-6)
+        {
+            continue;
+        }
+        let (Some(v), Some(p)) = (views.iter().find(|v| v.id == d.view), d.placed.as_mut()) else {
+            continue;
+        };
+        if v.detail.is_some() || v.cut.is_some() || p.lines.len() < 3 || p.arrows.len() != 2 {
+            continue;
+        }
+        let normal = if p.rotation.abs() < 1e-9 {
+            1
+        } else if (p.rotation - 90.).abs() < 1e-9 {
+            0
+        } else {
+            continue;
+        };
+        let station = 1 - normal;
+        if p.lines[..2]
+            .iter()
+            .any(|s| (s[0][station] - s[1][station]).abs() > 1e-9)
+        {
+            continue;
+        }
+        let frame = Frame::new(analysis, v);
+        let line = p.arrows[0][0][normal];
+        let sign = (p.lines[0][1][normal] - p.lines[0][0][normal]).signum();
+        // A straight row's constant coordinate belongs to every member, unlike
+        // its along-row location, which must still locate the first member.
+        if let Some(axis) = first
+            .parameter
+            .strip_prefix("location.length.")
+            .and_then(|name| super::AXES.iter().position(|a| *a == name))
+            && let Some(pattern) = analysis.recognition.as_ref().and_then(|r| {
+                r.patterns
+                    .iter()
+                    .find(|row| row.id == first.feature && row.arrangement == "linear")
+            })
+        {
+            let qframe = crate::bridge::holes::frame(analysis);
+            let points: Option<Vec<_>> = pattern
+                .members
+                .iter()
+                .map(|id| {
+                    let feature = analysis.features.iter().find(|f| &f.id == id)?;
+                    crate::bridge::holes::Hole::read(feature, &qframe)
+                        .ok()
+                        .map(|h| h.at)
+                })
+                .collect();
+            if let Some(points) = points
+                && points.len() > 1
+                && points
+                    .iter()
+                    .all(|at| (at[axis] - points[0][axis]).abs() < 1e-6)
+            {
+                for at in points {
+                    let at = frame.page(at);
+                    for i in 0..2 {
+                        if (at[station] - p.lines[i][0][station]).abs() > 1e-6 {
+                            continue;
+                        }
+                        let start = p.lines[i][0][normal];
+                        let candidate = at[normal] + sign * GAP;
+                        if candidate >= start.min(line) - 1e-6
+                            && candidate <= start.max(line) + 1e-6
+                            && (candidate - line).abs() + 1e-6 < (start - line).abs()
+                        {
+                            p.lines[i][0][normal] = candidate;
+                        }
+                    }
+                }
+            }
+        }
+        if d.measurements.len() < 2 {
+            continue;
+        }
+        let old = [p.lines[0][0], p.lines[1][0]];
+        let mut best = old;
+        let mut shortest = (old[0][normal] - line).abs() + (old[1][normal] - line).abs();
+        for w in wants.get_or_insert_with(|| super::wants(analysis).0).iter() {
+            if !w.measurements.iter().any(|m| d.measurements.contains(m)) {
+                continue;
+            }
+            let Shape::Linear {
+                a,
+                b,
+                a_edge: false,
+                b_edge: false,
+                ..
+            } = w.shape
+            else {
+                continue;
+            };
+            let mut ends = [frame.page(a), frame.page(b)];
+            if (ends[0][station] - old[1][station]).abs() < 1e-6
+                && (ends[1][station] - old[0][station]).abs() < 1e-6
+            {
+                ends.swap(0, 1);
+            }
+            if (0..2).any(|i| (ends[i][station] - old[i][station]).abs() > 1e-6) {
+                continue;
+            }
+            for end in &mut ends {
+                end[normal] += sign * GAP;
+            }
+            // Each new origin lies on the existing stroke, with the same gap
+            // from its own claimed model station. Removing ink cannot add a crossing.
+            if (0..2).any(|i| {
+                let x = ends[i][normal];
+                x < old[i][normal].min(line) - 1e-6 || x > old[i][normal].max(line) + 1e-6
+            }) {
+                continue;
+            }
+            let length = (ends[0][normal] - line).abs() + (ends[1][normal] - line).abs();
+            if length + 1e-6 < shortest {
+                shortest = length;
+                best = ends;
+            }
+        }
+        p.lines[0][0] = best[0];
+        p.lines[1][0] = best[1];
+    }
+}
+
 fn place_linear_at(
     frame: &Frame,
     shape: &Shape,
@@ -2353,7 +2503,33 @@ fn clear_linear_ordered(
             .filter_map(|(_, p)| p.as_ref())
             .chain(obstacles.iter().filter_map(|d| d.placed.as_ref()))
             .collect();
-        let label_conflict = location_order_conflict(side, p, placed)
+        // A settled witness can separate a short peer's text from its own
+        // arrow even without touching a glyph. Repair that witness as well
+        // as trying to move the already detached label.
+        let separated_labels: Vec<_> = placed
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| {
+                crate::nominal::geometry_eligible(analysis)
+                    && !crate::nominal::comparison()
+                    && *j != i
+                    && chosen[*j] == Some(view)
+            })
+            .filter(|(j, _)| {
+                matches!(items[*j].shape, Shape::Linear { order: 0, .. })
+                    && items[*j]
+                        .measurements
+                        .iter()
+                        .any(|m| !m.feature.starts_with("f:section_recess:"))
+            })
+            .filter_map(|(_, q)| q.as_ref())
+            .filter(|q| {
+                !super::label_lanes::off_span(q, std::iter::empty())
+                    && super::label_lanes::off_span(q, std::iter::once(p))
+            })
+            .collect();
+        let label_conflict = !separated_labels.is_empty()
+            || location_order_conflict(side, p, placed)
             || !page.fits(p, view)
             || others.iter().any(|q| conflict(p, q))
             || (recess_context && super::label_lanes::off_span(p, others.iter().copied()));
@@ -2417,18 +2593,22 @@ fn clear_linear_ordered(
         // witness onto another hole even when neither is a recess. Give that
         // physical crossing the same bounded corridor repair as new witnesses
         // when the established drawing proves it was clear before expansion.
-        let recess_corridor =
-            (old_location(i) && before.0 > 0 && established_clear.contains(&items[i].id))
-                || items[i]
-                    .measurements
+        let recess_corridor = (before.0 > 0
+            && ((old_location(i) && established_clear.contains(&items[i].id))
+                || (new_native
+                    && crate::nominal::geometry_eligible(analysis)
+                    && !crate::nominal::comparison()
+                    && matches!(items[i].shape, Shape::Linear { order: 0, .. }))))
+            || items[i]
+                .measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:section_recess:"))
+            || p.lines.iter().take(2).any(|line| {
+                footprint
+                    .crossed_extension(*line, &items[i].measurements)
                     .iter()
-                    .any(|m| m.feature.starts_with("f:section_recess:"))
-                || p.lines.iter().take(2).any(|line| {
-                    footprint
-                        .crossed_extension(*line, &items[i].measurements)
-                        .iter()
-                        .any(|id| id.starts_with("f:section_recess:"))
-                });
+                    .any(|id| id.starts_with("f:section_recess:"))
+            });
         if (recess_context && !recess_corridor && !label_conflict)
             || (!label_conflict && (!recess_corridor || before == (0, 0)))
         {
@@ -3035,6 +3215,9 @@ fn clear_linear_ordered(
                         final_peers.iter().any(|q| conflict(&c, q))
                     };
                     if pair_contact
+                        || separated_labels
+                            .iter()
+                            .any(|q| super::label_lanes::off_span(q, std::iter::once(&c)))
                         || (recess_context
                             && (super::label_lanes::off_span(&c, final_peers.iter().copied())
                                 || final_peers.iter().any(|q| {
@@ -3462,8 +3645,27 @@ fn settle_where(
         // reported), its label off the views and the title block, and its lines out of the
         // title block.
         let off_already = !page.on_sheet(p);
+        let linear = p.arrows.len() == 2
+            && p.lines.len() >= 3
+            && (p.arrows[0][0][usize::from(p.rotation == 0.)]
+                - p.arrows[1][0][usize::from(p.rotation == 0.)])
+            .abs()
+                < 1e-6;
+        let outward = linear.then(|| super::label_lanes::outward_heads(p));
+        let peers: Vec<_> = others().collect();
         let found = slides(p, page.drawable)
-            .find(|c| (off_already || page.on_sheet(c)) && page.clear_of_furniture(c) && clear(c));
+            .chain(outward.iter().flat_map(|outward| {
+                super::label_lanes::alternatives_placed(outward, page.drawable, &peers)
+            }))
+            .find(|c| {
+                (off_already || page.on_sheet(c))
+                    && page.clear_of_furniture(c)
+                    && clear(c)
+                    && c.arrows
+                        .iter()
+                        .flat_map(|a| super::leaders::head(*a))
+                        .all(|s| peers.iter().all(|q| !crosses(s, q.label_box)))
+            });
         if let Some(c) = found {
             items[i] = Some(c);
         }

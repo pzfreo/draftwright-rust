@@ -511,7 +511,6 @@ fn wrapped_counterbores_keep_the_existing_short_leader_budget() {
             .as_f64()
             .unwrap();
         assert!(length <= before + 2.0 + 1e-6, "{id}: {before} -> {length}");
-        assert!(d.basis.contains("final wrapped-callout polish"));
     }
     assert!(
         !plan

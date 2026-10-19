@@ -59,13 +59,36 @@ pub const AXIS_TOL: f64 = 1.0;
 
 const AXES: [&str; 3] = ["x", "y", "z"];
 
-/// A number as Python's messages print it (`_fmt`): whole, or to one decimal.
+/// A nominal as live labels print it: shortest within 1e-6, up to three places.
 pub fn fmt(v: f64) -> String {
-    let r = v.round();
-    if (v - r).abs() < 1e-6 {
-        format!("{}", r as i64)
+    let v = (v * 1e6).round() / 1e6;
+    let places = (0..3)
+        .find(|&places| {
+            let factor = 10_f64.powi(places as i32);
+            ((v * factor).round() / factor - v).abs() <= 1e-6 + 1e-12
+        })
+        .unwrap_or(3);
+    let text = format!("{v:.places$}");
+    if places == 3
+        && text
+            .parse::<f64>()
+            .is_ok_and(|n| (n - v).abs() > 1e-6 + 1e-12)
+    {
+        return if text.parse::<f64>() == Ok(0.) {
+            "0.000".into()
+        } else {
+            text
+        };
+    }
+    let text = if places == 0 {
+        text.as_str()
     } else {
-        format!("{v:.1}")
+        text.trim_end_matches('0').trim_end_matches('.')
+    };
+    if text == "-0" {
+        "0".into()
+    } else {
+        text.into()
     }
 }
 
@@ -829,7 +852,7 @@ mod tests {
             found(&[], &[]),
             [
                 "cylindrical feature ø8 has no diameter callout on the sheet",
-                "cylindrical feature ø13.0 has no diameter callout on the sheet"
+                "cylindrical feature ø12.99 has no diameter callout on the sheet"
             ]
         );
         assert_eq!(found(&[8.14, 13.0], &[]), Vec::<String>::new());

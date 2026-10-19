@@ -125,13 +125,15 @@ if args.current:
     # Its retained 1 mm terminal-band length (turned_step:3/step.length) is now
     # the short local span: its outside-arrow label must stay beside its own tips,
     # rather than migrating along the neighbouring baseline's longer stations.
-    for part, labels in [('1000', ['6.9', '8.9', '10.9']), ('10020', ['4.5', '1.2']),
-                         ('10007', ['14.0']), ('string_post', ['1'])]:
+    for part, labels in [('1000', ['6.925', '8.854', '10.854']), ('10020', ['4.458', '1.233']),
+                         ('10007', ['14.031']), ('string_post', ['1'])]:
         plan = json.loads((after / f'{part}.plan.json').read_text())
         for label in labels:
             items = [d for d in plan['dimensions'] if d['kind'] == 'linear' and d['label'] == label and d.get('placed')]
             assert items, (part, label, 'missing dimension')
             for d in items:
+                assert any(abs(float(label) - m['value']) <= 0.0005 + 1e-6
+                           for m in d['measurements']), (part, d['id'], label, 'not the modelled value')
                 p = d['placed']; k = int(p['rotation'] != 0)
                 lo, hi = sorted(a[0][k] for a in p['arrows'])
                 assert max(lo - p['label_box'][k+2], p['label_box'][k] - hi) < 5.7 - 1e-6, (part, label, 'detached')

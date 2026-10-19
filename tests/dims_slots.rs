@@ -103,11 +103,11 @@ fn cgb245_slots_state_width_length_end_radius_and_location() {
         strs(&[
             ("slot_end_radius.radius", "plan", "2× R3"),
             ("slot_end_radius.radius", "plan", "2× R3"),
-            ("slot_length.length", "plan", "15.0"),
-            ("slot_length.length", "plan", "15.0"),
-            ("slot_length.length", "plan", "16.9"),
+            ("slot_length.length", "plan", "14.97"),
+            ("slot_length.length", "plan", "14.97"),
+            ("slot_length.length", "plan", "16.86"),
             ("slot_width.length", "plan", "2× 6"),
-            ("slot_width.length", "plan", "7.0"),
+            ("slot_width.length", "plan", "6.98"),
         ])
     );
     let width = plan.dimensions.iter().find(|d| d.label == "2× 6").unwrap();
@@ -115,10 +115,10 @@ fn cgb245_slots_state_width_length_end_radius_and_location() {
     assert_eq!(
         items(&plan, "location_slot"),
         strs(&[
-            ("location_slot.length", "plan", "181.6"),
-            ("location_slot.length", "plan", "286.0"),
-            ("location_slot.length", "plan", "79.1"),
-            ("location_slot_across.length", "plan", "38.9"),
+            ("location_slot.length", "plan", "181.57"),
+            ("location_slot.length", "plan", "285.960"),
+            ("location_slot.length", "plan", "79.070"),
+            ("location_slot_across.length", "plan", "38.866"),
         ])
     );
     let conveyed: Vec<_> = plan
@@ -132,7 +132,7 @@ fn cgb245_slots_state_width_length_end_radius_and_location() {
     let owner = &basis["conveyed by ".len()..basis.find(": ").unwrap()];
     let hole = plan.dimensions.iter().find(|d| d.id == owner).unwrap();
     assert!(
-        hole.id.ends_with("/location.length.y") && hole.view == "v:plan" && hole.label == "50.4",
+        hole.id.ends_with("/location.length.y") && hole.view == "v:plan" && hole.label == "50.356",
         "{hole:?}"
     );
     for d in plan.dimensions.iter().filter(|d| d.id.contains("slot")) {
@@ -183,15 +183,15 @@ fn ftc06_bosses_are_counted_called_out_and_their_heights_stated() {
     assert_eq!(
         items(&plan, "boss"),
         strs(&[
-            ("boss.diameter", "front", "2× ø22.9"),
-            ("boss.diameter", "front", "2× ø31.8"),
-            ("boss.diameter", "plan", "4× ø44.5"),
+            ("boss.diameter", "front", "2× ø22.86"),
+            ("boss.diameter", "front", "2× ø31.75"),
+            ("boss.diameter", "plan", "4× ø44.45"),
             // Each set of bosses stands to one height across one span: one counted dimension
             // claiming every boss (src/dims/mod.rs::share), where draftwright's sheet repeats
             // the same span four (and twice two) times.
             ("boss_height.length", "front", "4× 38.1"),
-            ("boss_height.length", "side", "2× 12.1"),
-            ("boss_height.length", "side", "2× 16.3"),
+            ("boss_height.length", "side", "2× 12.07"),
+            ("boss_height.length", "side", "2× 16.34"),
         ])
     );
     let heights: usize = plan
@@ -245,10 +245,10 @@ fn a_turned_parts_coaxial_bosses_are_profile_bands_and_a_groove_floor_is_the_gro
             ("boss.diameter", "front", "ø110"),
             ("boss.diameter", "front", "ø118"),
             ("boss.diameter", "front", "ø122"),
-            ("boss_height.length", "front", "199.7"),
+            ("boss_height.length", "front", "199.67"),
             ("boss_height.length", "front", "20"),
-            ("boss_height.length", "front", "4.8"),
-            ("boss_height.length", "front", "6.4"),
+            ("boss_height.length", "front", "4.84"),
+            ("boss_height.length", "front", "6.38"),
         ])
     );
     let overall = plan
@@ -256,7 +256,7 @@ fn a_turned_parts_coaxial_bosses_are_profile_bands_and_a_groove_floor_is_the_gro
         .iter()
         .find(|d| d.id == "d:envelope/od.diameter")
         .unwrap();
-    assert_eq!(overall.label, "ø130.9");
+    assert_eq!(overall.label, "ø130.94");
     assert_eq!(
         overall
             .measurements
@@ -328,7 +328,7 @@ fn equal_widths_across_a_view_share_one_counted_dimension() {
         items(&plan, "slot_width"),
         strs(&[
             ("slot_width.length", "plan", "2× 6"),
-            ("slot_width.length", "plan", "7.0"),
+            ("slot_width.length", "plan", "6.98"),
         ])
     );
     let shared = plan.dimensions.iter().find(|d| d.label == "2× 6").unwrap();
@@ -444,9 +444,9 @@ fn ftc07_square_bosses_are_counted_across_flats_with_their_heights() {
         (
             "polygon_across_flats.length",
             "front",
-            "4× 4-SIDED 25.4 A/F",
+            "4× 4-SIDED 25.352 A/F",
         ),
-        ("boss_height.length", "side", "4× 2.5"),
+        ("boss_height.length", "side", "4× 2.54"),
     ];
     let got: Vec<_> = stating(&plan, &a, "polygonal_boss")
         .into_iter()
@@ -488,25 +488,25 @@ fn blind_slots_are_called_out_as_draftwright_reads_their_sections() {
             "m10047",
             "mfcadpp/10047.step",
             &[
-                ("location_pocket.x", "front", "7.8"),
-                ("location_pocket.z", "front", "3.5"),
-                ("location_slot_across.length", "plan", "16.1"),
-                ("location_slot_across.length", "side", "11.0"),
-                ("pocket_width.length", "front", "2 × 4.1 × 27.0 DEEP"),
+                ("location_pocket.x", "front", "7.789"),
+                ("location_pocket.z", "front", "3.526"),
+                ("location_slot_across.length", "plan", "16.119"),
+                ("location_slot_across.length", "side", "11.002"),
+                ("pocket_width.length", "front", "2 × 4.124 × 26.996 DEEP"),
                 (
                     "polygon_across_flats.length",
                     "front",
-                    "HEX 1.7 A/F × 3.1 DEEP",
+                    "HEX 1.732 A/F × 3.112 DEEP",
                 ),
                 (
                     "round_bottom_blind_slot_flat_width.length",
                     "plan",
-                    "ROUND-BOTTOM OPEN SLOT 1\nBOTTOM FLAT × R0.5 × 2.4\nLONG",
+                    "ROUND-BOTTOM OPEN SLOT 1\nBOTTOM FLAT × R0.541 × 2.42\nLONG",
                 ),
                 (
                     "round_bottom_blind_slot_flat_width.length",
                     "side",
-                    "ROUND-BOTTOM OPEN SLOT 1\nBOTTOM FLAT × R4.4 × 4.7\nLONG",
+                    "ROUND-BOTTOM OPEN SLOT 1\nBOTTOM FLAT × R4.396 × 4.662\nLONG",
                 ),
             ],
         ),
@@ -514,17 +514,17 @@ fn blind_slots_are_called_out_as_draftwright_reads_their_sections() {
             "m10245",
             "mfcadpp/10245.step",
             &[
-                ("location_pocket.x", "front", "5.6"),
-                ("location_pocket.x", "front", "8.4"),
-                ("location_pocket.z", "front", "24.1"),
-                ("location_pocket.z", "front", "40.6"),
-                ("location_slot_across.length", "front", "33.9"),
-                ("pocket_width.length", "front", "2 × 2 × 16.6 DEEP"),
-                ("pocket_width.length", "front", "3.1 × 8.3 × 7.4 DEEP"),
+                ("location_pocket.x", "front", "5.565"),
+                ("location_pocket.x", "front", "8.392"),
+                ("location_pocket.z", "front", "24.090"),
+                ("location_pocket.z", "front", "40.570"),
+                ("location_slot_across.length", "front", "33.902"),
+                ("pocket_width.length", "front", "2 × 2 × 16.575 DEEP"),
+                ("pocket_width.length", "front", "3.124 × 8.326 × 7.44 DEEP"),
                 (
                     "rectangular_blind_slot_width.length",
                     "front",
-                    "OPEN SLOT 3.3 × 9.2 × 2.0\nDEEP",
+                    "OPEN SLOT 3.344 × 9.15 ×\n2.049 DEEP",
                 ),
             ],
         ),
@@ -534,11 +534,11 @@ fn blind_slots_are_called_out_as_draftwright_reads_their_sections() {
             // Its walls stand at x = 12.837 and 15.295 (OpenCascade's face boxes), so its centre
             // line is 14.066 from the part's left face.
             &[
-                ("location_slot_across.length", "plan", "14.1"),
+                ("location_slot_across.length", "plan", "14.067"),
                 (
                     "rectangular_blind_slot_width.length",
                     "plan",
-                    "OPEN SLOT 2.5 × 11.7 × 6.7\nDEEP",
+                    "OPEN SLOT 2.458 × 11.672 ×\n6.674 DEEP",
                 ),
             ],
         ),
@@ -619,7 +619,7 @@ fn a_boss_height_between_the_parts_own_faces_is_the_overall_extents() {
     let proud = model::plan(&a, &Spec::default()).unwrap();
     assert_eq!(
         items(&proud, "boss_height"),
-        strs(&[("boss_height.length", "side", "5.7")])
+        strs(&[("boss_height.length", "side", "5.73")])
     );
     // Flush with both faces of the part, its height is the overall depth's: one fact, one owner.
     let [lo, hi] = a.envelope;
@@ -671,7 +671,7 @@ fn a_boss_with_no_height_is_reported_not_silently_left_short() {
     // Its diameter is still called out; its height is not, and a warning says so.
     assert_eq!(
         items(&plan, "boss"),
-        strs(&[("boss.diameter", "front", "ø8.4")])
+        strs(&[("boss.diameter", "front", "ø8.385")])
     );
     let p = plan
         .problems

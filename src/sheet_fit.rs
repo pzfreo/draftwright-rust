@@ -13,6 +13,17 @@ pub const MIN_OPENING: f64 = 0.8;
 pub const ABSOLUTE_FLOOR: f64 = 0.1;
 
 pub fn min_legible_scale(analysis: &Analysis) -> f64 {
+    let needed = min_geometry_scale(analysis).max(crate::dims::recess_chain_scale(analysis));
+    crate::layout::SCALES
+        .into_iter()
+        .rev()
+        .find(|s| *s >= needed)
+        .unwrap_or(needed)
+}
+
+/// Geometry floor, before the estimated room for labels inside slot chains.
+/// A finished drawing may prove those labels readable with outward arrows.
+pub(crate) fn min_geometry_scale(analysis: &Analysis) -> f64 {
     let opening = analysis
         .features
         .iter()
@@ -33,8 +44,7 @@ pub fn min_legible_scale(analysis: &Analysis) -> f64 {
         .fold(0.0, f64::max);
     let needed = (MIN_OPENING / opening)
         .max(20.0 / longest.max(1e-12))
-        .max(ABSOLUTE_FLOOR)
-        .max(crate::dims::recess_chain_scale(analysis));
+        .max(ABSOLUTE_FLOOR);
     crate::layout::SCALES
         .into_iter()
         .rev()
@@ -1079,6 +1089,70 @@ pub(crate) fn reserve_annotation_bounds(
     }) {
         return;
     }
+    reserve_bounds(analysis, sheet, views, inventory, gdt, None);
+}
+
+/// Longer default nominals need their actual paper reservation, including the
+/// run-on of a short linear dimension. Reclaim only vacant neighbouring bands;
+/// every view, annotation, border and title-block gate remains the same.
+pub(crate) fn reserve_nominal_bounds(
+    analysis: &Analysis,
+    sheet: &crate::model::PlannedSheet,
+    views: &mut [crate::model::PlannedView],
+    inventory: &[crate::dims::PlannedDimension],
+    gdt: &[crate::dims::gdt::PlannedGdt],
+) {
+    if !crate::nominal::geometry_eligible(analysis) {
+        let grown: std::collections::BTreeSet<_> = inventory
+            .iter()
+            .filter(|d| d.kind == "linear")
+            .filter(|d| {
+                d.measurements.iter().any(|m| {
+                    let number = crate::nominal::format(m.value);
+                    number
+                        .split_once('.')
+                        .is_some_and(|(_, fraction)| fraction.len() > 1)
+                        && d.label.contains(&number)
+                })
+            })
+            .map(|d| d.id.clone())
+            .collect();
+        if !grown.is_empty() {
+            reserve_bounds(analysis, sheet, views, inventory, gdt, Some(&grown));
+        }
+        return;
+    }
+    let grown_views: std::collections::BTreeSet<_> = inventory
+        .iter()
+        .filter(|d| {
+            d.measurements.iter().any(|m| {
+                let number = crate::nominal::format(m.value);
+                number
+                    .split_once('.')
+                    .is_some_and(|(_, fraction)| fraction.len() > 1)
+                    && d.label.contains(&number)
+            })
+        })
+        .map(|d| d.view.clone())
+        .collect();
+    let grown: std::collections::BTreeSet<_> = inventory
+        .iter()
+        .filter(|d| grown_views.contains(&d.view))
+        .map(|d| d.id.clone())
+        .collect();
+    if !grown.is_empty() {
+        reserve_bounds(analysis, sheet, views, inventory, gdt, Some(&grown));
+    }
+}
+
+fn reserve_bounds(
+    analysis: &Analysis,
+    sheet: &crate::model::PlannedSheet,
+    views: &mut [crate::model::PlannedView],
+    inventory: &[crate::dims::PlannedDimension],
+    gdt: &[crate::dims::gdt::PlannedGdt],
+    selected: Option<&std::collections::BTreeSet<String>>,
+) {
     let mut bounds: Vec<(&str, Rect, bool)> = inventory
         .iter()
         .filter_map(|d| Some((d.view.as_str(), crate::dims::ink_box(d)?, true)))
@@ -1151,9 +1225,27 @@ pub(crate) fn reserve_annotation_bounds(
             }
         }
     }
+    // The isometric has reclaimable bands too. Protect its material and the
+    // caption's measured ink instead of treating every unused corner as ink.
+    let mut caption_ink = inventory.to_vec();
+    caption_ink.extend(crate::centrelines::obstacles(views));
+    caption_ink.extend(gdt.iter().filter_map(crate::dims::gdt::proxy));
+    for caption in crate::iso_caption::plan(analysis, sheet, views, &caption_ink) {
+        if let Some(i) = views.iter().position(|v| v.id == caption.view) {
+            include(&mut protected[i], [caption.ink[0], caption.ink[1]]);
+            include(&mut protected[i], [caption.ink[2], caption.ink[3]]);
+        }
+    }
+    if let Some(ids) = selected {
+        bounds = inventory
+            .iter()
+            .filter(|d| ids.contains(&d.id))
+            .filter_map(|d| Some((d.view.as_str(), crate::dims::ink_box(d)?, true)))
+            .collect();
+    }
     bounds.extend(
         gdt.iter()
-            .filter(|g| g.kind != "control_frame")
+            .filter(|g| selected.is_none() && g.kind != "control_frame")
             .filter_map(|g| {
                 let p = g.placed.as_ref()?;
                 let mut b = p.label_box;
@@ -1202,7 +1294,8 @@ pub(crate) fn reserve_annotation_bounds(
             if i == j || !overlap(candidate, areas[j]) {
                 continue;
             }
-            if !reclaim || views[j].id == "v:iso" {
+            if !reclaim || (views[j].id == "v:iso" && !crate::nominal::geometry_eligible(analysis))
+            {
                 clear = false;
                 break;
             }

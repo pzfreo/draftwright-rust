@@ -187,10 +187,12 @@ fn hole_pattern_pitch_needs_truthful_printed_evidence() {
 
 #[test]
 fn formatting_rounds_negative_zero_without_a_sign() {
-    for value in [-0.04, -0.0001, -0.0] {
+    // Faithful default nominals retain small negative values; only rounded zero loses its sign.
+    for value in [-0.0001, -0.0] {
         assert!(!draftwright::dims::fmt(value).starts_with('-'));
     }
-    assert_eq!(draftwright::dims::fmt(-0.06), "-0.1");
+    assert_eq!(draftwright::dims::fmt(-0.04), "-0.04");
+    assert_eq!(draftwright::dims::fmt(-0.06), "-0.06");
 }
 
 #[test]

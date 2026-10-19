@@ -317,6 +317,15 @@ thread_local! {
     static RUNS: Cell<usize> = const { Cell::new(0) };
 }
 
+/// Include recovered runs performed while preparing and finishing a public plan,
+/// so sessions use the same planner as the CLI without losing their accounting.
+pub(crate) fn count_runs<T>(steps: &mut usize, run: impl FnOnce() -> T) -> T {
+    let before = RUNS.with(Cell::get);
+    let result = run();
+    *steps += RUNS.with(Cell::get) - before;
+    result
+}
+
 fn run(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     RUNS.with(|runs| runs.set(runs.get() + 1));
     crate::planning::with(analysis, || {
@@ -359,6 +368,9 @@ pub(crate) fn allocate_counted(
         }
         crate::iso_caption::refresh(analysis, &mut plan);
         crate::view_gutters::apply(analysis, &mut plan);
+        // Gutters translate the isometric while schedules stay fixed. Resolve
+        // its caption against that finished furniture, not the earlier frame.
+        crate::iso_caption::refresh(analysis, &mut plan);
         Ok(plan)
     })();
     *steps += RUNS.with(Cell::get) - before;

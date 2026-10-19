@@ -4802,26 +4802,6 @@
   {
     "set": "pads",
     "part": "whistle_frame_reference",
-    "subject": "f:flat:10",
-    "field": "id",
-    "python": "f:flat:10",
-    "rust": "f:flat:13",
-    "verdict": "rust-correct",
-    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing."
-  },
-  {
-    "set": "pads",
-    "part": "whistle_frame_reference",
-    "subject": "f:flat:11",
-    "field": "id",
-    "python": "f:flat:11",
-    "rust": "f:flat:14",
-    "verdict": "rust-correct",
-    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing."
-  },
-  {
-    "set": "pads",
-    "part": "whistle_frame_reference",
     "subject": "f:flat:2",
     "field": "id",
     "python": "f:flat:2",
@@ -4845,9 +4825,9 @@
     "subject": "f:flat:4",
     "field": "id",
     "python": "f:flat:4",
-    "rust": "f:flat:7",
+    "rust": "f:flat:6",
     "verdict": "rust-correct",
-    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing."
+    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing. Coplanar faces 0 and 7 on the same stock are now one flat in Draftwright; flat IDs are ranked after that merge. The geometric plane/axis proof is recorded in the provider frame. This updates the exact identity/presence expectation without changing the provider-difference verdict (drawn-values-2026-10-18)."
   },
   {
     "set": "pads",
@@ -4855,9 +4835,9 @@
     "subject": "f:flat:5",
     "field": "id",
     "python": "f:flat:5",
-    "rust": "f:flat:8",
+    "rust": "f:flat:7",
     "verdict": "rust-correct",
-    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing."
+    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing. Coplanar faces 0 and 7 on the same stock are now one flat in Draftwright; flat IDs are ranked after that merge. The geometric plane/axis proof is recorded in the provider frame. This updates the exact identity/presence expectation without changing the provider-difference verdict (drawn-values-2026-10-18)."
   },
   {
     "set": "pads",
@@ -4865,9 +4845,9 @@
     "subject": "f:flat:6",
     "field": "id",
     "python": "f:flat:6",
-    "rust": "f:flat:9",
+    "rust": "f:flat:8",
     "verdict": "rust-correct",
-    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing."
+    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing. Coplanar faces 0 and 7 on the same stock are now one flat in Draftwright; flat IDs are ranked after that merge. The geometric plane/axis proof is recorded in the provider frame. This updates the exact identity/presence expectation without changing the provider-difference verdict (drawn-values-2026-10-18)."
   },
   {
     "set": "pads",
@@ -4875,9 +4855,9 @@
     "subject": "f:flat:7",
     "field": "id",
     "python": "f:flat:7",
-    "rust": "f:flat:10",
+    "rust": "f:flat:9",
     "verdict": "rust-correct",
-    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing."
+    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing. Coplanar faces 0 and 7 on the same stock are now one flat in Draftwright; flat IDs are ranked after that merge. The geometric plane/axis proof is recorded in the provider frame. This updates the exact identity/presence expectation without changing the provider-difference verdict (drawn-values-2026-10-18)."
   },
   {
     "set": "pads",
@@ -4885,19 +4865,9 @@
     "subject": "f:flat:8",
     "field": "id",
     "python": "f:flat:8",
-    "rust": "f:flat:11",
+    "rust": "f:flat:10",
     "verdict": "rust-correct",
-    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing."
-  },
-  {
-    "set": "pads",
-    "part": "whistle_frame_reference",
-    "subject": "f:flat:9",
-    "field": "id",
-    "python": "f:flat:9",
-    "rust": "f:flat:12",
-    "verdict": "rust-correct",
-    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing."
+    "evidence": "Follows from this part's three native flats Python's document drops (its rust f:flat:1, f:flat:4 and f:flat:6 presence entries, rust-correct: Python loses them to working-frame round-off at the 0.5 mm depth threshold): they rank among these by faces and move their numbers. The same flat on the same face, its record agreeing. Coplanar faces 0 and 7 on the same stock are now one flat in Draftwright; flat IDs are ranked after that merge. The geometric plane/axis proof is recorded in the provider frame. This updates the exact identity/presence expectation without changing the provider-difference verdict (drawn-values-2026-10-18)."
   },
   {
     "set": "pads",
@@ -4985,9 +4955,9 @@
     "subject": "rust f:flat:1",
     "field": "presence",
     "python": "-",
-    "rust": "f:flat:1 [0] {\"across\":6.5,\"at\":[-14.326,-3.0,1.75],\"axis\":\"z\",\"axis_direction\":[0.0,0.0,1.0],\"axis_line\":[-12.15,0.0],\"stock_span\":[0.0,3.5]}",
+    "rust": "f:flat:1 [0, 7] {\"across\":6.5,\"at\":[-14.326,-3.0,1.75],\"axis\":\"z\",\"axis_direction\":[0.0,0.0,1.0],\"axis_distance\":3.0,\"axis_line\":[-12.15,0.0],\"flat_plane\":{\"at\":[-14.7,-3.0,0.0],\"normal\":[0.0,1.0,0.0]},\"opposed\":false,\"stock_span\":[0.0,3.5]}",
     "verdict": "rust-correct",
-    "evidence": "Python quiddity's standalone recognise_flats on the file (0.4.0.dev0, run 2026-10-09) gives these 14 flats, as quiddity-rust does; its orchestrated document runs it in the working frame (origin (-4.189, 32.215, 3.637), axes (z, x, y) of the part's), where the flat's depth below the D7 stock, r - s, is 0.4999999999836575 on the three flats at the part's y = -3.0 end (faces 0, 7, 11) and 0.5000000000163425 on their mirror images at y = 67.595 (faces 16, 20, 24), so `r - s < _MIN_FLAT_DEPTH` (0.5, flats.py) drops the first three only; in the file's frame r - s is exactly 0.5 on all six. quiddity-rust keeps a flat whose depth is within COORD_FLOOR of the minimum wherever the part sits (features/flats.rs, too_shallow), so its six symmetric flats are the part's. draftwright reads flats for lint/flats.rs and dims; on this part the native path has the three flats Python's document drops."
+    "evidence": "Python quiddity's standalone recognise_flats on the file (0.4.0.dev0, run 2026-10-09) gives these 14 flats, as quiddity-rust does; its orchestrated document runs it in the working frame (origin (-4.189, 32.215, 3.637), axes (z, x, y) of the part's), where the flat's depth below the D7 stock, r - s, is 0.4999999999836575 on the three flats at the part's y = -3.0 end (faces 0, 7, 11) and 0.5000000000163425 on their mirror images at y = 67.595 (faces 16, 20, 24), so `r - s < _MIN_FLAT_DEPTH` (0.5, flats.py) drops the first three only; in the file's frame r - s is exactly 0.5 on all six. quiddity-rust keeps a flat whose depth is within COORD_FLOOR of the minimum wherever the part sits (features/flats.rs, too_shallow), so its six symmetric flats are the part's. draftwright reads flats for lint/flats.rs and dims; on this part the native path has the three flats Python's document drops. Coplanar faces 0 and 7 on the same stock are now one flat in Draftwright; flat IDs are ranked after that merge. The geometric plane/axis proof is recorded in the provider frame. This updates the exact identity/presence expectation without changing the provider-difference verdict (drawn-values-2026-10-18)."
   },
   {
     "set": "pads",
@@ -4995,18 +4965,8 @@
     "subject": "rust f:flat:4",
     "field": "presence",
     "python": "-",
-    "rust": "f:flat:4 [7] {\"across\":6.5,\"at\":[0.0,-3.0,2.186],\"axis\":\"z\",\"axis_direction\":[0.0,0.0,1.0],\"axis_line\":[-12.15,0.0],\"stock_span\":[0.0,3.5]}",
+    "rust": "f:flat:4 [11] {\"across\":6.5,\"at\":[14.301,-3.0,1.75],\"axis\":\"z\",\"axis_direction\":[0.0,0.0,1.0],\"axis_distance\":3.0,\"axis_line\":[12.15,0.0],\"flat_plane\":{\"at\":[-14.7,-3.0,0.0],\"normal\":[0.0,1.0,0.0]},\"opposed\":false,\"stock_span\":[0.0,3.5]}",
     "verdict": "rust-correct",
-    "evidence": "Python quiddity's standalone recognise_flats on the file (0.4.0.dev0, run 2026-10-09) gives these 14 flats, as quiddity-rust does; its orchestrated document runs it in the working frame (origin (-4.189, 32.215, 3.637), axes (z, x, y) of the part's), where the flat's depth below the D7 stock, r - s, is 0.4999999999836575 on the three flats at the part's y = -3.0 end (faces 0, 7, 11) and 0.5000000000163425 on their mirror images at y = 67.595 (faces 16, 20, 24), so `r - s < _MIN_FLAT_DEPTH` (0.5, flats.py) drops the first three only; in the file's frame r - s is exactly 0.5 on all six. quiddity-rust keeps a flat whose depth is within COORD_FLOOR of the minimum wherever the part sits (features/flats.rs, too_shallow), so its six symmetric flats are the part's. draftwright reads flats for lint/flats.rs and dims; on this part the native path has the three flats Python's document drops."
-  },
-  {
-    "set": "pads",
-    "part": "whistle_frame_reference",
-    "subject": "rust f:flat:6",
-    "field": "presence",
-    "python": "-",
-    "rust": "f:flat:6 [11] {\"across\":6.5,\"at\":[14.301,-3.0,1.75],\"axis\":\"z\",\"axis_direction\":[0.0,0.0,1.0],\"axis_line\":[12.15,0.0],\"stock_span\":[0.0,3.5]}",
-    "verdict": "rust-correct",
-    "evidence": "Python quiddity's standalone recognise_flats on the file (0.4.0.dev0, run 2026-10-09) gives these 14 flats, as quiddity-rust does; its orchestrated document runs it in the working frame (origin (-4.189, 32.215, 3.637), axes (z, x, y) of the part's), where the flat's depth below the D7 stock, r - s, is 0.4999999999836575 on the three flats at the part's y = -3.0 end (faces 0, 7, 11) and 0.5000000000163425 on their mirror images at y = 67.595 (faces 16, 20, 24), so `r - s < _MIN_FLAT_DEPTH` (0.5, flats.py) drops the first three only; in the file's frame r - s is exactly 0.5 on all six. quiddity-rust keeps a flat whose depth is within COORD_FLOOR of the minimum wherever the part sits (features/flats.rs, too_shallow), so its six symmetric flats are the part's. draftwright reads flats for lint/flats.rs and dims; on this part the native path has the three flats Python's document drops."
+    "evidence": "Python quiddity's standalone recognise_flats on the file (0.4.0.dev0, run 2026-10-09) gives these 14 flats, as quiddity-rust does; its orchestrated document runs it in the working frame (origin (-4.189, 32.215, 3.637), axes (z, x, y) of the part's), where the flat's depth below the D7 stock, r - s, is 0.4999999999836575 on the three flats at the part's y = -3.0 end (faces 0, 7, 11) and 0.5000000000163425 on their mirror images at y = 67.595 (faces 16, 20, 24), so `r - s < _MIN_FLAT_DEPTH` (0.5, flats.py) drops the first three only; in the file's frame r - s is exactly 0.5 on all six. quiddity-rust keeps a flat whose depth is within COORD_FLOOR of the minimum wherever the part sits (features/flats.rs, too_shallow), so its six symmetric flats are the part's. draftwright reads flats for lint/flats.rs and dims; on this part the native path has the three flats Python's document drops. Coplanar faces 0 and 7 on the same stock are now one flat in Draftwright; flat IDs are ranked after that merge. The geometric plane/axis proof is recorded in the provider frame. This updates the exact identity/presence expectation without changing the provider-difference verdict (drawn-values-2026-10-18)."
   }
 ]

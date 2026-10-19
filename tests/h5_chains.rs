@@ -129,7 +129,7 @@ fn slot_chain_keeps_overall_and_functional_length_without_closure() {
     assert!(
         p.dimensions
             .iter()
-            .any(|d| d.id == "d:f:slot:1/slot_length.length" && d.label == "19.1")
+            .any(|d| d.id == "d:f:slot:1/slot_length.length" && d.label == "19.08")
     );
     assert!(
         !p.dimensions
@@ -146,7 +146,7 @@ fn slot_chain_keeps_overall_and_functional_length_without_closure() {
         })
         .unwrap();
     assert_eq!(floor.id, "d:f:slot:1/location_slot.length");
-    assert_eq!(floor.label, "(5.1)");
+    assert_eq!(floor.label, "(5.134)");
     assert!(p.omitted.iter().any(|d| d.id == "d:step_level/step_height.length.h5_133"
         && matches!(&d.state, draftwright::items::State::Covered { by } if by == &floor.id)));
     let spec = model::edit(&Spec::default(), &json!([{"op":"set", "path":"dimensions/d:f:slot:1~1location_slot.length/omit", "value":true}])).unwrap();
@@ -157,7 +157,10 @@ fn slot_chain_keeps_overall_and_functional_length_without_closure() {
         .find(|d| d.id == "d:step_level/step_height.length.h5_133")
         .unwrap();
     assert_eq!(
-        floor.label, "(5.1)",
+        // The restored geometric floor is 5.133; the slot-centre reference above is 5.1335.
+        // Preserve both distinct modelled values at the new default precision.
+        floor.label,
+        "(5.133)",
         "restoring the floor must not close the chain again"
     );
 }
@@ -237,7 +240,7 @@ fn wall_witness_avoids_the_hole_centreline() {
         .iter()
         .find(|d| d.id == "d:f:plate:1/thickness.length")
         .unwrap();
-    assert_eq!(d.label, "2× 9.3");
+    assert_eq!(d.label, "2× 9.297");
     assert_eq!(d.view, "v:plan");
 }
 #[test]
@@ -386,15 +389,18 @@ fn shoulders_on_slot_walls_are_references_when_the_slot_is_stated() {
     // 10047: 18.6 + 4.5 = 23.1, and the slot's centre 20.9 fixes both walls.
     let a = native("mfcadpp/10047.step");
     let p = model::plan(&a, &Spec::default()).unwrap();
-    assert_eq!(label(&p, "d:f:slot:1/slot_width.length"), "4.5");
-    assert_eq!(label(&p, "d:f:slot:1/location_slot_across.length"), "20.9");
+    assert_eq!(label(&p, "d:f:slot:1/slot_width.length"), "4.53");
+    assert_eq!(
+        label(&p, "d:f:slot:1/location_slot_across.length"),
+        "20.877"
+    );
     assert_eq!(
         label(&p, "d:step_level/step_position.length.y18_61"),
-        "(18.6)"
+        "(18.61)"
     );
     assert_eq!(
         label(&p, "d:step_level/step_position.length.y23_144"),
-        "(23.1)"
+        "(23.144)"
     );
     let issues = lint::check(&a, &marks(&p));
     assert!(
@@ -408,17 +414,17 @@ fn shoulders_on_slot_walls_are_references_when_the_slot_is_stated() {
     let p = model::plan(&a, &spec).unwrap();
     assert_eq!(
         label(&p, "d:step_level/step_position.length.y18_61"),
-        "18.6"
+        "18.61"
     );
     assert_eq!(
         label(&p, "d:step_level/step_position.length.y23_144"),
-        "(23.1)"
+        "(23.144)"
     );
     // The same rule on z ladders (FTC-09's slots, FTC-10's 12.5 + 50 = 62.5).
     let p = model::plan(&native("nist/nist_ftc_09_asme1_rd.stp"), &Spec::default()).unwrap();
     assert_eq!(
         label(&p, "d:step_level/step_height.length.h41_275"),
-        "(41.3)"
+        "(41.275)"
     );
     let p = model::plan(&native("nist/nist_ftc_10_asme1_rb.stp"), &Spec::default()).unwrap();
     assert_eq!(label(&p, "d:step_level/step_height.length.h62_5"), "(62.5)");

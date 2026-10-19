@@ -111,7 +111,7 @@ fn few_blends_share_a_radius_callout_and_lose_credit_when_hidden() {
         .iter()
         .find(|d| d.measurements.iter().any(|m| m.parameter == "blend.radius"))
         .expect("blend radius callout");
-    assert_eq!(radius.label, "2× R0.2");
+    assert_eq!(radius.label, "2× R0.25");
     assert_eq!(radius.measurements.len(), 2);
     for f in a.features.iter().filter(|f| f.kind == "blend") {
         let sites = &a.blend_sites[&f.id];

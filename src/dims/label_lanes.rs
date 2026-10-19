@@ -413,7 +413,7 @@ fn label_at(p: &Placed, at: f64) -> Placed {
         .arrows
         .iter()
         .any(|[_, tail]| tail[k] < lo || tail[k] > hi);
-    let reach = if outside { ARROW + 2.0 } else { 0.0 };
+    let reach = if outside { ARROW + 0.5 } else { 0.0 };
     c.lines[2][0][k] = lo - reach;
     c.lines[2][1][k] = hi + reach;
     if at < lo {
@@ -422,6 +422,22 @@ fn label_at(p: &Placed, at: f64) -> Placed {
     if at > hi {
         c.lines[2][1][k] = c.lines[2][1][k].max(at - 0.5);
     }
+    c
+}
+
+/// Keep the measured tips and put arrowheads outside when grown nominal text cannot
+/// clear a crossing witness between inward heads. The longer line carries those heads.
+pub(super) fn outward_heads(p: &Placed) -> Placed {
+    let mut c = p.clone();
+    let k = axis(p);
+    let (lo, hi) = tips(p);
+    for [tip, tail] in &mut c.arrows {
+        if (tip[k] == lo && tail[k] > lo) || (tip[k] == hi && tail[k] < hi) {
+            *tail = std::array::from_fn(|j| 2. * tip[j] - tail[j]);
+        }
+    }
+    c.lines[2][0][k] = lo - ARROW - 0.5;
+    c.lines[2][1][k] = hi + ARROW + 0.5;
     c
 }
 
@@ -452,6 +468,9 @@ pub(super) fn centered_short(p: &Placed) -> Option<Placed> {
         return None;
     }
     let width = p.label_box[k + 2] - p.label_box[k];
+    if width > hi - lo + 1e-6 {
+        return None;
+    }
     let mut c = label_at(p, 0.5 * (lo + hi - width));
     let normal = 1 - k;
     let lift = if k == 0 { 0.5 } else { -0.5 };
@@ -515,11 +534,18 @@ pub(super) fn alternatives_placed<'a>(
             .then(a.total_cmp(b))
     });
     positions.dedup_by(|a, b| (*a - *b).abs() < 1e-6);
+    let overhang = if outside_arrows {
+        vec![lo - CLEAR, hi + CLEAR - width]
+    } else {
+        Vec::new()
+    };
     positions
         .into_iter()
+        .chain(overhang)
         .chain(tail)
         .filter(move |at| *at >= drawable[k] && at + width <= drawable[k + 2])
         .map(move |at| label_at(p, at))
+        .filter(|c| c.lines.iter().take(2).all(|s| !crosses(*s, c.label_box)))
 }
 
 fn promote(p: &Placed, amount: f64) -> Placed {
@@ -679,7 +705,30 @@ fn settle_inventory_uncached(
             )
         };
         let original_span_bad = span_bad(p);
-        if count == 0 && !original_span_bad {
+        let normal = 1 - axis(p);
+        let centre = views
+            .iter()
+            .find(|v| v.id == d.view)
+            .map_or(0., |v| v.at[normal]);
+        let extent_inward = |c: &Placed| {
+            super::is_envelope_extent(&d.id)
+                && others
+                    .iter()
+                    .filter(|q| {
+                        q.kind == "linear" && q.view == d.view && !super::is_envelope_extent(&q.id)
+                    })
+                    .filter_map(|q| q.placed.as_ref())
+                    .any(|q| {
+                        q.arrows.len() == 2
+                            && q.rotation == c.rotation
+                            && (q.arrows[0][0][normal] - centre) * (c.arrows[0][0][normal] - centre)
+                                > 0.
+                            && (c.arrows[0][0][normal] - centre).abs()
+                                <= (q.arrows[0][0][normal] - centre).abs() + 1e-6
+                    })
+        };
+        let restore_extent = extent_inward(p);
+        if count == 0 && !original_span_bad && !outside(p, area) && !restore_extent {
             continue;
         }
         // Whether the original ink already detached a peer's text is constant
@@ -691,8 +740,58 @@ fn settle_inventory_uncached(
             .filter(|q| !off_span(q, std::iter::once(p)))
             .collect();
         let clearance: Vec<_> = others.iter().map(|_| std::cell::OnceCell::new()).collect();
+        let rank = |d: &PlannedDimension| {
+            let role = d.id.rsplit_once('/').map_or("", |(_, role)| role);
+            if super::is_envelope_extent(&d.id) {
+                2
+            } else if role.starts_with("location")
+                || role.starts_with("step_height")
+                || role.starts_with("step_position")
+            {
+                1
+            } else {
+                0
+            }
+        };
         let allowed = |c: &Placed, prepared: &[LabelContacts]| {
-            if !page.fits(c, view) || outside(c, region) || (outside(c, area) && !outside(p, area))
+            // A longer label may need another lane, but must not jump past an overall
+            // extent or reverse datum-location order. Same-rank sizes may still skip
+            // an occupied rung, as before.
+            // Sliding text on its existing line cannot change lane order.
+            // An inherited imperfect ladder must not block that local repair.
+            let ordered = (crate::nominal::geometry_eligible(analysis)
+                && !crate::nominal::comparison()
+                && (c.arrows[0][0][normal] - p.arrows[0][0][normal]).abs() < 1e-6)
+                || others
+                    .iter()
+                    .filter(|q| q.kind == "linear" && q.view == d.view)
+                    .filter_map(|q| Some((*q, q.placed.as_ref()?)))
+                    .filter(|(_, q)| {
+                        q.arrows.len() == 2
+                            && q.rotation == p.rotation
+                            && (q.arrows[0][0][normal] - centre) * (p.arrows[0][0][normal] - centre)
+                                > 0.
+                    })
+                    .all(|(q, placed)| {
+                        let order = rank(d).cmp(&rank(q)).then_with(|| {
+                            if rank(d) == 1 {
+                                d.value.total_cmp(&q.value)
+                            } else {
+                                std::cmp::Ordering::Equal
+                            }
+                        });
+                        let next = (c.arrows[0][0][normal] - centre).abs();
+                        let peer = (placed.arrows[0][0][normal] - centre).abs();
+                        match order {
+                            std::cmp::Ordering::Less => next < peer - 1e-6,
+                            std::cmp::Ordering::Greater => next > peer + 1e-6,
+                            std::cmp::Ordering::Equal => true,
+                        }
+                    });
+            if !ordered
+                || !page.fits(c, view)
+                || (!restore_extent && outside(c, region))
+                || (!restore_extent && outside(c, area) && !outside(p, area))
             {
                 return false;
             }
@@ -732,7 +831,12 @@ fn settle_inventory_uncached(
             // Notch lanes may retain an existing detached station. Score its real
             // span tier so an unchanged candidate cannot stop a later repair.
             // Other drawings still require !span_bad(c) below.
-            (hits, bounded_notches && span_bad(c)) < (count, original_span_bad)
+            (
+                hits,
+                extent_inward(c),
+                bounded_notches && span_bad(c),
+                outside(c, area),
+            ) < (count, restore_extent, original_span_bad, outside(p, area))
         };
         // A single occupied rung may be skipped; fixed-ink obstructions never justify
         // a farther search. Two paper lanes is the absolute movement bound.
@@ -747,37 +851,42 @@ fn settle_inventory_uncached(
         });
         let found = (0..=if chained {
             0
-        } else if next_occupied {
+        } else if next_occupied || restore_extent {
             2
         } else {
             1
         })
-            .take_while(|n| !outside(&promote(p, *n as f64 * LANE), region))
+            // Restoring an overall may spend two outward lanes beyond the old
+            // footprint. Page fit, every contact and peer clearance still gate it.
+            .take_while(|n| restore_extent || !outside(&promote(p, *n as f64 * LANE), region))
             .find_map(|n| {
                 let lane = promote(p, n as f64 * LANE);
-                let prepared: Vec<_> = others
-                    .iter()
-                    .map(|q| LabelContacts::new(&lane, q))
-                    .collect();
-                // Keep the settled along-span station when a new notch lane
-                // lets the whole dimension move clear of a callout.
-                let alternatives = alternatives(&lane, page.drawable(), &others);
-                // If new bands displaced short text, restore its own span before
-                // accepting a contact-only improvement at the old detached station.
-                alternatives
-                    .iter()
-                    .filter(|c| bounded_notches && span_bad(p) && !span_bad(c))
-                    .flat_map(|c| [c.clone(), lift_label(c)])
-                    .chain(std::iter::once(lane).filter(|_| bounded_notches))
-                    .chain(alternatives.iter().cloned())
-                    // A longer tolerance may already stand beyond a neighbouring
-                    // witness. New notch lanes may clear its text contacts while
-                    // retaining that existing span relation; never introduce one.
-                    .find(|c| {
-                        allowed(c, &prepared)
-                            && better(c, &prepared)
-                            && (!span_bad(c) || (bounded_notches && span_bad(p)))
-                    })
+                let flexible = outside(p, area)
+                    || others
+                        .iter()
+                        .any(|q| q.kind == "linear" && contacts(p, q) != 0);
+                let outward = flexible.then(|| outward_heads(&lane));
+                std::iter::once(lane).chain(outward).find_map(|lane| {
+                    let prepared: Vec<_> = others
+                        .iter()
+                        .map(|q| LabelContacts::new(&lane, q))
+                        .collect();
+                    let alternatives = alternatives(&lane, page.drawable(), &others);
+                    alternatives
+                        .iter()
+                        .filter(|c| bounded_notches && span_bad(p) && !span_bad(c))
+                        .flat_map(|c| [c.clone(), lift_label(c)])
+                        .chain(std::iter::once(lane.clone()).filter(|_| bounded_notches))
+                        .chain(centered_short(&lane))
+                        .chain(alternatives.iter().flat_map(|c| {
+                            std::iter::once(c.clone()).chain(flexible.then(|| lift_label(c)))
+                        }))
+                        .find(|c| {
+                            allowed(c, &prepared)
+                                && better(c, &prepared)
+                                && (!span_bad(c) || (bounded_notches && span_bad(p)))
+                        })
+                })
             });
         if let Some(c) = found {
             inventory[i].placed = Some(c);

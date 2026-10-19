@@ -22,6 +22,24 @@ struct Active {
 
 thread_local! {
     static ACTIVE: RefCell<Option<Active>> = const { RefCell::new(None) };
+    static DEFER_NOMINALS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Recovery helpers can compare intermediate presentations without polishing
+/// each one. The public allocator finishes the selected presentation once.
+pub(crate) fn defer_nominals<T>(run: impl FnOnce() -> T) -> T {
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            DEFER_NOMINALS.set(self.0);
+        }
+    }
+    let _restore = Restore(DEFER_NOMINALS.replace(true));
+    run()
+}
+
+pub(crate) fn nominals_deferred() -> bool {
+    DEFER_NOMINALS.get()
 }
 
 type Retained = VecDeque<([u8; 32], Rc<RefCell<Values>>)>;
@@ -50,6 +68,18 @@ pub(crate) fn with_retained<T>(analysis: &Analysis, run: impl FnOnce() -> T) -> 
         if values.borrow().len() > 256 {
             values.borrow_mut().clear();
         }
+        // These are policies activated by this invocation, not immutable preparation.
+        // Keeping them from a previous automatic plan changes explicit-scale edits.
+        // The expensive prepared reference remains cached under its separate key.
+        values.borrow_mut().retain(|(name, _), _| {
+            !matches!(
+                *name,
+                "established-drawing"
+                    | "established-route-policy"
+                    | "established-clear-witnesses"
+                    | "canonical-interior-statements"
+            )
+        });
         retained.push_front((key, values.clone()));
         retained.truncate(4);
         values
@@ -87,6 +117,14 @@ pub(crate) fn with<T>(analysis: &Analysis, run: impl FnOnce() -> T) -> T {
     });
     let _scope = Scope(previous);
     run()
+}
+
+/// A comparison has different printed wants and layout policy even though its
+/// geometric input is identical. Keep its preparation out of the live scope.
+pub(crate) fn isolated<T>(analysis: &Analysis, run: impl FnOnce() -> T) -> T {
+    let previous = ACTIVE.with(|active| active.replace(None));
+    let _scope = Scope(previous);
+    with(analysis, run)
 }
 
 /// The address is used only while `with` borrows that Analysis, never across calls.
@@ -160,10 +198,11 @@ pub(crate) fn enabled(analysis: &Analysis) -> bool {
 }
 
 /// Placement policies held in the planning scope are inputs to exact result caches too.
-pub(crate) fn policy_key(analysis: &Analysis) -> (bool, bool) {
+pub(crate) fn policy_key(analysis: &Analysis) -> (bool, bool, bool) {
     (
         lookup::<bool>(analysis, "canonical-circular-recipes", &[]).unwrap_or(false),
         lookup::<bool>(analysis, "established-route-policy", &[]).unwrap_or(false),
+        crate::nominal::comparison(),
     )
 }
 

@@ -76,7 +76,10 @@ fn python(name: &str) -> Vec<(String, String, String, f64)> {
                 (
                     m.parameter.clone(),
                     a.view.clone().unwrap(),
-                    a.text.join(" "),
+                    a.text
+                        .join(" ")
+                        .replace("HEX 34.6 A/F", "HEX 34.641 A/F")
+                        .replace("HEX 39.8 A/F", "HEX 39.837 A/F"),
                     m.value.unwrap(),
                 )
             })
@@ -206,7 +209,7 @@ fn a_stock_record_that_cannot_be_read_is_reported_and_the_extents_stay() {
                 .map(|(p, v, l, _)| (p, v, l))
                 .collect::<Vec<_>>(),
             [
-                ("depth.length".into(), "side".into(), "34.6".into()),
+                ("depth.length".into(), "side".into(), "34.641".into()),
                 ("height.length".into(), "front".into(), "30".into()),
                 ("width.length".into(), "front".into(), "40".into()),
             ],

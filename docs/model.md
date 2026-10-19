@@ -1015,6 +1015,19 @@ radial leader leaving its own hole along that hole's centre-mark arm is exempt.
 
 ### Dimensions (first cut)
 
+Default nominal text uses the shortest decimal within 1e-6 of the value after 1e-6 noise
+removal, up to three decimal places (`4.75`, `7.4`, `12`, `247.65000001 -> 247.65`).
+If three places are insufficient, all three are printed and an info `nominal_rounded`
+problem identifies the carrier and its modelled and printed values. Per-measurement Spec
+precision overrides this default; tolerances keep their own formatting. This intentionally
+departs from Python's one-decimal `_fmt`, including flat auto-decimal padding. See
+[the drawn-value verification report](drawn-values-2026-10-18.md).
+
+Interrupted coplanar faces on the same stock form one flat feature. A/F is used only for
+proven opposing parallel flats. A single flat retains the Python flat-to-opposite-OD
+measurement without A/F. A drawn height or axis-offset span whose endpoint is on that
+flat's plane also carries its coverage claim, even if its separate callout is omitted.
+
 `src/dims/` plans the dimensions draftwright's defaults would state for the families ported
 so far, each a Plan item `{id, kind, view, value, label, terms, measurements, default, from_spec,
 basis, placed, reference?, determined_by?}`:

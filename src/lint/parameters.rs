@@ -61,10 +61,36 @@ pub fn size(f: &Feature, name: &str) -> Result<f64, String> {
 }
 
 /// A number as messages print it: at most three decimals, trailing zeros dropped.
-pub fn fmt(x: f64) -> String {
-    let s = format!("{x:.3}");
-    let s = s.trim_end_matches('0').trim_end_matches('.');
-    if s == "-0" { "0".into() } else { s.into() }
+pub fn fmt(v: f64) -> String {
+    let v = (v * 1e6).round() / 1e6;
+    let places = (0..3)
+        .find(|&places| {
+            let factor = 10_f64.powi(places as i32);
+            ((v * factor).round() / factor - v).abs() <= 1e-6 + 1e-12
+        })
+        .unwrap_or(3);
+    let text = format!("{v:.places$}");
+    if places == 3
+        && text
+            .parse::<f64>()
+            .is_ok_and(|n| (n - v).abs() > 1e-6 + 1e-12)
+    {
+        return if text.parse::<f64>() == Ok(0.) {
+            "0.000".into()
+        } else {
+            text
+        };
+    }
+    let text = if places == 0 {
+        text.as_str()
+    } else {
+        text.trim_end_matches('0').trim_end_matches('.')
+    };
+    if text == "-0" {
+        "0".into()
+    } else {
+        text.into()
+    }
 }
 
 /// A point or direction as messages print it.

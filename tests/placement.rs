@@ -987,10 +987,24 @@ fn a_starved_overall_extent_has_first_claim_on_the_opposite_strip() {
                 );
             }
         }
+        // The required precision-limit information is independent of strip placement.
+        // Keep its severity and both-value wording checked; every placement finding still fails.
+        for q in plan
+            .problems
+            .iter()
+            .filter(|q| q.subjects.first().is_some_and(|s| s == id) && q.code == "nominal_rounded")
+        {
+            assert_eq!(q.severity, "info");
+            assert!(
+                q.message.contains(&d.label)
+                    && q.message.contains("modelled nominal")
+                    && q.message.contains("but prints")
+            );
+        }
         let against: Vec<&str> = plan
             .problems
             .iter()
-            .filter(|q| q.subjects.first().is_some_and(|s| s == id))
+            .filter(|q| q.subjects.first().is_some_and(|s| s == id) && q.code != "nominal_rounded")
             .map(|q| q.code.as_str())
             .collect();
         assert!(against.is_empty(), "{name}: {id} reported {against:?}");
