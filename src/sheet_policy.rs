@@ -17,7 +17,8 @@ pub struct Candidate {
 // Layout/readability failures only: overlaps and crossings, ink outside its frame/bands,
 // unreadable text/scale, and content left undrawn for space. Recognition and engineering
 // findings do not choose paper. Compare code + sorted subjects against the automatic baseline
-// so findings shared by every paper do not penalise a smaller sheet (even at info severity).
+// so findings shared by every paper do not penalise a smaller sheet. Spatial codes count even
+// at info severity; only the informational recovery summary is not a spatial/readability failure.
 const FAILING_CODES: &[&str] = &[
     "annotation_overlap",
     "annotation_ink_overlap",
@@ -38,6 +39,7 @@ const FAILING_CODES: &[&str] = &[
     "dimension_line_shared",
     "dimension_text_stray",
     "legibility_floor_breached",
+    "layout_recovery_exhausted",
     "sheet_below_smallest_scale",
     "notes_not_placed",
     "table_not_placed",
@@ -52,17 +54,20 @@ const FAILING_CODES: &[&str] = &[
     "view_plan_incomplete",
 ];
 
+fn problem_key(p: &model::Problem) -> (String, Vec<String>) {
+    let mut subjects = p.subjects.clone();
+    subjects.sort();
+    subjects.dedup();
+    (p.code.clone(), subjects)
+}
+
 fn failures(analysis: &Analysis, plan: &Plan, floor: f64) -> BTreeSet<(String, Vec<String>)> {
     let mut failures: BTreeSet<_> = plan
         .problems
         .iter()
         .filter(|p| FAILING_CODES.contains(&p.code.as_str()))
-        .map(|p| {
-            let mut subjects = p.subjects.clone();
-            subjects.sort();
-            subjects.dedup();
-            (p.code.clone(), subjects)
-        })
+        .filter(|p| p.code != "layout_recovery_exhausted" || p.severity != "info")
+        .map(problem_key)
         .collect();
     // The outline box has no stroke width. At the frame its visible stroke is already
     // outside the drawing area. Use the renderer's line width, and the existing off-sheet
@@ -160,7 +165,9 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
     let printer = spec.sheet.preferred_printer.as_deref().unwrap_or("A4");
     let floor =
         sheet_fit::min_legible_scale(fit_analysis).max(crate::sheets::floor(spec).unwrap_or(0.0));
-    let baseline_failures = failures(fit_analysis, &baseline, floor);
+    let mut baseline_failures = failures(fit_analysis, &baseline, floor);
+    // Match every baseline problem by code + subject, including informational findings.
+    baseline_failures.extend(baseline.problems.iter().map(problem_key));
     let mut candidates = Vec::new();
     for (size, max) in requests(printer) {
         // A baseline already as good in this preference order needs no forced replay.
@@ -439,6 +446,12 @@ mod tests {
         assert_eq!(failures(&a, &p, 0.1).difference(&b).count(), 1);
         p.problems[0].code = "features_not_recognised".into();
         assert!(failures(&a, &p, 0.1).is_empty());
+        p.problems[0].code = "layout_recovery_exhausted".into();
+        p.problems[0].severity = "info".into();
+        assert!(failures(&a, &p, 0.1).is_empty());
+        p.problems[0].severity = "warning".into();
+        assert!(!failures(&a, &p, 0.1).is_empty());
+
         assert!(
             failures(&a, &p, p.sheet.scale_factor * 2.0)
                 .iter()

@@ -423,21 +423,26 @@ fn every_planning_entry_point_applies_the_recovery() {
     assert_eq!(named.sheet.size, "A2");
 }
 
-/// FTC-07's smallest complete fit remains A2 at 1:2. Wrapping clears the old
+/// FTC-07 prefers A3 at 1:5. An explicit count retains the old A2 at 1:2 search.
+/// Wrapping clears the old
 /// pitch-line clash at A1 1:1, but that enlargement lengthens established leaders
 /// beyond their unchanged two-millimetre budget, so the complete A2 is retained.
 #[test]
-fn ftc07_uses_one_paper_step_only_with_enlargement() {
+fn ftc07_prefers_a3_and_keeps_the_explicit_count_search() {
     let Some(dir) = corpus::dir() else {
         return;
     };
     let step = dir.join("nist/nist_ftc_07_asme1_rd.stp");
     let plan = api::plan_from(&step, Features::Native, &Spec::default()).unwrap();
-    assert_eq!(sheet(&plan), ("A2", "1:2"));
+    assert_eq!(sheet(&plan), ("A3", "1:5"));
     let analysis = api::analyse_from(&step, Features::Native).unwrap();
     // The table-free drawing the sheet is chosen by ([`model::recover`]'s hole-table path).
     let never = Spec {
         hole_table: draftwright::hole_table::Setting::Never,
+        sheets: Some(draftwright::sheets::SheetsSpec {
+            max: Some(1),
+            ..Default::default()
+        }),
         ..Default::default()
     };
     let chosen = api::plan_analysed(&analysis, &never).unwrap();
@@ -468,7 +473,7 @@ fn ftc07_uses_one_paper_step_only_with_enlargement() {
     let first =
         model::plan_escalated(&analysis, &spec(json!({"size":"A3", "scale":"1:5"}))).unwrap();
     let again = model::recover(&analysis, &Spec::default(), first).unwrap();
-    assert_eq!(sheet(&again), sheet(&plan));
+    assert_eq!(sheet(&again), sheet(&chosen));
     assert!(again.sheet.basis.contains("additional view conflicts"));
 }
 
