@@ -2,11 +2,13 @@ export class Engine {
   [Symbol.dispose](): void;
   apply(ops: string, commit: boolean): string;
   applyFragments(ops: string): string;
+  calloutOffset(address: string): string;
   constructor(name: string, bytes: Uint8Array);
   faceCount(): number;
   featureCount(): number;
   fragments(): string;
   free(): void;
+  labelOffset(address: string): string;
   placementOptions(): string;
   plan(): string;
   planCount(): number;
@@ -41,9 +43,11 @@ export interface InitOutput {
   readonly __wbindgen_start: () => void;
   readonly engine_apply: (a: number, b: number, c: number, d: number) => [number, number, number, number];
   readonly engine_applyFragments: (a: number, b: number, c: number) => [number, number, number, number];
+  readonly engine_calloutOffset: (a: number, b: number, c: number) => [number, number, number, number];
   readonly engine_faceCount: (a: number) => number;
   readonly engine_featureCount: (a: number) => number;
   readonly engine_fragments: (a: number) => [number, number];
+  readonly engine_labelOffset: (a: number, b: number, c: number) => [number, number, number, number];
   readonly engine_open: (a: number, b: number, c: number, d: number) => [number, number, number];
   readonly engine_placementOptions: (a: number) => [number, number, number, number];
   readonly engine_plan: (a: number) => [number, number, number, number];
