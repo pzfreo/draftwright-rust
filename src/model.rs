@@ -2608,6 +2608,7 @@ fn recover_candidates(
         .is_some_and(|i| i >= LARGE_SHEET);
     // A large first estimate of a small part is no sheet to keep: it vetoes nothing.
     let mut seed_kept = seed_clean
+        && first.sheet.scale_factor >= min_legible_scale
         && !suppressed_detail
         && !(first_large && is_small(&mut small_part)?)
         && established_scale.is_none_or(|s| first.sheet.scale_factor <= s)
