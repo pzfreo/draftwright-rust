@@ -633,11 +633,19 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
         .iter()
         .enumerate()
         .map(|(i, v)| {
-            let b = moved_bounds[i];
+            let mut b = moved_bounds[i];
             let sheet = std::iter::once(&plan.sheet)
                 .chain(&plan.sheets)
                 .find(|s| s.number == v.sheet)
                 .unwrap();
+            if automatic {
+                // The public reservation is clipped below. Off-sheet blank
+                // padding must not veto recording an otherwise safe ink band.
+                for k in 0..2 {
+                    b[k] = b[k].max(MARGIN);
+                    b[k + 2] = b[k + 2].min(sheet.page[k] - MARGIN);
+                }
+            }
             // Gutters already reserve this settled ink. A retained drawing may
             // still carry its earlier, narrower principal band: commit the real
             // reservation only when it clears the border, title and every peer.
