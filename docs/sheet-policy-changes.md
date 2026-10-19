@@ -1,30 +1,43 @@
-# Paper, scale or sheet-count changes
+# Paper, scale or sheet-count changes versus current main
+
+Before: `origin/main` `51d8f9f5`. After: Round 5 implementation `7c5a3ec8`.
 
 Before and after use paper, main scale / physical sheets / details.
 
 | Part | Before | After |
 | --- | --- | --- |
-| corpus/cadgenbench/threaded_connector_109.step | A3 1:5 / 1 / 0 | A2 1:2 / 1 / 0 |
+| corpus/gramel/GRM-05_depth_lock_bolt.step | A3 5:1 / 1 / 0 | A4 2:1 / 1 / 0 |
+| corpus/inventory_refusal/14052.step.gz | A3 5:1 / 1 / 0 | A4 2:1 / 1 / 0 |
 | corpus/mfcadpp/10033.step | A3 2:1 / 1 / 0 | A4 1:1 / 1 / 0 |
 | corpus/mfcadpp/10049.step | A4 1:1 / 1 / 0 | A3 2:1 / 1 / 0 |
-| corpus/mfcadpp/10098.step | A4 1:2 / 1 / 0 | A1 5:1 / 1 / 0 |
+| corpus/mfcadpp/10098.step | A4 1:2 / 1 / 0 | A4 1:1 / 1 / 1 |
+| corpus/mfcadpp/10103.step | A3 5:1 / 1 / 0 | A4 2:1 / 1 / 0 |
 | corpus/mfcadpp/10146.step | A3 2:1 / 1 / 0 | A2 2:1 / 1 / 0 |
 | corpus/mfcadpp/10155.step | A3 2:1 / 1 / 0 | A4 1:1 / 1 / 0 |
 | corpus/mfcadpp/10247.step | A3 2:1 / 1 / 0 | A4 1:1 / 1 / 0 |
 | corpus/mfcadpp_holdout/119.step | A4 1:1 / 1 / 0 | A3 2:1 / 1 / 0 |
 | corpus/mfcadpp_holdout/20273.step | A3 2:1 / 1 / 0 | A4 1:1 / 1 / 0 |
+| corpus/mfcadpp_holdout/229.step | A4 1:2 / 1 / 0 | A4 1:1 / 1 / 0 |
 | corpus/mfcadpp_holdout/808.step | A4 1:1 / 1 / 0 | A4 2:1 / 1 / 0 |
 | corpus/nist/nist_ftc_08_asme1_rc.stp | A1 1:2 / 1 / 0 | A2 1:2 / 1 / 1 |
+| fixtures/coverage-holes/countersink-external-cone.step | A3 5:1 / 1 / 0 | A4 2:1 / 1 / 0 |
 | fixtures/coverage-holes/profile-pentagon.step | A3 2:1 / 1 / 0 | A4 1:1 / 1 / 0 |
 | fixtures/coverage-holes/turned-step-compound.step | A3 2:1 / 1 / 0 | A4 1:1 / 1 / 0 |
+| fixtures/details/crowded_prism.step.gz | A3 5:1 / 1 / 0 | A4 2:1 / 1 / 0 |
+| fixtures/details/unequal_prism.step.gz | A3 5:1 / 1 / 0 | A4 2:1 / 1 / 0 |
+| fixtures/details/y_chain.step.gz | A3 5:1 / 1 / 0 | A4 2:1 / 1 / 0 |
 | fixtures/parts/boss_circle.step | A4 1:2 / 1 / 0 | A3 1:1 / 1 / 0 |
+| fixtures/parts/gear_blank.step | A3 5:1 / 1 / 0 | A4 2:1 / 1 / 0 |
 | fixtures/parts/issue_1247_angled_blind_step.step | A3 2:1 / 1 / 0 | A4 1:1 / 1 / 0 |
 | fixtures/parts/k5/groove-compound.step | A3 2:1 / 1 / 0 | A4 1:1 / 1 / 0 |
+| fixtures/parts/k5/issue_909_basic_part_design_017_body.step | A3 2:1 / 1 / 0 | A4 1:2 / 1 / 0 |
 | fixtures/parts/k5/pad-compound-equal.step | A3 2:1 / 1 / 0 | A4 1:1 / 1 / 0 |
 | fixtures/parts/k5/pad-x-positive.step | A3 2:1 / 1 / 0 | A4 1:1 / 1 / 0 |
 | fixtures/parts/rules-text/central-prismatic-square.step | A3 2:1 / 1 / 0 | A4 1:1 / 1 / 0 |
 | fixtures/parts/rules-text/central-prismatic-wide.step | A3 2:1 / 1 / 0 | A4 1:1 / 1 / 0 |
 | fixtures/parts/rules-text/central-prismatic.step | A3 2:1 / 1 / 0 | A4 1:1 / 1 / 0 |
+| fixtures/parts/rules-text/coaxial-cylinder-x.step | A3 5:1 / 1 / 0 | A4 2:1 / 1 / 0 |
+| fixtures/parts/rules-text/detached.step | A3 5:1 / 1 / 0 | A4 2:1 / 1 / 0 |
 | fixtures/parts/rules-text/three-body-pocket.step | A3 2:1 / 1 / 0 | A4 1:1 / 1 / 0 |
 | fixtures/parts/rules-text/two-channels.step | A3 2:1 / 1 / 0 | A4 1:1 / 1 / 0 |
 | fixtures/parts/turned.step | A3 2:1 / 1 / 0 | A4 1:1 / 1 / 0 |
@@ -38,6 +51,7 @@ Before and after use paper, main scale / physical sheets / details.
 | fixtures/recognition/issues/curved_rotated.step | A3 1:1 / 1 / 0 | A4 1:2 / 1 / 0 |
 | fixtures/recognition/issues/pocket_square.step | A3 2:1 / 1 / 0 | A4 1:1 / 1 / 0 |
 | fixtures/recognition/issues/pocket_x.step | A3 2:1 / 1 / 0 | A4 1:1 / 1 / 0 |
+| fixtures/recognition/issues/pocket_y.step | A3 2:1 / 1 / 0 | A4 1:2 / 1 / 0 |
 | fixtures/recognition/issues/pocket_z.step | A3 2:1 / 1 / 0 | A4 1:1 / 1 / 0 |
 | fixtures/recognition/issues/tb_bored_plate.step | A3 2:1 / 1 / 0 | A4 1:1 / 1 / 0 |
 | fixtures/recognition/issues/tb_stepped.step | A3 2:1 / 1 / 0 | A4 1:1 / 1 / 0 |

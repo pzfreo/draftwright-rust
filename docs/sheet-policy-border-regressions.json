@@ -1,0 +1,92 @@
+{
+  "reviewed_commit": "0c5bfb41517066025027ad13c81a41e593d7d5ea",
+  "reviewed_binary_sha256": "d5ef71966b6c5b98e447793f4740dfe43a8983ebc88eaa7020dd4b25970c3130",
+  "audit_implementation": "7c5a3ec836b1f0d18e4cccd20064c460f84dad1e",
+  "border_clearance_mm": 0.5,
+  "rule": "Reject contact after accounting for the combined half-widths of the heaviest frame and content pens; inspect complete ink without clipping at the frame.",
+  "regressions": [
+    {
+      "part": "corpus/cadgenbench/threaded_connector_109.step",
+      "step_sha256": "301cb3ce914fa28c68e3cc324d22a9b6e8ee119c7c76797e7d7052de7bccdcff",
+      "reviewed_paper": "A2",
+      "reviewed_scale": "1:2",
+      "reviewed_plan_sha256": "07f6bf82fcf99698683a6f6de6c9505e5d8bd27d76c14fc98e9ee43994b14e94",
+      "border_contacts": [
+        [
+          1,
+          [
+            10.376679656440354,
+            83.21001000000001,
+            42.235,
+            88.64633034355965
+          ]
+        ]
+      ],
+      "result": "FAIL"
+    },
+    {
+      "part": "corpus/mfcadpp/10098.step",
+      "step_sha256": "4069220db61e503e17d24f045d7f26dd89522be59534f16bd0765a32bd3fc590",
+      "reviewed_paper": "A1",
+      "reviewed_scale": "5:1",
+      "reviewed_plan_sha256": "f8f2a91fd5c8041cd55b0f3776a41bb218b5ed52a95f8c66e6d0a526283322dd",
+      "border_contacts": [
+        [
+          1,
+          [
+            9.0,
+            69.285921728,
+            27.5,
+            69.285921728
+          ]
+        ],
+        [
+          1,
+          [
+            8.997080080000018,
+            131.28232202,
+            111.34708008000001,
+            131.28232202
+          ]
+        ],
+        [
+          1,
+          [
+            9.005695000000003,
+            69.28592,
+            27.505695000000003,
+            69.28592
+          ]
+        ],
+        [
+          1,
+          [
+            9.0,
+            374.23697104441993,
+            27.5,
+            374.23697104441993
+          ]
+        ],
+        [
+          1,
+          [
+            8.997080080000018,
+            302.06997134942,
+            111.34708008000001,
+            302.06997134942
+          ]
+        ],
+        [
+          1,
+          [
+            9.005695000000003,
+            374.23697220942,
+            27.505695000000003,
+            374.23697220942
+          ]
+        ]
+      ],
+      "result": "FAIL"
+    }
+  ]
+}

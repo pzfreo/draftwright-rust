@@ -1,74 +1,82 @@
-# Release sheet-policy verification — 2026-10-19
+# Round 5 sheet-policy verification — 2026-10-19
 
-Current main was fetched again and remains `51d8f9f5`. Merge `71452a78` retains #107–#115: trimmed arc leaders and perpendicular witnesses, user-facing wording, projection alignment, drawing numbers, compact manufacturing labels and numbered notes, derived PMI geometry and datum separation, final view gutters, and table symbols. `CHANGELOG.md` has no branch diff against main. Nothing was pushed.
+Current `origin/main` is `51d8f9f5`, already merged by `71452a78`. The merge retains #107–#115, including compact manufacturing notes, derived PMI geometry and the final gutter pass. `CHANGELOG.md` has no branch diff against main. Nothing was pushed.
 
-Automatic recovery searches clean readable single-sheet A4 through A0 before R5 overflow. One larger sheet beats multiple smaller sheets; low fill never purchases another sheet. Explicit paper, scale, sheet limits and assignments remain binding. Gutters run after sheet/scale selection and allocation, consume available slack, and preserve all scales and paper. The final pass records actual annotation reservations only when they clear the border, title and other views.
+## Corrected drawing choices
 
-A compact-callout retry preserves the readability of a clean fitted input. Invalid initial estimates still recover against the established default routes. Regression snapshots bind exact crossing pairs and coordinates to current main and STEP hashes. Pinned crops retain their already qualified canonical frame; explicit dimension views take precedence over held carriers, and unchanged hole tables keep their clear canonical cells. The identity variants keep their existing A4 routes and all coordinates; FTC-09 keeps its frame and pinned schedule while its reserved band includes the existing height witness. Automatic details also retain the independently recovered whole-part main scale, paper and sheet count; a smaller parent drawing cannot win by moving its controls into a crop. Explicit-scale retries retain their legibility warning. No readability threshold, quality baseline, instruction budget or latency gate was lowered.
+`corpus/mfcadpp/10098.step` is one A4 sheet at 1:1, with its controlling profile in a 2:1 detail. Its existing hole leader was frozen when derived recess geometry obstructed it. The bounded joint solve now reroutes obstructed existing controls while preserving already clear callouts and all measurement facts. The old A1 choice was caused by rejected routes on smaller paper; the saved A1 page dimensions were correct. The residual native-opening advisory remains explicit.
 
-## Key review parts
+`corpus/cadgenbench/threaded_connector_109.step` stays on one A3 sheet at 1:5. All measured controls, openings, text and dimension lanes are readable. Dense unannotated thread depiction remains an explicit advisory and cannot purchase larger paper by itself.
 
-| Part | Main | Release | Sheets |
-| --- | --- | --- | ---: |
-| string_post_tapped | A3 5:1 | A3 5:1 | 1 → 1 |
-| hw_string_post_tapped_intent | A3 5:1 | A3 5:1 | 1 → 1 |
-| GRM-01_shank | A3 2:1 | A4 1:1 | 1 → 1 |
+A4 is tried first; larger paper requires a smaller-paper fit or measured-readability refusal. A larger single sheet precedes extra sheets, and no census part gains sheets. Gutters run after paper/scale selection, preserve all scales and sheet counts, and reserve 2 mm of frame clearance. Frame constraints use complete ink rather than empty reserved bands, and infeasible reservations fall back to complete ink, so unused padding cannot freeze a feasible inward move. Shared table/note placement also reserves 2 mm outside its rulings, and table reservations use the same inset region as final placement. Cutting-plane strokes and letters belong to the marked source view, so their actual ink participates in gutters. Canonical label coordinates survive bare pins exactly when the leader geometry is unchanged. Inter-view reservations and authored/pinned constraints remain binding.
 
-Both tapped posts retain the section and isometric on sheet 1. Tests also replay zero and oversized view gutters without changing paper, main scale, individual view scales or sheet count. GRM-01 uses the maintainer-supplied STEP under `scratchpad/review-parts/`.
+Both tapped-post fixtures remain one A3 sheet at 5:1. The separately supplied GRM-01 shank remains one A4 sheet at 1:1; its final native render is included below.
 
-## Census
+## Border audit
 
-Both sides use the same immutable 227-part content manifest plus one identically refused input. Native STEP planning and rendering preserve basenames and drawing titles. GRM-01 is reviewed separately. Primary paper counts:
+The existing structural review emits error `drawable_border_contact` for view, dimension, label, callout, hidden or thin ink on or within 0.5 mm of the drawable frame (the combined half-widths of the heaviest frame and content pens); intentional title-block attachment is exempt. It checks full ink bounds, including witnesses and arrows, without clipping at the frame. `tools/quality.py` runs this review for ordinary views too and rejects border errors even when an old baseline contains the same defect. The saved-plan census independently audits complete footprints on every physical sheet and fails on contacts.
 
-| Paper | Main | Release |
+[The saved regression evidence](sheet-policy-border-regressions.json) binds both reviewed drawings from `0c5bfb41` to their STEP and Plan hashes: `10098` fails with six thin strokes crossing the frame and the connector with one near-frame callout. The final census has zero border contacts. Tests cover all four borders, crossing and near-edge strokes, complete witness ink, the title-block exemption, gutter overrides, and empty reservations near the frame. No quality baseline or readability threshold was loosened.
+
+## Census against main
+
+Both sides use the same content-hash manifest: 227 drawable inputs and one identical refusal. Before is the frozen main executable; all after Plans and PNGs use the frozen Round 5 executable.
+
+| Paper | Main | Round 5 |
 | --- | ---: | ---: |
-| A4 | 114 | 151 |
-| A3 | 88 | 48 |
-| A2 | 6 | 10 |
-| A1 | 13 | 12 |
+| A4 | 114 | 164 |
+| A3 | 88 | 37 |
+| A2 | 6 | 9 |
+| A1 | 13 | 11 |
 | A0 | 6 | 6 |
 | Physical sheets | 227 | 227 |
 
-No part changes sheet count; none gains sheets. [Every paper/scale/count change](sheet-policy-changes.md), [all 227 rows with reasons](sheet-policy-results.csv), and [the summary](sheet-policy-summary.md) use current main as before. The paired audit finds no lost measurement facts, no lost PMI/GDT claims and no new non-diagnostic drawing-finding identities. Every remaining measured readability failure has an explicit refusal.
+No part changes sheet count. 67 drawings change paper, scale, sheet count or detail count; fully readable drawings: 154 → 183. Every remaining measured readability failure has an explicit refusal. No measurement facts, PMI/GDT claims or non-diagnostic finding identities regress. See [every paper/scale/count change](sheet-policy-changes.md), [all 227 rows](sheet-policy-results.csv), and [the generated summary](sheet-policy-summary.md).
 
-## Native visual review
+## Every move to larger paper
 
-Every changed-paper or changed-count part in the requested real-part families is rendered before/after at 150 dpi and inspected, plus both tapped posts and GRM-01. [The committed hash-bound review index](sheet-policy-render-review.json) records the decisions and original PNG paths. Unchanged-paper/scale GRM and spindle cases remain covered by the complete census.
+Every after-PNG below was opened and inspected. The smaller main drawing has the measured failures stated here; larger paper clears those failures while retaining one sheet.
 
-| Pair | Decision | PNGs |
+| Part | Main → Round 5 | Justification | PNGs |
+| --- | --- | --- | --- |
+| corpus/mfcadpp/10049.step | A4 1:1 / 1 / 0 → A3 2:1 / 1 / 0 | A3 2:1 makes the 1.5 mm opening readable; the A4 1:1 trial remains below the 2 mm printed-opening floor. | [before](../target/sheet-policy/round5/qualified/larger-renders/before-9b831e372dbe-10049.png) · [after](../target/sheet-policy/round5/qualified/larger-renders/after-9b831e372dbe-10049.png) |
+| corpus/mfcadpp/10146.step | A3 2:1 / 1 / 0 → A2 2:1 / 1 / 0 | A2 2:1 restores the 19 mm pocket-location witness clearance; the A3 trial leaves only 3.6 mm. | [before](../target/sheet-policy/round5/qualified/larger-renders/before-8b6a5959e000-10146.png) · [after](../target/sheet-policy/round5/qualified/larger-renders/after-8b6a5959e000-10146.png) |
+| corpus/mfcadpp_holdout/119.step | A4 1:1 / 1 / 0 → A3 2:1 / 1 / 0 | A3 2:1 clears A4’s short step, two text/arrow failures, witness-lane failure and near-frame ink. | [before](../target/sheet-policy/round5/qualified/larger-renders/before-3ede6a86f773-119.png) · [after](../target/sheet-policy/round5/qualified/larger-renders/after-3ede6a86f773-119.png) |
+| fixtures/parts/boss_circle.step | A4 1:2 / 1 / 0 → A3 1:1 / 1 / 0 | A3 1:1 makes the six small holes and short step readable; A4 1:2 fails those measured floors. | [before](../target/sheet-policy/round5/qualified/larger-renders/before-e1f12e3a4fb8-boss_circle.png) · [after](../target/sheet-policy/round5/qualified/larger-renders/after-e1f12e3a4fb8-boss_circle.png) |
+
+## Reported regressions and frame repairs: inspected PNGs
+
+| Part | Result | PNG |
 | --- | --- | --- |
-| hw_string_post_tapped_intent | Keep A3 5:1: preserve the large readable whole-part drawing, section and isometric on one sheet. | [before](../target/sheet-policy/release/final/key-renders/before-hw_string_post_tapped_intent.png) / [after](../target/sheet-policy/release/final/key-renders/after-hw_string_post_tapped_intent.png) |
-| GRM-01_shank | Keep A4 1:1: principal views and section fit with legible dimensions; orientation view clears the title. | [before](../target/sheet-policy/release/final/key-renders/before-GRM-01_shank.png) / [after](../target/sheet-policy/release/final/key-renders/after-GRM-01_shank.png) |
-| 301cb3ce914f-threaded_connector_109 | Keep A2 1:2: the ordinary main separates the repeated connector profiles; all dimensions remain on one sheet. | [before](../target/sheet-policy/release/final/real-renders/before-301cb3ce914f-threaded_connector_109.png) / [after](../target/sheet-policy/release/final/real-renders/after-301cb3ce914f-threaded_connector_109.png) |
-| 523a9621070b-turned-step-compound | Keep A4 1:1: both turned components, end views, controls and orientation views remain distinct and readable. | [before](../target/sheet-policy/release/final/real-renders/before-523a9621070b-turned-step-compound.png) / [after](../target/sheet-policy/release/final/real-renders/after-523a9621070b-turned-step-compound.png) |
-| 4b7011b0b86c-nist_ftc_08_asme1_rc | Keep A2 1:2: principal views retain scale, the schedule clears the views and title, and the local controlling detail fits on the same sheet. | [before](../target/sheet-policy/release/final/real-renders/before-4b7011b0b86c-nist_ftc_08_asme1_rc.png) / [after](../target/sheet-policy/release/final/real-renders/after-4b7011b0b86c-nist_ftc_08_asme1_rc.png) |
-| 971dca9ef243-turned | Keep A4 1:1: full-size main and clear exterior dimensions; no extra sheet or unnecessary crop. | [before](../target/sheet-policy/release/final/real-renders/before-971dca9ef243-turned.png) / [after](../target/sheet-policy/release/final/real-renders/after-971dca9ef243-turned.png) |
-| string_post_tapped | Retain one A3 sheet at 5:1, including the section and isometric; a smaller-paper crop cannot shrink the independent main-view scale. | [before](../target/sheet-policy/release/final/key-renders/before-string_post_tapped.png) / [after](../target/sheet-policy/release/final/key-renders/after-string_post_tapped.png) |
-| 59bbc09a3462-nist_ctc_05_asme1_ap242 | Keep A2 1:5: principal and section scales are unchanged; the two schedules, datum frames and orientation view remain distinct with clear title space. | [before](../target/sheet-policy/release/final/real-renders/before-59bbc09a3462-nist_ctc_05_asme1_ap242.png) / [after](../target/sheet-policy/release/final/real-renders/after-59bbc09a3462-nist_ctc_05_asme1_ap242.png) |
-| bf3df8a4ece1-specify-sample-spindle | Keep A4 1:1: full-size spindle controls, through-hole section and isometric remain readable on one sheet, with separated dimension lanes. | [before](../target/sheet-policy/release/final/real-renders/before-bf3df8a4ece1-specify-sample-spindle.png) / [after](../target/sheet-policy/release/final/real-renders/after-bf3df8a4ece1-specify-sample-spindle.png) |
-| profile-419 | Retain the complete A3 1:1 profile and readable controls; no circle-only crop is needed. | [before](../target/sheet-policy/release/final/supplemental-renders/before-419.png) / [after](../target/sheet-policy/release/final/supplemental-renders/after-419.png) |
-| profile-10098 | Choose the fully readable A1 5:1 whole profile; both controlling openings remain measured in the principal views, without a refused aperture crop. | [before](../target/sheet-policy/release/final/supplemental-renders/before-10098.png) / [after](../target/sheet-policy/release/final/supplemental-renders/after-10098.png) |
-| profile-10049 | Choose A3 2:1 with the independently recovered main scale; the narrow slot remains readable without shrinking the parent to add a crop. | [before](../target/sheet-policy/release/final/supplemental-renders/before-10049.png) / [after](../target/sheet-policy/release/final/supplemental-renders/after-10049.png) |
+| corpus/cadgenbench/threaded_connector_109.step | Retain A3 1:5: left callouts and the bottom diameter dimension clear the frame; unannotated thread density does not purchase larger paper. | [PNG](../target/sheet-policy/round5/qualified/key-renders/after-connector.png) |
+| corpus/mfcadpp/10098.step | A4 1:1, with the controlling profile at 2:1; all dimensions, thin ink and the isometric clear the frame on one sheet. | [PNG](../target/sheet-policy/round5/qualified/key-renders/after-10098.png) |
+| corpus/mfcadpp/10155.step | Retain A4 1:1: release empty reservation padding so the isometric and its caption move inward without changing scales. | [PNG](../target/sheet-policy/round5/qualified/key-renders/after-10155.png) |
+| corpus/mfcadpp_holdout/196.step | Retain A4 1:1: complete-ink gutter constraints give the isometric frame clearance while preserving readable principal controls. | [PNG](../target/sheet-policy/round5/qualified/key-renders/after-196.png) |
+| fixtures/pmi/step/nist_ctc_01_asme1_ap242-e1.stp.gz | Retain one A3 sheet at 1:5: the dimension strip has positive stroke clearance, with all controls readable. | [PNG](../target/sheet-policy/round5/qualified/key-renders/after-ctc01.png) |
+| fixtures/samples/specify-sample-spindle.step.gz | Retain A4 1:1: cutting-plane letters and strokes clear the left frame, with the section and isometric on the same sheet. | [PNG](../target/sheet-policy/round5/qualified/key-renders/after-spindle.png) |
+| external/GRM-01_shank.step | Retain one A4 sheet at 1:1: principal controls and section remain readable, and the orientation view clears the title. | [PNG](../target/sheet-policy/round5/qualified/key-renders/after-GRM-01.png) |
 
-## Required checks
+The [hash-bound visual index](sheet-policy-render-review.json) records each inspected image and decision. Native renders use 150 dpi and the original STEP basename.
+
+## Local checks
 
 | Check | Result |
 | --- | --- |
 | `cargo fmt --check` | PASS |
 | `cargo clippy --workspace --all-targets --release -- -D warnings` | PASS |
-| Core / dimensions / rendering / audits, release shared-process binaries | PASS: 279 / 332 / 505 / 158; 1,274 total |
-| Unfiltered `cargo nextest list` and `tools/check_test_binaries.py` | PASS: eight integration binaries, 1,333 tests; docs match |
-| `tools/ci_acceptance.py --job mcp` | PASS |
-| `tools/quality.py` and both leader-route / quality-table checkers | PASS |
-| `python3 -I tools/ci_acceptance.py --job quality-pins --pin-cell 1-1 --out target/acceptance` | PASS |
+| Core / dimensions / rendering / audits, release binaries | PASS: 279 / 332 / 505 / 159; 1,275 total |
+| Unfiltered `cargo nextest list` + `tools/check_test_binaries.py` | PASS: 8 binaries, 142 reachable Rust files, 1,334 integration tests; docs match |
+| `python3 -I tools/test_quality.py` | PASS: 42 tests |
+| `tools/quality.py` on both reported parts | PASS: no border contacts or off-sheet ink |
+| Paired 227-part census and complete-ink border gate | PASS |
 
-The quality-pins job invokes `tools/quality.py` on all 30 parts, checks the unchanged accepted quality baseline and leader routes, tests deliberate-regression rejection and label-lane locality, then runs cell 1-1. The separate status-table checker reads `target/acceptance/quality-pins/quality/baseline.json`. The full suite was not run.
+Initial local runs exposed stale exact snapshots for table insets, frame-safe gutters and a resolved-problem count. They also caught a safe annotation band left outside its reservation: off-sheet blank padding had vetoed recording that band. The guard now uses the same clipped reservation as the final frame. All four binaries were then rerun in full on the final source. A native replay of all 228 inputs confirms that the final reservation fix changes metadata in three cases and leaves every drawing’s ink, paper, scales and measurement facts unchanged.
 
-Environment: `CARGO_BUILD_JOBS=6`, `RUST_TEST_THREADS=6` (rendering uses four workers), required corpus `/Users/paul/repos/quiddity/tests/corpus`. Logs, exact acceptance commands, executable hash and source hashes are under `target/sheet-policy/release/final/`; acceptance cell receipts are under `target/acceptance/`. Superseded interrupted checks remain under `target/sheet-policy/release/resume/`.
+The full suite was not run. Round 5 requested these local checks; earlier release acceptance receipts are retained separately and are not claimed as rerun here. Logs and frozen native survey artifacts are under `target/sheet-policy/round5/qualified/`. Environment: `CARGO_BUILD_JOBS=6`, required corpus `/Users/paul/repos/quiddity/tests/corpus`.
 
 Executable SHA-256:
 
-- Before: `eb3a0bfe0529dc4f7e8bdd4e12e113054d3a9f0ccf8e9200453064aac0ea6f48`.
-- Release: `d5ef71966b6c5b98e447793f4740dfe43a8983ebc88eaa7020dd4b25970c3130`.
+- Main: `eb3a0bfe0529dc4f7e8bdd4e12e113054d3a9f0ccf8e9200453064aac0ea6f48`.
+- Round 5: `41a42f3dd6ea05ea0841fc4eeb695316718be5343bb9a0524678b89f821317da`.
 
-Implementation commits: `71452a78` (merge), `07a41464` (single-sheet policy), `1571557c` (compact-callout references and final reserved bands), `c9c797ee` (canonical pinned detail frames and explicit carriers), `52b9b942` (clear canonical schedule cells), and `6913df84` (independent main scale and explicit-scale diagnostics).
+Implementation: `7c68bb5a`, `caa7ce6a`, `2456fcce`, exact gutter snapshots `506715ca`, and reservation metadata `7c5a3ec8`.

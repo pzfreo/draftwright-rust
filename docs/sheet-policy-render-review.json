@@ -1,170 +1,103 @@
-[
-  {
-    "file": "hw_string_post_tapped_intent",
-    "decision": "Keep A3 5:1: preserve the large readable whole-part drawing, section and isometric on one sheet.",
-    "images": {
-      "before": {
-        "path": "target/sheet-policy/release/final/key-renders/before-hw_string_post_tapped_intent.png",
-        "sha256": "c7d44dd3c459e1a57a398ba60c67c0385037e72cc44a5c6d07913118eba95388"
-      },
-      "after": {
-        "path": "target/sheet-policy/release/final/key-renders/after-hw_string_post_tapped_intent.png",
-        "sha256": "c7d44dd3c459e1a57a398ba60c67c0385037e72cc44a5c6d07913118eba95388"
-      }
+{
+  "before": "51d8f9f58c82f2fccb9059d71564b7197f51b12d",
+  "after": "7c5a3ec836b1f0d18e4cccd20064c460f84dad1e",
+  "binary_sha256": "41a42f3dd6ea05ea0841fc4eeb695316718be5343bb9a0524678b89f821317da",
+  "reviews": [
+    {
+      "part": "corpus/cadgenbench/threaded_connector_109.step",
+      "png": "target/sheet-policy/round5/qualified/key-renders/after-connector.png",
+      "png_sha256": "0c691a7d78208289672a9a9e07433b9322325f456586e6c7b43a108283b07850",
+      "inspected": true,
+      "kind": "regression",
+      "decision": "Retain A3 1:5: left callouts and the bottom diameter dimension clear the frame; unannotated thread density does not purchase larger paper."
+    },
+    {
+      "part": "corpus/mfcadpp/10098.step",
+      "png": "target/sheet-policy/round5/qualified/key-renders/after-10098.png",
+      "png_sha256": "edfcd1c26f5ea541187f1455cc59575e129940d7139fa4bccda3b25eb2b32d1c",
+      "inspected": true,
+      "kind": "regression",
+      "decision": "A4 1:1, with the controlling profile at 2:1; all dimensions, thin ink and the isometric clear the frame on one sheet."
+    },
+    {
+      "part": "corpus/mfcadpp/10155.step",
+      "png": "target/sheet-policy/round5/qualified/key-renders/after-10155.png",
+      "png_sha256": "710813ac68a515034a8e8edd0552be6a53bdcbf2b0e76f2a0ff0ca7d62e33dd3",
+      "inspected": true,
+      "kind": "frame_repair",
+      "decision": "Retain A4 1:1: release empty reservation padding so the isometric and its caption move inward without changing scales."
+    },
+    {
+      "part": "corpus/mfcadpp_holdout/196.step",
+      "png": "target/sheet-policy/round5/qualified/key-renders/after-196.png",
+      "png_sha256": "da07140a4de27b61f64901631552d2d28791e54b7b1587d209f2eb9819c4ff9a",
+      "inspected": true,
+      "kind": "frame_repair",
+      "decision": "Retain A4 1:1: complete-ink gutter constraints give the isometric frame clearance while preserving readable principal controls."
+    },
+    {
+      "part": "fixtures/pmi/step/nist_ctc_01_asme1_ap242-e1.stp.gz",
+      "png": "target/sheet-policy/round5/qualified/key-renders/after-ctc01.png",
+      "png_sha256": "b50fef77af811c32d47f17e58f704e844693e161d045ab15ab1689c8adab7da1",
+      "inspected": true,
+      "kind": "frame_repair",
+      "decision": "Retain one A3 sheet at 1:5: the dimension strip has positive stroke clearance, with all controls readable."
+    },
+    {
+      "part": "fixtures/samples/specify-sample-spindle.step.gz",
+      "png": "target/sheet-policy/round5/qualified/key-renders/after-spindle.png",
+      "png_sha256": "07ed4536e9691de7759b277f50420fd3b6ee9986e770f6add2d077f314242ea3",
+      "inspected": true,
+      "kind": "frame_repair",
+      "decision": "Retain A4 1:1: cutting-plane letters and strokes clear the left frame, with the section and isometric on the same sheet."
+    },
+    {
+      "part": "corpus/mfcadpp/10049.step",
+      "png": "target/sheet-policy/round5/qualified/larger-renders/after-9b831e372dbe-10049.png",
+      "png_sha256": "cc80142659c8431258b0e0c65a61912047537170e23f8fc888745ac8f25b5edd",
+      "kind": "larger",
+      "decision": "A3 2:1 makes the 1.5 mm opening readable; the A4 1:1 trial remains below the 2 mm printed-opening floor.",
+      "inspected": true,
+      "before_png": "target/sheet-policy/round5/qualified/larger-renders/before-9b831e372dbe-10049.png",
+      "before_png_sha256": "1cc0b8b2fa88fe4f233ac5ae5c21ba87ec991bace1d57551085f450a82235a35"
+    },
+    {
+      "part": "corpus/mfcadpp/10146.step",
+      "png": "target/sheet-policy/round5/qualified/larger-renders/after-8b6a5959e000-10146.png",
+      "png_sha256": "04e1da7cfdd7d8b3b480555891903c0f4c4148b1737c3c10b7db6bdb5035fd8f",
+      "kind": "larger",
+      "decision": "A2 2:1 restores the 19 mm pocket-location witness clearance; the A3 trial leaves only 3.6 mm.",
+      "inspected": true,
+      "before_png": "target/sheet-policy/round5/qualified/larger-renders/before-8b6a5959e000-10146.png",
+      "before_png_sha256": "89f579b7c75980987dd13a4408de8eb91b69e0a5387c19fccd5f00d2f6511a69"
+    },
+    {
+      "part": "corpus/mfcadpp_holdout/119.step",
+      "png": "target/sheet-policy/round5/qualified/larger-renders/after-3ede6a86f773-119.png",
+      "png_sha256": "82c8f46f1e61295276cde50d95862fcce50b3ce7eb3dad228ddeee0c08db9b7e",
+      "kind": "larger",
+      "decision": "A3 2:1 clears A4\u2019s short step, two text/arrow failures, witness-lane failure and near-frame ink.",
+      "inspected": true,
+      "before_png": "target/sheet-policy/round5/qualified/larger-renders/before-3ede6a86f773-119.png",
+      "before_png_sha256": "8f1fc990b4130492dac71ba4db84b677fc6c2a554c87d1e8de069bfc0879dc7f"
+    },
+    {
+      "part": "fixtures/parts/boss_circle.step",
+      "png": "target/sheet-policy/round5/qualified/larger-renders/after-e1f12e3a4fb8-boss_circle.png",
+      "png_sha256": "a169069c64cfa7b76d05a0b6f5ce9394f0ebbcaf56f4a17386e67a0a5673c933",
+      "kind": "larger",
+      "decision": "A3 1:1 makes the six small holes and short step readable; A4 1:2 fails those measured floors.",
+      "inspected": true,
+      "before_png": "target/sheet-policy/round5/qualified/larger-renders/before-e1f12e3a4fb8-boss_circle.png",
+      "before_png_sha256": "ff654ad15b472ec3ef67b91678711cca9ca21901b6a0d26a1185fc1c78844113"
+    },
+    {
+      "part": "external/GRM-01_shank.step",
+      "kind": "external",
+      "png": "target/sheet-policy/round5/qualified/key-renders/after-GRM-01.png",
+      "png_sha256": "98388ae966e44a2c80072fee06331c543a81fc12bd9cab1a75297d1ba852570e",
+      "inspected": true,
+      "decision": "Retain one A4 sheet at 1:1: principal controls and section remain readable, and the orientation view clears the title."
     }
-  },
-  {
-    "file": "GRM-01_shank",
-    "decision": "Keep A4 1:1: principal views and section fit with legible dimensions; orientation view clears the title.",
-    "images": {
-      "before": {
-        "path": "target/sheet-policy/release/final/key-renders/before-GRM-01_shank.png",
-        "sha256": "790a25014ae74d3efe5d7981241abe400b26b35fc7eee1b405d5370423607252"
-      },
-      "after": {
-        "path": "target/sheet-policy/release/final/key-renders/after-GRM-01_shank.png",
-        "sha256": "c6ce740a003da7bf210e23135d15ed0925d7efd122b0e0693259066a6609e210"
-      }
-    }
-  },
-  {
-    "file": "301cb3ce914f-threaded_connector_109",
-    "decision": "Keep A2 1:2: the ordinary main separates the repeated connector profiles; all dimensions remain on one sheet.",
-    "images": {
-      "before": {
-        "path": "target/sheet-policy/release/final/real-renders/before-301cb3ce914f-threaded_connector_109.png",
-        "sha256": "6be1a3ae91ec20b49bf47d699fdb5aa2f71930ff15d4a8a113b8d328b50f481b"
-      },
-      "after": {
-        "path": "target/sheet-policy/release/final/real-renders/after-301cb3ce914f-threaded_connector_109.png",
-        "sha256": "7345c9377a39e1856e49fb9391b178c0ccbeaa04fefd3c9207e6065330b542c5"
-      }
-    }
-  },
-  {
-    "file": "523a9621070b-turned-step-compound",
-    "decision": "Keep A4 1:1: both turned components, end views, controls and orientation views remain distinct and readable.",
-    "images": {
-      "before": {
-        "path": "target/sheet-policy/release/final/real-renders/before-523a9621070b-turned-step-compound.png",
-        "sha256": "dc7df5125265ff932d87ef27623ede07c92dbbd6f831404f9302fff2ba861a92"
-      },
-      "after": {
-        "path": "target/sheet-policy/release/final/real-renders/after-523a9621070b-turned-step-compound.png",
-        "sha256": "294b1e34777d815148e0cd86d853ef5db3886d9b8ee1f554dd4197f8097a70d5"
-      }
-    }
-  },
-  {
-    "file": "4b7011b0b86c-nist_ftc_08_asme1_rc",
-    "decision": "Keep A2 1:2: principal views retain scale, the schedule clears the views and title, and the local controlling detail fits on the same sheet.",
-    "images": {
-      "before": {
-        "path": "target/sheet-policy/release/final/real-renders/before-4b7011b0b86c-nist_ftc_08_asme1_rc.png",
-        "sha256": "c5a9cee4a37eb61d3e32e663b6766f88cf1ce68e431c478a5f7be37406d58f57"
-      },
-      "after": {
-        "path": "target/sheet-policy/release/final/real-renders/after-4b7011b0b86c-nist_ftc_08_asme1_rc.png",
-        "sha256": "9c8e3c9019074211ce02213abe90b85835dfe22fa0b2cccc1e18ccadc99d13c8"
-      }
-    }
-  },
-  {
-    "file": "971dca9ef243-turned",
-    "decision": "Keep A4 1:1: full-size main and clear exterior dimensions; no extra sheet or unnecessary crop.",
-    "images": {
-      "before": {
-        "path": "target/sheet-policy/release/final/real-renders/before-971dca9ef243-turned.png",
-        "sha256": "a34d1ad173d347afd94fc86e890465a00f1e9389f4a826808593fc703e20ccb6"
-      },
-      "after": {
-        "path": "target/sheet-policy/release/final/real-renders/after-971dca9ef243-turned.png",
-        "sha256": "0add596031849467695e50fc081b6a85ab732073232ead48e864ca0102028f4d"
-      }
-    }
-  },
-  {
-    "file": "string_post_tapped",
-    "decision": "Retain one A3 sheet at 5:1, including the section and isometric; a smaller-paper crop cannot shrink the independent main-view scale.",
-    "images": {
-      "before": {
-        "path": "target/sheet-policy/release/final/key-renders/before-string_post_tapped.png",
-        "sha256": "e7831acee3a636166f20b6a65418333758d1bb0e2c3857e1ed8a14b107939eb0"
-      },
-      "after": {
-        "path": "target/sheet-policy/release/final/key-renders/after-string_post_tapped.png",
-        "sha256": "e7831acee3a636166f20b6a65418333758d1bb0e2c3857e1ed8a14b107939eb0"
-      }
-    }
-  },
-  {
-    "file": "59bbc09a3462-nist_ctc_05_asme1_ap242",
-    "decision": "Keep A2 1:5: principal and section scales are unchanged; the two schedules, datum frames and orientation view remain distinct with clear title space.",
-    "images": {
-      "before": {
-        "path": "target/sheet-policy/release/final/real-renders/before-59bbc09a3462-nist_ctc_05_asme1_ap242.png",
-        "sha256": "01193513203acc1cf6be0a4ccdcb81e195af39f8eda66244afee533bc56f0994"
-      },
-      "after": {
-        "path": "target/sheet-policy/release/final/real-renders/after-59bbc09a3462-nist_ctc_05_asme1_ap242.png",
-        "sha256": "6d35e99c324794801e08d3d0e035e7f020b0b4fa49b21d477f7a3e8b99277377"
-      }
-    }
-  },
-  {
-    "file": "bf3df8a4ece1-specify-sample-spindle",
-    "decision": "Keep A4 1:1: full-size spindle controls, through-hole section and isometric remain readable on one sheet, with separated dimension lanes.",
-    "images": {
-      "before": {
-        "path": "target/sheet-policy/release/final/real-renders/before-bf3df8a4ece1-specify-sample-spindle.png",
-        "sha256": "1cfdaffbce8cab1e766dda0f1422cfc188c479a612907f8e1c9e970e4b2ef3b2"
-      },
-      "after": {
-        "path": "target/sheet-policy/release/final/real-renders/after-bf3df8a4ece1-specify-sample-spindle.png",
-        "sha256": "813f6654700663c06e5acd649d34d14c700497910c897e428d975e7189234e27"
-      }
-    }
-  },
-  {
-    "file": "profile-419",
-    "decision": "Retain the complete A3 1:1 profile and readable controls; no circle-only crop is needed.",
-    "images": {
-      "before": {
-        "path": "target/sheet-policy/release/final/supplemental-renders/before-419.png",
-        "sha256": "87c6e8017410b819f9b2460fa0c7db2b1b0e348c9160fb7b24cc8f8541ea6d70"
-      },
-      "after": {
-        "path": "target/sheet-policy/release/final/supplemental-renders/after-419.png",
-        "sha256": "bba47dac055195ebc350b27275a96165d8ded5b513165e4b3cb401d1770ebef5"
-      }
-    }
-  },
-  {
-    "file": "profile-10098",
-    "decision": "Choose the fully readable A1 5:1 whole profile; both controlling openings remain measured in the principal views, without a refused aperture crop.",
-    "images": {
-      "before": {
-        "path": "target/sheet-policy/release/final/supplemental-renders/before-10098.png",
-        "sha256": "141688938b319ad474a0d6be2c395f8bc996e291f443e9cd15a89d526b4041ef"
-      },
-      "after": {
-        "path": "target/sheet-policy/release/final/supplemental-renders/after-10098.png",
-        "sha256": "b855cd0b0a2b56f0a7f8ed786b1557f18180b92e8071948fba9c7347e23e93f9"
-      }
-    }
-  },
-  {
-    "file": "profile-10049",
-    "decision": "Choose A3 2:1 with the independently recovered main scale; the narrow slot remains readable without shrinking the parent to add a crop.",
-    "images": {
-      "before": {
-        "path": "target/sheet-policy/release/final/supplemental-renders/before-10049.png",
-        "sha256": "1cc0b8b2fa88fe4f233ac5ae5c21ba87ec991bace1d57551085f450a82235a35"
-      },
-      "after": {
-        "path": "target/sheet-policy/release/final/supplemental-renders/after-10049.png",
-        "sha256": "54b0bf8ecc8c5a1da32acf61c3a2b292b739ef1f1b2671c2d0d4e41c0b312ebc"
-      }
-    }
-  }
-]
+  ]
+}
