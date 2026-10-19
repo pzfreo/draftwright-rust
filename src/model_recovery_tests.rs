@@ -67,7 +67,9 @@ fn a_valid_candidate_crossing_two_views_is_rejected_even_when_the_planner_return
             // Native recovery prepares its established-route policy before the
             // first candidate; inject the same unsafe drawing on either side of
             // that preparation, under the planner's complete exact input key.
-            for policy in [(false, false), (false, true)] {
+            for established in [false, true] {
+                let mut policy = crate::planning::policy_key(&analysis);
+                policy.1 = established;
                 let key =
                     serde_json::to_vec(&(analysis_key, policy, &named, true, arrangement, false))
                         .unwrap();

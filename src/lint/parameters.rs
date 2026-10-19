@@ -62,12 +62,6 @@ pub fn size(f: &Feature, name: &str) -> Result<f64, String> {
 
 /// A number as messages print it: at most three decimals, trailing zeros dropped.
 pub fn fmt(v: f64) -> String {
-    if crate::nominal::comparison() {
-        let s = format!("{v:.3}");
-        let s = s.trim_end_matches('0').trim_end_matches('.');
-        return if s == "-0" { "0".into() } else { s.into() };
-    }
-
     let v = (v * 1e6).round() / 1e6;
     for places in 0..=3 {
         let text = format!("{v:.places$}");
