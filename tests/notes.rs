@@ -816,3 +816,177 @@ fn semantic_text_edges_and_default_finish_keep_their_carriers() {
     assert!(finish.placed.is_some());
     assert!(!plan.notes.iter().any(|n| n.text.contains("Ra")));
 }
+
+#[test]
+fn part_note_no_requirement_values_are_read_as_info_without_ink_or_problems() {
+    use draftwright::{
+        items::State,
+        pmi::{Outcome, Reading},
+    };
+    for value in [
+        "None", " nOnE ", "N/A", " n/a ", "NA", "na", "-", "", " \t\n ",
+    ] {
+        let fragment = include_str!("fixtures/pmi/part_notes.inc")
+            .replace("ETCH PART NUMBER", value)
+            .replace("ANODIZE BLACK", value)
+            .replace("HARDEN TO 40 HRC", value);
+        let (part, a) = with_part_notes(&fragment);
+        let Some(Reading::Read(report)) = &a.pmi else {
+            panic!("not read")
+        };
+        assert_eq!(report.records.len(), 3);
+        assert!(
+            report
+                .records
+                .iter()
+                .all(|r| r.label.trim() == value.trim() && r.blockers.is_empty())
+        );
+        assert!(
+            report
+                .sources
+                .iter()
+                .all(|s| s.outcome == Outcome::Extracted
+                    && s.reason.starts_with("info: no requirement stated")),
+            "{value:?}: {:?}",
+            report.sources
+        );
+        let plan = model::plan(&a, &Spec::default()).unwrap();
+        assert!(
+            plan.notes.is_empty() && plan.notes_block.is_none(),
+            "{value:?}"
+        );
+        assert_eq!(plan.requirements.len(), 3);
+        let omitted = model::edit(&Spec::default(), &json!([{"op":"set", "path":format!("annotations/{}/omit", draftwright::items::key(&plan.requirements[0].id)), "value":true}])).unwrap();
+        assert!(model::plan(&a, &omitted).unwrap().notes.is_empty());
+        assert!(plan.requirements.iter().all(|r| r.kind == "no_requirement"
+            && r.carrier == "none"
+            && r.state == State::NotAuthored
+            && r.placed.is_none()
+            && r.basis.starts_with("info:")));
+        assert!(
+            !plan
+                .problems
+                .iter()
+                .any(|p| p.code.starts_with("pmi_") || p.code == "note_duplicated_in_spec"),
+            "{value:?}: {:?}",
+            plan.problems
+        );
+        let drawing = model::render(&part, &a, &plan, &font()).unwrap();
+        assert!(
+            !drawing
+                .text
+                .iter()
+                .any(|t| t.text == format!("1  {}", value.trim()))
+        );
+        assert!(
+            !draftwright::lint::lint(&a, &drawing)
+                .iter()
+                .any(|i| i.code.starts_with("pmi_"))
+        );
+    }
+}
+
+#[test]
+fn coating_and_edges_aliases_use_canonical_part_note_records() {
+    let fragment = include_str!("fixtures/pmi/part_notes.inc")
+        .replace("'surface treatment'", "'coating'")
+        .replace("'general note'", "'edges'")
+        .replace("ETCH PART NUMBER", "BREAK SHARP EDGES");
+    let (_, a) = with_part_notes(&fragment);
+    let Some(draftwright::pmi::Reading::Read(report)) = &a.pmi else {
+        panic!("not read")
+    };
+    assert_eq!(
+        report
+            .records
+            .iter()
+            .map(|r| r.kind.as_str())
+            .collect::<Vec<_>>(),
+        ["edge_condition", "surface_treatment", "heat_treatment"]
+    );
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        plan.notes
+            .iter()
+            .map(|n| n.text.as_str())
+            .collect::<Vec<_>>(),
+        ["BREAK SHARP EDGES", "ANODIZE BLACK", "HARDEN TO 40 HRC"]
+    );
+}
+
+#[test]
+fn bare_process_values_get_a_kind_but_process_prose_keeps_its_words() {
+    for (kind, value, expected) in [
+        ("surface treatment", "Black", "Coating: Black"),
+        ("coating", "Platinum", "Coating: Platinum"),
+        ("heat treatment", "HRC 40", "Heat treatment: HRC 40"),
+        ("surface treatment", "Anodise black", "Anodise black"),
+        ("coating", "ANODIZE BLACK", "ANODIZE BLACK"),
+        ("coating", "Zinc plated", "Zinc plated"),
+        ("coating", "Plate with zinc", "Plate with zinc"),
+        ("coating", "Paint black", "Paint black"),
+        ("coating", "Coat black", "Coat black"),
+        ("coating", "Coating: Black", "Coating: Black"),
+        ("heat treatment", "Harden to HRC 40", "Harden to HRC 40"),
+        ("heat treatment", "Temper at 200 C", "Temper at 200 C"),
+        ("heat treatment", "Nitrided", "Nitrided"),
+        ("heat treatment", "Treat to HRC 40", "Treat to HRC 40"),
+        (
+            "heat treatment",
+            "Heat treatment: HRC 40",
+            "Heat treatment: HRC 40",
+        ),
+        ("general note", "Black", "Black"),
+    ] {
+        let fragment = include_str!("fixtures/pmi/part_notes.inc")
+            .replace("'surface treatment'", &format!("'{kind}'"))
+            .replace("ANODIZE BLACK", value);
+        let (part, a) = with_part_notes(&fragment);
+        let plan = model::plan(&a, &Spec::default()).unwrap();
+        assert_eq!(plan.notes[1].text, expected);
+        let drawing = model::render(&part, &a, &plan, &font()).unwrap();
+        assert!(
+            !draftwright::lint::lint(&a, &drawing)
+                .iter()
+                .any(|i| i.code == "pmi_source_text_mismatch"),
+            "{kind}: {value}"
+        );
+        if expected != value {
+            let s = spec(json!({"notes":[{"id":"n:1","text":value}]}));
+            let duplicate = model::plan(&a, &s).unwrap();
+            assert!(
+                duplicate
+                    .problems
+                    .iter()
+                    .any(|p| p.code == "note_duplicated_in_spec")
+            );
+            assert!(
+                duplicate
+                    .notes
+                    .iter()
+                    .find(|n| n.id == "n:1")
+                    .unwrap()
+                    .placed
+                    .is_none()
+            );
+        }
+    }
+}
+
+#[test]
+fn a_non_text_part_note_is_not_mistaken_for_an_empty_requirement() {
+    let fragment = include_str!("fixtures/pmi/part_notes.inc").replace(
+        "#50010=DESCRIPTIVE_REPRESENTATION_ITEM('surface treatment','ANODIZE BLACK');",
+        "#50010=INTEGER_REPRESENTATION_ITEM('surface treatment',42);",
+    );
+    let (_, a) = with_part_notes(&fragment);
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert!(plan.problems.iter().any(|p| p.code == "pmi_not_lowered"
+        && p.refs.contains(&"manufacturing_requirement:#50012".into())));
+    assert!(
+        !plan
+            .requirements
+            .iter()
+            .any(|r| r.source == "manufacturing_requirement:#50012")
+    );
+}

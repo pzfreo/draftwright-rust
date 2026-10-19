@@ -37,6 +37,8 @@
 //!   condition) is a general note, in model order before the Spec notes; two of one default are
 //!   ambiguous and neither is drawn. PMI note omission and Spec duplicate reconciliation use
 //!   [`crate::notes`]; the model and existing Spec notes are never migrated by planning.
+//!   No-requirement values remain read as info, without ink or a Problem. Bare coating and
+//!   heat-treatment values get their kind as a prefix; process prose stays as authored.
 //!
 //! What is not lowered is said, never guessed: a record whose reading left blockers (datum
 //! targets, composite relations, projected or non-uniform zones, datum modifiers, common
@@ -553,6 +555,60 @@ pub fn sheet_kind(kind: &str) -> bool {
     )
 }
 
+/// Canonical part-note kinds, including the NIST/haecceity spellings.
+pub(crate) fn part_note_kind(name: &str) -> Option<&'static str> {
+    match name {
+        "general note" => Some("general_note"),
+        "surface treatment" | "coating" => Some("surface_treatment"),
+        "heat treatment" => Some("heat_treatment"),
+        "edge condition" | "edges" => Some("edge_condition"),
+        _ => None,
+    }
+}
+
+/// Explicit absence of a part requirement, preserved in the reading and inventory as info.
+pub(crate) fn no_part_requirement(r: &Record) -> bool {
+    r.category == Category::ManufacturingRequirement
+        && r.blockers.is_empty()
+        && matches!(
+            r.kind.as_str(),
+            "general_note" | "surface_treatment" | "heat_treatment" | "edge_condition"
+        )
+        && matches!(
+            r.label.trim().to_ascii_lowercase().as_str(),
+            "" | "none" | "n/a" | "na" | "-"
+        )
+}
+
+/// Keep process prose as authored; qualify a bare coating/heat-treatment value. This small
+/// vocabulary is deliberately lexical, not an interpretation of manufacturing parameters.
+fn part_note_text(r: &Record) -> String {
+    let text = r.label.trim();
+    let title = match r.kind.as_str() {
+        "surface_treatment" => "Coating",
+        "heat_treatment" => "Heat treatment",
+        _ => return text.into(),
+    };
+    let process = text
+        .to_ascii_lowercase()
+        .split(|c: char| !c.is_ascii_alphabetic())
+        .any(|word| {
+            matches!(word, "plate" | "plated" | "plating")
+                || [
+                    "anodis", "anodiz", "paint", "coat", "harden", "temper", "nitrid", "treat",
+                    "anneal", "carbur", "quench", "passivat", "oxid", "phosphat", "galvanis",
+                    "galvaniz",
+                ]
+                .iter()
+                .any(|stem| word.starts_with(stem))
+        });
+    if process {
+        text.into()
+    } else {
+        format!("{title}: {text}")
+    }
+}
+
 /// A drawing-wide requirement the sheet states.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SheetRequirement {
@@ -560,7 +616,8 @@ pub struct SheetRequirement {
     pub id: String,
     pub source: String,
     /// `general_tolerance` (the title block's tolerance cell), `default_surface_finish` (a
-    /// surface texture symbol beside the title block) or `document_note` (a general note).
+    /// surface texture symbol beside the title block), `document_note` (a general note), or
+    /// `no_requirement` (an explicit absence: read as info, with no drawing).
     pub kind: &'static str,
     /// What the sheet states: the tolerance's designation, the finish's Ra value in µm, the
     /// note's text.
@@ -611,6 +668,24 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
         .collect();
     let ids = report.identities();
     for r in &records {
+        if no_part_requirement(r) {
+            // No requirement is authored: retain the read source, never demand a fix or ink.
+            if let Ok(id) = ids.id(&r.source_id) {
+                out.push(SheetRequirement {
+                    id: id.into(),
+                    source: r.source_id.clone(),
+                    kind: "no_requirement",
+                    value: r.label.clone(),
+                    removal: String::new(),
+                    basis: format!(
+                        "info: AP242 {} {} states no requirement; read, with no drawing needed",
+                        r.kind.replace('_', " "),
+                        r.source_id
+                    ),
+                });
+            }
+            continue;
+        }
         let mut why = dedup(r.blockers.clone());
         why.extend(ids.id(&r.source_id).err());
         if !why.is_empty() {
@@ -620,7 +695,9 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
     let open: Vec<&Record> = records
         .iter()
         .copied()
-        .filter(|r| r.blockers.is_empty() && ids.ids.contains_key(&r.source_id))
+        .filter(|r| {
+            !no_part_requirement(r) && r.blockers.is_empty() && ids.ids.contains_key(&r.source_id)
+        })
         .collect();
     let id = |r: &Record| ids.ids[&r.source_id].clone();
     let of =
@@ -715,9 +792,7 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
         (r.part, order.unwrap_or(r.part21_id), r.part21_id)
     });
     for r in notes {
-        if r.label.trim().is_empty() {
-            refuse(&mut problems, r, "document requirement text is empty");
-        } else if !r.faces.is_empty() || !r.edges.is_empty() {
+        if !r.faces.is_empty() || !r.edges.is_empty() {
             refuse(
                 &mut problems,
                 r,
@@ -728,7 +803,7 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
                 id: id(r),
                 source: r.source_id.clone(),
                 kind: "document_note",
-                value: r.label.trim().to_string(),
+                value: part_note_text(r),
                 basis: format!(
                     "source-authored: the AP242 {} '{}' ({}), a general note (draftwright's DocumentNote)",
                     r.kind.replace('_', " "),
@@ -748,13 +823,13 @@ pub fn sheet_requirements(analysis: &Analysis) -> (Vec<SheetRequirement>, Vec<Pr
 pub struct PlannedRequirement {
     /// The record's item ID, `pmi:<identity>`; `source` is its Part 21 provenance.
     pub id: String,
-    /// `general_tolerance`, `default_surface_finish` or `document_note`.
+    /// `general_tolerance`, `default_surface_finish`, `document_note` or `no_requirement`.
     pub kind: String,
     pub source: String,
     /// What the sheet states: the designation, `Ra <value>`, the note's text.
     pub text: String,
     /// What carries it: `title_block` (its tolerance cell), `sheet` (the symbol beside the title
-    /// block), or `notes` (the general note of the same ID).
+    /// block), `notes` (the general note of the same ID), or `none` (no requirement authored).
     pub carrier: String,
     pub basis: String,
     /// Shown, or not drawable as its carrier is not (a general note with no place).
@@ -792,6 +867,10 @@ pub fn plan_sheet(
             placed: None,
         };
         match r.kind {
+            "no_requirement" => {
+                planned.carrier = "none".into();
+                planned.state = crate::items::State::NotAuthored;
+            }
             "general_tolerance" => {
                 planned.carrier = "title_block".into();
                 match given.get("tolerance") {

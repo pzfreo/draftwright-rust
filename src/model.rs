@@ -4044,7 +4044,7 @@ fn plan_with_presentation(
             crate::pmi_lowering::sheet_requirements(analysis)
                 .0
                 .into_iter()
-                .filter(|r| r.kind == "document_note")
+                .filter(|r| matches!(r.kind, "document_note" | "no_requirement"))
                 .map(|r| r.id),
         );
         annotation_ids.extend(crate::dims::blends::note_ids(analysis));
@@ -4309,7 +4309,8 @@ fn plan_with_presentation(
     // Part PMI notes precede the drawing's own notes; reconciliation never changes the Spec.
     let (requirements, more) = crate::pmi_lowering::sheet_requirements(analysis);
     problems.extend(more);
-    let (mut notes_given, omitted_notes, more) = crate::notes::reconcile(&requirements, spec);
+    let (mut notes_given, omitted_notes, more) =
+        crate::notes::reconcile(&requirements, analysis, spec);
     problems.extend(more);
     let mut radius_notes = crate::dims::blends::notes(analysis);
     for (note, _) in &mut radius_notes {

@@ -74,6 +74,7 @@ pub struct PlannedNote {
 /// covered items stay in the inventory but reserve no space and take no printed number.
 pub(crate) fn reconcile(
     requirements: &[crate::pmi_lowering::SheetRequirement],
+    analysis: &Analysis,
     spec: &crate::model::Spec,
 ) -> (Vec<NoteSpec>, Vec<PlannedNote>, Vec<Problem>) {
     let mut active = Vec::new();
@@ -121,7 +122,10 @@ pub(crate) fn reconcile(
     for (i, n) in spec.notes.iter().enumerate() {
         let matches: Vec<_> = model_notes
             .iter()
-            .filter(|r| normalized(&r.value) == normalized(&n.text))
+            .filter(|r| {
+                normalized(&r.value) == normalized(&n.text)
+                    || matches!(&analysis.pmi, Some(crate::pmi::Reading::Read(report)) if report.records.iter().any(|record| record.source_id == r.source && normalized(&record.label) == normalized(&n.text)))
+            })
             .collect();
         for r in &matches {
             let mut remaining = spec.notes.clone();

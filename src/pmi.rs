@@ -723,7 +723,11 @@ pub fn report_part(
             } else {
                 Outcome::PartiallyExtracted
             },
-            reason: r.blockers.join("; "),
+            reason: if r.blockers.is_empty() && crate::pmi_lowering::no_part_requirement(r) {
+                "info: no requirement stated; read, with no drawing needed".into()
+            } else {
+                r.blockers.join("; ")
+            },
         })
         .collect();
     record_sources.append(&mut sources);
@@ -952,10 +956,7 @@ impl PartReader<'_> {
                 .items
                 .iter()
                 .filter(|(kind, _)| {
-                    matches!(
-                        normalized(kind).as_str(),
-                        "general note" | "surface treatment" | "heat treatment" | "edge condition"
-                    )
+                    crate::pmi_lowering::part_note_kind(&normalized(kind)).is_some()
                 })
                 .collect();
             if notes.is_empty() {
@@ -978,7 +979,9 @@ impl PartReader<'_> {
                 Support::default(),
                 blockers,
             );
-            r.kind = normalized(kind).replace(' ', "_");
+            r.kind = crate::pmi_lowering::part_note_kind(&normalized(kind))
+                .expect("filtered part note kind")
+                .into();
             if let AttributeValue::Text(text) = value {
                 r.label = text.clone();
             } else {
@@ -2192,7 +2195,9 @@ impl PartReader<'_> {
                 });
                 continue;
             };
-            if note.text.is_empty() {
+            if note.text.is_empty()
+                && crate::pmi_lowering::part_note_kind(&note.kind.to_lowercase()).is_none()
+            {
                 sources.push(Source {
                     id: format!("manufacturing_requirement:#{pdef}"),
                     category: Category::ManufacturingRequirement,
@@ -2205,7 +2210,9 @@ impl PartReader<'_> {
             }
             let words = note.kind.to_lowercase();
             let words: Vec<&str> = words.split_whitespace().collect();
-            let kind = if words.is_empty() {
+            let kind = if let Some(kind) = crate::pmi_lowering::part_note_kind(&words.join(" ")) {
+                kind.to_string()
+            } else if words.is_empty() {
                 "manufacturing_requirement".to_string()
             } else {
                 words.join("_")

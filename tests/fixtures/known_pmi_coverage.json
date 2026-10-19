@@ -859,24 +859,6 @@
   "file": "hw_every_kind.step",
   "python": null,
   "rust": "info",
-  "source": "attribute_set:0:0",
-  "verdict": "rust-correct",
-  "evidence": "This older hand-written semantic text fixture names its item 'coating', rather than the PMI practice kind 'surface treatment' used by Specify's part notes. Neither reader projects that nonstandard item name to a requirement. The port retains an info source for the unsupported attribute set instead of silently dropping it. Canonical semantic text part notes, including heat treatment in this file, are now read and drawn as general notes under issue #123."
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_every_kind.step",
-  "python": null,
-  "rust": "info",
-  "source": "attribute_set:0:2",
-  "verdict": "rust-correct",
-  "evidence": "This older hand-written semantic text fixture names its item 'edges', rather than the PMI practice kind 'edge condition' used by Specify's part notes. Neither reader projects that nonstandard item name to a requirement. The port retains an info source for the unsupported attribute set instead of silently dropping it. Canonical semantic text part notes, including heat treatment in this file, are now read and drawn as general notes under issue #123."
- },
- {
-  "code": "pmi_not_extracted",
-  "file": "hw_every_kind.step",
-  "python": null,
-  "rust": "info",
   "source": "attribute_set:0:3",
   "verdict": "rust-correct",
   "evidence": "A user defined attribute on a feature (#6671 'gauge': 'plug', GENERAL_PROPERTY 'inspection' on feature 4's shape aspect). draftwright's census does not hold it; the port reports it as info, not projected, as it reports other attribute sets (e.g. nist_ctc_01's attribute_set:0:2, rust-correct). Neither draws it; an inspection attribute is not a drawing requirement draftwright states."
