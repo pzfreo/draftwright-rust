@@ -25,11 +25,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
   taken, else the baseline stays. `sheet/preferred_printer` (`"A4"` default, or `"A3"`) sets
   the order: A4 printer 1×A4 → up to 2×A4 → 1×A3; A3 printer 1×A4 → 1×A3 → A3 overflow. The
   sheet basis records the choice. 16 of the 100 corpus parts move to smaller paper and none to
-  larger (e.g. mfcadpp/10190 A1 10:1 → A4 1:1, NIST FTC-07 A2 1:2 → A3 1:5); planning costs
-  about 1.05× alpha.6 in retired instructions (#130).
+  larger (e.g. mfcadpp/10190 A1 10:1 → A4 1:1, NIST FTC-07 A2 1:2 → A3 1:5). The search adds
+  about 5% planning cost in retired instructions; mfcadpp/10278, which tries every candidate
+  before falling back, costs 1.82× (#130).
 - Draw the part's semantic-text notes from PMI in the general notes block, before the Spec's
-  notes: Specify's free-text `general note`s (in `note index` order), coating (`surface
-  treatment` or `coating`), heat treatment and edge conditions. Values that state no
+  notes, ordered by Specify's `note index` and then file order: Specify's free-text `general
+  note`s, coating (`surface treatment` or `coating`), heat treatment and edge conditions. Values that state no
   requirement (`None`, `N/A`, `-`, empty) are info only; a value that does not name its process
   is prefixed (`Coating: Black`). `annotations/<PMI id>/omit` leaves one off the drawing. A Spec
   note repeating a PMI note is drawn once, with info `note_duplicated_in_spec` and a fix
@@ -50,8 +51,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
-- Draftwright's own records in a STEP file (Specify's stored answers, the editor's project
-  export) are no longer reported as unread PMI; foreign attribute sets still are (#129).
+- Draftwright's own records in a STEP file (Specify's stored answers, Python Specify's earlier
+  `schema 1` property, the editor's project export) are no longer reported as unread PMI;
+  foreign attribute sets still are (#129).
 - Isometric captions stay clear of reserved projection bands (#120).
 
 ### Internal
