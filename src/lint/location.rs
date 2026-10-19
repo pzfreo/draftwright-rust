@@ -84,6 +84,15 @@ pub(crate) fn roots(a: &Analysis) -> [Vec<f64>; 3] {
 pub(crate) fn drawing_roots(a: &Analysis, marks: &[Mark]) -> [Vec<f64>; 3] {
     let mut out = roots(a);
     for c in marks.iter().flat_map(|m| &m.claims) {
+        if let Some(key) = c.feature.strip_prefix("scheme:")
+            && let [_, datum, _, _] = key.split('|').collect::<Vec<_>>().as_slice()
+            && let Some((style, axis)) = c.parameter.split_once('.')
+            && ["chain", "baseline", "ordinate"].contains(&style)
+            && let Some(k) = AXES.iter().position(|v| *v == axis)
+            && let Ok(p) = a.scheme_station(datum, k)
+        {
+            out[k].push(p[k]);
+        }
         if let Some(word) = c.feature.strip_prefix("station_origin:")
             && let Some((axis, reference)) = word.split_once('|')
             && let Ok(k) = axis.parse::<usize>()
@@ -140,6 +149,9 @@ pub(crate) fn edges(a: &Analysis, marks: &[Mark]) -> Vec<Edge> {
                     && p.is_finite()
                     && q.is_finite()
                     && (super::holes::states(&mark.text, (q - p).abs())
+                        || (mark.claims.iter().any(|c| {
+                            c.feature.starts_with("scheme:") && c.parameter.starts_with("ordinate.")
+                        }) && super::holes::states(&mark.text, -(q - p).abs()))
                         || mark.text.split_once('×').is_some_and(|(n, rest)| {
                             n.trim()
                                 .parse::<f64>()
@@ -408,6 +420,48 @@ pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge>
     };
     let mut out = Vec::new();
     for span in spans {
+        if let Some(c) = mark
+            .claims
+            .iter()
+            .find(|c| c.feature.starts_with("scheme:"))
+        {
+            if let Some(key) = c.feature.strip_prefix("scheme:")
+                && let [_, _, from, to] = key.split('|').collect::<Vec<_>>().as_slice()
+                && let Some((style, axis)) = c.parameter.split_once('.')
+                && AXES[span.axis] == axis
+                && let (Ok(p), Ok(q)) = (
+                    a.scheme_station(from, span.axis),
+                    a.scheme_station(to, span.axis),
+                )
+                && super::holes::states(
+                    &mark.text,
+                    if style == "ordinate" {
+                        q[span.axis] - p[span.axis]
+                    } else {
+                        (q[span.axis] - p[span.axis]).abs()
+                    },
+                )
+            {
+                let node = |key: &str| {
+                    node_feature(a, key.strip_prefix("axis:").unwrap_or(key), span.axis)
+                };
+                let mut e = span.clone();
+                if (p[span.axis] - span.a).abs() < super::redundancy::TOL
+                    && (q[span.axis] - span.b).abs() < super::redundancy::TOL
+                {
+                    e.a_feature = node(from);
+                    e.b_feature = node(to);
+                    out.push(e);
+                } else if (q[span.axis] - span.a).abs() < super::redundancy::TOL
+                    && (p[span.axis] - span.b).abs() < super::redundancy::TOL
+                {
+                    e.a_feature = node(to);
+                    e.b_feature = node(from);
+                    out.push(e);
+                }
+            }
+            continue;
+        }
         let source = report.as_ref().and_then(|(report, ids)| {
             report.records.iter().find(|r| {
                 r.category == Category::Dimension

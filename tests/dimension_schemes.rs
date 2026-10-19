@@ -72,6 +72,12 @@ fn chain_and_high_end_baseline_replace_locations_once_and_round_trip() {
             .contains(&i.code.as_str())),
             "{style}: {issues:#?}"
         );
+        assert!(
+            !issues
+                .iter()
+                .any(|i| i.code == "feature_not_located" && i.id.ends_with("location.length.x")),
+            "{style}: authored scheme is a rooted locating network: {issues:#?}"
+        );
         let name = generated[0].id.clone();
         marks.iter_mut().find(|m| m.name == name).unwrap().text = "999 ±0.1".into();
         assert!(
