@@ -22,9 +22,13 @@ fn rounded(value: Value) -> Value {
             json!(format!("{:.2}", n.as_f64().unwrap()))
         }
         Value::Array(items) => Value::Array(items.into_iter().map(rounded).collect()),
-        Value::Object(map) => {
-            Value::Object(map.into_iter().map(|(k, v)| (k, rounded(v))).collect())
-        }
+        // The loader names draftwright's version, which every release changes.
+        Value::Object(map) => Value::Object(
+            map.into_iter()
+                .filter(|(k, _)| k != "loader")
+                .map(|(k, v)| (k, rounded(v)))
+                .collect(),
+        ),
         other => other,
     }
 }
@@ -44,8 +48,8 @@ fn legacy_alignments_plan_byte_identically() {
         if align != "none" {
             value["views"] = json!({"plan":{"place":{"relative_to":"front","side":"above","gap":15,"align":align,"pinned":true}}});
         }
-        // Floats are rounded to 0.01 mm and the analysis hash is dropped, so platform
-        // floating-point differences (libm, analysis bytes) do not count.
+        // Floats are rounded to 0.01 mm and the analysis hash and loader version are
+        // dropped, so platform floating-point differences and releases do not count.
         let mut plan = serde_json::to_value(planned(&a, value)).unwrap();
         plan.as_object_mut().unwrap().remove("analysis_sha256");
         let bytes = serde_json::to_vec(&rounded(plan)).unwrap();
@@ -55,6 +59,7 @@ fn legacy_alignments_plan_byte_identically() {
             .collect();
         if hash != fields[2] {
             eprintln!("{}", String::from_utf8_lossy(&bytes));
+            eprintln!("fixture line: {sheets} {align} {hash}");
         }
         assert_eq!(hash, fields[2], "sheets={sheets}, align={align}");
     }
