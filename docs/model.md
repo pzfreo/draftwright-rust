@@ -508,11 +508,13 @@ up to two A4 sheets, then one A3. A3 printers try one A4, one A3, then A3 overfl
 A baseline already equal to or better than the next request ends the search.
 Baseline reserved footprints cheaply rule out impossible paper/count requests: outlines
 scale, while annotation bands and furniture stay in paper mm. Each trial fixes the paper
-and largest estimated standard scale above the readability floor, including printed
-primary step spans, with at most one smaller-scale retry. Crossed leaders without
-space drops continue to allocation/the next paper. Trials retain the baseline’s
+and largest estimated standard scale that keeps primary step spans readable,
+with at most one smaller-scale retry above the ordinary readability floor.
+Crossed leaders without space drops continue to allocation/the next paper, unless
+the printed-step bound needs that retry to retain R5's complete single-sheet prefix.
+Trials retain the baseline’s
 automatic detail inventory. R5 allocation
-and its reuse of complete single sheets are unchanged.
+and its reuse of complete single sheets, including readability refusals, are unchanged.
 New layout/readability problems reject a candidate; baseline problems with the same
 code and subjects are tolerated. Outline strokes must clear the frame.
 `Plan.sheet_candidates` records trials and

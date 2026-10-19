@@ -324,16 +324,12 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
             reuse_baseline(&mut baseline, candidates, max);
             return Ok(baseline);
         }
-        let target_scale = estimate
-            .get_or_insert_with(|| Estimate::new(fit_analysis, &baseline))
-            .scale(size, max, bound_floor);
-        // R5's max-only shortcut can reuse a complete one-sheet result at
-        // this fixed scale, including a softer annotation finding. A result
-        // from a smaller retry is not the same explicit-paper/scale request.
+        // R5's existing max-only shortcut keeps a complete one-sheet result,
+        // including a smaller retry refused for readability. Permission to
+        // overflow must not restart that complete drawing at a larger scale.
         if max > 1
             && let Some((paper, plan, outcome)) = &single
             && paper == size
-            && target_scale.is_some_and(|scale| (plan.sheet.scale_factor - scale).abs() < 1e-9)
             && model::findings(plan).clean()
             && model::drawn_sheets_fit(fit_analysis, plan)
             && crate::sheets::max_only(spec)
@@ -351,12 +347,15 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
             "reserved footprints cannot fit at {}",
             model::scale_name(bound_floor)
         );
-        if let Some(scale) = target_scale {
+        if let Some(scale) = estimate
+            .get_or_insert_with(|| Estimate::new(fit_analysis, &baseline))
+            .scale(size, max, bound_floor)
+        {
             // Explicit scale bypasses the explicit-paper scale search. At most one
             // smaller standard scale is tried, using the ordinary planner each time.
             let smaller = layout::SCALES
                 .into_iter()
-                .find(|s| *s < scale && *s + 1e-9 >= bound_floor);
+                .find(|s| *s < scale && *s + 1e-9 >= floor);
             for scale in std::iter::once(scale).chain(smaller) {
                 scales.push(model::scale_name(scale));
                 let mut forced = spec.clone();
@@ -417,8 +416,11 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                         // Smaller outlines cannot repair a printed-size minimum.
                         // With crossed leaders and no space drops, use R5/the next
                         // paper rather than repeating the same routing search.
+                        // A stronger printed-step bound only seeds the first trial:
+                        // keep R5's complete-single-sheet prefix at the ordinary floor.
                         if below_minimum
-                            || ((model::findings(&plan).hard == 0 || crossed_leaders)
+                            || ((model::findings(&plan).hard == 0
+                                || (crossed_leaders && bound_floor <= floor + 1e-9))
                                 && !plan
                                     .problems
                                     .iter()
@@ -685,6 +687,33 @@ mod tests {
             ("A3", "2:1")
         );
         assert!(p.sheet_candidates.iter().all(|c| c.scales.len() <= 1));
+    }
+
+    #[test]
+    fn tapped_posts_keep_the_established_r5_choices() {
+        for (file, printer, size, extra_sheets) in [
+            ("string_post_tapped", "A4", "A4", 1),
+            ("string_post_tapped", "A3", "A3", 0),
+            ("hw_string_post_tapped_intent", "A4", "A3", 0),
+        ] {
+            let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join(format!("tests/fixtures/pmi/step/{file}.step.gz"));
+            let a = model::analyse_native(&path).unwrap().1;
+            let s: Spec =
+                serde_json::from_value(json!({"sheet":{"preferred_printer":printer}})).unwrap();
+            let p = model::plan_recovered(&a, &s).unwrap();
+            assert_eq!(
+                (
+                    p.sheet.size.as_str(),
+                    p.sheet.scale.as_str(),
+                    p.sheets.len()
+                ),
+                (size, "5:1", extra_sheets),
+                "{file}: {}",
+                p.sheet.basis
+            );
+            assert!(p.sheet_candidates.iter().all(|c| c.scales.len() <= 2));
+        }
     }
 
     #[test]
