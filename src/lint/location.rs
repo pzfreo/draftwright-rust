@@ -5,6 +5,14 @@ use crate::pmi::{Category, Reading};
 use std::collections::BTreeSet;
 
 const EPS: f64 = 1e-6;
+
+/// The part and witnesses use millimetres; authored PMI can explicitly print inches.
+fn states_mm(text: &str, value: f64) -> bool {
+    let inch = text
+        .split_whitespace()
+        .any(|word| word.eq_ignore_ascii_case("INCH") || word.eq_ignore_ascii_case("INCHES"));
+    super::holes::states(text, value / if inch { 25.4 } else { 1. })
+}
 pub(crate) const AXES: [&str; 3] = ["x", "y", "z"];
 #[derive(Clone, Debug)]
 pub(crate) struct Edge {
@@ -148,11 +156,11 @@ pub(crate) fn edges(a: &Analysis, marks: &[Mark]) -> Vec<Edge> {
                     && k < 3
                     && p.is_finite()
                     && q.is_finite()
-                    && (super::holes::states(&mark.text, (q - p).abs())
+                    && (states_mm(&mark.text, (q - p).abs())
                         || mark.text.split_once('×').is_some_and(|(n, rest)| {
                             n.trim()
                                 .parse::<f64>()
-                                .is_ok_and(|n| super::holes::states(rest.trim(), (q - p).abs() / n))
+                                .is_ok_and(|n| states_mm(rest.trim(), (q - p).abs() / n))
                         }))
                 {
                     spans.push((k, p, q));
@@ -171,10 +179,7 @@ pub(crate) fn edges(a: &Analysis, marks: &[Mark]) -> Vec<Edge> {
                         && let Some(k) = ["X", "Y", "Z"]
                             .iter()
                             .position(|v| Some(*v) == g.axis.as_deref())
-                        && super::holes::states(
-                            &mark.text,
-                            (g.stations[1][k] - g.stations[0][k]).abs(),
-                        )
+                        && states_mm(&mark.text, (g.stations[1][k] - g.stations[0][k]).abs())
                     {
                         spans.push((k, g.stations[0][k], g.stations[1][k]));
                     }
@@ -404,7 +409,7 @@ fn pitch_states(a: &Analysis, p: &crate::bridge::HolePattern, k: usize, text: &s
     });
     xs.len() >= 2
         && count == Some(xs.len() - 1)
-        && super::holes::states(body, xs[1] - xs[0])
+        && states_mm(body, xs[1] - xs[0])
         && xs
             .windows(2)
             .all(|q| ((q[1] - q[0]) - (xs[1] - xs[0])).abs() < super::redundancy::TOL)
@@ -441,8 +446,7 @@ pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge>
                         } else {
                             (q[span.axis] - p[span.axis]).abs()
                         };
-                        n.signum() == value.signum()
-                            && super::holes::states(&mark.text, value.abs())
+                        n.signum() == value.signum() && states_mm(&mark.text, value.abs())
                     })
             {
                 let node = |key: &str| {
@@ -932,6 +936,12 @@ mod tests {
             a_feature: None,
             b_feature: None,
         }
+    }
+    #[test]
+    fn explicit_imperial_pmi_locates_in_the_parts_millimetre_frame() {
+        assert!(states_mm("0.30 ±0.02 INCH", 7.62));
+        assert!(!states_mm("0.30 INCH", 0.30));
+        assert!(states_mm("7.62", 7.62));
     }
     #[test]
     fn rounded_recognition_stations_still_reach_the_physical_origin() {
