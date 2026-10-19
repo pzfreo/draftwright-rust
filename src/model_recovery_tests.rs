@@ -159,12 +159,32 @@ fn new_recess_locations_clear_established_pmi_ink() {
                 .collect::<Vec<_>>()
         );
         let auto = plan_escalated_with(&a, &Spec::default(), false, None, false).unwrap();
+        // A schedule can name individual coordinates where the other presentation
+        // uses a retained pattern chain. Compare their actual rooted ink, rather
+        // than requiring identical location-claim spellings in both presentations.
+        let non_locations = |p: &Plan| {
+            carried(p)
+                .into_iter()
+                .filter(|(_, role)| !role.starts_with("location.length."))
+                .collect::<BTreeSet<_>>()
+        };
+        assert!(non_locations(&auto).is_subset(&non_locations(&trial)));
+        let missing = |p: &Plan| {
+            let mut p = p.clone();
+            crate::dims::pmi_policy::audit(&a, &p.spec.clone(), &mut p);
+            p.problems
+                .into_iter()
+                .filter(|p| p.code == "feature_not_located")
+                .map(|p| p.id)
+                .collect::<BTreeSet<_>>()
+        };
+        let lost: Vec<_> = missing(&trial)
+            .difference(&missing(&auto))
+            .cloned()
+            .collect();
         assert!(
-            carried(&auto).is_subset(&carried(&trial)),
-            "reduction loses {:?}",
-            carried(&auto)
-                .difference(&carried(&trial))
-                .collect::<Vec<_>>()
+            lost.is_empty(),
+            "reduction loses rooted locations: {lost:?}"
         );
     });
 }
