@@ -3338,11 +3338,19 @@ fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan,
     if crate::hole_table::install(analysis, &mut scheduled, &selection) {
         // A genuine geometry recovery still belongs to the final plan; a resolved ladder's
         // exhausted-loss message does not. Preserve the successful recovery's trace.
+        let unreadable = scheduled.sheet.scale_factor
+            < crate::sheet_fit::min_legible_scale(analysis)
+            || crate::sheet_fit::illegible_steps(analysis, &scheduled) > 0;
         scheduled.problems.extend(
             baseline
                 .problems
                 .iter()
-                .filter(|p| p.code == "layout_replanned")
+                .filter(|p| {
+                    p.code == "layout_replanned"
+                        || (unreadable
+                            && p.code == "layout_recovery_exhausted"
+                            && p.severity == "warning")
+                })
                 .cloned(),
         );
         if baseline
