@@ -8363,6 +8363,12 @@ fn plan_with_presentation(
                 "inactive: the spec lists it, for another revision (spec_entries_inactive)".into();
         }
     }
+    crate::placement_intent::restore_automatic_pin_ink(
+        spec,
+        canonical.as_ref(),
+        &views,
+        &mut dimensions,
+    );
     let mut spec = given.clone();
     spec.schema = SPEC_SCHEMA.into();
     if inactive.is_empty() {

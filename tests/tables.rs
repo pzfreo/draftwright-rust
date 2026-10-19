@@ -281,9 +281,9 @@ fn tables_are_plan_items_placed_towards_their_corners() {
     // The revision block in the drawing area's top-right corner, the BOM in its bottom left.
     let [w, h] = plan.sheet.page;
     let rev = plan.tables[0].placed.as_ref().unwrap().cells;
-    assert!((rev[2] - (w - 10.0)).abs() < 1e-9 && (rev[3] - (h - 10.0)).abs() < 1e-9);
+    assert!((rev[2] - (w - 12.0)).abs() < 1e-9 && (rev[3] - (h - 12.0)).abs() < 1e-9);
     let bom = plan.tables[1].placed.as_ref().unwrap().cells;
-    assert!((bom[0] - 10.0).abs() < 1e-9 && (bom[1] - 10.0).abs() < 1e-9);
+    assert!((bom[0] - 12.0).abs() < 1e-9 && (bom[1] - 12.0).abs() < 1e-9);
 }
 
 #[test]
@@ -307,7 +307,7 @@ fn tables_keep_clear_of_the_notes_and_of_each_other() {
     );
     let [w, h] = plan.sheet.page;
     let notes = plan.notes_block.as_ref().unwrap().cells;
-    assert!((notes[2] - (w - 10.0)).abs() < 1e-9 && (notes[3] - (h - 10.0)).abs() < 1e-9);
+    assert!((notes[2] - (w - 12.0)).abs() < 1e-9 && (notes[3] - (h - 12.0)).abs() < 1e-9);
     assert!(plan.tables.iter().all(|t| t.placed.is_some()));
     assert_clear(a, &plan);
 }
@@ -523,8 +523,8 @@ fn tables_match_draftwrights_on_corpus_parts() {
                 (p.cells[1], pb[1])
             };
             if comparable {
-                let same_corner = (x - px - tables::PAD).abs() < 1e-6
-                    && (y - py_ - tables::PAD).abs() < 1e-6;
+                let same_corner =
+                    (x - px - tables::PAD).abs() < 1e-6 && (y - py_ - tables::PAD).abs() < 1e-6;
                 let origin = [
                     if right {
                         w - px - tables::PAD - (p.cells[2] - p.cells[0])

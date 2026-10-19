@@ -243,7 +243,16 @@ fn one_feature_problem_query_returns_all_member_fixes() {
             .unwrap(),
     )
     .unwrap();
-    assert_eq!(delta["problems_resolved"].as_array().unwrap().len(), 4);
+    let resolved = delta["problems_resolved"].as_array().unwrap();
+    assert_eq!(resolved.len(), 6);
+    // Releasing the two off-sheet pins also restores their projection-layout feasibility.
+    assert_eq!(
+        resolved
+            .iter()
+            .filter(|p| p["code"] == "projection_relation_infeasible")
+            .count(),
+        2
+    );
     for p in problems
         .iter()
         .filter(|p| p["code"] != "extension_through_feature")

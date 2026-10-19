@@ -173,8 +173,8 @@ fn drawable_border_contact_checks_complete_ink_and_views_on_every_edge() {
             .collect();
         assert_eq!(contacts.len(), 2);
         assert!(contacts.iter().all(|i| i.severity == Severity::Error));
-        drawing.sheet.views[0].bbox = [12.0, 40.0, 30.0, 60.0];
-        drawing.sheet.items[0].ink = [12.0, 40.0, 30.0, 60.0];
+        drawing.sheet.views[0].bbox = [10.75, 40.0, 30.0, 60.0];
+        drawing.sheet.items[0].ink = [10.75, 40.0, 30.0, 60.0];
         assert!(
             !structural::check(&drawing)
                 .iter()

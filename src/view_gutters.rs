@@ -147,6 +147,34 @@ fn bands(analysis: &Analysis, plan: &Plan, reservations: bool) -> Vec<Rect> {
         // View captions render in the annotation font; the shared furniture
         // helper also serves condensed title text. Reserve the actual caption ink.
         if let Some(c) = &v.cut {
+            // Cutting-plane letters and strokes belong to the marked source,
+            // not the section. A one-view furniture query cannot see that source.
+            if let Some(source) = plan.views.iter().find(|s| s.id == c.marked_in) {
+                let view =
+                    haecceity::hlr::View::new(source.direction, source.up).expect("source view");
+                let centre = crate::model::extent(analysis, &view).1;
+                let at = |p| {
+                    let q = view.map(p);
+                    [
+                        source.at[0] + source.scale * (q[0] - centre[0]),
+                        source.at[1] + source.scale * (q[1] - centre[1]),
+                    ]
+                };
+                let [lo, hi] = analysis.envelope;
+                let a = at([lo[0], c.origin[1], lo[2]]);
+                let b = at([hi[0], c.origin[1], hi[2]]);
+                let (ink, letters) = crate::section::cutting_plane(
+                    a[0].min(b[0]) - crate::section::OVERRUN,
+                    a[0].max(b[0]) + crate::section::OVERRUN,
+                    at(c.origin)[1],
+                );
+                if let Some(b) = crate::output::items_bbox(&ink) {
+                    own(&source.id, b);
+                }
+                for at in letters {
+                    own(&source.id, text_box(&c.label, at));
+                }
+            }
             let (size, _) = crate::detail::crop_extent(analysis, v);
             let at = [v.at[0], v.at[1] - v.scale * size[1] / 2.0 - 7.0];
             own(

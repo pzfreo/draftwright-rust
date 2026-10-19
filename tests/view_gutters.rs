@@ -58,19 +58,34 @@ fn gutter_never_changes_automatic_sheet_scale_or_view_scales() {
     // Empty principal reservations can reach the frame while actual ink fits.
     // They must not prevent the independent isometric from moving inward.
     if let Some(corpus) = corpus::dir() {
-        for file in ["mfcadpp/10155.step", "mfcadpp_holdout/196.step"] {
-            let (_, a) = model::analyse_native(&corpus.join(file)).unwrap();
+        let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+        for (file, paper, scale) in [
+            (corpus.join("mfcadpp/10155.step"), "A4", "1:1"),
+            (corpus.join("mfcadpp_holdout/196.step"), "A4", "1:1"),
+            (
+                fixtures.join("pmi/step/nist_ctc_01_asme1_ap242-e1.stp.gz"),
+                "A3",
+                "1:5",
+            ),
+            (
+                fixtures.join("samples/specify-sample-spindle.step.gz"),
+                "A4",
+                "1:1",
+            ),
+        ] {
+            let (_, a) = model::analyse_native(&file).unwrap();
             for gutter in [0, 25, 1000] {
                 let spec = serde_json::from_value(json!({"sheet":{"view_gutter":gutter}})).unwrap();
                 let p = model::plan_recovered(&a, &spec).unwrap();
                 assert_eq!(
                     (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-                    ("A4", "1:1")
+                    (paper, scale)
                 );
                 assert!(p.sheets.is_empty());
                 assert!(
                     draftwright::sheet_fit::border_contacts(&a, &p).is_empty(),
-                    "{file}"
+                    "{}",
+                    file.display()
                 );
             }
         }

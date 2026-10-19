@@ -259,7 +259,7 @@ fn notes_are_plan_items_numbered_in_order() {
     let block = plan.notes_block.as_ref().unwrap();
     let [w, h] = plan.sheet.page;
     assert!(
-        (block.cells[2] - (w - 10.0)).abs() < 1e-9 && (block.cells[3] - (h - 10.0)).abs() < 1e-9
+        (block.cells[2] - (w - 12.0)).abs() < 1e-9 && (block.cells[3] - (h - 12.0)).abs() < 1e-9
     );
     let ys: Vec<f64> = std::iter::once(block.title_at[1])
         .chain(

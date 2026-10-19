@@ -1538,9 +1538,9 @@ fn separate_projection_rows(a: &Analysis, reference: &Plan, template: &Plan) -> 
 pub const FILL_BAND: [f64; 2] = [0.60, 0.85];
 /// Clearance around each drawn item, page mm.
 pub const FILL_CLEARANCE: f64 = 1.0;
-/// Ink clearance from the frame, including stroke width and visible white paper.
-/// Gutters reserve two mm; auditing requires at least one and a half mm.
-pub const BORDER_CLEARANCE: f64 = 1.5;
+/// Combined half-widths of the frame and the heaviest content pen (0.5 mm each).
+/// Gutters target two mm; the audit rejects contact of the complete stroked ink.
+pub const BORDER_CLEARANCE: f64 = 0.5;
 /// Minimum visible opening across a hole or slot, page mm. Small edge treatments do
 /// not set the whole-sheet scale; their sizes are stated by callouts.
 pub const MIN_OPENING: f64 = 2.0;

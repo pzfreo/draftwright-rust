@@ -1224,6 +1224,14 @@ fn geometry_with(
         }
     }
     let drawable: Rect = [left, bottom, page_w - right, page_h - top];
+    // Reserve table cells in the same inset region used by their final placement.
+    let inset = MARGIN + crate::tables::PAD;
+    let table_drawable = [
+        left.max(inset),
+        bottom.max(inset),
+        (page_w - right).min(page_w - inset),
+        (page_h - top).min(page_h - inset),
+    ];
 
     // Required lower-corner blocks need their paper before the views claim it.
     // Keep the aligned row together and retain its scale; when there is no
@@ -1234,7 +1242,7 @@ fn geometry_with(
         if !matches!(corner, Corner::BottomLeft | Corner::BottomRight) {
             continue;
         }
-        if let Some([x, y]) = fit_auxiliary_box(*size, drawable, &fixed, *corner, 2.0) {
+        if let Some([x, y]) = fit_auxiliary_box(*size, table_drawable, &fixed, *corner, 2.0) {
             let b = [x, y, x + size[0], y + size[1]];
             fixed.push(b);
             lower_tables.push(b);
@@ -1364,7 +1372,8 @@ fn geometry_with(
     let mut required_fit = true;
     let mut required_boxes = Vec::new();
     for (size, corner) in &req.required_tables {
-        let Some([x0, y0]) = fit_auxiliary_box(*size, drawable, &obstacles, *corner, 2.0) else {
+        let Some([x0, y0]) = fit_auxiliary_box(*size, table_drawable, &obstacles, *corner, 2.0)
+        else {
             required_fit = false;
             break;
         };
@@ -1414,10 +1423,9 @@ fn geometry_with(
     }
     table_obstacles.extend(&required_boxes);
     let table_fits = req.table_sizes.is_empty()
-        || req
-            .table_sizes
-            .iter()
-            .any(|s| fit_box(*s, drawable, &table_obstacles, Corner::TopRight, 0.0).is_some());
+        || req.table_sizes.iter().any(|s| {
+            fit_box(*s, table_drawable, &table_obstacles, Corner::TopRight, 0.0).is_some()
+        });
     let inside = cy0 >= bottom - TOL && cy1 <= page_h - top + TOL && cx0 >= left - TOL;
     let fits = iso_fits
         && derived_fit

@@ -426,7 +426,8 @@ fn unsampled_paths_match_draftwright() {
         None,
     );
     assert_eq!((g.front, g.side[0]), ([70.0, 70.0], 155.0));
-    assert_eq!(g.iso, [130.0, 105.0, 227.0, 200.0]);
+    // The required table now reserves the same two-mm frame inset as its cells.
+    assert_eq!(g.iso, [130.0, 105.0, 225.0, 200.0]);
     assert_eq!((g.fits, g.auto_fits), (false, true));
     r.required_tables = vec![([260.0, 30.0], Corner::TopRight)];
     r.table_sizes.clear();

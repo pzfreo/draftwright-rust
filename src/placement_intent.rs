@@ -1098,6 +1098,52 @@ pub(crate) fn held_dimensions(
         .collect()
 }
 
+/// Relabelling a transported bare pin can add an ulp to its glyph origin.
+/// Preserve canonical ink when every leader endpoint is exactly unchanged.
+pub(crate) fn restore_automatic_pin_ink(
+    spec: &Spec,
+    base: Option<&Plan>,
+    views: &[PlannedView],
+    dimensions: &mut [crate::dims::PlannedDimension],
+) {
+    if base.is_none() {
+        return;
+    }
+    let held = held_dimensions(base, views);
+    for d in dimensions {
+        if !spec
+            .dimensions
+            .get(&d.id)
+            .and_then(|s| s.place.as_ref())
+            .is_some_and(automatic_pin)
+        {
+            continue;
+        }
+        let Some(old) = held
+            .iter()
+            .find(|old| old.id == d.id && old.view == d.view && old.terms == d.terms)
+            .and_then(|d| d.placed.as_ref())
+        else {
+            continue;
+        };
+        let Some(p) = &d.placed else { continue };
+        if p.lines == old.lines
+            && p.arrows == old.arrows
+            && p.rotation == old.rotation
+            && p.label_at
+                .iter()
+                .zip(old.label_at)
+                .all(|(a, b)| (a - b).abs() < 1e-9)
+            && p.label_box
+                .iter()
+                .zip(old.label_box)
+                .all(|(a, b)| (a - b).abs() < 1e-9)
+        {
+            d.placed = Some(old.clone());
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
