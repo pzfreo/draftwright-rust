@@ -2022,7 +2022,7 @@ fn recover_recess_corridors(
     {
         return Ok(());
     }
-    trial.spec = spec.clone();
+    trial.spec.clone_from(&plan.spec);
     trial.sheet.default = spec.sheet.size.is_none();
     trial.sheet.basis = format!(
         "automatic reduction on {} to {} clears new recess leaders while retaining the complete drawing and established corridors; drawn-item fill {:.1}%",
@@ -3326,7 +3326,7 @@ fn plan_escalated_uncached(
                             candidate_arrangement, ViewPolicy { complete: true, require_detail: require_automatic }, Some(&selection),
                         )?;
                         if crate::hole_table::install(analysis, &mut candidate, &selection) {
-                            candidate.spec = spec.clone();
+                            candidate.spec.clone_from(&p.spec);
                             candidate.sheet.default = true;
                             candidate.sheet.basis += "; larger automatic paper retains the requested schedule and measured corridors";
                             scheduled = candidate;
@@ -3413,7 +3413,7 @@ fn plan_escalated_uncached(
             trial_spec.sheet.size = Some(best.sheet.size.clone());
             trial_spec.sheet.scale = Some(scale_name(scale));
             let mut trial = escalated(&trial_spec, true, true)?;
-            trial.spec = spec.clone();
+            trial.spec.clone_from(&best.spec);
             trial.sheet.default = spec.sheet.size.is_none();
             trial.sheet.basis = format!(
                 "automatic reduction on {} to {} to keep the GD&T in its corridors; drawn-item fill {:.1}%",
@@ -5889,13 +5889,28 @@ fn plan_with_presentation(
             }
         }
     }
-    if crate::nominal::geometry_eligible(analysis)
-        && !crate::nominal::comparison()
-        && !annotation_text_edited(given)
-        && (!crate::placement_intent::has_pins(given)
-            || crate::placement_intent::automatic_pins_only(given))
-    {
-        settle_finished_nominals(analysis, given, &mut plan, &omitted_ink, 3);
+    if crate::nominal::geometry_eligible(analysis) && !crate::nominal::comparison() {
+        // No-op offsets were normalized to bare pins for the solve above.
+        // Apply the same intent to final settling, while retaining authored drags.
+        let mut final_intent = given.clone();
+        for (id, d) in &mut final_intent.dimensions {
+            if let Some(place) = d.place.as_mut()
+                && place.offset.is_some()
+                && effective
+                    .dimensions
+                    .get(id)
+                    .and_then(|d| d.place.as_ref())
+                    .is_some_and(|p| p.offset.is_none())
+            {
+                place.offset = None;
+            }
+        }
+        if !annotation_text_edited(&final_intent)
+            && (!crate::placement_intent::has_pins(&final_intent)
+                || crate::placement_intent::automatic_pins_only(&final_intent))
+        {
+            settle_finished_nominals(analysis, &final_intent, &mut plan, &omitted_ink, 3);
+        }
     }
     plan.status = crate::completeness::status(&plan.problems);
     if reusable {
@@ -5930,6 +5945,21 @@ fn settle_finished_nominals(
             .iter()
             .map(crate::iso_caption::proxy),
     );
+    let mut held_spec = spec.clone();
+    // Bare pins replay the canonical drawing, including its settled peers.
+    // Final text decisions may still change, but cannot solve those peers again.
+    if crate::placement_intent::automatic_pins_only(spec) {
+        for d in &plan.dimensions {
+            held_spec
+                .dimensions
+                .entry(d.id.clone())
+                .or_default()
+                .place
+                .get_or_insert_with(Default::default)
+                .pinned = true;
+        }
+    }
+    let spec = &held_spec;
     let mut items = plan.dimensions.clone();
     items.extend_from_slice(omitted);
     let cache = crate::dims::footprints::Cache::default();
