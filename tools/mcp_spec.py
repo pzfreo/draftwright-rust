@@ -32,7 +32,7 @@ def outline():
             'features', 'faces', 'dimension_schemes', 'precision')},
         'dimension_source': enum('auto', 'authored'),
         'pmi': enum('strict', 'first', 'ignore'),
-        'origin': obj({k: S for k in ('x', 'y', 'z')}),
+        'origin': {'type': 'object'},
         'hole_table': enum('auto', 'always', 'never'),
         'envelope_tolerance': {'type': ['string', 'null']},
         **{k: {'type': 'array'} for k in ('notes', 'tables', 'gears', 'feature_declarations')},

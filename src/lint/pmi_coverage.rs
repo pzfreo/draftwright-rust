@@ -202,6 +202,15 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     // A record whose identity another shares has no drawing item to lower to.
     lowered.retain(|s| ids.ids.contains_key(*s));
     for r in &report.records {
+        if r.category == Category::Datum
+            && !report.records.iter().any(|t| {
+                t.category == Category::GeometricTolerance
+                    && t.datum_refs.iter().any(|d| d == r.label.trim())
+            })
+        {
+            continue;
+        }
+
         let id = r.source_id.as_str();
         if on_sheet.contains(id) || lowered.contains(id) {
             continue;

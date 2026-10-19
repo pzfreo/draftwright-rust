@@ -1857,11 +1857,25 @@ pub(crate) fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
     row <= w - 2.0 * layout::MARGIN && column <= h - 2.0 * layout::MARGIN
 }
 
+pub(crate) fn established_key(spec: &Spec) -> Vec<u8> {
+    if spec.pmi == PmiMode::First && spec.origin.is_empty() {
+        serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
+            .expect("presentation inputs serialize")
+    } else {
+        serde_json::to_vec(&(
+            spec.hole_table,
+            &spec.sheet.projection,
+            spec.pmi,
+            &spec.origin,
+        ))
+        .expect("presentation inputs serialize")
+    }
+}
+
 /// The established automatic presentation, shared by scale and hole-table
 /// decisions. This comparison never replaces the full native final inventory.
 pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
-    let key = serde_json::to_vec(&(spec.hole_table, &spec.sheet.projection))
-        .expect("presentation inputs serialize");
+    let key = established_key(spec);
     let reference = crate::planning::memo(
         analysis,
         "prepared-established-drawing",
@@ -1871,6 +1885,8 @@ pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Pl
             reference.features.retain(|f| f.kind != "section_recess");
             let mut base = Spec {
                 hole_table: spec.hole_table,
+                pmi: spec.pmi,
+                origin: spec.origin.clone(),
                 ..Spec::default()
             };
             base.sheet.projection = spec.sheet.projection.clone();
@@ -3149,6 +3165,9 @@ fn recover_candidates(
 /// caller (the library's [`crate::api`], so the command line, the JSON-lines service and MCP)
 /// is given. A plan that cannot be made is refused as [`plan`] refuses it.
 pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    if spec.pmi == PmiMode::Ignore && crate::dims::pmi_policy::carries(analysis) {
+        return crate::dims::pmi_policy::ignore(analysis, spec, plan_recovered);
+    }
     // Recovery may restore the caller's intent after a trial; retain the migrated keys
     // and schema there too, rather than restoring a version-1 spec onto a version-2 plan.
     let spec = &migrate(spec, analysis)?;
@@ -3194,6 +3213,10 @@ pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
         } else {
             crate::sheets::allocate(analysis, spec)
         }
+    })
+    .map(|mut p| {
+        crate::dims::pmi_policy::audit(analysis, spec, &mut p);
+        p
     })
 }
 
@@ -3606,9 +3629,13 @@ fn gdt_misplaced(plan: &Plan) -> (usize, usize) {
 /// drawing's findings. That recovery is [`recover`], applied by [`plan_recovered`], never here:
 /// its tries are plans made by this function (ISSUE-1299-a).
 pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    if spec.pmi == PmiMode::Ignore && crate::dims::pmi_policy::carries(analysis) {
+        return crate::dims::pmi_policy::ignore(analysis, spec, plan);
+    }
     crate::planning::with(analysis, || {
         let mut plan = plan_with(analysis, spec, false, false, None, false, false)?;
         finish_nominal_plan(analysis, spec, &mut plan);
+        crate::dims::pmi_policy::audit(analysis, spec, &mut plan);
         Ok(plan)
     })
 }
@@ -3675,6 +3702,7 @@ fn plan_with_presentation(
     let spec = &crate::recognition_corrections::bind(analysis, migrate(spec, analysis)?)?;
     crate::dims::authored::check(spec)?;
     crate::dimension_scheme::check(spec)?;
+    crate::dims::pmi_policy::validate(analysis, spec)?;
     if spec
         .iso_scale_factor
         .is_some_and(|s| !s.is_finite() || s <= 0.0)
@@ -3719,6 +3747,8 @@ fn plan_with_presentation(
         base.hole_table = spec.hole_table;
         base.iso_scale_factor = spec.iso_scale_factor;
         base.dimension_schemes = spec.dimension_schemes.clone();
+        base.pmi = spec.pmi;
+        base.origin = spec.origin.clone();
         if spec.dimensions.values().any(|d| d.between.is_some()) {
             base.dimension_source = spec.dimension_source;
             base.dimensions = spec.dimensions.clone();
@@ -4256,7 +4286,11 @@ fn plan_with_presentation(
                 text: r.value.clone(),
             }),
     );
-    let mut radius_notes = crate::dims::blends::notes(analysis);
+    let mut radius_notes = if crate::dims::pmi_policy::strict(analysis, spec) {
+        Vec::new()
+    } else {
+        crate::dims::blends::notes(analysis)
+    };
     for (note, _) in &mut radius_notes {
         if let Some(text) = spec.annotations.get(&note.id).and_then(|a| a.text.as_ref()) {
             note.text = text
@@ -6566,6 +6600,18 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
     crate::spec_gdt::check(&spec)?;
     crate::dims::authored::check(&spec)?;
     crate::dimension_scheme::check(&spec)?;
+    if let Some((axis, r)) = spec
+        .origin
+        .iter()
+        .find(|(k, v)| !matches!(k.as_str(), "x" | "y" | "z") || v.is_empty())
+    {
+        return Err(invalid(
+            format!(
+                "origin/{axis}: choose x, y or z and a nonempty min, max or planar face/feature reference (got {r:?})."
+            ),
+            &[],
+        ));
+    }
     crate::dims::check_views(&spec)?;
     crate::placement_intent::check(&spec)?;
     crate::label_text::check(&spec)?;
@@ -7207,7 +7253,11 @@ fn render_annotations_with_cuts(
     });
     // Threads and knurls drawn over turned steps' outlines, on a layer of their own that only a
     // part carrying them has (so every other sheet's bytes are unchanged).
-    let manufacturing = crate::pmi_lowering::manufacturing(analysis);
+    let manufacturing = if plan.spec.pmi == PmiMode::Ignore {
+        crate::pmi_lowering::Manufacturing::default()
+    } else {
+        crate::pmi_lowering::manufacturing(analysis)
+    };
     let mut thin: Vec<Item> = Vec::new();
     let mut undrawn = BTreeMap::new();
     assert_eq!(
@@ -8387,7 +8437,17 @@ fn render_annotations_with_cuts(
                 ..Default::default()
             }))
             .collect(),
-        spec: Some(embeddable(&plan.spec)),
+        spec: Some(
+            if !crate::dims::pmi_policy::carries(analysis) && plan.spec.pmi != PmiMode::First {
+                // An inactive PMI policy must not change a part-without-PMI drawing's bytes.
+                // The live session keeps the chosen policy in its Spec for a later PMI replacement.
+                let mut embedded = plan.spec.clone();
+                embedded.pmi = PmiMode::First;
+                embeddable(&embedded)
+            } else {
+                embeddable(&plan.spec)
+            },
+        ),
     })
 }
 

@@ -209,6 +209,14 @@ pub struct Measurement {
 
 impl Analysis {
     /// A reference's station and physical witness. No Spec coordinate is accepted.
+    /// A transverse analytic feature-axis station, independent of profile/notch evidence.
+    pub(crate) fn axis_station(&self, id: &str, k: usize) -> Option<f64> {
+        match self.dimension_reference(&format!("axis:{id}")).ok()? {
+            Reference::Cylinder { origin, axis, .. } if axis[k].abs() < 1e-6 => Some(origin[k]),
+            _ => None,
+        }
+    }
+
     pub(crate) fn scheme_station(&self, key: &str, k: usize) -> Result<[f64; 3], String> {
         let a = self;
         if key == "min" || key == "max" {

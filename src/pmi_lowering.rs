@@ -223,6 +223,14 @@ fn lower_uncached(
     let mut owned: Option<Manufacturing> = None;
     let ids = report.identities();
     for r in &report.records {
+        if r.category == Category::Datum
+            && !report.records.iter().any(|t| {
+                t.category == Category::GeometricTolerance
+                    && t.datum_refs.iter().any(|d| d == r.label.trim())
+            })
+        {
+            continue;
+        }
         match r.category {
             Category::GeometricTolerance | Category::Datum => {
                 let lowered = if r.category == Category::Datum {

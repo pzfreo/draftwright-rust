@@ -71,17 +71,7 @@
               ]
             },
             "origin": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "string"
-              },
-              "propertyNames": {
-                "enum": [
-                  "x",
-                  "y",
-                  "z"
-                ]
-              }
+              "$ref": "#/A"
             },
             "hole_table": {
               "enum": [

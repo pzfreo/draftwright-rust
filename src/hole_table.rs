@@ -371,6 +371,7 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan, table_sheet: Option<u32>) 
         .collect();
     if escalating.is_empty()
         || plan.spec.hole_table == Setting::Never
+        || crate::dims::pmi_policy::strict(analysis, &plan.spec)
         || !plan.hole_tables.is_empty()
     {
         return TableOutcome::None;
@@ -1974,6 +1975,7 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
         ..Default::default()
     };
     if plan.spec.hole_table == Setting::Never
+        || crate::dims::pmi_policy::strict(analysis, &plan.spec)
         || (plan.spec.hole_table == Setting::Auto
             && plan.spec.dimension_source == crate::model::DimensionSource::Authored)
     {
