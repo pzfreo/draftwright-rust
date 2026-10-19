@@ -265,6 +265,25 @@ fn shared_band(views: &[(String, [f64; 2], [f64; 2])], a: &str, b: &str, k: usiz
     band(a).min(band(b)).min(layout::DIM_PAD)
 }
 
+// With no detail owner, the baseline's printed primary steps must remain
+// readable at the candidate's common scale. Do not tighten an inherited
+// illegibility finding, or assume an authored/enlarged owner has sheet scale.
+fn candidate_floor(analysis: &Analysis, baseline: &Plan, floor: f64) -> f64 {
+    if baseline.views.iter().any(|v| v.detail.is_some())
+        || baseline.spec.views.values().any(|v| v.detail.is_some())
+        || sheet_fit::illegible_steps(analysis, baseline) > 0
+    {
+        return floor;
+    }
+    let needed = sheet_fit::min_step_scale(analysis, baseline);
+    let standard = layout::SCALES
+        .into_iter()
+        .rev()
+        .find(|s| *s >= needed)
+        .unwrap_or(needed);
+    floor.max(standard)
+}
+
 fn requests(printer: &str) -> [(&str, usize); 3] {
     if printer == "A3" {
         [("A4", 1), ("A3", 1), ("A3", 9)]
@@ -292,6 +311,7 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
     let printer = spec.sheet.preferred_printer.as_deref().unwrap_or("A4");
     let floor =
         sheet_fit::min_legible_scale(fit_analysis).max(crate::sheets::floor(spec).unwrap_or(0.0));
+    let bound_floor = candidate_floor(fit_analysis, &baseline, floor);
     let mut baseline_failures = failures(fit_analysis, &baseline, floor);
     // Match every baseline problem by code + subject, including informational findings.
     baseline_failures.extend(baseline.problems.iter().map(problem_key));
@@ -325,17 +345,17 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
         let mut scales = Vec::new();
         let mut outcome = format!(
             "reserved footprints cannot fit at {}",
-            model::scale_name(floor)
+            model::scale_name(bound_floor)
         );
         if let Some(scale) = estimate
             .get_or_insert_with(|| Estimate::new(fit_analysis, &baseline))
-            .scale(size, max, floor)
+            .scale(size, max, bound_floor)
         {
             // Explicit scale bypasses the explicit-paper scale search. At most one
             // smaller standard scale is tried, using the ordinary planner each time.
             let smaller = layout::SCALES
                 .into_iter()
-                .find(|s| *s < scale && *s + 1e-9 >= floor);
+                .find(|s| *s < scale && *s + 1e-9 >= bound_floor);
             for scale in std::iter::once(scale).chain(smaller) {
                 scales.push(model::scale_name(scale));
                 let mut forced = spec.clone();
@@ -384,6 +404,7 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                             return Ok(plan);
                         }
                         let below_minimum = codes.contains("legibility_floor_breached");
+                        let crossed_leaders = codes.contains("annotation_leader_crossing");
                         outcome = format!(
                             "layout/readability problems at {} ({})",
                             model::scale_name(scale),
@@ -392,9 +413,11 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                         if max == 1 {
                             single = Some((size.into(), plan.clone(), outcome.clone()));
                         }
-                        // Reducing again cannot repair a printed-size minimum.
+                        // Smaller outlines cannot repair a printed-size minimum.
+                        // With crossed leaders and no space drops, use R5/the next
+                        // paper rather than repeating the same routing search.
                         if below_minimum
-                            || (model::findings(&plan).hard == 0
+                            || ((model::findings(&plan).hard == 0 || crossed_leaders)
                                 && !plan
                                     .problems
                                     .iter()
@@ -510,6 +533,7 @@ mod tests {
                 let baseline = model::plan_automatic(&analysis, &baseline.spec).unwrap();
                 let floor = sheet_fit::min_legible_scale(&analysis)
                     .max(crate::sheets::floor(&baseline.spec).unwrap_or(0.0));
+                let bound_floor = candidate_floor(&analysis, &baseline, floor);
                 let estimate = Estimate::new(&analysis, &baseline);
                 let mut inherited = failures(&analysis, &baseline, floor);
                 inherited.extend(baseline.problems.iter().map(problem_key));
@@ -520,7 +544,11 @@ mod tests {
                     {
                         continue;
                     }
-                    assert!(estimate.scale(&request.size, request.max, floor).is_none());
+                    assert!(
+                        estimate
+                            .scale(&request.size, request.max, bound_floor)
+                            .is_none()
+                    );
                     let mut forced = baseline.spec.clone();
                     forced.sheet.size = Some(request.size.clone());
                     forced.sheet.scale = None;
@@ -624,11 +652,49 @@ mod tests {
     }
 
     #[test]
-    fn bounded_trials_keep_the_recorded_a4_reductions() {
-        for (file, scale) in [
-            ("mfcadpp/10020.step", "1:1"),
-            ("mfcadpp/10033.step", "1:1"),
-            ("mfcadpp/10163.step", "1:2"),
+    fn primary_step_readability_bounds_both_a4_requests() {
+        let Some(a) = corpus("cadgenbench/threaded_connector_109.step") else {
+            return;
+        };
+        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        assert_eq!(
+            (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+            ("A3", "1:5")
+        );
+        assert_eq!(p.sheet_candidates.len(), 3);
+        for candidate in &p.sheet_candidates[..2] {
+            assert_eq!(candidate.size, "A4");
+            assert!(candidate.scales.is_empty());
+            assert!(
+                candidate
+                    .outcome
+                    .starts_with("reserved footprints cannot fit")
+            );
+        }
+    }
+
+    #[test]
+    fn a_routing_refusal_without_space_drops_does_not_repeat_the_scale() {
+        let Some(a) = corpus("mfcadpp/10255.step") else {
+            return;
+        };
+        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        assert_eq!(
+            (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+            ("A3", "2:1")
+        );
+        assert!(p.sheet_candidates.iter().all(|c| c.scales.len() <= 1));
+    }
+
+    #[test]
+    fn bounded_trials_keep_the_recorded_reductions() {
+        for (file, size, scale) in [
+            ("mfcadpp/10020.step", "A4", "1:1"),
+            ("mfcadpp/10033.step", "A4", "1:1"),
+            ("mfcadpp/10163.step", "A4", "1:2"),
+            ("mfcadpp/10278.step", "A4", "1:1"),
+            ("cadgenbench_inputs/cgb245.step", "A3", "1:5"),
+            ("nist/nist_ftc_07_asme1_rd.stp", "A3", "1:5"),
         ] {
             let Some(a) = corpus(file) else {
                 return;
@@ -640,7 +706,7 @@ mod tests {
                     p.sheet.scale.as_str(),
                     p.sheets.len()
                 ),
-                ("A4", scale, 0),
+                (size, scale, 0),
                 "{file}: {}",
                 p.sheet.basis
             );
