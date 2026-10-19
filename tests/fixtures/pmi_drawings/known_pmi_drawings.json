@@ -775,6 +775,32 @@
  },
  {
   "file": "hw_every_kind.step",
+  "record": "manufacturing_requirement:#6685",
+  "port": "manufacturing_requirement:#6685",
+  "field": "record",
+  "python": null,
+  "rust": {
+   "drawing": {
+    "drawn": [
+     {
+      "boxed": false,
+      "kind": "document_note",
+      "rides_on": null,
+      "text": "None",
+      "view": null
+     }
+    ]
+   },
+   "record": {
+    "kind": "heat_treatment",
+    "label": "None"
+   }
+  },
+  "verdict": "rust-correct",
+  "evidence": "The part's semantic text attribute set #6685 states heat treatment 'None'. Under issue #123 the port reads it and draws those exact model words as a general document note; no graphic presentation is required. Python draftwright omits the attribute set and has no corresponding record or drawing. The reading difference is documented in known_pmi.json."
+ },
+ {
+  "file": "hw_every_kind.step",
   "record": "datum:0:1:4:9",
   "port": null,
   "field": "record",

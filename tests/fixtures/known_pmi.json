@@ -485,6 +485,20 @@
   },
   {
     "file": "hw_every_kind.step.gz",
+    "record": "manufacturing_requirement:#6685",
+    "port": null,
+    "field": "record",
+    "python": null,
+    "rust": {
+      "category": "manufacturing_requirement",
+      "kind": "heat_treatment",
+      "label": "None"
+    },
+    "verdict": "rust-correct",
+    "evidence": "The part's PMI practice §7.4 semantic text attribute set #6685 states heat treatment 'None'. Issue #123 makes part semantic text a manufacturing-requirement record and draws its exact words as a general note without requiring presentation. Python draftwright does not project this attribute set; the port now preserves and draws it."
+  },
+  {
+    "file": "hw_every_kind.step.gz",
     "record": "dimension:0:1:4:3",
     "port": "dimension:#6615",
     "field": "value",
