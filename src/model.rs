@@ -416,6 +416,9 @@ impl Default for Spec {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct SheetSpec {
+    /// Draw automatically determined dimensions in parentheses; omitted by default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub references: Option<bool>,
     /// Shared thread and knurl callout presentation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub callouts: Option<crate::callouts::Settings>,
@@ -3691,6 +3694,7 @@ fn plan_with_presentation(
         base.sheet.scale = spec.sheet.scale.clone();
         base.sheet.projection = spec.sheet.projection.clone();
         base.sheet.fit_deviations = spec.sheet.fit_deviations;
+        base.sheet.references = spec.sheet.references;
         base.sheet.view_gutter = spec.sheet.view_gutter;
         base.sheet.fit_limits = spec.sheet.fit_limits;
         base.hole_table = spec.hole_table;
@@ -3710,11 +3714,30 @@ fn plan_with_presentation(
         }
         // Pins in recovered planning replay the finished recovered drawing,
         // including precision repairs, even in its first unexpanded candidate.
-        Some(if complete_views || crate::planning::nominals_deferred() {
-            plan_recovered(analysis, &base)?
-        } else {
-            plan(analysis, &base)?
-        })
+        let replay = |base: &Spec| {
+            if complete_views || crate::planning::nominals_deferred() {
+                plan_recovered(analysis, base)
+            } else {
+                plan(analysis, base)
+            }
+        };
+        let mut canonical = replay(&base)?;
+        if spec.sheet.references != Some(true)
+            && spec.dimensions.iter().any(|(id, d)| {
+                d.place.as_ref().is_some_and(|p| p.pinned)
+                    && canonical.omitted.iter().any(|o| {
+                        &o.id == id
+                            && o.basis
+                                .contains("other stated dimensions determine this interval")
+                    })
+            })
+        {
+            // A pin on an auxiliary dimension is explicit intent to keep its historical ink,
+            // even when the sheet no longer opts into references or the chain was edited.
+            base.sheet.references = Some(true);
+            canonical = replay(&base)?;
+        }
+        Some(canonical)
     } else if spec.sheet.scale.is_none() && annotation_text_edited(spec) {
         // Tolerance, fit and wording edits change annotation ink, not the part projections.
         // Keep authored geometry in the complete unedited frame too.

@@ -1309,8 +1309,8 @@ fn lanes_uncached(
             .iter()
             .any(|m| m.feature.starts_with("f:section_recess:"))
     });
-    let owner = if wants.iter().any(plate) || baseline || shared_bands {
-        let merged = placement::owners(analysis, &wants, &chosen);
+    let mut owner = if wants.iter().any(plate) || baseline || shared_bands {
+        let merged = placement::owners(analysis, spec, &wants, &chosen);
         wants
             .iter()
             .enumerate()
@@ -1350,7 +1350,21 @@ fn lanes_uncached(
         plates::share(analysis, &mut kept, &mut given, &mut omitted);
         share_statements(&mut kept, &mut given, &mut omitted, true);
         share_pmi(analysis, &mut kept, &mut given, &mut omitted);
-        redundancy::consolidate(analysis, &mut kept, &mut given, &mut omitted);
+        let references =
+            redundancy::consolidate(analysis, spec, &mut kept, &mut given, &mut omitted);
+        // Auxiliary dimensions omitted by the sheet policy reserve no independent rung.
+        // Use the normal covered-owner lane sharing, without changing other reservations.
+        for o in &omitted {
+            if references.contains_key(&o.id)
+                && let State::Covered { by } = &o.state
+                && let (Some(i), Some(j)) = (
+                    wants.iter().position(|w| w.id == o.id),
+                    wants.iter().position(|w| w.id == *by),
+                )
+            {
+                owner[i] = Some(j);
+            }
+        }
         wording::apply(spec, &mut kept, &mut given)?;
     }
     for w in &mut wants {
@@ -1638,7 +1652,7 @@ pub(crate) fn reserve_linear_intent(
     chosen_views(&mut wants, spec, &frames)?;
     plates::prefer_readable(analysis, &mut wants, &frames, Some(spec));
     let (chosen, _) = route(&mut wants, &frames, analysis);
-    let owner = placement::owners(analysis, &wants, &chosen);
+    let owner = placement::owners(analysis, spec, &wants, &chosen);
     let (sides, lane) = placement::lanes(&frames, wants.iter().zip(chosen.iter().copied()), &owner);
     // Predict the same line-sharing reflow used by placement, before the
     // bands are composed. Scaling preserves shared stations and lane offsets.
@@ -2258,7 +2272,7 @@ fn plan_inventory_ordered(
     let display_owners = if spec.precision.is_empty() {
         Vec::new()
     } else {
-        placement::owners(analysis, &wants, &chosen)
+        placement::owners(analysis, spec, &wants, &chosen)
     };
     precision::apply(spec, &mut wants)?;
     for (i, owner) in display_owners.iter().enumerate() {
@@ -2352,7 +2366,7 @@ fn plan_inventory_ordered(
     });
     // The spec chooses what is drawn, and states the tolerances and fits on the kept labels.
     let all = wants.clone();
-    let owner = placement::owners(analysis, &all, &chosen);
+    let owner = placement::owners(analysis, spec, &all, &chosen);
     let mut omitted: Vec<_> = retired
         .into_iter()
         .map(|w| Omitted {
@@ -2388,7 +2402,7 @@ fn plan_inventory_ordered(
         plates::share(analysis, &mut defaults, &mut nominal, &mut unused);
         share_statements(&mut defaults, &mut nominal, &mut unused, true);
         share_pmi(analysis, &mut defaults, &mut nominal, &mut unused);
-        redundancy::consolidate(analysis, &mut defaults, &mut nominal, &mut unused);
+        redundancy::consolidate(analysis, spec, &mut defaults, &mut nominal, &mut unused);
         (defaults, unused)
     });
     // A rung the defaults hand to an item outside its set (a height the overall extent conveys)
@@ -2474,7 +2488,7 @@ fn plan_inventory_ordered(
     plates::share(analysis, &mut kept, &mut given, &mut omitted);
     share_statements(&mut kept, &mut given, &mut omitted, true);
     share_pmi(analysis, &mut kept, &mut given, &mut omitted);
-    let references = redundancy::consolidate(analysis, &mut kept, &mut given, &mut omitted);
+    let references = redundancy::consolidate(analysis, spec, &mut kept, &mut given, &mut omitted);
     problems.extend(pmi_dimensions::omitted(analysis, &all, &kept, &omitted));
 
     // Then everything the part would have is placed: each item's lane, and where its label

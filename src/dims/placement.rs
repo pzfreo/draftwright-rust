@@ -541,6 +541,7 @@ fn body_strip(frame: &Frame, w: &Want, horizontal: bool) -> Option<Side> {
 /// Counted walls on different projected axes keep a parallel strip of their own.
 pub(super) fn owners(
     analysis: &Analysis,
+    spec: &crate::model::Spec,
     items: &[Want],
     views_of: &[Option<&'static str>],
 ) -> Vec<Option<usize>> {
@@ -557,7 +558,7 @@ pub(super) fn owners(
     super::recesses::consolidate(&mut kept, &mut given, &mut omitted);
     super::plates::share(analysis, &mut kept, &mut given, &mut omitted);
     super::share(&mut kept, &mut given, &mut omitted);
-    super::redundancy::consolidate(analysis, &mut kept, &mut given, &mut omitted);
+    super::redundancy::consolidate(analysis, spec, &mut kept, &mut given, &mut omitted);
     let index: BTreeMap<&str, usize> = items
         .iter()
         .enumerate()
