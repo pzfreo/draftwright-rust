@@ -190,17 +190,31 @@ pub(crate) fn origin_point(a: &Analysis, s: &Spec) -> [f64; 3] {
 
 /// Source-only rooted location evidence, used when a schedule would otherwise add coordinates.
 pub(crate) fn source_locations(a: &Analysis, p: &crate::model::Plan) -> BTreeSet<(String, usize)> {
+    located_by(a, p, |d| {
+        d.measurements.iter().any(|m| m.feature.starts_with("pmi:"))
+    })
+}
+
+pub(crate) fn retained_locations(
+    a: &Analysis,
+    p: &crate::model::Plan,
+    replaced: &BTreeSet<String>,
+) -> BTreeSet<(String, usize)> {
+    located_by(a, p, |d| !replaced.contains(&d.id))
+}
+
+fn located_by(
+    a: &Analysis,
+    p: &crate::model::Plan,
+    include: impl Fn(&crate::dims::PlannedDimension) -> bool,
+) -> BTreeSet<(String, usize)> {
     if !carries(a) {
         return BTreeSet::new();
     }
     let marks: Vec<_> = p
         .dimensions
         .iter()
-        .filter(|d| {
-            d.placed.is_some()
-                && !d.reference
-                && d.measurements.iter().any(|m| m.feature.starts_with("pmi:"))
-        })
+        .filter(|d| d.placed.is_some() && !d.reference && include(d))
         .map(|d| crate::lint::Mark {
             name: d.id.clone(),
             view: Some(d.view.clone()),

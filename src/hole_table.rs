@@ -2418,6 +2418,30 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
             break;
         }
     }
+    // Coalesced locators may also serve members outside the schedule, so they
+    // stay drawn. Do not give their tabulated members a second coordinate.
+    let retained = crate::dims::pmi_policy::retained_locations(analysis, plan, &selection.replaced);
+    for table in &mut selection.tables {
+        let Some(axis) = table
+            .view
+            .as_ref()
+            .and_then(|id| plan.views.iter().find(|v| &v.id == id))
+            .and_then(|v| v.direction.iter().position(|d| d.abs() > 0.999))
+        else {
+            continue;
+        };
+        let axes: Vec<_> = (0..3).filter(|k| *k != axis).collect();
+        for row in &mut table.rows {
+            for (column, &k) in axes.iter().enumerate() {
+                if retained.contains(&(row.feature.clone(), k)) {
+                    row.cells[2 + column].clear();
+                    row.measurements.retain(|m| {
+                        m.parameter != format!("location.length.{}", ["x", "y", "z"][k])
+                    });
+                }
+            }
+        }
+    }
     selection.aliases = plan
         .omitted
         .iter()
