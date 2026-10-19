@@ -919,7 +919,10 @@ fn removing_a_hole_location_or_its_callout_is_reported() {
         .iter()
         .find(|i| i.code == "feature_not_located")
         .unwrap();
-    assert_eq!(located.message, "1 hole(s) have no locating dimension");
+    assert_eq!(
+        located.message,
+        "f:hole:1 on x: no drawn dimension chain reaches an origin."
+    );
     assert_eq!(located.subjects, ["f:hole:1"]);
 
     let (found, _) = lint_of(&omitting(&[&x, &y]));

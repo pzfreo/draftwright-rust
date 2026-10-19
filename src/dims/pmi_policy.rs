@@ -648,6 +648,10 @@ pub(crate) fn ignore(
 }
 
 pub(crate) fn audit(a: &Analysis, s: &Spec, p: &mut crate::model::Plan) {
+    crate::planning::with(a, || audit_inner(a, s, p));
+}
+
+fn audit_inner(a: &Analysis, s: &Spec, p: &mut crate::model::Plan) {
     let mut marks: Vec<_> = p
         .dimensions
         .iter()
@@ -778,6 +782,7 @@ pub(crate) fn audit(a: &Analysis, s: &Spec, p: &mut crate::model::Plan) {
             "feature_not_located" | "feature_located_twice" | "feature_not_sized"
         )
     });
+    let notches = crate::notches::requirements(a);
     for issue in location::coverage(a, &marks) {
         p.problems.push(Problem {
             id: issue.id.replacen("l:", "p:", 1),
@@ -797,7 +802,7 @@ pub(crate) fn audit(a: &Analysis, s: &Spec, p: &mut crate::model::Plan) {
                 .subjects
                 .into_iter()
                 .flat_map(|id| {
-                    if let Some(n) = crate::notches::requirements(a).iter().find(|n| n.id == id) {
+                    if let Some(n) = notches.iter().find(|n| n.id == id) {
                         n.faces
                             .iter()
                             .map(|i| format!("face:{i}"))
