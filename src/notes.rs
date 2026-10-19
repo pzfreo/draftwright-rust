@@ -137,6 +137,7 @@ pub(crate) fn reconcile(
                 subjects: vec![r.id.clone(), n.id.clone()],
                 refs: vec![r.source.clone(), format!("notes/{i}")],
                 fix: vec![crate::items::Op::set("notes", serde_json::to_value(remaining).expect("notes serialise"))],
+                fixes: Vec::new(),
             });
         }
         if let Some(r) = matches.iter().find(|r| !omitted(&r.id)) {
