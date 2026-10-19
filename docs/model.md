@@ -2485,4 +2485,6 @@ features, while principal planar datums supply ± dimension origins.
 
 Hole schedules state every size and coordinate, including coordinates already supplied
 by retained PMI. Those cells restate the same origin frame and do not add an independent
-locating constraint.
+locating constraint. Automatic schedules that would retain every source callout stay
+inline; `hole_table: "always"` can request that presentation explicitly. Selected table
+origins are named in the basis and are labelled as origins rather than box minima.
