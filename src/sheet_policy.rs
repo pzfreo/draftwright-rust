@@ -52,7 +52,7 @@ const FAILING_CODES: &[&str] = &[
     "view_plan_incomplete",
 ];
 
-fn failures(plan: &Plan, floor: f64) -> BTreeSet<(String, Vec<String>)> {
+fn failures(analysis: &Analysis, plan: &Plan, floor: f64) -> BTreeSet<(String, Vec<String>)> {
     let mut failures: BTreeSet<_> = plan
         .problems
         .iter()
@@ -64,6 +64,28 @@ fn failures(plan: &Plan, floor: f64) -> BTreeSet<(String, Vec<String>)> {
             (p.code.clone(), subjects)
         })
         .collect();
+    // The outline box has no stroke width. At the frame its visible stroke is already
+    // outside the drawing area. Use the renderer's line width, and the existing off-sheet
+    // code/subject comparison; do not move or recover any candidate's geometry.
+    let stroke = crate::output::layer_styles()[0].1.width;
+    for (bounds, view) in sheet_fit::footprints(analysis, plan)
+        .into_iter()
+        .zip(&plan.views)
+    {
+        let page = plan
+            .sheets
+            .iter()
+            .find(|s| s.number == view.sheet)
+            .unwrap_or(&plan.sheet)
+            .page;
+        if bounds[0] < layout::MARGIN + stroke
+            || bounds[1] < layout::MARGIN + stroke
+            || bounds[2] > page[0] - layout::MARGIN - stroke
+            || bounds[3] > page[1] - layout::MARGIN - stroke
+        {
+            failures.insert(("annotation_off_sheet".into(), vec![view.id.clone()]));
+        }
+    }
     if plan.sheet.scale_factor + 1e-9 < floor {
         failures.insert(("legibility_floor_breached".into(), vec!["sheet".into()]));
     }
@@ -138,7 +160,7 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
     let printer = spec.sheet.preferred_printer.as_deref().unwrap_or("A4");
     let floor =
         sheet_fit::min_legible_scale(fit_analysis).max(crate::sheets::floor(spec).unwrap_or(0.0));
-    let baseline_failures = failures(&baseline, floor);
+    let baseline_failures = failures(fit_analysis, &baseline, floor);
     let mut candidates = Vec::new();
     for (size, max) in requests(printer) {
         // A baseline already as good in this preference order needs no forced replay.
@@ -170,7 +192,7 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
             }
             match model::plan_automatic(analysis, &forced) {
                 Ok(mut plan) => {
-                    let codes: BTreeSet<_> = failures(&plan, floor)
+                    let codes: BTreeSet<_> = failures(fit_analysis, &plan, floor)
                         .difference(&baseline_failures)
                         .map(|(code, _)| code.clone())
                         .collect();
@@ -403,23 +425,39 @@ mod tests {
 
     #[test]
     fn only_new_code_and_subject_pairs_fail() {
-        let mut p = model::plan_automatic(&fixture(), &Spec::default()).unwrap();
+        let a = fixture();
+        let mut p = model::plan_automatic(&a, &Spec::default()).unwrap();
         p.problems = vec![model::Problem {
             code: "annotation_overlap".into(),
             subjects: vec!["b".into(), "a".into()],
             ..Default::default()
         }];
-        let b = failures(&p, 0.1);
+        let b = failures(&a, &p, 0.1);
         p.problems[0].subjects.reverse();
-        assert!(failures(&p, 0.1).difference(&b).next().is_none());
+        assert!(failures(&a, &p, 0.1).difference(&b).next().is_none());
         p.problems[0].subjects.push("c".into());
-        assert_eq!(failures(&p, 0.1).difference(&b).count(), 1);
+        assert_eq!(failures(&a, &p, 0.1).difference(&b).count(), 1);
         p.problems[0].code = "features_not_recognised".into();
-        assert!(failures(&p, 0.1).is_empty());
+        assert!(failures(&a, &p, 0.1).is_empty());
         assert!(
-            failures(&p, p.sheet.scale_factor * 2.0)
+            failures(&a, &p, p.sheet.scale_factor * 2.0)
                 .iter()
                 .any(|(code, _)| code == "legibility_floor_breached")
+        );
+    }
+    #[test]
+    fn view_strokes_must_clear_the_frame() {
+        let a = fixture();
+        let mut p = model::plan_automatic(&a, &Spec::default()).unwrap();
+        let original = failures(&a, &p, 0.1);
+        let first = sheet_fit::footprints(&a, &p)[0];
+        p.views[0].at[0] += layout::MARGIN - first[0];
+        let changed = failures(&a, &p, 0.1);
+        assert!(
+            changed
+                .difference(&original)
+                .any(|(code, subjects)| code == "annotation_off_sheet"
+                    && subjects == std::slice::from_ref(&p.views[0].id))
         );
     }
 }

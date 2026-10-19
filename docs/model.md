@@ -509,7 +509,8 @@ A baseline already equal to or better than the next request ends the search.
 Outline footprints at the readability floor cheaply rule out impossible paper sizes.
 Forced candidates use the ordinary explicit-paper scale choice and R5 allocation.
 New layout/readability problems reject a candidate; baseline problems with the same
-code and subjects are tolerated. `Plan.sheet_candidates` records trials and
+code and subjects are tolerated. Outline strokes must clear the frame.
+`Plan.sheet_candidates` records trials and
 `sheet.basis` explains the choice. Explicit `sheet/size`, `sheet/scale`, or
 `sheets.max` keeps the established planner unchanged.
 
