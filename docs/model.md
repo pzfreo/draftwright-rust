@@ -1328,18 +1328,33 @@ notes ("DO NOT SCALE", "DIMENSIONS IN MM") belong in the Spec. Existing Spec not
 there is no automatic migration.
 
 - **PMI notes first.** Part-level `semantic text` attribute sets (PMI practice §7.4) carry one
-  note per set: `general note`, `surface treatment` (coating), `heat treatment` or `edge condition`.
+  note per set: `general note`, `surface treatment` (also `coating`), `heat treatment` or
+  `edge condition` (also `edges`, the NIST/haecceity spelling). Aliases produce the same
+  canonical records and item IDs as the standard names.
   `src/pmi.rs` exposes each as a manufacturing-requirement record without requiring graphic
   presentation or producer metadata. `pmi_lowering::sheet_requirements` lowers all these kinds
   in one function. Notes keep model instance order; a non-negative integer `order` or `index`
   item (integer or decimal text) takes precedence. Spec notes follow in their list order.
   The default surface finish retains its symbol beside the title block.
+- **No requirement and wording.** Trimmed, case-insensitive `None`, `N/A`, `NA`, `-`, empty
+  or whitespace-only part-note values declare no requirement. The raw record stays read;
+  its source reason and inventory basis say `info`, and its planned requirement has kind
+  `no_requirement`, carrier `none`, state `not_authored`, and no place. It creates no Problem
+  and no note row. Other general/edge notes retain their text. A coating or heat-treatment
+  value gets `Coating: ` or `Heat treatment: ` unless it names a process. This is a small
+  lexical rule: alphabetic word tokens, ignoring case, recognize `plate`/`plated`/`plating`
+  and stems `anodis`, `anodiz`, `paint`, `coat`, `harden`, `temper`, `nitrid`, `treat`,
+  `anneal`, `carbur`, `quench`, `passivat`, `oxid`, `phosphat`, `galvanis`, `galvaniz`.
+  Thus `Anodise black` and `Harden to HRC 40` stay as authored; `Black` becomes
+  `Coating: Black`, and `HRC 40` becomes `Heat treatment: HRC 40`. It does not interpret
+  material specifications or invent process parameters.
 - **Omit a PMI note.** Use `annotations/<PMI item ID>/omit: true`, the same stable identity and
   path convention as other PMI annotations, for example
   `annotations/pmi:manufacturing_requirement.general_note/omit`. The note remains in the model
   and in the plan/items inventory as `omitted_by_user`, with no place and number zero; it
   reserves no block space. This does not remove a matching existing Spec note.
-- **Duplicates.** Text matching ignores case and normalizes whitespace runs. A matching Spec
+- **Duplicates.** Text matching ignores case and normalizes whitespace runs, and accepts
+  either the raw model value or its kind-prefixed drawing text. A matching Spec
   note is drawn once through the PMI item; the Spec item remains `covered` by it, with number
   zero. Info Problem `note_duplicated_in_spec` names both items and the PMI source and Spec
   path. Its offered fix sets `notes` to the list with that Spec copy removed. Planning never
