@@ -3,11 +3,9 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    arc::{ProfileArc, Span},
-    bridge::Feature,
-    model::Analysis,
-};
+use crate::arc::{ProfileArc, Span};
+use crate::bridge::Feature;
+use crate::model::Analysis;
 
 type P = [f64; 2];
 
@@ -181,12 +179,14 @@ pub(crate) fn projected(
         return Err("a circular-path/toroidal blend has no single projected minor-arc centre; radial direction and open side cannot be verified from its sampled points".into());
     }
     let frame = crate::bridge::holes::frame(a);
-    let axis = crate::lint::parameters::direction(&frame, path.get("direction"))
+    let axis = crate::bridge::holes::point(path.get("direction"))
+        .map(|d| crate::bridge::holes::dir_to_part(&frame, d))
         .ok_or("the radius path has no direction")?;
     if !end_on(axis) {
         return Err("the view does not show the radius end-on".into());
     }
-    let at = crate::lint::parameters::place(&frame, path.get("at"))
+    let at = crate::bridge::holes::point(path.get("at"))
+        .map(|q| crate::bridge::holes::to_part(&frame, q))
         .ok_or("the radius path has no centre")?;
     let r = f
         .parameters
