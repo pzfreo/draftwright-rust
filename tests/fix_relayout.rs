@@ -386,6 +386,75 @@ fn ctc01_crossings_offer_local_edits_and_identify_the_sheet_remedy() {
     eprintln!(
         "CTC-01: one local edit clears five original crossings and adds five disclosed replacements; eleven remain. Plan-view alternatives are sheet scope."
     );
+    // Re-run the review's two compatible edits together. The second is now
+    // explicitly sheet scope, and both alternatives disclose the replacement
+    // crossings. Combining them does not turn a sheet offer into a local promise.
+    session.undo().unwrap();
+    let hole = crossings
+        .iter()
+        .find(|p| p.subjects[0] == "d:f:hole:1/location.length.z")
+        .unwrap()
+        .offered_fixes()[0]
+        .clone();
+    let slot = crossings
+        .iter()
+        .find(|p| p.subjects[0] == "d:f:slot:2/slot_length.length")
+        .unwrap()
+        .offered_fixes()[0]
+        .clone();
+    assert_eq!(hole.scope(), draftwright::fixes::Scope::Local);
+    assert_eq!(slot.scope(), draftwright::fixes::Scope::Sheet);
+    assert!(slot.description().contains("extension_through_feature"));
+    assert!(slot.description().contains("⌀35 hole"));
+    let description = format!("{} {}", hole.description(), slot.description());
+    let together: Vec<_> = hole.ops.into_iter().chain(slot.ops).collect();
+    let delta = session.apply(&together, true).unwrap();
+    assert_eq!(
+        delta
+            .problems_added
+            .iter()
+            .filter(|p| p.code == "extension_through_feature")
+            .count(),
+        6
+    );
+    for added in &delta.problems_added {
+        assert!(
+            description.contains(&format!("[{}]", added.code)),
+            "undisclosed code: {added:?}"
+        );
+        assert!(
+            description.contains(&added.message),
+            "undisclosed finding: {added:?}"
+        );
+    }
+    assert_eq!(
+        crossings
+            .iter()
+            .filter(|old| session
+                .plan()
+                .problems
+                .iter()
+                .any(|p| p.code == old.code && p.subjects == old.subjects))
+            .count(),
+        5
+    );
+    assert_eq!(
+        session
+            .plan()
+            .problems
+            .iter()
+            .filter(|p| matches!(
+                p.code.as_str(),
+                "annotation_leader_crossing" | "extension_through_feature"
+            ))
+            .count(),
+        11
+    );
+    assert_eq!(layout(session.plan())["sheets"], before_layout["sheets"]);
+    assert_eq!(
+        session.plan().radius_table.as_ref().unwrap().rows,
+        plan.radius_table.as_ref().unwrap().rows
+    );
     let remedies = plan
         .problems
         .iter()
