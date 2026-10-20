@@ -280,6 +280,22 @@ class CentreLineInk(unittest.TestCase):
                 self.assertEqual(result['ink'], 1)
                 self.assertEqual(result['ink_by_code'], {code: 1})
 
+    def test_unverifiable_radius_info_is_retained_without_counting_as_bad_ink(self):
+        plan = {'sheet': {'scale': '1:1'}, 'dimensions': [], 'problems': [],
+                'completeness': {'claimed_faces': 0, 'faces': 0, 'unplanned_features': 0},
+                'views': [{'line_work': [{'kind': 'cross'}]}]}
+        finding = {'code': 'radius_leader_target_unverifiable', 'severity': 'info',
+                   'annotation': 'd:r', 'evidence': 'no proven end-on section'}
+        replies = [subprocess.CompletedProcess([], 0, '{}', ''),
+                   subprocess.CompletedProcess([], 0, json.dumps(plan), ''),
+                   subprocess.CompletedProcess([], 0, json.dumps({'lint': [finding], 'structural': []}), '')]
+        with tempfile.TemporaryDirectory() as out, patch.object(quality.subprocess, 'run', side_effect=replies):
+            (Path(out) / 'part.svg').write_text('<svg/>')
+            _, result = quality.one('part.step', 'dw', out)
+            self.assertEqual(json.loads((Path(out) / 'part.review.json').read_text())['lint'], [finding])
+        self.assertEqual(result['ink'], 0)
+        self.assertEqual(result['ink_by_code'], {})
+
 
 class FeatureCrossings(unittest.TestCase):
     def test_counts_plan_feature_pairs_and_extension_lines(self):

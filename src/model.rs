@@ -6628,17 +6628,7 @@ fn settle_finished_nominals(
         return;
     }
     let mut reports = BTreeMap::new();
-    if radius_only {
-        reports.extend(crate::dims::settle_radius_leaders(
-            analysis,
-            spec,
-            &plan.sheet,
-            &plan.views,
-            &mut items,
-            &fixed,
-            &cache,
-        ));
-    } else if route_leaders {
+    if !radius_only && route_leaders {
         reports.extend(crate::dims::refine_inventory(
             analysis,
             spec,
@@ -6657,6 +6647,21 @@ fn settle_finished_nominals(
             &fixed,
             &cache,
             true,
+        ));
+    }
+    if route_leaders {
+        // Only the final radius repair sees the schedule/table/balloon inventory:
+        // these items are drawn after the general leader placement has finished.
+        let mut radius_fixed = fixed.clone();
+        radius_fixed.extend(radius_furniture(plan));
+        reports.extend(crate::dims::settle_radius_leaders(
+            analysis,
+            spec,
+            &plan.sheet,
+            &plan.views,
+            &mut items,
+            &radius_fixed,
+            &cache,
         ));
     }
     // Collision reports from the raw inventory cannot survive consolidation of
@@ -6745,6 +6750,73 @@ fn settle_finished_nominals(
             settle_finished_nominals(analysis, original_spec, plan, omitted, remaining - 1, pass);
         }
     }
+}
+
+/// Furniture drawn after ordinary callouts must also constrain the final radius repair.
+fn radius_furniture(plan: &Plan) -> Vec<crate::dims::PlannedDimension> {
+    let proxy =
+        |id: String, view: String, label_box: [f64; 4], lines| crate::dims::PlannedDimension {
+            id,
+            view,
+            kind: "furniture".into(),
+            region: None,
+            value: 0.0,
+            label: String::new(),
+            terms: Vec::new(),
+            measurements: Vec::new(),
+            default: true,
+            from_spec: Vec::new(),
+            basis: String::new(),
+            state: ItemState::Shown,
+            reference: false,
+            determined_by: Vec::new(),
+            placed: Some(crate::dims::Placed {
+                lines,
+                arrows: Vec::new(),
+                label_at: [label_box[0], label_box[1]],
+                label_box,
+                rotation: 0.0,
+            }),
+        };
+    let mut out: Vec<_> = plan
+        .hole_table
+        .iter()
+        .chain(&plan.hole_tables)
+        .flat_map(|table| table.blocks.iter().filter_map(crate::tables::proxy))
+        .collect();
+    for b in &plan.balloons {
+        let ring = [
+            b.at[0] - b.radius,
+            b.at[1] - b.radius,
+            b.at[0] + b.radius,
+            b.at[1] + b.radius,
+        ];
+        let label = b.label_box.map_or(ring, |lb| {
+            [
+                lb[0].min(ring[0]),
+                lb[1].min(ring[1]),
+                lb[2].max(ring[2]),
+                lb[3].max(ring[3]),
+            ]
+        });
+        out.push(proxy(
+            b.id.clone(),
+            b.view.clone(),
+            label,
+            b.leader.into_iter().collect(),
+        ));
+    }
+    for r in &plan.requirements {
+        if let Some(p) = &r.placed {
+            out.push(proxy(
+                r.id.clone(),
+                String::new(),
+                p.glyph,
+                p.strokes.clone(),
+            ));
+        }
+    }
+    out
 }
 
 /// Recompute centre-line page bounds after a view and its ink move together.

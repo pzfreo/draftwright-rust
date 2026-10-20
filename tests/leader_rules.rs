@@ -1013,6 +1013,38 @@ fn ctc01_r5_meets_the_fillet_from_the_open_centre_side() {
     );
 }
 
+/// #145: convex-corner repair cannot put text under the schedule's origin leader.
+#[test]
+fn ctc04_radius_labels_keep_the_schedule_origin_leader_clear() {
+    let Some((_, p, _)) = native_drawing("nist/nist_ctc_04_asme1_rd.stp", true) else {
+        return;
+    };
+    let origin = p
+        .balloons
+        .iter()
+        .find(|b| b.id == "hole_schedule_plan/origin")
+        .expect("retain the schedule origin")
+        .leader
+        .unwrap();
+    let d = p
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:fillet:2/fillet.radius")
+        .unwrap();
+    let b = d.placed.as_ref().expect("retain the radius").label_box;
+    let inside = |q: P| q[0] > b[0] && q[0] < b[2] && q[1] > b[1] && q[1] < b[3];
+    let side = |a: P, b: P, c: P| (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    let corners = [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]];
+    assert!(!origin.into_iter().any(inside));
+    for i in 0..4 {
+        let edge = [corners[i], corners[(i + 1) % 4]];
+        assert!(
+            !(side(origin[0], origin[1], edge[0]) * side(origin[0], origin[1], edge[1]) < -1e-12
+                && side(edge[0], edge[1], origin[0]) * side(edge[0], edge[1], origin[1]) < -1e-12)
+        );
+    }
+}
+
 /// A retained automatic route has only the drawn finding, never a duplicate plan warning.
 #[test]
 fn retained_radius_routes_have_one_finding_per_callout() {

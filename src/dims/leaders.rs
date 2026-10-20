@@ -2356,11 +2356,6 @@ pub(crate) fn settle_after_furniture(
         );
         items[i].placed = Some(next.placed());
     }
-    if final_inventory && !crate::nominal::comparison() {
-        updated.extend(settle_radius_leaders(
-            analysis, spec, sheet, views, items, obstacles, cache,
-        ));
-    }
     updated
 }
 
@@ -2486,6 +2481,24 @@ pub(crate) fn settle_radius_leaders(
                 }
                 if boxes_overlap(p.label_box, qp.label_box) {
                     pairs.insert((q.id.as_str(), 3u8));
+                }
+                if q.kind == "linear" {
+                    for witness in qp.lines.iter().take(2) {
+                        if touches_box(*witness, grow(p.label_box, LABEL_PAD))
+                            || p.lines.iter().any(|line| {
+                                touches_box(*line, grow(segment_bounds(*witness), LABEL_PAD))
+                            })
+                        {
+                            pairs.insert((q.id.as_str(), 5u8));
+                        }
+                        if p.arrows
+                            .iter()
+                            .flat_map(|a| head(*a))
+                            .any(|line| touches_box(line, grow(segment_bounds(*witness), 0.2)))
+                        {
+                            pairs.insert((q.id.as_str(), 6u8));
+                        }
+                    }
                 }
                 if p.lines.iter().any(|a| {
                     qp.lines

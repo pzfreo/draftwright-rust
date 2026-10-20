@@ -323,6 +323,7 @@ pub(super) fn check(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
         // Read the drawn shaft, so authored/pinned leaders receive the same check.
         // A consolidated fillet names its own faces, rather than borrowing a blend target.
         let fillets = claimed("fillet.radius");
+        let is_fillet = !fillets.is_empty();
         let (radii, parameter) = if fillets.is_empty() {
             (claimed("blend.radius"), "blend.radius")
         } else {
@@ -352,7 +353,11 @@ pub(super) fn check(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
                 );
             } else if !shown.iter().any(|arc| arc.on_arc(tip)) {
                 found(
-                    "radius_leader_target_mismatch",
+                    if is_fillet {
+                        "radius_leader_not_radial"
+                    } else {
+                        "radius_leader_target_mismatch"
+                    },
                     radii,
                     parameter,
                     format!(
