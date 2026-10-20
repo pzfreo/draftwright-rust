@@ -571,7 +571,7 @@ fn cover_uncached(
             }
         }
         if uncontrolled.is_empty() && !owners.is_empty() {
-            // Invariant: The preceding condition requires exactly one owner.
+            // Invariant: The preceding condition requires owners to be nonempty.
             let owner = owners.iter().next().unwrap().clone();
             omitted.push(Omitted {
                 id: w.id.clone(),
@@ -609,7 +609,7 @@ fn cover_uncached(
                 .measurements
                 .iter()
                 .find(|m| location_role(&m.parameter))
-                // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
+                // Invariant: is_location was set from a measurement with this same location_role predicate.
                 .unwrap()
                 .parameter
                 .clone();
