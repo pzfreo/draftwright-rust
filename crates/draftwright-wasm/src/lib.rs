@@ -357,6 +357,11 @@ mod tests {
         assert_eq!(snapshot["problems"], snapshot["plan"]["problems"]);
         let mut fixes = 0;
         for problem in snapshot["problems"].as_array().unwrap() {
+            assert!(
+                ["incomplete", "decision", "readability", "advisory"]
+                    .contains(&problem["impact"].as_str().unwrap())
+            );
+            assert!(!problem["group"].as_str().unwrap().is_empty());
             if problem["fix"].is_array() {
                 assert_eq!(problem["fix"], problem["fixes"][0]["ops"]);
                 assert!(

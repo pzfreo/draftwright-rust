@@ -840,6 +840,7 @@ impl Problem {
             self.severity == "info",
             &self.subjects,
             std::iter::empty::<&str>(),
+            &self.refs,
             &self.crossing_kinds,
             self.ink_is_leader,
         )

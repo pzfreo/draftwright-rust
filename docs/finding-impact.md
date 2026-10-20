@@ -19,8 +19,8 @@ for both ordinary ink and `ink_is_leader: true` (leader through text). No messag
 
 `group` is an opaque deterministic key: code plus a cause where needed. Broad feature-gap codes
 use the structural feature kind from `f:<kind>:<identity>` subjects, requirement codes use sorted
-requirement roles, and leader crossings use sorted stroke kinds. Other codes already name their
-cause and group by code. Occurrence IDs, prose, positions and list order never enter a key.
+requirement roles, PMI codes use typed source kinds, and leader crossings use sorted stroke kinds.
+Other codes already name their cause and group by code. Occurrence IDs, prose, positions and list order never enter a key.
 Thus four section-recess grammar gaps share a group, while a different feature kind does not;
 extension-through-feature repeats share one group. Unknown externally supplied codes serialize
 as advisory and group by their code; all codes emitted by this crate must appear in the table.
@@ -244,6 +244,6 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `view_on_title_block` | readability | A view overlaps the title block. |
 | `view_out_of_bounds` | readability | A rendered view extends outside the drawing bounds. |
 | `view_overlap` | readability | Rendered view extents overlap. |
-| `view_plan_incomplete` | readability | The fallback view plan could not establish a complete layout. |
+| `view_plan_incomplete` | incomplete | Dimensions require views that are absent, so they remain undrawn. |
 | `views_do_not_fit` | readability | The selected views do not fit the drawing area. |
 | `views_overlap` | readability | Planned view zones overlap. |

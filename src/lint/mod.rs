@@ -158,6 +158,7 @@ impl LintIssue {
             self.severity == Severity::Info,
             &self.subjects,
             self.requirements.iter().map(|r| r.parameter.as_str()),
+            &self.sources,
             &[],
             None,
         )

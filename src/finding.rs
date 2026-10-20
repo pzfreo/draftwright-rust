@@ -19,6 +19,7 @@ enum Group {
     Feature,
     Requirement,
     Crossing,
+    Source,
 }
 
 struct Classification {
@@ -173,17 +174,17 @@ catalogue! {
     "pmi_datum_suppressed" => Advisory, Code, "The datum was deliberately suppressed by policy.";
     "pmi_dimensions_not_ported" => Incomplete, Code, "The source dimension has no implemented drawing grammar.";
     "pmi_ignored" => Advisory, Code, "The selected dimension-source policy ignores this PMI.";
-    "pmi_not_drawn" => Incomplete, Code, "The planned PMI annotation is absent from the sheet.";
-    "pmi_not_extracted" => Incomplete, Code, "A source PMI record was not extracted into a drawable requirement.";
-    "pmi_not_lowered" => Incomplete, Code, "A read PMI requirement has no supported drawing representation.";
+    "pmi_not_drawn" => Incomplete, Source, "The planned PMI annotation is absent from the sheet.";
+    "pmi_not_extracted" => Incomplete, Source, "A source PMI record was not extracted into a drawable requirement.";
+    "pmi_not_lowered" => Incomplete, Source, "A read PMI requirement has no supported drawing representation.";
     "pmi_not_read" => Incomplete, Code, "The PMI reading cannot supply the required annotation.";
-    "pmi_not_rendered" => Incomplete, Code, "The rendered drawing does not state the source PMI requirement.";
+    "pmi_not_rendered" => Incomplete, Source, "The rendered drawing does not state the source PMI requirement.";
     "pmi_presentation_not_read" => Incomplete, Code, "The source presentation PMI is not available as drawing information.";
-    "pmi_source_site_mismatch" => Incomplete, Code, "The drawn evidence does not correctly state the required source information.";
-    "pmi_source_text_mismatch" => Incomplete, Code, "The drawn evidence does not correctly state the required source information.";
-    "pmi_source_unknown" => Incomplete, Code, "The claimed PMI provenance cannot be found in the source document.";
+    "pmi_source_site_mismatch" => Incomplete, Source, "The drawn evidence does not correctly state the required source information.";
+    "pmi_source_text_mismatch" => Incomplete, Source, "The drawn evidence does not correctly state the required source information.";
+    "pmi_source_unknown" => Incomplete, Source, "The claimed PMI provenance cannot be found in the source document.";
     "pmi_unreconciled" => Incomplete, Code, "The source PMI and drawing evidence cannot be reconciled.";
-    "pmi_value_mismatch" => Incomplete, Code, "The drawn evidence does not correctly state the required source information.";
+    "pmi_value_mismatch" => Incomplete, Source, "The drawn evidence does not correctly state the required source information.";
     "pocket_corner_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "pocket_corner_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "pocket_not_located" => Incomplete, Code, "The drawing does not state the pocket location.";
@@ -248,7 +249,7 @@ catalogue! {
     "view_on_title_block" => Readability, Code, "A view overlaps the title block.";
     "view_out_of_bounds" => Readability, Code, "A rendered view extends outside the drawing bounds.";
     "view_overlap" => Readability, Code, "Rendered view extents overlap.";
-    "view_plan_incomplete" => Readability, Code, "The fallback view plan could not establish a complete layout.";
+    "view_plan_incomplete" => Incomplete, Code, "Dimensions require views that are absent, so they remain undrawn.";
     "views_do_not_fit" => Readability, Code, "The selected views do not fit the drawing area.";
     "views_overlap" => Readability, Code, "Planned view zones overlap.";
 }
@@ -266,6 +267,22 @@ pub struct Labels {
     pub group: String,
 }
 
+// Source IDs have a typed prefix, e.g. geometric_tolerance:#123 or pmi:datum.a:….
+// Refusal explanations without that grammar are deliberately ignored.
+fn source_kind(id: &str) -> Option<String> {
+    let (kind, tail) = id.strip_prefix("pmi:").unwrap_or(id).split_once(':')?;
+    if !(tail.starts_with('#')
+        || id.starts_with("pmi:")
+        || id.starts_with("spec:")
+        || (kind == "material" && tail.bytes().all(|b| b.is_ascii_digit() || b == b':')))
+    {
+        return None;
+    }
+    let kind = kind.split('.').next()?;
+    (!kind.is_empty() && kind.bytes().all(|c| c.is_ascii_lowercase() || c == b'_'))
+        .then(|| kind.to_owned())
+}
+
 /// No message text or occurrence IDs enter the grouping key. An unknown external code is
 /// conservatively advisory; the source-inventory test forbids unclassified crate codes.
 pub fn labels(
@@ -273,6 +290,7 @@ pub fn labels(
     info: bool,
     subjects: &[String],
     parameters: impl IntoIterator<Item = impl AsRef<str>>,
+    sources: &[String],
     crossing_kinds: &[String],
     ink_is_leader: Option<bool>,
 ) -> Labels {
@@ -301,6 +319,11 @@ pub fn labels(
         Some(Group::Requirement) => parameters
             .into_iter()
             .map(|p| p.as_ref().to_owned())
+            .collect(),
+        Some(Group::Source) => sources
+            .iter()
+            .filter_map(|s| source_kind(s))
+            .chain(subjects.iter().filter_map(|s| source_kind(s)))
             .collect(),
         Some(Group::Crossing) => kinds.into_iter().map(String::from).collect(),
         _ => BTreeSet::new(),
@@ -378,5 +401,133 @@ mod tests {
             docs.lines().filter(|l| l.starts_with("| `")).count(),
             CODES.len()
         );
+    }
+    #[test]
+    fn every_info_instance_is_advisory_without_changing_the_code_mapping() {
+        for code in CODES {
+            assert_eq!(
+                labels(
+                    code.code,
+                    true,
+                    &[],
+                    std::iter::empty::<&str>(),
+                    &[],
+                    &[],
+                    None
+                )
+                .impact,
+                Impact::Advisory
+            );
+        }
+    }
+
+    #[test]
+    fn stroke_metadata_classifies_crossings_and_leader_text_contacts() {
+        let crossing = |kinds: &[&str]| {
+            labels(
+                "annotation_leader_crossing",
+                false,
+                &[],
+                std::iter::empty::<&str>(),
+                &[],
+                &kinds.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>(),
+                None,
+            )
+        };
+        assert_eq!(crossing(&["extension_line"]).impact, Impact::Advisory);
+        for kinds in [
+            vec!["leader"],
+            vec!["dimension_line"],
+            vec!["arrow"],
+            vec!["extension_line", "leader"],
+            vec![],
+            vec!["future_kind"],
+        ] {
+            assert_eq!(crossing(&kinds).impact, Impact::Readability);
+        }
+        assert_eq!(
+            crossing(&["arrow", "leader"]).group,
+            crossing(&["leader", "arrow", "leader"]).group
+        );
+        for ink in [Some(true), Some(false), None] {
+            assert_eq!(
+                labels(
+                    "annotation_ink_overlap",
+                    false,
+                    &[],
+                    std::iter::empty::<&str>(),
+                    &[],
+                    &[],
+                    ink
+                )
+                .impact,
+                Impact::Readability
+            );
+        }
+    }
+
+    #[test]
+    fn groups_ignore_occurrences_but_retain_causes() {
+        let feature = |id: &str| {
+            labels(
+                "dimensions_not_ported",
+                false,
+                &[id.into()],
+                std::iter::empty::<&str>(),
+                &[],
+                &[],
+                None,
+            )
+            .group
+        };
+        assert_eq!(
+            feature("f:section_recess:1"),
+            feature("f:section_recess:999")
+        );
+        assert_ne!(feature("f:section_recess:1"), feature("f:through_step:1"));
+        let requirements = |roles: &[&str]| {
+            labels(
+                "hole_requirement_missing",
+                false,
+                &[],
+                roles,
+                &[],
+                &[],
+                None,
+            )
+            .group
+        };
+        assert_ne!(
+            requirements(&["bore.diameter"]),
+            requirements(&["location.length.x"])
+        );
+        assert_eq!(
+            requirements(&["bore.diameter", "bore.through"]),
+            requirements(&["bore.through", "bore.diameter"])
+        );
+    }
+    #[test]
+    fn pmi_groups_use_source_kinds_and_never_refusal_prose() {
+        let group = |source: &str, why: &str| {
+            labels(
+                "pmi_not_lowered",
+                false,
+                &[],
+                std::iter::empty::<&str>(),
+                &[source.into(), why.into()],
+                &[],
+                None,
+            )
+            .group
+        };
+        assert_eq!(
+            group("geometric_tolerance:#123", "Why: first explanation"),
+            group("geometric_tolerance:#999", "Different: second explanation")
+        );
+        assert_ne!(
+            group("geometric_tolerance:#123", "why"),
+            group("dimensional_size:#123", "why")
+        );
+        assert_eq!(source_kind("reason:unsupported"), None);
     }
 }

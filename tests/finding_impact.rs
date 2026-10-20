@@ -50,6 +50,21 @@ fn values(e: &Expr, out: &mut BTreeSet<String>) {
         Expr::MethodCall(e) => values(&e.receiver, out),
         Expr::Reference(e) => values(&e.expr, out),
         Expr::Paren(e) => values(&e.expr, out),
+        Expr::Macro(e) if e.mac.path.is_ident("format") => {
+            let tokens = e.mac.tokens.clone();
+            let args = syn::punctuated::Punctuated::<Expr, syn::Token![,]>::parse_terminated
+                .parse2(tokens)
+                .unwrap();
+            if let Some(Expr::Lit(first)) = args.first() {
+                if let Lit::Str(format) = &first.lit {
+                    let format = format.value();
+                    assert_eq!(
+                        format, "{family}_requirement_{state}",
+                        "new dynamic finding-code template needs source-inventory expansion"
+                    );
+                }
+            }
+        }
         Expr::Tuple(e) => {
             if let Some(e) = e.elems.first() {
                 values(e, out);
@@ -267,4 +282,110 @@ fn every_emitted_code_has_an_impact_and_a_documented_reason() {
         inventory.codes, catalogue,
         "source inventory and impact catalogue differ"
     );
+}
+
+#[test]
+fn inventory_catches_new_literals_helpers_macros_and_templates() {
+    let source = syn::parse_file(
+        r#"
+        fn make(code: &str) { let p = Problem { code: code.into() }; }
+        fn produce() {
+            let p = Problem { code: "new_direct".into() };
+            p.code = "new_assignment".into();
+            let code = if true { "new_branch" } else { "new_else" };
+            let (code, text): (&str, &str) = ("new_typed_tuple", "explanation");
+            let found = |code: &str| {};
+            found("new_closure");
+            make("new_helper");
+            let p = vec![LintIssue { code: "new_vector".into() }];
+            problem!("new_macro", "warning", vec![], "explanation");
+            parameters::coverage("new_family", &[], &[], noun, "explanation");
+        }
+    "#,
+    )
+    .unwrap();
+    let mut inventory = Inventory::default();
+    inventory.visit_file(&source);
+    inventory.visit_file(&source);
+    for code in [
+        "new_direct",
+        "new_assignment",
+        "new_branch",
+        "new_else",
+        "new_typed_tuple",
+        "new_closure",
+        "new_helper",
+        "new_vector",
+        "new_macro",
+    ] {
+        assert!(inventory.codes.contains(code), "inventory missed {code}");
+    }
+    assert!(inventory.families.contains("new_family"));
+}
+
+#[path = "common/corpus.rs"]
+mod corpus;
+
+fn assert_review_summary(file: &str, expected: [(usize, usize); 4]) {
+    let Some(dir) = corpus::dir() else { return };
+    let review = draftwright::api::review(&dir.join(file), None, &Default::default()).unwrap();
+    let wire = serde_json::to_value(&review).unwrap();
+    let mut impacts: BTreeMap<&str, (usize, BTreeSet<&str>)> = BTreeMap::new();
+    let mut groups = BTreeMap::<&str, usize>::new();
+    for list in ["problems", "lint", "structural"] {
+        for f in wire[list].as_array().unwrap() {
+            let impact = f["impact"].as_str().unwrap();
+            let group = f["group"].as_str().unwrap();
+            assert!(!group.is_empty());
+            let entry = impacts.entry(impact).or_default();
+            entry.0 += 1;
+            entry.1.insert(group);
+            *groups.entry(group).or_default() += 1;
+        }
+    }
+    for (impact, (findings, count)) in ["incomplete", "decision", "readability", "advisory"]
+        .into_iter()
+        .zip(expected)
+    {
+        let actual = impacts.get(impact);
+        assert_eq!(actual.map_or(0, |i| i.0), findings, "{file}: {impact}");
+        assert_eq!(
+            actual.map_or(0, |i| i.1.len()),
+            count,
+            "{file}: {impact} groups"
+        );
+        assert_eq!(wire["summary"]["impacts"][impact]["findings"], findings);
+        assert_eq!(wire["summary"]["impacts"][impact]["groups"], count);
+    }
+    assert_eq!(
+        wire["summary"]["groups"],
+        serde_json::to_value(groups).unwrap()
+    );
+    if file.contains("ctc_01") {
+        assert_eq!(
+            wire["summary"]["groups"]["dimensions_not_ported:section_recess"],
+            4
+        );
+        assert_eq!(wire["summary"]["groups"]["extension_through_feature"], 9);
+        assert_eq!(
+            wire["summary"]["groups"]["annotation_leader_crossing:extension_line"],
+            2
+        );
+    }
+}
+
+#[test]
+fn ctc01_counts_gaps_and_repeated_causes_without_hiding_findings() {
+    assert_review_summary(
+        "nist/nist_ctc_01_asme1_rd.stp",
+        [(8, 3), (1, 1), (1, 1), (13, 4)],
+    );
+}
+#[test]
+fn unsupported_recesses_and_rounding_have_separate_impacts() {
+    assert_review_summary("mfcadpp/1000.step", [(11, 4), (1, 1), (0, 0), (12, 3)]);
+}
+#[test]
+fn informational_hole_bottom_and_recovery_remain_advisory() {
+    assert_review_summary("gramel/string_post.step", [(1, 1), (1, 1), (0, 0), (3, 3)]);
 }
