@@ -22,7 +22,8 @@ changing the sheet; a stale offer may be refused.
 
 Offering fixes does not run recovered planning per alternative. Existing bounded
 placement trials check the new ink on the settled sheet; attaching the retained frame
-is linear in the offers and views. Applying the edit uses one fixed-pair solve and
+copies the view frames and required-item IDs once per offer; verification invokes no
+additional planner. Applying the edit uses one fixed-pair solve and
 verifies its frame. Allocation across multiple sheets is not yet constrained, so an
 otherwise local remedy there is conservatively offered as a sheet fix. The author can
 express the retained-layout choice with `sheet/keep_layout`, or remove it to restore

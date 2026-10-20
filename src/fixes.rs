@@ -117,7 +117,7 @@ pub fn scope(ops: &[Op]) -> Scope {
             .collect::<Vec<_>>()
             .join("/")
     };
-    let first = owner(&ops[0]);
+    let first = owner(ops[0]);
     if ops.iter().any(|op| owner(op) != first) {
         Scope::Sheet
     } else {
