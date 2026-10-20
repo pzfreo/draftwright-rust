@@ -34,7 +34,20 @@ impl Layout {
     pub(crate) fn capture(plan: &Plan) -> Option<Self> {
         // Allocation can transport auxiliary views and tables after the single-sheet solve.
         // Until that can be constrained too, those remedies must say sheet scope.
-        if !plan.sheets.is_empty() {
+        if !plan.sheets.is_empty()
+            || plan
+                .spec
+                .sheet
+                .size
+                .as_ref()
+                .is_some_and(|s| s != &plan.sheet.size)
+            || plan
+                .spec
+                .sheet
+                .scale
+                .as_ref()
+                .is_some_and(|s| s != &plan.sheet.scale)
+        {
             return None;
         }
         Some(Self {
