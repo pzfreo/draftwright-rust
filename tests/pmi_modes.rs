@@ -656,6 +656,77 @@ fn located_once_checks_native_ink_and_rejects_a_broken_witness() {
 }
 
 #[test]
+fn datum_rebased_plane_location_also_states_its_coincident_plate_thickness() {
+    use std::io::Read as _;
+    for compressed in [
+        include_bytes!("fixtures/pmi/step/nist_ctc_01_asme1_ap242-e1.stp.gz").as_slice(),
+        include_bytes!("fixtures/pmi/step/nist_ctc_01_merge.step.gz").as_slice(),
+    ] {
+        let mut step = Vec::new();
+        flate2::read::GzDecoder::new(compressed)
+            .read_to_end(&mut step)
+            .unwrap();
+        let a = analysed(&step);
+        let p = plan(&a, &Spec::default());
+        let owner = p
+            .dimensions
+            .iter()
+            .find(|d| d.id == "d:step_level/step_height.length.h50")
+            .unwrap();
+        assert_eq!(owner.label, "50");
+        assert!(owner.basis.contains("measured from datum A"));
+        for (feature, parameter) in [
+            ("step_level", "step_height.length.h50"),
+            ("f:plate:1", "thickness.length"),
+        ] {
+            let claims: Vec<_> = p
+                .dimensions
+                .iter()
+                .filter(|d| {
+                    d.measurements
+                        .iter()
+                        .any(|m| m.feature == feature && m.parameter == parameter)
+                })
+                .collect();
+            assert_eq!(claims.len(), 1, "{feature}/{parameter}");
+            assert_eq!(claims[0].id, owner.id);
+        }
+        assert!(p.omitted.iter().any(|d| {
+            d.id == "d:f:plate:1/thickness.length"
+                && matches!(&d.state, draftwright::items::State::Covered { by } if by == &owner.id)
+        }));
+        let placed = owner.placed.as_ref().unwrap();
+        let k = usize::from(placed.rotation == 90.);
+        let span = [placed.lines[0][0][k], placed.lines[1][0][k]];
+        let view = p.views.iter().find(|v| v.id == owner.view).unwrap();
+        assert!(((span[1] - span[0]).abs() / view.scale - 50.).abs() < 1e-6);
+        assert!(!p.dimensions.iter().any(|d| {
+            d.id != owner.id
+                && d.view == owner.view
+                && d.kind == "linear"
+                && d.label == owner.label
+                && d.placed.as_ref().is_some_and(|q| {
+                    q.rotation == placed.rotation
+                        && q.lines.len() >= 2
+                        && ((q.lines[0][0][k] - span[0]).abs() < 1e-6
+                            && (q.lines[1][0][k] - span[1]).abs() < 1e-6
+                            || (q.lines[1][0][k] - span[0]).abs() < 1e-6
+                                && (q.lines[0][0][k] - span[1]).abs() < 1e-6)
+                })
+        }));
+        assert_eq!(
+            p.problems
+                .iter()
+                .filter(|q| q.code == "feature_not_located")
+                .count(),
+            3,
+            "the retained datum chain must not introduce another gap"
+        );
+        assert!(!p.problems.iter().any(|q| q.code == "feature_located_twice"));
+    }
+}
+
+#[test]
 fn generated_hole_schedules_state_each_size_and_coordinate_without_extra_locators() {
     use std::io::Read as _;
     let mut step = Vec::new();

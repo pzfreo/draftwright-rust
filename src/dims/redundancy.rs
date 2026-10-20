@@ -11,6 +11,25 @@ type Kept = (Want, bool, Option<&'static str>, Vec<&'static str>);
 /// that determine it, in the order its basis names them (#26: the plan's `determined_by`).
 pub(super) type References = std::collections::BTreeMap<String, Vec<String>>;
 
+/// A ladder's witnesses may have moved from the box minimum to a datum. Its
+/// parameter still identifies the original face level, not the rebased interval.
+fn ladder_span(a: &Analysis, w: &Want) -> Option<(Span, bool)> {
+    let original = w.measurements.iter().find_map(|m| {
+        (m.feature == "step_level")
+            .then(|| crate::lint::redundancy::span(a, &m.feature, &m.parameter))
+            .flatten()
+    })?;
+    let Shape::Linear { a, b, axis, .. } = w.shape else {
+        return None;
+    };
+    let drawn = Span::new(axis, a[axis], b[axis]);
+    Some((drawn, !same_planes(drawn, original)))
+}
+
+fn same_planes(a: Span, b: Span) -> bool {
+    a.axis == b.axis && (a.lo - b.lo).abs() <= 1e-6 && (a.hi - b.hi).abs() <= 1e-6
+}
+
 fn interval(analysis: &Analysis, w: &Want) -> Option<Span> {
     if w.id.starts_with("d:pmi:") {
         return None;
@@ -52,6 +71,39 @@ pub(super) fn consolidate(
         return references;
     }
     let mut gone = std::collections::BTreeSet::new();
+    // A datum-based plane location owns a coincident size, carrying both claims.
+    // Compare physical support planes, not equal values or point/axis locations:
+    // the datum-to-face chain must survive, and unrelated equal sizes stay distinct.
+    for j in 0..kept.len() {
+        let Some((s, true)) = ladder_span(a, &kept[j].0) else {
+            continue;
+        };
+        if kept[j].2.is_none() {
+            continue;
+        }
+        for i in 0..kept.len() {
+            if i == j
+                || gone.contains(&i)
+                || !kept[i].1
+                || !given[i].is_empty()
+                || kept[i].2 != kept[j].2
+                || kept[i].0.terms != kept[j].0.terms
+                || !interval(a, &kept[i].0).is_some_and(|p| same_planes(p, s))
+            {
+                continue;
+            }
+            let claims = kept[i].0.measurements.clone();
+            kept[j].0.measurements.extend(claims);
+            cover(
+                i,
+                j,
+                kept,
+                omitted,
+                "the datum-based ladder states the same two support planes and carries this size too",
+            );
+            gone.insert(i);
+        }
+    }
     // #33: on a turned profile dimensioned as a baseline from its datum, a band's own length is
     // conveyed by the rung that locates its far shoulder (its `step_position.length`, or the
     // overall length for the last band); the rungs before it locate its near one. Unless the spec
@@ -65,7 +117,10 @@ pub(super) fn consolidate(
         else {
             continue;
         };
-        if !given[i].is_empty() || kept[i].2.is_some_and(|v| crate::detail::NAMES.contains(&v)) {
+        if gone.contains(&i)
+            || !given[i].is_empty()
+            || kept[i].2.is_some_and(|v| crate::detail::NAMES.contains(&v))
+        {
             continue;
         }
         let rung = (0..kept.len()).find(|&j| {
@@ -90,7 +145,10 @@ pub(super) fn consolidate(
     // A functional outside diameter or A/F statement owns an equal overall span only
     // when its actual support planes reach both ends of that axis.
     for i in 0..kept.len() {
-        if !given[i].is_empty() || !crate::dims::is_envelope_extent(&kept[i].0.id) {
+        if gone.contains(&i)
+            || !given[i].is_empty()
+            || !crate::dims::is_envelope_extent(&kept[i].0.id)
+        {
             continue;
         }
         let Some(s) = interval(a, &kept[i].0) else {
@@ -148,12 +206,13 @@ pub(super) fn consolidate(
     let rungs: Vec<(Span, usize)> = (0..kept.len())
         .filter(|i| !gone.contains(i) && kept[*i].0.id.starts_with("d:step_level/"))
         .filter_map(|i| {
-            kept[i]
-                .0
-                .measurements
-                .iter()
-                .filter(|m| m.feature == "step_level")
-                .find_map(|m| crate::lint::redundancy::level_span(a, &m.parameter))
+            ladder_span(a, &kept[i].0)
+                .filter(|_| {
+                    kept[i].0.measurements.iter().any(|m| {
+                        m.feature == "step_level" && m.parameter.starts_with("step_height.length.h")
+                    })
+                })
+                .map(|(s, _)| s)
                 .map(|s| (s, i))
         })
         .collect();
@@ -257,15 +316,12 @@ pub(super) fn consolidate(
         {
             continue;
         }
-        let Some(s) = kept[i]
-            .0
-            .measurements
-            .iter()
-            .filter(|m| m.feature == "step_level")
-            .find_map(|m| crate::lint::redundancy::level_span(a, &m.parameter))
-        else {
+        let Some((s, rebased)) = ladder_span(a, &kept[i].0) else {
             continue;
         };
+        if rebased {
+            continue;
+        }
         let owner = (0..kept.len()).find(|&j| {
             j != i
                 && !gone.contains(&j)
