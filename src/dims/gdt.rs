@@ -842,7 +842,7 @@ fn datum_sites<'a>(
 /// letter boxes. Three coincident projections may need an earlier triangle to
 /// move away from its middle station to leave room for the third. The bounded
 /// search concerns filled triangles alone, not combinations of leader tiers.
-fn separated_sites(
+fn separated_sites<const OMISSIONS: bool>(
     analysis: &Analysis,
     spec: &Spec,
     items: &[Lowered],
@@ -855,7 +855,9 @@ fn separated_sites(
         .filter(|i| matches!(i.glyph, Glyph::Datum { .. }))
     {
         let entry = spec.annotations.get(&item.id);
-        if entry.is_some_and(|p| p.omit) || datum_omission(analysis, spec, item).is_some() {
+        if entry.is_some_and(|p| p.omit)
+            || (OMISSIONS && datum_omission(analysis, spec, item).is_some())
+        {
             continue;
         }
         let intent = entry.and_then(|p| p.place.as_ref());
@@ -1102,13 +1104,15 @@ pub(crate) fn demand_with_spec(
     let (mut items, _) = crate::pmi_lowering::lower(analysis, shown);
     // Invariant: plan_with validates these same annotation texts before demand and placement.
     crate::label_text::annotations(&mut items, spec).expect("validated annotation wording");
+    if datum_visibility_overrides(spec) {
+        items.retain(|item| datum_omission(analysis, spec, item).is_none());
+    }
     let frames: BTreeMap<&str, Frame> = PRINCIPALS
         .iter()
         .map(|(name, toward, up)| (*name, Frame::looking(analysis, *toward, *up, [0.0; 2], 1.0)))
         .collect();
     items
         .iter()
-        .filter(|item| datum_omission(analysis, spec, item).is_none())
         .map(|item| {
             let shape = Shape::of(&item.glyph);
             let datum = shape == Shape::Datum;
@@ -1186,7 +1190,7 @@ pub(crate) fn plan_anchored(
     // A complete existing layout is also a candidate. Greedy improvements must not buy
     // fewer crossings by displacing later frames into text, other views or unreserved space.
     // Compare unique unordered pairs, since leader crossings can be reported both ways.
-    let seed = plan_search(
+    let seed = plan_search::<false>(
         analysis,
         spec,
         sheet,
@@ -1288,7 +1292,7 @@ pub(crate) fn plan_anchored(
         if search == Search::Datums && !datum_search_can_change {
             continue;
         }
-        if let Some(compact) = plan_search(
+        if let Some(compact) = plan_search::<false>(
             analysis,
             spec,
             sheet,
@@ -1328,7 +1332,7 @@ pub(crate) fn plan_anchored(
     // uncited output with remaining contacts needs exact narrow-gap trials.
     if (best_score.0 != 0 || best_score.1 != 0)
         && matches!(&analysis.pmi, Some(crate::pmi::Reading::Read(report)) if report.records.iter().any(|r| r.category == crate::pmi::Category::Datum && !report.records.iter().any(|t| t.category == crate::pmi::Category::GeometricTolerance && t.datum_refs.iter().any(|d| d.trim() == r.label.trim()))))
-        && let Some(candidate) = plan_search(
+        && let Some(candidate) = plan_search::<true>(
             analysis,
             spec,
             sheet,
@@ -1336,7 +1340,7 @@ pub(crate) fn plan_anchored(
             dims,
             canonical,
             cache,
-            Search::Uncited,
+            Search::Datums,
             (seed_overlaps == 0).then_some(&before),
         )
         && (contacts(&candidate.1).is_subset(&before)
@@ -1359,11 +1363,36 @@ enum Search {
     All,
     Separate,
     Baseline,
-    Uncited,
+}
+
+// Select policies once, before entering the shared candidate loop. The common
+// cited/default case compiles the original placement path with no visibility or
+// narrow-gap branches; intent still uses the same sites, candidates and grader.
+#[allow(clippy::too_many_arguments)]
+fn plan_search<const EXACT: bool>(
+    analysis: &Analysis,
+    spec: &Spec,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    dims: &[PlannedDimension],
+    canonical: Option<&crate::model::Plan>,
+    cache: &super::footprints::Cache,
+    search: Search,
+    allowed: Option<&BTreeSet<(String, Vec<String>)>>,
+) -> Option<(Vec<PlannedGdt>, Vec<Problem>)> {
+    if datum_visibility_overrides(spec) {
+        plan_search_impl::<true, EXACT>(
+            analysis, spec, sheet, views, dims, canonical, cache, search, allowed,
+        )
+    } else {
+        plan_search_impl::<false, EXACT>(
+            analysis, spec, sheet, views, dims, canonical, cache, search, allowed,
+        )
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
-fn plan_search(
+fn plan_search_impl<const OMISSIONS: bool, const EXACT: bool>(
     analysis: &Analysis,
     spec: &Spec,
     sheet: &PlannedSheet,
@@ -1497,7 +1526,7 @@ fn plan_search(
         BTreeMap::new()
     };
     let mut reservations = if search == Search::Separate {
-        separated_sites(analysis, spec, &items, &frames, &page)
+        separated_sites::<OMISSIONS>(analysis, spec, &items, &frames, &page)
     } else {
         BTreeMap::new()
     };
@@ -1558,7 +1587,7 @@ fn plan_search(
             state: State::not_drawable("pmi_not_drawn"),
             placed: None,
         };
-        if let Some(reason) = datum_omission(analysis, spec, &item) {
+        if OMISSIONS && let Some(reason) = datum_omission(analysis, spec, &item) {
             planned.state = State::OmittedByUser;
             planned.basis += &format!("; {reason}");
             out.push(planned);
@@ -1729,7 +1758,7 @@ fn plan_search(
         // The best grade, then the shortest automatic datum leader; remaining
         // ties keep the original site, strip and tier order.
         let mut best: Option<Choice<'_>> = None;
-        let tier_ink: &[[P2; 2]] = if search == Search::Uncited { &[] } else { &ink };
+        let tier_ink: &[[P2; 2]] = if EXACT { &[] } else { &ink };
         // Exhaust the compact, face-to-first-lane choices before trying any outer tier.
         'search: for inside in [true, false] {
             if inside
@@ -2329,6 +2358,10 @@ pub fn placement_options(
             ))
         })
         .collect()
+}
+
+fn datum_visibility_overrides(spec: &Spec) -> bool {
+    spec.sheet.uncited_datums == Some(false) || spec.annotations.values().any(|a| a.omit)
 }
 
 /// Explicit datum visibility intent, shared by strip demand and symbol placement.
