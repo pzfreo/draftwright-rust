@@ -321,6 +321,45 @@ fn a_radius_tip_lands_on_the_trimmed_profile_arc() {
     );
 }
 
+/// #145: lint reads actual drawn shafts, including hand-authored/pinned geometry.
+#[test]
+fn radius_shafts_meet_the_middle_arc_radially_from_the_open_side() {
+    let (f, sites) = quarter_blend(0.0, 0.0);
+    let a = analysis(vec![f], sites, &[]);
+    for (angle, deviation, bad) in [
+        (45.0f64, 0.0f64, false),
+        (0.0, 0.0, true),
+        (90.0, 0.0, true),
+        (45.0, 16.0, true),
+        (45.0, 180.0, true),
+    ] {
+        let t = angle.to_radians();
+        let tip = page(3.0 * t.cos(), 3.0 * t.sin());
+        let direction = t + std::f64::consts::PI + deviation.to_radians();
+        let elbow = [
+            tip[0] + 20.0 * direction.cos(),
+            tip[1] + 20.0 * direction.sin(),
+        ];
+        let issues = lint::lint(
+            &a,
+            &drawing(
+                ALONG_Z,
+                vec![callout("d:r", &[("f:blend:1", "blend.radius")], tip, elbow)],
+            ),
+        );
+        let radial: Vec<_> = issues
+            .iter()
+            .filter(|i| i.code == "radius_leader_not_radial")
+            .collect();
+        assert_eq!(radial.len(), usize::from(bad), "{angle} {deviation}");
+        if bad {
+            assert_eq!(radial[0].severity, Severity::Warning);
+            assert_eq!(radial[0].annotation.as_deref(), Some("d:r"));
+            assert_eq!(radial[0].measurements, ["f:blend:1/blend.radius"]);
+        }
+    }
+}
+
 /// ADR2-8, ISSUE-798-b/d, LINT-code-leader_crosses_silhouette: a shaft leaving its own body
 /// (whatever it passes over inside it, a bore included) is not reported; a shaft that goes on
 /// into a second body is, as info, with the depth it cuts; a deeper cut reads deeper. The

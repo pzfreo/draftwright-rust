@@ -813,10 +813,19 @@ Lint (`review`'s `lint`) also checks each callout's leader against the part (str
 callout's tip must lie within 0.002 mm of a boundary circle of a hole it names (a double-D bore's
 trimmed profile, flats included) as projected in its view (`diameter_leader_target_mismatch`,
 warning; `diameter_leader_target_unverifiable` when no named hole can be read), a straight
-blend's radius callout's tip on that blend's trimmed profile arc seen end-on
-(`radius_leader_target_mismatch` and `_unverifiable`, warnings), and no callout's shaft may cut
+blend or fillet's radius callout's tip on its trimmed cylindrical profile arc seen end-on
+(`radius_leader_target_mismatch` and `_unverifiable`, warnings). The drawn shaft must meet
+its middle 25–75%, within 15° of radial, from the open centre side
+(`radius_leader_not_radial`, warning). Exact `Analysis.radius_arcs` records the cylinder,
+trim, proven middle-face points and material side; older straight blends use their rolling
+axis and proven samples. A convex cylinder has its centre on the material side; toroidal
+samples do not establish a single minor-arc centre in the projection. Routing retains the
+best existing callout and reports `radius_leader_routing_fallback` when no compliant
+candidate preserves the existing contact/length budget, and no callout's shaft may cut
 back into the part's material after leaving it at its tip (`leader_crosses_silhouette`, info,
-with the depth cut). The material is each solid's projected box (`material::solids`) and the
+with the depth cut). This test deliberately exempts the initial traversal: it cannot detect
+a boss crossing within a single solid box, as on CTC-01 (#145). The radius direction check
+covers the local material-side approach independently. The material is each solid's projected box (`material::solids`) and the
 measure `material::reentry`, the same predicate the leader router prices: a candidate that
 re-enters is a hard blocker, its depth added to its length, and a chosen one is reported as
 `annotation_line_over_view` with the depth in its message; a pinned callout's leader, which the

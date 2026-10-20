@@ -15,16 +15,13 @@
 //! - `diameter_leader_target_unverifiable`: a callout whose view has a recorded transform but
 //!   none of whose claimed holes can be read (no axis, location or diameter; a double-D bore
 //!   not seen end-on) says so.
-//! - `radius_leader_target_mismatch` (`blend_coverage`, ISSUE-1479): a callout claiming a
-//!   straight blend's `blend.radius` has its tip on that blend's trimmed profile arc, seen
-//!   end-on: on the circle of its radius about its rolling axis, and within the arc's sector.
-//!   The sector is read from the blend's proven trimmed-surface points (`Analysis::blend_sites`,
-//!   sampled at a quarter, a half and three quarters of its face's parameter range, so the arc
-//!   runs half their spread again beyond them on each side). A tip on a centre bore, on another
-//!   radius or on the untrimmed circle's extension is a warning. A circular-path (toroidal)
-//!   blend is not checked, as in draftwright.
-//! - `radius_leader_target_unverifiable`: a straight blend whose axis, radius or trimmed points
-//!   cannot be read, or whose callout is in a view that does not show its arc end-on.
+//! - `radius_leader_target_mismatch`: a blend/fillet tip misses its named cylindrical
+//!   trimmed profile. Exact face evidence is used where present; older straight-blend
+//!   analyses use their rolling axis and quarter/half/three-quarter samples.
+//! - `radius_leader_not_radial`: the drawn shaft (automatic or pinned) must meet the
+//!   middle 25–75% of that profile, within 15 degrees of radial, from its open centre side.
+//! - `radius_leader_target_unverifiable`: no end-on cylinder/trim evidence can be read.
+//!   Toroidal minor arcs have no single projected centre in the recorded samples.
 //!
 //! - `leader_crosses_silhouette` (draftwright's structural check, #796/#798): a callout's shaft,
 //!   after leaving the material at its tip, cuts back into it in its own view, measured by
@@ -32,7 +29,7 @@
 //!   (`dims::leaders`), on the material [`crate::material::solids`] builds from the Analysis
 //!   and the view's recorded transform. Info, with the depth cut, as in draftwright.
 //!
-//! A fillet callout carrying its equal blends' claims is not judged (its target is the fillet).
+//! A fillet carrying equal blend claims is judged against its own fillet faces.
 //! An annotation whose view has no recorded transform (a captured Python sheet) is not judged,
 //! as in [`super::fidelity`].
 
@@ -40,7 +37,6 @@ use std::collections::BTreeMap;
 use std::f64::consts::PI;
 
 use super::{LintIssue, Severity};
-use crate::arc::turn;
 use crate::bridge::Feature;
 use crate::bridge::holes::{self, Hole, dir_to_part, point, to_part};
 use crate::model::Analysis;
@@ -213,77 +209,6 @@ fn double_d_gap(
     Ok(Some(gap))
 }
 
-/// A straight blend's profile arc: its rolling axis (a point and direction), its radius and
-/// its proven trimmed-surface points.
-struct Arc {
-    at: V3,
-    axis: V3,
-    radius: f64,
-    sites: Vec<V3>,
-}
-
-fn arc(analysis: &Analysis, id: &str) -> Result<Option<Arc>, String> {
-    let f = analysis
-        .features
-        .iter()
-        .find(|f| f.id == id)
-        .ok_or("the blend is not in the Analysis")?;
-    let path = f.parameters.get("path").ok_or("the blend has no path")?;
-    if path.get("normal").is_some() {
-        // A circular-path blend: a different target contract, not checked (draftwright).
-        return Ok(None);
-    }
-    let frame = holes::frame(analysis);
-    let axis = super::parameters::direction(&frame, path.get("direction"))
-        .and_then(unit)
-        .ok_or("the blend's path has no direction")?;
-    let at =
-        super::parameters::place(&frame, path.get("at")).ok_or("the blend's path has no point")?;
-    let radius = super::parameters::size(f, "radius").map_err(|_| "the blend has no radius")?;
-    let sites = analysis
-        .blend_sites
-        .get(id)
-        .filter(|s| !s.is_empty())
-        .ok_or("the blend has no proven trimmed-surface point")?
-        .clone();
-    Ok(Some(Arc {
-        at,
-        axis,
-        radius,
-        sites,
-    }))
-}
-
-/// Whether *tip* lies on *arc* as seen end-on in *p*, within [`TOLERANCE`].
-fn on_arc(p: &Projection, arc: &Arc, tip: P) -> bool {
-    let c = p.page(arc.at);
-    let r = p.scale * arc.radius;
-    let angle = |q: P| (q[1] - c[1]).atan2(q[0] - c[0]);
-    if ((tip[0] - c[0]).hypot(tip[1] - c[1]) - r).abs() > TOLERANCE {
-        return false;
-    }
-    let reference = angle(p.page(arc.sites[0]));
-    let (lo, hi) = arc
-        .sites
-        .iter()
-        .map(|s| turn(angle(p.page(*s)), reference))
-        .fold((0.0f64, 0.0f64), |(lo, hi), d| (lo.min(d), hi.max(d)));
-    let spread = hi - lo;
-    // A lone point gives no spread: a blend's arc is at most a half turn, so a quarter turn
-    // each way is taken (an overturnable judgement, recorded in docs/next-session.md).
-    let (lo, hi) = if spread > 1e-6 {
-        (lo - 0.5 * spread, hi + 0.5 * spread)
-    } else {
-        (-0.5 * PI, 0.5 * PI)
-    };
-    let slack = TOLERANCE / r.max(1e-9);
-    crate::arc::Span {
-        start: reference + lo,
-        sweep: hi - lo,
-    }
-    .contains(angle(tip), slack)
-}
-
 fn issue(code: &str, name: &str, view: &str, tip: P, message: String, why: &str) -> LintIssue {
     LintIssue {
         sheet: None,
@@ -320,7 +245,8 @@ pub(super) fn check(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
         .collect();
     let mut issues = Vec::new();
     for a in &drawing.annotations {
-        let (Some(view), Some(&[tip, _])) = (a.view.as_deref(), tips_shafts.get(a.name.as_str()))
+        let (Some(view), Some(&[tip, elbow])) =
+            (a.view.as_deref(), tips_shafts.get(a.name.as_str()))
         else {
             continue;
         };
@@ -391,47 +317,55 @@ pub(super) fn check(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
                 );
             }
         }
-        // A fillet's leader that also carries its equal blends' claims (`dims::blends::
-        // consolidate`) points at the fillet, whose record gives a point on its surface, not its
-        // arc: it is judged as a fillet callout, which this module does not check.
-        let blends = claimed("blend.radius");
-        if !blends.is_empty() && claimed("fillet.radius").is_empty() {
-            let mut arcs = Vec::new();
-            let mut unreadable = None;
-            for id in &blends {
-                match arc(analysis, id) {
-                    Ok(Some(arc)) => arcs.push(arc),
-                    Ok(None) => {}
-                    Err(e) => unreadable = unreadable.or(Some(e)),
+        // Read the drawn shaft, so authored/pinned leaders receive the same check.
+        // A consolidated fillet names its own faces, rather than borrowing a blend target.
+        let fillets = claimed("fillet.radius");
+        let (radii, parameter) = if fillets.is_empty() {
+            (claimed("blend.radius"), "blend.radius")
+        } else {
+            (fillets, "fillet.radius")
+        };
+        if !radii.is_empty() {
+            let mut shown = Vec::new();
+            let mut reasons = Vec::new();
+            for id in &radii {
+                match crate::radius::projected(analysis, id, p.view.toward, |q| p.page(q)) {
+                    Ok(arcs) => shown.extend(arcs),
+                    Err(why) => reasons.push(why),
                 }
-            }
-            let shown: Vec<&Arc> = arcs.iter().filter(|c| p.end_on(c.axis)).collect();
-            if !arcs.is_empty() && shown.is_empty() {
-                unreadable = Some("the callout's view does not show the blend's arc end-on".into());
             }
             if shown.is_empty() {
-                if let Some(why) = unreadable {
-                    found(
-                        "radius_leader_target_unverifiable",
-                        blends,
-                        "blend.radius",
-                        format!(
-                            "{}: the radius leader's trimmed profile arc cannot be verified",
-                            a.name
-                        ),
-                        &why,
-                    );
-                }
-            } else if !shown.iter().any(|c| on_arc(&p, c, tip)) {
+                found(
+                    "radius_leader_target_unverifiable",
+                    radii,
+                    parameter,
+                    format!(
+                        "{}: the radius leader's trimmed profile arc cannot be verified",
+                        a.name
+                    ),
+                    &reasons.join("; "),
+                );
+            } else if !shown.iter().any(|arc| arc.on_arc(tip)) {
                 found(
                     "radius_leader_target_mismatch",
-                    blends,
-                    "blend.radius",
+                    radii,
+                    parameter,
                     format!(
                         "{}: the radius leader tip does not touch its named trimmed profile arc",
                         a.name
                     ),
                     "drawn tip is outside the trimmed physical profile arc tolerance",
+                );
+            } else if !shown.iter().any(|arc| arc.accepts([tip, elbow])) {
+                found(
+                    "radius_leader_not_radial",
+                    radii,
+                    parameter,
+                    format!(
+                        "{}: radius leader must touch the middle 25–75% of the arc and approach within 15 degrees of radial from the open centre side",
+                        a.name
+                    ),
+                    "the drawn shaft is at a tangent end, off radial, or approaches from the material side; a convex arc has no open centre-side approach",
                 );
             }
         }

@@ -115,6 +115,9 @@ pub struct Analysis {
     /// Exact trimmed-surface attachment points for recognised blends, in the part frame.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub blend_sites: BTreeMap<String, Vec<[f64; 3]>>,
+    /// Cylindrical radius profiles and their material side, from the trimmed faces.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub radius_arcs: BTreeMap<String, Vec<crate::radius::RadiusArc>>,
     /// Exact circular boundary spans of partial radius features.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub profile_arcs: BTreeMap<String, Vec<crate::arc::ProfileArc>>,
@@ -1199,6 +1202,7 @@ fn analyse_step_input(
         recognition: None,
         features: Vec::new(),
         blend_sites: BTreeMap::new(),
+        radius_arcs: BTreeMap::new(),
         profile_arcs: BTreeMap::new(),
         radius_reliefs: crate::blends::reliefs(&part),
         iso_bounds: [0.0; 4],
@@ -1292,6 +1296,7 @@ pub fn recognise(part: &Part, analysis: &mut Analysis, json: &str) -> Result<(),
     let (recognition, features) = crate::bridge::read(part, &analysis.binding.source_sha256, json)?;
     analysis.recognition = Some(recognition);
     analysis.blend_sites = crate::blends::evidence(part, &features);
+    analysis.radius_arcs = crate::radius::evidence(part, &features);
     analysis.profile_arcs = crate::arc::evidence(part, &features);
     analysis.features = features;
     analysis.unrecognised.clear();
@@ -1385,6 +1390,7 @@ pub fn recognise_document(
         patterns: read.patterns,
     });
     analysis.blend_sites = crate::blends::evidence(part, &features);
+    analysis.radius_arcs = crate::radius::evidence(part, &features);
     analysis.profile_arcs = crate::arc::evidence(part, &features);
     analysis.features = features;
     analysis.modelled_thread_ink = crate::modelled_threads::evidence(part, analysis);
@@ -6563,6 +6569,11 @@ fn settle_finished_nominals(
     // searching for another clear presentation. Authored/latent inventory and
     // ordinary explicit plans retain the complete finishing pass.
     if crate::planning::is_fixed_pair()
+        && !items.iter().any(|d| {
+            d.measurements
+                .iter()
+                .any(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
+        })
         && route_leaders
         && omitted.is_empty()
         && items.len() == plan.dimensions.len()
@@ -6656,7 +6667,9 @@ fn settle_finished_nominals(
         !codes.contains(&q.code)
             && !(matches!(
                 q.code.as_str(),
-                "annotation_line_over_view" | "annotation_leader_long"
+                "annotation_line_over_view"
+                    | "annotation_leader_long"
+                    | "radius_leader_routing_fallback"
             ) && reports.contains_key(q.subjects.first().map_or("", String::as_str)))
     });
     trial.problems.extend(checked);

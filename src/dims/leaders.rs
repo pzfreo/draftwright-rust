@@ -1451,12 +1451,21 @@ fn route_reports(
     solids: &[[f64; 4]],
     shaft: [P2; 2],
 ) -> Vec<Problem> {
+    route_reports_named(&item.id, &super::wording_of(item), view_name, solids, shaft)
+}
+
+fn route_reports_named(
+    id: &str,
+    named: &str,
+    view_name: &str,
+    solids: &[[f64; 4]],
+    shaft: [P2; 2],
+) -> Vec<Problem> {
     let mut problems = Vec::new();
-    let named = super::wording_of(item);
     let view = format!("v:{}", view_name);
     let cut = crate::material::reentry(solids, shaft);
     if cut > 0.0 {
-        let subjects = vec![item.id.clone(), view.clone()];
+        let subjects = vec![id.to_owned(), view.clone()];
         problems.push(Problem {
                 id: format!("p:annotation_line_over_view:{}", subjects.join("|")),
                 code: "annotation_line_over_view".into(),
@@ -1472,7 +1481,7 @@ fn route_reports(
     }
     let length = (shaft[1][0] - shaft[0][0]).hypot(shaft[1][1] - shaft[0][1]);
     if length > MAX_LEADER {
-        let subjects = vec![item.id.clone()];
+        let subjects = vec![id.to_owned()];
         problems.push(Problem {
                 id: format!("p:annotation_leader_long:{}", subjects.join("|")),
                 code: "annotation_leader_long".into(),
@@ -2347,7 +2356,210 @@ pub(crate) fn settle_after_furniture(
         );
         items[i].placed = Some(next.placed());
     }
+    if final_inventory && !crate::nominal::comparison() {
+        updated.extend(settle_radius_leaders(
+            analysis, spec, sheet, views, items, obstacles, cache,
+        ));
+    }
     updated
+}
+
+/// Radius rules are applied to the final, fully populated sheet. The existing route is the
+/// fallback: a geometric improvement must also preserve the drawing's ink/contact budget.
+fn settle_radius_leaders(
+    analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
+    sheet: &crate::model::PlannedSheet,
+    views: &[crate::model::PlannedView],
+    items: &mut [PlannedDimension],
+    obstacles: &[PlannedDimension],
+    cache: &super::footprints::Cache,
+) -> BTreeMap<String, Vec<Problem>> {
+    let page = Page::new(analysis, sheet, views);
+    let mut reports = BTreeMap::new();
+    for i in 0..items.len() {
+        let d = &items[i];
+        if d.kind != "callout"
+            || spec
+                .dimensions
+                .get(&d.id)
+                .is_some_and(|e| e.place.is_some())
+        {
+            continue;
+        }
+        let fillet = d
+            .measurements
+            .iter()
+            .any(|m| m.parameter == "fillet.radius");
+        let parameter = if fillet {
+            "fillet.radius"
+        } else {
+            "blend.radius"
+        };
+        let ids: Vec<_> = d
+            .measurements
+            .iter()
+            .filter(|m| m.parameter == parameter)
+            .map(|m| m.feature.as_str())
+            .collect();
+        if ids.is_empty() {
+            continue;
+        }
+        let (Some(old), Some(v)) = (&d.placed, views.iter().find(|v| v.id == d.view)) else {
+            continue;
+        };
+        let Some(&shaft) = old.lines.first() else {
+            continue;
+        };
+        let frame = Frame::new(analysis, v);
+        let mut arcs = Vec::new();
+        let mut reasons = Vec::new();
+        for id in ids {
+            match crate::radius::projected(analysis, id, v.direction, |q| frame.page(q)) {
+                Ok(more) => arcs.extend(more),
+                Err(why) => reasons.push(why),
+            }
+        }
+        if arcs.iter().any(|a| a.accepts(shaft)) {
+            continue;
+        }
+        let view = v.id.trim_start_matches("v:");
+        let footprint = cache.get(analysis, v);
+        let model = cache.model(analysis, v);
+        let ink = label_ink(&d.terms, font());
+        let job = Job {
+            side: None,
+            view,
+            footprints: &footprint,
+            outline: frame.outline(),
+            area: page.area(view),
+            sites: arcs
+                .iter()
+                .flat_map(|a| a.tips.iter().map(|p| (*p, 0.0, None)))
+                .collect(),
+            radial: false,
+            silhouette: None,
+            model: model.as_ref().map(|m| &m.as_ref().0),
+            corridors: false,
+            directed: false,
+            short_profile: false,
+            profile_proof: None,
+            steer: std::cell::Cell::new(None),
+            ink_min: ink.min,
+            ink_max: ink.max,
+            stroke_pad: stroke_clearance(&d.terms),
+            beyond: [CLEAR; 4],
+        };
+        let others: Vec<_> = items
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| *j != i)
+            .map(|(_, d)| d)
+            .chain(obstacles)
+            .collect();
+        let fixed = Fixed::new(
+            others
+                .iter()
+                .enumerate()
+                .filter_map(|(j, d)| Some((j, d.placed.as_ref()?))),
+        );
+        let end = old.lines.get(1).map_or(shaft[1], |s| s[1]);
+        let before = measure_at(
+            &job,
+            shaft[0],
+            shaft[1],
+            end,
+            end[0] >= shaft[1][0],
+            &fixed,
+            &page,
+        );
+        let contacts = |p: &Placed| {
+            let mut pairs = std::collections::BTreeSet::new();
+            for q in &others {
+                let Some(qp) = &q.placed else { continue };
+                if super::text_contact(p, qp) {
+                    pairs.insert((q.id.as_str(), true));
+                }
+                if p.lines
+                    .iter()
+                    .any(|a| qp.lines.iter().any(|b| lines_meet(*a, *b)))
+                {
+                    pairs.insert((q.id.as_str(), false));
+                }
+            }
+            pairs
+        };
+        let prior_contacts = contacts(old);
+        let mut best: Option<Candidate> = None;
+        if let Some(before) = &before {
+            for arc in arcs.iter().filter(|a| a.centre_open) {
+                for &tip in &arc.tips {
+                    let u = [arc.centre[0] - tip[0], arc.centre[1] - tip[1]];
+                    let n = u[0].hypot(u[1]);
+                    if n <= 1e-12 {
+                        continue;
+                    }
+                    for degrees in [0.0f64, -7.5, 7.5, -15.0, 15.0] {
+                        let (sin, cos) = degrees.to_radians().sin_cos();
+                        let u = [(cos * u[0] - sin * u[1]) / n, (sin * u[0] + cos * u[1]) / n];
+                        let exit = exit_distance(tip, u, job.outline);
+                        for reach in SWEEP_REACH.into_iter().chain(ESCAPES.map(|off| exit + off)) {
+                            let elbow = [tip[0] + reach * u[0], tip[1] + reach * u[1]];
+                            if !arc.accepts([tip, elbow]) {
+                                continue;
+                            }
+                            let right = elbow[0] >= tip[0];
+                            let Some(c) = measure(&job, tip, elbow, right, &fixed, &page) else {
+                                continue;
+                            };
+                            if c.hard > before.hard
+                                || c.crossings > before.crossings
+                                || c.text > before.text
+                                || c.feature_crossings > before.feature_crossings
+                                || c.beside > before.beside
+                                || length(&c.segments()) > length(&old.lines) + 2.0 + 1e-6
+                                || model_crossings(&job, &c) > model_crossings(&job, before)
+                                || !page.fits(&c.placed(), view)
+                                || !contacts(&c.placed()).is_subset(&prior_contacts)
+                            {
+                                continue;
+                            }
+                            if best.as_ref().is_none_or(|b| c.score() < b.score()) {
+                                best = Some(c);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let id = d.id.clone();
+        if let Some(c) = best {
+            let route =
+                route_reports_named(&id, &d.label, view, footprint.solids(), [c.tip, c.elbow]);
+            items[i].placed = Some(c.placed());
+            reports.insert(id, route);
+        } else {
+            let why = if arcs.is_empty() {
+                reasons.join("; ")
+            } else if arcs.iter().all(|a| !a.centre_open) {
+                "the centre side is material, so no open centre-side approach exists".into()
+            } else {
+                "no middle-arc, open-side radial candidate preserves the existing drawing contact and length budgets".into()
+            };
+            reports.insert(
+                id.clone(),
+                vec![Problem {
+                    id: format!("p:radius_leader_routing_fallback:{id}"),
+                    code: "radius_leader_routing_fallback".into(),
+                    severity: "warning".into(),
+                    message: format!("Radius leader {id} retains its best existing route: {why}."),
+                    subjects: vec![id],
+                    ..Default::default()
+                }],
+            );
+        }
+    }
+    reports
 }
 
 /// Local callout refinement after interior placement, with the rest of the ink held fixed
