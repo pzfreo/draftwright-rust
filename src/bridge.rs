@@ -721,6 +721,10 @@ fn axis(record: &Map<String, Value>, frame: &[[f64; 3]; 4]) -> Result<Option<[f6
         Value::String(s) if s == "y" => [0.0, 1.0, 0.0],
         Value::String(s) if s == "z" => [0.0, 0.0, 1.0],
         Value::Null => return Ok(None),
+        Value::Object(line) => line
+            .get("direction")
+            .and_then(point)
+            .ok_or_else(|| format!("{value} is not an axis line"))?,
         v => point(v).ok_or_else(|| format!("{v} is not an axis"))?,
     };
     let mut d = [0, 1, 2].map(|k| (0..3).map(|j| local[j] * frame[j + 1][k]).sum::<f64>());
