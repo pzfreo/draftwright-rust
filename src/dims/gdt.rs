@@ -977,6 +977,7 @@ impl Obstacles<'_> {
     /// 5 a filled datum triangle overlaps or touches an earlier triangle.
     /// Add the crossing count as the second component: (0, 0) alone is clear, and fewer
     /// crossings win among candidates with otherwise equal clearances.
+    #[inline]
     fn grade(&self, c: &Candidate, best: Option<Grade>) -> Grade {
         let clearance = self.clearance_grade(c);
         // Clearance precedes crossings. A worse clearance, or a crossing count that
@@ -1008,6 +1009,7 @@ impl Obstacles<'_> {
         (clearance, crossings)
     }
 
+    #[inline]
     fn clearance_grade(&self, c: &Candidate) -> u8 {
         // Filled symbols take precedence over soft label/leader contacts. In a
         // dense view every label tier may be obstructed, but another proven site
