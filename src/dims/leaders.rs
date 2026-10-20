@@ -1445,7 +1445,7 @@ fn place_with_obstacles_uncached(
 }
 
 /// Geometry findings are rebuilt when a refinement replaces their route.
-fn route_reports(
+pub(super) fn route_reports(
     item: &Want,
     view_name: &str,
     solids: &[[f64; 4]],

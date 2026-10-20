@@ -5312,13 +5312,19 @@ fn plan_with_presentation(
     // witness chooses its lane. Late replay alone would see that new witness as
     // a reason to evict an unrelated, already clear radius leader.
     let radius_reference = radius_edit_reference(analysis, given);
+    let radius_inventory = radius_reference.as_ref().is_some_and(|r| {
+        r.dimensions.iter().any(|d| {
+            d.placed.is_some()
+                && d.measurements
+                    .iter()
+                    .any(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
+        })
+    });
     let held_for = |views: &[PlannedView]| {
         let mut held = crate::placement_intent::held_dimensions(canonical.as_ref(), views);
         for d in crate::placement_intent::held_dimensions(radius_reference.as_ref(), views) {
-            if d.kind == "callout"
-                && d.measurements
-                    .iter()
-                    .any(|m| matches!(m.parameter.as_str(), "fillet.radius" | "blend.radius"))
+            if radius_inventory
+                && d.kind == "callout"
                 && radius_reference.as_ref().is_some_and(|r| {
                     r.views.iter().any(|old| {
                         old.id == d.view
@@ -6605,9 +6611,26 @@ fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
 /// earlier, pre-polish inventory afresh against a different set of peers. This is
 /// a pure reference, independent of which document happened to be planned first.
 fn radius_edit_reference(analysis: &Analysis, spec: &Spec) -> Option<Plan> {
+    let edited = spec.dimension_source == DimensionSource::Authored
+        || spec.dimensions.values().any(|d| {
+            d.omit
+                || d.tolerance.is_some()
+                || d.fit.is_some()
+                || d.text.is_some()
+                || d.style.is_some()
+                || d.place.as_ref().is_some_and(|p| *p != Default::default())
+        })
+        || spec.features.values().any(|f| f.fit.is_some());
     // Pins already replay the finished recovered drawing in its canonical frame.
     // A second primitive-plan reference can change even a no-op offset tip.
-    if crate::nominal::comparison() || crate::placement_intent::has_pins(spec) {
+    if !edited
+        || crate::nominal::comparison()
+        || crate::placement_intent::has_pins(spec)
+        || !analysis
+            .features
+            .iter()
+            .any(|f| matches!(f.kind.as_str(), "blend" | "fillet"))
+    {
         return None;
     }
     let mut base = spec.clone();
@@ -6636,7 +6659,9 @@ fn radius_edit_reference(analysis: &Analysis, spec: &Spec) -> Option<Plan> {
     ))
     .expect("radius reference inputs serialize");
     crate::planning::memo(analysis, "radius-edit-reference", key, || {
-        plan(analysis, &base).ok()
+        // Do not replace the live candidate's policy/preparation entries,
+        // notably its complete annotation inventory and sheet trials.
+        crate::planning::isolated(analysis, || plan(analysis, &base).ok())
     })
 }
 
@@ -6661,6 +6686,15 @@ fn settle_finished_nominals(
     let original_spec = spec;
     let route_leaders = pass != NominalPass::Linear;
     let radius_only = pass == NominalPass::Radius;
+    if radius_only
+        && !plan.dimensions.iter().any(|d| {
+            d.measurements
+                .iter()
+                .any(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
+        })
+    {
+        return;
+    }
     let mut fixed = crate::centrelines::obstacles(&plan.views);
     fixed.extend(plan.gdt.iter().filter_map(crate::dims::gdt::proxy));
     fixed.extend(plan.tables.iter().filter_map(crate::tables::proxy));
