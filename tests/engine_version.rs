@@ -143,7 +143,7 @@ fn tools_explain_their_operations_without_source_and_fit_schema_budget() {
                 + serde_json::to_vec(&tool["outputSchema"]).unwrap().len()
         })
         .sum();
-    // Exact compact total after moving nested Spec vocabulary out of tools/list.
+    // Compact schema context ceiling after moving nested Spec vocabulary out of tools/list.
     // The generator asserts the same ceiling; nested Spec additions cost no context.
     // In particular the view-gap description adds zero advertised bytes.
     // The projection enum and description are on demand: +0 advertised schema bytes.
@@ -152,7 +152,9 @@ fn tools_explain_their_operations_without_source_and_fit_schema_budget() {
     // because sheet and feature vocabulary is in on-demand schemas/spec.json.
     // Scoped fix alternatives and operation/path scopes add 1,916 bytes; PMI policy and
     // the shallow origin object add 804.
-    assert_eq!(schema_bytes, 37197, "schemas: {schema_bytes} bytes");
+    // Additive finding labels, crossing metadata and summary add 910 measured bytes.
+    // A ceiling permits equivalent schema compaction without pinning output bytes.
+    assert!(schema_bytes <= 38400, "schemas: {schema_bytes} bytes");
     eprintln!("schema bytes per session: {schema_bytes}");
 }
 

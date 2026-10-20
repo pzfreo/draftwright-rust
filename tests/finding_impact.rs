@@ -231,7 +231,7 @@ impl<'ast> Visit<'ast> for Inventory {
             if p.path.segments.iter().any(|s| s.ident == "parameters") && name == "coverage" {
                 values(e.args.first().unwrap(), &mut self.families);
             }
-            // parameters::coverage is the only code template; enumerate its actual states.
+            // Requirement-code templates use these issue closures; enumerate their actual states.
             if self.local_states.contains(&name) && e.args.len() == 4 {
                 let mut states = BTreeSet::new();
                 values(e.args.first().unwrap(), &mut states);
