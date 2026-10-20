@@ -98,6 +98,11 @@ pub fn fmt3(p: [f64; 3]) -> String {
     format!("({})", p.map(fmt).join(", "))
 }
 
+/// A feature's drawing noun, using only recognition evidence available to lint.
+pub(crate) fn feature_name(feature: &Feature) -> String {
+    format!("the {}", feature.kind.replace('_', " "))
+}
+
 /// The findings of *family* (`fillet`, `chamfer`, …) on *wanted*: each requirement the marks do not
 /// state. *noun* describes a feature in messages (`fillet f:fillet:3, R3, …`); *how* says what
 /// states it and where (`a radius callout, in a view that sees its arc`), for the fix.
@@ -167,7 +172,7 @@ pub fn coverage(
         let fix = Some(format!(
             "State {} for {}: {how}.",
             w.callout,
-            crate::wording::feature(w.feature)
+            feature_name(w.feature)
         ));
         issues.push(match claiming.first() {
             Some(m) => issue(
@@ -287,7 +292,7 @@ mod tests {
         );
         assert_eq!(
             issue.fix.as_deref(),
-            Some("State R3 for the R3 fillet: a radius callout, in a view that sees its arc.")
+            Some("State R3 for the fillet: a radius callout, in a view that sees its arc.")
         );
     }
 }

@@ -59,7 +59,7 @@ pub fn coverage(analysis: &Analysis, _marks: &[Mark]) -> Vec<LintIssue> {
                 evidence: None,
                 fix: Some(format!(
                     "Review and dimension the angle, legs and run of {} by hand.",
-                    crate::wording::feature(f)
+                    super::parameters::feature_name(f)
                 )),
             }
         })

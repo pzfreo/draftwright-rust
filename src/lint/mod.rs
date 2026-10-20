@@ -603,7 +603,12 @@ fn uncovered(
         fix: Some(format!(
             "State the {} of {} in a view that shows its true size or location.",
             parameter.replace(['_', '.'], " "),
-            crate::wording::feature_id(analysis, feature)
+            analysis
+                .features
+                .iter()
+                .find(|f| f.id == feature)
+                .map(parameters::feature_name)
+                .unwrap_or_else(|| "the feature".into())
         )),
     }
 }

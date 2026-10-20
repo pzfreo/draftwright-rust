@@ -1126,7 +1126,7 @@ pub fn coverage(analysis: &Analysis, _marks: &[Mark]) -> Vec<LintIssue> {
             evidence: Some(why.reason().into()),
             fix: Some(format!(
                 "Review and dimension the section of {} by hand.",
-                crate::wording::feature(f)
+                super::parameters::feature_name(f)
             )),
         });
     }
