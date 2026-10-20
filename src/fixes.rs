@@ -180,7 +180,11 @@ fn op_description(op: &Op) -> String {
         "sheet/size" => text.map_or_else(|| choose("paper size"), |v| format!("use {v} paper")),
         "sheet/title/tolerance" => text.map_or_else(
             || "remove the general tolerance from the title block".into(),
-            |v| format!("add the general tolerance {v} to the title block"),
+            |v| if v == "UNSPECIFIED" {
+                "mark the general tolerance as UNSPECIFIED in the title block, without choosing a tolerance".into()
+            } else {
+                format!("add the general tolerance {v} to the title block")
+            },
         ),
         "hole_table" => match text.as_deref() {
             Some("always") => "list the holes in a hole table".into(),
@@ -250,19 +254,37 @@ fn op_description(op: &Op) -> String {
 pub(crate) fn placement_description(item: &str, place: &crate::placement_intent::Place) -> String {
     let view = crate::wording::view(place.view.as_deref().unwrap_or("front"));
     if let Some([x, y]) = place.offset {
-        let distance = format!(
-            "{:.1} mm {} and {:.1} mm {}",
-            x.abs(),
-            if x < 0.0 { "left" } else { "right" },
-            y.abs(),
-            if y < 0.0 { "down" } else { "up" }
-        );
+        let components: Vec<_> = [(x, "left", "right"), (y, "down", "up")]
+            .into_iter()
+            .filter_map(|(value, negative, positive)| {
+                let amount = crate::dims::fmt(value.abs());
+                (amount != "0").then(|| {
+                    format!(
+                        "{amount} mm {}",
+                        if value < 0.0 { negative } else { positive }
+                    )
+                })
+            })
+            .collect();
+        let distance = components.join(" and ");
         return if item.ends_with("callout") {
-            format!("Place the leader bend of {item} {distance} from its tip in {view}.")
+            if components.is_empty() {
+                format!("Move the leader bend of {item} to its tip, in {view}.")
+            } else {
+                format!("Move the leader bend of {item} {distance} from its tip, in {view}.")
+            }
+        } else if components.is_empty() {
+            format!("Keep {item} where draftwright placed it, in {view}.")
         } else {
-            format!("Place {item} {distance} from the position chosen by draftwright in {view}.")
+            let relation = if crate::dims::fmt(y.abs()) == "0" {
+                "of"
+            } else {
+                "from"
+            };
+            format!("Move {item} {distance} {relation} where draftwright placed it, in {view}.")
         };
     }
+
     let Some(side) = place.side else {
         return format!("Let draftwright position {item}.");
     };
@@ -456,6 +478,10 @@ mod tests {
                 "Add the general tolerance ISO 2768-mK to the title block.".to_string(),
             ),
             (
+                vec![Op::set("sheet/title/tolerance", "UNSPECIFIED".into())],
+                "Mark the general tolerance as UNSPECIFIED in the title block, without choosing a tolerance.".to_string(),
+            ),
+            (
                 vec![Op::remove("sheet/scale")],
                 format!("Let draftwright choose the scale. {SHEET_CONSEQUENCE}"),
             ),
@@ -500,8 +526,50 @@ mod tests {
         .unwrap();
         assert_eq!(
             placement_description("the Ø8 callout", &place),
-            "Place the leader bend of the Ø8 callout 4.0 mm left and 6.0 mm up from its tip in the front view."
+            "Move the leader bend of the Ø8 callout 4 mm left and 6 mm up from its tip, in the front view."
         );
+    }
+
+    #[test]
+    fn offsets_use_drawing_numbers_and_omit_zero_components() {
+        for (item, offset, expected) in [
+            (
+                "the 404.441 dimension",
+                [-14.0, 0.0],
+                "Move the 404.441 dimension 14 mm left of where draftwright placed it, in the plan view.",
+            ),
+            (
+                "the C1.134 callout",
+                [-3.9, -0.3],
+                "Move the leader bend of the C1.134 callout 3.9 mm left and 0.3 mm down from its tip, in the plan view.",
+            ),
+            (
+                "the 20 dimension",
+                [-0.0, 2.375],
+                "Move the 20 dimension 2.375 mm up from where draftwright placed it, in the plan view.",
+            ),
+            (
+                "the Ø8 callout",
+                [0.0, 5.0],
+                "Move the leader bend of the Ø8 callout 5 mm up from its tip, in the plan view.",
+            ),
+            (
+                "the 20 dimension",
+                [0.0, 0.0],
+                "Keep the 20 dimension where draftwright placed it, in the plan view.",
+            ),
+            (
+                "the Ø8 callout",
+                [0.0, 0.0],
+                "Move the leader bend of the Ø8 callout to its tip, in the plan view.",
+            ),
+        ] {
+            let place = serde_json::from_value(
+                serde_json::json!({"view":"plan", "offset":offset,"pinned":true}),
+            )
+            .unwrap();
+            assert_eq!(placement_description(item, &place), expected);
+        }
     }
 
     #[test]
