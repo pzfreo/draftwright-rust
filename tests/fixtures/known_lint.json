@@ -389,44 +389,44 @@
     {
       "part": "cgb245",
       "code": "radius_leader_not_radial",
-      "count": 2,
+      "count": 1,
       "verdict": "rust-correct",
-      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, open-centre approach rule."
+      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, non-material-side approach rule."
     },
     {
       "part": "ctc01",
       "code": "radius_leader_not_radial",
-      "count": 2,
+      "count": 1,
       "verdict": "rust-correct",
-      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, open-centre approach rule."
+      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, non-material-side approach rule."
     },
     {
       "part": "ftc06",
       "code": "radius_leader_not_radial",
       "count": 2,
       "verdict": "rust-correct",
-      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, open-centre approach rule."
+      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, non-material-side approach rule."
     },
     {
-      "part": "hanger",
+      "part": "m1000",
       "code": "radius_leader_not_radial",
       "count": 1,
       "verdict": "rust-correct",
-      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, open-centre approach rule."
+      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, non-material-side approach rule."
     },
     {
       "part": "spool132",
       "code": "radius_leader_not_radial",
       "count": 1,
       "verdict": "rust-correct",
-      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, open-centre approach rule."
+      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, non-material-side approach rule."
     },
     {
       "part": "string_post",
       "code": "radius_leader_not_radial",
       "count": 1,
       "verdict": "rust-correct",
-      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, open-centre approach rule."
+      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, non-material-side approach rule."
     }
   ],
   "ledgers": [
