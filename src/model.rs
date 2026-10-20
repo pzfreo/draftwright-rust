@@ -7028,6 +7028,36 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
             object.remove(last.as_str()).ok_or_else(absent)?;
         }
     }
+    // A later explicit allocation edit supersedes an inherited local promise.
+    // An explicit keep_layout in this batch still wins (including offered local
+    // bundles), so contradictory local requests remain transactional refusals.
+    if spec.sheet.keep_layout == Some(true) {
+        let explicit_guard = ops.iter().any(|op| {
+            matches!(
+                op["path"].as_str().map(|p| p.trim_matches('/')),
+                Some("sheet/keep_layout" | "sheet")
+            )
+        });
+        let allocation_edit = ops.iter().any(|op| {
+            matches!(
+                op["path"].as_str().map(|p| p.trim_matches('/')),
+                Some(
+                    "sheet/size"
+                        | "sheet/scale"
+                        | "sheets"
+                        | "sheets/max"
+                        | "sheets/smallest_scale"
+                        | "sheet/preferred_printer"
+                )
+            )
+        });
+        if !explicit_guard && allocation_edit {
+            doc["sheet"]
+                .as_object_mut()
+                .expect("sheet is an object")
+                .remove("keep_layout");
+        }
+    }
     let spec: Spec = serde_json::from_value(doc)
         .map_err(|e| invalid(format!("The edited spec is not valid: {e}."), &[]))?;
     crate::sheets::validate(&spec)?;

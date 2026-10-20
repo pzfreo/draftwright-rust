@@ -43,7 +43,7 @@ fn description(tool: &str) -> &'static str {
             "Read one stable item id: label, state, value, explanation (basis) and allowed operations. Supply part_ref plus spec or spec_version. detail=true includes resolved geometry, anchors and features. IDs accept sheet:<n>/<id>; a wrong sheet offers the correct address. An absent sheet means sheet 1. Unknown IDs return nearest valid IDs."
         }
         "list_problems" => {
-            "List drawing problems by code, severity, subject item ID or feature ID (all its dimensions/annotations) for part_ref plus spec or spec_version. Follow next_cursor for all problems. Rows include fixes ordered local, view, sheet, each with scope, description and ops; fix retains the preferred bundle. Descriptions state the changes; sheet remedies warn that the whole sheet is laid out again and hand placements may change. detail=true adds explanations. Use filter.feature for one query covering a whole feature."
+            "List drawing problems by code, severity, subject item ID or feature ID (all its dimensions/annotations) for part_ref plus spec or spec_version. Follow next_cursor for all problems. Rows include fixes ordered local, view, sheet, each with scope, description and ops; fix retains the preferred bundle. Oversized rows keep the preferred fix with scope and description; detail_ref reads all alternatives. Descriptions state the changes; sheet remedies warn that the whole sheet is laid out again and hand placements may change. detail=true adds explanations. Use filter.feature for one query covering a whole feature."
         }
         "item_options" => {
             "Get every settable Spec path with choices, ranges and tolerance forms, compatible view anchors, scales and relative placements for an item id in part_ref plus spec or spec_version. IDs accept sheet:<n>/<id>. Views offer move_to_sheet at views/<name>/sheet with choices and keep_together/relative_to consequences. Linear dimensions accept only sides parallel to their span. Fits use features/<feature-id>/fit, not dimension tolerance; classes are valid for the feature kind and diameter. Datums and GD&T frames use features/<feature-id>/datum (a letter) and features/<feature-id>/controls (a list of {characteristic, tolerance, datums?, diameter?, modifier?}); finish {ra, removal?}, thread {designation, length?}, knurl {pattern, pitch} and note (text) sit beside them, and sheet/default_finish on the sheet. Descriptors with paths share choices across all those paths. View/sheet hidden, centre_marks, centre_lines, thread_depiction and knurl_depiction are booleans; view settings win. Combine place subfields into one place object when setting a view relation. For projected gaps use align=projection (front with plan/side, either direction): geometry stays aligned across side, gap is between areas including bands. Related anchors offer it first. Use a recognised feature or pattern id (f:...) to query recognition controls: features/<id>/reclassify, suppress, split or pattern {arrangement, members}; add {id, kind, faces} to feature_declarations. Sheet options explain declarations; item_options with id face:<index> reads one face fingerprint. Options are candidates; preview_ops checks their effects. Large replies keep full structuredContent; the text channel gives a lossless detail_ref readable with resources/read {uri:draftwright:<detail_ref>}."
@@ -291,6 +291,21 @@ fn small(cache: &Cache, row: Value) -> Result<Value, Error> {
         return Ok(row);
     }
     let detail = cache.artifact(&serde_json::to_vec(&row).unwrap(), "json")?;
+    // Keep a problem actionable when verbose alternatives exceed the row budget.
+    // Its preferred bundle still carries scope and the complete trade description;
+    // the resource retains all alternatives and explanations losslessly.
+    if row.get("code").is_some() && row.get("subjects").is_some() {
+        let mut summary = json!({"id":row["id"],"code":row["code"],
+            "severity":row["severity"],"subjects":row["subjects"],"detail_ref":detail});
+        if let Some(preferred) = row["fixes"].as_array().and_then(|fixes| fixes.first()) {
+            summary["fix"] = preferred["ops"].clone();
+            summary["scope"] = preferred["scope"].clone();
+            summary["description"] = preferred["description"].clone();
+        }
+        if value_bytes(&summary) < PAGE_BYTES / 4 {
+            return Ok(summary);
+        }
+    }
     let id = row
         .get("id")
         .or_else(|| row.pointer("/item/id"))

@@ -33,6 +33,10 @@ a clean alternative before returning that disclosed trade. Errors are rejected r
 than offered. This limits verification cost. Actual apply remains authoritative for
 interactions with other placements and information retention.
 
+A later explicit paper, scale or sheet-count edit releases an inherited
+`sheet/keep_layout` guard. Setting the boolean explicitly in that same batch keeps
+the local promise and refuses conflicting sheet choices. Thus stateless edits can
+progress from a local repair to an intentional sheet change without a hidden lock.
 Set `sheet/keep_layout` to false or remove it to resume automatic layout. A sheet fix
 includes removal when necessary and says: “The whole sheet is laid out again, so
 placements you have moved by hand may change.” Multi-sheet or conflicting authored
@@ -42,3 +46,8 @@ paper/scale remedies are conservatively offered as sheet fixes.
 paper, scale, count and view frames. Preview reports changes without committing.
 Notices describe the edit and are separate from reproducible drawing findings;
 delta replay and reconstruction from the Spec remain identical.
+
+MCP problem pages retain the preferred operations, scope and complete description
+when the full list of alternatives exceeds a row's byte budget. `detail_ref` reads
+all alternatives and explanations; a verbose trade must not hide the problem's
+code or actionable bundle behind an ID-only row.

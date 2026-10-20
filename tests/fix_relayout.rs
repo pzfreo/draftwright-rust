@@ -624,3 +624,27 @@ fn local_intent_is_boolean_and_missing_information_refuses_preview_and_commit() 
         "page snapshots are not Spec intent"
     );
 }
+
+#[test]
+fn an_explicit_sheet_edit_releases_an_inherited_local_promise() {
+    let mut s = session();
+    let (_, ops) = b_crossings(&s);
+    s.apply(&ops, true).unwrap();
+    assert_eq!(s.spec().sheet.keep_layout, Some(true));
+    let retained = s.spec().clone();
+    let ops = vec![draftwright::items::Op::set("sheet/scale", "1:2".into())];
+    let edited = model::edit(&retained, &serde_json::to_value(&ops).unwrap()).unwrap();
+    assert_eq!(edited.sheet.keep_layout, None);
+    let preview = s.apply(&ops, false).unwrap();
+    assert_eq!(s.spec(), &retained);
+    assert!(preview.notices.iter().any(|p| p.code == "layout_replanned"));
+    let delta = s.apply(&ops, true).unwrap();
+    assert_eq!(s.spec().sheet.keep_layout, None);
+    assert_eq!(s.plan().sheet.scale, "1:2");
+    assert_eq!(delta.notices, preview.notices);
+    let rebuilt = model::plan_recovered(s.analysis(), &edited).unwrap();
+    assert_eq!(
+        serde_json::to_value(&rebuilt).unwrap(),
+        serde_json::to_value(s.plan()).unwrap()
+    );
+}

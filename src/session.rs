@@ -1608,7 +1608,7 @@ fn settable(
         }
     }
     if item.item.kind == "sheet" {
-        fields.insert("sheet/keep_layout".into(), json!({"choices":[true,false],"forms":["true with sheet/size, sheet/scale and sheets/max=1", "false or remove to allow the whole sheet to be laid out again, including hand-moved placements"], "consequences":["Keeps explicit paper, scale and sheet count without automatic selection or refitting; moved views are reported."]}));
+        fields.insert("sheet/keep_layout".into(), json!({"choices":[true,false],"forms":["true with sheet/size, sheet/scale and sheets/max=1", "false or remove to allow the whole sheet to be laid out again, including hand-moved placements", "a later explicit paper, scale or sheet-count edit releases an inherited guard; setting keep_layout in that batch retains it"], "consequences":["Keeps explicit paper, scale and sheet count without automatic selection or refitting; moved views are reported."]}));
         fields.insert(
             "sheet/size".into(),
             choices(json!(crate::layout::PAGES.map(|p| p.0))),

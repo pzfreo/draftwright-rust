@@ -286,6 +286,90 @@ fn one_feature_problem_query_returns_all_member_fixes() {
     );
 }
 
+// A verbose scoped remedy must not turn a real warning into an ID-only row.
+// Follow the public default bundle plus the editor's explicit opposite-side
+// placement, as a client fixing every problem involving this feature does.
+#[test]
+fn verbose_feature_problem_stays_actionable_and_can_be_cleared() {
+    let (cache, summary) = open("actionable-feature", "ctc01");
+    let query = json!({"part_ref":summary["part_ref"],
+        "spec_version":summary["spec_version"],"problem_filter":{"feature":"f:slot:1"}});
+    let inspected = call(&cache, "inspect_part", query);
+    let rows = inspected["problem_page"]["items"].as_array().unwrap();
+    assert_eq!(rows.len(), 1);
+    let row = &rows[0];
+    assert_eq!(row["code"], "extension_through_feature");
+    assert!(
+        row["subjects"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("f:slot:1"))
+    );
+    let mut ops = row["fix"]
+        .as_array()
+        .expect("inline actionable fix")
+        .clone();
+    assert!(!ops.is_empty());
+    if row.get("detail_ref").is_some() {
+        assert_eq!(row["scope"], "local");
+        assert!(row["description"].as_str().unwrap().contains("Trade-off:"));
+    }
+    let answer = call(
+        &cache,
+        "get_item",
+        json!({"part_ref":summary["part_ref"],
+        "spec_version":summary["spec_version"],"id":row["subjects"][0],"detail":true}),
+    );
+    let p = &answer["item"]["placement"]["geometry"];
+    let line: usize = row["id"]
+        .as_str()
+        .unwrap()
+        .rsplit(':')
+        .next()
+        .unwrap()
+        .parse()
+        .unwrap();
+    let horizontal = p["rotation"].as_f64().unwrap().rem_euclid(180.0).abs() < 1e-6;
+    let k = usize::from(horizontal);
+    let outward =
+        p["lines"][line][1][k].as_f64().unwrap() > p["lines"][line][0][k].as_f64().unwrap();
+    let side = match (horizontal, outward) {
+        (true, true) => "below",
+        (true, false) => "above",
+        (false, true) => "left",
+        (false, false) => "right",
+    };
+    let id = row["subjects"][0].as_str().unwrap();
+    ops.push(
+        json!({"op":"set","path":format!("dimensions/{}/place", draftwright::items::key(id)),
+        "value":{"view":answer["item"]["item"]["view"].as_str().unwrap().trim_start_matches("v:"),
+        "side":side,"lane":0}}),
+    );
+    let applied = call(
+        &cache,
+        "apply_ops",
+        json!({"part_ref":summary["part_ref"],
+        "parent":summary["spec_version"],"ops":ops}),
+    );
+    let remaining = call(
+        &cache,
+        "list_problems",
+        json!({"part_ref":summary["part_ref"],
+        "spec_version":applied["spec_version"],"filter":{"feature":"f:slot:1"}}),
+    );
+    assert_eq!(remaining["total"], 0, "{remaining}");
+    let delta: Value = serde_json::from_slice(
+        &cache
+            .artifact_bytes(applied["delta_ref"].as_str().unwrap())
+            .unwrap(),
+    )
+    .unwrap();
+    assert!(
+        delta["removed"].as_array().unwrap().is_empty(),
+        "no dimension is hidden"
+    );
+}
+
 #[test]
 fn inspection_batches_a_filtered_problem_page_with_registration() {
     let (cache, summary) = open("inspect-problems", "ctc01");
