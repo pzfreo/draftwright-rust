@@ -8,6 +8,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- Pinned group callouts attach to the member nearest their elbow, retaining the automatic
+  member on ties (#149). Offsets still use the automatic tip; existing label positions stay put.
+
 - Declared STEP AP242 and Spec datums draw without a control-frame citation (#141, alpha.11),
   using the existing datum-symbol placer. `sheet/uncited_datums: false` hides uncited symbols;
   `annotations/<id>/omit` hides individual symbols. Omitted symbols retain provenance in the
@@ -27,6 +30,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
   Conflicting dimension ownership returns an Invalid error; malformed projected spline
   arrays use the existing `edges_not_drawn` Problem. Hostile requests and subsequent valid
   edits/renders run in the browser parity job.
+
+### WASM API
+
+- Add `members: [{centre: [x,y], radius, span?: {start, sweep}}]` to `calloutOffset`
+  and `Session::callout_offset` (#149). Sites use paper mm, y up; arc spans are
+  counterclockwise radians. Existing fields and WASM method signatures are unchanged.
 
 ## 0.1.0-alpha.10 (2026-10-20)
 

@@ -99,6 +99,25 @@ pub struct CalloutOffset {
     /// The callout's bend as drawn now.
     pub bend: [f64; 2],
     pub offset: [f64; 2],
+    /// Projected attachment sites used by the leader, in paper mm (y up).
+    #[serde(default)]
+    pub members: Vec<CalloutMember>,
+}
+
+/// A callout attachment site in the current page frame.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CalloutMember {
+    pub centre: [f64; 2],
+    pub radius: f64,
+    /// Present for an arc: counterclockwise angles in radians.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub span: Option<CalloutSpan>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CalloutSpan {
+    pub start: f64,
+    pub sweep: f64,
 }
 
 /// A linear label and its canonical anchor in paper mm (y up), in the current view frame.
@@ -531,7 +550,8 @@ impl Session {
             .collect())
     }
     /// The callout's bend against its automatic leader tip, for pinning a drag with
-    /// `place.offset`. Reads planning metadata only, without planning or projecting. Refuses a
+    /// `place.offset`, with its projected attachment members. Does not plan or project model
+    /// edges. Refuses a
     /// non-callout, or a callout with no automatic placement or not drawn in that view.
     pub fn callout_offset(&self, address: &str) -> Result<CalloutOffset, Error> {
         let item = self.item(address)?;
@@ -558,6 +578,13 @@ impl Session {
             tip,
             bend,
             offset: [bend[0] - tip[0], bend[1] - tip[1]],
+            members: crate::dims::callout_members(
+                &self.analysis,
+                self.spec(),
+                self.plan(),
+                id,
+                view,
+            ),
         })
     }
     /// The linear label's displacement from its canonical position, without replanning.
