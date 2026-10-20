@@ -1548,7 +1548,7 @@ modifiers?, default, basis, placed}` (`surface_finish` added by F2, draftwright-
   datums no control frame cites (for example Specify ± mode measurement origins). Set
   `sheet/uncited_datums: false` to hide only uncited symbols; `true` (the default) draws them.
   Set `annotations/<id>/omit: true` to hide any individual datum, using its stable ID from
-  `plan().gdt`. Hidden symbols remain there with `state: "omitted_by_user"`, source, faces,
+  `plan().gdt`. Hidden symbols remain there with `state: {"kind": "omitted_by_user"}`, source, faces,
   and an explanatory basis. `pmi().unresolved` explains the omission or attachment/placement
   failure until the symbol is drawn; it never returns an empty reason.
   Each datum whose faces are all planes, or all cylinders, on one
@@ -1580,7 +1580,11 @@ modifiers?, default, basis, placed}` (`surface_finish` added by F2, draftwright-
   comparison), so a greedy move cannot crowd later frames into overlaps. If the full
   rearrangement fails this guard, datum changes are tried alone. Unavoidable
   collisions stay visible and are reported. Notes and tables keep clear of the frames.
-  Explicit coordinates retain their strip/tier behavior; pins keep their resolved geometry.
+  Newly drawn uncited datums with remaining leader crossings also try the same placer with
+  cylinders first and exact clearance grading in narrow shoulder gaps, leaving that space
+  to them before planar symbols. This reuses the existing attachment sites and tiers.
+  Override the automatic attachment/view/tier with `annotations/<id>/place`; explicit
+  coordinates retain their strip/tier behavior and pins keep their resolved geometry.
   An empty `place: {}` reset restores automatic placement, including inside datum tiers.
 - **Render**: strokes for the frame, the symbols and rings, the font's glyphs for letters and
   numbers (`⌀` drawn as a ring and a stroke, `S⌀` as `Sø`), and one invisible text run per

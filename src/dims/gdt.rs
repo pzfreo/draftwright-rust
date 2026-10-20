@@ -1245,6 +1245,7 @@ pub(crate) fn plan_anchored(
         Search::Baseline,
         Search::All,
         Search::Datums,
+        Search::Uncited,
         Search::Separate,
     ];
     let score = |candidate: &(Vec<PlannedGdt>, Vec<Problem>)| {
@@ -1282,6 +1283,15 @@ pub(crate) fn plan_anchored(
     let mut best = seed;
     let mut original = true;
     for search in searches {
+        // Newly visible uncited datums can occupy a narrow shoulder beside a planar
+        // datum. Try the same placer with cylinders first only when that new output
+        // still has contacts; cited-only drawings keep their existing search sequence.
+        if search == Search::Uncited
+            && ((best_score.0 == 0 && best_score.1 == 0)
+                || !matches!(&analysis.pmi, Some(crate::pmi::Reading::Read(report)) if report.records.iter().any(|r| r.category == crate::pmi::Category::Datum && !report.records.iter().any(|t| t.category == crate::pmi::Category::GeometricTolerance && t.datum_refs.iter().any(|d| d.trim() == r.label.trim())))))
+        {
+            continue;
+        }
         if search == Search::Separate && (seed_overlaps == 0 || best_score.0 == 0) {
             continue;
         }
@@ -1334,6 +1344,7 @@ enum Search {
     All,
     Separate,
     Baseline,
+    Uncited,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1422,6 +1433,11 @@ fn plan_search(
     // A plane has one outward side; a cylinder can try both silhouettes. Place
     // the constrained planar datum first in the compact search so a movable
     // cylinder does not consume its only clear shoulder band.
+    let first_surface = if search == Search::Uncited {
+        "cylinder"
+    } else {
+        "plane"
+    };
     items.sort_by(|a, b| {
         let order = if outward(a.side)[0] == 0.0 {
             across(b).total_cmp(&across(a))
@@ -1435,7 +1451,7 @@ fn plan_search(
                 .and_then(|a| a.place.as_ref())
                 .is_some_and(|p| p.pinned),
             a.view,
-            protect && !matches!(&a.glyph, Glyph::Datum { surface, .. } if surface == "plane"),
+            protect && !matches!(&a.glyph, Glyph::Datum { surface, .. } if surface == first_surface),
             a.side,
         )
             .cmp(&(
@@ -1445,7 +1461,7 @@ fn plan_search(
                     .and_then(|a| a.place.as_ref())
                     .is_some_and(|p| p.pinned),
                 b.view,
-                protect && !matches!(&b.glyph, Glyph::Datum { surface, .. } if surface == "plane"),
+                protect && !matches!(&b.glyph, Glyph::Datum { surface, .. } if surface == first_surface),
                 b.side,
             ))
             .then(order)
@@ -1718,7 +1734,17 @@ fn plan_search(
                 };
                 for side in choices {
                     let positions = if inside && datum {
-                        inside_tiers(side, *tip, frame.outline(), laid.size, &ink, protect)
+                        // The uncited fallback lets exact obstacle grading test a narrow
+                        // shoulder gap that the conservative first-stroke band rejects.
+                        // All original sites and tiers are reused; crossings still lose.
+                        inside_tiers(
+                            side,
+                            *tip,
+                            frame.outline(),
+                            laid.size,
+                            if search == Search::Uncited { &[] } else { &ink },
+                            protect,
+                        )
                     } else if inside {
                         // Frame ink can fit between the face and the first
                         // dimension lane too. Exact obstacle grading, including

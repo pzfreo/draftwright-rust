@@ -304,6 +304,14 @@ fn grm03_declared_origin_datums_have_symbols_without_a_tolerance_citation() {
         .collect();
     assert_eq!(datums.len(), 2, "every declared datum is author intent");
     assert!(datums.iter().all(|g| g.placed.is_some()));
+    assert!(
+        plan.problems.iter().all(|p| !matches!(
+            p.code.as_str(),
+            "annotation_leader_crossing" | "annotation_overlap" | "annotation_ink_overlap"
+        )),
+        "{:#?}",
+        plan.problems
+    );
 }
 
 #[test]
