@@ -3020,14 +3020,17 @@ fn plan_inventory_ordered(
             || matches!(w.shape, Shape::Callout { .. })
                 && w.measurements.iter().any(|m| {
                     m.feature.starts_with("f:section_recess:")
-                        || m.feature.starts_with("f:modelled_thread:")
+                        || (m.feature.starts_with("f:modelled_thread:")
+                            && matches!(&w.shape, Shape::Callout { sites, .. }
+                                if sites.iter().any(|(_, radius)| *radius > 0.)))
                 })
         {
             prior[i] = None;
         }
     }
-    // Existing leaders claim their corridors before newly added feature callouts.
-    // Place those callouts around the settled ink with the same shared solver.
+    // Existing leaders claim their corridors before added recess and circular
+    // thread callouts. Profile callouts stay in the original joint assignment;
+    // moving them afterwards can force their leaders through neighbouring holes.
     let recess_linear: Vec<_> = if recess_context {
         all.iter()
             .enumerate()
