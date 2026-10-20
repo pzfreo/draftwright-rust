@@ -1550,7 +1550,9 @@ modifiers?, default, basis, placed}` (`surface_finish` added by F2, draftwright-
   Set `annotations/<id>/omit: true` to hide any individual datum, using its stable ID from
   `plan().gdt`. Hidden symbols remain there with `state: {"kind": "omitted_by_user"}`, source, faces,
   and an explanatory basis. `pmi().unresolved` explains the omission or attachment/placement
-  failure until the symbol is drawn; it never returns an empty reason.
+  failure until the symbol is drawn; it never returns an empty reason. Rendered drawings
+  retain explicit omission provenance, and coverage reports `pmi_datum_suppressed` (info)
+  without counting the hidden symbol as drawn.
   Each datum whose faces are all planes, or all cylinders, on one
   principal plane or axis: in the view that sees it edge-on (x and z: front; y: side; a y-normal
   plane goes to the plan when the side view is not drawn), on the side its outward normal points

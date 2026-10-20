@@ -11,7 +11,7 @@ All notable changes to draftwright-rust are recorded here, in the style of
 - Declared STEP AP242 and Spec datums draw without a control-frame citation (#141, alpha.11),
   using the existing datum-symbol placer. `sheet/uncited_datums: false` hides uncited symbols;
   `annotations/<id>/omit` hides individual symbols. Omitted symbols retain provenance in the
-  plan, and unresolved PMI always explains why it is not drawn.
+  plan and drawing, and unresolved PMI always explains why it is not drawn.
 
 - Browser input refusals (#134, alpha.11): reject over-deep edit paths before recursive JSON
   construction and gutters beyond the largest supported sheet before layout allocation.
