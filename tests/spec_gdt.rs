@@ -440,7 +440,7 @@ fn frameless_spec_plate_datums_are_drawn_on_their_faces() {
 fn uncited_datums_can_be_hidden_and_individually_omitted() {
     let (part, a) = frameless_plate();
     let s = draftwright::session::Session::new(
-        part.clone(),
+        part,
         a.clone(),
         spec(json!({"sheet": {"uncited_datums": false}})),
     )
@@ -470,6 +470,7 @@ fn uncited_datums_can_be_hidden_and_individually_omitted() {
         .into_iter()
         .find(|d| d.label == "B")
         .unwrap();
+    let (part, _) = frameless_plate();
     let omitted_session = draftwright::session::Session::new(
         part,
         a.clone(),

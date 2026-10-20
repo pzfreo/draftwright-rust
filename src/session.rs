@@ -891,6 +891,14 @@ impl Session {
                             record.kind, record.source_id
                         )
                     };
+                    let reason = if reason.trim().is_empty() {
+                        format!(
+                            "{} ({}) has no supported drawing representation",
+                            record.kind, record.source_id
+                        )
+                    } else {
+                        reason
+                    };
                     unresolved.push(serde_json::json!({"source_id":record.source_id,"label":record.label,"kind":record.kind,"reason":reason}));
                 }
                 for (feature_id, label, kind) in ids {

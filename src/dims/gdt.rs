@@ -855,7 +855,7 @@ fn separated_sites(
         .filter(|i| matches!(i.glyph, Glyph::Datum { .. }))
     {
         let entry = spec.annotations.get(&item.id);
-        if entry.is_some_and(|p| p.omit) {
+        if entry.is_some_and(|p| p.omit) || datum_omission(analysis, spec, item).is_some() {
             continue;
         }
         let intent = entry.and_then(|p| p.place.as_ref());
@@ -1108,6 +1108,7 @@ pub(crate) fn demand_with_spec(
         .collect();
     items
         .iter()
+        .filter(|item| datum_omission(analysis, spec, item).is_none())
         .map(|item| {
             let shape = Shape::of(&item.glyph);
             let datum = shape == Shape::Datum;
@@ -1531,20 +1532,7 @@ fn plan_search(
             state: State::not_drawable("pmi_not_drawn"),
             placed: None,
         };
-        let datum_omission = if datum
-            && (spec.sheet.uncited_datums == Some(false)
-                || spec.annotations.get(&item.id).is_some_and(|a| a.omit))
-            && let Some(crate::pmi::Reading::Read(report)) = &analysis.pmi
-        {
-            report
-                .records
-                .iter()
-                .find(|r| r.source_id == item.source)
-                .and_then(|r| crate::spec_gdt::datum_omission(spec, report, r))
-        } else {
-            None
-        };
-        if let Some(reason) = datum_omission {
+        if let Some(reason) = datum_omission(analysis, spec, &item) {
             planned.state = State::OmittedByUser;
             planned.basis += &format!("; {reason}");
             out.push(planned);
@@ -2304,6 +2292,24 @@ pub fn placement_options(
             ))
         })
         .collect()
+}
+
+/// Explicit datum visibility intent, shared by strip demand and symbol placement.
+fn datum_omission(analysis: &Analysis, spec: &Spec, item: &Lowered) -> Option<&'static str> {
+    if !matches!(item.glyph, Glyph::Datum { .. })
+        || (spec.sheet.uncited_datums != Some(false)
+            && !spec.annotations.get(&item.id).is_some_and(|a| a.omit))
+    {
+        return None;
+    }
+    let Some(crate::pmi::Reading::Read(report)) = &analysis.pmi else {
+        return None;
+    };
+    report
+        .records
+        .iter()
+        .find(|r| r.source_id == item.source)
+        .and_then(|r| crate::spec_gdt::datum_omission(spec, report, r))
 }
 
 #[cfg(test)]
