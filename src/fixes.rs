@@ -520,6 +520,7 @@ fn attach_inner(analysis: &crate::model::Analysis, plan: &mut crate::model::Plan
         None
     };
     let snapshot = plan.clone();
+    let trials = crate::dims::LocalFixTrials::default();
     for problem in plan.problems.iter_mut().filter(|p| relevant(p)) {
         // finish() can run more than once; don't duplicate earlier remedies.
         if problem
@@ -539,7 +540,7 @@ fn attach_inner(analysis: &crate::model::Analysis, plan: &mut crate::model::Plan
                 .first()
                 .is_some_and(|id| plan.dimensions.iter().any(|d| &d.id == id)))
             && let Some(fix) =
-                crate::dims::local_placement_fix(analysis, &snapshot, problem, &options)
+                crate::dims::local_placement_fix(analysis, &snapshot, problem, &options, &trials)
         {
             local.push(fix);
         }

@@ -23,7 +23,8 @@ that its withdrawn leaders would still require the same table. Those alternative
 are conservatively sheet scope; edits on independent carriers can remain local.
 
 Existing bounded placement trials compare the before/after inventory and findings
-on settled ink without invoking a recovered planner per alternative. New findings
+on settled ink without invoking a recovered planner per alternative. Offers on the same
+immutable drawing share their baseline collision check and material footprints. New findings
 of any code are included in the alternative's description, with their messages and
 codes. After finding a trade, the search checks at most three further candidates for
 a clean alternative before returning that disclosed trade. Errors are rejected rather

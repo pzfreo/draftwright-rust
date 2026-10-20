@@ -4213,6 +4213,14 @@ pub(crate) fn placement_options_with_spec(
         .collect()
 }
 
+/// All remedies on one immutable drawing share their baseline and material footprints.
+/// Candidate geometry stays private to each trial; no planner result is cached here.
+#[derive(Default)]
+pub(crate) struct LocalFixTrials {
+    cache: footprints::Cache,
+    before: std::cell::OnceCell<Vec<Problem>>,
+}
+
 /// Check existing placement intents against settled ink, without planning a sheet.
 /// This is remedy validation only: it never installs the trial geometry.
 pub(crate) fn local_placement_fix(
@@ -4220,6 +4228,7 @@ pub(crate) fn local_placement_fix(
     plan: &crate::model::Plan,
     problem: &Problem,
     options: &BTreeMap<String, Value>,
+    trials: &LocalFixTrials,
 ) -> Option<crate::fixes::Fix> {
     use crate::placement_intent::{Along, Place, Slot};
     let mut raw = wants(analysis).0;
@@ -4229,9 +4238,11 @@ pub(crate) fn local_placement_fix(
     detail_routes(analysis, &mut raw, &plan.views);
     let mut all = plan.dimensions.clone();
     all.extend(plan.gdt.iter().filter_map(gdt::proxy));
-    let cache = footprints::Cache::default();
+    let cache = &trials.cache;
     let same = |a: &Problem, b: &Problem| a.code == b.code && a.subjects == b.subjects;
-    let before = recheck_cached(analysis, plan, &cache);
+    let before = trials
+        .before
+        .get_or_init(|| recheck_cached(analysis, plan, cache));
     if !before.iter().any(|p| same(p, problem)) {
         return None;
     }
@@ -4310,7 +4321,7 @@ pub(crate) fn local_placement_fix(
                     return None;
                 }
                 let after =
-                    placement::collisions_for(analysis, &all, sheet, &plan.views, &cache, id);
+                    placement::collisions_for(analysis, &all, sheet, &plan.views, cache, id);
                 if after.iter().any(|p| same(p, problem))
                     || after
                         .iter()
