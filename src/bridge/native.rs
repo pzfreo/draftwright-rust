@@ -1,10 +1,10 @@
-//! Native recognition/3 reader. Unified section recesses and their patterns use the same
+//! Native recognition/3 and recognition/4 reader. Unified section recesses and their patterns use the same
 //! parameters, constituent faces, feature IDs and grammar as the Python bridge. Source
 //! recess families are represented by this projection; source refusals remain lint evidence.
 //! Step levels and risers are retained as evidence, as on the bridge path.
 //! Oriented chamfers supply true normal-section bevels; radial profiles remain evidence only.
 //!
-//! The document is read fail-closed (ADR3-4): one schema version ([`SCHEMA_VERSION`]), the STEP
+//! The document is read fail-closed (ADR3-4): checked schema versions ([`SCHEMA_VERSIONS`]), the STEP
 //! file's coordinates, the part's face count, and only the families and record types that schema
 //! has ([`FAMILIES`]); anything else is refused, not guessed at. A record taken here that lists
 //! fields left in the part's own frame (`local`, schema 2) is refused too: those fields are not in
@@ -57,7 +57,9 @@ use serde_json::{Map, Value};
 use super::{FINGERPRINT_VERSION, Feature, Fingerprint, HolePattern, QHolePattern};
 
 /// The one document schema this reader knows.
-pub const SCHEMA_VERSION: &str = "quiddity-rust/recognition/3";
+pub const SCHEMA_VERSION: &str = "quiddity-rust/recognition/4";
+/// Alpha.8 keeps v3 for documents without thread records or thread refusals.
+pub const SCHEMA_VERSIONS: &[&str] = &["quiddity-rust/recognition/3", SCHEMA_VERSION];
 
 /// The identity frame: the document's coordinates are the part's.
 pub const IDENTITY: [[f64; 3]; 4] = [[0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
@@ -113,6 +115,7 @@ pub const FAMILIES: &[(&str, &[&str])] = &[
     ("pocket_patterns", &["PocketGrid", "PocketArray"]),
     ("repeating_radial_profiles", &["RepeatingRadialProfile"]),
     ("freeform_surfaces", &["FreeformSurface"]),
+    ("modelled_threads", &["ModelledThread"]),
     ("polygonal_bosses", &["PolygonalBoss"]),
     ("polygonal_stock", &["PolygonalStock"]),
     ("section_passages", &["SectionPassage"]),
@@ -133,11 +136,12 @@ pub const FAMILIES: &[(&str, &[&str])] = &[
         "section_recess_patterns",
         &["SectionRecessArray", "SectionRecessGrid"],
     ),
+    ("modelled_thread_refusals", &["ModelledThreadRefusal"]),
 ];
 
-/// The families read here: each record is a feature, except an oriented slot pattern's, which is
-/// checked and not kept (see the module docs).
-pub const READ: [&str; 31] = [
+/// The families consumed here, including evidence and refusals. Oriented slot patterns are
+/// checked and not kept (see the module docs). Threads are retained pending depiction.
+pub const READ: [&str; 33] = [
     "holes",
     "hole_patterns",
     "fillets",
@@ -169,6 +173,8 @@ pub const READ: [&str; 31] = [
     "section_recess_patterns",
     "step_levels",
     "risers",
+    "modelled_threads",
+    "modelled_thread_refusals",
 ];
 
 /// Geometry-only records consumed by independent lint, never feature declarations.
@@ -196,6 +202,8 @@ pub enum Field {
     NumberOrNull,
     /// A whole number, not negative.
     Count,
+    /// Strictly ascending face indices (possibly empty).
+    Faces,
     /// Points of three numbers, any number of them.
     PointList,
     /// An axis letter and a coordinate along it (a plane across that axis).
@@ -222,6 +230,41 @@ pub enum Field {
 /// so a change to it does not refuse a read that would not use it. `a.b` is field `b` of object
 /// field `a`, checked when `a` is not null (`a` is listed first).
 pub const FIELDS: &[(&str, &[(&str, Field)])] = &[
+    (
+        "ModelledThread",
+        &[
+            ("axis", Field::Object),
+            ("axis.point", Field::Point),
+            ("axis.direction", Field::Point),
+            ("side", Field::Text),
+            ("major_diameter", Field::Number),
+            ("minor_diameter", Field::Number),
+            ("pitch", Field::Number),
+            ("hand", Field::Text),
+            ("starts", Field::Count),
+            ("start", Field::Number),
+            ("end", Field::Number),
+            ("length", Field::Number),
+            ("tolerances", Field::Object),
+            ("tolerances.diameter", Field::Number),
+            ("tolerances.pitch", Field::Number),
+            ("tolerances.axial", Field::Number),
+            ("flank_faces", Field::Faces),
+            ("crest_faces", Field::Faces),
+            ("root_faces", Field::Faces),
+            ("runout_faces", Field::Faces),
+        ],
+    ),
+    (
+        "ModelledThreadRefusal",
+        &[
+            ("axis", Field::Object),
+            ("axis.point", Field::Point),
+            ("axis.direction", Field::Point),
+            ("faces", Field::Faces),
+            ("reason", Field::Text),
+        ],
+    ),
     (
         "OrientedChamfer",
         &[
@@ -560,7 +603,7 @@ pub fn recognise(part: &Part) -> Result<Native, String> {
 
 /// Reads the families of [`READ`] from *doc*, Rust quiddity's recognition of *part*.
 pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
-    if doc.schema_version != SCHEMA_VERSION {
+    if !SCHEMA_VERSIONS.contains(&doc.schema_version.as_str()) {
         return Err(format!(
             "quiddity's recognition document is {:?}, not {SCHEMA_VERSION:?}",
             doc.schema_version
@@ -587,6 +630,14 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
     let mut evidence = Vec::new();
     let mut refusals = Vec::new();
     for r in &doc.records {
+        if doc.schema_version != SCHEMA_VERSION
+            && matches!(
+                r.family.as_str(),
+                "modelled_threads" | "modelled_thread_refusals"
+            )
+        {
+            return Err(format!("{} requires {SCHEMA_VERSION}", r.id));
+        }
         let known = FAMILIES
             .iter()
             .find(|(f, _)| *f == r.family)
@@ -643,6 +694,19 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
                         &r.parameters,
                         part.faces.len(),
                     )?,
+                    parameters: r.parameters.clone(),
+                });
+            }
+            "modelled_thread_refusals" => {
+                check(&r.parameters, &r.record_type)?;
+                let candidates = face_list(&r.parameters["faces"]);
+                if candidates != r.faces {
+                    return Err(format!("{} has inconsistent candidate faces", r.id));
+                }
+                refusals.push(super::Record {
+                    family: r.family.clone(),
+                    subtype: r.record_type.clone(),
+                    faces: r.faces.clone(),
                     parameters: r.parameters.clone(),
                 });
             }
@@ -792,6 +856,25 @@ fn feature(
     if !ascending(&faces) {
         return Err(format!("{} has no ascending faces to anchor it", r.id));
     }
+    if r.family == "modelled_threads" {
+        let mut claims = ["flank_faces", "crest_faces", "root_faces", "runout_faces"]
+            .into_iter()
+            .flat_map(|name| face_list(&r.parameters[name]))
+            .collect::<Vec<_>>();
+        claims.sort_unstable();
+        if claims != faces {
+            return Err(format!(
+                "{} has inconsistent or overlapping thread face claims",
+                r.id
+            ));
+        }
+        if !["internal", "external"].contains(&r.parameters["side"].as_str().unwrap())
+            || !["left", "right"].contains(&r.parameters["hand"].as_str().unwrap())
+            || r.parameters["starts"].as_u64() == Some(0)
+        {
+            return Err(format!("{} has invalid thread side, hand or starts", r.id));
+        }
+    }
     Ok(Feature {
         id: String::new(),
         kind: super::kind(&r.family),
@@ -799,7 +882,18 @@ fn feature(
             version: FINGERPRINT_VERSION.into(),
             family: r.family.clone(),
             subtype: r.record_type.clone(),
-            sizes: super::sizes(&r.parameters),
+            sizes: {
+                let mut sizes = super::sizes(&r.parameters);
+                if r.family == "modelled_threads" {
+                    for name in ["major_diameter", "minor_diameter", "pitch", "starts"] {
+                        sizes.insert(
+                            name.into(),
+                            super::round(r.parameters[name].as_f64().unwrap()),
+                        );
+                    }
+                }
+                sizes
+            },
             axis: super::axis(&r.parameters, &IDENTITY)
                 .map_err(|e| format!("{}'s axis {e}", r.id))?,
             position: super::centre(part, &faces).map(super::round),
@@ -809,6 +903,16 @@ fn feature(
         faces,
         parameters: r.parameters.clone(),
     })
+}
+
+/// Face lists are checked as whole indices before conversion (also on wasm32).
+fn face_list(value: &Value) -> Vec<usize> {
+    value
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_u64().unwrap() as usize)
+        .collect()
 }
 
 /// Checks *record*, of *record_type*, against its [`FIELDS`]; the error is what is wrong, to
@@ -854,6 +958,11 @@ fn check(record: &Map<String, Value>, record_type: &str) -> Result<(), String> {
             Field::Letter => letter(v),
             Field::NumberOrNull => v.is_null() || v.is_number(),
             Field::Count => v.is_u64(),
+            Field::Faces => v.as_array().is_some_and(|a| {
+                a.iter()
+                    .all(|v| v.as_u64().is_some_and(|n| usize::try_from(n).is_ok()))
+                    && a.windows(2).all(|w| w[0].as_u64() < w[1].as_u64())
+            }),
             Field::PointList => v
                 .as_array()
                 .is_some_and(|a| a.iter().all(|p| numbers(p, 3))),

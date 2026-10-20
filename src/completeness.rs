@@ -281,6 +281,7 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
                     "dimensions_not_ported"
                         | "feature_not_dimensioned"
                         | "angled_step_requirement_unsupported"
+                        | "modelled_thread_not_depicted"
                 )
         }) {
             plan.problems.push(Problem {

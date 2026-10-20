@@ -846,6 +846,9 @@ fn notes_without_part_pmi_keep_baseline_plan_and_drawing_bytes() {
     // SVG and PDF captured on 2b4a2fa2, before part-note reading/lowering; plan hashes re-pinned
     // when #126 added fix scopes to the Plan (SVG and PDF unchanged); all three re-pinned after
     // #130's A4-first sheet choice, which changed these plain drawings (CI skips this on Linux).
+    // Re-captured for the quiddity/haecceity alpha.8 pin: the outputs carry the PMI loader
+    // binding (haecceity-pmi-read/8), and substituting the alpha.7 binding reproduces all twelve
+    // old hashes exactly. No drawing ink changed.
     let baseline: Value =
         serde_json::from_str(include_str!("fixtures/pmi/notes_identity.json")).unwrap();
     assert_eq!(baseline.as_array().unwrap().len(), 4);

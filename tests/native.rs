@@ -2212,3 +2212,136 @@ fn corpus_pads_are_pythons() {
         }
     }
 }
+
+/// Both minimum-version documents and the new measured-thread contract are read losslessly.
+#[test]
+fn modelled_threads_and_refusals_survive_recognition_and_analysis_json() {
+    let (part, mut doc) = document("turned");
+    assert_eq!(doc.schema_version, "quiddity-rust/recognition/3");
+    native::read(&part, &doc).unwrap();
+    doc.schema_version = native::SCHEMA_VERSION.into();
+    let parameters = serde_json::json!({
+        "axis": {"point": [0, 0, 0], "direction": [0, 0, 1]},
+        "side": "external", "major_diameter": 20, "minor_diameter": 19,
+        "pitch": 1, "hand": "left", "starts": 2, "start": 2, "end": 10,
+        "length": 8, "tolerances": {"diameter": 0.04, "pitch": 0.005, "axial": 0.01},
+        "flank_faces": [0], "crest_faces": [1], "root_faces": [], "runout_faces": []
+    });
+    let mut thread = doc.records[0].clone();
+    thread.id = "modelled_threads/0".into();
+    thread.family = "modelled_threads".into();
+    thread.record_type = "ModelledThread".into();
+    thread.faces = vec![0, 1];
+    thread.local.clear();
+    thread.parameters = parameters.as_object().unwrap().clone();
+    doc.records.push(thread);
+    let mut refusal = doc.records.last().unwrap().clone();
+    refusal.id = "modelled_thread_refusals/0".into();
+    refusal.family = "modelled_thread_refusals".into();
+    refusal.record_type = "ModelledThreadRefusal".into();
+    refusal.parameters = serde_json::json!({
+        "axis": {"point": [0, 0, 0], "direction": [0, 0, 1]},
+        "faces": [0, 1], "reason": "inconsistent_pitch"
+    })
+    .as_object()
+    .unwrap()
+    .clone();
+    doc.records.push(refusal);
+    let json = serde_json::to_string(&doc).unwrap();
+    let doc = serde_json::from_str(&json).unwrap();
+    let mut analysis = model::analyse(&fixture("parts/turned.step")).unwrap().1;
+    model::recognise_document(&part, &mut analysis, &doc).unwrap();
+    let analysis: model::Analysis =
+        serde_json::from_str(&serde_json::to_string(&analysis).unwrap()).unwrap();
+    let thread = analysis
+        .features
+        .iter()
+        .find(|f| f.kind == "modelled_thread")
+        .unwrap();
+    assert_eq!(thread.parameters, parameters.as_object().unwrap().clone());
+    assert_eq!(thread.faces, [0, 1]);
+    assert_eq!(thread.fingerprint.axis, Some([0.0, 0.0, 1.0]));
+    for (name, size) in [
+        ("major_diameter", 20.0),
+        ("minor_diameter", 19.0),
+        ("pitch", 1.0),
+        ("starts", 2.0),
+    ] {
+        assert_eq!(thread.fingerprint.sizes[name], size);
+    }
+    assert!(
+        analysis
+            .unrecognised
+            .iter()
+            .all(|u| !u.family.starts_with("modelled_thread"))
+    );
+    assert!(
+        analysis
+            .recognition
+            .as_ref()
+            .unwrap()
+            .refusals
+            .iter()
+            .any(|r| r.subtype == "ModelledThreadRefusal"
+                && r.parameters["reason"] == "inconsistent_pitch")
+    );
+    let plan = model::plan_recovered(&analysis, &model::Spec::default()).unwrap();
+    let limitations: Vec<_> = plan
+        .problems
+        .iter()
+        .filter(|p| p.subjects.contains(&thread.id))
+        .collect();
+    assert_eq!(limitations.len(), 1, "{limitations:?}");
+    assert_eq!(limitations[0].code, "modelled_thread_not_depicted");
+    assert_eq!(limitations[0].severity, "info");
+    assert!(limitations[0].message.contains("ISO 6410"));
+    // The JSON operation used by service/MCP adapters accepts the same feature payload.
+    let reply = draftwright::api::call("plan", &serde_json::json!({"analysis": analysis})).unwrap();
+    assert_eq!(reply, serde_json::to_value(&plan).unwrap());
+    assert!(plan.feature_dispositions.iter().any(
+        |d| d.subject == thread.id && d.disposition == draftwright::dims::Disposition::Deferred
+    ));
+
+    let mut bad = doc.clone();
+    bad.schema_version = "quiddity-rust/recognition/3".into();
+    assert!(native::read(&part, &bad).unwrap_err().contains("requires"));
+    let index = doc
+        .records
+        .iter()
+        .position(|r| r.family == "modelled_threads")
+        .unwrap();
+    for field in [
+        "axis",
+        "side",
+        "major_diameter",
+        "minor_diameter",
+        "pitch",
+        "hand",
+        "starts",
+        "start",
+        "end",
+        "length",
+        "tolerances",
+        "flank_faces",
+        "crest_faces",
+        "root_faces",
+        "runout_faces",
+    ] {
+        let mut bad = doc.clone();
+        bad.records[index].parameters.remove(field);
+        assert!(
+            native::read(&part, &bad).unwrap_err().contains(field),
+            "{field}"
+        );
+    }
+    let mut bad = doc.clone();
+    bad.records[index].parameters["root_faces"] = serde_json::json!([0]);
+    assert!(
+        native::read(&part, &bad)
+            .unwrap_err()
+            .contains("face claims")
+    );
+    let mut bad = doc.clone();
+    bad.records[index].local.push("axis".into());
+    assert!(native::read(&part, &bad).unwrap_err().contains("own frame"));
+}

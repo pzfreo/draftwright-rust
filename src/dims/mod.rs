@@ -926,6 +926,16 @@ fn not_ported(analysis: &Analysis) -> Vec<Problem> {
         .filter(|f| !PLANNERS.iter().any(|p| p.kinds.contains(&f.kind.as_str())))
         .filter(|f| !undrafted(f))
         .map(|f| {
+            if f.kind == "modelled_thread" {
+                return Problem {
+                    id: format!("p:modelled_thread_not_depicted:{}", f.id),
+                    code: "modelled_thread_not_depicted".into(),
+                    severity: "info".into(),
+                    message: "A modelled screw thread is recognised, with its measured axis, diameters, pitch, hand, starts, extent and face claims retained in the analysis. Conventional thread depiction (ISO 6410) is not implemented yet; the modelled edges remain drawn. Review the thread and add any required dimensions manually.".into(),
+                    subjects: vec![f.id.clone()],
+                    ..Default::default()
+                };
+            }
             unsupported(f).unwrap_or_else(|| Problem {
                 id: format!("p:dimensions_not_ported:{}", f.id),
                 code: "dimensions_not_ported".into(),

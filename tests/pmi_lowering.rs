@@ -970,7 +970,7 @@ fn a_part_without_pmi_and_an_older_analysis_have_none() {
 }
 
 #[test]
-fn the_corpus_nist_parts_carry_presentation_only() {
+fn geometry_only_nist_corpus_parts_have_no_pmi_presentation() {
     let Some(dir) = corpus::dir() else {
         eprintln!(
             "SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS (DRAFTWRIGHT_CORPUS_REQUIRED=1 makes this a failure)"
@@ -986,25 +986,51 @@ fn the_corpus_nist_parts_carry_presentation_only() {
     assert_eq!(nist.len(), 10, "the corpus's NIST parts");
     for p in nist {
         let (_, a) = model::analyse(&p).unwrap();
-        let Some(Reading::Read(r)) = &a.pmi else {
-            panic!("{}: its presentation is counted", p.display());
-        };
-        assert!(r.records.is_empty(), "{}", p.display());
-        assert!(r.accounting.presentation > 0, "{}", p.display());
-        let plan = cache::default_plan(&a, false);
-        assert!(plan.gdt.is_empty());
+        match &a.pmi {
+            None => {}
+            Some(Reading::Read(r)) => {
+                assert!(r.records.is_empty(), "{}", p.display());
+                assert_eq!(r.accounting.presentation, 0, "{}", p.display());
+            }
+            other => panic!("{}: {other:?}", p.display()),
+        }
+        let (_, problems) = lower(&a, &|_| true);
         assert!(
-            plan.problems
+            problems
                 .iter()
-                .any(|p| p.code == "pmi_presentation_not_read")
+                .all(|p| p.code != "pmi_presentation_not_read"),
+            "{}",
+            p.display()
         );
-        let problem = plan
-            .problems
+    }
+}
+
+#[test]
+fn nist_graphic_pmi_still_reports_its_count() {
+    for (stem, count) in [
+        ("nist_ctc_01_asme1_ap242-e1", 71),
+        ("nist_ftc_10_asme1_ap242-e2", 279),
+    ] {
+        let (file, bytes) = fixture(stem);
+        let (_, a) = analysed(&file, &bytes);
+        let Some(Reading::Read(report)) = &a.pmi else {
+            panic!("{stem}: PMI read")
+        };
+        assert_eq!(report.accounting.presentation, count, "{stem}");
+        let (_, problems) = lower(&a, &|_| true);
+        let presentation: Vec<_> = problems
             .iter()
-            .find(|p| p.code == "pmi_presentation_not_read")
-            .unwrap();
-        assert!(problem.subjects.is_empty(), "{}", p.display());
-        assert_eq!(problem.refs, ["part"], "{}", p.display());
+            .filter(|p| p.code == "pmi_presentation_not_read")
+            .collect();
+        assert_eq!(presentation.len(), 1, "{stem}");
+        assert_eq!(
+            presentation[0].message,
+            format!(
+                "The STEP file carries {count} instance(s) of PMI presentation (graphic annotation); presentation is counted, not read or drawn: only semantic PMI is."
+            )
+        );
+        assert!(presentation[0].subjects.is_empty());
+        assert_eq!(presentation[0].refs, ["part"]);
     }
 }
 
