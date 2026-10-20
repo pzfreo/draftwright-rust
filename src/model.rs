@@ -6605,7 +6605,9 @@ fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
 /// earlier, pre-polish inventory afresh against a different set of peers. This is
 /// a pure reference, independent of which document happened to be planned first.
 fn radius_edit_reference(analysis: &Analysis, spec: &Spec) -> Option<Plan> {
-    if crate::nominal::comparison() {
+    // Pins already replay the finished recovered drawing in its canonical frame.
+    // A second primitive-plan reference can change even a no-op offset tip.
+    if crate::nominal::comparison() || crate::placement_intent::has_pins(spec) {
         return None;
     }
     let mut base = spec.clone();
@@ -6835,6 +6837,9 @@ fn settle_finished_nominals(
     {
         for d in &trial.dimensions {
             if d.kind == "callout"
+                // An authored offset is measured from the canonical automatic
+                // tip, not the rim tip recomputed for its dragged bend.
+                && !original_spec.dimensions.get(&d.id).is_some_and(|s| s.place.as_ref().is_some_and(|p| p.pinned))
                 && let (Some(p), Some(v)) = (&d.placed, trial.views.iter().find(|v| v.id == d.view))
                 && let Some(s) = p.lines.first()
             {

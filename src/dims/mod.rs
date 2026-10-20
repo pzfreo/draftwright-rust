@@ -2922,7 +2922,8 @@ fn plan_inventory_ordered(
     // ink settles. These are incumbent preferences, not authored pins: the
     // ordinary final collision/radius repair still handles new contacts.
     for (i, w) in all.iter().enumerate() {
-        if intended[i].is_none()
+        if !crate::placement_intent::has_pins(spec)
+            && intended[i].is_none()
             && w.measurements
                 .iter()
                 .any(|m| matches!(m.parameter.as_str(), "fillet.radius" | "blend.radius"))
