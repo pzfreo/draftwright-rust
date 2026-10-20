@@ -11,7 +11,7 @@ pub struct Layout {
     pub size: String,
     pub scale: String,
     pub views: BTreeMap<String, Frame>,
-    /// Information drawn when the local remedy was offered must still reach the drawing.
+    /// Shown items, including table-covered radius groups, must still reach the drawing.
     pub required: Vec<String>,
 }
 
@@ -40,18 +40,26 @@ impl Layout {
         Some(Self {
             size: plan.sheet.size.clone(),
             scale: plan.sheet.scale.clone(),
-            required: plan
-                .dimensions
-                .iter()
-                .filter(|d| d.placed.is_some())
-                .map(|d| d.id.clone())
-                .chain(
-                    plan.gdt
+            required: {
+                let mut ids: Vec<_> = crate::items::items(plan)
+                    .into_iter()
+                    .filter(|i| i.state == crate::items::State::Shown)
+                    .map(|i| i.id)
+                    .collect();
+                // The table's centre coordinates are information beyond its radius callout.
+                // Keep its exact automatic groups too, so freeing a leader corridor cannot
+                // silently exchange the table for a representative callout.
+                ids.extend(
+                    plan.dimensions
                         .iter()
-                        .filter(|g| g.placed.is_some())
-                        .map(|g| g.id.clone()),
-                )
-                .collect(),
+                        .filter(|d| {
+                            matches!(&d.state,
+                    crate::items::State::Covered { by } if by == "t:radius-centres")
+                        })
+                        .map(|d| d.id.clone()),
+                );
+                ids
+            },
             views: plan
                 .views
                 .iter()
@@ -107,11 +115,21 @@ impl Layout {
     }
 
     pub(crate) fn verify(&self, plan: &Plan) -> Result<(), Invalid> {
+        let items = crate::items::items(plan);
+        let shown: std::collections::BTreeSet<_> = items
+            .iter()
+            .filter(|i| i.state == crate::items::State::Shown)
+            .map(|i| i.id.as_str())
+            .collect();
+        let conveyed = |id: &str| {
+            shown.contains(id) || items.iter().any(|i| i.id == id
+            && matches!(&i.state, crate::items::State::Covered { by } if shown.contains(by.as_str())))
+        };
         if plan.sheet.size != self.size
             || plan.sheet.scale != self.scale
             || !plan.sheets.is_empty()
             || plan.views.len() != self.views.len()
-            || self.required.iter().any(|id| !conveyed(plan, id))
+            || self.required.iter().any(|id| !conveyed(id))
             || plan.views.iter().any(|v| {
                 v.sheet != 1
                     || self
@@ -124,13 +142,6 @@ impl Layout {
         }
         Ok(())
     }
-}
-
-fn conveyed(plan: &Plan, id: &str) -> bool {
-    plan.dimensions.iter().any(|d| d.id == id && d.placed.is_some())
-        || plan.gdt.iter().any(|g| g.id == id && g.placed.is_some())
-        || plan.omitted.iter().any(|d| d.id == id && matches!(&d.state,
-            crate::items::State::Covered { by } if plan.dimensions.iter().any(|owner| &owner.id == by && owner.placed.is_some())))
 }
 
 pub(crate) fn forced(spec: &Spec) -> Result<Spec, Invalid> {
