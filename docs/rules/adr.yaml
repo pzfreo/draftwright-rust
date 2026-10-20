@@ -480,7 +480,7 @@
   status: translated
   rust_rule: "Interior fallback after exterior corridors, whole-dimension retry, proven clear ink: src/dims/interior.rs; tests/interior_placement.rs::failed_exterior_corridors_retry_the_whole_linear_dimension_inside."
   rust_test: "rendering::interior_placement::failed_exterior_corridors_retry_the_whole_linear_dimension_inside"
-  rust_note: "Interior fallback after exterior corridors, whole-dimension retry, proven clear ink: src/dims/interior.rs; tests/interior_placement.rs::failed_exterior_corridors_retry_the_whole_linear_dimension_inside. Issue #147 extends bounded final-inventory route repair to shared feature callouts, leader-attached GD&T frames and AP242 surface labels. Interior labels require the complete projected-ink proof and settled annotation gaps; exterior wins equal crossing grades. Datum triangles remain fixed on the face and frames retry only the existing normal. Global joint interior/exterior assignment remains an optimisation outside the statement."
+  rust_note: "Interior fallback after exterior corridors, whole-dimension retry, proven clear ink: src/dims/interior.rs; tests/interior_placement.rs::failed_exterior_corridors_retry_the_whole_linear_dimension_inside. Issue #147 extends bounded final-inventory route repair to shared feature callouts, leader-attached GD&T frames and AP242 surface labels. Interior labels require the complete projected-ink proof and settled annotation gaps; exterior wins equal costs. Datum triangles remain fixed on the face and frames retry only the existing normal. Global joint interior/exterior assignment remains an optimisation outside the statement."
   port_note: "Keep: planner rule for interior placement; Plan entry records interior region as basis."
 
 - id: ADR2-18

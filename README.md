@@ -167,7 +167,9 @@ Problem with a code on the item's ID, in `plan`, `render` and `review`.
   can retry over proven blank face in their own view. Whole 3 mm horizontal labels, shoulders
   and short leaders clear projected visible/hidden edges, centre marks and other annotations.
   Diameter and thread leaders may approach a rim from inside a proven face, including a
-  blind-hole floor.
+  blind-hole floor. The shared search also covers boss, seat and turned diameters, flats,
+  slots, pockets, grooves and polygonal-stock callouts where their existing feature sites
+  and projected faces prove a clear route.
   The bounded final route search also serves leader-attached GD&T frames and AP242 surface
   labels. Exterior routes win equal costs; already clear drawings stay unchanged.
   Datum triangles retain their face attachment and frames retry only along its existing normal.
@@ -185,14 +187,17 @@ no view overlaps another or the title block, no annotation lies over a view and 
 line crosses one. What remains (282 ink problems, from 506 at the baseline) is reported on the
 plan, never hidden:
 
-- **Leader crossings, 4** (`annotation_leader_crossing`, warning), measured on the
+- **Leader crossings, 3** (`annotation_leader_crossing`, warning), measured on the
   30 quality parts against origin/main: **0 leader × leader, 1 leader × dimension line**
-  (10060), **3 leader × extension line** (ctc01 2, cgb245 1), **0 leader × arrow shaft**.
+  (10060), **2 leader × extension line** (ctc01 2), **0 leader × arrow shaft**.
   Also **0 leaders through text** (`annotation_ink_overlap` with `ink_is_leader: true`)
   and **0 dimension line × dimension line** (`dimension_line_crossing`, warning).
   `crossing_kinds` records every kind met by an ordered item pair; a multi-kind pair
   counts in each applicable column. Extension-line crossings are normal drafting practice.
-  CI's `quality-pins` job holds all six counts to their recorded per-part baseline:
+  AP242 CTC-01 improves from 25 to 8 crossing warnings: **0 leader × leader**,
+  **5 leader × dimension line**, **3 leader × extension line**, **0 leader × arrow shaft**
+  and **0 leaders through text**. CI's `quality-pins` job holds all six counts on the
+  30 quality parts and four AP242 CTC/FTC fixtures to their recorded per-part baseline:
   zero where zero today, never more. Re-record on new main after #141 if merging second;
   the single recording command is in `tools/check_leader_crossings.py`'s docstring.
 - **Ink past a view's area, 155** (`annotation_outside_area`, info). Rust-wrong as to the
