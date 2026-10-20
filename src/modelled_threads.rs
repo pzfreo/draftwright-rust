@@ -687,6 +687,8 @@ pub struct Evidence {
     pub edges: Vec<usize>,
     pub curved: Vec<usize>,
     pub span: [f64; 2],
+    /// (solid scope, first chord, exclusive end): only exclusively claimed edges.
+    pub profile_ranges: Vec<[usize; 3]>,
 }
 pub(crate) fn evidence(part: &Part, a: &Analysis) -> std::collections::BTreeMap<String, Evidence> {
     let mut curved = vec![None; part.faces.len()];
@@ -699,7 +701,7 @@ pub(crate) fn evidence(part: &Part, a: &Analysis) -> std::collections::BTreeMap<
     }
     threads(a)
         .map(|t| {
-            let edges = (0..part.edges.len())
+            let edges: Vec<usize> = (0..part.edges.len())
                 .filter(|&e| {
                     !part.edge_faces()[e].is_empty()
                         && part.edge_faces()[e]
@@ -713,6 +715,24 @@ pub(crate) fn evidence(part: &Part, a: &Analysis) -> std::collections::BTreeMap<
                 .iter()
                 .filter_map(|&i| curved.get(i).copied().flatten())
                 .collect();
+            let scopes: Vec<Vec<usize>> = if part.solids.len() > 1 {
+                part.solids.iter().map(|s| s.faces.clone()).collect()
+            } else {
+                vec![(0..part.faces.len()).collect()]
+            };
+            let mut profile_ranges = Vec::new();
+            for (scope, faces) in scopes.into_iter().enumerate() {
+                let source_edges: BTreeSet<_> =
+                    faces.iter().flat_map(|&f| part.face_edges(f)).collect();
+                let mut first = 0;
+                for e in source_edges {
+                    let end = first + part.edges[e].samples.len().saturating_sub(1).max(1);
+                    if edges.contains(&e) {
+                        profile_ranges.push([scope, first, end]);
+                    }
+                    first = end;
+                }
+            }
             let (lo, hi) = part.extent_along(&t.feature.faces, t.axis);
             let shift = geom::dot(t.on, t.axis);
             (
@@ -720,6 +740,7 @@ pub(crate) fn evidence(part: &Part, a: &Analysis) -> std::collections::BTreeMap<
                 Evidence {
                     edges,
                     curved,
+                    profile_ranges,
                     span: [(lo - shift).min(t.span[0]), (hi - shift).max(t.span[1])],
                 },
             )
@@ -771,6 +792,66 @@ pub(crate) fn planning<'a>(a: &'a Analysis, s: &Spec) -> std::borrow::Cow<'a, An
             .filter_map(|(i, c)| (!omitted.contains(&i)).then_some(c))
             .collect();
         ink.resolved.clear();
+    }
+    // The principal-profile evidence contains dense source chords too. Retain
+    // all unclaimed chords by their source indices, replacing only thread edges
+    // with the same smooth carrier boundaries used for annotation clearance.
+    for (scope, source) in prepared.principal_profiles.iter_mut().enumerate() {
+        let enabled: Vec<_> = threads(a).filter(|t| t.enabled(s)).collect();
+        let mut ranges: Vec<_> = enabled
+            .iter()
+            .filter_map(|t| a.modelled_thread_ink.get(&t.feature.id))
+            .flat_map(|e| e.profile_ranges.iter().copied())
+            .filter(|r| r[0] == scope)
+            .collect();
+        ranges.sort_unstable_by_key(|r| r[1]);
+        let mut range = 0;
+        let mut index = 0;
+        source.boundary_segments.retain(|_| {
+            while range < ranges.len() && ranges[range][2] <= index {
+                range += 1;
+            }
+            let keep = range == ranges.len() || index < ranges[range][1];
+            index += 1;
+            keep
+        });
+        for t in enabled {
+            let Some(e) = a.modelled_thread_ink.get(&t.feature.id) else {
+                continue;
+            };
+            if !e.profile_ranges.iter().any(|r| r[0] == scope) {
+                continue;
+            }
+            let seed = if t.axis[0].abs() < 0.9 {
+                [1., 0., 0.]
+            } else {
+                [0., 1., 0.]
+            };
+            let x = geom::unit(geom::cross(t.axis, seed)).unwrap();
+            let y = geom::cross(t.axis, x);
+            let at = |z, theta: f64| {
+                geom::add(
+                    t.at(z),
+                    geom::add(
+                        geom::scale(x, t.crest() * theta.cos()),
+                        geom::scale(y, t.crest() * theta.sin()),
+                    ),
+                )
+            };
+            for z in e.span {
+                for i in 0..128 {
+                    source.boundary_segments.push([
+                        at(z, TAU * i as f64 / 128.),
+                        at(z, TAU * (i + 1) as f64 / 128.),
+                    ]);
+                }
+            }
+            for theta in [0., FRAC_PI_2, std::f64::consts::PI, 3. * FRAC_PI_2] {
+                source
+                    .boundary_segments
+                    .push([at(e.span[0], theta), at(e.span[1], theta)]);
+            }
+        }
     }
     // Preparing an already prepared analysis is unnecessary during recovery.
     prepared.modelled_thread_ink.clear();
@@ -1064,6 +1145,55 @@ mod tests {
                 .iter()
                 .any(|p| p.code == "thread_designation_measured")
         );
+    }
+    #[test]
+    fn planning_replaces_only_claimed_profile_chords_and_binds_the_original_analysis() {
+        use sha2::{Digest, Sha256};
+        let mut a = analysis(feature(20., 1., false));
+        let chords = vec![
+            [[0., 0., 3.], [1., 0., 3.]],
+            [[3., 2., 4.], [4., 2., 4.]],
+            [[3., 2., 5.], [4., 2., 5.]],
+            [[0., 0., 5.], [1., 0., 5.]],
+        ];
+        a.principal_profiles = serde_json::from_value(
+            json!([{"bounds":a.envelope,"faces":[],"boundary_segments":chords}]),
+        )
+        .unwrap();
+        a.modelled_thread_ink.insert(
+            "f:modelled_thread:1".into(),
+            Evidence {
+                edges: vec![],
+                curved: vec![],
+                span: [0., 8.],
+                profile_ranges: vec![[0, 1, 3]],
+            },
+        );
+        let prepared = planning(&a, &Spec::default());
+        assert_eq!(
+            &prepared.principal_profiles[0].boundary_segments[..2],
+            &[chords[0], chords[3]]
+        );
+        assert!(
+            !prepared.principal_profiles[0]
+                .boundary_segments
+                .contains(&chords[1])
+        );
+        assert_eq!(a.principal_profiles[0].boundary_segments, chords);
+        let off: Spec = serde_json::from_value(
+            json!({"features":{"f:modelled_thread:1":{"modelled_thread":{"depiction":false}}}}),
+        )
+        .unwrap();
+        assert_eq!(
+            planning(&a, &off).principal_profiles[0].boundary_segments,
+            chords
+        );
+        let p = crate::model::plan(&a, &Spec::default()).unwrap();
+        let hash: String = Sha256::digest(serde_json::to_vec(&a).unwrap())
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        assert_eq!(p.analysis_sha256, Some(hash));
     }
     #[test]
     fn pmi_thread_callout_precedes_inference_in_first_and_strict_modes() {
