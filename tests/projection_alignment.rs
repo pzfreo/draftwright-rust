@@ -155,3 +155,23 @@ fn projection_is_not_an_annotation_slot() {
         .is_err()
     );
 }
+
+#[test]
+fn legacy_edge_alignment_keeps_its_warning_and_readable_remedy() {
+    let plan = planned(
+        &plate(),
+        json!({
+            "sheet":{"size":"A2","scale":"2:1"},
+            "views":{"plan":{"place":{"relative_to":"front","side":"above","gap":15,"align":"start","pinned":true}}}
+        }),
+    );
+    let problem = plan
+        .problems
+        .iter()
+        .find(|p| p.code == "projection_relation_infeasible")
+        .unwrap();
+    assert_eq!(
+        problem.offered_fixes()[0].description(),
+        "Let draftwright position the plan view."
+    );
+}
