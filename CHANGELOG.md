@@ -6,12 +6,60 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+## 0.1.0-alpha.7 (2026-10-20)
+
 ### WASM API
 
 - `calloutOffset(address)` and `labelOffset(address)` return a callout's or linear dimension's
   automatic anchor, current label position and offset (paper mm), so an editor can pin a label
   dropped anywhere, inside a view included, with `place.offset`. `placementOptions` marks items
-  that accept an offset (`"offset": "callout" | "linear"`).
+  that accept an offset (`"offset": "callout" | "linear"`) (#121).
+- Problems in snapshots and deltas carry ordered fix alternatives (`fixes`), each with a
+  `scope` (below); `placementOptions` gives each item's `operation_scopes` (#128).
+
+### Added
+
+- Prefer A4 for the automatic sheet. The automatic plan is the baseline; when it is not
+  already one A4 sheet, forced candidates are tried and the first with no layout or
+  readability problem the baseline lacks (including new leader-on-extension contacts) is
+  taken, else the baseline stays. `sheet/preferred_printer` (`"A4"` default, or `"A3"`) sets
+  the order: A4 printer 1×A4 → up to 2×A4 → 1×A3; A3 printer 1×A4 → 1×A3 → A3 overflow. The
+  sheet basis records the choice. 16 of the 100 corpus parts move to smaller paper and none to
+  larger (e.g. mfcadpp/10190 A1 10:1 → A4 1:1, NIST FTC-07 A2 1:2 → A3 1:5). The search adds
+  about 5% planning cost in retired instructions; mfcadpp/10278, which tries every candidate
+  before falling back, costs 1.82× (#130).
+- Draw the part's semantic-text notes from PMI in the general notes block, before the Spec's
+  notes, ordered by Specify's `note index` and then file order: Specify's free-text `general
+  note`s, coating (`surface treatment` or `coating`), heat treatment and edge conditions. Values that state no
+  requirement (`None`, `N/A`, `-`, empty) are info only; a value that does not name its process
+  is prefixed (`Coating: Black`). `annotations/<PMI id>/omit` leaves one off the drawing. A Spec
+  note repeating a PMI note is drawn once, with info `note_duplicated_in_spec` and a fix
+  removing the Spec copy (#127).
+- Every offered fix states its `scope`, `local`, `view` or `sheet`, from the Spec paths it
+  writes (unknown paths count as `sheet`), and alternatives are listed local first; a sheet-wide
+  fix says it re-plans the sheet. MCP (`list_problems`, `get_item`, `item_options`, preview and
+  apply rows), WASM and lint output carry it. NIST CTC-01's leader and extension crossings at A3
+  1:5 now offer local placement edits before the hole-table remedy (#128).
+- `place.offset` pins a linear dimension's label as well as a callout's (#121).
+
+### Changed
+
+- Omit redundant reference dimensions by default instead of drawing them in brackets; each is
+  a `covered` omission naming the dimensions that determine it. `sheet/references: true`
+  restores them; pinned references and per-dimension `style: "reference"` still draw. The demo
+  bracket's ladder becomes 8, 12, 20, 32, 48; 21 references go across 8 corpus parts (#120).
+
+### Fixed
+
+- Draftwright's own records in a STEP file (Specify's stored answers, Python Specify's earlier
+  `schema 1` property, the editor's project export) are no longer reported as unread PMI;
+  foreign attribute sets still are (#129).
+- Isometric captions stay clear of reserved projection bands (#120).
+
+### Internal
+
+- The WASM size budget is re-baselined on this build's main at +10% (ceiling 17,300,000 raw
+  bytes), after feature growth since alpha.6 (#128).
 
 ## 0.1.0-alpha.6 (2026-10-19)
 
