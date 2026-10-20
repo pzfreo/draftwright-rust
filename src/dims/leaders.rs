@@ -665,6 +665,7 @@ struct Job<'a> {
     corridors: bool,
     directed: bool,
     short_profile: bool,
+    inward: bool,
     interior_proof: Option<(&'a crate::model::PlannedView, &'a super::interior::Proof)>,
     profile_proof: Option<(&'a crate::model::PlannedView, &'a super::interior::Proof)>,
     /// Once [`inventory`] steers the callout off its silhouette: the most model lines and
@@ -1191,6 +1192,7 @@ fn place_with_obstacles_uncached(
                 silhouette: grazing(f, w),
                 model: models.get(view).map(|m| &m.as_ref().0),
                 short_profile: boss_profile(w),
+                inward: false,
                 interior_proof: None,
                 profile_proof: boss_profile(w)
                     .then(|| {
@@ -1714,6 +1716,7 @@ pub(crate) fn settle_after_furniture(
             // Enable the existing bounded corridor retry for a newly contacted route.
             corridors: !compact,
             short_profile: boss_profile(w),
+            inward: false,
             interior_proof: None,
             profile_proof,
             silhouette: grazing(&frame, w),
@@ -3012,6 +3015,7 @@ fn refine_uncached(
             silhouette: grazing(frame, w),
             model: None,
             short_profile: boss_profile(w),
+            inward: false,
             interior_proof: None,
             profile_proof: boss_profile(w)
                 .then(|| {
@@ -5706,6 +5710,7 @@ pub fn clear_routes(
         silhouette: grazing(f, w),
         model: None,
         short_profile: false,
+        inward: inward_callout(w),
         interior_proof: views
             .iter()
             .find(|v| v.id == d.view)
@@ -5751,7 +5756,31 @@ pub fn clear_routes(
     Some(
         sweep(&job, tip)
             .into_iter()
-            .filter_map(|(tip, elbow, right)| measure(&job, tip, elbow, right, &fixed, &page))
+            .chain(inward_rays(&job, tip))
+            .filter_map(|(tip, elbow, right)| {
+                let mut c = measure_bounds(&job, tip, elbow, right, &page)?;
+                let interior = boxes_overlap(c.label_box, job.outline);
+                let mut measured_job = job.clone();
+                if interior {
+                    measured_job.stroke_pad = measured_job.stroke_pad.max(LABEL_PAD);
+                }
+                measure_fixed(&mut c, &measured_job, &fixed);
+                c.measure_features(&job);
+                if interior {
+                    // New interior candidates keep the final-inventory text and
+                    // extension gaps; a label near a stroke is not a clear route.
+                    let near = grow(c.label_box, LABEL_PAD);
+                    fixed.grid.near(0, near, |n| {
+                        if crosses(fixed.segments[n].1, near) {
+                            c.hard += 1;
+                        }
+                    });
+                    c.hard += u32::from(
+                        fixed.extension_index.contacts(&c.segments(), c.label_box) != (0, 0),
+                    );
+                }
+                Some(c)
+            })
             .filter(Candidate::clear)
             .count(),
     )
@@ -6286,6 +6315,51 @@ impl Search {
     }
 }
 
+fn inward_callout(w: &Want) -> bool {
+    w.measurements
+        .iter()
+        .any(|m| m.parameter.ends_with(".diameter") || m.parameter.starts_with("thread."))
+}
+
+/// A diameter may approach its rim from within a proven face, such as a blind
+/// hole floor. Select the rim with the existing producer, then travel inward.
+fn inward_rays(job: &Job, anchor: P2) -> Vec<(P2, P2, bool)> {
+    if !job.inward || job.interior_proof.is_none() {
+        return Vec::new();
+    }
+    let mut sites = job.sites.clone();
+    let distance = |s: &Site| (s.0[0] - anchor[0]).hypot(s.0[1] - anchor[1]);
+    sites.sort_by(|a, b| distance(a).total_cmp(&distance(b)));
+    let mut out = Vec::new();
+    for site in sites.into_iter().take(SWEEP_SITES) {
+        let (centre, r, span) = site;
+        if span.is_some()
+            || 2. * r <= MIN_LEADER + 1.
+            || (job.ink_max[0] - job.ink_min[0]).max(job.ink_max[1] - job.ink_min[1]) > 2. * r - 1.
+        {
+            continue;
+        }
+        for i in 0..SWEEP_DIRECTIONS {
+            let a = std::f64::consts::TAU * i as f64 / SWEEP_DIRECTIONS as f64;
+            let u = [a.cos(), a.sin()];
+            let tip = rim_tip(
+                site,
+                [centre[0] + (r + 1.) * u[0], centre[1] + (r + 1.) * u[1]],
+            );
+            for reach in SWEEP_REACH.into_iter().take_while(|d| *d < 2. * r - 0.5) {
+                let elbow = [tip[0] - reach * u[0], tip[1] - reach * u[1]];
+                if elbow[0] >= tip[0] - 1e-9 {
+                    out.push((tip, elbow, true));
+                }
+                if elbow[0] <= tip[0] + 1e-9 {
+                    out.push((tip, elbow, false));
+                }
+            }
+        }
+    }
+    out
+}
+
 /// Interior candidates use the same rim/tip producer and bounded ray inventory as
 /// exterior routes. Keep this producer separate from radius attachment policy (#145).
 fn interior_routes(job: &Job, tip: P2, page: &Page) -> Vec<Candidate> {
@@ -6294,6 +6368,7 @@ fn interior_routes(job: &Job, tip: P2, page: &Page) -> Vec<Candidate> {
     }
     sweep(job, tip)
         .into_iter()
+        .chain(inward_rays(job, tip))
         .filter_map(|(tip, elbow, right)| {
             let c = measure_bounds(job, tip, elbow, right, page)?;
             (boxes_overlap(c.label_box, job.outline) && c.hard == 0).then_some(c)
@@ -6367,6 +6442,7 @@ pub(super) fn settled_routes(
         directed: false,
         short_profile: false,
         profile_proof: None,
+        inward: want.is_some_and(inward_callout),
         interior_proof: proof.map(|p| (v, p)),
         steer: std::cell::Cell::new(None),
         ink_min,

@@ -166,6 +166,8 @@ Problem with a code on the item's ID, in `plan`, `render` and `review`.
 - **Callouts inside a view:** hole, radius, chamfer, thread and other shared feature callouts
   can retry over proven blank face in their own view. Whole 3 mm horizontal labels, shoulders
   and short leaders clear projected visible/hidden edges, centre marks and other annotations.
+  Diameter and thread leaders may approach a rim from inside a proven face, including a
+  blind-hole floor.
   The bounded final route search also serves leader-attached GD&T frames and AP242 surface
   labels. Exterior routes win equal crossing grades; already clear drawings stay unchanged.
   Datum triangles retain their face attachment and frames retry only along its existing normal.
