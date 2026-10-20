@@ -844,7 +844,8 @@ fn notes_without_part_pmi_keep_baseline_plan_and_drawing_bytes() {
             .collect::<String>()
     };
     // SVG and PDF captured on 2b4a2fa2, before part-note reading/lowering; plan hashes re-pinned
-    // when #126 added fix scopes to the Plan (SVG and PDF unchanged).
+    // when #126 added fix scopes to the Plan (SVG and PDF unchanged); all three re-pinned after
+    // #130's A4-first sheet choice, which changed these plain drawings (CI skips this on Linux).
     let baseline: Value =
         serde_json::from_str(include_str!("fixtures/pmi/notes_identity.json")).unwrap();
     assert_eq!(baseline.as_array().unwrap().len(), 4);
