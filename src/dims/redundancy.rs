@@ -316,7 +316,11 @@ pub(super) fn consolidate(
         {
             continue;
         }
-        let Some((s, rebased)) = ladder_span(a, &kept[i].0) else {
+        let Some((s, rebased)) = ladder_span(a, &kept[i].0).filter(|_| {
+            kept[i].0.measurements.iter().any(|m| {
+                m.feature == "step_level" && m.parameter.starts_with("step_height.length.h")
+            })
+        }) else {
             continue;
         };
         if rebased {
