@@ -4,6 +4,7 @@ use std::collections::BTreeSet;
 use std::f64::consts::{FRAC_PI_2, TAU};
 
 use haecceity::brep::{Edge, Face, Loop, Part, Solid};
+use haecceity::classify::{Classifier, State};
 use haecceity::geom::{self, Frame, Surface, V3};
 use haecceity::hlr::View;
 use serde::{Deserialize, Serialize};
@@ -446,27 +447,41 @@ pub(crate) fn ink(
         .iter()
         .flat_map(|s| s.faces.iter().copied())
         .collect();
-    let rays = haecceity::rays::RayCaster::for_faces(
-        part,
-        if faces.is_empty() {
-            (0..part.faces.len()).collect()
-        } else {
-            faces
-        },
-    );
+    let faces = if faces.is_empty() {
+        (0..part.faces.len()).collect()
+    } else {
+        faces
+    };
+    let rays = haecceity::rays::RayCaster::for_faces(part, faces.clone());
     let reach = part.bounds().diagonal() * 2. + 1.;
     let epsilon = 1e-5 * reach;
     let cut = v
         .cut
         .as_ref()
         .or_else(|| v.detail.as_ref().and_then(|d| d.source_cut.as_ref()));
+    let material = cut.map(|_| Classifier::for_faces(part, faces));
     // Adjacent equal verdicts remain one exact curve; the open quarter and line
     // widths survive SVG/PDF/PNG export without tessellating the conventional ink.
-    let mut draw = |curve: Curve, witness: &dyn Fn(f64) -> V3, bold: bool, force_hidden: bool| {
+    let mut draw = |curve: Curve,
+                    witness: &dyn Fn(f64) -> V3,
+                    bold: bool,
+                    force_hidden: bool,
+                    material_only: bool| {
         let verdict = |u: f64| -> Option<bool> {
             let p = witness(u);
             let mut end = reach;
             if let Some(c) = cut {
+                // An external limit in section ends at the cut material. A
+                // hollow shaft's white bore must not acquire a diameter bar.
+                if material_only
+                    && let Some(classifier) = &material
+                    && [-1., 1.].into_iter().any(|side| {
+                        classifier.classify(geom::add(p, geom::scale(c.normal, side * 1e-5)))
+                            == State::Out
+                    })
+                {
+                    return None;
+                }
                 let d = geom::dot(geom::sub(p, c.origin), c.normal);
                 if d < -epsilon {
                     return None;
@@ -495,8 +510,23 @@ pub(crate) fn ink(
                 verdict((i as f64 + 0.5) / count as f64)
             };
             if next != previous || i == count {
+                let boundary = if i == count {
+                    1.
+                } else {
+                    let mut lo = (i as f64 - 0.5) / count as f64;
+                    let mut hi = (i as f64 + 0.5) / count as f64;
+                    for _ in 0..30 {
+                        let mid = (lo + hi) * 0.5;
+                        if verdict(mid) == previous {
+                            lo = mid;
+                        } else {
+                            hi = mid;
+                        }
+                    }
+                    (lo + hi) * 0.5
+                };
                 if let Some(h) = previous {
-                    let item = Item::Edge(curve.trim(start, i as f64 / count as f64));
+                    let item = Item::Edge(curve.trim(start, boundary));
                     if h {
                         if v.line_style.hidden.unwrap_or(v.id != "v:iso") && cut.is_none() {
                             hidden.push(item);
@@ -507,7 +537,7 @@ pub(crate) fn ink(
                         thin.push(item);
                     }
                 }
-                start = i as f64 / count as f64;
+                start = boundary;
                 previous = next;
             }
         }
@@ -550,6 +580,7 @@ pub(crate) fn ink(
                 &witness,
                 false,
                 false,
+                false,
             );
         } else {
             let u = geom::unit(geom::cross(t.axis, view.toward)).unwrap();
@@ -578,6 +609,7 @@ pub(crate) fn ink(
                     &witness,
                     false,
                     concealed,
+                    false,
                 );
             }
             for z in t.span {
@@ -616,6 +648,7 @@ pub(crate) fn ink(
                         &witness,
                         true,
                         false,
+                        false,
                     );
                     continue;
                 }
@@ -640,6 +673,7 @@ pub(crate) fn ink(
                     &witness,
                     true,
                     concealed,
+                    section && !t.internal,
                 );
             }
         }
@@ -955,6 +989,21 @@ mod tests {
         }
     }
     #[test]
+    fn oblique_axes_keep_their_callout_and_conventional_depiction() {
+        let mut f = feature(20., 1., false);
+        f.parameters
+            .insert("axis".into(), json!({"point":[0,0,0],"direction":[1,1,1]}));
+        let a = analysis(f);
+        let plan = crate::model::plan(&a, &Spec::default()).unwrap();
+        assert!(plan.dimensions.iter().any(|d| d.label.contains("M20×1")));
+        assert!(
+            !plan
+                .problems
+                .iter()
+                .any(|p| p.code == "modelled_thread_not_depicted")
+        );
+    }
+    #[test]
     fn matching_tolerance_edges_and_unlisted_pairs() {
         for (d, p, inside) in [
             (8.02, 1.26, true),
@@ -1115,6 +1164,95 @@ mod tests {
                     || p[2].abs() < 1e-5
                     || (p[2] - 8.).abs() < 1e-5)
         );
+    }
+    #[test]
+    fn external_section_limits_stop_at_a_hollow_shafts_bore() {
+        let a = analysis(feature(20., 1., false));
+        let outer = plain_carrier(&a);
+        let mut edges = outer.edges.clone();
+        for edge in &outer.edges[2..5] {
+            let mut inner = edge.clone();
+            let shrink = |p: V3| [p[0] * 0.6, p[1] * 0.6, p[2]];
+            inner.start = shrink(inner.start);
+            inner.end = shrink(inner.end);
+            inner.samples = inner.samples.into_iter().map(shrink).collect();
+            inner.vertices = (inner.vertices.0 + 2, inner.vertices.1 + 2);
+            inner.curve = match inner.curve {
+                haecceity::geom::Curve::Circle { frame, .. } => {
+                    haecceity::geom::Curve::Circle { frame, radius: 6. }
+                }
+                haecceity::geom::Curve::Line { origin, dir } => haecceity::geom::Curve::Line {
+                    origin: shrink(origin),
+                    dir,
+                },
+                _ => unreachable!(),
+            };
+            edges.push(inner);
+        }
+        let mut faces = outer.faces.clone();
+        faces[0].solid = Some(0);
+        let Surface::Cylinder { frame, .. } = faces[0].surface else {
+            panic!()
+        };
+        faces.push(Face {
+            surface: Surface::Cylinder { frame, radius: 6. },
+            reversed: true,
+            loops: vec![Loop {
+                edges: vec![(5, true), (7, true), (6, false), (7, false)],
+                vertex: None,
+            }],
+            solid: Some(0),
+            pcurves: vec![],
+        });
+        for (z, outside, inside, reversed) in [(0., 2, 5, true), (8., 3, 6, false)] {
+            faces.push(Face {
+                surface: Surface::Plane {
+                    frame: Frame {
+                        origin: [0., 0., z],
+                        ..frame
+                    },
+                },
+                reversed,
+                loops: vec![
+                    Loop {
+                        edges: vec![(outside, !reversed)],
+                        vertex: None,
+                    },
+                    Loop {
+                        edges: vec![(inside, reversed)],
+                        vertex: None,
+                    },
+                ],
+                solid: Some(0),
+                pcurves: vec![],
+            });
+        }
+        let part = Part::new(
+            faces,
+            edges,
+            vec![Solid {
+                faces: vec![0, 1, 2, 3],
+            }],
+        );
+        let mut v = view(false);
+        v.cut = Some(
+            serde_json::from_value(json!({
+                "origin":[0,0,0],"normal":[0,1,0],"label":"A","marked_in":"v:plan"
+            }))
+            .unwrap(),
+        );
+        let (bold, _, _) = ink(&a, &Spec::default(), &v, &part);
+        assert_eq!(bold.len(), 4, "two wall strips at each thread limit");
+        for item in bold {
+            let Item::Edge(Curve::Line(p, q)) = item else {
+                panic!()
+            };
+            assert!((p[1] - q[1]).abs() < 1e-8);
+            for point in [p, q] {
+                assert!((point[0] - 50.).abs() >= 6. - 1e-5, "{point:?}");
+            }
+            assert!(((p[0] - q[0]).abs() - 4.).abs() < 1e-5, "{p:?} {q:?}");
+        }
     }
     #[test]
     fn spec_off_restores_source_and_designation_override_has_no_geometry_effect() {

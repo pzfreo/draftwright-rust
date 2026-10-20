@@ -22,13 +22,11 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 continue;
             }
         };
-        let Some(k) = crate::bridge::holes::principal(t.axis) else {
-            problems.push(not_depicted(
-                f,
-                "no principal view can carry its designation; use an authored view",
-            ));
-            continue;
-        };
+        let k = crate::bridge::holes::principal(t.axis).unwrap_or_else(|| {
+            (0..3)
+                .max_by(|&a, &b| t.axis[a].abs().total_cmp(&t.axis[b].abs()))
+                .expect("three coordinates")
+        });
         let (text, standard) = t.designation();
         if !standard {
             problems.push(unmatched(f));
@@ -38,9 +36,12 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             .filter(|&j| j != k)
             .flat_map(|j| {
                 [-1., 1.].map(move |side| {
-                    let mut p = at;
-                    p[j] += side * t.crest();
-                    (p, 0.)
+                    let radial = [0, 1, 2].map(|i| f64::from(i == j) - t.axis[j] * t.axis[i]);
+                    let radial = haecceity::geom::unit(radial).expect("transverse coordinate");
+                    (
+                        haecceity::geom::add(at, haecceity::geom::scale(radial, side * t.crest())),
+                        0.,
+                    )
                 })
             })
             .collect();
