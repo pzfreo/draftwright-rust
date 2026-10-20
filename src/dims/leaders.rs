@@ -2421,6 +2421,16 @@ fn settle_radius_leaders(
             }
         }
         if arcs.iter().any(|a| a.accepts(shaft)) {
+            reports.insert(
+                d.id.clone(),
+                route_reports_named(
+                    &d.id,
+                    &d.label,
+                    v.id.trim_start_matches("v:"),
+                    &crate::material::solids(analysis, |q| frame.page(q)),
+                    shaft,
+                ),
+            );
             continue;
         }
         let view = v.id.trim_start_matches("v:");
@@ -2477,14 +2487,20 @@ fn settle_radius_leaders(
             let mut pairs = std::collections::BTreeSet::new();
             for q in &others {
                 let Some(qp) = &q.placed else { continue };
-                if super::text_contact(p, qp) {
-                    pairs.insert((q.id.as_str(), true));
+                if super::placement::ink_through(p, qp.label_box) {
+                    pairs.insert((q.id.as_str(), 1u8));
+                }
+                if super::placement::ink_through(qp, p.label_box) {
+                    pairs.insert((q.id.as_str(), 2u8));
+                }
+                if boxes_overlap(p.label_box, qp.label_box) {
+                    pairs.insert((q.id.as_str(), 3u8));
                 }
                 if p.lines
                     .iter()
                     .any(|a| qp.lines.iter().any(|b| lines_meet(*a, *b)))
                 {
-                    pairs.insert((q.id.as_str(), false));
+                    pairs.insert((q.id.as_str(), 0u8));
                 }
             }
             pairs
@@ -2546,17 +2562,19 @@ fn settle_radius_leaders(
             } else {
                 "no middle-arc, open-side radial candidate preserves the existing drawing contact and length budgets".into()
             };
-            reports.insert(
-                id.clone(),
-                vec![Problem {
-                    id: format!("p:radius_leader_routing_fallback:{id}"),
-                    code: "radius_leader_routing_fallback".into(),
-                    severity: "warning".into(),
-                    message: format!("Radius leader {id} retains its best existing route: {why}."),
-                    subjects: vec![id],
-                    ..Default::default()
-                }],
-            );
+            let mut problems = route_reports_named(&id, &d.label, view, footprint.solids(), shaft);
+            problems.push(Problem {
+                id: format!("p:radius_leader_routing_fallback:{id}"),
+                code: "radius_leader_routing_fallback".into(),
+                severity: "warning".into(),
+                message: format!(
+                    "The radius leader “{}” retains its best existing route: {why}.",
+                    d.label
+                ),
+                subjects: vec![id.clone()],
+                ..Default::default()
+            });
+            reports.insert(id, problems);
         }
     }
     reports

@@ -360,6 +360,66 @@ fn radius_shafts_meet_the_middle_arc_radially_from_the_open_side() {
     }
 }
 
+/// A consolidated fillet is checked against its own face, including its material side.
+#[test]
+fn fillet_radius_shafts_use_the_fillets_own_cylindrical_evidence() {
+    let f = feature(
+        "f:fillet:1",
+        "fillet",
+        json!({"radius":3.0, "axis":"z", "at":[3.0,0.0,0.0]}),
+    );
+    let mut a = analysis(vec![f], json!({}), &[]);
+    a.radius_arcs.insert("f:fillet:1".into(), serde_json::from_value(json!([{
+        "arc":{"centre":[0.0,0.0,0.0],"radius":3.0,"u":[1.0,0.0,0.0],"v":[0.0,1.0,0.0],"start":0.0,"sweep":std::f64::consts::FRAC_PI_2},
+        "axis":[0.0,0.0,1.0],"centre_open":true,"tips":[]
+    }])).unwrap());
+    let tip = page(3.0 / 2.0f64.sqrt(), 3.0 / 2.0f64.sqrt());
+    let draw = drawing(
+        ALONG_Z,
+        vec![callout(
+            "d:r",
+            &[
+                ("f:fillet:1", "fillet.radius"),
+                ("f:blend:missing", "blend.radius"),
+            ],
+            tip,
+            page(-5.0, -5.0),
+        )],
+    );
+    assert!(found(&a, &draw, "radius_leader").is_empty());
+    a.radius_arcs.get_mut("f:fillet:1").unwrap()[0].centre_open = false;
+    assert_eq!(
+        found(&a, &draw, "radius_leader_not_radial"),
+        one("radius_leader_not_radial", "d:r")
+    );
+}
+
+#[test]
+fn toroidal_radius_direction_limits_are_explicit() {
+    let f = feature(
+        "f:blend:1",
+        "blend",
+        json!({"radius":3.0,"path":{"at":[0.0,0.0,0.0],"normal":[0.0,0.0,1.0]}}),
+    );
+    let a = analysis(vec![f], json!({"f:blend:1":[[3.0,0.0,0.0]]}), &[]);
+    let draw = drawing(
+        ALONG_Z,
+        vec![callout(
+            "d:r",
+            &[("f:blend:1", "blend.radius")],
+            page(3.0, 0.0),
+            page(10.0, 10.0),
+        )],
+    );
+    let issues = lint::lint(&a, &draw);
+    assert!(issues.iter().any(|i| {
+        i.code == "radius_leader_target_unverifiable"
+            && i.evidence
+                .as_ref()
+                .is_some_and(|why| why.contains("toroidal"))
+    }));
+}
+
 /// ADR2-8, ISSUE-798-b/d, LINT-code-leader_crosses_silhouette: a shaft leaving its own body
 /// (whatever it passes over inside it, a bore included) is not reported; a shaft that goes on
 /// into a second body is, as info, with the depth it cuts; a deeper cut reads deeper. The
@@ -844,5 +904,78 @@ fn recovered_ftc09_keeps_a1_and_perpendicular_witnesses() {
         !lint::structural::check(&drawing)
             .iter()
             .any(|i| i.code == "oblique_witness_crossing")
+    );
+}
+
+/// #145: the real front-view R5 remains drawn and has a radial, open-side shaft.
+/// The solid-box silhouette test deliberately cannot see its original boss crossing.
+#[test]
+fn ctc01_r5_meets_the_fillet_from_the_open_centre_side() {
+    let corpus = std::env::var("DRAFTWRIGHT_CORPUS")
+        .unwrap_or_else(|_| "/Users/paul/repos/quiddity/tests/corpus".into());
+    let path = Path::new(&corpus).join("nist/nist_ctc_01_asme1_rd.stp");
+    if !path.is_file() {
+        assert!(std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").is_err());
+        return;
+    }
+    let (part, a) = model::analyse_native(&path).unwrap();
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    let d = p
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:blend:23/blend.radius")
+        .unwrap();
+    assert_eq!(d.view, "v:front");
+    assert_eq!(d.measurements.len(), 6);
+    let placed = d.placed.as_ref().expect("never drop the callout");
+    let view = p.views.iter().find(|v| v.id == d.view).unwrap();
+    let projection = draftwright::haecceity::hlr::View::new(view.direction, view.up).unwrap();
+    let middle = projection.map([0, 1, 2].map(|k| (a.envelope[0][k] + a.envelope[1][k]) / 2.0));
+    let page = |q| {
+        let q = projection.map(q);
+        [0, 1].map(|k| view.at[k] + view.scale * (q[k] - middle[k]))
+    };
+    let [tip, elbow] = placed.lines[0];
+    assert!(
+        d.measurements
+            .iter()
+            .any(|m| a
+                .radius_arcs
+                .get(&m.feature)
+                .is_some_and(|arcs| arcs.iter().any(|arc| {
+                    let aligned: f64 = arc
+                        .axis
+                        .iter()
+                        .zip(view.direction)
+                        .map(|(x, y)| x * y)
+                        .sum();
+                    if aligned.abs() < 1.0 - 1e-9 {
+                        return false;
+                    }
+                    let c = page(arc.arc.centre);
+                    let u = [c[0] - tip[0], c[1] - tip[1]];
+                    let v = [elbow[0] - tip[0], elbow[1] - tip[1]];
+                    arc.centre_open
+                        && u[0] * v[0] + u[1] * v[1]
+                            >= 15.0f64.to_radians().cos() * u[0].hypot(u[1]) * v[0].hypot(v[1])
+                                - 1e-9
+                })))
+    );
+    let drawing = model::render(&part, &a, &p, &font()).unwrap();
+    assert!(
+        !lint::lint(&a, &drawing)
+            .iter()
+            .any(|i| i.annotation.as_deref() == Some(d.id.as_str())
+                && i.code.starts_with("radius_leader_"))
+    );
+    let material = draftwright::material::solids(&a, page);
+    // One initial interval is intentionally exempt even when it runs through a boss.
+    let box_centre = [0, 1].map(|k| (material[0][k] + material[0][k + 2]) / 2.0);
+    assert_eq!(
+        draftwright::material::reentry(
+            &material,
+            [box_centre, [material[0][2] + 10.0, box_centre[1]]]
+        ),
+        0.0
     );
 }

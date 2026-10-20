@@ -7,9 +7,9 @@ pzfreo/draftwright at `586628b96db6779454d499c7d92d37f1aa8f1df9`.
 | File | Source | Entries | Drafting | Trust | Spec | Machinery |
 | --- | --- | --- | --- | --- | --- | --- |
 | `adr.yaml` | live ADRs 1–5 (invariants, decisions, unguarded rules) and archived ADRs (rules not already live) | 160 | 57 | 61 | 13 | 29 |
-| `lint.yaml` | `linting/`: per-feature coverage requirements and every issue code | 165 | 121 | 33 | 0 | 11 |
+| `lint.yaml` | `linting/`: per-feature coverage requirements and every issue code | 166 | 122 | 33 | 0 | 11 |
 | `issues.yaml` | the 142 issue-numbered regression test files (`test_issue_*.py`) | 190 | 93 | 85 | 3 | 9 |
-| **All** | | **515** | **271** | **179** | **16** | **49** |
+| **All** | | **516** | **272** | **179** | **16** | **49** |
 
 Status after the maintainer-approved triage of 2026-10-16, including the earlier Stage G/H
 and K1b/K4/K5/K7 integrations, merged with PR #56 (datum placement) and PR #57
@@ -31,14 +31,15 @@ ISSUE-563-b, ISSUE-1262-a, ISSUE-1530-a and ISSUE-1604-a. ISSUE-563-b includes t
 maintainer-approved reservation of every linear corridor, permitting smaller scales.
 The detail-view integration also ports ISSUE-443-a, ISSUE-1216-b and
 LINT-code-detail_caption_clearance with executable tests.
+The radius-leader fix (#145) adds one Rust drafting lint rule for radial direction and approach.
 Counts are computed from the merged YAML entries:
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
 | `adr.yaml` | 5 | 68 | 61 | 26 |
-| `lint.yaml` | 6 | 126 | 14 | 19 |
+| `lint.yaml` | 6 | 127 | 14 | 19 |
 | `issues.yaml` | 19 | 95 | 50 | 26 |
-| **All** | **30** | **289** | **125** | **71** |
+| **All** | **30** | **290** | **125** | **71** |
 
 The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
 The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE

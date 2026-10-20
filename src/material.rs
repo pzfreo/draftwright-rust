@@ -12,6 +12,9 @@
 //! part's envelope when the Analysis has none): the plan is made from the Analysis (ADR R1),
 //! which keeps no filled projected face, so a concave silhouette's notch reads as material. A
 //! through hole is inside its solid's box, so a shaft leaving a bore is still one traversal.
+//! This deliberately does not detect a concave radius leader crossing a boss within that
+//! single box (#145, CTC-01): its tip-to-exit interval starts at zero and is exempt. Radius
+//! direction/approach is checked independently against the cylinder, in `crate::radius`.
 //! Unlike draftwright's, a shaft whose tip is already clear of the material is charged for its
 //! first traversal too: the router's tips lie on the part, and one that does not is cutting in.
 
