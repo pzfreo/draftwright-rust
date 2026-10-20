@@ -181,7 +181,8 @@
                       "change": {
                         "enum": [
                           "problem_added",
-                          "problem_resolved"
+                          "problem_resolved",
+                          "notice"
                         ]
                       },
                       "problem": {

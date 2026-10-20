@@ -430,30 +430,24 @@ fn unguarded_legacy_edits_report_a_changed_sheet_and_preview_does_not_commit() {
     let before = layout(s.plan());
     let preview = s.apply(&ops, false).unwrap();
     assert_eq!(layout(s.plan()), before);
-    assert!(
-        preview
-            .problems_added
-            .iter()
-            .any(|p| p.code == "layout_replanned")
-    );
+    assert!(preview.notices.iter().any(|p| p.code == "layout_replanned"));
     let delta = s.apply(&ops, true).unwrap();
     assert_ne!(layout(s.plan()), before);
     assert_eq!(
         (&*s.plan().sheet.size, &*s.plan().sheet.scale),
         ("A3", "2:1")
     );
-    assert!(
-        delta
-            .problems_added
-            .iter()
-            .any(|p| p.code == "layout_replanned")
+    assert!(delta.notices.iter().any(|p| p.code == "layout_replanned"));
+    let mut replay = session().state().clone();
+    delta.apply_to(&mut replay).unwrap();
+    assert_eq!(
+        serde_json::to_value(&replay).unwrap(),
+        serde_json::to_value(s.state()).unwrap()
     );
-    assert!(
-        s.drawing()
-            .problems
-            .iter()
-            .chain(&s.plan().problems)
-            .any(|p| p.code == "layout_replanned")
+    let rebuilt = model::plan_recovered(s.analysis(), s.spec()).unwrap();
+    assert_eq!(
+        serde_json::to_value(s.plan()).unwrap(),
+        serde_json::to_value(rebuilt).unwrap()
     );
 }
 

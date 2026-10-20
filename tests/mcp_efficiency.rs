@@ -300,7 +300,18 @@ fn inspection_batches_a_filtered_problem_page_with_registration() {
         json!({"part_ref":summary["part_ref"],"spec_version":summary["spec_version"],"filter":{"feature":"f:slot:1"}}),
     );
     assert_eq!(result["problem_page"], problems);
-    let actual = result["problem_page"]["items"].as_array().unwrap();
+    let actual: Vec<Value> = result["problem_page"]["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| {
+            if let Some(key) = row["detail_ref"].as_str() {
+                serde_json::from_slice(&cache.artifact_bytes(key).unwrap()).unwrap()
+            } else {
+                row.clone()
+            }
+        })
+        .collect();
     assert_eq!(actual.len(), 1);
     assert!(
         actual

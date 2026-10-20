@@ -350,9 +350,10 @@ fn delta_page(cache: &Cache, delta: &Delta, args: &Value) -> Result<Value, Error
     for (change, problems) in [
         ("problem_added", &delta.problems_added),
         ("problem_resolved", &delta.problems_resolved),
+        ("notice", &delta.notices),
     ] {
         for p in problems {
-            rows.push(json!({"change":change,"problem":if detail{value(p)}else{json!({"id":p.id,"code":p.code,"severity":p.severity,"subjects":p.subjects})}}));
+            rows.push(json!({"change":change,"problem":if detail || change == "notice"{value(p)}else{json!({"id":p.id,"code":p.code,"severity":p.severity,"subjects":p.subjects})}}));
         }
     }
     Ok(

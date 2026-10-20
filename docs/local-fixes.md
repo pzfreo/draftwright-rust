@@ -30,8 +30,9 @@ otherwise local remedy there is conservatively offered as a sheet fix. The autho
 express the retained-layout choice with `sheet/keep_layout`, or remove it to restore
 automatic selection; no new search policy is implicit.
 
-`layout_replanned` in edit results compares actual before/after paper, scale and sheet
+`layout_replanned` in `Delta.notices` (MCP event `notice`) compares actual before/after paper, scale and sheet
 count, independently of recovery's candidate diagnostics. Preview reports the change
-without committing it. A generic edit remains free to change a sheet; its report says
+without committing it. Notices describe the edit and are not inserted into reproducible
+drawing findings; delta replay and reconstruction from the Spec remain identical. A generic edit remains free to change a sheet; its report says
 so. Scope classifies the offered alternative; it does not guarantee that several
 individually valid placements clear every finding when combined.

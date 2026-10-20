@@ -160,7 +160,7 @@ pub(crate) fn forced(spec: &Spec) -> Result<Spec, Invalid> {
 }
 
 /// An edit report compares the actual before/after sheets, not two candidates in one search.
-pub(crate) fn report(before: &Plan, after: &mut Plan) {
+pub(crate) fn notice(before: &Plan, after: &Plan) -> Option<model::Problem> {
     let sheets = |p: &Plan| {
         std::iter::once(&p.sheet)
             .chain(&p.sheets)
@@ -168,9 +168,8 @@ pub(crate) fn report(before: &Plan, after: &mut Plan) {
             .collect::<Vec<_>>()
     };
     if sheets(before) != sheets(after) {
-        after.problems.retain(|p| p.code != "layout_replanned");
-        after.problems.push(model::Problem {
-            id: "p:layout_replanned:sheet".into(),
+        Some(model::Problem {
+            id: "p:layout_replanned:edit".into(),
             code: "layout_replanned".into(),
             severity: "info".into(),
             message: format!(
@@ -185,6 +184,8 @@ pub(crate) fn report(before: &Plan, after: &mut Plan) {
             ),
             subjects: vec!["sheet".into()],
             ..Default::default()
-        });
+        })
+    } else {
+        None
     }
 }

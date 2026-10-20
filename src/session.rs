@@ -149,6 +149,9 @@ pub struct Delta {
     pub removed: Vec<String>,
     pub problems_added: Vec<model::Problem>,
     pub problems_resolved: Vec<model::Problem>,
+    /// Findings about the edit itself, rather than the reproducible drawing state.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notices: Vec<model::Problem>,
     pub plan: PlanDelta,
     /// Only changed view geometry and annotation ink. Removed IDs use `removed`.
     pub geometry: GeometryLayer,
@@ -936,8 +939,7 @@ impl Session {
     }
     fn evaluate(&self, spec: &Spec) -> Result<Evaluation, Error> {
         let mut planner = self.planner.clone();
-        let mut plan = planner.plan(&self.analysis, spec)?;
-        crate::local_layout::report(self.plan(), &mut plan);
+        let plan = planner.plan(&self.analysis, spec)?;
         let mut cache = self.projections.clone();
         let geometry = model::render_geometry(&self.part, &self.analysis, &plan, &mut cache)
             .map_err(|e| Error::failed(format!("cannot render session: {e}")))?;
@@ -1544,7 +1546,7 @@ fn settable(
         }
     }
     if item.item.kind == "sheet" {
-        fields.insert("sheet/keep_layout".into(), json!({"forms":["remove to allow the whole sheet to be laid out again, including hand-moved placements"], "description":"Local fixes retain the current single-sheet view frames here. Conflicting sheet edits are refused until this override is removed."}));
+        fields.insert("sheet/keep_layout".into(), json!({"forms":["remove to allow the whole sheet to be laid out again, including hand-moved placements"], "consequences":["Retains the current sheet and view frames; remove before changing the sheet."]}));
         fields.insert(
             "sheet/size".into(),
             choices(json!(crate::layout::PAGES.map(|p| p.0))),
@@ -1971,6 +1973,9 @@ fn difference(old: &State, new: &State, analysis: &Analysis, plans: usize) -> De
     };
     Delta {
         plans,
+        notices: crate::local_layout::notice(&old.plan, &new.plan)
+            .into_iter()
+            .collect(),
         changed,
         added: after
             .into_iter()

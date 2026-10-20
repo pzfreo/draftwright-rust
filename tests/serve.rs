@@ -131,8 +131,16 @@ fn the_service_answers_each_line() {
     assert_eq!(problems[0]["severity"], "warning");
     assert_eq!(problems[0]["subjects"], json!(["sheet"]));
     assert_eq!(
-        problems[0]["fix"],
-        json!([{ "op": "set", "path": "sheet/title/tolerance", "value": "UNSPECIFIED" }])
+        problems[0]["fix"][0],
+        json!({ "op": "set", "path": "sheet/title/tolerance", "value": "UNSPECIFIED" })
+    );
+    assert_eq!(problems[0]["fix"].as_array().unwrap().len(), 2);
+    assert_eq!(problems[0]["fix"][1]["path"], "sheet/keep_layout");
+    let retained: draftwright::local_layout::Layout =
+        serde_json::from_value(problems[0]["fix"][1]["value"].clone()).unwrap();
+    assert_eq!(
+        (retained.size.as_str(), retained.scale.as_str()),
+        ("A4", "1:1")
     );
     // No feature-size requirements; the sheet still proves every overall extent.
     assert_eq!(replies[1]["result"]["lint"], json!([]));
