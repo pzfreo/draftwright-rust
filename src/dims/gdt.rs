@@ -1245,7 +1245,6 @@ pub(crate) fn plan_anchored(
         Search::Baseline,
         Search::All,
         Search::Datums,
-        Search::Uncited,
         Search::Separate,
     ];
     let score = |candidate: &(Vec<PlannedGdt>, Vec<Problem>)| {
@@ -1283,15 +1282,6 @@ pub(crate) fn plan_anchored(
     let mut best = seed;
     let mut original = true;
     for search in searches {
-        // Newly visible uncited datums can occupy narrow shoulder gaps rejected by
-        // the conservative first-stroke band. Try exact clearance in the same placer
-        // only while contacts remain; cited-only drawings keep their search sequence.
-        if search == Search::Uncited
-            && ((best_score.0 == 0 && best_score.1 == 0)
-                || !matches!(&analysis.pmi, Some(crate::pmi::Reading::Read(report)) if report.records.iter().any(|r| r.category == crate::pmi::Category::Datum && !report.records.iter().any(|t| t.category == crate::pmi::Category::GeometricTolerance && t.datum_refs.iter().any(|d| d.trim() == r.label.trim())))))
-        {
-            continue;
-        }
         if search == Search::Separate && (seed_overlaps == 0 || best_score.0 == 0) {
             continue;
         }
@@ -1332,6 +1322,31 @@ pub(crate) fn plan_anchored(
             {
                 return best;
             }
+        }
+    }
+    // Keep the existing search loop unchanged for cited-only drawings. Only new,
+    // uncited output with remaining contacts needs exact narrow-gap trials.
+    if (best_score.0 != 0 || best_score.1 != 0)
+        && matches!(&analysis.pmi, Some(crate::pmi::Reading::Read(report)) if report.records.iter().any(|r| r.category == crate::pmi::Category::Datum && !report.records.iter().any(|t| t.category == crate::pmi::Category::GeometricTolerance && t.datum_refs.iter().any(|d| d.trim() == r.label.trim()))))
+        && let Some(candidate) = plan_search(
+            analysis,
+            spec,
+            sheet,
+            views,
+            dims,
+            canonical,
+            cache,
+            Search::Uncited,
+            (seed_overlaps == 0).then_some(&before),
+        )
+        && (contacts(&candidate.1).is_subset(&before)
+            || overlap_count(&candidate.1) < seed_overlaps)
+    {
+        let grade = score(&candidate);
+        if grade < best_score
+            || (grade == best_score && datum_length(&candidate) < best_length - 1e-6)
+        {
+            return candidate;
         }
     }
     best
@@ -1714,6 +1729,7 @@ fn plan_search(
         // The best grade, then the shortest automatic datum leader; remaining
         // ties keep the original site, strip and tier order.
         let mut best: Option<Choice<'_>> = None;
+        let tier_ink: &[[P2; 2]] = if search == Search::Uncited { &[] } else { &ink };
         // Exhaust the compact, face-to-first-lane choices before trying any outer tier.
         'search: for inside in [true, false] {
             if inside
@@ -1732,14 +1748,7 @@ fn plan_search(
                         // The uncited fallback lets exact obstacle grading test a narrow
                         // shoulder gap that the conservative first-stroke band rejects.
                         // All original sites and tiers are reused; crossings still lose.
-                        inside_tiers(
-                            side,
-                            *tip,
-                            frame.outline(),
-                            laid.size,
-                            if search == Search::Uncited { &[] } else { &ink },
-                            protect,
-                        )
+                        inside_tiers(side, *tip, frame.outline(), laid.size, tier_ink, protect)
                     } else if inside {
                         // Frame ink can fit between the face and the first
                         // dimension lane too. Exact obstacle grading, including
