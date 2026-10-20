@@ -1125,8 +1125,8 @@ pub fn coverage(analysis: &Analysis, _marks: &[Mark]) -> Vec<LintIssue> {
             related: Vec::new(),
             evidence: Some(why.reason().into()),
             fix: Some(format!(
-                "Review {} by hand: its section is not dimensioned automatically.",
-                f.id
+                "Review and dimension the section of {} by hand.",
+                crate::wording::feature(f)
             )),
         });
     }
@@ -1165,7 +1165,7 @@ pub fn coverage(analysis: &Analysis, _marks: &[Mark]) -> Vec<LintIssue> {
             related: Vec::new(),
             evidence: Some(format!("quiddity refused faces {}", faces.join(", "))),
             fix: Some(
-                "Review those faces manually: they were not recognised as a recess. Declare a missed recess in the Spec if it matches a supported feature type.".into(),
+                "Review those faces by hand and identify any missed recess that matches a supported feature type.".into(),
             ),
         });
     }

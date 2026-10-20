@@ -817,10 +817,7 @@ impl Problem {
     pub fn offered_fixes(&self) -> Vec<crate::fixes::Fix> {
         let mut fixes = self.fixes.clone();
         if !self.fix.is_empty() && !fixes.iter().any(|f| f.ops == self.fix) {
-            fixes.insert(
-                0,
-                crate::fixes::Fix::new("Apply the corrective Spec edits.", self.fix.clone()),
-            );
+            fixes.insert(0, crate::fixes::Fix::from_ops(self.fix.clone()));
         }
         fixes.sort_by_key(crate::fixes::Fix::scope);
         fixes
@@ -1818,7 +1815,6 @@ struct FittingFix {
     ops: Vec<crate::items::Op>,
     size: String,
     scale: String,
-    hole_table: bool,
 }
 
 fn fit_fix(analysis: &Analysis, spec: &Spec) -> Result<Option<FittingFix>, Invalid> {
@@ -1877,7 +1873,6 @@ fn fit_fix(analysis: &Analysis, spec: &Spec) -> Result<Option<FittingFix>, Inval
             ops,
             size: pair.0,
             scale: pair.1,
-            hole_table: p.hole_table.is_some() || !p.hole_tables.is_empty(),
         }));
     }
     Ok(None)
@@ -2691,13 +2686,8 @@ fn recover_candidates(
                     fix.size,
                     fix.scale
                 );
-                let description = if fix.hole_table {
-                    format!("Use a hole table at {} on {}.", fix.scale, fix.size)
-                } else {
-                    format!("Use {} at {}.", fix.size, fix.scale)
-                };
                 p.fix = fix.ops.clone();
-                p.fixes = vec![crate::fixes::Fix::new(description, fix.ops)];
+                p.fixes = vec![crate::fixes::Fix::from_ops(fix.ops)];
             }
         }
         return Ok(first);

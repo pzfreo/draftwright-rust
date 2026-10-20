@@ -4294,19 +4294,18 @@ pub(crate) fn local_placement_fix(
                     serde_json::to_value(place).unwrap(),
                 )];
                 crate::model::edit(&plan.spec, &serde_json::to_value(&ops).unwrap()).ok()?;
-                let description = if let Some(offset) = place.offset {
-                    format!(
-                        "Move {} by a local pinned offset [{:.1}, {:.1}] mm; preview the placement.",
-                        d.label, offset[0], offset[1]
-                    )
-                } else {
-                    format!(
-                        "Move {} in the {name} view to the {} side, lane {}; preview the placement.",
+                let description = crate::fixes::placement_description(
+                    &format!(
+                        "the {} {}",
                         d.label,
-                        place.side?.name(),
-                        place.lane?
-                    )
-                };
+                        if d.kind == "callout" {
+                            "callout"
+                        } else {
+                            "dimension"
+                        }
+                    ),
+                    place,
+                );
                 Some(crate::fixes::Fix::new(description, ops))
             };
             for side in option["sides"].as_array().into_iter().flatten() {

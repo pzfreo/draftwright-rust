@@ -290,7 +290,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             continue;
         }
         let fix = Some(format!(
-            "State {} for {id} ({owner}): a linear dimension across the channel, in the view that \
+            "State {} across the channel: a linear dimension in the view that \
              looks along it.",
             fmt(value)
         ));

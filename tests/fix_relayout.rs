@@ -274,9 +274,49 @@ fn ctc01_crossings_offer_local_edits_and_identify_the_sheet_remedy() {
     assert_eq!(sheet.scope(), draftwright::fixes::Scope::Sheet);
     let description = sheet.description();
     assert!(
-        description.contains("Re-plans the sheet")
+        description.contains("The whole sheet is laid out again")
             && description.contains("hole table")
             && description.contains("1:10"),
         "{description}"
+    );
+}
+
+/// #138: pins retain relative drawing intent, rather than absolute page coordinates,
+/// when a sheet-scale remedy rebuilds their canonical frame.
+#[test]
+fn changing_sheet_scale_can_move_a_hand_placed_callout() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/parts/mounting_plate.step");
+    let (_, analysis) = model::analyse_native(&path).unwrap();
+    let base = model::plan_recovered(&analysis, &Default::default()).unwrap();
+    let callout = base
+        .dimensions
+        .iter()
+        .find(|d| d.kind == "callout" && d.placed.is_some())
+        .unwrap();
+    let mut spec: model::Spec = serde_json::from_value(serde_json::json!({
+        "sheet": { "scale": "1:1" },
+        "dimensions": { &callout.id: { "place": {
+            "view": callout.view.trim_start_matches("v:"), "offset": [12.0, 12.0], "pinned": true
+        } } }
+    }))
+    .unwrap();
+    let before = model::plan_recovered(&analysis, &spec).unwrap();
+    spec.sheet.scale = Some("1:2".into());
+    let after = model::plan_recovered(&analysis, &spec).unwrap();
+    let position = |p: &model::Plan| {
+        p.dimensions
+            .iter()
+            .find(|d| d.id == callout.id)
+            .unwrap()
+            .placed
+            .as_ref()
+            .unwrap()
+            .label_at
+    };
+    assert_ne!(position(&before), position(&after));
+    assert_eq!(
+        before.spec.dimensions[&callout.id].place,
+        after.spec.dimensions[&callout.id].place
     );
 }

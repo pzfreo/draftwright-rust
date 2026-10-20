@@ -433,3 +433,73 @@ fn hole_table_refusal_explains_the_datum_requirement() {
             .all(|id| plan.dimensions.iter().any(|d| d.id == *id))
     );
 }
+
+/// #138: the words shown beside Apply stay in drawing language across the
+/// fixture variants and the corpus survey, including fallback operation bundles.
+#[test]
+fn fix_descriptions_use_drawing_language_across_fixtures_and_corpus() {
+    fn check(name: &str, plan: &Plan) -> usize {
+        let mut count = 0;
+        for problem in &plan.problems {
+            for fix in problem.offered_fixes() {
+                let description = fix.description();
+                let words: Vec<_> = description
+                    .split(|c: char| !c.is_alphabetic())
+                    .map(str::to_lowercase)
+                    .collect();
+                for banned in ["preview", "lane", "spec", "automatic", "auto", "corrective"] {
+                    assert!(!words.iter().any(|w| w == banned), "{name}: {description}");
+                }
+                assert_eq!(carries_id(&description), None, "{name}: {description}");
+                assert!(description.ends_with('.'), "{name}: {description}");
+                let consequence = "The whole sheet is laid out again, so placements you have moved by hand may change.";
+                assert_eq!(
+                    description.matches(consequence).count(),
+                    usize::from(fix.scope() == draftwright::fixes::Scope::Sheet),
+                    "{name}: {description}"
+                );
+                assert_eq!(description, fix.description(), "deterministic wording");
+                let reread: draftwright::fixes::Fix =
+                    serde_json::from_value(serde_json::to_value(&fix).unwrap()).unwrap();
+                assert_eq!(description, reread.description(), "no repeated consequence");
+                count += 1;
+            }
+        }
+        count
+    }
+    let fixture_count: usize = plans().iter().map(|(name, plan)| check(name, plan)).sum();
+    assert!(fixture_count > 0);
+    let corpus = std::env::var_os("DRAFTWRIGHT_CORPUS")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/Users/paul/repos/quiddity/tests/corpus"));
+    if !corpus.is_dir() {
+        assert_ne!(
+            std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").as_deref(),
+            Ok("1"),
+            "corpus required"
+        );
+        return;
+    }
+    let files: Vec<_> = include_str!("../tools/repeated_span_parts.txt")
+        .lines()
+        .collect();
+    let counts = support::parallel(&files, |file| {
+        let (_, analysis) = cache::native(&corpus.join(file));
+        let count = check(file, &cache::default_plan(&analysis, true));
+        for issue in draftwright::lint::check(&analysis, &[]) {
+            let wire = serde_json::to_value(issue).unwrap();
+            if let Some(description) = wire["fix_description"].as_str() {
+                let words: Vec<_> = description
+                    .split(|c: char| !c.is_alphabetic())
+                    .map(str::to_lowercase)
+                    .collect();
+                for banned in ["preview", "lane", "spec", "automatic", "auto", "corrective"] {
+                    assert!(!words.iter().any(|w| w == banned), "{file}: {description}");
+                }
+                assert_eq!(carries_id(description), None, "{file}: {description}");
+            }
+        }
+        count
+    });
+    assert!(counts.into_iter().sum::<usize>() > 0);
+}

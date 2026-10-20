@@ -422,7 +422,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             continue;
         }
         let fix = Some(format!(
-            "State {} for {owner}: the gusset callout (thickness, legs, pitch or spacing, and \
+            "State {} for the ribs: the gusset callout (thickness, legs, pitch or spacing, and \
              location), in the view that sees the ribs' triangles.",
             fmt(value)
         ));

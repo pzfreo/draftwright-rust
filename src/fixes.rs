@@ -134,59 +134,152 @@ impl Fix {
     pub fn scope(&self) -> Scope {
         scope(&self.ops)
     }
+    pub(crate) fn from_ops(ops: Vec<Op>) -> Self {
+        let phrase = ops
+            .iter()
+            .map(op_description)
+            .collect::<Vec<_>>()
+            .join(" and ");
+        let mut chars = phrase.chars();
+        let description = chars
+            .next()
+            .map(|c| c.to_uppercase().chain(chars).collect::<String>())
+            .unwrap_or_default();
+        Self::new(format!("{description}."), ops)
+    }
     pub fn description(&self) -> String {
-        if self.scope() != Scope::Sheet || self.description.starts_with("Re-plans the sheet:") {
+        if self.scope() != Scope::Sheet || self.description.ends_with(SHEET_CONSEQUENCE) {
             return self.description.clone();
         }
-        let effects: Vec<_> = self
-            .ops
-            .iter()
-            .map(|op| {
-                let value = op.value.as_ref().map(|v| {
-                    v.as_str()
-                        .map(String::from)
-                        .unwrap_or_else(|| v.to_string())
-                });
-                match op.path.as_str() {
-                    "sheet/size" => format!("paper {}", value.unwrap_or("automatic".into())),
-                    "sheet/scale" => format!("scale {}", value.unwrap_or("automatic".into())),
-                    "hole_table" => format!("hole table {}", value.unwrap_or("auto".into())),
-                    "sheets/max" => format!("sheet count {}", value.unwrap_or("automatic".into())),
-                    "sheets/hole_table" => format!(
-                        "hole table allocation {}",
-                        value.unwrap_or("automatic".into())
-                    ),
-                    "dimension_source" => {
-                        format!("dimension source {}", value.unwrap_or("auto".into()))
-                    }
-                    path if path.starts_with("dimension_schemes/") => format!(
-                        "{} dimension scheme {}",
-                        op.op,
-                        path.trim_start_matches("dimension_schemes/")
-                    ),
-                    path if path.starts_with("pmi") => {
-                        format!("PMI mode {}", value.unwrap_or("automatic".into()))
-                    }
-                    path if path.ends_with("/sheet") => format!(
-                        "{} sheet allocation {}",
-                        path.trim_end_matches("/sheet").replace('/', " "),
-                        value.unwrap_or("automatic".into())
-                    ),
-                    path => format!(
-                        "{} {path}{}",
-                        op.op,
-                        value.map(|v| format!(" to {v}")).unwrap_or_default()
-                    ),
-                }
-            })
-            .collect();
-        format!(
-            "Re-plans the sheet: {}. {}",
-            effects.join(", "),
-            self.description
-        )
+        format!("{} {SHEET_CONSEQUENCE}", self.description)
     }
 }
+/// Sheet edits rebuild the canonical drawing, including the frame used by pins.
+pub const SHEET_CONSEQUENCE: &str =
+    "The whole sheet is laid out again, so placements you have moved by hand may change.";
+
+/// Describe the actual values carried by an engine-generated remedy, without exposing
+/// edit paths. More specific placement builders can supply the printed label as well.
+fn op_description(op: &Op) -> String {
+    let parts: Vec<_> = op.path.trim_matches('/').split('/').collect();
+    let value = op.value.as_ref();
+    let text = value.map(|v| {
+        v.as_str()
+            .map(String::from)
+            .unwrap_or_else(|| v.to_string())
+    });
+    let choose = |what: &str| format!("let draftwright choose the {what}");
+    let view = || crate::wording::view(parts.get(1).copied().unwrap_or("front"));
+    let item = || match parts.first().copied() {
+        Some("dimensions") => "the dimension",
+        Some("annotations") => "the annotation",
+        _ => "the feature",
+    };
+    match op.path.as_str() {
+        "sheet/scale" => text.map_or_else(|| choose("scale"), |v| format!("draw at {v}")),
+        "sheet/size" => text.map_or_else(|| choose("paper size"), |v| format!("use {v} paper")),
+        "sheet/title/tolerance" => text.map_or_else(
+            || "remove the general tolerance from the title block".into(),
+            |v| format!("add the general tolerance {v} to the title block"),
+        ),
+        "hole_table" => match text.as_deref() {
+            Some("always") => "list the holes in a hole table".into(),
+            Some("never") => "draw the hole callouts beside the views".into(),
+            _ => "let draftwright choose whether to list the holes in a hole table".into(),
+        },
+        "notes" => match value.and_then(|v| v.as_array()) {
+            Some(notes) if notes.is_empty() => "remove the added notes".into(),
+            Some(notes) => format!(
+                "keep the added notes {}",
+                notes
+                    .iter()
+                    .filter_map(|n| n["text"].as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            None => "remove the added notes".into(),
+        },
+        _ => match parts.as_slice() {
+            ["views", _, "omit"] => {
+                if value.and_then(|v| v.as_bool()) == Some(true) {
+                    format!("hide {}", view())
+                } else {
+                    format!("show {}", view())
+                }
+            }
+            ["views", _, "place", ..] => format!("let draftwright position {}", view()),
+            ["views", _] if value.is_none() => format!("remove {}", view()),
+            ["dimensions" | "annotations", _, "place"] => {
+                if let Some(place) = value.and_then(|v| {
+                    serde_json::from_value::<crate::placement_intent::Place>(v.clone()).ok()
+                }) {
+                    placement_description(item(), &place)
+                        .trim_end_matches('.')
+                        .to_lowercase()
+                } else {
+                    format!("let draftwright position {}", item())
+                }
+            }
+            ["dimensions", _, "omit"] => format!("show {}", item()),
+            ["dimensions", _, "tolerance"] => format!("remove the tolerance from {}", item()),
+            ["features", _, "fit"] => "remove the fit from the feature".into(),
+            ["dimensions", _] if value.is_some() => "draw the dimension".into(),
+            ["dimensions" | "annotations" | "features" | "faces", _] => {
+                format!(
+                    "remove the {} settings for the previous part revision",
+                    parts[0].trim_end_matches('s')
+                )
+            }
+            _ => {
+                // External operations are not engine remedies. Still name their value
+                // and field in ordinary words rather than emitting an opaque fallback.
+                let field = parts
+                    .last()
+                    .copied()
+                    .unwrap_or("drawing settings")
+                    .replace('_', " ");
+                text.map_or_else(
+                    || format!("clear the {field}"),
+                    |v| format!("set the {field} to {v}"),
+                )
+            }
+        },
+    }
+}
+
+pub(crate) fn placement_description(item: &str, place: &crate::placement_intent::Place) -> String {
+    let view = crate::wording::view(place.view.as_deref().unwrap_or("front"));
+    if let Some([x, y]) = place.offset {
+        let distance = format!(
+            "{:.1} mm {} and {:.1} mm {}",
+            x.abs(),
+            if x < 0.0 { "left" } else { "right" },
+            y.abs(),
+            if y < 0.0 { "down" } else { "up" }
+        );
+        return if item.ends_with("callout") {
+            format!("Place the leader bend of {item} {distance} from its tip in {view}.")
+        } else {
+            format!("Place {item} {distance} from the position chosen by draftwright in {view}.")
+        };
+    }
+    let Some(side) = place.side else {
+        return format!("Let draftwright position {item}.");
+    };
+    let side = match side {
+        crate::placement_intent::Side::Above => "above",
+        crate::placement_intent::Side::Below => "below",
+        crate::placement_intent::Side::Left => "to the left of",
+        crate::placement_intent::Side::Right => "to the right of",
+    };
+    let row = match place.lane.unwrap_or(0) {
+        0 => "nearest the view".into(),
+        1 => "in the second row of dimensions".into(),
+        n => format!("in row {} of dimensions", n + 1),
+    };
+    format!("Move {item} {side} {view}, {row}.")
+}
+
 impl Serialize for Fix {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut s = serializer.serialize_struct("Fix", 3)?;
@@ -257,7 +350,7 @@ fn attach_inner(analysis: &crate::model::Analysis, plan: &mut crate::model::Plan
             .map(|scale| {
                 let scale = crate::model::scale_name(scale);
                 Fix::new(
-                    format!("Try a hole table at {scale}; preview the sheet-wide result."),
+                    format!("List the holes in a hole table and draw at {scale}."),
                     vec![
                         Op::set("hole_table", serde_json::json!("always")),
                         Op::set("sheet/scale", serde_json::json!(scale)),
@@ -273,7 +366,7 @@ fn attach_inner(analysis: &crate::model::Analysis, plan: &mut crate::model::Plan
         if problem
             .fixes
             .iter()
-            .any(|f| f.description.ends_with("preview the placement."))
+            .any(|f| f.description.starts_with("Move ") || f.description.starts_with("Place "))
         {
             continue;
         }
@@ -343,8 +436,10 @@ mod tests {
             serde_json::to_value(sheet).unwrap()
         );
         let description = wire["fixes"][2]["description"].as_str().unwrap();
-        assert!(description.contains("Re-plans the sheet"));
-        assert!(description.contains("hole table always") && description.contains("1:10"));
+        assert_eq!(
+            description,
+            format!("List the holes in a hole table and draw at 1:10. {SHEET_CONSEQUENCE}")
+        );
         let reread: Problem = serde_json::from_value(wire.clone()).unwrap();
         assert_eq!(p, reread);
         assert_eq!(serde_json::to_value(reread).unwrap(), wire);
@@ -353,6 +448,62 @@ mod tests {
         })).unwrap();
         assert_eq!(understated.scope(), Scope::Sheet);
     }
+    #[test]
+    fn descriptions_name_operation_values_once() {
+        for (ops, expected) in [
+            (
+                vec![Op::set("sheet/title/tolerance", "ISO 2768-mK".into())],
+                "Add the general tolerance ISO 2768-mK to the title block.".to_string(),
+            ),
+            (
+                vec![Op::remove("sheet/scale")],
+                format!("Let draftwright choose the scale. {SHEET_CONSEQUENCE}"),
+            ),
+            (
+                vec![
+                    Op::set("sheet/size", "A3".into()),
+                    Op::set("sheet/scale", "1:5".into()),
+                ],
+                format!("Use A3 paper and draw at 1:5. {SHEET_CONSEQUENCE}"),
+            ),
+            (
+                vec![Op::set("views/iso/omit", true.into())],
+                "Hide the isometric view.".to_string(),
+            ),
+            (
+                vec![Op::remove("views/plan/omit")],
+                "Show the plan view.".to_string(),
+            ),
+            (
+                vec![Op::remove("dimensions/d/place")],
+                "Let draftwright position the dimension.".to_string(),
+            ),
+        ] {
+            let fix = Fix::from_ops(ops.clone());
+            assert_eq!(fix.description(), expected);
+            assert_eq!(fix.ops, ops);
+        }
+    }
+
+    #[test]
+    fn placement_words_follow_the_position_and_offset_origin() {
+        let place =
+            serde_json::from_value(serde_json::json!({"view":"plan", "side":"above", "lane":0}))
+                .unwrap();
+        assert_eq!(
+            placement_description("the 16 × 30 × 4 DEEP callout", &place),
+            "Move the 16 × 30 × 4 DEEP callout above the plan view, nearest the view."
+        );
+        let place = serde_json::from_value(
+            serde_json::json!({"view":"front", "offset":[-4.0, 6.0], "pinned":true}),
+        )
+        .unwrap();
+        assert_eq!(
+            placement_description("the Ø8 callout", &place),
+            "Place the leader bend of the Ø8 callout 4.0 mm left and 6.0 mm up from its tip in the front view."
+        );
+    }
+
     #[test]
     fn classification_table() {
         use Scope::*;

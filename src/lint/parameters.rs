@@ -164,7 +164,11 @@ pub fn coverage(
         if claiming.iter().any(states) {
             continue;
         }
-        let fix = Some(format!("State {} for {id}: {how}.", w.callout));
+        let fix = Some(format!(
+            "State {} for {}: {how}.",
+            w.callout,
+            crate::wording::feature(w.feature)
+        ));
         issues.push(match claiming.first() {
             Some(m) => issue(
                 "unverifiable",
@@ -283,7 +287,7 @@ mod tests {
         );
         assert_eq!(
             issue.fix.as_deref(),
-            Some("State R3 for f:fillet:1: a radius callout, in a view that sees its arc.")
+            Some("State R3 for the R3 fillet: a radius callout, in a view that sees its arc.")
         );
     }
 }
