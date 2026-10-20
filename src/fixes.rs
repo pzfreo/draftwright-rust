@@ -136,9 +136,21 @@ pub struct Fix {
 }
 impl PartialEq for Fix {
     fn eq(&self, other: &Self) -> bool {
-        self.ops == other.ops
-            && self.scope() == other.scope()
-            && self.description() == other.description()
+        if self.ops != other.ops {
+            return false;
+        }
+        // Equal operations and scope floors imply equal derived scopes. Most
+        // state comparisons also have identical raw descriptions: avoid parsing
+        // retained frames and constructing their descriptions again in that case.
+        // Wire descriptions may already include the sheet consequence, so retain
+        // the full effective comparison for different raw descriptions or floors.
+        if self.description == other.description
+            && self.minimum_scope.unwrap_or(Scope::Local)
+                == other.minimum_scope.unwrap_or(Scope::Local)
+        {
+            return true;
+        }
+        self.scope() == other.scope() && self.description() == other.description()
     }
 }
 impl Fix {
@@ -490,6 +502,56 @@ fn attach_inner(analysis: &crate::model::Analysis, plan: &mut crate::model::Plan
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn equal_fix_operations_compare_effective_scope_floors() {
+        for (path, groups) in [
+            (
+                "dimensions/d/place/lane",
+                vec![
+                    vec![None, Some(Scope::Local)],
+                    vec![Some(Scope::View)],
+                    vec![Some(Scope::Sheet)],
+                ],
+            ),
+            (
+                "views/front/place/gap",
+                vec![
+                    vec![None, Some(Scope::Local), Some(Scope::View)],
+                    vec![Some(Scope::Sheet)],
+                ],
+            ),
+            (
+                "sheet/scale",
+                vec![vec![
+                    None,
+                    Some(Scope::Local),
+                    Some(Scope::View),
+                    Some(Scope::Sheet),
+                ]],
+            ),
+        ] {
+            let fixes: Vec<_> = groups
+                .iter()
+                .enumerate()
+                .flat_map(|(group, floors)| {
+                    floors.iter().map(move |floor| {
+                        let mut fix = Fix::new("Edit", vec![Op::set(path, serde_json::json!(1))]);
+                        fix.minimum_scope = *floor;
+                        (group, fix)
+                    })
+                })
+                .collect();
+            for (group, fix) in &fixes {
+                for (other_group, other) in &fixes {
+                    assert_eq!(
+                        fix == other,
+                        group == other_group,
+                        "{path}: {fix:?}, {other:?}"
+                    );
+                }
+            }
+        }
+    }
     #[test]
     fn alternatives_sort_bundles_without_reordering_operations() {
         use crate::model::Problem;
