@@ -235,9 +235,13 @@ fn underside_cavity_containment_is_not_a_crossing_and_extensions_are_report_only
                     .filter(|op| op.path == "sheet/keep_layout")
                     .collect::<Vec<_>>(),
                 vec![retained],
-                "every alternative retains the same verified sheet and view frames"
+                "every alternative retains the same verified sheet intent"
             );
-            assert!(fix.ops.iter().all(|op| op.path == path || op == retained));
+            assert!(
+                fix.ops
+                    .iter()
+                    .all(|op| op.path == path || local_fix::constraint(op))
+            );
         }
     }
 }

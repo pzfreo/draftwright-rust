@@ -501,7 +501,7 @@ fn translations(
 
 pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
     let preferred = plan.spec.sheet.view_gutter.unwrap_or(PREFERRED);
-    if plan.spec.sheet.keep_layout.is_some() || preferred == 0.0 || plan.views.len() < 2 {
+    if plan.spec.sheet.keep_layout == Some(true) || preferred == 0.0 || plan.views.len() < 2 {
         return;
     }
     let bounds = bands(analysis, plan);

@@ -4235,11 +4235,21 @@ pub(crate) fn local_placement_fix(
     if !before.iter().any(|p| same(p, problem)) {
         return None;
     }
+    // Once a trade is found, inspect at most three further candidates for a clean
+    // alternative. This uses the existing settled-ink trial, never another plan.
+    let mut fallback = None;
+    let mut remaining = 3usize;
     for id in &problem.subjects {
         let Some(index) = plan.dimensions.iter().position(|d| &d.id == id) else {
             continue;
         };
         let d = &plan.dimensions[index];
+        // Retention check for this bounded trial: only shown ink may be replaced.
+        // The replacement clones its complete requirement, terms and measurements;
+        // every other item and all furniture remain in the settled inventory.
+        if d.state != crate::items::State::Shown || d.placed.is_none() {
+            continue;
+        }
         if plan
             .spec
             .dimensions
@@ -4284,6 +4294,12 @@ pub(crate) fn local_placement_fix(
                 .chain(&plan.sheets)
                 .find(|s| s.number == view.sheet)?;
             let mut offer = |placed: Placed, place: &Place| {
+                if fallback.is_some() {
+                    if remaining == 0 {
+                        return fallback.take();
+                    }
+                    remaining -= 1;
+                }
                 all[index] = d.clone();
                 all[index].placed = Some(placed);
                 all[index].view = view.id.clone();
@@ -4309,7 +4325,7 @@ pub(crate) fn local_placement_fix(
                 )];
                 // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
                 crate::model::edit(&plan.spec, &serde_json::to_value(&ops).unwrap()).ok()?;
-                let description = crate::fixes::placement_description(
+                let mut description = crate::fixes::placement_description(
                     &format!(
                         "the {} {}",
                         d.label,
@@ -4321,7 +4337,27 @@ pub(crate) fn local_placement_fix(
                     ),
                     place,
                 );
-                Some(crate::fixes::Fix::new(description, ops))
+                // Compare every code with the published findings, rather than only
+                // errors or a recheck that may contain unpublished advisories.
+                let added: Vec<_> = after
+                    .iter()
+                    .filter(|p| !plan.problems.iter().any(|old| same(p, old)))
+                    .collect();
+                if added.is_empty() {
+                    return Some(crate::fixes::Fix::new(description, ops));
+                }
+                if fallback.is_none() {
+                    description.push_str(" Trade-off: adds these findings: ");
+                    description.push_str(
+                        &added
+                            .iter()
+                            .map(|p| format!("{} [{}]", p.message, p.code))
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                    );
+                    fallback = Some(crate::fixes::Fix::new(description, ops));
+                }
+                None
             };
             for side in option["sides"].as_array().into_iter().flatten() {
                 let side: crate::placement_intent::Side =
@@ -4414,7 +4450,7 @@ pub(crate) fn local_placement_fix(
         }
         all[index] = d.clone();
     }
-    None
+    fallback
 }
 
 /// A readable symbolic class with no numeric limits stated: a hole class on proven internal

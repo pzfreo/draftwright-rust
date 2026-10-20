@@ -613,10 +613,10 @@ impl Session {
             // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
             &serde_json::to_value(ops).expect("ops serialise"),
         )?;
-        if let Some(frame) = &spec.sheet.keep_layout {
-            frame.verify(self.plan())?;
-        }
         let evaluated = self.evaluate(&spec)?;
+        if spec.sheet.keep_layout == Some(true) {
+            crate::local_layout::verify(self.plan(), &evaluated.state.plan)?;
+        }
         let delta = difference(
             &self.state,
             &evaluated.state,
@@ -1545,7 +1545,7 @@ fn settable(
         }
     }
     if item.item.kind == "sheet" {
-        fields.insert("sheet/keep_layout".into(), json!({"forms":["remove to allow the whole sheet to be laid out again, including hand-moved placements"], "consequences":["Retains the current sheet and view frames; remove before changing the sheet."]}));
+        fields.insert("sheet/keep_layout".into(), json!({"forms":["remove to allow the whole sheet to be laid out again, including hand-moved placements"], "consequences":["Keeps explicit paper, scale and sheet count without automatic selection or refitting; moved views are reported."]}));
         fields.insert(
             "sheet/size".into(),
             choices(json!(crate::layout::PAGES.map(|p| p.0))),

@@ -969,77 +969,6 @@
       },
       "additionalProperties": false
     },
-    "layout_frame": {
-      "type": "object",
-      "properties": {
-        "at": {
-          "type": "array",
-          "items": {
-            "type": "number"
-          },
-          "minItems": 2,
-          "maxItems": 2
-        },
-        "area": {
-          "type": "array",
-          "items": {
-            "type": "number"
-          },
-          "minItems": 4,
-          "maxItems": 4
-        },
-        "scale": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "maximum": 1000
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "at",
-        "area",
-        "scale"
-      ]
-    },
-    "retained_layout": {
-      "type": "object",
-      "properties": {
-        "size": {
-          "enum": [
-            "A4",
-            "A3",
-            "A2",
-            "A1",
-            "A0"
-          ]
-        },
-        "scale": {
-          "type": "string"
-        },
-        "required": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "maxItems": 16384
-        },
-        "views": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/layout_frame"
-          },
-          "minProperties": 1,
-          "maxProperties": 32
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "size",
-        "scale",
-        "views",
-        "required"
-      ]
-    },
     "sheet": {
       "type": "object",
       "properties": {
@@ -1096,8 +1025,8 @@
         "keep_layout": {
           "anyOf": [
             {
-              "$ref": "#/$defs/retained_layout",
-              "description": "Keep this single sheet and its view frames during local edits. Conflicting edits are refused. Remove to allow the whole sheet to be laid out again, including hand-moved placements."
+              "type": "boolean",
+              "description": "Keep explicit paper, scale and sheet count without automatic selection or view refitting. Requires sheet.size, sheet.scale and sheets.max=1. Moved views are reported on apply. Remove to allow the whole sheet to be laid out again, including hand-moved placements."
             },
             {
               "type": "null"

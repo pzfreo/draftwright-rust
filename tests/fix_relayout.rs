@@ -104,7 +104,7 @@ fn applying_both_proposed_fixes_keeps_the_stack_apart_and_text_on_its_lines() {
         ],
         "the review sample's two crossings"
     );
-    assert_eq!(ops.len(), 4); // one placement and one retained-layout constraint per fix
+    assert_eq!(ops.len(), 10); // one placement and four intent constraints per fix
     assert_eq!(
         (&*s.plan().sheet.size, &*s.plan().sheet.scale),
         ("A4", "1:1")
@@ -129,10 +129,41 @@ fn applying_both_proposed_fixes_keeps_the_stack_apart_and_text_on_its_lines() {
     let mut replay = s.state().clone();
     let delta = s.apply(&ops, true).unwrap();
     assert_eq!(
-        layout(s.plan()),
-        sheet_before,
-        "#126: local fixes keep the sheet and every view frame"
+        layout(s.plan())["sheets"],
+        sheet_before["sheets"],
+        "#126 keeps paper, scale and count"
     );
+    let moved_views: Vec<_> = layout(s.plan())["views"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|v| !sheet_before["views"].as_array().unwrap().contains(v))
+        .map(|v| v[0].as_str().unwrap().to_owned())
+        .collect();
+    assert!(
+        !moved_views.is_empty(),
+        "the boolean does not store page frames"
+    );
+    let notice = delta
+        .notices
+        .iter()
+        .find(|p| p.code == "layout_replanned")
+        .unwrap();
+    for id in moved_views {
+        assert!(notice.message.contains(&id), "{id} is reported");
+    }
+    for view in &s.plan().views {
+        let old = sheet_before["views"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|v| v[0] == view.id)
+            .unwrap();
+        assert_eq!(
+            serde_json::json!([view.sheet, view.scale, view.direction, view.up]),
+            serde_json::json!([old[1], old[3], old[4], old[5]])
+        );
+    }
     // #126 alternatives can change with the selected paper without changing a
     // finding. Their PlanDelta metadata must still replay exactly over the wire.
     let wire: draftwright::session::Delta =
@@ -265,47 +296,64 @@ fn ctc01_crossings_offer_local_edits_and_identify_the_sheet_remedy() {
             .count(),
         9
     );
-    let ops: Vec<_> = crossings
-        .iter()
-        .flat_map(|p| p.offered_fixes()[0].ops.clone())
-        .collect();
-    let before_layout = layout(&plan);
-    let edited = model::edit(&spec, &serde_json::to_value(&ops).unwrap()).unwrap();
-    let error = model::plan_recovered(&analysis, &edited).unwrap_err();
-    assert!(
-        error.to_string().contains("No local fix is available"),
-        "{error}"
-    );
-    // Independent local offers are not a guarantee that their combination is valid.
-    // Keep all existing information, and use previews to select compatible edits.
+    // Table-carrier edits cannot cheaply prove that automatic radius-centre
+    // coordinates survive; those offers must be honest sheet fixes. Only the
+    // front-view location has a verified local carrier here.
     let mut session = Session::new(part, analysis.clone(), spec.clone()).unwrap();
-    let mut applied = 0;
+    let before_layout = layout(&plan);
     let mut tried = Vec::new();
+    let mut applied = 0;
     for p in &crossings {
-        let fix = &p.offered_fixes()[0];
+        let fixes = p.offered_fixes();
+        assert!(!fixes.is_empty(), "{}", p.id);
+        assert_eq!(p.fix, fixes[0].ops);
+        let local = fixes
+            .iter()
+            .find(|f| f.scope() == draftwright::fixes::Scope::Local);
+        if p.subjects[0] != "d:f:hole:1/location.length.z" {
+            assert!(
+                local.is_none(),
+                "table-carrier change cannot promise retention: {p:?}"
+            );
+            assert!(
+                fixes[0]
+                    .description()
+                    .contains("The whole sheet is laid out again")
+            );
+            continue;
+        }
+        let fix = local.unwrap();
+        assert!(fix.description().contains("Trade-off:"));
+        assert!(fix.description().contains("extension_through_feature"));
+        assert!(fix.description().contains("⌀25 hole"));
+        assert!(fix.description().contains("40 wide slot"));
         if tried.contains(&fix.ops) {
             continue;
         }
         tried.push(fix.ops.clone());
-        let Ok(delta) = session.apply(&fix.ops, false) else {
-            continue;
-        };
-        if delta.problems_added.iter().any(|q| {
-            matches!(
-                q.code.as_str(),
-                "annotation_overlap"
-                    | "annotation_ink_overlap"
-                    | "annotation_leader_crossing"
-                    | "location_ref_dropped"
-            )
-        }) {
-            continue;
+        let delta = session.apply(&fix.ops, false).unwrap();
+        let new_crossings: Vec<_> = delta
+            .problems_added
+            .iter()
+            .filter(|p| p.code == "extension_through_feature")
+            .collect();
+        assert_eq!(new_crossings.len(), 5);
+        // Every newly visible finding, of any code, must have been disclosed.
+        for added in &delta.problems_added {
+            assert!(
+                fix.description().contains(&format!("[{}]", added.code)),
+                "undisclosed code: {added:?}"
+            );
+            assert!(
+                fix.description().contains(&added.message),
+                "undisclosed finding: {added:?}"
+            );
         }
         session.apply(&fix.ops, true).unwrap();
         applied += 1;
     }
-    assert!(applied > 0);
-    assert_eq!(layout(session.plan()), before_layout);
+    assert_eq!(applied, 1);
+    assert_eq!(layout(session.plan())["sheets"], before_layout["sheets"]);
     let unresolved = crossings
         .iter()
         .filter(|old| {
@@ -316,44 +364,28 @@ fn ctc01_crossings_offer_local_edits_and_identify_the_sheet_remedy() {
                 .any(|p| p.code == old.code && p.subjects == old.subjects)
         })
         .count();
-    assert!(unresolved < 11);
-    assert!(
+    assert_eq!(unresolved, 6, "five original crossings are cleared");
+    assert_eq!(
         session
             .plan()
-            .radius_table
-            .as_ref()
-            .is_some_and(|table| plan
-                .radius_table
-                .as_ref()
-                .is_some_and(|before| before.rows == table.rows)),
-        "radius-centre coordinates must remain on the drawing"
+            .problems
+            .iter()
+            .filter(|p| matches!(
+                p.code.as_str(),
+                "annotation_leader_crossing" | "extension_through_feature"
+            ))
+            .count(),
+        11,
+        "five disclosed replacements keep the total at eleven"
+    );
+    assert_eq!(
+        session.plan().radius_table.as_ref().unwrap().rows,
+        plan.radius_table.as_ref().unwrap().rows,
+        "all radius-centre coordinates remain on the drawing"
     );
     eprintln!(
-        "CTC-01: {applied} compatible edits applied; {} of 11 original crossings cleared; {unresolved} remain",
-        11 - unresolved
+        "CTC-01: one local edit clears five original crossings and adds five disclosed replacements; eleven remain. Plan-view alternatives are sheet scope."
     );
-    for p in crossings {
-        let fixes = p.offered_fixes();
-        assert!(!fixes.is_empty(), "{}", p.id);
-        assert_eq!(
-            fixes[0].scope(),
-            draftwright::fixes::Scope::Local,
-            "{}: {fixes:?}",
-            p.id
-        );
-        assert_eq!(p.fix, fixes[0].ops);
-        // Existing placement fixes validate the edit and compatible placement, with
-        // preview/apply responsible for evaluating the resulting layout.
-        model::edit(&spec, &serde_json::to_value(&fixes[0].ops).unwrap()).unwrap();
-        assert!(
-            fixes[0]
-                .ops
-                .iter()
-                .all(|op| op.path.starts_with("dimensions/")
-                    || op.path.starts_with("annotations/")
-                    || op.path == "sheet/keep_layout")
-        );
-    }
     let remedies = plan
         .problems
         .iter()
@@ -426,7 +458,12 @@ fn layout(p: &model::Plan) -> serde_json::Value {
 fn unguarded_legacy_edits_report_a_changed_sheet_and_preview_does_not_commit() {
     let mut s = session();
     let (_, mut ops) = b_crossings(&s);
-    ops.retain(|op| op.path != "sheet/keep_layout");
+    ops.retain(|op| {
+        !matches!(
+            op.path.as_str(),
+            "sheet/keep_layout" | "sheet/size" | "sheet/scale" | "sheets/max"
+        )
+    });
     let before = layout(s.plan());
     let preview = s.apply(&ops, false).unwrap();
     assert_eq!(layout(s.plan()), before);
@@ -478,4 +515,40 @@ fn a_stale_local_offer_cannot_restore_an_old_sheet() {
     let before = layout(s.plan());
     assert!(s.apply(&offered, true).is_err());
     assert_eq!(layout(s.plan()), before);
+}
+
+#[test]
+fn local_intent_is_boolean_and_missing_information_refuses_preview_and_commit() {
+    let mut s = session();
+    let (_, mut ops) = b_crossings(&s);
+    for op in ops.iter().filter(|op| op.path == "sheet/keep_layout") {
+        assert_eq!(op.value, Some(serde_json::json!(true)));
+    }
+    let shown = s
+        .plan()
+        .dimensions
+        .iter()
+        .find(|d| d.placed.is_some())
+        .unwrap()
+        .id
+        .clone();
+    ops.push(draftwright::items::Op::set(
+        format!("dimensions/{}/omit", draftwright::items::key(&shown)),
+        serde_json::json!(true),
+    ));
+    let before = serde_json::to_value(s.state()).unwrap();
+    for commit in [false, true] {
+        let error = s.apply(&ops, commit).unwrap_err();
+        assert!(
+            error.to_string().contains("No local fix is available"),
+            "{error}"
+        );
+        assert_eq!(serde_json::to_value(s.state()).unwrap(), before);
+    }
+    let old_frames = serde_json::json!([{"op":"set","path":"sheet/keep_layout",
+        "value":{"size":"A4","scale":"1:1","views":{},"required":[]}}]);
+    assert!(
+        model::edit(s.spec(), &old_frames).is_err(),
+        "page snapshots are not Spec intent"
+    );
 }

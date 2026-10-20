@@ -534,9 +534,7 @@ pub(crate) fn tabulate_obstructed(
             || spec.dimensions.get(&d.id).is_some_and(|s| {
                 s.place.is_some() || s.tolerance.is_some() || s.text.is_some() || s.style.is_some()
             })
-            || (!spec.sheet.keep_layout.as_ref().is_some_and(|frame| {
-                frame.required.iter().any(|id| id == RADIUS_TABLE) && frame.required.contains(&d.id)
-            }) && !(d.measurements.len() > 1
+            || (!(d.measurements.len() > 1
                 && counted_by_view.get(d.view.as_str()).is_some_and(|n| *n > 1))
                 && !problems.iter().any(|p| {
                     p.subjects.contains(&d.id) && leader_problem(&p.code)

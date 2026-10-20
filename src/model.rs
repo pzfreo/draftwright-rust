@@ -445,9 +445,9 @@ impl Default for Spec {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct SheetSpec {
-    /// Retain a single sheet and its view frames for local edits; remove to re-plan.
+    /// Keep explicit paper, scale and count without automatic selection or refitting.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub keep_layout: Option<crate::local_layout::Layout>,
+    pub keep_layout: Option<bool>,
     /// Draw automatically determined dimensions in parentheses; omitted by default.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub references: Option<bool>,
@@ -1892,7 +1892,7 @@ fn fit_fix(analysis: &Analysis, spec: &Spec) -> Result<Option<FittingFix>, Inval
 
 /// Spend free row space against measured ink before escalating an oblique authored quantity.
 fn compact_authored_row(analysis: &Analysis, plan: &mut Plan) {
-    if plan.spec.sheet.keep_layout.is_some()
+    if plan.spec.sheet.keep_layout == Some(true)
         || crate::dims::authored_placement_clear(&plan.spec, &plan.dimensions)
         || crate::placement_intent::has_pins(&plan.spec)
         || plan.spec.views.values().any(|v| v.place.is_some())
@@ -3386,10 +3386,9 @@ fn plan_recovered_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invali
         return crate::dims::pmi_policy::ignore(analysis, spec, plan_recovered);
     }
     crate::planning::with(analysis, || {
-        let mut plan = if let Some(frame) = &spec.sheet.keep_layout {
+        let mut plan = if spec.sheet.keep_layout == Some(true) {
             let fixed = crate::local_layout::forced(spec)?;
             let mut plan = crate::planning::fixed_pair(|| plan_automatic(analysis, &fixed))?;
-            frame.verify(&plan)?;
             plan.spec = spec.clone();
             plan
         } else {
@@ -3946,7 +3945,7 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
 }
 
 fn plan_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
-    if spec.sheet.keep_layout.is_some() {
+    if spec.sheet.keep_layout == Some(true) {
         return plan_recovered(analysis, spec);
     }
     if spec.pmi == PmiMode::Ignore && crate::dims::pmi_policy::carries(analysis) {
@@ -5235,9 +5234,6 @@ fn plan_with_presentation(
             (v.at, v.area, v.scale) = (base.at, base.area, base.scale);
         }
     }
-    if let Some(frame) = &spec.sheet.keep_layout {
-        frame.restore(&mut views)?;
-    }
     crate::dims::gdt::validate_placements(analysis, spec, &views)?;
     // Different arrangement requests can resolve to identical geometry. Solve that ink once,
     // retaining each request's sheet and view explanations in its returned Plan.
@@ -5355,7 +5351,7 @@ fn plan_with_presentation(
         .cloned()
         .collect();
     let obstacles = crate::placement_intent::obstacles(spec, &packing_dimensions, &fixed);
-    if !obstacles.is_empty() && spec.sheet.keep_layout.is_none() {
+    if !obstacles.is_empty() && spec.sheet.keep_layout != Some(true) {
         let before: Vec<_> = views.iter().map(|v| (v.at, v.area, v.scale)).collect();
         problems.retain(|p| {
             !matches!(
@@ -6174,12 +6170,13 @@ fn plan_with_presentation(
         });
     }
     crate::recognition_corrections::report(analysis, &mut plan);
-    if complete_views && plan.spec.sheet.keep_layout.is_none() {
+    if complete_views {
+        let free_pair = automatic_pair && plan.spec.sheet.keep_layout != Some(true);
         crate::sheet_fit::reserve_linear_corridors(
             analysis,
             &mut plan,
             &inventory,
-            automatic_pair,
+            free_pair,
             &footprint_cache,
         );
     }
@@ -7010,8 +7007,8 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
     let spec: Spec = serde_json::from_value(doc)
         .map_err(|e| invalid(format!("The edited spec is not valid: {e}."), &[]))?;
     crate::sheets::validate(&spec)?;
-    if let Some(frame) = &spec.sheet.keep_layout {
-        frame.check()?;
+    if spec.sheet.keep_layout == Some(true) {
+        crate::local_layout::forced(&spec)?;
     }
     crate::dims::check_tolerances(&spec)?;
     crate::spec_gdt::check(&spec)?;

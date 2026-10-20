@@ -1,39 +1,41 @@
-# Local fixes and retained layouts
+# Local fixes and sheet intent
 
-A local fix keeps paper size, scale, sheet count and the view layout. Its operations
-include `sheet/keep_layout`, the single sheet and view frames on which the placement
-candidate was checked. This is persistent author intent, like a placement pin, and
-works in Session, MCP, WASM and stateless preview/apply. Remove it explicitly to permit
-sheet selection and view packing again. Sheet fixes include that removal when needed
-and say: “The whole sheet is laid out again, so placements you have moved by hand may
-change.”
+A local fix sets the existing `sheet/size`, `sheet/scale` and `sheets/max` fields
+(the current implementation offers local fixes only on one sheet). It also sets
+`sheet/keep_layout: true`: keep those explicit choices without entering automatic
+sheet selection, view repacking, measured refits or final gutters. Measured linear
+reservation bounds still include the complete drawn ink, without re-packing carriers. Paper and scale
+alone do not bypass those later layout stages, so the boolean is necessary.
+The Spec contains no captured page coordinates or required-item lists. It remains
+readable author intent and reconstructs independently of an editor session.
 
-The override contains `size`, `scale` and `views`, keyed by view ID. Each frame has
-`at` (two paper coordinates), `area` (four bounds) and `scale`. The `required` list
-retains shown items, including notes and tables; a covered dimension may still be
-conveyed by its drawn owner. Radius-table groups remain tabulated, retaining their
-centre coordinates even if an edit frees a radius-leader corridor. A batch that loses required information is refused. It constrains the
-single-sheet solver, suppresses view repacking, measured row/section/isometric refits and final gutters, and checks the final
-paper, scale, count and view origins/scales. Conflicting authored paper/scale or edits
-that cannot retain the view set are refused with “This edit cannot keep the retained
-sheet layout. No local fix is available for this edit”. No information is suppressed
-to meet this constraint; ordinary overlap, fit and undrawn-item findings still apply.
-Multiple local fixes carry the same frame and can be combined. Use fresh offers after
-changing the sheet; a stale offer may be refused.
+This is not a stored snapshot of view frames. The fixed-pair planner derives views
+from the Spec and geometry deterministically. If that changes any view's origin,
+area, scale or sheet, the edit notice names the moved views. A local edit must keep
+paper, scale and count; a mismatch or lost required information refuses the edit.
+Preview and apply compare before/after shown items and conveyed dimensions, including
+radius-centre table rows, in memory. Nothing from that inventory enters the Spec.
+Stateless preview/apply performs the same comparison by reconstructing the input Spec.
+Independent offers can conflict when combined; preview checks the combined result.
 
-Offering fixes does not run recovered planning per alternative. Existing bounded
-placement trials check the new ink on the settled sheet; attaching the retained frame
-copies the view frames and required-item IDs once per offer; verification invokes no
-additional planner. Reading a fix's scope validates the constraint by reference,
-without copying its required-item IDs. Applying the edit uses one fixed-pair solve and
-verifies its frame. Allocation across multiple sheets is not yet constrained, so an
-otherwise local remedy there is conservatively offered as a sheet fix. The author can
-express the retained-layout choice with `sheet/keep_layout`, or remove it to restore
-automatic selection; no new search policy is implicit.
+Moving items on the carrier of an automatic radius-centre table cannot cheaply prove
+that its withdrawn leaders would still require the same table. Those alternatives
+are conservatively sheet scope; edits on independent carriers can remain local.
 
-`layout_replanned` in `Delta.notices` (MCP event `notice`) compares actual before/after paper, scale and sheet
-count, independently of recovery's candidate diagnostics. Preview reports the change
-without committing it. Notices describe the edit and are not inserted into reproducible
-drawing findings; delta replay and reconstruction from the Spec remain identical. A generic edit remains free to change a sheet; its report says
-so. Scope classifies the offered alternative; it does not guarantee that several
-individually valid placements clear every finding when combined.
+Existing bounded placement trials compare the before/after inventory and findings
+on settled ink without invoking a recovered planner per alternative. New findings
+of any code are included in the alternative's description, with their messages and
+codes. After finding a trade, the search checks at most three further candidates for
+a clean alternative before returning that disclosed trade. Errors are rejected rather
+than offered. This limits verification cost. Actual apply remains authoritative for
+interactions with other placements and information retention.
+
+Set `sheet/keep_layout` to false or remove it to resume automatic layout. A sheet fix
+includes removal when necessary and says: “The whole sheet is laid out again, so
+placements you have moved by hand may change.” Multi-sheet or conflicting authored
+paper/scale remedies are conservatively offered as sheet fixes.
+
+`layout_replanned` in `Delta.notices` (MCP event `notice`) compares actual before/after
+paper, scale, count and view frames. Preview reports changes without committing.
+Notices describe the edit and are separate from reproducible drawing findings;
+delta replay and reconstruction from the Spec remain identical.

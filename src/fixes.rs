@@ -1,4 +1,4 @@
-//! Proportionate remedies. Local offers retain the sheet and view frames they were checked on.
+//! Proportionate remedies. Local offers constrain paper, scale and sheet count.
 use crate::items::Op;
 use serde::{Deserialize, Serialize, ser::SerializeStruct};
 
@@ -75,17 +75,22 @@ fn value_scope(path: &str, value: &serde_json::Value) -> Scope {
 }
 
 pub fn scope(ops: &[Op]) -> Scope {
-    // A retained frame constrains a local edit; it does not change the sheet.
-    // Alone, removing it, or writing any other sheet setting is still sheet scope.
+    // Paper/count settings bundled with keep_layout constrain a local edit. Apply
+    // compares them with the current drawing; alone they remain sheet scope.
+    let retained = ops.iter().any(|op| {
+        op.path == "sheet/keep_layout"
+            && op.op == "set"
+            && op.value == Some(serde_json::json!(true))
+    });
     let edits: Vec<_> = ops
         .iter()
         .filter(|op| {
-            !(op.path == "sheet/keep_layout"
+            !(retained
                 && op.op == "set"
-                && op
-                    .value
-                    .as_ref()
-                    .is_some_and(crate::local_layout::Layout::valid_value))
+                && matches!(
+                    op.path.as_str(),
+                    "sheet/keep_layout" | "sheet/size" | "sheet/scale" | "sheets/max"
+                ))
         })
         .collect();
     let ops = edits.as_slice();
@@ -141,7 +146,7 @@ impl PartialEq for Fix {
         }
         // Equal operations and scope floors imply equal derived scopes. Most
         // state comparisons also have identical raw descriptions: avoid parsing
-        // retained frames and constructing their descriptions again in that case.
+        // intent bundles and constructing their descriptions again in that case.
         // Wire descriptions may already include the sheet consequence, so retain
         // the full effective comparison for different raw descriptions or floors.
         if self.description == other.description
@@ -367,21 +372,29 @@ pub(crate) fn attach(analysis: &crate::model::Analysis, plan: &mut crate::model:
     MEMO.insert(key, plan.problems.clone());
 }
 
-/// O(items per offer), with no recovered-plan invocation per candidate. Placement
-/// candidates were ink-checked on these very frames; the Spec now enforces them
-/// during apply, including combined edits. Never advertise unconstrained allocation
+/// O(operations per offer), with no recovered-plan invocation per candidate.
+/// Existing bounded trials check the settled inventory and ink. Intent fields bypass
+/// automatic sheet selection and refitting on apply. Never advertise unconstrained allocation
 /// as local. Scope read from old JSON may widen, but cannot understate path scope.
 pub(crate) fn retain_local_layout(plan: &mut crate::model::Plan) {
-    let frame = crate::local_layout::Layout::capture(plan).and_then(|l| {
-        l.check()
-            .ok()
-            .map(|()| serde_json::to_value(l).expect("layout serializes"))
-    });
+    let retainable = plan.sheets.is_empty()
+        && plan
+            .spec
+            .sheet
+            .size
+            .as_ref()
+            .is_none_or(|s| s == &plan.sheet.size)
+        && plan
+            .spec
+            .sheet
+            .scale
+            .as_ref()
+            .is_none_or(|s| s == &plan.sheet.scale);
     for problem in &mut plan.problems {
         let mut fixes = problem.offered_fixes();
         for fix in &mut fixes {
             if fix.scope() != Scope::Local {
-                if plan.spec.sheet.keep_layout.is_some()
+                if plan.spec.sheet.keep_layout == Some(true)
                     && fix.scope() == Scope::Sheet
                     && !fix.ops.iter().any(|op| op.path == "sheet/keep_layout")
                 {
@@ -389,11 +402,64 @@ pub(crate) fn retain_local_layout(plan: &mut crate::model::Plan) {
                 }
                 continue;
             }
-            if let Some(frame) = &frame {
-                fix.ops.retain(|op| op.path != "sheet/keep_layout");
-                fix.ops.push(Op::set("sheet/keep_layout", frame.clone()));
+            // An automatic radius table's centre coordinates are extra information.
+            // A settled-ink trial cannot reconstruct the withdrawn leaders and prove
+            // that moving another item on their carrier will keep that table. Widen
+            // conservatively rather than advertise an unverified local promise.
+            let table_carrier = plan.radius_table.as_ref().is_some_and(|table| {
+                fix.ops.iter().any(|op| {
+                    if op.path.starts_with("annotations/") {
+                        return true;
+                    }
+                    let Some(rest) = op.path.strip_prefix("dimensions/") else {
+                        return false;
+                    };
+                    let id = rest
+                        .split('/')
+                        .next()
+                        .unwrap_or("")
+                        .replace("~1", "/")
+                        .replace("~0", "~");
+                    let affects = |view: &str| table.rows.iter().any(|r| r.view == view);
+                    let old = plan
+                        .dimensions
+                        .iter()
+                        .find(|d| d.id == id)
+                        .is_some_and(|d| affects(&d.view));
+                    let new = op
+                        .value
+                        .as_ref()
+                        .and_then(|v| v.get("view"))
+                        .and_then(serde_json::Value::as_str)
+                        .is_some_and(|v| affects(&format!("v:{v}")));
+                    old || new
+                })
+            });
+            if retainable && !table_carrier {
+                fix.ops.retain(|op| {
+                    !matches!(
+                        op.path.as_str(),
+                        "sheet/keep_layout" | "sheet/size" | "sheet/scale" | "sheets/max"
+                    )
+                });
+                fix.ops
+                    .push(Op::set("sheet/keep_layout", serde_json::json!(true)));
+                fix.ops
+                    .push(Op::set("sheet/size", serde_json::json!(plan.sheet.size)));
+                fix.ops
+                    .push(Op::set("sheet/scale", serde_json::json!(plan.sheet.scale)));
+                fix.ops.push(Op::set("sheets/max", serde_json::json!(1)));
             } else {
                 fix.minimum_scope = Some(Scope::Sheet);
+                fix.ops.retain(|op| {
+                    !matches!(
+                        op.path.as_str(),
+                        "sheet/keep_layout" | "sheet/size" | "sheet/scale" | "sheets/max"
+                    )
+                });
+                if plan.spec.sheet.keep_layout == Some(true) {
+                    fix.ops.push(Op::remove("sheet/keep_layout"));
+                }
             }
         }
         fixes.sort_by_key(Fix::scope);
