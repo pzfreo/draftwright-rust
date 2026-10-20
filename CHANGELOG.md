@@ -8,6 +8,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- #147: retry crossing feature callouts, leader-attached GD&T frames and AP242 surface labels
+  against the complete printed inventory, including proven blank face in their own view.
+  Keep 3 mm text, existing radius attachment producers and datum face normals; equal crossing
+  grades retain exterior routes. AP242 CTC/FTC fixtures join the per-kind crossing ratchet in
+  CI's `quality-pins` job.
+
 - Classify retained leader crossings by leader, dimension line, extension line and arrow
   using additive `crossing_kinds` problem metadata; mark leader-through-text with
   `ink_is_leader`. Report linear dimension-line crossings as `dimension_line_crossing`

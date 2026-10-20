@@ -1454,6 +1454,66 @@ mod tests {
     }
 
     #[test]
+    fn final_sweep_chooses_blank_face_when_every_exterior_route_crosses() {
+        let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/parts/mounting_plate.step");
+        let mut a = crate::model::analyse_native(&file).unwrap().1;
+        let sheet = crate::model::plan(&a, &Spec::default()).unwrap().sheet;
+        a.envelope = [[-50., -50., -1.], [50., 50., 1.]];
+        a.features.clear();
+        a.principal_profiles.clear();
+        a.edge_ink = Some(ink(vec![vec![[0., -5.], [0., 5.]]]));
+        let mut v = view();
+        v.at = [150., 150.];
+        v.area = [70., 70., 230., 230.];
+        let d: PlannedDimension = serde_json::from_value(serde_json::json!({
+            "id":"d:test", "kind":"callout", "view":"v:plan", "value":6.,
+            "label":"M6", "terms":["M6"], "measurements":[], "default":true,
+            "basis":"test", "state":{"kind":"shown"},
+            "placed": {"lines":[[[150.,150.],[90.,145.]],[[90.,145.],[87.,145.]]],
+                "arrows":[[[150.,150.],[147.,149.75]]], "label_at":[80.,143.],
+                "label_box":[80.,143.,86.,146.], "rotation":0.}
+        }))
+        .unwrap();
+        let mut blocker = d.clone();
+        blocker.id = "barrier".into();
+        let p = blocker.placed.as_mut().unwrap();
+        let square = [[100., 100.], [200., 100.], [200., 200.], [100., 200.]];
+        p.lines = (0..4)
+            .map(|i| {
+                let a = square[i];
+                let b = square[(i + 1) % 4];
+                let u = [(b[0] - a[0]) / 100., (b[1] - a[1]) / 100.];
+                [[a[0] - u[0], a[1] - u[1]], [b[0] + u[0], b[1] + u[1]]]
+            })
+            .collect();
+        p.arrows.clear();
+        p.label_box = [220., 220., 225., 223.];
+        let views = [v];
+        let proofs = proofs(&a, &views);
+        let routes = super::super::leaders::settled_routes(
+            &a,
+            &sheet,
+            &views,
+            &d,
+            None,
+            &[blocker],
+            Some(&proofs["v:plan"]),
+        );
+        assert!(!routes.is_empty());
+        let next = &routes[0];
+        assert!(proofs["v:plan"].annotation_clear(&views[0], next, true));
+        assert!(
+            next.lines
+                .iter()
+                .map(|[a, b]| (a[0] - b[0]).hypot(a[1] - b[1]))
+                .sum::<f64>()
+                < 40.
+        );
+        assert_eq!(next.rotation, 0.);
+    }
+
+    #[test]
     fn a_blocked_centre_row_keeps_safe_interior_alternatives() {
         let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/parts/mounting_plate.step");

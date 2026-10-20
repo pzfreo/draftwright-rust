@@ -135,6 +135,12 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     {
         return;
     }
+    let crossing_ids: BTreeSet<_> = plan
+        .problems
+        .iter()
+        .filter(|p| p.code == "annotation_leader_crossing")
+        .flat_map(|p| p.subjects.iter().cloned())
+        .collect();
     let cache = super::footprints::Cache::default();
     let proofs = interior::proofs(analysis, &plan.views);
     let mut wants = super::wants(analysis).0;
@@ -159,7 +165,8 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
         let mut moved = false;
         for i in 0..all.len() {
             let d = &all[i];
-            if d.kind != "callout"
+            if !crossing_ids.contains(&d.id)
+                || d.kind != "callout"
                 || d.placed.is_none()
                 || spec
                     .dimensions
@@ -228,7 +235,29 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
             };
             let id = d.id.clone();
             let old = d.placed.clone();
-            for next in candidates {
+            for next in candidates.into_iter().take(40) {
+                // Full sheet furniture is fixed even when collision reporting only
+                // enumerates dimensions and PMI. Keep the existing 1 mm text gap.
+                let pad = [
+                    next.label_box[0] - 1.,
+                    next.label_box[1] - 1.,
+                    next.label_box[2] + 1.,
+                    next.label_box[3] + 1.,
+                ];
+                if peers.iter().filter_map(|q| q.placed.as_ref()).any(|q| {
+                    placement::boxes_overlap(pad, q.label_box)
+                        || q.lines
+                            .iter()
+                            .chain(&q.arrows)
+                            .any(|s| placement::crosses(*s, pad))
+                        || next
+                            .lines
+                            .iter()
+                            .any(|s| placement::crosses(*s, q.label_box))
+                }) {
+                    continue;
+                }
+
                 all[i].placed = Some(next.clone());
                 let after =
                     placement::collisions_for(analysis, &all, sheet, &plan.views, &cache, &id);
@@ -292,8 +321,11 @@ mod tests {
     use super::*;
 
     fn crossing(kinds: &[&str]) -> Problem {
-        Problem { code: "annotation_leader_crossing".into(),
-            crossing_kinds: kinds.iter().map(|s| (*s).into()).collect(), ..Default::default() }
+        Problem {
+            code: "annotation_leader_crossing".into(),
+            crossing_kinds: kinds.iter().map(|s| (*s).into()).collect(),
+            ..Default::default()
+        }
     }
 
     #[test]
@@ -301,7 +333,16 @@ mod tests {
         let before = vec![crossing(&["leader"]), crossing(&["extension_line"])];
         assert!(improves(&before, &[crossing(&["extension_line"])]));
         assert!(!improves(&before, &[crossing(&["arrow"])]));
-        assert!(!improves(&before, &before), "ties retain the existing exterior route");
-        assert!(!improves(&before, &[Problem { code: "annotation_ink_overlap".into(), ..Default::default() }]));
+        assert!(
+            !improves(&before, &before),
+            "ties retain the existing exterior route"
+        );
+        assert!(!improves(
+            &before,
+            &[Problem {
+                code: "annotation_ink_overlap".into(),
+                ..Default::default()
+            }]
+        ));
     }
 }

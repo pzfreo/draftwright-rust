@@ -3399,6 +3399,9 @@ fn plan_recovered_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invali
     crate::planning::with(analysis, || {
         let mut plan = crate::sheet_policy::select(analysis, spec)?;
         let effective = crate::spec_gdt::effective(analysis, &plan.spec)?;
+        // Repair only the selected drawing. Candidate paper/scale trials keep their
+        // established costs, so a clearer route cannot force a larger sheet.
+        crate::dims::callout_routes::finish(effective.as_ref(), spec, &mut plan);
         crate::dims::pmi_policy::audit(effective.as_ref(), &plan.spec.clone(), &mut plan);
         if crate::dims::pmi_policy::carries(effective.as_ref()) || !spec.origin.is_empty() {
             crate::fixes::attach(effective.as_ref(), &mut plan);
@@ -3954,6 +3957,7 @@ fn plan_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     crate::planning::with(analysis, || {
         let mut plan = plan_with(analysis, spec, false, false, None, false, false)?;
         finish_nominal_plan(analysis, spec, &mut plan);
+        crate::dims::callout_routes::finish(analysis, spec, &mut plan);
         if !crate::placement_intent::has_pins(spec) {
             plan.record_dimension_labels();
         }
@@ -6498,11 +6502,6 @@ fn plan_with_presentation(
 /// Precision repairs belong to the selected drawing, after sheet candidates have
 /// been judged. Rejected candidates must not each launch another route search.
 fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
-    finish_nominal_text(analysis, spec, plan);
-    crate::dims::callout_routes::finish(analysis, spec, plan);
-}
-
-fn finish_nominal_text(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     if !crate::nominal::geometry_eligible(analysis) || crate::nominal::comparison() {
         return;
     }

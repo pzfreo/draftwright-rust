@@ -173,15 +173,15 @@ class Acceptance(unittest.TestCase):
                     run.execute('quality-pins')
                 calls = step.call_args_list
                 self.assertEqual([c.args[0] for c in calls], ['quality', 'ap242-quality', 'leader-crossings', 'leader-routes', 'label-lane-locality', 'pins-' + cell])
-                route = calls[2].args[1]
+                route = calls[3].args[1]
                 self.assertIn(ROOT / 'tools/check_leader_routes.py', route)
                 self.assertEqual(route[-1], Path(tmp) / 'leader-routes.json')
                 self.assertNotIn('--require-improvement', route)
-                locality = calls[3].args[1]
+                locality = calls[4].args[1]
                 self.assertIn(ROOT / 'tools/check_label_lanes.py', locality)
                 self.assertEqual(locality[locality.index('--current') + 1], Path(tmp) / 'quality')
                 self.assertEqual(locality[locality.index('--after-binary') + 1], args.binary)
-                command = calls[4].args[1]
+                command = calls[5].args[1]
                 self.assertIn('--require-go', command)
                 self.assertEqual(command[command.index('--baseline') + 1],
                                  Path(tmp) / 'quality/baseline.json')

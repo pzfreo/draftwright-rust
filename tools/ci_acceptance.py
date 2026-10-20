@@ -177,7 +177,7 @@ class Run:
             # from the fixed thirty-part quality/pin inventory, then share saved plans.
             import gzip
             ap242 = out / 'ap242-inputs'
-            ap242.mkdir()
+            ap242.mkdir(exist_ok=True)
             fixture_paths = sorted({*(ROOT / 'tests/fixtures/pmi/step').glob('nist_ctc_0*_ap242*.gz'),
                                     *(ROOT / 'tests/fixtures/pmi/step').glob('nist_ftc_*_ap242*.gz')})
             sources = []

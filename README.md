@@ -163,9 +163,13 @@ Problem with a code on the item's ID, in `plan`, `render` and `review`.
 - **Revisions:** a spec made for another revision of the part keeps its sheet, view and
   envelope choices, but its feature entries stay inactive until revision rebinding (ADR R3) is
   implemented.
-- **Callouts inside a view:** draftwright puts some callouts over blank face inside the view;
-  the port places every annotation outside the views (it has no view line-work to test against,
-  ADR R1), so some leader crossings draftwright avoids that way remain (below).
+- **Callouts inside a view:** hole, radius, chamfer, thread and other shared feature callouts
+  can retry over proven blank face in their own view. Whole 3 mm horizontal labels, shoulders
+  and short leaders clear projected visible/hidden edges, centre marks and other annotations.
+  The bounded final route search also serves leader-attached GD&T frames and AP242 surface
+  labels. Exterior routes win equal crossing grades; already clear drawings stay unchanged.
+  Datum triangles retain their face attachment and frames retry only along its existing normal.
+  Missing edge evidence, section views and uncertain curved regions cannot prove interior paper.
 - **The rules catalogue** (`docs/rules/`) tracks what Python draftwright learnt; most of its
   rules are still pending.
 - DXF table head handles (ezdxf adds them on audit) are not written.
