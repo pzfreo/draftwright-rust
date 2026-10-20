@@ -5308,7 +5308,36 @@ fn plan_with_presentation(
         return Ok(plan);
     }
     let footprint_cache = crate::dims::footprints::Cache::default();
-    let held = crate::placement_intent::held_dimensions(canonical.as_ref(), &views);
+    // Reserve the finished radius corridors before an edited/promoted linear
+    // witness chooses its lane. Late replay alone would see that new witness as
+    // a reason to evict an unrelated, already clear radius leader.
+    let radius_reference = radius_edit_reference(analysis, given);
+    let held_for = |views: &[PlannedView]| {
+        let mut held = crate::placement_intent::held_dimensions(canonical.as_ref(), views);
+        for d in crate::placement_intent::held_dimensions(radius_reference.as_ref(), views) {
+            if d.kind == "callout"
+                && d.measurements
+                    .iter()
+                    .any(|m| matches!(m.parameter.as_str(), "fillet.radius" | "blend.radius"))
+                && radius_reference.as_ref().is_some_and(|r| {
+                    r.views.iter().any(|old| {
+                        old.id == d.view
+                            && views.iter().any(|v| {
+                                v.id == old.id
+                                    && v.scale == old.scale
+                                    && v.direction == old.direction
+                                    && v.up == old.up
+                            })
+                    })
+                })
+            {
+                held.retain(|old| old.id != d.id);
+                held.push(d);
+            }
+        }
+        held
+    };
+    let held = held_for(&views);
     let mut fixed_spec = spec.clone();
     fixed_spec
         .annotations
@@ -5416,7 +5445,7 @@ fn plan_with_presentation(
             crate::sheets::line_work(analysis, spec, &mut views);
             furniture = crate::centrelines::obstacles(&views);
             furniture.extend(fixed.iter().cloned());
-            let held = crate::placement_intent::held_dimensions(canonical.as_ref(), &views);
+            let held = held_for(&views);
             ((dimensions, omitted, more), inventory) = crate::dims::plan_inventory(
                 analysis,
                 spec,
@@ -6464,6 +6493,7 @@ fn plan_with_presentation(
                     &omitted_ink,
                     3,
                     NominalPass::All,
+                    None,
                 );
             }
         } else {
@@ -6486,6 +6516,7 @@ fn plan_with_presentation(
                     &omitted_ink,
                     0,
                     NominalPass::Linear,
+                    None,
                 );
             }
             crate::planning::store(
@@ -6511,8 +6542,26 @@ fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     if crate::nominal::comparison() {
         return;
     }
+    let reference = plan
+        .dimensions
+        .iter()
+        .any(|d| {
+            d.measurements
+                .iter()
+                .any(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
+        })
+        .then(|| radius_edit_reference(analysis, spec))
+        .flatten();
     if !crate::nominal::geometry_eligible(analysis) {
-        settle_finished_nominals(analysis, spec, plan, &[], 0, NominalPass::Radius);
+        settle_finished_nominals(
+            analysis,
+            spec,
+            plan,
+            &[],
+            0,
+            NominalPass::Radius,
+            reference.as_ref(),
+        );
         return;
     }
     let (intent, omitted) = crate::planning::lookup::<(Spec, Vec<crate::dims::PlannedDimension>)>(
@@ -6523,16 +6572,70 @@ fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     )
     .unwrap_or_else(|| (spec.clone(), Vec::new()));
     if !crate::dims::default_nominal_intent(&intent) {
+        settle_finished_nominals(
+            analysis,
+            &intent,
+            plan,
+            &omitted,
+            0,
+            NominalPass::Radius,
+            reference.as_ref(),
+        );
         return;
     }
     if !annotation_text_edited(&intent)
         && (!crate::placement_intent::has_pins(&intent)
             || crate::placement_intent::automatic_pins_only(&intent))
     {
-        settle_finished_nominals(analysis, &intent, plan, &omitted, 3, NominalPass::All);
+        settle_finished_nominals(
+            analysis,
+            &intent,
+            plan,
+            &omitted,
+            3,
+            NominalPass::All,
+            reference.as_ref(),
+        );
     }
     crate::placement_intent::finish(plan, analysis);
     plan.status = crate::completeness::status(&plan.problems);
+}
+
+/// An annotation edit replays the finished radius routes, rather than repairing the
+/// earlier, pre-polish inventory afresh against a different set of peers. This is
+/// a pure reference, independent of which document happened to be planned first.
+fn radius_edit_reference(analysis: &Analysis, spec: &Spec) -> Option<Plan> {
+    if crate::nominal::comparison() {
+        return None;
+    }
+    let mut base = spec.clone();
+    base.dimension_source = DimensionSource::Auto;
+    for d in base.dimensions.values_mut() {
+        d.omit = false;
+        d.tolerance = None;
+        d.fit = None;
+        d.text = None;
+        d.style = None;
+        d.place = None;
+    }
+    base.dimensions
+        .retain(|_, d| *d != DimensionSpec::default());
+    for f in base.features.values_mut() {
+        f.fit = None;
+    }
+    base.features.retain(|_, f| *f != FeatureSpec::default());
+    if &base == spec {
+        return None;
+    }
+    let key = serde_json::to_vec(&(
+        &base,
+        crate::planning::policy_key(analysis),
+        crate::planning::is_fixed_pair(),
+    ))
+    .expect("radius reference inputs serialize");
+    crate::planning::memo(analysis, "radius-edit-reference", key, || {
+        plan(analysis, &base).ok()
+    })
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -6551,6 +6654,7 @@ fn settle_finished_nominals(
     omitted: &[crate::dims::PlannedDimension],
     remaining: usize,
     pass: NominalPass,
+    radius_reference: Option<&Plan>,
 ) {
     let original_spec = spec;
     let route_leaders = pass != NominalPass::Linear;
@@ -6662,6 +6766,7 @@ fn settle_finished_nominals(
             &mut items,
             &radius_fixed,
             &cache,
+            radius_reference,
         ));
     }
     // Collision reports from the raw inventory cannot survive consolidation of
@@ -6750,7 +6855,15 @@ fn settle_finished_nominals(
         });
         *plan = trial;
         if changed && remaining > 0 {
-            settle_finished_nominals(analysis, original_spec, plan, omitted, remaining - 1, pass);
+            settle_finished_nominals(
+                analysis,
+                original_spec,
+                plan,
+                omitted,
+                remaining - 1,
+                pass,
+                radius_reference,
+            );
         }
     }
 }

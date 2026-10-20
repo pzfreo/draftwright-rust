@@ -2359,8 +2359,62 @@ pub(crate) fn settle_after_furniture(
     updated
 }
 
+fn radius_contacts<'a>(
+    p: &Placed,
+    others: impl IntoIterator<Item = &'a PlannedDimension>,
+) -> std::collections::BTreeSet<(&'a str, u8)> {
+    let mut pairs = std::collections::BTreeSet::new();
+    for q in others {
+        let Some(qp) = &q.placed else { continue };
+        if super::placement::ink_through(p, qp.label_box) {
+            pairs.insert((q.id.as_str(), 1u8));
+        }
+        if super::placement::ink_through(qp, p.label_box) {
+            pairs.insert((q.id.as_str(), 2u8));
+        }
+        if boxes_overlap(p.label_box, qp.label_box) {
+            pairs.insert((q.id.as_str(), 3u8));
+        }
+        if q.kind == "linear" {
+            for witness in qp.lines.iter().take(2) {
+                if touches_box(*witness, grow(p.label_box, LABEL_PAD))
+                    || p.lines
+                        .iter()
+                        .any(|line| touches_box(*line, grow(segment_bounds(*witness), LABEL_PAD)))
+                {
+                    pairs.insert((q.id.as_str(), 5u8));
+                }
+                if p.arrows
+                    .iter()
+                    .flat_map(|a| head(*a))
+                    .any(|line| touches_box(line, grow(segment_bounds(*witness), 0.2)))
+                {
+                    pairs.insert((q.id.as_str(), 6u8));
+                }
+            }
+        }
+        if p.lines.iter().any(|a| {
+            qp.lines
+                .iter()
+                .chain(&qp.arrows)
+                .any(|b| lines_meet(*a, *b))
+        }) {
+            pairs.insert((q.id.as_str(), 0u8));
+        }
+        if qp
+            .lines
+            .iter()
+            .any(|a| p.lines.iter().chain(&p.arrows).any(|b| lines_meet(*a, *b)))
+        {
+            pairs.insert((q.id.as_str(), 4u8));
+        }
+    }
+    pairs
+}
+
 /// Radius rules are applied to the final, fully populated sheet. The existing route is the
 /// fallback: a geometric improvement must also preserve the drawing's ink/contact budget.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn settle_radius_leaders(
     analysis: &crate::model::Analysis,
     spec: &crate::model::Spec,
@@ -2369,9 +2423,11 @@ pub(crate) fn settle_radius_leaders(
     items: &mut [PlannedDimension],
     obstacles: &[PlannedDimension],
     cache: &super::footprints::Cache,
+    reference: Option<&crate::model::Plan>,
 ) -> BTreeMap<String, Vec<Problem>> {
     let page = Page::new(analysis, sheet, views);
     let mut reports = BTreeMap::new();
+    let incumbents = crate::placement_intent::held_dimensions(reference, views);
     for i in 0..items.len() {
         let d = &items[i];
         if d.kind != "callout"
@@ -2416,7 +2472,8 @@ pub(crate) fn settle_radius_leaders(
         }
         // Unreadable and already compliant routes do not trigger a placement update.
         // Drawn lint audits retained routes without adding a duplicate plan problem.
-        if arcs.is_empty() || arcs.iter().any(|a| a.accepts(shaft)) {
+        let compliant = arcs.iter().any(|a| a.accepts(shaft));
+        if arcs.is_empty() || (reference.is_none() && compliant) {
             continue;
         }
         let view = v.id.trim_start_matches("v:");
@@ -2469,56 +2526,48 @@ pub(crate) fn settle_radius_leaders(
             &fixed,
             &page,
         );
-        let contacts = |p: &Placed| {
-            let mut pairs = std::collections::BTreeSet::new();
-            for q in &others {
-                let Some(qp) = &q.placed else { continue };
-                if super::placement::ink_through(p, qp.label_box) {
-                    pairs.insert((q.id.as_str(), 1u8));
-                }
-                if super::placement::ink_through(qp, p.label_box) {
-                    pairs.insert((q.id.as_str(), 2u8));
-                }
-                if boxes_overlap(p.label_box, qp.label_box) {
-                    pairs.insert((q.id.as_str(), 3u8));
-                }
-                if q.kind == "linear" {
-                    for witness in qp.lines.iter().take(2) {
-                        if touches_box(*witness, grow(p.label_box, LABEL_PAD))
-                            || p.lines.iter().any(|line| {
-                                touches_box(*line, grow(segment_bounds(*witness), LABEL_PAD))
-                            })
-                        {
-                            pairs.insert((q.id.as_str(), 5u8));
-                        }
-                        if p.arrows
-                            .iter()
-                            .flat_map(|a| head(*a))
-                            .any(|line| touches_box(line, grow(segment_bounds(*witness), 0.2)))
-                        {
-                            pairs.insert((q.id.as_str(), 6u8));
-                        }
-                    }
-                }
-                if p.lines.iter().any(|a| {
-                    qp.lines
+        let prior_contacts = radius_contacts(old, others.iter().copied());
+        // A different edit must not select another equally valid arc/corner.
+        // Replay only unchanged claims/text in the same projection, and reject
+        // the incumbent if the edit has put new ink in its corridor.
+        if let Some(before) = incumbents.iter().find(|p| {
+            p.id == d.id
+                && p.view == d.view
+                && p.terms == d.terms
+                && p.measurements == d.measurements
+        }) && reference.is_some_and(|r| {
+            r.views.iter().any(|p| {
+                p.id == v.id && p.scale == v.scale && p.direction == v.direction && p.up == v.up
+            })
+        }) && let Some(p) = &before.placed
+            && (page.fits(p, view)
+                || (before.region == Some(super::CandidateRegion::Interior)
+                    && page.fits_interior(p, view)))
+            && {
+                // Compare against the published incumbent's contacts, not an
+                // intermediate route that an unrelated edit happened to choose.
+                // A retained noncompliant fallback keeps the same single lint
+                // finding until its own intent or corridor changes.
+                let mut allowed = radius_contacts(p, incumbents.iter().filter(|q| q.id != d.id));
+                allowed.extend(
+                    prior_contacts
                         .iter()
-                        .chain(&qp.arrows)
-                        .any(|b| lines_meet(*a, *b))
-                }) {
-                    pairs.insert((q.id.as_str(), 0u8));
-                }
-                if qp
-                    .lines
-                    .iter()
-                    .any(|a| p.lines.iter().chain(&p.arrows).any(|b| lines_meet(*a, *b)))
-                {
-                    pairs.insert((q.id.as_str(), 4u8));
-                }
+                        .copied()
+                        .filter(|(id, _)| obstacles.iter().any(|q| q.id == *id)),
+                );
+                radius_contacts(p, others.iter().copied()).is_subset(&allowed)
             }
-            pairs
-        };
-        let prior_contacts = contacts(old);
+        {
+            let route = route_reports_named(&d.id, &d.label, view, footprint.solids(), p.lines[0]);
+            reports.insert(d.id.clone(), route);
+            items[i].placed = Some(p.clone());
+            items[i].region = before.region;
+            items[i].basis.clone_from(&before.basis);
+            continue;
+        }
+        if compliant {
+            continue;
+        }
         let mut best: Option<Candidate> = None;
         if let Some(before) = &before {
             let model_budget = model_crossings(&job, before);
@@ -2563,7 +2612,8 @@ pub(crate) fn settle_radius_leaders(
                                 || best.as_ref().is_some_and(|b| c.score() >= b.score())
                                 || model_crossings(&job, &c) > model_budget
                                 || !page.fits(&c.placed(), view)
-                                || !contacts(&c.placed()).is_subset(&prior_contacts)
+                                || !radius_contacts(&c.placed(), others.iter().copied())
+                                    .is_subset(&prior_contacts)
                             {
                                 continue;
                             }

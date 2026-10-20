@@ -2754,7 +2754,7 @@ fn plan_inventory_ordered(
         &mut intended,
     );
     let prescribed = intended.clone();
-    let locked: Vec<_> = intended.iter().map(Option::is_some).collect();
+    let mut locked: Vec<_> = intended.iter().map(Option::is_some).collect();
     let pin_ink: Vec<_> = all
         .iter()
         .zip(&prescribed)
@@ -2918,6 +2918,29 @@ fn plan_inventory_ordered(
             .iter()
             .any(|m| m.feature.starts_with("f:section_recess:"))
     });
+    // Finished radius corridors participate before edited or promoted linear
+    // ink settles. These are incumbent preferences, not authored pins: the
+    // ordinary final collision/radius repair still handles new contacts.
+    for (i, w) in all.iter().enumerate() {
+        if intended[i].is_none()
+            && w.measurements
+                .iter()
+                .any(|m| matches!(m.parameter.as_str(), "fillet.radius" | "blend.radius"))
+            && spec.dimensions.get(&w.id).is_none_or(|d| {
+                d.place.is_none() && d.tolerance.is_none() && d.text.is_none() && d.style.is_none()
+            })
+            && let Some(d) = held.iter().find(|d| {
+                d.id == w.id
+                    && d.terms == w.terms
+                    && d.measurements == w.measurements
+                    && chosen[i].is_some_and(|v| d.view == format!("v:{v}"))
+            })
+            && d.placed.is_some()
+        {
+            placed[i] = d.placed.clone();
+            locked[i] = true;
+        }
+    }
     let nominal_context = leaders::nominal_context(analysis, spec, &all);
     let nominal_seeded = if matches!(stage, 0 | 3)
         && (recess_context || nominal_context)

@@ -1013,6 +1013,80 @@ fn ctc01_r5_meets_the_fillet_from_the_open_centre_side() {
     );
 }
 
+/// Locality also holds at the recovered planner used by sessions and the CLI,
+/// independently of an earlier plan/cache entry for the unedited document.
+#[test]
+fn recovered_radius_routes_survive_unrelated_annotation_edits() {
+    let Some(corpus) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
+        return;
+    };
+    let path = Path::new(&corpus).join("nist/nist_ctc_01_asme1_rd.stp");
+    let (_, a) = model::analyse_native(&path).unwrap();
+    for edit in [json!({"omit":true}), json!({"tolerance":"±0.05"})] {
+        let spec: Spec = serde_json::from_value(json!({"dimensions":{
+            "d:f:hole_pattern:1/location.length.x": edit
+        }}))
+        .unwrap();
+        // Plan the edited document first: locality is not a cache-history policy.
+        let edited = model::plan_recovered(&a, &spec).unwrap();
+        let full = model::plan_recovered(&a, &Spec::default()).unwrap();
+        let mut compared = 0;
+        for before in full.dimensions.iter().filter(|d| {
+            d.placed.is_some()
+                && d.measurements
+                    .iter()
+                    .any(|m| matches!(m.parameter.as_str(), "fillet.radius" | "blend.radius"))
+        }) {
+            let after = edited
+                .dimensions
+                .iter()
+                .find(|d| d.id == before.id)
+                .unwrap();
+            assert_eq!(
+                after.measurements, before.measurements,
+                "{} claims",
+                before.id
+            );
+            assert_eq!(after.view, before.view, "{} carrier", before.id);
+            let (old, new) = (
+                before.placed.as_ref().unwrap(),
+                after.placed.as_ref().unwrap(),
+            );
+            let prior_view = full.views.iter().find(|v| v.id == before.view).unwrap();
+            let current_view = edited.views.iter().find(|v| v.id == after.view).unwrap();
+            assert_eq!(old.lines.len(), new.lines.len());
+            assert_eq!(old.arrows.len(), new.arrows.len());
+            for (p, q) in old
+                .lines
+                .iter()
+                .chain(&old.arrows)
+                .flatten()
+                .zip(new.lines.iter().chain(&new.arrows).flatten())
+            {
+                for k in 0..2 {
+                    assert!(
+                        (p[k] - prior_view.at[k] - q[k] + current_view.at[k]).abs() < 1e-9,
+                        "{} route moved for {spec:?}",
+                        before.id
+                    );
+                }
+            }
+            for k in 0..4 {
+                assert!(
+                    (old.label_box[k] - prior_view.at[k % 2] - new.label_box[k]
+                        + current_view.at[k % 2])
+                        .abs()
+                        < 1e-9,
+                    "{} label moved for {spec:?}",
+                    before.id
+                );
+            }
+            compared += 1;
+        }
+        assert!(compared >= 2);
+    }
+}
+
 /// #145: convex-corner repair cannot put text under the schedule's origin leader.
 #[test]
 fn ctc04_radius_labels_keep_the_schedule_origin_leader_clear() {
