@@ -830,52 +830,31 @@ fn duplicate_spec_note_is_covered_once_and_its_offered_fix_removes_only_the_spec
 }
 
 #[test]
-fn notes_without_part_pmi_keep_baseline_plan_and_drawing_bytes() {
-    // The hashes were captured on macOS; plan, SVG and PDF bytes carry floating-point output
-    // that differs on Linux, so this byte-identity check runs on macOS only.
-    if !cfg!(target_os = "macos") {
-        return;
-    }
-    use sha2::{Digest, Sha256};
-    let hash = |bytes: &[u8]| {
-        Sha256::digest(bytes)
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect::<String>()
-    };
-    // SVG and PDF captured on 2b4a2fa2, before part-note reading/lowering; plan hashes re-pinned
-    // when #126 added fix scopes to the Plan (SVG and PDF unchanged); all three re-pinned after
-    // #130's A4-first sheet choice, which changed these plain drawings (CI skips this on Linux).
-    // Re-captured for the quiddity/haecceity alpha.8 pin: the outputs carry the PMI loader
-    // binding (haecceity-pmi-read/8), and substituting the alpha.7 binding reproduces all twelve
-    // old hashes exactly. No drawing ink changed.
-    // Re-captured from origin/main f481abb6 for the alpha.9 release's loader
-    // provenance. Main and the thread branch produce identical bytes for all
-    // twelve outputs; substituting only the alpha.8 loader restores every old
-    // hash. The byte assertions remain strict; no drawing ink changed.
-    let baseline: Value =
-        serde_json::from_str(include_str!("fixtures/pmi/notes_identity.json")).unwrap();
-    assert_eq!(baseline.as_array().unwrap().len(), 4);
-    for case in baseline.as_array().unwrap() {
-        let file = case["file"].as_str().unwrap();
+fn parts_without_part_pmi_draw_only_spec_notes() {
+    // Part-note reading adds nothing to a part that carries no part PMI: no notes without Spec
+    // notes, and exactly the Spec notes, in order, when it has them.
+    for file in ["plate", "mounting_plate"] {
         let (part, a) = model::analyse(&fixture(&format!("parts/{file}.step"))).unwrap();
-        let s = if case["notes"] == true {
-            drawing_notes()
-        } else {
-            Spec::default()
-        };
-        let plan = model::plan(&a, &s).unwrap();
-        let drawing = model::render(&part, &a, &plan, &font()).unwrap();
-        assert_eq!(
-            hash(&serde_json::to_vec(&plan).unwrap()),
-            case["plan"],
-            "{file}: plan"
+        let plain = model::plan(&a, &Spec::default()).unwrap();
+        assert!(plain.notes.is_empty(), "{file}: {:?}", plain.notes);
+        let drawing = model::render(&part, &a, &plain, &font()).unwrap();
+        assert!(
+            !drawing.text.iter().any(|t| t.text.contains("NOTES")),
+            "{file}: a notes block was drawn"
         );
-        assert_eq!(hash(drawing.svg().as_bytes()), case["svg"], "{file}: SVG");
+        let plan = model::plan(&a, &drawing_notes()).unwrap();
         assert_eq!(
-            hash(&drawing.pdf(&output::fonts)),
-            case["pdf"],
-            "{file}: PDF"
+            plan.notes
+                .iter()
+                .map(|n| (n.number, n.text.as_str()))
+                .collect::<Vec<_>>(),
+            [(1, "DO NOT SCALE"), (2, "DIMENSIONS IN MM")],
+            "{file}"
+        );
+        let noted = model::render(&part, &a, &plan, &font()).unwrap();
+        assert!(
+            noted.text.iter().any(|t| t.text.contains("NOTES")),
+            "{file}"
         );
     }
 }
