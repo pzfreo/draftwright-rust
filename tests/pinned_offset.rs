@@ -66,6 +66,117 @@ fn inside(p: [f64; 2], o: [f64; 4]) -> bool {
     o[0] < p[0] && p[0] < o[2] && o[1] < p[1] && p[1] < o[3]
 }
 
+fn nearest_member(
+    members: &[draftwright::session::CalloutMember],
+    elbow: [f64; 2],
+) -> &draftwright::session::CalloutMember {
+    members
+        .iter()
+        .min_by(|a, b| {
+            let distance = |m: &draftwright::session::CalloutMember| {
+                (m.centre[0] - elbow[0]).hypot(m.centre[1] - elbow[1]) - m.radius
+            };
+            distance(a).total_cmp(&distance(b))
+        })
+        .unwrap()
+}
+
+fn assert_radial(tip: [f64; 2], elbow: [f64; 2], site: &draftwright::session::CalloutMember) {
+    let r = [tip[0] - site.centre[0], tip[1] - site.centre[1]];
+    let d = [elbow[0] - tip[0], elbow[1] - tip[1]];
+    assert!(
+        (r[0].hypot(r[1]) - site.radius).abs() < 1e-8,
+        "{tip:?} {site:?}"
+    );
+    assert!((r[0] * d[1] - r[1] * d[0]).abs() < 1e-8);
+    assert!(r[0] * d[0] + r[1] * d[1] > 0.0);
+}
+
+#[test]
+fn issue_149_table_selects_the_member_nearest_the_elbow() {
+    let mut s = session();
+    let at = s.callout_offset(ID).unwrap();
+    assert_eq!(at.members.len(), 6);
+    assert!(
+        at.members
+            .iter()
+            .all(|m| m.span.is_none() && m.radius > 0.0)
+    );
+    let original = nearest_member(&at.members, at.tip);
+    let stats = s.stats();
+    assert_eq!(s.callout_offset(ID).unwrap(), at);
+    assert_eq!(s.stats(), stats, "query does not plan or project");
+    for offset in [[-20., -10.], [30., 20.], [60., 20.], [90., 0.], [1., 0.]] {
+        pin(&mut s, offset);
+        let p = ink(&s);
+        let elbow = [at.tip[0] + offset[0], at.tip[1] + offset[1]];
+        assert_eq!(p.lines[0][1], elbow);
+        let member = nearest_member(&at.members, elbow);
+        assert_radial(p.lines[0][0], elbow, member);
+        assert_eq!(p.arrows[0][0], p.lines[0][0]);
+        let current = s.callout_offset(ID).unwrap();
+        assert_eq!(
+            current.tip, at.tip,
+            "offset origin must not follow the arrow"
+        );
+        assert_eq!(current.members, at.members);
+        assert!((current.offset[0] - offset[0]).abs() < 1e-8);
+        assert!((current.offset[1] - offset[1]).abs() < 1e-8);
+        if offset == [90., 0.] {
+            assert!(member.centre[0] > original.centre[0]);
+            assert_eq!(
+                member.centre[0],
+                at.members
+                    .iter()
+                    .map(|m| m.centre[0])
+                    .max_by(f64::total_cmp)
+                    .unwrap()
+            );
+        } else if offset == [1., 0.] {
+            assert_eq!(member, original);
+        }
+    }
+}
+
+#[test]
+fn issue_149_single_site_keeps_its_radial_attachment() {
+    let mut s = session();
+    let (id, at) = s
+        .plan()
+        .dimensions
+        .iter()
+        .filter(|d| d.kind == "callout")
+        .filter_map(|d| s.callout_offset(&d.id).ok().map(|at| (d.id.clone(), at)))
+        .find(|(_, at)| {
+            at.members.len() == 1 && at.members[0].radius > 0.0 && at.members[0].span.is_none()
+        })
+        .expect("plate has a single bore");
+    for offset in [[-20., -10.], [30., 20.], [60., 20.], [90., 0.]] {
+        s.apply(
+            &[Op::set(
+                format!("dimensions/{}/place", key(&id)),
+                json!({"offset":offset,"pinned":true}),
+            )],
+            true,
+        )
+        .unwrap();
+        let p = s
+            .plan()
+            .dimensions
+            .iter()
+            .find(|d| d.id == id)
+            .unwrap()
+            .placed
+            .as_ref()
+            .unwrap();
+        assert_eq!(
+            p.lines[0][1],
+            [at.tip[0] + offset[0], at.tip[1] + offset[1]]
+        );
+        assert_radial(p.lines[0][0], p.lines[0][1], &at.members[0]);
+    }
+}
+
 #[test]
 fn pinning_the_automatic_offset_keeps_bend_and_label() {
     let mut s = session();
@@ -117,8 +228,9 @@ fn an_offset_into_open_space_inside_the_view_places_the_label_there() {
     assert!(p.label_box[0] > at[0], "{p:?}");
     // The leader still ends on the hole's rim, radially: the arrow points at its tip.
     assert_eq!(p.arrows[0][0], leader_tip);
-    let rim = (leader_tip[0] - tip[0]).hypot(leader_tip[1] - tip[1]);
-    assert!(rim < 6.6, "the tip stays on the same hole: {p:?}");
+    let members = s.callout_offset(ID).unwrap().members;
+    let site = nearest_member(&members, at);
+    assert_radial(leader_tip, at, site);
     assert_eq!(
         s.callout_offset(ID).unwrap().bend,
         at,
@@ -253,4 +365,49 @@ fn pinning_every_callout_at_its_reported_offset_moves_nothing(file: &str) {
             }
         });
     }
+}
+
+#[test]
+fn offset_members_expose_the_projected_arc_span() {
+    let Some(corpus) = corpus::dir() else { return };
+    let s = Session::open(
+        &corpus.join("cadgenbench_inputs/cgb245.step"),
+        api::Features::Native,
+        Spec::default(),
+    )
+    .unwrap();
+    let id = "d:f:slot:1/slot_end_radius.radius";
+    let at = s.callout_offset(id).unwrap();
+    let p = s
+        .plan()
+        .dimensions
+        .iter()
+        .find(|d| d.id == id)
+        .unwrap()
+        .placed
+        .as_ref()
+        .unwrap();
+    assert!(!at.members.is_empty());
+    let arc = at
+        .members
+        .iter()
+        .filter(|m| m.span.is_some())
+        .find(|m| {
+            ((p.lines[0][0][0] - m.centre[0]).hypot(p.lines[0][0][1] - m.centre[1]) - m.radius)
+                .abs()
+                < 1e-6
+        })
+        .expect("drawn radius tip lies on an exposed arc");
+    let span = arc.span.unwrap();
+    assert!(span.start.is_finite() && span.sweep > 0. && span.sweep <= std::f64::consts::TAU);
+    let angle = (p.lines[0][0][1] - arc.centre[1]).atan2(p.lines[0][0][0] - arc.centre[0]);
+    assert!((angle - span.start + 1e-6).rem_euclid(std::f64::consts::TAU) <= span.sweep + 2e-6);
+    let wire = serde_json::to_value(at).unwrap();
+    assert!(
+        wire["members"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|m| m["span"]["sweep"].is_number())
+    );
 }

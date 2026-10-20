@@ -84,7 +84,7 @@ on this target. The browser parity job exercises hostile requests followed by va
 | `planCount()` | Cumulative planner count (useful for checking one replan per edit). |
 | `faceCount()`, `featureCount()` | Loaded face count and recognised feature count. |
 | `placementOptions()` | JSON map from editable item IDs to labels, per-view sides and allowed operations. `offset: "callout"` or `offset: "linear"` advertises free placement; absent for other forms. |
-| `calloutOffset(address)` | JSON `{view, tip:[x,y], bend:[x,y], offset:[dx,dy]}` from `Session::callout_offset`: paper mm, y up. Pin a dragged bend `b` with `{offset: b - tip, pinned: true}`. Refuses non-callouts, missing automatic leaders and non-canonical carriers. |
+| `calloutOffset(address)` | JSON `{view, tip:[x,y], bend:[x,y], offset:[dx,dy], members:[{centre:[x,y], radius, span?:{start,sweep}}]}` from `Session::callout_offset`: paper mm, y up. Pin a dragged bend `b` with `{offset: b - tip, pinned: true}`. Refuses non-callouts, missing automatic leaders and non-canonical carriers. |
 | `labelOffset(address)` | JSON `{view, anchor:[x,y], label:[x,y], offset:[dx,dy]}` from `Session::label_offset`: paper mm, y up. Pin a dragged linear label origin `p` with `{offset: p - anchor, pinned: true}`. Refuses non-linear items, missing automatic placements and non-canonical carriers. |
 | `renderSvg()`, `renderPdf()` | `Uint8Array`: sheet 1's UTF-8 SVG, or the PDF with a page per sheet and bundled fonts. |
 | `start()` | Installs the panic hook once; wasm-bindgen invokes it automatically at initialization. |
@@ -232,3 +232,10 @@ position, including automatic callouts already drawn inside the view. Linear off
 dimension line perpendicular to its span and the text along it, retaining the measured value.
 Offsets require `pinned: true`, exclude `side`, `lane` and `along`, and accept each component
 within ±1000 mm. Collisions remain pinned and are reported through the existing problems.
+
+Callout members are the projected attachment sites in paper mm (y up). An arc
+includes `span` with counterclockwise `start` and `sweep` in radians. A dragged
+callout attaches radially to the member nearest its elbow, retaining the automatic
+member on ties. The automatic `tip` remains the offset origin; changing members
+keeps the elbow, shoulder and label position. Reapplying the automatic offset
+retains the exact automatic ink.
