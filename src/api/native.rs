@@ -422,6 +422,10 @@ fn reviewed(step: &Path, given: Given, spec: &Spec) -> Result<Review, Error> {
     // the spec's datums and controls merged in ([`crate::spec_gdt`]); the plan accepted them.
     let merged = crate::spec_gdt::effective(&analysis, &plan.spec).ok();
     let analysis = merged.as_deref().unwrap_or(&analysis);
+    // Preserve the existing rendering/evaluation order; labels are bookkeeping afterward.
+    let svg = drawing.svg();
+    let drawing_consumer = crate::evaluation::drawing_consumer(analysis, Ok(&drawings));
+    let sheets = drawings.iter().skip(1).map(Drawing::svg).collect();
     let lint = lint::lint_sheets(analysis, &drawings);
     let structural = lint::structural::check_sheets(&drawings);
     let summary = crate::finding::Summary::new(
@@ -432,9 +436,9 @@ fn reviewed(step: &Path, given: Given, spec: &Spec) -> Result<Review, Error> {
     );
     Ok(Review {
         summary,
-        svg: drawing.svg(),
-        drawing_consumer: crate::evaluation::drawing_consumer(analysis, Ok(&drawings)),
-        sheets: drawings.iter().skip(1).map(Drawing::svg).collect(),
+        svg,
+        drawing_consumer,
+        sheets,
         problems: plan.problems,
         lint,
         structural,
