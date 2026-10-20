@@ -442,6 +442,11 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
     // material (`leaders`).
     issues.extend(leaders::check(analysis, drawing));
     issues.extend(pmi_coverage::source_sites(analysis, drawing));
+    let omitted = pmi_coverage::omitted_datums(analysis, drawing);
+    issues.retain(|i| {
+        !matches!(i.code.as_str(), "pmi_not_lowered" | "pmi_not_rendered")
+            || !i.sources.iter().any(|s| omitted.contains(s))
+    });
     issues
 }
 

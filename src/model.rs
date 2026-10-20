@@ -445,6 +445,10 @@ impl Default for Spec {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct SheetSpec {
+    /// Draw declared datums even when no tolerance frame cites them (default true).
+    /// False retains uncited symbols in the plan as explicit user omissions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uncited_datums: Option<bool>,
     /// Draw automatically determined dimensions in parentheses; omitted by default.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub references: Option<bool>,

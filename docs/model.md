@@ -1544,7 +1544,14 @@ modifiers?, default, basis, placed}` (`surface_finish` added by F2, draftwright-
   the plan, its leader from the centre of its faces' box. Only the modifiers draftwright draws
   are drawn (all-around, all-over, the zone, the material condition); any other is a
   `pmi_not_lowered` error.
-- **A datum feature symbol** for each datum whose faces are all planes, or all cylinders, on one
+- **A datum feature symbol** for every declared datum in the STEP or Spec, including
+  datums no control frame cites (for example Specify ± mode measurement origins). Set
+  `sheet/uncited_datums: false` to hide only uncited symbols; `true` (the default) draws them.
+  Set `annotations/<id>/omit: true` to hide any individual datum, using its stable ID from
+  `plan().gdt`. Hidden symbols remain there with `state: "omitted_by_user"`, source, faces,
+  and an explanatory basis. `pmi().unresolved` explains the omission or attachment/placement
+  failure until the symbol is drawn; it never returns an empty reason.
+  Each datum whose faces are all planes, or all cylinders, on one
   principal plane or axis: in the view that sees it edge-on (x and z: front; y: side; a y-normal
   plane goes to the plan when the side view is not drawn), on the side its outward normal points
   to, from a proven site on its face. A cylinder may use either silhouette proved against

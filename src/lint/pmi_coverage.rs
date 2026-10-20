@@ -205,15 +205,6 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     // A record whose identity another shares has no drawing item to lower to.
     lowered.retain(|s| ids.ids.contains_key(*s));
     for r in &report.records {
-        if r.category == Category::Datum
-            && !report.records.iter().any(|t| {
-                t.category == Category::GeometricTolerance
-                    && t.datum_refs.iter().any(|d| d == r.label.trim())
-            })
-        {
-            continue;
-        }
-
         let id = r.source_id.as_str();
         if crate::pmi_lowering::no_part_requirement(r)
             || on_sheet.contains(id)
@@ -1293,4 +1284,25 @@ mod tests {
             );
         }
     }
+}
+
+/// Sources whose datum symbols the author explicitly hides. This is coverage intent,
+/// never drawing evidence; source-site and value checks still inspect actual ink.
+pub(crate) fn omitted_datums(analysis: &Analysis, drawing: &Drawing) -> BTreeSet<String> {
+    let Some(spec) = drawing
+        .spec
+        .as_deref()
+        .and_then(|s| serde_json::from_str::<crate::model::Spec>(s).ok())
+    else {
+        return BTreeSet::new();
+    };
+    let Some(Reading::Read(report)) = &analysis.pmi else {
+        return BTreeSet::new();
+    };
+    report
+        .records
+        .iter()
+        .filter(|r| crate::spec_gdt::datum_omission(&spec, report, r).is_some())
+        .map(|r| r.source_id.clone())
+        .collect()
 }

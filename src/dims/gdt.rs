@@ -1531,6 +1531,25 @@ fn plan_search(
             state: State::not_drawable("pmi_not_drawn"),
             placed: None,
         };
+        let datum_omission = if datum
+            && (spec.sheet.uncited_datums == Some(false)
+                || spec.annotations.get(&item.id).is_some_and(|a| a.omit))
+            && let Some(crate::pmi::Reading::Read(report)) = &analysis.pmi
+        {
+            report
+                .records
+                .iter()
+                .find(|r| r.source_id == item.source)
+                .and_then(|r| crate::spec_gdt::datum_omission(spec, report, r))
+        } else {
+            None
+        };
+        if let Some(reason) = datum_omission {
+            planned.state = State::OmittedByUser;
+            planned.basis += &format!("; {reason}");
+            out.push(planned);
+            continue;
+        }
         if spec.annotations.get(&item.id).is_some_and(|a| a.omit) {
             planned.state = State::OmittedByUser;
             planned.basis += "; omitted by the spec";
