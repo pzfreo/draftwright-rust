@@ -4602,7 +4602,11 @@ fn grazing(f: &Frame, w: &Want) -> Option<P2> {
 /// A callout's sites on the page, at most [`MAX_SITES`]. A silhouette site (radius 0) that lands
 /// on another silhouette site lies on the view's line of sight (a turned band's two sites along
 /// the view direction, both on its axis): it is no silhouette in this view, and is left out.
-fn page_sites(f: &Frame, sites: &[(super::P3, f64)], arcs: &[crate::arc::ProfileArc]) -> Vec<Site> {
+pub(super) fn page_sites(
+    f: &Frame,
+    sites: &[(super::P3, f64)],
+    arcs: &[crate::arc::ProfileArc],
+) -> Vec<Site> {
     let all: Vec<Site> = if arcs.is_empty() {
         sites
             .iter()
@@ -4707,9 +4711,10 @@ pub(super) fn intent_tip(
 
 /// A pinned callout whose bend is `offset` (paper mm) from its automatic leader tip, `held`'s
 /// first point (#12). The bend may sit inside the view. The leader still attaches radially to the
-/// site that tip lies on, so a bend dragged round the feature keeps a radial shaft; the label
-/// reads on the side the leader runs to, as an automatic callout's does. At the automatic bend
-/// it is the automatic ink itself, whatever that leader's direction. Without an automatic placement in this view the offset is
+/// member nearest its bend, keeping the automatic member on ties. The label keeps the side
+/// it would have had on the automatic member, so changing members moves only the arrow.
+/// At the automatic bend it is the automatic ink itself, whatever that leader's direction.
+/// Without an automatic placement in this view the offset is
 /// taken from the first site's centre and the leader goes to the nearest site. The pin is never
 /// slid: crossings and contacts are reported against it.
 pub(super) fn offset_intent(
@@ -4734,16 +4739,22 @@ pub(super) fn offset_intent(
     {
         return Some(super::placement::relabel(p, terms, w));
     }
-    let tip = match held {
+    let (tip, label_tip) = match held {
         Some((_, [tip, _], _)) => {
             let on = |s: &Site| ((s.0[0] - tip[0]).hypot(s.0[1] - tip[1]) - s.1).abs();
-            let site = *sites.iter().min_by(|a, b| on(a).total_cmp(&on(b)))?;
-            rim_tip(site, elbow)
+            let current = *sites.iter().min_by(|a, b| on(a).total_cmp(&on(b)))?;
+            // nearest keeps the first site on ties: retain the automatic member unless
+            // another is strictly nearer, with the same rim/arc distance as free leaders.
+            let site = nearest(&[current, nearest(&sites, elbow)], elbow);
+            (rim_tip(site, elbow), rim_tip(current, elbow))
         }
-        None => rim_tip(nearest(&sites, elbow), elbow),
+        None => {
+            let tip = rim_tip(nearest(&sites, elbow), elbow);
+            (tip, tip)
+        }
     };
-    let right = if (elbow[0] - tip[0]).abs() > 1e-9 {
-        elbow[0] > tip[0]
+    let right = if (elbow[0] - label_tip[0]).abs() > 1e-9 {
+        elbow[0] > label_tip[0]
     } else {
         // A vertical leader keeps the automatic label's side, else reads to the right.
         held.is_none_or(|(p, _, _)| p.lines.get(1).is_none_or(|s| s[1][0] >= s[0][0]))
@@ -6329,6 +6340,61 @@ mod tests {
             let l = [elbow[0] - t[0], elbow[1] - t[1]];
             assert!((r[0] * l[1] - r[1] * l[0]).abs() < 1e-9 && r[0] * l[0] + r[1] * l[1] > 0.0);
         }
+    }
+
+    #[test]
+    fn offset_members_keep_ties_and_label_geometry() {
+        let a: crate::model::Analysis = serde_json::from_value(serde_json::json!({
+            "schema": crate::model::ANALYSIS_SCHEMA,
+            "binding": {"source_sha256":"", "part":"test", "face_count":0, "loader":"test"},
+            "envelope":[[-20,-20,-20],[20,20,20]], "iso_bounds":[0,0,40,40]
+        }))
+        .unwrap();
+        let frame = Frame::looking(&a, [0., -1., 0.], [0., 0., 1.], [0., 0.], 1.);
+        let w = Want {
+            id: "group".into(),
+            views: vec!["front"],
+            value: 2.,
+            terms: vec!["2× ⌀2".into()],
+            measurements: vec![],
+            basis: String::new(),
+            turning: None,
+            shape: Shape::Callout {
+                sites: vec![([0., 0., 0.], 1.), ([10., 0., 0.], 1.)],
+                arcs: vec![],
+            },
+        };
+        let held = offset_intent(&frame, &w, [15., 0.], None).unwrap();
+        assert_eq!(held.lines[0][0], [11., 0.]);
+        let pin = |elbow: P2| {
+            offset_intent(
+                &frame,
+                &w,
+                [elbow[0] - 11., elbow[1]],
+                Some((&held, &w.terms)),
+            )
+            .unwrap()
+        };
+        let tie = pin([5., 10.]);
+        assert_eq!(tie.lines[0][0], rim_tip(([10., 0.], 1., None), [5., 10.]));
+        assert_eq!(
+            pin([5., 10.]),
+            tie,
+            "ties are repeatable even when the current member is second"
+        );
+        let moved = pin([4., 10.]);
+        assert_eq!(moved.lines[0][0], rim_tip(([0., 0.], 1., None), [4., 10.]));
+        // Its new shaft points right, but the existing label to the left stays put.
+        let mut single = w.clone();
+        single.shape = Shape::Callout {
+            sites: vec![([10., 0., 0.], 1.)],
+            arcs: vec![],
+        };
+        let old = offset_intent(&frame, &single, [-7., 10.], Some((&held, &w.terms))).unwrap();
+        assert_eq!(moved.lines[1..], old.lines[1..]);
+        assert_eq!(moved.label_at, old.label_at);
+        assert_eq!(moved.label_box, old.label_box);
+        assert_eq!(moved.rotation, old.rotation);
     }
 
     #[test]
