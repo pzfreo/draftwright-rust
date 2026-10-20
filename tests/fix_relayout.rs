@@ -280,8 +280,13 @@ fn ctc01_crossings_offer_local_edits_and_identify_the_sheet_remedy() {
     // Keep all existing information, and use previews to select compatible edits.
     let mut session = Session::new(part, analysis.clone(), spec.clone()).unwrap();
     let mut applied = 0;
+    let mut tried = Vec::new();
     for p in &crossings {
         let fix = &p.offered_fixes()[0];
+        if tried.contains(&fix.ops) {
+            continue;
+        }
+        tried.push(fix.ops.clone());
         let Ok(delta) = session.apply(&fix.ops, false) else {
             continue;
         };
@@ -299,7 +304,7 @@ fn ctc01_crossings_offer_local_edits_and_identify_the_sheet_remedy() {
         session.apply(&fix.ops, true).unwrap();
         applied += 1;
     }
-    assert!(applied > 0);
+    assert_eq!(applied, 2, "two distinct compatible placement edits");
     assert_eq!(layout(session.plan()), before_layout);
     let unresolved = crossings
         .iter()
@@ -311,6 +316,19 @@ fn ctc01_crossings_offer_local_edits_and_identify_the_sheet_remedy() {
                 .any(|p| p.code == old.code && p.subjects == old.subjects)
         })
         .count();
+    assert_eq!(unresolved, 3);
+    assert_eq!(
+        session
+            .plan()
+            .problems
+            .iter()
+            .filter(|p| matches!(
+                p.code.as_str(),
+                "annotation_leader_crossing" | "extension_through_feature"
+            ))
+            .count(),
+        8
+    );
     eprintln!(
         "CTC-01: {applied} compatible edits applied; {} of 11 original crossings cleared; {unresolved} remain",
         11 - unresolved
