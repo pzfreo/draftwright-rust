@@ -849,6 +849,10 @@ fn notes_without_part_pmi_keep_baseline_plan_and_drawing_bytes() {
     // Re-captured for the quiddity/haecceity alpha.8 pin: the outputs carry the PMI loader
     // binding (haecceity-pmi-read/8), and substituting the alpha.7 binding reproduces all twelve
     // old hashes exactly. No drawing ink changed.
+    // Re-captured from origin/main f481abb6 for the alpha.9 release's loader
+    // provenance. Main and the thread branch produce identical bytes for all
+    // twelve outputs; substituting only the alpha.8 loader restores every old
+    // hash. The byte assertions remain strict; no drawing ink changed.
     let baseline: Value =
         serde_json::from_str(include_str!("fixtures/pmi/notes_identity.json")).unwrap();
     assert_eq!(baseline.as_array().unwrap().len(), 4);
