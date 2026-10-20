@@ -69,6 +69,8 @@ catalogue! {
     "callout_dropped" => Incomplete, Code, "A required drawing item was dropped before it could be stated.";
     "chamfer_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "chamfer_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
+    "channel_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
+    "channel_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "circular_blind_step_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "circular_blind_step_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "circular_channel_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
@@ -90,7 +92,7 @@ catalogue! {
     "diameter_leader_target_unverifiable" => Readability, Code, "The diameter leader target cannot be verified.";
     "dimension_line_crossing" => Readability, Code, "Dimension lines cross each other.";
     "dimension_line_shared" => Readability, Code, "Dimension strokes share a line and are harder to distinguish.";
-    "dimension_not_authored" => Decision, Code, "Authored-only dimensioning needs the user to supply this dimension.";
+    "dimension_not_authored" => Incomplete, Code, "Authored-only dimensioning leaves this required dimension absent.";
     "dimension_scheme_invalid" => Decision, Code, "The authored dimension scheme needs a valid user definition.";
     "dimension_text_stray" => Readability, Code, "Dimension text is displaced from its own span.";
     "dimension_view_not_shown" => Incomplete, Code, "The dimension requires a view that is not drawn.";
@@ -119,6 +121,8 @@ catalogue! {
     "general_tolerance_missing" => Decision, Code, "Only the user can choose the general tolerance.";
     "groove_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "groove_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
+    "gusset_rib_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
+    "gusset_rib_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "hex_pocket_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "hex_pocket_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "hole_bottom_unknown" => Incomplete, Code, "The hole termination needed for a complete callout is unknown.";

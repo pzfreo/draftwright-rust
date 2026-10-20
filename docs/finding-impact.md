@@ -64,6 +64,8 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `callout_dropped` | incomplete | A required drawing item was dropped before it could be stated. |
 | `chamfer_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
 | `chamfer_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
+| `channel_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
+| `channel_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `circular_blind_step_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
 | `circular_blind_step_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `circular_channel_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
@@ -85,7 +87,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `diameter_leader_target_unverifiable` | readability | The diameter leader target cannot be verified. |
 | `dimension_line_crossing` | readability | Dimension lines cross each other. |
 | `dimension_line_shared` | readability | Dimension strokes share a line and are harder to distinguish. |
-| `dimension_not_authored` | decision | Authored-only dimensioning needs the user to supply this dimension. |
+| `dimension_not_authored` | incomplete | Authored-only dimensioning leaves this required dimension absent. |
 | `dimension_scheme_invalid` | decision | The authored dimension scheme needs a valid user definition. |
 | `dimension_text_stray` | readability | Dimension text is displaced from its own span. |
 | `dimension_view_not_shown` | incomplete | The dimension requires a view that is not drawn. |
@@ -114,6 +116,8 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `general_tolerance_missing` | decision | Only the user can choose the general tolerance. |
 | `groove_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
 | `groove_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
+| `gusset_rib_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
+| `gusset_rib_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `hex_pocket_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
 | `hex_pocket_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `hole_bottom_unknown` | incomplete | The hole termination needed for a complete callout is unknown. |

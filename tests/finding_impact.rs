@@ -55,14 +55,20 @@ fn values(e: &Expr, out: &mut BTreeSet<String>) {
             let args = syn::punctuated::Punctuated::<Expr, syn::Token![,]>::parse_terminated
                 .parse2(tokens)
                 .unwrap();
-            if let Some(Expr::Lit(first)) = args.first() {
-                if let Lit::Str(format) = &first.lit {
-                    let format = format.value();
-                    assert_eq!(
-                        format, "{family}_requirement_{state}",
-                        "new dynamic finding-code template needs source-inventory expansion"
-                    );
-                }
+            if let Some(Expr::Lit(first)) = args.first()
+                && let Lit::Str(format) = &first.lit
+            {
+                let format = format.value();
+                assert!(
+                    format == "{family}_requirement_{state}"
+                        || format
+                            .strip_suffix("_requirement_{state}")
+                            .is_some_and(|family| family
+                                .bytes()
+                                .all(|b| b.is_ascii_lowercase() || b == b'_')),
+                    "new dynamic finding-code template needs source-inventory expansion: {format}"
+                );
+                out.insert(format);
             }
         }
         Expr::Tuple(e) => {
@@ -75,6 +81,8 @@ fn values(e: &Expr, out: &mut BTreeSet<String>) {
 }
 #[derive(Default)]
 struct Inventory {
+    collect: bool,
+    local_states: BTreeSet<String>,
     local_arguments: BTreeMap<String, BTreeSet<usize>>,
     arguments: BTreeMap<String, BTreeSet<usize>>,
     codes: BTreeSet<String>,
@@ -118,10 +126,11 @@ impl<'ast> Visit<'ast> for Inventory {
         visit::visit_item_fn(self, f);
     }
     fn visit_expr_struct(&mut self, e: &'ast syn::ExprStruct) {
-        if e.path
-            .segments
-            .last()
-            .is_some_and(|s| s.ident == "Problem" || s.ident == "LintIssue")
+        if self.collect
+            && e.path
+                .segments
+                .last()
+                .is_some_and(|s| s.ident == "Problem" || s.ident == "LintIssue")
         {
             for f in &e.fields {
                 if matches!(&f.member, syn::Member::Named(n) if n == "code") {
@@ -142,32 +151,38 @@ impl<'ast> Visit<'ast> for Inventory {
             Pat::Tuple(p) => matches!(p.elems.first(), Some(Pat::Ident(p)) if p.ident == "code"),
             _ => false,
         };
-        if let (Pat::Ident(p), Some(init)) = (pat, &l.init) {
-            if let Expr::Closure(c) = init.expr.as_ref() {
-                for (i, arg) in c.inputs.iter().enumerate() {
-                    let arg = if let Pat::Type(t) = arg {
-                        t.pat.as_ref()
-                    } else {
-                        arg
-                    };
-                    if matches!(arg, Pat::Ident(p) if p.ident == "code") {
-                        self.local_arguments
-                            .entry(p.ident.to_string())
-                            .or_default()
-                            .insert(i);
-                    }
+        if let (Pat::Ident(p), Some(init)) = (pat, &l.init)
+            && let Expr::Closure(c) = init.expr.as_ref()
+        {
+            self.local_arguments.entry(p.ident.to_string()).or_default();
+            for (i, arg) in c.inputs.iter().enumerate() {
+                let arg = if let Pat::Type(t) = arg {
+                    t.pat.as_ref()
+                } else {
+                    arg
+                };
+                if matches!(arg, Pat::Ident(p) if p.ident == "state") {
+                    self.local_states.insert(p.ident.to_string());
+                }
+                if matches!(arg, Pat::Ident(p) if p.ident == "code") {
+                    self.local_arguments
+                        .entry(p.ident.to_string())
+                        .or_default()
+                        .insert(i);
                 }
             }
         }
-        if code {
-            if let Some(init) = &l.init {
-                values(&init.expr, &mut self.codes);
-            }
+        if self.collect
+            && code
+            && let Some(init) = &l.init
+        {
+            values(&init.expr, &mut self.codes);
         }
         visit::visit_local(self, l);
     }
     fn visit_expr_assign(&mut self, e: &'ast syn::ExprAssign) {
-        if matches!(e.left.as_ref(), Expr::Field(f) if matches!(&f.member, syn::Member::Named(n) if n == "code"))
+        if self.collect
+            && matches!(e.left.as_ref(), Expr::Field(f) if matches!(&f.member, syn::Member::Named(n) if n == "code"))
         {
             values(&e.right, &mut self.codes);
         }
@@ -175,22 +190,26 @@ impl<'ast> Visit<'ast> for Inventory {
     }
     fn visit_macro(&mut self, m: &'ast syn::Macro) {
         let name = m.path.segments.last().unwrap().ident.to_string();
-        if name == "vec" || name == "problem" {
-            if let Ok(args) = syn::punctuated::Punctuated::<Expr, syn::Token![,]>::parse_terminated
+        if (name == "vec" || name == "problem")
+            && let Ok(args) = syn::punctuated::Punctuated::<Expr, syn::Token![,]>::parse_terminated
                 .parse2(m.tokens.clone())
+        {
+            if self.collect
+                && name == "problem"
+                && let Some(e) = args.first()
             {
-                if name == "problem" {
-                    if let Some(e) = args.first() {
-                        values(e, &mut self.codes);
-                    }
-                }
-                for e in &args {
-                    self.visit_expr(e);
-                }
+                values(e, &mut self.codes);
+            }
+            for e in &args {
+                self.visit_expr(e);
             }
         }
     }
     fn visit_expr_call(&mut self, e: &'ast syn::ExprCall) {
+        if !self.collect {
+            visit::visit_expr_call(self, e);
+            return;
+        }
         if let Expr::Path(p) = e.func.as_ref() {
             let name = p.path.segments.last().unwrap().ident.to_string();
             if let Some(indices) = self
@@ -204,23 +223,21 @@ impl<'ast> Visit<'ast> for Inventory {
                     }
                 }
             }
-            if name == "Refusal" {
-                if let Some(arg) = e.args.first() {
-                    values(arg, &mut self.codes);
-                }
+            if name == "Refusal"
+                && let Some(arg) = e.args.first()
+            {
+                values(arg, &mut self.codes);
             }
             if p.path.segments.iter().any(|s| s.ident == "parameters") && name == "coverage" {
                 values(e.args.first().unwrap(), &mut self.families);
             }
             // parameters::coverage is the only code template; enumerate its actual states.
-            if name == "issue" && e.args.len() == 4 {
+            if self.local_states.contains(&name) && e.args.len() == 4 {
                 let mut states = BTreeSet::new();
                 values(e.args.first().unwrap(), &mut states);
-                self.states.extend(
-                    states
-                        .into_iter()
-                        .filter(|s| s == "missing" || s == "unverifiable"),
-                );
+                self.states.extend(states.into_iter().filter(|s| {
+                    !s.is_empty() && s.bytes().all(|b| b.is_ascii_lowercase() || b == b'_')
+                }));
             }
         }
         visit::visit_expr_call(self, e);
@@ -237,15 +254,17 @@ fn every_emitted_code_has_an_impact_and_a_documented_reason() {
         .map(|p| syn::parse_file(&std::fs::read_to_string(p).unwrap()).unwrap())
         .collect();
     let mut inventory = Inventory::default();
+    // Discover cross-module helper signatures, then each file's local helpers/closures before
+    // collecting its call sites. Same-named helpers with different arguments stay distinct.
     for file in &files {
-        inventory.local_arguments.clear();
-        inventory.visit_file(file);
         inventory.visit_file(file);
     }
-    // Second pass catches helper calls preceding declarations, including cross-module ones.
     for file in &files {
+        inventory.collect = false;
         inventory.local_arguments.clear();
+        inventory.local_states.clear();
         inventory.visit_file(file);
+        inventory.collect = true;
         inventory.visit_file(file);
     }
     for family in &inventory.families {
@@ -253,6 +272,17 @@ fn every_emitted_code_has_an_impact_and_a_documented_reason() {
             inventory
                 .codes
                 .insert(format!("{family}_requirement_{state}"));
+        }
+    }
+    let templates: Vec<_> = inventory
+        .codes
+        .iter()
+        .filter(|c| c.ends_with("_requirement_{state}") && !c.contains("{family}"))
+        .cloned()
+        .collect();
+    for template in templates {
+        for state in &inventory.states {
+            inventory.codes.insert(template.replace("{state}", state));
         }
     }
     inventory
@@ -306,6 +336,7 @@ fn inventory_catches_new_literals_helpers_macros_and_templates() {
     .unwrap();
     let mut inventory = Inventory::default();
     inventory.visit_file(&source);
+    inventory.collect = true;
     inventory.visit_file(&source);
     for code in [
         "new_direct",
@@ -328,7 +359,12 @@ mod corpus;
 
 fn assert_review_summary(file: &str, expected: [(usize, usize); 4]) {
     let Some(dir) = corpus::dir() else { return };
-    let review = draftwright::api::review(&dir.join(file), None, &Default::default()).unwrap();
+    let review = draftwright::api::review_from(
+        &dir.join(file),
+        draftwright::api::Features::Native,
+        &Default::default(),
+    )
+    .unwrap();
     let wire = serde_json::to_value(&review).unwrap();
     let mut impacts: BTreeMap<&str, (usize, BTreeSet<&str>)> = BTreeMap::new();
     let mut groups = BTreeMap::<&str, usize>::new();
