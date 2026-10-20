@@ -104,7 +104,20 @@ fn applying_both_proposed_fixes_keeps_the_stack_apart_and_text_on_its_lines() {
         ],
         "the review sample's two crossings"
     );
-    assert_eq!(ops.len(), 2);
+    assert_eq!(ops.len(), 4); // one placement and one retained-layout constraint per fix
+    assert_eq!(
+        (&*s.plan().sheet.size, &*s.plan().sheet.scale),
+        ("A4", "1:1")
+    );
+    let sheet_before = layout(s.plan());
+    for p in s.plan().problems.iter().filter(|p| {
+        moved.iter().any(|id| p.subjects.contains(id)) && p.code == "annotation_leader_crossing"
+    }) {
+        assert_eq!(
+            p.offered_fixes()[0].scope(),
+            draftwright::fixes::Scope::Local
+        );
+    }
     let errors = |s: &Session| -> Vec<String> {
         lint::structural::check(s.drawing())
             .into_iter()
@@ -115,6 +128,11 @@ fn applying_both_proposed_fixes_keeps_the_stack_apart_and_text_on_its_lines() {
     let lint_before = errors(&s);
     let mut replay = s.state().clone();
     let delta = s.apply(&ops, true).unwrap();
+    assert_eq!(
+        layout(s.plan()),
+        sheet_before,
+        "#126: local fixes keep the sheet and every view frame"
+    );
     // #126 alternatives can change with the selected paper without changing a
     // finding. Their PlanDelta metadata must still replay exactly over the wire.
     let wire: draftwright::session::Delta =
@@ -188,7 +206,7 @@ fn applying_both_proposed_fixes_keeps_the_stack_apart_and_text_on_its_lines() {
 fn a_shared_line_left_by_an_edit_is_a_new_error() {
     let mut s = session();
     let (_, mut ops) = b_crossings(&s);
-    for op in &mut ops {
+    for op in ops.iter_mut().filter(|op| op.path.ends_with("/place")) {
         let mut v = serde_json::to_value(&*op).unwrap();
         v["value"]["pinned"] = serde_json::json!(true);
         v["value"].as_object_mut().unwrap().remove("along");
@@ -217,7 +235,8 @@ mod corpus;
 #[test]
 fn ctc01_crossings_offer_local_edits_and_identify_the_sheet_remedy() {
     let Some(root) = corpus::dir() else { return };
-    let (_, analysis) = model::analyse_native(&root.join("nist/nist_ctc_01_asme1_rd.stp")).unwrap();
+    let (part, analysis) =
+        model::analyse_native(&root.join("nist/nist_ctc_01_asme1_rd.stp")).unwrap();
     let spec =
         serde_json::from_value(serde_json::json!({"sheet":{"size":"A3","scale":"1:5"}})).unwrap();
     let plan = model::plan_recovered(&analysis, &spec).unwrap();
@@ -246,6 +265,56 @@ fn ctc01_crossings_offer_local_edits_and_identify_the_sheet_remedy() {
             .count(),
         9
     );
+    let ops: Vec<_> = crossings
+        .iter()
+        .flat_map(|p| p.offered_fixes()[0].ops.clone())
+        .collect();
+    let before_layout = layout(&plan);
+    let edited = model::edit(&spec, &serde_json::to_value(&ops).unwrap()).unwrap();
+    let error = model::plan_recovered(&analysis, &edited).unwrap_err();
+    assert!(
+        error.to_string().contains("No local fix is available"),
+        "{error}"
+    );
+    // Independent local offers are not a guarantee that their combination is valid.
+    // Keep all existing information, and use previews to select compatible edits.
+    let mut session = Session::new(part, analysis.clone(), spec.clone()).unwrap();
+    let mut applied = 0;
+    for p in &crossings {
+        let fix = &p.offered_fixes()[0];
+        let Ok(delta) = session.apply(&fix.ops, false) else {
+            continue;
+        };
+        if delta.problems_added.iter().any(|q| {
+            matches!(
+                q.code.as_str(),
+                "annotation_overlap"
+                    | "annotation_ink_overlap"
+                    | "annotation_leader_crossing"
+                    | "location_ref_dropped"
+            )
+        }) {
+            continue;
+        }
+        session.apply(&fix.ops, true).unwrap();
+        applied += 1;
+    }
+    assert!(applied > 0);
+    assert_eq!(layout(session.plan()), before_layout);
+    let unresolved = crossings
+        .iter()
+        .filter(|old| {
+            session
+                .plan()
+                .problems
+                .iter()
+                .any(|p| p.code == old.code && p.subjects == old.subjects)
+        })
+        .count();
+    eprintln!(
+        "CTC-01: {applied} compatible edits applied; {} of 11 original crossings cleared; {unresolved} remain",
+        11 - unresolved
+    );
     for p in crossings {
         let fixes = p.offered_fixes();
         assert!(!fixes.is_empty(), "{}", p.id);
@@ -259,7 +328,14 @@ fn ctc01_crossings_offer_local_edits_and_identify_the_sheet_remedy() {
         // Existing placement fixes validate the edit and compatible placement, with
         // preview/apply responsible for evaluating the resulting layout.
         model::edit(&spec, &serde_json::to_value(&fixes[0].ops).unwrap()).unwrap();
-        assert!(fixes[0].ops.iter().all(|op| op.path.starts_with("dimensions/") || op.path.starts_with("annotations/")));
+        assert!(
+            fixes[0]
+                .ops
+                .iter()
+                .all(|op| op.path.starts_with("dimensions/")
+                    || op.path.starts_with("annotations/")
+                    || op.path == "sheet/keep_layout")
+        );
     }
     let remedies = plan
         .problems
@@ -319,4 +395,76 @@ fn changing_sheet_scale_can_move_a_hand_placed_callout() {
         before.spec.dimensions[&callout.id].place,
         after.spec.dimensions[&callout.id].place
     );
+}
+
+/// What the local promise protects, independently of the engine's fit and recovery scores.
+fn layout(p: &model::Plan) -> serde_json::Value {
+    serde_json::json!({
+        "sheets": std::iter::once(&p.sheet).chain(&p.sheets).map(|s| (&s.size, &s.scale, s.page)).collect::<Vec<_>>(),
+        "views": p.views.iter().map(|v| (&v.id, v.sheet, v.at, v.scale, v.direction, v.up)).collect::<Vec<_>>()
+    })
+}
+
+#[test]
+fn unguarded_legacy_edits_report_a_changed_sheet_and_preview_does_not_commit() {
+    let mut s = session();
+    let (_, mut ops) = b_crossings(&s);
+    ops.retain(|op| op.path != "sheet/keep_layout");
+    let before = layout(s.plan());
+    let preview = s.apply(&ops, false).unwrap();
+    assert_eq!(layout(s.plan()), before);
+    assert!(
+        preview
+            .problems_added
+            .iter()
+            .any(|p| p.code == "layout_replanned")
+    );
+    let delta = s.apply(&ops, true).unwrap();
+    assert_ne!(layout(s.plan()), before);
+    assert_eq!(
+        (&*s.plan().sheet.size, &*s.plan().sheet.scale),
+        ("A3", "2:1")
+    );
+    assert!(
+        delta
+            .problems_added
+            .iter()
+            .any(|p| p.code == "layout_replanned")
+    );
+    assert!(
+        s.drawing()
+            .problems
+            .iter()
+            .chain(&s.plan().problems)
+            .any(|p| p.code == "layout_replanned")
+    );
+}
+
+#[test]
+fn a_retained_layout_refuses_conflicting_sheet_intent() {
+    let mut s = session();
+    let (_, mut ops) = b_crossings(&s);
+    ops.push(draftwright::items::Op::set("sheet/scale", "1:2".into()));
+    let before = layout(s.plan());
+    let error = s.apply(&ops, true).unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("cannot keep the retained sheet layout")
+    );
+    assert_eq!(layout(s.plan()), before);
+}
+
+#[test]
+fn a_stale_local_offer_cannot_restore_an_old_sheet() {
+    let mut s = session();
+    let (_, offered) = b_crossings(&s);
+    let sheet_edit = vec![
+        draftwright::items::Op::set("sheet/size", "A3".into()),
+        draftwright::items::Op::set("sheet/scale", "1:1".into()),
+    ];
+    s.apply(&sheet_edit, true).unwrap();
+    let before = layout(s.plan());
+    assert!(s.apply(&offered, true).is_err());
+    assert_eq!(layout(s.plan()), before);
 }

@@ -1,5 +1,4 @@
-//! Proportionate remedies. Scope describes authored Spec paths, never a preview or a
-//! prediction of which other ink the layout solver may move.
+//! Proportionate remedies. Local offers retain the sheet and view frames they were checked on.
 use crate::items::Op;
 use serde::{Deserialize, Serialize, ser::SerializeStruct};
 
@@ -76,6 +75,20 @@ fn value_scope(path: &str, value: &serde_json::Value) -> Scope {
 }
 
 pub fn scope(ops: &[Op]) -> Scope {
+    // A retained frame constrains a local edit; it does not change the sheet.
+    // Alone, removing it, or writing any other sheet setting is still sheet scope.
+    let edits: Vec<_> = ops
+        .iter()
+        .filter(|op| {
+            !(op.path == "sheet/keep_layout"
+                && op.op == "set"
+                && op.value.as_ref().is_some_and(|v| {
+                    serde_json::from_value::<crate::local_layout::Layout>(v.clone())
+                        .is_ok_and(|l| l.check().is_ok())
+                }))
+        })
+        .collect();
+    let ops = edits.as_slice();
     let broadest = ops
         .iter()
         .map(|op| {
@@ -113,15 +126,19 @@ pub fn scope(ops: &[Op]) -> Scope {
 }
 
 /// One alternative: its operations apply together. Scope is always derived, including
-/// when reading old or externally supplied JSON; a caller cannot understate it.
+/// when reading old or externally supplied JSON; a caller may widen but cannot understate it.
 #[derive(Clone, Debug, Deserialize)]
 pub struct Fix {
     pub description: String,
     pub ops: Vec<Op>,
+    #[serde(default, rename = "scope")]
+    pub minimum_scope: Option<Scope>,
 }
 impl PartialEq for Fix {
     fn eq(&self, other: &Self) -> bool {
-        self.ops == other.ops && self.description() == other.description()
+        self.ops == other.ops
+            && self.scope() == other.scope()
+            && self.description() == other.description()
     }
 }
 impl Fix {
@@ -129,10 +146,11 @@ impl Fix {
         Self {
             description: description.into(),
             ops,
+            minimum_scope: None,
         }
     }
     pub fn scope(&self) -> Scope {
-        scope(&self.ops)
+        scope(&self.ops).max(self.minimum_scope.unwrap_or(Scope::Local))
     }
     pub(crate) fn from_ops(ops: Vec<Op>) -> Self {
         let phrase = ops
@@ -177,6 +195,11 @@ fn op_description(op: &Op) -> String {
     };
     match op.path.as_str() {
         "sheet/scale" => text.map_or_else(|| choose("scale"), |v| format!("draw at {v}")),
+        "sheet/keep_layout" => if value.is_some() {
+            "keep the paper, scale and view layout".into()
+        } else {
+            "lay out the whole sheet again".into()
+        },
         "sheet/size" => text.map_or_else(|| choose("paper size"), |v| format!("use {v} paper")),
         "sheet/title/tolerance" => text.map_or_else(
             || "remove the general tolerance from the title block".into(),
@@ -330,6 +353,41 @@ pub(crate) fn attach(analysis: &crate::model::Analysis, plan: &mut crate::model:
     }
     crate::planning::with(analysis, || attach_inner(analysis, plan));
     MEMO.insert(key, plan.problems.clone());
+}
+
+/// O(items + offers), with no recovered-plan invocation per candidate. Placement
+/// candidates were ink-checked on these very frames; the Spec now enforces them
+/// during apply, including combined edits. Never advertise unconstrained allocation
+/// as local. Scope read from old JSON may widen, but cannot understate path scope.
+pub(crate) fn retain_local_layout(plan: &mut crate::model::Plan) {
+    let frame = crate::local_layout::Layout::capture(plan).and_then(|l| {
+        l.check()
+            .ok()
+            .map(|()| serde_json::to_value(l).expect("layout serializes"))
+    });
+    for problem in &mut plan.problems {
+        let mut fixes = problem.offered_fixes();
+        for fix in &mut fixes {
+            if fix.scope() != Scope::Local {
+                if plan.spec.sheet.keep_layout.is_some()
+                    && fix.scope() == Scope::Sheet
+                    && !fix.ops.iter().any(|op| op.path == "sheet/keep_layout")
+                {
+                    fix.ops.push(Op::remove("sheet/keep_layout"));
+                }
+                continue;
+            }
+            if let Some(frame) = &frame {
+                fix.ops.retain(|op| op.path != "sheet/keep_layout");
+                fix.ops.push(Op::set("sheet/keep_layout", frame.clone()));
+            } else {
+                fix.minimum_scope = Some(Scope::Sheet);
+            }
+        }
+        fixes.sort_by_key(Fix::scope);
+        problem.fix = fixes.first().map(|f| f.ops.clone()).unwrap_or_default();
+        problem.fixes = fixes;
+    }
 }
 
 /// Add remedies only after selecting the drawing. As with the existing placement

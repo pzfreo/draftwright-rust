@@ -90,6 +90,68 @@
                   "object",
                   "null"
                 ]
+              },
+              "keep_layout": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "size": {
+                    "enum": [
+                      "A4",
+                      "A3",
+                      "A2",
+                      "A1",
+                      "A0"
+                    ]
+                  },
+                  "scale": {
+                    "type": "string"
+                  },
+                  "required": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 16384
+                  },
+                  "views": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "at": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 2,
+                          "maxItems": 2
+                        },
+                        "area": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 4,
+                          "maxItems": 4
+                        },
+                        "scale": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 1000
+                        }
+                      },
+                      "additionalProperties": false,
+                      "minProperties": 3
+                    },
+                    "minProperties": 1,
+                    "maxProperties": 32
+                  }
+                },
+                "additionalProperties": false,
+                "minProperties": 4
               }
             },
             "additionalProperties": false,
@@ -342,6 +404,68 @@
                   "object",
                   "null"
                 ]
+              },
+              "keep_layout": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "size": {
+                    "enum": [
+                      "A4",
+                      "A3",
+                      "A2",
+                      "A1",
+                      "A0"
+                    ]
+                  },
+                  "scale": {
+                    "$ref": "#/D"
+                  },
+                  "required": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/D"
+                    },
+                    "maxItems": 16384
+                  },
+                  "views": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "at": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 2,
+                          "maxItems": 2
+                        },
+                        "area": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 4,
+                          "maxItems": 4
+                        },
+                        "scale": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 1000
+                        }
+                      },
+                      "additionalProperties": false,
+                      "minProperties": 3
+                    },
+                    "minProperties": 1,
+                    "maxProperties": 32
+                  }
+                },
+                "additionalProperties": false,
+                "minProperties": 4
               }
             },
             "additionalProperties": false,
@@ -676,6 +800,68 @@
                   "object",
                   "null"
                 ]
+              },
+              "keep_layout": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "size": {
+                    "enum": [
+                      "A4",
+                      "A3",
+                      "A2",
+                      "A1",
+                      "A0"
+                    ]
+                  },
+                  "scale": {
+                    "type": "string"
+                  },
+                  "required": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 16384
+                  },
+                  "views": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "at": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 2,
+                          "maxItems": 2
+                        },
+                        "area": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 4,
+                          "maxItems": 4
+                        },
+                        "scale": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 1000
+                        }
+                      },
+                      "additionalProperties": false,
+                      "minProperties": 3
+                    },
+                    "minProperties": 1,
+                    "maxProperties": 32
+                  }
+                },
+                "additionalProperties": false,
+                "minProperties": 4
               }
             },
             "additionalProperties": false,
@@ -824,7 +1010,7 @@
     "type": "object",
     "properties": {
       "part_ref": {
-        "type": "string"
+        "$ref": "#/C"
       },
       "spec": {
         "type": "object",
@@ -891,7 +1077,7 @@
               "title": {
                 "type": "object",
                 "additionalProperties": {
-                  "type": "string"
+                  "$ref": "#/C"
                 }
               },
               "view_gutter": {
@@ -914,6 +1100,68 @@
                   "object",
                   "null"
                 ]
+              },
+              "keep_layout": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "size": {
+                    "enum": [
+                      "A4",
+                      "A3",
+                      "A2",
+                      "A1",
+                      "A0"
+                    ]
+                  },
+                  "scale": {
+                    "$ref": "#/C"
+                  },
+                  "required": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/C"
+                    },
+                    "maxItems": 16384
+                  },
+                  "views": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "at": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 2,
+                          "maxItems": 2
+                        },
+                        "area": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 4,
+                          "maxItems": 4
+                        },
+                        "scale": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 1000
+                        }
+                      },
+                      "additionalProperties": false,
+                      "minProperties": 3
+                    },
+                    "minProperties": 1,
+                    "maxProperties": 32
+                  }
+                },
+                "additionalProperties": false,
+                "minProperties": 4
               }
             },
             "additionalProperties": false,
@@ -944,7 +1192,7 @@
                         "array"
                       ],
                       "items": {
-                        "type": "string"
+                        "$ref": "#/C"
                       },
                       "minItems": 1
                     },
@@ -997,7 +1245,7 @@
                 }
               },
               "additionalProperties": {
-                "type": "string"
+                "$ref": "#/C"
               },
               "required": [
                 "id",
@@ -1025,10 +1273,10 @@
         }
       },
       "spec_version": {
-        "type": "string"
+        "$ref": "#/C"
       },
       "drawing_ref": {
-        "type": "string"
+        "$ref": "#/C"
       },
       "cursor": {
         "type": "integer",
@@ -1074,9 +1322,12 @@
     },
     "B": {
       "items": {
-        "type": "string"
+        "$ref": "#/C"
       },
       "type": "array"
+    },
+    "C": {
+      "type": "string"
     }
   },
   "item_options": {
@@ -1170,6 +1421,68 @@
                   "object",
                   "null"
                 ]
+              },
+              "keep_layout": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "size": {
+                    "enum": [
+                      "A4",
+                      "A3",
+                      "A2",
+                      "A1",
+                      "A0"
+                    ]
+                  },
+                  "scale": {
+                    "type": "string"
+                  },
+                  "required": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 16384
+                  },
+                  "views": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "at": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 2,
+                          "maxItems": 2
+                        },
+                        "area": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 4,
+                          "maxItems": 4
+                        },
+                        "scale": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 1000
+                        }
+                      },
+                      "additionalProperties": false,
+                      "minProperties": 3
+                    },
+                    "minProperties": 1,
+                    "maxProperties": 32
+                  }
+                },
+                "additionalProperties": false,
+                "minProperties": 4
               }
             },
             "additionalProperties": false,
@@ -1314,7 +1627,7 @@
     "type": "object",
     "properties": {
       "part_ref": {
-        "$ref": "#/B"
+        "$ref": "#/A"
       },
       "spec": {
         "type": "object",
@@ -1343,7 +1656,7 @@
               "keep_together": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/A"
+                  "$ref": "#/B"
                 }
               },
               "gdt_on_sheet_1": {
@@ -1381,7 +1694,7 @@
               "title": {
                 "type": "object",
                 "additionalProperties": {
-                  "$ref": "#/B"
+                  "$ref": "#/A"
                 }
               },
               "view_gutter": {
@@ -1404,6 +1717,68 @@
                   "object",
                   "null"
                 ]
+              },
+              "keep_layout": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "size": {
+                    "enum": [
+                      "A4",
+                      "A3",
+                      "A2",
+                      "A1",
+                      "A0"
+                    ]
+                  },
+                  "scale": {
+                    "$ref": "#/A"
+                  },
+                  "required": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/A"
+                    },
+                    "maxItems": 16384
+                  },
+                  "views": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "at": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 2,
+                          "maxItems": 2
+                        },
+                        "area": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 4,
+                          "maxItems": 4
+                        },
+                        "scale": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 1000
+                        }
+                      },
+                      "additionalProperties": false,
+                      "minProperties": 3
+                    },
+                    "minProperties": 1,
+                    "maxProperties": 32
+                  }
+                },
+                "additionalProperties": false,
+                "minProperties": 4
               }
             },
             "additionalProperties": false,
@@ -1434,7 +1809,7 @@
                         "array"
                       ],
                       "items": {
-                        "$ref": "#/B"
+                        "$ref": "#/A"
                       },
                       "minItems": 1
                     },
@@ -1483,11 +1858,11 @@
             "items": {
               "properties": {
                 "faces": {
-                  "$ref": "#/A"
+                  "$ref": "#/B"
                 }
               },
               "additionalProperties": {
-                "$ref": "#/B"
+                "$ref": "#/A"
               },
               "required": [
                 "id",
@@ -1515,10 +1890,10 @@
         }
       },
       "spec_version": {
-        "$ref": "#/B"
+        "$ref": "#/A"
       },
       "drawing_ref": {
-        "$ref": "#/B"
+        "$ref": "#/A"
       },
       "cursor": {
         "type": "integer",
@@ -1556,7 +1931,7 @@
               ]
             },
             "path": {
-              "$ref": "#/B"
+              "$ref": "#/A"
             },
             "value": {}
           },
@@ -1569,7 +1944,7 @@
               "const": "remove"
             },
             "path": {
-              "$ref": "#/B"
+              "$ref": "#/A"
             }
           },
           "additionalProperties": false,
@@ -1579,13 +1954,13 @@
       "type": "object"
     },
     "A": {
-      "items": {
-        "$ref": "#/B"
-      },
-      "type": "array"
+      "type": "string"
     },
     "B": {
-      "type": "string"
+      "items": {
+        "$ref": "#/A"
+      },
+      "type": "array"
     },
     "C": {
       "type": [
@@ -1688,6 +2063,68 @@
                   "object",
                   "null"
                 ]
+              },
+              "keep_layout": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "size": {
+                    "enum": [
+                      "A4",
+                      "A3",
+                      "A2",
+                      "A1",
+                      "A0"
+                    ]
+                  },
+                  "scale": {
+                    "$ref": "#/A"
+                  },
+                  "required": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/A"
+                    },
+                    "maxItems": 16384
+                  },
+                  "views": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "at": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 2,
+                          "maxItems": 2
+                        },
+                        "area": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 4,
+                          "maxItems": 4
+                        },
+                        "scale": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 1000
+                        }
+                      },
+                      "additionalProperties": false,
+                      "minProperties": 3
+                    },
+                    "minProperties": 1,
+                    "maxProperties": 32
+                  }
+                },
+                "additionalProperties": false,
+                "minProperties": 4
               }
             },
             "additionalProperties": false,
@@ -1886,7 +2323,7 @@
     "type": "object",
     "properties": {
       "part_ref": {
-        "$ref": "#/C"
+        "$ref": "#/B"
       },
       "spec": {
         "type": "object",
@@ -1910,12 +2347,12 @@
             ],
             "properties": {
               "smallest_scale": {
-                "$ref": "#/B"
+                "$ref": "#/D"
               },
               "keep_together": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/A"
+                  "$ref": "#/C"
                 }
               },
               "gdt_on_sheet_1": {
@@ -1953,7 +2390,7 @@
               "title": {
                 "type": "object",
                 "additionalProperties": {
-                  "$ref": "#/C"
+                  "$ref": "#/B"
                 }
               },
               "view_gutter": {
@@ -1976,6 +2413,63 @@
                   "object",
                   "null"
                 ]
+              },
+              "keep_layout": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "size": {
+                    "enum": [
+                      "A4",
+                      "A3",
+                      "A2",
+                      "A1",
+                      "A0"
+                    ]
+                  },
+                  "scale": {
+                    "$ref": "#/B"
+                  },
+                  "required": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/B"
+                    },
+                    "maxItems": 16384
+                  },
+                  "views": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "at": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 2,
+                          "maxItems": 2
+                        },
+                        "area": {
+                          "$ref": "#/A"
+                        },
+                        "scale": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 1000
+                        }
+                      },
+                      "additionalProperties": false,
+                      "minProperties": 3
+                    },
+                    "minProperties": 1,
+                    "maxProperties": 32
+                  }
+                },
+                "additionalProperties": false,
+                "minProperties": 4
               }
             },
             "additionalProperties": false,
@@ -1987,7 +2481,7 @@
                 ]
               },
               "^(size|scale)$(?!\n)": {
-                "$ref": "#/B"
+                "$ref": "#/D"
               }
             }
           },
@@ -2006,7 +2500,7 @@
                         "array"
                       ],
                       "items": {
-                        "$ref": "#/C"
+                        "$ref": "#/B"
                       },
                       "minItems": 1
                     },
@@ -2055,11 +2549,11 @@
             "items": {
               "properties": {
                 "faces": {
-                  "$ref": "#/A"
+                  "$ref": "#/C"
                 }
               },
               "additionalProperties": {
-                "$ref": "#/C"
+                "$ref": "#/B"
               },
               "required": [
                 "id",
@@ -2087,18 +2581,13 @@
         }
       },
       "spec_version": {
-        "$ref": "#/C"
+        "$ref": "#/B"
       },
       "drawing_ref": {
-        "$ref": "#/C"
+        "$ref": "#/B"
       },
       "region": {
-        "type": "array",
-        "items": {
-          "type": "number"
-        },
-        "minItems": 4,
-        "maxItems": 4
+        "$ref": "#/A"
       },
       "overlay_ids": {
         "type": [
@@ -2106,7 +2595,7 @@
           "array"
         ],
         "items": {
-          "$ref": "#/C"
+          "$ref": "#/B"
         }
       },
       "sheet": {
@@ -2134,25 +2623,33 @@
     "additionalProperties": false,
     "A": {
       "items": {
-        "$ref": "#/C"
+        "type": "number"
       },
+      "maxItems": 4,
+      "minItems": 4,
       "type": "array"
     },
     "B": {
+      "type": "string"
+    },
+    "C": {
+      "items": {
+        "$ref": "#/B"
+      },
+      "type": "array"
+    },
+    "D": {
       "type": [
         "string",
         "null"
       ]
-    },
-    "C": {
-      "type": "string"
     }
   },
   "render_pdf": {
     "type": "object",
     "properties": {
       "part_ref": {
-        "type": "string"
+        "$ref": "#/B"
       },
       "spec": {
         "type": "object",
@@ -2176,7 +2673,7 @@
             ],
             "properties": {
               "smallest_scale": {
-                "$ref": "#/B"
+                "$ref": "#/C"
               },
               "keep_together": {
                 "type": "array",
@@ -2219,7 +2716,7 @@
               "title": {
                 "type": "object",
                 "additionalProperties": {
-                  "type": "string"
+                  "$ref": "#/B"
                 }
               },
               "view_gutter": {
@@ -2242,6 +2739,68 @@
                   "object",
                   "null"
                 ]
+              },
+              "keep_layout": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "size": {
+                    "enum": [
+                      "A4",
+                      "A3",
+                      "A2",
+                      "A1",
+                      "A0"
+                    ]
+                  },
+                  "scale": {
+                    "$ref": "#/B"
+                  },
+                  "required": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/B"
+                    },
+                    "maxItems": 16384
+                  },
+                  "views": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "at": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 2,
+                          "maxItems": 2
+                        },
+                        "area": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 4,
+                          "maxItems": 4
+                        },
+                        "scale": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 1000
+                        }
+                      },
+                      "additionalProperties": false,
+                      "minProperties": 3
+                    },
+                    "minProperties": 1,
+                    "maxProperties": 32
+                  }
+                },
+                "additionalProperties": false,
+                "minProperties": 4
               }
             },
             "additionalProperties": false,
@@ -2253,7 +2812,7 @@
                 ]
               },
               "^(size|scale)$(?!\n)": {
-                "$ref": "#/B"
+                "$ref": "#/C"
               }
             }
           },
@@ -2272,7 +2831,7 @@
                         "array"
                       ],
                       "items": {
-                        "type": "string"
+                        "$ref": "#/B"
                       },
                       "minItems": 1
                     },
@@ -2325,7 +2884,7 @@
                 }
               },
               "additionalProperties": {
-                "type": "string"
+                "$ref": "#/B"
               },
               "required": [
                 "id",
@@ -2353,10 +2912,10 @@
         }
       },
       "spec_version": {
-        "type": "string"
+        "$ref": "#/B"
       },
       "drawing_ref": {
-        "type": "string"
+        "$ref": "#/B"
       },
       "sheet": {
         "enum": [
@@ -2378,11 +2937,14 @@
     "additionalProperties": false,
     "A": {
       "items": {
-        "type": "string"
+        "$ref": "#/B"
       },
       "type": "array"
     },
     "B": {
+      "type": "string"
+    },
+    "C": {
       "type": [
         "string",
         "null"
@@ -2480,6 +3042,68 @@
                   "object",
                   "null"
                 ]
+              },
+              "keep_layout": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "size": {
+                    "enum": [
+                      "A4",
+                      "A3",
+                      "A2",
+                      "A1",
+                      "A0"
+                    ]
+                  },
+                  "scale": {
+                    "type": "string"
+                  },
+                  "required": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 16384
+                  },
+                  "views": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "at": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 2,
+                          "maxItems": 2
+                        },
+                        "area": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 4,
+                          "maxItems": 4
+                        },
+                        "scale": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 1000
+                        }
+                      },
+                      "additionalProperties": false,
+                      "minProperties": 3
+                    },
+                    "minProperties": 1,
+                    "maxProperties": 32
+                  }
+                },
+                "additionalProperties": false,
+                "minProperties": 4
               }
             },
             "additionalProperties": false,
@@ -2643,12 +3267,12 @@
             ],
             "properties": {
               "smallest_scale": {
-                "$ref": "#/B"
+                "$ref": "#/C"
               },
               "keep_together": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/A"
+                  "$ref": "#/B"
                 }
               },
               "gdt_on_sheet_1": {
@@ -2686,7 +3310,7 @@
               "title": {
                 "type": "object",
                 "additionalProperties": {
-                  "type": "string"
+                  "$ref": "#/D"
                 }
               },
               "view_gutter": {
@@ -2709,6 +3333,63 @@
                   "object",
                   "null"
                 ]
+              },
+              "keep_layout": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "size": {
+                    "enum": [
+                      "A4",
+                      "A3",
+                      "A2",
+                      "A1",
+                      "A0"
+                    ]
+                  },
+                  "scale": {
+                    "$ref": "#/D"
+                  },
+                  "required": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/D"
+                    },
+                    "maxItems": 16384
+                  },
+                  "views": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "at": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 2,
+                          "maxItems": 2
+                        },
+                        "area": {
+                          "$ref": "#/A"
+                        },
+                        "scale": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 1000
+                        }
+                      },
+                      "additionalProperties": false,
+                      "minProperties": 3
+                    },
+                    "minProperties": 1,
+                    "maxProperties": 32
+                  }
+                },
+                "additionalProperties": false,
+                "minProperties": 4
               }
             },
             "additionalProperties": false,
@@ -2720,7 +3401,7 @@
                 ]
               },
               "^(size|scale)$(?!\n)": {
-                "$ref": "#/B"
+                "$ref": "#/C"
               }
             }
           },
@@ -2739,7 +3420,7 @@
                         "array"
                       ],
                       "items": {
-                        "type": "string"
+                        "$ref": "#/D"
                       },
                       "minItems": 1
                     },
@@ -2788,11 +3469,11 @@
             "items": {
               "properties": {
                 "faces": {
-                  "$ref": "#/A"
+                  "$ref": "#/B"
                 }
               },
               "additionalProperties": {
-                "type": "string"
+                "$ref": "#/D"
               },
               "required": [
                 "id",
@@ -2830,12 +3511,7 @@
         ]
       },
       "region": {
-        "type": "array",
-        "items": {
-          "type": "number"
-        },
-        "minItems": 4,
-        "maxItems": 4
+        "$ref": "#/A"
       },
       "overlay_ids": {
         "type": [
@@ -2843,7 +3519,7 @@
           "array"
         ],
         "items": {
-          "type": "string"
+          "$ref": "#/D"
         }
       },
       "sheet": {
@@ -2880,20 +3556,31 @@
     ],
     "patternProperties": {
       "^(spec_version|step|features|(part|drawing)_ref)$(?!\n)": {
-        "type": "string"
+        "$ref": "#/D"
       }
     },
     "A": {
       "items": {
-        "type": "string"
+        "type": "number"
       },
+      "maxItems": 4,
+      "minItems": 4,
       "type": "array"
     },
     "B": {
+      "items": {
+        "$ref": "#/D"
+      },
+      "type": "array"
+    },
+    "C": {
       "type": [
         "string",
         "null"
       ]
+    },
+    "D": {
+      "type": "string"
     }
   }
 }

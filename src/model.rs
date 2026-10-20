@@ -445,6 +445,9 @@ impl Default for Spec {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct SheetSpec {
+    /// Retain a single sheet and its view frames for local edits; remove to re-plan.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keep_layout: Option<crate::local_layout::Layout>,
     /// Draw automatically determined dimensions in parentheses; omitted by default.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub references: Option<bool>,
@@ -3373,6 +3376,7 @@ pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
         matches!(&prepared, std::borrow::Cow::Owned(_)),
         &mut plan,
     );
+    crate::fixes::retain_local_layout(&mut plan);
     Ok(plan)
 }
 
@@ -3381,7 +3385,15 @@ fn plan_recovered_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invali
         return crate::dims::pmi_policy::ignore(analysis, spec, plan_recovered);
     }
     crate::planning::with(analysis, || {
-        let mut plan = crate::sheet_policy::select(analysis, spec)?;
+        let mut plan = if let Some(frame) = &spec.sheet.keep_layout {
+            let fixed = crate::local_layout::forced(spec)?;
+            let mut plan = crate::planning::fixed_pair(|| plan_automatic(analysis, &fixed))?;
+            frame.verify(&plan)?;
+            plan.spec = spec.clone();
+            plan
+        } else {
+            crate::sheet_policy::select(analysis, spec)?
+        };
         let effective = crate::spec_gdt::effective(analysis, &plan.spec)?;
         crate::dims::pmi_policy::audit(effective.as_ref(), &plan.spec.clone(), &mut plan);
         if crate::dims::pmi_policy::carries(effective.as_ref()) || !spec.origin.is_empty() {
@@ -3928,10 +3940,14 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         matches!(&prepared, std::borrow::Cow::Owned(_)),
         &mut plan,
     );
+    crate::fixes::retain_local_layout(&mut plan);
     Ok(plan)
 }
 
 fn plan_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    if spec.sheet.keep_layout.is_some() {
+        return plan_recovered(analysis, spec);
+    }
     if spec.pmi == PmiMode::Ignore && crate::dims::pmi_policy::carries(analysis) {
         return crate::dims::pmi_policy::ignore(analysis, spec, plan);
     }
@@ -5218,6 +5234,9 @@ fn plan_with_presentation(
             (v.at, v.area, v.scale) = (base.at, base.area, base.scale);
         }
     }
+    if let Some(frame) = &spec.sheet.keep_layout {
+        frame.restore(&mut views)?;
+    }
     crate::dims::gdt::validate_placements(analysis, spec, &views)?;
     // Different arrangement requests can resolve to identical geometry. Solve that ink once,
     // retaining each request's sheet and view explanations in its returned Plan.
@@ -5335,7 +5354,7 @@ fn plan_with_presentation(
         .cloned()
         .collect();
     let obstacles = crate::placement_intent::obstacles(spec, &packing_dimensions, &fixed);
-    if !obstacles.is_empty() {
+    if !obstacles.is_empty() && spec.sheet.keep_layout.is_none() {
         let before: Vec<_> = views.iter().map(|v| (v.at, v.area, v.scale)).collect();
         problems.retain(|p| {
             !matches!(
@@ -6154,7 +6173,7 @@ fn plan_with_presentation(
         });
     }
     crate::recognition_corrections::report(analysis, &mut plan);
-    if complete_views {
+    if complete_views && plan.spec.sheet.keep_layout.is_none() {
         crate::sheet_fit::reserve_linear_corridors(
             analysis,
             &mut plan,
@@ -6990,6 +7009,9 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
     let spec: Spec = serde_json::from_value(doc)
         .map_err(|e| invalid(format!("The edited spec is not valid: {e}."), &[]))?;
     crate::sheets::validate(&spec)?;
+    if let Some(frame) = &spec.sheet.keep_layout {
+        frame.check()?;
+    }
     crate::dims::check_tolerances(&spec)?;
     crate::spec_gdt::check(&spec)?;
     crate::dims::authored::check(&spec)?;

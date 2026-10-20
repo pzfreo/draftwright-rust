@@ -8,6 +8,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- Local fixes retain their sheet size, scale, count and view frames (#126, alpha.11).
+  The `sheet/keep_layout` Spec override carries that intent through preview, commit and
+  stateless edits; conflicts are refused explicitly. Multi-sheet remedies remain sheet scope.
+  Edits that change paper, scale or count now report `layout_replanned` against the drawing
+  being edited, even when the new planner run did not itself perform recovery.
+
 - Browser input refusals (#134, alpha.11): reject over-deep edit paths before recursive JSON
   construction and gutters beyond the largest supported sheet before layout allocation.
   Conflicting dimension ownership returns an Invalid error; malformed projected spline

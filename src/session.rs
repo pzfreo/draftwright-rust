@@ -611,6 +611,9 @@ impl Session {
             // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
             &serde_json::to_value(ops).expect("ops serialise"),
         )?;
+        if let Some(frame) = &spec.sheet.keep_layout {
+            frame.verify(self.plan())?;
+        }
         let evaluated = self.evaluate(&spec)?;
         let delta = difference(
             &self.state,
@@ -933,7 +936,8 @@ impl Session {
     }
     fn evaluate(&self, spec: &Spec) -> Result<Evaluation, Error> {
         let mut planner = self.planner.clone();
-        let plan = planner.plan(&self.analysis, spec)?;
+        let mut plan = planner.plan(&self.analysis, spec)?;
+        crate::local_layout::report(self.plan(), &mut plan);
         let mut cache = self.projections.clone();
         let geometry = model::render_geometry(&self.part, &self.analysis, &plan, &mut cache)
             .map_err(|e| Error::failed(format!("cannot render session: {e}")))?;
@@ -1540,6 +1544,7 @@ fn settable(
         }
     }
     if item.item.kind == "sheet" {
+        fields.insert("sheet/keep_layout".into(), json!({"forms":["remove to allow the whole sheet to be laid out again, including hand-moved placements"], "description":"Local fixes retain the current single-sheet view frames here. Conflicting sheet edits are refused until this override is removed."}));
         fields.insert(
             "sheet/size".into(),
             choices(json!(crate::layout::PAGES.map(|p| p.0))),
