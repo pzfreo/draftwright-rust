@@ -204,6 +204,7 @@ impl Estimate {
     }
 
     fn fits(&self, size: &str, max: usize, scale: f64) -> bool {
+        // Invariant: Candidates select paper names from the fixed PAGES table.
         let (_, w, h) = layout::PAGES.iter().find(|p| p.0 == size).unwrap();
         let available = [w - 2.0 * layout::MARGIN, h - 2.0 * layout::MARGIN];
         let mut principal = std::collections::BTreeMap::new();
@@ -493,6 +494,7 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
                     .sheet = Some(view.sheet);
             }
             if let Some(table) = canonical.hole_table.as_ref().filter(|t| t.sheet > 1) {
+                // Invariant: The forced multi-sheet Spec was initialized with Some sheets before this branch.
                 forced.sheets.as_mut().unwrap().hole_table = Some(table.sheet);
             }
             for table in &mut forced.tables {

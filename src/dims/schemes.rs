@@ -88,6 +88,7 @@ pub(super) fn apply(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<Cov
                 "dimension_schemes/{name}: {why} Correct the reference or remove dimension_schemes/{name}."
             ))
         };
+        // Invariant: Dimension scheme check permits only x, y and z axes.
         let k = AXES.iter().position(|&k| k == d.axis).unwrap();
         if a.solid_count.is_some_and(|n| n > 1) {
             return Err(fail("A scheme needs one carrying solid; select a single part before authoring its station network.".into()));
@@ -164,7 +165,9 @@ pub(super) fn apply(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<Cov
             .as_deref()
             .or_else(|| selected.first().and_then(|w| w.views.first().copied()))
             .unwrap_or(if k == 1 { "plan" } else { "front" });
+        // Invariant: Scheme view validation permits only entries in NAMES.
         let view = *super::NAMES.iter().find(|&&n| n == view).unwrap();
+        // Invariant: Every NAMES entry has its corresponding fixed TOWARD camera.
         if super::TOWARD.iter().find(|(v, _)| *v == view).unwrap().1[k].abs() > 0.5 {
             return Err(fail(format!(
                 "The {view} view looks along {}; choose a principal view showing that axis across the page.",
@@ -295,6 +298,7 @@ pub(super) fn apply(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<Cov
             });
             if parent {
                 check_edits(s, w)?;
+                // Invariant: The generated dimension was pushed immediately before recording its id.
                 covered.insert(w.id.clone(), generated.last().unwrap().id.clone());
             }
         }
@@ -308,6 +312,7 @@ pub(super) fn apply(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<Cov
         if d.targets.is_empty() {
             continue;
         }
+        // Invariant: Dimension scheme check permits only x, y and z axes.
         let k = AXES.iter().position(|&k| k == d.axis).unwrap();
         let mut refs = BTreeSet::new();
         for r in &d.targets {

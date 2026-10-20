@@ -54,6 +54,7 @@ pub fn drawing_consumer(analysis: &Analysis, build: Result<&[Drawing], &str>) ->
                     reason: Some(reason),
                 };
             }
+            // Invariant: The None case returned its refusal before this branch.
             let hole = hole.expect("the unreadable record returned above");
             let carriers: Vec<_> = marks
                 .iter()

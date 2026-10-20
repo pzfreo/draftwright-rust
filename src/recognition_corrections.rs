@@ -234,6 +234,7 @@ pub fn face_fingerprint(a: &Analysis, face: usize) -> Result<String, Invalid> {
     ]);
     Ok(format!(
         "face:sha256:{}",
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         digest(&serde_json::to_vec(&data).expect("face signature"))
     ))
 }
@@ -398,6 +399,7 @@ pub fn bind(a: &Analysis, s: Spec) -> Result<Spec, Invalid> {
         if entry.anchor.is_none() {
             entry.anchor = Some(anchors(
                 a,
+                // Invariant: resolved_id refuses unless the id resolves to an existing feature or pattern.
                 &target_faces(a, &resolved).expect("resolved target"),
             )?);
         }
@@ -504,6 +506,7 @@ pub(crate) fn canonical<'a>(a: &Analysis, s: &'a Spec) -> Result<Cow<'a, Spec>, 
 }
 
 fn object(v: Value) -> Map<String, Value> {
+    // Invariant: object receives only json! object literals constructed in this module.
     v.as_object().expect("record object").clone()
 }
 fn unit(k: usize) -> [f64; 3] {
@@ -585,7 +588,9 @@ fn cylindrical(a: &Analysis, id: &str, kind: Kind, faces: Vec<usize>) -> Result<
                 }
                 let mut on = [0.; 3];
                 let mut across = (0..3).filter(|&j| j != k);
+                // Invariant: Excluding at most one axis from 0..3 leaves at least two components.
                 let u = across.next().unwrap();
+                // Invariant: Excluding at most one axis from 0..3 leaves at least two components.
                 let v = across.next().unwrap();
                 on[u] = f.support[0];
                 on[v] = f.support[1];
@@ -685,6 +690,7 @@ fn cylindrical(a: &Analysis, id: &str, kind: Kind, faces: Vec<usize>) -> Result<
         .filter_map(|&i| {
             let f = &a.face_attachments[i];
             (f.surface.as_deref() == Some("cylinder")).then(|| {
+                // Invariant: The first pass required bounds for every named face.
                 let b = f.bounds.unwrap();
                 [b[k], b[k + 3]]
             })
@@ -700,6 +706,7 @@ fn cylindrical(a: &Analysis, id: &str, kind: Kind, faces: Vec<usize>) -> Result<
     }
     let mut caps = Vec::new();
     for f in floors {
+        // Invariant: The first pass required bounds for every named face.
         let b = f.bounds.unwrap();
         if f.axis != Some(k)
             || f.support.len() != 1
@@ -774,6 +781,7 @@ fn cylindrical(a: &Analysis, id: &str, kind: Kind, faces: Vec<usize>) -> Result<
                 qk.ok_or_else(|| fail("the recognition frame has no principal cylinder axis"))?;
             json!({"diameter":2.*r,"lo":l[qk].min(h[qk]),"hi":l[qk].max(h[qk]),"axis":AXES[qk],"profile":{"axis_origin":local_point(a,on),"lo":l[qk].min(h[qk]),"hi":l[qk].max(h[qk])}})
         }
+        // Invariant: derive calls cylindrical only for Hole, Boss or TurnedStep.
         _ => unreachable!(),
     };
     feature(a, id, kind, faces, params, k)
@@ -1002,6 +1010,7 @@ fn rectangular(a: &Analysis, id: &str, kind: Kind, faces: Vec<usize>) -> Result<
             return Err(fail("the section has no positive width"));
         }
         for (n, &(i, _)) in planes[j].iter().enumerate() {
+            // Invariant: The plane collection admitted only faces with normals and bounds.
             let normal = a.face_attachments[i].normal.unwrap();
             if (normal[j] - if n == 0 { 1. } else { -1. }).abs() > TOL {
                 return Err(fail(
@@ -1010,6 +1019,7 @@ fn rectangular(a: &Analysis, id: &str, kind: Kind, faces: Vec<usize>) -> Result<
             }
         }
     }
+    // Invariant: Depth selection requires exactly two planes on each transverse axis, all with bounds.
     let b = a.face_attachments[planes[u][0].0].bounds.unwrap();
     lo[k] = b[k];
     hi[k] = b[k + 3];
@@ -1018,6 +1028,7 @@ fn rectangular(a: &Analysis, id: &str, kind: Kind, faces: Vec<usize>) -> Result<
     }
     for j in [u, v] {
         for &(i, _) in &planes[j] {
+            // Invariant: The plane collection admitted only faces with bounds.
             let b = a.face_attachments[i].bounds.unwrap();
             let other = if j == u { v } else { u };
             if [k, other]
@@ -1035,12 +1046,14 @@ fn rectangular(a: &Analysis, id: &str, kind: Kind, faces: Vec<usize>) -> Result<
     if capped {
         let (i, t) = planes[k][0];
         let f = &a.face_attachments[i];
+        // Invariant: The plane collection admitted only faces with bounds.
         let b = f.bounds.unwrap();
         opens_high = (t - lo[k]).abs() <= TOL;
         if !opens_high && (t - hi[k]).abs() > TOL
             || [u, v]
                 .iter()
                 .any(|&j| (b[j] - lo[j]).abs() > TOL || (b[j + 3] - hi[j]).abs() > TOL)
+            // Invariant: The plane collection admitted only faces with normals.
             || (f.normal.unwrap()[k] - if opens_high { 1. } else { -1. }).abs() > TOL
         {
             return Err(fail(
@@ -1293,6 +1306,7 @@ fn equivalent_scope(a: &Analysis, declared: &Feature, existing: &Feature, kind: 
     let mut lo = [f64::INFINITY; 3];
     let mut hi = [f64::NEG_INFINITY; 3];
     for &i in &declared.faces {
+        // Invariant: declared faces passed derive, which required bounds for every face.
         let b = a.face_attachments[i].bounds.unwrap();
         for j in 0..3 {
             lo[j] = lo[j].min(b[j]);
@@ -1350,6 +1364,7 @@ fn signature(s: &Spec) -> String {
         .filter(|(_, f)| authored(f) || f.anchor.is_some())
         .map(|(id, f)| json!([id, f.suppress, f.split, f.reclassify, f.pattern, f.anchor]))
         .collect();
+    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
     digest(&serde_json::to_vec(&json!([actions, s.feature_declarations])).unwrap())
 }
 /// Resolve corrections into a cloned inventory; the caller passes this same inventory to
@@ -1377,6 +1392,7 @@ pub fn effective<'a>(a: &'a Analysis, s: &Spec) -> Result<Cow<'a, Analysis>, Inv
     for (id, f) in &s.features {
         if authored(f) && f.pattern.is_none() {
             let actual = resolved_id(a, s, id)?;
+            // Invariant: resolved_id refuses absent features and patterns before target_faces is called.
             targets.insert(id.clone(), json!(target_faces(a, &actual).unwrap()));
             resolved.insert(id.clone(), actual);
         }
@@ -1384,6 +1400,7 @@ pub fn effective<'a>(a: &'a Analysis, s: &Spec) -> Result<Cow<'a, Analysis>, Inv
             for m in &p.members {
                 if !m.starts_with("f:declared:") {
                     let actual = resolved_id(a, s, m)?;
+                    // Invariant: resolved_id refuses absent features and patterns before target_faces is called.
                     targets.insert(m.clone(), json!(target_faces(a, &actual).unwrap()));
                     resolved.insert(m.clone(), actual);
                 }
@@ -1402,8 +1419,10 @@ pub fn effective<'a>(a: &'a Analysis, s: &Spec) -> Result<Cow<'a, Analysis>, Inv
             .and_then(|r| r.patterns.iter().position(|p| &p.id == actual));
         if f.split {
             if let Some(i) = pi {
+                // Invariant: pi was obtained from this recognition's patterns and no mutation intervenes.
                 out.recognition.as_mut().unwrap().patterns.remove(i);
             } else if fi.is_some_and(|i| out.features[i].kind == "slot_pattern") {
+                // Invariant: The preceding is_some_and checked fi and its slot_pattern kind.
                 out.features.remove(fi.unwrap());
             } else {
                 return Err(invalid(

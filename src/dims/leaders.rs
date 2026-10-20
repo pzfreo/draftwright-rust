@@ -433,6 +433,7 @@ impl ExtensionIndex {
 
     fn contacts(&self, lines: &[[P2; 2]], label: [f64; 4]) -> (usize, usize) {
         self.contacts_bounded(lines, label, None)
+            // Invariant: The counter returns None only for a supplied bound; this call supplies none.
             .expect("unbounded contacts")
     }
 
@@ -962,6 +963,7 @@ fn settled_nominal_reference(
         },
         ..Default::default()
     };
+    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
     let key = serde_json::to_vec(&recipe).expect("reference intent serializes");
     let full = crate::planning::memo(analysis, "selected-nominal-reference", key, || {
         crate::nominal::with_comparison(|| {
@@ -1028,6 +1030,7 @@ pub(super) fn place_with_obstacles(
         crate::nominal::comparison(),
         &reference,
     ))
+    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
     .expect("leader solve inputs serialize");
     let (next, problems) = crate::planning::memo(analysis, "settled-leader-solve", key, || {
         let mut next = placed.to_vec();
@@ -1301,6 +1304,7 @@ fn place_with_obstacles_uncached(
                 && c.hard - c.furniture_hard + c.crossings - c.furniture_text + c.outside <= ceiling
         });
         let right = b.end[0] > b.elbow[0];
+        // Invariant: The incumbent route passed the same feasibility check before refinement.
         let mut prior = measure(job, b.tip, b.elbow, right, &fixed, page).expect("existing route");
         // Keep the text anchored when escaping fixed ink: nearby rim points, shorter shelves,
         // or the opposite outward side, all measured against the same feature evidence.
@@ -2607,6 +2611,7 @@ pub(super) fn refine(
         page,
         obstacles,
     ))
+    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
     .expect("leader refinement inputs serialize");
     let (next, reports) = crate::planning::memo(analysis, "settled-leader-refinement", key, || {
         let mut next = placed.to_vec();
@@ -2714,6 +2719,7 @@ fn refine_uncached(
                 &spec.sheet.projection,
                 spec.sheet.references,
             ))
+            // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
             .expect("bare route inputs serialize");
             crate::planning::memo(analysis, "bare-leader-reference", key, || {
                 let mut base = analysis.clone();
@@ -2800,6 +2806,7 @@ fn refine_uncached(
         .iter()
         .map(|v| {
             std::cell::LazyCell::new(move || {
+                // Invariant: The projection cache was populated for these planned views before routing.
                 cache.model(analysis, v).expect("edge ink is available")
             })
         })
@@ -2889,6 +2896,7 @@ fn refine_uncached(
                             && !canonical
                             && items[i].terms.iter().any(|s| crate::callouts::is_break(s)))
                         || added_material_crossing(i, p)
+                        // Invariant: This branch handles only routed callouts, whose view was selected above.
                         || bad_run(p, views_of[i].unwrap())
                         || model_run(&items[i], p)
                         || (edited_text && text_conflict(i, p, placed, obstacles))
@@ -4320,6 +4328,7 @@ pub(super) fn extension_contacts(
     lines: &[[P2; 2]],
     label: [f64; 4],
 ) -> (usize, usize) {
+    // Invariant: The counter returns None only for a supplied bound; this call supplies none.
     extension_contacts_bounded(extensions, lines, label, None).expect("an unbounded count")
 }
 
@@ -4675,6 +4684,7 @@ fn moved_rim_tip(sites: &[Site], anchor: P2, elbow: P2, grid: f64) -> P2 {
         .filter(|s| s.1 > 0.0 && on(s) <= grid.max(1e-6))
         .min_by(|a, b| on(a).total_cmp(&on(b)))
         .or_else(|| sites.iter().min_by(|a, b| on(a).total_cmp(&on(b))))
+        // Invariant: Callout wants are constructed only with nonempty proven-site inventories.
         .expect("a callout has a site");
     // A retained profile attachment can be a proven surface point rather
     // than one of this group's representative sites. Do not jump to another
@@ -4918,6 +4928,7 @@ fn nearest(sites: &[Site], elbow: P2) -> Site {
         })
         .min_by(|a, b| a.1.total_cmp(&b.1))
         .map(|(s, _)| *s)
+        // Invariant: Callout wants are constructed only with nonempty proven-site inventories.
         .expect("a callout has a site")
 }
 
@@ -4944,6 +4955,7 @@ fn inventory(
                 let k = |s: &Site| if right { s.0[0] } else { -s.0[0] };
                 k(a).total_cmp(&k(b))
             })
+            // Invariant: Callout wants are constructed only with nonempty proven-site inventories.
             .expect("a callout has a site");
         let k = if right { 3 } else { 2 };
         for off in offsets(job.beyond[k]) {
@@ -4967,6 +4979,7 @@ fn inventory(
                 let k = |s: &Site| if up { s.0[1] } else { -s.0[1] };
                 k(a).total_cmp(&k(b))
             })
+            // Invariant: Callout wants are constructed only with nonempty proven-site inventories.
             .expect("a callout has a site");
         let k = usize::from(up);
         for off in offsets(job.beyond[k]) {
@@ -5903,6 +5916,7 @@ struct Conflicts {
     of: Vec<Option<Vec<Vec<u64>>>>,
 }
 
+// Invariant: This compile-time assertion bounds a fixed candidate bitset, independent of input.
 const _: () = assert!(KEEP + ROTATIONS.len() + 2 * SHOULDER_STEPS.len() < 64); // and the incumbent
 
 impl Conflicts {
@@ -6001,6 +6015,7 @@ fn solve_group(
             let (t, c) = (0..scores[k].len())
                 .map(|c| (scores[k][c] + others(k, c, k, &best), c))
                 .min()
+                // Invariant: The inventory builder retains its incumbent candidate even when no trial improves it.
                 .expect("a non-empty inventory");
             if t < now {
                 best[k] = c;

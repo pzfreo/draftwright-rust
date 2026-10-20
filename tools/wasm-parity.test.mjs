@@ -239,3 +239,64 @@ test('hostile edit path refuses and the same engine still answers', () => {
   assert.ok(engine.renderSvg().length > 0);
   engine.free();
 });
+
+// Every refusal is followed by real planning/rendering on the SAME engine. A trap
+// (RuntimeError/RangeError) is not an api::Error JSON string and fails invalid().
+test('hostile browser inputs refuse transactionally and leave the engine usable', () => {
+  const bytes = readFileSync(new URL('../tests/fixtures/parts/prismatic.step', import.meta.url));
+  const engine = new Engine('prismatic.step', bytes);
+  const before = engine.plan();
+  const encode = text => new TextEncoder().encode(text);
+  const source = JSON.parse(engine.snapshot()).provenance.source_sha256;
+  const ops = value => JSON.stringify(value);
+  const set = (path, value) => ops([{ op: 'set', path, value }]);
+  const truncatedRecognition = '{"format":"draftwright.recognition/1","quiddity":{';
+  const cases = [
+    ['malformed STEP', () => new Engine('bad.step', encode('ISO-10303-21;HEADER;broken'))],
+    // No recognition JSON setter is exported: bytes on either file input must refuse it.
+    ['truncated recognition JSON file', () => new Engine('recognition.json', encode(truncatedRecognition))],
+    ['truncated recognition JSON as PMI', () => engine.setPmi(source, encode(truncatedRecognition))],
+    ['deep STEP parameters', () => new Engine('nested.step', encode(decoder.decode(bytes).split('DATA;')[0] + 'DATA;#1=X(' + '('.repeat(20000) + '0' + ')'.repeat(20000) + ');ENDSEC;END-ISO-10303-21;'))],
+    ['large malformed STEP', () => new Engine('large.step', encode('ISO-10303-21;' + ' '.repeat(8 * 1024 * 1024)))],
+    ['truncated ops JSON', () => engine.apply('[{"op":"set",', true)],
+    ['deep JSON', () => engine.apply('['.repeat(10000) + '0' + ']'.repeat(10000), true)],
+    ['large malformed JSON', () => engine.setSpec('{"schema":"' + 'x'.repeat(8 * 1024 * 1024))],
+    ['out-of-range sheets', () => engine.apply(set('sheets/max', 4294967295), true)],
+    ['out-of-range lane', () => engine.apply(set('dimensions/d:envelope~1width.length/place', { lane: 4294967295 }), true)],
+    ['out-of-range precision', () => engine.apply(set('precision/d:envelope~1width.length', 255), true)],
+    ['out-of-range scale', () => engine.apply(set('iso_scale_factor', -1), true)],
+    ['unknown dimension', () => engine.apply(set('dimensions/d:unknown/omit', true), true)],
+    ['unknown annotation', () => engine.applyFragments(set('annotations/unknown/omit', true))],
+    ['unknown feature', () => engine.preview(set('features/f:unknown/suppress', true))],
+    ['unknown callout offset', () => engine.calloutOffset('d:unknown')],
+    ['unknown label offset', () => engine.labelOffset('d:unknown')],
+    ['out-of-range sheet rendering', () => engine.sheetSvg(4294967295)],
+    ['out-of-range sheet fragments', () => engine.sheetFragments(4294967295)],
+  ];
+  try {
+    for (const [label, action] of cases) {
+      invalid(action);
+      assert.equal(engine.plan(), before, `${label}: refusal is transactional`);
+      const preview = JSON.parse(engine.preview(set('sheet/title/material', 'Steel')));
+      assert.equal(preview.spec.sheet.title.material, 'Steel', `${label}: next valid edit`);
+      assert.match(preview.svg, /<svg/);
+      assert.ok(JSON.parse(engine.placementOptions()));
+      console.log(`hostile input refused; next edit/render succeeded: ${label}`);
+    }
+  } finally { engine.free(); }
+});
+
+// On alpha.10 this setting reached Vec capacity_overflow, trapped with
+// RuntimeError: unreachable, and left the engine's mutable borrow held.
+test('a huge view gutter returns a refusal instead of aborting WASM', () => {
+  const engine = new Engine('prismatic.step', readFileSync(new URL('../tests/fixtures/parts/prismatic.step', import.meta.url)));
+  const before = engine.plan();
+  const spec = JSON.parse(engine.spec());
+  spec.sheet.view_gutter = 1e308;
+  invalid(() => engine.setSpec(JSON.stringify(spec)));
+  assert.equal(engine.plan(), before);
+  engine.apply('[{"op":"set","path":"sheet/title/material","value":"Steel"}]', true);
+  assert.equal(JSON.parse(engine.spec()).sheet.title.material, 'Steel');
+  assert.ok(engine.renderSvg().length > 0);
+  engine.free();
+});

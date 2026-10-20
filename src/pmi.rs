@@ -716,6 +716,7 @@ pub fn report_part(
             && r.blockers
                 == [format!(
                     "the ISO 286 class {} is stated without limits; they are not computed",
+                    // Invariant: symbolic_bore requires a parsed ISO fit class.
                     r.fit.as_deref().expect("symbolic class")
                 )]
         {
@@ -1026,6 +1027,7 @@ impl PartReader<'_> {
                 blockers,
             );
             r.kind = crate::pmi_lowering::part_note_kind(&normalized(kind))
+                // Invariant: The iterator filtered for exactly the parsed part-note kinds matched here.
                 .expect("filtered part note kind")
                 .into();
             if let AttributeValue::Text(text) = value {
@@ -3127,6 +3129,7 @@ pub(crate) fn tolerance_geometry_of(r: &Record, faces: &[FaceAttachment]) -> Geo
         }
     }
     let axis = (cylinders && axes.len() == 1)
+        // Invariant: The preceding condition requires axes.len() == 1.
         .then(|| AXIS_NAMES[*axes.first().expect("one axis")].to_string());
     Geometry {
         sites: Vec::new(),
@@ -3175,6 +3178,7 @@ pub(crate) fn datum_geometry_of(r: &Record, faces: &[FaceAttachment]) -> Geometr
         kinds.push(kind);
         match a.sites.first() {
             Some(site) => {
+                // Invariant: The preceding branch has already pushed the first site.
                 *sites.last_mut().expect("pushed") = *site;
                 if alternatives.is_empty() && sites.len() == 1 {
                     alternatives = a.sites[1..].to_vec();
@@ -3563,6 +3567,7 @@ pub fn fmt(v: f64, decimals: Option<usize>) -> String {
                     };
                 }
             }
+            // Invariant: The finite loop always returns at places == 3, independently of input.
             unreachable!()
         }
     }
@@ -3587,7 +3592,9 @@ pub fn fmt_g3(v: f64) -> String {
         return "0".into();
     }
     let sci = format!("{v:.2e}");
+    // Invariant: The finite nonzero value is formatted locally with Rust scientific notation and an integer exponent.
     let (mantissa, exp) = sci.split_once('e').expect("exponent");
+    // Invariant: The finite nonzero value is formatted locally with Rust scientific notation and an integer exponent.
     let exp: i32 = exp.parse().expect("exponent");
     if !(-4..3).contains(&exp) {
         let m = mantissa.trim_end_matches('0').trim_end_matches('.');
@@ -3605,7 +3612,9 @@ pub fn fmt_g3(v: f64) -> String {
 
 /// A `d.ddde±x` string as a plain decimal without trailing zeros.
 fn plain(sci: &str) -> String {
+    // Invariant: The finite nonzero value is formatted locally with Rust scientific notation and an integer exponent.
     let (mantissa, exp) = sci.split_once('e').expect("exponent");
+    // Invariant: The finite nonzero value is formatted locally with Rust scientific notation and an integer exponent.
     let exp: i64 = exp.parse().expect("exponent");
     let negative = mantissa.starts_with('-');
     let digits: String = mantissa.chars().filter(char::is_ascii_digit).collect();

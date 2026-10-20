@@ -380,6 +380,7 @@ pub(super) fn apply(
                 choices: vec![],
             });
         }
+        // Invariant: check validated this same immutable fit code before apply.
         let (letters, grade) = fit(code).expect("checked");
         let hole = f.kind == "hole";
         if hole != HOLE_CLASSES.contains(&letters) {
@@ -414,6 +415,7 @@ pub(super) fn apply(
             }
         }
         fits.insert(id, code);
+        // Invariant: The preceding validation found this same nominal in the fit table.
         nominals.insert(id, d.expect("in the table"));
     }
 
@@ -482,6 +484,7 @@ pub(super) fn apply(
                 code.into()
             })
         } else if let Some(t) = authored {
+            // Invariant: check validated this same immutable tolerance text before apply.
             let (text, nothing) = tolerance(&t).expect("checked");
             if nothing {
                 problems.push(Problem {
@@ -504,6 +507,7 @@ pub(super) fn apply(
                 Some(text)
             }
         } else if member_fits.iter().all(Option::is_some) && !member_fits.is_empty() {
+            // Invariant: The preceding any(is_none) check returned before this branch.
             let first = member_fits[0].expect("all are some");
             if member_fits.iter().all(|f| *f == Some(first)) {
                 given.push("fit".to_string());

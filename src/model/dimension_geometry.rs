@@ -45,6 +45,7 @@ pub(super) fn evidence(part: &Part) -> BTreeMap<String, Vec<Reference>> {
     // Multiple coincident entities deliberately remain ambiguous instead of picking an index.
     let mut out: BTreeMap<String, Vec<Reference>> = BTreeMap::new();
     let mut insert = |prefix: &str, r: Reference, boundary: Vec<String>| {
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         let mut value = serde_json::to_value((&r, boundary)).expect("finite geometry");
         fn quantize(v: &mut serde_json::Value) {
             match v {
@@ -59,6 +60,7 @@ pub(super) fn evidence(part: &Part) -> BTreeMap<String, Vec<Reference>> {
             }
         }
         quantize(&mut value);
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         let hash = Sha256::digest(serde_json::to_vec(&value).expect("geometry serializes"));
         let hash: String = hash.iter().map(|b| format!("{b:02x}")).collect();
         let key = format!("{prefix}:v1:{hash}");
@@ -75,6 +77,7 @@ pub(super) fn evidence(part: &Part) -> BTreeMap<String, Vec<Reference>> {
     for e in &part.edges {
         if matches!(e.curve, Curve::Line { .. }) {
             let mut ends = [e.start, e.end];
+            // Invariant: Kernel-loaded edge endpoints are finite; no caller Analysis is used for geometry extraction.
             ends.sort_by(|a, b| a.partial_cmp(b).expect("finite endpoints"));
             insert("edge", Reference::Edge { ends }, vec![]);
         }
@@ -94,9 +97,11 @@ pub(super) fn evidence(part: &Part) -> BTreeMap<String, Vec<Reference>> {
         for (e, _) in f.loops.iter().flat_map(|l| &l.edges) {
             let edge = &part.edges[*e];
             let mut ends = [edge.start, edge.end];
+            // Invariant: Kernel-loaded edge endpoints are finite; no caller Analysis is used for geometry extraction.
             ends.sort_by(|a, b| a.partial_cmp(b).expect("finite endpoints"));
             boundary.push(
                 serde_json::to_string(&ends.map(|p| p.map(|v| (v * 1e6).round() / 1e6 + 0.0)))
+                    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
                     .unwrap(),
             );
             if needs_sites {
@@ -123,11 +128,13 @@ pub(super) fn evidence(part: &Part) -> BTreeMap<String, Vec<Reference>> {
             }
         }
         boundary.sort();
+        // Invariant: sites consists of finite kernel endpoints and evaluated curve points.
         sites.sort_by(|a, b| a.partial_cmp(b).expect("finite sites"));
         sites.dedup();
         // A boundaryless sphere still has exact surface sites.
         let r = match &f.surface {
             Surface::Plane { frame } => {
+                // Invariant: Kernel planes carry normalized frame axes.
                 let normal = unit(frame.z).expect("plane normal");
                 let normal = canonical(normal);
                 let origin = mul(normal, dot(frame.origin, normal));
@@ -138,6 +145,7 @@ pub(super) fn evidence(part: &Part) -> BTreeMap<String, Vec<Reference>> {
                 }
             }
             Surface::Cylinder { frame, radius } => {
+                // Invariant: Kernel cylinders carry normalized frame axes.
                 let axis = canonical(unit(frame.z).expect("cylinder axis"));
                 let origin = sub(frame.origin, mul(axis, dot(frame.origin, axis)));
                 Reference::Cylinder {
@@ -241,6 +249,7 @@ impl Analysis {
             let mut p = b.on;
             p[k] = if end == "start" { b.lo } else { b.hi };
             // Witnesses start on the outside of the profile, rather than its centre line.
+            // Invariant: Excluding one axis from 0..3 leaves two radial axes.
             let radial = (0..3).find(|&j| j != k).unwrap();
             p[radial] += b.diameter / 2.;
             return Ok(p);
@@ -440,9 +449,11 @@ impl Analysis {
                         return Err("Skew edges do not meet; choose coplanar straight edges.".into());
                     }
                     let witness = |r: &Reference| {
+                        // Invariant: candidates contains only Edge references, filtered in the match above.
                         let Reference::Edge { ends } = r else { unreachable!() };
                         *ends.iter().max_by(|a, b| {
                             dot(sub(**a, vertex), sub(**a, vertex)).total_cmp(&dot(sub(**b, vertex), sub(**b, vertex)))
+                        // Invariant: The candidate endpoints array has exactly two entries.
                         }).expect("two endpoints")
                     };
                     crate::dims::angular::Angle { vertex, first: witness(a), second: witness(b) }

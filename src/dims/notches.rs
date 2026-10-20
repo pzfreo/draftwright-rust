@@ -10,6 +10,7 @@ pub(super) fn id(feature: &str, parameter: &str) -> String {
     );
     let support = feature
         .strip_prefix("notch:")
+        // Invariant: Notch requirements are emitted only after validating their source profile.
         .expect("source-proven notch")
         .replace(':', "_");
     want_id("envelope", &format!("{role}.{support}"))

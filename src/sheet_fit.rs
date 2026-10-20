@@ -204,7 +204,9 @@ pub(crate) fn furniture_bounds(
         .iter()
         .filter(|v| v.sheet == sheet.number && v.cut.is_some())
     {
+        // Invariant: The caller selected this view by its cut being Some.
         let cut = v.cut.as_ref().expect("section cut");
+        // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
         let view = haecceity::hlr::View::new(v.direction, v.up).expect("planned view");
         let half = crate::model::extent(analysis, &view).0[1] * v.scale / 2.0;
         out.push(text_box(
@@ -213,6 +215,7 @@ pub(crate) fn furniture_bounds(
             [v.at[0], v.at[1] - half - 7.0],
         ));
         if let Some(m) = views.iter().find(|m| m.id == cut.marked_in) {
+            // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
             let view = haecceity::hlr::View::new(m.direction, m.up).expect("planned view");
             let centre = crate::model::extent(analysis, &view).1;
             let at = |p| {
@@ -441,6 +444,7 @@ fn correct_sections(analysis: &Analysis, plan: &mut Plan) {
             }
         }
         if let Some(cut) = &v.cut {
+            // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
             let projection = haecceity::hlr::View::new(v.direction, v.up).expect("section view");
             let half = crate::model::extent(analysis, &projection).0[1] * v.scale / 2.;
             let laid = crate::dims::font().text(
@@ -453,6 +457,7 @@ fn correct_sections(analysis: &Analysis, plan: &mut Plan) {
             if let Some(j) = plan.views.iter().position(|w| w.id == cut.marked_in) {
                 let parent = &plan.views[j];
                 let projection =
+                    // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
                     haecceity::hlr::View::new(parent.direction, parent.up).expect("parent view");
                 let (x0, x1, y) = crate::model::cutting_line(analysis, parent, &projection, cut);
                 let (ink, letters) = crate::section::cutting_plane(x0, x1, y);
@@ -643,6 +648,7 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
         let Some(i) = plan.views.iter().position(|v| v.id == d.view) else {
             return;
         };
+        // Invariant: The iterator selected only dimensions with placements.
         let p = d.placed.as_ref().expect("placed dimension");
         include(&mut groups[i], [p.label_box[0], p.label_box[1]]);
         include(&mut groups[i], [p.label_box[2], p.label_box[3]]);
@@ -1218,6 +1224,7 @@ fn reserve_bounds(
                     crate::detail::crop_extent(analysis, v).0
                 } else {
                     let camera =
+                        // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
                         haecceity::hlr::View::new(v.direction, v.up).expect("planned view");
                     crate::model::extent(analysis, &camera).0
                 };

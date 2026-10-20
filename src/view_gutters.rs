@@ -137,6 +137,7 @@ pub(crate) fn bands(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
         let sheet = std::iter::once(&plan.sheet)
             .chain(&plan.sheets)
             .find(|s| s.number == v.sheet)
+            // Invariant: Sheet assignments are validated before gutters are solved.
             .expect("view sheet");
         let fixed = crate::sheet_fit::furniture_bounds(analysis, sheet, &[]).len();
         let furniture =
@@ -208,6 +209,7 @@ fn solve(n: usize, edges: &[Edge]) -> Option<Vec<f64>> {
             return None;
         }
     }
+    // Invariant: Bellman-Ford returns in the final pass either as converged or infeasible.
     unreachable!()
 }
 
@@ -220,6 +222,7 @@ fn separation(a: Rect, b: Rect) -> (usize, bool, f64) {
         (1, true, b[1] - a[3]),
         (1, false, a[1] - b[3]),
     ];
+    // Invariant: choices contains both separation axes for the nonoverlapping established boxes.
     *choices.iter().max_by(|a, b| a.2.total_cmp(&b.2)).unwrap()
 }
 
@@ -329,6 +332,7 @@ fn translations(
         let sheet = std::iter::once(&plan.sheet)
             .chain(&plan.sheets)
             .find(|s| s.number == v.sheet)
+            // Invariant: Sheet assignments are validated before gutters are solved.
             .expect("view sheet");
         // Principal bands already contain blank annotation padding. The iso band
         // is measured ink, so keep its caption one mm inside the drawn frame.
@@ -502,6 +506,7 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
     }
     let bounds = bands(analysis, plan);
     let mut deltas = translations(analysis, plan, &bounds, preferred, false)
+        // Invariant: The unchanged established coordinates satisfy the constraints before optional gutter moves.
         .expect("the established composition remains feasible");
     if let Some(lifted) = translations(analysis, plan, &bounds, preferred, true) {
         let score = |d: &[[f64; 2]]| {

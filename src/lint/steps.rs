@@ -126,6 +126,7 @@ fn spans(f: &Feature, frame: &[[f64; 3]; 4]) -> Result<(usize, Vec<Span>), Strin
         .iter()
         .zip(ends.windows(2))
         .map(|((axis, _), w)| {
+            // Invariant: The parsed record has a principal x, y or z axis.
             let k = AXES.iter().position(|a| a == axis).expect("an axis name");
             (k, w[0][k].min(w[1][k]), w[0][k].max(w[1][k]))
         })

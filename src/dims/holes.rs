@@ -157,6 +157,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                         message: format!(
                             "{} is called out blind to its recognised depth ({}), but recognition did not establish its bottom ({}); check whether it is through.",
                             crate::wording::capital(&crate::wording::feature(f)),
+                            // Invariant: The hole reader refuses blind records without a finite positive depth.
                             fmt(h.depth.expect("a blind hole has its depth")),
                             bottom.unwrap_or("none given")
                         ),
@@ -542,6 +543,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         let (first, p) = &owners[0];
         let d = p[k] - lo[k];
         let parameter = format!("location.length.{}", AXES[k]);
+        // Invariant: The selected view comes from the fixed principal view table.
         let view: &'static str = NAMES.iter().find(|n| **n == view).expect("a view");
         out.push(Want {
             id: want_id(first, &parameter),
@@ -798,6 +800,7 @@ fn merge(
                 .cmp(&order(x))
                 .then_with(|| kept[x].0.id.cmp(&kept[y].0.id))
         });
+        // Invariant: The group was filtered to at least two members before split_first.
         let (winner, losers) = members.split_first().expect("a group of two or more");
         let owner = kept[*winner].0.id.clone();
         let top = rank(&kept[*winner].0);

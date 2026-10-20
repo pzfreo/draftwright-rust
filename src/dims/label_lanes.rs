@@ -610,6 +610,7 @@ pub(crate) fn settle_inventory(
         .collect();
     let page = Page::new(analysis, sheet, views);
     let key = serde_json::to_vec(&(pins, page, geometry(inventory), geometry(fixed)))
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         .expect("label settlement inputs serialize");
     let next: Vec<_> = crate::planning::memo(analysis, "settled-label-inventory", key, || {
         let mut next = inventory.to_vec();
@@ -680,6 +681,7 @@ fn settle_inventory_uncached(
             });
         let peer_bounds: Vec<_> = others
             .iter()
+            // Invariant: The peer collection was filtered to dimensions with placements.
             .map(|q| ink_bounds(q.placed.as_ref().expect("placed peer")))
             .collect();
         let original_bounds = contact_bounds(p);
@@ -811,6 +813,7 @@ fn settle_inventory_uncached(
                         && contact & !before == 0
                         && margin
                             .get_or_init(|| {
+                                // Invariant: The peer collection was filtered to dimensions with placements.
                                 LabelClearance::new(p, q.placed.as_ref().expect("placed peer"))
                             })
                             .clears(c)

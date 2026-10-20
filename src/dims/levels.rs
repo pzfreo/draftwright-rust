@@ -75,6 +75,7 @@ pub(crate) fn evidence(part: &haecceity::Part) -> (Vec<LevelSupport>, Vec<Riser>
             let margin = END_MARGIN.min((b.max[2] - b.min[2]).max(0.0) * 0.25);
             let inside = b.min[2] + margin < level.z && level.z < b.max[2] - margin;
             // quiddity reads both spans of every level it finds with its faces.
+            // Invariant: The level reader checks both transverse spans before constructing a level.
             let (x, y) = (level.x_span.expect("x span"), level.y_span.expect("y span"));
             inside.then_some(LevelSupport {
                 z: level.z,
@@ -119,6 +120,7 @@ impl Through<'_> {
         (0..2)
             .map(|i| {
                 let (a, b) = (self.section[i], self.section[i + 1]);
+                // Invariant: The level reader requires both legs and the changed coordinate.
                 (changed(a, b).expect("read checks the legs"), a, b)
             })
             .collect()
@@ -678,6 +680,7 @@ pub(super) fn ownership<'a>(cx: &Context<'a>) -> Ownership<'a> {
                 &remaining_shoulders,
                 &remaining_plates,
             )
+            // Invariant: The preceding promotion check excluded promoted owners.
             .expect("not promoted, so owned");
             (s, owners)
         })

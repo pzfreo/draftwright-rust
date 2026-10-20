@@ -184,6 +184,7 @@ fn prepared_proofs(
                 crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[])
                     .unwrap_or(false);
             let key = serde_json::to_vec(&(v.direction, v.up, canonical, exterior))
+                // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
                 .expect("projection inputs serialize");
             let mut proof = crate::planning::memo(analysis, "interior", key, || {
                 let prepared = if exterior {
@@ -620,6 +621,7 @@ impl Proof {
             for station in [0.25, 0.5, 0.75] {
                 let mut left = station * total;
                 for (s, l) in chords.iter().zip(&lengths) {
+                    // Invariant: The inner loop can run only when chords has a member.
                     if left <= *l || std::ptr::eq(s, chords.last().unwrap()) {
                         let t = if *l > 0.0 { (left / l).min(1.0) } else { 0.0 };
                         out.push([
@@ -777,9 +779,11 @@ fn callouts(
         };
         let right = (0..rotations.len())
             .max_by(|&a, &b| horizontal(a).total_cmp(&horizontal(b)))
+            // Invariant: rotations is a fixed nonempty array of eight angles.
             .unwrap();
         let left = (0..rotations.len())
             .min_by(|&a, &b| horizontal(a).total_cmp(&horizontal(b)))
+            // Invariant: rotations is a fixed nonempty array of eight angles.
             .unwrap();
         let angle = u[1].atan2(u[0]).to_degrees();
         rotations[right] = -angle;

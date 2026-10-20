@@ -868,7 +868,9 @@ fn feature(
                 r.id
             ));
         }
+        // Invariant: check validates side as text before the modelled_threads branch.
         if !["internal", "external"].contains(&r.parameters["side"].as_str().unwrap())
+            // Invariant: check validates hand as text before the modelled_threads branch.
             || !["left", "right"].contains(&r.parameters["hand"].as_str().unwrap())
             || r.parameters["starts"].as_u64() == Some(0)
         {
@@ -888,6 +890,7 @@ fn feature(
                     for name in ["major_diameter", "minor_diameter", "pitch", "starts"] {
                         sizes.insert(
                             name.into(),
+                            // Invariant: check validates each required thread size as a finite number.
                             super::round(r.parameters[name].as_f64().unwrap()),
                         );
                     }
@@ -909,8 +912,10 @@ fn feature(
 fn face_list(value: &Value) -> Vec<usize> {
     value
         .as_array()
+        // Invariant: check validates face lists as arrays before face_list is called.
         .unwrap()
         .iter()
+        // Invariant: check validates every face-list element as an in-range whole index.
         .map(|v| v.as_u64().unwrap() as usize)
         .collect()
 }

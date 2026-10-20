@@ -170,7 +170,9 @@ pub fn authored(value: f64) -> String {
     }
     if value.abs() < 1e-4 {
         let s = format!("{value:e}");
+        // Invariant: The small nonzero finite magnitude branch uses Rust scientific notation with an exponent.
         let (mantissa, exp) = s.split_once('e').unwrap();
+        // Invariant: Rust scientific notation writes a signed integer exponent fitting i32.
         let exp: i32 = exp.parse().unwrap();
         return format!("{mantissa}e{exp:+03}");
     }
@@ -293,8 +295,10 @@ pub(crate) fn effective<'a>(
             return Err(invalid(format!("gears/{i}/on has no faces")));
         }
         let mut parameters = serde_json::to_value(g)
+            // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
             .unwrap()
             .as_object()
+            // Invariant: GearSpec derives serialization as an object.
             .unwrap()
             .clone();
         parameters.insert("id".into(), json!(format!("gear:{}", i + 1)));

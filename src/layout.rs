@@ -94,6 +94,7 @@ pub fn title_block_width(page_w: f64) -> f64 {
 }
 
 fn sheet(name: &str) -> [f64; 2] {
+    // Invariant: LADDER names only entries in the fixed PAGES array.
     let (_, w, h) = PAGES.iter().find(|p| p.0 == name).expect("a ladder sheet");
     [*w, *h]
 }
@@ -1537,6 +1538,7 @@ pub fn choose(
         }
         return pick(s, p, preferred, None);
     }
+    // Invariant: Each candidate branch iterates nonempty SCALES, PAGES or LADDER constants.
     let (_, last) = *candidates.last().expect("candidates");
     if scale.is_none() {
         // Past the ladder: the largest scale that fits the largest sheet. draftwright bisects
@@ -1567,6 +1569,7 @@ pub fn choose(
             return pick(lo, last, Arrangement::Columns, Some(Fallback::Computed));
         }
     }
+    // Invariant: Each candidate branch iterates nonempty SCALES, PAGES or LADDER constants.
     let (s, p) = *candidates.last().expect("candidates");
     pick(s, p, Arrangement::Columns, Some(Fallback::Overflow))
 }
@@ -2091,6 +2094,7 @@ fn lazy_box(
             } else {
                 cursor.1.extend(start..end);
                 cursor.1.sort_by(|&a, &b| ys[b].1.total_cmp(&ys[a].1));
+                // Invariant: The tie branch extends start..end with at least two indices before popping.
                 cursor.1.pop().expect("non-empty tie")
             }
         };

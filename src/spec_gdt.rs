@@ -571,6 +571,7 @@ fn pmi_effective<'a>(analysis: &'a Analysis, spec: &Spec) -> Result<Cow<'a, Anal
                 .iter()
                 .find(|(n, _)| *n == name)
                 .map(|(_, c)| *c)
+                // Invariant: ControlSpec::check matched the characteristic against CHARACTERISTICS.
                 .expect("checked");
             r.kind = name.into();
             r.type_code = Some(code);

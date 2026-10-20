@@ -209,6 +209,7 @@ pub(crate) fn edges(a: &Analysis, marks: &[Mark]) -> Vec<Edge> {
                 );
             }
         }
+        // Invariant: Spans come from successfully parsed finite coordinates.
         spans.sort_by(|x, y| x.partial_cmp(y).unwrap());
         spans.dedup_by(|x, y| x.0 == y.0 && (x.1 - y.1).abs() < EPS && (x.2 - y.2).abs() < EPS);
         out.extend(
@@ -694,7 +695,9 @@ pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge>
         if pitch.is_some() && !left.is_empty() && !right.is_empty() {
             for l in &left {
                 for r in &right {
+                    // Invariant: left was filtered with this same at(id).is_some_and predicate.
                     let p = at(l).unwrap();
+                    // Invariant: right was filtered with this same at(id).is_some_and predicate.
                     let q = at(r).unwrap();
                     let normal = a
                         .features
@@ -798,6 +801,7 @@ pub(crate) fn targets(a: &Analysis) -> Vec<(String, usize, f64)> {
             out.push((n.id.clone(), k, n.mouth[k]));
         }
     }
+    // Invariant: The collected positions passed finite coordinate parsing.
     out.sort_by(|p, q| p.partial_cmp(q).unwrap());
     out.dedup_by(|p, q| p.0 == q.0 && p.1 == q.1 && (p.2 - q.2).abs() < EPS);
     out

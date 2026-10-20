@@ -34,7 +34,9 @@ fn groups(a: &Analysis) -> Vec<Vec<&Feature>> {
     }
     out.sort_by(|a, b| {
         radius(a[0])
+            // Invariant: groups contains only features with a successfully read radius.
             .unwrap()
+            // Invariant: groups contains only features with a successfully read radius.
             .total_cmp(&radius(b[0]).unwrap())
             .then(a[0].id.cmp(&b[0].id))
     });
@@ -62,6 +64,7 @@ fn measurements(group: &[&Feature]) -> Vec<Measurement> {
         .map(|f| Measurement {
             feature: f.id.clone(),
             parameter: "blend.radius".into(),
+            // Invariant: Features entered the group only after radius returned Some.
             value: radius(f).unwrap(),
         })
         .collect()
@@ -105,6 +108,7 @@ pub(crate) fn notes(a: &Analysis) -> Vec<(NoteSpec, Vec<Measurement>)> {
         out.push((
             NoteSpec {
                 id: format!("n:{}/blend.radius", group[0].id),
+                // Invariant: Groups are nonempty and contain only features with a read radius.
                 text: format!("ALL UNSPECIFIED RADII R{}", fmt(radius(group[0]).unwrap())),
             },
             measurements(group),
@@ -129,6 +133,7 @@ fn projected_sites(view: &str, sites: impl Iterator<Item = [f64; 3]>) -> Vec<[f6
         "front" => 1,
         "plan" => 2,
         "side" => 0,
+        // Invariant: The match receives only the blend/fillet kinds admitted above.
         _ => unreachable!(),
     };
     let mut out: Vec<[f64; 3]> = Vec::new();
@@ -173,6 +178,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             }
             continue;
         };
+        // Invariant: Groups are nonempty and contain only features with a read radius.
         let r = radius(group[0]).unwrap();
         let terms = if group.len() > 1 {
             vec![format!("{}×", group.len()), format!("R{}", fmt(r))]
@@ -329,6 +335,7 @@ pub(crate) fn consolidate(
         let was = dimensions[j].terms.clone();
         dimensions[j].terms = vec![format!("{n}×"), format!("R{}", fmt(dimensions[j].value))];
         dimensions[j].label = dimensions[j].terms.join(" ");
+        // Invariant: The selected dimension indices were filtered to placed dimensions.
         let placed = dimensions[j].placed.as_ref().unwrap();
         let want = Want {
             id: dimensions[j].id.clone(),
@@ -440,6 +447,7 @@ pub(crate) fn reservations(
     let general = general(&groups);
     let mut rows = Vec::new();
     for (i, group) in groups.iter().enumerate() {
+        // Invariant: Groups are nonempty and contain only features with a read radius.
         let value = radius(group[0]).unwrap();
         let id = want_id(&group[0].id, "blend.radius");
         if Some(i) == general

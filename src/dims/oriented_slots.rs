@@ -92,11 +92,13 @@ fn read(analysis: &crate::model::Analysis, f: &Feature) -> Result<Read, String> 
     }
     let axis = (0..3)
         .max_by(|&i, &j| run[i].abs().total_cmp(&run[j].abs()))
+        // Invariant: The iterator is over the fixed three coordinate axes.
         .expect("three axes");
     let toward = super::TOWARD
         .iter()
         .find(|(n, _)| *n == end_on(axis))
         .map(|(_, t)| *t)
+        // Invariant: The fixed principal view table includes one view along each coordinate axis.
         .expect("a view along each axis");
     let facing = (0..3).map(|k| run[k] * toward[k]).sum::<f64>() > 0.0;
     let station = if facing { hi } else { lo };

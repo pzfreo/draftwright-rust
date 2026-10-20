@@ -267,6 +267,7 @@ const MONO: &[u8] = include_bytes!("../../fonts/IBMPlexMono-Regular.ttf");
 
 pub(crate) fn font() -> &'static Font {
     static FONT: OnceLock<Font> = OnceLock::new();
+    // Invariant: Font bytes are bundled at build time and parsed unchanged, independently of user input.
     FONT.get_or_init(|| Font::new(MONO.to_vec()).expect("the bundled font parses"))
 }
 
@@ -430,6 +431,7 @@ pub fn end_on(k: usize) -> &'static str {
         .iter()
         .find(|(_, t)| t[k].abs() == 1.0)
         .map(|(n, _)| *n)
+        // Invariant: The fixed principal camera table includes a camera for every axis.
         .expect("each axis has a view")
 }
 
@@ -1260,6 +1262,7 @@ pub(crate) fn callout_bands(
 /// ink 11 to 13 and 9 to 11; `docs/quality-2026-10-09.md`, "After merged-away lanes").
 pub fn lanes(analysis: &Analysis, views: &[(&str, P3, P3)]) -> crate::layout::Lanes {
     lanes_excluding(analysis, views, &BTreeSet::new(), &Spec::default())
+        // Invariant: The default display policy contains no explicit precision entries.
         .expect("default display policy cannot conflict")
         .0
 }
@@ -1292,6 +1295,7 @@ fn lane_policy(
     callout_columns: bool,
 ) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
     let key = serde_json::to_vec(&(views, excluded, spec, callout_columns))
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         .expect("lane inputs serialize");
     crate::planning::memo(analysis, "lanes", key, || {
         lanes_uncached(analysis, views, excluded, spec, callout_columns)
@@ -1732,11 +1736,14 @@ pub(crate) fn reserve_linear_intent(
     });
     let mut resolved_lanes = BTreeMap::new();
     for (i, requested, _) in requested {
+        // Invariant: This branch admits only linear items successfully routed to a view.
         let view = chosen[i].expect("routed linear");
+        // Invariant: This branch admits only routed linear items assigned to a strip.
         let side = sides[i].expect("linear strip");
         let p = spec.dimensions[&wants[i].id]
             .place
             .as_ref()
+            // Invariant: The branch is entered only for an explicit placement in spec.dimensions.
             .expect("explicit place");
         let taken = occupied.entry(view).or_default();
         for n in requested..requested + if p.pinned { 1 } else { 64 } {
@@ -2041,6 +2048,7 @@ pub(crate) fn plan_inventory(
     use sha2::{Digest, Sha256};
     let analysis_key: [u8; 32] =
         crate::planning::memo(analysis, "analysis_digest", Vec::new(), || {
+            // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
             Sha256::digest(serde_json::to_vec(analysis).expect("Analysis serializes")).into()
         });
     let key = serde_json::to_vec(&(
@@ -2053,6 +2061,7 @@ pub(crate) fn plan_inventory(
         held,
         excluded,
     ))
+    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
     .expect("dimension placement inputs serialize");
     crate::planning::memo(analysis, "dimension_placement", key.clone(), || {
         // Stateless reconstruction and title edits revisit the same physical placement.
@@ -2348,13 +2357,14 @@ fn plan_inventory_ordered(
         .chain(&retired)
         .map(|w| w.id.as_str())
         .collect();
-    // ARCH0016-5: each dimension is in exactly one view, under one ID. A duplicate is a planner
-    // bug, checked in every build.
-    assert_eq!(
-        ids.len(),
-        wants.len() + retired.len(),
-        "dimension IDs are unique"
-    );
+    // ARCH0016-5: inconsistent recognition/authored ownership must refuse on WASM too.
+    if ids.len() != wants.len() + retired.len() {
+        return Err(Invalid {
+            message: "Dimension IDs are not unique; the input has conflicting measurement owners."
+                .into(),
+            choices: vec![],
+        });
+    }
     for (id, entry) in &spec.dimensions {
         if !ids.contains(id.as_str()) {
             let mut near: Vec<&str> = ids.iter().copied().collect();
@@ -2774,6 +2784,7 @@ fn plan_inventory_ordered(
             let view = views
                 .iter()
                 .find(|view| view.id == format!("v:{v}"))
+                // Invariant: chosen was obtained by routing in this same views collection.
                 .unwrap();
             leaders::route_intent(
                 &cache.get(analysis, view),
@@ -2782,6 +2793,7 @@ fn plan_inventory_ordered(
                 placed,
                 side,
                 &pin_ink,
+                // Invariant: The enclosing if-let selected this dimension's explicit place and side.
                 spec.dimensions[&w.id].place.as_ref().unwrap().pinned,
             );
         }
@@ -3813,6 +3825,7 @@ fn share_statements(
                 .cmp(&kept[y].1)
                 .then_with(|| kept[x].0.id.cmp(&kept[y].0.id))
         });
+        // Invariant: The group was filtered to at least two members before split_first.
         let (winner, losers) = members.split_first().expect("a group of two or more");
         let owner = kept[*winner].0.id.clone();
         let mut claims = Vec::new();
@@ -4291,8 +4304,10 @@ pub(crate) fn local_placement_fix(
                 }
                 let ops = vec![Op::set(
                     format!("dimensions/{}/place", crate::items::key(id)),
+                    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
                     serde_json::to_value(place).unwrap(),
                 )];
+                // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
                 crate::model::edit(&plan.spec, &serde_json::to_value(&ops).unwrap()).ok()?;
                 let description = crate::fixes::placement_description(
                     &format!(

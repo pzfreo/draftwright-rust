@@ -287,6 +287,7 @@ fn control_frame(glyph: &Glyph) -> (Laid, Vec<String>) {
         ..
     } = glyph
     else {
+        // Invariant: This branch is reached only for a control-frame annotation.
         unreachable!("a control frame")
     };
     let mut laid = Laid::default();
@@ -311,8 +312,10 @@ fn control_frame(glyph: &Glyph) -> (Laid, Vec<String>) {
         };
     let mut xs = vec![0.0, H, H + w_tol];
     for _ in datums {
+        // Invariant: xs starts with the left edge and grows once per frame cell.
         xs.push(xs.last().expect("a cell") + H);
     }
+    // Invariant: xs starts with the left edge and grows once per frame cell.
     let w = *xs.last().expect("a cell");
     let corners = [[0.0, 0.0], [w, 0.0], [w, H], [0.0, H]];
     for i in 0..4 {
@@ -871,6 +874,7 @@ fn separated_sites(
             let d = outward(side);
             let pos = dot(tip, d) + 0.9 * TRIANGLE + 0.8 * TEXT + TEXT;
             let c = candidate(Shape::Datum, tip, side, pos * (d[0] + d[1]), [H, H]);
+            // Invariant: The datum-symbol builder always emits its filled triangle.
             let fill = c.fills.into_iter().next().expect("datum triangle");
             let b = fill_box(&fill);
             let paper = page.drawable();
@@ -1096,6 +1100,7 @@ pub(crate) fn demand_with_spec(
     shown: &dyn Fn(&str) -> bool,
 ) -> Vec<crate::layout::Gdt> {
     let (mut items, _) = crate::pmi_lowering::lower(analysis, shown);
+    // Invariant: plan_with validates these same annotation texts before demand and placement.
     crate::label_text::annotations(&mut items, spec).expect("validated annotation wording");
     let frames: BTreeMap<&str, Frame> = PRINCIPALS
         .iter()
@@ -1191,6 +1196,7 @@ pub(crate) fn plan_anchored(
         Search::Seed,
         None,
     )
+    // Invariant: The seed call supplies no incumbent bound, so search always returns its candidate.
     .expect("the seed search is never pruned");
     let contacts = |problems: &[Problem]| {
         problems
@@ -1350,6 +1356,7 @@ fn plan_search(
     });
     let shown = |name: &str| views.iter().any(|v| v.id == format!("v:{name}"));
     let (mut items, mut problems) = crate::pmi_lowering::lower(analysis, &shown);
+    // Invariant: plan_with validates these same annotation texts before demand and placement.
     crate::label_text::annotations(&mut items, spec).expect("validated annotation wording");
     if items.is_empty() {
         return Some((Vec::new(), problems));
@@ -1795,6 +1802,7 @@ fn plan_search(
                 }
             }
         }
+        // Invariant: The finite tier loop always evaluates its first candidate without pruning.
         let (_, side, chosen, tip, alternative) = best.expect("a tier");
         if sites[alternative].2.is_some() {
             planned.basis += "; on an extension of its planar face beyond the view outline";
@@ -1854,6 +1862,7 @@ fn plan_search(
         // This contact cannot be undone by placing later items. Stop a search that the
         // complete-arrangement guard would reject, before searching the remaining items.
         if let Some(allowed) = allowed.filter(|_| on_sheet(&planned.view)) {
+            // Invariant: The preceding placement assignment set planned.placed to Some.
             let p = planned.placed.as_ref().expect("just placed");
             for (id, lines, arrows) in dims
                 .iter()

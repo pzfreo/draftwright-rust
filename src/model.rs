@@ -505,12 +505,18 @@ pub struct SheetSpec {
 
 fn view_gutter<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<f64>, D::Error> {
     let gutter = Option::<f64>::deserialize(d)?;
-    if gutter.is_some_and(|g| !g.is_finite() || g < 0.0) {
+    if gutter.is_some_and(|g| !valid_view_gutter(g)) {
         return Err(serde::de::Error::custom(
-            "sheet/view_gutter must be finite and non-negative",
+            "sheet/view_gutter must be from 0 to 1189 paper mm",
         ));
     }
     Ok(gutter)
+}
+
+fn valid_view_gutter(g: f64) -> bool {
+    // No gap can exceed the largest supported sheet (A0). Huge finite gaps
+    // otherwise overflow downstream layout/ink allocation before they can shrink.
+    (0.0..=1189.0).contains(&g)
 }
 
 fn preferred_printer<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
@@ -1217,6 +1223,7 @@ fn analyse_step_input(
         },
     };
     let (_, toward, up) = VIEWS[3];
+    // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
     let iso = View::new(toward, up).expect("standard view");
     let centre = extent(&analysis, &iso).1;
     let mut bounds = [
@@ -1787,9 +1794,11 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
     }
     let analysis_key: [u8; 32] =
         crate::planning::memo(analysis, "analysis_digest", Vec::new(), || {
+            // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
             Sha256::digest(serde_json::to_vec(analysis).expect("Analysis serializes")).into()
         });
     let bytes = serde_json::to_vec(&(analysis_key, spec, &first, crate::nominal::comparison()))
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         .expect("plan inputs serialize");
     let key: [u8; 32] = Sha256::digest(&bytes).into();
     let mut plan = if let Some(plan) = MEMO.get(&key) {
@@ -1960,6 +1969,7 @@ const LARGE_SHEET: usize = 2;
 pub(crate) fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
     let (_, w, h) = layout::PAGES[LARGE_SHEET - 1];
     let size = |v: &PlannedView| {
+        // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
         let view = View::new(v.direction, v.up).expect("planned view");
         extent(analysis, &view).0
     };
@@ -1988,6 +1998,7 @@ pub(crate) fn established_key(spec: &Spec) -> Vec<u8> {
             &spec.sheet.projection,
             spec.sheet.references,
         ))
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         .expect("presentation inputs serialize")
     } else {
         serde_json::to_vec(&(
@@ -1997,6 +2008,7 @@ pub(crate) fn established_key(spec: &Spec) -> Vec<u8> {
             spec.pmi,
             &spec.origin,
         ))
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         .expect("presentation inputs serialize")
     }
 }
@@ -2793,6 +2805,7 @@ fn recover_candidates(
                     .iter()
                     .filter(|v| v.id != "v:iso" && v.detail.is_none())
                     .any(|v| {
+                        // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
                         let view = View::new(v.direction, v.up).expect("planned view");
                         let (size, _) = extent(analysis, &view);
                         size[0] * scale > w - 2.0 * layout::MARGIN
@@ -2915,6 +2928,7 @@ fn recover_candidates(
                 {
                     let mut roomy = named.clone();
                     roomy.sheet.size = Some("A0".into());
+                    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
                     let recipe_key = serde_json::to_vec(&roomy).expect("recipe Spec serializes");
                     let recipe = recipes.entry(recipe_key).or_insert_with(|| {
                         plan_escalated_with(analysis, &roomy, true, None, false)
@@ -3024,12 +3038,14 @@ fn recover_candidates(
                 let corridor_extra = extra_corridors(&p);
                 let existing_extra = extra_existing_crossings(&p);
                 if corridor_extra > 0 {
+                    // Invariant: A candidate trace was pushed immediately before updating its final entry.
                     tried.last_mut().expect("candidate trace").push_str(&format!(
                         "; {corridor_extra} extra leader/extension corridors beyond the established drawing"));
                 }
                 if existing_extra > 0 {
                     tried
                         .last_mut()
+                        // Invariant: A candidate trace was pushed immediately before updating its final entry.
                         .expect("candidate trace")
                         .push_str(&format!(
                             "; {existing_extra} extra material crossings in existing dimensions"
@@ -3340,6 +3356,16 @@ pub(crate) fn pin_base(spec: &Spec) -> Spec {
 /// caller (the library's [`crate::api`], so the command line, the JSON-lines service and MCP)
 /// is given. A plan that cannot be made is refused as [`plan`] refuses it.
 pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    if spec
+        .sheet
+        .view_gutter
+        .is_some_and(|g| !valid_view_gutter(g))
+    {
+        return Err(invalid(
+            "sheet/view_gutter must be from 0 to 1189 paper mm.",
+            &[],
+        ));
+    }
     let prepared = crate::modelled_threads::planning(analysis, spec);
     let mut plan = crate::dims::pmi_policy::planning(|| plan_recovered_inner(&prepared, spec))?;
     crate::modelled_threads::source_hash(
@@ -3375,6 +3401,7 @@ pub(crate) fn plan_automatic(analysis: &Analysis, spec: &Spec) -> Result<Plan, I
         crate::planning::policy_key(analysis),
         crate::planning::is_fixed_pair(),
     ))
+    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
     .expect("planning inputs serialize");
     crate::planning::memo(analysis, "finished-plan", key, || {
         plan_automatic_uncached(analysis, spec)
@@ -3440,6 +3467,7 @@ fn plan_automatic_uncached(analysis: &Analysis, spec: &Spec) -> Result<Plan, Inv
                 crate::nominal::comparison(),
                 crate::planning::nominals_deferred(),
             ))
+            // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
             .expect("canonical label inputs serialize"),
         )
         .into();
@@ -3655,6 +3683,7 @@ fn plan_escalated_with(
     let automatic_pair = automatic_pair || crate::planning::is_fixed_pair();
     let analysis_key: [u8; 32] =
         crate::planning::memo(analysis, "analysis_digest", Vec::new(), || {
+            // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
             Sha256::digest(serde_json::to_vec(analysis).expect("Analysis serializes")).into()
         });
     let key = serde_json::to_vec(&(
@@ -3665,6 +3694,7 @@ fn plan_escalated_with(
         candidate_arrangement.map(|a| a.name()),
         require_automatic,
     ))
+    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
     .expect("candidate inputs serialize");
     crate::planning::memo(analysis, "candidate", key.clone(), || {
         // Reconstructing an immutable stateless parent revisits these exact candidates.
@@ -3734,6 +3764,7 @@ fn plan_escalated_uncached(
                     && !crate::placement_intent::has_pins(spec)
                 {
                     let first = layout::PAGES.iter().position(|(name, ..)| *name == p.sheet.size)
+                        // Invariant: The planned sheet size was selected from the fixed paper table.
                         .expect("planned paper is standard");
                     for (name, ..) in layout::PAGES.iter().skip(first + 1) {
                         let mut larger = spec.clone();
@@ -4002,10 +4033,10 @@ fn plan_with_presentation(
     if spec
         .sheet
         .view_gutter
-        .is_some_and(|g| !g.is_finite() || g < 0.0)
+        .is_some_and(|g| !valid_view_gutter(g))
     {
         return Err(invalid(
-            "sheet/view_gutter must be finite and non-negative.",
+            "sheet/view_gutter must be from 0 to 1189 paper mm.",
             &[],
         ));
     }
@@ -4986,6 +5017,7 @@ fn plan_with_presentation(
                 format!(
                     "Authored detail {name}: source view {} does not exist in the plan for {}.",
                     detail.source_view,
+                    // Invariant: Authored detail requests are emitted only from views with detail metadata.
                     spec.views[&name].detail.as_ref().unwrap().around_ids()
                 ),
                 &[],
@@ -5214,6 +5246,7 @@ fn plan_with_presentation(
             &inactive,
             presentation.is_some(),
         ))
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         .expect("resolved candidate inputs serialize")
     } else {
         Vec::new()
@@ -5779,6 +5812,7 @@ fn plan_with_presentation(
         .filter(|d| matches!(&d.state, crate::items::State::Covered { by } if by.starts_with("n:") || (by.starts_with("d:") && d.measurements.iter().any(|m| m.parameter == "blend.radius"))))
     {
         let crate::items::State::Covered { by } = &d.state else {
+            // Invariant: The iterator above selected only Covered states.
             unreachable!()
         };
         omitted.push(crate::dims::Omitted {
@@ -6002,6 +6036,7 @@ fn plan_with_presentation(
         .filter(|d| matches!(&d.state, ItemState::Covered { by } if by.starts_with("n:") || by == crate::dims::blends::RADIUS_TABLE))
     {
         let ItemState::Covered { by } = &d.state else {
+            // Invariant: The iterator above selected only Covered states.
             unreachable!()
         };
         omitted.push(crate::dims::Omitted {
@@ -6057,6 +6092,7 @@ fn plan_with_presentation(
             "analysis_sha256",
             Vec::new(),
             || {
+                // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
                 Sha256::digest(serde_json::to_vec(analysis).expect("analysis serializes"))
                     .iter()
                     .map(|b| format!("{b:02x}"))
@@ -6165,6 +6201,7 @@ fn plan_with_presentation(
         crate::planning::store(
             analysis,
             "complete-annotation-inventory",
+            // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
             serde_json::to_vec(&plan.views).expect("views serialize"),
             inventory,
         );
@@ -6241,6 +6278,7 @@ fn plan_with_presentation(
                 let inventory: Vec<crate::dims::PlannedDimension> = crate::planning::lookup(
                     analysis,
                     "complete-annotation-inventory",
+                    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
                     &serde_json::to_vec(&template.views).expect("views serialize"),
                 )
                 .unwrap_or_default();
@@ -6424,6 +6462,7 @@ fn plan_with_presentation(
                 analysis,
                 "nominal-final-preparation",
                 serde_json::to_vec(&(&plan.spec.dimensions, &plan.views))
+                    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
                     .expect("final frame serializes"),
                 (final_intent, omitted_ink),
             );
@@ -6445,6 +6484,7 @@ fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     let (intent, omitted) = crate::planning::lookup::<(Spec, Vec<crate::dims::PlannedDimension>)>(
         analysis,
         "nominal-final-preparation",
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         &serde_json::to_vec(&(&plan.spec.dimensions, &plan.views)).expect("final frame serializes"),
     )
     .unwrap_or_else(|| (spec.clone(), Vec::new()));
@@ -6835,15 +6875,31 @@ pub fn migrate(spec: &Spec, analysis: &Analysis) -> Result<Spec, Invalid> {
 /// free `n:<k>`, a table the next free `t:<k>`. The result is validated whole, so an unknown field or a value of the wrong kind
 /// is refused with the reason.
 pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
+    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
     let mut doc = serde_json::to_value(spec).expect("a spec serialises");
     let ops = ops
         .as_array()
         .ok_or_else(|| invalid("Edits are a list of operations.", &[]))?;
     for op in ops {
         let kind = op["op"].as_str().unwrap_or("");
-        let path: Vec<String> = op["path"]
+        let raw_path = op["path"]
             .as_str()
-            .ok_or_else(|| invalid("An edit needs a \"path\".", &[]))?
+            .ok_or_else(|| invalid("An edit needs a \"path\".", &[]))?;
+        // A shallow ops JSON can otherwise construct a value whose recursive drop
+        // exhausts the WASM stack, even when deserialization ultimately refuses it.
+        if raw_path
+            .split('/')
+            .filter(|s| !s.is_empty())
+            .take(65)
+            .count()
+            > 64
+        {
+            return Err(invalid(
+                "An edit path must have at most 64 components.",
+                &[],
+            ));
+        }
+        let path: Vec<String> = raw_path
             .split('/')
             .filter(|s| !s.is_empty())
             .map(|s| s.replace("~1", "/").replace("~0", "~"))
@@ -7061,6 +7117,7 @@ impl Projections {
                 "{}:6410:{}",
                 analysis.binding.source_sha256,
                 serde_json::to_string(&(enabled, spec.sheet.thread_depiction, views))
+                    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
                     .expect("thread settings serialize")
             )
         } else {
@@ -7205,6 +7262,7 @@ impl Projections {
         if let Some(pieces) = self.views.get(&key) {
             return Ok(pieces.clone());
         }
+        // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
         let view = View::new(v.direction, v.up).expect("a planned view");
         self.stats.projections += 1;
         let carrier = crate::modelled_threads::carrier(
@@ -7552,6 +7610,7 @@ pub(crate) fn render_annotations_on_sheet(
     selected.sheet = std::iter::once(&plan.sheet)
         .chain(&plan.sheets)
         .find(|s| s.number == number)
+        // Invariant: The session validates this sheet against its plan before rendering.
         .expect("the session validates its sheet number")
         .clone();
     selected.views.retain(|v| v.sheet == number);
@@ -7672,12 +7731,14 @@ fn render_annotations_with_cuts(
     };
     let mut thin: Vec<Item> = Vec::new();
     let mut undrawn = BTreeMap::new();
+    // Invariant: Session geometry is generated in this same immutable plan view order.
     assert_eq!(
         plan.views.len(),
         geometry.views.len(),
         "geometry covers every planned view"
     );
     for (v, (name, geometry)) in plan.views.iter().zip(geometry.views) {
+        // Invariant: Session geometry is generated in this same immutable plan view order.
         assert_eq!(v.id, name, "geometry follows plan view order");
         if rejected_sections.contains_key(&v.id) {
             continue;
@@ -7707,6 +7768,7 @@ fn render_annotations_with_cuts(
                 // DrawnFrame records where the whole part's centre lands. A detail is
                 // laid out about its crop centre; keep lint's world-to-page transform exact.
                 at: if v.detail.is_some() {
+                    // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
                     let view = View::new(v.direction, v.up).expect("planned view");
                     let whole = extent(analysis, &view).1;
                     let crop = crate::detail::crop_extent(analysis, v).1;
@@ -7944,6 +8006,7 @@ fn render_annotations_with_cuts(
             if rejected_sections.contains_key(&v.id) {
                 continue;
             }
+            // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
             let view = View::new(v.direction, v.up).expect("a planned view");
             let half_h = 0.5 * extent(analysis, &view).0[1] * v.scale;
             let gap = if v.cut.is_some() { 17.0 } else { 7.0 };
@@ -8235,6 +8298,7 @@ fn render_annotations_with_cuts(
         for n in plan.notes.iter().filter(|n| {
             n.placed.is_some() && (!mixed || (i == 1) == n.id.starts_with("n:f:blend:"))
         }) {
+            // Invariant: The notes iterator selected only notes with placements.
             let p = n.placed.as_ref().unwrap();
             let runs: Vec<usize> = n
                 .rows
@@ -9010,6 +9074,7 @@ fn section_furniture(
         chain: None,
         text: Vec::new(),
     };
+    // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
     let view = &View::new(v.direction, v.up).expect("a planned view");
     let (s, centre) = (v.scale, extent(analysis, view).1);
     // Hatch geometry depends on the part, plane and projection transform, not
@@ -9216,6 +9281,7 @@ fn placed(e: &Exact, s: f64, centre: [f64; 2], at: [f64; 2]) -> Exact {
 /// (an end tag, a CDATA section's end, an entity) can be read inside it.
 fn embeddable(spec: &Spec) -> String {
     serde_json::to_string(spec)
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         .expect("a spec serialises")
         .replace('<', "\\u003c")
         .replace('>', "\\u003e")

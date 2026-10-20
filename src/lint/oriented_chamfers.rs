@@ -50,6 +50,7 @@ pub(crate) fn read(a: &Analysis, f: &Feature) -> Result<Bevel, String> {
     let normal = [0, 1, 2].map(|k| u[k] / l1 + v[k] / l2);
     let view_axis = (0..3)
         .max_by(|&i, &j| normal[i].abs().total_cmp(&normal[j].abs()))
+        // Invariant: The normal is normalized; the chosen coordinate seed is not parallel to it.
         .unwrap();
     if !dot(sub(at, corner), run).is_finite() {
         return Err("its bevel site is not finite".into());

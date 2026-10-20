@@ -308,6 +308,7 @@ pub fn outcomes(analysis: &Analysis, marks: &[Mark]) -> Vec<Outcome> {
                 annotation: mark.map(|m| m.name.clone()),
                 evidence: evidence.or_else(|| {
                     (state == State::Unverifiable)
+                        // Invariant: The preceding condition selects an existing mark with differing text.
                         .then(|| format!("{:?} does not state {}", mark.unwrap().text, fmt(value)))
                 }),
             });

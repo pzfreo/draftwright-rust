@@ -284,6 +284,7 @@ struct Frame {
 
 impl Frame {
     fn new(analysis: &Analysis, v: &PlannedView) -> Frame {
+        // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
         let view = View::new(v.direction, v.up).expect("a planned view");
         let (size, centre) = crate::detail::crop_extent(analysis, v);
         let (at, s) = (v.at, v.scale);
@@ -1214,7 +1215,9 @@ fn spread(naturals: &[f64], gap: f64, lo: f64, hi: f64) -> Vec<f64> {
     for (i, v) in naturals.iter().enumerate() {
         blocks.push((v - i as f64 * gap, 1));
         while blocks.len() > 1 && blocks[blocks.len() - 2].0 > blocks[blocks.len() - 1].0 {
+            // Invariant: The while condition requires at least two blocks before the two pops.
             let (m2, c2) = blocks.pop().expect("a block");
+            // Invariant: The while condition requires at least two blocks before the two pops.
             let (m1, c1) = blocks.pop().expect("a block");
             let c = c1 + c2;
             blocks.push(((m1 * c1 as f64 + m2 * c2 as f64) / c as f64, c));
@@ -1306,6 +1309,7 @@ fn assign_bands(
         }
         let mut b = sink;
         while b != 0 {
+            // Invariant: prev was filled while reaching b before the augmentation starts.
             let (a, j) = prev[b].expect("augmenting path");
             let rev = graph[a][j].rev;
             graph[a][j].cap -= 1;
@@ -1866,6 +1870,7 @@ fn schedule_cells(t: &HoleTable) -> Vec<Vec<String>> {
             "{} HOLES",
             t.view
                 .as_deref()
+                // Invariant: Schedule tables are constructed for a selected carrying view.
                 .unwrap()
                 .trim_start_matches("v:")
                 .to_uppercase()
@@ -1888,6 +1893,7 @@ fn schedule_cells(t: &HoleTable) -> Vec<Vec<String>> {
         "Z OUT / DIR".into(),
     ];
     if let Some(pcd) = &t.pcd {
+        // Invariant: A PCD schedule is constructed with a resolved origin.
         let origin = t.origin.unwrap();
         let axes: Vec<_> = t.rows[0]
             .measurements
@@ -1895,6 +1901,7 @@ fn schedule_cells(t: &HoleTable) -> Vec<Vec<String>> {
             .filter_map(|m| m.parameter.strip_prefix("location.length."))
             .collect();
         let coordinate = |a: &str| {
+            // Invariant: Measurement location axes are emitted only as x, y or z.
             let k = ["x", "y", "z"].iter().position(|k| *k == a).unwrap();
             schedule_number(pcd.centre[k] - origin[k])
         };
@@ -2576,6 +2583,7 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
             .views
             .iter()
             .find(|v| Some(&v.id) == wanted.view.as_ref())
+            // Invariant: selection tables were built from the carrying views in this same plan.
             .unwrap();
         let frame = Frame::new(analysis, view);
         let mut t = wanted.clone();
@@ -2945,6 +2953,7 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
             break;
         }
         for (g, slot) in groups.into_iter().zip(placed) {
+            // Invariant: The placement loop returns false on a missing slot before reaching this zip.
             let (at, leader) = slot.expect("every tag placed");
             marks.push(Balloon {
                 id: format!("{}/tag/{}", t.id, g.tag),
@@ -2960,6 +2969,7 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
             });
         }
         // X/Y origin, drawn at the view's datum corner, with short coordinate axes.
+        // Invariant: Schedule selection requires a resolved origin.
         let origin = frame.page(t.origin.unwrap());
         let mut position = None;
         for step in 0..160 {
@@ -3048,6 +3058,7 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
         let by = schedules
             .iter()
             .find(|t| t.view.as_ref() == Some(&d.view))
+            // Invariant: A schedule was just created for each carrying view in selection.dimensions.
             .unwrap()
             .id
             .clone();
@@ -3060,6 +3071,7 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
             schedules
                 .iter_mut()
                 .find(|t| t.id == by)
+                // Invariant: by is the id of the schedule just found in this unchanged vector.
                 .unwrap()
                 .covered
                 .extend(d.measurements);

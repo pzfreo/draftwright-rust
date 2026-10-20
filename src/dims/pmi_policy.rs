@@ -44,6 +44,7 @@ pub(super) fn wants(
     let mut result = if s.origin.is_empty() && s.pmi != PmiMode::Strict {
         super::wants(a)
     } else {
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         let key = serde_json::to_vec(&(s.pmi, &s.origin)).unwrap();
         crate::planning::memo(a, "pmi-wants", key, || super::wants_uncached(a, s))
     };
@@ -371,6 +372,7 @@ pub(super) fn cover(
     // Recovery revisits the same world-space constraints at several paper scales.
     // Include every input (view choices, labels and authored tolerances included)
     // so only identical precedence decisions share this pass-local result.
+    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
     let key = serde_json::to_vec(&(&*kept, &*given)).expect("precedence inputs serialize");
     let (items, terms, covered) = crate::planning::memo(a, "pmi-precedence", key, || {
         let mut items = kept.clone();
@@ -569,6 +571,7 @@ fn cover_uncached(
             }
         }
         if uncontrolled.is_empty() && !owners.is_empty() {
+            // Invariant: The preceding condition requires exactly one owner.
             let owner = owners.iter().next().unwrap().clone();
             omitted.push(Omitted {
                 id: w.id.clone(),
@@ -606,6 +609,7 @@ fn cover_uncached(
                 .measurements
                 .iter()
                 .find(|m| location_role(&m.parameter))
+                // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
                 .unwrap()
                 .parameter
                 .clone();
@@ -667,6 +671,7 @@ pub(crate) fn ignore(
     p.spec.pmi = PmiMode::Ignore;
     p.analysis_sha256 = Some({
         use sha2::{Digest, Sha256};
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         Sha256::digest(serde_json::to_vec(a).unwrap())
             .iter()
             .map(|b| format!("{b:02x}"))
@@ -745,6 +750,7 @@ fn dimension_marks(
             feature: "station_ink".into(),
             parameter: "witnesses".into(),
         });
+        // Invariant: The preceding dimension iterator selects placed dimensions.
         if let Some((axis, q, r)) = location::ink_span(a, &frame, &d.placed.as_ref().unwrap().lines)
         {
             mark.claims.push(crate::output::Claim {
@@ -754,6 +760,7 @@ fn dimension_marks(
         }
     }
     for (axis, reference) in &p.spec.origin {
+        // Invariant: ink_span returns only the fixed x, y or z axis names.
         let k = AXES.iter().position(|v| v == axis).unwrap();
         marks.push(crate::lint::Mark {
             name: format!("origin/{axis}"),

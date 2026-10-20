@@ -108,6 +108,7 @@ pub(super) fn consolidate(a: &Analysis, kept: &mut Vec<Kept>, omitted: &mut Vec<
                 .as_ref()
                 .and_then(|o| o.first())
                 .cloned()
+                // Invariant: The preceding branch requires alternative or intrinsic to be Some.
                 .unwrap_or_else(|| intrinsic.as_ref().unwrap().by.clone());
             omitted.push(Omitted {
                 id: w.id.clone(),
@@ -116,6 +117,7 @@ pub(super) fn consolidate(a: &Analysis, kept: &mut Vec<Kept>, omitted: &mut Vec<
                     || {
                         format!(
                             "conveyed by {by}: the proven interval is already stated; dependencies: {}",
+                            // Invariant: The preceding is_some_and predicate required alternative to be Some.
                             alternative.unwrap().join(", ")
                         )
                     },

@@ -49,6 +49,7 @@ static PREPARED: crate::planning::BoundedMemo<Vec<Projected>> =
 fn camera_key(binding: &Binding, direction: [f64; 3], up: [f64; 3]) -> [u8; 32] {
     Sha256::digest(
         serde_json::to_vec(&(binding, direction.map(f64::to_bits), up.map(f64::to_bits)))
+            // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
             .expect("projection camera serializes"),
     )
     .into()
@@ -73,6 +74,7 @@ pub(crate) fn resolved(
     static MEMO: crate::planning::BoundedMemo<Vec<ResolvedView>> =
         crate::planning::BoundedMemo::new(4);
     let key: [u8; 32] =
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         Sha256::digest(serde_json::to_vec(&(binding, names)).expect("projection inputs serialize"))
             .into();
     if let Some(ink) = MEMO.get(&key) {
@@ -183,6 +185,7 @@ fn sample(e: &haecceity::brep::Edge) -> Vec<[f64; 3]> {
         refine(&e.curve, last, p, 0, &mut out);
         last = p;
     }
+    // Invariant: sample count is at least two before out is constructed.
     *out.last_mut().expect("two samples") = round(e.end);
     out
 }

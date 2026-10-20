@@ -441,6 +441,7 @@ pub(crate) fn notch_reservations(
         let terms = vec![format!("{}°", super::fmt(n.angle.degrees()))];
         let ink = label_ink(&terms, font());
         let size = [ink.max[0] - ink.min[0], ink.max[1] - ink.min[1]];
+        // Invariant: The notch reader proves nonzero rays and angle in this principal plane.
         let physical = Ink::new(&frame, &(&n.angle).into(), size).unwrap();
         let mut extended = Ink::new(
             &frame,
@@ -451,6 +452,7 @@ pub(crate) fn notch_reservations(
             },
             size,
         )
+        // Invariant: Reversing both proven notch rays preserves their nonzero angle.
         .unwrap();
         extended.lengths = [0.; 2];
         let terms_ref = &terms;
@@ -520,6 +522,7 @@ pub(super) fn place(
             },
             size,
         )
+        // Invariant: The original rays passed the same Ink::new test before reversal.
         .expect("reversing both rays preserves the angle");
         extended.lengths = [0.0; 2];
         let mut candidates = (0..TRIES).flat_map(|n| {

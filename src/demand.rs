@@ -323,6 +323,7 @@ fn internal_station(sites: &[(f64, &str)], centre_y: f64) -> Option<Section> {
         .map(|(y, _)| {
             format!("{y:.1}")
                 .parse::<f64>()
+                // Invariant: The string was formatted from an f64 locally and is a Rust float literal.
                 .expect("a formatted coordinate parses")
         })
         .collect();
@@ -432,6 +433,7 @@ fn x_refs(holes: &[Hole]) -> Vec<f64> {
         let first = members
             .iter()
             .min_by(|a, b| a[0].total_cmp(&b[0]).then(a[1].total_cmp(&b[1])))
+            // Invariant: The pattern reader refuses empty member lists.
             .expect("a pattern has members");
         xs.push(if circle { c[0] } else { first[0] });
     }

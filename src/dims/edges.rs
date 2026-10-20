@@ -235,6 +235,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         let (_, visible) = by
             .iter()
             .min_by_key(|(k, v)| (std::cmp::Reverse(v.len()), **k))
+            // Invariant: A group is created only when its first member is inserted.
             .expect("a group has a member");
         // Its representative, which names the item: the member first by its point, as
         // draftwright sorts by `frame.origin` (then by feature order, for a tie).
@@ -246,6 +247,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                     .unwrap_or(std::cmp::Ordering::Equal)
                     .then_with(|| rank(&a.feature.id).cmp(&rank(&b.feature.id)))
             })
+            // Invariant: Presentations are built from nonempty member groups.
             .expect("a presentation has a member");
         let views = first.views();
         let n = members.len();

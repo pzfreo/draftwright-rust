@@ -100,6 +100,11 @@ fn gutter_override_validates_and_round_trips() {
     let mut invalid = Spec::default();
     invalid.sheet.view_gutter = Some(-1.0);
     assert!(model::plan_recovered(plate(), &invalid).is_err());
+    for gutter in [1189.1, 1e308, f64::INFINITY, f64::NAN] {
+        invalid.sheet.view_gutter = Some(gutter);
+        assert!(model::plan_recovered(plate(), &invalid).is_err());
+    }
+    assert!(serde_json::from_value::<Spec>(json!({"sheet":{"view_gutter":1e308}})).is_err());
 }
 
 #[test]

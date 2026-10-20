@@ -632,9 +632,12 @@ fn shown_across(k: usize, view: &str) -> usize {
         .map(|(_, t)| {
             t.iter()
                 .position(|c| c.abs() == 1.0)
+                // Invariant: Routing selected a principal from the fixed view table.
                 .expect("a principal view")
         })
+        // Invariant: The selected principal is an entry in the fixed view table.
         .expect("a named view");
+    // Invariant: The iterator is over the fixed three coordinate axes.
     (0..3).find(|&j| j != k && j != look).expect("three axes")
 }
 
@@ -733,6 +736,7 @@ fn datum_end(analysis: &Analysis, p: &[&Banded]) -> Option<(bool, String)> {
         .filter(|r| r.category == crate::pmi::Category::Datum)
         .filter(usable)
     {
+        // Invariant: The usable record predicate requires geometry to be Some.
         let g = r.geometry.as_ref().expect("usable");
         let Some(n) = g.normal else { continue };
         if g.surface.as_deref() != Some("plane")
@@ -771,6 +775,7 @@ fn datum_end(analysis: &Analysis, p: &[&Banded]) -> Option<(bool, String)> {
         })
         .filter(usable)
     {
+        // Invariant: The usable record predicate requires geometry to be Some.
         let g = r.geometry.as_ref().expect("usable");
         if g.axis.as_deref() != Some(["X", "Y", "Z"][k])
             || g.stations.len() != 2

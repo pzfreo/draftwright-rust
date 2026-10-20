@@ -43,6 +43,7 @@ pub fn overrun(radius: f64) -> f64 {
 }
 
 fn page(a: &Analysis, v: &PlannedView, p: [f64; 3]) -> P {
+    // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
     let view = View::new(v.direction, v.up).expect("planned view");
     let centre = crate::detail::crop_extent(a, v).1;
     let q = view.map(p);
@@ -90,7 +91,9 @@ fn cross(id: String, c: P, radius: f64, radial: Option<P>) -> LineWork {
 fn end_on(v: &PlannedView, d: [f64; 3]) -> bool {
     let k = (0..3)
         .max_by(|&a, &b| d[a].abs().total_cmp(&d[b].abs()).then(b.cmp(&a)))
+        // Invariant: The iterator is over the fixed three coordinate axes.
         .expect("three components");
+    // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
     View::new(v.direction, v.up).unwrap().toward[k].abs() > 1. - 1e-6
 }
 
@@ -102,6 +105,7 @@ fn end_cross(
     r: f64,
     radial: Option<P>,
 ) -> LineWork {
+    // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
     let view = View::new(v.direction, v.up).unwrap();
     let p = view.map(d);
     let n = p[0].hypot(p[1]);
@@ -197,6 +201,7 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
         {
             continue;
         }
+        // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
         let view = View::new(v.direction, v.up).expect("planned view");
         // The hole's full span: from its opening (`at`) along its direction through any
         // counterbore or spotface and then the bore. None when a depth is missing; then no side
@@ -460,6 +465,7 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
                             v,
                             holes::to_part(
                                 &frame,
+                                // Invariant: This branch selected a successfully read hole, whose location is a finite point.
                                 holes::point(f.parameters.get("location")).unwrap(),
                             ),
                         ),
@@ -619,6 +625,7 @@ fn merge(work: &mut Vec<LineWork>) {
                 (b[0] - a[0]).hypot(b[1] - a[1])
             };
             let size = length(p).max(length(&w));
+            // Invariant: The find predicate required p.centre.zip(w.centre) to be Some.
             let c = p.centre.unwrap();
             let basis = if w.radial { &w } else { &*p };
             let curve = &basis.curves[0];
@@ -639,6 +646,7 @@ fn merge(work: &mut Vec<LineWork>) {
         }
         if w.kind == "axis" {
             let Curve::Line(a, b) = w.curves[0] else {
+                // Invariant: Axis line work is constructed as a single Curve::Line.
                 unreachable!()
             };
             let vertical = (a[0] - b[0]).abs() < 1e-6;
@@ -662,6 +670,7 @@ fn merge(work: &mut Vec<LineWork>) {
                 }
             }) {
                 let Curve::Line(c, d) = p.curves[0] else {
+                    // Invariant: The find predicate just matched this same axis curve as a Line.
                     unreachable!()
                 };
                 p.curves[0] = if vertical {
@@ -789,6 +798,7 @@ pub(crate) fn obstacles(views: &[PlannedView]) -> Vec<PlannedDimension> {
                         obstacle
                             .placed
                             .as_mut()
+                            // Invariant: The obstacle constructor supplies a placement.
                             .unwrap()
                             .lines
                             .extend(loops.iter().flatten().map(|c| [c.start(), c.end()]));
@@ -797,7 +807,9 @@ pub(crate) fn obstacles(views: &[PlannedView]) -> Vec<PlannedDimension> {
                 for (k, end) in ends.iter().enumerate() {
                     let mut arrow = obstacle.clone();
                     arrow.id = format!("{}:arrow:{k}", w.id);
+                    // Invariant: Cutting-plane ends contain the finite wing and filled arrow built above.
                     let bounds = crate::output::items_bbox(end).unwrap();
+                    // Invariant: arrow clones obstacle, whose constructor supplies a placement.
                     let placed = arrow.placed.as_mut().unwrap();
                     placed.lines.clear();
                     placed.label_box = bounds;

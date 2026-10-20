@@ -113,6 +113,7 @@ impl Projection {
             a[2] * n[0] - a[0] * n[2],
             a[0] * n[1] - a[1] * n[0],
         ])
+        // Invariant: The circle normal is normalized and the chosen seed is not parallel to it.
         .unwrap();
         let e2 = [
             n[1] * e1[2] - n[2] * e1[1],

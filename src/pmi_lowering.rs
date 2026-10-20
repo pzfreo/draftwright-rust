@@ -1041,6 +1041,7 @@ fn control_frame(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
         (None, a @ ("X" | "Y" | "Z")) => (a, "its faces' longest extent"),
         _ => ("Z", "no axis of its own (z by default)"),
     };
+    // Invariant: The preceding geometry check admits only x, y or z axes.
     let k = axis_index(axis).expect("an axis letter");
     let (view, side) = face_on(k);
     let mut datums: Vec<String> = Vec::new();
@@ -1170,6 +1171,7 @@ fn edge_on(
     if !reasons.is_empty() {
         return Err(dedup(reasons));
     }
+    // Invariant: The preceding geometry check admits only x, y or z axes.
     let k = axis_index(axis).expect("an axis letter");
     let view = if k == 1 { "side" } else { "front" };
     let planar = surface == "plane";
@@ -1714,6 +1716,7 @@ fn planar(part: &Part, groups: &[Vec<usize>], boxes: &[Vec<[f64; 6]>]) -> Planar
                 _ => axis = Some((k, station)),
             }
         }
+        // Invariant: A group is created only from its first resolved face and axis.
         axes.push(axis.expect("a group has a face").0);
     }
     if axes[0] != axes[1] {
@@ -1952,6 +1955,7 @@ fn cylinder_geometry(part: &Part, r: &Record, value: f64, g: &mut Geometry) {
         let mut d = target.direction;
         let k = (0..3)
             .max_by(|&i, &j| d[i].abs().total_cmp(&d[j].abs()))
+            // Invariant: The iterator covers the fixed three coordinate axes.
             .unwrap();
         if d[k] < 0.0 {
             d = d.map(|v| -v);
@@ -1961,6 +1965,7 @@ fn cylinder_geometry(part: &Part, r: &Record, value: f64, g: &mut Geometry) {
         for c in &mut g.cylinders {
             c.origin = origin;
             c.direction = d;
+            // Invariant: The preceding match rejected a missing target radius.
             c.radius = target.radius.expect("resolved radius checked above");
         }
     }
@@ -2050,7 +2055,9 @@ fn g6(v: f64) -> String {
         return "0".into();
     }
     let sci = format!("{v:.5e}");
+    // Invariant: The finite nonzero value is formatted locally with Rust scientific notation and an integer exponent.
     let (mantissa, exp) = sci.split_once('e').expect("exponent");
+    // Invariant: The finite nonzero value is formatted locally with Rust scientific notation and an integer exponent.
     let exp: i32 = exp.parse().expect("exponent");
     if !(-4..6).contains(&exp) {
         let m = mantissa.trim_end_matches('0').trim_end_matches('.');
@@ -3142,6 +3149,7 @@ fn owners(analysis: &Analysis) -> Vec<Owner> {
             out.push(Owner {
                 id: p.id.clone(),
                 kind: "pattern",
+                // Invariant: The hole iterator was filtered to principal-axis holes.
                 axis: h.principal.expect("a principal hole").0,
                 diameter: h.diameter,
                 at: h.at,
@@ -3159,6 +3167,7 @@ fn owners(analysis: &Analysis) -> Vec<Owner> {
         out.push(Owner {
             id: h.feature.id.clone(),
             kind: "hole",
+            // Invariant: The hole iterator was filtered to principal-axis holes.
             axis: h.principal.expect("a principal hole").0,
             diameter: h.diameter,
             at: h.at,

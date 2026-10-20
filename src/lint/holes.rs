@@ -416,6 +416,7 @@ impl Callout {
                 while times && k < chars.len() && chars[k] == ' ' {
                     k += 1;
                 }
+                // Invariant: The parser pushed a segment before processing its suffixes.
                 let segment = out.segments.last_mut().unwrap();
                 if first
                     && times
@@ -437,6 +438,7 @@ impl Callout {
                     if segment.diameter.is_some() {
                         out.segments.push(Segment::new(Opened::Bare));
                     }
+                    // Invariant: The parser pushed a segment before processing its suffixes.
                     out.segments.last_mut().unwrap().diameter = Some((v, decimals));
                 } else if depth
                     || (segment.diameter.is_some()
@@ -651,6 +653,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 && t.conventional_drill()
                 && super::pmi_coverage::thread_text_states(t, &mark.text)
             {
+                // Invariant: The tapped-hole branch requires a known drill diameter.
                 mark.text += &format!(" ⌀{} THRU", t.drill_diameter.unwrap());
             }
         }
