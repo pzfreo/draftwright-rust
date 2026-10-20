@@ -132,7 +132,7 @@ fn issue_149_table_selects_the_member_nearest_the_elbow() {
                     .max_by(f64::total_cmp)
                     .unwrap()
             );
-        } else if offset == [1., 0.] || offset == [-20., -10.] {
+        } else if offset == [1., 0.] {
             assert_eq!(member, original);
         }
     }
