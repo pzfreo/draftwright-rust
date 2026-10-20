@@ -324,38 +324,49 @@ fn a_radius_tip_lands_on_the_trimmed_profile_arc() {
 /// #145: lint reads actual drawn shafts, including hand-authored/pinned geometry.
 #[test]
 fn radius_shafts_meet_the_middle_arc_radially_from_the_open_side() {
-    let (f, sites) = quarter_blend(0.0, 0.0);
-    let a = analysis(vec![f], sites, &[]);
-    for (angle, deviation, bad) in [
-        (45.0f64, 0.0f64, false),
-        (0.0, 0.0, true),
-        (90.0, 0.0, true),
-        (45.0, 16.0, true),
-        (45.0, 180.0, true),
-    ] {
-        let t = angle.to_radians();
-        let tip = page(3.0 * t.cos(), 3.0 * t.sin());
-        let direction = t + std::f64::consts::PI + deviation.to_radians();
-        let elbow = [
-            tip[0] + 20.0 * direction.cos(),
-            tip[1] + 20.0 * direction.sin(),
-        ];
-        let issues = lint::lint(
-            &a,
-            &drawing(
-                ALONG_Z,
-                vec![callout("d:r", &[("f:blend:1", "blend.radius")], tip, elbow)],
-            ),
-        );
-        let radial: Vec<_> = issues
-            .iter()
-            .filter(|i| i.code == "radius_leader_not_radial")
-            .collect();
-        assert_eq!(radial.len(), usize::from(bad), "{angle} {deviation}");
-        if bad {
-            assert_eq!(radial[0].severity, Severity::Warning);
-            assert_eq!(radial[0].annotation.as_deref(), Some("d:r"));
-            assert_eq!(radial[0].measurements, ["f:blend:1/blend.radius"]);
+    for concave in [true, false] {
+        let (mut f, sites) = quarter_blend(0.0, 0.0);
+        f["parameters"]["side"] = json!(if concave { "concave" } else { "convex" });
+        let a = analysis(vec![f], sites, &[]);
+        for (angle, deviation, bad) in [
+            (45.0f64, 0.0f64, false),
+            (0.0, 0.0, true),
+            (90.0, 0.0, true),
+            (45.0, 16.0, true),
+            (45.0, 180.0, true),
+        ] {
+            let t = angle.to_radians();
+            let tip = page(3.0 * t.cos(), 3.0 * t.sin());
+            let direction =
+                t + if concave { std::f64::consts::PI } else { 0.0 } + deviation.to_radians();
+            let elbow = [
+                tip[0] + 20.0 * direction.cos(),
+                tip[1] + 20.0 * direction.sin(),
+            ];
+            let issues = lint::lint(
+                &a,
+                &drawing(
+                    ALONG_Z,
+                    vec![callout("d:r", &[("f:blend:1", "blend.radius")], tip, elbow)],
+                ),
+            );
+            assert!(
+                issues
+                    .iter()
+                    .filter(|i| i.code.starts_with("radius_leader_"))
+                    .count()
+                    <= 1
+            );
+            let radial: Vec<_> = issues
+                .iter()
+                .filter(|i| i.code == "radius_leader_not_radial")
+                .collect();
+            assert_eq!(radial.len(), usize::from(bad), "{angle} {deviation}");
+            if bad {
+                assert_eq!(radial[0].severity, Severity::Warning);
+                assert_eq!(radial[0].annotation.as_deref(), Some("d:r"));
+                assert_eq!(radial[0].measurements, ["f:blend:1/blend.radius"]);
+            }
         }
     }
 }
@@ -413,7 +424,8 @@ fn toroidal_radius_direction_limits_are_explicit() {
     );
     let issues = lint::lint(&a, &draw);
     assert!(issues.iter().any(|i| {
-        i.code == "radius_leader_direction_unverifiable"
+        i.code == "radius_leader_target_unverifiable"
+            && i.severity == Severity::Info
             && i.evidence
                 .as_ref()
                 .is_some_and(|why| why.contains("toroidal"))
@@ -968,6 +980,27 @@ fn ctc01_r5_meets_the_fillet_from_the_open_centre_side() {
             .any(|i| i.annotation.as_deref() == Some(d.id.as_str())
                 && i.code.starts_with("radius_leader_"))
     );
+    let convex = p
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:fillet:6/fillet.radius")
+        .unwrap();
+    assert_eq!(
+        convex
+            .measurements
+            .iter()
+            .filter(|m| m.parameter == "fillet.radius")
+            .count(),
+        7
+    );
+    assert!(convex.placed.is_some(), "retain the plate corner radius");
+    assert!(
+        !lint::lint(&a, &drawing)
+            .iter()
+            .any(|i| i.annotation.as_deref() == Some(convex.id.as_str())
+                && i.code.starts_with("radius_leader_")),
+        "convex R50 must approach radially from outside"
+    );
     let material = draftwright::material::solids(&a, page);
     // One initial interval is intentionally exempt even when it runs through a boss.
     let box_centre = [0, 1].map(|k| (material[0][k] + material[0][k + 2]) / 2.0);
@@ -980,45 +1013,31 @@ fn ctc01_r5_meets_the_fillet_from_the_open_centre_side() {
     );
 }
 
-/// A rejected sheet trial must retain its radius fallback diagnostics (#145).
+/// A retained automatic route has only the drawn finding, never a duplicate plan warning.
 #[test]
-fn returned_radius_fallbacks_are_reported_after_the_final_sheet_audit() {
-    let corpus = std::env::var("DRAFTWRIGHT_CORPUS")
-        .unwrap_or_else(|_| "/Users/paul/repos/quiddity/tests/corpus".into());
-    let path = Path::new(&corpus).join("mfcadpp_holdout/363.step");
-    if !path.is_file() {
-        assert!(std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").is_err());
+fn retained_radius_routes_have_one_finding_per_callout() {
+    let Some((a, p, draw)) = native_drawing("mfcadpp_holdout/363.step", false) else {
         return;
-    }
-    let (part, a) = model::analyse_native(&path).unwrap();
-    let p = model::plan(&a, &Spec::default()).unwrap();
-    let draw = model::render(&part, &a, &p, &font()).unwrap();
-    let warnings: Vec<_> = lint::lint(&a, &draw)
-        .into_iter()
-        .filter(|i| {
-            matches!(
-                i.code.as_str(),
-                "radius_leader_not_radial" | "radius_leader_direction_unverifiable"
-            )
-        })
-        .collect();
+    };
     assert!(
-        !warnings.is_empty(),
-        "exercise a radius with no compliant route"
+        !p.problems
+            .iter()
+            .any(|i| i.code == "radius_leader_routing_fallback")
     );
-    for warning in warnings {
+    let mut counts = BTreeMap::new();
+    for warning in lint::lint(&a, &draw)
+        .into_iter()
+        .filter(|i| i.code.starts_with("radius_leader_"))
+    {
         let id = warning.annotation.unwrap();
         assert!(
             p.dimensions
                 .iter()
                 .any(|d| d.id == id && d.placed.is_some())
         );
-        assert!(
-            p.problems
-                .iter()
-                .any(|q| q.code == "radius_leader_routing_fallback" && q.subjects == [id.clone()])
-        );
+        *counts.entry(id).or_insert(0) += 1;
     }
+    assert!(counts.values().all(|&count| count == 1));
 }
 
 /// Toroidal meridians come from real trimmed faces, with exact minor-radius centres.

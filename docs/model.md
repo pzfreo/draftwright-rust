@@ -812,19 +812,20 @@ Lint (`review`'s `lint`) also checks each callout's leader against the part (str
 `lint::leaders`), from its drawn leader, its view's recorded transform and the Analysis: a hole
 callout's tip must lie within 0.002 mm of a boundary circle of a hole it names (a double-D bore's
 trimmed profile, flats included) as projected in its view (`diameter_leader_target_mismatch`,
-warning; `diameter_leader_target_unverifiable` when no named hole can be read), a straight
-straight blend's radius callout tip on its trimmed cylindrical profile arc seen end-on
-(`radius_leader_target_mismatch` and `_unverifiable`, warnings). The drawn shaft must meet
-its middle 25–75%, within 15° of radial, from the open centre side
-(`radius_leader_not_radial`, warning), including fillet callouts. Unreadable fillet or toroidal
-direction is reported as `radius_leader_direction_unverifiable`, rather than a proven target
-mismatch. Exact `Analysis.radius_arcs` records the cylinder,
-trim, proven middle-face points and material side; older straight blends use their rolling
-axis and proven samples. A convex section has its centre on the material side. Toroidal minor-radius sections are
-checked only at proven quarter/half/three-quarter major-path meridians seen end-on;
-oblique and unsupported meridians remain explicitly unverifiable. Routing retains the
-best existing callout and reports `radius_leader_routing_fallback` when no compliant
-candidate preserves the existing contact/length budget, and no callout's shaft may cut
+warning; `diameter_leader_target_unverifiable` when no named hole can be read), and a
+radius callout's tip on its trimmed circular profile arc seen end-on
+(`radius_leader_target_mismatch`, warning). The drawn shaft must meet its middle 25–75%,
+within 15° of radial, from the open non-material side (`radius_leader_not_radial`, warning),
+including fillet callouts. This is towards the centre for a concave fillet and away from the
+centre for a convex outside corner. Unreadable circular sections use the existing
+`radius_leader_target_unverifiable` as info, not a wrong-shaft warning.
+Exact `Analysis.radius_arcs` records the cylinder, trim, proven middle-face points and
+material side; older straight blends use their rolling axis and proven samples. Toroidal
+minor-radius sections are checked only at proven quarter/half/three-quarter major-path
+meridians seen end-on; oblique and unsupported meridians remain explicitly unverifiable.
+Routing retains the best existing callout when no compliant candidate preserves the
+existing contact/length budget. Drawn lint reports any remaining violation once per callout;
+there is no separate fallback problem, and no callout's shaft may cut
 back into the part's material after leaving it at its tip (`leader_crosses_silhouette`, info,
 with the depth cut). This test deliberately exempts the initial traversal: it cannot detect
 a boss crossing within a single solid box, as on CTC-01 (#145). The radius direction check

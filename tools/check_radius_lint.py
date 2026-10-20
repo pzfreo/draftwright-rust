@@ -14,7 +14,8 @@ import re
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-CODES = {'radius_leader_not_radial', 'radius_leader_direction_unverifiable'}
+CODES = {'radius_leader_not_radial', 'radius_leader_target_unverifiable'}
+RETIRED = {'radius_leader_direction_unverifiable'}
 TEST = 'lint::lint_on_the_ports_own_drawings_is_known'
 
 
@@ -53,7 +54,7 @@ def main():
     baseline = args.record or ROOT / 'tests/fixtures/known_lint.json'
     record = json.loads(baseline.read_text())
     expected = {(r['part'], r['code']): r['count'] for r in record['own_drawings']
-                if r['part'] in names and r['code'] not in CODES}
+                if r['part'] in names and r['code'] not in CODES | RETIRED}
     measured = {(part, code): count for part, counts in actual.items()
                 for code, count in counts.items() if code not in CODES}
     if measured != expected:
@@ -63,14 +64,14 @@ def main():
                                  if expected.get(k, 0) != measured.get(k, 0)}))
     added = [dict(part=part, code=code, count=count, verdict='rust-correct',
                   reason=('Issue #145: the drawn radius shaft violates the middle-arc, '
-                          'radial, open-centre approach rule.' if code == 'radius_leader_not_radial'
-                          else 'Issue #145: the recorded fillet/toroidal geometry cannot prove '
-                               'the drawn shaft radial from the open centre side.'))
+                          'radial, non-material-side approach rule.' if code == 'radius_leader_not_radial'
+                          else 'Issue #145: the recorded geometry cannot prove the drawn '
+                               'radius section in this view; informational, not a wrong shaft.'))
              for part, counts in sorted(actual.items()) for code, count in sorted(counts.items())
              if code in CODES]
     (args.out / 'radius-direction.json').write_text(json.dumps(added, indent=2) + '\n')
     if args.record:
-        record['own_drawings'] = [r for r in record['own_drawings'] if r['code'] not in CODES] + added
+        record['own_drawings'] = [r for r in record['own_drawings'] if r['code'] not in CODES | RETIRED] + added
         args.record.write_text(json.dumps(record, indent=2, ensure_ascii=False) + '\n')
     else:
         listed = [r for r in record['own_drawings'] if r['code'] in CODES]

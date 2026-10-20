@@ -8,11 +8,11 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
-- Radius callouts (#145) try the middle half of an end-on cylindrical arc, approaching
-  within 15° of radial from the open centre side. Exact trimmed-face evidence covers
-  blends and fillets, including proven end-on toroidal meridians. A blocked or unreadable case keeps its existing callout and reports
-  the fallback. Drawn leaders, including pins, warn for tangent-end, nonradial or
-  material-side approaches; toroidal direction limits are reported explicitly.
+- Radius callouts (#145) try the middle half of a proven circular arc, within 15° of
+  radial from the non-material side: towards the centre for concave fillets, away from it
+  for convex outside corners. End-on toroidal meridians are supported where proven.
+  A blocked case keeps its callout and has one drawn-lint finding; unreadable sections
+  use informational `radius_leader_target_unverifiable`, with no duplicate fallback warning.
 - Declared STEP AP242 and Spec datums draw without a control-frame citation (#141, alpha.11),
   using the existing datum-symbol placer. `sheet/uncited_datums: false` hides uncited symbols;
   `annotations/<id>/omit` hides individual symbols. Omitted symbols retain provenance in the

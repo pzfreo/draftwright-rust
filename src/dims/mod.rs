@@ -77,7 +77,7 @@ pub(crate) use pmi_dimensions::basic as is_basic;
 mod leaders;
 pub(crate) use label_lanes::{in_lane, settle_inventory};
 pub(crate) use leaders::default_nominal_intent;
-pub(crate) use leaders::{radius_fallbacks, settle_after_furniture, settle_radius_leaders};
+pub(crate) use leaders::{settle_after_furniture, settle_radius_leaders};
 pub(crate) use placement::collisions_cached as label_collisions;
 pub(crate) use placement::nearest_shared_witnesses;
 pub(crate) mod levels;

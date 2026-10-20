@@ -6508,31 +6508,6 @@ fn plan_with_presentation(
 /// Precision repairs belong to the selected drawing, after sheet candidates have
 /// been judged. Rejected candidates must not each launch another route search.
 fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
-    finish_nominal_placement(analysis, spec, plan);
-    if !crate::nominal::comparison() {
-        let mut fresh =
-            crate::dims::radius_fallbacks(analysis, spec, &plan.views, &plan.dimensions);
-        // Keep unchanged diagnostics (and their attached fixes) in their original order
-        // when explicit-sheet recovery finishes an already finished drawing again.
-        plan.problems.retain_mut(|p| {
-            if p.code != "radius_leader_routing_fallback" {
-                return true;
-            }
-            let Some(i) = fresh.iter().position(|next| next.id == p.id) else {
-                return false;
-            };
-            let next = fresh.remove(i);
-            if p.message != next.message || p.subjects != next.subjects {
-                *p = next;
-            }
-            true
-        });
-        plan.problems.extend(fresh);
-        plan.status = crate::completeness::status(&plan.problems);
-    }
-}
-
-fn finish_nominal_placement(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     if crate::nominal::comparison() {
         return;
     }
@@ -6736,9 +6711,7 @@ fn settle_finished_nominals(
         !codes.contains(&q.code)
             && !(matches!(
                 q.code.as_str(),
-                "annotation_line_over_view"
-                    | "annotation_leader_long"
-                    | "radius_leader_routing_fallback"
+                "annotation_line_over_view" | "annotation_leader_long"
             ) && reports.contains_key(q.subjects.first().map_or("", String::as_str)))
     });
     trial.problems.extend(checked);

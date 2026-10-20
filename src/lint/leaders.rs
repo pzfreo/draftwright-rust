@@ -19,10 +19,8 @@
 //!   trimmed profile. Exact face evidence is used where present; older straight-blend
 //!   analyses use their rolling axis and quarter/half/three-quarter samples.
 //! - `radius_leader_not_radial`: the drawn shaft (automatic or pinned) must meet the
-//!   middle 25–75% of that profile, within 15 degrees of radial, from its open centre side.
+//!   middle 25–75% of that profile, within 15 degrees of radial, from its open (non-material) side.
 //! - `radius_leader_target_unverifiable`: a straight blend's target cannot be read.
-//! - `radius_leader_direction_unverifiable`: fillet direction evidence cannot be read,
-//!   or no proven toroidal meridian can be read end-on in the drawing.
 //!
 //! - `leader_crosses_silhouette` (draftwright's structural check, #796/#798): a callout's shaft,
 //!   after leaving the material at its tip, cuts back into it in its own view, measured by
@@ -215,7 +213,11 @@ fn issue(code: &str, name: &str, view: &str, tip: P, message: String, why: &str)
         sheet: None,
         id: format!("l:{code}:{name}"),
         code: code.into(),
-        severity: Severity::Warning,
+        severity: if code == "radius_leader_target_unverifiable" {
+            Severity::Info
+        } else {
+            Severity::Warning
+        },
         message,
         at: Some(tip),
         view: Some(view.into()),
@@ -321,7 +323,6 @@ pub(super) fn check(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
         // Read the drawn shaft, so authored/pinned leaders receive the same check.
         // A consolidated fillet names its own faces, rather than borrowing a blend target.
         let fillets = claimed("fillet.radius");
-        let is_fillet = !fillets.is_empty();
         let (radii, parameter) = if fillets.is_empty() {
             (claimed("blend.radius"), "blend.radius")
         } else {
@@ -336,23 +337,11 @@ pub(super) fn check(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
                     Err(why) => reasons.push(why),
                 }
             }
-            let circular_path = radii.iter().any(|id| {
-                analysis.features.iter().any(|f| {
-                    f.id == *id
-                        && f.parameters
-                            .get("path")
-                            .is_some_and(|p| p.get("normal").is_some())
-                })
-            });
             reasons.sort();
             reasons.dedup();
             if shown.is_empty() {
                 found(
-                    if is_fillet || circular_path {
-                        "radius_leader_direction_unverifiable"
-                    } else {
-                        "radius_leader_target_unverifiable"
-                    },
+                    "radius_leader_target_unverifiable",
                     radii,
                     parameter,
                     format!(
@@ -363,11 +352,7 @@ pub(super) fn check(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
                 );
             } else if !shown.iter().any(|arc| arc.on_arc(tip)) {
                 found(
-                    if is_fillet || circular_path {
-                        "radius_leader_not_radial"
-                    } else {
-                        "radius_leader_target_mismatch"
-                    },
+                    "radius_leader_target_mismatch",
                     radii,
                     parameter,
                     format!(
@@ -377,15 +362,22 @@ pub(super) fn check(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
                     "drawn tip is outside the trimmed physical profile arc tolerance",
                 );
             } else if !shown.iter().any(|arc| arc.accepts([tip, elbow])) {
+                let mut why: Vec<_> = shown
+                    .iter()
+                    .filter(|arc| arc.on_arc(tip))
+                    .filter_map(|arc| arc.violation([tip, elbow]))
+                    .collect();
+                why.sort();
+                why.dedup();
                 found(
                     "radius_leader_not_radial",
                     radii,
                     parameter,
                     format!(
-                        "{}: radius leader must touch the middle 25–75% of the arc and approach within 15 degrees of radial from the open centre side",
+                        "{}: radius leader must touch the middle 25–75% of the arc and approach within 15 degrees of radial from the non-material side; automatic routing keeps the drawn route when no compliant candidate fits",
                         a.name
                     ),
-                    "the drawn shaft is at a tangent end, off radial, or approaches from the material side; a convex arc has no open centre-side approach",
+                    &why.join("; "),
                 );
             }
         }

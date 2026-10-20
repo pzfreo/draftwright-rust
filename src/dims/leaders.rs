@@ -2364,85 +2364,6 @@ pub(crate) fn settle_after_furniture(
     updated
 }
 
-/// Audit the route actually returned, even when a proposed final repair lost the sheet's
-/// collision audit. A rejected trial must never swallow the fallback warning with its ink.
-pub(crate) fn radius_fallbacks(
-    analysis: &crate::model::Analysis,
-    spec: &crate::model::Spec,
-    views: &[crate::model::PlannedView],
-    items: &[PlannedDimension],
-) -> Vec<Problem> {
-    let mut problems = Vec::new();
-    for d in items.iter().filter(|d| d.kind == "callout") {
-        if spec
-            .dimensions
-            .get(&d.id)
-            .is_some_and(|e| e.place.is_some())
-        {
-            continue;
-        }
-        let parameter = if d
-            .measurements
-            .iter()
-            .any(|m| m.parameter == "fillet.radius")
-        {
-            "fillet.radius"
-        } else {
-            "blend.radius"
-        };
-        let claims: Vec<_> = d
-            .measurements
-            .iter()
-            .filter(|m| m.parameter == parameter)
-            .collect();
-        if claims.is_empty() {
-            continue;
-        }
-        let (Some(p), Some(view)) = (&d.placed, views.iter().find(|v| v.id == d.view)) else {
-            continue;
-        };
-        let Some(&shaft) = p.lines.first() else {
-            continue;
-        };
-        let frame = Frame::new(analysis, view);
-        let mut arcs = Vec::new();
-        let mut reasons = Vec::new();
-        for claim in claims {
-            match crate::radius::projected(analysis, &claim.feature, view.direction, |q| {
-                frame.page(q)
-            }) {
-                Ok(more) => arcs.extend(more),
-                Err(why) => reasons.push(why),
-            }
-        }
-        if arcs.iter().any(|a| a.accepts(shaft)) {
-            continue;
-        }
-        reasons.sort();
-        reasons.dedup();
-        let why = if arcs.is_empty() {
-            reasons.join("; ")
-        } else if arcs.iter().all(|a| !a.centre_open) {
-            "the centre side is material, so no open centre-side approach exists".into()
-        } else {
-            "no compliant middle-arc radial route was selected within the drawing's constraints"
-                .into()
-        };
-        problems.push(Problem {
-            id: format!("p:radius_leader_routing_fallback:{}", d.id),
-            code: "radius_leader_routing_fallback".into(),
-            severity: "warning".into(),
-            message: format!(
-                "The radius leader “{}” retains its best existing route: {why}.",
-                d.label
-            ),
-            subjects: vec![d.id.clone()],
-            ..Default::default()
-        });
-    }
-    problems
-}
-
 /// Radius rules are applied to the final, fully populated sheet. The existing route is the
 /// fallback: a geometric improvement must also preserve the drawing's ink/contact budget.
 pub(crate) fn settle_radius_leaders(
@@ -2498,9 +2419,9 @@ pub(crate) fn settle_radius_leaders(
                 arcs.extend(more);
             }
         }
-        // Report unchanged/unreadable routes in the final audit, not as a placement
-        // update: warning-only passes must not reserve paper again during recovery.
-        if arcs.iter().all(|a| !a.centre_open) || arcs.iter().any(|a| a.accepts(shaft)) {
+        // Unreadable and already compliant routes do not trigger a placement update.
+        // Drawn lint audits retained routes without adding a duplicate plan problem.
+        if arcs.is_empty() || arcs.iter().any(|a| a.accepts(shaft)) {
             continue;
         }
         let view = v.id.trim_start_matches("v:");
@@ -2587,9 +2508,11 @@ pub(crate) fn settle_radius_leaders(
         let prior_contacts = contacts(old);
         let mut best: Option<Candidate> = None;
         if let Some(before) = &before {
-            for arc in arcs.iter().filter(|a| a.centre_open) {
+            let model_budget = model_crossings(&job, before);
+            let length_budget = length(&old.lines) + 2.0 + 1e-6;
+            for arc in &arcs {
                 for &tip in &arc.tips {
-                    let u = [arc.centre[0] - tip[0], arc.centre[1] - tip[1]];
+                    let u = arc.open_direction(tip);
                     let n = u[0].hypot(u[1]);
                     if n <= 1e-12 {
                         continue;
@@ -2600,21 +2523,32 @@ pub(crate) fn settle_radius_leaders(
                         let exit = exit_distance(tip, u, job.outline);
                         for reach in SWEEP_REACH.into_iter().chain(ESCAPES.map(|off| exit + off)) {
                             let elbow = [tip[0] + reach * u[0], tip[1] + reach * u[1]];
-                            if !arc.accepts([tip, elbow]) {
+                            // Every shoulder has this length. Reject over-budget reaches
+                            // before measuring the much more expensive peer contacts.
+                            if reach + SHOULDER > length_budget || !arc.accepts([tip, elbow]) {
                                 continue;
                             }
                             let right = elbow[0] >= tip[0];
-                            let Some(c) = measure(&job, tip, elbow, right, &fixed, &page) else {
+                            let Some(mut c) = measure_bounds(&job, tip, elbow, right, &page) else {
                                 continue;
                             };
+                            // Unmeasured contact costs are nonnegative, so this lower bound
+                            // cannot discard a candidate that would beat the current best.
+                            if c.hard > before.hard
+                                || best.as_ref().is_some_and(|b| c.score() >= b.score())
+                            {
+                                continue;
+                            }
+                            measure_fixed(&mut c, &job, &fixed);
+                            c.measure_features(&job);
                             if c.hard > before.hard
                                 || crate::material::reentry(footprint.solids(), [tip, elbow]) > 0.0
                                 || c.crossings > before.crossings
                                 || c.text > before.text
                                 || c.feature_crossings > before.feature_crossings
                                 || c.beside > before.beside
-                                || length(&c.segments()) > length(&old.lines) + 2.0 + 1e-6
-                                || model_crossings(&job, &c) > model_crossings(&job, before)
+                                || best.as_ref().is_some_and(|b| c.score() >= b.score())
+                                || model_crossings(&job, &c) > model_budget
                                 || !page.fits(&c.placed(), view)
                                 || !contacts(&c.placed()).is_subset(&prior_contacts)
                             {

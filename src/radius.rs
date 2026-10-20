@@ -159,16 +159,36 @@ impl Projected {
         )
     }
 
-    /// Tip-to-elbow must point towards the centre, not merely share the radial line.
-    pub fn accepts(&self, [tip, elbow]: [P; 2]) -> bool {
-        let u = [self.centre[0] - tip[0], self.centre[1] - tip[1]];
+    /// Tip-to-elbow points into air: inward for a concavity, outward for a convexity.
+    pub fn open_direction(&self, tip: P) -> P {
+        let sign = if self.centre_open { 1.0 } else { -1.0 };
+        [0, 1].map(|k| sign * (self.centre[k] - tip[k]))
+    }
+
+    pub fn violation(&self, [tip, elbow]: [P; 2]) -> Option<&'static str> {
+        if !self.on_arc(tip) {
+            return Some("the tip misses the named trimmed arc");
+        }
+        if !self.middle(tip) {
+            return Some("the tip is outside the middle 25–75% of the sweep, near a tangent end");
+        }
+        let u = self.open_direction(tip);
         let v = [elbow[0] - tip[0], elbow[1] - tip[1]];
         let norm = u[0].hypot(u[1]) * v[0].hypot(v[1]);
-        self.centre_open
-            && self.on_arc(tip)
-            && self.middle(tip)
-            && norm > 1e-12
-            && u[0] * v[0] + u[1] * v[1] >= RADIAL_DEGREES.to_radians().cos() * norm - 1e-9
+        let dot = u[0] * v[0] + u[1] * v[1];
+        if norm <= 1e-12 {
+            Some("the shaft has zero length")
+        } else if dot <= 0.0 {
+            Some("the shaft approaches from the material side")
+        } else if dot < RADIAL_DEGREES.to_radians().cos() * norm - 1e-9 {
+            Some("the shaft is more than 15 degrees off radial")
+        } else {
+            None
+        }
+    }
+
+    pub fn accepts(&self, shaft: [P; 2]) -> bool {
+        self.violation(shaft).is_none()
     }
 }
 
@@ -343,5 +363,12 @@ mod tests {
         let mut convex = arc;
         convex.centre_open = false;
         assert!(!convex.accepts(shaft(45.0, 0.0)));
+        for angle in [22.5, 45.0, 67.5] {
+            for deviation in [-15.0, 0.0, 15.0] {
+                assert!(convex.accepts(shaft(angle, 180.0 + deviation)));
+            }
+        }
+        assert!(!convex.accepts(shaft(0.0, 180.0)));
+        assert!(!convex.accepts(shaft(45.0, 196.0)));
     }
 }
