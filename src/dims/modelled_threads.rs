@@ -25,6 +25,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         let k = crate::bridge::holes::principal(t.axis).unwrap_or_else(|| {
             (0..3)
                 .max_by(|&a, &b| t.axis[a].abs().total_cmp(&t.axis[b].abs()))
+                // Invariant: The iterator is over the fixed three coordinate axes.
                 .expect("three coordinates")
         });
         let (text, standard) = t.designation();
@@ -37,6 +38,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             .flat_map(|j| {
                 [-1., 1.].map(move |side| {
                     let radial = [0, 1, 2].map(|i| f64::from(i == j) - t.axis[j] * t.axis[i]);
+                    // Invariant: j excludes the dominant axis k, so this radial component is nonzero.
                     let radial = haecceity::geom::unit(radial).expect("transverse coordinate");
                     (
                         haecceity::geom::add(at, haecceity::geom::scale(radial, side * t.crest())),
@@ -169,6 +171,7 @@ pub(super) fn route_profile(a: &Analysis, w: &mut Want, view: &str) {
     let sites = if along.abs() > 1. - 1e-6 {
         vec![(t.at((t.span[0] + t.span[1]) / 2.), t.crest())]
     } else {
+        // Invariant: The end-on branch was excluded, so the normalized axis cross view is nonzero.
         let radial = haecceity::geom::unit(haecceity::geom::cross(t.axis, *toward)).unwrap();
         [t.span[0], (t.span[0] + t.span[1]) / 2., t.span[1]]
             .into_iter()

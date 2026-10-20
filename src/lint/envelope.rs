@@ -212,6 +212,7 @@ fn proof(carriers: &[Carrier], k: usize, lo: f64, hi: f64) -> Option<Vec<String>
             .copied()
             .filter(|c| c.chain == Some(chain))
             .collect();
+        // Invariant: Carriers are built from finite parsed dimensions and geometric intervals.
         links.sort_by(|a, b| (a.lo, a.hi).partial_cmp(&(b.lo, b.hi)).unwrap());
         links.dedup_by(|a, b| a.lo == b.lo && a.hi == b.hi);
         if (links[0].lo - lo).abs() > TOL {

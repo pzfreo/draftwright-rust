@@ -1010,7 +1010,9 @@ fn general(x: f64) -> String {
         return format!("{x}");
     }
     let sci = format!("{x:.5e}");
+    // Invariant: The finite nonzero value is formatted locally with Rust scientific notation and an integer exponent.
     let (mantissa, exp) = sci.split_once('e').expect("an exponent");
+    // Invariant: The finite nonzero value is formatted locally with Rust scientific notation and an integer exponent.
     let exp: i32 = exp.parse().expect("an exponent");
     if !(-4..6).contains(&exp) {
         let m = mantissa.trim_end_matches('0').trim_end_matches('.');

@@ -113,6 +113,7 @@ impl Font {
     }
 
     fn face(&self) -> Face<'_> {
+        // Invariant: Font bytes are bundled at build time and parsed unchanged, independently of user input.
         Face::parse(&self.data, 0).expect("parsed in new")
     }
 

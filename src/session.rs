@@ -211,12 +211,14 @@ impl State {
 }
 
 fn document(p: &Plan) -> Value {
+    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
     serde_json::to_value(p).expect("a plan serialises")
 }
 fn record_id(v: &Value) -> String {
     v["id"].as_str().map(String::from).unwrap_or_else(|| {
         format!(
             "sheet:{}",
+            // Invariant: record_id sees only plan collections; records without id are PlannedSheet with a u32 number.
             v["number"].as_u64().expect("a sheet has a number")
         )
     })
@@ -258,8 +260,10 @@ fn patch(old: &Plan, new: &Plan) -> PlanDelta {
     }
     for name in a
         .as_object()
+        // Invariant: document serializes a Plan struct as an object.
         .unwrap()
         .keys()
+        // Invariant: document serializes a Plan struct as an object.
         .chain(b.as_object().unwrap().keys())
     {
         if !COLLECTIONS.contains(&name.as_str()) && a[name] != b[name] {
@@ -274,6 +278,7 @@ impl Delta {
         let mut doc = document(&state.plan);
         for (name, value) in &self.plan.fields {
             if value.is_null() {
+                // Invariant: document serializes a Plan struct as an object; field removals preserve that shape.
                 doc.as_object_mut().unwrap().remove(name);
             } else {
                 doc[name] = value.clone();
@@ -438,6 +443,7 @@ impl Session {
         spec: Spec,
         mut projections: Projections,
     ) -> Result<Self, Error> {
+        // Invariant: Font bytes are bundled at build time and parsed unchanged, independently of user input.
         let font = Font::new(api::MONO.to_vec()).expect("the bundled font parses");
         let mut planner = Planner::default();
         let plan = planner.plan(&analysis, &spec)?;
@@ -500,6 +506,7 @@ impl Session {
             .dimensions
             .iter()
             .find(|d| d.id == item.item.id)
+            // Invariant: item derives dimension_kind from the dimension with this same id in this immutable plan.
             .unwrap();
         let ink = crate::dims::label_ink(&d.terms, crate::dims::font());
         let width = ink.max[0] - ink.min[0];
@@ -601,6 +608,7 @@ impl Session {
     pub fn apply(&mut self, ops: &[Op], commit: bool) -> Result<Delta, Error> {
         let spec = model::edit(
             self.spec(),
+            // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
             &serde_json::to_value(ops).expect("ops serialise"),
         )?;
         let evaluated = self.evaluate(&spec)?;
@@ -625,6 +633,7 @@ impl Session {
     pub fn set_pmi_ops(&mut self, bytes: &[u8], ops: &[Op]) -> Result<Delta, Error> {
         let spec = model::edit(
             self.spec(),
+            // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
             &serde_json::to_value(ops).expect("ops serialise"),
         )?;
         // A part of an assembly read alone takes its own PMI only.
@@ -650,6 +659,7 @@ impl Session {
     /// SVG fragments in sheet coordinates, sharing the full renderer's styles and text.
     pub fn svg_fragments(&self, delta: Option<&Delta>) -> BTreeMap<String, String> {
         self.svg_fragments_on_sheet(delta, 1)
+            // Invariant: Every successfully constructed session has sheet 1.
             .expect("sheet 1 exists")
     }
     pub fn drawing_on_sheet(&self, sheet: u32) -> Result<Drawing, Error> {
@@ -942,6 +952,7 @@ impl Session {
         // Spec are its mutable rendering inputs. Reuse an exact preview's assembled
         // drawing, still planning, placing geometry and computing ink/deltas each time.
         let key: [u8; 32] = Sha256::digest(
+            // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
             serde_json::to_vec(&(spec, &self.analysis.pmi)).expect("render inputs serialize"),
         )
         .into();
@@ -1577,6 +1588,7 @@ fn scoped_fields(mut fields: BTreeMap<String, Value>) -> BTreeMap<String, Value>
                 crate::fixes::scope(&ops)
             })
             .unwrap_or_else(|| crate::fixes::path_scope(path));
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         descriptor["scope"] = serde_json::to_value(scope).unwrap();
     }
     fields
@@ -1688,6 +1700,7 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                 a.basis = std::iter::once(&plan.sheet)
                     .chain(&plan.sheets)
                     .find(|s| s.number == item.sheet)
+                    // Invariant: Sheet items are generated directly from this plan's sheet collection.
                     .expect("a sheet item has a planned sheet")
                     .basis
                     .clone();
@@ -1911,6 +1924,7 @@ fn difference(old: &State, new: &State, analysis: &Analysis, plans: usize) -> De
         .filter(|i| {
             before.get(&i.item.id).is_some_and(|b| {
                 old_records.get(&i.item.id) != new_records.get(&i.item.id)
+                    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
                     || serde_json::to_value(b).unwrap() != serde_json::to_value(i).unwrap()
             })
         })
@@ -1928,6 +1942,7 @@ fn difference(old: &State, new: &State, analysis: &Analysis, plans: usize) -> De
                     .views
                     .iter()
                     .find(|v| &v.id == id)
+                    // Invariant: render_geometry emits entries only for views in this same new plan.
                     .expect("geometry has a planned view");
                 a.is_none_or(|a| {
                     a.sheet != b.sheet

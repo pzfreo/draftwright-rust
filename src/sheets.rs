@@ -202,6 +202,7 @@ pub(crate) fn validate(spec: &Spec) -> Result<(), Invalid> {
                         "remove sheet/scale".into(),
                         format!(
                             "set sheets/smallest_scale {}",
+                            // Invariant: The preceding is_some_and succeeded on this same optional scale.
                             spec.sheet.scale.as_ref().unwrap()
                         ),
                     ],
@@ -287,6 +288,7 @@ fn candidates(analysis: &Analysis, spec: &Spec, long: bool) -> Vec<Vec<String>> 
         let group = groups(spec)
             .into_iter()
             .find(|g| g.iter().any(|n| n == name))
+            // Invariant: groups inserts singleton groups for every allocatable view/table name.
             .unwrap();
         if out.contains(&group)
             || !group.iter().any(|n| available(analysis, spec, n, long))
@@ -349,6 +351,7 @@ fn run(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
             crate::planning::policy_key(analysis),
             crate::planning::nominals_deferred(),
         ))
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         .expect("fixed sheet inputs serialize");
         let mut plan = crate::planning::memo(analysis, "fixed-sheet-run", key, || {
             run_uncached(analysis, &single)
@@ -466,6 +469,7 @@ fn allocate_inner(
             }
             let mut copy = working(analysis, spec, &moved);
             if moved.contains_key("hole_table") {
+                // Invariant: Allocation initialized the multi-sheet Spec before copying it.
                 copy.sheets.as_mut().unwrap().hole_table = Some(2);
             }
             first = run(analysis, &copy)?;
@@ -499,6 +503,7 @@ fn allocate_inner(
             break;
         }
     }
+    // Invariant: Step zero is inserted as the seed candidate before trying reallocations.
     let (_, mut p) = best.expect("step zero was packed");
     if maximum(spec) > 1 || !moved.is_empty() {
         p.sheet.basis += &format!("; sheet allocation: {}", tried.join("; "));
@@ -705,6 +710,7 @@ fn auxiliary(
         [0., -1., 0.]
     };
     let up = [0., 0., 1.];
+    // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
     let view = crate::haecceity::hlr::View::new(direction, up).expect("auxiliary view");
     let (extent, _) = model::extent(analysis, &view);
     let bounds = if name == "iso" {
@@ -1100,6 +1106,7 @@ fn pack_with_overflow(
         for table in plan.tables.iter_mut().filter(|t| t.sheet == old) {
             table.sheet = n;
             if old != n {
+                // Invariant: Planned authored tables were emitted from this same spec.tables list.
                 let i = spec.tables.iter().position(|t| t.id == table.id).unwrap();
                 problems.push(problem(
                     "sheet_renumbered",
@@ -1142,6 +1149,7 @@ fn pack_with_overflow(
             view.line_work = generated
                 .iter()
                 .find(|v| v.id == view.id)
+                // Invariant: The selected moved table is present in the immutable source Spec.
                 .unwrap()
                 .line_work
                 .clone();
@@ -1235,6 +1243,7 @@ fn cross_references(analysis: &Analysis, plan: &mut Plan) {
                 })
                 .unwrap_or([parent.at; 2]);
             let projection =
+                // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
                 crate::haecceity::hlr::View::new(v.direction, v.up).expect("section view");
             let caption = [
                 v.at[0],
@@ -1244,6 +1253,7 @@ fn cross_references(analysis: &Analysis, plan: &mut Plan) {
                 std::iter::once(&plan.sheet)
                     .chain(&plan.sheets)
                     .find(|s| s.number == number)
+                    // Invariant: Sheet assignments are validated before cross references are generated.
                     .expect("reference sheet")
                     .page
             };
@@ -1286,8 +1296,10 @@ fn cross_references(analysis: &Analysis, plan: &mut Plan) {
         })
         .collect();
     for (id, from, to) in refs {
+        // Invariant: refs was collected from these same plan views with no intervening mutation.
         let v = plan.views.iter_mut().find(|v| v.id == id).unwrap();
         v.xref = Some(from);
+        // Invariant: refs includes only views whose cut is Some.
         v.cut.as_mut().unwrap().xref = Some(to);
     }
 }
@@ -1305,6 +1317,7 @@ fn reference_position(
     static FONT: OnceLock<crate::text::Font> = OnceLock::new();
     let font = FONT.get_or_init(|| {
         crate::text::Font::new(include_bytes!("../fonts/IBMPlexMono-Regular.ttf").to_vec())
+            // Invariant: Font bytes are bundled at build time and parsed unchanged, independently of user input.
             .expect("bundled section font")
     });
     let laid = font.text(text, crate::section::FONT_SIZE);
@@ -1312,6 +1325,7 @@ fn reference_position(
     local.sheet = std::iter::once(&plan.sheet)
         .chain(&plan.sheets)
         .find(|s| s.number == number)
+        // Invariant: The validated owning sheet number came from this same plan.
         .unwrap()
         .clone();
     local.views.retain(|v| v.sheet == number);

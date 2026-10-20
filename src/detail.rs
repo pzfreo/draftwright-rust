@@ -200,6 +200,7 @@ fn members(a: &Analysis, name: &str, auth: &DetailSpec) -> Result<Vec<MemberCrop
             let b = [[b[0], b[1], b[2]], [b[3], b[4], b[5]]];
             bounds = Some(bounds.map_or(b, |previous| union(previous, b)));
         }
+        // Invariant: Member validation requires a nonempty set of faces with finite bounds.
         let bounds = bounds.expect("named faces is nonempty");
         let source = ["front", "plan", "side"].into_iter().find(|source| visible(bounds, source)).ok_or_else(|| Invalid {
             message: format!("Detail {name}: face {id:?} has no non-degenerate crop."), choices: vec![],
@@ -229,6 +230,7 @@ fn feature_crop(a: &Analysis, f: &crate::bridge::Feature) -> MemberCrop {
             .unwrap_or_else(|| [0, 1, 2].map(|k| (bounds[0][k] + bounds[1][k]) / 2.0));
         let axis = f.fingerprint.axis.and_then(holes::principal).unwrap_or(1);
         source = ["side", "front", "plan"][axis];
+        // Invariant: Excluding one axis from 0..3 leaves two choices.
         primary = (0..3).find(|k| *k != axis).unwrap();
         let half = f.fingerprint.sizes.values().copied().fold(4.0, f64::max) * 0.75;
         for k in 0..3 {
@@ -288,6 +290,7 @@ fn dimension(feature: &str, parameter: &str) -> String {
 pub(crate) fn requests(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Detail)> {
     // Sheet convergence asks for the same scale repeatedly. Keep this immutable
     // preparation in the planning scope, shared with its recovery candidates.
+    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
     let key = serde_json::to_vec(&(spec, sheet.to_bits())).expect("detail inputs serialize");
     crate::planning::memo(a, "detail_requests", key, || {
         requests_uncached(a, spec, sheet)
@@ -309,6 +312,7 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
         if view.omit {
             continue;
         }
+        // Invariant: detail::check validated members for this same immutable Spec and Analysis.
         let crops = members(a, name, auth).expect("checked detail members");
         let mut bounds = crops[0].bounds;
         let mut ids = Vec::new();
@@ -479,6 +483,7 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
                 }
                 let mut bounds = a.envelope;
                 let lo = bands[run[0]].1.lo;
+                // Invariant: Runs are created with their first band index before being extended.
                 let hi = bands[*run.last().unwrap()].1.hi;
                 bounds[0][axis] = lo;
                 bounds[1][axis] = hi;
@@ -579,7 +584,9 @@ fn requests_uncached(a: &Analysis, spec: &Spec, sheet: f64) -> Vec<(String, Deta
             if needed.is_finite() && needed <= sheet * 10.0 {
                 let scale = selected_scale(sheet, needed, false);
                 let mut bounds = a.envelope;
+                // Invariant: The preceding condition requires at least two levels.
                 let pad = 0.08 * (levels.last().unwrap() - levels[0]) + 1.0;
+                // Invariant: The preceding condition requires at least two levels.
                 bounds[1][2] = (levels.last().unwrap() + pad).min(bounds[1][2]);
                 // Keep the whole feature silhouette. A support-centred strip can show
                 // unrelated edge fragments instead of the step being dimensioned.
@@ -704,6 +711,7 @@ pub(crate) fn caption(d: &Detail) -> String {
 /// Use the crop's reserved row for both placement and drawing, even when the
 /// projected silhouette leaves blank space inside the crop.
 pub(crate) fn caption_at(v: &PlannedView) -> [f64; 2] {
+    // Invariant: Only views with detail metadata enter the caption iterator.
     let [_, h] = size(v.detail.as_ref().expect("detail caption"));
     [v.at[0], v.at[1] - h / 2.0 - 8.0]
 }
@@ -745,6 +753,7 @@ pub(crate) fn caption_obstacles(views: &[PlannedView]) -> Vec<crate::dims::Plann
 pub(crate) fn crop_extent(a: &Analysis, v: &PlannedView) -> ([f64; 2], [f64; 2]) {
     crate::model::envelope_extent(
         v.detail.as_ref().map_or(a.envelope, |d| d.bounds),
+        // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
         &haecceity::hlr::View::new(v.direction, v.up).expect("planned view"),
     )
 }
@@ -892,6 +901,7 @@ pub(crate) fn marker(
     page: [f64; 2],
     avoid: &[Rect],
 ) -> (crate::output::Curve, [f64; 2]) {
+    // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
     let view = haecceity::hlr::View::new(source.direction, source.up).expect("source view");
     let (size, centre) = crate::model::envelope_extent(d.marked_bounds, &view);
     let parent = crate::model::extent(a, &view).1;

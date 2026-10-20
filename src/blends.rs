@@ -111,6 +111,7 @@ pub fn reliefs(part: &Part) -> Vec<Relief> {
         if common.len() != 1 {
             continue;
         }
+        // Invariant: The preceding condition requires common.len() == 1.
         let carrier = *common.first().unwrap();
         let Surface::Plane { frame: top } = &part.faces[carrier].surface else {
             continue;

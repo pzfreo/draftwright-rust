@@ -38,7 +38,9 @@ fn number(v: f64) -> String {
     }
     if v.abs() < 1e-4 {
         let text = format!("{v:e}");
+        // Invariant: The finite small nonzero magnitude branch uses Rust scientific notation.
         let (m, e) = text.split_once('e').unwrap();
+        // Invariant: Rust scientific notation emits an integer exponent that fits i32.
         return format!("{m}e{:+03}", e.parse::<i32>().unwrap());
     }
     v.to_string()

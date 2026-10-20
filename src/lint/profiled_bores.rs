@@ -52,6 +52,7 @@ pub fn key(analysis: &Analysis, f: &Feature) -> Result<(Key, f64, f64), String> 
     let axis = dir_to_part(&frame, axis);
     let axis = (0..3)
         .max_by(|&i, &j| axis[i].abs().total_cmp(&axis[j].abs()))
+        // Invariant: The iterator is over the fixed three coordinate axes.
         .expect("three components");
     let size = |name: &str| {
         p.get(name)

@@ -320,6 +320,7 @@ pub(crate) fn attach(analysis: &crate::model::Analysis, plan: &mut crate::model:
         crate::planning::BoundedMemo::new(64);
     let key: [u8; 32] = Sha256::digest(
         serde_json::to_vec(&(&*plan, crate::planning::policy_key(analysis)))
+            // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
             .expect("fix inputs serialize"),
     )
     .into();

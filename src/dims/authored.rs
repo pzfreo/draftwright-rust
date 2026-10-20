@@ -78,6 +78,7 @@ pub(super) fn append(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<()
     }
     check(s)?;
     for (id, d) in s.dimensions.iter().filter(|(_, d)| d.between.is_some()) {
+        // Invariant: This loop selects authored dimensions with between references.
         let refs = d.between.as_ref().unwrap();
         if s.binding
             .as_ref()
@@ -95,6 +96,7 @@ pub(super) fn append(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<()
             .map_err(|why| invalid(format!("dimensions/{id}: {why}")))?;
         let (shape, views) = match kind {
             "linear" => {
+                // Invariant: resolve returns witnesses for a successfully resolved linear measurement.
                 let [p, q] = m.witnesses.unwrap();
                 if let Some(k) = ["x", "y", "z"].iter().position(|k| Some(*k) == along) {
                     (
@@ -118,6 +120,7 @@ pub(super) fn append(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<()
                 }
             }
             "angle" => {
+                // Invariant: resolve returns an angle for a successfully resolved angular measurement.
                 let angle = m.angle.unwrap();
                 let views = angle
                     .principal()

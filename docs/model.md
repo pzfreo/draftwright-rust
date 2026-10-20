@@ -2502,8 +2502,8 @@ paper has no room, with the frame, title block, tables, notes, projection alignm
 and pinned annotation stations held clear. Automatic isometrics and sections
 reserve their drawn geometry, annotation ink and captions. Relative view
 placements retain their authored `views/<name>/place/gap`, including zero.
-`sheet/view_gutter` sets the preferred maximum paper-mm spacing (finite,
-non-negative); `0` disables this final spacing pass.
+`sheet/view_gutter` sets the preferred maximum paper-mm spacing (0–1189,
+the largest supported sheet width); `0` disables this final spacing pass.
 
 ### PMI and location origins
 

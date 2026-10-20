@@ -61,7 +61,10 @@ All JSON arguments/results are **strings**, requiring `JSON.stringify`/`JSON.par
 The other boundary values are names/source hashes (strings), bytes (`Uint8Array`), booleans
 and counts (numbers). Fallible methods throw a **string** containing serialized
 `draftwright::api::Error`: `{ "code": "invalid" | "failed", "message": "...", "choices"?: [...] }`.
-Rust panics invoke `console_error_panic_hook`; they are traps, not recoverable API errors.
+Input checks return refusals before planning or rendering can panic. Edit paths are limited
+to 64 components and view gutters to 0–1189 paper mm (the largest supported sheet width).
+Rust panics still invoke `console_error_panic_hook` and trap; `catch_unwind` cannot recover
+on this target. The browser parity job exercises hostile requests followed by valid calls.
 
 | Method | Result and behaviour |
 | --- | --- |

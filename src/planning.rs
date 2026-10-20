@@ -74,6 +74,7 @@ thread_local! {
 /// bounding retention by 256 entries plus the existing single-call planning budget.
 pub(crate) fn with_retained<T>(analysis: &Analysis, run: impl FnOnce() -> T) -> T {
     let key: [u8; 32] =
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         Sha256::digest(serde_json::to_vec(analysis).expect("analysis serializes")).into();
     let values = RETAINED.with(|retained| {
         let mut retained = retained.borrow_mut();
@@ -166,6 +167,7 @@ pub(crate) fn memo<T: Clone + 'static>(
     };
     let key = (name, key);
     if let Some(value) = values.borrow().get(&key) {
+        // Invariant: Preparation keys include TypeId::of::<T>(); only T is stored for that key.
         return value.downcast_ref::<T>().expect("preparation type").clone();
     }
     let value = prepare();
@@ -187,6 +189,7 @@ pub(crate) fn lookup<T: Clone + 'static>(
             .values
             .borrow()
             .get(&(name, key.to_vec()))
+            // Invariant: Preparation keys include TypeId::of::<T>(); only T is stored for that key.
             .map(|v| v.downcast_ref::<T>().expect("preparation type").clone())
     })
 }
@@ -235,6 +238,7 @@ pub(crate) struct BoundedMemo<T> {
 
 impl<T: Clone> BoundedMemo<T> {
     pub(crate) const fn new(capacity: usize) -> Self {
+        // Invariant: Memo capacities are positive constants at all construction sites.
         assert!(capacity > 0);
         Self {
             capacity,
@@ -246,6 +250,7 @@ impl<T: Clone> BoundedMemo<T> {
         let stored = self
             .values
             .lock()
+            // Invariant: The memo lock protects only fixed-key lookup and Arc cloning, without user callbacks.
             .expect("planning memo lock")
             .iter()
             .find(|(k, _)| k == key)
@@ -255,6 +260,7 @@ impl<T: Clone> BoundedMemo<T> {
 
     pub(crate) fn insert(&self, key: [u8; 32], value: T) {
         let value = Arc::new(value);
+        // Invariant: The memo lock protects fixed-key deque updates; evicted values are dropped after unlocking.
         let mut values = self.values.lock().expect("planning memo lock");
         let previous = values.iter().position(|(k, _)| *k == key);
         let replaced = previous.and_then(|at| values.remove(at));

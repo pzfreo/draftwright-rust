@@ -75,7 +75,8 @@
                   "number",
                   "null"
                 ],
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 1189
               },
               "projection": {
                 "enum": [
@@ -322,7 +323,12 @@
                 }
               },
               "view_gutter": {
-                "$ref": "#/F"
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1189
               },
               "projection": {
                 "enum": [
@@ -524,7 +530,11 @@
             "maxItems": 4
           },
           "radius": {
-            "$ref": "#/F"
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
           }
         },
         "additionalProperties": false,
@@ -573,13 +583,6 @@
         "$ref": "#/D"
       },
       "type": "array"
-    },
-    "F": {
-      "minimum": 0,
-      "type": [
-        "number",
-        "null"
-      ]
     }
   },
   "get_item": {
@@ -658,7 +661,8 @@
                   "number",
                   "null"
                 ],
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 1189
               },
               "projection": {
                 "enum": [
@@ -895,7 +899,8 @@
                   "number",
                   "null"
                 ],
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 1189
               },
               "projection": {
                 "enum": [
@@ -1150,7 +1155,8 @@
                   "number",
                   "null"
                 ],
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 1189
               },
               "projection": {
                 "enum": [
@@ -1383,7 +1389,8 @@
                   "number",
                   "null"
                 ],
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 1189
               },
               "projection": {
                 "enum": [
@@ -1666,7 +1673,8 @@
                   "number",
                   "null"
                 ],
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 1189
               },
               "projection": {
                 "enum": [
@@ -1953,7 +1961,8 @@
                   "number",
                   "null"
                 ],
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 1189
               },
               "projection": {
                 "enum": [
@@ -2218,7 +2227,8 @@
                   "number",
                   "null"
                 ],
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 1189
               },
               "projection": {
                 "enum": [
@@ -2455,7 +2465,8 @@
                   "number",
                   "null"
                 ],
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 1189
               },
               "projection": {
                 "enum": [
@@ -2683,7 +2694,8 @@
                   "number",
                   "null"
                 ],
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 1189
               },
               "projection": {
                 "enum": [

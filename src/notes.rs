@@ -136,6 +136,7 @@ pub(crate) fn reconcile(
                 message: format!("The Spec note {:?} repeats the part's PMI note {:?}. Keep the requirement in the model; remove the Spec copy.", n.text, r.value),
                 subjects: vec![r.id.clone(), n.id.clone()],
                 refs: vec![r.source.clone(), format!("notes/{i}")],
+                // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
                 fix: vec![crate::items::Op::set("notes", serde_json::to_value(remaining).expect("notes serialise"))],
                 fixes: Vec::new(),
             });
@@ -321,9 +322,11 @@ pub fn wrap(text: &str) -> Vec<String> {
                 break;
             }
             width += len(c);
+            // Invariant: The while-let condition just observed chunks.last() as Some.
             line.push(chunks.pop().expect("a chunk"));
         }
         if line.is_empty() && chunks.last().is_some_and(|c| len(c) > WRAP) {
+            // Invariant: The is_some_and condition just observed chunks.last() as Some.
             line.push(chunks.pop().expect("a chunk"));
         }
         if line.last().is_some_and(|c| blank(c)) {
@@ -650,6 +653,7 @@ pub(crate) fn radius_notes(
         });
         n.state = State::Shown;
         // Explicit placements remain visible, with impossible requests reported on their ID.
+        // Invariant: The placement was assigned Some immediately above.
         let cells = n.placed.as_ref().unwrap().cells;
         if cells[0] < 0.0 || cells[1] < 0.0 || cells[2] > sheet.page[0] || cells[3] > sheet.page[1]
         {
@@ -685,6 +689,7 @@ pub(crate) fn plan_radii(
         .filter(|v| ["v:front", "v:plan", "v:side"].contains(&v.id.as_str()))
     {
         let view =
+            // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
             crate::haecceity::hlr::View::new(v.direction, v.up).expect("planned principal view");
         let (size, _) = crate::model::extent(analysis, &view);
         v.area = [

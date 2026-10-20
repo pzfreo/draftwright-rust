@@ -116,7 +116,9 @@ impl Curve {
                 t1,
                 ..
             } => Curve::conic_at(*centre, *radii, *x_axis, *y_axis, *t1),
+            // Invariant: projected drops empty curves; curve constructors emit nonempty pieces of at least two poles.
             Curve::Beziers(b) => *b[b.len() - 1].last().unwrap(),
+            // Invariant: projected drops empty curves; curve constructors emit nonempty pieces of at least two poles.
             Curve::Rational(r) => point(*r[r.len() - 1].last().unwrap()),
         }
     }
@@ -125,6 +127,7 @@ impl Curve {
     pub fn trim(&self, lo: f64, hi: f64) -> Self {
         fn split<const N: usize>(p: &[[f64; N]], t: f64) -> (Vec<[f64; N]>, Vec<[f64; N]>) {
             let mut q = p.to_vec();
+            // Invariant: trim splits only nonempty Bezier pieces produced by curve construction.
             let (mut left, mut right) = (vec![q[0]], vec![*q.last().unwrap()]);
             while q.len() > 1 {
                 q = q
@@ -132,6 +135,7 @@ impl Curve {
                     .map(|w| std::array::from_fn(|k| (1.0 - t) * w[0][k] + t * w[1][k]))
                     .collect();
                 left.push(q[0]);
+                // Invariant: The loop runs only while q has more than one pole; windows(2) leaves at least one.
                 right.push(*q.last().unwrap());
             }
             right.reverse();
@@ -1057,6 +1061,7 @@ impl Drawing {
             for item in &layer.items {
                 if layer.name == "centres" {
                     c.set_dash_pattern(
+                        // Invariant: This branch executes only when the style has a dash pattern.
                         st.dash.unwrap().iter().map(|&n| n as f32),
                         centre_phase(item) as f32,
                     );
@@ -1200,7 +1205,9 @@ impl Drawing {
         let deflate = |data: &[u8]| {
             use std::io::Write as _;
             let mut z = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::best());
+            // Invariant: The compression writer targets an in-memory Vec.
             z.write_all(data).expect("writes to memory");
+            // Invariant: The compression writer targets an in-memory Vec.
             z.finish().expect("writes to memory")
         };
         let content = deflate(&c.finish());
@@ -1209,6 +1216,7 @@ impl Drawing {
         let mut font_refs = Vec::new();
         for (file, (of, _)) in &cids {
             let data = &faces[file];
+            // Invariant: The font map contains only faces successfully parsed above.
             let face = ttf_parser::Face::parse(data, 0).expect("parsed above");
             let n = face.number_of_glyphs();
             let by_cid: BTreeMap<u16, char> = of.iter().map(|(ch, cid)| (*cid, *ch)).collect();
@@ -1225,6 +1233,7 @@ impl Drawing {
             let subset = subsetter::subset(data, 0, &remapper).ok();
             let program = subset.as_deref().unwrap_or(data);
             let new_gid = |g: u16| match subset {
+                // Invariant: used and the glyph remapper were built from every glyph in by_cid.
                 Some(_) => remapper.get(g).expect("each glyph shown is kept"),
                 None => g,
             };
@@ -1474,6 +1483,25 @@ impl From<&haecceity::hlr::Exact> for Curve {
                 t0,
                 t1,
             } => {
+                // Kernel geometry is an input boundary too: malformed spline arrays
+                // become edges_not_drawn through projected(), rather than slice panics.
+                let valid = *degree > 0
+                    && poles.len() > *degree
+                    && poles.len() == weights.len()
+                    && poles
+                        .len()
+                        .checked_add(*degree)
+                        .and_then(|n| n.checked_add(1))
+                        == Some(knots.len())
+                    && knots.iter().all(|k| k.is_finite())
+                    && knots.windows(2).all(|w| w[0] <= w[1])
+                    && poles.iter().flatten().all(|v| v.is_finite())
+                    && weights.iter().all(|w| w.is_finite() && *w > 0.)
+                    && t0.is_finite()
+                    && t1.is_finite();
+                if !valid {
+                    return Curve::Rational(Vec::new());
+                }
                 let homogeneous = poles
                     .iter()
                     .zip(weights)
@@ -1571,10 +1599,10 @@ fn stretch_pieces(
     }
     let tol = 1e-9 * period;
     let whole = bezier_pieces(degree, knots.clone(), poles.clone(), start, end);
-    let (first, last) = (
-        rational_at(&whole[0], 0.0),
-        rational_at(&whole[whole.len() - 1], 1.0),
-    );
+    let (Some(first), Some(last)) = (whole.first(), whole.last()) else {
+        return Vec::new();
+    };
+    let (first, last) = (rational_at(first, 0.0), rational_at(last, 1.0));
     let size = poles
         .iter()
         .flat_map(|q| [q[0] / q[2], q[1] / q[2]])
@@ -1718,6 +1746,7 @@ fn elevate(poles: &[[f64; 3]], degree: usize) -> Vec<[f64; 3]> {
 /// Geometry as SVG inspection sees it: exported control-point precision,
 /// polynomial rational pieces, and the canonical origin of a circle element.
 pub(crate) fn inspection_curve(curve: &Curve) -> Curve {
+    // Invariant: num formats an f64 as a decimal string, which Rust parses back as f64.
     let round = |p: P| p.map(|x| num(x).parse::<f64>().expect("SVG coordinates are numbers"));
     let bezier = |p: &[Vec<P>]| {
         Curve::Beziers(
@@ -1891,6 +1920,7 @@ fn svg_segments(curve: &Curve, d: &mut String) {
                     2 => "L",
                     3 => "Q",
                     n => {
+                        // Invariant: Beziers are line/quadratic/cubic pieces; higher-degree NURBS pass through polynomial first.
                         assert_eq!(n, 4, "a Bézier piece of {n} poles (at most 4 are drawn)");
                         "C"
                     }
@@ -2013,6 +2043,7 @@ pub(crate) fn path_segments(curve: &Curve) -> Vec<PathSeg> {
                     PathSeg::Cubic(c1, c2, p[2])
                 }
                 n => {
+                    // Invariant: Beziers are line/quadratic/cubic pieces; higher-degree NURBS pass through polynomial first.
                     assert_eq!(n, 4, "a Bézier piece of {n} poles (at most 4 are drawn)");
                     PathSeg::Cubic(p[1], p[2], p[3])
                 }
@@ -2128,6 +2159,29 @@ pub(crate) fn label_gap(lines: &[[P; 2]], label: [f64; 4]) -> Option<f64> {
 mod tests {
     use super::*;
     use haecceity::hlr::Exact;
+
+    #[test]
+    fn malformed_projected_splines_are_reported_as_undrawn() {
+        for (degree, knots, poles, weights) in [
+            (3, vec![], vec![], vec![]),
+            (usize::MAX, vec![0., 1.], vec![[0., 0.]; 2], vec![1.; 2]),
+            (1, vec![0., 0., 1., 1.], vec![[0., 0.]; 2], vec![1.]),
+            (1, vec![1., 0., 1., 1.], vec![[0., 0.]; 2], vec![1.; 2]),
+            (1, vec![0., 0., 1., 1.], vec![[0., 0.]; 2], vec![0.; 2]),
+        ] {
+            let c = Curve::from(&Exact::Nurbs {
+                degree,
+                knots,
+                poles,
+                weights,
+                t0: 0.,
+                t1: 1.,
+            });
+            assert!(matches!(c, Curve::Rational(p) if p.is_empty()));
+        }
+        let problems = undrawn(&BTreeMap::from([("v:front".into(), 1)]));
+        assert_eq!(problems[0].code, "edges_not_drawn");
+    }
 
     #[test]
     fn oblique_witnesses_still_reserve_their_measured_span() {

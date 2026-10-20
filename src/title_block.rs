@@ -174,6 +174,7 @@ pub struct TitleCell {
 
 pub fn font() -> &'static Font {
     static FONT: OnceLock<Font> = OnceLock::new();
+    // Invariant: Font bytes are bundled at build time and parsed unchanged, independently of user input.
     FONT.get_or_init(|| Font::new(FONT_DATA.to_vec()).expect("the bundled font parses"))
 }
 
@@ -206,6 +207,7 @@ pub fn lay(value: &str, size: f64) -> Laid {
     if !value.contains('\n') {
         return font().text(&value, size);
     }
+    // Invariant: Font bytes are bundled at build time and parsed unchanged, independently of user input.
     let face = ttf_parser::Face::parse(FONT_DATA, 0).expect("the bundled font parses");
     let pitch = (face.ascender() as f64 - face.descender() as f64 + face.line_gap() as f64) * size
         / face.units_per_em() as f64;

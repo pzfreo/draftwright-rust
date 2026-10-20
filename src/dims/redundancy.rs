@@ -218,6 +218,7 @@ pub(super) fn consolidate(
         .collect();
     let mut edges = Vec::new();
     for i in order {
+        // Invariant: kept contains only dimensions for which interval returned Some.
         let s = interval(a, &kept[i].0).unwrap();
         let measurements = &kept[i].0.measurements;
         let boss = !measurements.is_empty()

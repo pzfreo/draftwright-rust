@@ -64,6 +64,7 @@ impl Frame {
 
     /// The view looking along *direction* with *up*, the part's box centred at *at*, at scale *s*.
     pub(super) fn looking(analysis: &Analysis, direction: P3, up: P3, at: P2, s: f64) -> Frame {
+        // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
         let view = View::new(direction, up).expect("a planned view");
         let (size, centre) = crate::model::extent(analysis, &view);
         Frame {
@@ -216,6 +217,7 @@ pub fn label_ink(terms: &[String], font: &Font) -> LabelInk {
         };
         match symbol {
             Some('≔') => {
+                // Invariant: This branch handles only stacked deviations, constructed with a newline.
                 let (upper, lower) = text.split_once('\n').expect("deviation stack");
                 let size = 0.7 * h;
                 let mut width: f64 = 0.0;
@@ -742,6 +744,7 @@ fn chain_lanes(frame: &Frame, items: &[&Want]) -> Vec<usize> {
         groups.push(group);
     }
     // Preserve the original priority of the first link in each chain.
+    // Invariant: Groups are created by pushing a member into each new group.
     groups.sort_by_key(|g| *g.iter().min().unwrap());
     let mut lanes = vec![0; items.len()];
     for (lane, group) in groups.iter().enumerate() {
@@ -803,6 +806,7 @@ pub(super) fn separate(
             continue;
         };
         if !claimed.insert((key, lanes[i])) {
+            // Invariant: next was initialized for every key in the same strips collection.
             let n = next.get_mut(&key).expect("every strip has its next lane");
             lanes[i] = *n;
             *n += 1;
@@ -837,6 +841,7 @@ pub(super) fn band_lanes<'a>(
             ("side", Side::Below) => &mut out.side_below,
             ("side", Side::Above) => &mut out.side_above,
             ("side", Side::Right) => &mut out.side_right,
+            // Invariant: Band construction admits only the enumerated linear/angle shapes.
             other => unreachable!("no band holds {other:?}"),
         };
         *band = (*band).max(lane + 1);
@@ -892,6 +897,7 @@ pub(super) fn fall_through(
         }
     }
     let fits = |i: usize, side: Side, lane: usize| {
+        // Invariant: strips includes only routed items with a selected view.
         let view = views_of[i].expect("a strip's item has a view");
         place(&frames[view], &items[i], side, lane).is_some_and(|p| page.fits(&p, view))
     };
@@ -1056,6 +1062,7 @@ fn share_held(
         return;
     }
     let along = |i: usize, side: Side, lane: usize| {
+        // Invariant: strips includes only routed items with a selected view.
         let view = views_of[i].expect("a strip's item has a view");
         let k = usize::from(matches!(side, Side::Left | Side::Right));
         place(&frames[view], &items[i], side, lane).map(|p| {
@@ -1081,7 +1088,9 @@ fn share_held(
     let mut places: Vec<(usize, Vec<Shared>)> = stranded
         .iter()
         .map(|&i| {
+            // Invariant: strips includes only routed items with a selected view.
             let view = views_of[i].expect("a strip's item has a view");
+            // Invariant: strips includes only routed items with a selected side.
             let own = sides[i].expect("a strip's item has a side");
             let list = [own, opposite(own)]
                 .into_iter()
@@ -1109,6 +1118,7 @@ fn share_held(
             .iter()
             .enumerate()
             .filter_map(|(k, (i, list))| {
+                // Invariant: strips includes only routed items with a selected view.
                 let view = views_of[*i].expect("a strip's item has a view");
                 let mut open = list.iter().filter(|&&p| clear(&taken, view, p));
                 let first = open.next()?;
@@ -1118,10 +1128,12 @@ fn share_held(
             .min();
         let Some((.., k)) = best else { break };
         let (i, list) = places.remove(k);
+        // Invariant: strips includes only routed items with a selected view.
         let view = views_of[i].expect("a strip's item has a view");
         let (side, lane, e) = *list
             .iter()
             .find(|&&p| clear(&taken, view, p))
+            // Invariant: The preceding search tested this same selected candidate as clear.
             .expect("a clear place");
         sides[i] = Some(side);
         lanes[i] = lane;
@@ -1191,6 +1203,7 @@ pub(super) fn body_chains(
         let (_, b) = bands
             .iter()
             .find(|(id, _)| *id == items[first].measurements[0].feature)
+            // Invariant: Bands are constructed only after their feature grammar has been read successfully.
             .expect("read band");
         let k = b.axis;
         let Some(horizontal) = across(f, k) else {
@@ -1198,6 +1211,7 @@ pub(super) fn body_chains(
         };
         let j = (0..3)
             .find(|&j| j != k && across(f, j) == Some(!horizontal))
+            // Invariant: Only profile views selected by routing enter this branch.
             .expect("a profile view");
         let others: Vec<_> = bands
             .iter()
@@ -2168,6 +2182,7 @@ pub(super) fn clear_linear(
         yield_locations,
         established_clear,
     ))
+    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
     .expect("linear solve inputs serialize");
     let (next_sides, next_lanes, next_placed) =
         crate::planning::memo(analysis, "settled-linear-solve", key, || {
@@ -3145,6 +3160,7 @@ fn clear_linear_ordered(
                                             .map(f64::to_bits)
                                             .collect::<Vec<_>>()
                                             .try_into()
+                                            // Invariant: Repair peers were filtered to placed linear dimensions.
                                             .expect("repair geometry");
                                         let key = (j, bits);
                                         let cached = repair_clearance.borrow().get(&key).copied();
@@ -3229,6 +3245,7 @@ fn clear_linear_ordered(
                         return None;
                     }
                     for (j, r) in &repairs {
+                        // Invariant: The repair list contains only placed peers.
                         let old = placed[*j].as_ref().unwrap();
                         if final_peers
                             .iter()
@@ -3289,7 +3306,9 @@ struct LinearStroke {
 impl LinearStroke {
     fn new(p: &Placed) -> Self {
         Self {
+            // Invariant: Linear placement constructs exactly three strokes.
             lines: p.lines.as_slice().try_into().expect("three linear strokes"),
+            // Invariant: Linear placement constructs exactly two arrows.
             arrows: p.arrows.as_slice().try_into().expect("two linear arrows"),
             label_at: p.label_at,
             rotation: p.rotation,
@@ -3332,6 +3351,7 @@ fn dimension_lines_overlap(p: &Placed, q: &Placed) -> bool {
 }
 
 // The stray-text threshold is one dimension text height.
+// Invariant: This is a compile-time equality of drawing constants, not an input assertion.
 const _: () = assert!(STRAY_TEXT == TEXT);
 
 /// #32: re-runs the stack spacing of each side an explicit placement (a proposed fix, or an
@@ -3367,6 +3387,7 @@ pub(super) fn respace(
         (chosen[a], requested(a))
             .cmp(&(chosen[b], requested(b)))
             .then(
+                // Invariant: The order contains only indices whose intended placement is Some.
                 span(intended[a].as_ref().unwrap()).total_cmp(&span(intended[b].as_ref().unwrap())),
             )
             .then(a.cmp(&b))
@@ -3377,6 +3398,7 @@ pub(super) fn respace(
         };
         let taken = occupied.entry(v).or_default();
         let free = |p: &Placed| !taken.iter().any(|q| shared_dimension_line(&p.lines, q));
+        // Invariant: The order contains only indices whose intended placement is Some.
         if !free(intended[i].as_ref().unwrap()) {
             // Bounded like the automatic lanes' search (`avoid_fixed`): 64 lanes out, the
             // nearest that also fits the page (on it, clear of the other views), else the
@@ -3396,6 +3418,7 @@ pub(super) fn respace(
                 intended[i] = Some(p.clone());
             }
         }
+        // Invariant: The order contains only indices whose intended placement is Some.
         taken.push(intended[i].as_ref().unwrap().lines.clone());
     }
 }
@@ -3883,6 +3906,7 @@ fn callout_tip(
             ((tip, rr), p[0] + v * p[1])
         })
         .max_by(|a, b| a.1.total_cmp(&b.1))
+        // Invariant: Callout wants are admitted only with at least one proven site.
         .expect("a callout has a site")
         .0
 }
@@ -4398,6 +4422,7 @@ impl AlignedDemand {
         lane: usize,
     ) -> Self {
         let Shape::Aligned { a, b } = w.shape else {
+            // Invariant: Aligned demand is constructed only for Shape::Aligned.
             unreachable!("only an aligned dimension has aligned demand")
         };
         Self {

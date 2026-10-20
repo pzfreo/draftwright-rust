@@ -183,6 +183,7 @@ fn section_text_obstacles(
     let mut out = Vec::new();
     for v in views {
         if v.sheet == sheet.number {
+            // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
             let view = haecceity::hlr::View::new(v.direction, v.up).expect("planned view");
             let half = 0.5 * crate::model::extent(analysis, &view).0[1] * v.scale;
             if let Some(note) = &v.scale_note {
@@ -257,6 +258,7 @@ pub(crate) fn refresh(analysis: &Analysis, p: &mut Plan) {
         });
         d.placed
             .as_mut()
+            // Invariant: The proxy constructor always supplies a placement.
             .expect("balloon proxy")
             .lines
             .extend(b.leader);

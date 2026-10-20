@@ -212,6 +212,7 @@ fn from_profile(a: &Analysis, s: &Source) -> Vec<Notch> {
         }
         if rounded {
             let Support::Arc { center, sweep, .. } = p.supports[next] else {
+                // Invariant: rounded is set only when this support matched Support::Arc.
                 unreachable!()
             };
             if distance <= 1e-6
@@ -234,6 +235,7 @@ fn from_profile(a: &Analysis, s: &Source) -> Vec<Notch> {
         }) else {
             continue;
         };
+        // Invariant: axis and width_axis are distinct indices from 0..3, leaving one depth axis.
         let depth_axis = (0..3).find(|&k| k != axis && k != width_axis).unwrap();
         if (vertex[width_axis] - mouth[width_axis]).abs() > 1e-6
             || (vertex[depth_axis] - mouth[depth_axis]).abs() < 1e-6

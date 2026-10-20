@@ -91,6 +91,7 @@ impl Req {
             let class = format!(
                 "{}{grade}",
                 std::str::from_utf8(&letters)
+                    // Invariant: Fit letters are parsed as ASCII alphabetic characters and padded only with NUL.
                     .unwrap()
                     .trim_end_matches('\0')
             );
@@ -127,6 +128,7 @@ pub(super) fn feature(ids: &Identities, source: &str) -> String {
     match (ids.ids.get(source), ids.shared.get(source)) {
         (Some(id), _) => id.clone(),
         (None, Some((identity, _))) => format!("pmi:{identity}"),
+        // Invariant: The PMI reader assigns a semantic or presentation identity to every record.
         (None, None) => unreachable!("every record of the reading has an identity"),
     }
 }
@@ -369,6 +371,7 @@ fn step_length(wants: &[Want], stations: &[P3], k: usize, value: f64) -> Option<
 fn canonical(r: &Record, value: f64) -> bool {
     let size = format!("ø{}", fmt(value));
     let label = qualifier(r).map_or(r.label.as_str(), |q| {
+        // Invariant: q was selected by checking this same label suffix.
         r.label.strip_suffix(q).unwrap().trim_end()
     });
     label == size || label == format!("{size} THRU")
@@ -656,6 +659,7 @@ pub(super) fn lower(cx: &Context, wants: &mut [Want]) -> Lowered {
             })
             .collect();
         let id = wants[i].id.clone();
+        // Invariant: The preceding condition requires exactly one requested band.
         let q = *reqs.values().next().expect("a band");
         // A positively identified thread designation stands in place of the diameter (ISO 6410) and
         // carries its own tolerance class: a band or fit on that diameter has no term to ride,

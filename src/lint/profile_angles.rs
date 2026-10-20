@@ -48,8 +48,10 @@ pub fn evidence(part: &haecceity::Part) -> Vec<Source> {
                 body_faces: source.body_faces,
                 edges: source.edges,
                 profile: serde_json::from_value(
+                    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
                     serde_json::to_value(source.profile).expect("profile serializes"),
                 )
+                // Invariant: The provider Profile type is serialized and read using the matching consumer schema.
                 .expect("provider profile schema"),
             })
         })

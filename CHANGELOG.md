@@ -6,6 +6,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Fixed
+
+- Browser input refusals (#134, alpha.11): reject over-deep edit paths before recursive JSON
+  construction and gutters beyond the largest supported sheet before layout allocation.
+  Conflicting dimension ownership returns an Invalid error; malformed projected spline
+  arrays use the existing `edges_not_drawn` Problem. Hostile requests and subsequent valid
+  edits/renders run in the browser parity job.
+
 ## 0.1.0-alpha.10 (2026-10-20)
 
 ### Added

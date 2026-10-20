@@ -135,6 +135,7 @@ impl Cache {
         if models.len() >= 128 && !models.contains_key(&key) {
             models.clear();
         }
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         let frame_key = serde_json::to_vec(&key).expect("model frame serializes");
         Some(
             models
@@ -154,6 +155,7 @@ impl Cache {
         view: &crate::model::PlannedView,
     ) -> Rc<Footprints> {
         let key = frame_key(view);
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         let frame_key = serde_json::to_vec(&(&view.id, &key)).expect("footprint frame serializes");
         self.views
             .borrow_mut()
@@ -772,6 +774,7 @@ impl Footprints {
                 .map(f64::to_bits)
                 .collect::<Vec<_>>()
                 .try_into()
+                // Invariant: The witness data is an array of exactly two endpoints.
                 .expect("two witness endpoints"),
             owners
                 .iter()

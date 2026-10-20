@@ -467,6 +467,7 @@ pub fn read(part: &Part, sha256: &str, json: &str) -> Result<(Recognition, Vec<F
                 .features
                 .iter()
                 .find(|q| q.index == *m)
+                // Invariant: slot_members resolved every index from doc.features, refusing absent or ambiguous members.
                 .expect("a member");
             faces.extend(map(&q.constituent_faces)?);
         }
@@ -886,6 +887,7 @@ fn slot_members(
             return Err("quiddity puts one slot in a slot pattern twice".into());
         }
         for &i in &members {
+            // Invariant: members contains only indices resolved from features above.
             let q = features.iter().find(|q| q.index == i).expect("a member");
             let mut linked: Vec<usize> = q
                 .record
@@ -920,6 +922,7 @@ fn slot_pattern(members: &[usize], features: &[QFeature]) -> Result<Pattern, Str
             let r = &features
                 .iter()
                 .find(|q| q.index == *m)
+                // Invariant: slot_pattern receives the same member indices already resolved by slot_members.
                 .expect("a member")
                 .record;
             let letter = |k: &str| {

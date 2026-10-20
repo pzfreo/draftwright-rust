@@ -149,6 +149,7 @@ fn read<'a>(f: &'a Feature, frame: &QFrame) -> Result<Slot<'a>, String> {
     }
     let qd = 3 - ql - qw;
     let principal_of = |q: usize| {
+        // Invariant: AXES contains exactly the three supported coordinate letters.
         principal(frame.letter(&Value::from(AXES[q])).expect("a letter"))
             .ok_or("its axes lie along no axis of the part, so no standard view looks through it")
     };
@@ -386,6 +387,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             });
         }
         let Shape::Linear { b, .. } = size(s, view, s.wide, s.centre, s.centre, 1) else {
+            // Invariant: size constructs Shape::Linear unconditionally.
             unreachable!("a size is linear")
         };
         across.push((id.clone(), b, s.wide, view));
@@ -407,6 +409,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             continue;
         }
         let Shape::Linear { mut a, b, .. } = size(s, view, s.long, s.ends[0], s.ends[0], 1) else {
+            // Invariant: size constructs Shape::Linear unconditionally.
             unreachable!("a size is linear")
         };
         a[s.long] = lo[s.long];
@@ -950,6 +953,7 @@ fn blind<'a>(f: &'a Feature, frame: &QFrame) -> Option<Blind<'a>> {
         }
         true
     };
+    // Invariant: AXES contains exactly the three supported coordinate letters.
     let world = |i: usize| principal(frame.letter(&Value::from(AXES[i])).expect("a letter"));
     Some(Blind {
         feature: f,

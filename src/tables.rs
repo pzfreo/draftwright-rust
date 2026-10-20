@@ -136,6 +136,7 @@ pub(crate) fn span(text: &str) -> Option<[f64; 2]> {
     let memo = MEMO.get_or_init(|| Mutex::new(VecDeque::new()));
     if let Some(span) = memo
         .lock()
+        // Invariant: The memo lock protects only string comparison and copying fixed-size bounds.
         .expect("table metrics memo lock")
         .iter()
         .find(|(t, _)| *t == text)
@@ -147,6 +148,7 @@ pub(crate) fn span(text: &str) -> Option<[f64; 2]> {
     let span = (laid.glyphs.iter().any(|g| !g.is_empty()) || !laid.strokes.is_empty())
         .then_some([laid.min[0], laid.max[0]]);
     if text.len() <= 4096 {
+        // Invariant: Text measurement happens before locking; locked operations only update the bounded deque.
         let mut memo = memo.lock().expect("table metrics memo lock");
         memo.retain(|(t, _)| *t != text);
         if memo.len() == 128 {
@@ -518,6 +520,7 @@ pub(crate) fn lay(rows: &[Vec<String>], widths: &[f64], at: [f64; 2]) -> PlacedT
     let [x0, y0] = at;
     let mut columns = vec![x0];
     for w in widths {
+        // Invariant: columns starts with the left edge and grows by one per column.
         columns.push(columns.last().expect("a column") + w);
     }
     let top = y0 + ROW * rows.len() as f64;
@@ -532,6 +535,7 @@ pub(crate) fn lay(rows: &[Vec<String>], widths: &[f64], at: [f64; 2]) -> PlacedT
                 .collect()
         })
         .collect();
+    // Invariant: columns starts with the left edge, even before any widths are appended.
     let x1 = *columns.last().expect("a column");
     PlacedTable {
         cells_at,

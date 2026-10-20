@@ -138,6 +138,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         })
         .collect();
     let noun = |f: &Feature| {
+        // Invariant: Each representative feature f was made from a nonempty group with this first member.
         let g = groups.iter().find(|g| g.members[0].id == f.id).unwrap();
         let ids: Vec<&str> = g.members.iter().map(|m| m.id.as_str()).collect();
         let mut s = format!("flat {}", ids.join(" and "));

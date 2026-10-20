@@ -73,6 +73,7 @@ pub fn wrap(terms: &[String]) -> Vec<String> {
         .cloned()
         .collect();
     let key: [u8; 32] =
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         Sha256::digest(serde_json::to_vec(&terms).expect("label terms serialize")).into();
     if let Some(wrapped) = MEMO.get(&key) {
         return wrapped;

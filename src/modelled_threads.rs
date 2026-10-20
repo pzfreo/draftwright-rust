@@ -306,6 +306,7 @@ pub(crate) fn carrier(part: &Part, a: &Analysis, spec: &Spec, enabled: bool) -> 
         } else {
             [0., 1., 0.]
         };
+        // Invariant: Thread::read normalizes the axis; the chosen seed is not parallel to it.
         let x = geom::unit(geom::cross(seed, t.axis)).unwrap();
         let frame = Frame {
             origin: t.on,
@@ -436,6 +437,7 @@ pub(crate) fn ink(
     if ts.is_empty() || v.line_style.thread_depiction == Some(false) {
         return (thick, thin, hidden);
     }
+    // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
     let view = View::new(v.direction, v.up).expect("planned view");
     let centre = crate::detail::crop_extent(a, v).1;
     let page = |p: V3| {
@@ -583,6 +585,7 @@ pub(crate) fn ink(
                 false,
             );
         } else {
+            // Invariant: The end-on branch was excluded, so axis and view direction have a nonzero cross product.
             let u = geom::unit(geom::cross(t.axis, view.toward)).unwrap();
             let mut offset = [0.; 3];
             let mut crest = t.crest();
@@ -653,6 +656,7 @@ pub(crate) fn ink(
                     continue;
                 }
                 let toward =
+                    // Invariant: The end-on branch was excluded, so the transverse viewing component is nonzero.
                     geom::unit(geom::sub(view.toward, geom::scale(t.axis, along))).unwrap();
                 let witness = |f| {
                     let radial = (2. * f - 1.) * crest;
@@ -861,6 +865,7 @@ pub(crate) fn planning<'a>(a: &'a Analysis, s: &Spec) -> std::borrow::Cow<'a, An
             } else {
                 [0., 1., 0.]
             };
+            // Invariant: Thread::read normalizes the axis; the chosen seed is not parallel to it.
             let x = geom::unit(geom::cross(t.axis, seed)).unwrap();
             let y = geom::cross(t.axis, x);
             let at = |z, theta: f64| {
@@ -896,6 +901,7 @@ pub(crate) fn source_hash(original: &Analysis, prepared: bool, plan: &mut crate:
     if prepared {
         use sha2::{Digest, Sha256};
         plan.analysis_sha256 = Some(
+            // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
             Sha256::digest(serde_json::to_vec(original).expect("analysis serializes"))
                 .iter()
                 .map(|b| format!("{b:02x}"))

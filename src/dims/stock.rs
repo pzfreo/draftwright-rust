@@ -71,9 +71,11 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             ..
         } = &b.section
         else {
+            // Invariant: The stock reader admits only Prism sections.
             unreachable!("a stock record is read as a prism")
         };
         let (Some(length), Some(base)) = (b.height, b.base) else {
+            // Invariant: The stock reader checks positive length before emitting stock.
             unreachable!("the contract gives a stock a positive length")
         };
         let k = b.axis;
@@ -110,6 +112,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         let views = profile_views(k);
         let j = (0..3)
             .find(|&j| j != k && profile_views(j).contains(&views[0]))
+            // Invariant: The fixed principal/profile view tables include both radial axes.
             .expect("a profile view shows a radial axis");
         let rim = |p: [f64; 3]| {
             let mut p = p;

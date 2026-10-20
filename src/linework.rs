@@ -50,6 +50,7 @@ pub fn stable_curve(curve: Curve) -> Curve {
     };
     let mut points: Vec<P> = parameters.into_iter().map(|u| curve.at(u)).collect();
     points.sort_by(|a, b| dot(*a, axis).total_cmp(&dot(*b, axis)));
+    // Invariant: The preceding guard requires at least two points.
     let (a, b) = (points[0], *points.last().unwrap());
     if dot(curve.start(), axis) > dot(curve.end(), axis) {
         Curve::Line(b, a)
@@ -277,6 +278,7 @@ fn straight(curve: Curve) -> Curve {
             // exact interval between extrema, regardless of the source traversal.
             let mut points: Vec<P> = pieces.iter().flatten().copied().collect();
             points.sort_by(|p, q| along(*p).total_cmp(&along(*q)));
+            // Invariant: The preceding guard requires at least two points.
             let (lo, hi) = (points[0], *points.last().unwrap());
             return if along(curve.end()) >= along(curve.start()) {
                 Curve::Line(lo, hi)
@@ -772,6 +774,7 @@ pub(crate) fn configure(spec: &crate::model::Spec, views: &mut [crate::model::Pl
             .basis
             .split("; Spec line work: ")
             .next()
+            // Invariant: str::split always yields at least one segment, even for empty text.
             .unwrap()
             .to_owned();
         v.basis = format!(

@@ -136,6 +136,7 @@ pub(super) fn read_polygon<'a>(f: &'a Feature, frame: &QFrame) -> Result<Boss<'a
         .and_then(Value::as_str)
         .and_then(|a| AXES.iter().position(|x| *x == a))
         .ok_or("its record gives no axis")?;
+    // Invariant: AXES contains exactly the three supported coordinate letters.
     let along = frame.letter(&Value::from(AXES[q])).expect("a letter");
     let axis = principal(along)
         .ok_or("its axis is not along x, y or z, so no standard view looks down it")?;
@@ -371,12 +372,14 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         if crate::lint::bosses::boss_owner(analysis, b.feature).is_none() {
             if on_turning(b) {
                 let Section::Round(diameter) = b.section else {
+                    // Invariant: on_turning admits only round profile bands.
                     unreachable!("a band of the profile is round")
                 };
                 let r = 0.5 * diameter;
                 let views = profile_views(b.axis);
                 let j = (0..3)
                     .find(|&j| j != b.axis && profile_views(j).contains(&views[0]))
+                    // Invariant: The fixed principal/profile view tables include both radial axes.
                     .expect("a profile view shows a radial axis");
                 let at = match b.base {
                     Some(base) => scale3(add(base, b.top), 0.5),
@@ -463,6 +466,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         let views = profile_views(b.axis);
         let j = (0..3)
             .find(|&j| j != b.axis && profile_views(j).contains(&views[0]))
+            // Invariant: The fixed principal/profile view tables include both radial axes.
             .expect("a profile view shows a radial axis");
         let rim = |p: P3| {
             let mut p = p;
@@ -572,6 +576,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                                 if bevelled && !crate::notches::requirements(analysis).is_empty() {
                                     let normals = boss.feature.parameters["flat_directions"]
                                         .as_array()
+                                        // Invariant: The polygonal boss reader validates flat_directions as an array.
                                         .unwrap();
                                     let step = 0.25
                                         * across_flats
@@ -581,6 +586,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                                     for (c, n) in flats.iter().zip(normals) {
                                         let n = holes::dir_to_part(
                                             &cx.frame.0,
+                                            // Invariant: The polygonal boss reader validates every flat direction as a three-number point.
                                             point(Some(n)).unwrap(),
                                         );
                                         let t = [0, 1, 2].map(|k| {
@@ -595,6 +601,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                                 }
                                 sites
                             }
+                            // Invariant: The group was filtered to polygonal bosses by its side count.
                             Section::Round(_) => unreachable!("grouped by side count"),
                         })
                         .map(|c| (c, 0.0))
@@ -664,6 +671,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         let first = &bosses[owners[0]];
         let d = first.top[a] - lo[a];
         let parameter = format!("location.length.{}", AXES[a]);
+        // Invariant: The selected view comes from the fixed principal view table.
         let view: &'static str = NAMES.iter().find(|n| **n == view).expect("a view");
         let mut from = first.top;
         from[a] = lo[a];

@@ -344,9 +344,11 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
                     })
         })
         .flat_map(|a| {
+            // Invariant: The preceding filter validated this same drawn note body.
             let text = crate::output::drawn_body(drawing, a).expect("verified note wrapper");
             let radius = text
                 .split_once("ALL UNSPECIFIED RADII R")
+                // Invariant: The preceding filter required the ALL UNSPECIFIED RADII R prefix.
                 .unwrap()
                 .1
                 .trim()
