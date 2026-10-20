@@ -315,6 +315,51 @@ pub(crate) fn carrier(part: &Part, a: &Analysis, spec: &Spec, enabled: bool) -> 
         let (lo, hi) = part.extent_along(&t.feature.faces, t.axis);
         let shift = geom::dot(t.on, t.axis);
         let span = [(lo - shift).min(t.span[0]), (hi - shift).max(t.span[1])];
+        // End-face circles are shared with the removed flanks/carrier. Keep
+        // their trimming topology, but put the drawing boundary at the crest;
+        // a thick full root/chamfer circle would contradict the open root arc.
+        for (i, edge) in edges.iter_mut().enumerate().take(part.edges.len()) {
+            let owners = &part.edge_faces()[i];
+            if !owners.iter().any(|f| t.feature.faces.contains(f))
+                || !owners.iter().any(|f| !claimed.contains(f))
+            {
+                continue;
+            }
+            let haecceity::geom::Curve::Circle {
+                frame: circle,
+                radius,
+            } = edge.curve.clone()
+            else {
+                continue;
+            };
+            let z = geom::dot(geom::sub(circle.origin, t.on), t.axis);
+            let off = geom::norm(geom::cross(geom::sub(circle.origin, t.on), t.axis));
+            if off > 1e-5
+                || geom::dot(circle.z, t.axis).abs() < 1. - 1e-8
+                || radius < t.minor / 2. - 0.01
+                || radius > t.major / 2. + 0.01
+                || z < t.span[0] - t.pitch
+                || z > t.span[1] + t.pitch
+            {
+                continue;
+            }
+            let move_point = |p| {
+                geom::add(
+                    circle.origin,
+                    geom::scale(geom::sub(p, circle.origin), r / radius),
+                )
+            };
+            edge.start = move_point(edge.start);
+            edge.end = move_point(edge.end);
+            edge.samples = edge.samples.iter().copied().map(move_point).collect();
+            edge.curve = haecceity::geom::Curve::Circle {
+                frame: circle,
+                radius: r,
+            };
+            for face in &mut faces {
+                face.pcurves.retain(|(e, _)| *e != i);
+            }
+        }
         let base = edges.len();
         let vertex = edges
             .iter()
@@ -536,6 +581,44 @@ pub(crate) fn ink(
                 );
             }
             for z in t.span {
+                if along.abs() > 1e-6 && !section {
+                    let w = geom::cross(t.axis, u);
+                    let ux = view.map(u);
+                    let wy = view.map(w);
+                    let length = wy[0].hypot(wy[1]);
+                    let witness = |fraction: f64| {
+                        let theta = fraction * TAU;
+                        geom::add(
+                            t.at(z),
+                            geom::add(
+                                geom::scale(
+                                    u,
+                                    (crest + if t.internal { -epsilon } else { epsilon })
+                                        * theta.cos(),
+                                ),
+                                geom::scale(
+                                    w,
+                                    (crest + if t.internal { -epsilon } else { epsilon })
+                                        * theta.sin(),
+                                ),
+                            ),
+                        )
+                    };
+                    draw(
+                        Curve::Conic {
+                            centre: page(t.at(z)),
+                            radii: [crest * v.scale, crest * v.scale * length],
+                            x_axis: ux,
+                            y_axis: [wy[0] / length, wy[1] / length],
+                            t0: 0.,
+                            t1: TAU,
+                        },
+                        &witness,
+                        true,
+                        false,
+                    );
+                    continue;
+                }
                 let toward =
                     geom::unit(geom::sub(view.toward, geom::scale(t.axis, along))).unwrap();
                 let witness = |f| {
@@ -692,6 +775,18 @@ pub(crate) fn planning<'a>(a: &'a Analysis, s: &Spec) -> std::borrow::Cow<'a, An
     // Preparing an already prepared analysis is unnecessary during recovery.
     prepared.modelled_thread_ink.clear();
     std::borrow::Cow::Owned(prepared)
+}
+
+pub(crate) fn source_hash(original: &Analysis, prepared: bool, plan: &mut crate::model::Plan) {
+    if prepared {
+        use sha2::{Digest, Sha256};
+        plan.analysis_sha256 = Some(
+            Sha256::digest(serde_json::to_vec(original).expect("analysis serializes"))
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect(),
+        );
+    }
 }
 
 #[cfg(test)]
@@ -851,6 +946,61 @@ mod tests {
         assert!(crate::output::thin_style().dash.is_none());
     }
     #[test]
+    fn a_shared_root_circle_becomes_a_crest_boundary_without_changing_source() {
+        let a = analysis(feature(20., 1., false));
+        let original = plain_carrier(&a);
+        let mut edges = original.edges.clone();
+        for edge in &mut edges[2..4] {
+            let haecceity::geom::Curve::Circle { frame, .. } = edge.curve.clone() else {
+                panic!()
+            };
+            let shrink = |p| geom::add(frame.origin, geom::scale(geom::sub(p, frame.origin), 0.95));
+            edge.start = shrink(edge.start);
+            edge.end = shrink(edge.end);
+            edge.samples = edge.samples.iter().copied().map(shrink).collect();
+            edge.curve = haecceity::geom::Curve::Circle { frame, radius: 9.5 };
+        }
+        let mut faces = original.faces.clone();
+        let Surface::Cylinder { frame, .. } = faces[0].surface else {
+            panic!()
+        };
+        faces[0].surface = Surface::Cylinder { frame, radius: 9.5 };
+        faces.push(Face {
+            surface: Surface::Plane { frame },
+            reversed: true,
+            loops: vec![Loop {
+                edges: vec![(2, false)],
+                vertex: None,
+            }],
+            solid: None,
+            pcurves: vec![],
+        });
+        let source = Part::new(faces, edges, vec![]);
+        let proxy = carrier(&source, &a, &Spec::default(), true).unwrap();
+        assert!(
+            matches!(proxy.edges[2].curve,haecceity::geom::Curve::Circle {radius,..} if radius==10.)
+        );
+        assert!(
+            matches!(source.edges[2].curve,haecceity::geom::Curve::Circle {radius,..} if radius==9.5)
+        );
+        assert!((proxy.face_bounds(0).max[0] - 10.).abs() < 1e-6);
+    }
+    #[test]
+    fn oblique_terminations_follow_projected_circles_instead_of_crossing_openings() {
+        let a = analysis(feature(20., 1., false));
+        let source = plain_carrier(&a);
+        let mut v = view(false);
+        v.direction = [1., -1., 1.];
+        let (thick, thin, _) = ink(&a, &Spec::default(), &v, &source);
+        assert!(!thick.is_empty());
+        assert_eq!(thin.len(), 2);
+        assert!(
+            thick
+                .iter()
+                .all(|i| matches!(i, Item::Edge(Curve::Conic { .. })))
+        );
+    }
+    #[test]
     fn internal_hidden_and_section_roots_follow_bore_and_hatching_boundary() {
         let a = analysis(feature(20., 1.5, true));
         let source = plain_carrier(&a);
@@ -989,22 +1139,6 @@ mod tests {
             p.dimensions
                 .iter()
                 .any(|d| d.id == "d:f:modelled_thread:1/thread")
-        );
-    }
-}
-
-pub(crate) fn source_hash(
-    original: &Analysis,
-    prepared: &std::borrow::Cow<'_, Analysis>,
-    plan: &mut crate::model::Plan,
-) {
-    if matches!(prepared, std::borrow::Cow::Owned(_)) {
-        use sha2::{Digest, Sha256};
-        plan.analysis_sha256 = Some(
-            Sha256::digest(serde_json::to_vec(original).expect("analysis serializes"))
-                .iter()
-                .map(|b| format!("{b:02x}"))
-                .collect(),
         );
     }
 }

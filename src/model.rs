@@ -3352,7 +3352,11 @@ pub(crate) fn pin_base(spec: &Spec) -> Spec {
 pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     let prepared = crate::modelled_threads::planning(analysis, spec);
     let mut plan = crate::dims::pmi_policy::planning(|| plan_recovered_inner(&prepared, spec))?;
-    crate::modelled_threads::source_hash(analysis, &prepared, &mut plan);
+    crate::modelled_threads::source_hash(
+        analysis,
+        matches!(&prepared, std::borrow::Cow::Owned(_)),
+        &mut plan,
+    );
     Ok(plan)
 }
 
@@ -3898,7 +3902,11 @@ fn gdt_misplaced(plan: &Plan) -> (usize, usize) {
 pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     let prepared = crate::modelled_threads::planning(analysis, spec);
     let mut plan = crate::dims::pmi_policy::planning(|| plan_inner(&prepared, spec))?;
-    crate::modelled_threads::source_hash(analysis, &prepared, &mut plan);
+    crate::modelled_threads::source_hash(
+        analysis,
+        matches!(&prepared, std::borrow::Cow::Owned(_)),
+        &mut plan,
+    );
     Ok(plan)
 }
 

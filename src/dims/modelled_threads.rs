@@ -45,7 +45,17 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             })
             .collect();
         let mut views = super::envelope::profile_views(k);
-        if t.internal {
+        // Separate coaxial occurrences must remain distinguishable by axial
+        // position; end-on leaders would otherwise share exactly the same rim.
+        let coaxial = threads(cx.analysis).any(|other| {
+            other.feature.id != f.id
+                && haecceity::geom::dot(other.axis, t.axis).abs() > 1. - 1e-8
+                && haecceity::geom::norm(haecceity::geom::cross(
+                    haecceity::geom::sub(other.on, t.on),
+                    t.axis,
+                )) < 1e-6
+        });
+        if t.internal && !coaxial {
             views.insert(0, end_on(k));
         }
         out.push(Want {

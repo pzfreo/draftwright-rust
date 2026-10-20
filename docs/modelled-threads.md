@@ -5,7 +5,10 @@ Only the occurrence's claimed faces are replaced, for drawing purposes, with a
 smooth carrier at its crest diameter. The kernel projects that carrier, resolves
 visibility, and cuts/hatches it. The source Part, face identities, dimensions and
 recognition records stay unchanged. Indivisible cylindrical carriers retain their
-extent outside the measured thread span. Unclaimed geometry stays in the drawing.
+extent outside the measured thread span. Unclaimed geometry stays in the drawing. Circular boundaries shared with an
+unclaimed end face, within one pitch of the measured span, meet the smooth
+carrier at its crest: a full thick root/chamfer circle would contradict the
+end view's open thin root arc.
 
 External crests (major diameter) and internal crests (minor diameter) are thick.
 Roots are thin continuous lines in visible profiles and sections; internal side
@@ -13,7 +16,8 @@ views use the existing hidden-line layer. End views have a thin three-quarter
 root arc open in the upper right quadrant. Section hatching reaches the crest.
 Root spacing is the measured radial difference, enlarged on paper when necessary
 to at least twice the 0.5 mm outline width (ISO 6410-1 3.2.1). Callouts retain the
-measured sizes. Conventional curves obey view visibility, kept-half clipping,
+measured sizes. Oblique termination circles project as arcs rather than diameters across openings.
+Conventional curves obey view visibility, kept-half clipping,
 detail crops and hidden-line settings. Both physical trimmed limits are shown.
 
 The callout states the physical trimmed span as `× <length> LONG`: recognition
