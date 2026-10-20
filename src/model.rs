@@ -6721,6 +6721,9 @@ fn settle_finished_nominals(
     });
     trial.problems.extend(checked);
     trial.problems.extend(reports.into_values().flatten());
+    // Rechecking geometry replaces collision records, including their remedies.
+    // Reattach the authored pin's reset operation before publishing this trial.
+    crate::placement_intent::finish(&mut trial, analysis);
     if findings(&trial).hard <= findings(plan).hard
         && ink_findings(&trial) <= ink_findings(plan)
         && feature_crossings(&trial) <= feature_crossings(plan)

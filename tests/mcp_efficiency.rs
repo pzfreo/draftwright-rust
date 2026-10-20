@@ -244,6 +244,11 @@ fn one_feature_problem_query_returns_all_member_fixes() {
             .iter()
             .all(|p| p["code"] != "annotation_outside_area")
     );
+    // A later radius repair must not erase the pinned members' reset remedies
+    // when it replaces their collision records during the final audit.
+    for p in problems.iter().filter(|p| p["code"] == "annotation_off_sheet") {
+        assert!(!p["fix"].as_array().unwrap().is_empty(), "{p}");
+    }
     let mut ops = Vec::new();
     for p in &problems {
         ops.extend(
