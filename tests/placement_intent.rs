@@ -606,7 +606,7 @@ fn sheet_and_scale_changes_keep_or_report_every_pin() {
 
 #[test]
 fn colliding_and_off_sheet_pins_are_reported_and_never_dropped() {
-    let (_, a) = plate();
+    let (part, a) = plate();
     let base = model::plan_recovered(&a, &Spec::default()).unwrap();
     let hole = base
         .dimensions
@@ -634,8 +634,9 @@ fn colliding_and_off_sheet_pins_are_reported_and_never_dropped() {
             .iter()
             .all(|op| op.path.ends_with("/place"))
     );
-    let fixed = model::edit(&p.spec, &serde_json::to_value(&problem.fix).unwrap()).unwrap();
-    let repaired = model::plan_recovered(&a, &fixed).unwrap();
+    let mut session = draftwright::session::Session::new(part, a.clone(), p.spec.clone()).unwrap();
+    let delta = session.apply(&problem.fix, true).unwrap();
+    let repaired = session.plan();
     assert_eq!(
         (
             &repaired.sheet.size,
@@ -644,16 +645,31 @@ fn colliding_and_off_sheet_pins_are_reported_and_never_dropped() {
         ),
         (&p.sheet.size, &p.sheet.scale, p.sheets.len())
     );
+    assert_eq!(repaired.views.len(), p.views.len());
+    let mut moved = 0;
+    for before in &p.views {
+        let after = repaired.views.iter().find(|v| v.id == before.id).unwrap();
+        assert_eq!(after.scale, before.scale);
+        if (after.at, after.area) != (before.at, before.area) {
+            moved += 1;
+            let notice = delta
+                .notices
+                .iter()
+                .find(|p| p.code == "layout_replanned")
+                .unwrap();
+            assert!(notice.subjects.contains(&before.id));
+            assert_eq!(draftwright::wording::carries_id(&notice.message), None);
+        }
+    }
+    assert!(
+        moved > 0,
+        "the fixed-sheet solve derives frames from intent rather than stored coordinates"
+    );
+    assert!(!geometry(repaired, &hole.id).is_null());
+    let rebuilt = model::plan_recovered(&a, session.spec()).unwrap();
     assert_eq!(
-        repaired
-            .views
-            .iter()
-            .map(|v| (&v.id, v.at, v.scale))
-            .collect::<Vec<_>>(),
-        p.views
-            .iter()
-            .map(|v| (&v.id, v.at, v.scale))
-            .collect::<Vec<_>>()
+        serde_json::to_value(&rebuilt).unwrap(),
+        serde_json::to_value(repaired).unwrap()
     );
     assert!(
         !repaired
