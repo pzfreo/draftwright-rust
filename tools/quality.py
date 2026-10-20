@@ -84,8 +84,10 @@ def crossing_instances(plan):
     for r in plan.get('requirements', []):
         placed = r.get('placed')
         if placed:
+            # A datum symbol records its glyph box; a surface-texture symbol its label_box.
+            box = placed.get('glyph') or placed.get('label_box') or placed['box']
             dims[r['id']] = {**r, 'kind': 'symbol', 'view': '', 'placed': {
-                'lines': placed['strokes'], 'arrows': [], 'label_box': placed['glyph']}}
+                'lines': placed['strokes'], 'arrows': [], 'label_box': box}}
     for p in plan.get('problems', []):
         if p['code'] not in ('annotation_leader_crossing', 'annotation_ink_overlap'):
             continue

@@ -518,6 +518,16 @@ class CrossingKinds(unittest.TestCase):
         ink['ink_is_leader'] = True
         self.assertEqual(quality.crossing_counts(plan), old)
 
+    def test_requirement_symbols_read_either_box(self):
+        # Datum symbols record `glyph`; surface-texture symbols record `label_box` instead.
+        leader = dict(id='leader', kind='callout', view='', placed=dict(
+            lines=[[[0,0],[10,0]]], arrows=[], label_box=[30,30,32,32]))
+        finish = dict(id='pmi:finish', placed=dict(box=[2,-2,8,2], label_box=[2,-1,8,1],
+                                                    strokes=[], text_at=[2,0]))
+        datum = dict(id='pmi:datum', placed=dict(glyph=[40,40,45,45], strokes=[]))
+        plan = dict(dimensions=[leader], requirements=[finish, datum], problems=[])
+        self.assertEqual(quality.crossing_instances(plan)['leader_text'], [['leader','pmi:finish']])
+
     def test_crossing_gate_rejects_each_kind_per_part_and_incomplete_evidence(self):
         root = Path(__file__).resolve().parents[1]
         spec = importlib.util.spec_from_file_location('crossings', root / 'tools/check_leader_crossings.py')
