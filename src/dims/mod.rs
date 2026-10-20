@@ -71,6 +71,7 @@ mod grooves;
 mod holes;
 pub(crate) mod interior;
 mod label_lanes;
+mod modelled_threads;
 mod wording;
 pub(crate) use pmi_dimensions::basic as is_basic;
 mod leaders;
@@ -555,7 +556,7 @@ struct Planner {
 }
 
 /// The planners, in the order their items are planned.
-const PLANNERS: [Planner; 18] = [
+const PLANNERS: [Planner; 19] = [
     turned::PLANNER,
     envelope::PLANNER,
     stock::PLANNER,
@@ -574,6 +575,7 @@ const PLANNERS: [Planner; 18] = [
     pads::PLANNER,
     oriented_slots::PLANNER,
     profiled_bores::PLANNER,
+    modelled_threads::PLANNER,
 ];
 
 /// Everything the defaults would dimension, with the problems met on the way, and what the part's
@@ -926,16 +928,6 @@ fn not_ported(analysis: &Analysis) -> Vec<Problem> {
         .filter(|f| !PLANNERS.iter().any(|p| p.kinds.contains(&f.kind.as_str())))
         .filter(|f| !undrafted(f))
         .map(|f| {
-            if f.kind == "modelled_thread" {
-                return Problem {
-                    id: format!("p:modelled_thread_not_depicted:{}", f.id),
-                    code: "modelled_thread_not_depicted".into(),
-                    severity: "info".into(),
-                    message: "A modelled screw thread is recognised, with its measured axis, diameters, pitch, hand, starts, extent and face claims retained in the analysis. Conventional thread depiction (ISO 6410) is not implemented yet; the modelled edges remain drawn. Review the thread and add any required dimensions manually.".into(),
-                    subjects: vec![f.id.clone()],
-                    ..Default::default()
-                };
-            }
             unsupported(f).unwrap_or_else(|| Problem {
                 id: format!("p:dimensions_not_ported:{}", f.id),
                 code: "dimensions_not_ported".into(),
@@ -3026,15 +3018,19 @@ fn plan_inventory_ordered(
     for (i, w) in all.iter().enumerate() {
         if w.measurements.iter().any(|m| m.parameter == "blend.radius")
             || matches!(w.shape, Shape::Callout { .. })
-                && w.measurements
-                    .iter()
-                    .any(|m| m.feature.starts_with("f:section_recess:"))
+                && w.measurements.iter().any(|m| {
+                    m.feature.starts_with("f:section_recess:")
+                        || (m.feature.starts_with("f:modelled_thread:")
+                            && matches!(&w.shape, Shape::Callout { sites, .. }
+                                if sites.iter().any(|(_, radius)| *radius > 0.)))
+                })
         {
             prior[i] = None;
         }
     }
-    // Existing leaders claim their corridors before new recess witnesses. Restore
-    // those witnesses into the shared solve around the established leader ink.
+    // Existing leaders claim their corridors before added recess and circular
+    // thread callouts. Profile callouts stay in the original joint assignment;
+    // moving them afterwards can force their leaders through neighbouring holes.
     let recess_linear: Vec<_> = if recess_context {
         all.iter()
             .enumerate()
@@ -4445,7 +4441,14 @@ pub(crate) fn refine_inventory(
                     })
                 })
         });
-    if !recesses && !overlapping_text {
+    // A newly added thread leader can displace otherwise unchanged callouts.
+    // Recheck the complete printed inventory with the ordinary routing gates.
+    let thread_callouts = inventory.iter().any(|d| {
+        d.measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:modelled_thread:"))
+    });
+    if !recesses && !overlapping_text && !thread_callouts {
         return BTreeMap::new();
     }
     let (raw, ..) = wants(analysis);

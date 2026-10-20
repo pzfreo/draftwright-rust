@@ -2651,11 +2651,17 @@ fn refine_uncached(
     let extension_index = ExtensionIndex::new(extensions.clone());
     // Runs beside newly recognised edges need the same bounded repair as extension
     // contacts. Gather each projection once, then test only routes that need repair.
-    let repair_models: BTreeMap<_, _> = if items.iter().any(|w| {
+    let thread_callouts = items.iter().any(|w| {
         w.measurements
             .iter()
-            .any(|m| m.feature.starts_with("f:section_recess:"))
-    }) {
+            .any(|m| m.feature.starts_with("f:modelled_thread:"))
+    });
+    let repair_models: BTreeMap<_, _> = if thread_callouts
+        || items.iter().any(|w| {
+            w.measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:section_recess:"))
+        }) {
         views
             .iter()
             .filter_map(|v| Some((v.id.trim_start_matches("v:"), cache.model(analysis, v)?)))
@@ -2843,7 +2849,7 @@ fn refine_uncached(
         .iter()
         .map(|v| (v.id.trim_start_matches("v:"), cache.get(analysis, v)))
         .collect();
-    let expanded_native = super::has_new_native_recess_dimensions(analysis);
+    let expanded_native = super::has_new_native_recess_dimensions(analysis) || thread_callouts;
     let feature_route = |i: usize, p: &Placed| {
         expanded_native
             && !repair_models.is_empty()

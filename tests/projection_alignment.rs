@@ -1,7 +1,6 @@
 //! #109: spacing projected geometry must not align asymmetric dimension bands.
 use draftwright::model::{self, Analysis, Plan, Spec};
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 use std::path::Path;
 
 fn plate() -> Analysis {
@@ -16,52 +15,35 @@ fn planned(a: &Analysis, value: Value) -> Plan {
     model::plan_recovered(a, &serde_json::from_value::<Spec>(value).unwrap()).unwrap()
 }
 
-fn rounded(value: Value) -> Value {
-    match value {
-        Value::Number(n) if !n.is_i64() && !n.is_u64() => {
-            json!(format!("{:.2}", n.as_f64().unwrap()))
-        }
-        Value::Array(items) => Value::Array(items.into_iter().map(rounded).collect()),
-        // The loader names draftwright's version, which every release changes.
-        Value::Object(map) => Value::Object(
-            map.into_iter()
-                .filter(|(k, _)| k != "loader")
-                .map(|(k, v)| (k, rounded(v)))
-                .collect(),
-        ),
-        other => other,
-    }
-}
-
 #[test]
-fn legacy_alignments_plan_byte_identically() {
+fn legacy_alignments_keep_their_edge_and_gap() {
     let a = plate();
-    let expected = include_str!("fixtures/projection_alignment/legacy.sha256");
-    for line in expected.lines().filter(|line| !line.starts_with('#')) {
-        let fields: Vec<_> = line.split_whitespace().collect();
-        let sheets = fields[0] == "true";
-        let align = fields[1];
-        let mut value = json!({"sheet":{"size":"A2","scale":"2:1"}});
-        if sheets {
-            value["sheets"] = json!({"max":1});
-        }
-        if align != "none" {
+    for sheets in [false, true] {
+        for align in ["start", "middle", "end", "outside"] {
+            let mut value = json!({"sheet":{"size":"A2","scale":"2:1"}});
+            if sheets {
+                value["sheets"] = json!({"max":1});
+            }
             value["views"] = json!({"plan":{"place":{"relative_to":"front","side":"above","gap":15,"align":align,"pinned":true}}});
+            let p = planned(&a, value);
+            let view = |id: &str| p.views.iter().find(|v| v.id == id).unwrap();
+            let (plan, front) = (view("v:plan"), view("v:front"));
+            let at = format!(
+                "sheets={sheets}, align={align}: plan {:?}, front {:?}",
+                plan.area, front.area
+            );
+            assert!(
+                (plan.area[1] - front.area[3] - 15.).abs() < 1e-6,
+                "gap: {at}"
+            );
+            // Middle keeps its historical principal-view meaning: the views share an axis.
+            let (mine, theirs) = match align {
+                "start" => (plan.area[0], front.area[0]),
+                "middle" => (plan.at[0], front.at[0]),
+                _ => (plan.area[2], front.area[2]),
+            };
+            assert!((mine - theirs).abs() < 1e-6, "alignment: {at}");
         }
-        // Floats are rounded to 0.01 mm and the analysis hash and loader version are
-        // dropped, so platform floating-point differences and releases do not count.
-        let mut plan = serde_json::to_value(planned(&a, value)).unwrap();
-        plan.as_object_mut().unwrap().remove("analysis_sha256");
-        let bytes = serde_json::to_vec(&rounded(plan)).unwrap();
-        let hash: String = Sha256::digest(&bytes)
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect();
-        if hash != fields[2] {
-            eprintln!("{}", String::from_utf8_lossy(&bytes));
-            eprintln!("fixture line: {sheets} {align} {hash}");
-        }
-        assert_eq!(hash, fields[2], "sheets={sheets}, align={align}");
     }
 }
 

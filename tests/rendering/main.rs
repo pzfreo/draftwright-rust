@@ -35,6 +35,8 @@ mod line_through_feature;
 mod linework;
 #[path = "../linework_spec.rs"]
 mod linework_spec;
+#[path = "../modelled_thread_layout.rs"]
+mod modelled_thread_layout;
 #[path = "../notes.rs"]
 mod notes;
 #[path = "../oriented_chamfers.rs"]

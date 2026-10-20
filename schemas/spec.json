@@ -391,6 +391,34 @@
         "ra"
       ]
     },
+    "modelled_thread": {
+      "type": "object",
+      "properties": {
+        "depiction": {
+          "anyOf": [
+            {
+              "type": "boolean",
+              "description": "Use ISO 6410 conventional ink to depict thread extent; false restores modelled edges."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "designation": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "Replace the entire modelled-thread callout verbatim. Default: ISO designation, or measured diameter and pitch; no length suffix."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "thread": {
       "type": "object",
       "properties": {
@@ -822,6 +850,16 @@
           "anyOf": [
             {
               "$ref": "#/$defs/finish"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "modelled_thread": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/modelled_thread"
             },
             {
               "type": "null"

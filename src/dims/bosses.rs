@@ -265,6 +265,7 @@ pub(super) fn prefer_established(analysis: &Analysis, wants: &mut [Want]) {
 /// on the visible profile's generators and end rims. The selected view determines
 /// the radial axis; an explicitly requested end view keeps circular rim sites.
 pub(super) fn route_profile(analysis: &Analysis, w: &mut Want, view: &str) {
+    super::modelled_threads::route_profile(analysis, w, view);
     if w.views.len() < 2
         || !matches!(w.shape, Shape::Callout { .. })
         || !w

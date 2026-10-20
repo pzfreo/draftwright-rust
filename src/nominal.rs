@@ -105,7 +105,12 @@ pub(crate) fn report(plan: &mut crate::model::Plan) {
             // Report only a numeric term that is actually printed on this carrier.
             let printed_here = text
                 .split(|c: char| !c.is_ascii_digit() && c != '.' && c != '-')
-                .any(|token| token == printed);
+                .any(|token| {
+                    token == printed
+                        || (m.feature.starts_with("f:modelled_thread:")
+                            && m.parameter == "thread"
+                            && token.parse::<f64>().ok() == printed.parse::<f64>().ok())
+                });
             if printed_here
                 && printed
                     .parse::<f64>()
