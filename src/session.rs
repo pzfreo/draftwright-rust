@@ -859,7 +859,9 @@ impl Session {
                         .problems
                         .iter()
                         .filter(|p| {
-                            p.refs.contains(&record.source_id)
+                            (p.code == "pmi_ignored"
+                                && !record.source_id.starts_with(crate::spec_gdt::SOURCE_PREFIX))
+                                || p.refs.contains(&record.source_id)
                                 || related.is_some_and(|id| p.subjects.iter().any(|s| s == id))
                         })
                         .map(|p| p.message.as_str())

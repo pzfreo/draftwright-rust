@@ -533,3 +533,19 @@ fn undrawable_datums_always_explain_their_attachment_failure() {
                 .contains("datum face attachment is unavailable")
     }));
 }
+
+#[test]
+fn ignored_step_datums_explain_the_explicit_pmi_policy() {
+    let (part, a) = frameless_plate();
+    let session =
+        draftwright::session::Session::new(part, a, spec(json!({"pmi": "ignore"}))).unwrap();
+    assert!(gdt(session.plan(), "datum_feature").is_empty());
+    let report = session.pmi_report();
+    let unresolved = report["unresolved"].as_array().unwrap();
+    assert_eq!(unresolved.len(), 3);
+    assert!(
+        unresolved
+            .iter()
+            .all(|r| r["reason"].as_str().unwrap().contains("pmi ignore"))
+    );
+}
