@@ -171,9 +171,19 @@ fn serialize_fix_advice<S: serde::Serializer>(
     if let Some(fix) = fix {
         map.serialize_entry("fix", fix)?;
         map.serialize_entry("scope", &crate::remedy_scope::UNBOUND_SCOPE)?;
-        map.serialize_entry("fix_description", &format!("Re-plans the sheet: {fix}"))?;
+        map.serialize_entry("fix_description", &advice_description(fix))?;
     }
     map.end()
+}
+
+// Advice has no executable edit and cannot promise a sheet re-layout.
+fn advice_description(fix: &str) -> String {
+    let mut chars = fix.trim().trim_end_matches('.').chars();
+    let text = chars
+        .next()
+        .map(|c| c.to_uppercase().chain(chars).collect::<String>())
+        .unwrap_or_default();
+    format!("{text}.")
 }
 
 /// An annotation as lint sees it: the text it prints and the measurements it claims.
@@ -279,10 +289,7 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
             message: "Grouped shallow relief profiles have no placed model-governing note.".into(),
             subjects: vec![blends::RELIEF_NOTE.into()],
             id: "l:relief_profile_requirement_missing".into(),
-            fix: Some(
-                "Restore the automatic relief-profile note or state the profiles explicitly."
-                    .into(),
-            ),
+            fix: Some("Restore the relief-profile note or state the profiles explicitly.".into()),
             requirements: Vec::new(),
             at: None,
             view: None,
@@ -594,7 +601,14 @@ fn uncovered(
         related: Vec::new(),
         evidence: None,
         fix: Some(format!(
-            "State {feature}/{parameter} in a view that shows its true size or location."
+            "State the {} of {} in a view that shows its true size or location.",
+            parameter.replace(['_', '.'], " "),
+            analysis
+                .features
+                .iter()
+                .find(|f| f.id == feature)
+                .map(parameters::feature_name)
+                .unwrap_or_else(|| "the feature".into())
         )),
     }
 }

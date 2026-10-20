@@ -803,8 +803,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 related: claiming.iter().skip(1).map(|m| m.name.clone()).collect(),
                 evidence,
                 fix: Some(format!(
-                    "State {what} for {}: a hole callout reading \"{}\", in a view that sees the holes end-on.",
-                    g.members.join(", "),
+                    "State {what} for the holes with a callout reading \"{}\", in a view that sees the holes end-on.",
                     g.callout()
                 )),
             });

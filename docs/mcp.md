@@ -226,7 +226,7 @@ all associated item subjects and the feature itself; `subject` remains exact and
 filter fields combine. Default and detailed problem rows carry ordered `fixes` alternatives, each with `scope`
 (`local`, `view`, `sheet`), `description` and one atomic `ops` bundle; `fix` retains the
 preferred bundle for older clients. Local alternatives precede view and sheet remedies.
-Sheet descriptions explicitly name the sheet-wide change. Item answers and options add
+Descriptions state the actual changes in drawing language. Sheet descriptions add “The whole sheet is laid out again, so placements you have moved by hand may change.” Applying a fix applies its operations. Item answers and options add
 `operation_scopes`, and each `settable` descriptor includes path-derived `scope`. A `page_fit_uncertain` row's fix
 sets the nearest sheet size and/or scale that fit (`docs/model.md`); `sheet/references` (boolean, default false) opts into automatic parenthesized reference
 dimensions; pins and per-dimension reference style keep explicit intent. `sheet/projection` (`first`

@@ -628,7 +628,7 @@ fn crossing_remedies_are_scoped_and_ordered_in_mcp_rows() {
                         sheet["description"]
                             .as_str()
                             .unwrap()
-                            .contains("Re-plans the sheet")
+                            .contains("The whole sheet is laid out again")
                     );
                     count += 1;
                 }

@@ -58,8 +58,8 @@ pub fn coverage(analysis: &Analysis, _marks: &[Mark]) -> Vec<LintIssue> {
                 related: Vec::new(),
                 evidence: None,
                 fix: Some(format!(
-                    "Review {} by hand: its angle, legs and run are not dimensioned automatically.",
-                    f.id
+                    "Review and dimension the angle, legs and run of {} by hand.",
+                    super::parameters::feature_name(f)
                 )),
             }
         })

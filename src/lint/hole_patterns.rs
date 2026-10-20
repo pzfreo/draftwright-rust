@@ -206,8 +206,8 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 issue.annotation = Some(mark.name.clone());
                 issue.related = p.members.clone();
                 issue.fix = Some(format!(
-                    "Omit {}/{parameter}, or locate the pattern once and keep its pitch.",
-                    p.id
+                    "Omit the repeated {} dimension, or locate the pattern once and keep its pitch.",
+                    parameter.replace(['_', '.'], " ")
                 ));
                 issues.push(issue);
             }

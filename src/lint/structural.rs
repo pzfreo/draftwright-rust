@@ -424,7 +424,7 @@ fn annotation_items(drawing: &Drawing) -> Vec<LintIssue> {
                     i.annotation = Some(d.name.clone());
                     i.fix = Some(
                         "give the field a concise value and put the full text in the general \
-                         notes (the spec's notes)"
+                         notes"
                             .into(),
                     );
                     issues.push(i);
@@ -716,7 +716,7 @@ fn dimension_lines(drawing: &Drawing) -> Vec<LintIssue> {
                 );
                 i.annotation = Some(a.name.clone());
                 i.related = vec![b.name.clone()];
-                i.fix = Some("move one of them to a lane of its own".into());
+                i.fix = Some("move one of them onto a separate dimension line".into());
                 issues.push(i);
             }
         }
@@ -816,9 +816,7 @@ fn oblique_witnesses(drawing: &Drawing) -> Vec<LintIssue> {
             i.view = view.map(str::to_owned);
             i.related = peers.iter().map(|q| q.name.clone()).collect();
             i.evidence = Some("the drawn oblique witness intersects visible boundary ink, a dimension line, witness, arrowhead or label".into());
-            i.fix = Some(
-                "use perpendicular witnesses in a clear lane before an oblique fallback".into(),
-            );
+            i.fix = Some("draw perpendicular extension lines in clear space where possible".into());
             issues.push(i);
         }
     }

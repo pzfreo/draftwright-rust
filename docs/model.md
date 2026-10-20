@@ -925,14 +925,13 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   tolerance. `view` edits a view's placement, scale or omission, or adds/removes a detail or
   section. `sheet` edits paper, sheet scale/count/allocation, hole-table selection,
   dimension source/schemes, PMI mode, or other drawing-wide intent. Sheet descriptions
-  explicitly say “Re-plans the sheet” and name the effect. Scope describes authored intent;
+  state the changes once in drawing language, then say “The whole sheet is laid out again, so placements you have moved by hand may change.” Pins retain relative intent, but the canonical frame is rebuilt for the new paper and scale. Scope describes authored intent;
   it is not a guarantee that the solver keeps every other item stationary.
   New crossing/label remedies use existing compatible placements, checked against the
-  settled ink with the existing collision predicates; they remain candidates for preview/apply
-  because applying intent may re-space peers. Generating them performs no full preview and
+  settled ink with the existing collision predicates; applying them may re-space peers. Generating them performs no full layout and
   changes no ink. Eligible hole schedules can be offered at the next legible ISO sheet scale
   as an explicit sheet alternative after local remedies. Lint's prose `fix` advice has no Spec operations, so it carries conservative `scope: sheet`
-  and an explicit `fix_description`; the original `fix` text remains available for older clients. The Plan, Session, MCP and WASM JSON expose the same
+  and an explicit `fix_description` containing the advice without claiming that a sheet re-layout is applied; the original `fix` text remains available for older clients. The Plan, Session, MCP and WASM JSON expose the same
   scoped alternatives. Session item/options `operation_scopes` maps operation names to scope,
   and every `settable` descriptor has `scope` (the broadest scope of its `paths`, if grouped).
 - **A problem's message is in drawing language** (#24; `src/wording.rs`): it names a dimension

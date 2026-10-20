@@ -2366,12 +2366,7 @@ fn prose_advice_has_conservative_scope_without_inventing_spec_edits() {
         let wire = serde_json::to_value(issue).unwrap();
         assert_eq!(wire["scope"], "sheet");
         assert_eq!(wire["fix"].as_str(), issue.fix.as_deref());
-        assert!(
-            wire["fix_description"]
-                .as_str()
-                .unwrap()
-                .starts_with("Re-plans the sheet:")
-        );
+        assert_eq!(wire["fix_description"].as_str(), issue.fix.as_deref());
         offered += 1;
     }
     assert!(offered > 0);
