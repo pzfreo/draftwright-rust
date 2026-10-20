@@ -6,6 +6,23 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+## 0.1.0-alpha.9 (2026-10-20)
+
+### Changed
+
+- Pinned to quiddity-rust `v0.1.0-alpha.8` (#135). Recognition documents v3 and v4 are both
+  read (v3 only without thread records). Modelled threads appear as `modelled_thread` features
+  with their measurements, claimed faces and refusals; each is reported as info
+  `modelled_thread_not_depicted`, in place of `feature_not_dimensioned`, until conventional
+  depiction lands, and the modelled edges are drawn as before. On cgb243 (4 threads) and threaded_connector_109 (1), every dimension, the
+  sheet and the SVG bytes are unchanged. Drawing fields are unchanged across all 100 corpus
+  plans. Planning costs 1.7% more retired instructions over the corpus (mfcadpp/10038, the
+  worst, +36%, 1.03 → 1.41 billion).
+- Graphic PMI accounting from haecceity: geometry-only STEP files no longer report PMI
+  presentation and no longer report `pmi_presentation_not_read` (the ten NIST geometry-only files
+  1,595 → 0 in total; nist_ctc_01 AP242 keeps 71, nist_ftc_10 AP242 279). The plan, SVG and PDF carry the
+  PMI loader binding `haecceity-pmi-read/8` (#135, for #125).
+
 ## 0.1.0-alpha.8 (2026-10-20)
 
 ### Added
