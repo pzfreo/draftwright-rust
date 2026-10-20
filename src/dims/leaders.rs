@@ -2566,6 +2566,7 @@ pub(crate) fn settle_radius_leaders(
             // These candidates use the exterior inventory. An interior proof no longer
             // describes the moved label and must not exempt it from final collisions.
             items[i].region = None;
+            items[i].basis = items[i].basis.replace(super::interior::BASIS, "");
             reports.insert(id, route);
         } else {
             let why = if arcs.is_empty() {
