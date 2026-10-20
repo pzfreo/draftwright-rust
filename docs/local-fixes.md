@@ -4,8 +4,8 @@ A local fix sets the existing `sheet/size`, `sheet/scale` and `sheets/max` field
 (the current implementation offers local fixes only on one sheet). It also sets
 `sheet/keep_layout: true`: keep those explicit choices without entering automatic
 sheet selection, view repacking, measured refits or final gutters. Measured linear
-reservation bounds still include the complete drawn ink, without re-packing carriers. Paper and scale
-alone do not bypass those later layout stages, so the boolean is necessary.
+reservation bounds still include the complete drawn ink, without re-packing carriers.
+Paper and scale alone do not bypass those later layout stages, so the boolean is necessary.
 The Spec contains no captured page coordinates or required-item lists. It remains
 readable author intent and reconstructs independently of an editor session.
 

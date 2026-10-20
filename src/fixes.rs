@@ -212,8 +212,8 @@ fn op_description(op: &Op) -> String {
     };
     match op.path.as_str() {
         "sheet/scale" => text.map_or_else(|| choose("scale"), |v| format!("draw at {v}")),
-        "sheet/keep_layout" => if value.is_some() {
-            "keep the paper, scale and view layout".into()
+        "sheet/keep_layout" => if value.and_then(serde_json::Value::as_bool) == Some(true) {
+            "keep the paper, scale and sheet count; report moved views".into()
         } else {
             "lay out the whole sheet again".into()
         },
