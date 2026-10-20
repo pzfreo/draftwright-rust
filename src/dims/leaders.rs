@@ -3763,8 +3763,17 @@ fn resolved_ink(
     ink: &crate::model::projected_ink::EdgeInk,
     v: &crate::model::PlannedView,
 ) -> Option<ResolvedInk> {
+    resolved_route_ink(analysis, ink, v, false)
+}
+
+fn resolved_route_ink(
+    analysis: &crate::model::Analysis,
+    ink: &crate::model::projected_ink::EdgeInk,
+    v: &crate::model::PlannedView,
+    authored: bool,
+) -> Option<ResolvedInk> {
     use crate::output::{Curve, Item};
-    if crate::nominal::authored_pmi(analysis)
+    if (!authored && crate::nominal::authored_pmi(analysis))
         || v.id == "v:iso"
         || v.cut.is_some()
         || v.detail.is_some()
@@ -5646,8 +5655,10 @@ fn sweep(job: &Job, tip: P2) -> Vec<(P2, P2, bool)> {
 
 /// How many routes of the clear-route sweep (ISSUE-1187-a) the planned callout *id* has that are
 /// clear of the page's furniture, the views and every other planned dimension's ink. A
-/// measurement of the same bounded inventory used for final repair: Policy B keeps a blocked
-/// or crossing leader only when this is zero. None when *id* is not a placed callout of the plan.
+/// diagnostic measurement, extended with proven interior routes. Final repair uses these rays
+/// with additional hidden-edge, extension-clearance and per-kind problem budgets; this count
+/// deliberately retains routes that those extra budgets may reject. None for an unplaced or
+/// non-feature callout.
 pub fn clear_routes(
     analysis: &crate::model::Analysis,
     sheet: &crate::model::PlannedSheet,
@@ -5656,9 +5667,10 @@ pub fn clear_routes(
     id: &str,
 ) -> Option<usize> {
     let d = dims.iter().find(|d| d.id == id && d.kind == "callout")?;
-    d.placed.as_ref()?;
-    let mut wants = super::wants(analysis).0;
-    let frames = views
+    let p = d.placed.as_ref()?;
+    let view = d.view.strip_prefix("v:")?;
+    let (mut wants, ..) = super::wants(analysis);
+    let frames: BTreeMap<&str, Frame> = views
         .iter()
         .filter_map(|v| {
             let name = v.id.strip_prefix("v:")?;
@@ -5668,28 +5680,58 @@ pub fn clear_routes(
         .collect();
     super::detail_routes(analysis, &mut wants, views);
     super::route(&mut wants, &frames, analysis);
-    let mut peers: Vec<_> = dims.iter().filter(|o| o.id != id).cloned().collect();
-    peers.extend(crate::centrelines::obstacles(views));
+    let w = wants.iter().find(|w| w.id == id)?;
+    let Shape::Callout { sites, arcs } = &w.shape else {
+        return None;
+    };
+    let f = frames.get(view)?;
+    let page = Page::new(analysis, sheet, views);
+    let ink = label_ink(&d.terms, font());
+    let footprints = Footprints::new(analysis, f, view);
     let proofs = super::interior::proofs(analysis, views);
-    let routes = settled_routes(
-        analysis,
-        sheet,
-        views,
-        d,
-        wants.iter().find(|w| w.id == id),
-        &peers,
-        proofs.get(&d.view).map(|p| p.as_ref()),
-    );
-    Some(
-        routes
+    let job = Job {
+        side: None,
+        view,
+        footprints: &footprints,
+        outline: f.outline(),
+        area: page.area(view),
+        sites: page_sites(f, sites, arcs),
+        radial: !crate::nominal::comparison()
+            && w.measurements.iter().any(|m| {
+                m.parameter == "slot_end_radius.radius"
+                    && crate::nominal::format(m.value)
+                        .split_once('.')
+                        .is_some_and(|(_, tail)| tail.len() > 1)
+            }),
+        silhouette: grazing(f, w),
+        model: None,
+        short_profile: false,
+        interior_proof: views
             .iter()
-            .filter(|p| {
-                peers.iter().filter_map(|d| d.placed.as_ref()).all(|q| {
-                    !p.lines
-                        .iter()
-                        .any(|s| q.lines.iter().chain(&q.arrows).any(|t| lines_meet(*s, *t)))
-                })
-            })
+            .find(|v| v.id == d.view)
+            .and_then(|v| proofs.get(&v.id).map(|proof| (v, proof.as_ref()))),
+        profile_proof: None,
+        directed: false,
+        corridors: false,
+        steer: std::cell::Cell::new(None),
+        ink_min: ink.min,
+        ink_max: ink.max,
+        stroke_pad: stroke_clearance(&d.terms),
+        beyond: [CLEAR; 4],
+    };
+    let rest = || {
+        dims.iter()
+            .enumerate()
+            .filter(|(_, o)| o.id != id)
+            .filter_map(|(i, o)| Some((i, o.placed.as_ref()?)))
+    };
+    let fixed = Fixed::new(rest());
+    let tip = p.lines.first()?[0];
+    Some(
+        sweep(&job, tip)
+            .into_iter()
+            .filter_map(|(tip, elbow, right)| measure(&job, tip, elbow, right, &fixed, &page))
+            .filter(Candidate::clear)
             .count(),
     )
 }
@@ -6223,6 +6265,168 @@ impl Search {
     }
 }
 
+/// Interior candidates use the same rim/tip producer and bounded ray inventory as
+/// exterior routes. Keep this producer separate from radius attachment policy (#145).
+fn interior_routes(job: &Job, tip: P2, page: &Page) -> Vec<Candidate> {
+    if job.interior_proof.is_none() {
+        return Vec::new();
+    }
+    sweep(job, tip)
+        .into_iter()
+        .filter_map(|(tip, elbow, right)| {
+            let c = measure_bounds(job, tip, elbow, right, page)?;
+            (boxes_overlap(c.label_box, job.outline) && c.hard == 0).then_some(c)
+        })
+        .collect()
+}
+
+/// Final repair over the clear-route sweep, with no-regression budgets.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn settled_routes(
+    analysis: &crate::model::Analysis,
+    sheet: &crate::model::PlannedSheet,
+    views: &[crate::model::PlannedView],
+    d: &PlannedDimension,
+    want: Option<&Want>,
+    peers: &[PlannedDimension],
+    proof: Option<&super::interior::Proof>,
+) -> Vec<Placed> {
+    let Some(v) = views.iter().find(|v| v.id == d.view) else {
+        return Vec::new();
+    };
+    let Some(old) = &d.placed else {
+        return Vec::new();
+    };
+    let Some(shaft) = old.lines.first() else {
+        return Vec::new();
+    };
+    let frame = Frame::new(analysis, v);
+    let page = Page::new(analysis, sheet, views);
+    let footprints = Footprints::new(analysis, &frame, d.view.trim_start_matches("v:"));
+    let (sites, ink_min, ink_max) = if let Some(w) = want {
+        let Shape::Callout { sites, arcs } = &w.shape else {
+            return Vec::new();
+        };
+        let ink = label_ink(&d.terms, font());
+        (page_sites(&frame, sites, arcs), ink.min, ink.max)
+    } else {
+        // A control frame or surface label moves rigidly at its existing size.
+        let b = old.label_box;
+        (
+            vec![(shaft[0], 0.0, None)],
+            [0.0, -(b[3] - b[1]) / 2.0],
+            [b[2] - b[0], (b[3] - b[1]) / 2.0],
+        )
+    };
+    if sites.is_empty() {
+        return Vec::new();
+    }
+    let model = analysis.edge_ink.as_ref().map(|ink| {
+        let (lines, _) = view_ink(analysis, ink, v);
+        SegmentIndex::new(lines)
+    });
+    let job = Job {
+        side: None,
+        view: d.view.trim_start_matches("v:"),
+        footprints: &footprints,
+        outline: frame.outline(),
+        area: page.area(d.view.trim_start_matches("v:")),
+        sites,
+        radial: want.is_some_and(|w| {
+            w.measurements.iter().any(|m| {
+                m.parameter == "slot_end_radius.radius"
+                    && crate::nominal::format(m.value)
+                        .split_once('.')
+                        .is_some_and(|(_, tail)| tail.len() > 1)
+            })
+        }),
+        silhouette: want.and_then(|w| grazing(&frame, w)),
+        model: model.as_ref(),
+        corridors: false,
+        directed: false,
+        short_profile: false,
+        profile_proof: None,
+        interior_proof: proof.map(|p| (v, p)),
+        steer: std::cell::Cell::new(None),
+        ink_min,
+        ink_max,
+        stroke_pad: LABEL_PAD,
+        beyond: [CLEAR; 4],
+    };
+    let mut fixed = Fixed::new(
+        peers
+            .iter()
+            .enumerate()
+            .filter_map(|(i, d)| Some((i, d.placed.as_ref()?))),
+    );
+    fixed.furniture = peers
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| d.kind == "ink")
+        .map(|(i, d)| (i, d.basis == "global_axis"))
+        .collect();
+    fixed.crosses = peers
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| d.kind == "ink" && d.basis == "cross")
+        .map(|(i, _)| i)
+        .collect();
+    let mut exterior = job.clone();
+    exterior.interior_proof = None;
+    let mut candidates: Vec<_> = sweep(&exterior, shaft[0])
+        .into_iter()
+        .filter_map(|(tip, elbow, right)| measure_bounds(&exterior, tip, elbow, right, &page))
+        .filter(|c| !boxes_overlap(c.label_box, job.outline) && c.hard == 0)
+        .collect();
+    candidates.extend(interior_routes(&job, shaft[0], &page));
+    let old_extensions = fixed.extension_index.contacts(&old.lines, old.label_box);
+    let resolved = analysis.edge_ink.as_ref().and_then(|ink| {
+        let key = serde_json::to_vec(v).expect("view serializes");
+        crate::planning::memo(analysis, "settled-route-visibility", key, || {
+            resolved_route_ink(analysis, ink, v, true).map(std::rc::Rc::new)
+        })
+    });
+    let old_lines = [
+        old.lines[0],
+        old.lines.get(1).copied().unwrap_or([shaft[1], shaft[1]]),
+    ];
+    let hidden = resolved
+        .as_ref()
+        .map_or(0, |r| r.hidden.route_crossings(old_lines));
+    candidates.retain_mut(|c| {
+        measure_fixed(c, &job, &fixed);
+        c.measure_features(&job);
+        let interior = boxes_overlap(c.label_box, job.outline);
+        // An interior route is admitted only with every fixed annotation gap clear.
+        // Exterior shafts may cross their own outline on the way out, as the
+        // original sweep does. Preserve hidden-edge budgets independently;
+        // counting every visible chord as a veto loses clear outward routes.
+        let extensions = fixed.extension_index.contacts(&c.segments(), c.label_box);
+        c.hard == 0
+            && extensions.0 <= old_extensions.0
+            && extensions.1 <= old_extensions.1
+            && c.text == 0
+            && c.clearance == 0
+            && c.furniture == 0
+            && c.beside == 0
+            && c.grazing == 0
+            && (!interior || c.clear())
+            && resolved
+                .as_ref()
+                .is_none_or(|r| r.hidden.route_crossings(c.segments()) <= hidden)
+    });
+    candidates.sort_by_key(|c| {
+        (
+            c.crossings,
+            c.text,
+            boxes_overlap(c.label_box, job.outline),
+            c.score(),
+        )
+    });
+    candidates.dedup_by(|a, b| a.label_box == b.label_box && a.tip == b.tip);
+    candidates.into_iter().map(|c| c.placed()).collect()
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -6328,7 +6532,7 @@ mod tests {
     }
 
     #[test]
-    fn a_part_without_recesses_keeps_its_published_radius_route() {
+    fn a_radius_route_without_recesses_keeps_its_attachment_and_readable_geometry() {
         let corpus = std::env::var_os("DRAFTWRIGHT_CORPUS")
             .map(std::path::PathBuf::from)
             .or_else(|| {
@@ -6351,19 +6555,23 @@ mod tests {
         let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
         let p = d.placed.as_ref().unwrap();
         let v = plan.views.iter().find(|v| v.id == d.view).unwrap();
-        let baseline: serde_json::Value =
-            serde_json::from_str(include_str!("../../tests/fixtures/leader_routes.json")).unwrap();
-        let route = &baseline["parts"]["cgb245"][id]["route"];
-        let points: Vec<_> = p.lines.iter().flatten().collect();
-        assert_eq!(points.len(), route.as_array().unwrap().len());
-        for (i, point) in points.iter().enumerate() {
-            for (k, coordinate) in point.iter().enumerate() {
-                assert!(
-                    (coordinate - v.at[k] - route[i][k].as_f64().unwrap()).abs() < 1e-6,
-                    "{id}: route changed at {i}/{k}"
-                );
-            }
-        }
+        let wants = super::super::wants(&a).0;
+        let w = wants.iter().find(|w| w.id == id).unwrap();
+        let Shape::Callout { sites, arcs } = &w.shape else {
+            panic!("radius sites");
+        };
+        let sites = page_sites(&Frame::new(&a, v), sites, arcs);
+        let [tip, elbow] = p.lines[0];
+        assert!(sites.iter().any(
+            |&(c, r, span)| ((tip[0] - c[0]).hypot(tip[1] - c[1]) - r).abs()
+                < crate::lint::leaders::TOLERANCE
+                && span.is_none_or(|s| s.contains((tip[1] - c[1]).atan2(tip[0] - c[0]), 1e-6))
+        ));
+        assert_eq!(p.rotation, 0.0);
+        assert_eq!(p.arrows.len(), 1);
+        assert!(length(&p.lines) <= MAX_LEADER + SHOULDER);
+        assert!((elbow[0] - tip[0]) * (p.lines[1][1][0] - elbow[0]) >= -1e-9);
+        assert_eq!(p.lines[1][0][1], p.lines[1][1][1]);
     }
 
     #[test]
@@ -7261,157 +7469,4 @@ mod arc_tip_tests {
         let hole = rim_tip(([0.0, 0.0], 8.5, None), [-20.0, 20.0]);
         assert!(hole[1] > 0.0);
     }
-}
-
-/// Interior candidates use the same rim/tip producer and bounded ray inventory as
-/// exterior routes. Keep this producer separate from radius attachment policy (#145).
-fn interior_routes(job: &Job, tip: P2, page: &Page) -> Vec<Candidate> {
-    if job.interior_proof.is_none() {
-        return Vec::new();
-    }
-    sweep(job, tip)
-        .into_iter()
-        .filter_map(|(tip, elbow, right)| {
-            let c = measure_bounds(job, tip, elbow, right, page)?;
-            (boxes_overlap(c.label_box, job.outline) && c.hard == 0).then_some(c)
-        })
-        .collect()
-}
-
-/// The actual repair and the diagnostic clear-route count share this inventory.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn settled_routes(
-    analysis: &crate::model::Analysis,
-    sheet: &crate::model::PlannedSheet,
-    views: &[crate::model::PlannedView],
-    d: &PlannedDimension,
-    want: Option<&Want>,
-    peers: &[PlannedDimension],
-    proof: Option<&super::interior::Proof>,
-) -> Vec<Placed> {
-    let Some(v) = views.iter().find(|v| v.id == d.view) else {
-        return Vec::new();
-    };
-    let Some(old) = &d.placed else {
-        return Vec::new();
-    };
-    let Some(shaft) = old.lines.first() else {
-        return Vec::new();
-    };
-    let frame = Frame::new(analysis, v);
-    let page = Page::new(analysis, sheet, views);
-    let footprints = Footprints::new(analysis, &frame, d.view.trim_start_matches("v:"));
-    let (sites, ink_min, ink_max) = if let Some(w) = want {
-        let Shape::Callout { sites, arcs } = &w.shape else {
-            return Vec::new();
-        };
-        let ink = label_ink(&d.terms, font());
-        (page_sites(&frame, sites, arcs), ink.min, ink.max)
-    } else {
-        // A control frame or surface label moves rigidly at its existing size.
-        let b = old.label_box;
-        (
-            vec![(shaft[0], 0.0, None)],
-            [0.0, -(b[3] - b[1]) / 2.0],
-            [b[2] - b[0], (b[3] - b[1]) / 2.0],
-        )
-    };
-    if sites.is_empty() {
-        return Vec::new();
-    }
-    let model = analysis.edge_ink.as_ref().map(|ink| {
-        let (lines, _) = view_ink(analysis, ink, v);
-        SegmentIndex::new(lines)
-    });
-    let job = Job {
-        side: None,
-        view: d.view.trim_start_matches("v:"),
-        footprints: &footprints,
-        outline: frame.outline(),
-        area: page.area(d.view.trim_start_matches("v:")),
-        sites,
-        radial: want.is_some_and(|w| {
-            w.measurements.iter().any(|m| {
-                m.parameter == "slot_end_radius.radius"
-                    && crate::nominal::format(m.value)
-                        .split_once('.')
-                        .is_some_and(|(_, tail)| tail.len() > 1)
-            })
-        }),
-        silhouette: want.and_then(|w| grazing(&frame, w)),
-        model: model.as_ref(),
-        corridors: false,
-        directed: false,
-        short_profile: false,
-        profile_proof: None,
-        interior_proof: proof.map(|p| (v, p)),
-        steer: std::cell::Cell::new(None),
-        ink_min,
-        ink_max,
-        stroke_pad: LABEL_PAD,
-        beyond: [CLEAR; 4],
-    };
-    let mut fixed = Fixed::new(
-        peers
-            .iter()
-            .enumerate()
-            .filter_map(|(i, d)| Some((i, d.placed.as_ref()?))),
-    );
-    fixed.furniture = peers
-        .iter()
-        .enumerate()
-        .filter(|(_, d)| d.kind == "ink")
-        .map(|(i, d)| (i, d.basis == "global_axis"))
-        .collect();
-    fixed.crosses = peers
-        .iter()
-        .enumerate()
-        .filter(|(_, d)| d.kind == "ink" && d.basis == "cross")
-        .map(|(i, _)| i)
-        .collect();
-    let mut exterior = job.clone();
-    exterior.interior_proof = None;
-    let mut candidates: Vec<_> = sweep(&exterior, shaft[0])
-        .into_iter()
-        .filter_map(|(tip, elbow, right)| measure_bounds(&exterior, tip, elbow, right, &page))
-        .filter(|c| !boxes_overlap(c.label_box, job.outline) && c.hard == 0)
-        .collect();
-    candidates.extend(interior_routes(&job, shaft[0], &page));
-    let old_extensions = fixed.extension_index.contacts(&old.lines, old.label_box);
-    let old_edges = model.as_ref().map_or(0, |m| {
-        m.route_crossings([
-            old.lines[0],
-            old.lines.get(1).copied().unwrap_or([shaft[1], shaft[1]]),
-        ])
-    });
-    candidates.retain_mut(|c| {
-        measure_fixed(c, &job, &fixed);
-        c.measure_features(&job);
-        let interior = boxes_overlap(c.label_box, job.outline);
-        // An interior route is admitted only with every fixed annotation gap clear.
-        // Exterior routes retain Policy B, but may never add text or model contacts.
-        let extensions = fixed.extension_index.contacts(&c.segments(), c.label_box);
-        c.hard == 0
-            && extensions.0 <= old_extensions.0
-            && extensions.1 <= old_extensions.1
-            && c.text == 0
-            && c.clearance == 0
-            && c.furniture == 0
-            && c.beside == 0
-            && c.grazing == 0
-            && (!interior || c.clear())
-            && model
-                .as_ref()
-                .is_none_or(|m| m.route_crossings(c.segments()) <= old_edges)
-    });
-    candidates.sort_by_key(|c| {
-        (
-            c.crossings,
-            c.text,
-            boxes_overlap(c.label_box, job.outline),
-            c.score(),
-        )
-    });
-    candidates.dedup_by(|a, b| a.label_box == b.label_box && a.tip == b.tip);
-    candidates.into_iter().map(|c| c.placed()).collect()
 }

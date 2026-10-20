@@ -196,9 +196,13 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
             {
                 continue;
             }
-            let glyph = plan.gdt.iter().find(|g| g.id == d.id);
+            let glyph = plan.gdt.iter().find(|g| g.id == d.id).cloned();
+            let want = wants.iter().find(|w| w.id == d.id);
+            if glyph.is_none() && want.is_none() {
+                continue;
+            }
             // Finishes have a prescribed outward normal, independent of leadered labels.
-            if glyph.is_some_and(|g| g.kind == "surface_finish") {
+            if glyph.as_ref().is_some_and(|g| g.kind == "surface_finish") {
                 continue;
             }
             let peers: Vec<_> = all
@@ -220,22 +224,51 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                         .cloned(),
                 )
                 .collect();
-            let candidates = if glyph.is_some_and(|g| g.kind == "datum_feature") {
-                gdt::normal_routes(glyph.expect("datum"))
+            let candidates = if glyph.as_ref().is_some_and(|g| g.kind == "datum_feature") {
+                gdt::normal_routes(glyph.as_ref().expect("datum"))
             } else {
                 leaders::settled_routes(
                     analysis,
                     sheet,
                     &plan.views,
                     d,
-                    wants.iter().find(|w| w.id == d.id),
+                    want,
                     &peers,
-                    proofs.get(&d.view).map(|p| p.as_ref()),
+                    proofs.get(&view.id).map(|p| p.as_ref()),
                 )
             };
             let id = d.id.clone();
             let old = d.placed.clone();
             for next in candidates.into_iter().take(40) {
+                // The all-around/all-over marks travel with the bend. Reserve
+                // their actual extent as well as the proxy's shaft and frame.
+                if let Some(g) = glyph.as_ref().filter(|g| !g.modifiers.is_empty()) {
+                    let ring = if g.modifiers.iter().any(|m| m == "all_over") {
+                        1.7 * 0.42 * super::TEXT
+                    } else {
+                        0.42 * super::TEXT
+                    } + 0.5;
+                    let bend = next.lines[0][1];
+                    let b = [
+                        bend[0] - ring,
+                        bend[1] - ring,
+                        bend[0] + ring,
+                        bend[1] + ring,
+                    ];
+                    if peers.iter().filter_map(|d| d.placed.as_ref()).any(|p| {
+                        placement::boxes_overlap(b, p.label_box)
+                            || p.lines
+                                .iter()
+                                .chain(&p.arrows)
+                                .any(|s| leaders::touches_box(*s, b))
+                    }) || (proofs
+                        .get(&view.id)
+                        .is_some_and(|p| p.blank(view, next.label_box))
+                        && !proofs[&view.id].blank(view, b))
+                    {
+                        continue;
+                    }
+                }
                 // Full sheet furniture is fixed even when collision reporting only
                 // enumerates dimensions and PMI. Keep the existing 1 mm text gap.
                 let pad = [
@@ -265,7 +298,7 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                     if i < dimension_count {
                         let d = &mut plan.dimensions[i];
                         let inside = proofs
-                            .get(&d.view)
+                            .get(&view.id)
                             .is_some_and(|p| p.annotation_clear(view, &next, true));
                         d.region = inside.then_some(super::CandidateRegion::Interior);
                         if inside && !d.basis.contains(interior::BASIS) {
@@ -284,6 +317,30 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                         );
                     } else if let Some(g) = plan.gdt.iter_mut().find(|g| g.id == id) {
                         rehang(g, &next);
+                        if g.kind != "datum_feature" {
+                            let inside = proofs
+                                .get(&view.id)
+                                .is_some_and(|proof| proof.blank(view, next.label_box));
+                            if inside {
+                                if !g.basis.contains(interior::BASIS) {
+                                    g.basis += interior::BASIS;
+                                }
+                            } else if let Some(frame) = frames.get(view.id.trim_start_matches("v:"))
+                            {
+                                let o = frame.outline();
+                                let b = next.label_box;
+                                let side = if b[2] <= o[0] {
+                                    "left"
+                                } else if b[0] >= o[2] {
+                                    "right"
+                                } else if b[1] >= o[3] {
+                                    "above"
+                                } else {
+                                    "below"
+                                };
+                                g.side = side.into();
+                            }
+                        }
                     }
                     changed.insert(id.clone());
                     moved = true;
@@ -313,6 +370,7 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
             .into_iter()
             .filter(|p| p.subjects.iter().any(|s| changed.contains(s))),
     );
+    plan.sheet.fill = crate::sheet_fit::fill(analysis, plan);
     plan.status = crate::completeness::status(&plan.problems);
 }
 
