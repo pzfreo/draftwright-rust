@@ -1892,7 +1892,8 @@ fn fit_fix(analysis: &Analysis, spec: &Spec) -> Result<Option<FittingFix>, Inval
 
 /// Spend free row space against measured ink before escalating an oblique authored quantity.
 fn compact_authored_row(analysis: &Analysis, plan: &mut Plan) {
-    if crate::dims::authored_placement_clear(&plan.spec, &plan.dimensions)
+    if plan.spec.sheet.keep_layout.is_some()
+        || crate::dims::authored_placement_clear(&plan.spec, &plan.dimensions)
         || crate::placement_intent::has_pins(&plan.spec)
         || plan.spec.views.values().any(|v| v.place.is_some())
         || !plan.gdt.is_empty()

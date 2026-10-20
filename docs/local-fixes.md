@@ -13,7 +13,7 @@ The override contains `size`, `scale` and `views`, keyed by view ID. Each frame 
 retains shown items, including notes and tables; a covered dimension may still be
 conveyed by its drawn owner. Radius-table groups remain tabulated, retaining their
 centre coordinates even if an edit frees a radius-leader corridor. A batch that loses required information is refused. It constrains the
-single-sheet solver, suppresses view repacking and final gutters, and checks the final
+single-sheet solver, suppresses view repacking, measured row/section/isometric refits and final gutters, and checks the final
 paper, scale, count and view origins/scales. Conflicting authored paper/scale or edits
 that cannot retain the view set are refused with “This edit cannot keep the retained
 sheet layout. No local fix is available for this edit”. No information is suppressed

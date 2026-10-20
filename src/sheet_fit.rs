@@ -579,6 +579,11 @@ fn correct_sections(analysis: &Analysis, plan: &mut Plan) {
 }
 
 pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
+    // A local remedy owns the existing view frames, including the orientation view.
+    // Correcting a label must not unlock the later measured-row/section refit.
+    if plan.spec.sheet.keep_layout.is_some() {
+        return;
+    }
     // Wider label shelves can push an unused edge of the final section's generic band
     // past the border. The complete rendered footprints prove whether it is empty paper;
     // never trim an estimate through any model, label, arrow or piece of furniture.
@@ -781,7 +786,9 @@ fn pack_reserved(
     recipient: &Plan,
     reservation: &Plan,
 ) -> Option<Plan> {
-    if template.spec.iso_scale_factor.is_some()
+    if template.spec.sheet.keep_layout.is_some()
+        || recipient.spec.sheet.keep_layout.is_some()
+        || template.spec.iso_scale_factor.is_some()
         || template.spec.sheet.projection.as_deref() == Some("first")
         || template.hole_table.is_some()
         || !template.balloons.is_empty()

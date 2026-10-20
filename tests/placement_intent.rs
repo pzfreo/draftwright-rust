@@ -636,6 +636,25 @@ fn colliding_and_off_sheet_pins_are_reported_and_never_dropped() {
     );
     let fixed = model::edit(&p.spec, &serde_json::to_value(&problem.fix).unwrap()).unwrap();
     let repaired = model::plan_recovered(&a, &fixed).unwrap();
+    assert_eq!(
+        (
+            &repaired.sheet.size,
+            &repaired.sheet.scale,
+            repaired.sheets.len()
+        ),
+        (&p.sheet.size, &p.sheet.scale, p.sheets.len())
+    );
+    assert_eq!(
+        repaired
+            .views
+            .iter()
+            .map(|v| (&v.id, v.at, v.scale))
+            .collect::<Vec<_>>(),
+        p.views
+            .iter()
+            .map(|v| (&v.id, v.at, v.scale))
+            .collect::<Vec<_>>()
+    );
     assert!(
         !repaired
             .problems
