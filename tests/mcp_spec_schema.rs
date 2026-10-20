@@ -115,6 +115,26 @@ fn callout_styles_are_discovered_for_sheet_and_feature_without_context_growth() 
     assert!(mcp::validate(&schema, &json!({"sheet":{"callouts":{"style":"wide"}}})).is_err());
 }
 
+#[test]
+fn maximum_paper_is_discovered_and_removed_printer_points_to_its_replacement() {
+    let schema = discovery()["spec"].clone();
+    for maximum in ["A4", "A3", "A2", "A1", "A0"] {
+        mcp::validate(&schema, &json!({"sheet":{"max_size":maximum}})).unwrap();
+    }
+    assert!(mcp::validate(&schema, &json!({"sheet":{"max_size":"A5"}})).is_err());
+    let error = mcp::validate(&schema, &json!({"sheet":{"preferred_printer":"A4"}})).unwrap_err();
+    assert!(error.contains("sheet/max_size"), "{error}");
+    assert!(error.contains("A4 printer") && error.contains("A3 printer"));
+    let private: Value =
+        serde_json::from_str(include_str!("../schemas/mcp-validation.json")).unwrap();
+    let error = mcp::validate(
+        &private["inspect_part"],
+        &json!({"spec":{"sheet":{"preferred_printer":"A3"}}}),
+    )
+    .unwrap_err();
+    assert!(error.contains("sheet/max_size"), "{error}");
+}
+
 // Rust json! accepts trailing commas. Keep strings intact while normalizing literal
 // examples for JSON parsing; expressions with runtime values are tested by their own
 // session tests and are deliberately not guessed here.

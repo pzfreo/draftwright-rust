@@ -228,6 +228,9 @@ pub fn validate(schema: &Value, value: &Value) -> Result<(), String> {
                     continue;
                 }
                 if s["additionalProperties"] == false {
+                    if key == "preferred_printer" && path.ends_with("/sheet") {
+                        return Err(format!("{path}: {}", crate::model::REMOVED_PRINTER));
+                    }
                     return Err(format!(
                         "{path}: {key:?} is unknown; accepted fields: {}; grouped fields: {}",
                         s["properties"], s["patternProperties"]

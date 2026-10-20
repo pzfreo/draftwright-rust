@@ -550,7 +550,7 @@ The cumulative overflow order is isometric, section A–A, then a rescue hole ta
 withdrawn for lack of table room. Assigned content moves first; a group containing a
 principal or a placement pin does not move automatically. Sections that fit stay
 on sheet 1. The first clean prefix wins; otherwise the fewest hard findings and
-required drops, largest first-sheet scale, then fewest moves choose the result.
+required drops, largest first-sheet scale, then fewest sheets and moves choose the result.
 The sheet basis records every attempted or blocked prefix.
 
 Assigned corner tables are placed first on later sheets, then complete view blocks
@@ -952,8 +952,9 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   invariant 9.
 - **The baseline and explicit-paper scale are chosen on finished drawings** (maintainer, 2026-10-12,
   H6; `model::plan_recovered` / `model::recover`, policy in `sheet_fit::choose`).
-  The A4-first policy above wraps this baseline search. Each
-  standard sheet and scale at or above the legibility floor is planned and judged. A
+  The smallest-first policy above wraps this baseline search. Each
+  standard sheet within `sheet/max_size` and scale at or above the legibility floor
+  is planned and judged. Explicit size or scale bypasses the cap. A
   candidate is valid and complete when it has no hard layout finding, its drawn items and
   views fit inside the border and off the title block, it drops or loses no measurement
   the first plan carried, every GD&T item is drawn, and it lays no more annotations over

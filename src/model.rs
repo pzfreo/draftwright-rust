@@ -521,12 +521,12 @@ fn valid_view_gutter(g: f64) -> bool {
     (0.0..=1189.0).contains(&g)
 }
 
+pub(crate) const REMOVED_PRINTER: &str = "unknown field `preferred_printer` in sheet; use sheet/max_size instead: A4 printer → max_size: \"A4\", A3 printer → max_size: \"A3\"";
+
 fn sheet_document<'de, D: serde::Deserializer<'de>>(d: D) -> Result<SheetSpec, D::Error> {
     let value = serde_json::Value::deserialize(d)?;
     if value.get("preferred_printer").is_some() {
-        return Err(serde::de::Error::custom(
-            "unknown field `preferred_printer` in sheet; use sheet/max_size instead: A4 printer → max_size: \"A4\", A3 printer → max_size: \"A3\"",
-        ));
+        return Err(serde::de::Error::custom(REMOVED_PRINTER));
     }
     serde_json::from_value(value).map_err(serde::de::Error::custom)
 }

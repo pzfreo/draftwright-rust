@@ -335,7 +335,7 @@ fn complete(analysis: &Analysis, plan: &Plan, floor: f64) -> bool {
     model::findings(plan).clean()
         && model::undrawn_gdt(plan) == 0
         && model::drawn_sheets_fit(analysis, plan)
-        && plan.sheet.scale_factor + 1e-9 >= floor
+        && plan.sheet.scale_factor + 1e-9 >= floor.max(sheet_fit::min_legible_scale(analysis))
         && sheet_fit::illegible_steps(analysis, plan) == 0
         && plan
             .views
@@ -481,6 +481,21 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
             max,
             outcome,
             scales,
+        });
+    }
+    if let Some(candidate) = candidates.iter_mut().find(|c| {
+        c.size == best.sheet.size
+            && c.max > best.sheets.len()
+            && c.scales.contains(&best.sheet.scale)
+    }) {
+        candidate.outcome += "; retained as best result within the cap";
+    } else {
+        candidates.push(Candidate {
+            size: best.sheet.size.clone(),
+            max_size: String::new(),
+            max: 1 + best.sheets.len(),
+            scales: Vec::new(),
+            outcome: "automatic baseline retained as best result within the cap".into(),
         });
     }
     best.spec = spec.clone();
@@ -1117,6 +1132,28 @@ mod tests {
         assert!(p.sheet_candidates.iter().all(|c| c.max_size == "A3"));
         let baseline = model::plan_automatic(&a, &Spec::default()).unwrap();
         assert!(["A4", "A3"].contains(&baseline.sheet.size.as_str()));
+    }
+
+    #[test]
+    fn failed_bounded_search_reports_its_cap_and_raise_fix() {
+        let mut a = fixture();
+        a.envelope = [[0.0; 3], [100_000.0; 3]];
+        let spec: Spec =
+            serde_json::from_value(json!({"sheet":{"max_size":"A4"},"sheets":{"max":2}})).unwrap();
+        let p = model::plan_recovered(&a, &spec).unwrap();
+        assert_eq!(p.sheet.size, "A4");
+        assert!(p.sheets.len() < 2);
+        let problem = p
+            .problems
+            .iter()
+            .find(|p| p.code == "sheet_size_capped")
+            .unwrap();
+        assert_eq!(problem.severity, "warning");
+        assert!(problem.message.contains("No larger paper was checked"));
+        assert_eq!(problem.fix[0].path, "sheet/max_size");
+        assert_eq!(problem.fix[0].value, Some(json!("A3")));
+        assert!(p.sheet_candidates.iter().all(|c| c.max_size == "A4"));
+        assert!(p.sheet.basis.contains("sheet/max_size A4"));
     }
 
     #[test]

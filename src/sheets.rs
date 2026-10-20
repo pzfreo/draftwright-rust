@@ -495,7 +495,7 @@ fn allocate_inner(
             p.sheet.scale,
             moved.keys().cloned().collect::<Vec<_>>().join(", ")
         ));
-        let rank = (hard, dropped, -p.sheet.scale_factor, step);
+        let rank = (hard, dropped, -p.sheet.scale_factor, p.sheets.len(), step);
         if best.as_ref().is_none_or(|(r, _)| rank < *r) {
             best = Some((rank, p));
         }
