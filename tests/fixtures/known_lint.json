@@ -402,15 +402,8 @@
     },
     {
       "part": "ftc06",
-      "code": "radius_leader_direction_unverifiable",
-      "count": 1,
-      "verdict": "rust-correct",
-      "reason": "Issue #145: the recorded fillet/toroidal geometry cannot prove the drawn shaft radial from the open centre side."
-    },
-    {
-      "part": "ftc06",
       "code": "radius_leader_not_radial",
-      "count": 1,
+      "count": 2,
       "verdict": "rust-correct",
       "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, open-centre approach rule."
     },
@@ -422,25 +415,18 @@
       "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, open-centre approach rule."
     },
     {
-      "part": "m10127",
+      "part": "spool132",
       "code": "radius_leader_not_radial",
       "count": 1,
       "verdict": "rust-correct",
       "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, open-centre approach rule."
     },
     {
-      "part": "spool132",
-      "code": "radius_leader_direction_unverifiable",
-      "count": 1,
-      "verdict": "rust-correct",
-      "reason": "Issue #145: the recorded fillet/toroidal geometry cannot prove the drawn shaft radial from the open centre side."
-    },
-    {
       "part": "string_post",
-      "code": "radius_leader_direction_unverifiable",
+      "code": "radius_leader_not_radial",
       "count": 1,
       "verdict": "rust-correct",
-      "reason": "Issue #145: the recorded fillet/toroidal geometry cannot prove the drawn shaft radial from the open centre side."
+      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, open-centre approach rule."
     }
   ],
   "ledgers": [

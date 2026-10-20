@@ -1,25 +1,26 @@
-"""Audit the added radius-direction codes on the existing recognised-sheet fixtures.
+"""Record only added radius-direction findings from the historical drawing test itself.
 
-Use --record tests/fixtures/known_lint.json to record ONLY the two new code families.
-Existing lint-code counts must still agree: this cannot bless a historical regression.
-All reviews, recognition inputs and SVGs stay in --out, outside the fixture directory.
+--test-binary is the release audits executable Cargo builds. --record updates only
+these new codes in known_lint.json; every pre-existing code/count must still match.
+Using the exact test producer matters: CLI review uses layout recovery, while this
+historical fixture deliberately exercises model::plan without recovery.
 """
 import argparse
 import collections
-from concurrent.futures import ThreadPoolExecutor
-import gzip
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 CODES = {'radius_leader_not_radial', 'radius_leader_direction_unverifiable'}
+TEST = 'lint::lint_on_the_ports_own_drawings_is_known'
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--binary', type=Path, required=True)
+    parser.add_argument('--test-binary', type=Path, required=True)
     parser.add_argument('--corpus', type=Path, default=os.environ.get('DRAFTWRIGHT_CORPUS'))
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--record', type=Path)
@@ -27,34 +28,32 @@ def main():
     if args.corpus is None:
         parser.error('--corpus or DRAFTWRIGHT_CORPUS is required')
     args.out.mkdir(parents=True, exist_ok=True)
-    binary = args.binary.resolve()
-    inputs = []
-    for sheet in sorted((ROOT / 'tests/fixtures/sheets').glob('*.json.gz')):
-        name = sheet.name.removesuffix('.json.gz')
-        recognition = ROOT / 'tests/fixtures/recognition/corpus' / (name + '.json.gz')
-        if name == 'connector109' or not recognition.is_file():
-            continue  # Same slow-part exclusion as lint::lint_on_the_ports_own_drawings_is_known.
-        facts = json.loads(gzip.decompress(sheet.read_bytes()))
-        inputs.append((name, args.corpus / facts['binding']['file'], recognition))
-
-    def review(row):
-        name, step, recognition = row
-        features = args.out / (name + '.features.json')
-        features.write_bytes(gzip.decompress(recognition.read_bytes()))
-        result = subprocess.run([str(binary), 'review', str(step), '--features', str(features)],
-                                capture_output=True, text=True, check=True, timeout=3600)
-        result = json.loads(result.stdout)
-        (args.out / (name + '.svg')).write_text(result['svg'])
-        (args.out / (name + '.review.json')).write_text(json.dumps(
-            {k: result[k] for k in ('lint', 'structural', 'problems')}, indent=2) + '\n')
-        return name, collections.Counter(i['code'] for i in result['lint'])
-
-    with ThreadPoolExecutor(4) as executor:
-        actual = dict(executor.map(review, inputs))
+    names = {p.name.removesuffix('.json.gz') for p in
+             (ROOT / 'tests/fixtures/recognition/corpus').glob('*.json.gz')}
+    names.discard('connector109')  # Same explicit slow-part exclusion as the test.
+    env = dict(os.environ, LINT_REPORT='1', RUST_TEST_THREADS='6',
+               DRAFTWRIGHT_CORPUS=str(args.corpus.resolve()), DRAFTWRIGHT_CORPUS_REQUIRED='1')
+    reply = subprocess.run([str(args.test_binary.resolve()), TEST, '--exact', '--nocapture'],
+                           env=env, capture_output=True, text=True, timeout=3600)
+    output = reply.stdout + reply.stderr
+    (args.out / 'test.log').write_text(output)
+    actual = collections.defaultdict(collections.Counter)
+    for line in output.splitlines():
+        part, separator, tail = line.partition(': ')
+        if separator and part in names:
+            code = tail.partition(' ')[0]
+            if re.fullmatch('[a-z][a-z0-9_]*', code):
+                actual[part][code] += 1
+    reported = re.search(r'(?m)^(\d+) findings on the port\'s own drawings,', output)
+    if not reported or sum(sum(row.values()) for row in actual.values()) != int(reported[1]):
+        raise ValueError('incomplete test findings; inspect --out/test.log')
+    # Include parts with no findings, so a stale baseline entry cannot escape the audit.
+    for name in names:
+        actual[name]
     baseline = args.record or ROOT / 'tests/fixtures/known_lint.json'
     record = json.loads(baseline.read_text())
     expected = {(r['part'], r['code']): r['count'] for r in record['own_drawings']
-                if r['part'] in actual and r['code'] not in CODES}
+                if r['part'] in names and r['code'] not in CODES}
     measured = {(part, code): count for part, counts in actual.items()
                 for code, count in counts.items() if code not in CODES}
     if measured != expected:
@@ -78,8 +77,8 @@ def main():
         if {(r['part'], r['code']): r['count'] for r in listed} != {
                 (r['part'], r['code']): r['count'] for r in added}:
             raise ValueError('new radius-direction findings differ; inspect --out/radius-direction.json')
-    print(f'PASS: {len(actual)} recognised drawings; existing lint counts unchanged; '
-          f'{sum(r["count"] for r in added)} radius direction findings')
+    print(f'PASS: existing lint counts unchanged; {sum(r["count"] for r in added)} '
+          f'radius direction findings from {TEST}')
 
 
 if __name__ == '__main__':

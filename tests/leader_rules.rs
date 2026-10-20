@@ -985,7 +985,7 @@ fn ctc01_r5_meets_the_fillet_from_the_open_centre_side() {
 fn returned_radius_fallbacks_are_reported_after_the_final_sheet_audit() {
     let corpus = std::env::var("DRAFTWRIGHT_CORPUS")
         .unwrap_or_else(|_| "/Users/paul/repos/quiddity/tests/corpus".into());
-    let path = Path::new(&corpus).join("mfcadpp/363.step");
+    let path = Path::new(&corpus).join("mfcadpp_holdout/363.step");
     if !path.is_file() {
         assert!(std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").is_err());
         return;

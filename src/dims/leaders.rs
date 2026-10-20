@@ -2492,24 +2492,15 @@ pub(crate) fn settle_radius_leaders(
         };
         let frame = Frame::new(analysis, v);
         let mut arcs = Vec::new();
-        let mut reasons = Vec::new();
         for id in ids {
-            match crate::radius::projected(analysis, id, v.direction, |q| frame.page(q)) {
-                Ok(more) => arcs.extend(more),
-                Err(why) => reasons.push(why),
+            if let Ok(more) = crate::radius::projected(analysis, id, v.direction, |q| frame.page(q))
+            {
+                arcs.extend(more);
             }
         }
-        if arcs.iter().any(|a| a.accepts(shaft)) {
-            reports.insert(
-                d.id.clone(),
-                route_reports_named(
-                    &d.id,
-                    &d.label,
-                    v.id.trim_start_matches("v:"),
-                    &crate::material::solids(analysis, |q| frame.page(q)),
-                    shaft,
-                ),
-            );
+        // Report unchanged/unreadable routes in the final audit, not as a placement
+        // update: warning-only passes must not reserve paper again during recovery.
+        if arcs.iter().all(|a| !a.centre_open) || arcs.iter().any(|a| a.accepts(shaft)) {
             continue;
         }
         let view = v.id.trim_start_matches("v:");
@@ -2647,27 +2638,6 @@ pub(crate) fn settle_radius_leaders(
             items[i].region = None;
             items[i].basis = items[i].basis.replace(super::interior::BASIS, "");
             reports.insert(id, route);
-        } else {
-            let why = if arcs.is_empty() {
-                reasons.join("; ")
-            } else if arcs.iter().all(|a| !a.centre_open) {
-                "the centre side is material, so no open centre-side approach exists".into()
-            } else {
-                "no middle-arc, open-side radial candidate preserves the existing drawing contact and length budgets".into()
-            };
-            let mut problems = route_reports_named(&id, &d.label, view, footprint.solids(), shaft);
-            problems.push(Problem {
-                id: format!("p:radius_leader_routing_fallback:{id}"),
-                code: "radius_leader_routing_fallback".into(),
-                severity: "warning".into(),
-                message: format!(
-                    "The radius leader “{}” retains its best existing route: {why}.",
-                    d.label
-                ),
-                subjects: vec![id.clone()],
-                ..Default::default()
-            });
-            reports.insert(id, problems);
         }
     }
     reports
