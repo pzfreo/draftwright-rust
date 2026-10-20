@@ -226,6 +226,7 @@ pub struct Spec {
     pub schema: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub binding: Option<Binding>,
+    #[serde(deserialize_with = "sheet_document")]
     pub sheet: SheetSpec,
     /// Authored isometric scale relative to the sheet scale; never automatically refitted.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -475,12 +476,9 @@ pub struct SheetSpec {
     /// `A4` … `A0`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub size: Option<String>,
-    /// Largest available printer: `A4` (default) or `A3`, for automatic sheet selection.
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "preferred_printer"
-    )]
-    pub preferred_printer: Option<String>,
+    /// Largest automatic paper, `A4` … `A0`; defaults to `A3`.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "max_size")]
+    pub max_size: Option<String>,
     /// `n:m`, from ISO 5455's series.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scale: Option<String>,
@@ -523,11 +521,24 @@ fn valid_view_gutter(g: f64) -> bool {
     (0.0..=1189.0).contains(&g)
 }
 
-fn preferred_printer<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
-    let value = Option::<String>::deserialize(d)?;
-    if value.as_deref().is_some_and(|v| !["A4", "A3"].contains(&v)) {
+fn sheet_document<'de, D: serde::Deserializer<'de>>(d: D) -> Result<SheetSpec, D::Error> {
+    let value = serde_json::Value::deserialize(d)?;
+    if value.get("preferred_printer").is_some() {
         return Err(serde::de::Error::custom(
-            "sheet/preferred_printer must be A4 or A3",
+            "unknown field `preferred_printer` in sheet; use sheet/max_size instead: A4 printer → max_size: \"A4\", A3 printer → max_size: \"A3\"",
+        ));
+    }
+    serde_json::from_value(value).map_err(serde::de::Error::custom)
+}
+
+fn max_size<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+    let value = Option::<String>::deserialize(d)?;
+    if value
+        .as_deref()
+        .is_some_and(|v| !layout::PAGES.iter().any(|p| p.0 == v))
+    {
+        return Err(serde::de::Error::custom(
+            "sheet/max_size must be A4, A3, A2, A1 or A0",
         ));
     }
     Ok(value)
@@ -2788,7 +2799,12 @@ fn recover_candidates(
     let mut first_sheet = 0;
     loop {
         let mut cut = false;
-        for (i, (name, _, _)) in layout::PAGES.iter().enumerate().skip(first_sheet) {
+        for (i, (name, _, _)) in layout::PAGES
+            .iter()
+            .enumerate()
+            .take(crate::sheet_policy::page_limit(spec))
+            .skip(first_sheet)
+        {
             if spec.sheet.size.as_ref().is_some_and(|n| n != name) {
                 continue;
             }
@@ -3346,7 +3362,7 @@ pub(crate) fn pin_base(spec: &Spec) -> Spec {
     let mut base = Spec::default();
     base.sheet.size = spec.sheet.size.clone();
     base.sheet.scale = spec.sheet.scale.clone();
-    base.sheet.preferred_printer = spec.sheet.preferred_printer.clone();
+    base.sheet.max_size = spec.sheet.max_size.clone();
     base.sheet.projection = spec.sheet.projection.clone();
     base.sheet.fit_deviations = spec.sheet.fit_deviations;
     base.sheet.references = spec.sheet.references;
@@ -3786,7 +3802,7 @@ fn plan_escalated_uncached(
                     let first = layout::PAGES.iter().position(|(name, ..)| *name == p.sheet.size)
                         // Invariant: The planned sheet size was selected from the fixed paper table.
                         .expect("planned paper is standard");
-                    for (name, ..) in layout::PAGES.iter().skip(first + 1) {
+                    for (name, ..) in layout::PAGES.iter().take(crate::sheet_policy::page_limit(spec)).skip(first + 1) {
                         let mut larger = spec.clone();
                         larger.sheet.size = Some((*name).into());
                         let mut candidate = plan_with_presentation(
@@ -4029,13 +4045,13 @@ fn plan_with_presentation(
     let spec = &crate::recognition_corrections::bind(analysis, migrate(spec, analysis)?)?;
     if spec
         .sheet
-        .preferred_printer
+        .max_size
         .as_deref()
-        .is_some_and(|v| !["A4", "A3"].contains(&v))
+        .is_some_and(|v| !layout::PAGES.iter().any(|p| p.0 == v))
     {
         return Err(invalid(
-            "sheet/preferred_printer must be A4 or A3.",
-            &["A4", "A3"],
+            "sheet/max_size must be A4, A3, A2, A1 or A0.",
+            &layout::PAGES.map(|p| p.0),
         ));
     }
     crate::dims::authored::check(spec)?;
@@ -4629,6 +4645,9 @@ fn plan_with_presentation(
         principals,
         shown("iso"),
     );
+    if spec.sheet.size.is_none() && spec.sheet.scale.is_none() {
+        request.max_page = Some(crate::sheet_policy::page_limit(spec) - 1);
+    }
     request.aligned = aligned;
     request.automatic_pair = automatic_pair;
     request.candidate_arrangement = candidate_arrangement;

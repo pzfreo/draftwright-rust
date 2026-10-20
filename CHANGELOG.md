@@ -6,6 +6,19 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Added
+
+- `sheet/max_size` bounds automatic paper to A4–A0, default A3. Try one sheet
+  of each size through the maximum, then more sheets of that maximum (up to
+  `sheets.max`, default 9), before accepting hard findings or required drops.
+  `sheet_size_capped` warns when no clean candidate fits and offers raising the cap.
+  Candidate evidence records the cap and decisions; explicit size/scale still wins.
+
+### Changed
+
+- Remove `sheet/preferred_printer`; Specs carrying it are refused with guidance
+  to use `sheet/max_size` (A4 printer → `"A4"`, A3 printer → `"A3"`).
+
 ### Fixed
 
 - Pinned group callouts attach to the member nearest their elbow, retaining the automatic
@@ -32,6 +45,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
   edits/renders run in the browser parity job.
 
 ### WASM API
+
+- Intended Spec API change: remove `sheet/preferred_printer`, add `sheet/max_size`
+  (A4–A0, default A3) and the `sheet_size_capped` warning. Method signatures stay unchanged.
 
 - Add `members: [{centre: [x,y], radius, span?: {start, sweep}}]` to `calloutOffset`
   and `Session::callout_offset` (#149). Sites use paper mm, y up; arc spans are

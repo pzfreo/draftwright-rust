@@ -638,6 +638,8 @@ impl Principals {
 /// Everything about the drawing the layout reads, apart from scale, sheet and arrangement.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Request {
+    /// Largest paper index for automatic page/scale choice.
+    pub max_page: Option<usize>,
     /// Internal automatic page/scale trials may compare arrangements.
     pub automatic_pair: bool,
     pub candidate_arrangement: Option<Arrangement>,
@@ -671,6 +673,7 @@ impl Request {
     /// The request for a part of this size with draftwright's defaults.
     pub fn new(size: [f64; 3], views: Principals, include_iso: bool) -> Self {
         Request {
+            max_page: None,
             automatic_pair: false,
             candidate_arrangement: None,
             size,
@@ -1514,11 +1517,17 @@ pub fn choose(
         let fallback = (!fit(s, p, preferred, true)).then_some(Fallback::Uncertain);
         return pick(s, p, preferred, fallback);
     }
-    let (candidates, packed): (Vec<(f64, [f64; 2])>, bool) = match (scale, page) {
+    let (mut candidates, packed): (Vec<(f64, [f64; 2])>, bool) = match (scale, page) {
         (None, Some(p)) => (SCALES.iter().map(|s| (*s, p)).collect(), true),
         (Some(s), None) => (PAGES.iter().map(|(_, w, h)| (s, [*w, *h])).collect(), true),
         _ => (LADDER.iter().map(|(s, n)| (*s, sheet(n))).collect(), false),
     };
+    if scale.is_none()
+        && page.is_none()
+        && let Some(max) = req.max_page
+    {
+        candidates.retain(|(_, p)| p[0] <= PAGES[max].1 && p[1] <= PAGES[max].2);
+    }
     if let Some(i) = candidates
         .iter()
         .position(|(s, p)| fit(*s, *p, preferred, packed))

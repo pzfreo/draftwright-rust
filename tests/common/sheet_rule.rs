@@ -82,11 +82,18 @@ pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, S
         .last()
         .is_some_and(|c| c.outcome.starts_with(&format!("{}: clean at ", c.size)))
     {
-        let expected = if plan.spec.sheet.preferred_printer.as_deref() == Some("A3") {
-            [("A4", 1), ("A3", 1), ("A3", 9)]
-        } else {
-            [("A4", 1), ("A4", 2), ("A3", 1)]
-        };
+        let maximum = plan.spec.sheet.max_size.as_deref().unwrap_or("A3");
+        let pages: Vec<_> = draftwright::layout::PAGES
+            .iter()
+            .map(|p| p.0)
+            .take_while(|p| *p >= maximum)
+            .collect();
+        let max_sheets = plan.spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9) as usize;
+        let expected: Vec<_> = pages
+            .into_iter()
+            .map(|p| (p, 1))
+            .chain((2..=max_sheets).map(|n| (maximum, n)))
+            .collect();
         assert!(plan.sheet_candidates.len() <= expected.len());
         for (candidate, request) in plan.sheet_candidates.iter().zip(expected) {
             assert_eq!(

@@ -574,7 +574,13 @@ pub(crate) fn small_fallback(
         tried.push("small-sheet allocation blocked by explicit sheets.max = 1".into());
         return None;
     }
-    for (name, _, _) in layout::PAGES.iter().take(2) {
+    let limit = crate::sheet_policy::page_limit(spec);
+    let papers = if spec.sheet.scale.is_some() {
+        &layout::PAGES[..2]
+    } else {
+        &layout::PAGES[limit - 1..limit]
+    };
+    for (name, _, _) in papers {
         let mut working = spec.clone();
         working.sheet.size = Some((*name).into());
         working.sheets.get_or_insert_with(Default::default).max =
