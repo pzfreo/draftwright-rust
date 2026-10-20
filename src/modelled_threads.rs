@@ -152,9 +152,9 @@ impl<'a> Thread<'a> {
             }
         } else {
             format!(
-                "Thread Ø{} × P{}",
-                crate::dims::fmt(self.major),
-                crate::dims::fmt(self.pitch)
+                "⌀{} × P{}",
+                crate::dims::fmt((self.major * 1000.).round() / 1000.),
+                crate::dims::fmt((self.pitch * 1000.).round() / 1000.)
             )
         };
         if !standard && self.starts > 1 {
@@ -1004,6 +1004,46 @@ mod tests {
         );
     }
     #[test]
+    fn callouts_state_only_the_designation_and_retain_extent_as_evidence() {
+        for (diameter, pitch, internal, expected) in [
+            (75., 1.5, false, "M75×1.5"),
+            (61.623798, 1.5, true, "M62×1.5"),
+            (13.623798, 1.5, true, "M14×1.5"),
+            (109.999797, 6.35, false, "⌀110 × P6.35"),
+        ] {
+            let a = analysis(feature(diameter, pitch, internal));
+            let plan = crate::model::plan(&a, &Spec::default()).unwrap();
+            let callout = plan
+                .dimensions
+                .iter()
+                .find(|d| d.id == "d:f:modelled_thread:1/thread")
+                .unwrap();
+            assert_eq!(callout.label, expected);
+            assert!(!callout.label.contains('\n'));
+            assert!(
+                callout
+                    .measurements
+                    .iter()
+                    .any(|m| m.parameter == "thread.length" && m.value == 8.)
+            );
+            assert!(
+                !plan
+                    .dimensions
+                    .iter()
+                    .any(|d| d.id.ends_with("/thread.length"))
+            );
+            if diameter > 100. {
+                assert!(
+                    plan.problems
+                        .iter()
+                        .any(|p| p.code == "thread_designation_measured")
+                );
+                // Compact numeric spelling must not hide the rounding finding.
+                assert!(plan.problems.iter().any(|p| p.code == "nominal_rounded"));
+            }
+        }
+    }
+    #[test]
     fn matching_tolerance_edges_and_unlisted_pairs() {
         for (d, p, inside) in [
             (8.02, 1.26, true),
@@ -1029,7 +1069,7 @@ mod tests {
             Thread::read(&feature(110., 6.35, false))
                 .unwrap()
                 .designation(),
-            ("Thread Ø110 × P6.35".into(), false)
+            ("⌀110 × P6.35".into(), false)
         );
     }
     #[test]
@@ -1042,7 +1082,7 @@ mod tests {
         f.parameters.insert("pitch".into(), json!(6.35));
         assert_eq!(
             Thread::read(&f).unwrap().designation().0,
-            "Thread Ø110 × P6.35 2 STARTS LH"
+            "⌀110 × P6.35 2 STARTS LH"
         );
     }
     #[test]
@@ -1267,11 +1307,7 @@ mod tests {
             cache_key(&a, &on, &view(false))
         );
         let plan = crate::model::plan(&a, &s).unwrap();
-        assert!(
-            plan.dimensions
-                .iter()
-                .any(|d| d.label.contains("SPECIAL THREAD"))
-        );
+        assert!(plan.dimensions.iter().any(|d| d.label == "SPECIAL THREAD"));
         assert!(
             plan.problems
                 .iter()

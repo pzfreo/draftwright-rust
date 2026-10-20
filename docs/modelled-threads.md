@@ -20,10 +20,13 @@ measured sizes. Oblique termination circles project as arcs rather than diameter
 Conventional curves obey view visibility, kept-half clipping,
 detail crops and hidden-line settings. Both physical trimmed limits are shown.
 
-The callout states the physical trimmed span as `× <length> LONG`: recognition
-bounds include partial end turns and runouts. They do **not** prove a blind-hole
-depth or minimum full engagement, so no depth symbol or full-thread promise is
-invented. Source PMI can state these manufacturing requirements independently.
+The callout states only the designation, for example `M75×1.5`. The ISO 6410
+lines depict the thread extent; no `LONG` suffix, trimmed-span text or separate
+length dimension is generated. Recognition's physical trimmed span includes
+partial end turns and runouts and remains measurement evidence in the plan.
+It does **not** prove blind-hole depth or minimum full engagement. Source PMI
+can state those manufacturing requirements independently. This follows the
+extent-depicted convention in [thread-callouts.md](thread-callouts.md).
 
 ## Designation inference and author intent
 
@@ -33,8 +36,10 @@ of nominal. Internal roots can be truncated: a nominal diameter may be up to
 `clamp(0.26 × measured pitch, 0.02, 0.4)` mm above the measured major diameter,
 or at most 0.02 mm below it. These are **inference policy tolerances**, not an
 ISO fit class or certified metrological uncertainty. No tolerance class is inferred.
-Ambiguous or unmatched pairs print `Thread Ø<major> × P<pitch>` and info
-`thread_designation_measured`. Fine pitch stays explicit, as does coarse pitch.
+Ambiguous or unmatched pairs print `ø<major> × P<pitch>` (for example `ø110 × P6.35`, on one line) and info
+`thread_designation_measured`. Measured values use at most three decimal places
+with trailing zeroes trimmed; their original values and any rounding finding
+remain in the plan. Fine pitch stays explicit, as does coarse pitch.
 ISO 965-1 multiple-start metric threads state lead and pitch, e.g. `M20×Ph2P1-LH`; unmatched
 threads state the measured pitch and start count. Right hand is implicit; inferred metric left-hand designations end in `-LH`.
 
@@ -55,7 +60,7 @@ Per-occurrence overrides express intent, using the stable feature ID:
 
 `depiction: false` restores modelled edges and reports
 `modelled_thread_not_depicted` with the reason. `designation` replaces only the
-inferred designation; the measured physical span remains stated. Omitting a
+entire inferred callout text verbatim, with no generated length suffix. Omitting a
 field restores the automatic decision. The existing sheet/view `thread_depiction`
 controls also apply; view controls take precedence over sheet controls.
 Dimensions retain the usual omission, placement, prefix/suffix and text-template

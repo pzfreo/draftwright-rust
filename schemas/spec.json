@@ -397,7 +397,8 @@
         "depiction": {
           "anyOf": [
             {
-              "type": "boolean"
+              "type": "boolean",
+              "description": "Use ISO 6410 conventional ink to depict thread extent; false restores modelled edges."
             },
             {
               "type": "null"
@@ -407,7 +408,8 @@
         "designation": {
           "anyOf": [
             {
-              "type": "string"
+              "type": "string",
+              "description": "Replace the entire modelled-thread callout verbatim. Default: ISO designation, or measured diameter and pitch; no length suffix."
             },
             {
               "type": "null"

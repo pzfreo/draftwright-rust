@@ -1511,7 +1511,7 @@ fn settable(
                 );
                 fields.insert(
                     format!("{base}/modelled_thread/designation"),
-                    json!({"forms":["text"]}),
+                    json!({"forms":["text"],"description":"Replace the entire modelled-thread callout verbatim; no generated length suffix."}),
                 );
             }
             if matches!(kind, "hole" | "hole_pattern" | "turned_step" | "boss") {

@@ -3018,15 +3018,16 @@ fn plan_inventory_ordered(
     for (i, w) in all.iter().enumerate() {
         if w.measurements.iter().any(|m| m.parameter == "blend.radius")
             || matches!(w.shape, Shape::Callout { .. })
-                && w.measurements
-                    .iter()
-                    .any(|m| m.feature.starts_with("f:section_recess:"))
+                && w.measurements.iter().any(|m| {
+                    m.feature.starts_with("f:section_recess:")
+                        || m.feature.starts_with("f:modelled_thread:")
+                })
         {
             prior[i] = None;
         }
     }
-    // Existing leaders claim their corridors before new recess witnesses. Restore
-    // those witnesses into the shared solve around the established leader ink.
+    // Existing leaders claim their corridors before newly added feature callouts.
+    // Place those callouts around the settled ink with the same shared solver.
     let recess_linear: Vec<_> = if recess_context {
         all.iter()
             .enumerate()
@@ -4437,7 +4438,14 @@ pub(crate) fn refine_inventory(
                     })
                 })
         });
-    if !recesses && !overlapping_text {
+    // A newly added thread leader can displace otherwise unchanged callouts.
+    // Recheck the complete printed inventory with the ordinary routing gates.
+    let thread_callouts = inventory.iter().any(|d| {
+        d.measurements
+            .iter()
+            .any(|m| m.feature.starts_with("f:modelled_thread:"))
+    });
+    if !recesses && !overlapping_text && !thread_callouts {
         return BTreeMap::new();
     }
     let (raw, ..) = wants(analysis);

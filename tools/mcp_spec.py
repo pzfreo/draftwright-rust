@@ -58,7 +58,9 @@ def document():
                                      'description': 'projection keeps geometry origins aligned across side (x above/below, y left/right), only for front/plan or front/side in either direction, first or third angle. Gap stays between areas including bands. Other values retain existing alignment.'}, 'pinned': B},
                           ('relative_to', 'side')),
         'finish': obj({'ra': N, 'removal': nullable(enum('any', 'required', 'prohibited'))}, ('ra',)),
-        'modelled_thread': obj(optional({'depiction': B, 'designation': S})),
+        'modelled_thread': obj(optional({
+            'depiction': {**B, 'description': 'Use ISO 6410 conventional ink to depict thread extent; false restores modelled edges.'},
+            'designation': {**S, 'description': 'Replace the entire modelled-thread callout verbatim. Default: ISO designation, or measured diameter and pitch; no length suffix.'}})),
         'thread': obj({'designation': S, 'length': nullable(N)}, ('designation',)),
         'knurl': obj({'pattern': enum('straight', 'diamond'), 'pitch': N}, ('pattern', 'pitch')),
         'control': obj({'characteristic': enum('straightness', 'flatness', 'circularity',

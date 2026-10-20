@@ -1,4 +1,4 @@
-//! Measured physical threads get one designation and their measured axial span.
+//! Physical threads get one designation; conventional ink depicts their extent.
 use super::*;
 use crate::modelled_threads::{Thread, threads};
 
@@ -61,9 +61,9 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         }
         out.push(Want {
             id:want_id(&f.id,"thread"), views,value:t.major,
-            terms:vec![format!("{text} × {} LONG",fmt(t.span[1]-t.span[0]))],
+            terms:vec![text],
             measurements:vec![Measurement {feature:f.id.clone(),parameter:"thread".into(),value:t.major},Measurement {feature:f.id.clone(),parameter:"thread.length".into(),value:t.span[1]-t.span[0]}],
-            basis:"ISO 6410; designation inferred from a unique ISO 261 diameter/pitch match; physical trimmed thread span (including partial turns), not guaranteed full engagement; features/<id>/modelled_thread overrides depiction and designation".into(),
+            basis:"ISO 6410; designation inferred from a unique ISO 261 diameter/pitch match; thread extent is depicted; trimmed span retained only as measurement evidence; features/<id>/modelled_thread overrides depiction and designation".into(),
             shape:Shape::Callout {sites,arcs:Vec::new()},turning:None,
         });
     }
@@ -132,10 +132,61 @@ pub(super) fn apply(a: &Analysis, s: &Spec, out: &mut Vec<Want>, problems: &mut 
         }
         if let Some(text) = setting.and_then(|s| s.designation.as_ref()) {
             if let Some(w) = out.iter_mut().find(|w| w.id == id) {
-                w.terms = vec![format!("{text} × {} LONG", fmt(t.span[1] - t.span[0]))];
-                w.basis="ISO 6410; designation authored in Spec; measured physical trimmed thread span including partial turns".into();
+                w.terms = vec![text.clone()];
+                w.basis =
+                    "ISO 6410; designation authored verbatim in Spec; thread extent is depicted"
+                        .into();
             }
             problems.retain(|p| p.id != format!("p:thread_designation_measured:{}", t.feature.id));
         }
     }
+}
+
+/// Use the same circular-rim and generator attachment contract as other
+/// cylindrical callouts. Four fixed mid-span points unnecessarily constrain
+/// the shared router and can force leaders across neighbouring callouts.
+pub(super) fn route_profile(a: &Analysis, w: &mut Want, view: &str) {
+    if !matches!(w.shape, Shape::Callout { .. }) {
+        return;
+    }
+    let Some(t) = w
+        .measurements
+        .iter()
+        .filter(|m| m.parameter == "thread")
+        .find_map(|m| {
+            a.features
+                .iter()
+                .find(|f| f.id == m.feature && f.kind == "modelled_thread")
+                .and_then(|f| Thread::read(f).ok())
+        })
+    else {
+        return;
+    };
+    let Some((_, toward)) = TOWARD.iter().find(|(name, _)| *name == view) else {
+        return;
+    };
+    let along = haecceity::geom::dot(t.axis, *toward);
+    let sites = if along.abs() > 1. - 1e-6 {
+        vec![(t.at((t.span[0] + t.span[1]) / 2.), t.crest())]
+    } else {
+        let radial = haecceity::geom::unit(haecceity::geom::cross(t.axis, *toward)).unwrap();
+        [t.span[0], (t.span[0] + t.span[1]) / 2., t.span[1]]
+            .into_iter()
+            .flat_map(|z| {
+                [-1., 1.].map(move |side| {
+                    (
+                        haecceity::geom::add(
+                            t.at(z),
+                            haecceity::geom::scale(radial, side * t.crest()),
+                        ),
+                        0.,
+                    )
+                })
+            })
+            .collect()
+    };
+    w.shape = Shape::Callout {
+        sites,
+        arcs: Vec::new(),
+    };
 }
