@@ -4213,13 +4213,15 @@ pub(crate) fn placement_options_with_spec(
         .collect()
 }
 
+type LocalCandidateChecks = BTreeMap<(usize, Vec<u8>), Vec<Problem>>;
+
 /// All remedies on one immutable drawing share their baseline and material footprints.
 /// Candidate geometry stays private to each trial; no planner result is cached here.
 #[derive(Default)]
 pub(crate) struct LocalFixTrials {
     cache: footprints::Cache,
     before: std::cell::OnceCell<Vec<Problem>>,
-    candidates: std::cell::RefCell<BTreeMap<(usize, Vec<u8>), Vec<Problem>>>,
+    candidates: std::cell::RefCell<LocalCandidateChecks>,
 }
 
 /// Check existing placement intents against settled ink, without planning a sheet.
