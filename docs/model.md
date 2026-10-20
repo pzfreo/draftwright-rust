@@ -1581,8 +1581,8 @@ modifiers?, default, basis, placed}` (`surface_finish` added by F2, draftwright-
   rearrangement fails this guard, datum changes are tried alone. Unavoidable
   collisions stay visible and are reported. Notes and tables keep clear of the frames.
   Newly drawn uncited datums with remaining leader crossings also try the same placer with
-  cylinders first and exact clearance grading in narrow shoulder gaps, leaving that space
-  to them before planar symbols. This reuses the existing attachment sites and tiers.
+  exact clearance grading in narrow shoulder gaps that the conservative first-stroke band
+  rejects. This reuses the existing attachment sites, tiers and ordering.
   Override the automatic attachment/view/tier with `annotations/<id>/place`; explicit
   coordinates retain their strip/tier behavior and pins keep their resolved geometry.
   An empty `place: {}` reset restores automatic placement, including inside datum tiers.
