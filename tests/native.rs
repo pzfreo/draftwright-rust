@@ -2296,7 +2296,7 @@ fn modelled_threads_and_refusals_survive_recognition_and_analysis_json() {
     assert!(
         plan.dimensions
             .iter()
-            .any(|d| d.id == format!("d:{}/thread", thread.id) && d.label.contains("M20×Ph2P1 LH"))
+            .any(|d| d.id == format!("d:{}/thread", thread.id) && d.label.contains("M20×Ph2P1-LH"))
     );
     let reply = draftwright::api::call("plan", &serde_json::json!({"analysis": analysis})).unwrap();
     assert_eq!(reply, serde_json::to_value(&plan).unwrap());

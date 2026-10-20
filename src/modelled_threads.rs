@@ -160,7 +160,7 @@ impl<'a> Thread<'a> {
             text += &format!(" {} STARTS", self.starts);
         }
         if self.left {
-            text += " LH";
+            text += if standard { "-LH" } else { " LH" };
         }
         (text, standard)
     }
@@ -907,7 +907,7 @@ mod tests {
         let mut f = feature(20., 1., false);
         f.parameters.insert("hand".into(), json!("left"));
         f.parameters.insert("starts".into(), json!(2));
-        assert_eq!(Thread::read(&f).unwrap().designation().0, "M20×Ph2P1 LH");
+        assert_eq!(Thread::read(&f).unwrap().designation().0, "M20×Ph2P1-LH");
         f.parameters.insert("major_diameter".into(), json!(110.));
         f.parameters.insert("pitch".into(), json!(6.35));
         assert_eq!(

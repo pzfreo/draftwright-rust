@@ -35,8 +35,8 @@ or at most 0.02 mm below it. These are **inference policy tolerances**, not an
 ISO fit class or certified metrological uncertainty. No tolerance class is inferred.
 Ambiguous or unmatched pairs print `Thread Ø<major> × P<pitch>` and info
 `thread_designation_measured`. Fine pitch stays explicit, as does coarse pitch.
-Multi-start metric threads state lead and pitch, e.g. `M20×Ph2P1 LH`; unmatched
-threads state the measured pitch and start count. Right hand is implicit.
+ISO 965-1 multiple-start metric threads state lead and pitch, e.g. `M20×Ph2P1-LH`; unmatched
+threads state the measured pitch and start count. Right hand is implicit; inferred metric left-hand designations end in `-LH`.
 
 Per-occurrence overrides express intent, using the stable feature ID:
 
@@ -68,3 +68,6 @@ PMI policy and source values.
 
 Sources: [ISO 6410-1:1993](https://cdn.standards.iteh.ai/samples/12750/07f99becf07a454ab9fece84a0dce861/ISO-6410-1-1993.pdf),
 [ISO 261:1998](https://cdn.standards.iteh.ai/samples/4165/ec50482690954e82931c52fdce3bc8bb/ISO-261-1998.pdf).
+
+Multiple-start and left-hand syntax follows ISO 965-1:2013, clauses 12.3–12.4
+([standard text](https://www.finesz.com/pic/ISO965-1.pdf)).
