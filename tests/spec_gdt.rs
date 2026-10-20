@@ -456,6 +456,37 @@ fn uncited_datums_can_be_hidden_and_individually_omitted() {
             .all(|i| !matches!(i.code.as_str(), "pmi_not_rendered" | "pmi_not_lowered")),
         "explicit omission is accounted for without claiming drawn ink"
     );
+    assert_eq!(
+        draftwright::lint::lint(&a, s.drawing())
+            .iter()
+            .filter(|i| i.code == "pmi_datum_suppressed")
+            .count(),
+        3
+    );
+    let suppressions: Vec<_> = s
+        .drawing()
+        .annotations
+        .iter()
+        .filter(|a| a.name.starts_with("suppressed:pmi:"))
+        .collect();
+    assert_eq!(suppressions.len(), 3);
+    assert!(
+        suppressions
+            .iter()
+            .all(|a| a.runs.is_empty() && a.claims.is_empty())
+    );
+    let mut damaged = s.drawing().clone();
+    damaged
+        .annotations
+        .retain(|a| !a.name.starts_with("suppressed:pmi:"));
+    assert_eq!(
+        draftwright::lint::lint(&a, &damaged)
+            .iter()
+            .filter(|i| i.code == "pmi_not_rendered")
+            .count(),
+        3,
+        "the embedded author document cannot replace missing drawing provenance"
+    );
     let report = s.pmi_report();
     assert_eq!(report["unresolved"].as_array().unwrap().len(), 3);
     assert!(report["unresolved"].as_array().unwrap().iter().all(|r| {

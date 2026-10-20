@@ -2098,6 +2098,13 @@ pub fn render(
     items: &mut Vec<Item>,
     text: &mut Vec<TextRun>,
 ) -> Option<Annotation> {
+    if g.kind == "datum_feature" && g.state == State::OmittedByUser {
+        return Some(Annotation {
+            name: format!("suppressed:{}", g.id),
+            view: Some(g.view.clone()),
+            ..Default::default()
+        });
+    }
     let p = g.placed.as_ref()?;
     let first = text.len();
     for [a, b] in p.lines.iter().chain(&p.strokes) {
