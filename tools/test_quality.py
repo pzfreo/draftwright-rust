@@ -493,6 +493,20 @@ class CrossingKinds(unittest.TestCase):
         self.assertEqual(quality.crossing_counts(plan)['leader_text'], 0)
         self.assertFalse(quality.line_through_label([[0,1],[10,1]], [4,-1,6,1]))
 
+    def test_datum_proxies_are_counted_in_old_and_new_plans(self):
+        placed = dict(lines=[[[0,0],[10,0]]], arrows=[], label_box=[20,20,25,25])
+        datum = dict(id='pmi:datum.A', kind='datum_feature', view='v:plan', placed=placed)
+        peer = dict(id='pmi:frame.B', kind='feature_control_frame', view='v:plan', placed={
+            **placed, 'lines': [[[5,-5],[5,5]]], 'label_box': [4,-1,6,1]})
+        crossing = dict(code='annotation_leader_crossing', subjects=[datum['id'],peer['id']])
+        ink = dict(code='annotation_ink_overlap', subjects=crossing['subjects'])
+        plan = dict(dimensions=[], gdt=[datum,peer], problems=[crossing,ink])
+        old = quality.crossing_counts(plan)
+        self.assertEqual((old['leader_leader'], old['leader_text']), (1,1))
+        crossing['crossing_kinds'] = ['leader']
+        ink['ink_is_leader'] = True
+        self.assertEqual(quality.crossing_counts(plan), old)
+
     def test_crossing_gate_rejects_each_kind_per_part_and_incomplete_evidence(self):
         root = Path(__file__).resolve().parents[1]
         spec = importlib.util.spec_from_file_location('crossings', root / 'tools/check_leader_crossings.py')

@@ -78,22 +78,33 @@ def crossing_instances(plan):
     """
     result = {k: [] for k in CROSSING_KEYS}
     dims = {d['id']: d for d in plan['dimensions'] if d.get('placed')}
+    # gdt::proxy exposes datum/frame leaders to the same collision pass. Keep
+    # these in old-plan recording too, including #141's default datum leaders.
+    dims.update({g['id']: {**g, 'kind': 'callout'} for g in plan.get('gdt', []) if g.get('placed')})
+    for r in plan.get('requirements', []):
+        placed = r.get('placed')
+        if placed:
+            dims[r['id']] = {**r, 'kind': 'symbol', 'placed': {
+                'lines': placed['strokes'], 'arrows': [], 'label_box': placed['glyph']}}
     for p in plan.get('problems', []):
         if p['code'] not in ('annotation_leader_crossing', 'annotation_ink_overlap'):
             continue
         a, b = (dims.get(i) for i in p['subjects'][:2])
-        if not a or not b:
-            continue
-        pa, pb = a['placed'], b['placed']
         if p['code'] == 'annotation_ink_overlap':
             leader = p.get('ink_is_leader')
             if leader is None:
+                if not a or not b:
+                    raise ValueError(f"missing collision geometry: {p['subjects']}")
+                pa, pb = a['placed'], b['placed']
                 leader = a['kind'] == 'callout' and any(line_through_label(l, pb['label_box']) for l in pa['lines'])
             if leader:
                 result['leader_text'].append(p['subjects'][:2])
             continue
         kinds = p.get('crossing_kinds')
         if kinds is None:
+            if not a or not b:
+                raise ValueError(f"missing collision geometry: {p['subjects']}")
+            pa, pb = a['placed'], b['placed']
             kinds = set()
             for i, line in enumerate(pb['lines']):
                 if any(lines_meet(s, line) for s in pa['lines']):
