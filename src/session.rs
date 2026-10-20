@@ -236,8 +236,7 @@ fn records(v: &Value) -> BTreeMap<String, Value> {
 fn order(v: &Value) -> Vec<String> {
     v.as_array().into_iter().flatten().map(record_id).collect()
 }
-fn patch(old: &Plan, new: &Plan) -> PlanDelta {
-    let (a, b) = (document(old), document(new));
+fn patch(a: &Value, b: &Value) -> PlanDelta {
     let mut delta = PlanDelta::default();
     for name in COLLECTIONS {
         if a[name] == b[name] {
@@ -1896,8 +1895,7 @@ pub fn item_bounds(i: &ItemAnswer) -> Option<[f64; 4]> {
         Placement::View { area, .. } | Placement::Box(area) => Some(*area),
     }
 }
-fn item_records(plan: &Plan) -> BTreeMap<String, Vec<Value>> {
-    let doc = document(plan);
+fn item_records(doc: &Value) -> BTreeMap<String, Vec<Value>> {
     let mut out = BTreeMap::<String, Vec<Value>>::new();
     out.insert("sheet".into(), vec![doc["sheet"].clone()]);
     for name in COLLECTIONS.into_iter().filter(|name| *name != "problems") {
@@ -1923,8 +1921,13 @@ fn difference(old: &State, new: &State, analysis: &Analysis, plans: usize) -> De
         .map(|i| (i.item.id.clone(), i))
         .collect();
     let after = answers(&new.plan, analysis);
-    let old_records = item_records(&old.plan);
-    let new_records = item_records(&new.plan);
+    // Item comparison and the lossless Plan patch read the same documents. Serialize
+    // each once, including every remedy; retained-frame metadata must not multiply
+    // that work. The records and patch below retain their complete previous inputs.
+    let old_document = document(&old.plan);
+    let new_document = document(&new.plan);
+    let old_records = item_records(&old_document);
+    let new_records = item_records(&new_document);
     let new_ids: Vec<_> = after.iter().map(|i| i.item.id.clone()).collect();
     let changed: Vec<_> = after
         .iter()
@@ -2006,7 +2009,7 @@ fn difference(old: &State, new: &State, analysis: &Analysis, plans: usize) -> De
             })
             .cloned()
             .collect(),
-        plan: patch(&old.plan, &new.plan),
+        plan: patch(&old_document, &new_document),
         geometry,
         annotations: new
             .annotations
