@@ -806,7 +806,11 @@ impl Session {
     pub fn pmi_report(&self) -> Value {
         let mut lowered = Vec::new();
         let mut unresolved = Vec::new();
-        if let Some(crate::pmi::Reading::Read(report)) = &self.analysis().pmi {
+        // Include Spec-authored datums and controls, exactly as the planner reads them.
+        // A session already validated this Spec against its Analysis.
+        let effective = crate::spec_gdt::effective(self.analysis(), self.spec())
+            .expect("the session has a validated Spec");
+        if let Some(crate::pmi::Reading::Read(report)) = &effective.pmi {
             let identities = report.identities();
             for record in &report.records {
                 let ids: Vec<_> = self
@@ -855,15 +859,47 @@ impl Session {
                         .problems
                         .iter()
                         .filter(|p| {
-                            p.refs.contains(&record.source_id)
+                            (p.code == "pmi_ignored"
+                                && !record.source_id.starts_with(crate::spec_gdt::SOURCE_PREFIX))
+                                || p.refs.contains(&record.source_id)
                                 || related.is_some_and(|id| p.subjects.iter().any(|s| s == id))
                         })
                         .map(|p| p.message.as_str())
                         .collect();
-                    let reason = if reasons.is_empty() {
-                        record.blockers.join("; ")
-                    } else {
+                    let reason = if let Some(reason) =
+                        crate::spec_gdt::datum_omission(&self.plan().spec, report, record)
+                    {
+                        reason.into()
+                    } else if !reasons.is_empty() {
                         reasons.join("; ")
+                    } else if !record.blockers.is_empty() {
+                        record.blockers.join("; ")
+                    } else if let Some(g) = &record.geometry
+                        && !g.reasons.is_empty()
+                    {
+                        g.reasons.join("; ")
+                    } else if let Some(item) = self
+                        .plan()
+                        .gdt
+                        .iter()
+                        .find(|g| g.source == record.source_id)
+                    {
+                        format!("Annotation is not drawn ({:?}): {}", item.state, item.basis)
+                    } else if crate::pmi_lowering::no_part_requirement(record) {
+                        "No drawing requirement is stated by this record".into()
+                    } else {
+                        format!(
+                            "{} has no supported drawing representation ({})",
+                            record.kind, record.source_id
+                        )
+                    };
+                    let reason = if reason.trim().is_empty() {
+                        format!(
+                            "{} ({}) has no supported drawing representation",
+                            record.kind, record.source_id
+                        )
+                    } else {
+                        reason
                     };
                     unresolved.push(serde_json::json!({"source_id":record.source_id,"label":record.label,"kind":record.kind,"reason":reason}));
                 }
@@ -885,7 +921,7 @@ impl Session {
                 if source.outcome == crate::pmi::Outcome::NotExtracted
                     && !lowered.iter().any(|r| r["source_id"] == source.id)
                 {
-                    unresolved.push(serde_json::json!({"source_id":source.id,"label":source.entity,"kind":source.category,"reason":source.reason}));
+                    unresolved.push(serde_json::json!({"source_id":source.id,"label":source.entity,"kind":source.category,"reason":if source.reason.trim().is_empty() { "STEP source could not be extracted into a supported annotation" } else { &source.reason }}));
                 }
             }
             serde_json::json!({"extraction":report,"lowered":lowered,"unresolved":unresolved})
@@ -1560,6 +1596,7 @@ fn settable(
             "sheet/view_gutter".into(),
             json!({"forms":["non-negative paper mm (default 25; 0 disables)"]}),
         );
+        fields.insert("sheet/uncited_datums".into(), choices(json!([true, false])));
         fields.insert("sheet/references".into(), choices(json!([false, true])));
         fields.insert("sheet/fit_limits".into(), choices(json!([false, true])));
         fields.insert("sheet/fit_deviations".into(), choices(json!([false, true])));

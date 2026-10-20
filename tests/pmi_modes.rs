@@ -250,7 +250,15 @@ fn datum_origins_and_individual_basics_replace_pattern_pitches() {
                     .iter()
                     .any(|m| m.parameter == "location.length.x")
         }));
-        assert!(result.gdt.iter().all(|g| g.kind != "datum_feature"));
+        for (letter, face) in [("A", 2), ("B", b), ("C", 1)] {
+            let datum = result
+                .gdt
+                .iter()
+                .find(|g| g.kind == "datum_feature" && g.label == letter)
+                .expect("declared origin datum is drawn without a frame");
+            assert_eq!(datum.faces, [face]);
+            assert!(datum.placed.is_some());
+        }
         assert!(
             !result
                 .problems
@@ -445,7 +453,7 @@ fn position_tolerances_cite_and_draw_datums_at_either_end() {
     }
 }
 #[test]
-fn cylindrical_datum_reports_the_origin_fallback_without_drawing_a_symbol() {
+fn cylindrical_datum_draws_its_symbol_and_reports_the_measurement_origin_fallback() {
     let mut p = PartPmi::default();
     let f = face(&mut p, 12);
     p.datums
@@ -464,7 +472,9 @@ fn cylindrical_datum_reports_the_origin_fallback_without_drawing_a_symbol() {
             .iter()
             .any(|d| d.id.ends_with("location.length.x") && d.value == 95.)
     );
-    assert!(result.gdt.iter().all(|g| g.kind != "datum_feature"));
+    let datum = result.gdt.iter().find(|g| g.kind == "datum_feature" && g.label == "B").expect("a cylindrical datum remains author intent even when it cannot be a planar measurement origin");
+    assert_eq!(datum.faces, [12]);
+    assert!(datum.placed.is_some());
 }
 #[test]
 fn strict_semantic_thread_callouts_do_not_add_engine_drill_sizes() {

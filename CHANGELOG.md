@@ -8,6 +8,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- Declared STEP AP242 and Spec datums draw without a control-frame citation (#141, alpha.11),
+  using the existing datum-symbol placer. `sheet/uncited_datums: false` hides uncited symbols;
+  `annotations/<id>/omit` hides individual symbols. Omitted symbols retain provenance in the
+  plan and drawing, and unresolved PMI always explains why it is not drawn.
+  Datum leader records have no callout elbow; structural lint accepts frame-border
+  attachments while still reporting a shaft through the datum letter.
 - Classify retained leader crossings by leader, dimension line, extension line and arrow
   using additive `crossing_kinds` problem metadata; mark leader-through-text with
   `ink_is_leader`. Report linear dimension-line crossings as `dimension_line_crossing`

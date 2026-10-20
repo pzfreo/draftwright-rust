@@ -151,7 +151,21 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         }
         None => return unreconciled(&on_sheet),
     };
+    // Suppression provenance is explicitly separate from drawn ink and measurements.
+    let omitted: BTreeSet<&str> = marks
+        .iter()
+        .filter_map(|m| m.name.strip_prefix("suppressed:"))
+        .filter_map(|id| ids.source(id))
+        .collect();
     let mut out = Vec::new();
+    for r in report.records.iter().filter(|r| {
+        r.category == Category::Datum
+            && omitted.contains(r.source_id.as_str())
+            && !on_sheet.contains(r.source_id.as_str())
+    }) {
+        out.push(sourced("pmi_datum_suppressed", &r.source_id, Severity::Info,
+            format!("Datum {} has an explicit symbol omission recorded in the drawing; no symbol is drawn.", r.label)));
+    }
     // A material the title block states (its cell's run named `pmi:material:<part>:0`) is on the
     // drawing, as draftwright's title block accounts for its material fact.
     for s in report.sources.iter().filter(|s| {
@@ -205,18 +219,10 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     // A record whose identity another shares has no drawing item to lower to.
     lowered.retain(|s| ids.ids.contains_key(*s));
     for r in &report.records {
-        if r.category == Category::Datum
-            && !report.records.iter().any(|t| {
-                t.category == Category::GeometricTolerance
-                    && t.datum_refs.iter().any(|d| d == r.label.trim())
-            })
-        {
-            continue;
-        }
-
         let id = r.source_id.as_str();
         if crate::pmi_lowering::no_part_requirement(r)
             || on_sheet.contains(id)
+            || (r.category == Category::Datum && omitted.contains(id))
             || lowered.contains(id)
         {
             continue;
@@ -261,6 +267,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         if !crate::pmi_lowering::no_part_requirement(r)
             && lowered.contains(id)
             && !on_sheet.contains(id)
+            && !(r.category == Category::Datum && omitted.contains(id))
         {
             out.push(sourced(
                 "pmi_not_rendered",
