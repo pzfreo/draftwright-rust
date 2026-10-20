@@ -6,6 +6,46 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+## 0.1.0-alpha.8 (2026-10-20)
+
+### Added
+
+- PMI modes: `pmi: "strict" | "first" | "ignore"`, `"first"` by default (#122).
+  - `first`: semantic PMI takes precedence. A feature that PMI already sizes, or locates through
+    a chain to an origin, gets no second engine dimension on that axis. Covered engine IDs stay
+    in the omitted ledger with the IDs of their PMI owners.
+  - `strict`: draws the part's semantic dimensions, callouts, GD&T and cited datum symbols only.
+    Missing sizes and locations are reported as `feature_not_sized` and `feature_not_located`;
+    no hole schedule is drawn. `dimension_source: "authored"` can
+    add listed engine IDs.
+  - `ignore`: draws the ordinary generated drawing and reports how many PMI items it withheld
+    (`pmi_ignored`).
+  - With no PMI, all three modes give the ordinary drawing; the 213 plain corpus drawings are
+    byte-identical to alpha.7.
+- Location origins (#122). Each axis's origin is the first datum, in letter order, that is a plane
+  normal to it, or else the box minimum. `origin` overrides it per part axis with `"min"`, `"max"`
+  or a face/feature reference (`{"x": "face:5", "y": "min", "z": "max"}`). An unusable datum gives
+  info `datum_origin_unusable`,
+  and dimension basis text names the selected origin.
+- Located-once checks on parts drawn with PMI (`first` or `strict`) or with a Spec `origin` (#122). `feature_not_located`
+  means no drawn dimension chain reaches an origin; `feature_located_twice` names independent
+  chains locating the same feature axis. Plain parts keep their existing location checks.
+
+### Changed
+
+- Datum symbols are drawn only when a geometric tolerance cites them. Using a datum only as a
+  dimension origin no longer draws its symbol (#122).
+- Identical PMI spans with identical text share one drawn dimension, which claims every source
+  record. Distinct authored constraints are kept even when redundant (#122).
+- Hole schedules state every size and coordinate, grouped by size, including coordinates already
+  given by retained PMI; a schedule measured from a selected origin labels it ORIGIN. Automatic
+  schedules that would retain every source callout stay inline; `hole_table: "always"` still
+  requests one, except in `strict` mode (#122).
+- `schemas/spec.json` and the MCP tool input schemas gain `pmi` and `origin`; `pmi` is left out of
+  saved Specs when it is `"first"`. The WASM API is unchanged (#122).
+- PMI planning costs at most 1.12× alpha.7 in retired instructions; plain parts are unchanged
+  within 1% (#122).
+
 ## 0.1.0-alpha.7 (2026-10-20)
 
 ### WASM API
