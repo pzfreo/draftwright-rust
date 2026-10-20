@@ -467,5 +467,88 @@ class SheetFill(unittest.TestCase):
             quality.table({'part': result})
         self.assertIn('fill', output.getvalue())
 
+
+class CrossingKinds(unittest.TestCase):
+    def test_old_geometry_matches_additive_metadata_and_counts_each_kind_once(self):
+        far = [[20, 20], [30, 20]]
+        vertical = [[5, -5], [5, 5]]
+        def item(id_, kind, lines, arrows=()):
+            return dict(id=id_, kind=kind, view='v:plan', placed=dict(lines=lines, arrows=list(arrows), label_box=[40,40,45,45]))
+        a = item('a', 'callout', [[[0,0], [10,0]]])
+        b = item('b', 'linear', [vertical, far, vertical, vertical], [vertical])
+        b['placed']['label_box'] = [4,-1,6,1]
+        crossing = dict(code='annotation_leader_crossing', subjects=['a','b'])
+        ink = dict(code='annotation_ink_overlap', subjects=['a','b'])
+        plan = dict(dimensions=[a,b], problems=[crossing,ink])
+        old = quality.crossing_counts(plan)
+        self.assertEqual(old, dict(leader_leader=0, leader_text=1, leader_dimension_line=1,
+                                  leader_extension_line=1, leader_arrow=1, dimension_dimension=0))
+        crossing['crossing_kinds'] = ['dimension_line', 'extension_line', 'arrow']
+        ink['ink_is_leader'] = True
+        self.assertEqual(quality.crossing_counts(plan), old)
+        ink['ink_is_leader'] = False
+        a['kind'] = 'linear'
+        self.assertEqual(quality.crossing_counts(plan)['leader_text'], 0)
+        self.assertFalse(quality.line_through_label([[0,1],[10,1]], [4,-1,6,1]))
+
+    def test_overlap_warning_deduplication_cannot_hide_leader_through_text(self):
+        leader = dict(id='leader', kind='callout', view='v:plan', placed=dict(
+            lines=[[[0,0],[10,0]]], arrows=[], label_box=[0,-1,8,1]))
+        label = dict(id='label', kind='linear', view='v:plan', placed=dict(
+            lines=[], arrows=[], label_box=[4,-1,12,1]))
+        plan = dict(dimensions=[leader,label], problems=[dict(
+            code='annotation_overlap', subjects=['leader','label'])])
+        self.assertEqual(quality.crossing_instances(plan)['leader_text'], [['leader','label']])
+        # Different sheets are separate drawings even when their coordinates coincide.
+        label['view'] = 'v:other'
+        plan['views'] = [dict(id='v:plan', sheet=1), dict(id='v:other', sheet=2)]
+        self.assertEqual(quality.crossing_counts(plan)['leader_text'], 0)
+
+    def test_datum_proxies_are_counted_in_old_and_new_plans(self):
+        placed = dict(lines=[[[0,0],[10,0]]], arrows=[], label_box=[20,20,25,25])
+        datum = dict(id='pmi:datum.A', kind='datum_feature', view='v:plan', placed=placed)
+        peer = dict(id='pmi:frame.B', kind='feature_control_frame', view='v:plan', placed={
+            **placed, 'lines': [[[5,-5],[5,5]]], 'label_box': [4,-1,6,1]})
+        crossing = dict(code='annotation_leader_crossing', subjects=[datum['id'],peer['id']])
+        ink = dict(code='annotation_ink_overlap', subjects=crossing['subjects'])
+        plan = dict(dimensions=[], gdt=[datum,peer], problems=[crossing,ink])
+        old = quality.crossing_counts(plan)
+        self.assertEqual((old['leader_leader'], old['leader_text']), (1,1))
+        crossing['crossing_kinds'] = ['leader']
+        ink['ink_is_leader'] = True
+        self.assertEqual(quality.crossing_counts(plan), old)
+
+    def test_requirement_symbols_read_either_box(self):
+        # Datum symbols record `glyph`; surface-texture symbols record `label_box` instead.
+        leader = dict(id='leader', kind='callout', view='', placed=dict(
+            lines=[[[0,0],[10,0]]], arrows=[], label_box=[30,30,32,32]))
+        finish = dict(id='pmi:finish', placed=dict(box=[2,-2,8,2], label_box=[2,-1,8,1],
+                                                    strokes=[], text_at=[2,0]))
+        datum = dict(id='pmi:datum', placed=dict(glyph=[40,40,45,45], strokes=[]))
+        plan = dict(dimensions=[leader], requirements=[finish, datum], problems=[])
+        self.assertEqual(quality.crossing_instances(plan)['leader_text'], [['leader','pmi:finish']])
+
+    def test_crossing_gate_rejects_each_kind_per_part_and_incomplete_evidence(self):
+        root = Path(__file__).resolve().parents[1]
+        spec = importlib.util.spec_from_file_location('crossings', root / 'tools/check_leader_crossings.py')
+        gate = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gate)
+        names = [Path(p).stem for p in (root / 'tools/quality_parts.txt').read_text().splitlines()]
+        before = {n: dict.fromkeys(quality.CROSSING_KEYS, 0) for n in names}
+        before[names[0]]['leader_leader'] = 2
+        self.assertEqual(gate.check(before, before), [])
+        for kind in quality.CROSSING_KEYS:
+            after = {n: dict(r) for n,r in before.items()}
+            after[names[0]][kind] += 1
+            self.assertIn(kind, gate.check(before, after)[0])
+            del after[names[0]][kind]
+            with self.assertRaises(ValueError):
+                gate.check(before, after)
+        with self.assertRaises(ValueError):
+            gate.check(before, {})
+        improved = {n: dict(r) for n,r in before.items()}
+        improved[names[0]]['leader_leader'] = 1
+        self.assertEqual(gate.check(before, improved), [])
+
 if __name__ == '__main__':
     unittest.main()

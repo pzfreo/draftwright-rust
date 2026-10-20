@@ -30,6 +30,10 @@ fn discovery() -> Value {
 #[test]
 fn schema_discovery_needs_no_part_or_cache_and_refuses_arguments() {
     let result = discovery();
+    assert_eq!(
+        result["spec"]["$defs"]["sheet"]["properties"]["uncited_datums"]["anyOf"][0]["type"],
+        "boolean"
+    );
     let gap = result["spec"]["$defs"]["view_place"]["properties"]["gap"]["description"]
         .as_str()
         .unwrap();
@@ -59,6 +63,7 @@ fn known_bad_specs_are_refused_and_existing_preflight_guidance_is_preserved() {
         json!({"schema":"draftwright.spec/3"}),
         json!({"sheet":{"size":42}}),
         json!({"sheet":{"centre_marks":"false"}}),
+        json!({"sheet":{"uncited_datums":"false"}}),
         json!({"sheet":{"projection":"second"}}),
         json!({"views":{"side":[]}}),
         json!({"dimensions":{"d:x":{"kind":"bad"}}}),
@@ -77,6 +82,7 @@ fn known_bad_specs_are_refused_and_existing_preflight_guidance_is_preserved() {
         for bad in [
             json!({"sheet":{"size":42}}),
             json!({"sheet":{"centre_marks":"false"}}),
+            json!({"sheet":{"uncited_datums":"false"}}),
             json!({"dimensions\n":{}}),
         ] {
             let mut args = json!({"part_ref":"unused","spec":bad});

@@ -1544,7 +1544,16 @@ modifiers?, default, basis, placed}` (`surface_finish` added by F2, draftwright-
   the plan, its leader from the centre of its faces' box. Only the modifiers draftwright draws
   are drawn (all-around, all-over, the zone, the material condition); any other is a
   `pmi_not_lowered` error.
-- **A datum feature symbol** for each datum whose faces are all planes, or all cylinders, on one
+- **A datum feature symbol** for every declared datum in the STEP or Spec, including
+  datums no control frame cites (for example Specify ± mode measurement origins). Set
+  `sheet/uncited_datums: false` to hide only uncited symbols; `true` (the default) draws them.
+  Set `annotations/<id>/omit: true` to hide any individual datum, using its stable ID from
+  `plan().gdt`. Hidden symbols remain there with `state: {"kind": "omitted_by_user"}`, source, faces,
+  and an explanatory basis. `pmi().unresolved` explains the omission or attachment/placement
+  failure until the symbol is drawn; it never returns an empty reason. Rendered drawings
+  retain explicit omission provenance, and coverage reports `pmi_datum_suppressed` (info)
+  without counting the hidden symbol as drawn.
+  Each datum whose faces are all planes, or all cylinders, on one
   principal plane or axis: in the view that sees it edge-on (x and z: front; y: side; a y-normal
   plane goes to the plan when the side view is not drawn), on the side its outward normal points
   to, from a proven site on its face. A cylinder may use either silhouette proved against
@@ -1573,7 +1582,11 @@ modifiers?, default, basis, placed}` (`surface_finish` added by F2, draftwright-
   comparison), so a greedy move cannot crowd later frames into overlaps. If the full
   rearrangement fails this guard, datum changes are tried alone. Unavoidable
   collisions stay visible and are reported. Notes and tables keep clear of the frames.
-  Explicit coordinates retain their strip/tier behavior; pins keep their resolved geometry.
+  Newly drawn uncited datums with remaining leader crossings also try the same placer with
+  exact clearance grading in narrow shoulder gaps that the conservative first-stroke band
+  rejects. This reuses the existing attachment sites, tiers and ordering.
+  Override the automatic attachment/view/tier with `annotations/<id>/place`; explicit
+  coordinates retain their strip/tier behavior and pins keep their resolved geometry.
   An empty `place: {}` reset restores automatic placement, including inside datum tiers.
 - **Render**: strokes for the frame, the symbols and rings, the font's glyphs for letters and
   numbers (`⌀` drawn as a ring and a stroke, `S⌀` as `Sø`), and one invisible text run per

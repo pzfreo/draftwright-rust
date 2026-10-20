@@ -1243,6 +1243,8 @@ pub(super) fn omitted(
                 continue;
             }
             out.push(Problem {
+                crossing_kinds: Vec::new(),
+                ink_is_leader: None,
                 id: format!("p:pmi_not_drawn:{source}"),
                 code: "pmi_not_drawn".into(),
                 severity: "warning".into(),

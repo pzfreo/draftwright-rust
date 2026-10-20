@@ -514,6 +514,8 @@ pub struct Drawn {
     /// Filled arrowhead outlines, kept separate from dimension-reading line grammar.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub heads: Vec<[P; 2]>,
+    /// A callout's shaft-to-shoulder bend. Datum symbols have no elbow: their shaft
+    /// ends on the frame border, recorded by `lines` and `label`.
     pub elbow: Option<P>,
     /// Placed inside its view on purpose, clear of the view's edges (draftwright's `interior`
     /// placement region), retained from the Plan's proven candidate provenance.

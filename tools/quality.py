@@ -23,6 +23,127 @@ INK = {"annotation_ink_overlap", "annotation_over_view", "annotation_line_over_v
        "radius_leader_target_unverifiable"}
 
 
+# Ordered item pairs, like annotation_leader_crossing itself. A pair can meet
+# several kinds; do not add these columns to recover the old warning count.
+CROSSING_KEYS = ('leader_leader', 'leader_text', 'leader_dimension_line',
+                 'leader_extension_line', 'leader_arrow', 'dimension_dimension')
+
+
+def segments_cross(a, b):
+    """The planner's proper-interior crossing predicate (leaders::segments_cross)."""
+    def side(p, q, r):
+        return (q[0]-p[0])*(r[1]-p[1]) - (q[1]-p[1])*(r[0]-p[0])
+    def opposite(x, y):
+        return (x > 1e-9 and y < -1e-9) or (x < -1e-9 and y > 1e-9)
+    return opposite(side(*b, a[0]), side(*b, a[1])) and opposite(side(*a, b[0]), side(*a, b[1]))
+
+
+def lines_meet(a, b):
+    """Planner contact: proper crossing, or within 1 mm for at least 0.5 mm."""
+    if segments_cross(a, b):
+        return True
+    d = [a[1][k]-a[0][k] for k in (0, 1)]
+    length = math.hypot(*d)
+    if length < 1e-9:
+        return False
+    u = [v/length for v in d]
+    q = [[p[k]-a[0][k] for k in (0, 1)] for p in b]
+    if any(abs(p[0]*u[1]-p[1]*u[0]) > 1.0 for p in q):
+        return False
+    ends = sorted(sum(p[k]*u[k] for k in (0, 1)) for p in q)
+    return min(ends[1], length) - max(ends[0], 0.0) >= 0.5
+
+
+def line_through_label(line, box):
+    """placement::crosses uses an open box and a nonzero clipped length."""
+    lo, hi = 0., 1.
+    for k in (0, 1):
+        d = line[1][k] - line[0][k]
+        if d == 0.:
+            if not box[k] < line[0][k] < box[k+2]:
+                return False
+        else:
+            ends = sorted(((box[k]-line[0][k])/d, (box[k+2]-line[0][k])/d))
+            lo, hi = max(lo, ends[0]), min(hi, ends[1])
+    return hi-lo > 1e-9
+
+
+def crossing_instances(plan):
+    """Read additive metadata, or measure old origin/main plans for --record.
+
+    Builders place the dimension stroke at lines[2]; lines[:2] and any appended
+    clipped continuations are extensions. Callout lines are shaft/shoulder.
+    Arrow shafts have their own array. Preserve the original ordered-pair warning
+    semantics, counting each kind once per pair, and each linear/linear pair once.
+    """
+    result = {k: [] for k in CROSSING_KEYS}
+    dims = {d['id']: d for d in plan['dimensions'] if d.get('placed')}
+    # gdt::proxy exposes datum/frame leaders to the same collision pass. Keep
+    # these in old-plan recording too, including #141's default datum leaders.
+    dims.update({g['id']: {**g, 'kind': 'callout'} for g in plan.get('gdt', []) if g.get('placed')})
+    for r in plan.get('requirements', []):
+        placed = r.get('placed')
+        if placed:
+            # A datum symbol records its glyph box; a surface-texture symbol its label_box.
+            box = placed.get('glyph') or placed.get('label_box') or placed['box']
+            dims[r['id']] = {**r, 'kind': 'symbol', 'view': '', 'placed': {
+                'lines': placed['strokes'], 'arrows': [], 'label_box': box}}
+    for p in plan.get('problems', []):
+        if p['code'] not in ('annotation_leader_crossing', 'annotation_ink_overlap'):
+            continue
+        a, b = (dims.get(i) for i in p['subjects'][:2])
+        if p['code'] == 'annotation_ink_overlap':
+            leader = p.get('ink_is_leader')
+            if leader is None:
+                if not a or not b:
+                    raise ValueError(f"missing collision geometry: {p['subjects']}")
+                pa, pb = a['placed'], b['placed']
+                leader = a['kind'] == 'callout' and any(line_through_label(l, pb['label_box']) for l in pa['lines'])
+            if leader:
+                result['leader_text'].append(p['subjects'][:2])
+            continue
+        kinds = p.get('crossing_kinds')
+        if kinds is None:
+            if not a or not b:
+                raise ValueError(f"missing collision geometry: {p['subjects']}")
+            pa, pb = a['placed'], b['placed']
+            kinds = set()
+            for i, line in enumerate(pb['lines']):
+                if any(lines_meet(s, line) for s in pa['lines']):
+                    kinds.add('leader' if b['kind'] == 'callout' else
+                              'extension_line' if ((b['kind'] == 'linear' and i != 2) or
+                                                   (b['kind'] == 'angular' and i < 2)) else 'dimension_line')
+            if any(lines_meet(s, t) for s in pa['lines'] for t in pb.get('arrows', [])):
+                kinds.add('arrow')
+        for kind in kinds:
+            result['leader_' + kind].append(p['subjects'][:2])
+    linear = [d for d in dims.values() if d['kind'] == 'linear' and len(d['placed']['lines']) >= 3]
+    sheets = {v['id']: v.get('sheet', 1) for v in plan.get('views', []) if 'id' in v}
+    # annotation_overlap deliberately suppresses annotation_ink_overlap for the
+    # same neighbourhood. That deduplication must not hide a leader through text
+    # from the professional-drawing gate. Count each directed pair once.
+    text = {tuple(pair) for pair in result['leader_text']}
+    for a in dims.values():
+        if a['kind'] != 'callout':
+            continue
+        for b in dims.values():
+            if (a['id'] != b['id'] and sheets.get(a['view'], 1) == sheets.get(b['view'], 1)
+                    and any(line_through_label(line, b['placed']['label_box'])
+                            for line in a['placed']['lines'])):
+                text.add((a['id'], b['id']))
+    result['leader_text'] = [list(pair) for pair in sorted(text)]
+    for i, a in enumerate(linear):
+        for b in linear[i+1:]:
+            if sheets.get(a['view'], 1) == sheets.get(b['view'], 1) and segments_cross(
+                    a['placed']['lines'][2], b['placed']['lines'][2]):
+                result['dimension_dimension'].append([a['id'], b['id']])
+    return result
+
+
+def crossing_counts(plan):
+    return {k: len(v) for k, v in crossing_instances(plan).items()}
+
+
 def line_through_features(plan):
     """Leader/feature pairs, plus extension lines (once even if several features are crossed)."""
     leaders, extensions = set(), set()
@@ -607,6 +728,7 @@ def one(f, dw, out, spec=None, timeout=600, review=True):
                          **({"schedule_ink": linework["schedule_ink"]} if linework.get("schedule_ink") else {})},
         "line_through_feature": line_through_features(plan),
         "leader_on_extension": leader_on_extension(plan),
+        **crossing_counts(plan),
         "dimensions": len(plan["dimensions"]),
         "sheet": plan["sheet"].get("size"), "scale": plan["sheet"].get("scale"),
         "fill": round(100 * fill, 2),
@@ -632,6 +754,13 @@ def table(res):
     tot['fill'] = round(tot['fill'] / max(1, sum('error' not in v for v in res.values())), 2)
     print(f"{'TOTAL':28}" + "".join(f"{tot[k]:13}" for k in keys))
     print(f"{'parts affected':28}" + "".join(f"{bad[k]:13}" for k in keys), f"of {sum('error' not in v for v in res.values())}")
+
+    print("Crossings (ordered pairs; multi-kind pairs count in each applicable column):")
+    print(f"{'part':32}" + ''.join(f'{k:>23}' for k in CROSSING_KEYS))
+    for name, row in sorted(res.items()):
+        if 'error' not in row:
+            print(f'{name:32}' + ''.join(f'{row.get(k, 0):23}' for k in CROSSING_KEYS))
+    print(f"{'TOTAL':32}" + ''.join(f"{sum(r.get(k, 0) for r in res.values() if 'error' not in r):23}" for k in CROSSING_KEYS))
 
 
 def random_pins(plan, name, seed, count):

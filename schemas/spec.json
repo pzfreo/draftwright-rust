@@ -1033,6 +1033,17 @@
             }
           ]
         },
+        "uncited_datums": {
+          "anyOf": [
+            {
+              "type": "boolean",
+              "description": "Draw every declared datum by default; false hides symbols no control frame cites, recorded as omitted_by_user. Individual symbols use annotations/<id>/omit."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "view_gutter": {
           "anyOf": [
             {

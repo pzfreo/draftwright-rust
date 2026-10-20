@@ -448,6 +448,10 @@ pub struct SheetSpec {
     /// Keep explicit paper, scale and count without automatic selection or refitting.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub keep_layout: Option<bool>,
+    /// Draw declared datums even when no tolerance frame cites them (default true).
+    /// False retains uncited symbols in the plan as explicit user omissions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uncited_datums: Option<bool>,
     /// Draw automatically determined dimensions in parentheses; omitted by default.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub references: Option<bool>,
@@ -803,6 +807,14 @@ pub struct Problem {
     /// Pinned leader crossings repeat the callout ID as pin provenance.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub refs: Vec<String>,
+    /// Ink crossed by a callout: leader, dimension_line, extension_line, arrow.
+    /// Multiple kinds can occur for one ordered item pair.
+    #[serde(default)]
+    pub crossing_kinds: Vec<String>,
+    /// Whether annotation_ink_overlap includes a callout line through the label.
+    /// A flare-only arrowhead contact is false; absent on other problem codes.
+    #[serde(default)]
+    pub ink_is_leader: Option<bool>,
     /// The edit that resolves it, as [`edit`] takes it, where there is one.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub fix: Vec<crate::items::Op>,
@@ -819,6 +831,8 @@ impl PartialEq for Problem {
             && self.message == other.message
             && self.subjects == other.subjects
             && self.refs == other.refs
+            && self.crossing_kinds == other.crossing_kinds
+            && self.ink_is_leader == other.ink_is_leader
             && self.offered_fixes() == other.offered_fixes()
     }
 }
@@ -835,7 +849,7 @@ impl Problem {
 impl Serialize for Problem {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
-        let mut s = serializer.serialize_struct("Problem", 8)?;
+        let mut s = serializer.serialize_struct("Problem", 10)?;
         s.serialize_field("id", &self.id)?;
         s.serialize_field("code", &self.code)?;
         s.serialize_field("severity", &self.severity)?;
@@ -843,6 +857,12 @@ impl Serialize for Problem {
         s.serialize_field("subjects", &self.subjects)?;
         if !self.refs.is_empty() {
             s.serialize_field("refs", &self.refs)?;
+        }
+        if !self.crossing_kinds.is_empty() {
+            s.serialize_field("crossing_kinds", &self.crossing_kinds)?;
+        }
+        if let Some(is_leader) = self.ink_is_leader {
+            s.serialize_field("ink_is_leader", &is_leader)?;
         }
         let fixes = self.offered_fixes();
         if let Some(fix) = fixes.first() {
@@ -4254,6 +4274,8 @@ fn plan_with_presentation(
         });
         if !inactive.is_empty() {
             problems.push(Problem {
+                crossing_kinds: Vec::new(),
+                ink_is_leader: None,
                 id: "p:spec_entries_inactive:part".into(),
                 code: "spec_entries_inactive".into(),
                 severity: "warning".into(),
@@ -4576,6 +4598,8 @@ fn plan_with_presentation(
     // A section left out is said, with why and what would bring it back (draftwright records
     // every section decision: ISSUE-1190-b); one the author omits needs no saying.
     let section_not_shown = |why: String, fix: Vec<crate::items::Op>| Problem {
+        crossing_kinds: Vec::new(),
+        ink_is_leader: None,
         id: format!("p:section_not_shown:v:{SECTION}"),
         code: "section_not_shown".into(),
         severity: "warning".into(),
@@ -7454,7 +7478,10 @@ pub fn render_item(item: AnnotationItem<'_>) -> RenderedItem {
                 Kind::Gdt,
                 p.map(|p| p.label_box),
                 p.map(|p| p.lines.clone()).unwrap_or_default(),
-                p.and_then(|p| p.lines.first()).map(|l| l[1]),
+                // A datum shaft ends at its frame; it has no callout elbow.
+                p.filter(|_| g.kind != "datum_feature")
+                    .and_then(|p| p.lines.first())
+                    .map(|l| l[1]),
             )
         }
     };
