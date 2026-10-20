@@ -160,6 +160,7 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     all.extend(plan.gdt.iter().filter_map(gdt::proxy));
     let dimension_count = plan.dimensions.len();
     let mut changed = BTreeSet::new();
+    let mut rechecked_codes = BTreeSet::new();
     // Two deterministic sweeps let a later frame release an earlier callout's corridor.
     for _ in 0..2 {
         let mut moved = false;
@@ -295,6 +296,7 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                 let after =
                     placement::collisions_for(analysis, &all, sheet, &plan.views, &cache, &id);
                 if improves(&before, &after) {
+                    rechecked_codes.extend(before.iter().chain(&after).map(|p| p.code.clone()));
                     if i < dimension_count {
                         let d = &mut plan.dimensions[i];
                         let inside = proofs
@@ -363,7 +365,11 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     // Replace only findings involving changed ink; untouched diagnostics retain their identity.
     plan.problems.retain(|p| {
         !p.subjects.iter().any(|s| changed.contains(s))
-            || !(p.code.starts_with("annotation_") || p.code == "leader_through_feature")
+            || !(rechecked_codes.contains(&p.code)
+                || matches!(
+                    p.code.as_str(),
+                    "annotation_leader_long" | "annotation_line_over_view"
+                ))
     });
     plan.problems.extend(
         checked
