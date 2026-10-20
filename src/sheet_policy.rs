@@ -376,6 +376,7 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
     let mut estimate = None;
     let mut candidates = Vec::new();
     let mut best = baseline.clone();
+    let mut best_trial = None;
     for (size, max) in requests(spec) {
         // A baseline already as good in this preference order needs no forced replay.
         if baseline.sheet.size == size
@@ -420,6 +421,7 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                             .collect();
                         if rank(&plan) < rank(&best) {
                             best = plan.clone();
+                            best_trial = Some(candidates.len());
                         }
                         if codes.is_empty() && complete(fit_analysis, &plan, floor) {
                             let reason = format!(
@@ -483,12 +485,12 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
             scales,
         });
     }
-    if let Some(candidate) = candidates.iter_mut().find(|c| {
-        c.size == best.sheet.size
-            && c.max > best.sheets.len()
-            && c.scales.contains(&best.sheet.scale)
-    }) {
-        candidate.outcome += "; retained as best result within the cap";
+    if let Some(index) = best_trial {
+        candidates[index].outcome += &format!(
+            "; retained as best result within the cap at {} ({} sheet(s))",
+            best.sheet.scale,
+            1 + best.sheets.len()
+        );
     } else {
         candidates.push(Candidate {
             size: best.sheet.size.clone(),
@@ -972,15 +974,15 @@ mod tests {
     }
 
     #[test]
-    fn tapped_posts_keep_the_established_r5_choices() {
-        for (file, printer, size, extra_sheets) in [
-            ("string_post_tapped", "A4", "A4", 1),
-            ("string_post_tapped", "A3", "A3", 0),
+    fn tapped_posts_respect_the_cap_and_prefer_complete_allocation() {
+        for (file, maximum, size, scale, extra_sheets) in [
+            ("string_post_tapped", "A4", "A4", "2:1", 1),
+            ("string_post_tapped", "A3", "A3", "5:1", 0),
         ] {
             let path = Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join(format!("tests/fixtures/pmi/step/{file}.step.gz"));
             let a = model::analyse_native(&path).unwrap().1;
-            let s: Spec = serde_json::from_value(json!({"sheet":{"max_size":printer}})).unwrap();
+            let s: Spec = serde_json::from_value(json!({"sheet":{"max_size":maximum}})).unwrap();
             let p = model::plan_recovered(&a, &s).unwrap();
             assert_eq!(
                 (
@@ -988,10 +990,11 @@ mod tests {
                     p.sheet.scale.as_str(),
                     p.sheets.len()
                 ),
-                (size, "5:1", extra_sheets),
+                (size, scale, extra_sheets),
                 "{file}: {}",
                 p.sheet.basis
             );
+            assert!(model::findings(&p).clean(), "{}", p.sheet.basis);
             assert!(p.sheet_candidates.iter().all(|c| c.scales.len() <= 2));
         }
     }

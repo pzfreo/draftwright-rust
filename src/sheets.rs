@@ -340,12 +340,19 @@ pub(crate) fn count_runs<T>(steps: &mut usize, run: impl FnOnce() -> T) -> T {
 }
 
 fn run(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
-    if crate::planning::is_fixed_pair() && max_only(spec) {
-        // A max-only permission changes allocation, not the recovered sheet-1
-        // drawing. Reuse it before R5 moves any auxiliary group. Precision is
-        // deferred consistently until the fixed candidate's allocation finishes.
+    if crate::planning::is_fixed_pair()
+        && (max_only(spec) || (spec.sheet.size.is_some() && spec.sheet.scale.is_some()))
+    {
+        // Paper/scale and the moved prefix determine recovered sheet-1 ink.
+        // Increasing the sheet-count permission only changes the packer's capacity;
+        // reuse this existing run cache across 2..N instead of rerouting each prefix.
+        // allocate_inner validates the real bound before running any prefix.
         let mut single = spec.clone();
-        single.sheets = None;
+        if max_only(spec) {
+            single.sheets = None;
+        } else if let Some(sheets) = &mut single.sheets {
+            sheets.max = Some(9);
+        }
         let key = serde_json::to_vec(&(
             &single,
             crate::planning::policy_key(analysis),
@@ -1759,6 +1766,7 @@ mod tests {
             .join("tests/fixtures/parts/scattered_holes.step");
         let (_, analysis) = model::analyse_native(&path).unwrap();
         let spec: Spec = serde_json::from_value(json!({
+            "sheet": {"max_size": "A0"},
             "sheets": {"max": 2, "keep_together": [["iso", "hole_table"]]},
             "views": {"iso": {"sheet": 2}}
         }))

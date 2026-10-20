@@ -21,6 +21,31 @@ routes = importlib.util.module_from_spec(route_spec)
 route_spec.loader.exec_module(routes)
 
 
+class QualityRecording(unittest.TestCase):
+    def test_complete_matrix_records_actual_counts_and_paper_choices(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path, binary = Path(directory) / 'baseline.json', Path(directory) / 'binary'
+            binary.write_bytes(b'test executable')
+            path.write_text(json.dumps({'format': 'draftwright.ci-quality-baseline/1',
+                                        'parts': {'p': {'ink': 0}}, 'metrics': ['ink']}))
+            with patch.object(quality.subprocess, 'check_output', return_value='revision\n'):
+                quality.record_baseline(path, {'p': dict(ink=7, sheet='A3', scale='1:5', sheets=2)}, binary)
+            recorded = json.loads(path.read_text())
+            self.assertEqual(recorded['parts'], {'p': {'ink': 7}})
+            self.assertEqual(recorded['sheet_choices'], {'p': ['A3', '1:5', 2]})
+
+    def test_incomplete_matrix_is_refused_before_writing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'baseline.json'
+            original = json.dumps({'format': 'draftwright.ci-quality-baseline/1',
+                                   'parts': {'p': {'ink': 0}}, 'metrics': ['ink']})
+            path.write_text(original)
+            for measurements in [{}, {'p': {'error': 'failed'}}, {'p': {'ink': -1}}]:
+                with self.assertRaises(ValueError):
+                    quality.record_baseline(path, measurements, Path(directory) / 'unused')
+                self.assertEqual(path.read_text(), original)
+
+
 class LeaderRoutes(unittest.TestCase):
     def row(self, **changes):
         row = dict(length=10., run=0., route=[[0., 0.], [6., 6.]], label=[7., 5., 12., 8.],

@@ -103,6 +103,7 @@ fn request(c: &Value) -> Request {
     });
     assert_eq!(c["convention"], "third", "first angle is not ported");
     Request {
+        max_page: None,
         automatic_pair: false,
         candidate_arrangement: None,
         aligned: Vec::new(),
@@ -468,4 +469,20 @@ fn a_degenerate_iso_rectangle_leaves_the_sheet_scale() {
         layout::iso_factor([0.0, 0.0, 10.0, 40.0], [5.0, 20.0], bounds),
         0.49
     );
+}
+
+#[test]
+fn internally_raised_readability_scale_still_obeys_automatic_paper_cap() {
+    let mut req = Request::new([1000.0; 3], draftwright::layout::Principals::ALL, false);
+    req.max_page = Some(1);
+    let pick = draftwright::layout::choose(
+        &req,
+        &|_| draftwright::layout::Scaled::default(),
+        Some(1.0),
+        None,
+        &draftwright::layout::AUTOMATIC_ARRANGEMENTS,
+        None,
+    );
+    assert_eq!(pick.page, [420.0, 297.0]);
+    assert!(pick.fallback.is_some());
 }

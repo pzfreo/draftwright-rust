@@ -1522,8 +1522,7 @@ pub fn choose(
         (Some(s), None) => (PAGES.iter().map(|(_, w, h)| (s, [*w, *h])).collect(), true),
         _ => (LADDER.iter().map(|(s, n)| (*s, sheet(n))).collect(), false),
     };
-    if scale.is_none()
-        && page.is_none()
+    if page.is_none()
         && let Some(max) = req.max_page
     {
         candidates.retain(|(_, p)| p[0] <= PAGES[max].1 && p[1] <= PAGES[max].2);

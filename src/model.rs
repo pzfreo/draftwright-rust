@@ -2061,6 +2061,10 @@ pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Pl
                 origin: spec.origin.clone(),
                 ..Spec::default()
             };
+            // This unrendered historical route template must not change with the
+            // printer cap. The recipient's own sheet search remains capped, just
+            // as when packing annotation blocks from an explicit A0 template.
+            base.sheet.max_size = Some("A0".into());
             base.sheet.projection = spec.sheet.projection.clone();
             base.sheet.references = spec.sheet.references;
             crate::planning::with(&reference, || {
