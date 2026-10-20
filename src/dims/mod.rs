@@ -4366,6 +4366,7 @@ pub(crate) fn local_placement_fix(
                             .collect::<Vec<_>>()
                             .join(" "),
                     );
+                    description.push('.');
                     fallback = Some(crate::fixes::Fix::new(description, ops));
                 }
                 None

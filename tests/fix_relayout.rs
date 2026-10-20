@@ -150,8 +150,11 @@ fn applying_both_proposed_fixes_keeps_the_stack_apart_and_text_on_its_lines() {
         .find(|p| p.code == "layout_replanned")
         .unwrap();
     for id in moved_views {
-        assert!(notice.message.contains(&id), "{id} is reported");
+        assert!(notice.subjects.contains(&id), "{id} is reported");
     }
+    assert_eq!(draftwright::wording::carries_id(&notice.message), None);
+    assert!(notice.message.contains("front view"));
+    assert!(notice.message.contains("side view"));
     for view in &s.plan().views {
         let old = sheet_before["views"]
             .as_array()

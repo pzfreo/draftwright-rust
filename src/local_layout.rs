@@ -100,11 +100,15 @@ pub(crate) fn notice(before: &Plan, after: &Plan) -> Option<model::Problem> {
                 if moved.is_empty() {
                     "none".into()
                 } else {
-                    moved.join(", ")
+                    moved
+                        .iter()
+                        .map(|id| crate::wording::view(id.strip_prefix("v:").unwrap_or(id)))
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 },
                 crate::fixes::SHEET_CONSEQUENCE
             ),
-            subjects: vec!["sheet".into()],
+            subjects: std::iter::once("sheet".into()).chain(moved).collect(),
             ..Default::default()
         })
     } else {
