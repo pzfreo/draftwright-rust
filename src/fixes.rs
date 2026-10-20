@@ -82,10 +82,10 @@ pub fn scope(ops: &[Op]) -> Scope {
         .filter(|op| {
             !(op.path == "sheet/keep_layout"
                 && op.op == "set"
-                && op.value.as_ref().is_some_and(|v| {
-                    serde_json::from_value::<crate::local_layout::Layout>(v.clone())
-                        .is_ok_and(|l| l.check().is_ok())
-                }))
+                && op
+                    .value
+                    .as_ref()
+                    .is_some_and(crate::local_layout::Layout::valid_value))
         })
         .collect();
     let ops = edits.as_slice();
@@ -355,7 +355,7 @@ pub(crate) fn attach(analysis: &crate::model::Analysis, plan: &mut crate::model:
     MEMO.insert(key, plan.problems.clone());
 }
 
-/// O(items + offers), with no recovered-plan invocation per candidate. Placement
+/// O(items per offer), with no recovered-plan invocation per candidate. Placement
 /// candidates were ink-checked on these very frames; the Spec now enforces them
 /// during apply, including combined edits. Never advertise unconstrained allocation
 /// as local. Scope read from old JSON may widen, but cannot understate path scope.

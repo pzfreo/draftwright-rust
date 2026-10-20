@@ -30,6 +30,30 @@ fn unavailable() -> Invalid {
     }
 }
 
+fn valid_sheet(size: &str, scale: &str) -> bool {
+    crate::layout::PAGES.iter().any(|p| p.0 == size)
+        && crate::layout::SCALES
+            .iter()
+            .any(|s| model::scale_name(*s) == scale)
+}
+
+fn valid_counts(required: usize, views: usize) -> bool {
+    required <= 16384 && (1..=32).contains(&views)
+}
+
+fn valid_frame(id: &str, v: &Frame) -> bool {
+    id.starts_with("v:")
+        && v.scale.is_finite()
+        && v.scale > 0.0
+        && v.scale <= 1000.0
+        && v.at
+            .iter()
+            .chain(&v.area)
+            .all(|x| x.is_finite() && x.abs() <= 11890.0)
+        && v.area[0] < v.area[2]
+        && v.area[1] < v.area[3]
+}
+
 impl Layout {
     pub(crate) fn capture(plan: &Plan) -> Option<Self> {
         // Allocation can transport auxiliary views and tables after the single-sheet solve.
@@ -91,29 +115,38 @@ impl Layout {
     }
 
     pub(crate) fn check(&self) -> Result<(), Invalid> {
-        if !crate::layout::PAGES.iter().any(|p| p.0 == self.size)
-            || !crate::layout::SCALES
-                .iter()
-                .any(|s| model::scale_name(*s) == self.scale)
-            || self.required.len() > 16384
-            || self.views.is_empty()
-            || self.views.len() > 32
-            || self.views.iter().any(|(id, v)| {
-                !id.starts_with("v:")
-                    || !v.scale.is_finite()
-                    || v.scale <= 0.0
-                    || v.scale > 1000.0
-                    || v.at
-                        .iter()
-                        .chain(&v.area)
-                        .any(|x| !x.is_finite() || x.abs() > 11890.0)
-                    || v.area[0] >= v.area[2]
-                    || v.area[1] >= v.area[3]
-            })
+        if !valid_sheet(&self.size, &self.scale)
+            || !valid_counts(self.required.len(), self.views.len())
+            || !self.views.iter().all(|(id, v)| valid_frame(id, v))
         {
             return Err(unavailable());
         }
         Ok(())
+    }
+
+    /// Scope queries must not clone every required-item ID on every comparison or
+    /// serialization. Read the same closed shape and bounds directly from the value;
+    /// a Frame contains only fixed-size numeric arrays, so its decoding allocates no
+    /// item strings. Keep validation shared with typed Spec validation above.
+    pub(crate) fn valid_value(value: &serde_json::Value) -> bool {
+        let Some(fields) = value.as_object() else {
+            return false;
+        };
+        let (Some(size), Some(scale), Some(views), Some(required)) = (
+            fields.get("size").and_then(serde_json::Value::as_str),
+            fields.get("scale").and_then(serde_json::Value::as_str),
+            fields.get("views").and_then(serde_json::Value::as_object),
+            fields.get("required").and_then(serde_json::Value::as_array),
+        ) else {
+            return false;
+        };
+        fields.len() == 4
+            && valid_sheet(size, scale)
+            && valid_counts(required.len(), views.len())
+            && required.iter().all(serde_json::Value::is_string)
+            && views.iter().all(|(id, value)| {
+                Frame::deserialize(value).is_ok_and(|frame| valid_frame(id, &frame))
+            })
     }
 
     pub(crate) fn restore(&self, views: &mut [PlannedView]) -> Result<(), Invalid> {
@@ -200,5 +233,117 @@ pub(crate) fn notice(before: &Plan, after: &Plan) -> Option<model::Problem> {
         })
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::{Value, json};
+
+    #[test]
+    fn borrowed_scope_check_matches_typed_layout_validation() {
+        let base = json!({"size":"A4", "scale":"1:1", "required":["sheet","v:front"],
+            "views":{"v:front":{"at":[0,0],"area":[0,0,100,100],"scale":1}}});
+        let mut cases = vec![base.clone()];
+        let wrong_types = [
+            Value::Null,
+            json!(true),
+            json!(3),
+            json!("x"),
+            json!([]),
+            json!({}),
+        ];
+        for value in &wrong_types {
+            cases.push(value.clone());
+            for field in ["size", "scale", "views", "required"] {
+                let mut edited = base.clone();
+                edited[field] = value.clone();
+                cases.push(edited);
+            }
+            for field in ["at", "area", "scale"] {
+                let mut edited = base.clone();
+                edited["views"]["v:front"][field] = value.clone();
+                cases.push(edited);
+            }
+        }
+        for field in ["size", "scale", "views", "required"] {
+            let mut edited = base.clone();
+            edited.as_object_mut().unwrap().remove(field);
+            cases.push(edited);
+        }
+        for (pointer, values) in [
+            ("/unknown", vec![json!(true)]),
+            ("/size", vec![json!("A0"), json!("A5")]),
+            ("/scale", vec![json!("1:5"), json!("3:7")]),
+            (
+                "/required",
+                vec![
+                    json!([]),
+                    json!([1]),
+                    json!(vec!["sheet"; 16384]),
+                    json!(vec!["sheet"; 16385]),
+                ],
+            ),
+            ("/views/v:front/unknown", vec![json!(true)]),
+            (
+                "/views/v:front/scale",
+                vec![json!(-1), json!(0), json!(1000), json!(1001)],
+            ),
+            (
+                "/views/v:front/at",
+                vec![
+                    json!([0]),
+                    json!([0, 0, 0]),
+                    json!(["0", 0]),
+                    json!([-11890, 11890]),
+                    json!([11891, 0]),
+                ],
+            ),
+            (
+                "/views/v:front/area",
+                vec![
+                    json!([0, 0, 0, 1]),
+                    json!([0, 1, 1, 0]),
+                    json!([0, 0, 1]),
+                    json!([-11890, -11890, 11890, 11890]),
+                ],
+            ),
+        ] {
+            for value in values {
+                let mut edited = base.clone();
+                let (parent, key) = pointer.rsplit_once('/').unwrap();
+                edited.pointer_mut(parent).unwrap()[key] = value;
+                cases.push(edited);
+            }
+        }
+        for (count, prefix) in [(1, "wrong:"), (32, "v:"), (33, "v:")] {
+            let mut edited = base.clone();
+            edited["views"] = Value::Object(
+                (0..count)
+                    .map(|i| (format!("{prefix}{i}"), base["views"]["v:front"].clone()))
+                    .collect(),
+            );
+            cases.push(edited);
+        }
+        for value in cases {
+            let typed = serde_json::from_value::<Layout>(value.clone())
+                .is_ok_and(|frame| frame.check().is_ok());
+            assert_eq!(Layout::valid_value(&value), typed, "{value}");
+            let constraint = crate::items::Op::set("sheet/keep_layout", value);
+            let local = crate::items::Op::set("dimensions/d/place/lane", json!(1));
+            assert_eq!(
+                crate::fixes::scope(std::slice::from_ref(&constraint)),
+                crate::fixes::Scope::Sheet
+            );
+            assert_eq!(
+                crate::fixes::scope(&[local, constraint]),
+                if typed {
+                    crate::fixes::Scope::Local
+                } else {
+                    crate::fixes::Scope::Sheet
+                }
+            );
+        }
     }
 }
