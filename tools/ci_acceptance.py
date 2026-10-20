@@ -173,6 +173,8 @@ class Run:
             fresh = quality_out / 'baseline.json'
             self.step('quality', [*py, ROOT / 'tools/quality.py', *quality_args, binary, quality_out, *files],
                       'quality', fresh, args.baseline)
+            self.step('leader-crossings', [*py, ROOT / 'tools/check_leader_crossings.py', quality_out,
+                      '--report', out / 'leader-crossings.json'])
             self.step('leader-routes', [*py, ROOT / 'tools/check_leader_routes.py', quality_out,
                       '--report', out / 'leader-routes.json'])
             # The deliberate failure uses a real measured report, without changing the accepted baseline.

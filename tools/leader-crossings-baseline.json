@@ -1,0 +1,246 @@
+{
+  "base": "986a7c251dea489c362d2dd31bf79a07d9e02d4a",
+  "format": "draftwright.leader-crossings/1",
+  "parts": {
+    "1000": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "10000": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "10007": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "10020": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "10033": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "10038": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "1004": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "10046": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "10047": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "10049": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "10060": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 1,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "10063": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "GRM-03_thumbwheel_drive_screw": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "GRM-05_depth_lock_bolt": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "cgb203": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "cgb207": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "cgb241": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "cgb245": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 1,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "nist_ctc_01_asme1_rd": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 2,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "nist_ctc_02_asme1_rc": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "nist_ctc_03_asme1_rc": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "nist_ctc_04_asme1_rd": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "nist_ctc_05_asme1_rd": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "nist_ftc_06_asme1_rd": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "nist_ftc_07_asme1_rd": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "nist_ftc_08_asme1_rc": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "nist_ftc_09_asme1_rd": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "nist_ftc_10_asme1_rb": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "sm-hanger": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    },
+    "string_post": {
+      "dimension_dimension": 0,
+      "leader_arrow": 0,
+      "leader_dimension_line": 0,
+      "leader_extension_line": 0,
+      "leader_leader": 0,
+      "leader_text": 0
+    }
+  }
+}

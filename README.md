@@ -179,11 +179,16 @@ no view overlaps another or the title block, no annotation lies over a view and 
 line crosses one. What remains (282 ink problems, from 506 at the baseline) is reported on the
 plan, never hidden:
 
-- **Leader crossings, 109** (`annotation_leader_crossing`, warning; ctc04 29, ftc08 24,
-  ctc02 21, others 35). Rust-wrong, mostly inventory-limited: in a sample of 73 measured earlier,
-  71 were crossings every candidate leader of that callout has, so no ordering or cost change
-  removes them. draftwright avoids some by putting callouts inside the view (above) and the
-  plan's Y locations above the side view (an open maintainer question).
+- **Leader crossings, 4** (`annotation_leader_crossing`, warning), measured on the
+  30 quality parts against origin/main: **0 leader × leader, 1 leader × dimension line**
+  (10060), **3 leader × extension line** (ctc01 2, cgb245 1), **0 leader × arrow shaft**.
+  Also **0 leaders through text** (`annotation_ink_overlap` with `ink_is_leader: true`)
+  and **0 dimension line × dimension line** (`dimension_line_crossing`, warning).
+  `crossing_kinds` records every kind met by an ordered item pair; a multi-kind pair
+  counts in each applicable column. Extension-line crossings are normal drafting practice.
+  CI's `quality-pins` job holds all six counts to their recorded per-part baseline:
+  zero where zero today, never more. Re-record on new main after #141 if merging second;
+  the single recording command is in `tools/check_leader_crossings.py`'s docstring.
 - **Ink past a view's area, 155** (`annotation_outside_area`, info). Rust-wrong as to the
   reservation, harmless on the page: lanes above and left of the plan and below the front run
   past the bands draftwright's estimate gives them, onto open paper, crossing nothing; reserving

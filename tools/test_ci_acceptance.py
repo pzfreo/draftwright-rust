@@ -38,6 +38,17 @@ class Acceptance(unittest.TestCase):
     def quality(self):
         return {name: dict.fromkeys(KEYS, 0) for name in NAMES}
 
+    def test_quality_pins_runs_the_crossing_ratchet(self):
+        runner = self.runner()
+        with tempfile.TemporaryDirectory() as tmp:
+            run = runner.Run(SimpleNamespace(binary=Path('binary'), corpus=Path('corpus'),
+                baseline=Path('baseline'), pin_cell='1-1'), Path(tmp))
+            with patch.object(run, 'step') as step:
+                run.execute('quality-pins')
+            calls = {call.args[0]: call.args[1] for call in step.call_args_list}
+            self.assertIn('leader-crossings', calls)
+            self.assertIn(runner.ROOT / 'tools/check_leader_crossings.py', calls['leader-crossings'])
+
     def test_quality_accepts_equal_and_improved_cells(self):
         before, after = self.quality(), self.quality()
         before[NAMES[0]]['ink'] = 1
@@ -161,16 +172,16 @@ class Acceptance(unittest.TestCase):
                 with patch.object(run, 'step') as step:
                     run.execute('quality-pins')
                 calls = step.call_args_list
-                self.assertEqual([c.args[0] for c in calls], ['quality', 'leader-routes', 'label-lane-locality', 'pins-' + cell])
-                route = calls[1].args[1]
+                self.assertEqual([c.args[0] for c in calls], ['quality', 'leader-crossings', 'leader-routes', 'label-lane-locality', 'pins-' + cell])
+                route = calls[2].args[1]
                 self.assertIn(ROOT / 'tools/check_leader_routes.py', route)
                 self.assertEqual(route[-1], Path(tmp) / 'leader-routes.json')
                 self.assertNotIn('--require-improvement', route)
-                locality = calls[2].args[1]
+                locality = calls[3].args[1]
                 self.assertIn(ROOT / 'tools/check_label_lanes.py', locality)
                 self.assertEqual(locality[locality.index('--current') + 1], Path(tmp) / 'quality')
                 self.assertEqual(locality[locality.index('--after-binary') + 1], args.binary)
-                command = calls[3].args[1]
+                command = calls[4].args[1]
                 self.assertIn('--require-go', command)
                 self.assertEqual(command[command.index('--baseline') + 1],
                                  Path(tmp) / 'quality/baseline.json')
