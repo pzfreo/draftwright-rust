@@ -173,6 +173,25 @@ class Run:
             fresh = quality_out / 'baseline.json'
             self.step('quality', [*py, ROOT / 'tools/quality.py', *quality_args, binary, quality_out, *files],
                       'quality', fresh, args.baseline)
+            # AP242 source PMI is a crossing ratchet too. Keep its renders separate
+            # from the fixed thirty-part quality/pin inventory, then share saved plans.
+            import gzip
+            ap242 = out / 'ap242-inputs'
+            ap242.mkdir()
+            fixture_paths = sorted({*(ROOT / 'tests/fixtures/pmi/step').glob('nist_ctc_0*_ap242*.gz'),
+                                    *(ROOT / 'tests/fixtures/pmi/step').glob('nist_ftc_*_ap242*.gz')})
+            sources = []
+            for fixture in fixture_paths:
+                source = ap242 / fixture.stem
+                source.write_bytes(gzip.decompress(fixture.read_bytes()))
+                sources.append(source)
+            ap242_out = out / 'ap242'
+            self.step('ap242-quality', [*py, ROOT / 'tools/quality.py', *quality_args,
+                      binary, ap242_out, *sources])
+            for source in sources:
+                plan = ap242_out / (source.stem + '.plan.json')
+                if plan.is_file():
+                    (quality_out / plan.name).write_bytes(plan.read_bytes())
             self.step('leader-crossings', [*py, ROOT / 'tools/check_leader_crossings.py', quality_out,
                       '--report', out / 'leader-crossings.json'])
             self.step('leader-routes', [*py, ROOT / 'tools/check_leader_routes.py', quality_out,

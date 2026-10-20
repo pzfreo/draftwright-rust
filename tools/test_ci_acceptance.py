@@ -172,7 +172,7 @@ class Acceptance(unittest.TestCase):
                 with patch.object(run, 'step') as step:
                     run.execute('quality-pins')
                 calls = step.call_args_list
-                self.assertEqual([c.args[0] for c in calls], ['quality', 'leader-crossings', 'leader-routes', 'label-lane-locality', 'pins-' + cell])
+                self.assertEqual([c.args[0] for c in calls], ['quality', 'ap242-quality', 'leader-crossings', 'leader-routes', 'label-lane-locality', 'pins-' + cell])
                 route = calls[2].args[1]
                 self.assertIn(ROOT / 'tools/check_leader_routes.py', route)
                 self.assertEqual(route[-1], Path(tmp) / 'leader-routes.json')

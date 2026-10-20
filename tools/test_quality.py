@@ -533,7 +533,8 @@ class CrossingKinds(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('crossings', root / 'tools/check_leader_crossings.py')
         gate = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(gate)
-        names = [Path(p).stem for p in (root / 'tools/quality_parts.txt').read_text().splitlines()]
+        names = gate.part_names()
+        self.assertTrue(any('_ap242' in n for n in names))
         before = {n: dict.fromkeys(quality.CROSSING_KEYS, 0) for n in names}
         before[names[0]]['leader_leader'] = 2
         self.assertEqual(gate.check(before, before), [])

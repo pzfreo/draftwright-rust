@@ -6498,6 +6498,11 @@ fn plan_with_presentation(
 /// Precision repairs belong to the selected drawing, after sheet candidates have
 /// been judged. Rejected candidates must not each launch another route search.
 fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
+    finish_nominal_text(analysis, spec, plan);
+    crate::dims::callout_routes::finish(analysis, spec, plan);
+}
+
+fn finish_nominal_text(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     if !crate::nominal::geometry_eligible(analysis) || crate::nominal::comparison() {
         return;
     }
