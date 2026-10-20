@@ -6664,6 +6664,7 @@ fn settle_finished_nominals(
     for d in &mut trial.dimensions {
         if let Some(s) = items.iter().find(|s| s.id == d.id) {
             d.placed = s.placed.clone();
+            d.region = s.region;
             d.terms.clone_from(&s.terms);
             d.label.clone_from(&s.label);
             d.basis.clone_from(&s.basis);

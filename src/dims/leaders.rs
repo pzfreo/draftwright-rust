@@ -2496,11 +2496,20 @@ pub(crate) fn settle_radius_leaders(
                 if boxes_overlap(p.label_box, qp.label_box) {
                     pairs.insert((q.id.as_str(), 3u8));
                 }
-                if p.lines
-                    .iter()
-                    .any(|a| qp.lines.iter().any(|b| lines_meet(*a, *b)))
-                {
+                if p.lines.iter().any(|a| {
+                    qp.lines
+                        .iter()
+                        .chain(&qp.arrows)
+                        .any(|b| lines_meet(*a, *b))
+                }) {
                     pairs.insert((q.id.as_str(), 0u8));
+                }
+                if qp
+                    .lines
+                    .iter()
+                    .any(|a| p.lines.iter().chain(&p.arrows).any(|b| lines_meet(*a, *b)))
+                {
+                    pairs.insert((q.id.as_str(), 4u8));
                 }
             }
             pairs
@@ -2554,6 +2563,9 @@ pub(crate) fn settle_radius_leaders(
             let route =
                 route_reports_named(&id, &d.label, view, footprint.solids(), [c.tip, c.elbow]);
             items[i].placed = Some(c.placed());
+            // These candidates use the exterior inventory. An interior proof no longer
+            // describes the moved label and must not exempt it from final collisions.
+            items[i].region = None;
             reports.insert(id, route);
         } else {
             let why = if arcs.is_empty() {
