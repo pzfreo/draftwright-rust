@@ -130,6 +130,9 @@ pub struct Analysis {
     /// which then keep every label outside the views.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub edge_ink: Option<projected_ink::EdgeInk>,
+    /// Claimed thread edge/curved-face indices in the immutable raw projection evidence.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub modelled_thread_ink: BTreeMap<String, crate::modelled_threads::Evidence>,
     /// The heights (z, mm) of the part's horizontal face levels: what a prismatic part's height
     /// ladder dimensions ([`crate::demand::face_levels`]).
     #[serde(default)]
@@ -358,6 +361,9 @@ pub struct DimensionSpec {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct FeatureSpec {
+    /// Intent for a recognised physical thread; no geometry is authored here.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub modelled_thread: Option<crate::modelled_threads::Settings>,
     /// Shared thread and knurl callout presentation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub callouts: Option<crate::callouts::Settings>,
@@ -1194,6 +1200,7 @@ fn analyse_step_input(
         radius_reliefs: crate::blends::reliefs(&part),
         iso_bounds: [0.0; 4],
         edge_ink: None,
+        modelled_thread_ink: BTreeMap::new(),
         levels: crate::demand::face_levels(&part),
         level_supports,
         risers,
@@ -1376,6 +1383,7 @@ pub fn recognise_document(
     analysis.blend_sites = crate::blends::evidence(part, &features);
     analysis.profile_arcs = crate::arc::evidence(part, &features);
     analysis.features = features;
+    analysis.modelled_thread_ink = crate::modelled_threads::evidence(part, analysis);
     let inspection = crate::dims::nominal_inspection_views(analysis);
     if !inspection.is_empty()
         && let Some(ink) = &mut analysis.edge_ink
@@ -3331,7 +3339,8 @@ pub(crate) fn pin_base(spec: &Spec) -> Spec {
 /// caller (the library's [`crate::api`], so the command line, the JSON-lines service and MCP)
 /// is given. A plan that cannot be made is refused as [`plan`] refuses it.
 pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
-    crate::dims::pmi_policy::planning(|| plan_recovered_inner(analysis, spec))
+    let prepared = crate::modelled_threads::planning(analysis, spec);
+    crate::dims::pmi_policy::planning(|| plan_recovered_inner(&prepared, spec))
 }
 
 fn plan_recovered_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
@@ -3874,7 +3883,8 @@ fn gdt_misplaced(plan: &Plan) -> (usize, usize) {
 /// drawing's findings. That recovery is [`recover`], applied by [`plan_recovered`], never here:
 /// its tries are plans made by this function (ISSUE-1299-a).
 pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
-    crate::dims::pmi_policy::planning(|| plan_inner(analysis, spec))
+    let prepared = crate::modelled_threads::planning(analysis, spec);
+    crate::dims::pmi_policy::planning(|| plan_inner(&prepared, spec))
 }
 
 fn plan_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
@@ -7020,14 +7030,36 @@ impl Projections {
         self.stats
     }
 
-    fn bind(&mut self, analysis: &Analysis) {
-        if self.binding.as_ref() != Some(&analysis.binding.source_sha256) {
+    fn bind(&mut self, analysis: &Analysis, spec: &Spec) {
+        let binding = if analysis
+            .features
+            .iter()
+            .any(|f| f.kind == "modelled_thread")
+        {
+            let enabled: Vec<_> = crate::modelled_threads::threads(analysis)
+                .map(|t| t.enabled(spec))
+                .collect();
+            let views: Vec<_> = spec
+                .views
+                .iter()
+                .map(|(id, v)| (id, v.thread_depiction))
+                .collect();
+            format!(
+                "{}:6410:{}",
+                analysis.binding.source_sha256,
+                serde_json::to_string(&(enabled, spec.sheet.thread_depiction, views))
+                    .expect("thread settings serialize")
+            )
+        } else {
+            analysis.binding.source_sha256.clone()
+        };
+        if self.binding.as_ref() != Some(&binding) {
             self.views.clear();
             self.cuts.clear();
             self.cut_material.clear();
             self.hatches.clear();
             self.geometry.clear();
-            self.binding = Some(analysis.binding.source_sha256.clone());
+            self.binding = Some(binding);
             self.dirty = true;
         }
     }
@@ -7037,12 +7069,14 @@ impl Projections {
         part: &Part,
         analysis: &Analysis,
         v: &PlannedView,
+        spec: &Spec,
     ) -> Result<ViewGeometry, Unresolved> {
         let (size, centre) = crate::detail::crop_extent(analysis, v);
         // Orientation views carry no hidden edges unless the Spec asks for them
         // (pictorial practice, ISO 128-30 / ASME Y14.3); the others draw them.
         let hidden = v.line_style.hidden.unwrap_or(v.id != "v:iso");
-        let key = projection_key(v);
+        let mut key = projection_key(v);
+        key.extend(crate::modelled_threads::cache_key(analysis, spec, v));
         let placement = bits(&[
             &[v.scale, f64::from(v.id == "v:iso"), f64::from(hidden)],
             &centre,
@@ -7073,7 +7107,7 @@ impl Projections {
                 v.at[1] + v.scale * (q[1] - centre[1]),
             ]
         };
-        for piece in self.view(part, analysis, v)? {
+        for piece in self.view(part, analysis, v, spec)? {
             let mut moved = piece.clone();
             moved.points = piece.points.iter().map(|q| place(*q)).collect();
             moved.exact = piece
@@ -7100,6 +7134,16 @@ impl Projections {
                 None => {}
             }
         }
+        let carrier = crate::modelled_threads::carrier(
+            part,
+            analysis,
+            spec,
+            v.line_style.thread_depiction != Some(false),
+        );
+        let (thick, _, thread_hidden) =
+            crate::modelled_threads::ink(analysis, spec, v, carrier.as_ref().unwrap_or(part));
+        geometry.visible.extend(thick);
+        geometry.hidden.extend(thread_hidden);
         if projection_cut(v).is_some() || !hidden {
             geometry.hidden.clear();
         } else {
@@ -7133,26 +7177,39 @@ impl Projections {
         part: &Part,
         analysis: &Analysis,
         v: &PlannedView,
+        spec: &Spec,
     ) -> Result<Vec<Projected>, Unresolved> {
         let cut = projection_cut(v);
         // Crops share their source camera's HLR; only the placed/trimmed geometry key
         // includes crop bounds. A second enlarged region needs no new kernel projection.
-        let key = bits(&[
+        let mut key = bits(&[
             &v.direction,
             &v.up,
             cut.map_or(&[], |c| &c.origin[..]),
             cut.map_or(&[], |c| &c.normal[..]),
         ]);
+        key.extend(crate::modelled_threads::cache_key(analysis, spec, v));
         if let Some(pieces) = self.views.get(&key) {
             return Ok(pieces.clone());
         }
         let view = View::new(v.direction, v.up).expect("a planned view");
         self.stats.projections += 1;
+        let carrier = crate::modelled_threads::carrier(
+            part,
+            analysis,
+            spec,
+            v.line_style.thread_depiction != Some(false),
+        );
+        let source = carrier.as_ref().unwrap_or(part);
         let pieces = match cut.and_then(|c| Plane::new(c.origin, c.normal)) {
-            Some(plane) => project_section(part, &view, &plane),
-            None => match projected_ink::prepared(&analysis.binding, v.direction, v.up) {
+            Some(plane) => project_section(source, &view, &plane),
+            None => match carrier
+                .is_none()
+                .then(|| projected_ink::prepared(&analysis.binding, v.direction, v.up))
+                .flatten()
+            {
                 Some(pieces) => Ok(pieces),
-                None => project(part, &view),
+                None => project(source, &view),
             },
         }?;
         self.views.insert(key, pieces.clone());
@@ -7160,12 +7217,19 @@ impl Projections {
         Ok(pieces)
     }
 
-    fn cut_material(&mut self, part: &Part, cut: &Cut, plane: &Plane) -> Result<bool, Unresolved> {
-        let key = bits(&[&cut.origin, &cut.normal]);
+    fn cut_material(
+        &mut self,
+        part: &Part,
+        cut: &Cut,
+        plane: &Plane,
+        extra: &[u64],
+    ) -> Result<bool, Unresolved> {
+        let mut key = bits(&[&cut.origin, &cut.normal]);
+        key.extend(extra);
         if let Some(material) = self.cut_material.get(&key) {
             return Ok(*material);
         }
-        let loops = self.cut(part, cut, plane)?;
+        let loops = self.cut(part, cut, plane, extra)?;
         let material = cut_crosses_material(part, plane, &loops);
         self.cut_material.insert(key, material);
         Ok(material)
@@ -7176,8 +7240,10 @@ impl Projections {
         part: &Part,
         cut: &Cut,
         plane: &Plane,
+        extra: &[u64],
     ) -> Result<Vec<Vec<[f64; 3]>>, Unresolved> {
-        let key = bits(&[&cut.origin, &cut.normal]);
+        let mut key = bits(&[&cut.origin, &cut.normal]);
+        key.extend(extra);
         if let Some(lines) = self.cuts.get(&key) {
             return Ok(lines.clone());
         }
@@ -7195,11 +7261,16 @@ pub fn render_geometry(
     plan: &Plan,
     projections: &mut Projections,
 ) -> Result<GeometryLayer, Unresolved> {
-    projections.bind(analysis);
+    projections.bind(analysis, &plan.spec);
     let views = plan
         .views
         .iter()
-        .map(|v| Ok((v.id.clone(), projections.geometry(part, analysis, v)?)))
+        .map(|v| {
+            Ok((
+                v.id.clone(),
+                projections.geometry(part, analysis, v, &plan.spec)?,
+            ))
+        })
         .collect::<Result<_, Unresolved>>()?;
     Ok(GeometryLayer { views })
 }
@@ -7513,7 +7584,7 @@ fn render_annotations_with_cuts(
     items: &BTreeMap<String, RenderedItem>,
     remote_sections: &[&PlannedView],
 ) -> Result<Drawing, Unresolved> {
-    projections.bind(analysis);
+    projections.bind(analysis, &plan.spec);
     // A tangent/gap plane has retained geometry, but no new cut face. Refuse
     // that section's ink and report it, rather than captioning the retained half
     // as a manufactured section (ISSUE-1530-a). The rest of the sheet still draws.
@@ -7537,7 +7608,20 @@ fn render_annotations_with_cuts(
         let at = (0..3).map(|k| plane.normal[k] * cut.origin[k]).sum::<f64>();
         let reason = if at <= limits[0] || at >= limits[1] {
             Some("the plane is not strictly inside the part's open extent")
-        } else if !projections.cut_material(part, cut, &plane)? {
+        } else if !{
+            let carrier = crate::modelled_threads::carrier(
+                part,
+                analysis,
+                &plan.spec,
+                v.line_style.thread_depiction != Some(false),
+            );
+            projections.cut_material(
+                carrier.as_ref().unwrap_or(part),
+                cut,
+                &plane,
+                &crate::modelled_threads::cache_key(analysis, &plan.spec, v),
+            )?
+        } {
             Some("cut_no_intersection: no material crosses the cutting plane")
         } else {
             None
@@ -7649,6 +7733,15 @@ fn render_annotations_with_cuts(
                 .into_iter()
                 .map(Item::Edge),
         );
+        let carrier = crate::modelled_threads::carrier(
+            part,
+            analysis,
+            &plan.spec,
+            v.line_style.thread_depiction != Some(false),
+        );
+        let (_, thread_thin, _) =
+            crate::modelled_threads::ink(analysis, &plan.spec, v, carrier.as_ref().unwrap_or(part));
+        thin.extend(thread_thin);
         thin.extend(geometry.breaks.into_iter().map(Item::Edge));
         layers[0].items.extend(geometry.visible);
         layers[1].items.extend(geometry.hidden);
@@ -8908,7 +9001,15 @@ fn section_furniture(
     let (s, centre) = (v.scale, extent(analysis, view).1);
     // Hatch geometry depends on the part, plane and projection transform, not
     // annotation text or title fields. Binding changes discard this cache.
-    let hatch_key = bits(&[
+    let carrier = crate::modelled_threads::carrier(
+        part,
+        analysis,
+        &plan.spec,
+        v.line_style.thread_depiction != Some(false),
+    );
+    let part = carrier.as_ref().unwrap_or(part);
+    let extra = crate::modelled_threads::cache_key(analysis, &plan.spec, v);
+    let mut hatch_key = bits(&[
         &v.direction,
         &v.up,
         &cut.origin,
@@ -8917,11 +9018,12 @@ fn section_furniture(
         &centre,
         &v.at,
     ]);
+    hatch_key.extend(&extra);
     if let Some(ink) = projections.hatches.get(&hatch_key) {
         out.ink = ink.clone();
     } else {
         let page: Vec<Vec<[f64; 2]>> = projections
-            .cut(part, cut, plane)?
+            .cut(part, cut, plane, &extra)?
             .iter()
             .map(|l| {
                 l.iter()

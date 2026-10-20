@@ -27,6 +27,7 @@ pub mod linework;
 pub mod lint;
 pub mod material;
 pub mod model;
+pub mod modelled_threads;
 pub mod notes;
 pub mod output;
 pub mod placement_intent;

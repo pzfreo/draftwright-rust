@@ -243,6 +243,11 @@ pub(crate) fn check(spec: &Spec) -> Result<(), Invalid> {
         if let Some(x) = &f.finish {
             finish(&format!("{base}/finish"), x)?;
         }
+        if let Some(t) = &f.modelled_thread
+            && let Some(designation) = &t.designation
+        {
+            note(&format!("{base}/modelled_thread/designation"), designation)?;
+        }
         if let Some(t) = &f.thread {
             let at = format!("{base}/thread");
             metric(&t.designation).map_err(|why| invalid(format!("{why}, at {at}."), vec![]))?;
@@ -514,6 +519,19 @@ pub(crate) fn overrides(s: &Record, pmi: &Record) -> bool {
 
 /// Refuse unknown roles rather than allowing a typo to suppress unrelated coverage.
 pub(crate) fn check_claims(analysis: &Analysis, spec: &Spec) -> Result<(), Invalid> {
+    for (id, f) in &spec.features {
+        if f.modelled_thread.is_some()
+            && !analysis
+                .features
+                .iter()
+                .any(|f| f.id == *id && f.kind == "modelled_thread")
+        {
+            return Err(invalid(
+                format!("features/{id}/modelled_thread requires a recognised modelled thread."),
+                vec![],
+            ));
+        }
+    }
     if spec.features.values().all(|f| f.note_satisfies.is_empty()) {
         return Ok(());
     }

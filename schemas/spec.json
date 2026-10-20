@@ -391,6 +391,32 @@
         "ra"
       ]
     },
+    "modelled_thread": {
+      "type": "object",
+      "properties": {
+        "depiction": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "designation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "thread": {
       "type": "object",
       "properties": {
@@ -822,6 +848,16 @@
           "anyOf": [
             {
               "$ref": "#/$defs/finish"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "modelled_thread": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/modelled_thread"
             },
             {
               "type": "null"

@@ -2286,21 +2286,26 @@ fn modelled_threads_and_refusals_survive_recognition_and_analysis_json() {
                 && r.parameters["reason"] == "inconsistent_pitch")
     );
     let plan = model::plan_recovered(&analysis, &model::Spec::default()).unwrap();
-    let limitations: Vec<_> = plan
-        .problems
-        .iter()
-        .filter(|p| p.subjects.contains(&thread.id))
-        .collect();
-    assert_eq!(limitations.len(), 1, "{limitations:?}");
-    assert_eq!(limitations[0].code, "modelled_thread_not_depicted");
-    assert_eq!(limitations[0].severity, "info");
-    assert!(limitations[0].message.contains("ISO 6410"));
-    // The JSON operation used by service/MCP adapters accepts the same feature payload.
+    // The occurrence now has ISO 6410 depiction and a dimensional owner.
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "modelled_thread_not_depicted" && p.subjects.contains(&thread.id))
+    );
+    assert!(
+        plan.dimensions
+            .iter()
+            .any(|d| d.id == format!("d:{}/thread", thread.id) && d.label.contains("M20×Ph2P1 LH"))
+    );
     let reply = draftwright::api::call("plan", &serde_json::json!({"analysis": analysis})).unwrap();
     assert_eq!(reply, serde_json::to_value(&plan).unwrap());
-    assert!(plan.feature_dispositions.iter().any(
-        |d| d.subject == thread.id && d.disposition == draftwright::dims::Disposition::Deferred
-    ));
+    assert!(
+        !plan
+            .feature_dispositions
+            .iter()
+            .any(|d| d.subject == thread.id)
+    );
 
     let mut bad = doc.clone();
     bad.schema_version = "quiddity-rust/recognition/3".into();

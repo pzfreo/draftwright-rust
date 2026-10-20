@@ -41,11 +41,14 @@ pub(super) fn wants(
     Vec<Problem>,
     BTreeMap<String, pmi_dimensions::Note>,
 ) {
-    if s.origin.is_empty() && s.pmi != PmiMode::Strict {
-        return super::wants(a);
-    }
-    let key = serde_json::to_vec(&(s.pmi, &s.origin)).unwrap();
-    crate::planning::memo(a, "pmi-wants", key, || super::wants_uncached(a, s))
+    let mut result = if s.origin.is_empty() && s.pmi != PmiMode::Strict {
+        super::wants(a)
+    } else {
+        let key = serde_json::to_vec(&(s.pmi, &s.origin)).unwrap();
+        crate::planning::memo(a, "pmi-wants", key, || super::wants_uncached(a, s))
+    };
+    super::modelled_threads::apply(a, s, &mut result.0, &mut result.1);
+    result
 }
 
 /// A semantic thread/knurl callout remains a source statement in strict mode; the engine's
