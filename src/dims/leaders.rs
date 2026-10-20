@@ -6371,7 +6371,7 @@ pub(super) fn settled_routes(
         steer: std::cell::Cell::new(None),
         ink_min,
         ink_max,
-        stroke_pad: LABEL_PAD,
+        stroke_pad: stroke_clearance(&d.terms).max(LABEL_PAD),
         beyond: [CLEAR; 4],
     };
     let mut fixed = Fixed::new(
