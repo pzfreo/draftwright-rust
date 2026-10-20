@@ -401,7 +401,7 @@ fn offset_members_expose_the_projected_arc_span() {
     let span = arc.span.unwrap();
     assert!(span.start.is_finite() && span.sweep > 0. && span.sweep <= std::f64::consts::TAU);
     let angle = (p.lines[0][0][1] - arc.centre[1]).atan2(p.lines[0][0][0] - arc.centre[0]);
-    assert!((angle - span.start).rem_euclid(std::f64::consts::TAU) <= span.sweep + 1e-6);
+    assert!((angle - span.start + 1e-6).rem_euclid(std::f64::consts::TAU) <= span.sweep + 2e-6);
     let wire = serde_json::to_value(at).unwrap();
     assert!(
         wire["members"]

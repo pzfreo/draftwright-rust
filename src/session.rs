@@ -100,6 +100,7 @@ pub struct CalloutOffset {
     pub bend: [f64; 2],
     pub offset: [f64; 2],
     /// Projected attachment sites used by the leader, in paper mm (y up).
+    #[serde(default)]
     pub members: Vec<CalloutMember>,
 }
 
@@ -108,7 +109,7 @@ pub struct CalloutOffset {
 pub struct CalloutMember {
     pub centre: [f64; 2],
     pub radius: f64,
-    /// Counterclockwise arc in radians; absent for a full circle or point.
+    /// Present for an arc: counterclockwise angles in radians.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub span: Option<CalloutSpan>,
 }
