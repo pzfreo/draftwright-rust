@@ -656,6 +656,9 @@ fn without_typed_state(mut plan: Value) -> Value {
         let p = p.as_object_mut().unwrap();
         p.remove("fix");
         p.remove("fixes");
+        // Additive finding labels do not change the frozen alpha.1 plan contract.
+        p.remove("impact");
+        p.remove("group");
         let refs = p.remove("refs").unwrap_or(json!([]));
         let refs = refs.as_array().unwrap();
         let subjects = p["subjects"].as_array_mut().unwrap();
