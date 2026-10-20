@@ -3,6 +3,9 @@
 #[path = "common/corpus.rs"]
 mod corpus;
 
+#[path = "common/local_fix.rs"]
+mod local_fix;
+
 use draftwright::model::{self, Plan, Spec};
 use serde_json::json;
 use std::path::Path;
@@ -210,9 +213,31 @@ fn underside_cavity_containment_is_not_a_crossing_and_extensions_are_report_only
             "dimensions/{}/place",
             draftwright::items::key(&problem.subjects[0])
         );
-        for fix in problem.offered_fixes() {
+        let fixes = problem.offered_fixes();
+        if fixes.is_empty() {
+            continue;
+        }
+        assert!(
+            local_fix::edits(problem, &plan)
+                .iter()
+                .all(|op| op.path == path)
+        );
+        let retained = problem
+            .fix
+            .iter()
+            .find(|op| op.path == "sheet/keep_layout")
+            .unwrap();
+        for fix in fixes {
             assert_eq!(fix.scope(), draftwright::fixes::Scope::Local);
-            assert!(fix.ops.iter().all(|op| op.path == path));
+            assert_eq!(
+                fix.ops
+                    .iter()
+                    .filter(|op| op.path == "sheet/keep_layout")
+                    .collect::<Vec<_>>(),
+                vec![retained],
+                "every alternative retains the same verified sheet and view frames"
+            );
+            assert!(fix.ops.iter().all(|op| op.path == path || op == retained));
         }
     }
 }
