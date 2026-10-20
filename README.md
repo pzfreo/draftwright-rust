@@ -169,7 +169,7 @@ Problem with a code on the item's ID, in `plan`, `render` and `review`.
   Diameter and thread leaders may approach a rim from inside a proven face, including a
   blind-hole floor.
   The bounded final route search also serves leader-attached GD&T frames and AP242 surface
-  labels. Exterior routes win equal crossing grades; already clear drawings stay unchanged.
+  labels. Exterior routes win equal costs; already clear drawings stay unchanged.
   Datum triangles retain their face attachment and frames retry only along its existing normal.
   Missing edge evidence, section views and uncertain curved regions cannot prove interior paper.
 - **The rules catalogue** (`docs/rules/`) tracks what Python draftwright learnt; most of its

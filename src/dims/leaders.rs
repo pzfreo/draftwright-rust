@@ -666,6 +666,7 @@ struct Job<'a> {
     directed: bool,
     short_profile: bool,
     inward: bool,
+    edge_attachment: bool,
     interior_proof: Option<(&'a crate::model::PlannedView, &'a super::interior::Proof)>,
     profile_proof: Option<(&'a crate::model::PlannedView, &'a super::interior::Proof)>,
     /// Once [`inventory`] steers the callout off its silhouette: the most model lines and
@@ -1193,6 +1194,7 @@ fn place_with_obstacles_uncached(
                 model: models.get(view).map(|m| &m.as_ref().0),
                 short_profile: boss_profile(w),
                 inward: false,
+                edge_attachment: true,
                 interior_proof: None,
                 profile_proof: boss_profile(w)
                     .then(|| {
@@ -1717,6 +1719,7 @@ pub(crate) fn settle_after_furniture(
             corridors: !compact,
             short_profile: boss_profile(w),
             inward: false,
+            edge_attachment: true,
             interior_proof: None,
             profile_proof,
             silhouette: grazing(&frame, w),
@@ -3016,6 +3019,7 @@ fn refine_uncached(
             model: None,
             short_profile: boss_profile(w),
             inward: false,
+            edge_attachment: true,
             interior_proof: None,
             profile_proof: boss_profile(w)
                 .then(|| {
@@ -5360,7 +5364,7 @@ fn measure_at_bounds(
         if boxes_overlap(lb, *b) || crosses(segs[1], *b) {
             let interior = own
                 && job.interior_proof.is_some_and(|(v, proof)| {
-                    proof.annotation_clear(
+                    proof.leader_clear(
                         v,
                         &Placed {
                             lines: segs.to_vec(),
@@ -5369,7 +5373,7 @@ fn measure_at_bounds(
                             rotation: 0.0,
                             label_box: lb,
                         },
-                        true,
+                        job.edge_attachment,
                     )
                 });
             if !interior {
@@ -5711,6 +5715,7 @@ pub fn clear_routes(
         model: None,
         short_profile: false,
         inward: inward_callout(w),
+        edge_attachment: true,
         interior_proof: views
             .iter()
             .find(|v| v.id == d.view)
@@ -6443,6 +6448,7 @@ pub(super) fn settled_routes(
         short_profile: false,
         profile_proof: None,
         inward: want.is_some_and(inward_callout),
+        edge_attachment: want.is_some(),
         interior_proof: proof.map(|p| (v, p)),
         steer: std::cell::Cell::new(None),
         ink_min,
@@ -6512,14 +6518,7 @@ pub(super) fn settled_routes(
                 .as_ref()
                 .is_none_or(|r| r.hidden.route_crossings(c.segments()) <= hidden)
     });
-    candidates.sort_by_key(|c| {
-        (
-            c.crossings,
-            c.text,
-            boxes_overlap(c.label_box, job.outline),
-            c.score(),
-        )
-    });
+    candidates.sort_by_key(|c| (c.score(), boxes_overlap(c.label_box, job.outline)));
     candidates.dedup_by(|a, b| a.label_box == b.label_box && a.tip == b.tip);
     candidates.into_iter().map(|c| c.placed()).collect()
 }

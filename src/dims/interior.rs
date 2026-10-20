@@ -502,6 +502,54 @@ impl Proof {
             })
     }
 
+    /// The attachment collar may forgive its nearest source chord only. A
+    /// different view edge crossed close to the tip is still a crossing.
+    fn attachment_clear(&self, v: &PlannedView, p: &Placed) -> bool {
+        let tip = self.model_point(v, p.lines[0][0]);
+        let tolerance = 0.05 / v.scale + SLACK;
+        let near = padded([tip[0], tip[1], tip[0], tip[1]], tolerance);
+        let closest = self
+            .grid
+            .near(near)
+            .filter(|&i| i < self.depths.len())
+            .map(|i| distance(tip, self.segments[i]))
+            .fold(f64::INFINITY, f64::min);
+        let eps = 1e-8 / v.scale;
+        let clear = |line: [P2; 2]| {
+            let s = line.map(|p| self.model_point(v, p));
+            self.grid.near(padded(bounds_of(s), eps)).all(|i| {
+                (i < self.depths.len() && distance(tip, self.segments[i]) <= closest + eps)
+                    || segment_distance(s, self.segments[i]) > eps
+            }) && self.boxes.iter().all(|b| !near_box(s, *b, eps))
+        };
+        clear(p.lines[0])
+            && p.arrows
+                .iter()
+                .flat_map(|a| super::leaders::head(*a))
+                .all(clear)
+    }
+
+    /// A leader-attached frame may keep a proven point within a face. Feature
+    /// size/radius callouts still require their physical rim attachment.
+    pub(super) fn leader_clear(&self, v: &PlannedView, p: &Placed, edge_required: bool) -> bool {
+        if edge_required {
+            return self.annotation_clear(v, p, true) && self.attachment_clear(v, p);
+        }
+        let Some([tip, elbow]) = p.lines.first().copied() else {
+            return false;
+        };
+        let on_edge = self.touches(v, tip);
+        self.blank(v, p.label_box)
+            && (!on_edge || self.attachment_clear(v, p))
+            && (on_edge || self.blank(v, [tip[0], tip[1], tip[0], tip[1]]))
+            && self.blank(v, [elbow[0], elbow[1], elbow[0], elbow[1]])
+            && p.lines
+                .iter()
+                .enumerate()
+                .all(|(i, s)| self.segment_clear(v, *s, on_edge && i == 0))
+            && p.arrows.iter().all(|s| self.arrow_clear(v, *s, on_edge))
+    }
+
     /// A bounded notch may carry its angle in the open recess within the view's
     /// rectangular envelope. Prove the whole label outside every projected face,
     /// with the same ink margins as face-interior labels. Curved faces use their
@@ -1170,6 +1218,46 @@ mod tests {
 
     fn proof(ink: &EdgeInk) -> Proof {
         build(ink, &view(), [0., 0.]).unwrap()
+    }
+
+    #[test]
+    fn a_neighbouring_edge_is_not_forgiven_by_the_attachment_collar() {
+        let p = Placed {
+            lines: vec![[[0., 0.], [15., 0.]], [[15., 0.], [18., 0.]]],
+            arrows: vec![arrow([0., 0.], [15., 0.])],
+            label_at: [19., -1.1],
+            label_box: [19., -1.1, 29., 1.2],
+            rotation: 0.,
+        };
+        let blank = proof(&ink(vec![vec![[0., -10.], [0., 10.]]]));
+        assert!(blank.leader_clear(&view(), &p, true));
+        let blocked = proof(&ink(vec![
+            vec![[0., -10.], [0., 10.]],
+            vec![[0.3, -10.], [0.3, 10.]],
+        ]));
+        assert!(!blocked.leader_clear(&view(), &p, true));
+    }
+
+    #[test]
+    fn a_frame_keeps_its_face_site_and_never_crosses_an_edge() {
+        let p = Placed {
+            lines: vec![[[0., 0.], [15., 10.]], [[15., 10.], [18., 10.]]],
+            arrows: vec![arrow([0., 0.], [15., 10.])],
+            label_at: [19., 8.8],
+            label_box: [19., 8.8, 29., 11.2],
+            rotation: 0.,
+        };
+        let blank = proof(&ink(vec![]));
+        assert!(blank.leader_clear(&view(), &p, false));
+        assert!(
+            !blank.leader_clear(&view(), &p, true),
+            "a size callout needs a rim"
+        );
+        let blocked = proof(&ink(vec![vec![[8., -40.], [8., 40.]]]));
+        assert!(
+            !blocked.leader_clear(&view(), &p, false),
+            "the frame shaft crosses view ink"
+        );
     }
 
     #[test]
