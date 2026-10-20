@@ -6486,14 +6486,24 @@ fn plan_with_presentation(
 fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     finish_nominal_placement(analysis, spec, plan);
     if !crate::nominal::comparison() {
-        plan.problems
-            .retain(|p| p.code != "radius_leader_routing_fallback");
-        plan.problems.extend(crate::dims::radius_fallbacks(
-            analysis,
-            spec,
-            &plan.views,
-            &plan.dimensions,
-        ));
+        let mut fresh =
+            crate::dims::radius_fallbacks(analysis, spec, &plan.views, &plan.dimensions);
+        // Keep unchanged diagnostics (and their attached fixes) in their original order
+        // when explicit-sheet recovery finishes an already finished drawing again.
+        plan.problems.retain_mut(|p| {
+            if p.code != "radius_leader_routing_fallback" {
+                return true;
+            }
+            let Some(i) = fresh.iter().position(|next| next.id == p.id) else {
+                return false;
+            };
+            let next = fresh.remove(i);
+            if p.message != next.message || p.subjects != next.subjects {
+                *p = next;
+            }
+            true
+        });
+        plan.problems.extend(fresh);
         plan.status = crate::completeness::status(&plan.problems);
     }
 }
