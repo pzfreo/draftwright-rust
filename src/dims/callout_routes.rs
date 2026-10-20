@@ -18,12 +18,29 @@ fn counts(problems: &[Problem]) -> BTreeMap<String, usize> {
     out
 }
 
+fn route_issue(code: &str) -> bool {
+    matches!(
+        code,
+        "annotation_leader_crossing"
+            | "annotation_ink_overlap"
+            | "annotation_overlap"
+            | "annotation_over_view"
+            | "annotation_line_over_view"
+            | "annotation_leader_long"
+    )
+}
+
 fn improves(before: &[Problem], after: &[Problem]) -> bool {
     let a = counts(before);
     let b = counts(after);
-    b.iter().all(|(k, n)| *n <= a.get(k).copied().unwrap_or(0))
-        && b.get("annotation_leader_crossing").copied().unwrap_or(0)
-            < a.get("annotation_leader_crossing").copied().unwrap_or(0)
+    let defects = |counts: &BTreeMap<String, usize>| {
+        counts
+            .iter()
+            .filter(|(code, _)| route_issue(code))
+            .map(|(_, n)| n)
+            .sum::<usize>()
+    };
+    b.iter().all(|(k, n)| *n <= a.get(k).copied().unwrap_or(0)) && defects(&b) < defects(&a)
 }
 
 fn furniture(analysis: &Analysis, plan: &Plan) -> Vec<PlannedDimension> {
@@ -128,19 +145,26 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     if crate::nominal::comparison()
         || crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[])
             .unwrap_or(false)
-        || !plan
-            .problems
-            .iter()
-            .any(|p| p.code == "annotation_leader_crossing")
+        || !plan.problems.iter().any(|p| route_issue(&p.code))
     {
         return;
     }
-    let crossing_ids: BTreeSet<_> = plan
+    let affected_ids: BTreeSet<_> = plan
         .problems
         .iter()
-        .filter(|p| p.code == "annotation_leader_crossing")
+        .filter(|p| route_issue(&p.code))
         .flat_map(|p| p.subjects.iter().cloned())
         .collect();
+    if !plan
+        .dimensions
+        .iter()
+        .any(|d| d.kind == "callout" && d.placed.is_some() && affected_ids.contains(&d.id))
+        && !plan.gdt.iter().any(|g| {
+            g.kind != "surface_finish" && g.placed.is_some() && affected_ids.contains(&g.id)
+        })
+    {
+        return;
+    }
     let cache = super::footprints::Cache::default();
     let proofs = interior::proofs(analysis, &plan.views);
     let mut wants = super::wants(analysis).0;
@@ -166,7 +190,7 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
         let mut moved = false;
         for i in 0..all.len() {
             let d = &all[i];
-            if !crossing_ids.contains(&d.id)
+            if !affected_ids.contains(&d.id)
                 || d.kind != "callout"
                 || d.placed.is_none()
                 || spec
@@ -191,10 +215,7 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
             };
             let before =
                 placement::collisions_for(analysis, &all, sheet, &plan.views, &cache, &d.id);
-            if !before
-                .iter()
-                .any(|p| p.code == "annotation_leader_crossing")
-            {
+            if !before.iter().any(|p| route_issue(&p.code)) {
                 continue;
             }
             let glyph = plan.gdt.iter().find(|g| g.id == d.id).cloned();
@@ -397,6 +418,13 @@ mod tests {
         let before = vec![crossing(&["leader"]), crossing(&["extension_line"])];
         assert!(improves(&before, &[crossing(&["extension_line"])]));
         assert!(!improves(&before, &[crossing(&["arrow"])]));
+        assert!(improves(
+            &[Problem {
+                code: "annotation_ink_overlap".into(),
+                ..Default::default()
+            }],
+            &[]
+        ));
         assert!(
             !improves(&before, &before),
             "ties retain the existing exterior route"

@@ -5725,7 +5725,28 @@ pub fn clear_routes(
             .filter(|(_, o)| o.id != id)
             .filter_map(|(i, o)| Some((i, o.placed.as_ref()?)))
     };
-    let fixed = Fixed::new(rest());
+    // Centre marks and cutting-plane furniture live on views, not in `dims`.
+    // They must constrain the diagnostic too, particularly a new interior label.
+    let furniture = crate::centrelines::obstacles(views);
+    let mut fixed = Fixed::new(
+        rest().chain(
+            furniture
+                .iter()
+                .enumerate()
+                .filter_map(|(i, d)| Some((dims.len() + i, d.placed.as_ref()?))),
+        ),
+    );
+    fixed.furniture = furniture
+        .iter()
+        .enumerate()
+        .map(|(i, d)| (dims.len() + i, d.basis == "global_axis"))
+        .collect();
+    fixed.crosses = furniture
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| d.basis == "cross")
+        .map(|(i, _)| dims.len() + i)
+        .collect();
     let tip = p.lines.first()?[0];
     Some(
         sweep(&job, tip)
