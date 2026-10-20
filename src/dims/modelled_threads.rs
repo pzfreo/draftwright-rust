@@ -76,6 +76,13 @@ fn unmatched(f: &crate::bridge::Feature) -> Problem {
 
 /// Apply intent and PMI precedence after the immutable automatic wants memo.
 pub(super) fn apply(a: &Analysis, s: &Spec, out: &mut Vec<Want>, problems: &mut Vec<Problem>) {
+    let manufacturing = if s.pmi == crate::model::PmiMode::Ignore
+        || !a.features.iter().any(|f| f.kind == "modelled_thread")
+    {
+        crate::pmi_lowering::Manufacturing::default()
+    } else {
+        crate::pmi_lowering::manufacturing(a)
+    };
     for t in threads(a) {
         let setting = s
             .features
@@ -95,6 +102,14 @@ pub(super) fn apply(a: &Analysis, s: &Spec, out: &mut Vec<Want>, problems: &mut 
                 Some(crate::pmi::Reading::Read(r)) => r.records.iter().any(|r| {
                     r.kind.ends_with("thread")
                         && r.faces.iter().any(|i| t.feature.faces.contains(i))
+                        && manufacturing.owned.iter().any(|o| {
+                            o.source == r.source_id
+                                && out.iter().any(|w| {
+                                    w.measurements
+                                        .iter()
+                                        .any(|m| m.feature == o.id && m.parameter == "thread")
+                                })
+                        })
                 }),
                 _ => false,
             }

@@ -1,5 +1,8 @@
 # Thread and knurl callouts
 
+For physical recognition-v4 threads, see [modelled screw threads](modelled-threads.md)
+and their per-occurrence depiction/designation controls.
+
 Thread and knurl leaders read horizontally. The complete requirement remains associated
 with its PMI source, even when a manufacturing note carries its secondary terms.
 The existing trimmed-arc radius leaders and perpendicular witnesses are unchanged.

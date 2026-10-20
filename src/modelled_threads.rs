@@ -226,11 +226,11 @@ fn metric_pairs() -> Vec<(f64, f64)> {
             let listed = match p {
                 1.5 => d <= 80,
                 2. => d <= 245,
-                3. => d <= 260,
-                4. => d != 78 && d != 82,
-                6. => d >= 68 && d != 70 && d != 75 && d != 78 && d != 82,
+                3. => d <= 250 && d != 78 && d != 82,
+                4. => ![40, 50, 78, 82].contains(&d),
+                6. => d >= 68 && d != 75 && d != 78 && d != 82,
                 8. => [
-                    125, 130, 140, 150, 160, 170, 180, 200, 210, 220, 225, 230, 240, 250, 260, 270,
+                    125, 130, 140, 150, 160, 170, 180, 190, 200, 210, 220, 230, 240, 250, 260, 270,
                     280, 290, 300,
                 ]
                 .contains(&d),
@@ -241,8 +241,13 @@ fn metric_pairs() -> Vec<(f64, f64)> {
             }
         }
         // ISO 261 clause 5.4 / table 1 permits finer pitches on listed diameters.
-        for (p, max) in [(1., 80), (1.5, 150), (2., 200), (3., 300)] {
-            if d <= max {
+        for (p, max) in [(3., 300), (2., 200), (1.5, 150), (1., 80)] {
+            if d <= max
+                && pairs
+                    .iter()
+                    .filter(|(diameter, _)| *diameter == d as f64)
+                    .all(|(_, pitch)| p < *pitch)
+            {
                 pairs.push((d as f64, p));
             }
         }
@@ -598,6 +603,7 @@ pub(crate) fn cache_key(a: &Analysis, s: &Spec, v: &PlannedView) -> Vec<u64> {
 pub struct Evidence {
     pub edges: Vec<usize>,
     pub curved: Vec<usize>,
+    pub span: [f64; 2],
 }
 pub(crate) fn evidence(part: &Part, a: &Analysis) -> std::collections::BTreeMap<String, Evidence> {
     let mut curved = vec![None; part.faces.len()];
@@ -624,7 +630,16 @@ pub(crate) fn evidence(part: &Part, a: &Analysis) -> std::collections::BTreeMap<
                 .iter()
                 .filter_map(|&i| curved.get(i).copied().flatten())
                 .collect();
-            (t.feature.id.clone(), Evidence { edges, curved })
+            let (lo, hi) = part.extent_along(&t.feature.faces, t.axis);
+            let shift = geom::dot(t.on, t.axis);
+            (
+                t.feature.id.clone(),
+                Evidence {
+                    edges,
+                    curved,
+                    span: [(lo - shift).min(t.span[0]), (hi - shift).max(t.span[1])],
+                },
+            )
         })
         .collect()
 }
@@ -652,7 +667,7 @@ pub(crate) fn planning<'a>(a: &'a Analysis, s: &Spec) -> std::borrow::Cow<'a, An
                 }
                 omitted.extend(e.curved.iter().copied());
                 let r = t.crest();
-                let ends = t.span.map(|z| t.at(z));
+                let ends = e.span.map(|z| t.at(z));
                 let lo = [0, 1, 2]
                     .map(|k| ends[0][k].min(ends[1][k]) - r * (1. - t.axis[k] * t.axis[k]).sqrt());
                 let hi = [0, 1, 2]
@@ -974,6 +989,22 @@ mod tests {
             p.dimensions
                 .iter()
                 .any(|d| d.id == "d:f:modelled_thread:1/thread")
+        );
+    }
+}
+
+pub(crate) fn source_hash(
+    original: &Analysis,
+    prepared: &std::borrow::Cow<'_, Analysis>,
+    plan: &mut crate::model::Plan,
+) {
+    if matches!(prepared, std::borrow::Cow::Owned(_)) {
+        use sha2::{Digest, Sha256};
+        plan.analysis_sha256 = Some(
+            Sha256::digest(serde_json::to_vec(original).expect("analysis serializes"))
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect(),
         );
     }
 }

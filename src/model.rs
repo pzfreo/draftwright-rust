@@ -1384,7 +1384,18 @@ pub fn recognise_document(
     analysis.profile_arcs = crate::arc::evidence(part, &features);
     analysis.features = features;
     analysis.modelled_thread_ink = crate::modelled_threads::evidence(part, analysis);
-    let inspection = crate::dims::nominal_inspection_views(analysis);
+    // Physical threads use conventional carriers. Their raw helix HLR would be
+    // thrown away by the planner and renderer; keep raw conservative evidence
+    // for the off override without eagerly resolving those expensive cameras.
+    let inspection = if analysis
+        .features
+        .iter()
+        .any(|f| f.kind == "modelled_thread")
+    {
+        BTreeSet::new()
+    } else {
+        crate::dims::nominal_inspection_views(analysis)
+    };
     if !inspection.is_empty()
         && let Some(ink) = &mut analysis.edge_ink
     {
@@ -3340,7 +3351,9 @@ pub(crate) fn pin_base(spec: &Spec) -> Spec {
 /// is given. A plan that cannot be made is refused as [`plan`] refuses it.
 pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     let prepared = crate::modelled_threads::planning(analysis, spec);
-    crate::dims::pmi_policy::planning(|| plan_recovered_inner(&prepared, spec))
+    let mut plan = crate::dims::pmi_policy::planning(|| plan_recovered_inner(&prepared, spec))?;
+    crate::modelled_threads::source_hash(analysis, &prepared, &mut plan);
+    Ok(plan)
 }
 
 fn plan_recovered_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
@@ -3884,7 +3897,9 @@ fn gdt_misplaced(plan: &Plan) -> (usize, usize) {
 /// its tries are plans made by this function (ISSUE-1299-a).
 pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     let prepared = crate::modelled_threads::planning(analysis, spec);
-    crate::dims::pmi_policy::planning(|| plan_inner(&prepared, spec))
+    let mut plan = crate::dims::pmi_policy::planning(|| plan_inner(&prepared, spec))?;
+    crate::modelled_threads::source_hash(analysis, &prepared, &mut plan);
+    Ok(plan)
 }
 
 fn plan_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
