@@ -217,31 +217,64 @@ fn underside_cavity_containment_is_not_a_crossing_and_extensions_are_report_only
         if fixes.is_empty() {
             continue;
         }
-        assert!(
-            local_fix::edits(problem, &plan)
-                .iter()
-                .all(|op| op.path == path)
-        );
-        let retained = problem
-            .fix
+        let owner = plan
+            .dimensions
             .iter()
-            .find(|op| op.path == "sheet/keep_layout")
+            .find(|d| d.id == problem.subjects[0])
             .unwrap();
         for fix in fixes {
-            assert_eq!(fix.scope(), draftwright::fixes::Scope::Local);
+            let new_view = fix
+                .ops
+                .iter()
+                .find(|op| op.path == path)
+                .and_then(|op| op.value.as_ref())
+                .and_then(|v| v["view"].as_str())
+                .map(|v| format!("v:{v}"));
+            let table_carrier = plan.radius_table.as_ref().is_some_and(|table| {
+                table
+                    .rows
+                    .iter()
+                    .any(|r| r.view == owner.view || new_view.as_ref() == Some(&r.view))
+            });
             assert_eq!(
-                fix.ops
-                    .iter()
-                    .filter(|op| op.path == "sheet/keep_layout")
-                    .collect::<Vec<_>>(),
-                vec![retained],
-                "every alternative retains the same verified sheet intent"
+                fix.scope(),
+                if table_carrier {
+                    draftwright::fixes::Scope::Sheet
+                } else {
+                    draftwright::fixes::Scope::Local
+                }
             );
-            assert!(
-                fix.ops
-                    .iter()
-                    .all(|op| op.path == path || local_fix::constraint(op))
-            );
+            if table_carrier {
+                assert!(
+                    fix.description()
+                        .contains("The whole sheet is laid out again")
+                );
+                assert!(
+                    fix.ops.iter().all(|op| op.path == path),
+                    "no table remedy may override hole_table: never"
+                );
+            } else {
+                assert!(
+                    local_fix::edits(problem, &plan)
+                        .iter()
+                        .all(|op| op.path == path)
+                );
+                for (field, value) in [
+                    ("sheet/keep_layout", serde_json::json!(true)),
+                    ("sheet/size", serde_json::json!(plan.sheet.size)),
+                    ("sheet/scale", serde_json::json!(plan.sheet.scale)),
+                    ("sheets/max", serde_json::json!(1)),
+                ] {
+                    let ops: Vec<_> = fix.ops.iter().filter(|op| op.path == field).collect();
+                    assert_eq!(ops.len(), 1);
+                    assert_eq!(ops[0].value, Some(value));
+                }
+                assert!(
+                    fix.ops
+                        .iter()
+                        .all(|op| op.path == path || local_fix::constraint(op))
+                );
+            }
         }
     }
 }
