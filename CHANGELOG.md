@@ -6,6 +6,42 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+## 0.1.0-alpha.10 (2026-10-20)
+
+### Added
+
+- Modelled screw threads are drawn by ISO 6410 convention (#137). The helix faces of a
+  recognised thread are replaced, for drawing only, by a smooth surface at the crest diameter:
+  thick crests, thin roots, termination lines, a thin three-quarter root arc in end views and
+  section hatching to the crest. The part, face IDs and recognition records are unchanged. The
+  info problem `modelled_thread_not_depicted` is now reported only when depiction is turned off
+  for the thread or the sheet, or is unavailable.
+- Thread callouts state the designation only, inferred from a unique ISO 261 diameter/pitch
+  match (e.g. `M75×1.5`; pitch is always stated, coarse or fine; multiple-start and left-hand
+  threads in ISO 965 form, e.g. `M20×Ph2P1-LH`). With no unique match the measured values are
+  stated, e.g. `⌀110 × P6.35`, with info `thread_designation_measured`. No length is stated: the
+  depiction shows the thread extent, and the measured span stays in the plan as evidence. A
+  semantic PMI thread on the same feature owns the callout in `pmi: "first"` and `"strict"`,
+  ahead of any Spec `designation`; `"ignore"` uses recognition alone.
+- Per-thread Spec override `features/<id>/modelled_thread`: `depiction: false` draws the
+  modelled edges again, and `designation` replaces the callout text verbatim. Schemas and MCP
+  item options include both. A `modelled_thread` override on any other feature is refused
+  ("features/<id>/modelled_thread requires a recognised modelled thread."), and designation text
+  is validated like a note. See `docs/modelled-threads.md`.
+- On cgb243 the callouts are `M14×1.5`, `M62×1.5` (twice) and `M75×1.5`; on
+  threaded_connector_109, `⌀110 × P6.35`. The other 98 corpus plans and SVGs are byte-identical.
+  With depiction on, the helix edges are no longer projected. Retired instructions: cgb243 plan
+  2,779 → 578 billion and render 3,010 → 696 billion; threaded_connector_109 render 4,127 → 299
+  billion (plan unchanged, 147 → 146 billion). cgb243 has 21 leader crossings against 17 before;
+  no labels overlap.
+
+### Changed
+
+- The two tests that pinned SHA-256 hashes of output (plans, SVGs and PDFs for notes identity;
+  plans for legacy view alignment) are replaced by assertions of what they protected: a part
+  without part PMI draws only its Spec notes, and explicit view alignments keep their edge and
+  gap (#137).
+
 ## 0.1.0-alpha.9 (2026-10-20)
 
 ### Changed
