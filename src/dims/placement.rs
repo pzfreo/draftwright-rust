@@ -4665,6 +4665,17 @@ pub(super) fn collisions_for(
     collisions_impl(analysis, dims, sheet, views, cache, Some(id))
 }
 
+/// `place_linear_at` and `aligned_at_offset` reserve index 2 for the dimension
+/// stroke. Any appended strokes are clipped extension continuations.
+fn crossing_kind(kind: &str, index: usize) -> &'static str {
+    match kind {
+        "callout" => "leader",
+        "linear" if index != 2 => "extension_line",
+        "angular" if index < 2 => "extension_line",
+        _ => "dimension_line",
+    }
+}
+
 fn collisions_impl(
     analysis: &Analysis,
     dims: &[PlannedDimension],
@@ -4705,16 +4716,19 @@ fn collisions_impl(
         .filter_map(|d| d.placed.as_ref().map(|p| (d, p)))
         .collect();
     let mut feature_problems = Vec::new();
-    let mut problem = |code: &str, severity: &str, subjects: Vec<String>, message: String| {
-        problems.push(Problem {
-            id: format!("p:{code}:{}", subjects.join("|")),
-            code: code.into(),
-            severity: severity.into(),
-            message,
-            subjects,
-            ..Default::default()
-        });
-    };
+    macro_rules! problem {
+        ($code:expr, $severity:expr, $subjects:expr, $message:expr $(,)?) => {{
+            let subjects: Vec<String> = $subjects;
+            problems.push(Problem {
+                id: format!("p:{}:{}", $code, subjects.join("|")),
+                code: $code.into(),
+                severity: $severity.into(),
+                message: $message,
+                subjects,
+                ..Default::default()
+            });
+        }};
+    }
     for (d, p) in &placed {
         if only.is_some_and(|id| d.id.as_str() != id) {
             continue;
@@ -4770,7 +4784,7 @@ fn collisions_impl(
                 })
                 .fold(0.0, f64::max);
             if past > 1e-6 {
-                problem(
+                problem!(
                     "annotation_outside_area",
                     "info",
                     vec![d.id.clone(), d.view.clone()],
@@ -4786,7 +4800,7 @@ fn collisions_impl(
         if d.kind == "linear"
             && let Some(gap) = label_gap(&p.lines, p.label_box).filter(|g| *g > STRAY_TEXT)
         {
-            problem(
+            problem!(
                 "dimension_text_stray",
                 "error",
                 vec![d.id.clone()],
@@ -4806,7 +4820,7 @@ fn collisions_impl(
             || !inside([lb[2], lb[3]], drawable)
             || ends.clone().any(|e| !inside(e, drawable))
         {
-            problem(
+            problem!(
                 "annotation_off_sheet",
                 "error",
                 vec![d.id.clone()],
@@ -4818,7 +4832,7 @@ fn collisions_impl(
         }
         let tb = sheet.title_block;
         if boxes_overlap(lb, tb) || p.lines.iter().any(|s| crosses(*s, tb)) {
-            problem(
+            problem!(
                 "annotation_over_title_block",
                 "warning",
                 vec![d.id.clone()],
@@ -4842,7 +4856,7 @@ fn collisions_impl(
                                 .is_some_and(|proof| proof.exterior_annotation_clear(v, p)))
                     }))
             {
-                problem(
+                problem!(
                     "annotation_over_view",
                     "warning",
                     vec![d.id.clone(), view.to_string()],
@@ -4855,7 +4869,7 @@ fn collisions_impl(
             }
             // A line (a leader, an extension or dimension line) across a view not its own.
             if *view != d.view && p.lines.iter().any(|s| crosses(*s, *b)) {
-                problem(
+                problem!(
                     "annotation_line_over_view",
                     "warning",
                     vec![d.id.clone(), view.to_string()],
@@ -4880,7 +4894,7 @@ fn collisions_impl(
                 && b.kind == "linear"
                 && shared_dimension_line(&pa.lines, &pb.lines)
             {
-                problem(
+                problem!(
                     "dimension_line_shared",
                     "error",
                     vec![a.id.clone(), b.id.clone()],
@@ -4891,8 +4905,30 @@ fn collisions_impl(
                     ),
                 );
             }
+            // Only the dimension stroke crosses here; extension/extension contacts are allowed.
+            // Both linear builders put the dimension stroke at index 2, including aligned
+            // dimensions whose clipped extension continuations are appended after it.
+            if a.kind == "linear"
+                && b.kind == "linear"
+                && pa
+                    .lines
+                    .get(2)
+                    .zip(pb.lines.get(2))
+                    .is_some_and(|(x, y)| super::leaders::segments_cross(*x, *y))
+            {
+                problem!(
+                    "dimension_line_crossing",
+                    "warning",
+                    vec![a.id.clone(), b.id.clone()],
+                    format!(
+                        "The dimension lines of {} and {} cross.",
+                        named(a),
+                        named(b)
+                    ),
+                );
+            }
             if boxes_overlap(pa.label_box, pb.label_box) {
-                problem(
+                problem!(
                     "annotation_overlap",
                     "warning",
                     vec![a.id.clone(), b.id.clone()],
@@ -4928,11 +4964,13 @@ fn collisions_impl(
             if !boxes_overlap(pa.label_box, pb.label_box)
                 && (through || ink_through(pa, pb.label_box))
             {
-                problem(
-                    "annotation_ink_overlap",
-                    "warning",
-                    vec![a.id.clone(), b.id.clone()],
-                    if through {
+                problems.push(Problem {
+                    id: format!("p:annotation_ink_overlap:{}|{}", a.id, b.id),
+                    code: "annotation_ink_overlap".into(),
+                    severity: "warning".into(),
+                    subjects: vec![a.id.clone(), b.id.clone()],
+                    ink_is_leader: Some(a.kind == "callout" && through),
+                    message: if through {
                         format!(
                             "A line of {} runs through the label of {}.",
                             named(a),
@@ -4945,24 +4983,44 @@ fn collisions_impl(
                             named(b)
                         )
                     },
-                );
+                    ..Default::default()
+                });
             }
-            // A callout's leader or shoulder across, or laid along, another item's line (its
-            // arrowheads' shafts included): Policy B keeps the leader and logs the crossing
-            // (ADR2-D6). Lines of two linear dimensions crossing are not checked yet.
-            let theirs: Vec<&[P2; 2]> = pb.lines.iter().chain(&pb.arrows).collect();
+            // Keep one finding per ordered pair, with every kind actually met. Classification
+            // runs only after the original short-circuit contact predicate succeeds.
             if a.kind == "callout"
-                && pa
-                    .lines
-                    .iter()
-                    .any(|s| theirs.iter().any(|t| super::leaders::lines_meet(*s, **t)))
+                && pa.lines.iter().any(|s| {
+                    pb.lines
+                        .iter()
+                        .chain(&pb.arrows)
+                        .any(|t| super::leaders::lines_meet(*s, *t))
+                })
             {
-                problem(
-                    "annotation_leader_crossing",
-                    "warning",
-                    vec![a.id.clone(), b.id.clone()],
-                    format!("The leader of {} crosses a line of {}.", named(a), named(b)),
-                );
+                let mut kinds = Vec::new();
+                for kind in ["leader", "dimension_line", "extension_line", "arrow"] {
+                    let met = if kind == "arrow" {
+                        pb.arrows
+                            .iter()
+                            .any(|t| pa.lines.iter().any(|s| super::leaders::lines_meet(*s, *t)))
+                    } else {
+                        pb.lines.iter().enumerate().any(|(i, t)| {
+                            crossing_kind(&b.kind, i) == kind
+                                && pa.lines.iter().any(|s| super::leaders::lines_meet(*s, *t))
+                        })
+                    };
+                    if met {
+                        kinds.push(kind.into());
+                    }
+                }
+                problems.push(Problem {
+                    id: format!("p:annotation_leader_crossing:{}|{}", a.id, b.id),
+                    code: "annotation_leader_crossing".into(),
+                    severity: "warning".into(),
+                    subjects: vec![a.id.clone(), b.id.clone()],
+                    message: format!("The leader of {} crosses a line of {}.", named(a), named(b)),
+                    crossing_kinds: kinds,
+                    ..Default::default()
+                });
             }
         }
     }
@@ -4972,6 +5030,120 @@ fn collisions_impl(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn crossing_kinds_and_dimension_strokes_follow_the_placed_structure() {
+        let analysis: Analysis = serde_json::from_value(serde_json::json!({
+            "schema": crate::model::ANALYSIS_SCHEMA,
+            "binding":{"source_sha256":"", "part":"plate", "face_count":0, "loader":"test"},
+            "envelope":[[0,0,0],[100,60,10]], "iso_bounds":[0,0,100,60]
+        }))
+        .unwrap();
+        let plan = crate::model::plan(&analysis, &crate::model::Spec::default()).unwrap();
+        let item = |id: &str, kind: &str, lines, arrows, label_box| {
+            let mut d = plan.dimensions[0].clone();
+            d.id = id.into();
+            d.kind = kind.into();
+            d.placed = Some(Placed {
+                lines,
+                arrows,
+                label_box,
+                label_at: [label_box[0], label_box[1]],
+                rotation: 0.,
+            });
+            d
+        };
+        let horizontal = [[30., 80.], [70., 80.]];
+        let vertical = [[50., 60.], [50., 100.]];
+        let far = [[130., 130.], [140., 130.]];
+        let leader = item(
+            "d:leader",
+            "callout",
+            vec![horizontal],
+            vec![],
+            [80., 110., 90., 113.],
+        );
+        let mut peer = item(
+            "d:peer",
+            "linear",
+            vec![far, far, far],
+            vec![],
+            [100., 110., 110., 113.],
+        );
+        let kinds = |a: &PlannedDimension, b: &PlannedDimension| {
+            collisions(&analysis, &[a.clone(), b.clone()], &plan.sheet, &[])
+                .into_iter()
+                .find(|p| p.code == "annotation_leader_crossing")
+                .unwrap()
+        };
+        for (index, kind) in [
+            (0, "extension_line"),
+            (1, "extension_line"),
+            (2, "dimension_line"),
+            (3, "extension_line"),
+        ] {
+            peer.placed.as_mut().unwrap().lines = vec![far; 4];
+            peer.placed.as_mut().unwrap().lines[index] = vertical;
+            let p = kinds(&leader, &peer);
+            assert_eq!(p.crossing_kinds, [kind]);
+            assert_eq!(p.subjects, ["d:leader", "d:peer"]);
+            assert_eq!(p.id, "p:annotation_leader_crossing:d:leader|d:peer");
+            let json = serde_json::to_value(&p).unwrap();
+            assert_eq!(serde_json::from_value::<Problem>(json).unwrap(), p);
+        }
+        peer.kind = "callout".into();
+        assert_eq!(kinds(&leader, &peer).crossing_kinds, ["leader"]);
+        peer.kind = "linear".into();
+        peer.placed.as_mut().unwrap().lines = vec![vertical, far, vertical];
+        peer.placed.as_mut().unwrap().arrows = vec![vertical];
+        assert_eq!(
+            kinds(&leader, &peer).crossing_kinds,
+            ["dimension_line", "extension_line", "arrow"]
+        );
+        peer.placed.as_mut().unwrap().lines = vec![far; 3];
+        assert_eq!(kinds(&leader, &peer).crossing_kinds, ["arrow"]);
+
+        // The leader through a label is distinct from a linear line or a flare-only hit.
+        peer.placed.as_mut().unwrap().label_box = [45., 79., 55., 81.];
+        for (kind, expected) in [("callout", true), ("linear", false)] {
+            let mut a = leader.clone();
+            a.kind = kind.into();
+            let p = collisions(&analysis, &[a, peer.clone()], &plan.sheet, &[])
+                .into_iter()
+                .find(|p| p.code == "annotation_ink_overlap")
+                .unwrap();
+            assert_eq!(p.ink_is_leader, Some(expected));
+        }
+
+        let mut a = item(
+            "d:a",
+            "linear",
+            vec![far, far, horizontal],
+            vec![],
+            [80., 110., 90., 113.],
+        );
+        let b = item(
+            "d:b",
+            "linear",
+            vec![horizontal, horizontal, vertical],
+            vec![],
+            [100., 110., 110., 113.],
+        );
+        let findings = |a: &PlannedDimension, b: &PlannedDimension| {
+            collisions(&analysis, &[a.clone(), b.clone()], &plan.sheet, &[])
+                .into_iter()
+                .filter(|p| p.code == "dimension_line_crossing")
+                .collect::<Vec<_>>()
+        };
+        let ps = findings(&a, &b);
+        assert_eq!(ps.len(), 1);
+        assert_eq!(ps[0].severity, "warning");
+        assert_eq!(ps[0].subjects, ["d:a", "d:b"]);
+        a.placed.as_mut().unwrap().lines = vec![vertical, vertical, far];
+        assert!(findings(&a, &b).is_empty(), "extensions may cross");
+        a.placed.as_mut().unwrap().lines[2] = [[30., 60.], [50., 60.]];
+        assert!(findings(&a, &b).is_empty(), "endpoint touches are allowed");
+    }
+
     #[test]
     fn item_collision_checks_preserve_all_findings_involving_that_item() {
         let analysis: Analysis = serde_json::from_value(serde_json::json!({
@@ -5415,6 +5587,7 @@ mod tests {
             .find(|p| p.code == "annotation_ink_overlap")
             .expect("the flare's contact is reported");
         assert_eq!(overlap.subjects, ["d:c", "d:l"]);
+        assert_eq!(overlap.ink_is_leader, Some(false));
         assert!(
             overlap.message.starts_with("The arrowhead of"),
             "{}",
