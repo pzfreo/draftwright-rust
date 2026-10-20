@@ -2529,6 +2529,7 @@ pub(crate) fn settle_radius_leaders(
                                 continue;
                             };
                             if c.hard > before.hard
+                                || crate::material::reentry(footprint.solids(), [tip, elbow]) > 0.0
                                 || c.crossings > before.crossings
                                 || c.text > before.text
                                 || c.feature_crossings > before.feature_crossings
