@@ -4352,7 +4352,12 @@ pub(crate) fn local_placement_fix(
                 // errors or a recheck that may contain unpublished advisories.
                 let added: Vec<_> = after
                     .iter()
-                    .filter(|p| !plan.problems.iter().any(|old| same(p, old)))
+                    .filter(|p| {
+                        !plan
+                            .problems
+                            .iter()
+                            .any(|old| same(p, old) && p.id == old.id)
+                    })
                     .collect();
                 if added.is_empty() {
                     return Some(crate::fixes::Fix::new(description, ops));
