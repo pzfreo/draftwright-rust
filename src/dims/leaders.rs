@@ -2366,7 +2366,7 @@ pub(crate) fn settle_after_furniture(
 
 /// Radius rules are applied to the final, fully populated sheet. The existing route is the
 /// fallback: a geometric improvement must also preserve the drawing's ink/contact budget.
-fn settle_radius_leaders(
+pub(crate) fn settle_radius_leaders(
     analysis: &crate::model::Analysis,
     spec: &crate::model::Spec,
     sheet: &crate::model::PlannedSheet,

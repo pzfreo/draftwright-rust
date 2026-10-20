@@ -6484,7 +6484,11 @@ fn plan_with_presentation(
 /// Precision repairs belong to the selected drawing, after sheet candidates have
 /// been judged. Rejected candidates must not each launch another route search.
 fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
-    if !crate::nominal::geometry_eligible(analysis) || crate::nominal::comparison() {
+    if crate::nominal::comparison() {
+        return;
+    }
+    if !crate::nominal::geometry_eligible(analysis) {
+        settle_finished_nominals(analysis, spec, plan, &[], 0, NominalPass::Radius);
         return;
     }
     let (intent, omitted) = crate::planning::lookup::<(Spec, Vec<crate::dims::PlannedDimension>)>(
@@ -6511,6 +6515,7 @@ fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
 enum NominalPass {
     Linear,
     All,
+    Radius,
 }
 
 /// Final furniture and blend consolidation own the actual printed inventory.
@@ -6525,6 +6530,7 @@ fn settle_finished_nominals(
 ) {
     let original_spec = spec;
     let route_leaders = pass != NominalPass::Linear;
+    let radius_only = pass == NominalPass::Radius;
     let mut fixed = crate::centrelines::obstacles(&plan.views);
     fixed.extend(plan.gdt.iter().filter_map(crate::dims::gdt::proxy));
     fixed.extend(plan.tables.iter().filter_map(crate::tables::proxy));
@@ -6563,12 +6569,15 @@ fn settle_finished_nominals(
     // Consolidation can release the witness or label corridor that prevented
     // an earlier repair. Reconsider the complete printed inventory before
     // fixing the final callouts, with the usual page and peer protections.
-    crate::dims::settle_inventory(analysis, spec, &plan.sheet, &plan.views, &mut items, &fixed);
+    if !radius_only {
+        crate::dims::settle_inventory(analysis, spec, &plan.sheet, &plan.views, &mut items, &fixed);
+    }
     // The fixed sheet trial already placed faithful text. Keep its settled routes
     // when the inventory is unchanged and a fresh audit is clear, rather than
     // searching for another clear presentation. Authored/latent inventory and
     // ordinary explicit plans retain the complete finishing pass.
-    if crate::planning::is_fixed_pair()
+    if !radius_only
+        && crate::planning::is_fixed_pair()
         && !items.iter().any(|d| {
             d.measurements
                 .iter()
@@ -6595,7 +6604,17 @@ fn settle_finished_nominals(
         return;
     }
     let mut reports = BTreeMap::new();
-    if route_leaders {
+    if radius_only {
+        reports.extend(crate::dims::settle_radius_leaders(
+            analysis,
+            spec,
+            &plan.sheet,
+            &plan.views,
+            &mut items,
+            &fixed,
+            &cache,
+        ));
+    } else if route_leaders {
         reports.extend(crate::dims::refine_inventory(
             analysis,
             spec,
