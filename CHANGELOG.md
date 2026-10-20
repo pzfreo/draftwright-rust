@@ -13,6 +13,19 @@ All notable changes to draftwright-rust are recorded here, in the style of
   blends and fillets, including proven end-on toroidal meridians. A blocked or unreadable case keeps its existing callout and reports
   the fallback. Drawn leaders, including pins, warn for tangent-end, nonradial or
   material-side approaches; toroidal direction limits are reported explicitly.
+- Declared STEP AP242 and Spec datums draw without a control-frame citation (#141, alpha.11),
+  using the existing datum-symbol placer. `sheet/uncited_datums: false` hides uncited symbols;
+  `annotations/<id>/omit` hides individual symbols. Omitted symbols retain provenance in the
+  plan and drawing, and unresolved PMI always explains why it is not drawn.
+  Datum leader records have no callout elbow; structural lint accepts frame-border
+  attachments while still reporting a shaft through the datum letter.
+- Classify retained leader crossings by leader, dimension line, extension line and arrow
+  using additive `crossing_kinds` problem metadata; mark leader-through-text with
+  `ink_is_leader`. Report linear dimension-line crossings as `dimension_line_crossing`
+  warnings. The CI `quality-pins` job ratchets all six counts on each quality part
+  against a tool-recorded origin/main baseline. The text gate also reads placed
+  geometry when an overlapping-label warning suppresses the duplicate ink warning.
+  Placement and routing are unchanged.
 
 - Browser input refusals (#134, alpha.11): reject over-deep edit paths before recursive JSON
   construction and gutters beyond the largest supported sheet before layout allocation.

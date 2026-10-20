@@ -6024,14 +6024,14 @@ pub(super) fn segments_along(a: [P2; 2], b: [P2; 2]) -> bool {
 
 /// A line to test against many others ([`lines_meet`]), its direction worked out once.
 #[derive(Clone, Debug)]
-struct Line {
+pub(super) struct Line {
     a: [P2; 2],
     /// Its unit direction and length; none when it is shorter than a nanometre.
     dir: Option<(P2, f64)>,
 }
 
 impl Line {
-    fn new(a: [P2; 2]) -> Line {
+    pub(super) fn new(a: [P2; 2]) -> Line {
         let d = [a[1][0] - a[0][0], a[1][1] - a[0][1]];
         let len = d[0].hypot(d[1]);
         let dir = if len < 1e-9 {
@@ -6043,7 +6043,7 @@ impl Line {
     }
 
     /// [`lines_meet`] of this line and *b*.
-    fn meets(&self, b: [P2; 2]) -> bool {
+    pub(super) fn meets(&self, b: [P2; 2]) -> bool {
         segments_cross(self.a, b) || self.along(b)
     }
 

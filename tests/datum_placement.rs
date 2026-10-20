@@ -281,7 +281,7 @@ fn cited_spindle_datums_have_separate_attachments_and_short_leaders() {
 }
 
 #[test]
-fn grm03_origin_datums_have_no_symbols_without_a_tolerance_citation() {
+fn grm03_declared_origin_datums_have_symbols_without_a_tolerance_citation() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/pmi/step/GRM-03_thumbwheel_drive_screw_AP242_PMI.step.gz");
     let (_, a) = model::analyse_native(&path).unwrap();
@@ -297,9 +297,20 @@ fn grm03_origin_datums_have_no_symbols_without_a_tolerance_citation() {
             .count(),
         2
     );
+    let datums: Vec<_> = plan
+        .gdt
+        .iter()
+        .filter(|g| g.kind == "datum_feature")
+        .collect();
+    assert_eq!(datums.len(), 2, "every declared datum is author intent");
+    assert!(datums.iter().all(|g| g.placed.is_some()));
     assert!(
-        plan.gdt.iter().all(|g| g.kind != "datum_feature"),
-        "ISO 5459: origin-only datums have no symbols"
+        plan.problems.iter().all(|p| !matches!(
+            p.code.as_str(),
+            "annotation_leader_crossing" | "annotation_overlap" | "annotation_ink_overlap"
+        )),
+        "{:#?}",
+        plan.problems
     );
 }
 

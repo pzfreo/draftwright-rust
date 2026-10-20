@@ -134,6 +134,9 @@ fn a_datum_on_the_bottom_face_and_a_position_on_the_hole_pattern_are_drawn() {
     let d = model::render(&part, &a, &plan, &font()).unwrap();
     assert_eq!(runs(&d, &datum.id), ["A"]);
     assert_eq!(runs(&d, &frame.id), ["⌖", "⌀0.1", "A"]);
+    assert!(draftwright::lint::structural::check(&d).iter().all(|i| {
+        i.code != "leader_line_through_text" || i.annotation.as_deref() != Some(&datum.id)
+    }));
     assert!(d.svg().contains("⌀0.1"));
     assert_eq!(pmi_lint(&a, &d), Vec::<String>::new());
     // Deterministic.
@@ -351,5 +354,238 @@ fn the_session_offers_datum_and_control_paths_on_a_feature() {
             .as_array()
             .unwrap()
             .contains(&json!("characteristic"))
+    );
+}
+
+/// Specify ± mode writes only these AP242 datum declarations onto the repo's plate.
+fn frameless_plate() -> (Part, Analysis) {
+    let mut source =
+        std::fs::read_to_string(root().join("tests/fixtures/samples/editor-plate.step")).unwrap();
+    let mut fragment = String::new();
+    for (i, (letter, face)) in [("A", 213), ("B", 137), ("C", 17)].iter().enumerate() {
+        let n = 50000 + i * 4;
+        fragment += &format!(
+            "#{n}=DATUM_FEATURE('','',#4,.T.);\n#{}=GEOMETRIC_ITEM_SPECIFIC_USAGE('','',#{n},#10,#{face});\n#{}=DATUM('','',#4,.F.,'{letter}');\n#{}=SHAPE_ASPECT_RELATIONSHIP('','',#{n},#{});\n",
+            n + 1,
+            n + 2,
+            n + 3,
+            n + 2
+        );
+    }
+    source = source.replace(
+        "ENDSEC;\nEND-ISO-10303-21;",
+        &format!("{fragment}ENDSEC;\nEND-ISO-10303-21;"),
+    );
+    model::analyse_native_step(Path::new("frameless-plate.step"), source.as_bytes()).unwrap()
+}
+
+fn assert_plate_datums(part: Part, a: Analysis, s: Spec) {
+    let session = draftwright::session::Session::new(part, a, s).unwrap();
+    let datums = gdt(session.plan(), "datum_feature");
+    assert_eq!(datums.len(), 3);
+    for (letter, face) in [("A", 2), ("B", 1), ("C", 0)] {
+        let d = datums.iter().find(|d| d.label == letter).unwrap();
+        assert_eq!(d.faces, [face]);
+        assert_eq!(d.state, draftwright::items::State::Shown);
+        assert!(d.placed.is_some());
+        assert_eq!(runs(session.drawing(), &d.id), [letter]);
+    }
+    let report = session.pmi_report();
+    assert!(
+        draftwright::lint::structural::check(session.drawing())
+            .iter()
+            .all(|i| i.code != "leader_line_through_text"),
+        "the datum shafts meet their frames without crossing the letters"
+    );
+    assert!(
+        report["unresolved"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|r| r["kind"] != "datum"),
+        "{report}"
+    );
+    assert_eq!(
+        report["lowered"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|r| r["kind"] == "datum_feature")
+            .count(),
+        3
+    );
+    assert!(
+        session.plan().problems.iter().all(|p| ![
+            "annotation_overlap",
+            "annotation_ink_overlap",
+            "annotation_leader_crossing"
+        ]
+        .contains(&p.code.as_str())),
+        "{:#?}",
+        session.plan().problems
+    );
+}
+
+#[test]
+fn frameless_ap242_plate_datums_are_drawn_on_their_faces() {
+    let (part, a) = frameless_plate();
+    assert_plate_datums(part, a, Spec::default());
+}
+
+#[test]
+fn frameless_spec_plate_datums_are_drawn_on_their_faces() {
+    let (part, a) =
+        model::analyse_native(&root().join("tests/fixtures/samples/editor-plate.step")).unwrap();
+    assert_plate_datums(
+        part,
+        a,
+        spec(
+            json!({"faces": {"face:2": {"datum": "A"}, "face:1": {"datum": "B"}, "face:0": {"datum": "C"}}}),
+        ),
+    );
+}
+
+#[test]
+fn uncited_datums_can_be_hidden_and_individually_omitted() {
+    let (part, a) = frameless_plate();
+    let s = draftwright::session::Session::new(
+        part,
+        a.clone(),
+        spec(json!({"sheet": {"uncited_datums": false}})),
+    )
+    .unwrap();
+    let hidden = gdt(s.plan(), "datum_feature");
+    assert_eq!(hidden.len(), 3);
+    assert!(hidden.iter().all(|d| d.placed.is_none()
+        && d.state == draftwright::items::State::OmittedByUser
+        && d.basis.contains("sheet/uncited_datums")));
+    assert!(
+        draftwright::lint::lint(&a, s.drawing())
+            .iter()
+            .all(|i| !matches!(i.code.as_str(), "pmi_not_rendered" | "pmi_not_lowered")),
+        "explicit omission is accounted for without claiming drawn ink"
+    );
+    assert_eq!(
+        draftwright::lint::lint(&a, s.drawing())
+            .iter()
+            .filter(|i| i.code == "pmi_datum_suppressed")
+            .count(),
+        3
+    );
+    let suppressions: Vec<_> = s
+        .drawing()
+        .annotations
+        .iter()
+        .filter(|a| a.name.starts_with("suppressed:pmi:"))
+        .collect();
+    assert_eq!(suppressions.len(), 3);
+    assert!(
+        suppressions
+            .iter()
+            .all(|a| a.runs.is_empty() && a.claims.is_empty())
+    );
+    let mut damaged = s.drawing().clone();
+    damaged
+        .annotations
+        .retain(|a| !a.name.starts_with("suppressed:pmi:"));
+    assert_eq!(
+        draftwright::lint::lint(&a, &damaged)
+            .iter()
+            .filter(|i| i.code == "pmi_not_rendered")
+            .count(),
+        3,
+        "the embedded author document cannot replace missing drawing provenance"
+    );
+    let report = s.pmi_report();
+    assert_eq!(report["unresolved"].as_array().unwrap().len(), 3);
+    assert!(report["unresolved"].as_array().unwrap().iter().all(|r| {
+        r["reason"]
+            .as_str()
+            .unwrap()
+            .contains("sheet/uncited_datums")
+    }));
+
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let b = gdt(&plan, "datum_feature")
+        .into_iter()
+        .find(|d| d.label == "B")
+        .unwrap();
+    let (part, _) = frameless_plate();
+    let omitted_session = draftwright::session::Session::new(
+        part,
+        a.clone(),
+        spec(json!({"annotations": {&b.id: {"omit": true}}})),
+    )
+    .unwrap();
+    let omitted = omitted_session.plan();
+    assert!(
+        omitted_session.pmi_report()["unresolved"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|r| r["label"] == "B"
+                && r["reason"]
+                    .as_str()
+                    .unwrap()
+                    .contains("annotations/<id>/omit"))
+    );
+    for d in gdt(omitted, "datum_feature") {
+        assert_eq!(d.placed.is_none(), d.label == "B");
+        if d.label == "B" {
+            assert_eq!(d.state, draftwright::items::State::OmittedByUser);
+        }
+    }
+    // The sheet switch hides only uncited datums, preserving existing frame-cited geometry.
+    let (_, cited) = spindle();
+    let normal = model::plan_recovered(&cited, &Spec::default()).unwrap();
+    let hidden =
+        model::plan_recovered(&cited, &spec(json!({"sheet": {"uncited_datums": false}}))).unwrap();
+    assert_eq!(normal.gdt, hidden.gdt);
+}
+
+#[test]
+fn undrawable_datums_always_explain_their_attachment_failure() {
+    let (part, mut a) = frameless_plate();
+    let Some(draftwright::pmi::Reading::Read(report)) = &mut a.pmi else {
+        panic!("datums read")
+    };
+    let datum = report.records.iter_mut().find(|r| r.label == "A").unwrap();
+    datum
+        .geometry
+        .as_mut()
+        .unwrap()
+        .reasons
+        .push("test: datum face attachment is unavailable".into());
+    let session = draftwright::session::Session::new(part, a, Spec::default()).unwrap();
+    let report = session.pmi_report();
+    let unresolved = report["unresolved"].as_array().unwrap();
+    assert!(!unresolved.is_empty());
+    assert!(
+        unresolved
+            .iter()
+            .all(|r| !r["reason"].as_str().unwrap().trim().is_empty())
+    );
+    assert!(unresolved.iter().any(|r| {
+        r["label"] == "A"
+            && r["reason"]
+                .as_str()
+                .unwrap()
+                .contains("datum face attachment is unavailable")
+    }));
+}
+
+#[test]
+fn ignored_step_datums_explain_the_explicit_pmi_policy() {
+    let (part, a) = frameless_plate();
+    let session =
+        draftwright::session::Session::new(part, a, spec(json!({"pmi": "ignore"}))).unwrap();
+    assert!(gdt(session.plan(), "datum_feature").is_empty());
+    let report = session.pmi_report();
+    let unresolved = report["unresolved"].as_array().unwrap();
+    assert_eq!(unresolved.len(), 3);
+    assert!(
+        unresolved
+            .iter()
+            .all(|r| r["reason"].as_str().unwrap().contains("pmi ignore"))
     );
 }
