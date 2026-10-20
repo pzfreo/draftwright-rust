@@ -595,6 +595,7 @@ fn crossing_remedies_are_scoped_and_ordered_in_mcp_rows() {
         for code in ["annotation_leader_crossing", "extension_through_feature"] {
             let mut cursor = 0;
             let mut count = 0;
+            let mut local_count = 0;
             loop {
                 let rows = call(
                     &cache,
@@ -615,7 +616,43 @@ fn crossing_remedies_are_scoped_and_ordered_in_mcp_rows() {
                     };
                     let fixes = row["fixes"].as_array().unwrap();
                     assert!(!fixes.is_empty(), "{row}");
-                    assert_eq!(fixes[0]["scope"], "local");
+                    // Radius-table carriers cannot promise information retention
+                    // from the bounded trial; only the front-view hole location
+                    // remains local. Keep the wire contract as strict as Session.
+                    let local = row["id"]
+                        .as_str()
+                        .unwrap()
+                        .contains("d:f:hole:1/location.length.z");
+                    assert_eq!(fixes[0]["scope"], if local { "local" } else { "sheet" });
+                    if local {
+                        local_count += 1;
+                        let ops = fixes[0]["ops"].as_array().unwrap();
+                        for (path, value) in [
+                            ("sheet/keep_layout", json!(true)),
+                            ("sheet/size", json!("A3")),
+                            ("sheet/scale", json!("1:5")),
+                            ("sheets/max", json!(1)),
+                        ] {
+                            let constraints: Vec<_> =
+                                ops.iter().filter(|op| op["path"] == path).collect();
+                            assert_eq!(constraints.len(), 1);
+                            assert_eq!(constraints[0]["value"], value);
+                        }
+                        assert!(
+                            fixes[0]["description"]
+                                .as_str()
+                                .unwrap()
+                                .contains("extension_through_feature")
+                        );
+                    } else {
+                        assert!(fixes.iter().all(|fix| fix["scope"] == "sheet"));
+                        assert!(
+                            fixes[0]["description"]
+                                .as_str()
+                                .unwrap()
+                                .contains("The whole sheet is laid out again")
+                        );
+                    }
                     assert_eq!(row["fix"], fixes[0]["ops"]);
                     let rank = |fix: &Value| match fix["scope"].as_str().unwrap() {
                         "local" => 0,
@@ -648,6 +685,14 @@ fn crossing_remedies_are_scoped_and_ordered_in_mcp_rows() {
                 };
                 cursor = next;
             }
+            assert_eq!(
+                local_count,
+                if code == "extension_through_feature" {
+                    5
+                } else {
+                    0
+                }
+            );
             assert_eq!(
                 count,
                 match code {
