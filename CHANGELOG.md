@@ -12,6 +12,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   using the existing datum-symbol placer. `sheet/uncited_datums: false` hides uncited symbols;
   `annotations/<id>/omit` hides individual symbols. Omitted symbols retain provenance in the
   plan and drawing, and unresolved PMI always explains why it is not drawn.
+  Datum leader records have no callout elbow; structural lint accepts frame-border
+  attachments while still reporting a shaft through the datum letter.
 
 - Browser input refusals (#134, alpha.11): reject over-deep edit paths before recursive JSON
   construction and gutters beyond the largest supported sheet before layout allocation.

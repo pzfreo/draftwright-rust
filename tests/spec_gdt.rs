@@ -134,6 +134,9 @@ fn a_datum_on_the_bottom_face_and_a_position_on_the_hole_pattern_are_drawn() {
     let d = model::render(&part, &a, &plan, &font()).unwrap();
     assert_eq!(runs(&d, &datum.id), ["A"]);
     assert_eq!(runs(&d, &frame.id), ["⌖", "⌀0.1", "A"]);
+    assert!(draftwright::lint::structural::check(&d).iter().all(|i| {
+        i.code != "leader_line_through_text" || i.annotation.as_deref() != Some(&datum.id)
+    }));
     assert!(d.svg().contains("⌀0.1"));
     assert_eq!(pmi_lint(&a, &d), Vec::<String>::new());
     // Deterministic.
@@ -388,6 +391,12 @@ fn assert_plate_datums(part: Part, a: Analysis, s: Spec) {
         assert_eq!(runs(session.drawing(), &d.id), [letter]);
     }
     let report = session.pmi_report();
+    assert!(
+        draftwright::lint::structural::check(session.drawing())
+            .iter()
+            .all(|i| i.code != "leader_line_through_text"),
+        "the datum shafts meet their frames without crossing the letters"
+    );
     assert!(
         report["unresolved"]
             .as_array()

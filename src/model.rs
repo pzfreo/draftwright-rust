@@ -7438,7 +7438,10 @@ pub fn render_item(item: AnnotationItem<'_>) -> RenderedItem {
                 Kind::Gdt,
                 p.map(|p| p.label_box),
                 p.map(|p| p.lines.clone()).unwrap_or_default(),
-                p.and_then(|p| p.lines.first()).map(|l| l[1]),
+                // A datum shaft ends at its frame; it has no callout elbow.
+                p.filter(|_| g.kind != "datum_feature")
+                    .and_then(|p| p.lines.first())
+                    .map(|l| l[1]),
             )
         }
     };

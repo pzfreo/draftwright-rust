@@ -13,7 +13,8 @@
 //! - `title_field_overflow` (`_lint_title_fields`): a title-block value whose ink is wider or
 //!   taller than its cell. Warning; the message points to the notes block, as draftwright's does.
 //! - `leader_line_through_text` (`_lint_leader`): a callout's leader elbow inside its own label's
-//!   box. Error.
+//!   box, or a datum's shaft entering its frame's interior. Meeting the frame border is legal.
+//!   Error.
 //! - `annotation_overlap` (`_lint_annotation_pairs`): two labels whose text boxes overlap beyond
 //!   roundoff in both directions. A pair involving label-less furniture keeps the 0.5 mm
 //!   allowance for conservative ink bounds; a thing with no label (the title block, the notes block, a
@@ -400,7 +401,9 @@ fn called(drawing: &Drawing, d: &Drawn) -> String {
 }
 
 /// `title_field_overflow` and `leader_line_through_text`, thing by thing in drawing order: each
-/// title-block value's ink against its cell, and each callout's leader elbow against its label.
+/// title-block value's ink against its cell, and each leader against its own label. A datum
+/// shaft attaches to its frame border without a callout elbow; only entering the interior
+/// crosses its letter. Its frame strokes are not leader lines.
 fn annotation_items(drawing: &Drawing) -> Vec<LintIssue> {
     let mut issues = Vec::new();
     for d in &drawing.sheet.items {
@@ -431,24 +434,39 @@ fn annotation_items(drawing: &Drawing) -> Vec<LintIssue> {
                 }
             }
         }
-        if let Some([ex, ey]) = d.elbow {
-            let [x0, y0, x1, y1] = d.label.unwrap_or(d.ink);
-            if x0 <= ex && ex <= x1 && y0 <= ey && ey <= y1 {
-                let mut i = issue(
-                    format!("l:leader_line_through_text:{}", d.name),
-                    "leader_line_through_text",
-                    Severity::Error,
-                    format!(
-                        "Leader '{}': elbow point ({ex:.2}, {ey:.2}) is inside the label bbox — \
+        let [x0, y0, x1, y1] = d.label.unwrap_or(d.ink);
+        let datum = d.kind == Kind::Gdt && d.name.starts_with("pmi:datum.");
+        let point = if datum {
+            d.lines
+                .iter()
+                .filter_map(|[a, b]| clip(*a, *b, [x0, y0, x1, y1]))
+                .map(|[a, b]| [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0])
+                .find(|[x, y]| {
+                    x0 + BOUNDS_ROUNDOFF < *x
+                        && *x < x1 - BOUNDS_ROUNDOFF
+                        && y0 + BOUNDS_ROUNDOFF < *y
+                        && *y < y1 - BOUNDS_ROUNDOFF
+                })
+        } else {
+            d.elbow
+                .filter(|[x, y]| x0 <= *x && *x <= x1 && y0 <= *y && *y <= y1)
+        };
+        if let Some([ex, ey]) = point {
+            let point_kind = if datum { "shaft point" } else { "elbow point" };
+            let mut i = issue(
+                format!("l:leader_line_through_text:{}", d.name),
+                "leader_line_through_text",
+                Severity::Error,
+                format!(
+                    "Leader '{}': {point_kind} ({ex:.2}, {ey:.2}) is inside the label bbox — \
                          leader line passes through the text",
-                        called(drawing, d)
-                    ),
-                );
-                i.at = Some([ex, ey]);
-                i.annotation = Some(d.name.clone());
-                i.fix = Some("turn the leader so it meets the label at its end".into());
-                issues.push(i);
-            }
+                    called(drawing, d)
+                ),
+            );
+            i.at = Some([ex, ey]);
+            i.annotation = Some(d.name.clone());
+            i.fix = Some("turn the leader so it meets the label at its end".into());
+            issues.push(i);
         }
     }
     issues
