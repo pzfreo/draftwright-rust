@@ -2364,6 +2364,85 @@ pub(crate) fn settle_after_furniture(
     updated
 }
 
+/// Audit the route actually returned, even when a proposed final repair lost the sheet's
+/// collision audit. A rejected trial must never swallow the fallback warning with its ink.
+pub(crate) fn radius_fallbacks(
+    analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
+    views: &[crate::model::PlannedView],
+    items: &[PlannedDimension],
+) -> Vec<Problem> {
+    let mut problems = Vec::new();
+    for d in items.iter().filter(|d| d.kind == "callout") {
+        if spec
+            .dimensions
+            .get(&d.id)
+            .is_some_and(|e| e.place.is_some())
+        {
+            continue;
+        }
+        let parameter = if d
+            .measurements
+            .iter()
+            .any(|m| m.parameter == "fillet.radius")
+        {
+            "fillet.radius"
+        } else {
+            "blend.radius"
+        };
+        let claims: Vec<_> = d
+            .measurements
+            .iter()
+            .filter(|m| m.parameter == parameter)
+            .collect();
+        if claims.is_empty() {
+            continue;
+        }
+        let (Some(p), Some(view)) = (&d.placed, views.iter().find(|v| v.id == d.view)) else {
+            continue;
+        };
+        let Some(&shaft) = p.lines.first() else {
+            continue;
+        };
+        let frame = Frame::new(analysis, view);
+        let mut arcs = Vec::new();
+        let mut reasons = Vec::new();
+        for claim in claims {
+            match crate::radius::projected(analysis, &claim.feature, view.direction, |q| {
+                frame.page(q)
+            }) {
+                Ok(more) => arcs.extend(more),
+                Err(why) => reasons.push(why),
+            }
+        }
+        if arcs.iter().any(|a| a.accepts(shaft)) {
+            continue;
+        }
+        reasons.sort();
+        reasons.dedup();
+        let why = if arcs.is_empty() {
+            reasons.join("; ")
+        } else if arcs.iter().all(|a| !a.centre_open) {
+            "the centre side is material, so no open centre-side approach exists".into()
+        } else {
+            "no compliant middle-arc radial route was selected within the drawing's constraints"
+                .into()
+        };
+        problems.push(Problem {
+            id: format!("p:radius_leader_routing_fallback:{}", d.id),
+            code: "radius_leader_routing_fallback".into(),
+            severity: "warning".into(),
+            message: format!(
+                "The radius leader “{}” retains its best existing route: {why}.",
+                d.label
+            ),
+            subjects: vec![d.id.clone()],
+            ..Default::default()
+        });
+    }
+    problems
+}
+
 /// Radius rules are applied to the final, fully populated sheet. The existing route is the
 /// fallback: a geometric improvement must also preserve the drawing's ink/contact budget.
 pub(crate) fn settle_radius_leaders(

@@ -6484,6 +6484,21 @@ fn plan_with_presentation(
 /// Precision repairs belong to the selected drawing, after sheet candidates have
 /// been judged. Rejected candidates must not each launch another route search.
 fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
+    finish_nominal_placement(analysis, spec, plan);
+    if !crate::nominal::comparison() {
+        plan.problems
+            .retain(|p| p.code != "radius_leader_routing_fallback");
+        plan.problems.extend(crate::dims::radius_fallbacks(
+            analysis,
+            spec,
+            &plan.views,
+            &plan.dimensions,
+        ));
+        plan.status = crate::completeness::status(&plan.problems);
+    }
+}
+
+fn finish_nominal_placement(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     if crate::nominal::comparison() {
         return;
     }

@@ -979,3 +979,44 @@ fn ctc01_r5_meets_the_fillet_from_the_open_centre_side() {
         0.0
     );
 }
+
+/// A rejected sheet trial must retain its radius fallback diagnostics (#145).
+#[test]
+fn returned_radius_fallbacks_are_reported_after_the_final_sheet_audit() {
+    let corpus = std::env::var("DRAFTWRIGHT_CORPUS")
+        .unwrap_or_else(|_| "/Users/paul/repos/quiddity/tests/corpus".into());
+    let path = Path::new(&corpus).join("mfcadpp/363.step");
+    if !path.is_file() {
+        assert!(std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").is_err());
+        return;
+    }
+    let (part, a) = model::analyse_native(&path).unwrap();
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    let draw = model::render(&part, &a, &p, &font()).unwrap();
+    let warnings: Vec<_> = lint::lint(&a, &draw)
+        .into_iter()
+        .filter(|i| {
+            matches!(
+                i.code.as_str(),
+                "radius_leader_not_radial" | "radius_leader_direction_unverifiable"
+            )
+        })
+        .collect();
+    assert!(
+        !warnings.is_empty(),
+        "exercise a radius with no compliant route"
+    );
+    for warning in warnings {
+        let id = warning.annotation.unwrap();
+        assert!(
+            p.dimensions
+                .iter()
+                .any(|d| d.id == id && d.placed.is_some())
+        );
+        assert!(
+            p.problems
+                .iter()
+                .any(|q| q.code == "radius_leader_routing_fallback" && q.subjects == [id.clone()])
+        );
+    }
+}
