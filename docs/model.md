@@ -2213,11 +2213,17 @@ placement. Automatic labels can lie inside the view or use the automatic solver'
 other exterior candidates; read their actual geometry through `item`/`plan`.
 A bare pin retains that automatic geometry. To pin a label dragged anywhere, including into
 the view's open space, use `place.offset`: `Session::callout_offset(address)` returns
-`CalloutOffset { view, tip, bend, offset }` (paper mm), where `tip` is the automatic leader tip
+`CalloutOffset { view, tip, bend, offset, members }` (paper mm), where `tip` is the automatic leader tip
 the offset is measured from, `bend` the bend as drawn now and `offset = bend - tip`. Pinning a
 drop at `b` is `{"offset": b - tip, "pinned": true}`; pinning the returned `offset` keeps the
 callout exactly where it is. `tip` is kept relative to its view's origin, so it is in the same
-frame as the drawn bend after packing moves views. It reads planning metadata only and refuses
+frame as the drawn bend after packing moves views. `members` lists the projected attachment
+sites as `{centre: [x,y], radius, span?: {start, sweep}}`, in paper mm (y up),
+with counterclockwise arc spans in radians. A dragged group callout attaches to the
+member nearest its elbow; ties retain the automatic member. The tip is placed on
+that member with the same rim/arc rule as automatic leaders. Switching members
+keeps the elbow, shoulder and label position; `tip` remains the automatic offset origin.
+The query does not solve layout or project model edges and refuses
 non-callouts, a callout drawn without a leader, and one pinned into a non-canonical view. Editors with their own Plan read the same tip with
 `plan.automatic_callout_tip(id) -> Option<(view, [x, y])>` (`None` on a deserialised Plan).
 For linear dimensions, `Session::label_offset(address)` returns
