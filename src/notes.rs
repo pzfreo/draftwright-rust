@@ -131,6 +131,8 @@ pub(crate) fn reconcile(
             let mut remaining = spec.notes.clone();
             remaining.remove(i);
             problems.push(Problem {
+                crossing_kinds: Vec::new(),
+                ink_is_leader: None,
                 id: format!("p:note_duplicated_in_spec:{}:{}", r.source, n.id),
                 code: "note_duplicated_in_spec".into(), severity: "info".into(),
                 message: format!("The Spec note {:?} repeats the part's PMI note {:?}. Keep the requirement in the model; remove the Spec copy.", n.text, r.value),

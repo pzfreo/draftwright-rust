@@ -501,6 +501,8 @@ pub fn problems(cells: &[TitleCell], page: [f64; 2]) -> Vec<Problem> {
     for c in cells {
         if c.field == "general_tolerance" && c.value.is_none() {
             out.push(Problem {
+                crossing_kinds: Vec::new(),
+                ink_is_leader: None,
                 id: "p:general_tolerance_missing:sheet".into(),
                 code: "general_tolerance_missing".into(),
                 severity: "warning".into(),

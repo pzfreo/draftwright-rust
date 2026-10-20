@@ -467,5 +467,53 @@ class SheetFill(unittest.TestCase):
             quality.table({'part': result})
         self.assertIn('fill', output.getvalue())
 
+
+class CrossingKinds(unittest.TestCase):
+    def test_old_geometry_matches_additive_metadata_and_counts_each_kind_once(self):
+        far = [[20, 20], [30, 20]]
+        vertical = [[5, -5], [5, 5]]
+        def item(id_, kind, lines, arrows=()):
+            return dict(id=id_, kind=kind, view='v:plan', placed=dict(lines=lines, arrows=list(arrows), label_box=[40,40,45,45]))
+        a = item('a', 'callout', [[[0,0], [10,0]]])
+        b = item('b', 'linear', [vertical, far, vertical, vertical], [vertical])
+        b['placed']['label_box'] = [4,-1,6,1]
+        crossing = dict(code='annotation_leader_crossing', subjects=['a','b'])
+        ink = dict(code='annotation_ink_overlap', subjects=['a','b'])
+        plan = dict(dimensions=[a,b], problems=[crossing,ink])
+        old = quality.crossing_counts(plan)
+        self.assertEqual(old, dict(leader_leader=0, leader_text=1, leader_dimension_line=1,
+                                  leader_extension_line=1, leader_arrow=1, dimension_dimension=0))
+        crossing['crossing_kinds'] = ['dimension_line', 'extension_line', 'arrow']
+        ink['ink_is_leader'] = True
+        self.assertEqual(quality.crossing_counts(plan), old)
+        ink['ink_is_leader'] = False
+        self.assertEqual(quality.crossing_counts(plan)['leader_text'], 0)
+        del ink['ink_is_leader']
+        a['kind'] = 'linear'
+        self.assertEqual(quality.crossing_counts(plan)['leader_text'], 0)
+        self.assertFalse(quality.line_through_label([[0,1],[10,1]], [4,-1,6,1]))
+
+    def test_crossing_gate_rejects_each_kind_per_part_and_incomplete_evidence(self):
+        root = Path(__file__).resolve().parents[1]
+        spec = importlib.util.spec_from_file_location('crossings', root / 'tools/check_leader_crossings.py')
+        gate = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gate)
+        names = [Path(p).stem for p in (root / 'tools/quality_parts.txt').read_text().splitlines()]
+        before = {n: dict.fromkeys(quality.CROSSING_KEYS, 0) for n in names}
+        before[names[0]]['leader_leader'] = 2
+        self.assertEqual(gate.check(before, before), [])
+        for kind in quality.CROSSING_KEYS:
+            after = {n: dict(r) for n,r in before.items()}
+            after[names[0]][kind] += 1
+            self.assertIn(kind, gate.check(before, after)[0])
+            del after[names[0]][kind]
+            with self.assertRaises(ValueError):
+                gate.check(before, after)
+        with self.assertRaises(ValueError):
+            gate.check(before, {})
+        improved = {n: dict(r) for n,r in before.items()}
+        improved[names[0]]['leader_leader'] = 1
+        self.assertEqual(gate.check(before, improved), [])
+
 if __name__ == '__main__':
     unittest.main()
