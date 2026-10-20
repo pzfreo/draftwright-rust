@@ -840,7 +840,7 @@
 
 - id: LINT-code-radius_leader_not_radial
   statement: "A radius leader meets the middle 25–75% of its arc within 15 degrees of radial from the open centre side."
-  detail: "Checks actual drawn shafts, including pins. Convex centre-side material and unavailable toroidal direction cannot be certified; routing keeps and reports its best existing callout when no compliant clear candidate exists."
+  detail: "Checks actual drawn shafts, including pins. Proven toroidal minor-circle meridians are checked end-on; convex centre-side material and other toroidal direction cannot be certified; routing keeps and reports its best existing callout when no compliant clear candidate exists."
   class: drafting
   source:
     lint_code: "radius_leader_not_radial"

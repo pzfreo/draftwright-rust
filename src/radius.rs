@@ -12,7 +12,7 @@ type P = [f64; 2];
 pub(crate) const TOLERANCE: f64 = 0.002;
 pub(crate) const RADIAL_DEGREES: f64 = 15.0;
 
-/// A cylinder's trimmed cross-section, with the material side read from its face normal.
+/// A trimmed cylinder section or toroidal meridian, with the material side from its face normal.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RadiusArc {
@@ -37,8 +37,11 @@ pub fn evidence(part: &haecceity::Part, features: &[Feature]) -> BTreeMap<String
             let Some(data) = part.faces.get(face) else {
                 continue;
             };
-            let haecceity::geom::Surface::Cylinder { frame, radius } = &data.surface else {
-                continue;
+            use haecceity::geom::Surface;
+            let radius = match &data.surface {
+                Surface::Cylinder { radius, .. } => *radius,
+                Surface::Torus { major, minor, .. } if major > minor => *minor,
+                _ => continue,
             };
             if (radius - r).abs() > TOLERANCE {
                 continue;
@@ -50,35 +53,75 @@ pub fn evidence(part: &haecceity::Part, features: &[Feature]) -> BTreeMap<String
             if ![u0, u1, v0, v1].iter().all(|x| x.is_finite()) || u1 - u0 <= 1e-9 {
                 continue;
             }
-            let mut tips = Vec::new();
-            for i in 4..=12 {
-                let u = u0 + (u1 - u0) * i as f64 / 16.0;
-                for fraction in [0.5, 0.25, 0.75] {
-                    let v = v0 + (v1 - v0) * fraction;
-                    if domain.contains(u, v) {
-                        tips.push(data.surface.value(u, v));
-                        // Axial copies project to the same end-on point. Retain one
-                        // proven point per angle, keeping Analysis and its digest compact.
-                        break;
+            let mut sections = Vec::new();
+            match &data.surface {
+                Surface::Cylinder { frame, .. } => sections.push((
+                    ProfileArc {
+                        centre: frame.origin,
+                        radius,
+                        u: frame.x,
+                        v: frame.y,
+                        start: u0,
+                        sweep: u1 - u0,
+                    },
+                    frame.z,
+                    None,
+                )),
+                Surface::Torus { frame, major, .. } if v1 - v0 > 1e-9 => {
+                    // A proven meridian is a real minor-radius circle. Only sections whose
+                    // plane is square to the drawn view will be used; oblique views remain
+                    // explicitly unverifiable. Do not invent stations on the major trim ends.
+                    for fraction in [0.25, 0.5, 0.75] {
+                        let u = u0 + fraction * (u1 - u0);
+                        let radial = [0, 1, 2].map(|k| frame.x[k] * u.cos() + frame.y[k] * u.sin());
+                        let axis = [
+                            radial[1] * frame.z[2] - radial[2] * frame.z[1],
+                            radial[2] * frame.z[0] - radial[0] * frame.z[2],
+                            radial[0] * frame.z[1] - radial[1] * frame.z[0],
+                        ];
+                        sections.push((
+                            ProfileArc {
+                                centre: [0, 1, 2].map(|k| frame.origin[k] + major * radial[k]),
+                                radius,
+                                u: radial,
+                                v: frame.z,
+                                start: v0,
+                                sweep: v1 - v0,
+                            },
+                            axis,
+                            Some(u),
+                        ));
                     }
                 }
+                _ => {}
             }
-            if tips.is_empty() {
-                continue;
+            for (arc, axis, meridian) in sections {
+                let mut tips = Vec::new();
+                for i in 4..=12 {
+                    let angle = arc.start + arc.sweep * i as f64 / 16.0;
+                    if let Some(u) = meridian {
+                        if domain.contains(u, angle) {
+                            tips.push(data.surface.value(u, angle));
+                        }
+                    } else {
+                        for fraction in [0.5, 0.25, 0.75] {
+                            let v = v0 + (v1 - v0) * fraction;
+                            if domain.contains(angle, v) {
+                                tips.push(data.surface.value(angle, v));
+                                break; // One proven axial copy per end-on angular station.
+                            }
+                        }
+                    }
+                }
+                if !tips.is_empty() {
+                    arcs.push(RadiusArc {
+                        arc,
+                        axis,
+                        centre_open: data.reversed,
+                        tips,
+                    });
+                }
             }
-            arcs.push(RadiusArc {
-                arc: ProfileArc {
-                    centre: frame.origin,
-                    radius: *radius,
-                    u: frame.x,
-                    v: frame.y,
-                    start: u0,
-                    sweep: u1 - u0,
-                },
-                axis: frame.z,
-                centre_open: data.reversed,
-                tips,
-            });
         }
         if !arcs.is_empty() {
             out.insert(f.id.clone(), arcs);
@@ -129,7 +172,7 @@ impl Projected {
     }
 }
 
-/// Read only end-on cylinders. Toroidal paths have no single projected arc centre.
+/// Read end-on cylinder profiles and proven end-on minor-circle meridians of tori.
 /// Older analyses can still prove a straight blend from its rolling axis and trimmed samples.
 pub(crate) fn projected(
     a: &Analysis,
@@ -164,7 +207,7 @@ pub(crate) fn projected(
             })
             .collect();
         return if shown.is_empty() {
-            Err("the view does not show the cylindrical radius end-on".into())
+            Err("the view does not show a proven circular radius section end-on".into())
         } else {
             Ok(shown)
         };

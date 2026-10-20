@@ -22,7 +22,7 @@
 //!   middle 25–75% of that profile, within 15 degrees of radial, from its open centre side.
 //! - `radius_leader_target_unverifiable`: a straight blend's target cannot be read.
 //! - `radius_leader_direction_unverifiable`: fillet direction evidence cannot be read,
-//!   or a toroidal minor arc has no single projected centre in the recorded samples.
+//!   or no proven toroidal meridian can be read end-on in the drawing.
 //!
 //! - `leader_crosses_silhouette` (draftwright's structural check, #796/#798): a callout's shaft,
 //!   after leaving the material at its tip, cuts back into it in its own view, measured by
@@ -363,7 +363,7 @@ pub(super) fn check(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
                 );
             } else if !shown.iter().any(|arc| arc.on_arc(tip)) {
                 found(
-                    if is_fillet {
+                    if is_fillet || circular_path {
                         "radius_leader_not_radial"
                     } else {
                         "radius_leader_target_mismatch"

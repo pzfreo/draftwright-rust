@@ -820,8 +820,9 @@ its middle 25–75%, within 15° of radial, from the open centre side
 direction is reported as `radius_leader_direction_unverifiable`, rather than a proven target
 mismatch. Exact `Analysis.radius_arcs` records the cylinder,
 trim, proven middle-face points and material side; older straight blends use their rolling
-axis and proven samples. A convex cylinder has its centre on the material side; toroidal
-samples do not establish a single minor-arc centre in the projection. Routing retains the
+axis and proven samples. A convex section has its centre on the material side. Toroidal minor-radius sections are
+checked only at proven quarter/half/three-quarter major-path meridians seen end-on;
+oblique and unsupported meridians remain explicitly unverifiable. Routing retains the
 best existing callout and reports `radius_leader_routing_fallback` when no compliant
 candidate preserves the existing contact/length budget, and no callout's shaft may cut
 back into the part's material after leaving it at its tip (`leader_crosses_silhouette`, info,

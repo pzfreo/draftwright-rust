@@ -1020,3 +1020,63 @@ fn returned_radius_fallbacks_are_reported_after_the_final_sheet_audit() {
         );
     }
 }
+
+/// Toroidal meridians come from real trimmed faces, with exact minor-radius centres.
+#[test]
+fn toroidal_meridian_evidence_stays_on_the_trimmed_minor_circles() {
+    let (part, mut a) = model::analyse(&fixture("parts/turned.step")).unwrap();
+    let recognition = std::fs::read_to_string(fixture("recognition/turned.json")).unwrap();
+    model::recognise(&part, &mut a, &recognition).unwrap();
+    let mut checked = 0;
+    for f in a.features.iter().filter(|f| f.kind == "fillet") {
+        let tori: Vec<_> = f
+            .faces
+            .iter()
+            .copied()
+            .filter(|&i| {
+                matches!(
+                    part.faces[i].surface,
+                    draftwright::haecceity::geom::Surface::Torus { .. }
+                )
+            })
+            .collect();
+        if tori.len() != f.faces.len() {
+            continue;
+        }
+        for section in a.radius_arcs.get(&f.id).into_iter().flatten() {
+            assert!(!section.tips.is_empty());
+            for &tip in &section.tips {
+                let delta = [0, 1, 2].map(|k| tip[k] - section.arc.centre[k]);
+                assert!(
+                    (delta.iter().map(|x| x * x).sum::<f64>().sqrt() - section.arc.radius).abs()
+                        < 1e-9
+                );
+                assert!(
+                    delta
+                        .iter()
+                        .zip(section.axis)
+                        .map(|(x, y)| x * y)
+                        .sum::<f64>()
+                        .abs()
+                        < 1e-9
+                );
+                assert!(tori.iter().any(|&i| {
+                    let surface = &part.faces[i].surface;
+                    let Some((u0, u1, v0, v1)) = part.uv_bounds(i) else {
+                        return false;
+                    };
+                    let Some((u, v)) =
+                        surface.parameters(tip, Some(((u0 + u1) / 2.0, (v0 + v1) / 2.0)))
+                    else {
+                        return false;
+                    };
+                    let q = surface.value(u, v);
+                    q.iter().zip(tip).all(|(x, y)| (x - y).abs() < 1e-9)
+                        && part.domain(i).unwrap().contains(u, v)
+                }));
+            }
+            checked += 1;
+        }
+    }
+    assert!(checked > 0, "exercise readable toroidal minor circles");
+}

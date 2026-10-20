@@ -10,7 +10,7 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 - Radius callouts (#145) try the middle half of an end-on cylindrical arc, approaching
   within 15° of radial from the open centre side. Exact trimmed-face evidence covers
-  blends and fillets. A blocked or unreadable case keeps its existing callout and reports
+  blends and fillets, including proven end-on toroidal meridians. A blocked or unreadable case keeps its existing callout and reports
   the fallback. Drawn leaders, including pins, warn for tangent-end, nonradial or
   material-side approaches; toroidal direction limits are reported explicitly.
 
