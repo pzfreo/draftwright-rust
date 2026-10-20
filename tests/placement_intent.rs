@@ -2,6 +2,9 @@
 #[path = "common/corpus.rs"]
 mod corpus;
 
+#[path = "common/local_fix.rs"]
+mod local_fix;
+
 use draftwright::model::{self, Analysis, Plan, Spec};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
@@ -626,7 +629,11 @@ fn colliding_and_off_sheet_pins_are_reported_and_never_dropped() {
         .iter()
         .find(|p| p.code == "annotation_off_sheet" && p.subjects.contains(&hole.id))
         .unwrap();
-    assert!(problem.fix.iter().all(|op| op.path.ends_with("/place")));
+    assert!(
+        local_fix::edits(problem, &p)
+            .iter()
+            .all(|op| op.path.ends_with("/place"))
+    );
     let fixed = model::edit(&p.spec, &serde_json::to_value(&problem.fix).unwrap()).unwrap();
     let repaired = model::plan_recovered(&a, &fixed).unwrap();
     assert!(
