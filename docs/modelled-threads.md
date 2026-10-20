@@ -36,7 +36,7 @@ of nominal. Internal roots can be truncated: a nominal diameter may be up to
 `clamp(0.26 × measured pitch, 0.02, 0.4)` mm above the measured major diameter,
 or at most 0.02 mm below it. These are **inference policy tolerances**, not an
 ISO fit class or certified metrological uncertainty. No tolerance class is inferred.
-Ambiguous or unmatched pairs print `ø<major> × P<pitch>` (for example `ø110 × P6.35`, on one line) and info
+Ambiguous or unmatched pairs print `⌀<major> × P<pitch>` (for example `⌀110 × P6.35`, on one line) and info
 `thread_designation_measured`. Measured values use at most three decimal places
 with trailing zeroes trimmed; their original values and any rounding finding
 remain in the plan. Fine pitch stays explicit, as does coarse pitch.
