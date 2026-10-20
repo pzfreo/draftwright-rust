@@ -38,16 +38,16 @@
                                 ]
                               },
                               "id": {
-                                "$ref": "#/D"
+                                "$ref": "#/E"
                               },
                               "kind": {
-                                "$ref": "#/D"
+                                "$ref": "#/E"
                               },
                               "label": {
-                                "$ref": "#/E"
+                                "$ref": "#/F"
                               },
                               "view": {
-                                "$ref": "#/E"
+                                "$ref": "#/F"
                               },
                               "state": {
                                 "anyOf": [
@@ -70,7 +70,7 @@
                                         "const": "covered"
                                       },
                                       "by": {
-                                        "$ref": "#/D"
+                                        "$ref": "#/E"
                                       }
                                     },
                                     "additionalProperties": false,
@@ -82,7 +82,7 @@
                                         "const": "not_drawable"
                                       },
                                       "reason_code": {
-                                        "$ref": "#/D"
+                                        "$ref": "#/E"
                                       }
                                     },
                                     "additionalProperties": false,
@@ -124,7 +124,7 @@
                                 ]
                               },
                               "dimension_kind": {
-                                "$ref": "#/E"
+                                "$ref": "#/F"
                               },
                               "placement": {
                                 "type": [
@@ -133,7 +133,7 @@
                                 ]
                               },
                               "basis": {
-                                "$ref": "#/D"
+                                "$ref": "#/E"
                               }
                             },
                             "required": [
@@ -169,7 +169,7 @@
                         "const": "removed"
                       },
                       "id": {
-                        "$ref": "#/D"
+                        "$ref": "#/E"
                       }
                     },
                     "additionalProperties": false,
@@ -189,6 +189,12 @@
                           {
                             "type": "object",
                             "properties": {
+                              "impact": {
+                                "$ref": "#/D"
+                              },
+                              "ink_is_leader": {
+                                "type": "boolean"
+                              },
                               "fix": {
                                 "$ref": "#/C"
                               },
@@ -205,10 +211,10 @@
                             ],
                             "additionalProperties": false,
                             "patternProperties": {
-                              "^(id|code|severity|message)$(?!\n)": {
-                                "$ref": "#/D"
+                              "^(group|id|code|severity|message)$(?!\n)": {
+                                "$ref": "#/E"
                               },
-                              "^(subjects|refs)$(?!\n)": {
+                              "^(subjects|refs|crossing_kinds)$(?!\n)": {
                                 "$ref": "#/B"
                               }
                             }
@@ -216,6 +222,9 @@
                           {
                             "type": "object",
                             "properties": {
+                              "impact": {
+                                "$ref": "#/D"
+                              },
                               "subjects": {
                                 "$ref": "#/B"
                               },
@@ -234,8 +243,8 @@
                             ],
                             "additionalProperties": false,
                             "patternProperties": {
-                              "^(id|code|severity)$(?!\n)": {
-                                "$ref": "#/D"
+                              "^(group|id|code|severity)$(?!\n)": {
+                                "$ref": "#/E"
                               }
                             }
                           },
@@ -270,7 +279,7 @@
           "minProperties": 3
         },
         "delta_ref": {
-          "$ref": "#/D"
+          "$ref": "#/E"
         },
         "plans": {
           "type": "integer",
@@ -294,7 +303,7 @@
             ]
           },
           "message": {
-            "$ref": "#/D"
+            "$ref": "#/E"
           }
         },
         "required": [
@@ -313,10 +322,10 @@
     "type": "object",
     "properties": {
       "id": {
-        "$ref": "#/E"
+        "$ref": "#/F"
       },
       "detail_ref": {
-        "$ref": "#/D"
+        "$ref": "#/E"
       }
     },
     "additionalProperties": false,
@@ -328,7 +337,7 @@
       "minProperties": 3,
       "properties": {
         "description": {
-          "$ref": "#/D"
+          "$ref": "#/E"
         },
         "ops": {
           "$ref": "#/C"
@@ -347,7 +356,7 @@
   },
   "B": {
     "items": {
-      "$ref": "#/D"
+      "$ref": "#/E"
     },
     "type": "array"
   },
@@ -363,7 +372,7 @@
               ]
             },
             "path": {
-              "$ref": "#/D"
+              "$ref": "#/E"
             },
             "value": {}
           },
@@ -376,7 +385,7 @@
               "const": "remove"
             },
             "path": {
-              "$ref": "#/D"
+              "$ref": "#/E"
             }
           },
           "additionalProperties": false,
@@ -388,9 +397,17 @@
     "type": "array"
   },
   "D": {
-    "type": "string"
+    "enum": [
+      "incomplete",
+      "decision",
+      "readability",
+      "advisory"
+    ]
   },
   "E": {
+    "type": "string"
+  },
+  "F": {
     "type": [
       "string",
       "null"

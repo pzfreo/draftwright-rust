@@ -27,7 +27,10 @@ scope={'enum':['local','view','sheet']}
 operation_scopes={'type':'object','additionalProperties':scope}
 fix=obj({'scope':scope,'description':S,'ops':arr(ref('op'))},['scope','description','ops'])
 item=obj({'operation_scopes':operation_scopes,'item':{'type':'object'},'value':nullable(N),'dimension_kind':nullable(S),'placement':nullable({'type':'object'}),'anchors':arr(S),'features':arr(S),'basis':S,'operations':arr(S)},['item','value','dimension_kind','placement','anchors','features','basis','operations'])
-problem=obj({'id':S,'code':S,'severity':S,'message':S,'subjects':arr(S),'refs':arr(S),'fix':arr(ref('op')),'fixes':arr(fix)},['id','code','severity','message','subjects'])
+impact={'enum':['incomplete','decision','readability','advisory']}
+labels={'impact':impact,'group':S}
+finding_summary=obj({'impacts':{'type':'object','additionalProperties':obj({'findings':I,'groups':I},['findings','groups'])},'groups':{'type':'object','additionalProperties':I}},['impacts','groups'])
+problem=obj({**labels,'id':S,'code':S,'severity':S,'message':S,'subjects':arr(S),'refs':arr(S),'crossing_kinds':arr(S),'ink_is_leader':B,'fix':arr(ref('op')),'fixes':arr(fix)},['id','code','severity','message','subjects'])
 rectangle=arr(N,minItems=4,maxItems=4)
 filter_=obj({'sheet':nullable(SHEET),'view':nullable(S),'kind':nullable(S),'state':nullable(ref('state')),'feature':nullable(S),'region':nullable(rectangle),'near':nullable(S),'radius':nullable({'type':'number','minimum':0})})
 problem_filter=obj({'code':nullable(S),'severity':nullable({'enum':['info','warning','error']}),'subject':nullable(S),'feature':nullable(S)})
@@ -59,14 +62,14 @@ del spec['properties']['feature_declarations']['items']['type']
 spec_read={**spec,'properties':{**spec['properties'],'dimensions':{'additionalProperties':{k:v for k,v in dimension.items() if k != 'type'}},'annotations':{'additionalProperties':{'properties':{'text':ref('x')}}}}}
 defs={'x':label_text,'state':state,'spec':spec,'spec_read':spec_read,'op':op,'item':item,'compact':compact,'problem':problem,'error':obj({'code':{'enum':['invalid','failed']},'message':S,'choices':arr(S)},['code','message'])}
 stub=obj({'id':nullable(S),'detail_ref':S},['id','detail_ref'])
-problem_small=obj({'id':S,'code':S,'severity':S,'subjects':arr(S),'fix':arr(ref('op')),'fixes':arr(fix)},['id','code','severity','subjects'])
+problem_small=obj({**labels,'id':S,'code':S,'severity':S,'subjects':arr(S),'fix':arr(ref('op')),'fixes':arr(fix)},['id','code','severity','subjects'])
 defs.update({'stub':stub, 'problem_small':problem_small})
 row_item={'anyOf':[ref('compact'),ref('item'),ref('stub')]}
 row_problem={'anyOf':[ref('problem'),ref('problem_small'),ref('stub')]}
 def paged(row):return obj({'items':arr(row),'total':I,'next_cursor':nullable(I)},['items','total','next_cursor'])
 page=paged({'anyOf':[obj({'change':{'enum':['changed','added']},'item':row_item},['change','item']),obj({'change':{'const':'removed'},'id':S},['change','id']),obj({'change':{'enum':['problem_added','problem_resolved']},'problem':row_problem},['change','problem']),ref('stub')]})
 delta=obj({'events':page,'delta_ref':S,'plans':I},['events','delta_ref','plans'])
-summary=obj({'part_ref':S,'part':S,'face_count':I,'status':{'enum':['clear','needs_attention']},'completeness':obj({'claimed_faces':I,'faces':I,'unplanned_features':I},['claimed_faces','faces','unplanned_features']),'envelope':arr(arr(N,minItems=3,maxItems=3),minItems=2,maxItems=2),'sheet':obj({'size':S,'scale':S,'page':arr(N,minItems=2,maxItems=2)},['size','scale','page']),'sheets':SHEET,'sheet_details':arr(obj({'number':SHEET,'size':S,'scale':S,'page':arr(N,minItems=2,maxItems=2)},['number','size','scale','page'])),'views':arr(S),'items':I,'problems':I,'spec_version':S,'plan_ref':S,'key_items':arr(obj({'id':S,'label':nullable(S)},['id','label']))},['part_ref','part','face_count','status','completeness','envelope','sheet','views','items','problems','spec_version'])
+summary=obj({'summary':finding_summary,'part_ref':S,'part':S,'face_count':I,'status':{'enum':['clear','needs_attention']},'completeness':obj({'claimed_faces':I,'faces':I,'unplanned_features':I},['claimed_faces','faces','unplanned_features']),'envelope':arr(arr(N,minItems=3,maxItems=3),minItems=2,maxItems=2),'sheet':obj({'size':S,'scale':S,'page':arr(N,minItems=2,maxItems=2)},['size','scale','page']),'sheets':SHEET,'sheet_details':arr(obj({'number':SHEET,'size':S,'scale':S,'page':arr(N,minItems=2,maxItems=2)},['number','size','scale','page'])),'views':arr(S),'items':I,'problems':I,'spec_version':S,'plan_ref':S,'key_items':arr(obj({'id':S,'label':nullable(S)},['id','label']))},['part_ref','part','face_count','status','completeness','envelope','sheet','views','items','problems','spec_version'])
 common={'part_ref':S,'spec':ref('spec'),'spec_version':S,'drawing_ref':S}
 paging={'cursor':I,'limit':{'type':'integer','minimum':1,'maximum':100},'detail':B}
 artifact=obj({'artifact_ref':S,'mime_type':{'enum':['image/png','application/pdf']},'bytes':I,'spec_version':S},['artifact_ref','mime_type','bytes','spec_version'])

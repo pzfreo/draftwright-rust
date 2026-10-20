@@ -334,7 +334,7 @@ pub fn page(cache: &Cache, rows: Vec<Value>, args: &Value) -> Result<Value, Erro
 fn problem_summary(p: &crate::model::Problem) -> Value {
     let fixes = p.offered_fixes();
     let preferred = fixes.first().map(|f| f.ops.as_slice()).unwrap_or_default();
-    json!({"id":p.id,"code":p.code,"severity":p.severity,"subjects":p.subjects,"fix":preferred,"fixes":fixes})
+    json!({"id":p.id,"code":p.code,"severity":p.severity,"impact":p.labels().impact,"group":p.labels().group,"subjects":p.subjects,"fix":preferred,"fixes":fixes})
 }
 fn delta_page(cache: &Cache, delta: &Delta, args: &Value) -> Result<Value, Error> {
     let detail = args["detail"].as_bool().unwrap_or(false);
@@ -352,7 +352,7 @@ fn delta_page(cache: &Cache, delta: &Delta, args: &Value) -> Result<Value, Error
         ("problem_resolved", &delta.problems_resolved),
     ] {
         for p in problems {
-            rows.push(json!({"change":change,"problem":if detail{value(p)}else{json!({"id":p.id,"code":p.code,"severity":p.severity,"subjects":p.subjects})}}));
+            rows.push(json!({"change":change,"problem":if detail{value(p)}else{json!({"id":p.id,"code":p.code,"severity":p.severity,"impact":p.labels().impact,"group":p.labels().group,"subjects":p.subjects})}}));
         }
     }
     Ok(

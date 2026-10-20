@@ -119,61 +119,99 @@ pub struct Requirement {
 }
 
 /// One finding (LINT-issues-lintissue_schema: Python's `LintIssue`, with the same stable fields).
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct LintIssue {
     /// Stable within one drawing: `l:<code>:<subject>`.
     pub id: String,
     /// Page of a structural finding; absent means sheet 1. Coverage is document-wide.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub sheet: Option<u32>,
     /// The stable machine-readable check, e.g. `hole_requirement_missing`.
     pub code: String,
     pub severity: Severity,
     pub message: String,
     /// Where on the page, mm, when the finding has a place.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub at: Option<[f64; 2]>,
     /// The view it is in, `v:<name>`.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub view: Option<String>,
     /// The features it is about, by Analysis ID.
     pub subjects: Vec<String>,
     /// The physical requirements it is about (Python's `hole_requirement_ids`).
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub requirements: Vec<Requirement>,
     /// The measurements it implicates, as `<feature>/<parameter>` (Python's `measurement_ids`).
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub measurements: Vec<String>,
     /// External source records it implicates (AP242 PMI IDs).
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub sources: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub stage: Option<Stage>,
     /// The annotation it names, and any others taking part.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub annotation: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub related: Vec<String>,
     /// Why the evidence was not accepted, where some was found.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub evidence: Option<String>,
     /// Prose advice has no Spec operations: its scope is conservatively sheet-wide.
-    #[serde(flatten, serialize_with = "serialize_fix_advice")]
     pub fix: Option<String>,
 }
 
-fn serialize_fix_advice<S: serde::Serializer>(
-    fix: &Option<String>,
-    serializer: S,
-) -> Result<S::Ok, S::Error> {
-    use serde::ser::SerializeMap;
-    let mut map = serializer.serialize_map(None)?;
-    if let Some(fix) = fix {
-        map.serialize_entry("fix", fix)?;
-        map.serialize_entry("scope", &crate::remedy_scope::UNBOUND_SCOPE)?;
-        map.serialize_entry("fix_description", &advice_description(fix))?;
+impl LintIssue {
+    pub fn labels(&self) -> crate::finding::Labels {
+        crate::finding::labels(
+            &self.code,
+            self.severity == Severity::Info,
+            &self.subjects,
+            self.requirements.iter().map(|r| r.parameter.as_str()),
+            &[],
+            None,
+        )
     }
-    map.end()
+}
+
+impl Serialize for LintIssue {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let mut map = serializer.serialize_map(None)?;
+        macro_rules! field {
+            ($name:ident) => {
+                map.serialize_entry(stringify!($name), &self.$name)?
+            };
+        }
+        macro_rules! optional {
+            ($name:ident) => {
+                if let Some(value) = &self.$name {
+                    map.serialize_entry(stringify!($name), value)?;
+                }
+            };
+        }
+        macro_rules! list {
+            ($name:ident) => {
+                if !self.$name.is_empty() {
+                    field!($name);
+                }
+            };
+        }
+        field!(id);
+        optional!(sheet);
+        field!(code);
+        field!(severity);
+        let labels = self.labels();
+        map.serialize_entry("impact", &labels.impact)?;
+        map.serialize_entry("group", &labels.group)?;
+        field!(message);
+        optional!(at);
+        optional!(view);
+        field!(subjects);
+        list!(requirements);
+        list!(measurements);
+        list!(sources);
+        optional!(stage);
+        optional!(annotation);
+        list!(related);
+        optional!(evidence);
+        if let Some(fix) = &self.fix {
+            map.serialize_entry("fix", fix)?;
+            map.serialize_entry("scope", &crate::remedy_scope::UNBOUND_SCOPE)?;
+            map.serialize_entry("fix_description", &advice_description(fix))?;
+        }
+        map.end()
+    }
 }
 
 // Advice has no executable edit and cannot promise a sheet re-layout.

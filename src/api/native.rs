@@ -369,6 +369,8 @@ fn write_file(
 /// drawing.
 #[derive(Clone, Debug, Serialize)]
 pub struct Review {
+    /// Counts across problems, lint and structural, each finding counted once.
+    pub summary: crate::finding::Summary,
     pub svg: String,
     /// Physical holes whose bore sizes actually reached these rendered sheets.
     pub drawing_consumer: crate::evaluation::DrawingConsumer,
@@ -420,13 +422,22 @@ fn reviewed(step: &Path, given: Given, spec: &Spec) -> Result<Review, Error> {
     // the spec's datums and controls merged in ([`crate::spec_gdt`]); the plan accepted them.
     let merged = crate::spec_gdt::effective(&analysis, &plan.spec).ok();
     let analysis = merged.as_deref().unwrap_or(&analysis);
+    let lint = lint::lint_sheets(analysis, &drawings);
+    let structural = lint::structural::check_sheets(&drawings);
+    let summary = crate::finding::Summary::new(
+        plan.problems
+            .iter()
+            .map(Problem::labels)
+            .chain(lint.iter().chain(&structural).map(LintIssue::labels)),
+    );
     Ok(Review {
+        summary,
         svg: drawing.svg(),
         drawing_consumer: crate::evaluation::drawing_consumer(analysis, Ok(&drawings)),
         sheets: drawings.iter().skip(1).map(Drawing::svg).collect(),
         problems: plan.problems,
-        lint: lint::lint_sheets(analysis, &drawings),
-        structural: lint::structural::check_sheets(&drawings),
+        lint,
+        structural,
     })
 }
 

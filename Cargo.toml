@@ -28,6 +28,7 @@ uuid = { version = "1", default-features = false, features = ["js"] }
 getrandom = { version = "0.3", features = ["wasm_js"] }
 
 [dev-dependencies]
+syn = { version = "2", features = ["full", "visit"] }
 flate2 = "1.1.10"
 serde_json = { version = "1.0.151", features = ["float_roundtrip"] }
 
