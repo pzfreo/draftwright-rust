@@ -25,12 +25,13 @@ function equalBytes(actual, expected, label) {
   assert.fail(`${label} byte ${offset}: WASM ${a.subarray(offset, offset + 100)}; native ${b.subarray(offset, offset + 100)}`);
 }
 
-function invalid(action) {
+function invalid(action, message) {
   assert.throws(action, error => {
     assert.equal(typeof error, 'string');
     const parsed = JSON.parse(error);
     assert.equal(parsed.code, 'invalid');
     assert.equal(typeof parsed.message, 'string');
+    if (message) assert.match(parsed.message, message);
     return true;
   });
 }
@@ -234,7 +235,7 @@ test('each sheet has its own fragments and SVG, and the PDF a page per sheet', (
 test('hostile edit path refuses and the same engine still answers', () => {
   const engine = new Engine('prismatic.step', readFileSync(new URL('../tests/fixtures/parts/prismatic.step', import.meta.url)));
   const before = engine.plan();
-  invalid(() => engine.apply(JSON.stringify([{ op: 'set', path: `sheet/${'nested/'.repeat(20000)}value`, value: 1 }]), true));
+  invalid(() => engine.apply(JSON.stringify([{ op: 'set', path: `sheet/${'nested/'.repeat(20000)}value`, value: 1 }]), true), /64 components/);
   assert.equal(engine.plan(), before);
   assert.ok(engine.renderSvg().length > 0);
   engine.free();
@@ -293,7 +294,7 @@ test('a huge view gutter returns a refusal instead of aborting WASM', () => {
   const before = engine.plan();
   const spec = JSON.parse(engine.spec());
   spec.sheet.view_gutter = 1e308;
-  invalid(() => engine.setSpec(JSON.stringify(spec)));
+  invalid(() => engine.setSpec(JSON.stringify(spec)), /view_gutter.*1189/);
   assert.equal(engine.plan(), before);
   engine.apply('[{"op":"set","path":"sheet/title/material","value":"Steel"}]', true);
   assert.equal(JSON.parse(engine.spec()).sheet.title.material, 'Steel');
