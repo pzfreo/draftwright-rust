@@ -813,10 +813,12 @@ Lint (`review`'s `lint`) also checks each callout's leader against the part (str
 callout's tip must lie within 0.002 mm of a boundary circle of a hole it names (a double-D bore's
 trimmed profile, flats included) as projected in its view (`diameter_leader_target_mismatch`,
 warning; `diameter_leader_target_unverifiable` when no named hole can be read), a straight
-blend or fillet's radius callout's tip on its trimmed cylindrical profile arc seen end-on
+straight blend's radius callout tip on its trimmed cylindrical profile arc seen end-on
 (`radius_leader_target_mismatch` and `_unverifiable`, warnings). The drawn shaft must meet
 its middle 25–75%, within 15° of radial, from the open centre side
-(`radius_leader_not_radial`, warning). Exact `Analysis.radius_arcs` records the cylinder,
+(`radius_leader_not_radial`, warning), including fillet callouts. Unreadable fillet or toroidal
+direction is reported as `radius_leader_direction_unverifiable`, rather than a proven target
+mismatch. Exact `Analysis.radius_arcs` records the cylinder,
 trim, proven middle-face points and material side; older straight blends use their rolling
 axis and proven samples. A convex cylinder has its centre on the material side; toroidal
 samples do not establish a single minor-arc centre in the projection. Routing retains the

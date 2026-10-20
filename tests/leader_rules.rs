@@ -413,7 +413,7 @@ fn toroidal_radius_direction_limits_are_explicit() {
     );
     let issues = lint::lint(&a, &draw);
     assert!(issues.iter().any(|i| {
-        i.code == "radius_leader_target_unverifiable"
+        i.code == "radius_leader_direction_unverifiable"
             && i.evidence
                 .as_ref()
                 .is_some_and(|why| why.contains("toroidal"))

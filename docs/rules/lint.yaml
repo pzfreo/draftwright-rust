@@ -825,7 +825,7 @@
   port_note: "Keep."
 
 - id: LINT-code-radius_leader_target_mismatch
-  statement: "A blend or fillet radius leader tip touches its named trimmed cylindrical profile arc."
+  statement: "A straight blend radius leader tip touches its named trimmed cylindrical profile arc."
   detail: "Measured from exact cylindrical face evidence where available; older straight blends use the rolling axis and trimmed samples. Unreadable/toroidal direction geometry is reported. Warning; fidelity code."
   class: drafting
   source:
@@ -835,7 +835,7 @@
     tests: [tests/test_issue_1479_radius_leader_targets.py]
   status: ported
   rust_test: "rendering::leader_rules::a_radius_tip_lands_on_the_trimmed_profile_arc"
-  rust_note: "src/lint/leaders.rs and src/radius.rs: drawn tips must touch the named cylinder within 0.002 mm and its recorded trim. Analysis.radius_arcs adds exact geometry and material side for blends/fillets; legacy straight-blend evidence still works. Fillets carrying blend claims are judged against the fillet's faces. Toroidal and non-end-on cases are explicitly unverifiable."
+  rust_note: "src/lint/leaders.rs and src/radius.rs: drawn tips must touch the named cylinder within 0.002 mm and its recorded trim. Analysis.radius_arcs adds exact geometry and material side for blends/fillets; legacy straight-blend evidence still works. Fillets carrying blend claims have their own direction audit against the fillet faces. Toroidal and non-end-on fillet direction is explicitly unverifiable under radius_leader_direction_unverifiable."
   port_note: "Keep."
 
 - id: LINT-code-radius_leader_not_radial
@@ -848,6 +848,18 @@
   status: ported
   rust_test: "rendering::leader_rules::radius_shafts_meet_the_middle_arc_radially_from_the_open_side"
   rust_note: "Shared geometry in src/radius.rs; final bounded radius inventory in src/dims/leaders.rs."
+  port_note: "Keep."
+
+- id: LINT-code-radius_leader_direction_unverifiable
+  statement: "Unavailable fillet or toroidal radius direction evidence is reported explicitly."
+  detail: "The existing straight-blend target lint retains its boundary contract. This direction warning distinguishes unreadable end-on trim/material evidence from a proven bad shaft."
+  class: trust
+  source:
+    lint_code: "radius_leader_direction_unverifiable"
+    issues: [145]
+  status: ported
+  rust_test: "rendering::leader_rules::toroidal_radius_direction_limits_are_explicit"
+  rust_note: "src/lint/leaders.rs reads actual drawn shafts and independent Analysis evidence."
   port_note: "Keep."
 
 - id: LINT-code-radius_leader_target_unverifiable
