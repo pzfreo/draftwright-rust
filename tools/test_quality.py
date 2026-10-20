@@ -487,11 +487,22 @@ class CrossingKinds(unittest.TestCase):
         ink['ink_is_leader'] = True
         self.assertEqual(quality.crossing_counts(plan), old)
         ink['ink_is_leader'] = False
-        self.assertEqual(quality.crossing_counts(plan)['leader_text'], 0)
-        del ink['ink_is_leader']
         a['kind'] = 'linear'
         self.assertEqual(quality.crossing_counts(plan)['leader_text'], 0)
         self.assertFalse(quality.line_through_label([[0,1],[10,1]], [4,-1,6,1]))
+
+    def test_overlap_warning_deduplication_cannot_hide_leader_through_text(self):
+        leader = dict(id='leader', kind='callout', view='v:plan', placed=dict(
+            lines=[[[0,0],[10,0]]], arrows=[], label_box=[0,-1,8,1]))
+        label = dict(id='label', kind='linear', view='v:plan', placed=dict(
+            lines=[], arrows=[], label_box=[4,-1,12,1]))
+        plan = dict(dimensions=[leader,label], problems=[dict(
+            code='annotation_overlap', subjects=['leader','label'])])
+        self.assertEqual(quality.crossing_instances(plan)['leader_text'], [['leader','label']])
+        # Different sheets are separate drawings even when their coordinates coincide.
+        label['view'] = 'v:other'
+        plan['views'] = [dict(id='v:plan', sheet=1), dict(id='v:other', sheet=2)]
+        self.assertEqual(quality.crossing_counts(plan)['leader_text'], 0)
 
     def test_datum_proxies_are_counted_in_old_and_new_plans(self):
         placed = dict(lines=[[[0,0],[10,0]]], arrows=[], label_box=[20,20,25,25])

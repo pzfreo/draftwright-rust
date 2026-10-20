@@ -8,7 +8,8 @@ The geometry fallback classifies old plans without requiring the new problem fie
 CI's quality-pins job compares fresh drawings to this record; zero stays zero,
 nonzero never increases, independently for each part and each of the six kinds.
 Counts retain the existing ordered-pair semantics; multi-kind pairs count in each
-applicable column, not in a partition of the old warning total.
+applicable column, not in a partition of the old warning total. Leader-through-text
+also reads placed geometry, so annotation_overlap warning deduplication cannot hide it.
 """
 import argparse
 import importlib.util

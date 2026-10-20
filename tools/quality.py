@@ -84,7 +84,7 @@ def crossing_instances(plan):
     for r in plan.get('requirements', []):
         placed = r.get('placed')
         if placed:
-            dims[r['id']] = {**r, 'kind': 'symbol', 'placed': {
+            dims[r['id']] = {**r, 'kind': 'symbol', 'view': '', 'placed': {
                 'lines': placed['strokes'], 'arrows': [], 'label_box': placed['glyph']}}
     for p in plan.get('problems', []):
         if p['code'] not in ('annotation_leader_crossing', 'annotation_ink_overlap'):
@@ -117,6 +117,19 @@ def crossing_instances(plan):
             result['leader_' + kind].append(p['subjects'][:2])
     linear = [d for d in dims.values() if d['kind'] == 'linear' and len(d['placed']['lines']) >= 3]
     sheets = {v['id']: v.get('sheet', 1) for v in plan.get('views', []) if 'id' in v}
+    # annotation_overlap deliberately suppresses annotation_ink_overlap for the
+    # same neighbourhood. That deduplication must not hide a leader through text
+    # from the professional-drawing gate. Count each directed pair once.
+    text = {tuple(pair) for pair in result['leader_text']}
+    for a in dims.values():
+        if a['kind'] != 'callout':
+            continue
+        for b in dims.values():
+            if (a['id'] != b['id'] and sheets.get(a['view'], 1) == sheets.get(b['view'], 1)
+                    and any(line_through_label(line, b['placed']['label_box'])
+                            for line in a['placed']['lines'])):
+                text.add((a['id'], b['id']))
+    result['leader_text'] = [list(pair) for pair in sorted(text)]
     for i, a in enumerate(linear):
         for b in linear[i+1:]:
             if sheets.get(a['view'], 1) == sheets.get(b['view'], 1) and segments_cross(
