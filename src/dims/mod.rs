@@ -4219,6 +4219,7 @@ pub(crate) fn placement_options_with_spec(
 pub(crate) struct LocalFixTrials {
     cache: footprints::Cache,
     before: std::cell::OnceCell<Vec<Problem>>,
+    candidates: std::cell::RefCell<BTreeMap<(usize, Vec<u8>), Vec<Problem>>>,
 }
 
 /// Check existing placement intents against settled ink, without planning a sheet.
@@ -4255,6 +4256,12 @@ pub(crate) fn local_placement_fix(
             continue;
         };
         let d = &plan.dimensions[index];
+        let repeated = plan
+            .problems
+            .iter()
+            .filter(|p| p.subjects.contains(id))
+            .nth(1)
+            .is_some();
         // Retention check for this bounded trial: only shown ink may be replaced.
         // The replacement clones its complete requirement, terms and measurements;
         // every other item and all furniture remain in the settled inventory.
@@ -4320,8 +4327,32 @@ pub(crate) fn local_placement_fix(
                 {
                     return None;
                 }
-                let after =
-                    placement::collisions_for(analysis, &all, sheet, &plan.views, cache, id);
+                // Different findings often propose the same placement of the same
+                // item. Its complete collision result depends on this immutable
+                // drawing and Place, not on which finding requested the trial.
+                let key = repeated.then(|| {
+                    (
+                        index,
+                        serde_json::to_vec(place).expect("placement serializes"),
+                    )
+                });
+                let saved = key
+                    .as_ref()
+                    .and_then(|key| trials.candidates.borrow().get(key).cloned());
+                let after = if let Some(saved) = saved {
+                    saved
+                } else {
+                    let after =
+                        placement::collisions_for(analysis, &all, sheet, &plan.views, cache, id);
+                    if let Some(key) = key {
+                        let mut saved = trials.candidates.borrow_mut();
+                        if saved.len() == 128 {
+                            saved.clear();
+                        }
+                        saved.insert(key, after.clone());
+                    }
+                    after
+                };
                 if after.iter().any(|p| same(p, problem))
                     || after
                         .iter()
