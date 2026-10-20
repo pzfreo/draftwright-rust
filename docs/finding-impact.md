@@ -28,7 +28,8 @@ as advisory and group by their code; all codes emitted by this crate must appear
 `review.summary.impacts` contains `findings` and distinct `groups` counts for all four impacts;
 `summary.groups` maps group keys to finding counts. Counts cover `problems`, `lint`, and
 `structural` once each, retaining all original findings. MCP review forwards this summary.
-MCP `inspect_part.summary` counts its plan problems only (it does not run drawing lint).
+MCP inspection and problem pages carry the same finding labels within their existing response
+budget; document-wide counts are emitted by `review`.
 
 The single source table is `src/finding.rs`; the source-inventory test also enumerates dynamic
 requirement-family codes and refuses an unclassified or undocumented emitted code.

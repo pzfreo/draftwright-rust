@@ -417,7 +417,6 @@ impl Cache {
             "envelope":s.analysis().envelope,"sheet":{"size":s.plan().sheet.size,"scale":s.plan().sheet.scale,"page":s.plan().sheet.page},
             "views":s.plan().views.iter().map(|v|&v.id).collect::<Vec<_>>(),"items":s.items(&ItemFilter::default()).len(),
             "status":crate::completeness::status(&s.state().problems),"completeness":s.plan().completeness,
-            "summary":crate::finding::Summary::new(s.state().problems.iter().map(crate::model::Problem::labels)),
             "key_items":keys,"problems":s.state().problems.len(),"spec_version":spec_hash(s.spec())});
         if !s.plan().sheets.is_empty() {
             summary["sheets"] = json!(s.plan().sheets.len() + 1);

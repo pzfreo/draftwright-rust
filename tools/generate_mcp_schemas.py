@@ -29,7 +29,6 @@ fix=obj({'scope':scope,'description':S,'ops':arr(ref('op'))},['scope','descripti
 item=obj({'operation_scopes':operation_scopes,'item':{'type':'object'},'value':nullable(N),'dimension_kind':nullable(S),'placement':nullable({'type':'object'}),'anchors':arr(S),'features':arr(S),'basis':S,'operations':arr(S)},['item','value','dimension_kind','placement','anchors','features','basis','operations'])
 impact={'enum':['incomplete','decision','readability','advisory']}
 labels={'impact':impact,'group':S}
-finding_summary=obj({'impacts':{'type':'object','additionalProperties':obj({'findings':I,'groups':I},['findings','groups'])},'groups':{'type':'object','additionalProperties':I}},['impacts','groups'])
 problem=obj({**labels,'id':S,'code':S,'severity':S,'message':S,'subjects':arr(S),'refs':arr(S),'crossing_kinds':arr(S),'ink_is_leader':B,'fix':arr(ref('op')),'fixes':arr(fix)},['id','code','severity','message','subjects'])
 rectangle=arr(N,minItems=4,maxItems=4)
 filter_=obj({'sheet':nullable(SHEET),'view':nullable(S),'kind':nullable(S),'state':nullable(ref('state')),'feature':nullable(S),'region':nullable(rectangle),'near':nullable(S),'radius':nullable({'type':'number','minimum':0})})
@@ -69,7 +68,7 @@ row_problem={'anyOf':[ref('problem'),ref('problem_small'),ref('stub')]}
 def paged(row):return obj({'items':arr(row),'total':I,'next_cursor':nullable(I)},['items','total','next_cursor'])
 page=paged({'anyOf':[obj({'change':{'enum':['changed','added']},'item':row_item},['change','item']),obj({'change':{'const':'removed'},'id':S},['change','id']),obj({'change':{'enum':['problem_added','problem_resolved']},'problem':row_problem},['change','problem']),ref('stub')]})
 delta=obj({'events':page,'delta_ref':S,'plans':I},['events','delta_ref','plans'])
-summary=obj({'summary':finding_summary,'part_ref':S,'part':S,'face_count':I,'status':{'enum':['clear','needs_attention']},'completeness':obj({'claimed_faces':I,'faces':I,'unplanned_features':I},['claimed_faces','faces','unplanned_features']),'envelope':arr(arr(N,minItems=3,maxItems=3),minItems=2,maxItems=2),'sheet':obj({'size':S,'scale':S,'page':arr(N,minItems=2,maxItems=2)},['size','scale','page']),'sheets':SHEET,'sheet_details':arr(obj({'number':SHEET,'size':S,'scale':S,'page':arr(N,minItems=2,maxItems=2)},['number','size','scale','page'])),'views':arr(S),'items':I,'problems':I,'spec_version':S,'plan_ref':S,'key_items':arr(obj({'id':S,'label':nullable(S)},['id','label']))},['part_ref','part','face_count','status','completeness','envelope','sheet','views','items','problems','spec_version'])
+summary=obj({'part_ref':S,'part':S,'face_count':I,'status':{'enum':['clear','needs_attention']},'completeness':obj({'claimed_faces':I,'faces':I,'unplanned_features':I},['claimed_faces','faces','unplanned_features']),'envelope':arr(arr(N,minItems=3,maxItems=3),minItems=2,maxItems=2),'sheet':obj({'size':S,'scale':S,'page':arr(N,minItems=2,maxItems=2)},['size','scale','page']),'sheets':SHEET,'sheet_details':arr(obj({'number':SHEET,'size':S,'scale':S,'page':arr(N,minItems=2,maxItems=2)},['number','size','scale','page'])),'views':arr(S),'items':I,'problems':I,'spec_version':S,'plan_ref':S,'key_items':arr(obj({'id':S,'label':nullable(S)},['id','label']))},['part_ref','part','face_count','status','completeness','envelope','sheet','views','items','problems','spec_version'])
 common={'part_ref':S,'spec':ref('spec'),'spec_version':S,'drawing_ref':S}
 paging={'cursor':I,'limit':{'type':'integer','minimum':1,'maximum':100},'detail':B}
 artifact=obj({'artifact_ref':S,'mime_type':{'enum':['image/png','application/pdf']},'bytes':I,'spec_version':S},['artifact_ref','mime_type','bytes','spec_version'])
@@ -343,8 +342,8 @@ Path('schemas/mcp-validation.json').write_text(json.dumps(validation, indent=2) 
 # callouts/style: +0 tools/list bytes (nested on-demand Spec vocabulary only).
 # Scoped alternatives and operation/path scopes add 1,916 advertised bytes;
 # PMI policy and the shallow origin object add 804.
-# Finding impact/group, crossing metadata and summary add 910 measured bytes.
+# Finding impact/group and crossing metadata add 597 measured bytes.
 # Leave a small margin rather than pinning the exact serialization size.
-SCHEMA_BUDGET = 38400
+SCHEMA_BUDGET = 38000
 assert total <= SCHEMA_BUDGET, f'schemas: {total} bytes (budget {SCHEMA_BUDGET})'
 print(f'{len(tools)} tools; {total} compact schema bytes')

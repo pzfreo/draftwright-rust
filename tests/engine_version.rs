@@ -152,9 +152,9 @@ fn tools_explain_their_operations_without_source_and_fit_schema_budget() {
     // because sheet and feature vocabulary is in on-demand schemas/spec.json.
     // Scoped fix alternatives and operation/path scopes add 1,916 bytes; PMI policy and
     // the shallow origin object add 804.
-    // Additive finding labels, crossing metadata and summary add 910 measured bytes.
+    // Additive finding labels and crossing metadata add 597 measured bytes.
     // A ceiling permits equivalent schema compaction without pinning output bytes.
-    assert!(schema_bytes <= 38400, "schemas: {schema_bytes} bytes");
+    assert!(schema_bytes <= 38000, "schemas: {schema_bytes} bytes");
     eprintln!("schema bytes per session: {schema_bytes}");
 }
 

@@ -3,33 +3,6 @@
   "anyOf": [
     {
       "properties": {
-        "summary": {
-          "type": "object",
-          "properties": {
-            "impacts": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "object",
-                "additionalProperties": {
-                  "$ref": "#/A"
-                },
-                "required": [
-                  "findings",
-                  "groups"
-                ],
-                "maxProperties": 2
-              }
-            },
-            "groups": {
-              "type": "object",
-              "additionalProperties": {
-                "$ref": "#/A"
-              }
-            }
-          },
-          "additionalProperties": false,
-          "minProperties": 2
-        },
         "status": {
           "enum": [
             "clear",
@@ -39,7 +12,7 @@
         "completeness": {
           "type": "object",
           "additionalProperties": {
-            "$ref": "#/A"
+            "$ref": "#/D"
           },
           "required": [
             "claimed_faces",
@@ -65,11 +38,11 @@
           "type": "object",
           "properties": {
             "page": {
-              "$ref": "#/C"
+              "$ref": "#/B"
             }
           },
           "additionalProperties": {
-            "$ref": "#/D"
+            "$ref": "#/C"
           },
           "required": [
             "size",
@@ -110,13 +83,13 @@
                 ]
               },
               "size": {
-                "$ref": "#/D"
+                "$ref": "#/C"
               },
               "scale": {
-                "$ref": "#/D"
+                "$ref": "#/C"
               },
               "page": {
-                "$ref": "#/C"
+                "$ref": "#/B"
               }
             },
             "additionalProperties": false,
@@ -124,7 +97,7 @@
           }
         },
         "views": {
-          "$ref": "#/B"
+          "$ref": "#/A"
         },
         "key_items": {
           "type": "array",
@@ -132,7 +105,7 @@
             "type": "object",
             "properties": {
               "id": {
-                "$ref": "#/D"
+                "$ref": "#/C"
               },
               "label": {
                 "type": [
@@ -163,7 +136,7 @@
                         ]
                       },
                       "subjects": {
-                        "$ref": "#/B"
+                        "$ref": "#/A"
                       },
                       "fix": {
                         "$ref": "#/E"
@@ -181,7 +154,7 @@
                               ]
                             },
                             "description": {
-                              "$ref": "#/D"
+                              "$ref": "#/C"
                             },
                             "ops": {
                               "$ref": "#/E"
@@ -201,7 +174,7 @@
                     "additionalProperties": false,
                     "patternProperties": {
                       "^(group|id|code|severity)$(?!\n)": {
-                        "$ref": "#/D"
+                        "$ref": "#/C"
                       }
                     }
                   },
@@ -214,7 +187,7 @@
                         ]
                       },
                       "detail_ref": {
-                        "$ref": "#/D"
+                        "$ref": "#/C"
                       }
                     },
                     "additionalProperties": false,
@@ -225,7 +198,7 @@
               }
             },
             "total": {
-              "$ref": "#/A"
+              "$ref": "#/D"
             },
             "next_cursor": {
               "type": [
@@ -255,10 +228,10 @@
       "additionalProperties": false,
       "patternProperties": {
         "^(part|spec_version|(part|plan)_ref)$(?!\n)": {
-          "$ref": "#/D"
+          "$ref": "#/C"
         },
         "^(face_count|items|problems)$(?!\n)": {
-          "$ref": "#/A"
+          "$ref": "#/D"
         }
       }
     },
@@ -267,7 +240,7 @@
         "additionalProperties": false,
         "properties": {
           "choices": {
-            "$ref": "#/B"
+            "$ref": "#/A"
           },
           "code": {
             "enum": [
@@ -276,7 +249,7 @@
             ]
           },
           "message": {
-            "$ref": "#/D"
+            "$ref": "#/C"
           }
         },
         "required": [
@@ -292,16 +265,12 @@
     }
   ],
   "A": {
-    "minimum": 0,
-    "type": "integer"
-  },
-  "B": {
     "items": {
-      "$ref": "#/D"
+      "$ref": "#/C"
     },
     "type": "array"
   },
-  "C": {
+  "B": {
     "items": {
       "type": "number"
     },
@@ -309,8 +278,12 @@
     "minItems": 2,
     "type": "array"
   },
-  "D": {
+  "C": {
     "type": "string"
+  },
+  "D": {
+    "minimum": 0,
+    "type": "integer"
   },
   "E": {
     "items": {
@@ -324,7 +297,7 @@
               ]
             },
             "path": {
-              "$ref": "#/D"
+              "$ref": "#/C"
             },
             "value": {}
           },
@@ -337,7 +310,7 @@
               "const": "remove"
             },
             "path": {
-              "$ref": "#/D"
+              "$ref": "#/C"
             }
           },
           "additionalProperties": false,
