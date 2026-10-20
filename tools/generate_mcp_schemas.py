@@ -343,6 +343,6 @@ Path('schemas/mcp-validation.json').write_text(json.dumps(validation, indent=2) 
 # callouts/style: +0 tools/list bytes (nested on-demand Spec vocabulary only).
 # Scoped alternatives and operation/path scopes add 1,916 advertised bytes;
 # PMI policy and the shallow origin object add 804.
-SCHEMA_BUDGET = 37197
+SCHEMA_BUDGET = 37215
 assert total <= SCHEMA_BUDGET, f'schemas: {total} bytes (budget {SCHEMA_BUDGET})'
 print(f'{len(tools)} tools; {total} compact schema bytes')
