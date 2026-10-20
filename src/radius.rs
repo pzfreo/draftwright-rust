@@ -57,6 +57,9 @@ pub fn evidence(part: &haecceity::Part, features: &[Feature]) -> BTreeMap<String
                     let v = v0 + (v1 - v0) * fraction;
                     if domain.contains(u, v) {
                         tips.push(data.surface.value(u, v));
+                        // Axial copies project to the same end-on point. Retain one
+                        // proven point per angle, keeping Analysis and its digest compact.
+                        break;
                     }
                 }
             }
