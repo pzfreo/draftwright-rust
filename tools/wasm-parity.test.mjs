@@ -228,3 +228,14 @@ test('each sheet has its own fragments and SVG, and the PDF a page per sheet', (
     assert.equal(pdf.match(/\/Type\s*\/Page\b/g)?.length, 2);
   } finally { engine.free(); }
 });
+
+// Regression for #134: a shallow ops document can construct a recursively dropped
+// JSON value through its path. This used to trap and leave Engine mutably borrowed.
+test('hostile edit path refuses and the same engine still answers', () => {
+  const engine = new Engine('prismatic.step', readFileSync(new URL('../tests/fixtures/parts/prismatic.step', import.meta.url)));
+  const before = engine.plan();
+  invalid(() => engine.apply(JSON.stringify([{ op: 'set', path: `sheet/${'nested/'.repeat(20000)}value`, value: 1 }]), true));
+  assert.equal(engine.plan(), before);
+  assert.ok(engine.renderSvg().length > 0);
+  engine.free();
+});
