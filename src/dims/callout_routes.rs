@@ -43,9 +43,74 @@ fn improves(before: &[Problem], after: &[Problem]) -> bool {
     b.iter().all(|(k, n)| *n <= a.get(k).copied().unwrap_or(0)) && defects(&b) < defects(&a)
 }
 
-fn furniture(analysis: &Analysis, plan: &Plan) -> Vec<PlannedDimension> {
+/// The complete ring/tag and shaft of a schedule balloon are fixed annotation ink.
+fn balloon_obstacle(b: &crate::hole_table::Balloon) -> PlannedDimension {
+    let [x, y] = b.at;
+    let r = b.radius;
+    let ring = [x - r, y - r, x + r, y + r];
+    let label = b.label_box.unwrap_or_else(|| {
+        let ink = super::label_ink(std::slice::from_ref(&b.tag), super::font());
+        let w = 0.5 * (ink.max[0] - ink.min[0]);
+        let h = 0.5 * (ink.max[1] - ink.min[1]);
+        [x - w, y - h, x + w, y + h]
+    });
+    let box_ = [
+        label[0].min(ring[0]),
+        label[1].min(ring[1]),
+        label[2].max(ring[2]),
+        label[3].max(ring[3]),
+    ];
+    let mut lines = Vec::new();
+    if r > 0.0 {
+        let corners = [
+            [x - r, y - r],
+            [x + r, y - r],
+            [x + r, y + r],
+            [x - r, y + r],
+        ];
+        lines.extend((0..4).map(|i| [corners[i], corners[(i + 1) % 4]]));
+    }
+    let mut arrows = Vec::new();
+    if let Some([tip, end]) = b.leader {
+        lines.push([tip, end]);
+        arrows.push(placement::arrow(tip, end));
+    }
+    PlannedDimension {
+        id: b.id.clone(),
+        kind: "ink".into(),
+        view: b.view.clone(),
+        value: 0.0,
+        label: b.tag.clone(),
+        terms: vec![b.tag.clone()],
+        measurements: Vec::new(),
+        default: true,
+        from_spec: Vec::new(),
+        basis: "balloon".into(),
+        state: b.state.clone(),
+        region: None,
+        reference: false,
+        determined_by: Vec::new(),
+        placed: Some(Placed {
+            label_box: box_,
+            label_at: b.at,
+            rotation: 0.0,
+            lines,
+            arrows,
+        }),
+    }
+}
+
+fn furniture(plan: &Plan) -> Vec<PlannedDimension> {
     let mut fixed = crate::centrelines::obstacles(&plan.views);
     fixed.extend(plan.tables.iter().filter_map(crate::tables::proxy));
+    fixed.extend(
+        plan.hole_table
+            .iter()
+            .chain(&plan.hole_tables)
+            .flat_map(|t| &t.blocks)
+            .filter_map(crate::tables::proxy),
+    );
+    fixed.extend(plan.balloons.iter().map(balloon_obstacle));
     for block in [&plan.notes_block, &plan.radius_notes_block]
         .into_iter()
         .flatten()
@@ -56,17 +121,38 @@ fn furniture(analysis: &Analysis, plan: &Plan) -> Vec<PlannedDimension> {
         fixed.extend(crate::tables::proxy(&table.table));
     }
     fixed.extend(plan.requirements.iter().filter_map(gdt::finish_proxy));
-    fixed.extend(
-        crate::iso_caption::plan(analysis, &plan.sheet, &plan.views, &plan.dimensions)
-            .iter()
-            .map(crate::iso_caption::proxy),
-    );
-    // The datum triangle is ink too, separate from its letter box.
+    fixed.extend(plan.captions.iter().map(crate::iso_caption::proxy));
+    // Triangles stay fixed; all-around marks travel with their frame's bend.
+    // Reserve both independently of the frame's label box.
     for g in &plan.gdt {
         if let Some(p) = &g.placed {
-            for (i, fill) in p.fills.iter().enumerate() {
-                let mut d = gdt::proxy(g).expect("placed datum");
-                d.id = format!("{}:triangle:{i}", g.id);
+            let mut shapes: Vec<_> = p
+                .fills
+                .iter()
+                .enumerate()
+                .map(|(i, fill)| (format!("{}:triangle:{i}", g.id), fill.clone()))
+                .collect();
+            let count = g
+                .modifiers
+                .iter()
+                .map(|m| if m == "all_over" { 2 } else { 1 })
+                .sum();
+            for (i, arc) in p.arcs.iter().rev().take(count).enumerate() {
+                let [x, y, r, _, _] = *arc;
+                shapes.push((
+                    format!("{}:modifier:{i}", g.id),
+                    vec![
+                        [x - r, y - r],
+                        [x + r, y - r],
+                        [x + r, y + r],
+                        [x - r, y + r],
+                    ],
+                ));
+            }
+            for (id, fill) in shapes {
+                let mut d = gdt::proxy(g).expect("a placed glyph has a proxy");
+                d.id = id;
+                d.kind = "ink".into();
                 let b = fill.iter().fold(
                     [
                         f64::INFINITY,
@@ -83,7 +169,7 @@ fn furniture(analysis: &Analysis, plan: &Plan) -> Vec<PlannedDimension> {
                         ]
                     },
                 );
-                let p = d.placed.as_mut().expect("proxy placement");
+                let p = d.placed.as_mut().expect("the proxy retains its placement");
                 p.label_box = b;
                 p.lines = (0..fill.len())
                     .map(|i| [fill[i], fill[(i + 1) % fill.len()]])
@@ -167,6 +253,11 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     }
     let cache = super::footprints::Cache::default();
     let proofs = interior::proofs(analysis, &plan.views);
+    let exterior = if plan.gdt.iter().any(|g| g.kind == "datum_feature") {
+        interior::exterior_proofs(analysis, &plan.views)
+    } else {
+        BTreeMap::new()
+    };
     let mut wants = super::wants(analysis).0;
     let frames = plan
         .views
@@ -179,7 +270,7 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
         .collect();
     super::detail_routes(analysis, &mut wants, &plan.views);
     super::route(&mut wants, &frames, analysis);
-    let fixed = furniture(analysis, plan);
+    let mut fixed = furniture(plan);
     let mut all = plan.dimensions.clone();
     all.extend(plan.gdt.iter().filter_map(gdt::proxy));
     let dimension_count = plan.dimensions.len();
@@ -227,6 +318,8 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
             if glyph.as_ref().is_some_and(|g| g.kind == "surface_finish") {
                 continue;
             }
+            let triangle_prefix = format!("{}:triangle:", d.id);
+            let modifier_prefix = format!("{}:modifier:", d.id);
             let peers: Vec<_> = all
                 .iter()
                 .enumerate()
@@ -242,7 +335,10 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                 .chain(
                     fixed
                         .iter()
-                        .filter(|q| !q.id.starts_with(&format!("{}:triangle:", d.id)))
+                        .filter(|q| {
+                            !q.id.starts_with(&triangle_prefix)
+                                && !q.id.starts_with(&modifier_prefix)
+                        })
                         .cloned(),
                 )
                 .collect();
@@ -277,16 +373,26 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                         bend[0] + ring,
                         bend[1] + ring,
                     ];
-                    if peers.iter().filter_map(|d| d.placed.as_ref()).any(|p| {
-                        placement::boxes_overlap(b, p.label_box)
-                            || p.lines
-                                .iter()
-                                .chain(&p.arrows)
-                                .any(|s| leaders::touches_box(*s, b))
-                    }) || (proofs
-                        .get(&view.id)
-                        .is_some_and(|p| p.blank(view, next.label_box))
-                        && !proofs[&view.id].blank(view, b))
+                    let ring_clear = proofs.get(&view.id).map_or_else(
+                        || {
+                            frames
+                                .get(view.id.trim_start_matches("v:"))
+                                .is_none_or(|f| !placement::boxes_overlap(b, f.outline()))
+                        },
+                        |p| p.blank(view, b) || p.exterior_clear(view, b, &[], &[]),
+                    );
+                    if !ring_clear
+                        || peers.iter().filter_map(|d| d.placed.as_ref()).any(|p| {
+                            placement::boxes_overlap(b, p.label_box)
+                                || p.lines
+                                    .iter()
+                                    .chain(&p.arrows)
+                                    .any(|s| leaders::touches_box(*s, b))
+                        })
+                        || (proofs
+                            .get(&view.id)
+                            .is_some_and(|p| p.blank(view, next.label_box))
+                            && !proofs[&view.id].blank(view, b))
                     {
                         continue;
                     }
@@ -324,8 +430,12 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                             .get(&view.id)
                             .is_some_and(|p| p.annotation_clear(view, &next, true));
                         d.region = inside.then_some(super::CandidateRegion::Interior);
-                        if inside && !d.basis.contains(interior::BASIS) {
-                            d.basis += interior::BASIS;
+                        if inside {
+                            if !d.basis.contains(interior::BASIS) {
+                                d.basis += interior::BASIS;
+                            }
+                        } else {
+                            d.basis = d.basis.replace(interior::BASIS, "");
                         }
                         d.placed = Some(next.clone());
                         plan.callout_tips.insert(
@@ -340,30 +450,46 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                         );
                     } else if let Some(g) = plan.gdt.iter_mut().find(|g| g.id == id) {
                         rehang(g, &next);
-                        if g.kind != "datum_feature" {
-                            let inside = proofs
-                                .get(&view.id)
-                                .is_some_and(|proof| proof.blank(view, next.label_box));
-                            if inside {
-                                if !g.basis.contains(interior::BASIS) {
-                                    g.basis += interior::BASIS;
-                                }
-                            } else if let Some(frame) = frames.get(view.id.trim_start_matches("v:"))
-                            {
-                                let o = frame.outline();
-                                let b = next.label_box;
-                                let side = if b[2] <= o[0] {
-                                    "left"
-                                } else if b[0] >= o[2] {
-                                    "right"
-                                } else if b[1] >= o[3] {
-                                    "above"
-                                } else {
-                                    "below"
-                                };
-                                g.side = side.into();
+                        let inside = proofs
+                            .get(&view.id)
+                            .is_some_and(|p| p.blank(view, next.label_box))
+                            || (g.kind == "datum_feature"
+                                && exterior
+                                    .get(&view.id)
+                                    .is_some_and(|p| p.exterior_annotation_clear(view, &next)));
+                        let inside = inside
+                            && frames
+                                .get(view.id.trim_start_matches("v:"))
+                                .is_some_and(|f| {
+                                    placement::boxes_overlap(next.label_box, f.outline())
+                                });
+                        if inside {
+                            if !g.basis.contains(interior::BASIS) {
+                                g.basis += interior::BASIS;
                             }
+                        } else {
+                            g.basis = g.basis.replace(interior::BASIS, "");
                         }
+                        if g.kind != "datum_feature"
+                            && !inside
+                            && let Some(frame) = frames.get(view.id.trim_start_matches("v:"))
+                        {
+                            let o = frame.outline();
+                            let b = next.label_box;
+                            g.side = if b[2] <= o[0] {
+                                "left"
+                            } else if b[0] >= o[2] {
+                                "right"
+                            } else if b[1] >= o[3] {
+                                "above"
+                            } else {
+                                "below"
+                            }
+                            .into();
+                        }
+                    }
+                    if glyph.as_ref().is_some_and(|g| !g.modifiers.is_empty()) {
+                        fixed = furniture(plan);
                     }
                     changed.insert(id.clone());
                     moved = true;
@@ -436,5 +562,68 @@ mod tests {
                 ..Default::default()
             }]
         ));
+    }
+
+    #[test]
+    fn a_final_frame_cannot_cross_a_schedule_balloon_label() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/parts/mounting_plate.step");
+        let a = crate::model::analyse_native(&path).unwrap().1;
+        let mut plan = crate::model::plan(&a, &Spec::default()).unwrap();
+        plan.balloons.push(crate::hole_table::Balloon {
+            id: "schedule/tag/B8".into(),
+            tag: "B8".into(),
+            view: "v:plan".into(),
+            features: Vec::new(),
+            certifying: true,
+            at: [140., 170.],
+            radius: 0.,
+            label_box: Some([138., 168.5, 142., 171.5]),
+            leader: None,
+            state: crate::items::State::Shown,
+        });
+        let fixed = furniture(&plan);
+        let label = fixed
+            .iter()
+            .find(|d| d.id == "schedule/tag/B8")
+            .expect("the printed balloon is a final obstacle")
+            .placed
+            .as_ref()
+            .unwrap();
+        let frame = Placed {
+            lines: vec![[[120., 170.], [160., 170.]]],
+            arrows: Vec::new(),
+            label_box: [160., 167., 180., 173.],
+            label_at: [160., 167.],
+            rotation: 0.,
+        };
+        assert!(
+            !placement::annotations_clear(&frame, label),
+            "the frame shaft crosses tag B8"
+        );
+    }
+
+    #[test]
+    fn a_proven_interior_gdt_flag_preserves_the_complete_glyph_and_text() {
+        let mut g: gdt::PlannedGdt = serde_json::from_value(serde_json::json!({
+            "id":"pmi:test", "kind":"control_frame", "view":"v:plan", "side":"right",
+            "source":"test", "faces":[0], "cells":["A"], "label":"A", "default":true,
+            "basis":"test", "state":{"kind":"shown"}, "placed": {
+                "tip":[-10.,3.], "lines":[[[-10.,3.],[-2.,3.]],[[-2.,3.],[0.,3.]]],
+                "arrows":[[[-10.,3.],[-7.3,3.]]], "label_box":[0.,0.,8.,6.],
+                "strokes":[[[0.,0.],[8.,0.]],[[8.,0.],[8.,6.]],[[8.,6.],[0.,6.]],[[0.,6.],[0.,0.]]],
+                "arcs":[], "fills":[], "letters":[{"text":"A","at":[4.,3.],"size":3.}],
+                "runs":[{"text":"A","at":[4.,3.],"size":3.}] }
+        }))
+        .unwrap();
+        let old = crate::model::render_item(crate::model::AnnotationItem::Gdt(&g));
+        assert!(!old.drawn[0].interior);
+        g.basis += interior::BASIS;
+        let new = crate::model::render_item(crate::model::AnnotationItem::Gdt(&g));
+        assert!(new.drawn[0].interior);
+        assert_eq!(new.drawn[0].ink, old.drawn[0].ink);
+        assert_eq!(new.drawn[0].label, old.drawn[0].label);
+        assert_eq!(new.text.len(), old.text.len());
+        assert!(new.text.iter().all(|t| t.size == 3.0));
     }
 }

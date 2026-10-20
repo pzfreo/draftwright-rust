@@ -7415,7 +7415,7 @@ pub fn render_item(item: AnnotationItem<'_>) -> RenderedItem {
     let mut out = RenderedItem::default();
     let interior = match &item {
         AnnotationItem::Dimension(d) => d.region == Some(crate::dims::CandidateRegion::Interior),
-        AnnotationItem::Gdt(_) => false,
+        AnnotationItem::Gdt(g) => g.basis.contains(crate::dims::interior::BASIS),
     };
     let heads = match &item {
         AnnotationItem::Dimension(d) => d
