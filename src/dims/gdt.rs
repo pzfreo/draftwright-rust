@@ -2286,7 +2286,24 @@ mod tests {
     fn a_turned_shoulder_has_clear_exterior_paper_at_its_upper_site() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/pmi/step/GRM-03_thumbwheel_drive_screw_AP242_PMI.step.gz");
-        let (_, analysis) = crate::model::analyse_native(&path).unwrap();
+        let (_, mut analysis) = crate::model::analyse_native(&path).unwrap();
+        // A datum used solely as an origin has no symbol. This placement test explicitly
+        // cites B from a control, so it continues to exercise the datum's exterior paper.
+        if let Some(crate::pmi::Reading::Read(report)) = &mut analysis.pmi {
+            let mut control = report
+                .records
+                .iter()
+                .find(|r| r.category == crate::pmi::Category::Datum && r.label == "B")
+                .unwrap()
+                .clone();
+            control.category = crate::pmi::Category::GeometricTolerance;
+            control.source_id = "geometric_tolerance:placement-test".into();
+            control.kind = "perpendicularity".into();
+            control.value = Some(0.1);
+            control.label = "⟂ 0.1 B".into();
+            control.datum_refs = vec!["B".into()];
+            report.records.push(control);
+        }
         let view: PlannedView = serde_json::from_value(serde_json::json!({
             "id": "v:front", "direction": [0,-1,0], "up": [0,0,1],
             "at": [0,0], "scale": 5, "area": [-500,-500,500,500],

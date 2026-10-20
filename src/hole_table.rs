@@ -184,7 +184,7 @@ enum Dropped {
 /// A hole callout or hole location, by what it measures.
 fn hole_item(d: &PlannedDimension) -> Option<Dropped> {
     let hole = |f: &str| f.starts_with("f:hole:") || f.starts_with("f:hole_pattern:");
-    let ms = &d.measurements;
+    let ms: Vec<_> = d.measurements.iter().collect();
     if d.kind == "callout"
         && ms.iter().any(|m| m.parameter == "bore.diameter")
         && ms.iter().all(|m| hole(&m.feature))
@@ -371,6 +371,7 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan, table_sheet: Option<u32>) 
         .collect();
     if escalating.is_empty()
         || plan.spec.hole_table == Setting::Never
+        || crate::dims::pmi_policy::strict(analysis, &plan.spec)
         || !plan.hole_tables.is_empty()
     {
         return TableOutcome::None;
@@ -1872,7 +1873,12 @@ fn schedule_cells(t: &HoleTable) -> Vec<Vec<String>> {
         String::new(),
         String::new(),
         String::new(),
-        "FROM MIN".into(),
+        if t.basis.contains("; origin: ") {
+            "ORIGIN"
+        } else {
+            "FROM MIN"
+        }
+        .into(),
     ];
     let mut header = vec![
         "TAG".into(),
@@ -1974,11 +1980,13 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
         ..Default::default()
     };
     if plan.spec.hole_table == Setting::Never
+        || crate::dims::pmi_policy::strict(analysis, &plan.spec)
         || (plan.spec.hole_table == Setting::Auto
             && plan.spec.dimension_source == crate::model::DimensionSource::Authored)
     {
         return selection;
     }
+    let source_locations = crate::dims::pmi_policy::source_locations(analysis, plan);
     // Placement pins keep the canonical (unpinned) plan's sheet and frames (`model::plan_with`);
     // they keep its hole presentation too, so each view is scheduled exactly when the canonical
     // plan schedules it. Re-measuring the trigger on the pinned layout would let a pin's held
@@ -2096,9 +2104,12 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
             continue;
         }
         // Use the theoretical intersection of the minimum datum planes.
-        let Some(origin) = datum_corner(analysis, &axes) else {
+        let Some(mut origin) = datum_corner(analysis, &axes) else {
             continue;
         };
+        if crate::dims::pmi_policy::carries(analysis) || !plan.spec.origin.is_empty() {
+            origin = crate::dims::pmi_policy::origin_point(analysis, &plan.spec);
+        }
         let mut rows = Vec::new();
         let mut replaced = BTreeSet::new();
         for d in &callouts {
@@ -2155,6 +2166,9 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                 })
                 .collect::<Vec<_>>()
                 .join(" ");
+            // A schedule repeats every size, including sizes owned by retained PMI.
+            let source_callout =
+                d.placed.is_some() && d.measurements.iter().any(|m| m.feature.starts_with("pmi:"));
             for f in bores(d) {
                 let h = &read[f];
                 let mut measurements: Vec<_> = d
@@ -2163,6 +2177,9 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                     .filter(|m| m.feature == f)
                     .cloned()
                     .collect();
+                if source_callout {
+                    measurements.clear();
+                }
                 let mut cells = vec![String::new(), label.clone()];
                 for &k in &axes {
                     let parameter = format!("location.length.{}", ["x", "y", "z"][k]);
@@ -2196,11 +2213,15 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                                 },
                             ),
                     );
-                    measurements.push(Measurement {
-                        feature: f.into(),
-                        parameter,
-                        value: distance,
-                    });
+                    // An already rooted coordinate is a schedule restatement in the
+                    // same origin frame, not an additional independent locating control.
+                    if !source_locations.contains(&(f.to_string(), k)) {
+                        measurements.push(Measurement {
+                            feature: f.into(),
+                            parameter,
+                            value: distance,
+                        });
+                    }
                 }
                 cells.push(entry_cell(analysis, view.direction, h.at, h.direction));
                 rows.push(HoleRow {
@@ -2211,7 +2232,7 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                 });
             }
             // A pin keeps its complete callout. The row is additive for that item.
-            // Semantic PMI keeps its source-carrying callout; the schedule is additive for it.
+            // Semantic PMI keeps its source-carrying callout; the schedule adds coordinates.
             // Its lowering/reporting contract follows that native owner, as pins follow theirs.
             let semantic = d.measurements.iter().any(|m| m.feature.starts_with("pmi:"));
             let authored_size = plan.spec.hole_table == Setting::Auto
@@ -2223,7 +2244,14 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                 replaced.insert(d.id.clone());
             }
         }
-        if rows.is_empty() {
+        if rows.is_empty()
+            || (plan.spec.hole_table == Setting::Auto
+                && crate::dims::pmi_policy::carries(analysis)
+                && replaced.is_empty())
+        {
+            // A source-only schedule keeps every callout in the lanes and adds a
+            // second size presentation without freeing one label corridor. Keep
+            // its ordinary inline geometry; an explicit schedule remains available.
             continue;
         }
         let mut pcd: Option<PitchCircle> = None;
@@ -2298,7 +2326,7 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
         let mut number = 0;
         let mut last = String::new();
         for r in &mut rows {
-            if r.cells[1] != last {
+            if group == 0 || r.cells[1] != last {
                 group += 1;
                 number = 0;
                 last = r.cells[1].clone();
@@ -2320,6 +2348,17 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                     .filter(|d| replaced.contains(&d.id))
                     .filter_map(|d| d.id.strip_prefix("d:")?.split('/').next())
                     .filter(|f| f.starts_with("f:hole_pattern:")),
+            )
+            .chain(
+                analysis
+                    .recognition
+                    .iter()
+                    .flat_map(|r| &r.patterns)
+                    .filter(|p| {
+                        crate::dims::pmi_policy::carries(analysis)
+                            && p.members.iter().all(|id| features.contains(id.as_str()))
+                    })
+                    .map(|p| p.id.as_str()),
             )
             .collect();
         for d in &plan.dimensions {
@@ -2350,7 +2389,13 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
         selection.tables.push(HoleTable {
             sheet: 1,
             id: format!("hole_schedule_{}", view.id.trim_start_matches("v:")), view: Some(view.id.clone()), origin: Some(origin), pcd, covered: Vec::new(),
-            rows, default: plan.spec.hole_table == Setting::Auto, basis: format!("plan-time hole schedule: {n} holes, {crowded} crowded ordinates, {conflicts} leader crossings; local X/Y from the marked datum corner"), state: crate::items::State::Shown, blocks: Vec::new(),
+            rows, default: plan.spec.hole_table == Setting::Auto, basis: {
+                let mut basis = format!("plan-time hole schedule: {n} holes, {crowded} crowded ordinates, {conflicts} leader crossings; local X/Y from the marked datum corner");
+                if crate::dims::pmi_policy::carries(analysis) || !plan.spec.origin.is_empty() {
+                    basis += &format!("; origin: {}", crate::dims::pmi_policy::origin_description(analysis, &plan.spec));
+                }
+                basis
+            }, state: crate::items::State::Shown, blocks: Vec::new(),
         });
     }
     // Consolidated wants otherwise reappear when their table-owned survivor leaves the lanes.
@@ -2368,12 +2413,57 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
             break;
         }
     }
-    selection.aliases = plan
-        .omitted
-        .iter()
-        .filter(|o| selection.replaced.contains(&o.id))
-        .cloned()
-        .collect();
+    // Coalesced locators may also serve members outside the schedule, so they
+    // stay drawn. Do not give their tabulated members a second coordinate.
+    let retained = crate::dims::pmi_policy::retained_locations(analysis, plan, &selection.replaced);
+    for table in &mut selection.tables {
+        let Some(axis) = table
+            .view
+            .as_ref()
+            .and_then(|id| plan.views.iter().find(|v| &v.id == id))
+            .and_then(|v| v.direction.iter().position(|d| d.abs() > 0.999))
+        else {
+            continue;
+        };
+        let axes: Vec<_> = (0..3).filter(|k| *k != axis).collect();
+        for row in &mut table.rows {
+            for (column, &k) in axes.iter().enumerate() {
+                if let Some(owners) = retained.get(&(row.feature.clone(), k)) {
+                    let label = row.cells[2 + column].clone();
+                    // Recovery follows the surviving graph owner, even when the
+                    // schedule no longer needs a coordinate cell for this member.
+                    if let Some(by) = owners.first() {
+                        let id =
+                            format!("d:{}/location.length.{}", row.feature, ["x", "y", "z"][k]);
+                        if !plan
+                            .dimensions
+                            .iter()
+                            .any(|d| d.id == id && d.placed.is_some())
+                        {
+                            selection.aliases.push(crate::dims::Omitted {
+                                id,
+                                label,
+                                basis: format!(
+                                    "located by retained dimension chain: {}",
+                                    owners.join(", ")
+                                ),
+                                state: crate::items::State::Covered { by: by.clone() },
+                            });
+                        }
+                    }
+                    row.measurements.retain(|m| {
+                        m.parameter != format!("location.length.{}", ["x", "y", "z"][k])
+                    });
+                }
+            }
+        }
+    }
+    selection.aliases.extend(
+        plan.omitted
+            .iter()
+            .filter(|o| selection.replaced.contains(&o.id))
+            .cloned(),
+    );
     selection
 }
 
@@ -2983,7 +3073,21 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
             plan.dimensions.push(d);
         }
     }
-    plan.omitted.extend(selection.aliases.clone());
+    // A source-owned coordinate may already have its covered entry in the
+    // replanned ladder. Keep that original label and provenance exactly once.
+    let mut ids: BTreeSet<_> = plan
+        .dimensions
+        .iter()
+        .map(|d| d.id.clone())
+        .chain(plan.omitted.iter().map(|o| o.id.clone()))
+        .collect();
+    plan.omitted.extend(
+        selection
+            .aliases
+            .iter()
+            .filter(|o| ids.insert(o.id.clone()))
+            .cloned(),
+    );
     plan.hole_tables = schedules;
     for mark in &mut marks {
         let ink = crate::dims::label_ink(std::slice::from_ref(&mark.tag), crate::dims::font());

@@ -61,6 +61,16 @@
             "authored"
           ]
         },
+        "pmi": {
+          "enum": [
+            "strict",
+            "first",
+            "ignore"
+          ]
+        },
+        "origin": {
+          "$ref": "#/A"
+        },
         "hole_table": {
           "enum": [
             "auto",

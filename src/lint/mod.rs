@@ -63,6 +63,7 @@ pub mod gussets;
 pub mod hole_patterns;
 pub mod holes;
 pub mod leaders;
+pub mod location;
 pub(crate) mod notch_evidence;
 mod notches;
 pub(crate) mod oriented_chamfers;
@@ -221,6 +222,7 @@ pub fn marks(drawing: &Drawing) -> Vec<Mark> {
 /// [`crate::api::review`] does.
 pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
     let mut marks = marks(drawing);
+    location::drawn_constraints(analysis, drawing, &mut marks);
     let sites: std::collections::BTreeMap<_, _> = crate::bridge::holes::read(analysis)
         .into_iter()
         .filter_map(|(f, h)| Some((f.id.as_str(), h.ok()?.at)))
@@ -229,6 +231,14 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
         let Some(origin) = a.coordinate_origin else {
             continue;
         };
+        if drawing
+            .sheet
+            .items
+            .iter()
+            .any(|item| item.name == a.name && item.kind == crate::output::Kind::Dimension)
+        {
+            continue;
+        }
         // Verify the printed cell in its own datum frame before translating its evidence into
         // the envelope frame used by the existing hole/pattern coverage checks.
         let proof = mark.claims.first().and_then(|c| {
@@ -477,7 +487,8 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         .cloned()
         .collect();
     let printed = &verified;
-    let (extra, scheme_issues) = schemes::evidence(analysis, printed);
+    let (mut extra, scheme_issues) = schemes::evidence(analysis, printed);
+    extra.extend(location::evidence(analysis, printed));
     let expanded;
     let marks = if extra.is_empty() {
         printed
@@ -489,7 +500,9 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(scheme_issues);
     issues.extend(authored::check(analysis, marks));
     issues.extend(bosses::coverage(analysis, marks));
-    issues.extend(coverage::located(analysis, marks));
+    if !location::active(analysis, printed) {
+        issues.extend(coverage::located(analysis, marks));
+    }
     issues.extend(coverage::schedule_entries(analysis, marks));
     issues.extend(prismatic::coverage(analysis, marks));
     issues.extend(pads::coverage(analysis, marks));
@@ -528,6 +541,12 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(pmi_coverage::coverage(analysis, marks));
     issues.extend(redundancy::coverage(analysis, printed));
     issues.extend(redundancy::references(analysis, printed));
+    if location::active(analysis, printed) {
+        issues.extend(location::coverage(analysis, printed));
+    }
+    if matches!(&analysis.pmi, Some(crate::pmi::Reading::Read(r)) if !r.records.is_empty()) {
+        issues.extend(location::sizes(analysis, printed));
+    }
     issues
 }
 

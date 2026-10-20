@@ -113,7 +113,17 @@ fn applying_both_proposed_fixes_keeps_the_stack_apart_and_text_on_its_lines() {
             .collect()
     };
     let lint_before = errors(&s);
+    let mut replay = s.state().clone();
     let delta = s.apply(&ops, true).unwrap();
+    // #126 alternatives can change with the selected paper without changing a
+    // finding. Their PlanDelta metadata must still replay exactly over the wire.
+    let wire: draftwright::session::Delta =
+        serde_json::from_slice(&serde_json::to_vec(&delta).unwrap()).unwrap();
+    wire.apply_to(&mut replay).unwrap();
+    assert_eq!(
+        serde_json::to_value(&replay).unwrap(),
+        serde_json::to_value(s.state()).unwrap()
+    );
 
     // The datum-B crossings are gone, and nothing hard is added in their place.
     assert!(b_crossings(&s).0.is_empty());

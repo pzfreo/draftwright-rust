@@ -116,12 +116,7 @@ pub(crate) fn retain(analysis: &Analysis, spec: &Spec, current: &Plan) -> Option
         return None;
     }
 
-    let key = serde_json::to_vec(&(
-        spec.hole_table,
-        &spec.sheet.projection,
-        spec.sheet.references,
-    ))
-    .ok()?;
+    let key = crate::model::established_key(spec);
     let before = crate::planning::lookup::<Result<Plan, crate::model::Invalid>>(
         analysis,
         "established-drawing",
@@ -393,6 +388,11 @@ pub(crate) fn retain(analysis: &Analysis, spec: &Spec, current: &Plan) -> Option
             d.default = original.default;
             d.from_spec = original.from_spec.clone();
             d.basis = original.basis.clone();
+            // A retention pin changes placement, while the unchanged statement keeps the
+            // physically proven aliases acquired during precedence/consolidation.
+            if d.kind == original.kind && d.value == original.value && d.terms == original.terms {
+                d.measurements.clone_from(&original.measurements);
+            }
         }
     }
     if !claims(&current.dimensions).is_subset(&claims(&dims)) {

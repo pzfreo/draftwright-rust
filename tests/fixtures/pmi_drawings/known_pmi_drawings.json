@@ -4708,12 +4708,13 @@
   },
   "rust": {
    "codes": [
+    "datum_origin_unusable",
     "pmi_not_lowered"
    ],
    "outcome": "refused"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: 'K' (datum ref, side view); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_lowering.json (lowered, rust-correct): The datum is established by datum targets, which draftwright drops, drawing a datum feature symbol on the face instead; the port reports it (pmi_not_lowered: established by 2 datum target(s), which are not carried.), as the brief asks for datum targets."
+  "evidence": "draftwright's drawing: 'K' (datum ref, side view); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_lowering.json (lowered, rust-correct): The datum is established by datum targets, which draftwright drops, drawing a datum feature symbol on the face instead; the port reports it (pmi_not_lowered: established by 2 datum target(s), which are not carried.), as the brief asks for datum targets. Issue 122 also reports that this non-planar/oblique datum cannot supply a principal planar dimension origin; the origin fallback is informational."
  },
  {
   "file": "nist_ftc_10_asme1_ap242-e2.stp",
@@ -4733,12 +4734,13 @@
   },
   "rust": {
    "codes": [
+    "datum_origin_unusable",
     "pmi_not_lowered"
    ],
    "outcome": "refused"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: 'L' (datum ref, side view); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_lowering.json (lowered, rust-correct): The datum is established by datum targets, which draftwright drops, drawing a datum feature symbol on the face instead; the port reports it (pmi_not_lowered: established by 2 datum target(s), which are not carried.), as the brief asks for datum targets."
+  "evidence": "draftwright's drawing: 'L' (datum ref, side view); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_lowering.json (lowered, rust-correct): The datum is established by datum targets, which draftwright drops, drawing a datum feature symbol on the face instead; the port reports it (pmi_not_lowered: established by 2 datum target(s), which are not carried.), as the brief asks for datum targets. Issue 122 also reports that this non-planar/oblique datum cannot supply a principal planar dimension origin; the origin fallback is informational."
  },
  {
   "file": "nist_ftc_10_asme1_ap242-e2.stp",

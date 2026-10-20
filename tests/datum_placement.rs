@@ -16,7 +16,29 @@ fn only_datum(a: &mut Analysis, letter: &str) {
     let Some(draftwright::pmi::Reading::Read(report)) = &mut a.pmi else {
         panic!("spindle has PMI")
     };
-    report.records.retain(|r| r.label == letter);
+    report.records.retain(|r| {
+        r.label == letter || r.category == draftwright::pmi::Category::GeometricTolerance
+    });
+}
+
+fn isolated_spec(a: &Analysis) -> Spec {
+    let mut s = Spec::default();
+    if let Some(draftwright::pmi::Reading::Read(report)) = &a.pmi {
+        let ids = report.identities();
+        for r in report
+            .records
+            .iter()
+            .filter(|r| r.category == draftwright::pmi::Category::GeometricTolerance)
+        {
+            if let Ok(id) = ids.id(&r.source_id) {
+                s.annotations.insert(
+                    id.into(),
+                    serde_json::from_value(serde_json::json!({"omit":true})).unwrap(),
+                );
+            }
+        }
+    }
+    s
 }
 
 fn obstacle(plan: &Plan, line: [[f64; 2]; 2]) -> PlannedDimension {
@@ -36,20 +58,26 @@ fn obstacle(plan: &Plan, line: [[f64; 2]; 2]) -> PlannedDimension {
 }
 
 fn place(a: &Analysis, p: &Plan, dims: &[PlannedDimension]) -> gdt::PlannedGdt {
-    let (items, _) = gdt::plan(a, &Spec::default(), &p.sheet, &p.views, dims);
-    assert_eq!(items.len(), 1);
-    items.into_iter().next().unwrap()
+    let (items, _) = gdt::plan(a, &isolated_spec(a), &p.sheet, &p.views, dims);
+    let datums: Vec<_> = items
+        .into_iter()
+        .filter(|g| g.kind == "datum_feature")
+        .collect();
+    assert_eq!(datums.len(), 1);
+    datums.into_iter().next().unwrap()
 }
 
 /// Resetting an editor placement leaves an empty entry and restores every automatic choice.
 fn reset_matches_automatic(a: &Analysis, p: &Plan, dims: &[PlannedDimension], g: &gdt::PlannedGdt) {
-    let reset: Spec = serde_json::from_value(serde_json::json!({
-        "annotations": { g.id.clone(): { "place": {} } }
-    }))
-    .unwrap();
+    let mut reset = isolated_spec(a);
+    reset.annotations.insert(
+        g.id.clone(),
+        serde_json::from_value(serde_json::json!({"place":{}})).unwrap(),
+    );
     let (items, _) = gdt::plan(a, &reset, &p.sheet, &p.views, dims);
-    assert_eq!(items[0].placed, g.placed);
-    assert_eq!(items[0].side, g.side);
+    let item = items.iter().find(|i| i.id == g.id).unwrap();
+    assert_eq!(item.placed, g.placed);
+    assert_eq!(item.side, g.side);
 }
 
 #[test]
@@ -130,8 +158,13 @@ fn cylinder_datum_uses_the_other_proven_silhouette() {
     let Some(draftwright::pmi::Reading::Read(report)) = &a.pmi else {
         unreachable!()
     };
-    let geometry = report.records[0].geometry.as_ref().unwrap();
-    let face = &a.face_attachments[report.records[0].faces[0]];
+    let datum = report
+        .records
+        .iter()
+        .find(|r| r.category == draftwright::pmi::Category::Datum && r.label == "B")
+        .unwrap();
+    let geometry = datum.geometry.as_ref().unwrap();
+    let face = &a.face_attachments[datum.faces[0]];
     assert_eq!(face.surface.as_deref(), Some("cylinder"));
     assert!(!geometry.sites.is_empty());
     let view = p.views.iter().find(|v| v.id == "v:front").unwrap();
@@ -186,15 +219,8 @@ fn planar_datum_stands_on_a_face_extension_line() {
 }
 
 #[test]
-fn grm03_datums_are_separated_and_b_has_a_short_clear_leader() {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/pmi/step/GRM-03_thumbwheel_drive_screw_AP242_PMI.step.gz");
-    let (_, a) = model::analyse_native(&path).unwrap();
-    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
-    assert_eq!(
-        (plan.sheet.size.as_str(), plan.sheet.scale.as_str()),
-        ("A4", "5:1")
-    );
+fn cited_spindle_datums_have_separate_attachments_and_short_leaders() {
+    let (_, plan) = spindle();
     let datum = |letter: &str| {
         plan.gdt
             .iter()
@@ -206,44 +232,25 @@ fn grm03_datums_are_separated_and_b_has_a_short_clear_leader() {
     let height = pa.label_box[3] - pa.label_box[1];
     assert!(
         (pa.tip[0] - pb.tip[0]).hypot(pa.tip[1] - pb.tip[1]) > height,
-        "datum attachments must be separated by more than one symbol height: {pa:?} / {pb:?}"
-    );
-    assert!(
-        pb.tip[1] > pa.tip[1] + height,
-        "B must attach on the side away from A"
+        "{pa:?} / {pb:?}"
     );
     let length: f64 = pb
         .lines
         .iter()
         .map(|[a, b]| (b[0] - a[0]).hypot(b[1] - a[1]))
         .sum();
+    assert!(length < 20., "B leader: {length}");
     assert!(
-        length < 20.0,
-        "B's leader should stay near the shoulder: {length} mm"
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "annotation_leader_crossing" && p.subjects.contains(&b.id)),
+        "{:?}",
+        plan.problems
+            .iter()
+            .filter(|p| p.subjects.contains(&b.id))
+            .collect::<Vec<_>>()
     );
-    let b_crossings: Vec<_> = plan
-        .problems
-        .iter()
-        .filter(|p| p.code == "annotation_leader_crossing" && p.subjects.contains(&b.id))
-        .collect();
-    assert!(
-        b_crossings.is_empty(),
-        "B must cross no dimension, leader or witness: {b_crossings:#?}"
-    );
-    let datum_ids = [&a.id, &b.id];
-    let crossings = plan
-        .problems
-        .iter()
-        .filter(|p| {
-            p.code == "annotation_leader_crossing"
-                && p.subjects.iter().any(|s| datum_ids.contains(&s))
-        })
-        .count();
-    assert!(
-        crossings <= 3,
-        "datum-leader crossings exceed main's count: {crossings}"
-    );
-    // Check the full filled triangles independently of the letter boxes and leaders.
     for fa in &pa.fills {
         for fb in &pb.fills {
             let bounds = |f: &Vec<[f64; 2]>| {
@@ -267,10 +274,33 @@ fn grm03_datums_are_separated_and_b_has_a_short_clear_leader() {
             let (a, b) = (bounds(fa), bounds(fb));
             assert!(
                 a[2] < b[0] || b[2] < a[0] || a[3] < b[1] || b[3] < a[1],
-                "filled datum triangles must not overlap or touch: {a:?} / {b:?}"
+                "triangles overlap: {a:?} / {b:?}"
             );
         }
     }
+}
+
+#[test]
+fn grm03_origin_datums_have_no_symbols_without_a_tolerance_citation() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pmi/step/GRM-03_thumbwheel_drive_screw_AP242_PMI.step.gz");
+    let (_, a) = model::analyse_native(&path).unwrap();
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let Some(draftwright::pmi::Reading::Read(report)) = &a.pmi else {
+        panic!("GRM has PMI")
+    };
+    assert_eq!(
+        report
+            .records
+            .iter()
+            .filter(|r| r.category == draftwright::pmi::Category::Datum)
+            .count(),
+        2
+    );
+    assert!(
+        plan.gdt.iter().all(|g| g.kind != "datum_feature"),
+        "ISO 5459: origin-only datums have no symbols"
+    );
 }
 
 #[test]

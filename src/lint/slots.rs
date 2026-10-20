@@ -119,7 +119,7 @@ pub fn wanted(analysis: &Analysis) -> Vec<Wanted<'_>> {
 
 /// A slot record's centre in quiddity's frame (its `Slot.location`): mid-span along its long
 /// axis, on its centre line across, mid-depth.
-fn centre(f: &Feature) -> Result<[f64; 3], String> {
+pub(crate) fn centre(f: &Feature) -> Result<[f64; 3], String> {
     let axis = |k: &str| {
         f.parameters
             .get(k)

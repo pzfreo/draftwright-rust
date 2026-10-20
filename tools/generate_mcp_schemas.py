@@ -338,7 +338,8 @@ Path('schemas/mcp-validation.json').write_text(json.dumps(validation, indent=2) 
 # View-gap descriptions are in the on-demand Spec only and add zero tools/list bytes.
 # projection alignment and its description live in the on-demand Spec: +0 advertised bytes.
 # callouts/style: +0 tools/list bytes (nested on-demand Spec vocabulary only).
-# Scoped alternatives and operation/path scopes add 1,916 advertised bytes.
-SCHEMA_BUDGET = 36393
+# Scoped alternatives and operation/path scopes add 1,916 advertised bytes;
+# PMI policy and the shallow origin object add 804.
+SCHEMA_BUDGET = 37197
 assert total <= SCHEMA_BUDGET, f'schemas: {total} bytes (budget {SCHEMA_BUDGET})'
 print(f'{len(tools)} tools; {total} compact schema bytes')

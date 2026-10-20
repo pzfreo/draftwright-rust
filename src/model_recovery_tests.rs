@@ -139,12 +139,30 @@ fn new_recess_locations_clear_established_pmi_ink() {
                 })
                 .collect()
         };
+        let non_locations = |p: &Plan| {
+            carried(p)
+                .into_iter()
+                .filter(|(_, role)| !role.starts_with("location.length."))
+                .collect::<BTreeSet<_>>()
+        };
+        let missing = |p: &Plan| {
+            let mut p = p.clone();
+            crate::dims::pmi_policy::audit(&a, &p.spec.clone(), &mut p);
+            p.problems
+                .into_iter()
+                .filter(|p| p.code == "feature_not_located")
+                .map(|p| p.id)
+                .collect::<BTreeSet<_>>()
+        };
+
         let original = hard(&before);
         let actual = hard(&trial);
-        assert!(
-            carried(&before).is_subset(&carried(&trial)),
-            "existing measurements lost"
-        );
+        assert!(non_locations(&before).is_subset(&non_locations(&trial)));
+        let lost: Vec<_> = missing(&trial)
+            .difference(&missing(&before))
+            .cloned()
+            .collect();
+        assert!(lost.is_empty(), "existing rooted locations lost: {lost:?}");
         let new: Vec<_> = actual.difference(&original).collect();
         assert!(
             new.is_empty(),
@@ -159,12 +177,17 @@ fn new_recess_locations_clear_established_pmi_ink() {
                 .collect::<Vec<_>>()
         );
         let auto = plan_escalated_with(&a, &Spec::default(), false, None, false).unwrap();
+        assert!(non_locations(&auto).is_subset(&non_locations(&trial)));
+        // A schedule can name individual coordinates where the other presentation
+        // uses a retained pattern chain. Compare their actual rooted ink, rather
+        // than requiring identical location-claim spellings in both presentations.
+        let lost: Vec<_> = missing(&trial)
+            .difference(&missing(&auto))
+            .cloned()
+            .collect();
         assert!(
-            carried(&auto).is_subset(&carried(&trial)),
-            "reduction loses {:?}",
-            carried(&auto)
-                .difference(&carried(&trial))
-                .collect::<Vec<_>>()
+            lost.is_empty(),
+            "reduction loses rooted locations: {lost:?}"
         );
     });
 }

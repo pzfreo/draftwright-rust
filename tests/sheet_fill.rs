@@ -156,6 +156,13 @@ fn specify_plate_pmi_fits_a3_at_full_size_with_every_frame_clear() {
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
         ("A3", "1:1")
     );
+    // #127's fixed-size source note must remain drawn, without rewarding a
+    // compact 1:5 diagram after PMI covers the generated dimensions.
+    assert!(
+        p.notes.iter().any(|n| {
+            n.id == "pmi:manufacturing_requirement.edge_condition" && n.placed.is_some()
+        })
+    );
     assert_eq!(p.gdt.len(), 6);
     assert!(p.gdt.iter().all(|g| g.placed.is_some()));
     assert!(!p.problems.iter().any(|p| matches!(
@@ -658,4 +665,23 @@ fn step_legibility_uses_the_owning_view_and_keeps_baseline_intervals() {
     p.dimensions[0].measurements[0].parameter = "step_position.length".into();
     p.views.last_mut().unwrap().scale = 0.1;
     assert_eq!(draftwright::sheet_fit::illegible_steps(&a, &p), 1);
+}
+
+/// A source note cannot induce compaction when the geometry floor already rules
+/// out reductions. Keep the established enlargement and reuse its clean A4 plan.
+#[test]
+fn pmi_bolt_reuses_its_readable_a4_baseline() {
+    let (_, a) = model::analyse_native(
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/pmi/step/bolt_thread_knurl.step.gz"),
+    )
+    .unwrap();
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
+        ("A4", "2:1")
+    );
+    assert_eq!(p.sheet_candidates.len(), 1);
+    assert_eq!(p.sheet_candidates[0].outcome, "automatic baseline reused");
+    assert!(p.gdt.iter().all(|g| g.placed.is_some()));
 }

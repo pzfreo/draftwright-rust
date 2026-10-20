@@ -208,6 +208,10 @@ fn the_reservation_stacks_overlapping_items_in_tiers_beyond_the_dimensions() {
 fn stc09_without_a_complete_fit_keeps_its_first_drawing_and_reports_the_floor() {
     let a = analysed("nist_stc_09_asme1_ap242-e4");
     let first = model::plan_escalated(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        (first.sheet.size.as_str(), first.sheet.scale.as_str()),
+        ("A1", "1:5")
+    );
     let p = cache::default_plan(&a, true);
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),

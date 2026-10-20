@@ -86,6 +86,7 @@ mod pads;
 mod placement;
 mod plates;
 mod pmi_dimensions;
+pub(crate) mod pmi_policy;
 pub mod precision;
 mod profiled_bores;
 mod recesses;
@@ -584,8 +585,9 @@ fn wants(
     Vec<Problem>,
     BTreeMap<String, pmi_dimensions::Note>,
 ) {
-    let mut result =
-        crate::planning::memo(analysis, "wants", Vec::new(), || wants_uncached(analysis));
+    let mut result = crate::planning::memo(analysis, "wants", Vec::new(), || {
+        wants_uncached(analysis, &Spec::default())
+    });
     bosses::prefer_established(analysis, &mut result.0);
     result
 }
@@ -670,6 +672,7 @@ fn has_recess_dimensions_uncached(analysis: &Analysis) -> bool {
 
 fn wants_uncached(
     analysis: &Analysis,
+    spec: &Spec,
 ) -> (
     Vec<Want>,
     Vec<Problem>,
@@ -732,8 +735,17 @@ fn wants_uncached(
             .into_iter()
             .filter(|p| !p.subjects.iter().any(|s| stated.contains(s))),
     );
+    problems.extend(pmi_policy::origins(analysis, spec, &mut out));
+    if pmi_policy::carries(analysis) || !spec.origin.is_empty() {
+        out.retain(|w| !pmi_policy::on_origin(w));
+    }
     // The part's PMI dimensions: on the model's items that state them, or their own.
-    let (own, more, notes) = pmi_dimensions::lower(&cx, &mut out);
+    let (own, more, notes) = if pmi_policy::strict(analysis, spec) {
+        pmi_policy::strict_callouts(analysis, &mut out);
+        pmi_dimensions::lower(&cx, &mut [])
+    } else {
+        pmi_dimensions::lower(&cx, &mut out)
+    };
     out.extend(own);
     problems.extend(more);
     (out, problems, notes)
@@ -1151,7 +1163,7 @@ pub(crate) fn reduction_preserves_requirements(
     kept: &[&str],
     excluded: &BTreeSet<String>,
 ) -> bool {
-    let (wants, _, _) = wants(analysis);
+    let (wants, _, _) = pmi_policy::wants(analysis, spec);
     wants
         .iter()
         .filter(|w| {
@@ -1181,10 +1193,11 @@ pub(crate) fn callout_bands(
     }) {
         return Ok(Vec::new());
     }
-    let (mut wants, ..) = wants(analysis);
+    let (mut wants, ..) = pmi_policy::wants(analysis, spec);
     callouts::apply(analysis, spec, &mut wants);
     let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
     authored::append(analysis, spec, &mut wants)?;
+
     if !scheme_covered.is_empty() {
         wants.retain(|w| !scheme_covered.contains_key(&w.id));
     }
@@ -1290,10 +1303,11 @@ fn lanes_uncached(
     spec: &Spec,
     callout_columns: bool,
 ) -> Result<(crate::layout::Lanes, Vec<AlignedDemand>), Invalid> {
-    let (mut wants, mut problems, notes) = wants(analysis);
+    let (mut wants, mut problems, notes) = pmi_policy::wants(analysis, spec);
     callouts::apply(analysis, spec, &mut wants);
     let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
     authored::append(analysis, spec, &mut wants)?;
+
     if scheme_covered.is_empty() {
         wants.retain(|w| !excluded.contains(&w.id));
     } else {
@@ -1655,7 +1669,7 @@ pub(crate) fn reserve_linear_intent(
     }) {
         return Ok(());
     }
-    let (mut wants, _, _) = wants(analysis);
+    let (mut wants, _, _) = pmi_policy::wants(analysis, spec);
     callouts::apply(analysis, spec, &mut wants);
     let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
     if !spec.dimension_schemes.is_empty() {
@@ -2267,10 +2281,11 @@ fn plan_inventory_ordered(
     excluded: &BTreeSet<String>,
     stage: u8,
 ) -> Result<(Planned, Vec<PlannedDimension>), Invalid> {
-    let (mut wants, mut problems, notes) = wants(analysis);
+    let (mut wants, mut problems, notes) = pmi_policy::wants(analysis, spec);
     callouts::apply(analysis, spec, &mut wants);
     let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
     authored::append(analysis, spec, &mut wants)?;
+
     let retired: Vec<_> = if scheme_covered.is_empty() {
         Vec::new()
     } else {
@@ -2451,6 +2466,18 @@ fn plan_inventory_ordered(
     problems.extend(set_problems);
     for ((w, view), along) in wants.into_iter().zip(chosen.iter().copied()).zip(end_on) {
         let entry = spec.dimensions.get(&w.id);
+        if pmi_policy::strict(analysis, spec)
+            && !pmi_policy::authored(&w)
+            && !(spec.dimension_source == DimensionSource::Authored && entry.is_some())
+        {
+            omitted.push(Omitted {
+                id: w.id,
+                label: crate::callouts::label(&w.terms),
+                basis: "authored: the strict PMI set withholds generated dimensions".into(),
+                state: State::NotAuthored,
+            });
+            continue;
+        }
         if let Some(basis) = with_set.get(&w.id) {
             match spec.dimension_source {
                 DimensionSource::Auto => omitted.push(Omitted {
@@ -2470,7 +2497,7 @@ fn plan_inventory_ordered(
                 basis: "authored: the spec omits it".into(),
                 state: State::OmittedByUser,
             }),
-            DimensionSource::Authored if entry.is_none() => {
+            DimensionSource::Authored if entry.is_none() && !pmi_policy::authored(&w) => {
                 if let Some(by) = authored_ownership.covered.get(&w.id) {
                     omitted.push(Omitted {
                         label: crate::callouts::label(&w.terms), id: w.id,
@@ -3834,17 +3861,7 @@ fn share_statements(
     });
 }
 
-/// One span, one dimension, for the part's PMI linear dimensions: a kept PMI linear dimension
-/// across the same span as another (the same view and axis, raw ends within 1e-6 mm) conveys it.
-/// - Two PMI dimensions with the same label (basic or not, band included) are drawn once: a
-///   model that states each hole's basic location states the same span once per hole in a row or
-///   column. The survivor is the smaller ID and claims every member's measurement.
-/// - A default dimension with nothing from the spec (no tolerance or fit) and the same value
-///   gives way to the PMI one, which is source-authored and carries the requirement; the PMI
-///   dimension claims its measurement.
-///
-/// Each one that gives way moves to *omitted*, `conveyed by` the survivor. *given* stays aligned
-/// with *kept*.
+/// PMI precedence is a rooted location network, shared with the drawn-set check.
 fn share_pmi(
     analysis: &Analysis,
     kept: &mut Vec<(Want, bool, Option<&'static str>, Vec<&'static str>)>,
@@ -3852,6 +3869,7 @@ fn share_pmi(
     omitted: &mut Vec<Omitted>,
 ) {
     notches::share_pmi(analysis, kept, given, omitted);
+    pmi_policy::cover(analysis, kept, given, omitted);
     const SAME_SPAN: f64 = 1e-6;
     let pmi = |w: &Want| {
         w.measurements
@@ -3893,7 +3911,7 @@ fn share_pmi(
             if !same {
                 continue;
             }
-            let (w, default, ..) = &kept[i];
+            let (w, ..) = &kept[i];
             let how = if pmi(w) {
                 if w.terms != kept[p].0.terms
                     || pmi_dimensions::basic(&w.measurements)
@@ -3902,11 +3920,6 @@ fn share_pmi(
                     continue;
                 }
                 "the part's PMI states the same span again"
-            } else if *default
-                && given[i].is_empty()
-                && (w.value - kept[p].0.value).abs() <= SAME_SPAN
-            {
-                "a default dimension gives way to the part's PMI dimension of the same span"
             } else {
                 continue;
             };
@@ -4115,7 +4128,7 @@ pub(crate) fn placement_options_with_spec(
     views: &[PlannedView],
     spec: &Spec,
 ) -> BTreeMap<String, Value> {
-    let (mut wants, ..) = wants(analysis);
+    let (mut wants, ..) = pmi_policy::wants(analysis, spec);
     callouts::apply(analysis, spec, &mut wants);
     if schemes::apply(analysis, spec, &mut wants).is_err()
         || authored::append(analysis, spec, &mut wants).is_err()

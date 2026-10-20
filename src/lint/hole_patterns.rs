@@ -165,7 +165,11 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         // Stream K6 (ADR4-U1): a pitch along an axis on which every member is also located
         // states a separation the locations already fix: over-dimensioning that is neither
         // identical nor coincident. Each such pitch is reported, naming its marks.
-        if member_spacing {
+        if member_spacing
+            && !marks
+                .iter()
+                .any(|m| m.name.starts_with("location_network:"))
+        {
             for (position, k) in [u, v].into_iter().enumerate() {
                 let along = if position == 0 { &cols } else { &rows };
                 if along.len() < 2 || !member_locations.iter().all(|axes| axes[position]) {
