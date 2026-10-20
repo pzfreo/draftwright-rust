@@ -336,8 +336,11 @@ pub fn fill(analysis: &Analysis, plan: &Plan) -> f64 {
 /// dimensions, counting this furniture as diagram fill can favour tiny geometry on
 /// smaller paper. Keep the full footprint for fitting and reported fill, but compare
 /// the dimensioned drawing itself when choosing between valid PMI/GD&T candidates.
-pub(crate) fn selection_fill(analysis: &Analysis, plan: &Plan) -> f64 {
-    if !plan.gdt.is_empty()
+/// Enlargement-only searches keep their established ranking: fixed notes cannot
+/// induce a scale reduction there.
+pub(crate) fn selection_fill(analysis: &Analysis, plan: &Plan, compaction_possible: bool) -> f64 {
+    if compaction_possible
+        && !plan.gdt.is_empty()
         && !plan.notes.is_empty()
         && plan.notes.iter().all(|n| n.id.starts_with("pmi:"))
         && crate::dims::pmi_policy::carries(analysis)

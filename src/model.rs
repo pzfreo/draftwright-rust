@@ -2621,6 +2621,7 @@ fn recover_candidates(
     // A comparison below the live readability floor cannot cap the search:
     // doing so removes every scale, rather than preserving an old corridor.
     // The existing crossing and leader budgets still constrain each candidate.
+    let compare_diagram_fill = min_legible_scale + 1e-9 < first.sheet.scale_factor;
     let established_scale = established_scale.filter(|cap| {
         *cap >= min_legible_scale
             && established_plan
@@ -3001,7 +3002,8 @@ fn recover_candidates(
                 } else {
                     said(f, drops(&p))
                 };
-                let selection_fill = crate::sheet_fit::selection_fill(analysis, &p);
+                let selection_fill =
+                    crate::sheet_fit::selection_fill(analysis, &p, compare_diagram_fill);
                 tried.push(format!(
                     "{name} {} fill {:.1}% ({}, {over} additional view conflicts, {crossings} additional material crossings, {} annotation conflicts, {unreadable_steps} unreadable step spans, {})",
                     p.sheet.scale,
@@ -3265,7 +3267,9 @@ fn recover_candidates(
         FILL_BAND[1] * 100.0,
         tried.join("; ")
     );
-    if crate::sheet_fit::selection_fill(analysis, &chosen) != chosen.sheet.fill {
+    if crate::sheet_fit::selection_fill(analysis, &chosen, compare_diagram_fill)
+        != chosen.sheet.fill
+    {
         chosen.sheet.basis += "; candidate scores omit source-only notes; the notes remain drawn and sheet.fill measures all ink";
     }
     if retained.is_some() {
@@ -3451,7 +3455,12 @@ fn plan_automatic_uncached(analysis: &Analysis, spec: &Spec) -> Result<Plan, Inv
             }
         }
     }
-    crate::fixes::attach(analysis, &mut plan);
+    // PMI completeness belongs to the selected drawing. Attach its remedies once,
+    // after that audit in plan_recovered_inner, rather than hashing and enriching
+    // every automatic candidate and then repeating the work on the public plan.
+    if !crate::dims::pmi_policy::carries(analysis) && spec.origin.is_empty() {
+        crate::fixes::attach(analysis, &mut plan);
+    }
     Ok(plan)
 }
 
