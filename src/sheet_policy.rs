@@ -1288,7 +1288,11 @@ mod tests {
     fn assert_passthrough(value: serde_json::Value) {
         let a = fixture();
         let s: Spec = serde_json::from_value(value).unwrap();
-        let b = model::plan_automatic(&a, &s).unwrap();
+        let mut b = model::plan_automatic(&a, &s).unwrap();
+        // Public planning attaches retained-layout constraints after paper selection.
+        // Compare the complete plans after the same offer finalization, preserving
+        // the passthrough check for every drawing field and all remedy metadata.
+        crate::fixes::retain_local_layout(&mut b);
         let p = model::plan_recovered(&a, &s).unwrap();
         assert!(p.sheet_candidates.is_empty());
         assert_eq!(
@@ -1305,6 +1309,36 @@ mod tests {
     #[test]
     fn explicit_scale_is_passed_through() {
         assert_passthrough(json!({"sheet":{"scale":"1:2"}}));
+    }
+
+    #[test]
+    fn kept_layout_wins_over_the_automatic_cap_and_cap_edits() {
+        let a = fixture();
+        let spec: Spec = serde_json::from_value(json!({
+            "sheet":{"size":"A2","scale":"1:1","keep_layout":true},
+            "sheets":{"max":1}
+        }))
+        .unwrap();
+        for spec in [
+            spec.clone(),
+            model::edit(
+                &spec,
+                &json!([
+                    {"op":"set","path":"sheet/max_size","value":"A4"}
+                ]),
+            )
+            .unwrap(),
+        ] {
+            assert_eq!(spec.sheet.keep_layout, Some(true));
+            let plan = model::plan_recovered(&a, &spec).unwrap();
+            assert_eq!(
+                (plan.sheet.size.as_str(), plan.sheet.scale.as_str()),
+                ("A2", "1:1")
+            );
+            assert!(plan.sheets.is_empty());
+            assert!(plan.sheet_candidates.is_empty());
+            assert!(!plan.problems.iter().any(|p| p.code == "sheet_size_capped"));
+        }
     }
 
     #[test]

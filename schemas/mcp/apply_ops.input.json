@@ -121,7 +121,37 @@
     "ops": {
       "type": "array",
       "items": {
-        "$ref": "#/op"
+        "anyOf": [
+          {
+            "properties": {
+              "op": {
+                "enum": [
+                  "set",
+                  "add"
+                ]
+              },
+              "path": {
+                "type": "string"
+              },
+              "value": {}
+            },
+            "additionalProperties": false,
+            "minProperties": 3
+          },
+          {
+            "properties": {
+              "op": {
+                "const": "remove"
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "minProperties": 2
+          }
+        ],
+        "type": "object"
       },
       "maxItems": 32
     },
@@ -135,39 +165,6 @@
     "parent"
   ],
   "additionalProperties": false,
-  "op": {
-    "anyOf": [
-      {
-        "properties": {
-          "op": {
-            "enum": [
-              "set",
-              "add"
-            ]
-          },
-          "path": {
-            "type": "string"
-          },
-          "value": {}
-        },
-        "additionalProperties": false,
-        "minProperties": 3
-      },
-      {
-        "properties": {
-          "op": {
-            "const": "remove"
-          },
-          "path": {
-            "type": "string"
-          }
-        },
-        "additionalProperties": false,
-        "minProperties": 2
-      }
-    ],
-    "type": "object"
-  },
   "A": {
     "type": "object"
   }

@@ -3,6 +3,9 @@
 #[path = "common/corpus.rs"]
 mod corpus;
 
+#[path = "common/local_fix.rs"]
+mod local_fix;
+
 use draftwright::model::{self, Plan, Spec};
 use serde_json::json;
 use std::path::Path;
@@ -211,9 +214,68 @@ fn underside_cavity_containment_is_not_a_crossing_and_extensions_are_report_only
             "dimensions/{}/place",
             draftwright::items::key(&problem.subjects[0])
         );
-        for fix in problem.offered_fixes() {
-            assert_eq!(fix.scope(), draftwright::fixes::Scope::Local);
-            assert!(fix.ops.iter().all(|op| op.path == path));
+        let fixes = problem.offered_fixes();
+        if fixes.is_empty() {
+            continue;
+        }
+        let owner = plan
+            .dimensions
+            .iter()
+            .find(|d| d.id == problem.subjects[0])
+            .unwrap();
+        for fix in fixes {
+            let new_view = fix
+                .ops
+                .iter()
+                .find(|op| op.path == path)
+                .and_then(|op| op.value.as_ref())
+                .and_then(|v| v["view"].as_str())
+                .map(|v| format!("v:{v}"));
+            let table_carrier = plan.radius_table.as_ref().is_some_and(|table| {
+                table
+                    .rows
+                    .iter()
+                    .any(|r| r.view == owner.view || new_view.as_ref() == Some(&r.view))
+            });
+            assert_eq!(
+                fix.scope(),
+                if table_carrier {
+                    draftwright::fixes::Scope::Sheet
+                } else {
+                    draftwright::fixes::Scope::Local
+                }
+            );
+            if table_carrier {
+                assert!(
+                    fix.description()
+                        .contains("The whole sheet is laid out again")
+                );
+                assert!(
+                    fix.ops.iter().all(|op| op.path == path),
+                    "no table remedy may override hole_table: never"
+                );
+            } else {
+                assert!(
+                    local_fix::edits(problem, &plan)
+                        .iter()
+                        .all(|op| op.path == path)
+                );
+                for (field, value) in [
+                    ("sheet/keep_layout", serde_json::json!(true)),
+                    ("sheet/size", serde_json::json!(plan.sheet.size)),
+                    ("sheet/scale", serde_json::json!(plan.sheet.scale)),
+                    ("sheets/max", serde_json::json!(1)),
+                ] {
+                    let ops: Vec<_> = fix.ops.iter().filter(|op| op.path == field).collect();
+                    assert_eq!(ops.len(), 1);
+                    assert_eq!(ops[0].value, Some(value));
+                }
+                assert!(
+                    fix.ops
+                        .iter()
+                        .all(|op| op.path == path || local_fix::constraint(op))
+                );
+            }
         }
     }
 }

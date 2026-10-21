@@ -5,6 +5,9 @@
 //! origin/main 586628b) for the same tolerances and fits declared through its `Sheet` API on the
 //! same corpus parts; each difference has a verdict.
 
+#[path = "common/local_fix.rs"]
+mod local_fix;
+
 #[path = "common/corpus.rs"]
 mod corpus;
 
@@ -172,7 +175,7 @@ fn ftc06_prints_the_authored_bands_as_draftwright_does() {
         nothing.message
     );
     assert_eq!(
-        serde_json::to_value(&nothing.fix).unwrap(),
+        serde_json::to_value(local_fix::edits(nothing, &plan)).unwrap(),
         serde_json::json!([{ "op": "remove", "path": "dimensions/d:envelope~1height.length/tolerance" }])
     );
     assert!(codes(&plan, "tolerance_not_shown").is_empty());

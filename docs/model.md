@@ -527,6 +527,8 @@ It names a larger clean size if cheaply checked, or says no larger paper was che
 `sheet.basis` explains the choice. Placement pins retain the unpinned drawing's
 paper, scale and allocation. Explicit `sheet/size` or `sheet/scale` takes precedence,
 including an explicitly requested size above the cap, without a cap finding.
+`sheet/keep_layout: true` retains its explicit paper, scale and count even above
+the cap. Editing only `sheet/max_size` preserves this authored layout guard.
 The removed `sheet/preferred_printer` field is refused with migration guidance:
 use `sheet/max_size: "A4"` for an A4 printer or `"A3"` for an A3 printer.
 
