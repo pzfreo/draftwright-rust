@@ -5,6 +5,9 @@
 //! draftwright's tests use a 30 × 20 × 10 box. (The PDF text layer is read back in
 //! `tests/output.rs`, which has the PDF reader.)
 
+#[path = "common/local_fix.rs"]
+mod local_fix;
+
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::OnceLock;
@@ -169,7 +172,7 @@ fn a_blank_general_tolerance_is_flagged_with_an_explicit_acknowledgement_fix() {
         assert_eq!(p.severity, "warning");
         assert_eq!(p.subjects, ["sheet"]);
         assert!(p.refs.iter().any(|r| r == "sheet/title/tolerance"));
-        assert_eq!(p.fix.len(), 1);
+        assert_eq!(local_fix::edits(p, &plan).len(), 1);
         assert_eq!(p.fix[0].op, "set");
         assert_eq!(p.fix[0].path, "sheet/title/tolerance");
         assert_eq!(p.fix[0].value, Some(json!("UNSPECIFIED")));

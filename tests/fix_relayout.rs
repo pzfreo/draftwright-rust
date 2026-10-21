@@ -104,7 +104,20 @@ fn applying_both_proposed_fixes_keeps_the_stack_apart_and_text_on_its_lines() {
         ],
         "the review sample's two crossings"
     );
-    assert_eq!(ops.len(), 2);
+    assert_eq!(ops.len(), 10); // one placement and four intent constraints per fix
+    assert_eq!(
+        (&*s.plan().sheet.size, &*s.plan().sheet.scale),
+        ("A4", "1:1")
+    );
+    let sheet_before = layout(s.plan());
+    for p in s.plan().problems.iter().filter(|p| {
+        moved.iter().any(|id| p.subjects.contains(id)) && p.code == "annotation_leader_crossing"
+    }) {
+        assert_eq!(
+            p.offered_fixes()[0].scope(),
+            draftwright::fixes::Scope::Local
+        );
+    }
     let errors = |s: &Session| -> Vec<String> {
         lint::structural::check(s.drawing())
             .into_iter()
@@ -115,6 +128,45 @@ fn applying_both_proposed_fixes_keeps_the_stack_apart_and_text_on_its_lines() {
     let lint_before = errors(&s);
     let mut replay = s.state().clone();
     let delta = s.apply(&ops, true).unwrap();
+    assert_eq!(
+        layout(s.plan())["sheets"],
+        sheet_before["sheets"],
+        "#126 keeps paper, scale and count"
+    );
+    let moved_views: Vec<_> = layout(s.plan())["views"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|v| !sheet_before["views"].as_array().unwrap().contains(v))
+        .map(|v| v[0].as_str().unwrap().to_owned())
+        .collect();
+    assert!(
+        !moved_views.is_empty(),
+        "the boolean does not store page frames"
+    );
+    let notice = delta
+        .notices
+        .iter()
+        .find(|p| p.code == "layout_replanned")
+        .unwrap();
+    for id in moved_views {
+        assert!(notice.subjects.contains(&id), "{id} is reported");
+    }
+    assert_eq!(draftwright::wording::carries_id(&notice.message), None);
+    assert!(notice.message.contains("front view"));
+    assert!(notice.message.contains("side view"));
+    for view in &s.plan().views {
+        let old = sheet_before["views"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|v| v[0] == view.id)
+            .unwrap();
+        assert_eq!(
+            serde_json::json!([view.sheet, view.scale, view.direction, view.up]),
+            serde_json::json!([old[1], old[3], old[4], old[5]])
+        );
+    }
     // #126 alternatives can change with the selected paper without changing a
     // finding. Their PlanDelta metadata must still replay exactly over the wire.
     let wire: draftwright::session::Delta =
@@ -188,7 +240,7 @@ fn applying_both_proposed_fixes_keeps_the_stack_apart_and_text_on_its_lines() {
 fn a_shared_line_left_by_an_edit_is_a_new_error() {
     let mut s = session();
     let (_, mut ops) = b_crossings(&s);
-    for op in &mut ops {
+    for op in ops.iter_mut().filter(|op| op.path.ends_with("/place")) {
         let mut v = serde_json::to_value(&*op).unwrap();
         v["value"]["pinned"] = serde_json::json!(true);
         v["value"].as_object_mut().unwrap().remove("along");
@@ -217,7 +269,8 @@ mod corpus;
 #[test]
 fn ctc01_crossings_offer_local_edits_and_identify_the_sheet_remedy() {
     let Some(root) = corpus::dir() else { return };
-    let (_, analysis) = model::analyse_native(&root.join("nist/nist_ctc_01_asme1_rd.stp")).unwrap();
+    let (part, analysis) =
+        model::analyse_native(&root.join("nist/nist_ctc_01_asme1_rd.stp")).unwrap();
     let spec =
         serde_json::from_value(serde_json::json!({"sheet":{"size":"A3","scale":"1:5"}})).unwrap();
     let plan = model::plan_recovered(&analysis, &spec).unwrap();
@@ -246,21 +299,165 @@ fn ctc01_crossings_offer_local_edits_and_identify_the_sheet_remedy() {
             .count(),
         9
     );
-    for p in crossings {
+    // Table-carrier edits cannot cheaply prove that automatic radius-centre
+    // coordinates survive; those offers must be honest sheet fixes. Only the
+    // front-view location has a verified local carrier here.
+    let mut session = Session::new(part, analysis.clone(), spec.clone()).unwrap();
+    let before_layout = layout(&plan);
+    let mut tried = Vec::new();
+    let mut applied = 0;
+    for p in &crossings {
         let fixes = p.offered_fixes();
         assert!(!fixes.is_empty(), "{}", p.id);
-        assert_eq!(
-            fixes[0].scope(),
-            draftwright::fixes::Scope::Local,
-            "{}: {fixes:?}",
-            p.id
-        );
         assert_eq!(p.fix, fixes[0].ops);
-        // Existing placement fixes validate the edit and compatible placement, with
-        // preview/apply responsible for evaluating the resulting layout.
-        model::edit(&spec, &serde_json::to_value(&fixes[0].ops).unwrap()).unwrap();
-        assert!(fixes[0].ops.iter().all(|op| op.path.starts_with("dimensions/") || op.path.starts_with("annotations/")));
+        let local = fixes
+            .iter()
+            .find(|f| f.scope() == draftwright::fixes::Scope::Local);
+        if p.subjects[0] != "d:f:hole:1/location.length.z" {
+            assert!(
+                local.is_none(),
+                "table-carrier change cannot promise retention: {p:?}"
+            );
+            assert!(
+                fixes[0]
+                    .description()
+                    .contains("The whole sheet is laid out again")
+            );
+            continue;
+        }
+        let fix = local.unwrap();
+        assert!(fix.description().contains("Trade-off:"));
+        assert!(fix.description().contains("extension_through_feature"));
+        assert!(fix.description().contains("⌀25 hole"));
+        assert!(fix.description().contains("40 wide slot"));
+        if tried.contains(&fix.ops) {
+            continue;
+        }
+        tried.push(fix.ops.clone());
+        let delta = session.apply(&fix.ops, false).unwrap();
+        let new_crossings: Vec<_> = delta
+            .problems_added
+            .iter()
+            .filter(|p| p.code == "extension_through_feature")
+            .collect();
+        assert_eq!(new_crossings.len(), 5);
+        // Every newly visible finding, of any code, must have been disclosed.
+        for added in &delta.problems_added {
+            assert!(
+                fix.description().contains(&format!("[{}]", added.code)),
+                "undisclosed code: {added:?}"
+            );
+            assert!(
+                fix.description().contains(&added.message),
+                "undisclosed finding: {added:?}"
+            );
+        }
+        session.apply(&fix.ops, true).unwrap();
+        applied += 1;
     }
+    assert_eq!(applied, 1);
+    assert_eq!(layout(session.plan())["sheets"], before_layout["sheets"]);
+    let unresolved = crossings
+        .iter()
+        .filter(|old| {
+            session
+                .plan()
+                .problems
+                .iter()
+                .any(|p| p.code == old.code && p.subjects == old.subjects)
+        })
+        .count();
+    assert_eq!(unresolved, 6, "five original crossings are cleared");
+    assert_eq!(
+        session
+            .plan()
+            .problems
+            .iter()
+            .filter(|p| matches!(
+                p.code.as_str(),
+                "annotation_leader_crossing" | "extension_through_feature"
+            ))
+            .count(),
+        11,
+        "five disclosed replacements keep the total at eleven"
+    );
+    assert_eq!(
+        session.plan().radius_table.as_ref().unwrap().rows,
+        plan.radius_table.as_ref().unwrap().rows,
+        "all radius-centre coordinates remain on the drawing"
+    );
+    eprintln!(
+        "CTC-01: one local edit clears five original crossings and adds five disclosed replacements; eleven remain. Plan-view alternatives are sheet scope."
+    );
+    // Re-run the review's two compatible edits together. The second is now
+    // explicitly sheet scope, and both alternatives disclose the replacement
+    // crossings. Combining them does not turn a sheet offer into a local promise.
+    session.undo().unwrap();
+    let hole = crossings
+        .iter()
+        .find(|p| p.subjects[0] == "d:f:hole:1/location.length.z")
+        .unwrap()
+        .offered_fixes()[0]
+        .clone();
+    let slot = crossings
+        .iter()
+        .find(|p| p.subjects[0] == "d:f:slot:2/slot_length.length")
+        .unwrap()
+        .offered_fixes()[0]
+        .clone();
+    assert_eq!(hole.scope(), draftwright::fixes::Scope::Local);
+    assert_eq!(slot.scope(), draftwright::fixes::Scope::Sheet);
+    assert!(slot.description().contains("extension_through_feature"));
+    assert!(slot.description().contains("⌀35 hole"));
+    let description = format!("{} {}", hole.description(), slot.description());
+    let together: Vec<_> = hole.ops.into_iter().chain(slot.ops).collect();
+    let delta = session.apply(&together, true).unwrap();
+    assert_eq!(
+        delta
+            .problems_added
+            .iter()
+            .filter(|p| p.code == "extension_through_feature")
+            .count(),
+        6
+    );
+    for added in &delta.problems_added {
+        assert!(
+            description.contains(&format!("[{}]", added.code)),
+            "undisclosed code: {added:?}"
+        );
+        assert!(
+            description.contains(&added.message),
+            "undisclosed finding: {added:?}"
+        );
+    }
+    assert_eq!(
+        crossings
+            .iter()
+            .filter(|old| session
+                .plan()
+                .problems
+                .iter()
+                .any(|p| p.code == old.code && p.subjects == old.subjects))
+            .count(),
+        5
+    );
+    assert_eq!(
+        session
+            .plan()
+            .problems
+            .iter()
+            .filter(|p| matches!(
+                p.code.as_str(),
+                "annotation_leader_crossing" | "extension_through_feature"
+            ))
+            .count(),
+        11
+    );
+    assert_eq!(layout(session.plan())["sheets"], before_layout["sheets"]);
+    assert_eq!(
+        session.plan().radius_table.as_ref().unwrap().rows,
+        plan.radius_table.as_ref().unwrap().rows
+    );
     let remedies = plan
         .problems
         .iter()
@@ -318,5 +515,136 @@ fn changing_sheet_scale_can_move_a_hand_placed_callout() {
     assert_eq!(
         before.spec.dimensions[&callout.id].place,
         after.spec.dimensions[&callout.id].place
+    );
+}
+
+/// What the local promise protects, independently of the engine's fit and recovery scores.
+fn layout(p: &model::Plan) -> serde_json::Value {
+    serde_json::json!({
+        "sheets": std::iter::once(&p.sheet).chain(&p.sheets).map(|s| (&s.size, &s.scale, s.page)).collect::<Vec<_>>(),
+        "views": p.views.iter().map(|v| (&v.id, v.sheet, v.at, v.scale, v.direction, v.up)).collect::<Vec<_>>()
+    })
+}
+
+#[test]
+fn unguarded_legacy_edits_report_a_changed_sheet_and_preview_does_not_commit() {
+    let mut s = session();
+    let (_, mut ops) = b_crossings(&s);
+    ops.retain(|op| {
+        !matches!(
+            op.path.as_str(),
+            "sheet/keep_layout" | "sheet/size" | "sheet/scale" | "sheets/max"
+        )
+    });
+    let before = layout(s.plan());
+    let preview = s.apply(&ops, false).unwrap();
+    assert_eq!(layout(s.plan()), before);
+    assert!(preview.notices.iter().any(|p| p.code == "layout_replanned"));
+    let delta = s.apply(&ops, true).unwrap();
+    assert_ne!(layout(s.plan()), before);
+    assert_eq!(
+        (&*s.plan().sheet.size, &*s.plan().sheet.scale),
+        ("A3", "2:1")
+    );
+    assert!(delta.notices.iter().any(|p| p.code == "layout_replanned"));
+    let mut replay = session().state().clone();
+    delta.apply_to(&mut replay).unwrap();
+    assert_eq!(
+        serde_json::to_value(&replay).unwrap(),
+        serde_json::to_value(s.state()).unwrap()
+    );
+    let rebuilt = model::plan_recovered(s.analysis(), s.spec()).unwrap();
+    assert_eq!(
+        serde_json::to_value(s.plan()).unwrap(),
+        serde_json::to_value(rebuilt).unwrap()
+    );
+}
+
+#[test]
+fn a_retained_layout_refuses_conflicting_sheet_intent() {
+    let mut s = session();
+    let (_, mut ops) = b_crossings(&s);
+    ops.push(draftwright::items::Op::set("sheet/scale", "1:2".into()));
+    let before = layout(s.plan());
+    let error = s.apply(&ops, true).unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("cannot keep the retained sheet layout")
+    );
+    assert_eq!(layout(s.plan()), before);
+}
+
+#[test]
+fn a_stale_local_offer_cannot_restore_an_old_sheet() {
+    let mut s = session();
+    let (_, offered) = b_crossings(&s);
+    let sheet_edit = vec![
+        draftwright::items::Op::set("sheet/size", "A3".into()),
+        draftwright::items::Op::set("sheet/scale", "1:1".into()),
+    ];
+    s.apply(&sheet_edit, true).unwrap();
+    let before = layout(s.plan());
+    assert!(s.apply(&offered, true).is_err());
+    assert_eq!(layout(s.plan()), before);
+}
+
+#[test]
+fn local_intent_is_boolean_and_missing_information_refuses_preview_and_commit() {
+    let mut s = session();
+    let (_, mut ops) = b_crossings(&s);
+    for op in ops.iter().filter(|op| op.path == "sheet/keep_layout") {
+        assert_eq!(op.value, Some(serde_json::json!(true)));
+    }
+    let shown = s
+        .plan()
+        .dimensions
+        .iter()
+        .find(|d| d.placed.is_some())
+        .unwrap()
+        .id
+        .clone();
+    ops.push(draftwright::items::Op::set(
+        format!("dimensions/{}/omit", draftwright::items::key(&shown)),
+        serde_json::json!(true),
+    ));
+    let before = serde_json::to_value(s.state()).unwrap();
+    for commit in [false, true] {
+        let error = s.apply(&ops, commit).unwrap_err();
+        assert!(
+            error.to_string().contains("No local fix is available"),
+            "{error}"
+        );
+        assert_eq!(serde_json::to_value(s.state()).unwrap(), before);
+    }
+    let old_frames = serde_json::json!([{"op":"set","path":"sheet/keep_layout",
+        "value":{"size":"A4","scale":"1:1","views":{},"required":[]}}]);
+    assert!(
+        model::edit(s.spec(), &old_frames).is_err(),
+        "page snapshots are not Spec intent"
+    );
+}
+
+#[test]
+fn an_explicit_sheet_edit_releases_an_inherited_local_promise() {
+    let mut s = session();
+    let (_, ops) = b_crossings(&s);
+    s.apply(&ops, true).unwrap();
+    assert_eq!(s.spec().sheet.keep_layout, Some(true));
+    let retained = s.spec().clone();
+    let ops = vec![draftwright::items::Op::set("sheet/scale", "1:2".into())];
+    let edited = model::edit(&retained, &serde_json::to_value(&ops).unwrap()).unwrap();
+    assert_eq!(edited.sheet.keep_layout, None);
+    let preview = s.apply(&ops, false).unwrap();
+    assert_eq!(s.spec(), &retained);
+    assert!(preview.notices.iter().any(|p| p.code == "layout_replanned"));
+    let delta = s.apply(&ops, true).unwrap();
+    assert_eq!(s.spec().sheet.keep_layout, None);
+    assert_eq!(s.plan().sheet.scale, "1:2");
+    assert_eq!(delta.notices, preview.notices);
+    let rebuilt = model::plan_recovered(s.analysis(), &edited).unwrap();
+    assert_eq!(
+        serde_json::to_value(&rebuilt).unwrap(),
+        serde_json::to_value(s.plan()).unwrap()
     );
 }

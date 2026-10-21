@@ -151,8 +151,8 @@ fn tools_explain_their_operations_without_source_and_fit_schema_budget() {
     // The generator asserts the same ceiling; callouts/style adds 0 tools/list bytes
     // because sheet and feature vocabulary is in on-demand schemas/spec.json.
     // Scoped fix alternatives and operation/path scopes add 1,916 bytes; PMI policy and
-    // the shallow origin object add 804.
-    // Additive finding labels and crossing metadata add 597 measured bytes.
+    // the shallow origin object add 804. Replay-safe notices and actionable overflow
+    // retain finding labels and complete trade descriptions within the shared ceiling.
     // A ceiling permits equivalent schema compaction without pinning output bytes.
     assert!(schema_bytes <= 38000, "schemas: {schema_bytes} bytes");
     eprintln!("schema bytes per session: {schema_bytes}");

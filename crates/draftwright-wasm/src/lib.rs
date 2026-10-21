@@ -29,7 +29,7 @@ impl Session {
         let annotations: std::collections::BTreeMap<_, _> =
             delta.annotations.keys().map(|id| (id, true)).collect();
         let changed: Vec<_> = delta.changed.iter().map(|i| serde_json::json!({"item":{"id":i.item.id},"placement":i.placement.as_ref().map(|_|true)})).collect();
-        let mut packet = serde_json::json!({"delta":{"plans":delta.plans,"plan":delta.plan,"removed":delta.removed,"changed":changed,"annotations":annotations,"problems_added":delta.problems_added,"problems_resolved":delta.problems_resolved,"problem_order":delta.problem_order},"fragments":self.0.svg_fragments(Some(&delta)),"pmi":self.0.pmi_report()});
+        let mut packet = serde_json::json!({"delta":{"plans":delta.plans,"plan":delta.plan,"removed":delta.removed,"changed":changed,"annotations":annotations,"problems_added":delta.problems_added,"problems_resolved":delta.problems_resolved,"notices":delta.notices,"problem_order":delta.problem_order},"fragments":self.0.svg_fragments(Some(&delta)),"pmi":self.0.pmi_report()});
         // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         let plan = serde_json::to_value(self.0.plan()).unwrap();
         for (name, patch) in packet["delta"]["plan"]["collections"]
@@ -208,6 +208,7 @@ impl Session {
         snapshot["plan"] = serde_json::to_value(&state.plan).unwrap();
         // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         snapshot["spec"] = serde_json::to_value(&state.plan.spec).unwrap();
+        snapshot["notices"] = serde_json::to_value(&delta.notices).unwrap();
         snapshot["svg"] = serde_json::Value::String(drawing.svg());
         Ok(snapshot.to_string())
     }
@@ -362,6 +363,40 @@ export interface CalloutOffset {
 mod tests {
     use super::*;
     use serde_json::{Value, json};
+
+    #[test]
+    fn previews_and_fragment_edits_report_sheet_changes() {
+        let mut s = Session::open(
+            "prismatic.step",
+            include_bytes!("../../../tests/fixtures/parts/prismatic.step"),
+        )
+        .unwrap();
+        let before = s.0.spec().clone();
+        let size = if s.0.plan().sheet.size == "A3" {
+            "A2"
+        } else {
+            "A3"
+        };
+        let ops = json!([
+            {"op":"set","path":"sheet/size","value":size},
+            {"op":"set","path":"sheet/scale","value":"1:1"}
+        ])
+        .to_string();
+        let preview: Value = serde_json::from_str(&s.preview(&ops).unwrap()).unwrap();
+        assert_eq!(s.0.spec(), &before, "preview leaves the session unchanged");
+        assert_eq!(preview["plan"]["sheet"]["size"], size);
+        let notice = &preview["notices"][0];
+        assert_eq!(notice["code"], "layout_replanned");
+        assert!(
+            notice["message"]
+                .as_str()
+                .unwrap()
+                .contains("The whole sheet is laid out again")
+        );
+        let applied: Value = serde_json::from_str(&s.apply_fragments_json(&ops).unwrap()).unwrap();
+        assert_eq!(applied["delta"]["notices"], preview["notices"]);
+        assert_eq!(s.0.plan().sheet.size, size);
+    }
 
     #[test]
     fn json_exposes_scoped_fixes_and_placement_operations() {

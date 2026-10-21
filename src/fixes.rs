@@ -1,5 +1,4 @@
-//! Proportionate remedies. Scope describes authored Spec paths, never a preview or a
-//! prediction of which other ink the layout solver may move.
+//! Proportionate remedies. Local offers constrain paper, scale and sheet count.
 use crate::items::Op;
 use serde::{Deserialize, Serialize, ser::SerializeStruct};
 
@@ -76,6 +75,25 @@ fn value_scope(path: &str, value: &serde_json::Value) -> Scope {
 }
 
 pub fn scope(ops: &[Op]) -> Scope {
+    // Paper/count settings bundled with keep_layout constrain a local edit. Apply
+    // compares them with the current drawing; alone they remain sheet scope.
+    let retained = ops.iter().any(|op| {
+        op.path == "sheet/keep_layout"
+            && op.op == "set"
+            && op.value == Some(serde_json::json!(true))
+    });
+    let edits: Vec<_> = ops
+        .iter()
+        .filter(|op| {
+            !(retained
+                && op.op == "set"
+                && matches!(
+                    op.path.as_str(),
+                    "sheet/keep_layout" | "sheet/size" | "sheet/scale" | "sheets/max"
+                ))
+        })
+        .collect();
+    let ops = edits.as_slice();
     let broadest = ops
         .iter()
         .map(|op| {
@@ -104,7 +122,7 @@ pub fn scope(ops: &[Op]) -> Scope {
             .collect::<Vec<_>>()
             .join("/")
     };
-    let first = owner(&ops[0]);
+    let first = owner(ops[0]);
     if ops.iter().any(|op| owner(op) != first) {
         Scope::Sheet
     } else {
@@ -113,15 +131,31 @@ pub fn scope(ops: &[Op]) -> Scope {
 }
 
 /// One alternative: its operations apply together. Scope is always derived, including
-/// when reading old or externally supplied JSON; a caller cannot understate it.
+/// when reading old or externally supplied JSON; a caller may widen but cannot understate it.
 #[derive(Clone, Debug, Deserialize)]
 pub struct Fix {
     pub description: String,
     pub ops: Vec<Op>,
+    #[serde(default, rename = "scope")]
+    pub minimum_scope: Option<Scope>,
 }
 impl PartialEq for Fix {
     fn eq(&self, other: &Self) -> bool {
-        self.ops == other.ops && self.description() == other.description()
+        if self.ops != other.ops {
+            return false;
+        }
+        // Equal operations and scope floors imply equal derived scopes. Most
+        // state comparisons also have identical raw descriptions: avoid parsing
+        // intent bundles and constructing their descriptions again in that case.
+        // Wire descriptions may already include the sheet consequence, so retain
+        // the full effective comparison for different raw descriptions or floors.
+        if self.description == other.description
+            && self.minimum_scope.unwrap_or(Scope::Local)
+                == other.minimum_scope.unwrap_or(Scope::Local)
+        {
+            return true;
+        }
+        self.scope() == other.scope() && self.description() == other.description()
     }
 }
 impl Fix {
@@ -129,10 +163,11 @@ impl Fix {
         Self {
             description: description.into(),
             ops,
+            minimum_scope: None,
         }
     }
     pub fn scope(&self) -> Scope {
-        scope(&self.ops)
+        scope(&self.ops).max(self.minimum_scope.unwrap_or(Scope::Local))
     }
     pub(crate) fn from_ops(ops: Vec<Op>) -> Self {
         let phrase = ops
@@ -177,6 +212,11 @@ fn op_description(op: &Op) -> String {
     };
     match op.path.as_str() {
         "sheet/scale" => text.map_or_else(|| choose("scale"), |v| format!("draw at {v}")),
+        "sheet/keep_layout" => if value.and_then(serde_json::Value::as_bool) == Some(true) {
+            "keep the paper, scale and sheet count; report moved views".into()
+        } else {
+            "lay out the whole sheet again".into()
+        },
         "sheet/size" => text.map_or_else(|| choose("paper size"), |v| format!("use {v} paper")),
         "sheet/title/tolerance" => text.map_or_else(
             || "remove the general tolerance from the title block".into(),
@@ -332,6 +372,102 @@ pub(crate) fn attach(analysis: &crate::model::Analysis, plan: &mut crate::model:
     MEMO.insert(key, plan.problems.clone());
 }
 
+/// O(operations per offer), with no recovered-plan invocation per candidate.
+/// Existing bounded trials check the settled inventory and ink. Intent fields bypass
+/// automatic sheet selection and refitting on apply. Never advertise unconstrained allocation
+/// as local. Scope read from old JSON may widen, but cannot understate path scope.
+pub(crate) fn retain_local_layout(plan: &mut crate::model::Plan) {
+    let retainable = plan.sheets.is_empty()
+        && plan
+            .spec
+            .sheet
+            .size
+            .as_ref()
+            .is_none_or(|s| s == &plan.sheet.size)
+        && plan
+            .spec
+            .sheet
+            .scale
+            .as_ref()
+            .is_none_or(|s| s == &plan.sheet.scale);
+    for problem in &mut plan.problems {
+        let mut fixes = problem.offered_fixes();
+        for fix in &mut fixes {
+            if fix.scope() != Scope::Local {
+                if plan.spec.sheet.keep_layout == Some(true)
+                    && fix.scope() == Scope::Sheet
+                    && !fix.ops.iter().any(|op| op.path == "sheet/keep_layout")
+                {
+                    fix.ops.push(Op::remove("sheet/keep_layout"));
+                }
+                continue;
+            }
+            // An automatic radius table's centre coordinates are extra information.
+            // A settled-ink trial cannot reconstruct the withdrawn leaders and prove
+            // that moving another item on their carrier will keep that table. Widen
+            // conservatively rather than advertise an unverified local promise.
+            let table_carrier = plan.radius_table.as_ref().is_some_and(|table| {
+                fix.ops.iter().any(|op| {
+                    if op.path.starts_with("annotations/") {
+                        return true;
+                    }
+                    let Some(rest) = op.path.strip_prefix("dimensions/") else {
+                        return false;
+                    };
+                    let id = rest
+                        .split('/')
+                        .next()
+                        .unwrap_or("")
+                        .replace("~1", "/")
+                        .replace("~0", "~");
+                    let affects = |view: &str| table.rows.iter().any(|r| r.view == view);
+                    let old = plan
+                        .dimensions
+                        .iter()
+                        .find(|d| d.id == id)
+                        .is_some_and(|d| affects(&d.view));
+                    let new = op
+                        .value
+                        .as_ref()
+                        .and_then(|v| v.get("view"))
+                        .and_then(serde_json::Value::as_str)
+                        .is_some_and(|v| affects(&format!("v:{v}")));
+                    old || new
+                })
+            });
+            if retainable && !table_carrier {
+                fix.ops.retain(|op| {
+                    !matches!(
+                        op.path.as_str(),
+                        "sheet/keep_layout" | "sheet/size" | "sheet/scale" | "sheets/max"
+                    )
+                });
+                fix.ops
+                    .push(Op::set("sheet/keep_layout", serde_json::json!(true)));
+                fix.ops
+                    .push(Op::set("sheet/size", serde_json::json!(plan.sheet.size)));
+                fix.ops
+                    .push(Op::set("sheet/scale", serde_json::json!(plan.sheet.scale)));
+                fix.ops.push(Op::set("sheets/max", serde_json::json!(1)));
+            } else {
+                fix.minimum_scope = Some(Scope::Sheet);
+                fix.ops.retain(|op| {
+                    !matches!(
+                        op.path.as_str(),
+                        "sheet/keep_layout" | "sheet/size" | "sheet/scale" | "sheets/max"
+                    )
+                });
+                if plan.spec.sheet.keep_layout == Some(true) {
+                    fix.ops.push(Op::remove("sheet/keep_layout"));
+                }
+            }
+        }
+        fixes.sort_by_key(Fix::scope);
+        problem.fix = fixes.first().map(|f| f.ops.clone()).unwrap_or_default();
+        problem.fixes = fixes;
+    }
+}
+
 /// Add remedies only after selecting the drawing. As with the existing placement
 /// fixes, compatibility and Spec edits are checked; layout effects need preview/apply.
 /// No planner or full preview is invoked to generate a suggestion.
@@ -384,6 +520,7 @@ fn attach_inner(analysis: &crate::model::Analysis, plan: &mut crate::model::Plan
         None
     };
     let snapshot = plan.clone();
+    let trials = crate::dims::LocalFixTrials::default();
     for problem in plan.problems.iter_mut().filter(|p| relevant(p)) {
         // finish() can run more than once; don't duplicate earlier remedies.
         if problem
@@ -403,7 +540,7 @@ fn attach_inner(analysis: &crate::model::Analysis, plan: &mut crate::model::Plan
                 .first()
                 .is_some_and(|id| plan.dimensions.iter().any(|d| &d.id == id)))
             && let Some(fix) =
-                crate::dims::local_placement_fix(analysis, &snapshot, problem, &options)
+                crate::dims::local_placement_fix(analysis, &snapshot, problem, &options, &trials)
         {
             local.push(fix);
         }
@@ -432,6 +569,56 @@ fn attach_inner(analysis: &crate::model::Analysis, plan: &mut crate::model::Plan
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn equal_fix_operations_compare_effective_scope_floors() {
+        for (path, groups) in [
+            (
+                "dimensions/d/place/lane",
+                vec![
+                    vec![None, Some(Scope::Local)],
+                    vec![Some(Scope::View)],
+                    vec![Some(Scope::Sheet)],
+                ],
+            ),
+            (
+                "views/front/place/gap",
+                vec![
+                    vec![None, Some(Scope::Local), Some(Scope::View)],
+                    vec![Some(Scope::Sheet)],
+                ],
+            ),
+            (
+                "sheet/scale",
+                vec![vec![
+                    None,
+                    Some(Scope::Local),
+                    Some(Scope::View),
+                    Some(Scope::Sheet),
+                ]],
+            ),
+        ] {
+            let fixes: Vec<_> = groups
+                .iter()
+                .enumerate()
+                .flat_map(|(group, floors)| {
+                    floors.iter().map(move |floor| {
+                        let mut fix = Fix::new("Edit", vec![Op::set(path, serde_json::json!(1))]);
+                        fix.minimum_scope = *floor;
+                        (group, fix)
+                    })
+                })
+                .collect();
+            for (group, fix) in &fixes {
+                for (other_group, other) in &fixes {
+                    assert_eq!(
+                        fix == other,
+                        group == other_group,
+                        "{path}: {fix:?}, {other:?}"
+                    );
+                }
+            }
+        }
+    }
     #[test]
     fn alternatives_sort_bundles_without_reordering_operations() {
         use crate::model::Problem;
