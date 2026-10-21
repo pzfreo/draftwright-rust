@@ -337,7 +337,11 @@ fn a_table_without_every_balloon_is_withdrawn_whole() {
         eprintln!("SKIPPED: the corpus is not found");
         return;
     };
-    let mut first = model::plan(analysis, &Spec::default()).unwrap();
+    let mut first = model::plan(
+        analysis,
+        &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+    )
+    .unwrap();
     let id = first
         .dimensions
         .iter()
