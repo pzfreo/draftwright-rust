@@ -273,33 +273,16 @@ fn one_feature_problem_query_returns_all_member_fixes() {
         .iter()
         .filter(|p| !added.iter().any(|q| q["id"] == p["id"]))
         .collect();
-    // The local pitch fix clears all three slot/feature crossings within the
-    // automatic paper cap, as well as the four pin/fit findings. Other records
-    // can refresh scoped alternatives without becoming new physical findings.
-    assert_eq!(gone.len(), 7);
+    // The new local pitch fix also clears both slot crossings. Other records can
+    // refresh their scoped alternatives without becoming new physical findings.
+    assert_eq!(gone.len(), 6);
     for p in &problems {
         assert!(gone.iter().any(|resolved| resolved["id"] == p["id"]));
     }
-    // The queried slot is fixed. Within the A3 cap the recovered drawing now
-    // reports a different pair sharing a line. Keep that remaining error explicit
-    // in the delta; a member fix does not promise a globally clean drawing.
-    let new: Vec<_> = added
-        .iter()
-        .filter(|p| !resolved.iter().any(|q| q["id"] == p["id"]))
-        .collect();
-    assert_eq!(
-        new.iter()
-            .map(|p| p["code"].as_str().unwrap())
-            .collect::<Vec<_>>(),
-        ["dimension_line_shared", "layout_replanned"]
-    );
-    assert_eq!(new[0]["severity"], "error");
-    assert_eq!(
-        new[0]["subjects"],
-        json!([
-            "d:f:hole_pattern:1/grid_pitch.length.col",
-            "d:f:slot:2/location_slot.length"
-        ])
+    assert!(
+        added
+            .iter()
+            .all(|p| resolved.iter().any(|q| q["id"] == p["id"]))
     );
 }
 
