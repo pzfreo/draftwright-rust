@@ -462,9 +462,13 @@ pub(crate) fn inside_frames(analysis: &Analysis, plan: &Plan) -> bool {
                 }
             }
             ink.into_iter().enumerate().all(|(i, b)| {
-                let geometry = i < local.views.len() || (i >= line_work_start && i < view_ink_end);
-                let stroke = if geometry {
+                // View outlines keep their whole stroke inside the frame. Centre-line ink
+                // may end on the frame line itself (a crop edge or a trimmed axis): its
+                // thinner stroke stays under the frame's own.
+                let stroke = if i < local.views.len() {
                     crate::output::layer_styles()[0].1.width / 2.0
+                } else if i >= line_work_start && i < view_ink_end {
+                    0.0
                 } else {
                     crate::tables::frame_clearance()
                 };

@@ -379,39 +379,96 @@ fn rank(plan: &Plan) -> (usize, usize, f64, usize) {
     )
 }
 
-/// Readability uses the existing feature-opening/overall-size floor and
-/// printed-step limits. Layout/readability counts and required losses must not
-/// exceed the unrestricted larger-paper reference.
+// Ink that cannot be read whatever the reader's patience: overlapping text,
+// leader-through-text, ink outside its frame/title block and furniture or views
+// that could not be placed. Other layout warnings (extension crossings, route
+// lengths, feature crossings) are reported but do not choose paper.
+const UNREADABLE: &[&str] = &[
+    "annotation_overlap",
+    "annotation_ink_overlap",
+    "datum_symbol_overlap",
+    "leader_line_through_text",
+    "leader_on_extension",
+    "annotation_off_sheet",
+    "annotation_over_title_block",
+    "title_field_overflow",
+    "page_fit_uncertain",
+    "views_do_not_fit",
+    "views_overlap",
+    "view_on_title_block",
+    "notes_not_placed",
+    "table_not_placed",
+];
+
+/// An absolute test of the candidate itself: nothing clipped; every scale at or above the
+/// readable floor; no required information lost or dropped unreported; and no unreadable
+/// ink. The roomiest automatic reference is consulted only for what the part cannot avoid
+/// on any paper: an identical finding (code + subjects), printed steps already illegible
+/// there, or a drop it shares. It never makes a crowded-but-readable drawing lose to a
+/// blow-up because the reference has fewer warnings.
 fn usable(analysis: &Analysis, plan: &Plan, reference: &Plan, floor: f64) -> bool {
+    let drops = |p: &Plan| {
+        p.problems
+            .iter()
+            .filter(|q| crate::hole_table::DROPS.contains(&q.code.as_str()))
+            .map(problem_key)
+            .collect::<BTreeSet<_>>()
+    };
     if !sheet_fit::inside_frames(analysis, plan)
         || plan.sheet.scale_factor + 1e-9 < floor
-        || sheet_fit::illegible_steps(analysis, plan)
-            > sheet_fit::illegible_steps(analysis, reference)
         || plan
             .views
             .iter()
             .any(|v| v.id != "v:iso" && v.scale + 1e-9 < floor)
+        || sheet_fit::illegible_steps(analysis, plan)
+            > sheet_fit::illegible_steps(analysis, reference)
         || !model::carries_required(reference, plan)
-        || model::findings(plan).dropped > model::findings(reference).dropped
+        || !drops(plan).is_subset(&drops(reference))
         || model::undrawn_gdt(plan) > model::undrawn_gdt(reference)
+        || !unreported_losses(plan).is_subset(&unreported_losses(reference))
     {
         return false;
     }
-    let counts = |p: &Plan| {
-        let mut out = std::collections::BTreeMap::new();
-        for (code, _) in failures(analysis, p, floor) {
-            *out.entry(code).or_insert(0usize) += 1;
-        }
-        out
+    let mut inherited = failures(analysis, reference, floor);
+    inherited.extend(reference.problems.iter().map(problem_key));
+    let unreadable = |code: &str, severity: &str| {
+        (severity == "error" && FAILING_CODES.contains(&code))
+            || (severity != "info" && UNREADABLE.contains(&code))
     };
-    let reference = counts(reference);
-    counts(plan)
+    let reported = plan
+        .problems
+        .iter()
+        .filter(|p| unreadable(&p.code, &p.severity))
+        .map(problem_key);
+    // Measured from final ink rather than reported: only the leader/extension contacts
+    // count here; route-length and hidden-crossing measurements stay advisory.
+    let measured = failures(analysis, plan, floor)
         .into_iter()
-        .all(|(code, n)| n <= *reference.get(&code).unwrap_or(&0))
+        .filter(|(code, _)| code == "leader_on_extension" || code == "annotation_off_sheet");
+    reported.chain(measured).all(|key| inherited.contains(&key))
+}
+
+// A dimension that could not be drawn must be stated by a problem naming it.
+fn unreported_losses(plan: &Plan) -> BTreeSet<&str> {
+    plan.dimensions
+        .iter()
+        .filter(|d| {
+            matches!(&d.state, crate::items::State::NotDrawable { reason_code }
+                if !plan.problems.iter().any(|q| q.code == *reason_code && q.subjects.contains(&d.id)))
+        })
+        .map(|d| d.id.as_str())
+        .collect()
+}
+
+// The planner's internal first-estimate trace is not a replan the author asked for:
+// `layout_replanned` belongs to kept layouts and local fixes ([`crate::local_layout`]).
+fn drop_internal_replan(plan: &mut Plan) {
+    plan.problems.retain(|p| p.id != "p:layout_replanned:sheet");
 }
 
 fn finish_choice(mut plan: Plan, spec: &Spec, candidates: Vec<Candidate>, reason: &str) -> Plan {
     plan.spec = spec.clone();
+    drop_internal_replan(&mut plan);
     plan.sheet.default = true;
     for s in &mut plan.sheets {
         s.default = true;
@@ -452,6 +509,7 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
     let radius_reference = model::radius_edit_reference(analysis, &intent, true);
     let floor = readable_floor(fit, &baseline, spec);
     let estimate = Estimate::new(fit, &baseline);
+    let hard = spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9);
     let mut candidates = Vec::new();
     let mut best = sheet_fit::inside_frames(fit, &baseline).then(|| baseline.clone());
     // Whole-view allocations are independent of a count bound once they fit.
@@ -461,120 +519,23 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
     for (size, max) in requests(spec) {
         let mut scales = Vec::new();
         let mut outcome = "reserved footprints cannot fit at a readable scale".to_string();
-        let mut trials = Vec::new();
-        if baseline.sheet.size == size && baseline.sheets.len() < max {
-            trials.push(baseline.clone());
-            outcome = "automatic baseline reused".into();
-        } else if let Some(scale) = estimate.scale(size, max, floor) {
-            let reference_scale = (baseline.sheet.scale_factor < scale
-                && baseline.sheet.scale_factor + 1e-9 >= floor)
-                .then_some(baseline.sheet.scale_factor);
-            for scale in std::iter::once(scale).chain(reference_scale) {
-                scales.push(model::scale_name(scale));
-                let key = (size.to_string(), scale.to_bits());
-                let cached = (max > 1).then(|| unblocked.get(&key).cloned()).flatten();
-                let mut forced = intent.clone();
-                forced.binding = spec.binding.clone();
-                forced.sheet.size = Some(size.into());
-                forced.sheet.scale = Some(model::scale_name(scale));
-                forced.sheets.get_or_insert_with(Default::default).max = Some(max as u32);
-                omit_absent_details(fit, &mut forced, &baseline, scale);
-                match cached.map(Ok).unwrap_or_else(|| {
-                    crate::planning::fixed_pair_with_radius_reference(
-                        radius_reference.as_ref(),
-                        || model::plan_automatic(analysis, &forced),
-                    )
-                }) {
-                    Ok(plan) => {
-                        if max > 1 && !plan.sheet.basis.contains("blocked by sheets.max") {
-                            unblocked.insert(key, plan.clone());
-                        }
-                        let needs_split = !usable(fit, &plan, &baseline, floor);
-                        trials.push(plan);
-                        // A smaller readable scale may fit individual views even when
-                        // the unrestricted reference's scale cannot. Plan its ink on
-                        // roomy paper, then reuse whole-view allocation; never pack a
-                        // cramped small-paper plan after it has already lost items.
-                        if needs_split && scale < baseline.sheet.scale_factor {
-                            let source =
-                                scale_sources.entry(scale.to_bits()).or_insert_with(|| {
-                                    let mut wide = forced.clone();
-                                    wide.sheet.size = Some("A0".into());
-                                    wide.sheets.get_or_insert_with(Default::default).max =
-                                        Some(spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9));
-                                    crate::planning::fixed_pair_with_radius_reference(
-                                        radius_reference.as_ref(),
-                                        || model::plan_automatic(analysis, &wide),
-                                    )
-                                    .ok()
-                                });
-                            let split = separated
-                                .entry((size.into(), scale.to_bits()))
-                                .or_insert_with(|| {
-                                    crate::sheets::separate_views(
-                                        fit,
-                                        source.as_ref()?,
-                                        size,
-                                        spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9)
-                                            as usize,
-                                    )
-                                });
-                            if let Some(plan) = split.as_ref().filter(|p| p.sheets.len() < max) {
-                                trials.push(plan.clone());
-                            }
-                        }
-                    }
-                    Err(e) => outcome = format!("cannot plan: {}", e.message),
-                }
-            }
-        }
-        {
-            let split = separated
-                .entry((size.into(), baseline.sheet.scale_factor.to_bits()))
-                .or_insert_with(|| {
-                    crate::sheets::separate_views(
-                        fit,
-                        &baseline,
-                        size,
-                        spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9) as usize,
-                    )
-                });
-            if let Some(plan) = split.as_ref().filter(|p| p.sheets.len() < max) {
-                trials.push(plan.clone());
-            }
-        }
-        for plan in trials {
+        // Judge each trial as soon as it exists and stop at the first usable one.
+        let mut judge = |plan: Plan, scales: &mut Vec<String>, outcome: &mut String| {
             if !scales.contains(&plan.sheet.scale) {
                 scales.push(plan.sheet.scale.clone());
             }
             if !sheet_fit::inside_frames(fit, &plan) {
-                outcome = format!(
+                *outcome = format!(
                     "hard rejected: view geometry or annotation ink leaves the drawable frame at {}",
                     plan.sheet.scale
                 );
-                continue;
-            }
-            if best.as_ref().is_none_or(|b| rank(&plan) < rank(b)) {
-                best = Some(plan.clone());
+                return None;
             }
             if usable(fit, &plan, &baseline, floor) {
-                let reason = format!(
-                    "{size}: usable at {} ({} sheet(s)); no clipping, readable scale, no additional layout/readability failures or required losses",
-                    plan.sheet.scale,
-                    1 + plan.sheets.len()
-                );
-                candidates.push(Candidate {
-                    size: size.into(),
-                    preferred_max_size: String::new(),
-                    preferred_max_sheets: 0,
-                    max,
-                    outcome: reason.clone(),
-                    scales,
-                });
-                return Ok(finish_choice(plan, &intent, candidates, &reason));
+                return Some(plan);
             }
-            outcome = format!(
-                "refused at {}: additional layout/readability problems, required losses or unreadable scale ({} hard, {} drops; {})",
+            *outcome = format!(
+                "refused at {}: unreadable ink, required losses or unreadable scale ({} hard, {} drops; {})",
                 plan.sheet.scale,
                 model::findings(&plan).hard,
                 model::findings(&plan).dropped,
@@ -586,6 +547,110 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                     .collect::<Vec<_>>()
                     .join(", ")
             );
+            if best.as_ref().is_none_or(|b| rank(&plan) < rank(b)) {
+                best = Some(plan);
+            }
+            None
+        };
+        let mut chosen = None;
+        let baseline_fits = baseline.sheet.size == size && baseline.sheets.len() < max;
+        if baseline_fits {
+            outcome = "automatic baseline reused".into();
+            chosen = judge(baseline.clone(), &mut scales, &mut outcome);
+        } else if let Some(scale) = estimate.scale(size, max, floor) {
+            // At most one smaller readable standard scale: a crowded estimate may
+            // read cleanly one step down on the same paper.
+            let smaller = layout::SCALES
+                .into_iter()
+                .find(|s| *s < scale && *s + 1e-9 >= floor);
+            for scale in std::iter::once(scale).chain(smaller) {
+                scales.push(model::scale_name(scale));
+                let key = (size.to_string(), scale.to_bits());
+                let cached = (max > 1).then(|| unblocked.get(&key).cloned()).flatten();
+                let mut forced = intent.clone();
+                forced.binding = spec.binding.clone();
+                forced.sheet.size = Some(size.into());
+                forced.sheet.scale = Some(model::scale_name(scale));
+                forced.sheets.get_or_insert_with(Default::default).max = Some(max as u32);
+                omit_absent_details(fit, &mut forced, &baseline, scale);
+                let plan = match cached.map(Ok).unwrap_or_else(|| {
+                    crate::planning::fixed_pair_with_radius_reference(
+                        radius_reference.as_ref(),
+                        || model::plan_automatic(analysis, &forced),
+                    )
+                }) {
+                    Ok(plan) => plan,
+                    Err(e) => {
+                        outcome = format!("cannot plan: {}", e.message);
+                        continue;
+                    }
+                };
+                if max > 1 && !plan.sheet.basis.contains("blocked by sheets.max") {
+                    unblocked.insert(key, plan.clone());
+                }
+                chosen = judge(plan, &mut scales, &mut outcome);
+                if chosen.is_some() {
+                    break;
+                }
+                // A smaller readable scale may fit individual views even when
+                // the unrestricted reference's scale cannot. Plan its ink on
+                // roomy paper, then reuse whole-view allocation; never pack a
+                // cramped small-paper plan after it has already lost items.
+                if max > 1 && scale < baseline.sheet.scale_factor {
+                    let source = scale_sources.entry(scale.to_bits()).or_insert_with(|| {
+                        let mut wide = forced.clone();
+                        wide.sheet.size = Some("A0".into());
+                        wide.sheets.get_or_insert_with(Default::default).max = Some(hard);
+                        crate::planning::fixed_pair_with_radius_reference(
+                            radius_reference.as_ref(),
+                            || model::plan_automatic(analysis, &wide),
+                        )
+                        .ok()
+                    });
+                    let split = separated
+                        .entry((size.into(), scale.to_bits()))
+                        .or_insert_with(|| {
+                            crate::sheets::separate_views(
+                                fit,
+                                source.as_ref()?,
+                                size,
+                                hard as usize,
+                            )
+                        });
+                    if let Some(plan) = split.as_ref().filter(|p| p.sheets.len() < max) {
+                        chosen = judge(plan.clone(), &mut scales, &mut outcome);
+                        if chosen.is_some() {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if chosen.is_none() && !baseline_fits {
+            let split = separated
+                .entry((size.into(), baseline.sheet.scale_factor.to_bits()))
+                .or_insert_with(|| {
+                    crate::sheets::separate_views(fit, &baseline, size, hard as usize)
+                });
+            if let Some(plan) = split.as_ref().filter(|p| p.sheets.len() < max) {
+                chosen = judge(plan.clone(), &mut scales, &mut outcome);
+            }
+        }
+        if let Some(plan) = chosen {
+            let reason = format!(
+                "{size}: usable at {} ({} sheet(s)); nothing clipped, readable scale, no unreadable ink or required losses",
+                plan.sheet.scale,
+                1 + plan.sheets.len()
+            );
+            candidates.push(Candidate {
+                size: size.into(),
+                preferred_max_size: String::new(),
+                preferred_max_sheets: 0,
+                max,
+                outcome: reason.clone(),
+                scales,
+            });
+            return Ok(finish_choice(plan, &intent, candidates, &reason));
         }
         candidates.push(Candidate {
             size: size.into(),
@@ -724,6 +789,7 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         crate::planning::fixed_pair(|| model::plan_automatic(analysis, &forced))?
     };
     plan.spec = intent;
+    drop_internal_replan(&mut plan);
     for problem in canonical
         .problems
         .iter()

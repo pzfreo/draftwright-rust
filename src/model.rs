@@ -3547,6 +3547,7 @@ fn plan_automatic_uncached(analysis: &Analysis, spec: &Spec) -> Result<Plan, Inv
             crate::sheets::allocate(analysis, spec)
         }
     })?;
+    crate::centrelines::trim_to_frame(&mut plan.views, plan.sheet.page);
     if !crate::placement_intent::has_pins(spec) {
         type Labels = BTreeMap<String, (String, [f64; 2])>;
         static LABELS: crate::planning::BoundedMemo<Labels> = crate::planning::BoundedMemo::new(64);

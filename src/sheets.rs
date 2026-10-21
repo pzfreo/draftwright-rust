@@ -1549,6 +1549,7 @@ fn separate_views_inner(
         pages[next - 1].push(plan.views[i].area);
     }
     plan.dimensions = crate::placement_intent::held_dimensions(Some(source), &plan.views);
+    crate::centrelines::trim_to_frame(&mut plan.views, plan.sheet.page);
     cross_references(analysis, &mut plan);
     crate::iso_caption::refresh(analysis, &mut plan);
     // Re-evaluate spatial findings after transport. Required losses and every

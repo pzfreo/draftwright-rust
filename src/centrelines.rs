@@ -870,6 +870,31 @@ pub(crate) fn trim(views: &mut [PlannedView], dimensions: &[PlannedDimension]) {
     }
 }
 
+/// Once views have their final page positions, an axis overrun that would cross the frame of
+/// *page* stops on the frame line, keeping at least [`MIN_OVERRUN`] past its feature. The
+/// overrun beyond a feature carries no information; the frame clips nothing else.
+pub(crate) fn trim_to_frame(views: &mut [PlannedView], page: [f64; 2]) {
+    let (m, far) = (crate::layout::MARGIN, 1e6);
+    let outside = [
+        [-far, -far, m, far],
+        [-far, -far, far, m],
+        [page[0] - m, -far, far, far],
+        [-far, page[1] - m, far, far],
+    ];
+    for w in views.iter_mut().flat_map(|v| &mut v.line_work) {
+        let Some(&Curve::Line(a, b)) = w.curves.first() else {
+            continue;
+        };
+        trim_axis(w, &outside);
+        if let Some(&Curve::Line(c, d)) = w.curves.first() {
+            let cut = (c[0] - a[0])
+                .hypot(c[1] - a[1])
+                .max((d[0] - b[0]).hypot(d[1] - b[1]));
+            w.overrun = (w.overrun - cut).max(MIN_OVERRUN.min(w.overrun));
+        }
+    }
+}
+
 /// [`trim`] for one piece of line work against the labels' boxes, already grown by the gap.
 fn trim_axis(w: &mut LineWork, boxes: &[[f64; 4]]) {
     let spare = w.overrun - MIN_OVERRUN;
