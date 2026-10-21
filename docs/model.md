@@ -525,7 +525,9 @@ readability breaches do not exceed the larger reference,
 and it adds no layout/readability failures or required losses relative to the
 unrestricted larger-paper reference. Readable scales use the existing 0.8 mm minimum feature opening, 20 mm
 overall span and 1:10 absolute floor; printed-step and text/clearance breaches
-cannot increase relative to the larger reference.
+cannot increase relative to the larger reference. The existing callout-quality
+predicates also prevent additional hidden-edge crossings or leader runs within
+0.3 mm of model/extension ink for more than 2 mm.
 Unsupported requirements and any undrawn items retain their existing findings.
 Clipping is a hard rejection, including for fallback ranking. If no usable result
 exists through A0, retain the least-bad unclipped candidate using the existing

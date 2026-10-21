@@ -106,6 +106,7 @@ fn failures(analysis: &Analysis, plan: &Plan, floor: f64) -> BTreeSet<(String, V
                 .map(|subjects| ("leader_on_extension".into(), subjects)),
         );
     }
+    failures.extend(crate::dims::sheet_route_limits(analysis, plan));
     // The outline box has no stroke width. At the frame its visible stroke is already
     // outside the drawing area. Use the renderer's line width, and the existing off-sheet
     // code/subject comparison; do not move or recover any candidate's geometry.
@@ -1331,6 +1332,46 @@ mod tests {
         p.views.push(detail);
         p.problems.clear();
         assert!(!sheet_fit::inside_frames(&a, &p));
+    }
+
+    #[test]
+    fn route_quality_measures_runs_on_their_carrying_sheet_only() {
+        let mut a = fixture();
+        let mut p = model::plan_automatic(&a, &Spec::default()).unwrap();
+        a.edge_ink = None;
+        let mut linear = p
+            .dimensions
+            .iter()
+            .find(|d| d.placed.is_some())
+            .unwrap()
+            .clone();
+        linear.id = "linear".into();
+        linear.view = "v:front".into();
+        linear.kind = "linear".into();
+        let ink = linear.placed.as_mut().unwrap();
+        ink.lines = vec![
+            [[20., 20.], [20., 50.]],
+            [[30., 20.], [30., 50.]],
+            [[20., 40.], [30., 40.]],
+        ];
+        ink.arrows = vec![[[20., 40.], [23., 40.]], [[30., 40.], [27., 40.]]];
+        let mut callout = linear.clone();
+        callout.id = "callout".into();
+        callout.kind = "callout".into();
+        callout.view = "v:plan".into();
+        let ink = callout.placed.as_mut().unwrap();
+        ink.lines = vec![[[20.1, 22.], [20.1, 35.]], [[20.1, 35.], [35., 35.]]];
+        ink.arrows.clear();
+        p.dimensions = vec![linear, callout];
+        p.views.retain(|v| v.id == "v:front" || v.id == "v:plan");
+        p.views.iter_mut().find(|v| v.id == "v:plan").unwrap().sheet = 2;
+        assert!(crate::dims::sheet_route_limits(&a, &p).is_empty());
+        p.views.iter_mut().find(|v| v.id == "v:plan").unwrap().sheet = 1;
+        let measured = crate::dims::sheet_route_limits(&a, &p);
+        assert!(measured.contains(&("leader_ink_run".into(), vec!["callout".into()])));
+        p.dimensions[1].placed.as_mut().unwrap().lines =
+            vec![[[20.1, 22.], [20.1, 23.]], [[20.1, 23.], [35., 23.]]];
+        assert!(crate::dims::sheet_route_limits(&a, &p).is_empty());
     }
 
     #[test]

@@ -2640,6 +2640,67 @@ pub(crate) fn settle_radius_leaders(
     reports
 }
 
+/// Finished-sheet quality using the same resolved ink and 2 mm run predicate
+/// as callout refinement. This measures existing routes; it never repairs one.
+pub(crate) fn sheet_route_limits(
+    analysis: &crate::model::Analysis,
+    plan: &crate::model::Plan,
+) -> std::collections::BTreeSet<(String, Vec<String>)> {
+    let key = serde_json::to_vec(&(&plan.views, &plan.dimensions))
+        .expect("route quality inputs serialize");
+    crate::planning::memo(analysis, "sheet-route-quality", key, || {
+        let cache = super::footprints::Cache::default();
+        let mut out = std::collections::BTreeSet::new();
+        for view in &plan.views {
+            let model = cache.model(analysis, view);
+            let resolved = model
+                .as_ref()
+                .and_then(|ink| ink.0.inspection(analysis, view));
+            let extensions: Vec<_> = plan
+                .dimensions
+                .iter()
+                .filter(|d| {
+                    plan.views
+                        .iter()
+                        .any(|v| v.id == d.view && v.sheet == view.sheet)
+                })
+                .filter_map(|d| d.placed.as_ref())
+                .filter(|p| p.lines.len() >= 3 && p.arrows.len() == 2)
+                .flat_map(|p| p.lines.iter().take(2).copied())
+                .collect();
+            for dimension in plan
+                .dimensions
+                .iter()
+                .filter(|d| d.view == view.id && d.kind == "callout")
+            {
+                let Some(p) = &dimension.placed else { continue };
+                if p.lines.is_empty() {
+                    continue;
+                }
+                let drawn = resolved
+                    .map(|ink| &ink.drawn)
+                    .or_else(|| model.as_ref().map(|ink| &ink.0));
+                if p.lines.iter().any(|line| {
+                    drawn.is_some_and(|ink| ink.runs_beside(*line))
+                        || runs_beside(*line, &extensions)
+                }) {
+                    out.insert(("leader_ink_run".into(), vec![dimension.id.clone()]));
+                }
+                if let Some(ink) = resolved {
+                    let route = [p.lines[0], *p.lines.last().expect("nonempty leader")];
+                    for crossing in 0..ink.hidden.route_crossings(route) {
+                        out.insert((
+                            "leader_hidden_crossing".into(),
+                            vec![dimension.id.clone(), crossing.to_string()],
+                        ));
+                    }
+                }
+            }
+        }
+        out
+    })
+}
+
 /// Local callout refinement after interior placement, with the rest of the ink held fixed
 /// (maintainer decision (iii): leaders and their text keep off extension lines). A callout in
 /// contact moves to the nearest station of its row with fewer contacts only when nothing a
