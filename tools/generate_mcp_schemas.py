@@ -346,6 +346,7 @@ Path('schemas/mcp-validation.json').write_text(json.dumps(validation, indent=2) 
 # PMI policy and the shallow origin object add 804.
 # Actionable overflow retains preferred scope/description and its lossless detail_ref.
 # Finding impact/group and crossing metadata stay within the shared ceiling.
-SCHEMA_BUDGET = 38000
+# Raised 38,000 → 40,000 with maintainer approval (2026-10-21) for sheet preferences.
+SCHEMA_BUDGET = 40000
 assert total <= SCHEMA_BUDGET, f'schemas: {total} bytes (budget {SCHEMA_BUDGET})'
 print(f'{len(tools)} tools; {total} compact schema bytes')
