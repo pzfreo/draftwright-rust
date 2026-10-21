@@ -2847,12 +2847,7 @@ fn recover_candidates(
     let mut first_sheet = 0;
     loop {
         let mut cut = false;
-        for (i, (name, _, _)) in layout::PAGES
-            .iter()
-            .enumerate()
-            .take(crate::sheet_policy::page_limit(spec))
-            .skip(first_sheet)
-        {
+        for (i, (name, _, _)) in layout::PAGES.iter().enumerate().skip(first_sheet) {
             if spec.sheet.size.as_ref().is_some_and(|n| n != name) {
                 continue;
             }
@@ -3859,7 +3854,7 @@ fn plan_escalated_uncached(
                     let first = layout::PAGES.iter().position(|(name, ..)| *name == p.sheet.size)
                         // Invariant: The planned sheet size was selected from the fixed paper table.
                         .expect("planned paper is standard");
-                    for (name, ..) in layout::PAGES.iter().take(crate::sheet_policy::page_limit(spec)).skip(first + 1) {
+                    for (name, ..) in layout::PAGES.iter().skip(first + 1) {
                         let mut larger = spec.clone();
                         larger.sheet.size = Some((*name).into());
                         let mut candidate = plan_with_presentation(
@@ -4712,9 +4707,6 @@ fn plan_with_presentation(
         principals,
         shown("iso"),
     );
-    if spec.sheet.size.is_none() && spec.sheet.scale.is_none() {
-        request.max_page = Some(crate::sheet_policy::page_limit(spec) - 1);
-    }
     request.aligned = aligned;
     request.automatic_pair = automatic_pair;
     request.candidate_arrangement = candidate_arrangement;

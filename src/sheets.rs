@@ -581,13 +581,7 @@ pub(crate) fn small_fallback(
         tried.push("small-sheet allocation blocked by explicit sheets.max = 1".into());
         return None;
     }
-    let limit = crate::sheet_policy::page_limit(spec);
-    let papers = if spec.sheet.scale.is_some() {
-        &layout::PAGES[..2]
-    } else {
-        &layout::PAGES[limit - 1..limit]
-    };
-    for (name, _, _) in papers {
+    for (name, _, _) in layout::PAGES.iter().take(2) {
         let mut working = spec.clone();
         working.sheet.size = Some((*name).into());
         working.sheets.get_or_insert_with(Default::default).max =
@@ -1183,17 +1177,39 @@ pub(crate) fn separate_views(
 ) -> Option<Plan> {
     use crate::placement_intent::{move_box, move_point};
     if source.spec.views.values().any(|v| v.place.is_some())
-        || source
-            .spec
-            .sheets
-            .as_ref()
-            .is_some_and(|s| !s.keep_together.is_empty())
+        || source.spec.sheets.as_ref().is_some_and(|s| {
+            !s.keep_together.is_empty() || s.gdt_on_sheet_1 || s.hole_table.is_some()
+        })
         || source.spec.views.values().any(|v| v.sheet.is_some())
         || source.spec.tables.iter().any(|t| t.sheet.is_some())
+        || source.views.iter().any(|v| v.detail.is_some())
         || source.views.len() < 2
     {
         return None;
     }
+    // R5 already treats the orientation view as freely fitted. Its normal
+    // parent-scale auxiliary avoids carrying a large-paper 1.3x enlargement
+    // into a small-paper allocation; dimensioned principal views keep scale.
+    let mut adjusted = source.clone();
+    if source.spec.iso_scale_factor.is_none()
+        && !source.dimensions.iter().any(|d| d.view == "v:iso")
+        && !source.gdt.iter().any(|g| g.view == "v:iso")
+        && let Some(i) = source
+            .views
+            .iter()
+            .position(|v| v.id == "v:iso" && v.scale > source.sheet.scale_factor)
+        && let Some(iso) = auxiliary(
+            analysis,
+            "iso",
+            source.sheet.scale_factor,
+            1,
+            source.sheet.scale_factor,
+        )
+    {
+        adjusted.views[i] = iso;
+        adjusted.captions.retain(|c| c.view != "v:iso");
+    }
+    let source = &adjusted;
     let (_, w, h) = layout::PAGES.iter().find(|p| p.0 == size)?;
     let mut plan = source.clone();
     let page_delta = [w - source.sheet.page[0], h - source.sheet.page[1]];
@@ -1407,6 +1423,7 @@ pub(crate) fn separate_views(
     }
     plan.dimensions = crate::placement_intent::held_dimensions(Some(source), &plan.views);
     cross_references(analysis, &mut plan);
+    crate::iso_caption::refresh(analysis, &mut plan);
     // Re-evaluate spatial findings after transport. Required losses and every
     // unsupported requirement remain in the inventory and problem list.
     plan.problems.retain(|p| {

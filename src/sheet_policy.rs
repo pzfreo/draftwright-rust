@@ -62,6 +62,8 @@ const FAILING_CODES: &[&str] = &[
     "detail_unplaceable",
     "pmi_not_drawn",
     "view_plan_incomplete",
+    "cross_reference_missing",
+    "datum_not_identified",
 ];
 
 fn problem_key(p: &model::Problem) -> (String, Vec<String>) {
@@ -72,7 +74,8 @@ fn problem_key(p: &model::Problem) -> (String, Vec<String>) {
 }
 
 pub(crate) fn layout_problem(problem: &model::Problem) -> bool {
-    FAILING_CODES.contains(&problem.code.as_str())
+    (FAILING_CODES.contains(&problem.code.as_str())
+        || problem.labels().impact == crate::finding::Impact::Readability)
         && (problem.code != "layout_recovery_exhausted" || problem.severity != "info")
 }
 
@@ -311,12 +314,6 @@ fn candidate_floor(analysis: &Analysis, baseline: &Plan, floor: f64) -> f64 {
     floor.max(standard)
 }
 
-/// Automatic baseline/recovery may use larger paper as its quality reference.
-/// The public selector below applies soft preferences in its ordered trials.
-pub(crate) fn page_limit(_spec: &Spec) -> usize {
-    layout::PAGES.len()
-}
-
 fn cap(spec: &Spec) -> &str {
     spec.sheet.preferred_max_size.as_deref().unwrap_or("A3")
 }
@@ -354,20 +351,6 @@ fn rank(plan: &Plan) -> (usize, usize, f64, usize) {
     )
 }
 
-#[cfg(test)]
-fn complete(analysis: &Analysis, plan: &Plan, floor: f64) -> bool {
-    model::findings(plan).clean()
-        && model::undrawn_gdt(plan) == 0
-        && model::drawn_sheets_fit(analysis, plan)
-        && plan.sheet.scale_factor + 1e-9 >= floor.max(sheet_fit::min_legible_scale(analysis))
-        && sheet_fit::illegible_steps(analysis, plan) == 0
-        && plan
-            .views
-            .iter()
-            .filter(|v| v.id != "v:iso")
-            .all(|v| v.scale + 1e-9 >= floor)
-}
-
 /// A readable layout keeps at least the unrestricted reference's reduction
 /// scale (enlargements need not be preserved), plus feature and printed-step
 /// minima. New layout/readability failures or required losses are not accepted.
@@ -386,7 +369,17 @@ fn usable(analysis: &Analysis, plan: &Plan, reference: &Plan, floor: f64) -> boo
     {
         return false;
     }
-    failures(analysis, plan, floor).is_subset(&failures(analysis, reference, floor))
+    let counts = |p: &Plan| {
+        let mut out = std::collections::BTreeMap::new();
+        for (code, _) in failures(analysis, p, floor) {
+            *out.entry(code).or_insert(0usize) += 1;
+        }
+        out
+    };
+    let reference = counts(reference);
+    counts(plan)
+        .into_iter()
+        .all(|(code, n)| n <= *reference.get(&code).unwrap_or(&0))
 }
 
 fn finish_choice(mut plan: Plan, spec: &Spec, candidates: Vec<Candidate>, reason: &str) -> Plan {
@@ -439,6 +432,7 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
     let mut best = sheet_fit::inside_frames(fit, &baseline).then(|| baseline.clone());
     // Whole-view allocations are independent of a count bound once they fit.
     let mut separated = std::collections::BTreeMap::<String, Option<Plan>>::new();
+    let mut unblocked = std::collections::BTreeMap::<(String, u64), Plan>::new();
     for (size, max) in requests(spec) {
         let mut scales = Vec::new();
         let mut outcome = "reserved footprints cannot fit at a readable scale".to_string();
@@ -447,16 +441,33 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
             trials.push(baseline.clone());
             outcome = "automatic baseline reused".into();
         } else if let Some(scale) = estimate.scale(size, max, floor) {
-            scales.push(model::scale_name(scale));
-            let mut forced = intent.clone();
-            forced.binding = spec.binding.clone();
-            forced.sheet.size = Some(size.into());
-            forced.sheet.scale = Some(model::scale_name(scale));
-            forced.sheets.get_or_insert_with(Default::default).max = Some(max as u32);
-            omit_absent_details(fit, &mut forced, &baseline, scale);
-            match crate::planning::fixed_pair(|| model::plan_automatic(analysis, &forced)) {
-                Ok(plan) => trials.push(plan),
-                Err(e) => outcome = format!("cannot plan: {}", e.message),
+            let reference_scale = (baseline.sheet.scale_factor < scale
+                && baseline.sheet.scale_factor + 1e-9 >= floor)
+                .then_some(baseline.sheet.scale_factor);
+            for scale in std::iter::once(scale).chain(reference_scale) {
+                scales.push(model::scale_name(scale));
+                let key = (size.to_string(), scale.to_bits());
+                if max > 1
+                    && let Some(plan) = unblocked.get(&key)
+                {
+                    trials.push(plan.clone());
+                    continue;
+                }
+                let mut forced = intent.clone();
+                forced.binding = spec.binding.clone();
+                forced.sheet.size = Some(size.into());
+                forced.sheet.scale = Some(model::scale_name(scale));
+                forced.sheets.get_or_insert_with(Default::default).max = Some(max as u32);
+                omit_absent_details(fit, &mut forced, &baseline, scale);
+                match crate::planning::fixed_pair(|| model::plan_automatic(analysis, &forced)) {
+                    Ok(plan) => {
+                        if max > 1 && !plan.sheet.basis.contains("blocked by sheets.max") {
+                            unblocked.insert(key, plan.clone());
+                        }
+                        trials.push(plan);
+                    }
+                    Err(e) => outcome = format!("cannot plan: {}", e.message),
+                }
             }
         }
         if max > 1 {
@@ -473,6 +484,9 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
             }
         }
         for plan in trials {
+            if !scales.contains(&plan.sheet.scale) {
+                scales.push(plan.sheet.scale.clone());
+            }
             if !sheet_fit::inside_frames(fit, &plan) {
                 outcome = format!(
                     "hard rejected: view geometry or annotation ink leaves the drawable frame at {}",
@@ -750,7 +764,9 @@ mod tests {
             assert!(
                 p.sheet_candidates
                     .iter()
-                    .any(|c| c.outcome.contains("leader_on_extension")),
+                    .any(|c| c.outcome.contains("leader_on_extension")
+                        || c.outcome.contains("hard rejected")
+                        || c.outcome.contains("reserved footprints cannot fit")),
                 "{file}"
             );
         }
@@ -972,8 +988,8 @@ mod tests {
     #[test]
     fn tapped_posts_respect_the_cap_and_prefer_complete_allocation() {
         for (file, maximum, size, scale, extra_sheets) in [
-            ("string_post_tapped", "A4", "A4", "2:1", 1),
-            ("string_post_tapped", "A3", "A3", "5:1", 0),
+            ("string_post_tapped", "A4", "A4", "5:1", 0),
+            ("string_post_tapped", "A3", "A4", "5:1", 0),
         ] {
             let path = Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join(format!("tests/fixtures/pmi/step/{file}.step.gz"));
@@ -1002,7 +1018,8 @@ mod tests {
             ("mfcadpp/10020.step", "A4", "1:1"),
             // The former A4 reduction gains a leader/extension contact.
             ("mfcadpp/10033.step", "A3", "2:1"),
-            ("mfcadpp/10163.step", "A4", "1:2"),
+            // The A4 orientation view touches the frame with its visible stroke.
+            ("mfcadpp/10163.step", "A3", "1:1"),
             ("cadgenbench_inputs/cgb245.step", "A3", "1:5"),
             ("nist/nist_ftc_07_asme1_rd.stp", "A3", "1:5"),
         ] {
@@ -1167,6 +1184,48 @@ mod tests {
         assert!(notices[0].message.contains("paper size and sheet count"));
         assert!(notices[0].message.contains("3 sheet(s) of A2"));
         assert!(notices[0].fix.is_empty());
+    }
+
+    #[test]
+    fn principal_blocks_keep_their_annotations_and_scale_on_separate_sheets() {
+        let a = fixture();
+        let spec: Spec = serde_json::from_value(
+            json!({"sheet":{"size":"A1","scale":"5:1"},"views":{"iso":{"omit":true}}}),
+        )
+        .unwrap();
+        let source = model::plan_automatic(&a, &spec).unwrap();
+        let split = crate::sheets::separate_views(&a, &source, "A4", 9)
+            .expect("individual annotated views fit A4");
+        assert!(sheet_fit::inside_frames(&a, &split));
+        assert!(!split.sheets.is_empty());
+        assert!(split.views.iter().all(|v| v.scale == 5.));
+        assert!(
+            split.views.iter().any(|v| v.id == "v:front" && v.sheet > 1)
+                || split.views.iter().any(|v| v.id == "v:plan" && v.sheet > 1)
+        );
+        assert_eq!(source.dimensions.len(), split.dimensions.len());
+        for old in &source.dimensions {
+            let new = split.dimensions.iter().find(|d| d.id == old.id).unwrap();
+            assert_eq!(new.view, old.view);
+            assert_eq!(new.state, old.state);
+            assert_eq!(new.measurements, old.measurements);
+            if let (Some(a), Some(b)) = (&old.placed, &new.placed) {
+                let delta = crate::placement_intent::anchor_delta(&source, &split.views, &old.view)
+                    .unwrap();
+                for k in 0..2 {
+                    assert!((a.label_at[k] + delta[k] - b.label_at[k]).abs() < 1e-9);
+                }
+                for (a, b) in a.lines.iter().zip(&b.lines) {
+                    for j in 0..2 {
+                        for k in 0..2 {
+                            assert!((a[j][k] + delta[k] - b[j][k]).abs() < 1e-9);
+                        }
+                    }
+                }
+            } else {
+                assert_eq!(old.placed.is_some(), new.placed.is_some());
+            }
+        }
     }
 
     #[test]

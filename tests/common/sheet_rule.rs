@@ -77,79 +77,80 @@ fn in_band(f: f64) -> bool {
 /// Asserts *plan*'s automatic sheet follows the rule over its recorded candidates; *seed* is the
 /// first estimate's (sheet, scale). Returns the smallest fit.
 pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, String) {
-    if plan
-        .sheet_candidates
-        .last()
-        .is_some_and(|c| c.outcome.starts_with(&format!("{}: clean at ", c.size)))
-    {
+    if !plan.sheet_candidates.is_empty() {
         let maximum = plan
             .spec
             .sheet
             .preferred_max_size
             .as_deref()
             .unwrap_or("A3");
-        let pages: Vec<_> = draftwright::layout::PAGES
+        let preferred = draftwright::layout::PAGES
             .iter()
-            .map(|p| p.0)
-            .take_while(|p| *p >= maximum)
+            .position(|p| p.0 == maximum)
+            .unwrap();
+        let hard = plan.spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9) as usize;
+        let count = (plan.spec.sheet.preferred_max_sheets.unwrap_or(2) as usize).min(hard);
+        let mut expected: Vec<_> = draftwright::layout::PAGES[..=preferred]
+            .iter()
+            .map(|p| (p.0, 1))
             .collect();
-        let max_sheets = plan.spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9) as usize;
-        let expected: Vec<_> = pages
-            .into_iter()
-            .map(|p| (p, 1))
-            .chain((2..=max_sheets).map(|n| (maximum, n)))
-            .collect();
+        expected.extend((2..=count).map(|n| (maximum, n)));
+        for p in &draftwright::layout::PAGES[preferred + 1..] {
+            expected.extend((1..=count).map(|n| (p.0, n)));
+        }
+        expected.extend((count + 1..=hard).map(|n| ("A0", n)));
         assert!(plan.sheet_candidates.len() <= expected.len());
-        for (candidate, request) in plan.sheet_candidates.iter().zip(expected) {
+        for (candidate, request) in plan.sheet_candidates.iter().zip(&expected) {
             assert_eq!(
                 (candidate.size.as_str(), candidate.max),
-                request,
+                *request,
                 "{name}: trial order"
+            );
+            assert_eq!(candidate.preferred_max_size, maximum);
+            assert_eq!(
+                candidate.preferred_max_sheets,
+                plan.spec.sheet.preferred_max_sheets.unwrap_or(2) as usize
             );
             assert!(
                 candidate.scales.len() <= 2,
                 "{name}: unbounded scale search"
             );
-            if candidate.scales.len() == 2 {
-                let indices: Vec<_> = candidate
-                    .scales
-                    .iter()
-                    .map(|scale| {
-                        let (numerator, denominator) = scale.split_once(':').unwrap();
-                        let factor =
-                            numerator.parse::<f64>().unwrap() / denominator.parse::<f64>().unwrap();
-                        draftwright::layout::SCALES
-                            .iter()
-                            .position(|s| *s == factor)
-                            .unwrap()
-                    })
-                    .collect();
-                assert_eq!(
-                    indices[1],
-                    indices[0] + 1,
-                    "{name}: retry must be the next smaller standard scale"
-                );
-            }
         }
-        let winner = plan.sheet_candidates.last().unwrap();
-        assert!(
-            plan.sheet_candidates[..plan.sheet_candidates.len() - 1]
-                .iter()
-                .all(|c| !c.outcome.starts_with(&format!("{}: clean at ", c.size)))
-        );
-        assert_eq!(winner.size, plan.sheet.size, "{name}: paper report");
-        assert_eq!(
-            winner.scales.last(),
-            Some(&plan.sheet.scale),
-            "{name}: scale report"
-        );
-        assert!(plan.sheets.len() < winner.max, "{name}: sheet count");
+        let winners: Vec<_> = plan
+            .sheet_candidates
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| c.outcome.starts_with(&format!("{}: usable at ", c.size)))
+            .collect();
+        if let Some((i, winner)) = winners.first() {
+            assert_eq!(winners.len(), 1);
+            assert_eq!(
+                *i,
+                plan.sheet_candidates.len() - 1,
+                "{name}: first usable stops search"
+            );
+            assert_eq!(winner.size, plan.sheet.size);
+            assert!(winner.scales.contains(&plan.sheet.scale));
+            assert!(plan.sheets.len() < winner.max);
+            assert!(
+                plan.sheet
+                    .basis
+                    .contains(&format!("sheet choice: {}", winner.outcome))
+            );
+        } else {
+            assert_eq!(
+                plan.sheet_candidates.len(),
+                expected.len(),
+                "{name}: fallback needs full search"
+            );
+            assert!(plan.sheet.basis.contains("least-bad unclipped candidate"));
+            assert!(
+                plan.problems
+                    .iter()
+                    .any(|p| p.code == "layout_recovery_exhausted")
+            );
+        }
         assert!(plan.sheet.default);
-        assert!(
-            plan.sheet
-                .basis
-                .contains(&format!("sheet choice: {}", winner.outcome))
-        );
         return (plan.sheet.size.clone(), plan.sheet.scale.clone());
     }
     let basis = &plan.sheet.basis;

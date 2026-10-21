@@ -463,8 +463,11 @@ fn the_block_matches_draftwrights_on_corpus_parts() {
                 h - (ph - pb[3]),
             ];
             assert!(
-                ((w - block[2] - (pw - pb[2])).abs() < 1e-6
-                    && (h - block[3] - (ph - pb[3])).abs() < 1e-6)
+                ((w - block[2] - (pw - pb[2]) - draftwright::tables::frame_clearance()).abs()
+                    < 1e-6
+                    && (h - block[3] - (ph - pb[3]) - draftwright::tables::frame_clearance())
+                        .abs()
+                        < 1e-6)
                     || plan.views.iter().any(|v| overlaps(
                         corner,
                         [
@@ -484,8 +487,9 @@ fn the_block_matches_draftwrights_on_corpus_parts() {
             );
         } else {
             assert!(
-                (w - block[2] - (pw - pb[2])).abs() < 1e-6
-                    && (h - block[3] - (ph - pb[3])).abs() < 1e-6,
+                (w - block[2] - (pw - pb[2]) - draftwright::tables::frame_clearance()).abs() < 1e-6
+                    && (h - block[3] - (ph - pb[3]) - draftwright::tables::frame_clearance()).abs()
+                        < 1e-6,
                 "{name} {block:?} {pb:?}"
             );
         }

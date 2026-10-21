@@ -290,6 +290,10 @@ fn footprints_with_notes(
         for q in p.lines.iter().chain(&p.strokes).chain(&p.arrows).flatten() {
             include(&mut b, *q);
         }
+        for arc in &p.arcs {
+            include(&mut b, [arc[0] - arc[2], arc[1] - arc[2]]);
+            include(&mut b, [arc[0] + arc[2], arc[1] + arc[2]]);
+        }
         for q in p.fills.iter().flatten() {
             include(&mut b, *q);
         }
@@ -320,6 +324,10 @@ fn footprints_with_notes(
             b.at[0] + b.radius,
             b.at[1] + b.radius,
         ];
+        if let Some(label) = b.label_box {
+            include(&mut r, [label[0], label[1]]);
+            include(&mut r, [label[2], label[3]]);
+        }
         for q in b.leader.iter().flatten() {
             include(&mut r, *q);
         }
@@ -371,6 +379,14 @@ pub(crate) fn inside_frames(analysis: &Analysis, plan: &Plan) -> bool {
                 local.requirements.clear();
             }
             let mut ink = view_ink(analysis, &local);
+            let line_work_start = ink.len()
+                - local
+                    .views
+                    .iter()
+                    .flat_map(|v| &v.line_work)
+                    .map(|w| w.curves.len())
+                    .sum::<usize>();
+            let view_ink_end = ink.len();
             ink.extend(
                 local
                     .notes_block
@@ -385,8 +401,18 @@ pub(crate) fn inside_frames(analysis: &Analysis, plan: &Plan) -> bool {
                     .filter_map(|t| t.table.placed.as_ref().map(|p| p.cells)),
             );
             ink.extend(furniture_footprints(analysis, &local));
-            let stroke = crate::output::layer_styles()[0].1.width / 2.0;
-            ink.into_iter().all(|b| {
+            ink.extend(crate::iso_caption::section_text_obstacles(
+                analysis,
+                sheet,
+                &plan.views,
+            ));
+            ink.into_iter().enumerate().all(|(i, b)| {
+                let geometry = i < local.views.len() || (i >= line_work_start && i < view_ink_end);
+                let stroke = if geometry {
+                    crate::output::layer_styles()[0].1.width / 2.0
+                } else {
+                    crate::tables::frame_clearance()
+                };
                 b[0] >= MARGIN + stroke - 1e-6
                     && b[1] >= MARGIN + stroke - 1e-6
                     && b[2] <= sheet.page[0] - MARGIN - stroke + 1e-6

@@ -527,7 +527,8 @@ fn tables_match_draftwrights_on_corpus_parts() {
                 (p.cells[1], pb[1])
             };
             if comparable {
-                let same_corner = (x - px).abs() < 1e-6 && (y - py_).abs() < 1e-6;
+                let same_corner = (x - px - tables::frame_clearance()).abs() < 1e-6
+                    && (y - py_ - tables::frame_clearance()).abs() < 1e-6;
                 let origin = [
                     if right {
                         w - px - (p.cells[2] - p.cells[0])

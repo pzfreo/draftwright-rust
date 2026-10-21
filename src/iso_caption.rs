@@ -166,7 +166,7 @@ pub(crate) fn plan(
 /// Text and cutting-plane furniture use the same font, anchors and settled line work as
 /// rendering, including section references whose view lives on another sheet. The fill
 /// estimator's conservative text metrics are deliberately not used for these labels.
-fn section_text_obstacles(
+pub(crate) fn section_text_obstacles(
     analysis: &Analysis,
     sheet: &PlannedSheet,
     views: &[PlannedView],
