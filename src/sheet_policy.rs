@@ -479,16 +479,23 @@ fn frame_conflicts(plan: &Plan) -> Vec<(String, Vec<String>)> {
 }
 
 // A sheet that carries only the freely fitted isometric is not a meaningful split: the
-// orientation view belongs beside the views it explains, shrunk if need be.
+// orientation view belongs beside the views it explains, shrunk if need be. An author's
+// own sheet assignment for the isometric is kept.
 fn pictorial_only_sheet(plan: &Plan) -> bool {
-    plan.sheets.iter().any(|sheet| {
-        let mut on = plan
-            .views
-            .iter()
-            .filter(|v| v.sheet == sheet.number)
-            .peekable();
-        on.peek().is_some() && on.all(|v| v.id == "v:iso")
-    })
+    let authored = plan
+        .spec
+        .views
+        .get("iso")
+        .is_some_and(|v| v.sheet.is_some());
+    !authored
+        && plan.sheets.iter().any(|sheet| {
+            let mut on = plan
+                .views
+                .iter()
+                .filter(|v| v.sheet == sheet.number)
+                .peekable();
+            on.peek().is_some() && on.all(|v| v.id == "v:iso")
+        })
 }
 
 // A dimension that could not be drawn must be stated by a problem naming it.
