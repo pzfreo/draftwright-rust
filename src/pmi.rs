@@ -3124,7 +3124,7 @@ fn face_on_sites(part: &Part, f: usize, b: &Bounds, k: usize) -> Vec<[f64; 3]> {
     for t in [0.5, 0.3, 0.7, 0.15, 0.85] {
         for edge in [b.min[lateral], b.max[lateral]] {
             let offset = 0.5 * (edge - frame.origin[lateral]);
-            if !(offset.abs() < *radius) {
+            if offset.is_nan() || offset.abs() >= *radius {
                 continue;
             }
             let mut s = frame.origin;

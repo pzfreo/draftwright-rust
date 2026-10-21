@@ -1735,19 +1735,28 @@ fn plan_search(
         if compact && datum {
             sites = datum_sites(analysis, &item, frame, authored);
         }
-        // A cylinder's finish may stand at any proven site on the silhouette (or, head-on, on
-        // the half of the face) its strip faces, the authored strip's when the Spec names one.
+        // A cylinder's finish may stand at any proven site on either silhouette (or, head-on,
+        // either half of the face), each in the strip it faces: its own strip's first, the
+        // other's only when they find no clear place; only the authored strip's when the Spec
+        // names one. A dot reads on blank face: sites clear of the view's projected edges and
+        // silhouettes (hidden ones too) by a millimetre past the dot come first in each strip.
         let face_on = matches!(item.glyph, Glyph::Finish { face_on: true, .. });
-        if matches!(&item.glyph, Glyph::Finish { surface, .. } if surface == "cylinder") {
-            sites = cylinder_sites_of(analysis, &item, frame, Some(item.side), face_on);
-        }
-        // A dot reads on blank face: sites clear of the view's projected edges and silhouettes
-        // (hidden ones too) by a millimetre past the dot come first.
-        if face_on
-            && let Some(view) = views.iter().find(|v| v.id == own)
-            && let Some(proof) = super::interior::exterior_proofs(analysis, views).get(&own)
-        {
-            sites.sort_by_key(|s| !proof.point_clear(view, s.0, DOT + 1.0));
+        let cylinder_finish =
+            matches!(&item.glyph, Glyph::Finish { surface, .. } if surface == "cylinder");
+        if cylinder_finish {
+            let requested = intent.and_then(|p| p.side).map(|s| s.name());
+            sites = cylinder_sites_of(analysis, &item, frame, requested, face_on);
+            let proofs = if face_on {
+                super::interior::exterior_proofs(analysis, views)
+            } else {
+                BTreeMap::new()
+            };
+            let view = views.iter().find(|v| v.id == own);
+            let blank = |p: P2| match (view, proofs.get(&own)) {
+                (Some(v), Some(proof)) => proof.point_clear(v, p, DOT + 1.0),
+                _ => true,
+            };
+            sites.sort_by_key(|s| (s.1 != item.side, !blank(s.0)));
         }
         let tiers = |side: &str, tip: P2| {
             let pinned = intent.is_some_and(|p| p.pinned);
@@ -1777,18 +1786,39 @@ fn plan_search(
         let mut best: Option<Choice<'_>> = None;
         let tier_ink: &[[P2; 2]] = if search == Search::Uncited { &[] } else { &ink };
         // Exhaust the compact, face-to-first-lane choices before trying any outer tier.
-        'search: for inside in [true, false] {
+        // A cylinder's finish exhausts its own strip (compact tiers, then outer ones) before the
+        // other silhouette's, which it tries only when its own has no place clear of every label
+        // and line: a place past the reserved area, uncrossed, still keeps its strip.
+        let passes: &[(bool, Option<bool>)] = if cylinder_finish {
+            &[
+                (true, Some(true)),
+                (false, Some(true)),
+                (true, Some(false)),
+                (false, Some(false)),
+            ]
+        } else {
+            &[(true, None), (false, None)]
+        };
+        'search: for &(inside, own_strip) in passes {
+            if own_strip == Some(false)
+                && best
+                    .as_ref()
+                    .is_some_and(|b: &Choice<'_>| b.0.0 <= 1 && b.0.1 == 0)
+            {
+                break;
+            }
             if inside
                 && (!compact
-                    || !(datum
-                        || shape == Shape::Finish
-                        || recess_frames && shape == Shape::Frame)
+                    || !(datum || shape == Shape::Finish || recess_frames && shape == Shape::Frame)
                     || authored)
             {
                 continue;
             }
             for (n, (tip, site_side, extension)) in sites.iter().enumerate() {
-                let choices = if datum {
+                if own_strip.is_some_and(|own| (*site_side == item.side) != own) {
+                    continue;
+                }
+                let choices = if datum || cylinder_finish {
                     vec![*site_side]
                 } else {
                     sides.clone()
@@ -2348,7 +2378,7 @@ fn other_finish_side(item: &Lowered, record: &crate::pmi::Record) -> Option<&'st
         .iter()
         .chain(&g.alternatives)
         .any(|p| (p[across] - item.site[across]).abs() > 1e-6)
-        .then(|| match item.side {
+        .then_some(match item.side {
             "left" => "right",
             "right" => "left",
             "above" => "below",
