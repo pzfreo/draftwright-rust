@@ -52,15 +52,25 @@ fn chain_and_high_end_baseline_replace_locations_once_and_round_trip() {
             serde_json::to_value(model::plan_recovered(&reload, &saved).unwrap()).unwrap()
         );
         let font = draftwright::text::Font::new(api::MONO.to_vec()).unwrap();
-        let drawing = model::render(&part, &a, &p, &font).unwrap();
-        assert_eq!(
-            model::embedded_spec(drawing.svg().as_bytes())
-                .unwrap()
-                .unwrap(),
-            p.spec
-        );
-        let mut marks = draftwright::lint::marks(&drawing);
-        let issues = draftwright::lint::lint(&a, &drawing);
+        let drawings = model::render_sheets(&part, &a, &p, &font).unwrap();
+        for drawing in &drawings {
+            assert_eq!(
+                model::embedded_spec(drawing.svg().as_bytes())
+                    .unwrap()
+                    .unwrap(),
+                p.spec
+            );
+        }
+        // The principal view and its scheme may live on a later physical page.
+        let sheet = p
+            .views
+            .iter()
+            .find(|v| v.id == generated[0].view)
+            .unwrap()
+            .sheet;
+        let drawing = &drawings[(sheet - 1) as usize];
+        let mut marks = draftwright::lint::marks(drawing);
+        let issues = draftwright::lint::lint(&a, drawing);
         assert!(
             !issues.iter().any(|i| [
                 "dimension_scheme_invalid",
