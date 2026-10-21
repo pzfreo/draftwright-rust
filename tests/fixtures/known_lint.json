@@ -385,6 +385,48 @@
       "count": 1,
       "verdict": "rust-correct",
       "reason": "Reported whatever the drawing says, as Python's lint reports it on its own sheet of this part, message for message (tests/lint_coverage.rs::backstop_on_the_ports_own_drawings_is_known): the opening through m10127's face at y 32.268 is a three-edge loop (a triangle, box x 4.117..12.874, z 19.370..27.307), neither a circle, rectangle, obround or rounded rectangle nor the end of a section recess, so no feature of the drawing vocabulary states it (src/lint/profiles.rs; the loop's verdicts equal draftwright's, pythons_principal_profile_scan_is_reproduced). It is left for definition by hand."
+    },
+    {
+      "part": "cgb245",
+      "code": "radius_leader_not_radial",
+      "count": 1,
+      "verdict": "rust-correct",
+      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, non-material-side approach rule."
+    },
+    {
+      "part": "ctc01",
+      "code": "radius_leader_not_radial",
+      "count": 1,
+      "verdict": "rust-correct",
+      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, non-material-side approach rule."
+    },
+    {
+      "part": "ftc06",
+      "code": "radius_leader_not_radial",
+      "count": 2,
+      "verdict": "rust-correct",
+      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, non-material-side approach rule."
+    },
+    {
+      "part": "m1000",
+      "code": "radius_leader_not_radial",
+      "count": 1,
+      "verdict": "rust-correct",
+      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, non-material-side approach rule."
+    },
+    {
+      "part": "spool132",
+      "code": "radius_leader_not_radial",
+      "count": 1,
+      "verdict": "rust-correct",
+      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, non-material-side approach rule."
+    },
+    {
+      "part": "string_post",
+      "code": "radius_leader_not_radial",
+      "count": 1,
+      "verdict": "rust-correct",
+      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, non-material-side approach rule."
     }
   ],
   "ledgers": [

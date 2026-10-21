@@ -77,7 +77,7 @@ pub(crate) use pmi_dimensions::basic as is_basic;
 mod leaders;
 pub(crate) use label_lanes::{in_lane, settle_inventory};
 pub(crate) use leaders::default_nominal_intent;
-pub(crate) use leaders::settle_after_furniture;
+pub(crate) use leaders::{settle_after_furniture, settle_radius_leaders};
 pub(crate) use placement::collisions_cached as label_collisions;
 pub(crate) use placement::nearest_shared_witnesses;
 pub(crate) mod levels;
@@ -2754,7 +2754,7 @@ fn plan_inventory_ordered(
         &mut intended,
     );
     let prescribed = intended.clone();
-    let locked: Vec<_> = intended.iter().map(Option::is_some).collect();
+    let mut locked: Vec<_> = intended.iter().map(Option::is_some).collect();
     let pin_ink: Vec<_> = all
         .iter()
         .zip(&prescribed)
@@ -2918,6 +2918,39 @@ fn plan_inventory_ordered(
             .iter()
             .any(|m| m.feature.starts_with("f:section_recess:"))
     });
+    // Reserve unchanged callouts together with the finished radius corridors,
+    // so an earlier radius cannot evict another clear leader from its joint
+    // assignment. These are incumbent preferences, not authored pins: the
+    // ordinary final collision/radius repair still handles new contacts.
+    let radius_incumbents = held.iter().any(|d| {
+        d.placed.is_some()
+            && d.measurements
+                .iter()
+                .any(|m| matches!(m.parameter.as_str(), "fillet.radius" | "blend.radius"))
+    });
+    let mut incumbents = vec![false; all.len()];
+    for (i, w) in all.iter().enumerate() {
+        if radius_incumbents
+            && !crate::nominal::comparison()
+            && !crate::placement_intent::has_pins(spec)
+            && intended[i].is_none()
+            && matches!(w.shape, Shape::Callout { .. })
+            && spec.dimensions.get(&w.id).is_none_or(|d| {
+                d.place.is_none() && d.tolerance.is_none() && d.text.is_none() && d.style.is_none()
+            })
+            && let Some(d) = held.iter().find(|d| {
+                d.id == w.id
+                    && d.terms == w.terms
+                    && d.measurements == w.measurements
+                    && chosen[i].is_some_and(|v| d.view == format!("v:{v}"))
+            })
+            && d.placed.is_some()
+        {
+            placed[i] = d.placed.clone();
+            locked[i] = true;
+            incumbents[i] = true;
+        }
+    }
     let nominal_context = leaders::nominal_context(analysis, spec, &all);
     let nominal_seeded = if matches!(stage, 0 | 3)
         && (recess_context || nominal_context)
@@ -3318,6 +3351,27 @@ fn plan_inventory_ordered(
         })
         .collect();
     leader_problems.extend(refined.into_values().flatten());
+    // Replayed callouts bypass route selection, not its geometry audit. Keep
+    // their existing crossing/length findings visible, including fallbacks.
+    for (i, w) in all.iter().enumerate().filter(|(i, _)| incumbents[*i]) {
+        if let (Some(name), Some(p)) = (chosen[i], &placed[i])
+            && let Some(v) = views.iter().find(|v| v.id.trim_start_matches("v:") == name)
+            && let Some(shaft) = p.lines.first()
+        {
+            leader_problems.retain(|q| {
+                !matches!(
+                    q.code.as_str(),
+                    "annotation_line_over_view" | "annotation_leader_long"
+                ) || q.subjects.first() != Some(&w.id)
+            });
+            leader_problems.extend(leaders::route_reports(
+                w,
+                name,
+                cache.get(analysis, v).solids(),
+                *shaft,
+            ));
+        }
+    }
     let inventory = all
         .iter()
         .enumerate()

@@ -25,6 +25,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- Radius callouts (#145) try the middle half of a proven circular arc, within 15° of
+  radial from the non-material side: towards the centre for concave fillets, away from it
+  for convex outside corners. End-on toroidal meridians are supported where proven.
+  A blocked case keeps its callout and has one drawn-lint finding; unreadable sections
+  use informational `radius_leader_target_unverifiable`, with no duplicate fallback warning.
+  Unrelated omission and tolerance edits retain finished radius routes and their existing
+  findings; the final collision audit preserves remedies for authored pins, and repeated
+  pin audits keep findings unique for lossless session replay.
 - Verbose MCP problems retain their code and subjects inline, plus the preferred fix,
   scope and complete trade description when they fit. `detail_ref` retains every full
   alternative without offering an undisclosed trade (#151). Explicit paper, scale and sheet-count edits release an inherited local-layout
