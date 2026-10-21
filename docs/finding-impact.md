@@ -223,8 +223,8 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `slot_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `spec_entries_inactive` | decision | Authored settings do not apply to any current item. |
 | `spec_from_other_revision` | decision | The user must decide whether to rebind settings from another revision. |
-| `spec_refines_pmi` | advisory | The authored designation refines a Specify-written thread. |
 | `spec_overrides_pmi` | decision | The user-authored control replaces a different PMI control. |
+| `spec_refines_pmi` | advisory | The authored designation refines a Specify-written thread. |
 | `step_general_tolerance_disagreement` | decision | The authored and PMI general tolerances disagree. |
 | `step_level_support_missing` | incomplete | Missing shoulder support prevents the step level being stated. |
 | `step_material_ambiguous` | decision | The STEP records do not identify one material to use. |

@@ -256,7 +256,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             severity,
             format!(
                 "The {} {} annotation could not be drawn. Review its requirement and attachment.",
-                if id.starts_with(crate::spec_gdt::SOURCE_PREFIX) {
+                if id.starts_with("spec:") {
                     "Spec"
                 } else if crate::pmi::specify_written(report, id) {
                     "Specify"
