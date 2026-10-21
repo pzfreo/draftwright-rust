@@ -137,9 +137,7 @@ fn stc09_slot_length_stays_beside_its_peer_and_gdt_corridors() {
     let path = dir.join("stc09.stp");
     std::fs::write(&path, step).unwrap();
     let a = model::analyse_native(&path).unwrap().1;
-    let mut spec = Spec::default();
-    spec.sheet.size = Some("A1".into()); // Hold the historical frame for the lane regression.
-    let p = model::plan_recovered(&a, &spec).unwrap();
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
     let placed = |id: &str| {
         p.dimensions
             .iter()

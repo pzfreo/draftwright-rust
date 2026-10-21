@@ -520,11 +520,14 @@ are planned on roomy paper before transport; a small-sheet plan that already
 dropped items is not used to manufacture a fit.
 
 A candidate is usable when all geometry and annotation ink fits inside its own
-sheet's drawable frame, the existing feature-opening minimum holds and printed-step
+sheet's drawable frame, feature-opening and printed-step
 readability breaches do not exceed the larger reference,
 and it adds no layout/readability failures or required losses relative to the
 unrestricted larger-paper reference. Readable scales use the existing 0.8 mm minimum feature opening, 20 mm
-overall span and 1:10 absolute floor. A reference drawn above 1:10 is never
+overall span and 1:10 absolute floor. An inherited feature-opening shortfall may
+remain at the reference scale, but cannot justify a further reduction. This avoids
+jumping to the next standard enlargement for a reference opening just below the
+target. An authored `sheets.smallest_scale` remains hard. A reference drawn above 1:10 is never
 newly reduced to that absolute fallback just to fit preferred paper. Estimated
 recess-chain label space is judged by the finished text and clearance findings,
 rather than treated as a physical minimum. Printed-step and text/clearance breaches

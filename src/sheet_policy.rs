@@ -328,6 +328,20 @@ fn candidate_floor(analysis: &Analysis, baseline: &Plan, floor: f64) -> f64 {
     floor.max(standard)
 }
 
+fn readable_floor(analysis: &Analysis, baseline: &Plan, spec: &Spec) -> f64 {
+    // The unrestricted finished reference may already be just below a feature
+    // target (e.g. a 3.96875 mm opening prints at 0.79375 mm at 1:5).
+    // Do not turn that inherited clearance into a demand for the next standard
+    // enlargement. Smaller candidates may not make it worse, and the author's
+    // explicit smallest_scale remains a hard floor.
+    candidate_floor(
+        analysis,
+        baseline,
+        sheet_fit::min_geometry_scale(analysis).min(baseline.sheet.scale_factor),
+    )
+    .max(crate::sheets::floor(spec).unwrap_or(0.))
+}
+
 fn cap(spec: &Spec) -> &str {
     spec.sheet.preferred_max_size.as_deref().unwrap_or("A3")
 }
@@ -435,11 +449,7 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
     let intent = baseline.spec.clone();
     let effective = crate::spec_gdt::effective(analysis, &intent)?;
     let fit = effective.as_ref();
-    let floor = candidate_floor(
-        fit,
-        &baseline,
-        sheet_fit::min_geometry_scale(fit).max(crate::sheets::floor(spec).unwrap_or(0.)),
-    );
+    let floor = readable_floor(fit, &baseline, spec);
     let estimate = Estimate::new(fit, &baseline);
     let mut candidates = Vec::new();
     let mut best = sheet_fit::inside_frames(fit, &baseline).then(|| baseline.clone());
@@ -930,9 +940,13 @@ mod tests {
             // existing canonical and established-route policies.
             crate::planning::with(&analysis, || {
                 let baseline = model::plan_automatic(&analysis, &baseline.spec).unwrap();
-                let floor = sheet_fit::min_geometry_scale(&analysis)
-                    .max(crate::sheets::floor(&baseline.spec).unwrap_or(0.0));
-                let bound_floor = candidate_floor(&analysis, &baseline, floor);
+                let floor = readable_floor(&analysis, &baseline, &baseline.spec);
+                let bound_floor = floor;
+                std::fs::write(
+                    format!("{path}.{}.baseline.json", row["name"].as_str().unwrap()),
+                    serde_json::to_vec(&baseline).unwrap(),
+                )
+                .unwrap();
                 let estimate = Estimate::new(&analysis, &baseline);
                 let mut inherited = failures(&analysis, &baseline, floor);
                 inherited.extend(baseline.problems.iter().map(problem_key));
@@ -1237,6 +1251,20 @@ mod tests {
         let p = model::plan_recovered(&a, &Spec::default()).unwrap();
         assert!(sheet_fit::inside_frames(&a, &p), "{}", p.sheet.basis);
         assert!(p.sheet.scale_factor >= 0.2, "{}", p.sheet.basis);
+        assert_eq!(p.gdt.len(), 28);
+        let slot = p
+            .dimensions
+            .iter()
+            .find(|d| d.id == "d:f:slot:3/slot_length.length")
+            .unwrap()
+            .placed
+            .as_ref()
+            .unwrap();
+        assert!(
+            slot.lines[..2]
+                .iter()
+                .all(|[a, b]| (a[1] - b[1]).abs() < 60.)
+        );
         let exceeded = !["A4", "A3"].contains(&p.sheet.size.as_str()) || p.sheets.len() > 1;
         let notices: Vec<_> = p
             .problems
@@ -1412,6 +1440,21 @@ mod tests {
         p.dimensions[1].placed.as_mut().unwrap().lines =
             vec![[[20.1, 22.], [20.1, 23.]], [[20.1, 23.], [35., 23.]]];
         assert!(crate::dims::sheet_route_limits(&a, &p).is_empty());
+    }
+
+    #[test]
+    fn an_inherited_feature_clearance_does_not_force_a_new_enlargement() {
+        let mut a = fixture();
+        let mut p = model::plan_automatic(&a, &Spec::default()).unwrap();
+        p.dimensions.clear();
+        p.sheet.scale_factor = 0.2;
+        a.features.clear();
+        a.envelope = [[0., 0., 0.], [25., 25., 25.]];
+        assert!(sheet_fit::min_geometry_scale(&a) > p.sheet.scale_factor);
+        assert_eq!(readable_floor(&a, &p, &Spec::default()), 0.2);
+        let spec: Spec =
+            serde_json::from_value(json!({"sheets":{"smallest_scale":"1:1"}})).unwrap();
+        assert_eq!(readable_floor(&a, &p, &spec), 1.);
     }
 
     #[test]
