@@ -486,3 +486,20 @@ fn internally_raised_readability_scale_still_obeys_automatic_paper_cap() {
     assert_eq!(pick.page, [420.0, 297.0]);
     assert!(pick.fallback.is_some());
 }
+
+#[test]
+fn capped_automatic_ladder_keeps_its_standard_reduction_tail() {
+    let mut req = Request::new([2000.0; 3], draftwright::layout::Principals::ALL, false);
+    req.max_page = Some(1);
+    let pick = draftwright::layout::choose(
+        &req,
+        &|_| draftwright::layout::Scaled::default(),
+        None,
+        None,
+        &draftwright::layout::AUTOMATIC_ARRANGEMENTS,
+        None,
+    );
+    assert_eq!(pick.page, [420.0, 297.0]);
+    assert!(pick.scale >= 0.02, "{}", pick.scale);
+    assert!(pick.fallback.is_none());
+}

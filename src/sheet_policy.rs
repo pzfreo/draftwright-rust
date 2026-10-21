@@ -418,9 +418,13 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                 // result through the existing planning memo; other scales still run.
                 let mut capacity = forced.clone();
                 capacity.sheets.get_or_insert_with(Default::default).max = Some(9);
-                let capacity_key =
-                    serde_json::to_vec(&(capacity, crate::planning::policy_key(analysis)))
-                        .expect("candidate Spec serializes");
+                let capacity_key = serde_json::to_vec(&(
+                    capacity,
+                    crate::planning::nominals_deferred(),
+                    crate::planning::policy_key(analysis),
+                    crate::planning::is_fixed_pair(),
+                ))
+                .expect("candidate Spec serializes");
                 let reused = if max > 1 {
                     crate::planning::lookup::<Plan>(
                         analysis,
@@ -581,7 +585,22 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     // machinery; there is no new search or placement repair for pins.
     let mut base = model::pin_base(spec);
     base.sheets = spec.sheets.clone();
-    let canonical = select(analysis, &base)?;
+    let mut canonical = select(analysis, &base)?;
+    if spec.sheet.references != Some(true)
+        && spec.dimensions.iter().any(|(id, d)| {
+            d.place.as_ref().is_some_and(|p| p.pinned)
+                && canonical.omitted.iter().any(|o| {
+                    &o.id == id
+                        && o.basis
+                            .contains("other stated dimensions determine this interval")
+                })
+        })
+    {
+        // A pinned reference retains the drawing it came from, including its
+        // paper choice with reference ink enabled (as model's pin replay does).
+        base.sheet.references = Some(true);
+        canonical = select(analysis, &base)?;
+    }
     let count = 1 + canonical.sheets.len();
     let migrated = model::migrate(spec, analysis)?;
     let intent = crate::recognition_corrections::canonical(analysis, &migrated)?.into_owned();

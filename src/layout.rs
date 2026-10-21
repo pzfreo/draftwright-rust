@@ -1526,6 +1526,18 @@ pub fn choose(
         && let Some(max) = req.max_page
     {
         candidates.retain(|(_, p)| p[0] <= PAGES[max].1 && p[1] <= PAGES[max].2);
+        if scale.is_none() && max < PAGES.len() - 1 {
+            // The old ladder's reduction tail belongs to A0. With a smaller
+            // maximum it belongs to that paper instead; removing it would jump
+            // straight from 1:5 (A3) or 1:1 (A4) to a microscopic computed scale.
+            let last_scale = candidates.last().expect("bounded ladder is nonempty").0;
+            candidates.extend(
+                SCALES
+                    .into_iter()
+                    .filter(|s| *s < last_scale && *s >= 0.0002)
+                    .map(|s| (s, [PAGES[max].1, PAGES[max].2])),
+            );
+        }
     }
     if let Some(i) = candidates
         .iter()
