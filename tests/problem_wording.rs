@@ -386,12 +386,19 @@ fn no_problem_message_carries_an_internal_id() {
         .find(|r| r.kind == "internal_thread")
         .unwrap();
     requirement.kind = "unsupported_manufacturing_process".into();
+    let diagnostic = "unsupported manufacturing_requirement:#925 at features/f:hole:1/thread";
+    requirement.blockers.push(diagnostic.into());
     let lint = draftwright::lint::pmi_coverage::coverage(&a, &[]);
     let lowered: Vec<_> = lint
         .iter()
         .filter(|p| p.code == "pmi_not_lowered")
         .collect();
     assert!(!lowered.is_empty());
+    assert!(lowered.iter().any(|p| {
+        p.evidence
+            .as_deref()
+            .is_some_and(|e| e.contains(diagnostic))
+    }));
     for p in lowered {
         assert_public_pmi_message(&p.message);
     }

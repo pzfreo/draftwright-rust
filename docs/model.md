@@ -2596,5 +2596,6 @@ Document and preserves the token in the existing `pmi.sources[].reason` diagnost
 `Specify-written PMI (specify-core:written:v1).`, followed by any blockers. This survives
 Analysis serialization without adding schema fields. Authorship is never inherited from a
 shared face, feature, datum, file name or stored interview answers. Lint-only
-`pmi_not_lowered` messages describe the annotation in plain English; the detailed refusal
-remains in `evidence` and the entity identity remains in structured sources.
+`pmi_not_lowered` messages describe the annotation and retain a refusal reason when it
+contains no internal IDs or authored paths. Full refusal diagnostics remain in `evidence`,
+and the entity identity remains in structured sources.

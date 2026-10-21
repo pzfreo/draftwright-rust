@@ -2633,6 +2633,31 @@ pub(crate) fn reader_reason(reason: &str) -> String {
         .replace("haecceity", "the STEP reader")
 }
 
+/// Keep a useful refusal in user-facing lint only when it contains drawing language.
+/// Full diagnostics, including source identities and authored paths, remain in evidence.
+pub(crate) fn public_reason(reason: &str) -> Option<String> {
+    let reason = reason
+        .rsplit_once("is not drawn: ")
+        .map_or(reason, |(_, why)| why);
+    let reason = reader_reason(reason);
+    let internal = crate::wording::carries_id(&reason).is_some()
+        || [
+            "spec:",
+            "features/",
+            "faces/",
+            "dimensions/",
+            "annotations/",
+            "sheet/",
+        ]
+        .iter()
+        .any(|path| reason.contains(path))
+        || reason
+            .as_bytes()
+            .windows(2)
+            .any(|pair| pair[0] == b'#' && pair[1].is_ascii_digit());
+    (!internal).then(|| reason.trim().trim_end_matches('.').to_string())
+}
+
 /// The reason of an item read but not projected.
 const NOT_PROJECTED: &str = "read by haecceity; not projected to a draftwright record (the port \
                              projects dimensions, geometric tolerances, datums, manufacturing \

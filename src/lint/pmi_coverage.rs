@@ -250,12 +250,15 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         } else {
             Severity::Error
         };
+        let explanation = crate::pmi::public_reason(&reason)
+            .filter(|why| !why.is_empty())
+            .map_or_else(|| ".".to_string(), |why| format!(": {why}."));
         let mut finding = sourced(
             "pmi_not_lowered",
             id,
             severity,
             format!(
-                "The {} {} annotation could not be drawn. Review its requirement and attachment.",
+                "The {} {} annotation could not be drawn{explanation} Review its requirement and attachment.",
                 if id.starts_with("spec:") {
                     "Spec"
                 } else if crate::pmi::specify_written(report, id) {
