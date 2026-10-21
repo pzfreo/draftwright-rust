@@ -2777,6 +2777,7 @@ mod tests {
             area: None,
             exterior: None,
             protect_triangles: true,
+            parallel_gap: None,
             triangles: first.fills.clone(),
             labels: std::iter::once(first.label_box)
                 .chain(first.fills.iter().map(|f| fill_box(f)))
