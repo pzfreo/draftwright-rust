@@ -192,18 +192,19 @@ def leader_on_extension(plan, pad=1.0):
     the linear dimension's extension line (itself grown by the pad): the maintainer's decision
     of 2026-10-12, measured as the placer does (`dims::leaders`)."""
     extensions, leaders = [], []
+    pages = {v["id"]: v.get("sheet", 1) for v in plan.get("views", []) if "id" in v}
     for d in plan.get("dimensions", []):
         placed = d.get("placed") or {}
         lines, arrows = placed.get("lines") or [], placed.get("arrows") or []
         if len(lines) >= 3 and len(arrows) == 2:
-            extensions += [(d["id"], line) for line in lines[:2]]
+            extensions += [(d["id"], pages.get(d.get("view"), 1), line) for line in lines[:2]]
         elif d.get("kind") == "callout" and lines and placed.get("label_box"):
-            leaders.append((d["id"], lines, placed["label_box"]))
+            leaders.append((d["id"], pages.get(d.get("view"), 1), lines, placed["label_box"]))
     pairs = set()
-    for name, lines, b in leaders:
+    for name, page, lines, b in leaders:
         padded = [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad]
-        for other, e in extensions:
-            if other == name:
+        for other, other_page, e in extensions:
+            if other == name or other_page != page:
                 continue
             grown = [min(e[0][0], e[1][0]) - pad, min(e[0][1], e[1][1]) - pad,
                      max(e[0][0], e[1][0]) + pad, max(e[0][1], e[1][1]) + pad]

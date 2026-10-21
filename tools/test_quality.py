@@ -146,6 +146,20 @@ class ScheduleInk(unittest.TestCase):
         self.assertEqual(quality.schedule_ink(plan, []), 1)
 
 
+class LeaderExtensionSheets(unittest.TestCase):
+    def test_coincident_ink_only_contacts_on_its_own_sheet(self):
+        plan = {'views': [{'id': 'front', 'sheet': 1}, {'id': 'plan', 'sheet': 2}],
+                'dimensions': [
+                    {'id': 'linear', 'view': 'front', 'placed': {
+                        'lines': [[[10, 10], [10, 30]], [[20, 10], [20, 30]],
+                                  [[10, 25], [20, 25]]], 'arrows': [[], []]}},
+                    {'id': 'callout', 'view': 'plan', 'kind': 'callout', 'placed': {
+                        'lines': [[[5, 20], [15, 20]]], 'label_box': [5, 18, 9, 22]}}]}
+        self.assertEqual(quality.leader_on_extension(plan), 0)
+        plan['views'][1]['sheet'] = 1
+        self.assertEqual(quality.leader_on_extension(plan), 1)
+
+
 class TextOffSpan(unittest.TestCase):
     def dimension(self, id_='a', box=(16, 51, 21, 53), ends=(10, 30), view='v:front', vertical=False):
         point = lambda x, y: [y, x] if vertical else [x, y]
