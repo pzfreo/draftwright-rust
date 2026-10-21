@@ -5663,14 +5663,14 @@
     "GRM-05_depth_lock_bolt": "1cde80779b37bd1418b0f1847dde79e9affc6726",
     "cgb241": "c96065f1d71765b4924cdcda9f7005573242fb06",
     "cgb245": "1cde80779b37bd1418b0f1847dde79e9affc6726",
-    "nist_ctc_02_asme1_rc": "a0486809185a95203a01dedd62e7cb42f240fc04",
-    "nist_ctc_04_asme1_rd": "a0486809185a95203a01dedd62e7cb42f240fc04",
-    "nist_ctc_05_asme1_rd": "a0486809185a95203a01dedd62e7cb42f240fc04",
-    "nist_ftc_06_asme1_rd": "a0486809185a95203a01dedd62e7cb42f240fc04",
+    "nist_ctc_02_asme1_rc": "cd5aa200efcbe6ecf72c608793d247c76702e3e2",
+    "nist_ctc_04_asme1_rd": "cd5aa200efcbe6ecf72c608793d247c76702e3e2",
+    "nist_ctc_05_asme1_rd": "cd5aa200efcbe6ecf72c608793d247c76702e3e2",
+    "nist_ftc_06_asme1_rd": "cd5aa200efcbe6ecf72c608793d247c76702e3e2",
     "nist_ftc_07_asme1_rd": "1cde80779b37bd1418b0f1847dde79e9affc6726",
-    "nist_ftc_08_asme1_rc": "a0486809185a95203a01dedd62e7cb42f240fc04",
-    "nist_ftc_09_asme1_rd": "a0486809185a95203a01dedd62e7cb42f240fc04",
-    "nist_ftc_10_asme1_rb": "a0486809185a95203a01dedd62e7cb42f240fc04",
+    "nist_ftc_08_asme1_rc": "cd5aa200efcbe6ecf72c608793d247c76702e3e2",
+    "nist_ftc_09_asme1_rd": "cd5aa200efcbe6ecf72c608793d247c76702e3e2",
+    "nist_ftc_10_asme1_rb": "cd5aa200efcbe6ecf72c608793d247c76702e3e2",
     "sm-hanger": "bb354fc888ca181ad6bcefc4fd8025f0075b268b"
   }
 }
