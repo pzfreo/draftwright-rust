@@ -1183,14 +1183,35 @@ pub(crate) fn separate_views(
 pub(crate) fn replay_views(analysis: &Analysis, source: &Plan, frame: &Plan) -> Option<Plan> {
     let mut fixed = frame.clone();
     let mut findings = Vec::new();
-    crate::placement_intent::views(
-        &source.spec,
-        &mut fixed.views,
-        Some(frame),
-        &frame.sheet,
-        &[],
-        &mut findings,
-    );
+    // A retained physical page is its own coordinate frame. Settling all
+    // pages together can refit an isometric around a principal on another
+    // page, changing a bare annotation pin into a view/scale edit.
+    if source.spec.views.values().any(|v| v.place.is_some()) {
+        for sheet in std::iter::once(&frame.sheet).chain(&frame.sheets) {
+            let mut local: Vec<_> = fixed
+                .views
+                .iter()
+                .filter(|v| v.sheet == sheet.number)
+                .cloned()
+                .collect();
+            let mut spec = source.spec.clone();
+            spec.views
+                .retain(|name, _| local.iter().any(|v| v.id == format!("v:{name}")));
+            crate::placement_intent::views(
+                &spec,
+                &mut local,
+                Some(frame),
+                sheet,
+                &[],
+                &mut findings,
+            );
+            for view in local {
+                if let Some(old) = fixed.views.iter_mut().find(|v| v.id == view.id) {
+                    *old = view;
+                }
+            }
+        }
+    }
     let mut source = source.clone();
     source.problems.retain(|p| {
         !matches!(

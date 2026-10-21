@@ -1080,7 +1080,8 @@ mod tests {
             // Whole-view packing clears the A4 frame at the original readable scale.
             ("mfcadpp/10163.step", "A4", "1:2"),
             ("cadgenbench_inputs/cgb245.step", "A2", "1:2"),
-            ("nist/nist_ftc_07_asme1_rd.stp", "A3", "1:5"),
+            // The reduction loses document notes; the readable larger reference keeps them.
+            ("nist/nist_ftc_07_asme1_rd.stp", "A2", "1:2"),
         ] {
             let Some(a) = corpus(file) else {
                 return;
