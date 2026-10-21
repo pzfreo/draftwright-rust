@@ -276,235 +276,242 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     let dimension_count = plan.dimensions.len();
     let mut changed = BTreeSet::new();
     let mut rechecked_codes = BTreeSet::new();
-    // Two deterministic sweeps let a later frame release an earlier callout's corridor.
-    for _ in 0..2 {
-        let mut moved = false;
-        for i in 0..all.len() {
-            let d = &all[i];
-            if !affected_ids.contains(&d.id)
-                || d.kind != "callout"
-                || d.placed.is_none()
-                || spec
-                    .dimensions
-                    .get(&d.id)
-                    .is_some_and(|s| s.place.is_some())
-                || spec
-                    .annotations
-                    .get(&d.id)
-                    .is_some_and(|s| s.place.is_some())
-            {
-                continue;
-            }
-            let Some(view) = plan.views.iter().find(|v| v.id == d.view) else {
-                continue;
-            };
-            let Some(sheet) = std::iter::once(&plan.sheet)
-                .chain(&plan.sheets)
-                .find(|s| s.number == view.sheet)
-            else {
-                continue;
-            };
-            let before =
-                placement::collisions_for(analysis, &all, sheet, &plan.views, &cache, &d.id);
-            if !before.iter().any(|p| route_issue(&p.code)) {
-                continue;
-            }
-            let glyph = plan.gdt.iter().find(|g| g.id == d.id).cloned();
-            let want = wants.iter().find(|w| w.id == d.id);
-            if glyph.is_none() && want.is_none() {
-                continue;
-            }
-            // Finishes have a prescribed outward normal, independent of leadered labels.
-            if glyph.as_ref().is_some_and(|g| g.kind == "surface_finish") {
-                continue;
-            }
-            let triangle_prefix = format!("{}:triangle:", d.id);
-            let modifier_prefix = format!("{}:modifier:", d.id);
-            let peers: Vec<_> = all
-                .iter()
-                .enumerate()
-                .filter(|(j, q)| {
-                    *j != i
-                        && plan
-                            .views
-                            .iter()
-                            .find(|v| v.id == q.view)
-                            .is_none_or(|v| v.sheet == sheet.number)
-                })
-                .map(|(_, q)| q.clone())
-                .chain(
-                    fixed
-                        .iter()
-                        .filter(|q| {
-                            !q.id.starts_with(&triangle_prefix)
-                                && !q.id.starts_with(&modifier_prefix)
-                        })
-                        .cloned(),
-                )
-                .collect();
-            let candidates = if glyph.as_ref().is_some_and(|g| g.kind == "datum_feature") {
-                gdt::normal_routes(glyph.as_ref().expect("datum"))
-            } else {
-                leaders::settled_routes(
-                    analysis,
-                    sheet,
-                    &plan.views,
-                    d,
-                    want,
-                    &peers,
-                    proofs.get(&view.id).map(|p| p.as_ref()),
-                )
-            };
-            let id = d.id.clone();
-            let old = d.placed.clone();
-            let limit = if glyph.as_ref().is_some_and(|g| g.kind == "datum_feature") {
-                candidates.len()
-            } else {
-                40
-            };
-            for next in candidates.into_iter().take(limit) {
-                // The all-around/all-over marks travel with the bend. Reserve
-                // their actual extent as well as the proxy's shaft and frame.
-                if let Some(g) = glyph.as_ref().filter(|g| !g.modifiers.is_empty()) {
-                    let ring = if g.modifiers.iter().any(|m| m == "all_over") {
-                        1.7 * 0.42 * super::TEXT
-                    } else {
-                        0.42 * super::TEXT
-                    } + 0.5;
-                    let bend = next.lines[0][1];
-                    let b = [
-                        bend[0] - ring,
-                        bend[1] - ring,
-                        bend[0] + ring,
-                        bend[1] + ring,
-                    ];
-                    let ring_clear = proofs.get(&view.id).map_or_else(
-                        || {
-                            frames
-                                .get(view.id.trim_start_matches("v:"))
-                                .is_none_or(|f| !placement::boxes_overlap(b, f.outline()))
-                        },
-                        |p| p.blank(view, b) || p.exterior_clear(view, b, &[], &[]),
-                    );
-                    if !ring_clear
-                        || peers.iter().filter_map(|d| d.placed.as_ref()).any(|p| {
-                            placement::boxes_overlap(b, p.label_box)
-                                || p.lines
-                                    .iter()
-                                    .chain(&p.arrows)
-                                    .any(|s| leaders::touches_box(*s, b))
-                        })
-                        || (proofs
-                            .get(&view.id)
-                            .is_some_and(|p| p.blank(view, next.label_box))
-                            && !proofs[&view.id].blank(view, b))
-                    {
-                        continue;
-                    }
-                }
-                // Full sheet furniture is fixed even when collision reporting only
-                // enumerates dimensions and PMI. Keep the existing 1 mm text gap.
-                let pad = [
-                    next.label_box[0] - 1.,
-                    next.label_box[1] - 1.,
-                    next.label_box[2] + 1.,
-                    next.label_box[3] + 1.,
-                ];
-                if peers.iter().filter_map(|q| q.placed.as_ref()).any(|q| {
-                    placement::boxes_overlap(pad, q.label_box)
-                        || q.lines
-                            .iter()
-                            .chain(&q.arrows)
-                            .any(|s| placement::crosses(*s, pad))
-                        || next
-                            .lines
-                            .iter()
-                            .any(|s| placement::crosses(*s, q.label_box))
-                }) {
+    // Settle the established straight-normal/frame/callout inventory first.
+    // Bends may then improve datums against those fixed routes, without taking
+    // a corridor a later frame needed to escape a worse initial arrangement.
+    for bends in [false, true] {
+        if bends && !plan.gdt.iter().any(|g| g.kind == "datum_feature") {
+            continue;
+        }
+        for _ in 0..2 {
+            let mut moved = false;
+            for i in 0..all.len() {
+                let d = &all[i];
+                if (bends && !d.id.starts_with("pmi:datum."))
+                    || !affected_ids.contains(&d.id)
+                    || d.kind != "callout"
+                    || d.placed.is_none()
+                    || spec
+                        .dimensions
+                        .get(&d.id)
+                        .is_some_and(|s| s.place.is_some())
+                    || spec
+                        .annotations
+                        .get(&d.id)
+                        .is_some_and(|s| s.place.is_some())
+                {
                     continue;
                 }
-
-                all[i].placed = Some(next.clone());
-                let after =
-                    placement::collisions_for(analysis, &all, sheet, &plan.views, &cache, &id);
-                if improves(&before, &after) {
-                    rechecked_codes.extend(before.iter().chain(&after).map(|p| p.code.clone()));
-                    if i < dimension_count {
-                        let d = &mut plan.dimensions[i];
-                        let inside = proofs
-                            .get(&view.id)
-                            .is_some_and(|p| p.annotation_clear(view, &next, true));
-                        d.region = inside.then_some(super::CandidateRegion::Interior);
-                        if inside {
-                            if !d.basis.contains(interior::BASIS) {
-                                d.basis += interior::BASIS;
-                            }
-                        } else {
-                            d.basis = d.basis.replace(interior::BASIS, "");
-                        }
-                        d.placed = Some(next.clone());
-                        plan.callout_tips.insert(
-                            id.clone(),
-                            (
-                                d.view.clone(),
-                                [
-                                    next.lines[0][0][0] - view.at[0],
-                                    next.lines[0][0][1] - view.at[1],
-                                ],
-                            ),
-                        );
-                    } else if let Some(g) = plan.gdt.iter_mut().find(|g| g.id == id) {
-                        rehang(g, &next);
-                        let inside = proofs
-                            .get(&view.id)
-                            .is_some_and(|p| p.blank(view, next.label_box))
-                            || (g.kind == "datum_feature"
-                                && exterior
-                                    .get(&view.id)
-                                    .is_some_and(|p| p.exterior_annotation_clear(view, &next)));
-                        let inside = inside
-                            && frames
-                                .get(view.id.trim_start_matches("v:"))
-                                .is_some_and(|f| {
-                                    placement::boxes_overlap(next.label_box, f.outline())
-                                });
-                        if inside {
-                            if !g.basis.contains(interior::BASIS) {
-                                g.basis += interior::BASIS;
-                            }
-                        } else {
-                            g.basis = g.basis.replace(interior::BASIS, "");
-                        }
-                        if g.kind != "datum_feature"
-                            && !inside
-                            && let Some(frame) = frames.get(view.id.trim_start_matches("v:"))
-                        {
-                            let o = frame.outline();
-                            let b = next.label_box;
-                            g.side = if b[2] <= o[0] {
-                                "left"
-                            } else if b[0] >= o[2] {
-                                "right"
-                            } else if b[1] >= o[3] {
-                                "above"
-                            } else {
-                                "below"
-                            }
-                            .into();
-                        }
-                    }
-                    if glyph.as_ref().is_some_and(|g| !g.modifiers.is_empty()) {
-                        fixed = furniture(plan);
-                    }
-                    changed.insert(id.clone());
-                    moved = true;
-                    break;
+                let Some(view) = plan.views.iter().find(|v| v.id == d.view) else {
+                    continue;
+                };
+                let Some(sheet) = std::iter::once(&plan.sheet)
+                    .chain(&plan.sheets)
+                    .find(|s| s.number == view.sheet)
+                else {
+                    continue;
+                };
+                let before =
+                    placement::collisions_for(analysis, &all, sheet, &plan.views, &cache, &d.id);
+                if !before.iter().any(|p| route_issue(&p.code)) {
+                    continue;
                 }
-                all[i].placed.clone_from(&old);
+                let glyph = plan.gdt.iter().find(|g| g.id == d.id).cloned();
+                let want = wants.iter().find(|w| w.id == d.id);
+                if glyph.is_none() && want.is_none() {
+                    continue;
+                }
+                // Finishes have a prescribed outward normal, independent of leadered labels.
+                if glyph.as_ref().is_some_and(|g| g.kind == "surface_finish") {
+                    continue;
+                }
+                let triangle_prefix = format!("{}:triangle:", d.id);
+                let modifier_prefix = format!("{}:modifier:", d.id);
+                let peers: Vec<_> = all
+                    .iter()
+                    .enumerate()
+                    .filter(|(j, q)| {
+                        *j != i
+                            && plan
+                                .views
+                                .iter()
+                                .find(|v| v.id == q.view)
+                                .is_none_or(|v| v.sheet == sheet.number)
+                    })
+                    .map(|(_, q)| q.clone())
+                    .chain(
+                        fixed
+                            .iter()
+                            .filter(|q| {
+                                !q.id.starts_with(&triangle_prefix)
+                                    && !q.id.starts_with(&modifier_prefix)
+                            })
+                            .cloned(),
+                    )
+                    .collect();
+                let candidates = if glyph.as_ref().is_some_and(|g| g.kind == "datum_feature") {
+                    gdt::normal_routes(glyph.as_ref().expect("datum"), bends)
+                } else {
+                    leaders::settled_routes(
+                        analysis,
+                        sheet,
+                        &plan.views,
+                        d,
+                        want,
+                        &peers,
+                        proofs.get(&view.id).map(|p| p.as_ref()),
+                    )
+                };
+                let id = d.id.clone();
+                let old = d.placed.clone();
+                let limit = if glyph.as_ref().is_some_and(|g| g.kind == "datum_feature") {
+                    candidates.len()
+                } else {
+                    40
+                };
+                for next in candidates.into_iter().take(limit) {
+                    // The all-around/all-over marks travel with the bend. Reserve
+                    // their actual extent as well as the proxy's shaft and frame.
+                    if let Some(g) = glyph.as_ref().filter(|g| !g.modifiers.is_empty()) {
+                        let ring = if g.modifiers.iter().any(|m| m == "all_over") {
+                            1.7 * 0.42 * super::TEXT
+                        } else {
+                            0.42 * super::TEXT
+                        } + 0.5;
+                        let bend = next.lines[0][1];
+                        let b = [
+                            bend[0] - ring,
+                            bend[1] - ring,
+                            bend[0] + ring,
+                            bend[1] + ring,
+                        ];
+                        let ring_clear = proofs.get(&view.id).map_or_else(
+                            || {
+                                frames
+                                    .get(view.id.trim_start_matches("v:"))
+                                    .is_none_or(|f| !placement::boxes_overlap(b, f.outline()))
+                            },
+                            |p| p.blank(view, b) || p.exterior_clear(view, b, &[], &[]),
+                        );
+                        if !ring_clear
+                            || peers.iter().filter_map(|d| d.placed.as_ref()).any(|p| {
+                                placement::boxes_overlap(b, p.label_box)
+                                    || p.lines
+                                        .iter()
+                                        .chain(&p.arrows)
+                                        .any(|s| leaders::touches_box(*s, b))
+                            })
+                            || (proofs
+                                .get(&view.id)
+                                .is_some_and(|p| p.blank(view, next.label_box))
+                                && !proofs[&view.id].blank(view, b))
+                        {
+                            continue;
+                        }
+                    }
+                    // Full sheet furniture is fixed even when collision reporting only
+                    // enumerates dimensions and PMI. Keep the existing 1 mm text gap.
+                    let pad = [
+                        next.label_box[0] - 1.,
+                        next.label_box[1] - 1.,
+                        next.label_box[2] + 1.,
+                        next.label_box[3] + 1.,
+                    ];
+                    if peers.iter().filter_map(|q| q.placed.as_ref()).any(|q| {
+                        placement::boxes_overlap(pad, q.label_box)
+                            || q.lines
+                                .iter()
+                                .chain(&q.arrows)
+                                .any(|s| placement::crosses(*s, pad))
+                            || next
+                                .lines
+                                .iter()
+                                .any(|s| placement::crosses(*s, q.label_box))
+                    }) {
+                        continue;
+                    }
+
+                    all[i].placed = Some(next.clone());
+                    let after =
+                        placement::collisions_for(analysis, &all, sheet, &plan.views, &cache, &id);
+                    if improves(&before, &after) {
+                        rechecked_codes.extend(before.iter().chain(&after).map(|p| p.code.clone()));
+                        if i < dimension_count {
+                            let d = &mut plan.dimensions[i];
+                            let inside = proofs
+                                .get(&view.id)
+                                .is_some_and(|p| p.annotation_clear(view, &next, true));
+                            d.region = inside.then_some(super::CandidateRegion::Interior);
+                            if inside {
+                                if !d.basis.contains(interior::BASIS) {
+                                    d.basis += interior::BASIS;
+                                }
+                            } else {
+                                d.basis = d.basis.replace(interior::BASIS, "");
+                            }
+                            d.placed = Some(next.clone());
+                            plan.callout_tips.insert(
+                                id.clone(),
+                                (
+                                    d.view.clone(),
+                                    [
+                                        next.lines[0][0][0] - view.at[0],
+                                        next.lines[0][0][1] - view.at[1],
+                                    ],
+                                ),
+                            );
+                        } else if let Some(g) = plan.gdt.iter_mut().find(|g| g.id == id) {
+                            rehang(g, &next);
+                            let inside = proofs
+                                .get(&view.id)
+                                .is_some_and(|p| p.blank(view, next.label_box))
+                                || (g.kind == "datum_feature"
+                                    && exterior
+                                        .get(&view.id)
+                                        .is_some_and(|p| p.exterior_annotation_clear(view, &next)));
+                            let inside =
+                                inside
+                                    && frames.get(view.id.trim_start_matches("v:")).is_some_and(
+                                        |f| placement::boxes_overlap(next.label_box, f.outline()),
+                                    );
+                            if inside {
+                                if !g.basis.contains(interior::BASIS) {
+                                    g.basis += interior::BASIS;
+                                }
+                            } else {
+                                g.basis = g.basis.replace(interior::BASIS, "");
+                            }
+                            if g.kind != "datum_feature"
+                                && !inside
+                                && let Some(frame) = frames.get(view.id.trim_start_matches("v:"))
+                            {
+                                let o = frame.outline();
+                                let b = next.label_box;
+                                g.side = if b[2] <= o[0] {
+                                    "left"
+                                } else if b[0] >= o[2] {
+                                    "right"
+                                } else if b[1] >= o[3] {
+                                    "above"
+                                } else {
+                                    "below"
+                                }
+                                .into();
+                            }
+                        }
+                        if glyph.as_ref().is_some_and(|g| !g.modifiers.is_empty()) {
+                            fixed = furniture(plan);
+                        }
+                        changed.insert(id.clone());
+                        moved = true;
+                        break;
+                    }
+                    all[i].placed.clone_from(&old);
+                }
             }
-        }
-        if !moved {
-            break;
+            if !moved {
+                break;
+            }
         }
     }
     if changed.is_empty() {

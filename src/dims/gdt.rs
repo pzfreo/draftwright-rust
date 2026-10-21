@@ -2352,7 +2352,7 @@ pub fn placement_options(
 /// Straight, short normal routes precede one-bend routes with a square stub.
 /// The triangle and any reader-proven face extension stay fixed. No automatic
 /// oblique departure is generated, even when every candidate retains a contact.
-pub(super) fn normal_routes(g: &PlannedGdt) -> Vec<Placed> {
+pub(super) fn normal_routes(g: &PlannedGdt, bends: bool) -> Vec<Placed> {
     let Some(p) = &g.placed else {
         return Vec::new();
     };
@@ -2393,6 +2393,9 @@ pub(super) fn normal_routes(g: &PlannedGdt) -> Vec<Placed> {
     }
     // A lateral frame can escape an occupied normal corridor after a square stub.
     // Try the shorter normal tiers first; retain all face-extension strokes.
+    if !bends {
+        return routes;
+    }
     let straight = routes.clone();
     for q in straight.iter().take(8) {
         for offset in [-8., 8., -16., 16.] {
@@ -2469,7 +2472,7 @@ mod tests {
             triangle[2][0] - triangle[0][0],
             triangle[2][1] - triangle[0][1],
         ];
-        let routes = normal_routes(&g);
+        let routes = normal_routes(&g, true);
         assert!(!routes.is_empty());
         let mut bent = false;
         for route in routes {

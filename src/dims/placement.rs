@@ -4735,7 +4735,17 @@ fn collisions_impl(
         }
         if let Some(f) = footprints.get(d.view.as_str()) {
             let (code, shafts): (&str, &[[P2; 2]]) = match d.kind.as_str() {
-                "callout" => ("leader_through_feature", &p.lines[..p.lines.len().min(1)]),
+                "callout" => {
+                    // A datum's connected second segment is another shaft leg.
+                    // A separate planar face extension is not a leader, and an
+                    // ordinary callout's second segment remains its shelf.
+                    let bent_datum = d.id.starts_with("pmi:datum.")
+                        && p.lines.get(1).is_some_and(|s| p.lines[0][1] == s[0]);
+                    (
+                        "leader_through_feature",
+                        &p.lines[..p.lines.len().min(if bent_datum { 2 } else { 1 })],
+                    )
+                }
                 "linear" => (
                     "extension_through_feature",
                     &p.lines[..p.lines.len().min(2)],

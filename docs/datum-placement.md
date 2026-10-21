@@ -3,7 +3,9 @@
 A drawn datum leader leaves the triangle square to its feature (ISO 5459 / ASME Y14.5).
 Automatic placement tries short straight normal leaders in the existing face-to-dimension
 compact tiers before outer tiers. Final route repair exhausts straight normal routes before
-trying one bend after a 2.4 mm square stub. The triangle and any proven planar extension stay
+trying one bend after a 2.4 mm square stub, against the settled frame/callout inventory.
+Both connected datum shaft legs are checked against recognized features; a separate face
+extension remains distinct. The triangle and any proven planar extension stay
 fixed. No automatic oblique departure is generated; unavoidable contacts remain reported.
 An authored lateral frame keeps its requested position with a square stub before the bend.
 
