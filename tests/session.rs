@@ -297,6 +297,9 @@ fn pmi_fragments_pins_and_problem_changes_replay() {
         let delta = s.apply(ops, true).unwrap();
         assert_eq!(delta.plans, 1);
         saw_problem |= !delta.problems_added.is_empty() || !delta.problems_resolved.is_empty();
+        let problem_ids: std::collections::BTreeSet<_> =
+            s.plan().problems.iter().map(|p| &p.id).collect();
+        assert_eq!(problem_ids.len(), s.plan().problems.len());
         let wire: Delta = serde_json::from_slice(&serde_json::to_vec(&delta).unwrap()).unwrap();
         wire.apply_to(&mut replay).unwrap();
         assert_eq!(

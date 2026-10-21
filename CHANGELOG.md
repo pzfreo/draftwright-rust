@@ -14,7 +14,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   A blocked case keeps its callout and has one drawn-lint finding; unreadable sections
   use informational `radius_leader_target_unverifiable`, with no duplicate fallback warning.
   Unrelated omission and tolerance edits retain finished radius routes and their existing
-  findings; the final collision audit preserves remedies for authored pins.
+  findings; the final collision audit preserves remedies for authored pins, and repeated
+  pin audits keep findings unique for lossless session replay.
 - Declared STEP AP242 and Spec datums draw without a control-frame citation (#141, alpha.11),
   using the existing datum-symbol placer. `sheet/uncited_datums: false` hides uncited symbols;
   `annotations/<id>/omit` hides individual symbols. Omitted symbols retain provenance in the
