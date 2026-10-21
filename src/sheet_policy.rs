@@ -374,7 +374,8 @@ fn complete(analysis: &Analysis, plan: &Plan, floor: f64) -> bool {
 fn usable(analysis: &Analysis, plan: &Plan, reference: &Plan, floor: f64) -> bool {
     if !sheet_fit::inside_frames(analysis, plan)
         || plan.sheet.scale_factor + 1e-9 < floor
-        || sheet_fit::illegible_steps(analysis, plan) > 0
+        || sheet_fit::illegible_steps(analysis, plan)
+            > sheet_fit::illegible_steps(analysis, reference)
         || plan
             .views
             .iter()

@@ -517,7 +517,8 @@ ownership follows the view. Authored view relations and keep-together groups rem
 constraints. Footprint bounds skip impossible single-sheet candidates.
 
 A candidate is usable when all geometry and annotation ink fits inside its own
-sheet's drawable frame, the existing feature-opening and printed-step minima hold,
+sheet's drawable frame, the existing feature-opening minimum holds and printed-step
+readability breaches do not exceed the larger reference,
 and it adds no layout/readability failures or required losses relative to the
 unrestricted larger-paper reference. A reduced scale cannot be smaller than that
 reference's scale; enlargements may reduce to 1:1 when the existing minima allow.

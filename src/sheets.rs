@@ -1258,12 +1258,6 @@ pub(crate) fn separate_views(
     for t in &mut plan.tables {
         move_table(t, page_delta);
     }
-    for t in plan.hole_table.iter_mut().chain(&mut plan.hole_tables) {
-        t.sheet = 1;
-        for b in &mut t.blocks {
-            move_table(b, page_delta);
-        }
-    }
     if let Some(t) = &mut plan.radius_table {
         move_table(&mut t.table, page_delta);
     }
@@ -1273,6 +1267,8 @@ pub(crate) fn separate_views(
     furniture.views.clear();
     furniture.dimensions.clear();
     furniture.gdt.clear();
+    furniture.hole_table = None;
+    furniture.hole_tables.clear();
     furniture.balloons.clear();
     furniture.captions.clear();
     if !crate::sheet_fit::inside_frames(analysis, &furniture) {
@@ -1310,8 +1306,11 @@ pub(crate) fn separate_views(
         own.balloons.retain(|b| b.view == id);
         own.captions.retain(|c| c.view == id);
         own.tables.clear();
-        own.hole_table = None;
-        own.hole_tables.clear();
+        own.hole_table = own
+            .hole_table
+            .filter(|t| t.view.as_deref().unwrap_or("v:plan") == id);
+        own.hole_tables
+            .retain(|t| t.view.as_deref().unwrap_or("v:plan") == id);
         own.requirements.clear();
         let mut ink = crate::sheet_fit::view_ink(analysis, &own);
         ink.extend(
@@ -1385,6 +1384,18 @@ pub(crate) fn separate_views(
                 for q in line {
                     move_point(q, delta);
                 }
+            }
+        }
+        for t in plan
+            .hole_table
+            .iter_mut()
+            .chain(&mut plan.hole_tables)
+            .filter(|t| t.view.as_deref().unwrap_or("v:plan") == id)
+        {
+            t.sheet = next as u32;
+            for b in &mut t.blocks {
+                move_table(b, delta);
+                b.sheet = next as u32;
             }
         }
         for c in plan.captions.iter_mut().filter(|c| c.view == id) {
