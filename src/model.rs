@@ -6683,7 +6683,7 @@ fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
 /// An annotation edit replays the finished radius routes, rather than repairing the
 /// earlier, pre-polish inventory afresh against a different set of peers. This is
 /// a pure reference, independent of which document happened to be planned first.
-fn radius_edit_reference(analysis: &Analysis, spec: &Spec) -> Option<Plan> {
+pub(crate) fn radius_edit_reference(analysis: &Analysis, spec: &Spec) -> Option<Plan> {
     let edited = spec.dimension_source == DimensionSource::Authored
         || spec.dimensions.values().any(|d| {
             d.omit
@@ -6705,6 +6705,9 @@ fn radius_edit_reference(analysis: &Analysis, spec: &Spec) -> Option<Plan> {
             .any(|f| matches!(f.kind.as_str(), "blend" | "fillet"))
     {
         return None;
+    }
+    if let Some(reference) = crate::planning::trial_radius_reference() {
+        return Some(reference);
     }
     let mut base = spec.clone();
     base.dimension_source = DimensionSource::Auto;

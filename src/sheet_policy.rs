@@ -449,6 +449,7 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
     let intent = baseline.spec.clone();
     let effective = crate::spec_gdt::effective(analysis, &intent)?;
     let fit = effective.as_ref();
+    let radius_reference = model::radius_edit_reference(analysis, &intent);
     let floor = readable_floor(fit, &baseline, spec);
     let estimate = Estimate::new(fit, &baseline);
     let mut candidates = Vec::new();
@@ -479,7 +480,10 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                 forced.sheets.get_or_insert_with(Default::default).max = Some(max as u32);
                 omit_absent_details(fit, &mut forced, &baseline, scale);
                 match cached.map(Ok).unwrap_or_else(|| {
-                    crate::planning::fixed_pair(|| model::plan_automatic(analysis, &forced))
+                    crate::planning::fixed_pair_with_radius_reference(
+                        radius_reference.as_ref(),
+                        || model::plan_automatic(analysis, &forced),
+                    )
                 }) {
                     Ok(plan) => {
                         if max > 1 && !plan.sheet.basis.contains("blocked by sheets.max") {
@@ -498,9 +502,10 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                                     wide.sheet.size = Some("A0".into());
                                     wide.sheets.get_or_insert_with(Default::default).max =
                                         Some(spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9));
-                                    crate::planning::fixed_pair(|| {
-                                        model::plan_automatic(analysis, &wide)
-                                    })
+                                    crate::planning::fixed_pair_with_radius_reference(
+                                        radius_reference.as_ref(),
+                                        || model::plan_automatic(analysis, &wide),
+                                    )
                                     .ok()
                                 });
                             let split = separated

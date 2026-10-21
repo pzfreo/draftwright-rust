@@ -1851,8 +1851,22 @@ pub(crate) fn settle_after_furniture(
             let [old_tip, old_elbow] = p.lines[0];
             let factor = v.scale / old_view.scale;
             let map = |q: P2| [0, 1].map(|k| v.at[k] + factor * (q[k] - old_view.at[k]));
-            let tip = map(old_tip);
+            let mapped_tip = map(old_tip);
             let mapped_elbow = map(old_elbow);
+            // A compact reference may store its attachment on the projection
+            // grid. Enlarging that rounded point does not put it on the real
+            // circular rim. Reuse the existing proven-rim attachment before
+            // measuring the transported candidate; retain same-scale ink.
+            let tip = if radius && factor != 1.0 {
+                moved_rim_tip(
+                    &job.sites,
+                    mapped_tip,
+                    mapped_elbow,
+                    frame.scale() * crate::model::projected_ink::GRID,
+                )
+            } else {
+                mapped_tip
+            };
             let delta = [mapped_elbow[0] - tip[0], mapped_elbow[1] - tip[1]];
             let norm = delta[0].hypot(delta[1]);
             if norm < 1e-9 {

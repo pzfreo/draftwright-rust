@@ -23,6 +23,7 @@ struct Active {
 thread_local! {
     static ACTIVE: RefCell<Option<Active>> = const { RefCell::new(None) };
     static FIXED_PAIR: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static TRIAL_RADIUS_REFERENCE: RefCell<Option<crate::model::Plan>> = const { RefCell::new(None) };
     static DEFER_NOMINALS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
@@ -54,6 +55,26 @@ pub(crate) fn fixed_pair<T>(run: impl FnOnce() -> T) -> T {
     }
     let _restore = Restore(FIXED_PAIR.replace(true));
     run()
+}
+
+/// A paper trial retains the author's unedited radius corridors. Rebuilding
+/// that reference with the trial's forced paper would choose different anchors.
+pub(crate) fn fixed_pair_with_radius_reference<T>(
+    reference: Option<&crate::model::Plan>,
+    run: impl FnOnce() -> T,
+) -> T {
+    struct Restore(Option<crate::model::Plan>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            TRIAL_RADIUS_REFERENCE.with(|r| *r.borrow_mut() = self.0.take());
+        }
+    }
+    let _restore = Restore(TRIAL_RADIUS_REFERENCE.with(|r| r.replace(reference.cloned())));
+    fixed_pair(run)
+}
+
+pub(crate) fn trial_radius_reference() -> Option<crate::model::Plan> {
+    TRIAL_RADIUS_REFERENCE.with(|r| r.borrow().clone())
 }
 
 pub(crate) fn is_fixed_pair() -> bool {
