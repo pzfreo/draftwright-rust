@@ -268,7 +268,7 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
             .collect();
         plan.problems.push(Problem {
             id: "p:unclaimed_geometry:sheet".into(), code: "unclaimed_geometry".into(),
-            severity: severity.into(),
+            severity: "info".into(),
             message: format!("Analysis {} claim {} of {} faces; {} faces are unclaimed. Review the geometry: ordinary stock faces may also be unclaimed; this is not a count of missed features.", if claimed.len()>feature_claims {"features and dimensioned stock"} else {"features"}, claimed.len(), analysis.binding.face_count, analysis.binding.face_count - claimed.len()),
             subjects: unclaimed, ..Default::default()
         });
