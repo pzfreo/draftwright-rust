@@ -171,8 +171,18 @@ fn check_part(name: &str, drops: bool) {
         "{name}: {rows} rows"
     );
     if escalates && !attempted {
+        let failed_pattern_markers = codes(&escalated).contains(&"balloon_dropped")
+            && rows < hole_table::MIN_HOLES
+            && escalated.problems.iter().any(|p| {
+                p.code == "callout_dropped"
+                    && p.subjects
+                        .first()
+                        .is_some_and(|id| id.starts_with("d:f:hole_pattern:"))
+            });
         // Existing principal schedules already own their coordinates; the rescue
-        // cannot add another owner, but every off-page item still reports its loss.
+        // cannot add another owner. A dropped pattern can also attempt only
+        // non-certifying markers, whose failure has its own balloon finding.
+        // Every off-page item still reports its original loss.
         assert_eq!(
             serde_json::to_value(&escalated.hole_tables).unwrap(),
             serde_json::to_value(&first.hole_tables).unwrap()
@@ -183,8 +193,16 @@ fn check_part(name: &str, drops: bool) {
                 .iter()
                 .filter(|p| matches!(p.code.as_str(), "callout_dropped" | "location_ref_dropped"))
                 .all(|p| p.message.contains("No hole table")
-                    || (!first.hole_tables.is_empty() && p.message.contains("ran off the sheet"))),
-            "{name}"
+                    || ((!first.hole_tables.is_empty() || failed_pattern_markers)
+                        && p.message.contains("ran off the sheet"))),
+            "{name}: schedules={}, failed_pattern_markers={failed_pattern_markers}, drops={:?}",
+            first.hole_tables.len(),
+            escalated
+                .problems
+                .iter()
+                .filter(|p| hole_table::DROPS.contains(&p.code.as_str()))
+                .map(|p| (&p.code, &p.message))
+                .collect::<Vec<_>>()
         );
     }
     // The verdict on whether the escalation is attempted, where draftwright's differs.
