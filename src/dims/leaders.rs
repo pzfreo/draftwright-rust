@@ -2815,7 +2815,7 @@ pub(super) fn seed_established(
         let p = if is_nominal {
             nominal_route(analysis, &reference, d, views, w)
         } else {
-            translated(&reference, d, views, w)
+            translated(analysis, &reference, d, views, w)
         };
         let Some(p) = p else {
             continue;
@@ -2846,6 +2846,7 @@ pub(super) fn seed_established(
 }
 
 fn translated(
+    analysis: &crate::model::Analysis,
     reference: &crate::model::Plan,
     d: &PlannedDimension,
     views: &[crate::model::PlannedView],
@@ -2869,6 +2870,7 @@ fn translated(
         p.label_box[k] += shift;
         p.label_box[k + 2] += shift;
     }
+    reattach_copied_arc(analysis, now, w, &mut p);
     Some(p)
 }
 
@@ -2906,6 +2908,16 @@ fn nominal_route(
         p.label_box[k] += shift;
         p.label_box[k + 2] += shift;
     }
+    reattach_copied_arc(analysis, now, w, &mut p);
+    Some(p)
+}
+
+fn reattach_copied_arc(
+    analysis: &crate::model::Analysis,
+    now: &crate::model::PlannedView,
+    w: &Want,
+    p: &mut Placed,
+) {
     // Compact comparison routes store model-grid attachment points. A copy
     // onto the live sheet must still terminate on its proven circular rim.
     // Correct only that rounding, preserving the tip's angular station, the
@@ -2927,7 +2939,6 @@ fn nominal_route(
         );
         p.arrows[0] = arrow(p.lines[0][0], p.lines[0][1]);
     }
-    Some(p)
 }
 
 // Exact refinement rank, movement and immutable route geometry.
@@ -3132,7 +3143,7 @@ fn refine_uncached(
     };
     let changed_from_established = |i: usize, p: &Placed| {
         legacy(i)
-            .and_then(|d| translated(reference.as_ref()?, d, views, &items[i]))
+            .and_then(|d| translated(analysis, reference.as_ref()?, d, views, &items[i]))
             .is_some_and(|old| {
                 old.lines.len() == p.lines.len()
                     && old.lines.iter().zip(&p.lines).any(|(a, b)| {
@@ -3153,7 +3164,7 @@ fn refine_uncached(
     // established recipe before deciding whether refinement is necessary.
     let added_material_crossing = |i: usize, p: &Placed| {
         legacy(i)
-            .and_then(|d| translated(reference.as_ref()?, d, views, &items[i]))
+            .and_then(|d| translated(analysis, reference.as_ref()?, d, views, &items[i]))
             .zip(views_of[i].and_then(|view| repair_models.get(view)))
             .is_some_and(|(old, model)| model.as_ref().0.new_crossing(&p.lines, &old.lines))
     };

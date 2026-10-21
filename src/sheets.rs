@@ -1573,7 +1573,10 @@ fn separate_views_inner(
     });
     plan.problems.extend(crate::dims::recheck(analysis, &plan));
     plan.problems.extend(check(&plan));
-    if !crate::sheet_fit::inside_frames(analysis, &plan) {
+    // A frame replay is an author's explicit pin edit, not an automatic
+    // candidate. Preserve its requested ink and the off-sheet findings above,
+    // as on one sheet. Every automatic allocation still rejects clipping.
+    if frame.is_none() && !crate::sheet_fit::inside_frames(analysis, &plan) {
         return None;
     }
     plan.sheet.basis += "; principal views and auxiliary views allocated as whole annotated blocks";
