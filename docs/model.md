@@ -972,9 +972,9 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   invariant 9.
 - **The baseline and explicit-paper scale are chosen on finished drawings** (maintainer, 2026-10-12,
   H6; `model::plan_recovered` / `model::recover`, policy in `sheet_fit::choose`).
-  The smallest-first policy above wraps this baseline search. Each
-  standard sheet, trying `sheet/preferred_max_size` first and scale at or above the legibility floor
-  is planned and judged. Explicit size or scale bypasses the preference search. A
+  The smallest-first policy above wraps this baseline search. Single sheets from A4
+  through `sheet/preferred_max_size`, then the preferred sheet count, are judged
+  before larger paper. Explicit size or scale bypasses the preference search. A
   candidate is valid and complete when it has no hard layout finding, its drawn items and
   views fit inside the border and off the title block, it drops or loses no measurement
   the first plan carried, every GD&T item is drawn, and it lays no more annotations over
