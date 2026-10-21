@@ -48,6 +48,6 @@ Notices describe the edit and are separate from reproducible drawing findings;
 delta replay and reconstruction from the Spec remain identical.
 
 MCP problem pages retain the preferred operations, scope and complete description
-when the full list of alternatives exceeds a row's byte budget. `detail_ref` reads
+as `fix`, `scope` and `description` when the full list of alternatives exceeds a row's byte budget. `detail_ref` reads
 all alternatives and explanations; a verbose trade must not hide the problem's
 code or actionable bundle behind an ID-only row.

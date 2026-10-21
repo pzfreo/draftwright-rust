@@ -299,11 +299,10 @@ fn small(cache: &Cache, row: Value) -> Result<Value, Error> {
             "severity":row["severity"],"subjects":row["subjects"],"detail_ref":detail});
         if let Some(preferred) = row["fixes"].as_array().and_then(|fixes| fixes.first()) {
             summary["fix"] = preferred["ops"].clone();
-            summary["fixes"] = json!([preferred]);
+            summary["scope"] = preferred["scope"].clone();
+            summary["description"] = preferred["description"].clone();
         }
-        // One actionable problem may use the page's row allowance. The full
-        // duplicated MCP envelope remains bounded by PAGE_BYTES, as for every page.
-        if value_bytes(&summary) < PAGE_BYTES / 3 - 64 {
+        if value_bytes(&summary) < PAGE_BYTES / 4 {
             return Ok(summary);
         }
     }

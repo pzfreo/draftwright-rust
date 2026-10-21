@@ -49,10 +49,10 @@
                                     "$ref": "#/D"
                                   },
                                   "label": {
-                                    "$ref": "#/E"
+                                    "$ref": "#/F"
                                   },
                                   "view": {
-                                    "$ref": "#/E"
+                                    "$ref": "#/F"
                                   },
                                   "state": {
                                     "anyOf": [
@@ -112,11 +112,7 @@
                                   "operation_scopes": {
                                     "type": "object",
                                     "additionalProperties": {
-                                      "enum": [
-                                        "local",
-                                        "view",
-                                        "sheet"
-                                      ]
+                                      "$ref": "#/E"
                                     }
                                   },
                                   "item": {
@@ -129,7 +125,7 @@
                                     ]
                                   },
                                   "dimension_kind": {
-                                    "$ref": "#/E"
+                                    "$ref": "#/F"
                                   },
                                   "placement": {
                                     "type": [
@@ -230,6 +226,9 @@
                                   },
                                   "fixes": {
                                     "$ref": "#/A"
+                                  },
+                                  "scope": {
+                                    "$ref": "#/E"
                                   }
                                 },
                                 "required": [
@@ -240,7 +239,7 @@
                                 ],
                                 "additionalProperties": false,
                                 "patternProperties": {
-                                  "^(id|code|severity|detail_ref)$(?!\n)": {
+                                  "^(id|code|severity|detail_ref|description)$(?!\n)": {
                                     "$ref": "#/D"
                                   }
                                 }
@@ -323,7 +322,7 @@
     "type": "object",
     "properties": {
       "id": {
-        "$ref": "#/E"
+        "$ref": "#/F"
       },
       "detail_ref": {
         "$ref": "#/D"
@@ -344,11 +343,7 @@
           "$ref": "#/C"
         },
         "scope": {
-          "enum": [
-            "local",
-            "view",
-            "sheet"
-          ]
+          "$ref": "#/E"
         }
       },
       "type": "object"
@@ -401,6 +396,13 @@
     "type": "string"
   },
   "E": {
+    "enum": [
+      "local",
+      "view",
+      "sheet"
+    ]
+  },
+  "F": {
     "type": [
       "string",
       "null"

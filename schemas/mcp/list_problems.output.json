@@ -43,6 +43,13 @@
                   },
                   "fixes": {
                     "$ref": "#/A"
+                  },
+                  "scope": {
+                    "enum": [
+                      "local",
+                      "view",
+                      "sheet"
+                    ]
                   }
                 },
                 "required": [
@@ -53,7 +60,7 @@
                 ],
                 "additionalProperties": false,
                 "patternProperties": {
-                  "^(id|code|severity|detail_ref)$(?!\n)": {
+                  "^(id|code|severity|detail_ref|description)$(?!\n)": {
                     "$ref": "#/D"
                   }
                 }

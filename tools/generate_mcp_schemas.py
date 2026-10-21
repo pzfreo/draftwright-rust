@@ -60,7 +60,7 @@ del spec['properties']['feature_declarations']['items']['type']
 spec_read={**spec,'properties':{**spec['properties'],'dimensions':{'additionalProperties':{k:v for k,v in dimension.items() if k != 'type'}},'annotations':{'additionalProperties':{'properties':{'text':ref('x')}}}}}
 defs={'x':label_text,'state':state,'spec':spec,'spec_read':spec_read,'op':op,'item':item,'compact':compact,'problem':problem,'error':obj({'code':{'enum':['invalid','failed']},'message':S,'choices':arr(S)},['code','message'])}
 stub=obj({'id':nullable(S),'detail_ref':S},['id','detail_ref'])
-problem_small=obj({'id':S,'code':S,'severity':S,'subjects':arr(S),'fix':arr(ref('op')),'fixes':arr(fix),'detail_ref':S},['id','code','severity','subjects'])
+problem_small=obj({'id':S,'code':S,'severity':S,'subjects':arr(S),'fix':arr(ref('op')),'fixes':arr(fix),'detail_ref':S,'scope':scope,'description':S},['id','code','severity','subjects'])
 defs.update({'stub':stub, 'problem_small':problem_small})
 row_item={'anyOf':[ref('compact'),ref('item'),ref('stub')]}
 row_problem={'anyOf':[ref('problem'),ref('problem_small'),ref('stub')]}
@@ -341,7 +341,7 @@ Path('schemas/mcp-validation.json').write_text(json.dumps(validation, indent=2) 
 # callouts/style: +0 tools/list bytes (nested on-demand Spec vocabulary only).
 # Scoped alternatives and operation/path scopes add 1,916 advertised bytes;
 # PMI policy and the shallow origin object add 804.
-# Actionable problem overflow keeps one preferred alternative plus detail_ref: +44 bytes.
-SCHEMA_BUDGET = 37259
+# Actionable overflow retains preferred scope/description and its lossless detail_ref.
+SCHEMA_BUDGET = 37437
 assert total <= SCHEMA_BUDGET, f'schemas: {total} bytes (budget {SCHEMA_BUDGET})'
 print(f'{len(tools)} tools; {total} compact schema bytes')
