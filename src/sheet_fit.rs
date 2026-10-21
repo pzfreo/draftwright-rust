@@ -310,7 +310,7 @@ fn footprints_with_notes(
             .iter()
             .filter_map(|t| t.placed.as_ref().map(|p| p.cells)),
     );
-    for t in plan.hole_table.iter().chain(&plan.hole_tables) {
+    if let Some(t) = &plan.hole_table {
         out.extend(
             t.blocks
                 .iter()
@@ -346,8 +346,17 @@ fn footprints_with_notes(
 }
 
 /// Ink owned by the selected views, without page furniture.
+/// Per-view hole schedules count here, for clipping, but not in [`footprints`]: the
+/// planner's own fit and fill measures keep their established inputs (and cost).
 pub(crate) fn view_ink(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
     let mut out = footprints_with_notes(analysis, plan, false, false);
+    for t in &plan.hole_tables {
+        out.extend(
+            t.blocks
+                .iter()
+                .filter_map(|t| t.placed.as_ref().map(|p| p.cells)),
+        );
+    }
     out.extend(plan.captions.iter().map(|c| c.ink));
     for v in &plan.views {
         out.extend(v.line_work.iter().flat_map(|w| &w.curves).map(|c| c.bbox()));
