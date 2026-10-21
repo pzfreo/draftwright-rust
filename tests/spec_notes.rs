@@ -21,6 +21,10 @@ fn plate() -> (Part, Analysis) {
 
 /// A gzipped sample, from its own scratch file.
 fn sample(name: &str) -> (Part, Analysis) {
+    sample_marked(name, false)
+}
+
+fn sample_marked(name: &str, marked: bool) -> (Part, Analysis) {
     let mut bytes = Vec::new();
     flate2::read::GzDecoder::new(
         std::fs::read(
@@ -33,6 +37,16 @@ fn sample(name: &str) -> (Part, Analysis) {
     )
     .read_to_end(&mut bytes)
     .unwrap();
+    if marked {
+        bytes = String::from_utf8(bytes)
+            .unwrap()
+            .replace("THREAD('','')", "THREAD('','specify-core:written:v1')")
+            .replace(
+                "TURNED_KNURL('','diamond')",
+                "TURNED_KNURL('specify-core:written:v1','diamond')",
+            )
+            .into_bytes();
+    }
     // nextest runs cases in separate processes, each starting at ThreadId(1).
     // Isolate their atomic staging files as well as ordinary harness threads.
     let out = Path::new(env!("CARGO_TARGET_TMPDIR"))
@@ -596,4 +610,104 @@ fn structured_feature_notes_cover_only_explicit_roles_of_their_placed_owner() {
     assert!(!missing(&merged, &complete).is_empty());
     let bad = spec(json!({"features":{&owner:{"note":"TEST", "note_satisfies":["made.up"]}}}));
     assert!(model::plan(&a, &bad).is_err());
+}
+
+#[test]
+fn specify_thread_designation_refines_its_marked_requirement_and_retains_length() {
+    let (_, a) = sample_marked("cnc-review-spindle", true);
+    // Authorship must survive the same Analysis serialization used by editor/MCP clients.
+    let a: Analysis = serde_json::from_value(serde_json::to_value(a).unwrap()).unwrap();
+    let Some(draftwright::pmi::Reading::Read(report)) = &a.pmi else {
+        panic!("PMI fixture")
+    };
+    assert!(
+        report
+            .sources
+            .iter()
+            .any(|s| s.id == "manufacturing_requirement:#925"
+                && s.reason.contains("specify-core:written:v1"))
+    );
+    // An unmarked requirement in the same file does not inherit Specify authorship.
+    assert!(
+        !report
+            .sources
+            .iter()
+            .find(|s| s.id == "manufacturing_requirement:#1007")
+            .unwrap()
+            .reason
+            .contains("specify-core:written:v1")
+    );
+    let s = spec(json!({"features": {
+        "f:hole:1": {"thread": {"designation": "M5-6H"}},
+        "f:turned_step:3": {"knurl": {"pattern": "straight", "pitch": 1.0}}
+    }}));
+    let plan = model::plan_recovered(&a, &s).unwrap();
+    let refined = problems(&plan, "spec_refines_pmi");
+    assert_eq!(refined.len(), 1, "{:?}", plan.problems);
+    assert_eq!(refined[0].severity, "info");
+    assert_eq!(
+        refined[0].message,
+        "The Spec's M5-6H refines Specify's thread designation."
+    );
+    assert_eq!(
+        dimension(&plan, "d:f:hole:1/bore.diameter").label,
+        "M5-6H ↧ 6.5\n⌀4.2 ↧ 9.2"
+    );
+    let overrides = problems(&plan, "spec_overrides_pmi");
+    assert_eq!(overrides.len(), 1);
+    assert_eq!(
+        overrides[0].message,
+        "The Spec's straight knurl, 1 mm pitch replaces Specify's knurl annotation, which is not drawn. Remove the corresponding setting to draw the original requirement."
+    );
+    // An explicit length still takes precedence over the inherited minimum full thread.
+    let s =
+        spec(json!({"features": {"f:hole:1": {"thread": {"designation": "M5-6H", "length": 6}}}}));
+    let plan = model::plan_recovered(&a, &s).unwrap();
+    assert!(
+        dimension(&plan, "d:f:hole:1/bore.diameter")
+            .label
+            .starts_with("M5-6H ↧ 6")
+    );
+}
+
+#[test]
+fn string_post_finishes_do_not_add_location_requirements() {
+    let Some(corpus) = std::env::var_os("DRAFTWRIGHT_CORPUS")
+        .map(PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME").map(|p| PathBuf::from(p).join("repos/quiddity/tests/corpus"))
+        })
+        .filter(|p| p.is_dir())
+    else {
+        assert_ne!(
+            std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").as_deref(),
+            Ok("1")
+        );
+        return;
+    };
+    let (part, a) = model::analyse_native(&corpus.join("gramel/string_post.step")).unwrap();
+    assert!(a.pmi.is_none());
+    let plain = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let mut features = serde_json::Map::new();
+    for f in a.features.iter().filter(|f| f.kind == "turned_step") {
+        features.insert(f.id.clone(), json!({"finish": {"ra": 0.8}}));
+    }
+    assert!(!features.is_empty());
+    let s = spec(json!({"features": features}));
+    let finished = model::plan_recovered(&a, &s).unwrap();
+    assert!(!gdt(&finished, "surface_finish").is_empty());
+    for p in [&plain, &finished] {
+        assert!(
+            problems(p, "feature_not_located").is_empty(),
+            "{:?}",
+            p.problems
+        );
+    }
+    let drawing = model::render(&part, &a, &finished, &font()).unwrap();
+    let effective = draftwright::spec_gdt::effective(&a, &s).unwrap();
+    assert!(
+        !draftwright::lint::lint(&effective, &drawing)
+            .iter()
+            .any(|p| p.code == "feature_not_located")
+    );
 }

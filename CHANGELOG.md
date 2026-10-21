@@ -15,6 +15,15 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- Unclaimed geometry is informational and advisory on single-solid parts too, retaining
+  the unclaimed faces as subjects (#25).
+- Attribute marked PMI to Specify; compatible Spec thread designations refine its thread
+  and retain its stated length. Override and lint-only lowering messages omit internal
+  entity IDs and Spec paths (#102).
+- Explicit view placements outside the drawing area report a plan error with a fix that
+  removes the placement, including relations without the pin flag (#95).
+- Spec surface finishes on `string_post` no longer activate the dimensional location audit
+  and invent missing-location warnings.
 - #147: retry crossing feature callouts, leader-attached GD&T frames and AP242 surface labels
   against the complete printed inventory, including proven blank face in their own view.
   Include inward diameter/thread leaders over proven hole floors, while keeping 3 mm text,

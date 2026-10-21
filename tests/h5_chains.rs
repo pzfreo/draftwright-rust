@@ -196,10 +196,9 @@ fn fully_dimensioned_box_is_clear() {
     )
     .unwrap();
     let p = model::plan(&a, &less).unwrap();
-    assert_eq!(
-        serde_json::to_value(&p).unwrap()["status"],
-        "needs_attention"
-    );
+    // Unclaimed faces are advisory; independent lint checks omitted overall dimensions.
+    assert_eq!(serde_json::to_value(&p).unwrap()["status"], "clear");
+    assert!(p.problems.iter().all(|p| p.severity == "info"));
     assert_eq!(p.completeness.claimed_faces, 0);
     assert!(p.problems.iter().any(|p| p.code == "unclaimed_geometry"));
 }

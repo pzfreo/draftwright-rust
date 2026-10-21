@@ -693,7 +693,7 @@ pub(crate) fn ignore(
 }
 
 pub(crate) fn audit(a: &Analysis, s: &Spec, p: &mut crate::model::Plan) {
-    if PLAN_DEPTH.get() > 1 || (!carries(a) && s.origin.is_empty()) {
+    if PLAN_DEPTH.get() > 1 || (!location::has_station_requirements(a) && s.origin.is_empty()) {
         return;
     }
     crate::planning::with(a, || audit_inner(a, s, p));

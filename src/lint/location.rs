@@ -273,7 +273,7 @@ pub(crate) fn drawn_constraints(
     marks: &mut [Mark],
 ) {
     if drawing.sheet.frames.is_empty()
-        || (!matches!(&a.pmi, Some(Reading::Read(r)) if !r.records.is_empty())
+        || (!has_station_requirements(a)
             && !drawing.annotations.iter().any(|annotation| {
                 annotation.coordinate_origin.is_some()
                     && drawing.sheet.items.iter().any(|item| {
@@ -1008,8 +1008,16 @@ pub(crate) fn evidence(a: &Analysis, marks: &[Mark]) -> Vec<Mark> {
     extra
 }
 
+/// Finishes, threads and labels do not introduce dimensional station requirements.
+pub(crate) fn has_station_requirements(a: &Analysis) -> bool {
+    matches!(&a.pmi, Some(Reading::Read(r)) if r.records.iter().any(|r| {
+        matches!(r.category, Category::Datum | Category::GeometricTolerance)
+            || (r.category == Category::Dimension && r.kind != "common_label")
+    }))
+}
+
 pub(crate) fn active(a: &Analysis, marks: &[Mark]) -> bool {
-    matches!(&a.pmi,Some(Reading::Read(r)) if !r.records.is_empty())
+    has_station_requirements(a)
         || marks.iter().flat_map(|m| &m.claims).any(|c| {
             c.feature.starts_with("station_origin:") || c.feature.starts_with("station_root:")
         })
