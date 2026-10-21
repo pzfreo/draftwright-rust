@@ -7,7 +7,7 @@
 //!   not its rays', an arc off its vertex, a ray along no edge of the view, a remote datum symbol).
 //! - **On the port's own drawing** of nist_ctc_01 with its AP242 PMI (linear dimensions, the
 //!   `60 ±0.5` angle and three datum symbols): every linear and angular dimension agrees with its
-//!   ink, so only its remote datum C is reported; moving one extension line of a dimension or of
+//!   ink, and its datum C has a short square-stub route; moving one extension line of a dimension or of
 //!   the angle is caught.
 
 use std::collections::BTreeMap;
@@ -461,12 +461,22 @@ fn ctc01() -> Drawing {
 fn the_ports_own_pmi_drawing_says_what_it_draws() {
     let drawing = ctc01();
     let issues = structural::check(&drawing);
-    // Its linear dimensions and its angle agree with their ink; its datum C stands 60.5 mm from
-    // its surface (a real finding, left visible).
-    assert_eq!(
-        fidelity(&issues),
-        ["datum_leader_remote pmi:datum.datum:f75,76:t=C"],
-        "{issues:#?}"
+    // Linear/angular ink still agrees with its labels; C now has a short,
+    // square-stub route instead of the former remote straight leader.
+    assert!(fidelity(&issues).is_empty(), "{issues:#?}");
+    let c = drawing
+        .sheet
+        .items
+        .iter()
+        .find(|d| d.name == "pmi:datum.datum:f75,76:t=C")
+        .unwrap();
+    assert!(c.datum_triangle.is_some(), "C remains drawn");
+    assert!(
+        c.lines
+            .iter()
+            .map(|[a, b]| (b[0] - a[0]).hypot(b[1] - a[1]))
+            .sum::<f64>()
+            < 24.
     );
     let angular = drawing
         .sheet

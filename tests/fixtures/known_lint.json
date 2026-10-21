@@ -398,21 +398,21 @@
       "code": "radius_leader_not_radial",
       "count": 1,
       "verdict": "rust-correct",
-      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, non-material-side approach rule."
+      "reason": "Issues #145/#146: the drawn radius shaft violates the middle-arc/radial requirement, which accepts either side."
     },
     {
       "part": "ftc06",
       "code": "radius_leader_not_radial",
       "count": 2,
       "verdict": "rust-correct",
-      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, non-material-side approach rule."
+      "reason": "Issues #145/#146: the drawn radius shaft violates the middle-arc/radial requirement, which accepts either side."
     },
     {
       "part": "m1000",
       "code": "radius_leader_not_radial",
       "count": 1,
       "verdict": "rust-correct",
-      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, non-material-side approach rule."
+      "reason": "Issues #145/#146: the drawn radius shaft violates the middle-arc/radial requirement, which accepts either side."
     },
     {
       "part": "spool132",
@@ -426,7 +426,7 @@
       "code": "radius_leader_not_radial",
       "count": 1,
       "verdict": "rust-correct",
-      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, non-material-side approach rule."
+      "reason": "Issues #145/#146: the drawn radius shaft violates the middle-arc/radial requirement, which accepts either side."
     }
   ],
   "ledgers": [

@@ -361,7 +361,7 @@ fn an_already_separated_seed_does_not_gain_datum_crossings() {
     );
 }
 
-fn dense_datums_are_separate(name: &str, expected: usize) {
+fn dense_datums_are_separate(name: &str, expected: usize) -> Plan {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/pmi/step")
         .join(name);
@@ -382,6 +382,7 @@ fn dense_datums_are_separate(name: &str, expected: usize) {
         collisions.is_empty(),
         "coincident projections still need distinct symbols: {collisions:#?}"
     );
+    plan
 }
 
 #[test]
@@ -391,7 +392,17 @@ fn ftc10_coincident_projected_datums_do_not_touch() {
 
 #[test]
 fn stc10_coincident_projected_datums_do_not_touch() {
-    dense_datums_are_separate("nist_stc_10_asme1_ap242-e2.stp.gz", 8);
+    let plan = dense_datums_are_separate("nist_stc_10_asme1_ap242-e2.stp.gz", 8);
+    let frame = "pmi:geometric_tolerance.profile_surface:f65:ref=A,B,C";
+    assert!(plan.gdt.iter().any(|g| g.id == frame && g.placed.is_some()));
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "leader_through_feature"
+                && p.subjects.first().is_some_and(|id| id == frame)),
+        "a datum bend must not consume the established frame's clear escape route"
+    );
 }
 
 #[test]

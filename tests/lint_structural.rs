@@ -559,7 +559,12 @@ fn a_datum_shaft_meets_its_frame_but_does_not_cross_its_letter() {
         "the shaft ends on the frame border"
     );
     // A frame-edge stroke is legal too; its midpoint is not inside the frame.
-    datum.placed.as_mut().unwrap().lines = vec![[[50.0, 50.0], [50.0, 56.0]]];
+    datum
+        .placed
+        .as_mut()
+        .unwrap()
+        .lines
+        .push([[50.0, 50.0], [50.0, 56.0]]);
     assert!(check(&datum).is_empty());
     for end in [[53.0, 53.0], [60.0, 53.0]] {
         // Catch both a shaft ending in the letter and one passing all the way through,
