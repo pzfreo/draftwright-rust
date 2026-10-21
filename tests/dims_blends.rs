@@ -668,11 +668,8 @@ fn radius_centre_table_credits_every_occurrence_and_rejects_wrong_locators(file:
     let Some(dir) = corpus::dir() else { return };
 
     let (part, a) = model::analyse_native(&dir.join(file)).unwrap();
-    let p = model::plan(
-        &a,
-        &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
-    )
-    .unwrap();
+    let spec = serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap();
+    let p = model::plan(&a, &spec).unwrap();
     let doc = serde_json::to_value(&p).unwrap();
     let table = doc["radius_table"]
         .as_object()
@@ -748,7 +745,7 @@ fn radius_centre_table_credits_every_occurrence_and_rejects_wrong_locators(file:
     let restored: model::Analysis =
         serde_json::from_value(serde_json::to_value(&a).unwrap()).unwrap();
     assert_eq!(
-        serde_json::to_value(model::plan(&restored, &Spec::default()).unwrap()).unwrap(),
+        serde_json::to_value(model::plan(&restored, &spec).unwrap()).unwrap(),
         doc
     );
 }

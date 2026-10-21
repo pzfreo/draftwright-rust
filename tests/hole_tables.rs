@@ -171,12 +171,19 @@ fn check_part(name: &str, drops: bool) {
         "{name}: {rows} rows"
     );
     if escalates && !attempted {
+        // Existing principal schedules already own their coordinates; the rescue
+        // cannot add another owner, but every off-page item still reports its loss.
+        assert_eq!(
+            serde_json::to_value(&escalated.hole_tables).unwrap(),
+            serde_json::to_value(&first.hole_tables).unwrap()
+        );
         assert!(
             escalated
                 .problems
                 .iter()
                 .filter(|p| matches!(p.code.as_str(), "callout_dropped" | "location_ref_dropped"))
-                .all(|p| p.message.contains("No hole table")),
+                .all(|p| p.message.contains("No hole table")
+                    || (!first.hole_tables.is_empty() && p.message.contains("ran off the sheet"))),
             "{name}"
         );
     }
