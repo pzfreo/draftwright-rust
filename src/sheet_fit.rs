@@ -1348,7 +1348,7 @@ pub(crate) fn reserve_nominal_bounds(
     }
 }
 
-pub(crate) fn reserve_bounds(
+fn reserve_bounds(
     analysis: &Analysis,
     sheet: &crate::model::PlannedSheet,
     views: &mut [crate::model::PlannedView],
@@ -1548,6 +1548,7 @@ pub(crate) fn reserve_linear_corridors(
     plan: &mut Plan,
     inventory: &[crate::dims::PlannedDimension],
     automatic_pair: bool,
+    radius_reference: Option<&Plan>,
     cache: &crate::dims::footprints::Cache,
 ) {
     let old: Vec<_> = plan.views.iter().map(|v| (v.at, v.area, v.scale)).collect();
@@ -1573,6 +1574,32 @@ pub(crate) fn reserve_linear_corridors(
             ];
         }
         let mut owned = plan.dimensions.clone();
+        // A later radius polish restores these settled corridors. Compaction
+        // must not discard their paper reservation and then reject the replay
+        // merely for leaving its newly shortened annotation band.
+        owned.extend(
+            crate::placement_intent::held_dimensions(radius_reference, &plan.views)
+                .into_iter()
+                .filter(|d| {
+                    d.measurements
+                        .iter()
+                        .any(|m| matches!(m.parameter.as_str(), "fillet.radius" | "blend.radius"))
+                        && plan.dimensions.iter().any(|p| {
+                            p.id == d.id && p.terms == d.terms && p.measurements == d.measurements
+                        })
+                        && radius_reference.is_some_and(|r| {
+                            r.views.iter().any(|old| {
+                                old.id == d.view
+                                    && plan.views.iter().any(|now| {
+                                        now.id == old.id
+                                            && now.scale == old.scale
+                                            && now.direction == old.direction
+                                            && now.up == old.up
+                                    })
+                            })
+                        })
+                }),
+        );
         owned.extend(plan.gdt.iter().filter_map(crate::dims::gdt::proxy));
         for d in owned.iter().filter(|d| d.placed.is_some()) {
             if let Some(b) = crate::dims::ink_box(d)

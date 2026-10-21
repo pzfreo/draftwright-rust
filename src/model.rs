@@ -5417,11 +5417,6 @@ fn plan_with_presentation(
         held
     };
     let held = held_for(&views);
-    if radius_inventory {
-        // The finished reference owns these radius corridors before the
-        // edited linear label chooses its lane, including on trial paper.
-        crate::sheet_fit::reserve_bounds(analysis, &sheet, &mut views, &held, &[], None);
-    }
     let mut fixed_spec = spec.clone();
     fixed_spec
         .annotations
@@ -5530,9 +5525,6 @@ fn plan_with_presentation(
             furniture = crate::centrelines::obstacles(&views);
             furniture.extend(fixed.iter().cloned());
             let held = held_for(&views);
-            if radius_inventory {
-                crate::sheet_fit::reserve_bounds(analysis, &sheet, &mut views, &held, &[], None);
-            }
             ((dimensions, omitted, more), inventory) = crate::dims::plan_inventory(
                 analysis,
                 spec,
@@ -6307,6 +6299,7 @@ fn plan_with_presentation(
             &mut plan,
             &inventory,
             free_pair,
+            radius_reference.as_ref(),
             &footprint_cache,
         );
     }
