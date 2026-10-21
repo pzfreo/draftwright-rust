@@ -4260,6 +4260,17 @@ pub(crate) fn placement_options_with_spec(
         .collect()
 }
 
+type LocalCandidateChecks = BTreeMap<(usize, Vec<u8>), Vec<Problem>>;
+
+/// All remedies on one immutable drawing share their baseline and material footprints.
+/// Candidate geometry stays private to each trial; no planner result is cached here.
+#[derive(Default)]
+pub(crate) struct LocalFixTrials {
+    cache: footprints::Cache,
+    before: std::cell::OnceCell<Vec<Problem>>,
+    candidates: std::cell::RefCell<LocalCandidateChecks>,
+}
+
 /// Check existing placement intents against settled ink, without planning a sheet.
 /// This is remedy validation only: it never installs the trial geometry.
 pub(crate) fn local_placement_fix(
@@ -4267,6 +4278,7 @@ pub(crate) fn local_placement_fix(
     plan: &crate::model::Plan,
     problem: &Problem,
     options: &BTreeMap<String, Value>,
+    trials: &LocalFixTrials,
 ) -> Option<crate::fixes::Fix> {
     use crate::placement_intent::{Along, Place, Slot};
     let mut raw = wants(analysis).0;
@@ -4276,17 +4288,35 @@ pub(crate) fn local_placement_fix(
     detail_routes(analysis, &mut raw, &plan.views);
     let mut all = plan.dimensions.clone();
     all.extend(plan.gdt.iter().filter_map(gdt::proxy));
-    let cache = footprints::Cache::default();
+    let cache = &trials.cache;
     let same = |a: &Problem, b: &Problem| a.code == b.code && a.subjects == b.subjects;
-    let before = recheck_cached(analysis, plan, &cache);
+    let before = trials
+        .before
+        .get_or_init(|| recheck_cached(analysis, plan, cache));
     if !before.iter().any(|p| same(p, problem)) {
         return None;
     }
+    // Once a trade is found, inspect at most three further candidates for a clean
+    // alternative. This uses the existing settled-ink trial, never another plan.
+    let mut fallback = None;
+    let mut remaining = 3usize;
     for id in &problem.subjects {
         let Some(index) = plan.dimensions.iter().position(|d| &d.id == id) else {
             continue;
         };
         let d = &plan.dimensions[index];
+        let repeated = plan
+            .problems
+            .iter()
+            .filter(|p| p.subjects.contains(id))
+            .nth(1)
+            .is_some();
+        // Retention check for this bounded trial: only shown ink may be replaced.
+        // The replacement clones its complete requirement, terms and measurements;
+        // every other item and all furniture remain in the settled inventory.
+        if d.state != crate::items::State::Shown || d.placed.is_none() {
+            continue;
+        }
         if plan
             .spec
             .dimensions
@@ -4331,6 +4361,12 @@ pub(crate) fn local_placement_fix(
                 .chain(&plan.sheets)
                 .find(|s| s.number == view.sheet)?;
             let mut offer = |placed: Placed, place: &Place| {
+                if fallback.is_some() {
+                    if remaining == 0 {
+                        return fallback.take();
+                    }
+                    remaining -= 1;
+                }
                 all[index] = d.clone();
                 all[index].placed = Some(placed);
                 all[index].view = view.id.clone();
@@ -4340,8 +4376,32 @@ pub(crate) fn local_placement_fix(
                 {
                     return None;
                 }
-                let after =
-                    placement::collisions_for(analysis, &all, sheet, &plan.views, &cache, id);
+                // Different findings often propose the same placement of the same
+                // item. Its complete collision result depends on this immutable
+                // drawing and Place, not on which finding requested the trial.
+                let key = repeated.then(|| {
+                    (
+                        index,
+                        serde_json::to_vec(place).expect("placement serializes"),
+                    )
+                });
+                let saved = key
+                    .as_ref()
+                    .and_then(|key| trials.candidates.borrow().get(key).cloned());
+                let after = if let Some(saved) = saved {
+                    saved
+                } else {
+                    let after =
+                        placement::collisions_for(analysis, &all, sheet, &plan.views, cache, id);
+                    if let Some(key) = key {
+                        let mut saved = trials.candidates.borrow_mut();
+                        if saved.len() == 128 {
+                            saved.clear();
+                        }
+                        saved.insert(key, after.clone());
+                    }
+                    after
+                };
                 if after.iter().any(|p| same(p, problem))
                     || after
                         .iter()
@@ -4356,7 +4416,7 @@ pub(crate) fn local_placement_fix(
                 )];
                 // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
                 crate::model::edit(&plan.spec, &serde_json::to_value(&ops).unwrap()).ok()?;
-                let description = crate::fixes::placement_description(
+                let mut description = crate::fixes::placement_description(
                     &format!(
                         "the {} {}",
                         d.label,
@@ -4368,7 +4428,33 @@ pub(crate) fn local_placement_fix(
                     ),
                     place,
                 );
-                Some(crate::fixes::Fix::new(description, ops))
+                // Compare every code with the published findings, rather than only
+                // errors or a recheck that may contain unpublished advisories.
+                let added: Vec<_> = after
+                    .iter()
+                    .filter(|p| {
+                        !plan
+                            .problems
+                            .iter()
+                            .any(|old| same(p, old) && p.id == old.id)
+                    })
+                    .collect();
+                if added.is_empty() {
+                    return Some(crate::fixes::Fix::new(description, ops));
+                }
+                if fallback.is_none() {
+                    description.push_str(" Trade-off: adds these findings: ");
+                    description.push_str(
+                        &added
+                            .iter()
+                            .map(|p| format!("{} [{}]", p.message, p.code))
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                    );
+                    description.push('.');
+                    fallback = Some(crate::fixes::Fix::new(description, ops));
+                }
+                None
             };
             for side in option["sides"].as_array().into_iter().flatten() {
                 let side: crate::placement_intent::Side =
@@ -4461,7 +4547,7 @@ pub(crate) fn local_placement_fix(
         }
         all[index] = d.clone();
     }
-    None
+    fallback
 }
 
 /// A readable symbolic class with no numeric limits stated: a hole class on proven internal

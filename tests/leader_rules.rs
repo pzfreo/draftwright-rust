@@ -19,6 +19,9 @@
 //! hole and blend callout the planner places passes, so ISSUE-1378-a and ISSUE-1479-a are met
 //! by the planner, not only checked.
 
+#[path = "common/local_fix.rs"]
+mod local_fix;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
@@ -486,7 +489,7 @@ fn the_plan_and_lint_agree_on_a_leader_cutting_back_into_the_material() {
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("assembly_plate_pin.step");
     std::fs::write(&path, bytes).unwrap();
-    let reports = |offset: [f64; 2]| -> (Vec<model::Problem>, Vec<LintIssue>) {
+    let reports = |offset: [f64; 2]| -> (Vec<model::Problem>, Vec<LintIssue>, model::Plan) {
         let mut s = Session::open(&path, api::Features::Native, Spec::default()).unwrap();
         s.apply(
             &[Op::set(
@@ -508,13 +511,13 @@ fn the_plan_and_lint_agree_on_a_leader_cutting_back_into_the_material() {
             .into_iter()
             .filter(|i| i.code == "leader_crosses_silhouette")
             .collect();
-        (planned, linted)
+        (planned, linted, s.plan().clone())
     };
     let depth = |text: &str, before: &str| -> String {
         let at = text.find(before).unwrap_or_else(|| panic!("{text}")) + before.len();
         text[at..].split(' ').next().unwrap().to_string()
     };
-    let (planned, linted) = reports([15.0, 0.0]);
+    let (planned, linted, plan) = reports([15.0, 0.0]);
     assert_eq!(planned.len(), 1, "{planned:#?}");
     assert_eq!(linted.len(), 1, "{linted:#?}");
     assert_eq!(linted[0].annotation.as_deref(), Some(ID));
@@ -525,8 +528,13 @@ fn the_plan_and_lint_agree_on_a_leader_cutting_back_into_the_material() {
     assert_eq!(p, l, "{} / {}", planned[0].message, linted[0].message);
     assert!(p.parse::<f64>().unwrap() > 1.0, "{p}");
     // The pin is the author's: the fix offered is to release it.
-    assert_eq!(planned[0].fix.len(), 1, "{:?}", planned[0].fix);
-    let (planned, linted) = reports([-15.0, 0.0]);
+    assert_eq!(
+        local_fix::edits(&planned[0], &plan).len(),
+        1,
+        "{:?}",
+        planned[0].fix
+    );
+    let (planned, linted, _) = reports([-15.0, 0.0]);
     assert!(
         planned.is_empty() && linted.is_empty(),
         "{planned:#?} {linted:#?}"

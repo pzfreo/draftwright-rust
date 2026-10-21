@@ -168,6 +168,9 @@ pub struct Delta {
     pub removed: Vec<String>,
     pub problems_added: Vec<model::Problem>,
     pub problems_resolved: Vec<model::Problem>,
+    /// Findings about the edit itself, rather than the reproducible drawing state.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notices: Vec<model::Problem>,
     pub plan: PlanDelta,
     /// Only changed view geometry and annotation ink. Removed IDs use `removed`.
     pub geometry: GeometryLayer,
@@ -252,8 +255,7 @@ fn records(v: &Value) -> BTreeMap<String, Value> {
 fn order(v: &Value) -> Vec<String> {
     v.as_array().into_iter().flatten().map(record_id).collect()
 }
-fn patch(old: &Plan, new: &Plan) -> PlanDelta {
-    let (a, b) = (document(old), document(new));
+fn patch(a: &Value, b: &Value) -> PlanDelta {
     let mut delta = PlanDelta::default();
     for name in COLLECTIONS {
         if a[name] == b[name] {
@@ -639,6 +641,9 @@ impl Session {
             &serde_json::to_value(ops).expect("ops serialise"),
         )?;
         let evaluated = self.evaluate(&spec)?;
+        if spec.sheet.keep_layout == Some(true) {
+            crate::local_layout::verify(self.plan(), &evaluated.state.plan)?;
+        }
         let delta = difference(
             &self.state,
             &evaluated.state,
@@ -1603,6 +1608,7 @@ fn settable(
         }
     }
     if item.item.kind == "sheet" {
+        fields.insert("sheet/keep_layout".into(), json!({"choices":[true,false],"forms":["true with sheet/size, sheet/scale and sheets/max=1", "false or remove to allow the whole sheet to be laid out again, including hand-moved placements", "a later explicit paper, scale or sheet-count edit releases an inherited guard; setting keep_layout in that batch retains it"], "consequences":["Keeps explicit paper, scale and sheet count without automatic selection or refitting; moved views are reported."]}));
         fields.insert(
             "sheet/size".into(),
             choices(json!(crate::layout::PAGES.map(|p| p.0))),
@@ -1953,8 +1959,7 @@ pub fn item_bounds(i: &ItemAnswer) -> Option<[f64; 4]> {
         Placement::View { area, .. } | Placement::Box(area) => Some(*area),
     }
 }
-fn item_records(plan: &Plan) -> BTreeMap<String, Vec<Value>> {
-    let doc = document(plan);
+fn item_records(doc: &Value) -> BTreeMap<String, Vec<Value>> {
     let mut out = BTreeMap::<String, Vec<Value>>::new();
     out.insert("sheet".into(), vec![doc["sheet"].clone()]);
     for name in COLLECTIONS.into_iter().filter(|name| *name != "problems") {
@@ -1980,8 +1985,13 @@ fn difference(old: &State, new: &State, analysis: &Analysis, plans: usize) -> De
         .map(|i| (i.item.id.clone(), i))
         .collect();
     let after = answers(&new.plan, analysis);
-    let old_records = item_records(&old.plan);
-    let new_records = item_records(&new.plan);
+    // Item comparison and the lossless Plan patch read the same documents. Serialize
+    // each once, including every remedy; retained-frame metadata must not multiply
+    // that work. The records and patch below retain their complete previous inputs.
+    let old_document = document(&old.plan);
+    let new_document = document(&new.plan);
+    let old_records = item_records(&old_document);
+    let new_records = item_records(&new_document);
     let new_ids: Vec<_> = after.iter().map(|i| i.item.id.clone()).collect();
     let changed: Vec<_> = after
         .iter()
@@ -2030,6 +2040,9 @@ fn difference(old: &State, new: &State, analysis: &Analysis, plans: usize) -> De
     };
     Delta {
         plans,
+        notices: crate::local_layout::notice(&old.plan, &new.plan)
+            .into_iter()
+            .collect(),
         changed,
         added: after
             .into_iter()
@@ -2060,7 +2073,7 @@ fn difference(old: &State, new: &State, analysis: &Analysis, plans: usize) -> De
             })
             .cloned()
             .collect(),
-        plan: patch(&old.plan, &new.plan),
+        plan: patch(&old_document, &new_document),
         geometry,
         annotations: new
             .annotations

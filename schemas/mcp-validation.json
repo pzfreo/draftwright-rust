@@ -94,7 +94,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"
@@ -346,7 +346,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "$ref": "#/A"
               },
               "^(size|scale)$(?!\n)": {
@@ -680,7 +680,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"
@@ -918,7 +918,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"
@@ -1174,7 +1174,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"
@@ -1408,7 +1408,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"
@@ -1535,7 +1535,37 @@
       "ops": {
         "type": "array",
         "items": {
-          "$ref": "#/op"
+          "anyOf": [
+            {
+              "properties": {
+                "op": {
+                  "enum": [
+                    "set",
+                    "add"
+                  ]
+                },
+                "path": {
+                  "$ref": "#/B"
+                },
+                "value": {}
+              },
+              "additionalProperties": false,
+              "minProperties": 3
+            },
+            {
+              "properties": {
+                "op": {
+                  "const": "remove"
+                },
+                "path": {
+                  "$ref": "#/B"
+                }
+              },
+              "additionalProperties": false,
+              "minProperties": 2
+            }
+          ],
+          "type": "object"
         },
         "maxItems": 32
       }
@@ -1545,39 +1575,6 @@
       "ops"
     ],
     "additionalProperties": false,
-    "op": {
-      "anyOf": [
-        {
-          "properties": {
-            "op": {
-              "enum": [
-                "set",
-                "add"
-              ]
-            },
-            "path": {
-              "$ref": "#/B"
-            },
-            "value": {}
-          },
-          "additionalProperties": false,
-          "minProperties": 3
-        },
-        {
-          "properties": {
-            "op": {
-              "const": "remove"
-            },
-            "path": {
-              "$ref": "#/B"
-            }
-          },
-          "additionalProperties": false,
-          "minProperties": 2
-        }
-      ],
-      "type": "object"
-    },
     "A": {
       "items": {
         "$ref": "#/B"
@@ -1692,7 +1689,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"
@@ -1819,7 +1816,37 @@
       "ops": {
         "type": "array",
         "items": {
-          "$ref": "#/op"
+          "anyOf": [
+            {
+              "properties": {
+                "op": {
+                  "enum": [
+                    "set",
+                    "add"
+                  ]
+                },
+                "path": {
+                  "$ref": "#/A"
+                },
+                "value": {}
+              },
+              "additionalProperties": false,
+              "minProperties": 3
+            },
+            {
+              "properties": {
+                "op": {
+                  "const": "remove"
+                },
+                "path": {
+                  "$ref": "#/A"
+                }
+              },
+              "additionalProperties": false,
+              "minProperties": 2
+            }
+          ],
+          "type": "object"
         },
         "maxItems": 32
       },
@@ -1833,39 +1860,6 @@
       "parent"
     ],
     "additionalProperties": false,
-    "op": {
-      "anyOf": [
-        {
-          "properties": {
-            "op": {
-              "enum": [
-                "set",
-                "add"
-              ]
-            },
-            "path": {
-              "$ref": "#/A"
-            },
-            "value": {}
-          },
-          "additionalProperties": false,
-          "minProperties": 3
-        },
-        {
-          "properties": {
-            "op": {
-              "const": "remove"
-            },
-            "path": {
-              "$ref": "#/A"
-            }
-          },
-          "additionalProperties": false,
-          "minProperties": 2
-        }
-      ],
-      "type": "object"
-    },
     "A": {
       "type": "string"
     },
@@ -1980,7 +1974,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"
@@ -2246,7 +2240,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"
@@ -2484,7 +2478,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"
@@ -2713,7 +2707,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"

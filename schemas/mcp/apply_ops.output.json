@@ -49,10 +49,10 @@
                                     "$ref": "#/D"
                                   },
                                   "label": {
-                                    "$ref": "#/F"
+                                    "$ref": "#/G"
                                   },
                                   "view": {
-                                    "$ref": "#/F"
+                                    "$ref": "#/G"
                                   },
                                   "state": {
                                     "anyOf": [
@@ -112,11 +112,7 @@
                                   "operation_scopes": {
                                     "type": "object",
                                     "additionalProperties": {
-                                      "enum": [
-                                        "local",
-                                        "view",
-                                        "sheet"
-                                      ]
+                                      "$ref": "#/F"
                                     }
                                   },
                                   "item": {
@@ -129,7 +125,7 @@
                                     ]
                                   },
                                   "dimension_kind": {
-                                    "$ref": "#/F"
+                                    "$ref": "#/G"
                                   },
                                   "placement": {
                                     "type": [
@@ -186,7 +182,8 @@
                           "change": {
                             "enum": [
                               "problem_added",
-                              "problem_resolved"
+                              "problem_resolved",
+                              "notice"
                             ]
                           },
                           "problem": {
@@ -238,6 +235,9 @@
                                   },
                                   "fixes": {
                                     "$ref": "#/A"
+                                  },
+                                  "scope": {
+                                    "$ref": "#/F"
                                   }
                                 },
                                 "required": [
@@ -248,7 +248,7 @@
                                 ],
                                 "additionalProperties": false,
                                 "patternProperties": {
-                                  "^(group|id|code|severity)$(?!\n)": {
+                                  "^(group|id|code|severity|detail_ref|description)$(?!\n)": {
                                     "$ref": "#/D"
                                   }
                                 }
@@ -331,7 +331,7 @@
     "type": "object",
     "properties": {
       "id": {
-        "$ref": "#/F"
+        "$ref": "#/G"
       },
       "detail_ref": {
         "$ref": "#/D"
@@ -352,11 +352,7 @@
           "$ref": "#/C"
         },
         "scope": {
-          "enum": [
-            "local",
-            "view",
-            "sheet"
-          ]
+          "$ref": "#/F"
         }
       },
       "type": "object"
@@ -417,6 +413,13 @@
     ]
   },
   "F": {
+    "enum": [
+      "local",
+      "view",
+      "sheet"
+    ]
+  },
+  "G": {
     "type": [
       "string",
       "null"

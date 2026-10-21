@@ -286,6 +286,92 @@ fn one_feature_problem_query_returns_all_member_fixes() {
     );
 }
 
+// A verbose scoped remedy must not turn a real warning into an ID-only row.
+// Follow the public default bundle plus the editor's explicit opposite-side
+// placement, as a client fixing every problem involving this feature does.
+#[test]
+fn verbose_feature_problem_stays_actionable_and_can_be_cleared() {
+    let (cache, summary) = open("actionable-feature", "ctc01");
+    let query = json!({"part_ref":summary["part_ref"],
+        "spec_version":summary["spec_version"],"problem_filter":{"feature":"f:slot:1"}});
+    let inspected = call(&cache, "inspect_part", query);
+    let rows = inspected["problem_page"]["items"].as_array().unwrap();
+    assert_eq!(rows.len(), 1);
+    let row = &rows[0];
+    assert_eq!(row["code"], "extension_through_feature");
+    assert_eq!(row["impact"], "advisory");
+    assert!(row["group"].as_str().is_some_and(|group| !group.is_empty()));
+    assert!(
+        row["subjects"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("f:slot:1"))
+    );
+    let mut ops = row["fix"]
+        .as_array()
+        .expect("inline actionable fix")
+        .clone();
+    assert!(!ops.is_empty());
+    if row.get("detail_ref").is_some() {
+        assert_eq!(row["scope"], "local");
+        assert!(row["description"].as_str().unwrap().contains("Trade-off:"));
+    }
+    let answer = call(
+        &cache,
+        "get_item",
+        json!({"part_ref":summary["part_ref"],
+        "spec_version":summary["spec_version"],"id":row["subjects"][0],"detail":true}),
+    );
+    let p = &answer["item"]["placement"]["geometry"];
+    let line: usize = row["id"]
+        .as_str()
+        .unwrap()
+        .rsplit(':')
+        .next()
+        .unwrap()
+        .parse()
+        .unwrap();
+    let horizontal = p["rotation"].as_f64().unwrap().rem_euclid(180.0).abs() < 1e-6;
+    let k = usize::from(horizontal);
+    let outward =
+        p["lines"][line][1][k].as_f64().unwrap() > p["lines"][line][0][k].as_f64().unwrap();
+    let side = match (horizontal, outward) {
+        (true, true) => "below",
+        (true, false) => "above",
+        (false, true) => "left",
+        (false, false) => "right",
+    };
+    let id = row["subjects"][0].as_str().unwrap();
+    ops.push(
+        json!({"op":"set","path":format!("dimensions/{}/place", draftwright::items::key(id)),
+        "value":{"view":answer["item"]["item"]["view"].as_str().unwrap().trim_start_matches("v:"),
+        "side":side,"lane":0}}),
+    );
+    let applied = call(
+        &cache,
+        "apply_ops",
+        json!({"part_ref":summary["part_ref"],
+        "parent":summary["spec_version"],"ops":ops}),
+    );
+    let remaining = call(
+        &cache,
+        "list_problems",
+        json!({"part_ref":summary["part_ref"],
+        "spec_version":applied["spec_version"],"filter":{"feature":"f:slot:1"}}),
+    );
+    assert_eq!(remaining["total"], 0, "{remaining}");
+    let delta: Value = serde_json::from_slice(
+        &cache
+            .artifact_bytes(applied["delta"]["delta_ref"].as_str().unwrap())
+            .unwrap(),
+    )
+    .unwrap();
+    assert!(
+        delta["removed"].as_array().unwrap().is_empty(),
+        "no dimension is hidden"
+    );
+}
+
 #[test]
 fn inspection_batches_a_filtered_problem_page_with_registration() {
     let (cache, summary) = open("inspect-problems", "ctc01");
@@ -300,7 +386,18 @@ fn inspection_batches_a_filtered_problem_page_with_registration() {
         json!({"part_ref":summary["part_ref"],"spec_version":summary["spec_version"],"filter":{"feature":"f:slot:1"}}),
     );
     assert_eq!(result["problem_page"], problems);
-    let actual = result["problem_page"]["items"].as_array().unwrap();
+    let actual: Vec<Value> = result["problem_page"]["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| {
+            if let Some(key) = row["detail_ref"].as_str() {
+                serde_json::from_slice(&cache.artifact_bytes(key).unwrap()).unwrap()
+            } else {
+                row.clone()
+            }
+        })
+        .collect();
     assert_eq!(actual.len(), 1);
     assert!(
         actual
@@ -584,6 +681,7 @@ fn crossing_remedies_are_scoped_and_ordered_in_mcp_rows() {
         for code in ["annotation_leader_crossing", "extension_through_feature"] {
             let mut cursor = 0;
             let mut count = 0;
+            let mut local_count = 0;
             loop {
                 let rows = call(
                     &cache,
@@ -604,7 +702,43 @@ fn crossing_remedies_are_scoped_and_ordered_in_mcp_rows() {
                     };
                     let fixes = row["fixes"].as_array().unwrap();
                     assert!(!fixes.is_empty(), "{row}");
-                    assert_eq!(fixes[0]["scope"], "local");
+                    // Radius-table carriers cannot promise information retention
+                    // from the bounded trial; only the front-view hole location
+                    // remains local. Keep the wire contract as strict as Session.
+                    let local = row["id"]
+                        .as_str()
+                        .unwrap()
+                        .contains("d:f:hole:1/location.length.z");
+                    assert_eq!(fixes[0]["scope"], if local { "local" } else { "sheet" });
+                    if local {
+                        local_count += 1;
+                        let ops = fixes[0]["ops"].as_array().unwrap();
+                        for (path, value) in [
+                            ("sheet/keep_layout", json!(true)),
+                            ("sheet/size", json!("A3")),
+                            ("sheet/scale", json!("1:5")),
+                            ("sheets/max", json!(1)),
+                        ] {
+                            let constraints: Vec<_> =
+                                ops.iter().filter(|op| op["path"] == path).collect();
+                            assert_eq!(constraints.len(), 1);
+                            assert_eq!(constraints[0]["value"], value);
+                        }
+                        assert!(
+                            fixes[0]["description"]
+                                .as_str()
+                                .unwrap()
+                                .contains("extension_through_feature")
+                        );
+                    } else {
+                        assert!(fixes.iter().all(|fix| fix["scope"] == "sheet"));
+                        assert!(
+                            fixes[0]["description"]
+                                .as_str()
+                                .unwrap()
+                                .contains("The whole sheet is laid out again")
+                        );
+                    }
                     assert_eq!(row["fix"], fixes[0]["ops"]);
                     let rank = |fix: &Value| match fix["scope"].as_str().unwrap() {
                         "local" => 0,
@@ -638,6 +772,14 @@ fn crossing_remedies_are_scoped_and_ordered_in_mcp_rows() {
                 cursor = next;
             }
             assert_eq!(
+                local_count,
+                if code == "extension_through_feature" {
+                    5
+                } else {
+                    0
+                }
+            );
+            assert_eq!(
                 count,
                 match code {
                     "annotation_leader_crossing" => 2,
@@ -654,4 +796,38 @@ fn crossing_remedies_are_scoped_and_ordered_in_mcp_rows() {
     );
     assert_eq!(options["settable"]["hole_table"]["scope"], "sheet");
     assert_eq!(options["operation_scopes"]["scale"], "sheet");
+}
+
+#[test]
+fn an_oversized_trade_keeps_the_finding_inline_and_the_remedy_lossless() {
+    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("e2-long-trade");
+    let _ = std::fs::remove_dir_all(&root);
+    let cache = Cache::new(root);
+    let ops = json!([{"op":"set", "path":"dimensions/d:example/place", "value":{"side":"below"}}]);
+    let description = "Trade-off: adds an extension crossing. ".repeat(100);
+    let row = json!({"id":"p:example", "code":"extension_through_feature",
+        "severity":"warning", "impact":"readability", "group":"extension-path",
+        "subjects":["d:example", "f:slot:1"], "fix":ops,
+        "fixes":[{"scope":"local", "description":description, "ops":ops}]});
+    let page = mcp::page(&cache, vec![row.clone()], &json!({})).unwrap();
+    let inline = &page["items"][0];
+    assert_eq!(inline["code"], row["code"]);
+    assert_eq!(inline["subjects"], row["subjects"]);
+    assert_eq!(inline["impact"], row["impact"]);
+    assert_eq!(inline["group"], row["group"]);
+    assert!(
+        inline.get("fix").is_none(),
+        "never offer an undisclosed trade"
+    );
+    let full: Value = serde_json::from_slice(
+        &cache
+            .artifact_bytes(inline["detail_ref"].as_str().unwrap())
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        full, row,
+        "every alternative and its complete description remain available"
+    );
+    mcp::validate(&mcp::schema("list_problems", true).unwrap(), &page).unwrap();
 }

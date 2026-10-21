@@ -691,6 +691,7 @@ fn s0_edits_through_http_serve_and_session_have_identical_specs_plans_and_deltas
                     + expected.removed.len()
                     + expected.problems_added.len()
                     + expected.problems_resolved.len()
+                    + expected.notices.len()
             );
             assert_eq!(
                 http.tool("get_spec", json!({"part_ref":key}))["spec_version"],
