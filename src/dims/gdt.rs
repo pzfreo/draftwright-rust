@@ -2453,13 +2453,23 @@ mod tests {
                 g.kind == "datum_feature" && g.placed.as_ref().is_some_and(|p| p.lines.len() == 1)
             })
             .unwrap();
+        // Make a deliberately long normal route so the inventory has both tiers
+        // and bends to exercise (the real spindle is already at minimum reach).
+        let mut g = g.clone();
+        let u = outward(&g.side);
+        let placed = g.placed.as_mut().unwrap();
+        for (k, value) in u.into_iter().enumerate() {
+            placed.lines[0][1][k] += 20. * value;
+            placed.label_box[k] += 20. * value;
+            placed.label_box[k + 2] += 20. * value;
+        }
         let placed = g.placed.as_ref().unwrap();
         let triangle = &placed.fills[0];
         let base = [
             triangle[2][0] - triangle[0][0],
             triangle[2][1] - triangle[0][1],
         ];
-        let routes = normal_routes(g);
+        let routes = normal_routes(&g);
         assert!(!routes.is_empty());
         let mut bent = false;
         for route in routes {
