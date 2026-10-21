@@ -127,6 +127,14 @@
                 "anyOf": [
                   {
                     "properties": {
+                      "impact": {
+                        "enum": [
+                          "incomplete",
+                          "decision",
+                          "readability",
+                          "advisory"
+                        ]
+                      },
                       "subjects": {
                         "$ref": "#/A"
                       },
@@ -172,7 +180,7 @@
                     ],
                     "additionalProperties": false,
                     "patternProperties": {
-                      "^(id|code|severity|detail_ref|description)$(?!\n)": {
+                      "^(group|id|code|severity|detail_ref|description)$(?!\n)": {
                         "$ref": "#/C"
                       }
                     }

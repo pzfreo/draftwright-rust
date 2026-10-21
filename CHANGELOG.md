@@ -6,6 +6,11 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+- Add `impact` and stable repeat-cause `group` labels to every problem and lint finding,
+  including serve, WASM and compact MCP results. Review includes per-impact and per-group
+  counts, also forwarded by the MCP review tool. Severity, finding order and drawings
+  are unchanged. See [finding impact](docs/finding-impact.md) for the full classification.
+
 ### Fixed
 
 - Verbose MCP problems retain their code and subjects inline, plus the preferred fix,

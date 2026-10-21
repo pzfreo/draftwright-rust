@@ -49,10 +49,10 @@
                                     "$ref": "#/D"
                                   },
                                   "label": {
-                                    "$ref": "#/F"
+                                    "$ref": "#/G"
                                   },
                                   "view": {
-                                    "$ref": "#/F"
+                                    "$ref": "#/G"
                                   },
                                   "state": {
                                     "anyOf": [
@@ -112,7 +112,7 @@
                                   "operation_scopes": {
                                     "type": "object",
                                     "additionalProperties": {
-                                      "$ref": "#/E"
+                                      "$ref": "#/F"
                                     }
                                   },
                                   "item": {
@@ -125,7 +125,7 @@
                                     ]
                                   },
                                   "dimension_kind": {
-                                    "$ref": "#/F"
+                                    "$ref": "#/G"
                                   },
                                   "placement": {
                                     "type": [
@@ -191,6 +191,12 @@
                               {
                                 "type": "object",
                                 "properties": {
+                                  "impact": {
+                                    "$ref": "#/E"
+                                  },
+                                  "ink_is_leader": {
+                                    "type": "boolean"
+                                  },
                                   "fix": {
                                     "$ref": "#/C"
                                   },
@@ -207,10 +213,10 @@
                                 ],
                                 "additionalProperties": false,
                                 "patternProperties": {
-                                  "^(id|code|severity|message)$(?!\n)": {
+                                  "^(group|id|code|severity|message)$(?!\n)": {
                                     "$ref": "#/D"
                                   },
-                                  "^(subjects|refs)$(?!\n)": {
+                                  "^(subjects|refs|crossing_kinds)$(?!\n)": {
                                     "$ref": "#/B"
                                   }
                                 }
@@ -218,6 +224,9 @@
                               {
                                 "type": "object",
                                 "properties": {
+                                  "impact": {
+                                    "$ref": "#/E"
+                                  },
                                   "subjects": {
                                     "$ref": "#/B"
                                   },
@@ -228,7 +237,7 @@
                                     "$ref": "#/A"
                                   },
                                   "scope": {
-                                    "$ref": "#/E"
+                                    "$ref": "#/F"
                                   }
                                 },
                                 "required": [
@@ -239,7 +248,7 @@
                                 ],
                                 "additionalProperties": false,
                                 "patternProperties": {
-                                  "^(id|code|severity|detail_ref|description)$(?!\n)": {
+                                  "^(group|id|code|severity|detail_ref|description)$(?!\n)": {
                                     "$ref": "#/D"
                                   }
                                 }
@@ -322,7 +331,7 @@
     "type": "object",
     "properties": {
       "id": {
-        "$ref": "#/F"
+        "$ref": "#/G"
       },
       "detail_ref": {
         "$ref": "#/D"
@@ -343,7 +352,7 @@
           "$ref": "#/C"
         },
         "scope": {
-          "$ref": "#/E"
+          "$ref": "#/F"
         }
       },
       "type": "object"
@@ -397,12 +406,20 @@
   },
   "E": {
     "enum": [
+      "incomplete",
+      "decision",
+      "readability",
+      "advisory"
+    ]
+  },
+  "F": {
+    "enum": [
       "local",
       "view",
       "sheet"
     ]
   },
-  "F": {
+  "G": {
     "type": [
       "string",
       "null"

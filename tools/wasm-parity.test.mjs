@@ -69,6 +69,11 @@ for (const part of ['prismatic', 'polygonal', 'schemes']) {
     try {
       const snapshot = JSON.parse(engine.snapshot());
       assert.deepEqual(snapshot.plan, JSON.parse(engine.plan()));
+      for (const finding of snapshot.problems) {
+        assert.ok(["incomplete", "decision", "readability", "advisory"].includes(finding.impact));
+        assert.equal(typeof finding.group, "string");
+        assert.ok(finding.group.length > 0);
+      }
       assert.deepEqual(snapshot.spec, JSON.parse(engine.spec()));
       assert.deepEqual(snapshot.placementOptions, JSON.parse(engine.placementOptions()));
       assert.deepEqual(snapshot.pmi, JSON.parse(engine.pmi()));

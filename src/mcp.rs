@@ -297,6 +297,11 @@ fn small(cache: &Cache, row: Value) -> Result<Value, Error> {
     if row.get("code").is_some() && row.get("subjects").is_some() {
         let mut summary = json!({"id":row["id"],"code":row["code"],
             "severity":row["severity"],"subjects":row["subjects"],"detail_ref":detail});
+        for field in ["impact", "group"] {
+            if let Some(label) = row.get(field) {
+                summary[field] = label.clone();
+            }
+        }
         if let Some(preferred) = row["fixes"].as_array().and_then(|fixes| fixes.first()) {
             summary["fix"] = preferred["ops"].clone();
             summary["scope"] = preferred["scope"].clone();
@@ -355,9 +360,10 @@ pub fn page(cache: &Cache, rows: Vec<Value>, args: &Value) -> Result<Value, Erro
     )
 }
 fn problem_summary(p: &crate::model::Problem) -> Value {
+    let labels = p.labels();
     let fixes = p.offered_fixes();
     let preferred = fixes.first().map(|f| f.ops.as_slice()).unwrap_or_default();
-    json!({"id":p.id,"code":p.code,"severity":p.severity,"subjects":p.subjects,"fix":preferred,"fixes":fixes})
+    json!({"id":p.id,"code":p.code,"severity":p.severity,"impact":labels.impact,"group":labels.group,"subjects":p.subjects,"fix":preferred,"fixes":fixes})
 }
 fn delta_page(cache: &Cache, delta: &Delta, args: &Value) -> Result<Value, Error> {
     let detail = args["detail"].as_bool().unwrap_or(false);
@@ -376,7 +382,8 @@ fn delta_page(cache: &Cache, delta: &Delta, args: &Value) -> Result<Value, Error
         ("notice", &delta.notices),
     ] {
         for p in problems {
-            rows.push(json!({"change":change,"problem":if detail || change == "notice"{value(p)}else{json!({"id":p.id,"code":p.code,"severity":p.severity,"subjects":p.subjects})}}));
+            let labels = p.labels();
+            rows.push(json!({"change":change,"problem":if detail || change == "notice"{value(p)}else{json!({"id":p.id,"code":p.code,"severity":p.severity,"impact":labels.impact,"group":labels.group,"subjects":p.subjects})}}));
         }
     }
     Ok(
@@ -1117,6 +1124,8 @@ mod batch_tests {
         };
         let summary = super::problem_summary(&problem);
         let wire = serde_json::to_value(&problem).unwrap();
+        assert_eq!(summary["impact"], wire["impact"]);
+        assert_eq!(summary["group"], wire["group"]);
         assert_eq!(summary["fixes"], wire["fixes"]);
         assert_eq!(summary["fix"], wire["fix"]);
         assert_eq!(summary["fixes"][0]["scope"], "local");

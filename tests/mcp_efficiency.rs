@@ -299,6 +299,8 @@ fn verbose_feature_problem_stays_actionable_and_can_be_cleared() {
     assert_eq!(rows.len(), 1);
     let row = &rows[0];
     assert_eq!(row["code"], "extension_through_feature");
+    assert_eq!(row["impact"], "advisory");
+    assert!(row["group"].as_str().is_some_and(|group| !group.is_empty()));
     assert!(
         row["subjects"]
             .as_array()
@@ -804,12 +806,15 @@ fn an_oversized_trade_keeps_the_finding_inline_and_the_remedy_lossless() {
     let ops = json!([{"op":"set", "path":"dimensions/d:example/place", "value":{"side":"below"}}]);
     let description = "Trade-off: adds an extension crossing. ".repeat(100);
     let row = json!({"id":"p:example", "code":"extension_through_feature",
-        "severity":"warning", "subjects":["d:example", "f:slot:1"], "fix":ops,
+        "severity":"warning", "impact":"readability", "group":"extension-path",
+        "subjects":["d:example", "f:slot:1"], "fix":ops,
         "fixes":[{"scope":"local", "description":description, "ops":ops}]});
     let page = mcp::page(&cache, vec![row.clone()], &json!({})).unwrap();
     let inline = &page["items"][0];
     assert_eq!(inline["code"], row["code"]);
     assert_eq!(inline["subjects"], row["subjects"]);
+    assert_eq!(inline["impact"], row["impact"]);
+    assert_eq!(inline["group"], row["group"]);
     assert!(
         inline.get("fix").is_none(),
         "never offer an undisclosed trade"

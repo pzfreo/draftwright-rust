@@ -201,6 +201,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "subsetter",
+ "syn 2.0.119",
  "tiny-skia",
  "ttf-parser",
  "uuid",
