@@ -33,6 +33,25 @@ export function initSync(module: { module: SyncInitInput } | SyncInitInput): Ini
 
 export function start(): void;
 
+export interface CalloutMember {
+  centre: [number, number];
+  radius: number;
+  span?: CalloutSpan;
+}
+
+export interface CalloutOffset {
+  bend: [number, number];
+  members: CalloutMember[];
+  offset: [number, number];
+  tip: [number, number];
+  view: string;
+}
+
+export interface CalloutSpan {
+  start: number;
+  sweep: number;
+}
+
 export interface InitOutput {
   readonly __externref_table_dealloc: (a: number) => void;
   readonly __wbg_engine_free: (a: number, b: number) => void;

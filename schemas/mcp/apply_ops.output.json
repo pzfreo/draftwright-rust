@@ -49,10 +49,10 @@
                                     "$ref": "#/D"
                                   },
                                   "label": {
-                                    "$ref": "#/E"
+                                    "$ref": "#/F"
                                   },
                                   "view": {
-                                    "$ref": "#/E"
+                                    "$ref": "#/F"
                                   },
                                   "state": {
                                     "anyOf": [
@@ -129,7 +129,7 @@
                                     ]
                                   },
                                   "dimension_kind": {
-                                    "$ref": "#/E"
+                                    "$ref": "#/F"
                                   },
                                   "placement": {
                                     "type": [
@@ -194,6 +194,12 @@
                               {
                                 "type": "object",
                                 "properties": {
+                                  "impact": {
+                                    "$ref": "#/E"
+                                  },
+                                  "ink_is_leader": {
+                                    "type": "boolean"
+                                  },
                                   "fix": {
                                     "$ref": "#/C"
                                   },
@@ -210,10 +216,10 @@
                                 ],
                                 "additionalProperties": false,
                                 "patternProperties": {
-                                  "^(id|code|severity|message)$(?!\n)": {
+                                  "^(group|id|code|severity|message)$(?!\n)": {
                                     "$ref": "#/D"
                                   },
-                                  "^(subjects|refs)$(?!\n)": {
+                                  "^(subjects|refs|crossing_kinds)$(?!\n)": {
                                     "$ref": "#/B"
                                   }
                                 }
@@ -221,6 +227,9 @@
                               {
                                 "type": "object",
                                 "properties": {
+                                  "impact": {
+                                    "$ref": "#/E"
+                                  },
                                   "subjects": {
                                     "$ref": "#/B"
                                   },
@@ -239,7 +248,7 @@
                                 ],
                                 "additionalProperties": false,
                                 "patternProperties": {
-                                  "^(id|code|severity)$(?!\n)": {
+                                  "^(group|id|code|severity)$(?!\n)": {
                                     "$ref": "#/D"
                                   }
                                 }
@@ -322,7 +331,7 @@
     "type": "object",
     "properties": {
       "id": {
-        "$ref": "#/E"
+        "$ref": "#/F"
       },
       "detail_ref": {
         "$ref": "#/D"
@@ -400,6 +409,14 @@
     "type": "string"
   },
   "E": {
+    "enum": [
+      "incomplete",
+      "decision",
+      "readability",
+      "advisory"
+    ]
+  },
+  "F": {
     "type": [
       "string",
       "null"

@@ -4191,6 +4191,53 @@ pub(crate) fn leader_reentry(
     )
 }
 
+/// The same projected attachment inventory used by offset placement, without solving layout.
+pub(crate) fn callout_members(
+    analysis: &Analysis,
+    spec: &Spec,
+    plan: &crate::model::Plan,
+    id: &str,
+    view: &str,
+) -> Vec<crate::session::CalloutMember> {
+    let (mut wants, ..) = pmi_policy::wants(analysis, spec);
+    callouts::apply(analysis, spec, &mut wants);
+    if schemes::apply(analysis, spec, &mut wants).is_err()
+        || authored::append(analysis, spec, &mut wants).is_err()
+    {
+        return Vec::new();
+    }
+    detail_routes(analysis, &mut wants, &plan.views);
+    let Some(v) = plan.views.iter().find(|v| v.id == view) else {
+        return Vec::new();
+    };
+    let Some(w) = wants.iter_mut().find(|w| w.id == id) else {
+        return Vec::new();
+    };
+    if let Some(name) = v.id.strip_prefix("v:").and_then(|name| {
+        NAMES
+            .iter()
+            .chain(crate::detail::NAMES.iter())
+            .copied()
+            .find(|n| *n == name)
+    }) {
+        bosses::route_profile(analysis, w, name);
+    }
+    let Shape::Callout { sites, arcs } = &w.shape else {
+        return Vec::new();
+    };
+    leaders::page_sites(&Frame::new(analysis, v), sites, arcs)
+        .into_iter()
+        .map(|(centre, radius, span)| crate::session::CalloutMember {
+            centre,
+            radius,
+            span: span.map(|s| crate::session::CalloutSpan {
+                start: s.start,
+                sweep: s.sweep,
+            }),
+        })
+        .collect()
+}
+
 /// Geometry-backed placement choices for the editor, including omitted dimensions.
 pub fn placement_options(analysis: &Analysis, views: &[PlannedView]) -> BTreeMap<String, Value> {
     placement_options_with_spec(analysis, views, &Spec::default())

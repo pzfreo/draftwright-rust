@@ -9,6 +9,12 @@
             "anyOf": [
               {
                 "properties": {
+                  "impact": {
+                    "$ref": "#/D"
+                  },
+                  "ink_is_leader": {
+                    "type": "boolean"
+                  },
                   "fix": {
                     "$ref": "#/C"
                   },
@@ -25,16 +31,19 @@
                 ],
                 "additionalProperties": false,
                 "patternProperties": {
-                  "^(id|code|severity|message)$(?!\n)": {
-                    "$ref": "#/D"
+                  "^(group|id|code|severity|message)$(?!\n)": {
+                    "$ref": "#/E"
                   },
-                  "^(subjects|refs)$(?!\n)": {
+                  "^(subjects|refs|crossing_kinds)$(?!\n)": {
                     "$ref": "#/B"
                   }
                 }
               },
               {
                 "properties": {
+                  "impact": {
+                    "$ref": "#/D"
+                  },
                   "subjects": {
                     "$ref": "#/B"
                   },
@@ -53,8 +62,8 @@
                 ],
                 "additionalProperties": false,
                 "patternProperties": {
-                  "^(id|code|severity)$(?!\n)": {
-                    "$ref": "#/D"
+                  "^(group|id|code|severity)$(?!\n)": {
+                    "$ref": "#/E"
                   }
                 }
               },
@@ -67,7 +76,7 @@
                     ]
                   },
                   "detail_ref": {
-                    "$ref": "#/D"
+                    "$ref": "#/E"
                   }
                 },
                 "additionalProperties": false,
@@ -106,7 +115,7 @@
             ]
           },
           "message": {
-            "$ref": "#/D"
+            "$ref": "#/E"
           }
         },
         "required": [
@@ -127,7 +136,7 @@
       "minProperties": 3,
       "properties": {
         "description": {
-          "$ref": "#/D"
+          "$ref": "#/E"
         },
         "ops": {
           "$ref": "#/C"
@@ -146,7 +155,7 @@
   },
   "B": {
     "items": {
-      "$ref": "#/D"
+      "$ref": "#/E"
     },
     "type": "array"
   },
@@ -162,7 +171,7 @@
               ]
             },
             "path": {
-              "$ref": "#/D"
+              "$ref": "#/E"
             },
             "value": {}
           },
@@ -175,7 +184,7 @@
               "const": "remove"
             },
             "path": {
-              "$ref": "#/D"
+              "$ref": "#/E"
             }
           },
           "additionalProperties": false,
@@ -187,6 +196,14 @@
     "type": "array"
   },
   "D": {
+    "enum": [
+      "incomplete",
+      "decision",
+      "readability",
+      "advisory"
+    ]
+  },
+  "E": {
     "type": "string"
   }
 }

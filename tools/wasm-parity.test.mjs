@@ -69,6 +69,11 @@ for (const part of ['prismatic', 'polygonal', 'schemes']) {
     try {
       const snapshot = JSON.parse(engine.snapshot());
       assert.deepEqual(snapshot.plan, JSON.parse(engine.plan()));
+      for (const finding of snapshot.problems) {
+        assert.ok(["incomplete", "decision", "readability", "advisory"].includes(finding.impact));
+        assert.equal(typeof finding.group, "string");
+        assert.ok(finding.group.length > 0);
+      }
       assert.deepEqual(snapshot.spec, JSON.parse(engine.spec()));
       assert.deepEqual(snapshot.placementOptions, JSON.parse(engine.placementOptions()));
       assert.deepEqual(snapshot.pmi, JSON.parse(engine.pmi()));
@@ -300,4 +305,48 @@ test('a huge view gutter returns a refusal instead of aborting WASM', () => {
   assert.equal(JSON.parse(engine.spec()).sheet.title.material, 'Steel');
   assert.ok(engine.renderSvg().length > 0);
   engine.free();
+});
+
+
+test('group callout members match native and the dragged arrow follows the nearest member', () => {
+  const part = 'tests/fixtures/samples/editor-plate.step';
+  const name = 'editor-plate.step';
+  const id = 'd:f:hole_pattern:1/bore.diameter';
+  const engine = new Engine(name, readFileSync(new URL(`../${part}`, import.meta.url)));
+  try {
+    const count = engine.planCount();
+    const at = JSON.parse(engine.calloutOffset(id));
+    assert.equal(engine.planCount(), count);
+    assert.equal(at.members.length, 6);
+    for (const m of at.members) {
+      assert.equal(m.centre.length, 2);
+      assert.ok(m.centre.every(Number.isFinite));
+      assert.ok(m.radius > 0);
+      assert.ok(!Object.hasOwn(m, 'span'));
+    }
+    const ops = [{ op: 'set', path: `dimensions/${id.replaceAll('~', '~0').replaceAll('/', '~1')}/place`,
+      value: { offset: [90, 0], pinned: true } }];
+    engine.apply(JSON.stringify(ops), true);
+    const moved = JSON.parse(engine.calloutOffset(id));
+    assert.deepEqual(moved.members, at.members);
+    assert.deepEqual(moved.tip, at.tip);
+    const p = JSON.parse(engine.plan()).dimensions.find(d => d.id === id).placed;
+    const [tip, elbow] = p.lines[0];
+    const nearest = at.members.toSorted((a, b) =>
+      Math.hypot(a.centre[0] - elbow[0], a.centre[1] - elbow[1]) - a.radius -
+      (Math.hypot(b.centre[0] - elbow[0], b.centre[1] - elbow[1]) - b.radius))[0];
+    assert.equal(nearest.centre[0], Math.max(...at.members.map(m => m.centre[0])));
+    assert.ok(Math.abs(Math.hypot(tip[0] - nearest.centre[0], tip[1] - nearest.centre[1]) - nearest.radius) < 1e-8);
+    const native = spawnSync(process.env.DRAFTWRIGHT_WASM_REFERENCE ?? 'target/release/examples/wasm_reference', [], {
+      cwd: root, input: JSON.stringify({ name, part, steps: [
+        { edit: id, action: 'callout_offset' },
+        { edit: 'drag', action: 'apply', ops },
+        { edit: id, action: 'callout_offset' },
+      ] }), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
+    });
+    assert.equal(native.status, 0, native.error?.message ?? native.stderr);
+    const rows = native.stdout.trim().split('\n').map(line => JSON.parse(line));
+    assert.deepEqual(at, rows[1]);
+    assert.deepEqual(moved, rows[3]);
+  } finally { engine.free(); }
 });

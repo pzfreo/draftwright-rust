@@ -35,7 +35,7 @@ const FORBIDDEN: [&str; 14] = [
 ];
 
 /// The `crate::` paths lint may use.
-const ALLOWED: [&str; 9] = [
+const ALLOWED: [&str; 10] = [
     "crate::model::Analysis",
     "crate::bridge",
     "crate::pmi",
@@ -45,6 +45,7 @@ const ALLOWED: [&str; 9] = [
     "crate::radius",
     "crate::output",
     "crate::remedy_scope",
+    "crate::finding",
 ];
 
 /// *source* with its comments and string and character literals blanked out.
@@ -192,6 +193,8 @@ fn module_violations() -> Vec<(String, Vec<String>)> {
     // Shared arc geometry/evidence is audited by the same independence guard.
     files.push(dir.parent().unwrap().join("arc.rs"));
     files.push(dir.parent().unwrap().join("radius.rs"));
+    // Finding labels read only codes, severity and structured cause metadata.
+    files.push(dir.parent().unwrap().join("finding.rs"));
     files
         .into_iter()
         .filter(|p| p.file_name().unwrap() != "guard.rs")

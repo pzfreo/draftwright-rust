@@ -220,6 +220,26 @@ pub mod wasm {
     fn js(e: super::Error) -> JsValue {
         JsValue::from_str(&error_json(&e))
     }
+    // calloutOffset still returns a JSON string. These describe its parsed payload.
+    #[wasm_bindgen(typescript_custom_section)]
+    const CALLOUT_OFFSET_TYPES: &str = r#"
+export interface CalloutSpan {
+    start: number;
+    sweep: number;
+}
+export interface CalloutMember {
+    centre: [number, number];
+    radius: number;
+    span?: CalloutSpan;
+}
+export interface CalloutOffset {
+    view: string;
+    tip: [number, number];
+    bend: [number, number];
+    offset: [number, number];
+    members: CalloutMember[];
+}
+"#;
     #[wasm_bindgen(start)]
     pub fn start() {
         console_error_panic_hook::set_once();
@@ -303,6 +323,7 @@ pub mod wasm {
         pub fn pmi(&self) -> String {
             self.0.pmi_json()
         }
+        /// JSON-encoded CalloutOffset; coordinates are paper mm (y up), spans CCW radians.
         #[wasm_bindgen(js_name = calloutOffset)]
         pub fn callout_offset(&self, address: &str) -> Result<String, JsValue> {
             self.0.callout_offset_json(address).map_err(js)
@@ -357,6 +378,11 @@ mod tests {
         assert_eq!(snapshot["problems"], snapshot["plan"]["problems"]);
         let mut fixes = 0;
         for problem in snapshot["problems"].as_array().unwrap() {
+            assert!(
+                ["incomplete", "decision", "readability", "advisory"]
+                    .contains(&problem["impact"].as_str().unwrap())
+            );
+            assert!(!problem["group"].as_str().unwrap().is_empty());
             if problem["fix"].is_array() {
                 assert_eq!(problem["fix"], problem["fixes"][0]["ops"]);
                 assert!(
@@ -391,7 +417,8 @@ mod tests {
             at,
             serde_json::to_value(s.0.callout_offset(id).unwrap()).unwrap()
         );
-        assert_eq!(at.as_object().unwrap().len(), 4);
+        assert_eq!(at.as_object().unwrap().len(), 5);
+        assert_eq!(at["members"].as_array().unwrap().len(), 6);
         let view = s.0.plan().views.iter().find(|v| v.id == "v:plan").unwrap();
         let bend = before.lines[0][1];
         assert!(
