@@ -659,6 +659,8 @@ def one(f, dw, out, spec=None, timeout=600, review=True):
         return name, {"error": "Plan has no completeness counts; rebuild draftwright before measuring quality"}
     with open(f"{out}/{name}.plan.json", "w") as output:
         json.dump(plan, output, indent=1, sort_keys=True)
+    with open(f"{out}/{name}.render.json", "w") as output:
+        json.dump(rend, output, indent=1, sort_keys=True)
     if plan['sheet'].get('page'):
         analysis = subprocess.run([dw, "analyse", f], capture_output=True, text=True, timeout=timeout)
         if analysis.returncode:

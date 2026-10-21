@@ -1,5 +1,6 @@
 //! Smallest-first automatic paper selection, bounded by the available printer.
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
@@ -426,7 +427,7 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                 ))
                 .expect("candidate Spec serializes");
                 let reused = if max > 1 {
-                    crate::planning::lookup::<Plan>(
+                    crate::planning::lookup::<Arc<Plan>>(
                         analysis,
                         "r5-unblocked-prefixes",
                         &capacity_key,
@@ -436,11 +437,14 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                 };
                 let was_reused = reused.is_some();
                 let result = reused.map_or_else(
-                    || crate::planning::fixed_pair(|| model::plan_automatic(analysis, &forced)),
+                    || {
+                        crate::planning::fixed_pair(|| model::plan_automatic(analysis, &forced))
+                            .map(Arc::new)
+                    },
                     Ok,
                 );
                 match result {
-                    Ok(mut plan) => {
+                    Ok(plan) => {
                         if max > 1
                             && !was_reused
                             && !plan.sheet.basis.contains("blocked by sheets.max")
@@ -457,7 +461,7 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                             .map(|(code, _)| code.clone())
                             .collect();
                         if rank(&plan) < rank(&best) {
-                            best = plan.clone();
+                            best = (*plan).clone();
                             best_trial = Some(candidates.len());
                         }
                         if codes.is_empty() && complete(fit_analysis, &plan, floor) {
@@ -473,6 +477,7 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                                 outcome: reason.clone(),
                                 scales,
                             });
+                            let mut plan = Arc::unwrap_or_clone(plan);
                             plan.spec = spec.clone();
                             plan.sheet.default = true;
                             for sheet in &mut plan.sheets {
@@ -1189,6 +1194,19 @@ mod tests {
         );
         assert!(complete(&a, &p, 0.0) || p.problems.iter().any(|p| p.code == "sheet_size_capped"));
         assert!(p.sheet_candidates.iter().all(|c| c.max_size == "A3"));
+        for d in &p.dimensions {
+            if let crate::items::State::NotDrawable { reason_code } = &d.state
+                && crate::hole_table::DROPS.contains(&reason_code.as_str())
+            {
+                assert!(
+                    p.problems
+                        .iter()
+                        .any(|q| q.code == *reason_code && q.subjects.contains(&d.id)),
+                    "required drop {} is unreported",
+                    d.id
+                );
+            }
+        }
         let baseline = model::plan_automatic(&a, &Spec::default()).unwrap();
         assert!(["A4", "A3"].contains(&baseline.sheet.size.as_str()));
     }

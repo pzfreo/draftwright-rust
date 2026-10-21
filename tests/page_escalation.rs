@@ -257,6 +257,7 @@ fn a_try_with_hole_locations_too_close_to_read_is_not_taken() {
         return;
     };
     let no_tables = Spec {
+        sheet: serde_json::from_value(json!({"max_size":"A0"})).unwrap(),
         hole_table: draftwright::hole_table::Setting::Never,
         ..Spec::default()
     };
@@ -401,7 +402,8 @@ fn every_planning_entry_point_applies_the_recovery() {
         as_json,
         serde_json::to_value(model::plan_recovered(&analysis, &no_tables).unwrap()).unwrap()
     );
-    assert_eq!(sheet(&plan), ("A2", "1:2"));
+    assert!(matches!(plan.sheet.size.as_str(), "A4" | "A3"));
+    assert!(codes(&plan).contains(&"sheet_size_capped"));
     assert!(codes(&plan).contains(&"layout_recovery_exhausted"));
     let again = api::plan_analysed(&analysis, &no_tables).unwrap();
     assert_eq!(serde_json::to_value(&again).unwrap(), as_json);
@@ -438,6 +440,7 @@ fn ftc07_prefers_a3_and_keeps_the_explicit_count_search() {
     let analysis = api::analyse_from(&step, Features::Native).unwrap();
     // The table-free drawing the sheet is chosen by ([`model::recover`]'s hole-table path).
     let never = Spec {
+        sheet: serde_json::from_value(json!({"max_size":"A0"})).unwrap(),
         hole_table: draftwright::hole_table::Setting::Never,
         sheets: Some(draftwright::sheets::SheetsSpec {
             max: Some(1),
@@ -472,7 +475,7 @@ fn ftc07_prefers_a3_and_keeps_the_explicit_count_search() {
     );
     let first =
         model::plan_escalated(&analysis, &spec(json!({"size":"A3", "scale":"1:5"}))).unwrap();
-    let again = model::recover(&analysis, &Spec::default(), first).unwrap();
+    let again = model::recover(&analysis, &never, first).unwrap();
     assert_eq!(sheet(&again), sheet(&chosen));
     assert!(again.sheet.basis.contains("additional view conflicts"));
 }
@@ -487,7 +490,7 @@ fn wrapped_counterbores_keep_the_existing_short_leader_budget() {
     let plan = api::plan_from(
         &dir.join("nist/nist_ftc_06_asme1_rd.stp"),
         Features::Native,
-        &Spec::default(),
+        &serde_json::from_value(json!({"sheet":{"size":"A1"}})).unwrap(),
     )
     .unwrap();
     assert_eq!(sheet(&plan), ("A1", "1:2"));

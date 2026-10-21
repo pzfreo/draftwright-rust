@@ -187,7 +187,11 @@ fn every_source_and_explicit_linear_corridor_is_reserved() {
         "nist/nist_ftc_08_asme1_rc.stp",
     ] {
         let a = model::analyse_native(&dir.join(f)).unwrap().1;
-        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        let p = model::plan_recovered(
+            &a,
+            &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+        )
+        .unwrap();
         let mut n = 0;
         for d in p.dimensions.iter().filter(|d| d.kind == "linear") {
             corridor(&p, d);
@@ -545,7 +549,11 @@ fn reserved_location_corridors_choose_witnesses_clear_of_foreign_holes() {
         let a = model::analyse_native(&corpus::dir().unwrap().join(file))
             .unwrap()
             .1;
-        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        let p = model::plan_recovered(
+            &a,
+            &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+        )
+        .unwrap();
         let d = p.dimensions.iter().find(|d| d.id == id).unwrap();
         corridor(&p, d);
         assert!(

@@ -185,7 +185,8 @@ fn automatic_overflow_never_uses_an_illegible_scale() {
     a.envelope = [[0.0; 3], [100_000.0; 3]];
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
     assert!(p.sheet.scale_factor >= 0.1);
-    assert_eq!(p.sheet.size, "A0");
+    assert_eq!(p.sheet.size, "A3");
+    assert!(p.problems.iter().any(|p| p.code == "sheet_size_capped"));
     assert!(
         p.problems
             .iter()
@@ -486,8 +487,8 @@ fn assert_small_single_sheet(name: &str, expected: (&str, &str)) {
 }
 
 #[test]
-fn small_10224_fits_one_a4_sheet() {
-    assert_small_single_sheet("10224", ("A4", "1:1"));
+fn small_10224_takes_one_clean_a3_before_a_crowded_a4() {
+    assert_small_single_sheet("10224", ("A3", "2:1"));
 }
 
 #[test]
@@ -502,7 +503,11 @@ fn a_part_needing_large_paper_at_full_size_keeps_large_paper() {
     let a = model::analyse_native(&dir.join("nist/nist_ftc_09_asme1_rd.stp"))
         .unwrap()
         .1;
-    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let p = model::plan_recovered(
+        &a,
+        &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+    )
+    .unwrap();
     assert!(
         matches!(p.sheet.size.as_str(), "A2" | "A1" | "A0"),
         "{}",
@@ -561,24 +566,21 @@ fn small_overflow_respects_explicit_auxiliary_assignment() {
 }
 
 #[test]
-fn explicit_sheet_bound_preserves_large_paper_fallthrough() {
+fn an_explicit_sheet_count_does_not_raise_the_default_paper_cap() {
     let Some(dir) = corpus::dir() else { return };
     let a = model::analyse_native(&dir.join("mfcadpp/10190.step"))
         .unwrap()
         .1;
-    // An explicit bound retains the established automatic search.
     let spec = serde_json::from_value(json!({"sheets":{"max":9}})).unwrap();
     let p = model::plan_recovered(&a, &spec).unwrap();
-    assert_eq!(p.sheet.size, "A1");
-    assert!(p.sheets.is_empty());
-    for paper in ["A4", "A3"] {
-        assert!(
-            p.sheet.basis.contains(&format!("{paper} multi-sheet:")),
-            "{}",
-            p.sheet.basis
-        );
-    }
-    assert!(p.sheet.basis.contains("1 required drops"));
+    assert_eq!(p.sheet.size, "A3");
+    assert!(p.sheets.iter().all(|s| s.size == "A3"));
+    assert!(p.problems.iter().any(|p| p.code == "sheet_size_capped"));
+    assert!(
+        p.sheet_candidates
+            .iter()
+            .all(|c| matches!(c.size.as_str(), "A4" | "A3"))
+    );
 }
 
 #[test]

@@ -355,14 +355,18 @@ fn a_table_that_fits_nowhere_is_reported_not_dropped() {
 #[test]
 fn a_long_table_moves_the_sheet_on_rather_than_be_dropped() {
     let (_, a) = plate();
-    let bare = model::plan(a, &Spec::default()).unwrap();
+    let bare = model::plan(
+        a,
+        &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+    )
+    .unwrap();
     let mut rows = vec![json!(["ITEM", "PART NO.", "DESCRIPTION", "QTY"])];
     rows.extend(
         (1..=30).map(|k| json!([k, format!("DW-{k:04}"), "A PART WITH A LONG DESCRIPTION", 2])),
     );
     let plan = model::plan(
         a,
-        &spec(json!({ "tables": [ { "id": "t:1", "rows": rows } ] })),
+        &spec(json!({ "sheet":{"max_size":"A0"}, "tables": [ { "id": "t:1", "rows": rows } ] })),
     )
     .unwrap();
     assert!(

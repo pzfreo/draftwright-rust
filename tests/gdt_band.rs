@@ -58,6 +58,16 @@ fn analysed(stem: &str) -> Analysis {
     cache::native(&path).1
 }
 
+// These placement regressions require room for every frame. State the historical
+// paper explicitly; the capped STC-09 fallback has its own test below.
+fn full_paper(a: &Analysis, size: &str) -> Plan {
+    let mut spec = Spec::default();
+    spec.sheet.size = Some(size.into());
+    let p = model::plan_recovered(a, &spec).unwrap();
+    assert!(!p.problems.iter().any(|p| p.code == "sheet_size_capped"));
+    p
+}
+
 /// The plan's GD&T items reported with *code*.
 fn reported<'a>(plan: &'a Plan, code: &str) -> Vec<&'a draftwright::dims::gdt::PlannedGdt> {
     plan.gdt
@@ -73,7 +83,7 @@ fn reported<'a>(plan: &'a Plan, code: &str) -> Vec<&'a draftwright::dims::gdt::P
 #[test]
 fn ctc_02_frames_and_datum_symbols_are_inside_their_bands_and_on_the_sheet() {
     let a = analysed("nist_ctc_02_asme1_ap242-e2");
-    let plan = cache::default_plan(&a, true);
+    let plan = full_paper(&a, "A0");
     assert_eq!(plan.gdt.len(), 10, "five frames and five datum symbols");
     assert!(plan.gdt.iter().all(|g| g.placed.is_some()));
     let off: Vec<&str> = reported(&plan, "annotation_off_sheet")
@@ -103,7 +113,14 @@ part_cases!(frames_datum_symbols_and_labels_are_on_the_sheet_and_off_the_other_v
     thumbwheel_thread_knurl => "thumbwheel_thread_knurl",
 );
 fn frames_datum_symbols_and_labels_are_on_the_sheet_and_off_the_other_views(stem: &str) {
-    let plan = cache::default_plan(&analysed(stem), true);
+    let size = match stem {
+        "nist_ctc_02_asme1_ap242-e2" => "A0",
+        "nist_stc_09_asme1_ap242-e4" => "A1",
+        "spool_fits" => "A3",
+        "thumbwheel_thread_knurl" => "A4",
+        _ => unreachable!(),
+    };
+    let plan = full_paper(&analysed(stem), size);
     assert!(!plan.gdt.is_empty(), "{stem} has GD&T");
     for code in [
         "annotation_off_sheet",
@@ -121,7 +138,7 @@ fn frames_datum_symbols_and_labels_are_on_the_sheet_and_off_the_other_views(stem
 #[test]
 fn stc_09_datum_symbols_are_inside_their_bands_and_frames_past_them_had_no_clear_strip() {
     let a = analysed("nist_stc_09_asme1_ap242-e4");
-    let plan = cache::default_plan(&a, true);
+    let plan = full_paper(&a, "A1");
     assert!(
         plan.sheet
             .basis
@@ -201,56 +218,28 @@ fn the_reservation_stacks_overlapping_items_in_tiers_beyond_the_dimensions() {
     assert_eq!(s, base);
 }
 
-/// H6 review: with no valid complete candidate at or above its legibility floor, STC-09 keeps
-/// its first drawing on its own paper (A1 at 1:5) rather than a larger, still invalid sheet, and
-/// says honestly that the scale is below the floor its smallest hole needs.
+/// With the default printer maximum, the formerly A1 STC-09 drawing stays on
+/// practical paper and explicitly reports the incomplete/illegible result.
 #[test]
 fn stc09_without_a_complete_fit_keeps_its_first_drawing_and_reports_the_floor() {
     let a = analysed("nist_stc_09_asme1_ap242-e4");
     let first = model::plan_escalated(&a, &Spec::default()).unwrap();
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert!(["A4", "A3"].contains(&first.sheet.size.as_str()));
+    assert!(["A4", "A3"].contains(&p.sheet.size.as_str()));
+    assert!(p.sheet.scale_factor >= 0.1);
     assert_eq!(
-        (first.sheet.size.as_str(), first.sheet.scale.as_str()),
-        ("A1", "1:5")
+        p.gdt.len(),
+        28,
+        "the complete frame/datum inventory is retained"
     );
-    let p = cache::default_plan(&a, true);
-    assert_eq!(
-        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        (first.sheet.size.as_str(), first.sheet.scale.as_str())
-    );
-    // Recovery retains the first geometry; the final allocator may add slack-only gutters.
-    let mut unspaced = Spec::default();
-    unspaced.sheet.view_gutter = Some(0.0);
-    let unspaced = model::plan_recovered(&a, &unspaced).unwrap();
-    assert_eq!(
-        serde_json::to_value(&unspaced.views).unwrap(),
-        serde_json::to_value(&first.views).unwrap()
-    );
-    assert_eq!(
-        p.views.iter().map(|v| (&v.id, v.scale)).collect::<Vec<_>>(),
-        first
-            .views
-            .iter()
-            .map(|v| (&v.id, v.scale))
-            .collect::<Vec<_>>()
-    );
-    assert!(p.sheet.scale_factor < draftwright::sheet_fit::min_legible_scale(&a));
-    let said = p
+    let capped = p
         .problems
         .iter()
-        .find(|q| q.code == "layout_recovery_exhausted")
-        .expect("the exhausted search is said");
-    assert_eq!(said.severity, "warning");
-    assert!(said.message.contains("below 1:2"), "{}", said.message);
+        .find(|p| p.code == "sheet_size_capped")
+        .unwrap();
+    assert_eq!(capped.severity, "warning");
+    assert!(capped.fix.iter().any(|op| op.path == "sheet/max_size"));
     assert_eq!(p.status, draftwright::completeness::Status::NeedsAttention);
-    assert_eq!(
-        p.sheet.basis.matches("drawn-item fill").count(),
-        1,
-        "{}",
-        p.sheet.basis
-    );
-    assert!(
-        !p.sheet.basis.contains("as the spec asks"),
-        "{}",
-        p.sheet.basis
-    );
+    assert!(p.sheet.basis.contains("sheet/max_size A3"));
 }

@@ -348,11 +348,19 @@ fn a_long_note_moves_the_sheet_on_rather_than_be_dropped() {
     // A block too big for the first sheet is reserved, so the ladder takes the next one, as
     // draftwright's `layout_required_tables` does.
     let (_, a) = plate();
-    let bare = model::plan(a, &Spec::default()).unwrap();
+    let bare = model::plan(
+        a,
+        &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+    )
+    .unwrap();
     let many: Vec<Value> = (1..=30)
         .map(|k| json!({ "id": format!("n:{k}"), "text": format!("NOTE {k}: A REQUIREMENT LONG ENOUGH TO WRAP ONTO A SECOND ROW OF THE BLOCK") }))
         .collect();
-    let plan = model::plan(a, &spec(json!({ "notes": many }))).unwrap();
+    let plan = model::plan(
+        a,
+        &spec(json!({ "sheet":{"max_size":"A0"}, "notes": many })),
+    )
+    .unwrap();
     assert!(
         plan.problems.iter().all(|p| p.code != "notes_not_placed"),
         "{:?}",

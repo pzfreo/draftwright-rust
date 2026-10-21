@@ -137,7 +137,9 @@ fn stc09_slot_length_stays_beside_its_peer_and_gdt_corridors() {
     let path = dir.join("stc09.stp");
     std::fs::write(&path, step).unwrap();
     let a = model::analyse_native(&path).unwrap().1;
-    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let mut spec = Spec::default();
+    spec.sheet.size = Some("A1".into()); // Hold the historical frame for the lane regression.
+    let p = model::plan_recovered(&a, &spec).unwrap();
     let placed = |id: &str| {
         p.dimensions
             .iter()
@@ -218,7 +220,9 @@ fn precise_labels_keep_their_span_after_the_final_inventory_settles() {
             }
         }
     }
-    let Some(p) = plan("nist/nist_ftc_08_asme1_rc.stp") else {
+    let mut spec = Spec::default();
+    spec.sheet.size = Some("A1".into()); // Keep the complete inventory for precision checks.
+    let Some(p) = plan_with("nist/nist_ftc_08_asme1_rc.stp", &spec) else {
         return;
     };
     let slot = p

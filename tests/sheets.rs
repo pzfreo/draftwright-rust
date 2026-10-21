@@ -42,7 +42,8 @@ fn value(a: &Analysis, s: &Spec) -> Value {
 #[test]
 fn r5_assigned_section_keeps_parent_scale_and_principals() {
     let a = analysed("nist/nist_ftc_06_asme1_rd.stp");
-    let s = spec(json!({"sheets":{"max":2},"views":{"section_aa":{"sheet":2}}}));
+    let s =
+        spec(json!({"sheet":{"size":"A1"},"sheets":{"max":2},"views":{"section_aa":{"sheet":2}}}));
     let p = value(&a, &s);
     assert_eq!(p["sheets"].as_array().unwrap().len(), 1);
     let views = p["views"].as_array().unwrap();
@@ -479,7 +480,11 @@ fn r5_the_bounded_ladder_skips_scales_below_the_floor() {
 fn r5_off_sheet_hole_table_keeps_all_rows_and_balloons() {
     use draftwright::hole_table::{self, TableOutcome};
     let a = analysed("scattered_holes");
-    let mut p = model::plan(&a, &Spec::default()).unwrap();
+    let mut p = model::plan(
+        &a,
+        &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+    )
+    .unwrap();
     let id = p
         .dimensions
         .iter()
