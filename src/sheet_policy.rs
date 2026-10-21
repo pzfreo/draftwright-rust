@@ -413,8 +413,41 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                     forced.sheets.get_or_insert_with(Default::default).max = Some(max as u32);
                 }
                 omit_absent_details(fit_analysis, &mut forced, &baseline, scale);
-                match crate::planning::fixed_pair(|| model::plan_automatic(analysis, &forced)) {
+                // If R5 exhausted its prefixes without a capacity block, a larger
+                // count bound cannot change this same fixed pair. Reuse its refused
+                // result through the existing planning memo; other scales still run.
+                let mut capacity = forced.clone();
+                capacity.sheets.get_or_insert_with(Default::default).max = Some(9);
+                let capacity_key =
+                    serde_json::to_vec(&(capacity, crate::planning::policy_key(analysis)))
+                        .expect("candidate Spec serializes");
+                let reused = if max > 1 {
+                    crate::planning::lookup::<Plan>(
+                        analysis,
+                        "r5-unblocked-prefixes",
+                        &capacity_key,
+                    )
+                } else {
+                    None
+                };
+                let was_reused = reused.is_some();
+                let result = reused.map_or_else(
+                    || crate::planning::fixed_pair(|| model::plan_automatic(analysis, &forced)),
+                    Ok,
+                );
+                match result {
                     Ok(mut plan) => {
+                        if max > 1
+                            && !was_reused
+                            && !plan.sheet.basis.contains("blocked by sheets.max")
+                        {
+                            crate::planning::store(
+                                analysis,
+                                "r5-unblocked-prefixes",
+                                capacity_key,
+                                plan.clone(),
+                            );
+                        }
                         let codes: BTreeSet<_> = failures(fit_analysis, &plan, floor)
                             .difference(&baseline_failures)
                             .map(|(code, _)| code.clone())
@@ -454,6 +487,10 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                             model::findings(&plan).dropped + model::undrawn_gdt(&plan),
                             codes.into_iter().collect::<Vec<_>>().join(", ")
                         );
+                        if was_reused {
+                            outcome +=
+                                "; R5 prefix search reused: no capacity block at the earlier bound";
+                        }
                         // Smaller outlines cannot repair a printed-size minimum.
                         // With crossed leaders and no space drops, use R5/the next
                         // paper rather than repeating the same routing search.

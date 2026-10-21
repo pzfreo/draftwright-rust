@@ -282,7 +282,8 @@ fn r5_session_fragments_and_steps() {
         ["v:iso"]
     );
     let mut replay = s.state().clone();
-    assert_eq!(serde_json::to_value(s.stats()).unwrap()["sheet_steps"], 1);
+    // Smallest-first selection records two recovered runs for this assigned drawing.
+    assert_eq!(s.stats().sheet_steps, 2);
     let before = s.stats();
     s.apply(&[Op::set("views/iso/sheet", json!(1))], false)
         .unwrap();
@@ -296,7 +297,7 @@ fn r5_session_fragments_and_steps() {
         serde_json::to_value(s.state()).unwrap()
     );
     // Preview prepared this exact single-sheet prefix; commit reuses the finished result.
-    assert_eq!(serde_json::to_value(s.stats()).unwrap()["sheet_steps"], 1);
+    assert_eq!(s.stats().sheet_steps, before.sheet_steps);
     s.undo().unwrap().apply_to(&mut replay).unwrap();
     let font = draftwright::text::Font::new(draftwright::api::MONO.to_vec()).unwrap();
     assert_eq!(

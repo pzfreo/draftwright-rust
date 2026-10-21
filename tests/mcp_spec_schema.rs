@@ -129,7 +129,7 @@ fn maximum_paper_is_discovered_and_removed_printer_points_to_its_replacement() {
         serde_json::from_str(include_str!("../schemas/mcp-validation.json")).unwrap();
     let error = mcp::validate(
         &private["inspect_part"],
-        &json!({"spec":{"sheet":{"preferred_printer":"A3"}}}),
+        &json!({"part_ref":"unused", "spec":{"sheet":{"preferred_printer":"A3"}}}),
     )
     .unwrap_err();
     assert!(error.contains("sheet/max_size"), "{error}");

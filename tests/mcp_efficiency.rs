@@ -273,9 +273,10 @@ fn one_feature_problem_query_returns_all_member_fixes() {
         .iter()
         .filter(|p| !added.iter().any(|q| q["id"] == p["id"]))
         .collect();
-    // The new local pitch fix also clears both slot crossings. Other records can
-    // refresh their scoped alternatives without becoming new physical findings.
-    assert_eq!(gone.len(), 6);
+    // The local pitch fix clears all three slot/feature crossings within the
+    // automatic paper cap, as well as the four pin/fit findings. Other records
+    // can refresh scoped alternatives without becoming new physical findings.
+    assert_eq!(gone.len(), 7);
     for p in &problems {
         assert!(gone.iter().any(|resolved| resolved["id"] == p["id"]));
     }
