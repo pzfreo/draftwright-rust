@@ -335,7 +335,53 @@ def schedule_ink(plan, segments):
                for b in markers)
 
 
+def local_sheet_plan(plan, sheet):
+    """Use the renderer's ownership rules when measuring separate physical pages."""
+    number = sheet.get('number', 1)
+    local = {**plan, 'sheet': sheet, 'sheets': []}
+    local['views'] = [v for v in plan['views'] if v.get('sheet', 1) == number]
+    owners = {v['id'] for v in local['views']}
+    for key in ('dimensions', 'gdt', 'balloons'):
+        local[key] = [d for d in plan.get(key, []) if d.get('view') in owners]
+    for key in ('captions', 'tables', 'hole_tables'):
+        local[key] = [t for t in plan.get(key, []) if t.get('sheet', 1) == number]
+    table = plan.get('hole_table')
+    local['hole_table'] = table if table and table.get('sheet', 1) == number else None
+    if number != 1:
+        for key in ('notes', 'requirements'):
+            local[key] = []
+        for key in ('notes_block', 'radius_notes_block', 'radius_table'):
+            local[key] = None
+    return local
+
+
+def sheet_svg(path, number):
+    stem, extension = os.path.splitext(path)
+    return path if number == 1 else f'{stem}.sheet{number}{extension}'
+
+
+def view_overlap_counts(plan):
+    overlaps, title = 0, 0
+    for sheet in [plan['sheet'], *plan.get('sheets', [])]:
+        number = sheet.get('number', 1)
+        boxes = [v['area'] for v in plan['views'] if v.get('area') and v.get('sheet', 1) == number]
+        overlaps += sum(overlap(a,b) for i,a in enumerate(boxes) for b in boxes[i+1:])
+        if sheet.get('title_block'):
+            title += sum(overlap(b,sheet['title_block']) for b in boxes)
+    return overlaps, title
+
+
 def svg_linework(path, plan):
+    if not plan.get('sheets'):
+        return _svg_linework_page(path, plan)
+    counts = collections.Counter()
+    for sheet in [plan['sheet'], *plan['sheets']]:
+        local = local_sheet_plan(plan, sheet)
+        counts.update(_svg_linework_page(sheet_svg(path,sheet.get('number',1)),local))
+    return dict(counts)
+
+
+def _svg_linework_page(path, plan):
     """Count SVG edge elements (line/path/ellipse), in page mm, per placed view.
 
     Distance is to visible ink (half the SVG stroke width), plus 0.15 mm; dashes are
@@ -715,10 +761,7 @@ def one(f, dw, out, spec=None, timeout=600, review=True):
     rep_meas = sum(n - 1 for n in meas.values() if n > 1)
     rep_span = sum(n - 1 for n in spans.values() if n > 1)
     repeated = repeated_spans(plan)
-    views = [v["area"] for v in plan["views"] if v.get("area")]
-    tb = plan["sheet"].get("title_block")
-    view_over = sum(overlap(views[i], views[j]) for i in range(len(views)) for j in range(i + 1, len(views)))
-    view_tb = sum(overlap(v, tb) for v in views) if tb else 0
+    view_over, view_tb = view_overlap_counts(plan)
     linework = svg_linework(f"{out}/{name}.svg", plan)
     return name, {
         "off_sheet": codes.get("annotation_off_sheet", 0) + codes.get("pinned_view_off_sheet", 0),
@@ -777,21 +820,26 @@ def random_pins(plan, name, seed, count):
     candidates += [(g["id"], "annotations", {"pinned": True})
                    for g in plan.get("gdt", []) if g.get("placed") is not None]
     views = sorted(plan["views"], key=lambda v: (v["id"] != "v:front", v["id"]))
-    if len(views) > 1:
-        anchor = views[0]
+    roots = {}
+    for v in views:
+        number = v.get("sheet", 1)
+        if number not in roots:
+            roots[number] = v
+            continue
+        anchor = roots[number]
         b = anchor["area"]
-        for v in views[1:]:
-            a = v["area"]
-            dx, dy = (a[0]+a[2]-b[0]-b[2])/2, (a[1]+a[3]-b[1]-b[3])/2
-            if abs(dx) > abs(dy):
-                side, gap, k = ("right", a[0]-b[2], 1) if dx > 0 else ("left", b[0]-a[2], 1)
-            else:
-                side, gap, k = ("above", a[1]-b[3], 0) if dy > 0 else ("below", b[1]-a[3], 0)
-            offsets = {"middle": (b[k]+b[k+2]-a[k]-a[k+2])/2, "start": b[k]-a[k],
-                       "end": b[k+2]-a[k+2]}
-            align = min(offsets, key=lambda slot: abs(offsets[slot]))
-            candidates.append((v["id"], "views", {"relative_to": anchor["id"][2:], "side": side,
-                               "gap": max(0, min(1000, gap)), "align": align, "pinned": True}))
+        a = v["area"]
+        dx, dy = (a[0]+a[2]-b[0]-b[2])/2, (a[1]+a[3]-b[1]-b[3])/2
+        if abs(dx) > abs(dy):
+            side, gap, k = ("right", a[0]-b[2], 1) if dx > 0 else ("left", b[0]-a[2], 1)
+        else:
+            side, gap, k = ("above", a[1]-b[3], 0) if dy > 0 else ("below", b[1]-a[3], 0)
+        offsets = {"middle": (b[k]+b[k+2]-a[k]-a[k+2])/2, "start": b[k]-a[k],
+                   "end": b[k+2]-a[k+2]}
+        primary = {"v:front", "v:plan", "v:side"}
+        align = "projection" if v["id"] in primary and anchor["id"] in primary else min(offsets, key=lambda slot: abs(offsets[slot]))
+        candidates.append((v["id"], "views", {"relative_to": anchor["id"][2:], "side": side,
+                           "gap": max(0, min(1000, gap)), "align": align, "pinned": True}))
     candidates.sort(key=lambda c: (hashlib.sha256(f"{seed}:{name}:{c[0]}".encode()).digest(), c[0]))
     if count > len(candidates):
         raise ValueError(f"{name}: requested {count} pins, only {len(candidates)} drawable candidates")

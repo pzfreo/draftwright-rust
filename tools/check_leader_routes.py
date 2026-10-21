@@ -167,6 +167,16 @@ def head(arrow):
 
 
 def measures(plan, svg, analysis):
+    if plan.get('sheets'):
+        out = {}
+        for sheet in [plan['sheet'], *plan['sheets']]:
+            local = quality.local_sheet_plan(plan,sheet)
+            measured = measures(local,quality.sheet_svg(str(svg),sheet.get('number',1)),analysis)
+            if set(out) & set(measured):
+                raise ValueError('a leader has more than one carrying sheet')
+            out.update(measured)
+        return out
+
     root = ET.parse(svg).getroot()
     layers = {g.get('id'): [points(e) for e in g]
               for g in root.iter() if g.get('id') in ('part', 'hidden', 'hatch', 'centres')}

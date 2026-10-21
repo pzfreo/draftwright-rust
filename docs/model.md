@@ -268,7 +268,7 @@ mention takes its default.
 
 The design also includes `views/sections` (for example `"sections": [{"id": "A", "through": "f:hole:3"}]`). Feature `anchor` is read for recognition corrections, below; a feature's `note` is read since K1b (below).
 
-- **Fields read:** `sheet` (`size`, `scale`, `preferred_max_size`, `title`, `references`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`),
+- **Fields read:** `sheet` (`size`, `scale`, `preferred_max_size`, `preferred_max_sheets`, `title`, `references`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`),
   `iso_scale_factor`, `dimension_source`, `dimension_schemes/<name>` (`scheme`, `axis`, `targets`, `view`, `from`), `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `fit`, `text`, `style`, `place`, `kind`, `between`, `along`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`, `text` for prose callouts and automatic notes), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`, `anchor`, `reclassify`, `suppress`, `split`, `pattern`), `feature_declarations`,
   `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
@@ -520,8 +520,9 @@ A candidate is usable when all geometry and annotation ink fits inside its own
 sheet's drawable frame, the existing feature-opening minimum holds and printed-step
 readability breaches do not exceed the larger reference,
 and it adds no layout/readability failures or required losses relative to the
-unrestricted larger-paper reference. A reduced scale cannot be smaller than that
-reference's scale; enlargements may reduce to 1:1 when the existing minima allow.
+unrestricted larger-paper reference. Readable scales use the existing 0.8 mm minimum feature opening, 20 mm
+overall span and 1:10 absolute floor; printed-step and text/clearance breaches
+cannot increase relative to the larger reference.
 Unsupported requirements and any undrawn items retain their existing findings.
 Clipping is a hard rejection, including for fallback ranking. If no usable result
 exists through A0, retain the least-bad unclipped candidate using the existing

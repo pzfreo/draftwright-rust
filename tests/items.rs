@@ -19,6 +19,8 @@ mod support;
 
 #[path = "common/cache.rs"]
 mod cache;
+#[path = "common/sheet_rule.rs"]
+mod sheet_rule;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read as _;
@@ -336,7 +338,7 @@ fn every_plan_item_has_a_state_and_every_problem_subject_is_a_live_item() {
 }
 
 /// The same on the quality parts (`tools/quality_parts.txt`, from the corpus), planned as the
-/// command line plans them. The default printer cap and explicitly starved sheets
+/// command line plans them. The default paper preferences and explicitly starved sheets
 /// exercise loss states: every undrawable item must have its matching problem.
 #[test]
 fn on_the_quality_parts_too() {
@@ -353,11 +355,7 @@ fn on_the_quality_parts_too() {
         let a = cache::native(&dir.join(file)).1;
         let plan = cache::default_plan(&a, true);
         consistent(file, &plan, &a, &Spec::default());
-        assert!(
-            std::iter::once(&plan.sheet)
-                .chain(&plan.sheets)
-                .all(|s| matches!(s.size.as_str(), "A4" | "A3"))
-        );
+        sheet_rule::assert_preferences(&plan);
         // Exercise both forms; auto tables should not erase loss/state-machine coverage.
         let ladder = Spec {
             hole_table: draftwright::hole_table::Setting::Never,
@@ -365,23 +363,7 @@ fn on_the_quality_parts_too() {
         };
         let plan = model::plan_recovered(&a, &ladder).unwrap();
         consistent(file, &plan, &a, &ladder);
-        assert!(
-            std::iter::once(&plan.sheet)
-                .chain(&plan.sheets)
-                .all(|s| matches!(s.size.as_str(), "A4" | "A3"))
-        );
-        if plan
-            .dimensions
-            .iter()
-            .any(|d| matches!(d.state, State::NotDrawable { .. }))
-        {
-            assert!(
-                plan.problems
-                    .iter()
-                    .any(|p| p.code == "sheet_preference_exceeded"),
-                "{file}"
-            );
-        }
+        sheet_rule::assert_preferences(&plan);
         plan.dimensions
             .iter()
             .filter(|d| matches!(d.state, State::NotDrawable { .. }))
@@ -391,7 +373,7 @@ fn on_the_quality_parts_too() {
     .sum();
     assert!(
         dropped > 0,
-        "capped quality drawings exercise reported loss states"
+        "preferred quality drawings exercise reported loss states"
     );
     let a = cache::native(&dir.join("nist/nist_ftc_08_asme1_rc.stp")).1;
     let starved = spec(json!({"sheet": {"size": "A4", "scale": "1:1"}, "hole_table": "never"}));

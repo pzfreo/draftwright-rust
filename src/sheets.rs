@@ -1181,12 +1181,30 @@ pub(crate) fn separate_views(
 /// Pin replay transports the same owned ink into the already selected view
 /// frames. Expanded pin ink is audited there, never used to relocate peers.
 pub(crate) fn replay_views(analysis: &Analysis, source: &Plan, frame: &Plan) -> Option<Plan> {
+    let mut fixed = frame.clone();
+    let mut findings = Vec::new();
+    crate::placement_intent::views(
+        &source.spec,
+        &mut fixed.views,
+        Some(frame),
+        &frame.sheet,
+        &[],
+        &mut findings,
+    );
+    let mut source = source.clone();
+    source.problems.retain(|p| {
+        !matches!(
+            p.code.as_str(),
+            "projection_relation_infeasible" | "pinned_view_off_sheet"
+        )
+    });
+    source.problems.extend(findings);
     separate_views_inner(
         analysis,
-        source,
+        &source,
         &frame.sheet.size,
         1 + frame.sheets.len(),
-        Some(frame),
+        Some(&fixed),
     )
 }
 
@@ -1198,7 +1216,7 @@ fn separate_views_inner(
     frame: Option<&Plan>,
 ) -> Option<Plan> {
     use crate::placement_intent::{move_box, move_point};
-    if source.spec.views.values().any(|v| v.place.is_some())
+    if (frame.is_none() && source.spec.views.values().any(|v| v.place.is_some()))
         || source.spec.sheets.as_ref().is_some_and(|s| {
             !s.keep_together.is_empty() || s.gdt_on_sheet_1 || s.hole_table.is_some()
         })
@@ -1235,12 +1253,15 @@ fn separate_views_inner(
     let (_, w, h) = layout::PAGES.iter().find(|p| p.0 == size)?;
     let mut plan = source.clone();
     let page_delta = [w - source.sheet.page[0], h - source.sheet.page[1]];
-    let title_delta = [page_delta[0], 0.];
     plan.sheet.size = size.into();
     plan.sheet.page = [*w, *h];
     let width = layout::title_block_width(*w);
-    plan.sheet.title_block[0] = w - layout::MARGIN - width;
-    plan.sheet.title_block[2] = w - layout::MARGIN;
+    plan.sheet.title_block[0] = w - layout::MARGIN - 1. - width;
+    plan.sheet.title_block[2] = w - layout::MARGIN - 1.;
+    let title_delta = [
+        plan.sheet.title_block[0] - source.sheet.title_block[0],
+        plan.sheet.title_block[1] - source.sheet.title_block[1],
+    ];
     plan.sheet.title_cells =
         crate::title_block::cells(plan.sheet.title_block, &plan.sheet.title, size);
     plan.sheet.projection_symbol = Some(crate::title_block::projection(
@@ -1335,6 +1356,8 @@ fn separate_views_inner(
         h - layout::MARGIN - 2.,
     ];
     let mut pages = vec![occupied];
+    let principal = |id: &str| ["v:front", "v:plan", "v:side"].contains(&id);
+    let mut primary_frames = BTreeMap::<usize, ([f64; 2], Vec<[f64; 4]>)>::new();
     for i in 0..plan.views.len() {
         let id = plan.views[i].id.clone();
         let mut own = source.clone();
@@ -1388,6 +1411,28 @@ fn separate_views_inner(
             ))
         } else {
             pages.iter().enumerate().find_map(|(n, obstacles)| {
+                if principal(&id)
+                    && let Some((delta, peers)) = primary_frames.get(&(n + 1))
+                {
+                    // Projections sharing a page retain their established alignment
+                    // and relative spacing. A different page is a separate frame.
+                    let at = [bounds[0] + delta[0], bounds[1] + delta[1]];
+                    let rect = [at[0], at[1], at[0] + block[0], at[1] + block[1]];
+                    if rect[0] < region[0]
+                        || rect[1] < region[1]
+                        || rect[2] > region[2]
+                        || rect[3] > region[3]
+                    {
+                        return None;
+                    }
+                    let fixed: Vec<_> = obstacles
+                        .iter()
+                        .filter(|b| !peers.contains(b))
+                        .copied()
+                        .collect();
+                    return layout::fit_box(block, rect, &fixed, layout::Corner::BottomLeft, 2.)
+                        .map(|at| (n + 1, at));
+                }
                 layout::fit_box(block, region, obstacles, layout::Corner::BottomLeft, 2.)
                     .map(|at| (n + 1, at))
             })
@@ -1463,6 +1508,13 @@ fn separate_views_inner(
             c.sheet = next as u32;
             move_point(&mut c.at, delta);
             move_box(&mut c.ink, delta);
+        }
+        if principal(&id) {
+            primary_frames
+                .entry(next)
+                .or_insert((delta, Vec::new()))
+                .1
+                .push(plan.views[i].area);
         }
         pages[next - 1].push(plan.views[i].area);
     }

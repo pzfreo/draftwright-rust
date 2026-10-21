@@ -183,18 +183,10 @@ fn specify_plate_pmi_fits_a3_at_full_size_with_every_frame_clear() {
 fn automatic_overflow_never_uses_an_illegible_scale() {
     let mut a = part();
     a.envelope = [[0.0; 3], [100_000.0; 3]];
-    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
-    assert!(p.sheet.scale_factor >= 0.1);
-    assert_eq!(p.sheet.size, "A3");
+    let error = model::plan_recovered(&a, &Spec::default()).unwrap_err();
     assert!(
-        p.problems
-            .iter()
-            .any(|p| p.code == "sheet_preference_exceeded")
-    );
-    assert!(
-        p.problems
-            .iter()
-            .any(|p| matches!(p.code.as_str(), "page_fit_uncertain" | "views_do_not_fit"))
+        error.message.contains("No unclipped automatic drawing"),
+        "{error}"
     );
 }
 
@@ -570,24 +562,18 @@ fn small_overflow_respects_explicit_auxiliary_assignment() {
 }
 
 #[test]
-fn an_explicit_sheet_count_does_not_raise_the_default_paper_cap() {
+fn a_hard_sheet_limit_preserves_soft_preference_accountability() {
     let Some(dir) = corpus::dir() else { return };
     let a = model::analyse_native(&dir.join("mfcadpp/10190.step"))
         .unwrap()
         .1;
     let spec = serde_json::from_value(json!({"sheets":{"max":9}})).unwrap();
     let p = model::plan_recovered(&a, &spec).unwrap();
-    assert_eq!(p.sheet.size, "A3");
-    assert!(p.sheets.iter().all(|s| s.size == "A3"));
-    assert!(
-        p.problems
-            .iter()
-            .any(|p| p.code == "sheet_preference_exceeded")
-    );
+    sheet_rule::assert_preferences(&p);
     assert!(
         p.sheet_candidates
             .iter()
-            .all(|c| matches!(c.size.as_str(), "A4" | "A3"))
+            .all(|c| c.max <= 9 && c.preferred_max_size == "A3" && c.preferred_max_sheets == 2)
     );
 }
 

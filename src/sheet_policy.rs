@@ -351,9 +351,9 @@ fn rank(plan: &Plan) -> (usize, usize, f64, usize) {
     )
 }
 
-/// A readable layout keeps at least the unrestricted reference's reduction
-/// scale (enlargements need not be preserved), plus feature and printed-step
-/// minima. New layout/readability failures or required losses are not accepted.
+/// Readability uses the existing feature-opening/overall-size floor and
+/// printed-step limits. Layout/readability counts and required losses must not
+/// exceed the unrestricted larger-paper reference.
 fn usable(analysis: &Analysis, plan: &Plan, reference: &Plan, floor: f64) -> bool {
     if !sheet_fit::inside_frames(analysis, plan)
         || plan.sheet.scale_factor + 1e-9 < floor
@@ -425,8 +425,7 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
         fit,
         &baseline,
         sheet_fit::min_legible_scale(fit).max(crate::sheets::floor(spec).unwrap_or(0.)),
-    )
-    .max(baseline.sheet.scale_factor.min(1.));
+    );
     let estimate = Estimate::new(fit, &baseline);
     let mut candidates = Vec::new();
     let mut best = sheet_fit::inside_frames(fit, &baseline).then(|| baseline.clone());
@@ -470,7 +469,7 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                 }
             }
         }
-        if max > 1 {
+        {
             let split = separated.entry(size.into()).or_insert_with(|| {
                 crate::sheets::separate_views(
                     fit,
@@ -514,10 +513,17 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                 return Ok(finish_choice(plan, &intent, candidates, &reason));
             }
             outcome = format!(
-                "refused at {}: additional layout/readability problems, required losses or unreadable scale ({} hard, {} drops)",
+                "refused at {}: additional layout/readability problems, required losses or unreadable scale ({} hard, {} drops; {})",
                 plan.sheet.scale,
                 model::findings(&plan).hard,
-                model::findings(&plan).dropped
+                model::findings(&plan).dropped,
+                failures(fit, &plan, floor)
+                    .into_iter()
+                    .map(|(code, _)| code)
+                    .collect::<BTreeSet<_>>()
+                    .into_iter()
+                    .collect::<Vec<_>>()
+                    .join(", ")
             );
         }
         candidates.push(Candidate {
@@ -776,7 +782,8 @@ mod tests {
                     .iter()
                     .any(|c| c.outcome.contains("leader_on_extension")
                         || c.outcome.contains("hard rejected")
-                        || c.outcome.contains("reserved footprints cannot fit")),
+                        || c.outcome.contains("reserved footprints cannot fit")
+                        || c.outcome.contains("annotation_overlap")),
                 "{file}"
             );
         }
@@ -1204,8 +1211,8 @@ mod tests {
         )
         .unwrap();
         let source = model::plan_automatic(&a, &spec).unwrap();
-        let split = crate::sheets::separate_views(&a, &source, "A4", 9)
-            .expect("individual annotated views fit A4");
+        let split = crate::sheets::separate_views(&a, &source, "A3", 9)
+            .expect("individual annotated views fit A3");
         assert!(sheet_fit::inside_frames(&a, &split));
         assert!(!split.sheets.is_empty());
         assert!(split.views.iter().all(|v| v.scale == 5.));

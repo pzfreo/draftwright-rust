@@ -222,33 +222,24 @@ fn the_reservation_stacks_overlapping_items_in_tiers_beyond_the_dimensions() {
     assert_eq!(s, base);
 }
 
-/// With the default printer maximum, the formerly A1 STC-09 drawing stays on
-/// practical paper and explicitly reports the incomplete/illegible result.
+/// The former A1 drawing stays readable, with all PMI and a plain preference notice.
 #[test]
-fn stc09_without_a_complete_fit_keeps_its_first_drawing_and_reports_the_floor() {
+fn stc09_preserves_readable_geometry_and_the_complete_pmi_inventory() {
     let a = analysed("nist_stc_09_asme1_ap242-e4");
-    let first = model::plan_escalated(&a, &Spec::default()).unwrap();
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
-    assert!(["A4", "A3"].contains(&first.sheet.size.as_str()));
-    assert!(["A4", "A3"].contains(&p.sheet.size.as_str()));
-    assert!(p.sheet.scale_factor >= 0.1);
-    assert_eq!(
-        p.gdt.len(),
-        28,
-        "the complete frame/datum inventory is retained"
-    );
-    let capped = p
+    assert!(p.sheet.scale_factor >= 0.2);
+    assert_eq!(p.gdt.len(), 28, "complete frame/datum inventory");
+    let notices: Vec<_> = p
         .problems
         .iter()
-        .find(|p| p.code == "sheet_preference_exceeded")
-        .unwrap();
-    assert_eq!(capped.severity, "warning");
-    assert!(
-        capped
-            .fix
-            .iter()
-            .any(|op| op.path == "sheet/preferred_max_size")
+        .filter(|p| p.code == "sheet_preference_exceeded")
+        .collect();
+    assert_eq!(notices.len(), 1);
+    assert_eq!(notices[0].severity, "info");
+    assert_eq!(
+        notices[0].labels().impact,
+        draftwright::finding::Impact::Advisory
     );
-    assert_eq!(p.status, draftwright::completeness::Status::NeedsAttention);
+    assert!(notices[0].message.contains(&p.sheet.size));
     assert!(p.sheet.basis.contains("sheet/preferred_max_size A3"));
 }

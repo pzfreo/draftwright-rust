@@ -258,3 +258,32 @@ pub fn assert_rule(name: &str, plan: &Plan) -> (String, String) {
     let seed = seed_of(plan);
     assert_follows(name, plan, (&seed.0, &seed.1))
 }
+
+/// Soft preferences never replace the hard count limit or suppress their advisory.
+pub fn assert_preferences(plan: &Plan) {
+    let pages = ["A4", "A3", "A2", "A1", "A0"];
+    let preferred = plan
+        .spec
+        .sheet
+        .preferred_max_size
+        .as_deref()
+        .unwrap_or("A3");
+    let used = pages.iter().position(|p| *p == plan.sheet.size).unwrap();
+    let preference = pages.iter().position(|p| *p == preferred).unwrap();
+    let count = 1 + plan.sheets.len();
+    assert!(count <= plan.spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9) as usize);
+    let exceeds =
+        used > preference || count > plan.spec.sheet.preferred_max_sheets.unwrap_or(2) as usize;
+    let notices: Vec<_> = plan
+        .problems
+        .iter()
+        .filter(|p| p.code == "sheet_preference_exceeded")
+        .collect();
+    assert_eq!(notices.len(), usize::from(exceeds), "{}", plan.sheet.basis);
+    for n in notices {
+        assert_eq!(n.severity, "info");
+        assert_eq!(n.labels().impact, draftwright::finding::Impact::Advisory);
+        assert!(n.message.contains(&plan.sheet.size));
+        assert!(n.message.contains(&format!("{count} sheet(s)")));
+    }
+}
