@@ -20,7 +20,9 @@
 //!   shelf, its parameters (`Ra 0.8`) under the bar: its leader runs from a proven site on its
 //!   face's edge line along the face's outward normal, as a datum's does, with an arrowhead at
 //!   the site (draftwright's `Finish`, a `SurfaceFinish` glyph on a `Leader`, which only
-//!   draftwright's face-finish lowering for one external cylinder makes).
+//!   draftwright's face-finish lowering for one external cylinder makes). A cylinder with no
+//!   proven silhouette is reached head-on instead, its leader ending in a dot inside the
+//!   outline (ISO 128-22).
 //! - **A label** (a surface or common label: `A`, `F1.1`, `2X R`) is its text at the
 //!   dimensions' text height, unframed, hung from a leader as a frame is (draftwright's `Note`,
 //!   a `TextBlock` callout on a `Leader`).
@@ -34,8 +36,10 @@
 //! view outline. Constrained planar datums precede cylinders. At equal clearance and crossing
 //! counts automatic datums prefer shorter leaders; original site order breaks remaining ties.
 //! Filled triangles reserve clearance alongside the letter boxes, and final-plan lint rejects
-//! touching or overlapping datum triangles. Finishes keep their outward side;
-//! frames and labels can retry the other strips (`_gdt_retry_sides`).
+//! touching or overlapping datum triangles. A plane's finish keeps its outward side; a
+//! cylinder's tries compact tiers in its own strip, then the other proven silhouette only when
+//! its own has no place clear of every label and line. Frames and labels can retry the other
+//! strips (`_gdt_retry_sides`).
 //!
 //! All glyphs share the same obstacle grade: clearance from labels, views, sheet furniture and
 //! reserved-area boundaries, followed by the count of leader crossings with dimension lines,
