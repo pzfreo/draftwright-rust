@@ -6652,16 +6652,32 @@ fn radius_edit_reference(analysis: &Analysis, spec: &Spec) -> Option<Plan> {
     if &base == spec {
         return None;
     }
+    let analysis_key: [u8; 32] =
+        crate::planning::memo(analysis, "analysis_digest", Vec::new(), || {
+            Sha256::digest(serde_json::to_vec(analysis).expect("Analysis serializes")).into()
+        });
     let key = serde_json::to_vec(&(
+        analysis_key,
         &base,
-        crate::planning::policy_key(analysis),
         crate::planning::is_fixed_pair(),
+        crate::planning::nominals_deferred(),
     ))
     .expect("radius reference inputs serialize");
-    crate::planning::memo(analysis, "radius-edit-reference", key, || {
+    crate::planning::memo(analysis, "radius-edit-reference", key.clone(), || {
+        // The isolated reference depends on these complete inputs, not on the
+        // live preparation scope. Preview/commit can use different scopes;
+        // retain their identical reference without planning it again.
+        static MEMO: crate::planning::BoundedMemo<Option<Plan>> =
+            crate::planning::BoundedMemo::new(128);
+        let digest: [u8; 32] = Sha256::digest(&key).into();
+        if let Some(reference) = MEMO.get(&digest) {
+            return reference;
+        }
         // Do not replace the live candidate's policy/preparation entries,
         // notably its complete annotation inventory and sheet trials.
-        crate::planning::isolated(analysis, || plan(analysis, &base).ok())
+        let reference = crate::planning::isolated(analysis, || plan(analysis, &base).ok());
+        MEMO.insert(digest, reference.clone());
+        reference
     })
 }
 
