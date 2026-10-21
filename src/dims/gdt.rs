@@ -411,9 +411,14 @@ fn label(s: &str) -> Laid {
 /// mark ([`crate::title_block::removal_marks`]), the bar from the long leg's top, and the
 /// parameters under it, one per line (ISO 1302's positions a and b). The reference line itself
 /// is the leader's ([`candidate`]), as long as the glyph is wide.
+/// The empty margin left of a surface texture symbol's ink, from its origin.
+const FINISH_MARGIN: f64 = 0.3 * TEXT;
+/// The radius of the dot a leader ends in on a face inside its outline (ISO 128-22).
+const DOT: f64 = 0.5;
+
 fn finish_symbol(lines: &[String], removal: &str) -> Laid {
     let cot = 1.0 / 3f64.sqrt();
-    let gap = 0.3 * TEXT;
+    let gap = FINISH_MARGIN;
     let short = 1.4 * TEXT;
     let long = (3.0 * TEXT).max(lines.len() as f64 * (TEXT + gap));
     let tip = [gap + short * cot, 0.0];
@@ -514,24 +519,33 @@ fn candidate(shape: Shape, tip: P2, side: &str, pos: f64, size: P2) -> Candidate
         // The symbol stands on its shelf, which runs from the leader's end under it: above or
         // below the view the shelf is the box's bottom edge (*pos* the box's middle), the
         // leader rising or falling to its left end; beside the view the leader runs straight
-        // out to *pos* and on under the symbol, which stands on it.
+        // out to *pos* and on under the symbol, which stands on it. The glyph's ink starts
+        // FINISH_MARGIN in from its origin: its box starts there too, so the leader's bend
+        // stays that far outside it on every side (lint's leader through text), the box
+        // turned to keep the margin toward the bend left of the view.
         let (elbow, x0) = if horizontal {
             ([tip[0], pos - size[1] / 2.0], tip[0])
         } else if d[0] > 0.0 {
             ([pos, tip[1]], pos)
         } else {
-            ([pos, tip[1]], pos - size[0])
+            ([pos, tip[1]], pos - size[0] - FINISH_MARGIN)
         };
+        let label_box = [
+            x0 + FINISH_MARGIN,
+            elbow[1],
+            x0 + size[0],
+            elbow[1] + size[1],
+        ];
         let shelf = if elbow[0] > x0 {
-            [x0, elbow[1]]
+            [label_box[0], elbow[1]]
         } else {
-            [x0 + size[0], elbow[1]]
+            [label_box[2], elbow[1]]
         };
         return Candidate {
             lines: vec![[tip, elbow], [elbow, shelf]],
             arrows: vec![placement::arrow(tip, elbow)],
             fills: Vec::new(),
-            label_box: [x0, elbow[1], x0 + size[0], elbow[1] + size[1]],
+            label_box,
             origin: [x0, elbow[1]],
             elbow,
         };
@@ -724,6 +738,18 @@ fn cylinder_sites<'a>(
     frame: &Frame,
     requested: Option<&str>,
 ) -> Vec<Site<'a>> {
+    cylinder_sites_of(analysis, item, frame, requested, false)
+}
+
+/// [`cylinder_sites`], from each face's head-on sites when *face_on*
+/// ([`crate::pmi::FaceAttachment::face_on`]), else from its silhouette sites.
+fn cylinder_sites_of<'a>(
+    analysis: &Analysis,
+    item: &'a Lowered,
+    frame: &Frame,
+    requested: Option<&str>,
+    face_on: bool,
+) -> Vec<Site<'a>> {
     let original = frame.page(item.site);
     let mut sites = Vec::new();
     for face in &item.faces {
@@ -741,9 +767,10 @@ fn cylinder_sites<'a>(
             centre[i] = *value;
         }
         let centre = frame.page(centre);
+        let proven = if face_on { &a.face_on } else { &a.sites };
         for p in std::iter::once(item.site)
             .chain(item.alternatives.iter().copied())
-            .chain(a.sites.iter().copied())
+            .chain(proven.iter().copied())
         {
             let tip = frame.page(p);
             let side = if outward(item.side)[0] != 0.0 {
@@ -1708,6 +1735,20 @@ fn plan_search(
         if compact && datum {
             sites = datum_sites(analysis, &item, frame, authored);
         }
+        // A cylinder's finish may stand at any proven site on the silhouette (or, head-on, on
+        // the half of the face) its strip faces, the authored strip's when the Spec names one.
+        let face_on = matches!(item.glyph, Glyph::Finish { face_on: true, .. });
+        if matches!(&item.glyph, Glyph::Finish { surface, .. } if surface == "cylinder") {
+            sites = cylinder_sites_of(analysis, &item, frame, Some(item.side), face_on);
+        }
+        // A dot reads on blank face: sites clear of the view's projected edges and silhouettes
+        // (hidden ones too) by a millimetre past the dot come first.
+        if face_on
+            && let Some(view) = views.iter().find(|v| v.id == own)
+            && let Some(proof) = super::interior::exterior_proofs(analysis, views).get(&own)
+        {
+            sites.sort_by_key(|s| !proof.point_clear(view, s.0, DOT + 1.0));
+        }
         let tiers = |side: &str, tip: P2| {
             let pinned = intent.is_some_and(|p| p.pinned);
             let first = first_tier(
@@ -1738,7 +1779,11 @@ fn plan_search(
         // Exhaust the compact, face-to-first-lane choices before trying any outer tier.
         'search: for inside in [true, false] {
             if inside
-                && (!compact || !(datum || recess_frames && shape == Shape::Frame) || authored)
+                && (!compact
+                    || !(datum
+                        || shape == Shape::Finish
+                        || recess_frames && shape == Shape::Frame)
+                    || authored)
             {
                 continue;
             }
@@ -1816,6 +1861,11 @@ fn plan_search(
                         }
                         if let Some(line) = extension {
                             c.lines.push(*line);
+                        }
+                        if face_on {
+                            // Inside the outline the leader ends in a dot on the face.
+                            c.arrows.clear();
+                            c.fills = vec![dot_at(c.lines[0][0])];
                         }
                         let compact_datum = protect && datum && !authored;
                         let shorter = compact_datum
@@ -1960,6 +2010,16 @@ fn plan_search(
     );
     problems.extend(symbol_collisions(out.iter().filter(|g| on_sheet(&g.view))));
     Some((out, problems))
+}
+
+/// The filled dot a leader ends in at *c*, as a polygon.
+fn dot_at(c: P2) -> Vec<P2> {
+    (0..12)
+        .map(|i| {
+            let a = f64::from(i) * std::f64::consts::PI / 6.0;
+            [c[0] + DOT * a.cos(), c[1] + DOT * a.sin()]
+        })
+        .collect()
 }
 
 /// Datum triangles must not overlap or even touch. Separating-axis testing also
@@ -2249,12 +2309,51 @@ fn placement_choices(
                     };
                     Some((name, vec![side]))
                 }
+                // A cylinder's finish may stand on either side its record proves a site on.
+                Glyph::Finish { .. } if name == item.view => {
+                    let mut sides = vec![item.side];
+                    if let Some(other) = other_finish_side(item, record) {
+                        sides.push(other);
+                    }
+                    Some((name, sides))
+                }
                 Glyph::Datum { .. } | Glyph::Finish { .. } => {
                     (name == item.view).then(|| (name, vec![item.side]))
                 }
             }
         })
         .collect()
+}
+
+/// The strip opposite a cylinder finish's own (*item*) when its record proves a site there: one
+/// whose coordinate across the strip differs from its lowered site's (the silhouettes, or the
+/// head-on sites either side of the axis, each share theirs).
+fn other_finish_side(item: &Lowered, record: &crate::pmi::Record) -> Option<&'static str> {
+    let Glyph::Finish { surface, .. } = &item.glyph else {
+        return None;
+    };
+    if surface != "cylinder" {
+        return None;
+    }
+    let beside = outward(item.side)[0] != 0.0;
+    // The model axis across the strip in the view: front x | z, plan x | y, side y | z.
+    let across = match (item.view, beside) {
+        ("side", true) => 1,
+        (_, true) => 0,
+        ("plan", false) => 1,
+        (_, false) => 2,
+    };
+    let g = record.geometry.as_ref()?;
+    g.sites
+        .iter()
+        .chain(&g.alternatives)
+        .any(|p| (p[across] - item.site[across]).abs() > 1e-6)
+        .then(|| match item.side {
+            "left" => "right",
+            "right" => "left",
+            "above" => "below",
+            _ => "above",
+        })
 }
 
 /// Authored carriers must prove the attachment before placement.
@@ -2305,7 +2404,7 @@ pub(crate) fn validate_placements(
         };
         let choices = placement_choices(&item, record, &all);
         let view = place.view.as_deref().unwrap_or(item.view);
-        let Some(_) = choices.iter().find(|(name, _)| *name == view) else {
+        let Some((_, sides)) = choices.iter().find(|(name, _)| *name == view) else {
             return Err(crate::model::Invalid {
                 message: format!(
                     "{} cannot attach in the {view} view; choose a compatible view.",
@@ -2314,6 +2413,20 @@ pub(crate) fn validate_placements(
                 choices: choices.iter().map(|(name, _)| name.to_string()).collect(),
             });
         };
+        // A finish stands only beside a silhouette (or half face) it proves a site on.
+        if let (Glyph::Finish { .. }, Some(side)) = (&item.glyph, place.side)
+            && view == item.view
+            && !sides.contains(&side.name())
+        {
+            return Err(crate::model::Invalid {
+                message: format!(
+                    "{} has no proven site {} the {view} view; choose a side it attaches on.",
+                    record.label,
+                    side.name()
+                ),
+                choices: sides.iter().map(|s| s.to_string()).collect(),
+            });
+        }
     }
     Ok(())
 }

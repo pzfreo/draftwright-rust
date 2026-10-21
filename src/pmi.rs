@@ -512,6 +512,11 @@ pub struct Geometry {
     /// Why the attachment is not proven: the record is then not lowered.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub reasons: Vec<String>,
+    /// A surface finish's sites lie inside its cylinder's outline, on the face as its edge-on
+    /// view sees it head-on ([`FaceAttachment::face_on`]), not on a silhouette: its leader ends
+    /// in a dot there (ISO 128-22), not an arrowhead.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub face_on: bool,
 }
 
 /// A part's PMI as the Analysis carries it: the report, or why the file's PMI could not be
@@ -3053,6 +3058,11 @@ pub struct FaceAttachment {
     /// A cylinder's axis when it is exactly principal (`_common_principal_cylinder_axis`'s test).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exact_axis: Option<usize>,
+    /// A cylinder with no proven silhouette site (one trimmed by flats, say): proven points on
+    /// it inside its outline in the view that sees it edge-on, on its half that faces that view
+    /// and with nothing in front, where a surface finish's leader may end in a dot.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub face_on: Vec<[f64; 3]>,
 }
 
 /// Face *f*'s attachment on *part*.
@@ -3091,6 +3101,63 @@ pub(crate) fn face_attachment(part: &Part, f: usize) -> FaceAttachment {
     if let Some(first) = found.first() {
         out.sites.push(*first);
         out.sites.extend(spread(&found, &b, 8));
+    } else if kind == "cylinder" {
+        out.face_on = face_on_sites(part, f, &b, k);
+    }
+    out
+}
+
+/// Proven points on cylinder *f* (box *b*, axis along *k*) seen head-on in the view that sees it
+/// edge-on (the front for an x or z axis, looking along +y; the side for a y axis, looking along
+/// −x): at stations along the axis, midway between the axis and either side of the face's box,
+/// on the face's trimmed domain, where its outward normal faces the viewer and no other face's
+/// box lies between it and the viewer. Ranked by station, the nearer side first.
+fn face_on_sites(part: &Part, f: usize, b: &Bounds, k: usize) -> Vec<[f64; 3]> {
+    let surface = &part.faces[f].surface;
+    let (Surface::Cylinder { frame, radius }, Some(domain)) = (surface, part.domain(f)) else {
+        return Vec::new();
+    };
+    // The viewer's axis and the direction toward the viewer along it; the page axis across.
+    let (depth, toward) = if k == 1 { (0, 1.0) } else { (1, -1.0) };
+    let lateral = 3 - k - depth;
+    let mut out = Vec::new();
+    for t in [0.5, 0.3, 0.7, 0.15, 0.85] {
+        for edge in [b.min[lateral], b.max[lateral]] {
+            let offset = 0.5 * (edge - frame.origin[lateral]);
+            if !(offset.abs() < *radius) {
+                continue;
+            }
+            let mut s = frame.origin;
+            s[k] = b.min[k] + t * (b.max[k] - b.min[k]);
+            s[lateral] += offset;
+            s[depth] += toward * (radius * radius - offset * offset).sqrt();
+            if !b.contains(s, 1e-6) {
+                continue;
+            }
+            let Some((u, v)) = surface.parameters(s, None) else {
+                continue;
+            };
+            let p = surface.value(u, v);
+            let d = ((p[0] - s[0]).powi(2) + (p[1] - s[1]).powi(2) + (p[2] - s[2]).powi(2)).sqrt();
+            let facing = part
+                .face_normal(f, u, v)
+                .is_some_and(|n| n[depth] * toward > 1e-6);
+            let clear = (0..part.faces.len()).filter(|g| *g != f).all(|g| {
+                let o = part.face_bounds(g);
+                let ahead = if toward > 0.0 {
+                    o.max[depth] > s[depth] + 1e-6
+                } else {
+                    o.min[depth] < s[depth] - 1e-6
+                };
+                !(ahead
+                    && [k, lateral]
+                        .iter()
+                        .all(|&i| o.min[i] - 1e-6 <= s[i] && s[i] <= o.max[i] + 1e-6))
+            });
+            if d <= 1e-6 && domain.contains(u, v) && facing && clear {
+                out.push(s);
+            }
+        }
     }
     out
 }
@@ -3105,8 +3172,12 @@ pub fn face_attachments(part: &Part) -> Vec<FaceAttachment> {
             if !a.bounds.is_some_and(|b| finite(&b)) {
                 a.bounds = None;
             }
-            if !a.sites.iter().all(|s| finite(s)) || !a.support.iter().all(|x| x.is_finite()) {
+            if !a.sites.iter().all(|s| finite(s))
+                || !a.face_on.iter().all(|s| finite(s))
+                || !a.support.iter().all(|x| x.is_finite())
+            {
                 a.sites.clear();
+                a.face_on.clear();
                 a.support.clear();
                 a.axis = None;
             }
@@ -3299,7 +3370,46 @@ pub(crate) fn datum_geometry_of(r: &Record, faces: &[FaceAttachment]) -> Geometr
 /// attaches where a datum feature symbol does, on its face's edge line in the view that sees the
 /// face edge-on (or on the profile of a cylinder); the reasons name the finish.
 fn finish_geometry(part: &Part, r: &Record) -> Geometry {
-    let mut g = datum_geometry(part, r);
+    let faces: Vec<FaceAttachment> = r.faces.iter().map(|&f| face_attachment(part, f)).collect();
+    finish_geometry_of(r, &faces)
+}
+
+/// [`finish_geometry`] from the attachments of *r*'s faces, in its order. Where no face proves a
+/// silhouette site, a cylinder's head-on sites ([`FaceAttachment::face_on`]) stand in, from the
+/// faces that have them (the finish applies to the whole feature; the faces of it seen from
+/// behind are left out when they are coaxial with those): the geometry is then `face_on`.
+pub(crate) fn finish_geometry_of(r: &Record, faces: &[FaceAttachment]) -> Geometry {
+    let head_on = faces.iter().all(|a| a.sites.is_empty())
+        && faces.iter().any(|a| !a.face_on.is_empty())
+        && faces.iter().all(|a| {
+            a.surface.as_deref() == Some("cylinder")
+                && a.exact_axis.is_some()
+                && a.exact_axis == faces[0].exact_axis
+                && a.support.len() == 2
+                && a.support
+                    .iter()
+                    .zip(&faces[0].support)
+                    .all(|(x, y)| (x - y).abs() <= 1e-4)
+        });
+    let mut g = if head_on {
+        let mut seen = r.clone();
+        let mut used = Vec::new();
+        seen.faces.clear();
+        for (f, a) in r.faces.iter().zip(faces) {
+            if !a.face_on.is_empty() {
+                seen.faces.push(*f);
+                used.push(FaceAttachment {
+                    sites: a.face_on.clone(),
+                    ..a.clone()
+                });
+            }
+        }
+        let mut g = datum_geometry_of(&seen, &used);
+        g.face_on = true;
+        g
+    } else {
+        datum_geometry_of(r, faces)
+    };
     for why in &mut g.reasons {
         *why = why.replace("datum reference", "surface finish");
     }
