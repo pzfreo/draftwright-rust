@@ -516,7 +516,14 @@ fn the_cgb245_view_pin_reproducer_keeps_its_schedule() {
     let intent = schedule_paper("cgb245");
     let base = model::plan_recovered(&analysis, &intent).unwrap();
     assert!(!tables(&base).as_array().unwrap().is_empty());
-    let ordinary = model::plan_recovered(&analysis, &setting("never")).unwrap();
+    let ordinary_spec = model::edit(
+        &intent,
+        &serde_json::json!([
+            {"op":"set","path":"hole_table","value":"never"}
+        ]),
+    )
+    .unwrap();
+    let ordinary = model::plan_recovered(&analysis, &ordinary_spec).unwrap();
     let iso = base.views.iter().find(|v| v.id == "v:iso").unwrap();
     let before = ordinary.views.iter().find(|v| v.id == "v:iso").unwrap();
     // The printer policy can choose different paper with and without the schedule.
