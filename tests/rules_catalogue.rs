@@ -340,7 +340,12 @@ fn sizes_sit_nearest_then_locations_by_distance_then_the_overall() {
     }
     let mut mixed = 0;
     for (name, analysis) in &parts {
-        let plan = model::plan_recovered(analysis, &Spec::default()).unwrap();
+        // Keep the complete FTC-06 corridor fixture on its historical paper.
+        let mut spec = Spec::default();
+        if name.contains("ftc_06") {
+            spec.sheet.size = Some("A1".into());
+        }
+        let plan = model::plan_recovered(analysis, &spec).unwrap();
         let mut strips: BTreeMap<(String, &str), Vec<Lined>> = BTreeMap::new();
         for d in plan.dimensions.iter().filter(|d| d.kind == "linear") {
             let Some((view, side, distance)) = strip(&plan, d) else {

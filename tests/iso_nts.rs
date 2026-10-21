@@ -118,9 +118,9 @@ fn an_isometric_drawn_off_the_sheet_scale_is_captioned() {
 #[test]
 fn an_isometric_at_the_sheet_scale_has_no_caption() {
     // Fitted by a measured refit to within 5 % of the sheet scale: kept at it, uncaptioned.
-    // Keep the original automatic fill search for this normalization fixture.
+    // Hold the original A3 normalization fixture; paper preference is tested separately.
     let spec = model::Spec {
-        sheet: serde_json::from_value(serde_json::json!({"max_size":"A0"})).unwrap(),
+        sheet: serde_json::from_value(serde_json::json!({"size":"A3"})).unwrap(),
         sheets: Some(draftwright::sheets::SheetsSpec {
             max: Some(1),
             ..Default::default()

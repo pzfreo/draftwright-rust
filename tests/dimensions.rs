@@ -39,7 +39,7 @@ use std::io::Read as _;
 use std::path::Path;
 
 use draftwright::dims::{self, PlannedDimension};
-use draftwright::model::{self, Analysis, Spec};
+use draftwright::model::{self, Analysis};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -259,7 +259,9 @@ fn compare_sheet(
     a: &Analysis,
 ) -> (usize, BTreeMap<Diff, usize>, usize) {
     assert_eq!(a.binding.source_sha256, f.binding.sha256, "{name}");
-    let plan = model::plan(a, &Spec::default()).unwrap();
+    // Keep the captured dimension ledger on its original full ISO paper resources.
+    let spec = serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap();
+    let plan = model::plan(a, &spec).unwrap();
 
     let mut python: Vec<Item> = Vec::new();
     let mut outside = 0;

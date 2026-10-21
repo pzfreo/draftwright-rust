@@ -340,7 +340,11 @@ fn an_already_separated_seed_does_not_gain_datum_crossings() {
     let path =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/pmi/step/hw_every_kind.step.gz");
     let (_, a) = model::analyse_native(&path).unwrap();
-    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let plan = model::plan_recovered(
+        &a,
+        &serde_json::from_value(serde_json::json!({"sheet":{"size":"A0"}})).unwrap(),
+    )
+    .unwrap();
     assert!(gdt::symbol_collisions(&plan.gdt).is_empty());
     let ids: Vec<_> = plan
         .gdt
@@ -366,7 +370,11 @@ fn dense_datums_are_separate(name: &str, expected: usize) {
         .join("tests/fixtures/pmi/step")
         .join(name);
     let (_, a) = model::analyse_native(&path).unwrap();
-    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let plan = model::plan_recovered(
+        &a,
+        &serde_json::from_value(serde_json::json!({"sheet":{"size":"A1"}})).unwrap(),
+    )
+    .unwrap();
     let shown: Vec<_> = plan
         .gdt
         .iter()

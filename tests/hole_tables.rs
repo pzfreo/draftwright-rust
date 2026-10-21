@@ -395,7 +395,9 @@ fn forced() -> (&'static (Part, Analysis), Plan) {
             Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/scattered_holes.step");
         model::analyse_native(&path).unwrap()
     });
-    let mut p = model::plan(&read.1, &Spec::default()).unwrap();
+    // The remote-table mechanism fixture retains its original full-paper space.
+    let spec = serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap();
+    let mut p = model::plan(&read.1, &spec).unwrap();
     let id = p
         .dimensions
         .iter()
