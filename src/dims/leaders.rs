@@ -6001,13 +6001,22 @@ pub fn clear_routes(
     let ink = label_ink(&d.terms, font());
     let footprints = Footprints::new(analysis, f, view);
     let proofs = super::interior::proofs(analysis, views);
+    let tip = p.lines.first()?[0];
+    let radius = views
+        .iter()
+        .find(|v| v.id == d.view)
+        .and_then(|v| radius_route_evidence(analysis, d, v));
+    let sites = radius.as_ref().map_or_else(
+        || page_sites(f, sites, arcs),
+        |arcs| radius_route_sites(arcs, tip),
+    );
     let job = Job {
         side: None,
         view,
         footprints: &footprints,
         outline: f.outline(),
         area: page.area(view),
-        sites: page_sites(f, sites, arcs),
+        sites,
         radial: !crate::nominal::comparison()
             && w.measurements.iter().any(|m| {
                 m.parameter == "slot_end_radius.radius"
@@ -6061,11 +6070,6 @@ pub fn clear_routes(
         .filter(|(_, d)| d.basis == "cross")
         .map(|(i, _)| dims.len() + i)
         .collect();
-    let tip = p.lines.first()?[0];
-    let radius = views
-        .iter()
-        .find(|v| v.id == d.view)
-        .and_then(|v| radius_route_evidence(analysis, d, v));
     Some(
         sweep(&job, tip)
             .into_iter()
@@ -6726,6 +6730,36 @@ fn radius_route_evidence(
     )
 }
 
+/// Use the authoritative radius producer's proven points, not the older callout
+/// site's truncated inventory (which may contain only oblique group members).
+/// Admit each arc's middle station before adding its two middle-half endpoints.
+fn radius_route_sites(arcs: &[crate::radius::Projected], anchor: P2) -> Vec<Site> {
+    let mut arcs: Vec<_> = arcs.iter().filter(|a| !a.tips.is_empty()).collect();
+    let distance = |a: &&crate::radius::Projected| {
+        let p = a.tips[a.tips.len() / 2];
+        (p[0] - anchor[0]).hypot(p[1] - anchor[1])
+    };
+    arcs.sort_by(|a, b| distance(a).total_cmp(&distance(b)));
+    let mut sites = Vec::new();
+    for station in [1, 0, 2] {
+        for arc in &arcs {
+            let i = match station {
+                0 => 0,
+                1 => arc.tips.len() / 2,
+                _ => arc.tips.len() - 1,
+            };
+            let site = (arc.tips[i], 0.0, None);
+            if !sites.contains(&site) {
+                sites.push(site);
+            }
+            if sites.len() == SWEEP_SITES {
+                return sites;
+            }
+        }
+    }
+    sites
+}
+
 /// Final repair over the clear-route sweep, with no-regression budgets.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn settled_routes(
@@ -6747,6 +6781,7 @@ pub(super) fn settled_routes(
         return Vec::new();
     };
     let frame = Frame::new(analysis, v);
+    let radius = radius_route_evidence(analysis, d, v);
     let page = Page::new(analysis, sheet, views);
     let footprints = Footprints::new(analysis, &frame, d.view.trim_start_matches("v:"));
     let (sites, ink_min, ink_max) = if let Some(w) = want {
@@ -6764,6 +6799,9 @@ pub(super) fn settled_routes(
             [b[2] - b[0], (b[3] - b[1]) / 2.0],
         )
     };
+    let sites = radius
+        .as_ref()
+        .map_or(sites, |arcs| radius_route_sites(arcs, shaft[0]));
     if sites.is_empty() {
         return Vec::new();
     }
@@ -6829,7 +6867,6 @@ pub(super) fn settled_routes(
     candidates.extend(interior_routes(&job, shaft[0], &page));
     // Radius evidence is independent of the old router's sites. A cheaper or
     // crossing-free route may not violate the shared #153 drawing rule.
-    let radius = radius_route_evidence(analysis, d, v);
     candidates.retain(|c| {
         radius
             .as_ref()
@@ -7074,6 +7111,10 @@ mod tests {
             Some(want),
             &[],
             proof.get(&view.id).map(|p| p.as_ref()),
+        );
+        assert!(
+            !alternatives.is_empty(),
+            "proven end-on group members must remain searchable"
         );
         for p in alternatives {
             assert!(
