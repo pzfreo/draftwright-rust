@@ -528,6 +528,6 @@
     ]
   },
   "source": "Recorded from the complete quality.py --record audit",
-  "source_commit": "5b94179a86dff773a70abe42bbdc3df5ed059036",
-  "verified_binary_sha256": "0e55b3647449dc5b5267e663acede0ef7728bfcb40c940aa3ace3e0916a16afc"
+  "source_commit": "a0486809185a95203a01dedd62e7cb42f240fc04",
+  "verified_binary_sha256": "2d29712f502fe343ea9dfd226535b87e7ec7b8a362b533dc879ce16c54269c4d"
 }

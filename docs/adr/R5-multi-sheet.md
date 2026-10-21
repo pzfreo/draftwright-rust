@@ -17,6 +17,22 @@ allocates the sheets from one spec. The cell reads ISO 7200's `n/m` (maintainer,
 It never says *pinned*: that word belongs to the existing placement intents (`Place.pinned`,
 `ViewPlace.pinned`, `placement_intent::has_pins`), which this record calls *placement pins*.
 
+## Maximum printable paper amendment (2026-10-21)
+
+`sheet/max_size` is the automatic paper limit: A4 through A0, default A3. This
+supersedes the search order in the historical amendments below. Try one sheet
+of each size from A4 through the maximum, then 2–N sheets of the maximum size
+(N is `sheets.max`, or nine). Additional sheets precede accepting findings on
+one sheet. The automatic baseline and R5's larger-paper recovery use the same limit.
+Explicit paper or scale remains the author's choice, including above this limit.
+
+If no candidate is clean, retain the best result within the limit using the
+existing hard-finding, required-drop, scale and sheet-count ranking. Report
+`sheet_size_capped` and offer raising the limit when a larger supported size exists.
+Candidate records and the sheet basis explain the cap and the decisions. Required
+content retains the existing drawn-or-reported contract. See
+[the current model](../model.md#sheet-allocation-r5-stage-i) for the API and migration.
+
 ## Small-part overflow amendment (2026-10-16)
 
 The maintainer's practical-paper rule overrides the original paper-first search below:
