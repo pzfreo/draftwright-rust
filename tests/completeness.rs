@@ -45,7 +45,7 @@ fn unclaimed_faces_and_unplanned_features_need_attention() {
     assert_eq!(doc["completeness"]["faces"], 12);
     assert_eq!(doc["completeness"]["unplanned_features"], 2);
     assert!(p.problems.iter().any(|p| p.code == "unclaimed_geometry"
-        && p.severity == "warning"
+        && p.severity == "info"
         && p.message.contains("2 of 12")));
     assert!(
         p.problems

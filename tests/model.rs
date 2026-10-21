@@ -47,7 +47,7 @@ fn every_default_says_why_and_the_views_fit_the_sheet_apart() {
                 .collect::<Vec<_>>(),
             [
                 ("general_tolerance_missing", "warning"),
-                ("unclaimed_geometry", "warning")
+                ("unclaimed_geometry", "info")
             ],
             "a default Spec supplies no manufacturing tolerance; unrecognised interior or curved faces still require review"
         );

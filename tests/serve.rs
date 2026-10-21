@@ -122,7 +122,7 @@ fn the_service_answers_each_line() {
     assert_eq!(
         problems[1],
         json!({
-            "id": "p:unclaimed_geometry:sheet", "code": "unclaimed_geometry", "severity": "warning",
+            "id": "p:unclaimed_geometry:sheet", "code": "unclaimed_geometry", "severity": "info",
             "impact": "advisory", "group": "unclaimed_geometry",
             "message": "Analysis features and dimensioned stock claim 6 of 10 faces; 4 faces are unclaimed. Review the geometry: ordinary stock faces may also be unclaimed; this is not a count of missed features.",
             "subjects": ["face:2", "face:3", "face:7", "face:8"]

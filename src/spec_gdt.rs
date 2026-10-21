@@ -600,8 +600,8 @@ fn pmi_effective<'a>(analysis: &'a Analysis, spec: &Spec) -> Result<Cow<'a, Anal
     records.extend(crate::spec_notes::records(analysis, spec, part)?);
     // Where the file states the same, the Spec wins: a datum of the same letter, a tolerance of
     // the same characteristic on the same faces.
-    let overrides = |pmi: &Record| -> Option<&Record> {
-        records.iter().find(|s| match pmi.category {
+    let overrides = |pmi: &Record| -> Option<usize> {
+        records.iter().position(|s| match pmi.category {
             Category::Datum => s.category == Category::Datum && s.label == pmi.label.trim(),
             Category::GeometricTolerance => {
                 s.category == Category::GeometricTolerance
@@ -612,26 +612,79 @@ fn pmi_effective<'a>(analysis: &'a Analysis, spec: &Spec) -> Result<Cow<'a, Anal
             _ => crate::spec_notes::overrides(s, pmi),
         })
     };
+    let overridden: Vec<_> = report
+        .records
+        .iter()
+        .filter_map(|pmi| overrides(pmi).map(|i| (pmi.clone(), i)))
+        .collect();
+    let manufacturing = if overridden.iter().any(|(r, _)| {
+        matches!(r.kind.as_str(), "internal_thread" | "external_thread")
+            && crate::pmi::specify_written(&report, &r.source_id)
+    }) {
+        crate::pmi_lowering::manufacturing(analysis)
+    } else {
+        Default::default()
+    };
     let mut dropped = BTreeSet::new();
-    for pmi in &report.records {
-        if let Some(s) = overrides(pmi) {
-            let path = &s.source_id[SOURCE_PREFIX.len()..];
-            dropped.insert(pmi.source_id.clone());
-            problems.push(Problem {
-                id: format!("p:spec_overrides_pmi:{}", pmi.source_id),
-                code: "spec_overrides_pmi".into(),
-                severity: "warning".into(),
-                message: format!(
-                    "The spec's {} at {path} replaces the STEP file's AP242 {} ({}), which is not drawn. Remove {path} to draw the file's own.",
-                    s.label,
-                    pmi.label,
-                    pmi.source_id
-                ),
-                subjects: Vec::new(),
-                refs: vec![pmi.source_id.clone(), s.source_id.clone()],
-                ..Default::default()
+    for (pmi, i) in overridden {
+        let s = &mut records[i];
+        let specify = crate::pmi::specify_written(&report, &pmi.source_id);
+        let thread = manufacturing
+            .owned
+            .iter()
+            .find(|o| o.source == pmi.source_id)
+            .and_then(|o| o.thread());
+        let number = |name: &str| {
+            s.fields.iter().find_map(|(key, value)| match value {
+                crate::pmi::Field::Length(n) if key == name => Some(*n),
+                _ => None,
+            })
+        };
+        let refines = specify
+            && s.kind == pmi.kind
+            && thread.is_some_and(|t| {
+                number("nominal").is_some_and(|n| (n - t.nominal).abs() < 1e-6)
+                    && number("pitch").is_some_and(|n| (n - t.pitch).abs() < 1e-6)
             });
+        if refines
+            && number("length").is_none()
+            && let Some(length) = thread.and_then(|t| t.minimum_full_thread)
+        {
+            s.fields
+                .push(("length".into(), crate::pmi::Field::Length(length)));
         }
+        let code = if refines {
+            "spec_refines_pmi"
+        } else {
+            "spec_overrides_pmi"
+        };
+        let message = if refines {
+            format!(
+                "The Spec's {} refines Specify's thread designation.",
+                s.label
+            )
+        } else {
+            format!(
+                "The Spec's {} replaces {} {} annotation, which is not drawn. Remove the corresponding setting to draw the original requirement.",
+                s.label,
+                if specify {
+                    "Specify's"
+                } else {
+                    "the STEP file's"
+                },
+                pmi.label
+            )
+        };
+        dropped.insert(pmi.source_id.clone());
+        problems.push(Problem {
+            id: format!("p:{code}:{}", pmi.source_id),
+            code: code.into(),
+            severity: if refines { "info" } else { "warning" }.into(),
+            message,
+            subjects: Vec::new(),
+            refs: vec![pmi.source_id.clone(), s.source_id.clone()],
+            ..Default::default()
+        });
     }
     report.records.retain(|r| !dropped.contains(&r.source_id));
     report.sources.retain(|s| !dropped.contains(&s.id));
