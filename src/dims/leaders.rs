@@ -7085,6 +7085,7 @@ mod tests {
     #[test]
     fn a_compliant_long_radius_still_compares_clear_routes_on_both_sides() {
         use super::*;
+        use crate::dims::placement;
         use crate::model::{Analysis, PlannedSheet, PlannedView, Spec};
         let station = 3. / 2f64.sqrt();
         let mut analysis: Analysis = serde_json::from_value(serde_json::json!({
