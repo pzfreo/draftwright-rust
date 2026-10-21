@@ -414,10 +414,9 @@ fn assert_review_summary(file: &str, expected: [(usize, usize); 4]) {
 fn ctc01_counts_gaps_and_repeated_causes_without_hiding_findings() {
     assert_review_summary(
         "nist/nist_ctc_01_asme1_rd.stp",
-        // The bounded selection omits an unavailable optional detail while its
-        // dimensions remain on the parent: no detail_unplaceable diagnostic.
-        // The selected recovery and unavailable table now add two advisory groups.
-        [(8, 3), (1, 1), (0, 0), (15, 6)],
+        // The soft preferences retain this main-readable A3 drawing and its
+        // reported unavailable detail; summary groups must retain every finding.
+        [(8, 3), (1, 1), (1, 1), (13, 4)],
     );
 }
 #[test]
