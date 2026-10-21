@@ -1451,6 +1451,7 @@ pub fn effective<'a>(a: &'a Analysis, s: &Spec) -> Result<Cow<'a, Analysis>, Inv
                         .is_some_and(|v| v.contains(&json!(actual)))
             });
             out.blend_sites.remove(actual);
+            out.radius_arcs.remove(actual);
         } else if let Some(kind) = f.reclassify {
             let i = fi.ok_or_else(|| {
                 invalid(

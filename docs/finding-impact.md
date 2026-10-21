@@ -200,6 +200,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `prismatic_pocket_requirement_unsupported` | incomplete | No supported drawing grammar states this feature requirement. |
 | `profiled_bore_not_dimensioned` | incomplete | The profiled bore requirements have no complete drawn dimension. |
 | `projection_relation_infeasible` | decision | The authored projected-view relationship cannot be satisfied. |
+| `radius_leader_not_radial` | readability | The radius leader does not meet its arc radially from the open side. |
 | `radius_leader_target_mismatch` | readability | The radius leader points at the wrong geometry. |
 | `radius_leader_target_unverifiable` | readability | The radius leader target cannot be verified. |
 | `rectangular_blind_slot_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |

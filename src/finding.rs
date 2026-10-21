@@ -204,6 +204,7 @@ catalogue! {
     "prismatic_pocket_requirement_unsupported" => Incomplete, Requirement, "No supported drawing grammar states this feature requirement.";
     "profiled_bore_not_dimensioned" => Incomplete, Code, "The profiled bore requirements have no complete drawn dimension.";
     "projection_relation_infeasible" => Decision, Code, "The authored projected-view relationship cannot be satisfied.";
+    "radius_leader_not_radial" => Readability, Code, "The radius leader does not meet its arc radially from the open side.";
     "radius_leader_target_mismatch" => Readability, Code, "The radius leader points at the wrong geometry.";
     "radius_leader_target_unverifiable" => Readability, Code, "The radius leader target cannot be verified.";
     "rectangular_blind_slot_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";

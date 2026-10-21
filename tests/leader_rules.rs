@@ -324,6 +324,117 @@ fn a_radius_tip_lands_on_the_trimmed_profile_arc() {
     );
 }
 
+/// #145: lint reads actual drawn shafts, including hand-authored/pinned geometry.
+#[test]
+fn radius_shafts_meet_the_middle_arc_radially_from_the_open_side() {
+    for concave in [true, false] {
+        let (mut f, sites) = quarter_blend(0.0, 0.0);
+        f["parameters"]["side"] = json!(if concave { "concave" } else { "convex" });
+        let a = analysis(vec![f], sites, &[]);
+        for (angle, deviation, bad) in [
+            (45.0f64, 0.0f64, false),
+            (0.0, 0.0, true),
+            (90.0, 0.0, true),
+            (45.0, 16.0, true),
+            (45.0, 180.0, true),
+        ] {
+            let t = angle.to_radians();
+            let tip = page(3.0 * t.cos(), 3.0 * t.sin());
+            let direction =
+                t + if concave { std::f64::consts::PI } else { 0.0 } + deviation.to_radians();
+            let elbow = [
+                tip[0] + 20.0 * direction.cos(),
+                tip[1] + 20.0 * direction.sin(),
+            ];
+            let issues = lint::lint(
+                &a,
+                &drawing(
+                    ALONG_Z,
+                    vec![callout("d:r", &[("f:blend:1", "blend.radius")], tip, elbow)],
+                ),
+            );
+            assert!(
+                issues
+                    .iter()
+                    .filter(|i| i.code.starts_with("radius_leader_"))
+                    .count()
+                    <= 1
+            );
+            let radial: Vec<_> = issues
+                .iter()
+                .filter(|i| i.code == "radius_leader_not_radial")
+                .collect();
+            assert_eq!(radial.len(), usize::from(bad), "{angle} {deviation}");
+            if bad {
+                assert_eq!(radial[0].severity, Severity::Warning);
+                assert_eq!(radial[0].annotation.as_deref(), Some("d:r"));
+                assert_eq!(radial[0].measurements, ["f:blend:1/blend.radius"]);
+            }
+        }
+    }
+}
+
+/// A consolidated fillet is checked against its own face, including its material side.
+#[test]
+fn fillet_radius_shafts_use_the_fillets_own_cylindrical_evidence() {
+    let f = feature(
+        "f:fillet:1",
+        "fillet",
+        json!({"radius":3.0, "axis":"z", "at":[3.0,0.0,0.0]}),
+    );
+    let mut a = analysis(vec![f], json!({}), &[]);
+    a.radius_arcs.insert("f:fillet:1".into(), serde_json::from_value(json!([{
+        "arc":{"centre":[0.0,0.0,0.0],"radius":3.0,"u":[1.0,0.0,0.0],"v":[0.0,1.0,0.0],"start":0.0,"sweep":std::f64::consts::FRAC_PI_2},
+        "axis":[0.0,0.0,1.0],"centre_open":true,"tips":[]
+    }])).unwrap());
+    let tip = page(3.0 / 2.0f64.sqrt(), 3.0 / 2.0f64.sqrt());
+    let draw = drawing(
+        ALONG_Z,
+        vec![callout(
+            "d:r",
+            &[
+                ("f:fillet:1", "fillet.radius"),
+                ("f:blend:missing", "blend.radius"),
+            ],
+            tip,
+            page(-5.0, -5.0),
+        )],
+    );
+    assert!(found(&a, &draw, "radius_leader").is_empty());
+    a.radius_arcs.get_mut("f:fillet:1").unwrap()[0].centre_open = false;
+    assert_eq!(
+        found(&a, &draw, "radius_leader_not_radial"),
+        one("radius_leader_not_radial", "d:r")
+    );
+}
+
+#[test]
+fn toroidal_radius_direction_limits_are_explicit() {
+    let f = feature(
+        "f:blend:1",
+        "blend",
+        json!({"radius":3.0,"path":{"at":[0.0,0.0,0.0],"normal":[0.0,0.0,1.0]}}),
+    );
+    let a = analysis(vec![f], json!({"f:blend:1":[[3.0,0.0,0.0]]}), &[]);
+    let draw = drawing(
+        ALONG_Z,
+        vec![callout(
+            "d:r",
+            &[("f:blend:1", "blend.radius")],
+            page(3.0, 0.0),
+            page(10.0, 10.0),
+        )],
+    );
+    let issues = lint::lint(&a, &draw);
+    assert!(issues.iter().any(|i| {
+        i.code == "radius_leader_target_unverifiable"
+            && i.severity == Severity::Info
+            && i.evidence
+                .as_ref()
+                .is_some_and(|why| why.contains("toroidal"))
+    }));
+}
+
 /// ADR2-8, ISSUE-798-b/d, LINT-code-leader_crosses_silhouette: a shaft leaving its own body
 /// (whatever it passes over inside it, a bore included) is not reported; a shaft that goes on
 /// into a second body is, as info, with the depth it cuts; a deeper cut reads deeper. The
@@ -814,4 +925,291 @@ fn recovered_ftc09_keeps_a1_and_perpendicular_witnesses() {
             .iter()
             .any(|i| i.code == "oblique_witness_crossing")
     );
+}
+
+/// #145: the real front-view R5 remains drawn and has a radial, open-side shaft.
+/// The solid-box silhouette test deliberately cannot see its original boss crossing.
+#[test]
+fn ctc01_r5_meets_the_fillet_from_the_open_centre_side() {
+    let corpus = std::env::var("DRAFTWRIGHT_CORPUS")
+        .unwrap_or_else(|_| "/Users/paul/repos/quiddity/tests/corpus".into());
+    let path = Path::new(&corpus).join("nist/nist_ctc_01_asme1_rd.stp");
+    if !path.is_file() {
+        assert!(std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").is_err());
+        return;
+    }
+    let (part, a) = model::analyse_native(&path).unwrap();
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    let d = p
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:blend:23/blend.radius")
+        .unwrap();
+    assert_eq!(d.view, "v:front");
+    assert_eq!(d.measurements.len(), 6);
+    let placed = d.placed.as_ref().expect("never drop the callout");
+    let view = p.views.iter().find(|v| v.id == d.view).unwrap();
+    let projection = draftwright::haecceity::hlr::View::new(view.direction, view.up).unwrap();
+    let middle = projection.map([0, 1, 2].map(|k| (a.envelope[0][k] + a.envelope[1][k]) / 2.0));
+    let page = |q| {
+        let q = projection.map(q);
+        [0, 1].map(|k| view.at[k] + view.scale * (q[k] - middle[k]))
+    };
+    let [tip, elbow] = placed.lines[0];
+    assert!(
+        d.measurements
+            .iter()
+            .any(|m| a
+                .radius_arcs
+                .get(&m.feature)
+                .is_some_and(|arcs| arcs.iter().any(|arc| {
+                    let aligned: f64 = arc
+                        .axis
+                        .iter()
+                        .zip(view.direction)
+                        .map(|(x, y)| x * y)
+                        .sum();
+                    if aligned.abs() < 1.0 - 1e-9 {
+                        return false;
+                    }
+                    let c = page(arc.arc.centre);
+                    let u = [c[0] - tip[0], c[1] - tip[1]];
+                    let v = [elbow[0] - tip[0], elbow[1] - tip[1]];
+                    arc.centre_open
+                        && u[0] * v[0] + u[1] * v[1]
+                            >= 15.0f64.to_radians().cos() * u[0].hypot(u[1]) * v[0].hypot(v[1])
+                                - 1e-9
+                })))
+    );
+    let drawing = model::render(&part, &a, &p, &font()).unwrap();
+    assert!(
+        !lint::lint(&a, &drawing)
+            .iter()
+            .any(|i| i.annotation.as_deref() == Some(d.id.as_str())
+                && i.code.starts_with("radius_leader_"))
+    );
+    let convex = p
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:fillet:6/fillet.radius")
+        .unwrap();
+    assert_eq!(
+        convex
+            .measurements
+            .iter()
+            .filter(|m| m.parameter == "fillet.radius")
+            .count(),
+        7
+    );
+    assert!(convex.placed.is_some(), "retain the plate corner radius");
+    assert!(
+        !lint::lint(&a, &drawing)
+            .iter()
+            .any(|i| i.annotation.as_deref() == Some(convex.id.as_str())
+                && i.code.starts_with("radius_leader_")),
+        "convex R50 must approach radially from outside"
+    );
+    let material = draftwright::material::solids(&a, page);
+    // One initial interval is intentionally exempt even when it runs through a boss.
+    let box_centre = [0, 1].map(|k| (material[0][k] + material[0][k + 2]) / 2.0);
+    assert_eq!(
+        draftwright::material::reentry(
+            &material,
+            [box_centre, [material[0][2] + 10.0, box_centre[1]]]
+        ),
+        0.0
+    );
+}
+
+/// Locality also holds at the recovered planner used by sessions and the CLI,
+/// independently of an earlier plan/cache entry for the unedited document.
+#[test]
+fn recovered_radius_routes_survive_unrelated_annotation_edits() {
+    let Some(corpus) = std::env::var_os("DRAFTWRIGHT_CORPUS") else {
+        return;
+    };
+    let path = Path::new(&corpus).join("nist/nist_ctc_01_asme1_rd.stp");
+    let (_, a) = model::analyse_native(&path).unwrap();
+    for edit in [json!({"omit":true}), json!({"tolerance":"±0.05"})] {
+        let spec: Spec = serde_json::from_value(json!({"dimensions":{
+            "d:f:hole_pattern:1/location.length.x": edit
+        }}))
+        .unwrap();
+        // Plan the edited document first: locality is not a cache-history policy.
+        let edited = model::plan_recovered(&a, &spec).unwrap();
+        let full = model::plan_recovered(&a, &Spec::default()).unwrap();
+        let mut compared = 0;
+        for before in full.dimensions.iter().filter(|d| {
+            d.placed.is_some()
+                && d.measurements
+                    .iter()
+                    .any(|m| matches!(m.parameter.as_str(), "fillet.radius" | "blend.radius"))
+        }) {
+            let after = edited
+                .dimensions
+                .iter()
+                .find(|d| d.id == before.id)
+                .unwrap();
+            assert_eq!(
+                after.measurements, before.measurements,
+                "{} claims",
+                before.id
+            );
+            assert_eq!(after.view, before.view, "{} carrier", before.id);
+            let (old, new) = (
+                before.placed.as_ref().unwrap(),
+                after.placed.as_ref().unwrap(),
+            );
+            let prior_view = full.views.iter().find(|v| v.id == before.view).unwrap();
+            let current_view = edited.views.iter().find(|v| v.id == after.view).unwrap();
+            assert_eq!(old.lines.len(), new.lines.len());
+            assert_eq!(old.arrows.len(), new.arrows.len());
+            for (p, q) in old
+                .lines
+                .iter()
+                .chain(&old.arrows)
+                .flatten()
+                .zip(new.lines.iter().chain(&new.arrows).flatten())
+            {
+                for k in 0..2 {
+                    assert!(
+                        (p[k] - prior_view.at[k] - q[k] + current_view.at[k]).abs() < 1e-9,
+                        "{} route moved for {spec:?}",
+                        before.id
+                    );
+                }
+            }
+            for k in 0..4 {
+                assert!(
+                    (old.label_box[k] - prior_view.at[k % 2] - new.label_box[k]
+                        + current_view.at[k % 2])
+                        .abs()
+                        < 1e-9,
+                    "{} label moved for {spec:?}",
+                    before.id
+                );
+            }
+            compared += 1;
+        }
+        assert!(compared >= 2);
+    }
+}
+
+/// #145: convex-corner repair cannot put text under the schedule's origin leader.
+#[test]
+fn ctc04_radius_labels_keep_the_schedule_origin_leader_clear() {
+    let Some((_, p, _)) = native_drawing("nist/nist_ctc_04_asme1_rd.stp", true) else {
+        return;
+    };
+    let origin = p
+        .balloons
+        .iter()
+        .find(|b| b.id == "hole_schedule_plan/origin")
+        .expect("retain the schedule origin")
+        .leader
+        .unwrap();
+    let d = p
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:fillet:2/fillet.radius")
+        .unwrap();
+    let b = d.placed.as_ref().expect("retain the radius").label_box;
+    let inside = |q: P| q[0] > b[0] && q[0] < b[2] && q[1] > b[1] && q[1] < b[3];
+    let side = |a: P, b: P, c: P| (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    let corners = [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]];
+    assert!(!origin.into_iter().any(inside));
+    for i in 0..4 {
+        let edge = [corners[i], corners[(i + 1) % 4]];
+        assert!(
+            !(side(origin[0], origin[1], edge[0]) * side(origin[0], origin[1], edge[1]) < -1e-12
+                && side(edge[0], edge[1], origin[0]) * side(edge[0], edge[1], origin[1]) < -1e-12)
+        );
+    }
+}
+
+/// A retained automatic route has only the drawn finding, never a duplicate plan warning.
+#[test]
+fn retained_radius_routes_have_one_finding_per_callout() {
+    let Some((a, p, draw)) = native_drawing("mfcadpp_holdout/363.step", false) else {
+        return;
+    };
+    assert!(
+        !p.problems
+            .iter()
+            .any(|i| i.code == "radius_leader_routing_fallback")
+    );
+    let mut counts = BTreeMap::new();
+    for warning in lint::lint(&a, &draw)
+        .into_iter()
+        .filter(|i| i.code.starts_with("radius_leader_"))
+    {
+        let id = warning.annotation.unwrap();
+        assert!(
+            p.dimensions
+                .iter()
+                .any(|d| d.id == id && d.placed.is_some())
+        );
+        *counts.entry(id).or_insert(0) += 1;
+    }
+    assert!(counts.values().all(|&count| count == 1));
+}
+
+/// Toroidal meridians come from real trimmed faces, with exact minor-radius centres.
+#[test]
+fn toroidal_meridian_evidence_stays_on_the_trimmed_minor_circles() {
+    let (part, mut a) = model::analyse(&fixture("parts/turned.step")).unwrap();
+    let recognition = std::fs::read_to_string(fixture("recognition/turned.json")).unwrap();
+    model::recognise(&part, &mut a, &recognition).unwrap();
+    let mut checked = 0;
+    for f in a.features.iter().filter(|f| f.kind == "fillet") {
+        let tori: Vec<_> = f
+            .faces
+            .iter()
+            .copied()
+            .filter(|&i| {
+                matches!(
+                    part.faces[i].surface,
+                    draftwright::haecceity::geom::Surface::Torus { .. }
+                )
+            })
+            .collect();
+        if tori.len() != f.faces.len() {
+            continue;
+        }
+        for section in a.radius_arcs.get(&f.id).into_iter().flatten() {
+            assert!(!section.tips.is_empty());
+            for &tip in &section.tips {
+                let delta = [0, 1, 2].map(|k| tip[k] - section.arc.centre[k]);
+                assert!(
+                    (delta.iter().map(|x| x * x).sum::<f64>().sqrt() - section.arc.radius).abs()
+                        < 1e-9
+                );
+                assert!(
+                    delta
+                        .iter()
+                        .zip(section.axis)
+                        .map(|(x, y)| x * y)
+                        .sum::<f64>()
+                        .abs()
+                        < 1e-9
+                );
+                assert!(tori.iter().any(|&i| {
+                    let surface = &part.faces[i].surface;
+                    let Some((u0, u1, v0, v1)) = part.uv_bounds(i) else {
+                        return false;
+                    };
+                    let Some((u, v)) =
+                        surface.parameters(tip, Some(((u0 + u1) / 2.0, (v0 + v1) / 2.0)))
+                    else {
+                        return false;
+                    };
+                    let q = surface.value(u, v);
+                    q.iter().zip(tip).all(|(x, y)| (x - y).abs() < 1e-9)
+                        && part.domain(i).unwrap().contains(u, v)
+                }));
+            }
+            checked += 1;
+        }
+    }
+    assert!(checked > 0, "exercise readable toroidal minor circles");
 }
