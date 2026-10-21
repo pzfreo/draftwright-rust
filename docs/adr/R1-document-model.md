@@ -91,3 +91,9 @@ The Plan does not copy the evidence: a resolved annotation placed inside carries
 `region: interior` provenance and a basis sentence. All nine invariants above remain in force,
 including deterministic JSON, relative author intent, stable IDs, and renderers drawing
 resolved annotations only.
+
+The #147 final route repair (2026-10-20) uses this same conservative evidence after
+GD&T, notes and tables settle. It compares bounded exterior rays and proven blank-face
+rays for crossing feature callouts, leader-attached frames and surface labels. Existing
+clear drawings and ties retain their placements; datums keep their triangle attachment
+and their existing frame normal. No new projections or document fields are required.

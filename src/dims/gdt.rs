@@ -2336,6 +2336,35 @@ pub fn placement_options(
         .collect()
 }
 
+/// Retry the frame only along its existing face normal. The triangle and any
+/// planar face extension stay exactly where #141 proved them; no oblique datum.
+pub(super) fn normal_routes(g: &PlannedGdt) -> Vec<Placed> {
+    let Some(p) = &g.placed else {
+        return Vec::new();
+    };
+    let Some(line) = p.lines.first() else {
+        return Vec::new();
+    };
+    let u = outward(&g.side);
+    let old = (line[1][0] - line[0][0]).hypot(line[1][1] - line[0][1]);
+    (0..64)
+        .filter_map(|i| {
+            let length = 0.8 * TEXT + f64::from(i) * 1.0;
+            if length > old + 1e-6 {
+                return None;
+            }
+            let delta = [u[0] * (length - old), u[1] * (length - old)];
+            let mut q = proxy(g)?.placed?;
+            q.lines[0][1] = [line[1][0] + delta[0], line[1][1] + delta[1]];
+            for k in 0..4 {
+                q.label_box[k] += delta[k % 2];
+            }
+            q.label_at = [q.label_box[0], q.label_box[1]];
+            Some(q)
+        })
+        .collect()
+}
+
 /// Explicit datum visibility intent, shared by strip demand and symbol placement.
 fn datum_omission(analysis: &Analysis, spec: &Spec, item: &Lowered) -> Option<&'static str> {
     if !matches!(item.glyph, Glyph::Datum { .. })

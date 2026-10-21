@@ -3436,6 +3436,9 @@ fn plan_recovered_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invali
             crate::sheet_policy::select(analysis, spec)?
         };
         let effective = crate::spec_gdt::effective(analysis, &plan.spec)?;
+        // Repair only the selected drawing. Candidate paper/scale trials keep their
+        // established costs, so a clearer route cannot force a larger sheet.
+        crate::dims::callout_routes::finish(effective.as_ref(), spec, &mut plan);
         crate::dims::pmi_policy::audit(effective.as_ref(), &plan.spec.clone(), &mut plan);
         if crate::dims::pmi_policy::carries(effective.as_ref()) || !spec.origin.is_empty() {
             crate::fixes::attach(effective.as_ref(), &mut plan);
@@ -3995,6 +3998,7 @@ fn plan_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     crate::planning::with(analysis, || {
         let mut plan = plan_with(analysis, spec, false, false, None, false, false)?;
         finish_nominal_plan(analysis, spec, &mut plan);
+        crate::dims::callout_routes::finish(analysis, spec, &mut plan);
         if !crate::placement_intent::has_pins(spec) {
             plan.record_dimension_labels();
         }
@@ -4136,7 +4140,11 @@ fn plan_with_presentation(
         // including precision repairs, even in its first unexpanded candidate.
         let replay = |base: &Spec| {
             if complete_views || crate::planning::nominals_deferred() {
-                plan_automatic(analysis, base)
+                let mut finished = plan_automatic(analysis, base)?;
+                // A bare pin holds the published route, including final-inventory
+                // interior/GD&T repair, rather than an intermediate paper trial.
+                crate::dims::callout_routes::finish(analysis, base, &mut finished);
+                Ok(finished)
             } else {
                 plan(analysis, base)
             }
@@ -7754,7 +7762,7 @@ pub fn render_item(item: AnnotationItem<'_>) -> RenderedItem {
     let mut out = RenderedItem::default();
     let interior = match &item {
         AnnotationItem::Dimension(d) => d.region == Some(crate::dims::CandidateRegion::Interior),
-        AnnotationItem::Gdt(_) => false,
+        AnnotationItem::Gdt(g) => g.basis.contains(crate::dims::interior::BASIS),
     };
     let heads = match &item {
         AnnotationItem::Dimension(d) => d

@@ -1,0 +1,629 @@
+//! Final, bounded route repair against the complete printed inventory (#147).
+//! Geometry producers remain in `leaders`; datum triangles never move here.
+use std::collections::{BTreeMap, BTreeSet};
+
+use super::{Placed, PlannedDimension, gdt, interior, leaders, placement};
+use crate::model::{Analysis, Plan, Problem, Spec};
+
+/// Counts every crossing kind independently, plus every other problem code.
+/// Trading a leader/leader crossing for a leader through text is never an improvement.
+fn counts(problems: &[Problem]) -> BTreeMap<String, usize> {
+    let mut out = BTreeMap::new();
+    for p in problems {
+        *out.entry(p.code.clone()).or_default() += 1;
+        for kind in &p.crossing_kinds {
+            *out.entry(format!("crossing:{kind}")).or_default() += 1;
+        }
+    }
+    out
+}
+
+fn route_issue(code: &str) -> bool {
+    matches!(
+        code,
+        "annotation_leader_crossing"
+            | "annotation_ink_overlap"
+            | "annotation_overlap"
+            | "annotation_over_view"
+            | "annotation_line_over_view"
+            | "annotation_leader_long"
+    )
+}
+
+fn improves(before: &[Problem], after: &[Problem]) -> bool {
+    let a = counts(before);
+    let b = counts(after);
+    let defects = |counts: &BTreeMap<String, usize>| {
+        counts
+            .iter()
+            .filter(|(code, _)| route_issue(code))
+            .map(|(_, n)| n)
+            .sum::<usize>()
+    };
+    b.iter().all(|(k, n)| *n <= a.get(k).copied().unwrap_or(0)) && defects(&b) < defects(&a)
+}
+
+/// The complete ring/tag and shaft of a schedule balloon are fixed annotation ink.
+fn balloon_obstacle(b: &crate::hole_table::Balloon) -> PlannedDimension {
+    let [x, y] = b.at;
+    let r = b.radius;
+    let ring = [x - r, y - r, x + r, y + r];
+    let label = b.label_box.unwrap_or_else(|| {
+        let ink = super::label_ink(std::slice::from_ref(&b.tag), super::font());
+        let w = 0.5 * (ink.max[0] - ink.min[0]);
+        let h = 0.5 * (ink.max[1] - ink.min[1]);
+        [x - w, y - h, x + w, y + h]
+    });
+    let box_ = [
+        label[0].min(ring[0]),
+        label[1].min(ring[1]),
+        label[2].max(ring[2]),
+        label[3].max(ring[3]),
+    ];
+    let mut lines = Vec::new();
+    if r > 0.0 {
+        let corners = [
+            [x - r, y - r],
+            [x + r, y - r],
+            [x + r, y + r],
+            [x - r, y + r],
+        ];
+        lines.extend((0..4).map(|i| [corners[i], corners[(i + 1) % 4]]));
+    }
+    let mut arrows = Vec::new();
+    if let Some([tip, end]) = b.leader {
+        lines.push([tip, end]);
+        arrows.push(placement::arrow(tip, end));
+    }
+    PlannedDimension {
+        id: b.id.clone(),
+        kind: "ink".into(),
+        view: b.view.clone(),
+        value: 0.0,
+        label: b.tag.clone(),
+        terms: vec![b.tag.clone()],
+        measurements: Vec::new(),
+        default: true,
+        from_spec: Vec::new(),
+        basis: "balloon".into(),
+        state: b.state.clone(),
+        region: None,
+        reference: false,
+        determined_by: Vec::new(),
+        placed: Some(Placed {
+            label_box: box_,
+            label_at: b.at,
+            rotation: 0.0,
+            lines,
+            arrows,
+        }),
+    }
+}
+
+fn furniture(plan: &Plan) -> Vec<PlannedDimension> {
+    let mut fixed = crate::centrelines::obstacles(&plan.views);
+    fixed.extend(plan.tables.iter().filter_map(crate::tables::proxy));
+    fixed.extend(
+        plan.hole_table
+            .iter()
+            .chain(&plan.hole_tables)
+            .flat_map(|t| &t.blocks)
+            .filter_map(crate::tables::proxy),
+    );
+    fixed.extend(plan.balloons.iter().map(balloon_obstacle));
+    for block in [&plan.notes_block, &plan.radius_notes_block]
+        .into_iter()
+        .flatten()
+    {
+        fixed.push(crate::notes::proxy(block));
+    }
+    if let Some(table) = &plan.radius_table {
+        fixed.extend(crate::tables::proxy(&table.table));
+    }
+    fixed.extend(plan.requirements.iter().filter_map(gdt::finish_proxy));
+    fixed.extend(plan.captions.iter().map(crate::iso_caption::proxy));
+    // Triangles stay fixed; all-around marks travel with their frame's bend.
+    // Reserve both independently of the frame's label box.
+    for g in &plan.gdt {
+        if let Some(p) = &g.placed {
+            let mut shapes: Vec<_> = p
+                .fills
+                .iter()
+                .enumerate()
+                .map(|(i, fill)| (format!("{}:triangle:{i}", g.id), fill.clone()))
+                .collect();
+            let count = g
+                .modifiers
+                .iter()
+                .map(|m| if m == "all_over" { 2 } else { 1 })
+                .sum();
+            for (i, arc) in p.arcs.iter().rev().take(count).enumerate() {
+                let [x, y, r, _, _] = *arc;
+                shapes.push((
+                    format!("{}:modifier:{i}", g.id),
+                    vec![
+                        [x - r, y - r],
+                        [x + r, y - r],
+                        [x + r, y + r],
+                        [x - r, y + r],
+                    ],
+                ));
+            }
+            for (id, fill) in shapes {
+                let mut d = gdt::proxy(g).expect("a placed glyph has a proxy");
+                d.id = id;
+                d.kind = "ink".into();
+                let b = fill.iter().fold(
+                    [
+                        f64::INFINITY,
+                        f64::INFINITY,
+                        f64::NEG_INFINITY,
+                        f64::NEG_INFINITY,
+                    ],
+                    |b, p| {
+                        [
+                            b[0].min(p[0]),
+                            b[1].min(p[1]),
+                            b[2].max(p[0]),
+                            b[3].max(p[1]),
+                        ]
+                    },
+                );
+                let p = d.placed.as_mut().expect("the proxy retains its placement");
+                p.label_box = b;
+                p.lines = (0..fill.len())
+                    .map(|i| [fill[i], fill[(i + 1) % fill.len()]])
+                    .collect();
+                p.arrows.clear();
+                fixed.push(d);
+            }
+        }
+    }
+    fixed
+}
+
+fn rehang(g: &mut gdt::PlannedGdt, next: &Placed) {
+    let p = g.placed.as_mut().expect("placed glyph");
+    let delta = [
+        next.label_box[0] - p.label_box[0],
+        next.label_box[1] - p.label_box[1],
+    ];
+    let shift = |q: &mut [f64; 2]| {
+        q[0] += delta[0];
+        q[1] += delta[1];
+    };
+    // The glyph and text move as one rigid object: all compartment widths and 3 mm text stay.
+    for line in &mut p.strokes {
+        for q in line {
+            shift(q);
+        }
+    }
+    for arc in &mut p.arcs {
+        arc[0] += delta[0];
+        arc[1] += delta[1];
+    }
+    for text in p.letters.iter_mut().chain(&mut p.runs) {
+        shift(&mut text.at);
+    }
+    if g.kind != "datum_feature" {
+        let old_elbow = p.lines.first().map(|s| s[1]);
+        let new_elbow = next.lines.first().map(|s| s[1]);
+        // All-around/all-over rings belong at the bend, rather than on the frame.
+        if let (Some(a), Some(b)) = (old_elbow, new_elbow) {
+            let count = g
+                .modifiers
+                .iter()
+                .map(|m| if m == "all_over" { 2 } else { 1 })
+                .sum::<usize>();
+            for arc in p.arcs.iter_mut().rev().take(count) {
+                arc[0] += b[0] - a[0] - delta[0];
+                arc[1] += b[1] - a[1] - delta[1];
+            }
+        }
+        p.tip = next.lines[0][0];
+    }
+    p.lines.clone_from(&next.lines);
+    p.arrows.clone_from(&next.arrows);
+    p.label_box = next.label_box;
+}
+
+pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
+    if crate::nominal::comparison()
+        || crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[])
+            .unwrap_or(false)
+        || !plan.problems.iter().any(|p| route_issue(&p.code))
+    {
+        return;
+    }
+    let affected_ids: BTreeSet<_> = plan
+        .problems
+        .iter()
+        .filter(|p| route_issue(&p.code))
+        .flat_map(|p| p.subjects.iter().cloned())
+        .collect();
+    if !plan
+        .dimensions
+        .iter()
+        .any(|d| d.kind == "callout" && d.placed.is_some() && affected_ids.contains(&d.id))
+        && !plan.gdt.iter().any(|g| {
+            g.kind != "surface_finish" && g.placed.is_some() && affected_ids.contains(&g.id)
+        })
+    {
+        return;
+    }
+    let cache = super::footprints::Cache::default();
+    let proofs = interior::proofs(analysis, &plan.views);
+    let exterior = if plan.gdt.iter().any(|g| g.kind == "datum_feature") {
+        interior::exterior_proofs(analysis, &plan.views)
+    } else {
+        BTreeMap::new()
+    };
+    let mut wants = super::wants(analysis).0;
+    let frames = plan
+        .views
+        .iter()
+        .filter_map(|v| {
+            let name = v.id.strip_prefix("v:")?;
+            (super::NAMES.contains(&name) || crate::detail::NAMES.contains(&name))
+                .then(|| (name, placement::Frame::new(analysis, v)))
+        })
+        .collect();
+    super::detail_routes(analysis, &mut wants, &plan.views);
+    super::route(&mut wants, &frames, analysis);
+    let mut fixed = furniture(plan);
+    let mut all = plan.dimensions.clone();
+    all.extend(plan.gdt.iter().filter_map(gdt::proxy));
+    let dimension_count = plan.dimensions.len();
+    let mut changed = BTreeSet::new();
+    let mut rechecked_codes = BTreeSet::new();
+    // Two deterministic sweeps let a later frame release an earlier callout's corridor.
+    for _ in 0..2 {
+        let mut moved = false;
+        for i in 0..all.len() {
+            let d = &all[i];
+            if !affected_ids.contains(&d.id)
+                || d.kind != "callout"
+                || d.placed.is_none()
+                || spec
+                    .dimensions
+                    .get(&d.id)
+                    .is_some_and(|s| s.place.is_some())
+                || spec
+                    .annotations
+                    .get(&d.id)
+                    .is_some_and(|s| s.place.is_some())
+            {
+                continue;
+            }
+            let Some(view) = plan.views.iter().find(|v| v.id == d.view) else {
+                continue;
+            };
+            let Some(sheet) = std::iter::once(&plan.sheet)
+                .chain(&plan.sheets)
+                .find(|s| s.number == view.sheet)
+            else {
+                continue;
+            };
+            let before =
+                placement::collisions_for(analysis, &all, sheet, &plan.views, &cache, &d.id);
+            if !before.iter().any(|p| route_issue(&p.code)) {
+                continue;
+            }
+            let glyph = plan.gdt.iter().find(|g| g.id == d.id).cloned();
+            let want = wants.iter().find(|w| w.id == d.id);
+            if glyph.is_none() && want.is_none() {
+                continue;
+            }
+            // Finishes have a prescribed outward normal, independent of leadered labels.
+            if glyph.as_ref().is_some_and(|g| g.kind == "surface_finish") {
+                continue;
+            }
+            let triangle_prefix = format!("{}:triangle:", d.id);
+            let modifier_prefix = format!("{}:modifier:", d.id);
+            let peers: Vec<_> = all
+                .iter()
+                .enumerate()
+                .filter(|(j, q)| {
+                    *j != i
+                        && plan
+                            .views
+                            .iter()
+                            .find(|v| v.id == q.view)
+                            .is_none_or(|v| v.sheet == sheet.number)
+                })
+                .map(|(_, q)| q.clone())
+                .chain(
+                    fixed
+                        .iter()
+                        .filter(|q| {
+                            !q.id.starts_with(&triangle_prefix)
+                                && !q.id.starts_with(&modifier_prefix)
+                        })
+                        .cloned(),
+                )
+                .collect();
+            let candidates = if glyph.as_ref().is_some_and(|g| g.kind == "datum_feature") {
+                gdt::normal_routes(glyph.as_ref().expect("datum"))
+            } else {
+                leaders::settled_routes(
+                    analysis,
+                    sheet,
+                    &plan.views,
+                    d,
+                    want,
+                    &peers,
+                    proofs.get(&view.id).map(|p| p.as_ref()),
+                )
+            };
+            let id = d.id.clone();
+            let old = d.placed.clone();
+            for next in candidates.into_iter().take(40) {
+                // The all-around/all-over marks travel with the bend. Reserve
+                // their actual extent as well as the proxy's shaft and frame.
+                if let Some(g) = glyph.as_ref().filter(|g| !g.modifiers.is_empty()) {
+                    let ring = if g.modifiers.iter().any(|m| m == "all_over") {
+                        1.7 * 0.42 * super::TEXT
+                    } else {
+                        0.42 * super::TEXT
+                    } + 0.5;
+                    let bend = next.lines[0][1];
+                    let b = [
+                        bend[0] - ring,
+                        bend[1] - ring,
+                        bend[0] + ring,
+                        bend[1] + ring,
+                    ];
+                    let ring_clear = proofs.get(&view.id).map_or_else(
+                        || {
+                            frames
+                                .get(view.id.trim_start_matches("v:"))
+                                .is_none_or(|f| !placement::boxes_overlap(b, f.outline()))
+                        },
+                        |p| p.blank(view, b) || p.exterior_clear(view, b, &[], &[]),
+                    );
+                    if !ring_clear
+                        || peers.iter().filter_map(|d| d.placed.as_ref()).any(|p| {
+                            placement::boxes_overlap(b, p.label_box)
+                                || p.lines
+                                    .iter()
+                                    .chain(&p.arrows)
+                                    .any(|s| leaders::touches_box(*s, b))
+                        })
+                        || (proofs
+                            .get(&view.id)
+                            .is_some_and(|p| p.blank(view, next.label_box))
+                            && !proofs[&view.id].blank(view, b))
+                    {
+                        continue;
+                    }
+                }
+                // Full sheet furniture is fixed even when collision reporting only
+                // enumerates dimensions and PMI. Keep the existing 1 mm text gap.
+                let pad = [
+                    next.label_box[0] - 1.,
+                    next.label_box[1] - 1.,
+                    next.label_box[2] + 1.,
+                    next.label_box[3] + 1.,
+                ];
+                if peers.iter().filter_map(|q| q.placed.as_ref()).any(|q| {
+                    placement::boxes_overlap(pad, q.label_box)
+                        || q.lines
+                            .iter()
+                            .chain(&q.arrows)
+                            .any(|s| placement::crosses(*s, pad))
+                        || next
+                            .lines
+                            .iter()
+                            .any(|s| placement::crosses(*s, q.label_box))
+                }) {
+                    continue;
+                }
+
+                all[i].placed = Some(next.clone());
+                let after =
+                    placement::collisions_for(analysis, &all, sheet, &plan.views, &cache, &id);
+                if improves(&before, &after) {
+                    rechecked_codes.extend(before.iter().chain(&after).map(|p| p.code.clone()));
+                    if i < dimension_count {
+                        let d = &mut plan.dimensions[i];
+                        let inside = proofs
+                            .get(&view.id)
+                            .is_some_and(|p| p.annotation_clear(view, &next, true));
+                        d.region = inside.then_some(super::CandidateRegion::Interior);
+                        if inside {
+                            if !d.basis.contains(interior::BASIS) {
+                                d.basis += interior::BASIS;
+                            }
+                        } else {
+                            d.basis = d.basis.replace(interior::BASIS, "");
+                        }
+                        d.placed = Some(next.clone());
+                        plan.callout_tips.insert(
+                            id.clone(),
+                            (
+                                d.view.clone(),
+                                [
+                                    next.lines[0][0][0] - view.at[0],
+                                    next.lines[0][0][1] - view.at[1],
+                                ],
+                            ),
+                        );
+                    } else if let Some(g) = plan.gdt.iter_mut().find(|g| g.id == id) {
+                        rehang(g, &next);
+                        let inside = proofs
+                            .get(&view.id)
+                            .is_some_and(|p| p.blank(view, next.label_box))
+                            || (g.kind == "datum_feature"
+                                && exterior
+                                    .get(&view.id)
+                                    .is_some_and(|p| p.exterior_annotation_clear(view, &next)));
+                        let inside = inside
+                            && frames
+                                .get(view.id.trim_start_matches("v:"))
+                                .is_some_and(|f| {
+                                    placement::boxes_overlap(next.label_box, f.outline())
+                                });
+                        if inside {
+                            if !g.basis.contains(interior::BASIS) {
+                                g.basis += interior::BASIS;
+                            }
+                        } else {
+                            g.basis = g.basis.replace(interior::BASIS, "");
+                        }
+                        if g.kind != "datum_feature"
+                            && !inside
+                            && let Some(frame) = frames.get(view.id.trim_start_matches("v:"))
+                        {
+                            let o = frame.outline();
+                            let b = next.label_box;
+                            g.side = if b[2] <= o[0] {
+                                "left"
+                            } else if b[0] >= o[2] {
+                                "right"
+                            } else if b[1] >= o[3] {
+                                "above"
+                            } else {
+                                "below"
+                            }
+                            .into();
+                        }
+                    }
+                    if glyph.as_ref().is_some_and(|g| !g.modifiers.is_empty()) {
+                        fixed = furniture(plan);
+                    }
+                    changed.insert(id.clone());
+                    moved = true;
+                    break;
+                }
+                all[i].placed.clone_from(&old);
+            }
+        }
+        if !moved {
+            break;
+        }
+    }
+    if changed.is_empty() {
+        return;
+    }
+    let checked: Vec<_> = std::iter::once(&plan.sheet)
+        .chain(&plan.sheets)
+        .flat_map(|s| placement::collisions_cached(analysis, &all, s, &plan.views, &cache))
+        .collect();
+    // Replace only findings involving changed ink; untouched diagnostics retain their identity.
+    plan.problems.retain(|p| {
+        !p.subjects.iter().any(|s| changed.contains(s))
+            || !(rechecked_codes.contains(&p.code)
+                || matches!(
+                    p.code.as_str(),
+                    "annotation_leader_long" | "annotation_line_over_view"
+                ))
+    });
+    plan.problems.extend(
+        checked
+            .into_iter()
+            .filter(|p| p.subjects.iter().any(|s| changed.contains(s))),
+    );
+    plan.sheet.fill = crate::sheet_fit::fill(analysis, plan);
+    plan.status = crate::completeness::status(&plan.problems);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn crossing(kinds: &[&str]) -> Problem {
+        Problem {
+            code: "annotation_leader_crossing".into(),
+            crossing_kinds: kinds.iter().map(|s| (*s).into()).collect(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn a_route_must_improve_crossings_without_trading_kinds_or_text() {
+        let before = vec![crossing(&["leader"]), crossing(&["extension_line"])];
+        assert!(improves(&before, &[crossing(&["extension_line"])]));
+        assert!(!improves(&before, &[crossing(&["arrow"])]));
+        assert!(improves(
+            &[Problem {
+                code: "annotation_ink_overlap".into(),
+                ..Default::default()
+            }],
+            &[]
+        ));
+        assert!(
+            !improves(&before, &before),
+            "ties retain the existing exterior route"
+        );
+        assert!(!improves(
+            &before,
+            &[Problem {
+                code: "annotation_ink_overlap".into(),
+                ..Default::default()
+            }]
+        ));
+    }
+
+    #[test]
+    fn a_final_frame_cannot_cross_a_schedule_balloon_label() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/parts/mounting_plate.step");
+        let a = crate::model::analyse_native(&path).unwrap().1;
+        let mut plan = crate::model::plan(&a, &Spec::default()).unwrap();
+        plan.balloons.push(crate::hole_table::Balloon {
+            id: "schedule/tag/B8".into(),
+            tag: "B8".into(),
+            view: "v:plan".into(),
+            features: Vec::new(),
+            certifying: true,
+            at: [140., 170.],
+            radius: 0.,
+            label_box: Some([138., 168.5, 142., 171.5]),
+            leader: None,
+            state: crate::items::State::Shown,
+        });
+        let fixed = furniture(&plan);
+        let label = fixed
+            .iter()
+            .find(|d| d.id == "schedule/tag/B8")
+            .expect("the printed balloon is a final obstacle")
+            .placed
+            .as_ref()
+            .unwrap();
+        let frame = Placed {
+            lines: vec![[[120., 170.], [160., 170.]]],
+            arrows: Vec::new(),
+            label_box: [160., 167., 180., 173.],
+            label_at: [160., 167.],
+            rotation: 0.,
+        };
+        assert!(
+            !placement::annotations_clear(&frame, label),
+            "the frame shaft crosses tag B8"
+        );
+    }
+
+    #[test]
+    fn a_proven_interior_gdt_flag_preserves_the_complete_glyph_and_text() {
+        let mut g: gdt::PlannedGdt = serde_json::from_value(serde_json::json!({
+            "id":"pmi:test", "kind":"control_frame", "view":"v:plan", "side":"right",
+            "source":"test", "faces":[0], "cells":["A"], "label":"A", "default":true,
+            "basis":"test", "state":{"kind":"shown"}, "placed": {
+                "tip":[-10.,3.], "lines":[[[-10.,3.],[-2.,3.]],[[-2.,3.],[0.,3.]]],
+                "arrows":[[[-10.,3.],[-7.3,3.]]], "label_box":[0.,0.,8.,6.],
+                "strokes":[[[0.,0.],[8.,0.]],[[8.,0.],[8.,6.]],[[8.,6.],[0.,6.]],[[0.,6.],[0.,0.]]],
+                "arcs":[], "fills":[], "letters":[{"text":"A","at":[4.,3.],"size":3.}],
+                "runs":[{"text":"A","at":[4.,3.],"size":3.}] }
+        }))
+        .unwrap();
+        let old = crate::model::render_item(crate::model::AnnotationItem::Gdt(&g));
+        assert!(!old.drawn[0].interior);
+        g.basis += interior::BASIS;
+        let new = crate::model::render_item(crate::model::AnnotationItem::Gdt(&g));
+        assert!(new.drawn[0].interior);
+        assert_eq!(new.drawn[0].ink, old.drawn[0].ink);
+        assert_eq!(new.drawn[0].label, old.drawn[0].label);
+        assert_eq!(new.text.len(), old.text.len());
+        assert!(new.text.iter().all(|t| t.size == 3.0));
+    }
+}

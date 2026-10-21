@@ -22,6 +22,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
   removes the placement, including relations without the pin flag (#95).
 - Spec surface finishes on `string_post` no longer activate the dimensional location audit
   and invent missing-location warnings.
+- #147: retry crossing feature callouts, leader-attached GD&T frames and AP242 surface labels
+  against the complete printed inventory, including proven blank face in their own view.
+  Include inward diameter/thread leaders over proven hole floors, while keeping 3 mm text,
+  existing radius attachment producers and datum face normals; equal costs
+  favour exterior routes. AP242 CTC/FTC fixtures join the per-kind crossing ratchet in
+  CI's `quality-pins` job. Final radius alternatives use #153's proven arc sites and
+  middle-arc/radial/open-side predicate. Bare pins retain the complete finished automatic
+  route, including interior repair.
 
 - Radius callouts (#145) try the middle half of a proven circular arc, within 15° of
   radial from the non-material side: towards the centre for concave fillets, away from it
