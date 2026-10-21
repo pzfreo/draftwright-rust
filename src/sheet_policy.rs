@@ -639,10 +639,7 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     // Keep its ordinary pin replay when no forced paper was selected; a fixed-pair
     // replay can have a different nominal presentation even at the same scale.
     let raw = model::plan_automatic(analysis, &base)?;
-    let mut plan = if count > 1
-        && crate::placement_intent::automatic_pins_only(spec)
-        && spec.views.values().all(|v| v.place.is_none())
-    {
+    let mut plan = if only_bare_pins(spec, &base) {
         // A bare pin holds the selected finished ink, including peers on every
         // physical page. Re-solving sheet 1 would create a different pin origin.
         let mut held = canonical.clone();
@@ -742,6 +739,21 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     );
     explain(&mut plan, canonical.sheet_candidates, &reason);
     Ok(plan)
+}
+
+fn only_bare_pins(spec: &Spec, base: &Spec) -> bool {
+    if !crate::placement_intent::automatic_pins_only(spec) {
+        return false;
+    }
+    let mut unpinned = spec.clone();
+    for dimension in unpinned.dimensions.values_mut() {
+        dimension.place = None;
+    }
+    unpinned.dimensions.retain(|_, d| *d != Default::default());
+    // Binding and schema migration are metadata, not additional author decisions.
+    unpinned.binding.clone_from(&base.binding);
+    unpinned.schema.clone_from(&base.schema);
+    unpinned == *base
 }
 
 fn omit_absent_details(analysis: &Analysis, forced: &mut Spec, baseline: &Plan, scale: f64) {
@@ -875,6 +887,21 @@ mod tests {
                 "{file}"
             );
         }
+    }
+
+    #[test]
+    fn retaining_bare_pin_ink_does_not_ignore_other_author_decisions() {
+        let mut spec: Spec = serde_json::from_value(json!({
+            "dimensions":{"d:test":{"place":{"pinned":true}}}
+        }))
+        .unwrap();
+        let base = model::pin_base(&spec);
+        assert!(only_bare_pins(&spec, &base));
+        spec.dimensions.get_mut("d:test").unwrap().omit = true;
+        assert!(!only_bare_pins(&spec, &base));
+        spec.dimensions.get_mut("d:test").unwrap().omit = false;
+        spec.views.entry("iso".into()).or_default().omit = true;
+        assert!(!only_bare_pins(&spec, &base));
     }
 
     #[test]

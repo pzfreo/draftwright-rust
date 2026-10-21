@@ -118,7 +118,17 @@ fn the_service_answers_each_line() {
             .starts_with("<?xml")
     );
     let problems = replies[1]["result"]["problems"].as_array().unwrap();
-    assert_eq!(problems.len(), 2, "{problems:?}");
+    assert_eq!(
+        problems
+            .iter()
+            .map(|p| p["code"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        [
+            "general_tolerance_missing",
+            "unclaimed_geometry",
+            "layout_replanned"
+        ]
+    );
     assert_eq!(
         problems[1],
         json!({
