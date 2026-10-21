@@ -380,9 +380,9 @@ fn rank(plan: &Plan) -> (usize, usize, f64, usize) {
 }
 
 // Ink that cannot be read whatever the reader's patience: overlapping text,
-// leader-through-text, ink outside its frame/title block and furniture or views
-// that could not be placed. Other layout warnings (extension crossings, route
-// lengths, feature crossings) are reported but do not choose paper.
+// leader-through-text, ink outside its frame, view area or title block, and
+// furniture or views that could not be placed. Other layout warnings (extension,
+// feature and hidden-edge crossings, route lengths) are reported but do not choose paper.
 const UNREADABLE: &[&str] = &[
     "annotation_overlap",
     "annotation_ink_overlap",
@@ -390,6 +390,7 @@ const UNREADABLE: &[&str] = &[
     "leader_line_through_text",
     "leader_on_extension",
     "annotation_off_sheet",
+    "annotation_outside_area",
     "annotation_over_title_block",
     "title_field_overflow",
     "page_fit_uncertain",
@@ -440,12 +441,49 @@ fn usable(analysis: &Analysis, plan: &Plan, reference: &Plan, floor: f64) -> boo
         .iter()
         .filter(|p| unreadable(&p.code, &p.severity))
         .map(problem_key);
-    // Measured from final ink rather than reported: only the leader/extension contacts
-    // count here; route-length and hidden-crossing measurements stay advisory.
-    let measured = failures(analysis, plan, floor)
+    // Measured from final ink rather than reported: a leader running on an extension line
+    // or along model ink reads as that line. Hidden-edge crossings and route lengths stay
+    // advisory.
+    let mut measured: Vec<_> = failures(analysis, plan, floor)
         .into_iter()
-        .filter(|(code, _)| code == "leader_on_extension" || code == "annotation_off_sheet");
+        .filter(|(code, _)| {
+            [
+                "leader_on_extension",
+                "leader_ink_run",
+                "annotation_off_sheet",
+            ]
+            .contains(&code.as_str())
+        })
+        .collect();
+    measured.extend(frame_conflicts(plan));
+    inherited.extend(frame_conflicts(reference));
     reported.chain(measured).all(|key| inherited.contains(&key))
+}
+
+/// View frames (with their annotation bands) on the title block or on each other, page by
+/// page, as the quality audit measures them.
+fn frame_conflicts(plan: &Plan) -> Vec<(String, Vec<String>)> {
+    let overlap =
+        |a: [f64; 4], b: [f64; 4]| a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
+    let mut out = Vec::new();
+    for sheet in std::iter::once(&plan.sheet).chain(&plan.sheets) {
+        let views: Vec<_> = plan
+            .views
+            .iter()
+            .filter(|v| v.sheet == sheet.number)
+            .collect();
+        for (i, v) in views.iter().enumerate() {
+            if overlap(v.area, sheet.title_block) {
+                out.push(("view_on_title_block".into(), vec![v.id.clone()]));
+            }
+            for w in &views[i + 1..] {
+                if overlap(v.area, w.area) {
+                    out.push(("views_overlap".into(), vec![v.id.clone(), w.id.clone()]));
+                }
+            }
+        }
+    }
+    out
 }
 
 // A dimension that could not be drawn must be stated by a problem naming it.

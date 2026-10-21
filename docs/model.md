@@ -534,16 +534,17 @@ A candidate is usable by an absolute test of the candidate itself:
 - no required information is lost: the candidate carries every item the automatic
   reference carries, adds no dropped item or undrawn GD&T, and every undrawable
   item is reported;
-- no unreadable ink is new to it: an error-severity layout finding, or a warning
-  for overlapping text, leader-through-text, a leader on an extension line, ink off
-  the sheet or over the title block, views that do not fit, or unplaced notes and
-  tables.
+- no unreadable ink is new to it: an error-severity layout finding; a warning for
+  overlapping text, leader-through-text, ink off the sheet, outside its view's area
+  or over the title block, views that do not fit, or unplaced notes and tables; a
+  measured leader running on an extension line or along model ink; or a view frame
+  on the title block or on another view.
 
 The planner's own unrestricted drawing serves only to exempt what the candidate
 shares with it: an identical finding (code and subjects), printed steps already
 illegible there, or the same drop.
-Other warnings (extension or feature crossings, route lengths, crowded but legible
-location ordinates) are reported but never choose larger paper, so a crowded but
+Other warnings (extension or feature crossings, hidden-edge crossings, route lengths,
+crowded but legible location ordinates) are reported but never choose larger paper, so a crowded but
 readable small sheet does not lose to an enlargement with fewer warnings.
 Unsupported requirements and any undrawn items retain their existing findings.
 Clipping is a hard rejection, including for fallback ranking. If no usable result

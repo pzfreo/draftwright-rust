@@ -20,7 +20,7 @@ All notable changes to draftwright-rust are recorded here, in the style of
   hard. A candidate is usable by an absolute test of itself: nothing clipped, a
   readable scale, no required information lost or dropped unreported, and no new
   unreadable ink (error-severity layout findings, overlapping text, leader through
-  text or along an extension). Other warnings never choose larger paper, so a
+  text, along an extension or model line, or a view frame on the title block). Other warnings never choose larger paper, so a
   crowded but readable small sheet is kept (mfcadpp 10190 stays A4 at 1:1). One
   `sheet_preference_exceeded` info/advisory notice explains any exceeded size or
   count preference. Explicit layout choices win. A fresh automatic plan carries no
