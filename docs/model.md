@@ -524,7 +524,10 @@ sheet's drawable frame, the existing feature-opening minimum holds and printed-s
 readability breaches do not exceed the larger reference,
 and it adds no layout/readability failures or required losses relative to the
 unrestricted larger-paper reference. Readable scales use the existing 0.8 mm minimum feature opening, 20 mm
-overall span and 1:10 absolute floor; printed-step and text/clearance breaches
+overall span and 1:10 absolute floor. A reference drawn above 1:10 is never
+newly reduced to that absolute fallback just to fit preferred paper. Estimated
+recess-chain label space is judged by the finished text and clearance findings,
+rather than treated as a physical minimum. Printed-step and text/clearance breaches
 cannot increase relative to the larger reference. The existing callout-quality
 predicates also prevent additional hidden-edge crossings or leader runs within
 0.3 mm of model/extension ink for more than 2 mm.

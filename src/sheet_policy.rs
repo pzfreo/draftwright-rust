@@ -300,6 +300,19 @@ fn shared_band(views: &[(String, [f64; 2], [f64; 2])], a: &str, b: &str, k: usiz
 // readable at the candidate's common scale. Do not tighten an inherited
 // illegibility finding, or assume an authored/enlarged owner has sheet scale.
 fn candidate_floor(analysis: &Analysis, baseline: &Plan, floor: f64) -> f64 {
+    // Never newly compress a larger readable reference to the absolute 1:10
+    // fallback just to retain preferred paper.
+    let floor = if baseline.sheet.scale_factor > sheet_fit::ABSOLUTE_FLOOR {
+        floor.max(
+            layout::SCALES
+                .into_iter()
+                .rev()
+                .find(|s| *s > sheet_fit::ABSOLUTE_FLOOR)
+                .unwrap_or(sheet_fit::ABSOLUTE_FLOOR),
+        )
+    } else {
+        floor
+    };
     if baseline.views.iter().any(|v| v.detail.is_some())
         || baseline.spec.views.values().any(|v| v.detail.is_some())
         || sheet_fit::illegible_steps(analysis, baseline) > 0
@@ -425,7 +438,7 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
     let floor = candidate_floor(
         fit,
         &baseline,
-        sheet_fit::min_legible_scale(fit).max(crate::sheets::floor(spec).unwrap_or(0.)),
+        sheet_fit::min_geometry_scale(fit).max(crate::sheets::floor(spec).unwrap_or(0.)),
     );
     let estimate = Estimate::new(fit, &baseline);
     let mut candidates = Vec::new();
@@ -890,7 +903,7 @@ mod tests {
             // existing canonical and established-route policies.
             crate::planning::with(&analysis, || {
                 let baseline = model::plan_automatic(&analysis, &baseline.spec).unwrap();
-                let floor = sheet_fit::min_legible_scale(&analysis)
+                let floor = sheet_fit::min_geometry_scale(&analysis)
                     .max(crate::sheets::floor(&baseline.spec).unwrap_or(0.0));
                 let bound_floor = candidate_floor(&analysis, &baseline, floor);
                 let estimate = Estimate::new(&analysis, &baseline);
@@ -1372,6 +1385,20 @@ mod tests {
         p.dimensions[1].placed.as_mut().unwrap().lines =
             vec![[[20.1, 22.], [20.1, 23.]], [[20.1, 23.], [35., 23.]]];
         assert!(crate::dims::sheet_route_limits(&a, &p).is_empty());
+    }
+
+    #[test]
+    fn a_larger_readable_reference_is_not_newly_reduced_to_the_absolute_floor() {
+        let a = fixture();
+        let mut p = model::plan_automatic(&a, &Spec::default()).unwrap();
+        p.dimensions.clear();
+        p.sheet.scale_factor = 0.5;
+        assert_eq!(candidate_floor(&a, &p, sheet_fit::ABSOLUTE_FLOOR), 0.2);
+        p.sheet.scale_factor = sheet_fit::ABSOLUTE_FLOOR;
+        assert_eq!(
+            candidate_floor(&a, &p, sheet_fit::ABSOLUTE_FLOOR),
+            sheet_fit::ABSOLUTE_FLOOR
+        );
     }
 
     #[test]
