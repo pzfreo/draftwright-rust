@@ -1,0 +1,427 @@
+//! Source inventory, including untaken/refusal paths: a fixture-only survey misses new codes.
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Path, PathBuf};
+use syn::parse::Parser;
+use syn::visit::{self, Visit};
+use syn::{Expr, FnArg, Item, Lit, Pat};
+
+fn sources(path: &Path, out: &mut Vec<PathBuf>) {
+    for entry in std::fs::read_dir(path).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            sources(&path, out);
+        } else if path.extension().is_some_and(|e| e == "rs") {
+            out.push(path);
+        }
+    }
+}
+fn testing(attrs: &[syn::Attribute]) -> bool {
+    attrs.iter().any(|a| {
+        a.path().is_ident("test")
+            || (a.path().is_ident("cfg")
+                && matches!(&a.meta, syn::Meta::List(l) if l.tokens.to_string() == "test"))
+    })
+}
+fn values(e: &Expr, out: &mut BTreeSet<String>) {
+    match e {
+        Expr::Lit(e) => {
+            if let Lit::Str(s) = &e.lit {
+                out.insert(s.value());
+            }
+        }
+        Expr::If(e) => {
+            if let Some(syn::Stmt::Expr(e, _)) = e.then_branch.stmts.last() {
+                values(e, out);
+            }
+            if let Some((_, e)) = &e.else_branch {
+                values(e, out);
+            }
+        }
+        Expr::Match(e) => {
+            for arm in &e.arms {
+                values(&arm.body, out);
+            }
+        }
+        Expr::Block(e) => {
+            if let Some(syn::Stmt::Expr(e, _)) = e.block.stmts.last() {
+                values(e, out);
+            }
+        }
+        Expr::MethodCall(e) => values(&e.receiver, out),
+        Expr::Reference(e) => values(&e.expr, out),
+        Expr::Paren(e) => values(&e.expr, out),
+        Expr::Macro(e) if e.mac.path.is_ident("format") => {
+            let tokens = e.mac.tokens.clone();
+            let args = syn::punctuated::Punctuated::<Expr, syn::Token![,]>::parse_terminated
+                .parse2(tokens)
+                .unwrap();
+            if let Some(Expr::Lit(first)) = args.first()
+                && let Lit::Str(format) = &first.lit
+            {
+                let format = format.value();
+                assert!(
+                    format == "{family}_requirement_{state}"
+                        || format
+                            .strip_suffix("_requirement_{state}")
+                            .is_some_and(|family| family
+                                .bytes()
+                                .all(|b| b.is_ascii_lowercase() || b == b'_')),
+                    "new dynamic finding-code template needs source-inventory expansion: {format}"
+                );
+                out.insert(format);
+            }
+        }
+        Expr::Tuple(e) => {
+            if let Some(e) = e.elems.first() {
+                values(e, out);
+            }
+        }
+        _ => {}
+    }
+}
+#[derive(Default)]
+struct Inventory {
+    collect: bool,
+    local_states: BTreeSet<String>,
+    local_arguments: BTreeMap<String, BTreeSet<usize>>,
+    arguments: BTreeMap<String, BTreeSet<usize>>,
+    codes: BTreeSet<String>,
+    families: BTreeSet<String>,
+    states: BTreeSet<String>,
+}
+impl<'ast> Visit<'ast> for Inventory {
+    fn visit_item(&mut self, item: &'ast Item) {
+        let attrs = match item {
+            Item::Fn(i) => &i.attrs,
+            Item::Mod(i) => &i.attrs,
+            _ => {
+                visit::visit_item(self, item);
+                return;
+            }
+        };
+        if !testing(attrs) {
+            visit::visit_item(self, item);
+        }
+    }
+    fn visit_item_fn(&mut self, f: &'ast syn::ItemFn) {
+        if testing(&f.attrs) {
+            return;
+        }
+        self.local_arguments
+            .entry(f.sig.ident.to_string())
+            .or_default();
+        for (i, arg) in f.sig.inputs.iter().enumerate() {
+            if matches!(arg, FnArg::Typed(a) if matches!(a.pat.as_ref(), Pat::Ident(p) if p.ident == "code"))
+            {
+                self.local_arguments
+                    .entry(f.sig.ident.to_string())
+                    .or_default()
+                    .insert(i);
+                self.arguments
+                    .entry(f.sig.ident.to_string())
+                    .or_default()
+                    .insert(i);
+            }
+        }
+        visit::visit_item_fn(self, f);
+    }
+    fn visit_expr_struct(&mut self, e: &'ast syn::ExprStruct) {
+        if self.collect
+            && e.path
+                .segments
+                .last()
+                .is_some_and(|s| s.ident == "Problem" || s.ident == "LintIssue")
+        {
+            for f in &e.fields {
+                if matches!(&f.member, syn::Member::Named(n) if n == "code") {
+                    values(&f.expr, &mut self.codes);
+                }
+            }
+        }
+        visit::visit_expr_struct(self, e);
+    }
+    fn visit_local(&mut self, l: &'ast syn::Local) {
+        let pat = if let Pat::Type(p) = &l.pat {
+            p.pat.as_ref()
+        } else {
+            &l.pat
+        };
+        let code = match pat {
+            Pat::Ident(p) => p.ident == "code",
+            Pat::Tuple(p) => matches!(p.elems.first(), Some(Pat::Ident(p)) if p.ident == "code"),
+            _ => false,
+        };
+        if let (Pat::Ident(p), Some(init)) = (pat, &l.init)
+            && let Expr::Closure(c) = init.expr.as_ref()
+        {
+            self.local_arguments.entry(p.ident.to_string()).or_default();
+            for (i, arg) in c.inputs.iter().enumerate() {
+                let arg = if let Pat::Type(t) = arg {
+                    t.pat.as_ref()
+                } else {
+                    arg
+                };
+                if matches!(arg, Pat::Ident(p) if p.ident == "state") {
+                    self.local_states.insert(p.ident.to_string());
+                }
+                if matches!(arg, Pat::Ident(p) if p.ident == "code") {
+                    self.local_arguments
+                        .entry(p.ident.to_string())
+                        .or_default()
+                        .insert(i);
+                }
+            }
+        }
+        if self.collect
+            && code
+            && let Some(init) = &l.init
+        {
+            values(&init.expr, &mut self.codes);
+        }
+        visit::visit_local(self, l);
+    }
+    fn visit_expr_assign(&mut self, e: &'ast syn::ExprAssign) {
+        if self.collect
+            && matches!(e.left.as_ref(), Expr::Field(f) if matches!(&f.member, syn::Member::Named(n) if n == "code"))
+        {
+            values(&e.right, &mut self.codes);
+        }
+        visit::visit_expr_assign(self, e);
+    }
+    fn visit_macro(&mut self, m: &'ast syn::Macro) {
+        let name = m.path.segments.last().unwrap().ident.to_string();
+        if (name == "vec" || name == "problem")
+            && let Ok(args) = syn::punctuated::Punctuated::<Expr, syn::Token![,]>::parse_terminated
+                .parse2(m.tokens.clone())
+        {
+            if self.collect
+                && name == "problem"
+                && let Some(e) = args.first()
+            {
+                values(e, &mut self.codes);
+            }
+            for e in &args {
+                self.visit_expr(e);
+            }
+        }
+    }
+    fn visit_expr_call(&mut self, e: &'ast syn::ExprCall) {
+        if !self.collect {
+            visit::visit_expr_call(self, e);
+            return;
+        }
+        if let Expr::Path(p) = e.func.as_ref() {
+            let name = p.path.segments.last().unwrap().ident.to_string();
+            if let Some(indices) = self
+                .local_arguments
+                .get(&name)
+                .or_else(|| self.arguments.get(&name))
+            {
+                for i in indices {
+                    if let Some(arg) = e.args.iter().nth(*i) {
+                        values(arg, &mut self.codes);
+                    }
+                }
+            }
+            if name == "Refusal"
+                && let Some(arg) = e.args.first()
+            {
+                values(arg, &mut self.codes);
+            }
+            if p.path.segments.iter().any(|s| s.ident == "parameters") && name == "coverage" {
+                values(e.args.first().unwrap(), &mut self.families);
+            }
+            // Requirement-code templates use these issue closures; enumerate their actual states.
+            if self.local_states.contains(&name) && e.args.len() == 4 {
+                let mut states = BTreeSet::new();
+                values(e.args.first().unwrap(), &mut states);
+                self.states.extend(states.into_iter().filter(|s| {
+                    !s.is_empty() && s.bytes().all(|b| b.is_ascii_lowercase() || b == b'_')
+                }));
+            }
+        }
+        visit::visit_expr_call(self, e);
+    }
+}
+#[test]
+fn every_emitted_code_has_an_impact_and_a_documented_reason() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut paths = Vec::new();
+    sources(&root.join("src"), &mut paths);
+    let files: Vec<_> = paths
+        .iter()
+        .filter(|p| p.file_name().unwrap() != "finding.rs")
+        .map(|p| syn::parse_file(&std::fs::read_to_string(p).unwrap()).unwrap())
+        .collect();
+    let mut inventory = Inventory::default();
+    // Discover cross-module helper signatures, then each file's local helpers/closures before
+    // collecting its call sites. Same-named helpers with different arguments stay distinct.
+    for file in &files {
+        inventory.visit_file(file);
+    }
+    for file in &files {
+        inventory.collect = false;
+        inventory.local_arguments.clear();
+        inventory.local_states.clear();
+        inventory.visit_file(file);
+        inventory.collect = true;
+        inventory.visit_file(file);
+    }
+    for family in &inventory.families {
+        for state in &inventory.states {
+            inventory
+                .codes
+                .insert(format!("{family}_requirement_{state}"));
+        }
+    }
+    let templates: Vec<_> = inventory
+        .codes
+        .iter()
+        .filter(|c| c.ends_with("_requirement_{state}") && !c.contains("{family}"))
+        .cloned()
+        .collect();
+    for template in templates {
+        for state in &inventory.states {
+            inventory.codes.insert(template.replace("{state}", state));
+        }
+    }
+    inventory
+        .codes
+        .retain(|c| c.contains('_') && c.bytes().all(|b| b.is_ascii_lowercase() || b == b'_'));
+    let docs = std::fs::read_to_string(root.join("docs/finding-impact.md")).unwrap();
+    for code in &inventory.codes {
+        let p = draftwright::model::Problem {
+            code: code.clone(),
+            severity: "warning".into(),
+            ..Default::default()
+        };
+        assert!(
+            docs.contains(&format!("| `{code}` |")),
+            "undocumented emitted code: {code}"
+        );
+        assert!(serde_json::to_value(p).unwrap()["impact"].is_string());
+    }
+    // The production table is checked against this inventory by its own unit test.
+    let catalogue: BTreeSet<_> = docs
+        .lines()
+        .filter_map(|l| l.strip_prefix("| `"))
+        .filter_map(|l| l.split('`').next())
+        .map(String::from)
+        .collect();
+    assert_eq!(
+        inventory.codes, catalogue,
+        "source inventory and impact catalogue differ"
+    );
+}
+
+#[test]
+fn inventory_catches_new_literals_helpers_macros_and_templates() {
+    let source = syn::parse_file(
+        r#"
+        fn make(code: &str) { let p = Problem { code: code.into() }; }
+        fn produce() {
+            let p = Problem { code: "new_direct".into() };
+            p.code = "new_assignment".into();
+            let code = if true { "new_branch" } else { "new_else" };
+            let (code, text): (&str, &str) = ("new_typed_tuple", "explanation");
+            let found = |code: &str| {};
+            found("new_closure");
+            make("new_helper");
+            let p = vec![LintIssue { code: "new_vector".into() }];
+            problem!("new_macro", "warning", vec![], "explanation");
+            parameters::coverage("new_family", &[], &[], noun, "explanation");
+        }
+    "#,
+    )
+    .unwrap();
+    let mut inventory = Inventory::default();
+    inventory.visit_file(&source);
+    inventory.collect = true;
+    inventory.visit_file(&source);
+    for code in [
+        "new_direct",
+        "new_assignment",
+        "new_branch",
+        "new_else",
+        "new_typed_tuple",
+        "new_closure",
+        "new_helper",
+        "new_vector",
+        "new_macro",
+    ] {
+        assert!(inventory.codes.contains(code), "inventory missed {code}");
+    }
+    assert!(inventory.families.contains("new_family"));
+}
+
+#[path = "common/corpus.rs"]
+mod corpus;
+
+fn assert_review_summary(file: &str, expected: [(usize, usize); 4]) {
+    let Some(dir) = corpus::dir() else { return };
+    let review = draftwright::api::review_from(
+        &dir.join(file),
+        draftwright::api::Features::Native,
+        &Default::default(),
+    )
+    .unwrap();
+    let wire = serde_json::to_value(&review).unwrap();
+    let mut impacts: BTreeMap<&str, (usize, BTreeSet<&str>)> = BTreeMap::new();
+    let mut groups = BTreeMap::<&str, usize>::new();
+    for list in ["problems", "lint", "structural"] {
+        for f in wire[list].as_array().unwrap() {
+            let impact = f["impact"].as_str().unwrap();
+            let group = f["group"].as_str().unwrap();
+            assert!(!group.is_empty());
+            let entry = impacts.entry(impact).or_default();
+            entry.0 += 1;
+            entry.1.insert(group);
+            *groups.entry(group).or_default() += 1;
+        }
+    }
+    for (impact, (findings, count)) in ["incomplete", "decision", "readability", "advisory"]
+        .into_iter()
+        .zip(expected)
+    {
+        let actual = impacts.get(impact);
+        assert_eq!(actual.map_or(0, |i| i.0), findings, "{file}: {impact}");
+        assert_eq!(
+            actual.map_or(0, |i| i.1.len()),
+            count,
+            "{file}: {impact} groups"
+        );
+        assert_eq!(wire["summary"]["impacts"][impact]["findings"], findings);
+        assert_eq!(wire["summary"]["impacts"][impact]["groups"], count);
+    }
+    assert_eq!(
+        wire["summary"]["groups"],
+        serde_json::to_value(groups).unwrap()
+    );
+    if file.contains("ctc_01") {
+        assert_eq!(
+            wire["summary"]["groups"]["dimensions_not_ported:section_recess"],
+            4
+        );
+        assert_eq!(wire["summary"]["groups"]["extension_through_feature"], 9);
+        assert_eq!(
+            wire["summary"]["groups"]["annotation_leader_crossing:extension_line"],
+            2
+        );
+    }
+}
+
+#[test]
+fn ctc01_counts_gaps_and_repeated_causes_without_hiding_findings() {
+    assert_review_summary(
+        "nist/nist_ctc_01_asme1_rd.stp",
+        [(8, 3), (1, 1), (1, 1), (13, 4)],
+    );
+}
+#[test]
+fn unsupported_recesses_and_rounding_have_separate_impacts() {
+    assert_review_summary("mfcadpp/1000.step", [(11, 4), (1, 1), (0, 0), (12, 3)]);
+}
+#[test]
+fn informational_hole_bottom_and_recovery_remain_advisory() {
+    assert_review_summary("gramel/string_post.step", [(1, 1), (1, 1), (0, 0), (3, 3)]);
+}

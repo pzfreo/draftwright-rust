@@ -834,6 +834,18 @@ impl PartialEq for Problem {
     }
 }
 impl Problem {
+    pub fn labels(&self) -> crate::finding::Labels {
+        crate::finding::labels(
+            &self.code,
+            self.severity == "info",
+            &self.subjects,
+            std::iter::empty::<&str>(),
+            &self.refs,
+            &self.crossing_kinds,
+            self.ink_is_leader,
+        )
+    }
+
     pub fn offered_fixes(&self) -> Vec<crate::fixes::Fix> {
         let mut fixes = self.fixes.clone();
         if !self.fix.is_empty() && !fixes.iter().any(|f| f.ops == self.fix) {
@@ -846,10 +858,13 @@ impl Problem {
 impl Serialize for Problem {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
-        let mut s = serializer.serialize_struct("Problem", 10)?;
+        let mut s = serializer.serialize_struct("Problem", 12)?;
         s.serialize_field("id", &self.id)?;
         s.serialize_field("code", &self.code)?;
         s.serialize_field("severity", &self.severity)?;
+        let labels = self.labels();
+        s.serialize_field("impact", &labels.impact)?;
+        s.serialize_field("group", &labels.group)?;
         s.serialize_field("message", &self.message)?;
         s.serialize_field("subjects", &self.subjects)?;
         if !self.refs.is_empty() {
