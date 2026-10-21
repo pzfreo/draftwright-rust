@@ -543,6 +543,8 @@ One `sheet_preference_exceeded` info/advisory notice identifies the size, sheet
 count or both exceeded, the actual paper/scale/count, and why the preferred layout
 was refused. `Plan.sheet_candidates` and `sheet.basis` record the preferences and
 individual decisions. Explicit `sheet/size` or `sheet/scale` bypasses this search.
+Automatic feasibility is checked before pin replay. A subsequent explicit drag
+keeps its ink and reports any off-sheet placement, as on a single sheet.
 
 `preferred_printer` is refused with guidance to `sheet/preferred_max_size`.
 The unreleased `max_size` spelling is not accepted.
