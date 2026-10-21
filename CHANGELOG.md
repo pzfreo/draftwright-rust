@@ -6,6 +6,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+- Raise the advertised MCP schema ceiling from 38,000 to 40,000 compact bytes, with
+  maintainer approval, to make room for the sheet-size preferences.
 - Add `impact` and stable repeat-cause `group` labels to every problem and lint finding,
   including serve, WASM and compact MCP results. Review includes per-impact and per-group
   counts, also forwarded by the MCP review tool. Severity, finding order and drawings

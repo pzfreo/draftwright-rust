@@ -154,7 +154,8 @@ fn tools_explain_their_operations_without_source_and_fit_schema_budget() {
     // the shallow origin object add 804. Replay-safe notices and actionable overflow
     // retain finding labels and complete trade descriptions within the shared ceiling.
     // A ceiling permits equivalent schema compaction without pinning output bytes.
-    assert!(schema_bytes <= 38000, "schemas: {schema_bytes} bytes");
+    // Raised 38,000 → 40,000 with maintainer approval (2026-10-21) for sheet preferences.
+    assert!(schema_bytes <= 40000, "schemas: {schema_bytes} bytes");
     eprintln!("schema bytes per session: {schema_bytes}");
 }
 
