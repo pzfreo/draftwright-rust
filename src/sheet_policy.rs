@@ -639,13 +639,13 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     // Keep its ordinary pin replay when no forced paper was selected; a fixed-pair
     // replay can have a different nominal presentation even at the same scale.
     let raw = model::plan_automatic(analysis, &base)?;
-    let mut plan = if only_bare_pins(spec, &base) {
+    let mut plan = if only_bare_pins(&intent, &base, &canonical) {
         // A bare pin holds the selected finished ink, including peers on every
         // physical page. Re-solving sheet 1 would create a different pin origin.
         let mut held = canonical.clone();
         held.spec = intent.clone();
         for d in &mut held.dimensions {
-            if spec
+            if intent
                 .dimensions
                 .get(&d.id)
                 .is_some_and(|d| d.place.is_some())
@@ -741,12 +741,20 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     Ok(plan)
 }
 
-fn only_bare_pins(spec: &Spec, base: &Spec) -> bool {
+fn only_bare_pins(spec: &Spec, base: &Spec, canonical: &Plan) -> bool {
     if !crate::placement_intent::automatic_pins_only(spec) {
         return false;
     }
     let mut unpinned = spec.clone();
-    for dimension in unpinned.dimensions.values_mut() {
+    for (id, dimension) in &mut unpinned.dimensions {
+        if let Some(view) = dimension.place.as_ref().and_then(|p| p.view.as_deref()) {
+            // A matching carrier is an anchor hint. A different or invalid
+            // carrier must go through normal placement and validation.
+            let carrier = crate::placement_intent::carrier(canonical, id);
+            if carrier.as_deref().and_then(|v| v.strip_prefix("v:")) != Some(view) {
+                return false;
+            }
+        }
         dimension.place = None;
     }
     unpinned.dimensions.retain(|_, d| *d != Default::default());
@@ -891,17 +899,42 @@ mod tests {
 
     #[test]
     fn retaining_bare_pin_ink_does_not_ignore_other_author_decisions() {
+        let a = fixture();
+        let canonical = model::plan_automatic(&a, &Spec::default()).unwrap();
+        let dimension = canonical
+            .dimensions
+            .iter()
+            .find(|d| d.placed.is_some())
+            .unwrap();
+        let id = &dimension.id;
         let mut spec: Spec = serde_json::from_value(json!({
-            "dimensions":{"d:test":{"place":{"pinned":true}}}
+            "dimensions":{id:{"place":{"pinned":true}}}
         }))
         .unwrap();
         let base = model::pin_base(&spec);
-        assert!(only_bare_pins(&spec, &base));
-        spec.dimensions.get_mut("d:test").unwrap().omit = true;
-        assert!(!only_bare_pins(&spec, &base));
-        spec.dimensions.get_mut("d:test").unwrap().omit = false;
+        assert!(only_bare_pins(&spec, &base, &canonical));
+        spec.dimensions
+            .get_mut(id)
+            .unwrap()
+            .place
+            .as_mut()
+            .unwrap()
+            .view = Some("not-a-view".into());
+        assert!(!only_bare_pins(&spec, &base, &canonical));
+        assert!(model::plan_recovered(&a, &spec).is_err());
+        spec.dimensions
+            .get_mut(id)
+            .unwrap()
+            .place
+            .as_mut()
+            .unwrap()
+            .view = Some(dimension.view.trim_start_matches("v:").into());
+        assert!(only_bare_pins(&spec, &base, &canonical));
+        spec.dimensions.get_mut(id).unwrap().omit = true;
+        assert!(!only_bare_pins(&spec, &base, &canonical));
+        spec.dimensions.get_mut(id).unwrap().omit = false;
         spec.views.entry("iso".into()).or_default().omit = true;
-        assert!(!only_bare_pins(&spec, &base));
+        assert!(!only_bare_pins(&spec, &base, &canonical));
     }
 
     #[test]
