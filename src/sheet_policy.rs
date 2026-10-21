@@ -1267,6 +1267,31 @@ mod tests {
     }
 
     #[test]
+    fn a_renderer_trimmed_detail_marker_does_not_pass_the_frame_gate() {
+        let a = fixture();
+        let mut p = model::plan_automatic(&a, &Spec::default()).unwrap();
+        assert!(sheet_fit::inside_frames(&a, &p));
+        let mut detail = p.views.iter().find(|v| v.id == "v:front").unwrap().clone();
+        detail.id = "v:detail_a".into();
+        detail.detail = Some(crate::detail::Detail {
+            label: "A".into(),
+            axis: 0,
+            source_view: "v:front".into(),
+            source_cut: None,
+            kind: "feature".into(),
+            bounds: a.envelope,
+            marked_bounds: [[-1000.; 3], [1000.; 3]],
+            dimensions: vec![],
+            scale: 1.,
+            authored: false,
+            partial_profile: false,
+        });
+        p.views.push(detail);
+        p.problems.clear();
+        assert!(!sheet_fit::inside_frames(&a, &p));
+    }
+
+    #[test]
     fn requests_follow_both_soft_preferences_then_the_hard_limit() {
         assert_eq!(
             requests(&Spec::default()),

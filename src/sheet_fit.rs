@@ -406,6 +406,61 @@ pub(crate) fn inside_frames(analysis: &Analysis, plan: &Plan) -> bool {
                 sheet,
                 &plan.views,
             ));
+            // Rendering trims detail markers at the frame. That must not make a
+            // clipped automatic candidate appear feasible: test the complete ring,
+            // and settle its letter with the renderer's own annotation obstacles.
+            let labels: Vec<_> = local
+                .dimensions
+                .iter()
+                .filter_map(|d| d.placed.as_ref().map(|p| p.label_box))
+                .chain(
+                    local
+                        .gdt
+                        .iter()
+                        .filter_map(|g| g.placed.as_ref().map(|p| p.label_box)),
+                )
+                .chain(local.balloons.iter().filter_map(|b| b.label_box))
+                .collect();
+            let mut avoid = labels;
+            avoid.extend(
+                local
+                    .dimensions
+                    .iter()
+                    .filter_map(|d| d.placed.as_ref())
+                    .flat_map(|p| &p.lines)
+                    .map(|line| {
+                        [
+                            line[0][0].min(line[1][0]) - 0.5,
+                            line[0][1].min(line[1][1]) - 0.5,
+                            line[0][0].max(line[1][0]) + 0.5,
+                            line[0][1].max(line[1][1]) + 0.5,
+                        ]
+                    }),
+            );
+            for detail in plan.views.iter().filter_map(|v| v.detail.as_ref()) {
+                if let Some(source) = plan
+                    .views
+                    .iter()
+                    .find(|v| v.id == detail.source_view && v.sheet == sheet.number)
+                {
+                    let (circle, at) = crate::detail::marker(
+                        analysis,
+                        detail,
+                        source,
+                        &plan.views,
+                        sheet.page,
+                        &avoid,
+                    );
+                    ink.push(circle.bbox());
+                    let laid = crate::dims::font().text(&detail.label, crate::section::FONT_SIZE);
+                    ink.push([
+                        at[0] + laid.min[0],
+                        at[1] + laid.min[1],
+                        at[0] + laid.max[0],
+                        at[1] + laid.max[1],
+                    ]);
+                }
+            }
             ink.into_iter().enumerate().all(|(i, b)| {
                 let geometry = i < local.views.len() || (i >= line_work_start && i < view_ink_end);
                 let stroke = if geometry {
