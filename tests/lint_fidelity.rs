@@ -22,13 +22,14 @@ use draftwright::output::{
 
 type P = [f64; 2];
 
-const FIDELITY: [&str; 6] = [
+const FIDELITY: [&str; 7] = [
     "label_vs_measured",
     "nominal_rounded",
     "angular_label_vs_geometry",
     "angular_geometry_mismatch",
     "angular_support_mismatch",
     "datum_leader_remote",
+    "datum_leader_not_normal",
 ];
 
 fn run(text: &str, at: P) -> TextRun {
@@ -127,6 +128,7 @@ fn dimension(
             .chain([[label[0], label[1]], [label[2], label[3]]]),
     );
     Drawn {
+        datum_triangle: None,
         heads: Vec::new(),
         name: name.into(),
         kind,
@@ -400,6 +402,7 @@ fn datum(reach: f64) -> Drawn {
     let near = [120.0, 95.6 - reach];
     let ink = [114.0, near[1] - 6.0, 126.0, 100.0];
     Drawn {
+        datum_triangle: Some([[117.9, 100.], apex, [122.1, 100.]]),
         heads: Vec::new(),
         name: "pmi:datum.datum:f3:t=A".into(),
         kind: Kind::Gdt,
@@ -461,8 +464,8 @@ fn ctc01() -> Drawing {
 fn the_ports_own_pmi_drawing_says_what_it_draws() {
     let drawing = ctc01();
     let issues = structural::check(&drawing);
-    // Its linear dimensions and its angle agree with their ink; its datum C stands 60.5 mm from
-    // its surface (a real finding, left visible).
+    // Linear/angular ink agrees with its labels. C's retained remote route
+    // remains visible: a shorter bend must clear features along both legs.
     assert_eq!(
         fidelity(&issues),
         ["datum_leader_remote pmi:datum.datum:f75,76:t=C"],
@@ -529,4 +532,27 @@ fn the_ports_own_pmi_drawing_says_what_it_draws() {
             "{code}: {codes:?}"
         );
     }
+}
+
+/// Drawn geometry receives the same check whether automatic, authored, or pinned.
+#[test]
+fn datum_departure_is_square_before_any_bend_and_frame_interior_stays_strict() {
+    let mut d = datum(10.);
+    let check = |d: Drawn| structural::check(&sheet(1., Vec::new(), vec![(d, "A")]));
+    assert!(found(&check(d.clone()), "datum_leader_not_normal").is_empty());
+    d.lines[0][1][0] += 8.;
+    assert_eq!(found(&check(d.clone()), "datum_leader_not_normal").len(), 1);
+    let [apex, end] = d.lines[0];
+    d.lines = vec![
+        [apex, [apex[0], apex[1] - 2.4]],
+        [[apex[0], apex[1] - 2.4], end],
+    ];
+    assert!(found(&check(d.clone()), "datum_leader_not_normal").is_empty());
+    // A square departure does not excuse a later segment through the strict frame interior.
+    let b = d.label.unwrap();
+    d.lines
+        .push([[b[0] - 2., b[1] + 3.], [b[2] + 2., b[1] + 3.]]);
+    assert_eq!(found(&check(d), "leader_line_through_text").len(), 1);
+    let border = datum(10.);
+    assert!(found(&check(border), "leader_line_through_text").is_empty());
 }

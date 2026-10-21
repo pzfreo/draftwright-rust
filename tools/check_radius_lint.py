@@ -64,17 +64,23 @@ def main():
                                  if expected.get(k, 0) != measured.get(k, 0)}))
     added = [dict(part=part, code=code, count=count, verdict='rust-correct',
                   reason=('Issue #145: the drawn radius shaft violates the middle-arc, '
-                          'radial, non-material-side approach rule.' if code == 'radius_leader_not_radial'
+                          'radial-from-either-side approach rule (#146).' if code == 'radius_leader_not_radial'
                           else 'Issue #145: the recorded geometry cannot prove the drawn '
                                'radius section in this view; informational, not a wrong shaft.'))
              for part, counts in sorted(actual.items()) for code, count in sorted(counts.items())
              if code in CODES]
     (args.out / 'radius-direction.json').write_text(json.dumps(added, indent=2) + '\n')
     if args.record:
-        record['own_drawings'] = [r for r in record['own_drawings'] if r['code'] not in CODES | RETIRED] + added
+        active = {(r['part'], r['code']) for r in added}
+        resolved = [dict(r, count=0, reason=(
+            'Issue #146: the radial-from-either-side rule resolves the previously recorded '
+            'warning; retained as an explicit zero-count regression guard.'))
+            for r in record['own_drawings'] if r['code'] in CODES
+            and (r['part'], r['code']) not in active]
+        record['own_drawings'] = [r for r in record['own_drawings'] if r['code'] not in CODES | RETIRED] + added + resolved
         args.record.write_text(json.dumps(record, indent=2, ensure_ascii=False) + '\n')
     else:
-        listed = [r for r in record['own_drawings'] if r['code'] in CODES]
+        listed = [r for r in record['own_drawings'] if r['code'] in CODES and r['count']]
         if {(r['part'], r['code']): r['count'] for r in listed} != {
                 (r['part'], r['code']): r['count'] for r in added}:
             raise ValueError('new radius-direction findings differ; inspect --out/radius-direction.json')

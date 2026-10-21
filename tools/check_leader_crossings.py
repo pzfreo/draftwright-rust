@@ -1,4 +1,4 @@
-"""Per-part crossing ratchet on all 30 quality drawings; no placement changes.
+"""Per-part crossing ratchet on 30 quality drawings and the AP242 CTC/FTC drawings; no placement changes.
 
 Record from origin/main quality.py drawings with this single command (also after
 #141 merges, if this stream merges second):
@@ -24,18 +24,30 @@ spec.loader.exec_module(quality)
 FORMAT = 'draftwright.leader-crossings/1'
 
 
-def collect(directory):
+def fixture_paths():
+    return sorted({* (ROOT / 'tests/fixtures/pmi/step').glob('nist_ctc_0*_ap242*.gz'),
+                   * (ROOT / 'tests/fixtures/pmi/step').glob('nist_ftc_*_ap242*.gz')})
+
+
+def part_names():
     files = (ROOT / 'tools/quality_parts.txt').read_text().splitlines()
     names = [Path(p).stem for p in files]
     if len(names) != 30 or len(set(names)) != 30:
         raise ValueError('incomplete/ambiguous thirty-part manifest')
+    names += [Path(p.stem).stem for p in fixture_paths()]
+    if len(names) != len(set(names)) or not fixture_paths():
+        raise ValueError('incomplete/ambiguous AP242 crossing manifest')
+    return names
+
+
+def collect(directory):
     return {name: quality.crossing_counts(json.loads((directory / (name + '.plan.json')).read_text()))
-            for name in names}
+            for name in part_names()}
 
 
 def check(before, after):
-    if set(before) != set(after) or len(after) != 30:
-        raise ValueError('incomplete thirty-part inventory')
+    if set(before) != set(after) or set(after) != set(part_names()):
+        raise ValueError('incomplete quality/AP242 inventory')
     failures = []
     for part in sorted(before):
         for kind in quality.CROSSING_KEYS:
@@ -67,7 +79,7 @@ def main():
     report = dict(parts=parts, totals={k: sum(r[k] for r in parts.values()) for k in quality.CROSSING_KEYS}, failures=failures)
     if args.report:
         args.report.write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
-    print('\n'.join(failures) if failures else 'PASS: 30 parts × 6 crossing kinds; zero where zero, never more')
+    print('\n'.join(failures) if failures else f'PASS: {len(parts)} parts × 6 crossing kinds; zero where zero, never more')
     return bool(failures)
 
 

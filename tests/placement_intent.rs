@@ -1146,3 +1146,43 @@ fn right_pinned_callouts_have_clear_lanes_and_free_dimensions() {
         }
     }
 }
+
+/// #95: the editor/MCP plan must expose the same overrun structural lint sees.
+#[test]
+fn grm02_off_sheet_view_relation_is_an_error_with_an_unpin_fix() {
+    let (_, a) = model::analyse_native(&fixture("samples/GRM-02_shaft.step")).unwrap();
+    for (pinned, gap) in [(false, 10), (true, 500)] {
+        let s: Spec = serde_json::from_value(json!({
+            "sheet": {"size": "A4", "scale": "2:1"},
+            "views": {"iso": {"place": {"relative_to": "front", "side": "below",
+                "align": "start", "gap": gap, "pinned": pinned}}}
+        }))
+        .unwrap();
+        let p = model::plan_recovered(&a, &s).unwrap();
+        let iso = p.views.iter().find(|v| v.id == "v:iso").unwrap();
+        assert!(iso.area[1] < 0.0, "{:?}", iso.area);
+        let findings: Vec<_> = p
+            .problems
+            .iter()
+            .filter(|p| p.code == "pinned_view_off_sheet")
+            .collect();
+        assert_eq!(findings.len(), 1, "{:?}", p.problems);
+        let finding = findings[0];
+        assert_eq!(finding.severity, "error");
+        assert_eq!(finding.subjects, ["v:iso"]);
+        assert_eq!(draftwright::wording::carries_id(&finding.message), None);
+        assert_eq!(
+            finding.fix,
+            [draftwright::items::Op::remove("views/iso/place")]
+        );
+        let mut fixed = s.clone();
+        fixed.views.get_mut("iso").unwrap().place = None;
+        let fixed = model::plan_recovered(&a, &fixed).unwrap();
+        assert!(
+            !fixed
+                .problems
+                .iter()
+                .any(|p| p.code == "pinned_view_off_sheet")
+        );
+    }
+}

@@ -818,7 +818,13 @@ pub(crate) fn views(
             }
         }
     }
-    for v in views.iter().filter(|v| fixed.contains(&v.id)) {
+    // Explicit relations can move a view off the sheet even without `pinned: true`.
+    // Audit every authored view placement, not only the obstacle packer's fixed set.
+    for v in views.iter().filter(|v| {
+        s.views
+            .get(v.id.trim_start_matches("v:"))
+            .is_some_and(|v| v.place.is_some())
+    }) {
         let a = v.area;
         let path = format!("views/{}/place", v.id.trim_start_matches("v:"));
         // Anchor arithmetic can put a boundary a few ulps beyond the paper margin.
@@ -828,26 +834,23 @@ pub(crate) fn views(
             || a[2] > page[0] - margin + tolerance
             || a[3] > page[1] - margin + tolerance
         {
-            // Only an explicit view pin has an editable view placement entry.
-            if s.views
-                .get(v.id.trim_start_matches("v:"))
-                .is_some_and(|v| v.place.is_some())
-            {
-                problems.push(problem(
-                    &v.id,
-                    "pinned_view_off_sheet",
-                    format!(
-                        "{} is pinned outside the drawing area and is kept there.",
-                        crate::wording::capital(&crate::wording::view(&v.id))
-                    ),
-                    &path,
-                ));
-            }
+            let mut finding = problem(
+                &v.id,
+                "pinned_view_off_sheet",
+                format!(
+                    "{} is outside the drawing area. Remove or adjust its placement to bring it onto the sheet.",
+                    crate::wording::capital(&crate::wording::view(&v.id))
+                ),
+                &path,
+            );
+            finding.severity = "error".into();
+            problems.push(finding);
         }
-        if (views
-            .iter()
-            .any(|other| other.id != v.id && overlap(a, other.area))
-            || overlap(a, sheet.title_block))
+        if fixed.contains(&v.id)
+            && (views
+                .iter()
+                .any(|other| other.id != v.id && overlap(a, other.area))
+                || overlap(a, sheet.title_block))
             && s.views
                 .get(v.id.trim_start_matches("v:"))
                 .is_some_and(|v| v.place.is_some())

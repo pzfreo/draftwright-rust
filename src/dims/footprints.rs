@@ -1045,7 +1045,8 @@ mod tests {
             dim("d:callout", "callout", vec![line, line]),
             dim("d:linear", "linear", vec![line, line, line]),
         ];
-        let problems = super::super::placement::collisions(&a, &dims, &sheet, &[view]);
+        let problems =
+            super::super::placement::collisions(&a, &dims, &sheet, std::slice::from_ref(&view));
         let features: Vec<_> = problems
             .iter()
             .filter(|p| p.code.ends_with("through_feature"))
@@ -1076,6 +1077,26 @@ mod tests {
                 .iter()
                 .filter(|p| p.code == "extension_through_feature")
                 .all(|p| p.fix.is_empty())
+        );
+
+        let stub = [frame.page([-2., 4., 3.]), line[0]];
+        let bent = dim("pmi:datum.test", "callout", vec![stub, line]);
+        let found =
+            super::super::placement::collisions(&a, &[bent], &sheet, std::slice::from_ref(&view));
+        assert_eq!(
+            found
+                .iter()
+                .filter(|p| p.code == "leader_through_feature")
+                .count(),
+            1,
+            "the second datum shaft leg crosses the hole"
+        );
+        let separate = [frame.page([-2., 4., 3.]), frame.page([-2., 2., 3.])];
+        let extended = dim("pmi:datum.test", "callout", vec![separate, line]);
+        let found = super::super::placement::collisions(&a, &[extended], &sheet, &[view]);
+        assert!(
+            !found.iter().any(|p| p.code == "leader_through_feature"),
+            "a disconnected face extension is not the datum shaft"
         );
     }
 

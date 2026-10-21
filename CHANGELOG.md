@@ -8,6 +8,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Added
 
+- Raise the advertised MCP schema ceiling from 38,000 to 40,000 compact bytes, with
+  maintainer approval, to make room for the sheet-size preferences.
 - Add `impact` and stable repeat-cause `group` labels to every problem and lint finding,
   including serve, WASM and compact MCP results. Review includes per-impact and per-group
   counts, also forwarded by the MCP review tool. Severity, finding order and drawings
@@ -25,6 +27,24 @@ All notable changes to draftwright-rust are recorded here, in the style of
   to use `sheet/preferred_max_size` (A4 printer → `"A4"`, A3 printer → `"A3"`).
 
 ### Fixed
+
+- Unclaimed geometry is informational and advisory on single-solid parts too, retaining
+  the unclaimed faces as subjects (#25).
+- Attribute marked PMI to Specify; compatible Spec thread designations refine its thread
+  and retain its stated length. Override and lint-only lowering messages omit internal
+  entity IDs and Spec paths (#102).
+- Explicit view placements outside the drawing area report a plan error with a fix that
+  removes the placement, including relations without the pin flag (#95).
+- Spec surface finishes on `string_post` no longer activate the dimensional location audit
+  and invent missing-location warnings.
+- #147: retry crossing feature callouts, leader-attached GD&T frames and AP242 surface labels
+  against the complete printed inventory, including proven blank face in their own view.
+  Include inward diameter/thread leaders over proven hole floors, while keeping 3 mm text,
+  existing radius attachment producers and datum face normals; equal costs
+  favour exterior routes. AP242 CTC/FTC fixtures join the per-kind crossing ratchet in
+  CI's `quality-pins` job. Final radius alternatives use #153's proven arc sites and
+  middle-arc/radial/open-side predicate. Bare pins retain the complete finished automatic
+  route, including interior repair.
 
 - Radius callouts (#145) try the middle half of a proven circular arc, within 15° of
   radial from the non-material side: towards the centre for concave fillets, away from it

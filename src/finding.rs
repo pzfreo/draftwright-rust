@@ -80,6 +80,7 @@ catalogue! {
     "correlated_set_conflict" => Decision, Code, "The authored choice splits a set that must be kept together.";
     "correlated_set_whole" => Advisory, Code, "A correlated dimension set was kept together.";
     "cross_reference_missing" => Incomplete, Code, "A required cross-sheet or derived-view reference is absent.";
+    "datum_leader_not_normal" => Readability, Code, "The datum leader does not leave its triangle square to the face.";
     "datum_leader_remote" => Readability, Code, "The datum symbol is too far from its referenced surface.";
     "datum_not_identified" => Incomplete, Code, "A referenced datum lacks its identifying symbol.";
     "datum_origin_unusable" => Advisory, Code, "The datum cannot define this origin; the documented fallback is used.";
@@ -168,7 +169,7 @@ catalogue! {
     "passage_requirement_unsupported" => Incomplete, Requirement, "No supported drawing grammar states this feature requirement.";
     "pinned_item_not_drawn" => Decision, Code, "The requested pin targets an item that is not drawn.";
     "pinned_reference_chain_changed" => Decision, Code, "The authored pin conflicts with the recovered reference chain.";
-    "pinned_view_off_sheet" => Readability, Code, "The pinned view extends outside the sheet.";
+    "pinned_view_off_sheet" => Readability, Code, "The explicitly placed view extends outside the drawing area; an error offers removal of its placement.";
     "pinned_view_overlap" => Readability, Code, "The pinned view overlaps another view.";
     "placement_anchor_not_shown" => Decision, Code, "The requested anchor is absent from the drawing.";
     "placement_side_not_applicable" => Decision, Code, "The authored side does not apply to this dimension.";
@@ -204,7 +205,7 @@ catalogue! {
     "prismatic_pocket_requirement_unsupported" => Incomplete, Requirement, "No supported drawing grammar states this feature requirement.";
     "profiled_bore_not_dimensioned" => Incomplete, Code, "The profiled bore requirements have no complete drawn dimension.";
     "projection_relation_infeasible" => Decision, Code, "The authored projected-view relationship cannot be satisfied.";
-    "radius_leader_not_radial" => Readability, Code, "The radius leader does not meet its arc radially from the open side.";
+    "radius_leader_not_radial" => Readability, Code, "The radius leader does not meet its arc radially from either side.";
     "radius_leader_target_mismatch" => Readability, Code, "The radius leader points at the wrong geometry.";
     "radius_leader_target_unverifiable" => Readability, Code, "The radius leader target cannot be verified.";
     "rectangular_blind_slot_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
@@ -229,6 +230,7 @@ catalogue! {
     "spec_entries_inactive" => Decision, Code, "Authored settings do not apply to any current item.";
     "spec_from_other_revision" => Decision, Code, "The user must decide whether to rebind settings from another revision.";
     "spec_overrides_pmi" => Decision, Code, "The user-authored control replaces a different PMI control.";
+    "spec_refines_pmi" => Advisory, Code, "The authored designation refines a Specify-written thread.";
     "step_general_tolerance_disagreement" => Decision, Code, "The authored and PMI general tolerances disagree.";
     "step_level_support_missing" => Incomplete, Code, "Missing shoulder support prevents the step level being stated.";
     "step_material_ambiguous" => Decision, Code, "The STEP records do not identify one material to use.";

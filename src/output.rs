@@ -514,6 +514,9 @@ pub struct Drawn {
     /// Filled arrowhead outlines, kept separate from dimension-reading line grammar.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub heads: Vec<[P; 2]>,
+    /// Datum triangle as drawn: base end, apex, base end. Separate from shaft/frame ink.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub datum_triangle: Option<[P; 3]>,
     /// A callout's shaft-to-shoulder bend. Datum symbols have no elbow: their shaft
     /// ends on the frame border, recorded by `lines` and `label`.
     pub elbow: Option<P>,

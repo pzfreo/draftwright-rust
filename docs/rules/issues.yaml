@@ -1162,7 +1162,7 @@
   status: translated
   rust_rule: "tests/issue_regressions.rs::issue_1187_a_retained_leader_crossings_have_no_clear_route (dims::clear_routes over ctc04): every retained crossing has no clear route."
   rust_test: "audits::issue_regressions::issue_1187_a_retained_leader_crossings_have_no_clear_route"
-  rust_note: "tests/issue_regressions.rs::issue_1187_a_retained_leader_crossings_have_no_clear_route (dims::clear_routes over ctc04): every retained crossing has no clear route. Python's release gate is a build123d flange fixture that has no counterpart here. Rust drops no callout for routing (Policy B)."
+  rust_note: "tests/issue_regressions.rs::issue_1187_a_retained_leader_crossings_have_no_clear_route (dims::clear_routes over ctc04): every retained crossing has no clear route. Issue #147 shares the bounded exterior/interior inventory with final-inventory repair, and retries crossing GD&T frames, datums along their normal, and AP242 surface labels. Python's release gate is a build123d flange fixture that has no counterpart here. Rust drops no callout for routing (Policy B)."
   port_note: "Keep: scenario CTC-04 -> every reported leader crossing has no clear alternative candidate."
 
 - id: ISSUE-1188-a

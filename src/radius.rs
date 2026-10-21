@@ -135,7 +135,6 @@ pub(crate) struct Projected {
     pub centre: P,
     pub radius: f64,
     pub span: Span,
-    pub centre_open: bool,
     pub tips: Vec<P>,
 }
 
@@ -159,10 +158,9 @@ impl Projected {
         )
     }
 
-    /// Tip-to-elbow points into air: inward for a concavity, outward for a convexity.
-    pub fn open_direction(&self, tip: P) -> P {
-        let sign = if self.centre_open { 1.0 } else { -1.0 };
-        [0, 1].map(|k| sign * (self.centre[k] - tip[k]))
+    /// One radial direction; its opposite is equally valid, independent of material side.
+    pub fn radial_direction(&self, tip: P) -> P {
+        [0, 1].map(|k| self.centre[k] - tip[k])
     }
 
     pub fn violation(&self, [tip, elbow]: [P; 2]) -> Option<&'static str> {
@@ -172,14 +170,12 @@ impl Projected {
         if !self.middle(tip) {
             return Some("the tip is outside the middle 25–75% of the sweep, near a tangent end");
         }
-        let u = self.open_direction(tip);
+        let u = self.radial_direction(tip);
         let v = [elbow[0] - tip[0], elbow[1] - tip[1]];
         let norm = u[0].hypot(u[1]) * v[0].hypot(v[1]);
-        let dot = u[0] * v[0] + u[1] * v[1];
+        let dot = (u[0] * v[0] + u[1] * v[1]).abs();
         if norm <= 1e-12 {
             Some("the shaft has zero length")
-        } else if dot <= 0.0 {
-            Some("the shaft approaches from the material side")
         } else if dot < RADIAL_DEGREES.to_radians().cos() * norm - 1e-9 {
             Some("the shaft is more than 15 degrees off radial")
         } else {
@@ -221,7 +217,6 @@ pub(crate) fn projected(
                     centre,
                     radius,
                     span,
-                    centre_open: arc.centre_open,
                     tips,
                 }
             })
@@ -242,7 +237,7 @@ pub(crate) fn projected(
         .get("path")
         .ok_or("no cylindrical arc centre and trim evidence is recorded for this fillet")?;
     if path.get("normal").is_some() {
-        return Err("a circular-path/toroidal blend has no single projected minor-arc centre; radial direction and open side cannot be verified from its sampled points".into());
+        return Err("a circular-path/toroidal blend has no single projected minor-arc centre; radial direction cannot be verified from its sampled points".into());
     }
     let frame = crate::bridge::holes::frame(a);
     let axis = crate::bridge::holes::point(path.get("direction"))
@@ -294,7 +289,6 @@ pub(crate) fn projected(
             start: reference + lo - (hi - lo) * 0.5,
             sweep: (hi - lo) * 2.0,
         },
-        centre_open: f.parameters.get("side").and_then(|v| v.as_str()) == Some("concave"),
         tips,
     }])
 }
@@ -312,7 +306,6 @@ mod tests {
                 start: 0.0,
                 sweep: PI / 2.0,
             },
-            centre_open: true,
             tips: Vec::new(),
         }
     }
@@ -331,10 +324,10 @@ mod tests {
     }
 
     #[test]
-    fn clean_open_side_radius_and_tolerance_boundaries() {
+    fn radial_radius_from_either_side_and_tolerance_boundaries() {
         let arc = quarter();
         for angle in [22.5, 45.0, 67.5] {
-            for deviation in [-15.0, 0.0, 15.0] {
+            for deviation in [-15.0, 0.0, 15.0, 165.0, 180.0, 195.0] {
                 assert!(arc.accepts(shaft(angle, deviation)));
             }
         }
@@ -355,20 +348,9 @@ mod tests {
     }
 
     #[test]
-    fn material_side_and_zero_length_shafts_are_rejected() {
+    fn zero_length_shafts_are_rejected() {
         let arc = quarter();
-        assert!(!arc.accepts(shaft(45.0, 180.0)));
         let tip = shaft(45.0, 0.0)[0];
         assert!(!arc.accepts([tip, tip]));
-        let mut convex = arc;
-        convex.centre_open = false;
-        assert!(!convex.accepts(shaft(45.0, 0.0)));
-        for angle in [22.5, 45.0, 67.5] {
-            for deviation in [-15.0, 0.0, 15.0] {
-                assert!(convex.accepts(shaft(angle, 180.0 + deviation)));
-            }
-        }
-        assert!(!convex.accepts(shaft(0.0, 180.0)));
-        assert!(!convex.accepts(shaft(45.0, 196.0)));
     }
 }

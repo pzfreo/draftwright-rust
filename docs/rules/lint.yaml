@@ -839,14 +839,14 @@
   port_note: "Keep."
 
 - id: LINT-code-radius_leader_not_radial
-  statement: "A radius leader meets the middle 25–75% of its arc within 15 degrees of radial from the non-material side (centre side for concave arcs, outside for convex arcs)."
+  statement: "A radius leader meets the middle 25–75% of its arc within 15 degrees of radial from either side; clear space and route quality choose the side, independently of convexity or radius size."
   detail: "Checks actual drawn shafts, including pins. Proven toroidal minor-circle meridians are checked end-on. Routing keeps its best existing callout when no compliant clear candidate fits; drawn lint reports the violation once, without a duplicate fallback problem."
   class: drafting
   source:
     lint_code: "radius_leader_not_radial"
     issues: [145]
   status: ported
-  rust_test: "rendering::leader_rules::radius_shafts_meet_the_middle_arc_radially_from_the_open_side"
+  rust_test: "rendering::leader_rules::radius_shafts_meet_the_middle_arc_radially_from_either_side"
   rust_note: "Shared geometry in src/radius.rs; final bounded radius inventory in src/dims/leaders.rs."
   port_note: "Keep."
 
@@ -1837,7 +1837,7 @@
     tests: [tests/test_issue_1204_multiscale_view_issues.py]
   status: ported
   rust_test: a_label_over_a_view_is_judged_by_its_edges
-  rust_note: "src/lint/structural.rs: the same test as view_annotation_overlap with no edge through the label: an info notice, unless it was placed inside on purpose (output::Drawn::interior). H7 review restores Python-read parity: no second annotations record is required. Planning proves complete projected ink clearance; structural lint remains independent. Where draftwright also reports interior_label_on_narrow_material it suppresses this notice; the port cannot (that check is not ported), and no captured sheet has one."
+  rust_note: "src/lint/structural.rs: the same test as view_annotation_overlap with no edge through the label: an info notice, unless it was placed inside on purpose (output::Drawn::interior). H7 review restores Python-read parity: no second annotations record is required. Planning proves complete projected ink clearance; structural lint remains independent. Issue #147 also carries this proven intentional-interior flag for leader-attached GD&T frames and datums in proven exterior pockets inside the view bounds; visible edges through their labels still warn. Where draftwright also reports interior_label_on_narrow_material it suppresses this notice; the port cannot (that check is not ported), and no captured sheet has one."
   port_note: "Keep."
 
 - id: LINT-code-interior_label_on_narrow_material

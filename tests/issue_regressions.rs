@@ -1091,8 +1091,9 @@ mod corpus;
 /// committed annotation. Measured, not asserted: for each callout the plan reports crossing,
 /// laid over, or blocked, the clear-route sweep (`dims::clear_routes`, after draftwright's test
 /// helper `_clear_routes`: elbows around the leader's sites in 64 directions at ten reaches, far
-/// more freedom than the candidate producers give) finds no clear route. As in draftwright no
-/// placer runs the sweep; a placement change that keeps a crossing while a clear route exists
+/// more freedom than the original candidate producers gave) finds no clear route. Issue #147
+/// also tries these rays in final repair and includes interior face and centre-line evidence;
+/// a placement change that keeps a crossing while a clear route exists
 /// fails here. Its features are the port's own (`model::analyse_native`), as the command line
 /// reads the part; needs the corpus.
 #[test]

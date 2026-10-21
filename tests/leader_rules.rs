@@ -104,6 +104,7 @@ fn callout(name: &str, claims: &[(&str, &str)], tip: P, elbow: P) -> (Annotation
             ..Annotation::default()
         },
         Drawn {
+            datum_triangle: None,
             heads: Vec::new(),
             name: name.into(),
             kind: Kind::Dimension,
@@ -326,7 +327,7 @@ fn a_radius_tip_lands_on_the_trimmed_profile_arc() {
 
 /// #145: lint reads actual drawn shafts, including hand-authored/pinned geometry.
 #[test]
-fn radius_shafts_meet_the_middle_arc_radially_from_the_open_side() {
+fn radius_shafts_meet_the_middle_arc_radially_from_either_side() {
     for concave in [true, false] {
         let (mut f, sites) = quarter_blend(0.0, 0.0);
         f["parameters"]["side"] = json!(if concave { "concave" } else { "convex" });
@@ -336,7 +337,7 @@ fn radius_shafts_meet_the_middle_arc_radially_from_the_open_side() {
             (0.0, 0.0, true),
             (90.0, 0.0, true),
             (45.0, 16.0, true),
-            (45.0, 180.0, true),
+            (45.0, 180.0, false),
         ] {
             let t = angle.to_radians();
             let tip = page(3.0 * t.cos(), 3.0 * t.sin());
@@ -374,7 +375,7 @@ fn radius_shafts_meet_the_middle_arc_radially_from_the_open_side() {
     }
 }
 
-/// A consolidated fillet is checked against its own face, including its material side.
+/// A consolidated fillet is checked against its own face, independently of material side.
 #[test]
 fn fillet_radius_shafts_use_the_fillets_own_cylindrical_evidence() {
     let f = feature(
@@ -402,10 +403,7 @@ fn fillet_radius_shafts_use_the_fillets_own_cylindrical_evidence() {
     );
     assert!(found(&a, &draw, "radius_leader").is_empty());
     a.radius_arcs.get_mut("f:fillet:1").unwrap()[0].centre_open = false;
-    assert_eq!(
-        found(&a, &draw, "radius_leader_not_radial"),
-        one("radius_leader_not_radial", "d:r")
-    );
+    assert!(found(&a, &draw, "radius_leader_not_radial").is_empty());
 }
 
 #[test]
@@ -927,7 +925,7 @@ fn recovered_ftc09_keeps_a1_and_perpendicular_witnesses() {
     );
 }
 
-/// #145: the real front-view R5 remains drawn and has a radial, open-side shaft.
+/// #145: the real front-view R5 remains drawn and has a radial shaft from either side.
 /// The solid-box silhouette test deliberately cannot see its original boss crossing.
 #[test]
 fn ctc01_r5_meets_the_fillet_from_the_open_centre_side() {
@@ -975,10 +973,8 @@ fn ctc01_r5_meets_the_fillet_from_the_open_centre_side() {
                     let c = page(arc.arc.centre);
                     let u = [c[0] - tip[0], c[1] - tip[1]];
                     let v = [elbow[0] - tip[0], elbow[1] - tip[1]];
-                    arc.centre_open
-                        && u[0] * v[0] + u[1] * v[1]
-                            >= 15.0f64.to_radians().cos() * u[0].hypot(u[1]) * v[0].hypot(v[1])
-                                - 1e-9
+                    (u[0] * v[0] + u[1] * v[1]).abs()
+                        >= 15.0f64.to_radians().cos() * u[0].hypot(u[1]) * v[0].hypot(v[1]) - 1e-9
                 })))
     );
     let drawing = model::render(&part, &a, &p, &font()).unwrap();
@@ -1007,7 +1003,7 @@ fn ctc01_r5_meets_the_fillet_from_the_open_centre_side() {
             .iter()
             .any(|i| i.annotation.as_deref() == Some(convex.id.as_str())
                 && i.code.starts_with("radius_leader_")),
-        "convex R50 must approach radially from outside"
+        "convex R50 must approach radially from either side"
     );
     let material = draftwright::material::solids(&a, page);
     // One initial interval is intentionally exempt even when it runs through a boss.
