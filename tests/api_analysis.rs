@@ -53,7 +53,18 @@ fn same_from_analysis(step: &Path, features: Option<&Path>) {
             serde_json::to_string(&plan).unwrap(),
             serde_json::to_string(&from).unwrap()
         );
-        assert_eq!(files.len(), formats.len());
+        // PDF carries the whole document; SVG and PNG carry every physical page.
+        let mut expected = Vec::new();
+        for format in formats {
+            expected.push(format.to_string());
+            if format != "pdf" {
+                expected.extend((2..=1 + plan.sheets.len()).map(|n| format!("sheet{n}.{format}")));
+            }
+        }
+        assert_eq!(
+            files.iter().map(|(suffix, _)| suffix).collect::<Vec<_>>(),
+            expected.iter().collect::<Vec<_>>()
+        );
         assert_eq!(files, from_files, "{}", step.display());
 
         let review = api::review(step, features, &spec).unwrap();
@@ -102,7 +113,11 @@ fn same_from_analysis(step: &Path, features: Option<&Path>) {
             .collect();
         written.push((reply["problems"].clone(), files));
     }
-    assert_eq!(written[0].1.len(), api::DEFAULT_FORMATS.len());
+    let edited_plan = api::plan_analysed(&analysis, &edited()).unwrap();
+    assert_eq!(
+        written[0].1.len(),
+        api::DEFAULT_FORMATS.len() + edited_plan.sheets.len()
+    );
     assert_eq!(written[0], written[1]);
 }
 
