@@ -514,26 +514,37 @@ size at a time, trying one through the preferred count at each size. Finally try
 more A0 sheets, up to `sheets.max`. The first usable result wins. Principal and
 auxiliary views can move as complete annotated blocks; dimension, PMI and balloon
 ownership follows the view. Authored view relations and keep-together groups remain
-constraints. Footprint bounds skip impossible single-sheet candidates. When a
-smaller readable scale can fit individual views, their complete annotated blocks
-are planned on roomy paper before transport; a small-sheet plan that already
-dropped items is not used to manufacture a fit.
+constraints. Footprint bounds skip impossible candidates. At each request the
+finished baseline's whole annotated views are repacked first (no new plan), then a
+forced trial at the largest scale the footprint bound allows; one smaller readable
+scale follows only after a lack of room (clipping, a hard layout finding or a space
+drop), never after a routing refusal. When a smaller readable scale can fit
+individual views, their complete annotated blocks are planned on roomy paper before
+transport; a small-sheet plan that already dropped items is not used to manufacture
+a fit. The search stops at the first usable candidate.
 
-A candidate is usable when all geometry and annotation ink fits inside its own
-sheet's drawable frame, feature-opening and printed-step
-readability breaches do not exceed the larger reference,
-and it adds no layout/readability failures or required losses relative to the
-unrestricted larger-paper reference. Readable scales use the existing 0.8 mm minimum feature opening, 20 mm
-overall span and 1:10 absolute floor. An inherited feature-opening shortfall may
-remain at the reference scale, but cannot justify a further reduction. This avoids
-jumping to the next standard enlargement for a reference opening just below the
-target. An authored `sheets.smallest_scale` remains hard. A reference drawn above 1:10 is never
-newly reduced to that absolute fallback just to fit preferred paper. Estimated
-recess-chain label space is judged by the finished text and clearance findings,
-rather than treated as a physical minimum. Printed-step and text/clearance breaches
-cannot increase relative to the larger reference. The existing callout-quality
-predicates also prevent additional hidden-edge crossings or leader runs within
-0.3 mm of model/extension ink for more than 2 mm.
+A candidate is usable by an absolute test of the candidate itself:
+
+- nothing is clipped: every view outline keeps its whole stroke inside its own
+  sheet's frame, and thinner ink (witness, centre and crop lines) may end on the
+  frame line but not beyond it;
+- every principal scale meets the readable floor (the existing 0.8 mm minimum
+  feature opening, 20 mm overall span, printed-step limits, the 1:10 absolute floor
+  and any authored `sheets.smallest_scale`);
+- no required information is lost: the candidate carries every item the automatic
+  reference carries, adds no dropped item or undrawn GD&T, and every undrawable
+  item is reported;
+- no unreadable ink is new to it: an error-severity layout finding, or a warning
+  for overlapping text, leader-through-text, a leader on an extension line, ink off
+  the sheet or over the title block, views that do not fit, or unplaced notes and
+  tables.
+
+The planner's own unrestricted drawing serves only to exempt what the candidate
+shares with it: an identical finding (code and subjects), printed steps already
+illegible there, or the same drop.
+Other warnings (extension or feature crossings, route lengths, crowded but legible
+location ordinates) are reported but never choose larger paper, so a crowded but
+readable small sheet does not lose to an enlargement with fewer warnings.
 Unsupported requirements and any undrawn items retain their existing findings.
 Clipping is a hard rejection, including for fallback ranking. If no usable result
 exists through A0, retain the least-bad unclipped candidate using the existing
@@ -544,7 +555,11 @@ count or both exceeded, the actual paper/scale/count, and why the preferred layo
 was refused. `Plan.sheet_candidates` and `sheet.basis` record the preferences and
 individual decisions. Explicit `sheet/size` or `sheet/scale` bypasses this search.
 Automatic feasibility is checked before pin replay. A subsequent explicit drag
-keeps its ink and reports any off-sheet placement, as on a single sheet.
+keeps its ink and reports any off-sheet placement, as on a single sheet. A bare pin
+holds the finished drawing, after its route repair. Pins in a multi-sheet choice
+replay into its view frames, and a callout offset is measured from that drawing's
+own automatic leader tip. A fresh automatic choice carries no `layout_replanned`
+notice; the planner's recovery from its first estimate is stated in `sheet.basis`.
 
 `preferred_printer` is refused with guidance to `sheet/preferred_max_size`.
 The unreleased `max_size` spelling is not accepted.

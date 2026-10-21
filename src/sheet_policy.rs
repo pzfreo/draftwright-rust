@@ -485,7 +485,7 @@ fn finish_choice(mut plan: Plan, spec: &Spec, candidates: Vec<Candidate>, reason
         plan.problems.push(model::Problem {
             id: "p:sheet_preference_exceeded:sheet".into(),
             code: "sheet_preference_exceeded".into(), severity: "info".into(),
-            message: format!("Preferred {which} exceeded: using {} sheet(s) of {} at {}. No layout within preferred {} paper and {} sheet(s) kept all ink inside the frame at a readable scale without additional layout problems or required losses.",
+            message: format!("Preferred {which} exceeded: using {} sheet(s) of {} at {}. No layout within preferred {} paper and {} sheet(s) kept all ink inside the frame at a readable scale without unreadable ink or required losses.",
                 1+plan.sheets.len(),plan.sheet.size,plan.sheet.scale,cap(spec),preferred_sheets(spec)),
             subjects: vec!["sheet".into()], ..Default::default()
         });
