@@ -840,7 +840,7 @@ fn recovered_ctc02_keeps_counted_radius_leaders_on_trimmed_arcs() {
     assert!(plan.radius_table.is_none());
     assert_eq!(
         (plan.sheet.size.as_str(), plan.sheet.scale.as_str()),
-        ("A0", "1:5")
+        ("A1", "1:5")
     );
     for (label, count) in [("4× R15", 4), ("6× R18", 6)] {
         let d = plan

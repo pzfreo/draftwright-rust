@@ -159,8 +159,8 @@ fn the_service_answers_each_line() {
     assert_eq!(fixed.len(), 5);
     for (path, value) in [
         ("sheet/keep_layout", json!(true)),
-        ("sheet/size", json!("A4")),
-        ("sheet/scale", json!("1:1")),
+        ("sheet/size", json!("A3")),
+        ("sheet/scale", json!("2:1")),
         ("sheets/max", json!(1)),
     ] {
         assert_eq!(

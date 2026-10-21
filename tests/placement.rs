@@ -1101,6 +1101,13 @@ fn a_location_that_fits_on_neither_side_shares_a_held_lane() {
             Features::Native,
             &Spec {
                 hole_table: draftwright::hole_table::Setting::Never,
+                // Exercise the existing lateral-tier mechanism on its original
+                // one-page paper; automatic whole-view allocation can instead
+                // give these locations independent room on another page.
+                sheet: model::SheetSpec {
+                    size: Some("A1".into()),
+                    ..Default::default()
+                },
                 ..Spec::default()
             },
         )

@@ -107,14 +107,21 @@ fn grm03_rejects_a4_extension_contacts_without_losing_measurements() {
     );
     // Complete unclipped ink takes precedence over filling one page. The
     // orientation view touched the frame in the old single-sheet layout.
+    // The side view and its bore annotation travel with it on sheet two.
     assert_eq!(p.sheets.len(), 1);
     assert!(
         p.sheet_candidates
             .iter()
             .any(|c| c.max == 1 && c.outcome.starts_with("hard rejected:"))
     );
-    assert_eq!(p.views.iter().filter(|v| v.sheet == 2).count(), 1);
-    assert_eq!(p.views.iter().find(|v| v.sheet == 2).unwrap().id, "v:iso");
+    assert_eq!(
+        p.views
+            .iter()
+            .filter(|v| v.sheet == 2)
+            .map(|v| v.id.as_str())
+            .collect::<Vec<_>>(),
+        ["v:side", "v:iso"]
+    );
     assert!(p.views.iter().all(|v| v.detail.is_none()));
     assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
     sheet_rule::assert_rule("grm03", &p);

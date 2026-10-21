@@ -449,7 +449,7 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
     let intent = baseline.spec.clone();
     let effective = crate::spec_gdt::effective(analysis, &intent)?;
     let fit = effective.as_ref();
-    let radius_reference = model::radius_edit_reference(analysis, &intent);
+    let radius_reference = model::radius_edit_reference(analysis, &intent, true);
     let floor = readable_floor(fit, &baseline, spec);
     let estimate = Estimate::new(fit, &baseline);
     let mut candidates = Vec::new();

@@ -5384,7 +5384,7 @@ fn plan_with_presentation(
     // Reserve the finished radius corridors before an edited/promoted linear
     // witness chooses its lane. Late replay alone would see that new witness as
     // a reason to evict an unrelated, already clear radius leader.
-    let radius_reference = radius_edit_reference(analysis, given);
+    let radius_reference = radius_edit_reference(analysis, given, false);
     let radius_inventory = radius_reference.as_ref().is_some_and(|r| {
         r.dimensions.iter().any(|d| {
             d.placed.is_some()
@@ -6631,7 +6631,7 @@ fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                 .iter()
                 .any(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
         })
-        .then(|| radius_edit_reference(analysis, spec))
+        .then(|| radius_edit_reference(analysis, spec, false))
         .flatten();
     if !crate::nominal::geometry_eligible(analysis) {
         settle_finished_nominals(
@@ -6685,7 +6685,11 @@ fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
 /// An annotation edit replays the finished radius routes, rather than repairing the
 /// earlier, pre-polish inventory afresh against a different set of peers. This is
 /// a pure reference, independent of which document happened to be planned first.
-pub(crate) fn radius_edit_reference(analysis: &Analysis, spec: &Spec) -> Option<Plan> {
+pub(crate) fn radius_edit_reference(
+    analysis: &Analysis,
+    spec: &Spec,
+    recovered: bool,
+) -> Option<Plan> {
     let edited = spec.dimension_source == DimensionSource::Authored
         || spec.dimensions.values().any(|d| {
             d.omit
@@ -6739,6 +6743,7 @@ pub(crate) fn radius_edit_reference(analysis: &Analysis, spec: &Spec) -> Option<
         &base,
         crate::planning::is_fixed_pair(),
         crate::planning::nominals_deferred(),
+        recovered,
     ))
     .expect("radius reference inputs serialize");
     crate::planning::memo(analysis, "radius-edit-reference", key.clone(), || {
@@ -6753,8 +6758,16 @@ pub(crate) fn radius_edit_reference(analysis: &Analysis, spec: &Spec) -> Option<
         }
         // Do not replace the live candidate's policy/preparation entries,
         // notably its complete annotation inventory and sheet trials.
-        let reference =
-            crate::planning::isolated(analysis, || plan_recovered(analysis, &base).ok());
+        // Primitive plans retain their primitive corridors. Only the outer
+        // paper policy requests a finished recovered reference, then carries it
+        // through its fixed-paper trials with trial_radius_reference above.
+        let reference = crate::planning::isolated(analysis, || {
+            if recovered {
+                plan_recovered(analysis, &base).ok()
+            } else {
+                plan(analysis, &base).ok()
+            }
+        });
         MEMO.insert(digest, reference.clone());
         reference
     })
