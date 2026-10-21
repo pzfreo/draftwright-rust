@@ -1627,7 +1627,18 @@ modifiers?, default, basis, placed}` (`surface_finish` added by F2, draftwright-
   standing on its leader's shelf, the leader's arrowhead on the edge line, the material removal
   condition's bar or circle, and its parameters under the bar, one per cell and line (`Ra 0.8`,
   µm). A face no principal view shows edge-on (a cone, a tilted plane) is `pmi_not_lowered`; one
-  whose view is not drawn is `pmi_not_drawn`. It keeps its outward strip.
+  whose view is not drawn is `pmi_not_drawn`. A plane keeps its outward strip. A cylinder
+  starts in the front view's strip that carries no dimension lanes (left of a z axis, above an x
+  axis) when a site proves it, tries compact tiers between its face and the first lane, and
+  takes the other silhouette only when its own strip has no place clear of every label and
+  line. A cylinder with no proven silhouette (one trimmed by flats) is reached head-on: proven
+  points inside its outline on the half facing that view, with nothing in front, midway between
+  the axis and either side, the leader ending in a dot there (ISO 128-22), sites clear of the
+  view's edges and silhouettes first. The symbol's box starts 0.9 mm past the leader's bend.
+  A leader or shelf run alongside a dimension or extension line closer than one text height (3 mm)
+  grades as a line through a label, so the next tier or site wins; in a strip, the finish with
+  fewest proven sites is placed first.
+  `annotations/<id>/place/side` may name either strip a cylinder proves a site in.
 - **Placement**: automatic datums first try inside tiers between their face and the first
   dimension lane, with normal triangle, shaft, frame and lane clearances. All inside sites
   are searched before the existing tiers beyond the dimensions. Cylinder alternatives use
@@ -1738,8 +1749,10 @@ item 1, stream K1b; Python draftwright's `Sheet.finish`, `thread`, `knurl`, `not
   `required` (ISO 1302's bar), `prohibited` (its circle) or `any` (the default). Lowered into an
   AP242 face surface texture's record (`surface_finish`, on the feature's cylinders, else its
   faces) and drawn as F2 draws one: the symbol on a leader from the face's edge in the view that
-  sees it edge-on. Faces no principal view shows edge-on, or several cylinders on different axes
-  (a hole pattern's), are `pmi_not_lowered`, as for the file's own.
+  sees it edge-on, or, for a cylinder with no proven silhouette, a dot-terminated leader from
+  inside its outline (placed as the file's own, above). Faces no principal view shows edge-on,
+  or several cylinders on different axes (a hole pattern's), are `pmi_not_lowered`, as for the
+  file's own.
 - **`sheet/default_finish`**: the same, the part's default finish: the record of an AP242
   surface texture on the part (`Ra <v> µm unless otherwise specified`), drawn beside the title
   block (`requirements`, `carrier: sheet`).

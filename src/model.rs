@@ -4732,7 +4732,12 @@ fn plan_with_presentation(
     request.sections = usize::from(section.is_some());
     // GD&T corridors depend on the aligned projection row. Keep their established
     // packing; a section-only lift must not change its readable scale or frame routes.
-    request.section_row_fixed = demand.gdt.iter().any(|items| !items.is_empty());
+    // Items left of the front and plan column face no section, so they leave it free.
+    request.section_row_fixed = demand
+        .gdt
+        .iter()
+        .flatten()
+        .any(|g| !(matches!(g.view, "front" | "plan") && g.side == "left"));
     // The tables are reserved towards their corners and the general notes block top right, in
     // draftwright's order, unless only a fallback would make room for them: then each is placed
     // where it can be, or reported (crate::tables, crate::notes).

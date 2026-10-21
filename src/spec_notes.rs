@@ -340,11 +340,10 @@ pub(crate) fn records(
         r.kind = "surface_finish".into();
         r.label = format!("Ra {} µm", crate::pmi::fmt_g3(f.ra));
         r.fields = texture_fields(f);
-        let mut g = crate::pmi::datum_geometry_of(&r, &attachments(analysis, &r));
-        for why in &mut g.reasons {
-            *why = why.replace("datum reference", "surface finish");
-        }
-        r.geometry = Some(g);
+        r.geometry = Some(crate::pmi::finish_geometry_of(
+            &r,
+            &attachments(analysis, &r),
+        ));
         r
     };
     let note_record = |base: &str, faces: &[usize], text: &str| {

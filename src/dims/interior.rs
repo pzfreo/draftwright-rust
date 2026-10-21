@@ -409,6 +409,13 @@ impl Proof {
             && self.boxes.iter().all(|x| !near_box(s, *x, c))
     }
 
+    /// Whether page point *p* stays *c* paper mm clear of every projected edge, silhouette and
+    /// curved-face box.
+    pub(super) fn point_clear(&self, v: &PlannedView, p: P2, c: f64) -> bool {
+        let q = self.model_point(v, p);
+        self.line_clear([q, q], c / v.scale + SLACK)
+    }
+
     pub(super) fn touches(&self, v: &PlannedView, tip: P2) -> bool {
         let q = self.model_point(v, tip);
         let c = 0.05 / v.scale + SLACK;

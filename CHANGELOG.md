@@ -33,6 +33,18 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- Per-face surface finishes (#98): a cylinder's symbol starts in the front view's strip that
+  carries no dimension lanes, tries compact tiers beside its face, and takes the other
+  silhouette only when its own strip has no clear place; the leader's bend no longer sits on
+  the symbol's box (`leader_line_through_text`), and its leader keeps 3 mm from any
+  dimension or extension line it runs alongside. The finish with fewest sites in a strip goes
+  first. A cylinder trimmed by flats, which has no
+  silhouette, is reached head-on with a dot-terminated leader instead of `pmi_not_lowered`;
+  the same applies to AP242 face finishes. `annotations/<id>/place/side` may name either
+  proven strip. GD&T only left of the front and plan column no longer pins the section row,
+  and the front's bottom band follows the side's only when GD&T widened it. Two finishes on
+  `string_post` now stay on A4 (was A3, five crossings, one leader through text, one finish
+  undrawn).
 - Unclaimed geometry is informational and advisory on single-solid parts too, retaining
   the unclaimed faces as subjects (#25).
 - Attribute marked PMI to Specify; compatible Spec thread designations refine its thread

@@ -711,3 +711,77 @@ fn string_post_finishes_do_not_add_location_requirements() {
             .any(|p| p.code == "feature_not_located")
     );
 }
+
+/// #98: two finishes on string_post, one on the plain ø6 and one on the ø3.4 that the flats trim
+/// to two half cylinders with no silhouette, keep the A4 sheet main chooses without them, draw
+/// both, and leave no leader through text or leader crossing. The trimmed cylinder is reached
+/// head-on: its leader ends in a dot inside the shaft's outline.
+#[test]
+fn string_post_face_finishes_stay_on_a4_and_reach_a_trimmed_cylinder_head_on() {
+    let Some(corpus) = std::env::var_os("DRAFTWRIGHT_CORPUS")
+        .map(PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME").map(|p| PathBuf::from(p).join("repos/quiddity/tests/corpus"))
+        })
+        .filter(|p| p.is_dir())
+    else {
+        assert_ne!(
+            std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").as_deref(),
+            Ok("1")
+        );
+        return;
+    };
+    let (part, a) = model::analyse_native(&corpus.join("gramel/string_post.step")).unwrap();
+    let plain = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let s = spec(json!({"features": {
+        "f:turned_step:1": {"finish": {"ra": 0.8}},
+        "f:turned_step:4": {"finish": {"ra": 1.6}}
+    }}));
+    let finished = model::plan_recovered(&a, &s).unwrap();
+    assert_eq!(finished.sheet.size, plain.sheet.size);
+    assert_eq!(finished.sheet.size, "A4");
+    assert_eq!(finished.sheets.len(), plain.sheets.len());
+    let finishes = gdt(&finished, "surface_finish");
+    assert_eq!(finishes.len(), 2, "{:?}", finished.problems);
+    assert!(problems(&finished, "pmi_not_lowered").is_empty());
+    let head_on: Vec<_> = finishes
+        .iter()
+        .filter_map(|g| g.placed.as_ref())
+        .filter(|p| p.arrows.is_empty())
+        .collect();
+    assert_eq!(head_on.len(), 1, "one leader ends in a dot");
+    assert_eq!(head_on[0].fills.len(), 1);
+    // The dot is inside the front view's outline of the shaft, not on its silhouette.
+    let front = finished.views.iter().find(|v| v.id == "v:front").unwrap();
+    let tip = head_on[0].tip;
+    assert!(tip[0] > front.area[0] && tip[0] < front.area[2]);
+    for g in &finishes {
+        let p = g.placed.as_ref().unwrap();
+        let [_, elbow] = p.lines[0];
+        let b = p.label_box;
+        assert!(
+            !(b[0] <= elbow[0] && elbow[0] <= b[2] && b[1] <= elbow[1] && elbow[1] <= b[3]),
+            "{}: the bend stays outside the symbol's box",
+            g.id
+        );
+    }
+    assert!(
+        finished
+            .problems
+            .iter()
+            .all(|p| p.code != "annotation_leader_crossing"),
+        "{:?}",
+        finished.problems
+    );
+    let drawing = model::render(&part, &a, &finished, &font()).unwrap();
+    let effective = draftwright::spec_gdt::effective(&a, &s).unwrap();
+    let lint = draftwright::lint::lint(&effective, &drawing);
+    assert!(
+        lint.iter().all(|p| !matches!(
+            p.code.as_str(),
+            "leader_line_through_text" | "pmi_source_site_mismatch"
+        )),
+        "{:?}",
+        lint.iter().map(|p| &p.code).collect::<Vec<_>>()
+    );
+}
