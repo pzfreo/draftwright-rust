@@ -1246,7 +1246,7 @@ fn place_with_obstacles_uncached(
             }) else {
                 continue;
             };
-            let Some(p) = nominal_route(reference, old, views, w) else {
+            let Some(p) = nominal_route(analysis, reference, old, views, w) else {
                 continue;
             };
             if p.lines.len() != 2 {
@@ -1852,21 +1852,20 @@ pub(crate) fn settle_after_furniture(
             let factor = v.scale / old_view.scale;
             let map = |q: P2| [0, 1].map(|k| v.at[k] + factor * (q[k] - old_view.at[k]));
             let mapped_tip = map(old_tip);
-            let mapped_elbow = map(old_elbow);
-            // A compact reference may store its attachment on the projection
-            // grid. Enlarging that rounded point does not put it on the real
-            // circular rim. Reuse the existing proven-rim attachment before
-            // measuring the transported candidate; retain same-scale ink.
-            let tip = if radius && factor != 1.0 {
-                moved_rim_tip(
+            let tip = if !crate::nominal::comparison()
+                && w.measurements
+                    .iter()
+                    .any(|m| m.parameter == "slot_end_radius.radius")
+            {
+                rounded_rim_tip(
                     &job.sites,
                     mapped_tip,
-                    mapped_elbow,
                     frame.scale() * crate::model::projected_ink::GRID,
                 )
             } else {
                 mapped_tip
             };
+            let mapped_elbow = map(old_elbow);
             let delta = [mapped_elbow[0] - tip[0], mapped_elbow[1] - tip[1]];
             let norm = delta[0].hypot(delta[1]);
             if norm < 1e-9 {
@@ -2814,7 +2813,7 @@ pub(super) fn seed_established(
             continue;
         }
         let p = if is_nominal {
-            nominal_route(&reference, d, views, w)
+            nominal_route(analysis, &reference, d, views, w)
         } else {
             translated(&reference, d, views, w)
         };
@@ -2874,6 +2873,7 @@ fn translated(
 }
 
 fn nominal_route(
+    analysis: &crate::model::Analysis,
     before: &crate::model::Plan,
     d: &PlannedDimension,
     views: &[crate::model::PlannedView],
@@ -2905,6 +2905,27 @@ fn nominal_route(
         p.label_at[k] += shift;
         p.label_box[k] += shift;
         p.label_box[k + 2] += shift;
+    }
+    // Compact comparison routes store model-grid attachment points. A copy
+    // onto the live sheet must still terminate on its proven circular rim.
+    // Correct only that rounding, preserving the tip's angular station, the
+    // elbow and the complete label. Ordinary candidates measure this ink as
+    // usual; the comparison's published corridor remains unchanged.
+    if !crate::nominal::comparison()
+        && w.measurements
+            .iter()
+            .any(|m| m.parameter == "slot_end_radius.radius")
+        && let Shape::Callout { sites, arcs } = &w.shape
+    {
+        let frame = Frame::new(analysis, now);
+        let sites = page_sites(&frame, sites, arcs);
+        let tip = p.lines[0][0];
+        p.lines[0][0] = rounded_rim_tip(
+            &sites,
+            tip,
+            frame.scale() * crate::model::projected_ink::GRID,
+        );
+        p.arrows[0] = arrow(p.lines[0][0], p.lines[0][1]);
     }
     Some(p)
 }
@@ -3315,7 +3336,7 @@ fn refine_uncached(
         // Include slides along that exact shaft, preserving its real attachment
         // and the normal material, length and witness gates.
         let established = legacy(i)
-            .and_then(|d| nominal_route(reference.as_ref()?, d, views, w))
+            .and_then(|d| nominal_route(analysis, reference.as_ref()?, d, views, w))
             .or_else(|| (edited_text && repair_text).then(|| old.clone()));
         let clear_new_text = repair_text
             && !w.measurements.is_empty()
@@ -5041,6 +5062,28 @@ fn rim_tip(site: Site, elbow: P2) -> P2 {
     [c[0] + r * d[0] / n, c[1] + r * d[1] / n]
 }
 
+/// Remove model-grid rounding from a copied arc attachment without changing
+/// its angular station. This is geometry transport, not a placement search.
+fn rounded_rim_tip(sites: &[Site], tip: P2, grid: f64) -> P2 {
+    let error = |s: &Site| ((tip[0] - s.0[0]).hypot(tip[1] - s.0[1]) - s.1).abs();
+    if let Some(site) = sites
+        .iter()
+        .filter(|s| {
+            s.1 > 0.
+                && s.2.is_some_and(|span| {
+                    span.contains((tip[1] - s.0[1]).atan2(tip[0] - s.0[0]), grid / s.1)
+                })
+        })
+        .min_by(|a, b| error(a).total_cmp(&error(b)))
+        && error(site) > 1e-6
+        && error(site) <= grid
+    {
+        rim_tip(*site, tip)
+    } else {
+        tip
+    }
+}
+
 /// Reattach to the same proven rim when a bounded growth repair moves its elbow.
 fn moved_rim_tip(sites: &[Site], anchor: P2, elbow: P2, grid: f64) -> P2 {
     let on = |s: &Site| ((s.0[0] - anchor[0]).hypot(s.0[1] - anchor[1]) - s.1).abs();
@@ -6705,6 +6748,27 @@ mod tests {
             let l = [elbow[0] - t[0], elbow[1] - t[1]];
             assert!((r[0] * l[1] - r[1] * l[0]).abs() < 1e-9 && r[0] * l[0] + r[1] * l[1] > 0.0);
         }
+    }
+
+    #[test]
+    fn copied_arc_rounding_preserves_the_station_on_the_real_rim() {
+        let sites = [(
+            [50., 40.],
+            6.,
+            Some(crate::arc::Span {
+                start: 0.,
+                sweep: std::f64::consts::TAU,
+            }),
+        )];
+        let rounded = [53.6, 44.7999];
+        let tip = rounded_rim_tip(&sites, rounded, 0.001);
+        assert!(((tip[0] - 50.).hypot(tip[1] - 40.) - 6.).abs() < 1e-9);
+        assert!(
+            ((tip[1] - 40.).atan2(tip[0] - 50.) - (rounded[1] - 40.).atan2(rounded[0] - 50.)).abs()
+                < 1e-9
+        );
+        assert_eq!(rounded_rim_tip(&sites, [53., 44.], 0.001), [53., 44.]);
+        assert_eq!(rounded_rim_tip(&sites, tip, 0.001), tip);
     }
 
     #[test]

@@ -551,7 +551,10 @@ fn tables_match_draftwrights_on_corpus_parts() {
                 ];
                 assert!(
                     same_corner
-                        || plan.views.iter().any(|v| overlaps(
+                        // Adding furniture can reserve a strip and move a
+                        // principal after allocation. Its original footprint
+                        // still explains why that corner was unavailable.
+                        || plan.views.iter().chain(&bare.views).any(|v| overlaps(
                             original_corner,
                             [
                                 v.area[0] - 2.0,
@@ -560,7 +563,7 @@ fn tables_match_draftwrights_on_corpus_parts() {
                                 v.area[3] + 2.0
                             ]
                         )),
-                    "{name} {} {:?} {pb:?}: a view must actually occupy the displaced corner after allowing the rule stroke",
+                    "{name} {} {:?} {pb:?}: a settled or pre-furniture view must occupy the displaced corner after allowing the rule stroke",
                     t.id,
                     p.cells
                 );

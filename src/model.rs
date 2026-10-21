@@ -6751,7 +6751,8 @@ pub(crate) fn radius_edit_reference(analysis: &Analysis, spec: &Spec) -> Option<
         }
         // Do not replace the live candidate's policy/preparation entries,
         // notably its complete annotation inventory and sheet trials.
-        let reference = crate::planning::isolated(analysis, || plan(analysis, &base).ok());
+        let reference =
+            crate::planning::isolated(analysis, || plan_recovered(analysis, &base).ok());
         MEMO.insert(digest, reference.clone());
         reference
     })
