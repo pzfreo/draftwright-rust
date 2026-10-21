@@ -672,7 +672,8 @@ fn mismatch(r: &Record, text: &str) -> Option<String> {
 }
 
 /// Source sites are checked against the finished leader and the source faces, never the Plan.
-/// A planar finish may slide along its face's edge line; a cylinder uses either silhouette.
+/// A planar finish may slide along its face's edge line; a cylinder uses either silhouette, or,
+/// where its face proves none, any point inside its outline seen head-on.
 pub(super) fn source_sites(
     analysis: &Analysis,
     drawing: &crate::output::Drawing,
@@ -794,11 +795,14 @@ pub(super) fn source_sites(
                                         } else {
                                             0
                                         };
+                                        // A cylinder with no proven silhouette is
+                                        // reached head-on, its leader's dot inside it.
                                         !end_on
                                             && inside
-                                            && [bounds[across], bounds[across + 2]]
-                                                .iter()
-                                                .any(|v| (tip[across] - v).abs() <= 0.05)
+                                            && (!f.face_on.is_empty()
+                                                || [bounds[across], bounds[across + 2]]
+                                                    .iter()
+                                                    .any(|v| (tip[across] - v).abs() <= 0.05))
                                     }
                                     _ => false,
                                 }

@@ -428,7 +428,10 @@ impl Strips {
                 }
             }
         }
-        if !items.is_empty() {
+        // Items below the side view (or hung past its end) widen its bottom band: the front
+        // view's follows, so the aligned row keeps one bottom. Items elsewhere leave the row as
+        // the dimensions set it, as a part without GD&T has it.
+        if self.sv_bottom > base.sv_bottom {
             self.fv_bottom = self.fv_bottom.max(self.sv_bottom);
         }
     }

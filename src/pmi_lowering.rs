@@ -115,6 +115,9 @@ pub enum Glyph {
         removal: String,
         /// `plane` or `cylinder`.
         surface: String,
+        /// Its sites lie inside the cylinder's outline, seen head-on ([`Geometry::face_on`]):
+        /// its leader ends in a dot there, not an arrowhead on a silhouette.
+        face_on: bool,
     },
 }
 
@@ -1228,6 +1231,47 @@ fn edge_on(
     })
 }
 
+/// Moves a cylinder finish's attachment *at* to the strip of its view that carries no
+/// dimension lanes, when one of its record's proven sites lies on that side of *centre*: left of
+/// the front view for a z axis (the height ladder runs on its right), above it for an x axis
+/// (the width chain runs below; `layout::Strips::reserve_gdt`). A y axis's side view carries
+/// lanes on both sides, so its side stays. Whether it moved.
+fn lane_free_side(at: &mut EdgeOn, r: &Record, centre: [f64; 3]) -> bool {
+    let (across, side) = match (at.view, axis_index(&at.axis)) {
+        ("front", Some(2)) => (0, "left"),
+        ("front", Some(0)) => (2, "above"),
+        _ => return false,
+    };
+    if at.side == side {
+        return false;
+    }
+    let Some(g) = r.geometry.as_ref() else {
+        return false;
+    };
+    let low = side == "left";
+    let on: Vec<[f64; 3]> = g
+        .sites
+        .iter()
+        .take(1)
+        .chain(&g.alternatives)
+        .copied()
+        .filter(|p| {
+            if low {
+                p[across] < centre[across]
+            } else {
+                p[across] > centre[across]
+            }
+        })
+        .collect();
+    let Some((first, rest)) = on.split_first() else {
+        return false;
+    };
+    at.site = *first;
+    at.alternatives = rest.to_vec();
+    at.side = side;
+    true
+}
+
 /// A face's AP242 surface texture (`surface_finish`) as its ISO 1302 symbol, attached as a
 /// datum feature symbol is ([`edge_on`]), or why it is not: its reading's or attachment's
 /// blockers, or no parameter to state.
@@ -1247,7 +1291,9 @@ fn surface_finish(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> 
     if lines.is_empty() {
         reasons.push("the surface texture states no parameter".into());
     }
-    let at = edge_on(r, centre, "surface finish", reasons)?;
+    let mut at = edge_on(r, centre, "surface finish", reasons)?;
+    let face_on = r.geometry.as_ref().is_some_and(|g| g.face_on);
+    let lane_free = at.surface == "cylinder" && lane_free_side(&mut at, r, centre);
     Ok(Lowered {
         id: String::new(),
         source: r.source_id.clone(),
@@ -1255,6 +1301,7 @@ fn surface_finish(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> 
             lines,
             removal,
             surface: at.surface.clone(),
+            face_on,
         },
         view: at.view,
         side: at.side,
@@ -1272,7 +1319,15 @@ fn surface_finish(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> 
             at.view,
             at.side,
             at.how
-        ),
+        ) + if face_on {
+            "; the face shows no silhouette in that view, so the leader ends in a dot on the face inside its outline"
+        } else {
+            ""
+        } + if lane_free {
+            "; that strip carries none of the view's dimension lanes"
+        } else {
+            ""
+        },
     })
 }
 
