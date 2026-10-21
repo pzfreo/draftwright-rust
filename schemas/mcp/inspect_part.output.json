@@ -127,6 +127,14 @@
                 "anyOf": [
                   {
                     "properties": {
+                      "impact": {
+                        "enum": [
+                          "incomplete",
+                          "decision",
+                          "readability",
+                          "advisory"
+                        ]
+                      },
                       "subjects": {
                         "$ref": "#/A"
                       },
@@ -155,6 +163,13 @@
                           "additionalProperties": false,
                           "minProperties": 3
                         }
+                      },
+                      "scope": {
+                        "enum": [
+                          "local",
+                          "view",
+                          "sheet"
+                        ]
                       }
                     },
                     "required": [
@@ -165,7 +180,7 @@
                     ],
                     "additionalProperties": false,
                     "patternProperties": {
-                      "^(id|code|severity)$(?!\n)": {
+                      "^(group|id|code|severity|detail_ref|description)$(?!\n)": {
                         "$ref": "#/C"
                       }
                     }

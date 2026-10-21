@@ -674,7 +674,7 @@ fn pmi_effective<'a>(analysis: &'a Analysis, spec: &Spec) -> Result<Cow<'a, Anal
             entity: "spec".into(),
             instances: Vec::new(),
             outcome: Outcome::Extracted,
-            reason: String::new(),
+            reason: "Spec-authored requirement extracted; drawing depends on its attachment and placement".into(),
         });
     }
     report.records.extend(records);
@@ -706,4 +706,34 @@ fn empty_report(analysis: &Analysis) -> Report {
         drawn: None,
         spec_problems: Vec::new(),
     }
+}
+
+/// Why this datum symbol is hidden by explicit Spec intent. Frame citations are semantic:
+/// hiding a frame does not turn its datum into an uncited datum.
+pub(crate) fn datum_omission(
+    spec: &crate::model::Spec,
+    report: &Report,
+    record: &Record,
+) -> Option<&'static str> {
+    if record.category != Category::Datum {
+        return None;
+    }
+    if spec.annotations.values().any(|a| a.omit)
+        && report
+            .identities()
+            .id(&record.source_id)
+            .ok()
+            .is_some_and(|id| spec.annotations.get(id).is_some_and(|a| a.omit))
+    {
+        return Some("datum symbol omitted by annotations/<id>/omit");
+    }
+    if spec.sheet.uncited_datums == Some(false)
+        && !report.records.iter().any(|r| {
+            r.category == Category::GeometricTolerance
+                && r.datum_refs.iter().any(|d| d.trim() == record.label.trim())
+        })
+    {
+        return Some("uncited datum symbol omitted by sheet/uncited_datums=false");
+    }
+    None
 }

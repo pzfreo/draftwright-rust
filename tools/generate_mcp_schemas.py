@@ -27,7 +27,9 @@ scope={'enum':['local','view','sheet']}
 operation_scopes={'type':'object','additionalProperties':scope}
 fix=obj({'scope':scope,'description':S,'ops':arr(ref('op'))},['scope','description','ops'])
 item=obj({'operation_scopes':operation_scopes,'item':{'type':'object'},'value':nullable(N),'dimension_kind':nullable(S),'placement':nullable({'type':'object'}),'anchors':arr(S),'features':arr(S),'basis':S,'operations':arr(S)},['item','value','dimension_kind','placement','anchors','features','basis','operations'])
-problem=obj({'id':S,'code':S,'severity':S,'message':S,'subjects':arr(S),'refs':arr(S),'fix':arr(ref('op')),'fixes':arr(fix)},['id','code','severity','message','subjects'])
+impact={'enum':['incomplete','decision','readability','advisory']}
+labels={'impact':impact,'group':S}
+problem=obj({**labels,'id':S,'code':S,'severity':S,'message':S,'subjects':arr(S),'refs':arr(S),'crossing_kinds':arr(S),'ink_is_leader':B,'fix':arr(ref('op')),'fixes':arr(fix)},['id','code','severity','message','subjects'])
 rectangle=arr(N,minItems=4,maxItems=4)
 filter_=obj({'sheet':nullable(SHEET),'view':nullable(S),'kind':nullable(S),'state':nullable(ref('state')),'feature':nullable(S),'region':nullable(rectangle),'near':nullable(S),'radius':nullable({'type':'number','minimum':0})})
 problem_filter=obj({'code':nullable(S),'severity':nullable({'enum':['info','warning','error']}),'subject':nullable(S),'feature':nullable(S)})
@@ -40,6 +42,7 @@ spec=obj({'schema':{'enum':['draftwright.spec/1','draftwright.spec/2']},'binding
 line_fields = {name: nullable(B) for name in
                ('hidden', 'centre_marks', 'centre_lines', 'thread_depiction', 'knurl_depiction')}
 spec['properties']['sheet']['properties'].update(line_fields)
+spec['properties']['sheet']['properties']['keep_layout'] = nullable(B)
 spec['properties']['views']['additionalProperties'] = obj({**line_fields, 'detail':nullable(detail)}, extra=True)
 # Share the base map/list shapes while retaining each view/declaration constraint.
 # The common pattern and the named property both apply (draft 2020-12).
@@ -59,12 +62,12 @@ del spec['properties']['feature_declarations']['items']['type']
 spec_read={**spec,'properties':{**spec['properties'],'dimensions':{'additionalProperties':{k:v for k,v in dimension.items() if k != 'type'}},'annotations':{'additionalProperties':{'properties':{'text':ref('x')}}}}}
 defs={'x':label_text,'state':state,'spec':spec,'spec_read':spec_read,'op':op,'item':item,'compact':compact,'problem':problem,'error':obj({'code':{'enum':['invalid','failed']},'message':S,'choices':arr(S)},['code','message'])}
 stub=obj({'id':nullable(S),'detail_ref':S},['id','detail_ref'])
-problem_small=obj({'id':S,'code':S,'severity':S,'subjects':arr(S),'fix':arr(ref('op')),'fixes':arr(fix)},['id','code','severity','subjects'])
+problem_small=obj({**labels,'id':S,'code':S,'severity':S,'subjects':arr(S),'fix':arr(ref('op')),'fixes':arr(fix),'detail_ref':S,'scope':scope,'description':S},['id','code','severity','subjects'])
 defs.update({'stub':stub, 'problem_small':problem_small})
 row_item={'anyOf':[ref('compact'),ref('item'),ref('stub')]}
 row_problem={'anyOf':[ref('problem'),ref('problem_small'),ref('stub')]}
 def paged(row):return obj({'items':arr(row),'total':I,'next_cursor':nullable(I)},['items','total','next_cursor'])
-page=paged({'anyOf':[obj({'change':{'enum':['changed','added']},'item':row_item},['change','item']),obj({'change':{'const':'removed'},'id':S},['change','id']),obj({'change':{'enum':['problem_added','problem_resolved']},'problem':row_problem},['change','problem']),ref('stub')]})
+page=paged({'anyOf':[obj({'change':{'enum':['changed','added']},'item':row_item},['change','item']),obj({'change':{'const':'removed'},'id':S},['change','id']),obj({'change':{'enum':['problem_added','problem_resolved','notice']},'problem':row_problem},['change','problem']),ref('stub')]})
 delta=obj({'events':page,'delta_ref':S,'plans':I},['events','delta_ref','plans'])
 summary=obj({'part_ref':S,'part':S,'face_count':I,'status':{'enum':['clear','needs_attention']},'completeness':obj({'claimed_faces':I,'faces':I,'unplanned_features':I},['claimed_faces','faces','unplanned_features']),'envelope':arr(arr(N,minItems=3,maxItems=3),minItems=2,maxItems=2),'sheet':obj({'size':S,'scale':S,'page':arr(N,minItems=2,maxItems=2)},['size','scale','page']),'sheets':SHEET,'sheet_details':arr(obj({'number':SHEET,'size':S,'scale':S,'page':arr(N,minItems=2,maxItems=2)},['number','size','scale','page'])),'views':arr(S),'items':I,'problems':I,'spec_version':S,'plan_ref':S,'key_items':arr(obj({'id':S,'label':nullable(S)},['id','label']))},['part_ref','part','face_count','status','completeness','envelope','sheet','views','items','problems','spec_version'])
 common={'part_ref':S,'spec':ref('spec'),'spec_version':S,'drawing_ref':S}
@@ -310,7 +313,8 @@ for mode in ('validation', 'published'):
             collect(schema)
             # MCP defaults to 2020-12; local refs need no repeated canonical $id URL.
             schema={**schema,'$defs':used}
-            keep = ('op',) if kind == 'input' and tool in ('apply_ops', 'preview_ops') else ()
+            # Single-use operation shapes can be inlined just like other shapes.
+            keep = ()
             # An anyOf branch inherits its parent's type; omit only redundant types.
             for branch in schema.get('anyOf', []):
                 if branch.get('type') == schema.get('type'):
@@ -333,13 +337,15 @@ for mode in ('validation', 'published'):
                 total += compact_size(schema)
                 Path(f'schemas/mcp/{tool}.{kind}.json').write_text(json.dumps(schema,indent=2)+'\n')
 Path('schemas/mcp-validation.json').write_text(json.dumps(validation, indent=2) + '\n')
-# Exact measured ceiling, shared with tests/engine_version.rs. Nested Spec growth is free;
+# Context ceiling, shared with tests/engine_version.rs. Nested Spec growth is free;
 # detail placement view names (detail_a…) add 88 bytes to item_options.
 # View-gap descriptions are in the on-demand Spec only and add zero tools/list bytes.
 # projection alignment and its description live in the on-demand Spec: +0 advertised bytes.
 # callouts/style: +0 tools/list bytes (nested on-demand Spec vocabulary only).
 # Scoped alternatives and operation/path scopes add 1,916 advertised bytes;
 # PMI policy and the shallow origin object add 804.
-SCHEMA_BUDGET = 37197
+# Actionable overflow retains preferred scope/description and its lossless detail_ref.
+# Finding impact/group and crossing metadata stay within the shared ceiling.
+SCHEMA_BUDGET = 38000
 assert total <= SCHEMA_BUDGET, f'schemas: {total} bytes (budget {SCHEMA_BUDGET})'
 print(f'{len(tools)} tools; {total} compact schema bytes')

@@ -686,7 +686,11 @@ def one(f, dw, out, spec=None, timeout=600, review=True):
                      "label_section_furniture_overlap", "oblique_witness_crossing"):
             codes[code] = max(codes[code], sum(i["code"] == code for i in review["structural"]))
         for code in ("radius_leader_target_mismatch", "radius_leader_target_unverifiable"):
-            codes[code] = max(codes[code], sum(i["code"] == code for i in review.get("lint", [])))
+            # Unreadable radius sections are now informational (#145), not proven bad
+            # ink. Keep every finding in review.json; existing warning/error counts stay.
+            codes[code] = max(codes[code], sum(i["code"] == code and not (
+                code == "radius_leader_target_unverifiable" and i.get("severity") == "info")
+                for i in review.get("lint", [])))
         with open(f"{out}/{name}.review.json", "w") as output:
             json.dump({k: review[k] for k in ("lint", "structural")}, output, indent=1, sort_keys=True)
     # Repeated dimensions: the same measured quantity (feature, parameter) stated more than once,

@@ -123,17 +123,41 @@ fn the_service_answers_each_line() {
         problems[1],
         json!({
             "id": "p:unclaimed_geometry:sheet", "code": "unclaimed_geometry", "severity": "warning",
+            "impact": "advisory", "group": "unclaimed_geometry",
             "message": "Analysis features and dimensioned stock claim 6 of 10 faces; 4 faces are unclaimed. Review the geometry: ordinary stock faces may also be unclaimed; this is not a count of missed features.",
             "subjects": ["face:2", "face:3", "face:7", "face:8"]
         })
     );
     assert_eq!(problems[0]["code"], "general_tolerance_missing");
     assert_eq!(problems[0]["severity"], "warning");
+    assert_eq!(problems[0]["impact"], "decision");
+    assert_eq!(
+        replies[1]["result"]["summary"]["impacts"]["decision"]["findings"],
+        1
+    );
+    assert_eq!(
+        replies[1]["result"]["summary"]["groups"]["unclaimed_geometry"],
+        1
+    );
     assert_eq!(problems[0]["subjects"], json!(["sheet"]));
     assert_eq!(
-        problems[0]["fix"],
-        json!([{ "op": "set", "path": "sheet/title/tolerance", "value": "UNSPECIFIED" }])
+        problems[0]["fix"][0],
+        json!({ "op": "set", "path": "sheet/title/tolerance", "value": "UNSPECIFIED" })
     );
+    let fixed: Vec<draftwright::items::Op> =
+        serde_json::from_value(problems[0]["fix"].clone()).unwrap();
+    assert_eq!(fixed.len(), 5);
+    for (path, value) in [
+        ("sheet/keep_layout", json!(true)),
+        ("sheet/size", json!("A4")),
+        ("sheet/scale", json!("1:1")),
+        ("sheets/max", json!(1)),
+    ] {
+        assert_eq!(
+            fixed.iter().find(|op| op.path == path).unwrap().value,
+            Some(value)
+        );
+    }
     // No feature-size requirements; the sheet still proves every overall extent.
     assert_eq!(replies[1]["result"]["lint"], json!([]));
     assert_eq!(replies[2]["error"]["choices"], json!(["svg", "pdf", "png"]));

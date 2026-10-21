@@ -505,6 +505,73 @@ fn a_leader_does_not_turn_inside_its_own_label() {
 }
 
 #[test]
+fn a_datum_shaft_meets_its_frame_but_does_not_cross_its_letter() {
+    use draftwright::dims::gdt::{GdtPlaced, GdtText, PlannedGdt};
+
+    let letter = GdtText {
+        text: "A".into(),
+        at: [53.0, 53.0],
+        size: 3.0,
+    };
+    let mut datum = PlannedGdt {
+        from_spec: Vec::new(),
+        id: "pmi:datum.datum:f0:t=A".into(),
+        kind: "datum_feature".into(),
+        view: "v:front".into(),
+        side: "left".into(),
+        source: "#10".into(),
+        faces: vec![0],
+        cells: vec!["A".into()],
+        modifiers: Vec::new(),
+        label: "A".into(),
+        default: false,
+        basis: "unit test attachment".into(),
+        state: draftwright::items::State::Shown,
+        placed: Some(GdtPlaced {
+            tip: [40.0, 53.0],
+            lines: vec![[[42.0, 53.0], [50.0, 53.0]]],
+            arrows: Vec::new(),
+            label_box: [50.0, 50.0, 56.0, 56.0],
+            strokes: vec![
+                [[50.0, 50.0], [56.0, 50.0]],
+                [[56.0, 50.0], [56.0, 56.0]],
+                [[56.0, 56.0], [50.0, 56.0]],
+                [[50.0, 56.0], [50.0, 50.0]],
+            ],
+            arcs: Vec::new(),
+            fills: vec![vec![[40.0, 51.0], [42.0, 53.0], [40.0, 55.0]]],
+            letters: vec![letter.clone()],
+            runs: vec![letter],
+        }),
+    };
+    let check = |datum: &PlannedGdt| {
+        let rendered = model::render_item(model::AnnotationItem::Gdt(datum));
+        assert_eq!(rendered.drawn.len(), 1);
+        assert_eq!(rendered.drawn[0].elbow, None, "a datum has no callout bend");
+        let mut drawing = sheet(&[], rendered.drawn);
+        drawing.text = rendered.text;
+        drawing.annotations = rendered.annotations;
+        structural::check(&drawing)
+    };
+    assert!(
+        check(&datum).is_empty(),
+        "the shaft ends on the frame border"
+    );
+    // A frame-edge stroke is legal too; its midpoint is not inside the frame.
+    datum.placed.as_mut().unwrap().lines = vec![[[50.0, 50.0], [50.0, 56.0]]];
+    assert!(check(&datum).is_empty());
+    for end in [[53.0, 53.0], [60.0, 53.0]] {
+        // Catch both a shaft ending in the letter and one passing all the way through,
+        // even though neither has a callout elbow in its drawing record.
+        datum.placed.as_mut().unwrap().lines = vec![[[42.0, 53.0], end]];
+        let found = check(&datum);
+        assert_eq!(codes(&found), ["leader_line_through_text"]);
+        assert_eq!(found[0].severity, Severity::Error);
+        assert_eq!(found[0].annotation.as_deref(), Some(datum.id.as_str()));
+    }
+}
+
+#[test]
 fn a_label_clears_a_centreline_by_half_a_millimetre() {
     let b = [50.0, 50.0, 60.0, 53.0];
     let check = |line: [[f64; 2]; 2]| {

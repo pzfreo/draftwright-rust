@@ -812,11 +812,24 @@ Lint (`review`'s `lint`) also checks each callout's leader against the part (str
 `lint::leaders`), from its drawn leader, its view's recorded transform and the Analysis: a hole
 callout's tip must lie within 0.002 mm of a boundary circle of a hole it names (a double-D bore's
 trimmed profile, flats included) as projected in its view (`diameter_leader_target_mismatch`,
-warning; `diameter_leader_target_unverifiable` when no named hole can be read), a straight
-blend's radius callout's tip on that blend's trimmed profile arc seen end-on
-(`radius_leader_target_mismatch` and `_unverifiable`, warnings), and no callout's shaft may cut
+warning; `diameter_leader_target_unverifiable` when no named hole can be read), and a
+radius callout's tip on its trimmed circular profile arc seen end-on
+(`radius_leader_target_mismatch`, warning). The drawn shaft must meet its middle 25–75%,
+within 15° of radial, from the open non-material side (`radius_leader_not_radial`, warning),
+including fillet callouts. This is towards the centre for a concave fillet and away from the
+centre for a convex outside corner. Unreadable circular sections use the existing
+`radius_leader_target_unverifiable` as info, not a wrong-shaft warning.
+Exact `Analysis.radius_arcs` records the cylinder, trim, proven middle-face points and
+material side; older straight blends use their rolling axis and proven samples. Toroidal
+minor-radius sections are checked only at proven quarter/half/three-quarter major-path
+meridians seen end-on; oblique and unsupported meridians remain explicitly unverifiable.
+Routing retains the best existing callout when no compliant candidate preserves the
+existing contact/length budget. Drawn lint reports any remaining violation once per callout;
+there is no separate fallback problem, and no callout's shaft may cut
 back into the part's material after leaving it at its tip (`leader_crosses_silhouette`, info,
-with the depth cut). The material is each solid's projected box (`material::solids`) and the
+with the depth cut). This test deliberately exempts the initial traversal: it cannot detect
+a boss crossing within a single solid box, as on CTC-01 (#145). The radius direction check
+covers the local material-side approach independently. The material is each solid's projected box (`material::solids`) and the
 measure `material::reentry`, the same predicate the leader router prices: a candidate that
 re-enters is a hard blocker, its depth added to its length, and a chosen one is reported as
 `annotation_line_over_view` with the depth in its message; a pinned callout's leader, which the
@@ -1544,7 +1557,16 @@ modifiers?, default, basis, placed}` (`surface_finish` added by F2, draftwright-
   the plan, its leader from the centre of its faces' box. Only the modifiers draftwright draws
   are drawn (all-around, all-over, the zone, the material condition); any other is a
   `pmi_not_lowered` error.
-- **A datum feature symbol** for each datum whose faces are all planes, or all cylinders, on one
+- **A datum feature symbol** for every declared datum in the STEP or Spec, including
+  datums no control frame cites (for example Specify ± mode measurement origins). Set
+  `sheet/uncited_datums: false` to hide only uncited symbols; `true` (the default) draws them.
+  Set `annotations/<id>/omit: true` to hide any individual datum, using its stable ID from
+  `plan().gdt`. Hidden symbols remain there with `state: {"kind": "omitted_by_user"}`, source, faces,
+  and an explanatory basis. `pmi().unresolved` explains the omission or attachment/placement
+  failure until the symbol is drawn; it never returns an empty reason. Rendered drawings
+  retain explicit omission provenance, and coverage reports `pmi_datum_suppressed` (info)
+  without counting the hidden symbol as drawn.
+  Each datum whose faces are all planes, or all cylinders, on one
   principal plane or axis: in the view that sees it edge-on (x and z: front; y: side; a y-normal
   plane goes to the plan when the side view is not drawn), on the side its outward normal points
   to, from a proven site on its face. A cylinder may use either silhouette proved against
@@ -1573,7 +1595,11 @@ modifiers?, default, basis, placed}` (`surface_finish` added by F2, draftwright-
   comparison), so a greedy move cannot crowd later frames into overlaps. If the full
   rearrangement fails this guard, datum changes are tried alone. Unavoidable
   collisions stay visible and are reported. Notes and tables keep clear of the frames.
-  Explicit coordinates retain their strip/tier behavior; pins keep their resolved geometry.
+  Newly drawn uncited datums with remaining leader crossings also try the same placer with
+  exact clearance grading in narrow shoulder gaps that the conservative first-stroke band
+  rejects. This reuses the existing attachment sites, tiers and ordering.
+  Override the automatic attachment/view/tier with `annotations/<id>/place`; explicit
+  coordinates retain their strip/tier behavior and pins keep their resolved geometry.
   An empty `place: {}` reset restores automatic placement, including inside datum tiers.
 - **Render**: strokes for the frame, the symbols and rings, the font's glyphs for letters and
   numbers (`⌀` drawn as a ring and a stroke, `S⌀` as `Sø`), and one invisible text run per
@@ -2200,11 +2226,17 @@ placement. Automatic labels can lie inside the view or use the automatic solver'
 other exterior candidates; read their actual geometry through `item`/`plan`.
 A bare pin retains that automatic geometry. To pin a label dragged anywhere, including into
 the view's open space, use `place.offset`: `Session::callout_offset(address)` returns
-`CalloutOffset { view, tip, bend, offset }` (paper mm), where `tip` is the automatic leader tip
+`CalloutOffset { view, tip, bend, offset, members }` (paper mm), where `tip` is the automatic leader tip
 the offset is measured from, `bend` the bend as drawn now and `offset = bend - tip`. Pinning a
 drop at `b` is `{"offset": b - tip, "pinned": true}`; pinning the returned `offset` keeps the
 callout exactly where it is. `tip` is kept relative to its view's origin, so it is in the same
-frame as the drawn bend after packing moves views. It reads planning metadata only and refuses
+frame as the drawn bend after packing moves views. `members` lists the projected attachment
+sites as `{centre: [x,y], radius, span?: {start, sweep}}`, in paper mm (y up),
+with counterclockwise arc spans in radians. A dragged group callout attaches to the
+member nearest its elbow; ties retain the automatic member. The tip is placed on
+that member with the same rim/arc rule as automatic leaders. Switching members
+keeps the elbow, shoulder and label position; `tip` remains the automatic offset origin.
+The query does not solve layout or project model edges and refuses
 non-callouts, a callout drawn without a leader, and one pinned into a non-canonical view. Editors with their own Plan read the same tip with
 `plan.automatic_callout_tip(id) -> Option<(view, [x, y])>` (`None` on a deserialised Plan).
 For linear dimensions, `Session::label_offset(address)` returns

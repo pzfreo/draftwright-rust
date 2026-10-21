@@ -6,6 +6,11 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+- Add `impact` and stable repeat-cause `group` labels to every problem and lint finding,
+  including serve, WASM and compact MCP results. Review includes per-impact and per-group
+  counts, also forwarded by the MCP review tool. Severity, finding order and drawings
+  are unchanged. See [finding impact](docs/finding-impact.md) for the full classification.
+
 ### Fixed
 
 - #147: retry crossing feature callouts, leader-attached GD&T frames and AP242 surface labels
@@ -15,6 +20,36 @@ All notable changes to draftwright-rust are recorded here, in the style of
   favour exterior routes. AP242 CTC/FTC fixtures join the per-kind crossing ratchet in
   CI's `quality-pins` job.
 
+- Radius callouts (#145) try the middle half of a proven circular arc, within 15° of
+  radial from the non-material side: towards the centre for concave fillets, away from it
+  for convex outside corners. End-on toroidal meridians are supported where proven.
+  A blocked case keeps its callout and has one drawn-lint finding; unreadable sections
+  use informational `radius_leader_target_unverifiable`, with no duplicate fallback warning.
+  Unrelated omission and tolerance edits retain finished radius routes and their existing
+  findings; the final collision audit preserves remedies for authored pins, and repeated
+  pin audits keep findings unique for lossless session replay.
+- Verbose MCP problems retain their code and subjects inline, plus the preferred fix,
+  scope and complete trade description when they fit. `detail_ref` retains every full
+  alternative without offering an undisclosed trade (#151). Explicit paper, scale and sheet-count edits release an inherited local-layout
+  guard; setting `sheet/keep_layout` in the same batch retains the local promise.
+
+- Local fixes retain their sheet size, scale and count (#126, alpha.11).
+  Existing paper/scale/count fields and boolean `sheet/keep_layout` express intent,
+  without page coordinates or item inventories. Preview, commit and stateless edits compare
+  required information; conflicts are refused. Moved views are named in edit notices.
+  Bounded placement trials disclose new findings and prefer a clean alternative within
+  their search budget. Multi-sheet remedies remain sheet scope.
+  Edits that change paper, scale or count now report `layout_replanned` against the drawing
+  being edited, even when the new planner run did not itself perform recovery.
+- Pinned group callouts attach to the member nearest their elbow, retaining the automatic
+  member on ties (#149). Offsets still use the automatic tip; existing label positions stay put.
+
+- Declared STEP AP242 and Spec datums draw without a control-frame citation (#141, alpha.11),
+  using the existing datum-symbol placer. `sheet/uncited_datums: false` hides uncited symbols;
+  `annotations/<id>/omit` hides individual symbols. Omitted symbols retain provenance in the
+  plan and drawing, and unresolved PMI always explains why it is not drawn.
+  Datum leader records have no callout elbow; structural lint accepts frame-border
+  attachments while still reporting a shaft through the datum letter.
 - Classify retained leader crossings by leader, dimension line, extension line and arrow
   using additive `crossing_kinds` problem metadata; mark leader-through-text with
   `ink_is_leader`. Report linear dimension-line crossings as `dimension_line_crossing`
@@ -28,6 +63,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
   Conflicting dimension ownership returns an Invalid error; malformed projected spline
   arrays use the existing `edges_not_drawn` Problem. Hostile requests and subsequent valid
   edits/renders run in the browser parity job.
+
+### WASM API
+
+- Add `members: [{centre: [x,y], radius, span?: {start, sweep}}]` to `calloutOffset`
+  and `Session::callout_offset` (#149). Sites use paper mm, y up; arc spans are
+  counterclockwise radians. Existing fields and WASM method signatures are unchanged.
 
 ## 0.1.0-alpha.10 (2026-10-20)
 

@@ -35,3 +35,6 @@ mod rules_catalogue;
 mod rules_text;
 #[path = "../trust_rules.rs"]
 mod trust_rules;
+
+#[path = "../finding_impact.rs"]
+mod finding_impact;

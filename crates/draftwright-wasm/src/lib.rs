@@ -29,7 +29,7 @@ impl Session {
         let annotations: std::collections::BTreeMap<_, _> =
             delta.annotations.keys().map(|id| (id, true)).collect();
         let changed: Vec<_> = delta.changed.iter().map(|i| serde_json::json!({"item":{"id":i.item.id},"placement":i.placement.as_ref().map(|_|true)})).collect();
-        let mut packet = serde_json::json!({"delta":{"plans":delta.plans,"plan":delta.plan,"removed":delta.removed,"changed":changed,"annotations":annotations,"problems_added":delta.problems_added,"problems_resolved":delta.problems_resolved,"problem_order":delta.problem_order},"fragments":self.0.svg_fragments(Some(&delta)),"pmi":self.0.pmi_report()});
+        let mut packet = serde_json::json!({"delta":{"plans":delta.plans,"plan":delta.plan,"removed":delta.removed,"changed":changed,"annotations":annotations,"problems_added":delta.problems_added,"problems_resolved":delta.problems_resolved,"notices":delta.notices,"problem_order":delta.problem_order},"fragments":self.0.svg_fragments(Some(&delta)),"pmi":self.0.pmi_report()});
         // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         let plan = serde_json::to_value(self.0.plan()).unwrap();
         for (name, patch) in packet["delta"]["plan"]["collections"]
@@ -208,6 +208,7 @@ impl Session {
         snapshot["plan"] = serde_json::to_value(&state.plan).unwrap();
         // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         snapshot["spec"] = serde_json::to_value(&state.plan.spec).unwrap();
+        snapshot["notices"] = serde_json::to_value(&delta.notices).unwrap();
         snapshot["svg"] = serde_json::Value::String(drawing.svg());
         Ok(snapshot.to_string())
     }
@@ -220,6 +221,26 @@ pub mod wasm {
     fn js(e: super::Error) -> JsValue {
         JsValue::from_str(&error_json(&e))
     }
+    // calloutOffset still returns a JSON string. These describe its parsed payload.
+    #[wasm_bindgen(typescript_custom_section)]
+    const CALLOUT_OFFSET_TYPES: &str = r#"
+export interface CalloutSpan {
+    start: number;
+    sweep: number;
+}
+export interface CalloutMember {
+    centre: [number, number];
+    radius: number;
+    span?: CalloutSpan;
+}
+export interface CalloutOffset {
+    view: string;
+    tip: [number, number];
+    bend: [number, number];
+    offset: [number, number];
+    members: CalloutMember[];
+}
+"#;
     #[wasm_bindgen(start)]
     pub fn start() {
         console_error_panic_hook::set_once();
@@ -303,6 +324,7 @@ pub mod wasm {
         pub fn pmi(&self) -> String {
             self.0.pmi_json()
         }
+        /// JSON-encoded CalloutOffset; coordinates are paper mm (y up), spans CCW radians.
         #[wasm_bindgen(js_name = calloutOffset)]
         pub fn callout_offset(&self, address: &str) -> Result<String, JsValue> {
             self.0.callout_offset_json(address).map_err(js)
@@ -343,6 +365,40 @@ mod tests {
     use serde_json::{Value, json};
 
     #[test]
+    fn previews_and_fragment_edits_report_sheet_changes() {
+        let mut s = Session::open(
+            "prismatic.step",
+            include_bytes!("../../../tests/fixtures/parts/prismatic.step"),
+        )
+        .unwrap();
+        let before = s.0.spec().clone();
+        let size = if s.0.plan().sheet.size == "A3" {
+            "A2"
+        } else {
+            "A3"
+        };
+        let ops = json!([
+            {"op":"set","path":"sheet/size","value":size},
+            {"op":"set","path":"sheet/scale","value":"1:1"}
+        ])
+        .to_string();
+        let preview: Value = serde_json::from_str(&s.preview(&ops).unwrap()).unwrap();
+        assert_eq!(s.0.spec(), &before, "preview leaves the session unchanged");
+        assert_eq!(preview["plan"]["sheet"]["size"], size);
+        let notice = &preview["notices"][0];
+        assert_eq!(notice["code"], "layout_replanned");
+        assert!(
+            notice["message"]
+                .as_str()
+                .unwrap()
+                .contains("The whole sheet is laid out again")
+        );
+        let applied: Value = serde_json::from_str(&s.apply_fragments_json(&ops).unwrap()).unwrap();
+        assert_eq!(applied["delta"]["notices"], preview["notices"]);
+        assert_eq!(s.0.plan().sheet.size, size);
+    }
+
+    #[test]
     fn json_exposes_scoped_fixes_and_placement_operations() {
         let s = Session::open(
             "editor-plate.step",
@@ -357,6 +413,11 @@ mod tests {
         assert_eq!(snapshot["problems"], snapshot["plan"]["problems"]);
         let mut fixes = 0;
         for problem in snapshot["problems"].as_array().unwrap() {
+            assert!(
+                ["incomplete", "decision", "readability", "advisory"]
+                    .contains(&problem["impact"].as_str().unwrap())
+            );
+            assert!(!problem["group"].as_str().unwrap().is_empty());
             if problem["fix"].is_array() {
                 assert_eq!(problem["fix"], problem["fixes"][0]["ops"]);
                 assert!(
@@ -391,7 +452,8 @@ mod tests {
             at,
             serde_json::to_value(s.0.callout_offset(id).unwrap()).unwrap()
         );
-        assert_eq!(at.as_object().unwrap().len(), 4);
+        assert_eq!(at.as_object().unwrap().len(), 5);
+        assert_eq!(at["members"].as_array().unwrap().len(), 6);
         let view = s.0.plan().views.iter().find(|v| v.id == "v:plan").unwrap();
         let bend = before.lines[0][1];
         assert!(

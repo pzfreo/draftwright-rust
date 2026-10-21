@@ -884,6 +884,10 @@ pub(crate) fn obstacles(
 }
 
 pub(crate) fn finish(plan: &mut Plan, analysis: &Analysis) {
+    // Finishing runs again after geometry/table audits. Refresh this owned
+    // finding instead of appending a second record with the same ID: collection
+    // deltas address findings by ID and must replay the complete plan losslessly.
+    plan.problems.retain(|p| p.code != "pinned_item_not_drawn");
     let pins: BTreeMap<String, String> = plan
         .spec
         .dimensions
@@ -945,7 +949,9 @@ pub(crate) fn finish(plan: &mut Plan, analysis: &Analysis) {
                 crate::wording::item(id, "callout", &label),
                 crate::wording::feature_id(analysis, &p.subjects[1])
             );
-            p.refs.push(id.clone());
+            if !p.refs.contains(id) {
+                p.refs.push(id.clone());
+            }
         }
         if p.code.starts_with("annotation_") {
             if let Some((_, path)) = p.subjects.iter().find_map(|id| pins.get_key_value(id)) {

@@ -115,6 +115,9 @@ pub struct Analysis {
     /// Exact trimmed-surface attachment points for recognised blends, in the part frame.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub blend_sites: BTreeMap<String, Vec<[f64; 3]>>,
+    /// Cylindrical radius profiles and their material side, from the trimmed faces.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub radius_arcs: BTreeMap<String, Vec<crate::radius::RadiusArc>>,
     /// Exact circular boundary spans of partial radius features.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub profile_arcs: BTreeMap<String, Vec<crate::arc::ProfileArc>>,
@@ -445,6 +448,13 @@ impl Default for Spec {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct SheetSpec {
+    /// Keep explicit paper, scale and count without automatic selection or refitting.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keep_layout: Option<bool>,
+    /// Draw declared datums even when no tolerance frame cites them (default true).
+    /// False retains uncited symbols in the plan as explicit user omissions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uncited_datums: Option<bool>,
     /// Draw automatically determined dimensions in parentheses; omitted by default.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub references: Option<bool>,
@@ -830,6 +840,18 @@ impl PartialEq for Problem {
     }
 }
 impl Problem {
+    pub fn labels(&self) -> crate::finding::Labels {
+        crate::finding::labels(
+            &self.code,
+            self.severity == "info",
+            &self.subjects,
+            std::iter::empty::<&str>(),
+            &self.refs,
+            &self.crossing_kinds,
+            self.ink_is_leader,
+        )
+    }
+
     pub fn offered_fixes(&self) -> Vec<crate::fixes::Fix> {
         let mut fixes = self.fixes.clone();
         if !self.fix.is_empty() && !fixes.iter().any(|f| f.ops == self.fix) {
@@ -842,10 +864,13 @@ impl Problem {
 impl Serialize for Problem {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
-        let mut s = serializer.serialize_struct("Problem", 10)?;
+        let mut s = serializer.serialize_struct("Problem", 12)?;
         s.serialize_field("id", &self.id)?;
         s.serialize_field("code", &self.code)?;
         s.serialize_field("severity", &self.severity)?;
+        let labels = self.labels();
+        s.serialize_field("impact", &labels.impact)?;
+        s.serialize_field("group", &labels.group)?;
         s.serialize_field("message", &self.message)?;
         s.serialize_field("subjects", &self.subjects)?;
         if !self.refs.is_empty() {
@@ -1215,6 +1240,7 @@ fn analyse_step_input(
         recognition: None,
         features: Vec::new(),
         blend_sites: BTreeMap::new(),
+        radius_arcs: BTreeMap::new(),
         profile_arcs: BTreeMap::new(),
         radius_reliefs: crate::blends::reliefs(&part),
         iso_bounds: [0.0; 4],
@@ -1308,6 +1334,7 @@ pub fn recognise(part: &Part, analysis: &mut Analysis, json: &str) -> Result<(),
     let (recognition, features) = crate::bridge::read(part, &analysis.binding.source_sha256, json)?;
     analysis.recognition = Some(recognition);
     analysis.blend_sites = crate::blends::evidence(part, &features);
+    analysis.radius_arcs = crate::radius::evidence(part, &features);
     analysis.profile_arcs = crate::arc::evidence(part, &features);
     analysis.features = features;
     analysis.unrecognised.clear();
@@ -1401,6 +1428,7 @@ pub fn recognise_document(
         patterns: read.patterns,
     });
     analysis.blend_sites = crate::blends::evidence(part, &features);
+    analysis.radius_arcs = crate::radius::evidence(part, &features);
     analysis.profile_arcs = crate::arc::evidence(part, &features);
     analysis.features = features;
     analysis.modelled_thread_ink = crate::modelled_threads::evidence(part, analysis);
@@ -1905,7 +1933,8 @@ fn fit_fix(analysis: &Analysis, spec: &Spec) -> Result<Option<FittingFix>, Inval
 
 /// Spend free row space against measured ink before escalating an oblique authored quantity.
 fn compact_authored_row(analysis: &Analysis, plan: &mut Plan) {
-    if crate::dims::authored_placement_clear(&plan.spec, &plan.dimensions)
+    if plan.spec.sheet.keep_layout == Some(true)
+        || crate::dims::authored_placement_clear(&plan.spec, &plan.dimensions)
         || crate::placement_intent::has_pins(&plan.spec)
         || plan.spec.views.values().any(|v| v.place.is_some())
         || !plan.gdt.is_empty()
@@ -3389,6 +3418,7 @@ pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
         matches!(&prepared, std::borrow::Cow::Owned(_)),
         &mut plan,
     );
+    crate::fixes::retain_local_layout(&mut plan);
     Ok(plan)
 }
 
@@ -3397,7 +3427,14 @@ fn plan_recovered_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invali
         return crate::dims::pmi_policy::ignore(analysis, spec, plan_recovered);
     }
     crate::planning::with(analysis, || {
-        let mut plan = crate::sheet_policy::select(analysis, spec)?;
+        let mut plan = if spec.sheet.keep_layout == Some(true) {
+            let fixed = crate::local_layout::forced(spec)?;
+            let mut plan = crate::planning::fixed_pair(|| plan_automatic(analysis, &fixed))?;
+            plan.spec = spec.clone();
+            plan
+        } else {
+            crate::sheet_policy::select(analysis, spec)?
+        };
         let effective = crate::spec_gdt::effective(analysis, &plan.spec)?;
         // Repair only the selected drawing. Candidate paper/scale trials keep their
         // established costs, so a clearer route cannot force a larger sheet.
@@ -3947,10 +3984,14 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         matches!(&prepared, std::borrow::Cow::Owned(_)),
         &mut plan,
     );
+    crate::fixes::retain_local_layout(&mut plan);
     Ok(plan)
 }
 
 fn plan_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    if spec.sheet.keep_layout == Some(true) {
+        return plan_recovered(analysis, spec);
+    }
     if spec.pmi == PmiMode::Ignore && crate::dims::pmi_policy::carries(analysis) {
         return crate::dims::pmi_policy::ignore(analysis, spec, plan);
     }
@@ -5302,7 +5343,42 @@ fn plan_with_presentation(
         return Ok(plan);
     }
     let footprint_cache = crate::dims::footprints::Cache::default();
-    let held = crate::placement_intent::held_dimensions(canonical.as_ref(), &views);
+    // Reserve the finished radius corridors before an edited/promoted linear
+    // witness chooses its lane. Late replay alone would see that new witness as
+    // a reason to evict an unrelated, already clear radius leader.
+    let radius_reference = radius_edit_reference(analysis, given);
+    let radius_inventory = radius_reference.as_ref().is_some_and(|r| {
+        r.dimensions.iter().any(|d| {
+            d.placed.is_some()
+                && d.measurements
+                    .iter()
+                    .any(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
+        })
+    });
+    let held_for = |views: &[PlannedView]| {
+        let mut held = crate::placement_intent::held_dimensions(canonical.as_ref(), views);
+        for d in crate::placement_intent::held_dimensions(radius_reference.as_ref(), views) {
+            if radius_inventory
+                && d.kind == "callout"
+                && radius_reference.as_ref().is_some_and(|r| {
+                    r.views.iter().any(|old| {
+                        old.id == d.view
+                            && views.iter().any(|v| {
+                                v.id == old.id
+                                    && v.scale == old.scale
+                                    && v.direction == old.direction
+                                    && v.up == old.up
+                            })
+                    })
+                })
+            {
+                held.retain(|old| old.id != d.id);
+                held.push(d);
+            }
+        }
+        held
+    };
+    let held = held_for(&views);
     let mut fixed_spec = spec.clone();
     fixed_spec
         .annotations
@@ -5359,7 +5435,7 @@ fn plan_with_presentation(
         .cloned()
         .collect();
     let obstacles = crate::placement_intent::obstacles(spec, &packing_dimensions, &fixed);
-    if !obstacles.is_empty() {
+    if !obstacles.is_empty() && spec.sheet.keep_layout != Some(true) {
         let before: Vec<_> = views.iter().map(|v| (v.at, v.area, v.scale)).collect();
         problems.retain(|p| {
             !matches!(
@@ -5410,7 +5486,7 @@ fn plan_with_presentation(
             crate::sheets::line_work(analysis, spec, &mut views);
             furniture = crate::centrelines::obstacles(&views);
             furniture.extend(fixed.iter().cloned());
-            let held = crate::placement_intent::held_dimensions(canonical.as_ref(), &views);
+            let held = held_for(&views);
             ((dimensions, omitted, more), inventory) = crate::dims::plan_inventory(
                 analysis,
                 spec,
@@ -6179,11 +6255,12 @@ fn plan_with_presentation(
     }
     crate::recognition_corrections::report(analysis, &mut plan);
     if complete_views {
+        let free_pair = automatic_pair && plan.spec.sheet.keep_layout != Some(true);
         crate::sheet_fit::reserve_linear_corridors(
             analysis,
             &mut plan,
             &inventory,
-            automatic_pair,
+            free_pair,
             &footprint_cache,
         );
     }
@@ -6458,6 +6535,7 @@ fn plan_with_presentation(
                     &omitted_ink,
                     3,
                     NominalPass::All,
+                    None,
                 );
             }
         } else {
@@ -6480,6 +6558,7 @@ fn plan_with_presentation(
                     &omitted_ink,
                     0,
                     NominalPass::Linear,
+                    None,
                 );
             }
             crate::planning::store(
@@ -6502,7 +6581,29 @@ fn plan_with_presentation(
 /// Precision repairs belong to the selected drawing, after sheet candidates have
 /// been judged. Rejected candidates must not each launch another route search.
 fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
-    if !crate::nominal::geometry_eligible(analysis) || crate::nominal::comparison() {
+    if crate::nominal::comparison() {
+        return;
+    }
+    let reference = plan
+        .dimensions
+        .iter()
+        .any(|d| {
+            d.measurements
+                .iter()
+                .any(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
+        })
+        .then(|| radius_edit_reference(analysis, spec))
+        .flatten();
+    if !crate::nominal::geometry_eligible(analysis) {
+        settle_finished_nominals(
+            analysis,
+            spec,
+            plan,
+            &[],
+            0,
+            NominalPass::Radius,
+            reference.as_ref(),
+        );
         return;
     }
     let (intent, omitted) = crate::planning::lookup::<(Spec, Vec<crate::dims::PlannedDimension>)>(
@@ -6513,22 +6614,114 @@ fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     )
     .unwrap_or_else(|| (spec.clone(), Vec::new()));
     if !crate::dims::default_nominal_intent(&intent) {
+        settle_finished_nominals(
+            analysis,
+            &intent,
+            plan,
+            &omitted,
+            0,
+            NominalPass::Radius,
+            reference.as_ref(),
+        );
         return;
     }
     if !annotation_text_edited(&intent)
         && (!crate::placement_intent::has_pins(&intent)
             || crate::placement_intent::automatic_pins_only(&intent))
     {
-        settle_finished_nominals(analysis, &intent, plan, &omitted, 3, NominalPass::All);
+        settle_finished_nominals(
+            analysis,
+            &intent,
+            plan,
+            &omitted,
+            3,
+            NominalPass::All,
+            reference.as_ref(),
+        );
     }
     crate::placement_intent::finish(plan, analysis);
     plan.status = crate::completeness::status(&plan.problems);
+}
+
+/// An annotation edit replays the finished radius routes, rather than repairing the
+/// earlier, pre-polish inventory afresh against a different set of peers. This is
+/// a pure reference, independent of which document happened to be planned first.
+fn radius_edit_reference(analysis: &Analysis, spec: &Spec) -> Option<Plan> {
+    let edited = spec.dimension_source == DimensionSource::Authored
+        || spec.dimensions.values().any(|d| {
+            d.omit
+                || d.tolerance.is_some()
+                || d.fit.is_some()
+                || d.text.is_some()
+                || d.style.is_some()
+                || d.place.as_ref().is_some_and(|p| *p != Default::default())
+        })
+        || spec.features.values().any(|f| f.fit.is_some());
+    // Pins already replay the finished recovered drawing in its canonical frame.
+    // A second primitive-plan reference can change even a no-op offset tip.
+    if !edited
+        || crate::nominal::comparison()
+        || crate::placement_intent::has_pins(spec)
+        || !analysis
+            .features
+            .iter()
+            .any(|f| matches!(f.kind.as_str(), "blend" | "fillet"))
+    {
+        return None;
+    }
+    let mut base = spec.clone();
+    base.dimension_source = DimensionSource::Auto;
+    for d in base.dimensions.values_mut() {
+        d.omit = false;
+        d.tolerance = None;
+        d.fit = None;
+        d.text = None;
+        d.style = None;
+        d.place = None;
+    }
+    base.dimensions
+        .retain(|_, d| *d != DimensionSpec::default());
+    for f in base.features.values_mut() {
+        f.fit = None;
+    }
+    base.features.retain(|_, f| *f != FeatureSpec::default());
+    if &base == spec {
+        return None;
+    }
+    let analysis_key: [u8; 32] =
+        crate::planning::memo(analysis, "analysis_digest", Vec::new(), || {
+            Sha256::digest(serde_json::to_vec(analysis).expect("Analysis serializes")).into()
+        });
+    let key = serde_json::to_vec(&(
+        analysis_key,
+        &base,
+        crate::planning::is_fixed_pair(),
+        crate::planning::nominals_deferred(),
+    ))
+    .expect("radius reference inputs serialize");
+    crate::planning::memo(analysis, "radius-edit-reference", key.clone(), || {
+        // The isolated reference depends on these complete inputs, not on the
+        // live preparation scope. Preview/commit can use different scopes;
+        // retain their identical reference without planning it again.
+        static MEMO: crate::planning::BoundedMemo<Option<Plan>> =
+            crate::planning::BoundedMemo::new(128);
+        let digest: [u8; 32] = Sha256::digest(&key).into();
+        if let Some(reference) = MEMO.get(&digest) {
+            return reference;
+        }
+        // Do not replace the live candidate's policy/preparation entries,
+        // notably its complete annotation inventory and sheet trials.
+        let reference = crate::planning::isolated(analysis, || plan(analysis, &base).ok());
+        MEMO.insert(digest, reference.clone());
+        reference
+    })
 }
 
 #[derive(Clone, Copy, PartialEq)]
 enum NominalPass {
     Linear,
     All,
+    Radius,
 }
 
 /// Final furniture and blend consolidation own the actual printed inventory.
@@ -6540,9 +6733,20 @@ fn settle_finished_nominals(
     omitted: &[crate::dims::PlannedDimension],
     remaining: usize,
     pass: NominalPass,
+    radius_reference: Option<&Plan>,
 ) {
     let original_spec = spec;
     let route_leaders = pass != NominalPass::Linear;
+    let radius_only = pass == NominalPass::Radius;
+    if radius_only
+        && !plan.dimensions.iter().any(|d| {
+            d.measurements
+                .iter()
+                .any(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
+        })
+    {
+        return;
+    }
     let mut fixed = crate::centrelines::obstacles(&plan.views);
     fixed.extend(plan.gdt.iter().filter_map(crate::dims::gdt::proxy));
     fixed.extend(plan.tables.iter().filter_map(crate::tables::proxy));
@@ -6581,12 +6785,20 @@ fn settle_finished_nominals(
     // Consolidation can release the witness or label corridor that prevented
     // an earlier repair. Reconsider the complete printed inventory before
     // fixing the final callouts, with the usual page and peer protections.
-    crate::dims::settle_inventory(analysis, spec, &plan.sheet, &plan.views, &mut items, &fixed);
+    if !radius_only {
+        crate::dims::settle_inventory(analysis, spec, &plan.sheet, &plan.views, &mut items, &fixed);
+    }
     // The fixed sheet trial already placed faithful text. Keep its settled routes
     // when the inventory is unchanged and a fresh audit is clear, rather than
     // searching for another clear presentation. Authored/latent inventory and
     // ordinary explicit plans retain the complete finishing pass.
-    if crate::planning::is_fixed_pair()
+    if !radius_only
+        && crate::planning::is_fixed_pair()
+        && !items.iter().any(|d| {
+            d.measurements
+                .iter()
+                .any(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
+        })
         && route_leaders
         && omitted.is_empty()
         && items.len() == plan.dimensions.len()
@@ -6608,7 +6820,7 @@ fn settle_finished_nominals(
         return;
     }
     let mut reports = BTreeMap::new();
-    if route_leaders {
+    if !radius_only && route_leaders {
         reports.extend(crate::dims::refine_inventory(
             analysis,
             spec,
@@ -6627,6 +6839,22 @@ fn settle_finished_nominals(
             &fixed,
             &cache,
             true,
+        ));
+    }
+    if route_leaders {
+        // Only the final radius repair sees the schedule/table/balloon inventory:
+        // these items are drawn after the general leader placement has finished.
+        let mut radius_fixed = fixed.clone();
+        radius_fixed.extend(radius_furniture(plan));
+        reports.extend(crate::dims::settle_radius_leaders(
+            analysis,
+            spec,
+            &plan.sheet,
+            &plan.views,
+            &mut items,
+            &radius_fixed,
+            &cache,
+            radius_reference,
         ));
     }
     // Collision reports from the raw inventory cannot survive consolidation of
@@ -6658,6 +6886,7 @@ fn settle_finished_nominals(
     for d in &mut trial.dimensions {
         if let Some(s) = items.iter().find(|s| s.id == d.id) {
             d.placed = s.placed.clone();
+            d.region = s.region;
             d.terms.clone_from(&s.terms);
             d.label.clone_from(&s.label);
             d.basis.clone_from(&s.basis);
@@ -6685,12 +6914,18 @@ fn settle_finished_nominals(
     });
     trial.problems.extend(checked);
     trial.problems.extend(reports.into_values().flatten());
+    // Rechecking geometry replaces collision records, including their remedies.
+    // Reattach the authored pin's reset operation before publishing this trial.
+    crate::placement_intent::finish(&mut trial, analysis);
     if findings(&trial).hard <= findings(plan).hard
         && ink_findings(&trial) <= ink_findings(plan)
         && feature_crossings(&trial) <= feature_crossings(plan)
     {
         for d in &trial.dimensions {
             if d.kind == "callout"
+                // An authored offset is measured from the canonical automatic
+                // tip, not the rim tip recomputed for its dragged bend.
+                && !original_spec.dimensions.get(&d.id).is_some_and(|s| s.place.as_ref().is_some_and(|p| p.pinned))
                 && let (Some(p), Some(v)) = (&d.placed, trial.views.iter().find(|v| v.id == d.view))
                 && let Some(s) = p.lines.first()
             {
@@ -6711,9 +6946,84 @@ fn settle_finished_nominals(
         });
         *plan = trial;
         if changed && remaining > 0 {
-            settle_finished_nominals(analysis, original_spec, plan, omitted, remaining - 1, pass);
+            settle_finished_nominals(
+                analysis,
+                original_spec,
+                plan,
+                omitted,
+                remaining - 1,
+                pass,
+                radius_reference,
+            );
         }
     }
+}
+
+/// Furniture drawn after ordinary callouts must also constrain the final radius repair.
+fn radius_furniture(plan: &Plan) -> Vec<crate::dims::PlannedDimension> {
+    let proxy =
+        |id: String, view: String, label_box: [f64; 4], lines| crate::dims::PlannedDimension {
+            id,
+            view,
+            kind: "furniture".into(),
+            region: None,
+            value: 0.0,
+            label: String::new(),
+            terms: Vec::new(),
+            measurements: Vec::new(),
+            default: true,
+            from_spec: Vec::new(),
+            basis: String::new(),
+            state: ItemState::Shown,
+            reference: false,
+            determined_by: Vec::new(),
+            placed: Some(crate::dims::Placed {
+                lines,
+                arrows: Vec::new(),
+                label_at: [label_box[0], label_box[1]],
+                label_box,
+                rotation: 0.0,
+            }),
+        };
+    let mut out: Vec<_> = plan
+        .hole_table
+        .iter()
+        .chain(&plan.hole_tables)
+        .flat_map(|table| table.blocks.iter().filter_map(crate::tables::proxy))
+        .collect();
+    for b in &plan.balloons {
+        let ring = [
+            b.at[0] - b.radius,
+            b.at[1] - b.radius,
+            b.at[0] + b.radius,
+            b.at[1] + b.radius,
+        ];
+        let label = b.label_box.map_or(ring, |lb| {
+            [
+                lb[0].min(ring[0]),
+                lb[1].min(ring[1]),
+                lb[2].max(ring[2]),
+                lb[3].max(ring[3]),
+            ]
+        });
+        out.push(proxy(
+            b.id.clone(),
+            b.view.clone(),
+            label,
+            b.leader.into_iter().collect(),
+        ));
+    }
+    for r in &plan.requirements {
+        if let Some(p) = &r.placed {
+            out.push(proxy(
+                r.id.clone(),
+                String::new(),
+                p.glyph,
+                p.strokes.clone(),
+            ));
+        }
+    }
+    out
 }
 
 /// Recompute centre-line page bounds after a view and its ink move together.
@@ -7011,9 +7321,42 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
             object.remove(last.as_str()).ok_or_else(absent)?;
         }
     }
+    // A later explicit allocation edit supersedes an inherited local promise.
+    // An explicit keep_layout in this batch still wins (including offered local
+    // bundles), so contradictory local requests remain transactional refusals.
+    if spec.sheet.keep_layout == Some(true) {
+        let explicit_guard = ops.iter().any(|op| {
+            matches!(
+                op["path"].as_str().map(|p| p.trim_matches('/')),
+                Some("sheet/keep_layout" | "sheet")
+            )
+        });
+        let allocation_edit = ops.iter().any(|op| {
+            matches!(
+                op["path"].as_str().map(|p| p.trim_matches('/')),
+                Some(
+                    "sheet/size"
+                        | "sheet/scale"
+                        | "sheets"
+                        | "sheets/max"
+                        | "sheets/smallest_scale"
+                        | "sheet/preferred_printer"
+                )
+            )
+        });
+        if !explicit_guard && allocation_edit {
+            doc["sheet"]
+                .as_object_mut()
+                .expect("sheet is an object")
+                .remove("keep_layout");
+        }
+    }
     let spec: Spec = serde_json::from_value(doc)
         .map_err(|e| invalid(format!("The edited spec is not valid: {e}."), &[]))?;
     crate::sheets::validate(&spec)?;
+    if spec.sheet.keep_layout == Some(true) {
+        crate::local_layout::forced(&spec)?;
+    }
     crate::dims::check_tolerances(&spec)?;
     crate::spec_gdt::check(&spec)?;
     crate::dims::authored::check(&spec)?;
@@ -7458,7 +7801,10 @@ pub fn render_item(item: AnnotationItem<'_>) -> RenderedItem {
                 Kind::Gdt,
                 p.map(|p| p.label_box),
                 p.map(|p| p.lines.clone()).unwrap_or_default(),
-                p.and_then(|p| p.lines.first()).map(|l| l[1]),
+                // A datum shaft ends at its frame; it has no callout elbow.
+                p.filter(|_| g.kind != "datum_feature")
+                    .and_then(|p| p.lines.first())
+                    .map(|l| l[1]),
             )
         }
     };

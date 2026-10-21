@@ -99,6 +99,25 @@ pub struct CalloutOffset {
     /// The callout's bend as drawn now.
     pub bend: [f64; 2],
     pub offset: [f64; 2],
+    /// Projected attachment sites used by the leader, in paper mm (y up).
+    #[serde(default)]
+    pub members: Vec<CalloutMember>,
+}
+
+/// A callout attachment site in the current page frame.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CalloutMember {
+    pub centre: [f64; 2],
+    pub radius: f64,
+    /// Present for an arc: counterclockwise angles in radians.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub span: Option<CalloutSpan>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CalloutSpan {
+    pub start: f64,
+    pub sweep: f64,
 }
 
 /// A linear label and its canonical anchor in paper mm (y up), in the current view frame.
@@ -149,6 +168,9 @@ pub struct Delta {
     pub removed: Vec<String>,
     pub problems_added: Vec<model::Problem>,
     pub problems_resolved: Vec<model::Problem>,
+    /// Findings about the edit itself, rather than the reproducible drawing state.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notices: Vec<model::Problem>,
     pub plan: PlanDelta,
     /// Only changed view geometry and annotation ink. Removed IDs use `removed`.
     pub geometry: GeometryLayer,
@@ -233,8 +255,7 @@ fn records(v: &Value) -> BTreeMap<String, Value> {
 fn order(v: &Value) -> Vec<String> {
     v.as_array().into_iter().flatten().map(record_id).collect()
 }
-fn patch(old: &Plan, new: &Plan) -> PlanDelta {
-    let (a, b) = (document(old), document(new));
+fn patch(a: &Value, b: &Value) -> PlanDelta {
     let mut delta = PlanDelta::default();
     for name in COLLECTIONS {
         if a[name] == b[name] {
@@ -531,7 +552,8 @@ impl Session {
             .collect())
     }
     /// The callout's bend against its automatic leader tip, for pinning a drag with
-    /// `place.offset`. Reads planning metadata only, without planning or projecting. Refuses a
+    /// `place.offset`, with its projected attachment members. Does not plan or project model
+    /// edges. Refuses a
     /// non-callout, or a callout with no automatic placement or not drawn in that view.
     pub fn callout_offset(&self, address: &str) -> Result<CalloutOffset, Error> {
         let item = self.item(address)?;
@@ -558,6 +580,13 @@ impl Session {
             tip,
             bend,
             offset: [bend[0] - tip[0], bend[1] - tip[1]],
+            members: crate::dims::callout_members(
+                &self.analysis,
+                self.spec(),
+                self.plan(),
+                id,
+                view,
+            ),
         })
     }
     /// The linear label's displacement from its canonical position, without replanning.
@@ -612,6 +641,9 @@ impl Session {
             &serde_json::to_value(ops).expect("ops serialise"),
         )?;
         let evaluated = self.evaluate(&spec)?;
+        if spec.sheet.keep_layout == Some(true) {
+            crate::local_layout::verify(self.plan(), &evaluated.state.plan)?;
+        }
         let delta = difference(
             &self.state,
             &evaluated.state,
@@ -806,7 +838,11 @@ impl Session {
     pub fn pmi_report(&self) -> Value {
         let mut lowered = Vec::new();
         let mut unresolved = Vec::new();
-        if let Some(crate::pmi::Reading::Read(report)) = &self.analysis().pmi {
+        // Include Spec-authored datums and controls, exactly as the planner reads them.
+        // A session already validated this Spec against its Analysis.
+        let effective = crate::spec_gdt::effective(self.analysis(), self.spec())
+            .expect("the session has a validated Spec");
+        if let Some(crate::pmi::Reading::Read(report)) = &effective.pmi {
             let identities = report.identities();
             for record in &report.records {
                 let ids: Vec<_> = self
@@ -855,15 +891,47 @@ impl Session {
                         .problems
                         .iter()
                         .filter(|p| {
-                            p.refs.contains(&record.source_id)
+                            (p.code == "pmi_ignored"
+                                && !record.source_id.starts_with(crate::spec_gdt::SOURCE_PREFIX))
+                                || p.refs.contains(&record.source_id)
                                 || related.is_some_and(|id| p.subjects.iter().any(|s| s == id))
                         })
                         .map(|p| p.message.as_str())
                         .collect();
-                    let reason = if reasons.is_empty() {
-                        record.blockers.join("; ")
-                    } else {
+                    let reason = if let Some(reason) =
+                        crate::spec_gdt::datum_omission(&self.plan().spec, report, record)
+                    {
+                        reason.into()
+                    } else if !reasons.is_empty() {
                         reasons.join("; ")
+                    } else if !record.blockers.is_empty() {
+                        record.blockers.join("; ")
+                    } else if let Some(g) = &record.geometry
+                        && !g.reasons.is_empty()
+                    {
+                        g.reasons.join("; ")
+                    } else if let Some(item) = self
+                        .plan()
+                        .gdt
+                        .iter()
+                        .find(|g| g.source == record.source_id)
+                    {
+                        format!("Annotation is not drawn ({:?}): {}", item.state, item.basis)
+                    } else if crate::pmi_lowering::no_part_requirement(record) {
+                        "No drawing requirement is stated by this record".into()
+                    } else {
+                        format!(
+                            "{} has no supported drawing representation ({})",
+                            record.kind, record.source_id
+                        )
+                    };
+                    let reason = if reason.trim().is_empty() {
+                        format!(
+                            "{} ({}) has no supported drawing representation",
+                            record.kind, record.source_id
+                        )
+                    } else {
+                        reason
                     };
                     unresolved.push(serde_json::json!({"source_id":record.source_id,"label":record.label,"kind":record.kind,"reason":reason}));
                 }
@@ -885,7 +953,7 @@ impl Session {
                 if source.outcome == crate::pmi::Outcome::NotExtracted
                     && !lowered.iter().any(|r| r["source_id"] == source.id)
                 {
-                    unresolved.push(serde_json::json!({"source_id":source.id,"label":source.entity,"kind":source.category,"reason":source.reason}));
+                    unresolved.push(serde_json::json!({"source_id":source.id,"label":source.entity,"kind":source.category,"reason":if source.reason.trim().is_empty() { "STEP source could not be extracted into a supported annotation" } else { &source.reason }}));
                 }
             }
             serde_json::json!({"extraction":report,"lowered":lowered,"unresolved":unresolved})
@@ -1540,6 +1608,7 @@ fn settable(
         }
     }
     if item.item.kind == "sheet" {
+        fields.insert("sheet/keep_layout".into(), json!({"choices":[true,false],"forms":["true with sheet/size, sheet/scale and sheets/max=1", "false or remove to allow the whole sheet to be laid out again, including hand-moved placements", "a later explicit paper, scale or sheet-count edit releases an inherited guard; setting keep_layout in that batch retains it"], "consequences":["Keeps explicit paper, scale and sheet count without automatic selection or refitting; moved views are reported."]}));
         fields.insert(
             "sheet/size".into(),
             choices(json!(crate::layout::PAGES.map(|p| p.0))),
@@ -1560,6 +1629,7 @@ fn settable(
             "sheet/view_gutter".into(),
             json!({"forms":["non-negative paper mm (default 25; 0 disables)"]}),
         );
+        fields.insert("sheet/uncited_datums".into(), choices(json!([true, false])));
         fields.insert("sheet/references".into(), choices(json!([false, true])));
         fields.insert("sheet/fit_limits".into(), choices(json!([false, true])));
         fields.insert("sheet/fit_deviations".into(), choices(json!([false, true])));
@@ -1889,8 +1959,7 @@ pub fn item_bounds(i: &ItemAnswer) -> Option<[f64; 4]> {
         Placement::View { area, .. } | Placement::Box(area) => Some(*area),
     }
 }
-fn item_records(plan: &Plan) -> BTreeMap<String, Vec<Value>> {
-    let doc = document(plan);
+fn item_records(doc: &Value) -> BTreeMap<String, Vec<Value>> {
     let mut out = BTreeMap::<String, Vec<Value>>::new();
     out.insert("sheet".into(), vec![doc["sheet"].clone()]);
     for name in COLLECTIONS.into_iter().filter(|name| *name != "problems") {
@@ -1916,8 +1985,13 @@ fn difference(old: &State, new: &State, analysis: &Analysis, plans: usize) -> De
         .map(|i| (i.item.id.clone(), i))
         .collect();
     let after = answers(&new.plan, analysis);
-    let old_records = item_records(&old.plan);
-    let new_records = item_records(&new.plan);
+    // Item comparison and the lossless Plan patch read the same documents. Serialize
+    // each once, including every remedy; retained-frame metadata must not multiply
+    // that work. The records and patch below retain their complete previous inputs.
+    let old_document = document(&old.plan);
+    let new_document = document(&new.plan);
+    let old_records = item_records(&old_document);
+    let new_records = item_records(&new_document);
     let new_ids: Vec<_> = after.iter().map(|i| i.item.id.clone()).collect();
     let changed: Vec<_> = after
         .iter()
@@ -1966,6 +2040,9 @@ fn difference(old: &State, new: &State, analysis: &Analysis, plans: usize) -> De
     };
     Delta {
         plans,
+        notices: crate::local_layout::notice(&old.plan, &new.plan)
+            .into_iter()
+            .collect(),
         changed,
         added: after
             .into_iter()
@@ -1996,7 +2073,7 @@ fn difference(old: &State, new: &State, analysis: &Analysis, plans: usize) -> De
             })
             .cloned()
             .collect(),
-        plan: patch(&old.plan, &new.plan),
+        plan: patch(&old_document, &new_document),
         geometry,
         annotations: new
             .annotations

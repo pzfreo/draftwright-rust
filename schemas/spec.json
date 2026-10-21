@@ -1022,6 +1022,28 @@
             }
           ]
         },
+        "keep_layout": {
+          "anyOf": [
+            {
+              "type": "boolean",
+              "description": "Keep explicit paper, scale and sheet count without automatic selection or view refitting. Requires sheet.size, sheet.scale and sheets.max=1. Moved views are reported on apply. A later explicit paper, scale or sheet-count edit releases an inherited guard; explicitly setting keep_layout in the same batch retains it. Remove to allow the whole sheet to be laid out again, including hand-moved placements."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "uncited_datums": {
+          "anyOf": [
+            {
+              "type": "boolean",
+              "description": "Draw every declared datum by default; false hides symbols no control frame cites, recorded as omitted_by_user. Individual symbols use annotations/<id>/omit."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "view_gutter": {
           "anyOf": [
             {

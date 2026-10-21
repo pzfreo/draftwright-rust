@@ -17,6 +17,7 @@ pub mod demand;
 pub mod dimension_scheme;
 pub mod dims;
 pub mod evaluation;
+pub mod finding;
 pub mod fixes;
 pub mod gears;
 pub mod hole_table;
@@ -34,6 +35,7 @@ pub mod placement_intent;
 pub mod pmi;
 pub mod pmi_lowering;
 pub mod png;
+pub mod radius;
 pub mod remedy_scope;
 pub mod section;
 pub mod session;
@@ -52,6 +54,7 @@ pub mod mcp;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod stateless;
 
+pub mod local_layout;
 mod nominal;
 mod notches;
 mod oriented_chamfers;

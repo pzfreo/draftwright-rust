@@ -825,8 +825,8 @@
   port_note: "Keep."
 
 - id: LINT-code-radius_leader_target_mismatch
-  statement: "A straight blend's radius leader tip touches the blend's trimmed profile arc."
-  detail: "Measured against the complete trimmed edge, not the renderer's candidate site; circular-path (toroidal) blends have a different target contract and are not checked. Warning; fidelity code."
+  statement: "A straight blend radius leader tip touches its named trimmed cylindrical profile arc."
+  detail: "Measured from exact cylindrical face evidence where available; older straight blends use the rolling axis and trimmed samples. Unreadable/toroidal direction geometry is reported. Warning; fidelity code."
   class: drafting
   source:
     lint_code: "radius_leader_target_mismatch"
@@ -835,7 +835,19 @@
     tests: [tests/test_issue_1479_radius_leader_targets.py]
   status: ported
   rust_test: "rendering::leader_rules::a_radius_tip_lands_on_the_trimmed_profile_arc"
-  rust_note: "Stream K4, src/lint/leaders.rs: a straight blend's (path.direction) callout tip, in a view seeing its arc end-on, must lie within 0.002 mm of the circle of its radius about its rolling axis and within the trimmed arc's sector, read from Analysis::blend_sites (sampled at a quarter, half and three quarters of the face's parameter range, so the arc runs half their spread beyond them; a lone point gives a quarter turn either way, an overturnable judgement). Circular-path blends are not checked, as in draftwright. Not judged: a fillet callout carrying the blends' claims."
+  rust_note: "src/lint/leaders.rs and src/radius.rs: drawn tips must touch the named cylinder within 0.002 mm and its recorded trim. Analysis.radius_arcs adds exact geometry and material side for blends/fillets; legacy straight-blend evidence still works. Fillets carrying blend claims have their own direction audit against the fillet faces. Toroidal and non-end-on fillet direction uses radius_leader_target_unverifiable (info)."
+  port_note: "Keep."
+
+- id: LINT-code-radius_leader_not_radial
+  statement: "A radius leader meets the middle 25–75% of its arc within 15 degrees of radial from the non-material side (centre side for concave arcs, outside for convex arcs)."
+  detail: "Checks actual drawn shafts, including pins. Proven toroidal minor-circle meridians are checked end-on. Routing keeps its best existing callout when no compliant clear candidate fits; drawn lint reports the violation once, without a duplicate fallback problem."
+  class: drafting
+  source:
+    lint_code: "radius_leader_not_radial"
+    issues: [145]
+  status: ported
+  rust_test: "rendering::leader_rules::radius_shafts_meet_the_middle_arc_radially_from_the_open_side"
+  rust_note: "Shared geometry in src/radius.rs; final bounded radius inventory in src/dims/leaders.rs."
   port_note: "Keep."
 
 - id: LINT-code-radius_leader_target_unverifiable
@@ -848,7 +860,7 @@
     tests: [tests/test_issue_1479_radius_leader_targets.py]
   status: ported
   rust_test: "rendering::leader_rules::a_radius_tip_lands_on_the_trimmed_profile_arc"
-  rust_note: "Stream K4, src/lint/leaders.rs: a straight blend whose path, radius or proven trimmed points cannot be read, or whose callout is in a view that does not show its arc end-on, is a warning with its reason."
+  rust_note: "Stream K4, src/lint/leaders.rs: a blend or fillet whose circular section, radius or proven trimmed points cannot be read in its drawn view has one informational finding with its reason."
   port_note: "Keep."
 
 # ---------------------------------------------------------------------------------------

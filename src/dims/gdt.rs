@@ -855,7 +855,7 @@ fn separated_sites(
         .filter(|i| matches!(i.glyph, Glyph::Datum { .. }))
     {
         let entry = spec.annotations.get(&item.id);
-        if entry.is_some_and(|p| p.omit) {
+        if entry.is_some_and(|p| p.omit) || datum_omission(analysis, spec, item).is_some() {
             continue;
         }
         let intent = entry.and_then(|p| p.place.as_ref());
@@ -994,8 +994,11 @@ impl Obstacles<'_> {
             .collect();
         let mut crossings = 0;
         for s in c.lines.iter().chain(&triangle) {
+            // Every obstacle uses the same candidate segment. Reuse the router's exact
+            // crossing/collinearity primitive with its direction computed once.
+            let line = super::leaders::Line::new(*s);
             for t in &self.lines {
-                if super::leaders::lines_meet(*s, *t) {
+                if line.meets(*t) {
                     crossings += 1;
                     if limit.is_some_and(|n| crossings >= n) {
                         return (clearance, crossings);
@@ -1102,6 +1105,9 @@ pub(crate) fn demand_with_spec(
     let (mut items, _) = crate::pmi_lowering::lower(analysis, shown);
     // Invariant: plan_with validates these same annotation texts before demand and placement.
     crate::label_text::annotations(&mut items, spec).expect("validated annotation wording");
+    if spec.sheet.uncited_datums == Some(false) || spec.annotations.values().any(|a| a.omit) {
+        items.retain(|item| datum_omission(analysis, spec, item).is_none());
+    }
     let frames: BTreeMap<&str, Frame> = PRINCIPALS
         .iter()
         .map(|(name, toward, up)| (*name, Frame::looking(analysis, *toward, *up, [0.0; 2], 1.0)))
@@ -1323,6 +1329,31 @@ pub(crate) fn plan_anchored(
             }
         }
     }
+    // Keep the existing search loop unchanged for cited-only drawings. Only new,
+    // uncited output with remaining contacts needs exact narrow-gap trials.
+    if (best_score.0 != 0 || best_score.1 != 0)
+        && matches!(&analysis.pmi, Some(crate::pmi::Reading::Read(report)) if report.records.iter().any(|r| r.category == crate::pmi::Category::Datum && !report.records.iter().any(|t| t.category == crate::pmi::Category::GeometricTolerance && t.datum_refs.iter().any(|d| d.trim() == r.label.trim()))))
+        && let Some(candidate) = plan_search(
+            analysis,
+            spec,
+            sheet,
+            views,
+            dims,
+            canonical,
+            cache,
+            Search::Uncited,
+            (seed_overlaps == 0).then_some(&before),
+        )
+        && (contacts(&candidate.1).is_subset(&before)
+            || overlap_count(&candidate.1) < seed_overlaps)
+    {
+        let grade = score(&candidate);
+        if grade < best_score
+            || (grade == best_score && datum_length(&candidate) < best_length - 1e-6)
+        {
+            return candidate;
+        }
+    }
     best
 }
 
@@ -1333,6 +1364,7 @@ enum Search {
     All,
     Separate,
     Baseline,
+    Uncited,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1531,6 +1563,12 @@ fn plan_search(
             state: State::not_drawable("pmi_not_drawn"),
             placed: None,
         };
+        if let Some(reason) = datum_omission(analysis, spec, &item) {
+            planned.state = State::OmittedByUser;
+            planned.basis += &format!("; {reason}");
+            out.push(planned);
+            continue;
+        }
         if spec.annotations.get(&item.id).is_some_and(|a| a.omit) {
             planned.state = State::OmittedByUser;
             planned.basis += "; omitted by the spec";
@@ -1696,6 +1734,7 @@ fn plan_search(
         // The best grade, then the shortest automatic datum leader; remaining
         // ties keep the original site, strip and tier order.
         let mut best: Option<Choice<'_>> = None;
+        let tier_ink: &[[P2; 2]] = if search == Search::Uncited { &[] } else { &ink };
         // Exhaust the compact, face-to-first-lane choices before trying any outer tier.
         'search: for inside in [true, false] {
             if inside
@@ -1711,7 +1750,10 @@ fn plan_search(
                 };
                 for side in choices {
                     let positions = if inside && datum {
-                        inside_tiers(side, *tip, frame.outline(), laid.size, &ink, protect)
+                        // The uncited fallback lets exact obstacle grading test a narrow
+                        // shoulder gap that the conservative first-stroke band rejects.
+                        // All original sites and tiers are reused; crossings still lose.
+                        inside_tiers(side, *tip, frame.outline(), laid.size, tier_ink, protect)
                     } else if inside {
                         // Frame ink can fit between the face and the first
                         // dimension lane too. Exact obstacle grading, including
@@ -2070,6 +2112,13 @@ pub fn render(
     items: &mut Vec<Item>,
     text: &mut Vec<TextRun>,
 ) -> Option<Annotation> {
+    if g.kind == "datum_feature" && g.state == State::OmittedByUser {
+        return Some(Annotation {
+            name: format!("suppressed:{}", g.id),
+            view: Some(g.view.clone()),
+            ..Default::default()
+        });
+    }
     let p = g.placed.as_ref()?;
     let first = text.len();
     for [a, b] in p.lines.iter().chain(&p.strokes) {
@@ -2316,6 +2365,24 @@ pub(super) fn normal_routes(g: &PlannedGdt) -> Vec<Placed> {
         .collect()
 }
 
+/// Explicit datum visibility intent, shared by strip demand and symbol placement.
+fn datum_omission(analysis: &Analysis, spec: &Spec, item: &Lowered) -> Option<&'static str> {
+    if !matches!(item.glyph, Glyph::Datum { .. })
+        || (spec.sheet.uncited_datums != Some(false)
+            && !spec.annotations.get(&item.id).is_some_and(|a| a.omit))
+    {
+        return None;
+    }
+    let Some(crate::pmi::Reading::Read(report)) = &analysis.pmi else {
+        return None;
+    };
+    report
+        .records
+        .iter()
+        .find(|r| r.source_id == item.source)
+        .and_then(|r| crate::spec_gdt::datum_omission(spec, report, r))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2325,8 +2392,8 @@ mod tests {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/pmi/step/GRM-03_thumbwheel_drive_screw_AP242_PMI.step.gz");
         let (_, mut analysis) = crate::model::analyse_native(&path).unwrap();
-        // A datum used solely as an origin has no symbol. This placement test explicitly
-        // cites B from a control, so it continues to exercise the datum's exterior paper.
+        // Keep a frame citation here to exercise existing cited-datum placement
+        // alongside the separate regressions for uncited author declarations.
         if let Some(crate::pmi::Reading::Read(report)) = &mut analysis.pmi {
             let mut control = report
                 .records

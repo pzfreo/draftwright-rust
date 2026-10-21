@@ -38,16 +38,16 @@
                                 ]
                               },
                               "id": {
-                                "$ref": "#/D"
+                                "$ref": "#/E"
                               },
                               "kind": {
-                                "$ref": "#/D"
+                                "$ref": "#/E"
                               },
                               "label": {
-                                "$ref": "#/E"
+                                "$ref": "#/G"
                               },
                               "view": {
-                                "$ref": "#/E"
+                                "$ref": "#/G"
                               },
                               "state": {
                                 "anyOf": [
@@ -70,7 +70,7 @@
                                         "const": "covered"
                                       },
                                       "by": {
-                                        "$ref": "#/D"
+                                        "$ref": "#/E"
                                       }
                                     },
                                     "additionalProperties": false,
@@ -82,7 +82,7 @@
                                         "const": "not_drawable"
                                       },
                                       "reason_code": {
-                                        "$ref": "#/D"
+                                        "$ref": "#/E"
                                       }
                                     },
                                     "additionalProperties": false,
@@ -107,11 +107,7 @@
                               "operation_scopes": {
                                 "type": "object",
                                 "additionalProperties": {
-                                  "enum": [
-                                    "local",
-                                    "view",
-                                    "sheet"
-                                  ]
+                                  "$ref": "#/F"
                                 }
                               },
                               "item": {
@@ -124,7 +120,7 @@
                                 ]
                               },
                               "dimension_kind": {
-                                "$ref": "#/E"
+                                "$ref": "#/G"
                               },
                               "placement": {
                                 "type": [
@@ -133,7 +129,7 @@
                                 ]
                               },
                               "basis": {
-                                "$ref": "#/D"
+                                "$ref": "#/E"
                               }
                             },
                             "required": [
@@ -169,7 +165,7 @@
                         "const": "removed"
                       },
                       "id": {
-                        "$ref": "#/D"
+                        "$ref": "#/E"
                       }
                     },
                     "additionalProperties": false,
@@ -181,7 +177,8 @@
                       "change": {
                         "enum": [
                           "problem_added",
-                          "problem_resolved"
+                          "problem_resolved",
+                          "notice"
                         ]
                       },
                       "problem": {
@@ -189,6 +186,12 @@
                           {
                             "type": "object",
                             "properties": {
+                              "impact": {
+                                "$ref": "#/D"
+                              },
+                              "ink_is_leader": {
+                                "type": "boolean"
+                              },
                               "fix": {
                                 "$ref": "#/C"
                               },
@@ -205,10 +208,10 @@
                             ],
                             "additionalProperties": false,
                             "patternProperties": {
-                              "^(id|code|severity|message)$(?!\n)": {
-                                "$ref": "#/D"
+                              "^(group|id|code|severity|message)$(?!\n)": {
+                                "$ref": "#/E"
                               },
-                              "^(subjects|refs)$(?!\n)": {
+                              "^(subjects|refs|crossing_kinds)$(?!\n)": {
                                 "$ref": "#/B"
                               }
                             }
@@ -216,6 +219,9 @@
                           {
                             "type": "object",
                             "properties": {
+                              "impact": {
+                                "$ref": "#/D"
+                              },
                               "subjects": {
                                 "$ref": "#/B"
                               },
@@ -224,6 +230,9 @@
                               },
                               "fixes": {
                                 "$ref": "#/A"
+                              },
+                              "scope": {
+                                "$ref": "#/F"
                               }
                             },
                             "required": [
@@ -234,8 +243,8 @@
                             ],
                             "additionalProperties": false,
                             "patternProperties": {
-                              "^(id|code|severity)$(?!\n)": {
-                                "$ref": "#/D"
+                              "^(group|id|code|severity|detail_ref|description)$(?!\n)": {
+                                "$ref": "#/E"
                               }
                             }
                           },
@@ -270,7 +279,7 @@
           "minProperties": 3
         },
         "delta_ref": {
-          "$ref": "#/D"
+          "$ref": "#/E"
         },
         "plans": {
           "type": "integer",
@@ -294,7 +303,7 @@
             ]
           },
           "message": {
-            "$ref": "#/D"
+            "$ref": "#/E"
           }
         },
         "required": [
@@ -313,10 +322,10 @@
     "type": "object",
     "properties": {
       "id": {
-        "$ref": "#/E"
+        "$ref": "#/G"
       },
       "detail_ref": {
-        "$ref": "#/D"
+        "$ref": "#/E"
       }
     },
     "additionalProperties": false,
@@ -328,17 +337,13 @@
       "minProperties": 3,
       "properties": {
         "description": {
-          "$ref": "#/D"
+          "$ref": "#/E"
         },
         "ops": {
           "$ref": "#/C"
         },
         "scope": {
-          "enum": [
-            "local",
-            "view",
-            "sheet"
-          ]
+          "$ref": "#/F"
         }
       },
       "type": "object"
@@ -347,7 +352,7 @@
   },
   "B": {
     "items": {
-      "$ref": "#/D"
+      "$ref": "#/E"
     },
     "type": "array"
   },
@@ -363,7 +368,7 @@
               ]
             },
             "path": {
-              "$ref": "#/D"
+              "$ref": "#/E"
             },
             "value": {}
           },
@@ -376,7 +381,7 @@
               "const": "remove"
             },
             "path": {
-              "$ref": "#/D"
+              "$ref": "#/E"
             }
           },
           "additionalProperties": false,
@@ -388,9 +393,24 @@
     "type": "array"
   },
   "D": {
-    "type": "string"
+    "enum": [
+      "incomplete",
+      "decision",
+      "readability",
+      "advisory"
+    ]
   },
   "E": {
+    "type": "string"
+  },
+  "F": {
+    "enum": [
+      "local",
+      "view",
+      "sheet"
+    ]
+  },
+  "G": {
     "type": [
       "string",
       "null"

@@ -47,6 +47,13 @@ fn main() -> Result<(), api::Error> {
     );
     for step in replay.steps {
         match step.action.as_str() {
+            "callout_offset" => {
+                println!(
+                    "{}",
+                    serde_json::to_string(&session.callout_offset(&step.edit)?).unwrap()
+                );
+                continue;
+            }
             "undo" => {
                 session.undo()?;
             }
