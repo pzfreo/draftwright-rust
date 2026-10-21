@@ -385,7 +385,6 @@ fn no_problem_message_carries_an_internal_id() {
         .iter_mut()
         .find(|r| r.kind == "internal_thread")
         .unwrap();
-    requirement.kind = "unsupported_manufacturing_process".into();
     let diagnostic = "unsupported manufacturing_requirement:#925 at features/f:hole:1/thread";
     requirement.blockers.push(diagnostic.into());
     let lint = draftwright::lint::pmi_coverage::coverage(&a, &[]);
