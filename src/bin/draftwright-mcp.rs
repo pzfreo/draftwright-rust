@@ -287,6 +287,7 @@ fn answer(message: &Value) -> Option<Value> {
                 Ok(result) if name == "review" => json!({
                     "content": [
                         text(&json!({
+                            "summary": result["summary"],
                             "problems": result["problems"],
                             "lint": result["lint"],
                             "structural": result["structural"],

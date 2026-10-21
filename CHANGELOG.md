@@ -8,6 +8,10 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Added
 
+- Add `impact` and stable repeat-cause `group` labels to every problem and lint finding,
+  including serve, WASM and compact MCP results. Review includes per-impact and per-group
+  counts, also forwarded by the MCP review tool. Severity, finding order and drawings
+  are unchanged. See [finding impact](docs/finding-impact.md) for the full classification.
 - `sheet/max_size` bounds automatic paper to A4–A0, default A3. Try one sheet
   of each size through the maximum, then more sheets of that maximum (up to
   `sheets.max`, default 9), before accepting hard findings or required drops.
