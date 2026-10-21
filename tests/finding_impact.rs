@@ -416,7 +416,8 @@ fn ctc01_counts_gaps_and_repeated_causes_without_hiding_findings() {
         "nist/nist_ctc_01_asme1_rd.stp",
         // The bounded selection omits an unavailable optional detail while its
         // dimensions remain on the parent: no detail_unplaceable diagnostic.
-        [(8, 3), (1, 1), (0, 0), (13, 4)],
+        // The selected recovery and unavailable table now add two advisory groups.
+        [(8, 3), (1, 1), (0, 0), (15, 6)],
     );
 }
 #[test]
