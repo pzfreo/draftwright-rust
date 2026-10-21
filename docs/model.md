@@ -1592,6 +1592,9 @@ modifiers?, default, basis, placed}` (`surface_finish` added by F2, draftwright-
   points inside its outline on the half facing that view, with nothing in front, midway between
   the axis and either side, the leader ending in a dot there (ISO 128-22), sites clear of the
   view's edges and silhouettes first. The symbol's box starts 0.9 mm past the leader's bend.
+  A leader or shelf run alongside a dimension or extension line closer than one text height (3 mm)
+  grades as a line through a label, so the next tier or site wins; in a strip, the finish with
+  fewest proven sites is placed first.
   `annotations/<id>/place/side` may name either strip a cylinder proves a site in.
 - **Placement**: automatic datums first try inside tiers between their face and the first
   dimension lane, with normal triangle, shaft, frame and lane clearances. All inside sites

@@ -38,7 +38,8 @@
 //! Filled triangles reserve clearance alongside the letter boxes, and final-plan lint rejects
 //! touching or overlapping datum triangles. A plane's finish keeps its outward side; a
 //! cylinder's tries compact tiers in its own strip, then the other proven silhouette only when
-//! its own has no place clear of every label and line. Frames and labels can retry the other
+//! its own has no place clear of every label and line; its leader keeps a text height from
+//! any line it runs alongside, and the finish with fewest sites in a strip is placed first. Frames and labels can retry the other
 //! strips (`_gdt_retry_sides`).
 //!
 //! All glyphs share the same obstacle grade: clearance from labels, views, sheet furniture and
@@ -415,6 +416,30 @@ fn label(s: &str) -> Laid {
 /// mark ([`crate::title_block::removal_marks`]), the bar from the long leg's top, and the
 /// parameters under it, one per line (ISO 1302's positions a and b). The reference line itself
 /// is the leader's ([`candidate`]), as long as the glyph is wide.
+/// The least gap between a finish's leader or shelf and a dimension or extension line it runs
+/// alongside, mm: one text height.
+const FINISH_PARALLEL_GAP: f64 = TEXT;
+
+/// Whether segments *a* and *b* are parallel, overlap along their direction by more than
+/// 0.5 mm, and lie closer than *gap* across it.
+fn runs_alongside(a: [P2; 2], b: [P2; 2], gap: f64) -> bool {
+    let d = [a[1][0] - a[0][0], a[1][1] - a[0][1]];
+    let e = [b[1][0] - b[0][0], b[1][1] - b[0][1]];
+    let (la, lb) = (d[0].hypot(d[1]), e[0].hypot(e[1]));
+    if la < 1e-9 || lb < 1e-9 {
+        return false;
+    }
+    let u = [d[0] / la, d[1] / la];
+    if (u[0] * e[1] - u[1] * e[0]).abs() / lb > 1e-6 {
+        return false;
+    }
+    let across = ((b[0][0] - a[0][0]) * u[1] - (b[0][1] - a[0][1]) * u[0]).abs();
+    let t0 = dot([b[0][0] - a[0][0], b[0][1] - a[0][1]], u);
+    let t1 = dot([b[1][0] - a[0][0], b[1][1] - a[0][1]], u);
+    let overlap = la.min(t0.max(t1)) - 0f64.max(t0.min(t1));
+    across < gap && overlap > 0.5
+}
+
 /// The empty margin left of a surface texture symbol's ink, from its origin.
 const FINISH_MARGIN: f64 = 0.3 * TEXT;
 /// The radius of the dot a leader ends in on a face inside its outline (ISO 128-22).
@@ -994,6 +1019,8 @@ struct Obstacles<'a> {
     /// Proven exterior paper beside a shoulder inside the whole-view box.
     exterior: Option<(&'a PlannedView, &'a super::interior::Proof)>,
     protect_triangles: bool,
+    /// A finish's leader and shelf keep this clear of any line they run alongside.
+    parallel_gap: Option<f64>,
     triangles: Vec<Vec<P2>>,
     labels: Vec<[f64; 4]>,
     lines: Vec<[P2; 2]>,
@@ -1088,7 +1115,14 @@ impl Obstacles<'_> {
                     .lines
                     .iter()
                     .any(|l| self.labels.iter().any(|x| crosses(*l, *x)));
-        if !lines_clear {
+        // A finish's leader run close alongside a dimension or extension line reads as a
+        // doubled line: as bad as a line through a label.
+        let alongside = self.parallel_gap.is_some_and(|gap| {
+            c.lines
+                .iter()
+                .any(|l| self.lines.iter().any(|t| runs_alongside(*l, *t, gap)))
+        });
+        if !lines_clear || alongside {
             return 2;
         }
         let inside = |q: &P2, a: [f64; 4]| {
@@ -1499,6 +1533,7 @@ fn plan_search(
             a.view,
             protect && !matches!(&a.glyph, Glyph::Datum { surface, .. } if surface == "plane"),
             a.side,
+            finish_freedom(a),
         )
             .cmp(&(
                 !spec
@@ -1509,6 +1544,7 @@ fn plan_search(
                 b.view,
                 protect && !matches!(&b.glyph, Glyph::Datum { surface, .. } if surface == "plane"),
                 b.side,
+                finish_freedom(b),
             ))
             .then(order)
             .then(a.source.cmp(&b.source))
@@ -1716,6 +1752,7 @@ fn plan_search(
                 })
                 .flatten(),
             protect_triangles: protect,
+            parallel_gap: (shape == Shape::Finish).then_some(FINISH_PARALLEL_GAP),
             triangles: triangles
                 .iter()
                 .chain(reservations.values())
@@ -2044,6 +2081,16 @@ fn plan_search(
     );
     problems.extend(symbol_collisions(out.iter().filter(|g| on_sheet(&g.view))));
     Some((out, problems))
+}
+
+/// How free a surface finish is to move along its strip: its count of other proven sites there
+/// (none for anything else). In one strip the finish with fewest places is placed first, so a
+/// narrow face (a flange) keeps its only site before a long one takes the paper beside it.
+fn finish_freedom(item: &Lowered) -> (bool, usize) {
+    match item.glyph {
+        Glyph::Finish { .. } => (true, item.alternatives.len()),
+        _ => (false, 0),
+    }
 }
 
 /// The filled dot a leader ends in at *c*, as a polygon.
