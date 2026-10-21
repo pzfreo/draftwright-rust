@@ -577,7 +577,17 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     // Keep its ordinary pin replay when no forced paper was selected; a fixed-pair
     // replay can have a different nominal presentation even at the same scale.
     let raw = model::plan_automatic(analysis, &base)?;
-    let mut plan = if raw.sheet.size == canonical.sheet.size
+    let mut plan = if canonical
+        .views
+        .iter()
+        .any(|v| ["v:front", "v:plan", "v:side"].contains(&v.id.as_str()) && v.sheet > 1)
+    {
+        let source = model::plan_automatic(analysis, spec)?;
+        crate::sheets::replay_views(analysis,&source,&canonical).ok_or_else(|| Invalid {
+            message: "Pinned ink cannot fit in the retained annotated view frames; change its placement or remove the pin.".into(),
+            choices: vec!["dimensions/<id>/place".into()],
+        })?
+    } else if raw.sheet.size == canonical.sheet.size
         && raw.sheet.scale == canonical.sheet.scale
         && raw.sheets.len() == canonical.sheets.len()
     {

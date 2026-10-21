@@ -1175,6 +1175,28 @@ pub(crate) fn separate_views(
     size: &str,
     max: usize,
 ) -> Option<Plan> {
+    separate_views_inner(analysis, source, size, max, None)
+}
+
+/// Pin replay transports the same owned ink into the already selected view
+/// frames. Expanded pin ink is audited there, never used to relocate peers.
+pub(crate) fn replay_views(analysis: &Analysis, source: &Plan, frame: &Plan) -> Option<Plan> {
+    separate_views_inner(
+        analysis,
+        source,
+        &frame.sheet.size,
+        1 + frame.sheets.len(),
+        Some(frame),
+    )
+}
+
+fn separate_views_inner(
+    analysis: &Analysis,
+    source: &Plan,
+    size: &str,
+    max: usize,
+    frame: Option<&Plan>,
+) -> Option<Plan> {
     use crate::placement_intent::{move_box, move_point};
     if source.spec.views.values().any(|v| v.place.is_some())
         || source.spec.sheets.as_ref().is_some_and(|s| {
@@ -1343,10 +1365,33 @@ pub(crate) fn separate_views(
             ]
         })?;
         let block = [bounds[2] - bounds[0], bounds[3] - bounds[1]];
-        let mut allocation = pages.iter().enumerate().find_map(|(n, obstacles)| {
-            layout::fit_box(block, region, obstacles, layout::Corner::BottomLeft, 2.)
-                .map(|at| (n + 1, at))
-        });
+        let mut allocation = if let Some(frame) = frame {
+            let target = frame.views.iter().find(|v| v.id == id)?;
+            if (target.scale - plan.views[i].scale).abs() > 1e-9 {
+                return None;
+            }
+            let delta = [
+                target.at[0] - plan.views[i].at[0],
+                target.at[1] - plan.views[i].at[1],
+            ];
+            while pages.len() < target.sheet as usize {
+                let number = pages.len() + 1;
+                plan.sheets.push(extra_sheet(&plan.sheet, number as u32));
+                let mut obstacles =
+                    crate::sheet_fit::furniture_bounds(analysis, plan.sheets.last()?, &[]);
+                obstacles.push(plan.sheet.title_block);
+                pages.push(obstacles);
+            }
+            Some((
+                target.sheet as usize,
+                [bounds[0] + delta[0], bounds[1] + delta[1]],
+            ))
+        } else {
+            pages.iter().enumerate().find_map(|(n, obstacles)| {
+                layout::fit_box(block, region, obstacles, layout::Corner::BottomLeft, 2.)
+                    .map(|at| (n + 1, at))
+            })
+        };
         if allocation.is_none() {
             let n = pages.len() + 1;
             if n > max {
