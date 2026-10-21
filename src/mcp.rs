@@ -305,6 +305,14 @@ fn small(cache: &Cache, row: Value) -> Result<Value, Error> {
         if value_bytes(&summary) < PAGE_BYTES / 4 {
             return Ok(summary);
         }
+        // A long trade cannot be offered without its complete description. Keep
+        // the finding identifiable; the resource contains the full remedies.
+        for field in ["fix", "scope", "description"] {
+            summary.as_object_mut().unwrap().remove(field);
+        }
+        if value_bytes(&summary) < PAGE_BYTES / 4 {
+            return Ok(summary);
+        }
     }
     let id = row
         .get("id")

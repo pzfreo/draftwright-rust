@@ -51,3 +51,8 @@ MCP problem pages retain the preferred operations, scope and complete descriptio
 as `fix`, `scope` and `description` when the full list of alternatives exceeds a row's byte budget. `detail_ref` reads
 all alternatives and explanations; a verbose trade must not hide the problem's
 code or actionable bundle behind an ID-only row.
+
+If even the complete preferred description exceeds the row allowance, the page
+keeps the finding's code and subjects with `detail_ref`. Its remedy is available
+only with the complete description in that resource; a long trade never becomes
+an undisclosed inline operation bundle.

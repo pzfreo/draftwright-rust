@@ -8,9 +8,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
-- Verbose MCP problem alternatives keep their actionable preferred fix, code, scope
-  and trade description inline, with full alternatives available through `detail_ref`
-  (#151). Explicit paper, scale and sheet-count edits release an inherited local-layout
+- Verbose MCP problems retain their code and subjects inline, plus the preferred fix,
+  scope and complete trade description when they fit. `detail_ref` retains every full
+  alternative without offering an undisclosed trade (#151). Explicit paper, scale and sheet-count edits release an inherited local-layout
   guard; setting `sheet/keep_layout` in the same batch retains the local promise.
 
 - Local fixes retain their sheet size, scale and count (#126, alpha.11).

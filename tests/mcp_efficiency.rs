@@ -795,3 +795,34 @@ fn crossing_remedies_are_scoped_and_ordered_in_mcp_rows() {
     assert_eq!(options["settable"]["hole_table"]["scope"], "sheet");
     assert_eq!(options["operation_scopes"]["scale"], "sheet");
 }
+
+#[test]
+fn an_oversized_trade_keeps_the_finding_inline_and_the_remedy_lossless() {
+    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("e2-long-trade");
+    let _ = std::fs::remove_dir_all(&root);
+    let cache = Cache::new(root);
+    let ops = json!([{"op":"set", "path":"dimensions/d:example/place", "value":{"side":"below"}}]);
+    let description = "Trade-off: adds an extension crossing. ".repeat(100);
+    let row = json!({"id":"p:example", "code":"extension_through_feature",
+        "severity":"warning", "subjects":["d:example", "f:slot:1"], "fix":ops,
+        "fixes":[{"scope":"local", "description":description, "ops":ops}]});
+    let page = mcp::page(&cache, vec![row.clone()], &json!({})).unwrap();
+    let inline = &page["items"][0];
+    assert_eq!(inline["code"], row["code"]);
+    assert_eq!(inline["subjects"], row["subjects"]);
+    assert!(
+        inline.get("fix").is_none(),
+        "never offer an undisclosed trade"
+    );
+    let full: Value = serde_json::from_slice(
+        &cache
+            .artifact_bytes(inline["detail_ref"].as_str().unwrap())
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        full, row,
+        "every alternative and its complete description remain available"
+    );
+    mcp::validate(&mcp::schema("list_problems", true).unwrap(), &page).unwrap();
+}
