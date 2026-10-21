@@ -389,9 +389,9 @@
     {
       "part": "cgb245",
       "code": "radius_leader_not_radial",
-      "count": 1,
+      "count": 0,
       "verdict": "rust-correct",
-      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, non-material-side approach rule."
+      "reason": "Issue #146: the radial-from-either-side rule resolves the one warning recorded under #145. Retained as an explicit zero-count regression guard; no callout or finding is suppressed."
     },
     {
       "part": "ctc01",
@@ -417,9 +417,9 @@
     {
       "part": "spool132",
       "code": "radius_leader_not_radial",
-      "count": 1,
+      "count": 0,
       "verdict": "rust-correct",
-      "reason": "Issue #145: the drawn radius shaft violates the middle-arc, radial, non-material-side approach rule."
+      "reason": "Issue #146: the radial-from-either-side rule resolves the one warning recorded under #145. Retained as an explicit zero-count regression guard; no callout or finding is suppressed."
     },
     {
       "part": "string_post",
