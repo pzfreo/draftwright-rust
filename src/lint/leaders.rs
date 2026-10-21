@@ -19,7 +19,7 @@
 //!   trimmed profile. Exact face evidence is used where present; older straight-blend
 //!   analyses use their rolling axis and quarter/half/three-quarter samples.
 //! - `radius_leader_not_radial`: the drawn shaft (automatic or pinned) must meet the
-//!   middle 25–75% of that profile, within 15 degrees of radial, from its open (non-material) side.
+//!   middle 25–75% of that profile, within 15 degrees of radial, from either side.
 //! - `radius_leader_target_unverifiable`: a straight blend's target cannot be read.
 //!
 //! - `leader_crosses_silhouette` (draftwright's structural check, #796/#798): a callout's shaft,
@@ -379,7 +379,7 @@ pub(super) fn check(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
                     radii,
                     parameter,
                     format!(
-                        "{}: radius leader must touch the middle 25–75% of the arc and approach within 15 degrees of radial from the non-material side; automatic routing keeps the drawn route when no compliant candidate fits",
+                        "{}: radius leader must touch the middle 25–75% of the arc and approach within 15 degrees of radial from either side; automatic routing keeps the drawn route when no compliant candidate fits",
                         a.name
                     ),
                     &why.join("; "),

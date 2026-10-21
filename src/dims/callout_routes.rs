@@ -357,7 +357,12 @@ pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
             };
             let id = d.id.clone();
             let old = d.placed.clone();
-            for next in candidates.into_iter().take(40) {
+            let limit = if glyph.as_ref().is_some_and(|g| g.kind == "datum_feature") {
+                candidates.len()
+            } else {
+                40
+            };
+            for next in candidates.into_iter().take(limit) {
                 // The all-around/all-over marks travel with the bend. Reserve
                 // their actual extent as well as the proxy's shaft and frame.
                 if let Some(g) = glyph.as_ref().filter(|g| !g.modifiers.is_empty()) {

@@ -2588,12 +2588,14 @@ pub(crate) fn settle_radius_leaders(
             let length_budget = length(&old.lines) + 2.0 + 1e-6;
             for arc in &arcs {
                 for &tip in &arc.tips {
-                    let u = arc.open_direction(tip);
+                    let u = arc.radial_direction(tip);
                     let n = u[0].hypot(u[1]);
                     if n <= 1e-12 {
                         continue;
                     }
-                    for degrees in [0.0f64, -7.5, 7.5, -15.0, 15.0] {
+                    for degrees in [
+                        0.0f64, -7.5, 7.5, -15.0, 15.0, 180.0, 172.5, 187.5, 165.0, 195.0,
+                    ] {
                         let (sin, cos) = degrees.to_radians().sin_cos();
                         let u = [(cos * u[0] - sin * u[1]) / n, (sin * u[0] + cos * u[1]) / n];
                         let exit = exit_distance(tip, u, job.outline);

@@ -1,4 +1,20 @@
-# Datum placement validation
+# Datum leader direction (#146)
+
+A drawn datum leader leaves the triangle square to its feature (ISO 5459 / ASME Y14.5).
+Automatic placement tries short straight normal leaders in the existing face-to-dimension
+compact tiers before outer tiers. Final route repair exhausts straight normal routes before
+trying one bend after a 2.4 mm square stub. The triangle and any proven planar extension stay
+fixed. No automatic oblique departure is generated; unavoidable contacts remain reported.
+An authored lateral frame keeps its requested position with a square stub before the bend.
+
+Rendered lint checks the actual triangle base and first shaft segment, including pins, with
+0.1° numerical tolerance (`datum_leader_not_normal`, warning). This is independent of the
+strict frame-interior shaft check (`leader_line_through_text`), which remains unchanged.
+Datums without control frames, `sheet/uncited_datums`, and per-datum omission retain their
+existing visibility rules. Legacy CTC-01 RD has presentation-only PMI, so its A regression
+explicitly authors A on the proven base-top face; AP242 supplies its own semantic datum A.
+
+# Earlier datum placement validation
 
 Review-fix base: `de99c79b7fc61e5affc5b19e9d0c6c887201ff43` (PR #56's approved head).
 The original placement survey below compares against `3836b296` (the branch's starting main).

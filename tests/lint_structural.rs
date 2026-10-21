@@ -133,6 +133,7 @@ fn sheet(views: &[(&str, [f64; 4])], items: Vec<Drawn>) -> Drawing {
 
 fn item(name: &str, kind: Kind, ink: [f64; 4], label: Option<[f64; 4]>) -> Drawn {
     Drawn {
+        datum_triangle: None,
         heads: Vec::new(),
         name: name.into(),
         kind,
@@ -1381,6 +1382,7 @@ fn captured_drawing(name: &str, c: &Captured) -> Drawing {
             });
         }
         items.push(Drawn {
+            datum_triangle: None,
             heads: Vec::new(),
             name: item_name,
             kind,
@@ -1573,6 +1575,7 @@ fn fixed_ink_review_distinguishes_shared_strokes_from_transverse_crossings() {
 /// (x 40) out to its dimension line at x *at*, its label *label*.
 fn vertical(name: &str, at: f64, lo: f64, hi: f64, label: [f64; 4]) -> Drawn {
     Drawn {
+        datum_triangle: None,
         heads: Vec::new(),
         lines: vec![
             [[40.0, lo], [at - 2.0, lo]],
