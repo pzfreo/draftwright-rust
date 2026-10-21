@@ -629,7 +629,29 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     // Keep its ordinary pin replay when no forced paper was selected; a fixed-pair
     // replay can have a different nominal presentation even at the same scale.
     let raw = model::plan_automatic(analysis, &base)?;
-    let mut plan = if canonical
+    let mut plan = if count > 1
+        && crate::placement_intent::automatic_pins_only(spec)
+        && spec.views.values().all(|v| v.place.is_none())
+    {
+        // A bare pin holds the selected finished ink, including peers on every
+        // physical page. Re-solving sheet 1 would create a different pin origin.
+        let mut held = canonical.clone();
+        held.spec = intent.clone();
+        for d in &mut held.dimensions {
+            if spec
+                .dimensions
+                .get(&d.id)
+                .is_some_and(|d| d.place.is_some())
+            {
+                d.default = false;
+                if !d.from_spec.iter().any(|s| s == "place") {
+                    d.from_spec.push("place".into());
+                }
+            }
+        }
+        crate::placement_intent::finish(&mut held, analysis);
+        held
+    } else if canonical
         .views
         .iter()
         .any(|v| ["v:front", "v:plan", "v:side"].contains(&v.id.as_str()) && v.sheet > 1)
@@ -856,7 +878,8 @@ mod tests {
         )
         .unwrap()
         .1;
-        for a in [&tapped, &a] {
+        let ftc08 = corpus("nist/nist_ftc_08_asme1_rc.stp");
+        for a in [&tapped, &a].into_iter().chain(ftc08.as_ref()) {
             let canonical = model::plan_recovered(a, &Spec::default()).unwrap();
             let id = &canonical
                 .dimensions
@@ -874,6 +897,10 @@ mod tests {
             assert!(pinned.spec.sheet.size.is_none());
             assert!(pinned.spec.sheet.scale.is_none());
             assert!(pinned.spec.sheets.as_ref().and_then(|s| s.max).is_none());
+            for d in &canonical.dimensions {
+                let replayed = pinned.dimensions.iter().find(|p| p.id == d.id).unwrap();
+                assert_eq!(replayed.placed, d.placed, "bare pin moved {}", d.id);
+            }
         }
     }
 
