@@ -226,8 +226,8 @@ plan, never hidden:
   dimension is off the sheet or over a view, but dense parts carry much more ink: 1736 problems
   in all (1525 leader crossings, 132 past a view's area, 79 ink overlaps), most on NIST STC-09
   (521), FTC-10 (449) and STC-10 (288). That review drew STC-09 on A1 at 1:5 where
-  draftwright kept 1:1 by dropping 15 items. The default preference is A3 on at most two sheets;
-  `sheet_preference_exceeded` explains a larger readable layout. Undetermined PMI differences (a part placed several times,
+  draftwright kept 1:1 by dropping 15 items. The defaults prefer A3 and two sheets; the search continues beyond either
+  preference when needed, and `sheet_preference_exceeded` explains the readable layout. Undetermined PMI differences (a part placed several times,
   dimensions on supplemental geometry, an ISO 286 class stated without limits, records
   haecceity reads only in part) wait on maintainer questions; see the `known_pmi*.json` fixtures.
 - **Hole tables** are drawn only by drop-and-escalate: a hole callout or location whose ink runs
