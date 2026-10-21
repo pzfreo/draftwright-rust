@@ -240,7 +240,7 @@
                                 ],
                                 "additionalProperties": false,
                                 "patternProperties": {
-                                  "^(id|code|severity)$(?!\n)": {
+                                  "^(id|code|severity|detail_ref)$(?!\n)": {
                                     "$ref": "#/D"
                                   }
                                 }

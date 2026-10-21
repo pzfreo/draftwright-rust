@@ -152,7 +152,7 @@ fn tools_explain_their_operations_without_source_and_fit_schema_budget() {
     // because sheet and feature vocabulary is in on-demand schemas/spec.json.
     // Scoped fix alternatives and operation/path scopes add 1,916 bytes; PMI policy and
     // the shallow origin object add 804. The replay-safe edit notice event adds 18.
-    assert_eq!(schema_bytes, 37215, "schemas: {schema_bytes} bytes");
+    assert_eq!(schema_bytes, 37259, "schemas: {schema_bytes} bytes");
     eprintln!("schema bytes per session: {schema_bytes}");
 }
 

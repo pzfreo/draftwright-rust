@@ -311,8 +311,13 @@ fn verbose_feature_problem_stays_actionable_and_can_be_cleared() {
         .clone();
     assert!(!ops.is_empty());
     if row.get("detail_ref").is_some() {
-        assert_eq!(row["scope"], "local");
-        assert!(row["description"].as_str().unwrap().contains("Trade-off:"));
+        assert_eq!(row["fixes"][0]["scope"], "local");
+        assert!(
+            row["fixes"][0]["description"]
+                .as_str()
+                .unwrap()
+                .contains("Trade-off:")
+        );
     }
     let answer = call(
         &cache,
