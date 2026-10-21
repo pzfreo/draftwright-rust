@@ -443,9 +443,16 @@ fn usable(analysis: &Analysis, plan: &Plan, reference: &Plan, floor: f64) -> boo
     // Measured from final ink rather than reported: a leader on an extension line reads as
     // that line. Leader runs beside model ink, hidden-edge crossings and route lengths are
     // reported route quality and stay advisory.
+    // A split costs the reader a page turn, so it must not also add route defects: on more
+    // than one sheet, new leader runs beside model ink and hidden-edge crossings refuse it.
+    let split = !plan.sheets.is_empty();
     let mut measured: Vec<_> = failures(analysis, plan, floor)
         .into_iter()
-        .filter(|(code, _)| code == "leader_on_extension" || code == "annotation_off_sheet")
+        .filter(|(code, _)| {
+            code == "leader_on_extension"
+                || code == "annotation_off_sheet"
+                || (split && (code == "leader_ink_run" || code == "leader_hidden_crossing"))
+        })
         .collect();
     measured.extend(frame_conflicts(plan));
     inherited.extend(frame_conflicts(reference));
@@ -846,7 +853,7 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
             forced.sheets.get_or_insert_with(Default::default).max = Some(count as u32);
         }
         // The canonical trial's own request (paper, scale and count) usually
-        // reproduces its R5 allocation exactly; keep it when every view frame matches.
+        // reproduces its R5 allocation; keep it when every view keeps its page.
         let mut same = forced.clone();
         omit_absent_details(
             analysis,
@@ -855,16 +862,11 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
             canonical.sheet.scale_factor,
         );
         let same = crate::planning::fixed_pair(|| model::plan_automatic(analysis, &same))?;
+        // The same views on the same pages: pins may move frames within a page.
         let frames = |p: &Plan| {
             p.views
                 .iter()
-                .map(|v| {
-                    (
-                        v.id.clone(),
-                        v.sheet,
-                        v.at.map(|x| (x * 1e6).round() as i64),
-                    )
-                })
+                .map(|v| (v.id.clone(), v.sheet))
                 .collect::<Vec<_>>()
         };
         if count > 1 && frames(&same) != frames(&canonical) {
@@ -894,27 +896,7 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
                 &canonical,
                 canonical.sheet.scale_factor,
             );
-            let assigned =
-                crate::planning::fixed_pair(|| model::plan_automatic(analysis, &forced))?;
-            // The assigned layout attaches each leader as the canonical one did; carry
-            // its owned ink into the canonical frames so pin offsets keep their frame.
-            let mut source = assigned.clone();
-            for view in source.spec.views.values_mut() {
-                view.sheet = None;
-            }
-            if let Some(sheets) = &mut source.spec.sheets {
-                sheets.hole_table = None;
-            }
-            for table in &mut source.spec.tables {
-                table.sheet = None;
-            }
-            crate::sheets::replay_views(analysis, &source, &canonical)
-                .map(|mut plan| {
-                    plan.spec = assigned.spec.clone();
-                    reanchor_offsets(&mut plan, &canonical, &intent);
-                    plan
-                })
-                .unwrap_or(assigned)
+            crate::planning::fixed_pair(|| model::plan_automatic(analysis, &forced))?
         } else {
             same
         }

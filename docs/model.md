@@ -541,10 +541,12 @@ code and subjects):
 - a required item the baseline carries that it does not, a new drop or undrawn GD&T
   item, an unreported undrawable item, or printed steps illegible beyond the baseline's.
 
-A sheet that would carry only pictorial views (the isometric) is not a usable split.
-Other warnings (extension, feature and hidden-edge crossings, leader runs beside model
-ink, route lengths, crowded but legible location ordinates) are reported but never
-choose larger paper, so a crowded but readable small sheet does not lose to an
+A sheet that would carry only pictorial views (the isometric) is not a usable split,
+unless the author assigned it there. A split also costs a page turn, so a multi-sheet
+candidate is refused by new leader runs beside model ink or new hidden-edge crossings.
+Other warnings (extension and feature crossings, route lengths, crowded but legible
+location ordinates, and on one sheet leader runs and hidden-edge crossings) are
+reported but never choose larger paper, so a crowded but readable small sheet does not lose to an
 enlargement with fewer warnings.
 Unsupported requirements and any undrawn items retain their existing findings.
 Clipping is a hard rejection, including for fallback ranking. If no usable result
