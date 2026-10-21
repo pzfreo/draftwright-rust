@@ -360,7 +360,7 @@ fn verbose_feature_problem_stays_actionable_and_can_be_cleared() {
     assert_eq!(remaining["total"], 0, "{remaining}");
     let delta: Value = serde_json::from_slice(
         &cache
-            .artifact_bytes(applied["delta_ref"].as_str().unwrap())
+            .artifact_bytes(applied["delta"]["delta_ref"].as_str().unwrap())
             .unwrap(),
     )
     .unwrap();
