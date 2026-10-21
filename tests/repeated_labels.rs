@@ -24,7 +24,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use draftwright::api::{self, Features};
-use draftwright::model::{Plan, Spec};
+use draftwright::model::Plan;
 use serde::Deserialize;
 
 const VERDICTS: [&str; 3] = [

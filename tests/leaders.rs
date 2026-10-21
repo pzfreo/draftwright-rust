@@ -26,7 +26,7 @@ mod facts;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use draftwright::model::{self, Analysis, Plan, Spec};
+use draftwright::model::{self, Analysis, Plan};
 use serde::{Deserialize, Serialize};
 
 type P2 = [f64; 2];
