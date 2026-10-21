@@ -430,7 +430,8 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
     let mut candidates = Vec::new();
     let mut best = sheet_fit::inside_frames(fit, &baseline).then(|| baseline.clone());
     // Whole-view allocations are independent of a count bound once they fit.
-    let mut separated = std::collections::BTreeMap::<String, Option<Plan>>::new();
+    let mut separated = std::collections::BTreeMap::<(String, u64), Option<Plan>>::new();
+    let mut scale_sources = std::collections::BTreeMap::<u64, Option<Plan>>::new();
     let mut unblocked = std::collections::BTreeMap::<(String, u64), Plan>::new();
     for (size, max) in requests(spec) {
         let mut scales = Vec::new();
@@ -446,38 +447,69 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
             for scale in std::iter::once(scale).chain(reference_scale) {
                 scales.push(model::scale_name(scale));
                 let key = (size.to_string(), scale.to_bits());
-                if max > 1
-                    && let Some(plan) = unblocked.get(&key)
-                {
-                    trials.push(plan.clone());
-                    continue;
-                }
+                let cached = (max > 1).then(|| unblocked.get(&key).cloned()).flatten();
                 let mut forced = intent.clone();
                 forced.binding = spec.binding.clone();
                 forced.sheet.size = Some(size.into());
                 forced.sheet.scale = Some(model::scale_name(scale));
                 forced.sheets.get_or_insert_with(Default::default).max = Some(max as u32);
                 omit_absent_details(fit, &mut forced, &baseline, scale);
-                match crate::planning::fixed_pair(|| model::plan_automatic(analysis, &forced)) {
+                match cached.map(Ok).unwrap_or_else(|| {
+                    crate::planning::fixed_pair(|| model::plan_automatic(analysis, &forced))
+                }) {
                     Ok(plan) => {
                         if max > 1 && !plan.sheet.basis.contains("blocked by sheets.max") {
                             unblocked.insert(key, plan.clone());
                         }
+                        let needs_split = !usable(fit, &plan, &baseline, floor);
                         trials.push(plan);
+                        // A smaller readable scale may fit individual views even when
+                        // the unrestricted reference's scale cannot. Plan its ink on
+                        // roomy paper, then reuse whole-view allocation; never pack a
+                        // cramped small-paper plan after it has already lost items.
+                        if needs_split && scale < baseline.sheet.scale_factor {
+                            let source =
+                                scale_sources.entry(scale.to_bits()).or_insert_with(|| {
+                                    let mut wide = forced.clone();
+                                    wide.sheet.size = Some("A0".into());
+                                    wide.sheets.get_or_insert_with(Default::default).max =
+                                        Some(spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9));
+                                    crate::planning::fixed_pair(|| {
+                                        model::plan_automatic(analysis, &wide)
+                                    })
+                                    .ok()
+                                });
+                            let split = separated
+                                .entry((size.into(), scale.to_bits()))
+                                .or_insert_with(|| {
+                                    crate::sheets::separate_views(
+                                        fit,
+                                        source.as_ref()?,
+                                        size,
+                                        spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9)
+                                            as usize,
+                                    )
+                                });
+                            if let Some(plan) = split.as_ref().filter(|p| p.sheets.len() < max) {
+                                trials.push(plan.clone());
+                            }
+                        }
                     }
                     Err(e) => outcome = format!("cannot plan: {}", e.message),
                 }
             }
         }
         {
-            let split = separated.entry(size.into()).or_insert_with(|| {
-                crate::sheets::separate_views(
-                    fit,
-                    &baseline,
-                    size,
-                    spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9) as usize,
-                )
-            });
+            let split = separated
+                .entry((size.into(), baseline.sheet.scale_factor.to_bits()))
+                .or_insert_with(|| {
+                    crate::sheets::separate_views(
+                        fit,
+                        &baseline,
+                        size,
+                        spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9) as usize,
+                    )
+                });
             if let Some(plan) = split.as_ref().filter(|p| p.sheets.len() < max) {
                 trials.push(plan.clone());
             }
@@ -588,8 +620,17 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         .iter()
         .any(|v| ["v:front", "v:plan", "v:side"].contains(&v.id.as_str()) && v.sheet > 1)
     {
-        let source = model::plan_automatic(analysis, spec)?;
-        crate::sheets::replay_views(analysis,&source,&canonical).ok_or_else(|| Invalid {
+        let source = if canonical.sheet.scale == raw.sheet.scale {
+            model::plan_automatic(analysis, spec)?
+        } else {
+            let mut wide = spec.clone();
+            wide.sheet.size = Some("A0".into());
+            wide.sheet.scale = Some(canonical.sheet.scale.clone());
+            wide.sheets.get_or_insert_with(Default::default).max =
+                Some(spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9));
+            crate::planning::fixed_pair(|| model::plan_automatic(analysis, &wide))?
+        };
+        crate::sheets::replay_views(analysis, &source, &canonical).ok_or_else(|| Invalid {
             message: "Pinned ink cannot fit in the retained annotated view frames; change its placement or remove the pin.".into(),
             choices: vec!["dimensions/<id>/place".into()],
         })?
@@ -783,7 +824,8 @@ mod tests {
                     .any(|c| c.outcome.contains("leader_on_extension")
                         || c.outcome.contains("hard rejected")
                         || c.outcome.contains("reserved footprints cannot fit")
-                        || c.outcome.contains("annotation_overlap")),
+                        || c.outcome.contains("annotation_overlap")
+                        || c.outcome.contains("page_fit_uncertain")),
                 "{file}"
             );
         }
@@ -1003,10 +1045,10 @@ mod tests {
     }
 
     #[test]
-    fn tapped_posts_respect_the_cap_and_prefer_complete_allocation() {
+    fn tapped_posts_keep_readable_scale_and_prefer_complete_allocation() {
         for (file, maximum, size, scale, extra_sheets) in [
-            ("string_post_tapped", "A4", "A4", "5:1", 0),
-            ("string_post_tapped", "A3", "A4", "5:1", 0),
+            ("string_post_tapped", "A4", "A4", "5:1", 1),
+            ("string_post_tapped", "A3", "A3", "5:1", 0),
         ] {
             let path = Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join(format!("tests/fixtures/pmi/step/{file}.step.gz"));
@@ -1035,9 +1077,9 @@ mod tests {
             ("mfcadpp/10020.step", "A4", "1:1"),
             // The former A4 reduction gains a leader/extension contact.
             ("mfcadpp/10033.step", "A3", "2:1"),
-            // The A4 orientation view touches the frame with its visible stroke.
-            ("mfcadpp/10163.step", "A3", "1:1"),
-            ("cadgenbench_inputs/cgb245.step", "A3", "1:5"),
+            // Whole-view packing clears the A4 frame at the original readable scale.
+            ("mfcadpp/10163.step", "A4", "1:2"),
+            ("cadgenbench_inputs/cgb245.step", "A2", "1:2"),
             ("nist/nist_ftc_07_asme1_rd.stp", "A3", "1:5"),
         ] {
             let Some(a) = corpus(file) else {
@@ -1085,7 +1127,7 @@ mod tests {
 
     fn inspection_spec(printer: &str) -> Spec {
         let mut rows = vec![json!(["INSPECTION SCHEDULE", "CHECKED"])];
-        rows.extend((0..6).map(|i| json!([format!("FORM AND SIZE {}", "X".repeat(30)), i])));
+        rows.extend((0..12).map(|i| json!([format!("FORM AND SIZE {}", "X".repeat(60)), i])));
         serde_json::from_value(json!({"sheet":{"preferred_max_size":printer}, "sheets":{"smallest_scale":"5:1"}, "hole_table":"never", "tables":[{"id":"t:1","rows":rows,"prefer":"tr"}]})).unwrap()
     }
 
@@ -1109,10 +1151,9 @@ mod tests {
         forced.sheet.size = Some("A4".into());
         forced.sheets.as_mut().unwrap().max = Some(2);
         let q = model::plan_automatic(&a, &forced).unwrap();
-        assert_eq!(
-            serde_json::to_value(&p.views).unwrap(),
-            serde_json::to_value(&q.views).unwrap()
-        );
+        assert!(model::carries_required(&q, &p));
+        assert!(sheet_fit::inside_frames(&a, &p));
+        assert!(model::findings(&p).clean());
     }
 
     #[test]
@@ -1229,8 +1270,8 @@ mod tests {
             if let (Some(a), Some(b)) = (&old.placed, &new.placed) {
                 let delta = crate::placement_intent::anchor_delta(&source, &split.views, &old.view)
                     .unwrap();
-                for k in 0..2 {
-                    assert!((a.label_at[k] + delta[k] - b.label_at[k]).abs() < 1e-9);
+                for (k, shift) in delta.iter().enumerate() {
+                    assert!((a.label_at[k] + shift - b.label_at[k]).abs() < 1e-9);
                 }
                 for (a, b) in a.lines.iter().zip(&b.lines) {
                     for j in 0..2 {
@@ -1416,7 +1457,7 @@ mod tests {
     }
 
     #[test]
-    fn kept_layout_wins_over_the_automatic_cap_and_cap_edits() {
+    fn kept_layout_wins_over_both_automatic_preferences_and_their_edits() {
         let a = fixture();
         let spec: Spec = serde_json::from_value(json!({
             "sheet":{"size":"A2","scale":"1:1","keep_layout":true},
@@ -1428,7 +1469,8 @@ mod tests {
             model::edit(
                 &spec,
                 &json!([
-                    {"op":"set","path":"sheet/preferred_max_size","value":"A4"}
+                    {"op":"set","path":"sheet/preferred_max_size","value":"A4"},
+                    {"op":"set","path":"sheet/preferred_max_sheets","value":1}
                 ]),
             )
             .unwrap(),
@@ -1451,7 +1493,7 @@ mod tests {
     }
 
     #[test]
-    fn explicit_sheet_count_still_obeys_the_cap() {
+    fn explicit_sheet_limit_stays_hard_with_soft_paper_preferences() {
         for max in [1, 2] {
             let spec: Spec = serde_json::from_value(
                 json!({"sheet":{"preferred_max_size":"A4"}, "sheets":{"max":max}}),

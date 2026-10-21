@@ -1249,6 +1249,15 @@ fn separate_views_inner(
         adjusted.views[i] = iso;
         adjusted.captions.retain(|c| c.view != "v:iso");
     }
+    if let Some(target) = frame.and_then(|p| p.views.iter().find(|v| v.id == "v:iso"))
+        && source.spec.iso_scale_factor.is_none()
+        && !source.dimensions.iter().any(|d| d.view == "v:iso")
+        && !source.gdt.iter().any(|g| g.view == "v:iso")
+        && let Some(i) = adjusted.views.iter().position(|v| v.id == "v:iso")
+    {
+        adjusted.views[i] = auxiliary(analysis, "iso", target.scale, 1, source.sheet.scale_factor)?;
+        adjusted.captions.retain(|c| c.view != "v:iso");
+    }
     let source = &adjusted;
     let (_, w, h) = layout::PAGES.iter().find(|p| p.0 == size)?;
     let mut plan = source.clone();

@@ -514,7 +514,10 @@ size at a time, trying one through the preferred count at each size. Finally try
 more A0 sheets, up to `sheets.max`. The first usable result wins. Principal and
 auxiliary views can move as complete annotated blocks; dimension, PMI and balloon
 ownership follows the view. Authored view relations and keep-together groups remain
-constraints. Footprint bounds skip impossible single-sheet candidates.
+constraints. Footprint bounds skip impossible single-sheet candidates. When a
+smaller readable scale can fit individual views, their complete annotated blocks
+are planned on roomy paper before transport; a small-sheet plan that already
+dropped items is not used to manufacture a fit.
 
 A candidate is usable when all geometry and annotation ink fits inside its own
 sheet's drawable frame, the existing feature-opening minimum holds and printed-step
