@@ -285,7 +285,8 @@ fn callout_leaders_cross_nothing_unlisted() {
     for (name, analysis) in &parts {
         let plan = model::plan(
             analysis,
-            &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+            &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}}))
+                .unwrap(),
         )
         .unwrap();
         for (id, set) in crossings(&plan, analysis) {
@@ -394,7 +395,8 @@ fn a_leader_has_a_horizontal_shoulder_and_reads_outward() {
     for (name, analysis) in &parts {
         let plan = model::plan(
             analysis,
-            &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+            &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}}))
+                .unwrap(),
         )
         .unwrap();
         for d in plan.dimensions.iter().filter(|d| d.kind == "callout") {

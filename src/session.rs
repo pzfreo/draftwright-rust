@@ -1613,8 +1613,9 @@ fn settable(
             "sheet/size".into(),
             choices(json!(crate::layout::PAGES.map(|p| p.0))),
         );
+        fields.insert("sheet/preferred_max_sheets".into(), json!({"forms":["integer >= 1 (default 2)"], "consequences":["Soft sheet-count preference; sheets/max remains the hard limit."]}));
         fields.insert(
-            "sheet/max_size".into(),
+            "sheet/preferred_max_size".into(),
             choices(json!(crate::layout::PAGES.map(|p| p.0))),
         );
         fields.insert(

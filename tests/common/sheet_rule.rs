@@ -82,7 +82,12 @@ pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, S
         .last()
         .is_some_and(|c| c.outcome.starts_with(&format!("{}: clean at ", c.size)))
     {
-        let maximum = plan.spec.sheet.max_size.as_deref().unwrap_or("A3");
+        let maximum = plan
+            .spec
+            .sheet
+            .preferred_max_size
+            .as_deref()
+            .unwrap_or("A3");
         let pages: Vec<_> = draftwright::layout::PAGES
             .iter()
             .map(|p| p.0)

@@ -357,7 +357,7 @@ fn a_long_table_moves_the_sheet_on_rather_than_be_dropped() {
     let (_, a) = plate();
     let bare = model::plan(
         a,
-        &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+        &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap(),
     )
     .unwrap();
     let mut rows = vec![json!(["ITEM", "PART NO.", "DESCRIPTION", "QTY"])];
@@ -366,7 +366,7 @@ fn a_long_table_moves_the_sheet_on_rather_than_be_dropped() {
     );
     let plan = model::plan(
         a,
-        &spec(json!({ "sheet":{"max_size":"A0"}, "tables": [ { "id": "t:1", "rows": rows } ] })),
+        &spec(json!({ "sheet":{"preferred_max_size":"A0"}, "tables": [ { "id": "t:1", "rows": rows } ] })),
     )
     .unwrap();
     assert!(

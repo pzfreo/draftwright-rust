@@ -482,9 +482,18 @@ pub struct SheetSpec {
     /// `A4` … `A0`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub size: Option<String>,
-    /// Largest automatic paper, `A4` … `A0`; defaults to `A3`.
-    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "max_size")]
-    pub max_size: Option<String>,
+    /// Preferred automatic paper, `A4` … `A0`; defaults to `A3`.
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "preferred_max_size"
+    )]
+    pub preferred_max_size: Option<String>,
+    /// Preferred sheet count, at least 1; defaults to 2. `sheets.max` stays hard.
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "preferred_max_sheets"
+    )]
+    pub preferred_max_sheets: Option<u32>,
     /// `n:m`, from ISO 5455's series.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scale: Option<String>,
@@ -527,7 +536,7 @@ fn valid_view_gutter(g: f64) -> bool {
     (0.0..=1189.0).contains(&g)
 }
 
-pub(crate) const REMOVED_PRINTER: &str = "unknown field `preferred_printer` in sheet; use sheet/max_size instead: A4 printer → max_size: \"A4\", A3 printer → max_size: \"A3\"";
+pub(crate) const REMOVED_PRINTER: &str = "unknown field `preferred_printer` in sheet; use sheet/preferred_max_size instead: A4 printer → preferred_max_size: \"A4\", A3 printer → preferred_max_size: \"A3\"";
 
 fn sheet_document<'de, D: serde::Deserializer<'de>>(d: D) -> Result<SheetSpec, D::Error> {
     let value = serde_json::Value::deserialize(d)?;
@@ -537,14 +546,24 @@ fn sheet_document<'de, D: serde::Deserializer<'de>>(d: D) -> Result<SheetSpec, D
     serde_json::from_value(value).map_err(serde::de::Error::custom)
 }
 
-fn max_size<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+fn preferred_max_sheets<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<u32>, D::Error> {
+    let count = Option::<u32>::deserialize(d)?;
+    if count == Some(0) {
+        return Err(serde::de::Error::custom(
+            "sheet/preferred_max_sheets must be at least 1",
+        ));
+    }
+    Ok(count)
+}
+
+fn preferred_max_size<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
     let value = Option::<String>::deserialize(d)?;
     if value
         .as_deref()
         .is_some_and(|v| !layout::PAGES.iter().any(|p| p.0 == v))
     {
         return Err(serde::de::Error::custom(
-            "sheet/max_size must be A4, A3, A2, A1 or A0",
+            "sheet/preferred_max_size must be A4, A3, A2, A1 or A0",
         ));
     }
     Ok(value)
@@ -2087,9 +2106,9 @@ pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Pl
                 ..Spec::default()
             };
             // This unrendered historical route template must not change with the
-            // printer cap. The recipient's own sheet search remains capped, just
+            // paper preferences. The recipient has its own ordered sheet search, just
             // as when packing annotation blocks from an explicit A0 template.
-            base.sheet.max_size = Some("A0".into());
+            base.sheet.preferred_max_size = Some("A0".into());
             base.sheet.projection = spec.sheet.projection.clone();
             base.sheet.references = spec.sheet.references;
             crate::planning::with(&reference, || {
@@ -3391,7 +3410,8 @@ pub(crate) fn pin_base(spec: &Spec) -> Spec {
     let mut base = Spec::default();
     base.sheet.size = spec.sheet.size.clone();
     base.sheet.scale = spec.sheet.scale.clone();
-    base.sheet.max_size = spec.sheet.max_size.clone();
+    base.sheet.preferred_max_size = spec.sheet.preferred_max_size.clone();
+    base.sheet.preferred_max_sheets = spec.sheet.preferred_max_sheets;
     base.sheet.projection = spec.sheet.projection.clone();
     base.sheet.fit_deviations = spec.sheet.fit_deviations;
     base.sheet.references = spec.sheet.references;
@@ -4084,14 +4104,20 @@ fn plan_with_presentation(
         ));
     }
     let spec = &crate::recognition_corrections::bind(analysis, migrate(spec, analysis)?)?;
+    if spec.sheet.preferred_max_sheets == Some(0) {
+        return Err(invalid(
+            "sheet/preferred_max_sheets must be at least 1.",
+            &["1", "2"],
+        ));
+    }
     if spec
         .sheet
-        .max_size
+        .preferred_max_size
         .as_deref()
         .is_some_and(|v| !layout::PAGES.iter().any(|p| p.0 == v))
     {
         return Err(invalid(
-            "sheet/max_size must be A4, A3, A2, A1 or A0.",
+            "sheet/preferred_max_size must be A4, A3, A2, A1 or A0.",
             &layout::PAGES.map(|p| p.0),
         ));
     }

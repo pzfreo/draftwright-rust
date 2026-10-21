@@ -177,13 +177,13 @@ includes the summary. See [finding impact](docs/finding-impact.md) for all codes
 
 ## Known limitations
 
-Automatic paper is now limited by `sheet/max_size` (A3 when unset), including
-multi-sheet overflow. Dense principal projections stay together on sheet 1, so
-extra sheets cannot always make a drawing clean. `sheet_size_capped` warns when
-the best result within the cap still has findings; required drops and off-sheet
-ink remain reported. Raise the cap or author an explicit size when larger paper
-is available. The recorded CI quality baseline includes each part's paper, scale
-and sheet count; its counts are generated with `tools/quality.py --record`.
+Automatic layout tries `sheet/preferred_max_size` (default A3) and
+`sheet/preferred_max_sheets` (default 2) before larger paper. Principal views can
+use separate sheets with their annotations. If a readable, unclipped drawing
+needs more paper, one `sheet_preference_exceeded` advisory explains the choice;
+`sheets.max` remains a hard limit. Reported unsupported requirements and required
+drops still need review. Quality baselines record paper, scale and sheet count
+through `tools/quality.py --record`.
 
 The historical measurements below were made for alpha 1 at 873506e with
 `tools/quality.py` on the 30 parts of
@@ -226,8 +226,8 @@ plan, never hidden:
   dimension is off the sheet or over a view, but dense parts carry much more ink: 1736 problems
   in all (1525 leader crossings, 132 past a view's area, 79 ink overlaps), most on NIST STC-09
   (521), FTC-10 (449) and STC-10 (288). That review drew STC-09 on A1 at 1:5 where
-  draftwright kept 1:1 by dropping 15 items. The default is now capped at A3;
-  `sheet_size_capped` and the original layout/drop findings explain incomplete results. Undetermined PMI differences (a part placed several times,
+  draftwright kept 1:1 by dropping 15 items. The default preference is A3 on at most two sheets;
+  `sheet_preference_exceeded` explains a larger readable layout. Undetermined PMI differences (a part placed several times,
   dimensions on supplemental geometry, an ISO 286 class stated without limits, records
   haecceity reads only in part) wait on maintainer questions; see the `known_pmi*.json` fixtures.
 - **Hole tables** are drawn only by drop-and-escalate: a hole callout or location whose ink runs

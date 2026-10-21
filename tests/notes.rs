@@ -350,7 +350,7 @@ fn a_long_note_moves_the_sheet_on_rather_than_be_dropped() {
     let (_, a) = plate();
     let bare = model::plan(
         a,
-        &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+        &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap(),
     )
     .unwrap();
     let many: Vec<Value> = (1..=30)
@@ -358,7 +358,7 @@ fn a_long_note_moves_the_sheet_on_rather_than_be_dropped() {
         .collect();
     let plan = model::plan(
         a,
-        &spec(json!({ "sheet":{"max_size":"A0"}, "notes": many })),
+        &spec(json!({ "sheet":{"preferred_max_size":"A0"}, "notes": many })),
     )
     .unwrap();
     assert!(

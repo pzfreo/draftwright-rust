@@ -253,7 +253,7 @@ fn rows_match(name: &str) {
     };
     let plan = model::plan(
         analysis,
-        &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+        &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap(),
     )
     .unwrap();
     let ours: Vec<HoleRow> = hole_table::table_rows(analysis, &plan);
@@ -364,7 +364,7 @@ fn a_table_without_every_balloon_is_withdrawn_whole() {
     };
     let mut first = model::plan(
         analysis,
-        &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+        &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap(),
     )
     .unwrap();
     let id = first
@@ -426,7 +426,8 @@ fn forced() -> (&'static (Part, Analysis), Plan) {
         model::analyse_native(&path).unwrap()
     });
     // The remote-table mechanism fixture retains its original full-paper space.
-    let spec = serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap();
+    let spec =
+        serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap();
     let mut p = model::plan(&read.1, &spec).unwrap();
     let id = p
         .dimensions
@@ -593,7 +594,7 @@ fn an_off_axis_pin_does_not_suppress_a_plan_view_table_attempt() {
     };
     let mut p = model::plan(
         analysis,
-        &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+        &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap(),
     )
     .unwrap();
     let held = p

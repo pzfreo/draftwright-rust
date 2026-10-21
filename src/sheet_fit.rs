@@ -245,10 +245,15 @@ pub(crate) fn furniture_bounds(
 /// Drawn bounds per item, including witnesses and leaders, excluding border and title block.
 /// Principal views use the projected part envelope; the isometric uses its measured bounds.
 pub fn footprints(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
-    footprints_with_notes(analysis, plan, true)
+    footprints_with_notes(analysis, plan, true, true)
 }
 
-fn footprints_with_notes(analysis: &Analysis, plan: &Plan, notes: bool) -> Vec<Rect> {
+fn footprints_with_notes(
+    analysis: &Analysis,
+    plan: &Plan,
+    notes: bool,
+    furniture: bool,
+) -> Vec<Rect> {
     let mut out = Vec::new();
     for v in &plan.views {
         let b = if v.id == "v:iso" {
@@ -301,7 +306,7 @@ fn footprints_with_notes(analysis: &Analysis, plan: &Plan, notes: bool) -> Vec<R
             .iter()
             .filter_map(|t| t.placed.as_ref().map(|p| p.cells)),
     );
-    if let Some(t) = &plan.hole_table {
+    for t in plan.hole_table.iter().chain(&plan.hole_tables) {
         out.extend(
             t.blocks
                 .iter()
@@ -326,8 +331,68 @@ fn footprints_with_notes(analysis: &Analysis, plan: &Plan, notes: bool) -> Vec<R
         include(&mut b, [p.glyph[2], p.glyph[3]]);
         out.push(b);
     }
-    out.extend(furniture_footprints(analysis, plan));
+    if furniture {
+        out.extend(furniture_footprints(analysis, plan));
+    }
     out
+}
+
+/// Ink owned by the selected views, without page furniture.
+pub(crate) fn view_ink(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
+    let mut out = footprints_with_notes(analysis, plan, false, false);
+    out.extend(plan.captions.iter().map(|c| c.ink));
+    for v in &plan.views {
+        out.extend(v.line_work.iter().flat_map(|w| &w.curves).map(|c| c.bbox()));
+    }
+    out
+}
+
+/// Clipping is a feasibility gate, independently of the finding score. Include
+/// strokes, arrows, captions and late furniture on their actual carrying page.
+pub(crate) fn inside_frames(analysis: &Analysis, plan: &Plan) -> bool {
+    std::iter::once(&plan.sheet)
+        .chain(&plan.sheets)
+        .all(|sheet| {
+            let mut local = plan.clone();
+            local.sheet = sheet.clone();
+            local.views.retain(|v| v.sheet == sheet.number);
+            let carries = |id: &str| local.views.iter().any(|v| v.id == id);
+            local.dimensions.retain(|d| carries(&d.view));
+            local.gdt.retain(|g| carries(&g.view));
+            local.balloons.retain(|b| carries(&b.view));
+            local.captions.retain(|c| c.sheet == sheet.number);
+            local.tables.retain(|t| t.sheet == sheet.number);
+            local.hole_table = local.hole_table.filter(|t| t.sheet == sheet.number);
+            local.hole_tables.retain(|t| t.sheet == sheet.number);
+            if sheet.number > 1 {
+                local.notes_block = None;
+                local.radius_notes_block = None;
+                local.radius_table = None;
+                local.requirements.clear();
+            }
+            let mut ink = view_ink(analysis, &local);
+            ink.extend(
+                local
+                    .notes_block
+                    .iter()
+                    .chain(&local.radius_notes_block)
+                    .map(|n| n.cells),
+            );
+            ink.extend(
+                local
+                    .radius_table
+                    .iter()
+                    .filter_map(|t| t.table.placed.as_ref().map(|p| p.cells)),
+            );
+            ink.extend(furniture_footprints(analysis, &local));
+            let stroke = crate::output::layer_styles()[0].1.width / 2.0;
+            ink.into_iter().all(|b| {
+                b[0] >= MARGIN + stroke - 1e-6
+                    && b[1] >= MARGIN + stroke - 1e-6
+                    && b[2] <= sheet.page[0] - MARGIN - stroke + 1e-6
+                    && b[3] <= sheet.page[1] - MARGIN - stroke + 1e-6
+            })
+        })
 }
 
 /// Usable-area share. Clip at the border and subtract title-block intersections from the union.
@@ -348,7 +413,7 @@ pub(crate) fn selection_fill(analysis: &Analysis, plan: &Plan, compaction_possib
         && plan.notes.iter().all(|n| n.id.starts_with("pmi:"))
         && crate::dims::pmi_policy::carries(analysis)
     {
-        fill_boxes(plan, footprints_with_notes(analysis, plan, false))
+        fill_boxes(plan, footprints_with_notes(analysis, plan, false, true))
     } else {
         plan.sheet.fill
     }

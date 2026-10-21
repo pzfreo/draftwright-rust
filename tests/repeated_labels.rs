@@ -109,8 +109,10 @@ fn every_repeated_label_on_the_quality_parts_has_a_verdict() {
                         let plan = api::plan_from(
                             &dir.join(part),
                             Features::Native,
-                            &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}}))
-                                .unwrap(),
+                            &serde_json::from_value(
+                                serde_json::json!({"sheet":{"preferred_max_size":"A0"}}),
+                            )
+                            .unwrap(),
                         )
                         .unwrap_or_else(|e| panic!("{part}: {e:?}"));
                         found.extend(repeats(part, &plan));

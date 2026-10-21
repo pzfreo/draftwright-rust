@@ -19,19 +19,15 @@ It never says *pinned*: that word belongs to the existing placement intents (`Pl
 
 ## Maximum printable paper amendment (2026-10-21)
 
-`sheet/max_size` is the automatic paper limit: A4 through A0, default A3. This
-supersedes the search order in the historical amendments below. Try one sheet
-of each size from A4 through the maximum, then 2–N sheets of the maximum size
-(N is `sheets.max`, or nine). Additional sheets precede accepting findings on
-one sheet. The automatic baseline and R5's larger-paper recovery use the same limit.
-Explicit paper or scale remains the author's choice, including above this limit.
-
-If no candidate is clean, retain the best result within the limit using the
-existing hard-finding, required-drop, scale and sheet-count ranking. Report
-`sheet_size_capped` and offer raising the limit when a larger supported size exists.
-Candidate records and the sheet basis explain the cap and the decisions. Required
-content retains the existing drawn-or-reported contract. See
-[the current model](../model.md#sheet-allocation-r5-stage-i) for the API and migration.
+`sheet/preferred_max_size` (default A3) and `sheet/preferred_max_sheets`
+(default 2) are soft preferences; `sheets.max` remains hard. Try one sheet at each
+size through the preferred paper, then additional sheets at that paper, then
+larger papers with the same single-then-multiple order. More than the preferred
+count is tried only at A0. Whole-view allocation includes principal projections
+and keeps all annotations with their view. Clipping is a hard rejection, and
+readability/required information are compared with the unrestricted larger result.
+One advisory explains exceeded preferences. See [the model](../model.md#sheet-allocation-r5-stage-i)
+for the full ordering and usability definition. Explicit choices and keep_layout win.
 
 ## Small-part overflow amendment (2026-10-16)
 

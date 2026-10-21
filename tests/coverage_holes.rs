@@ -332,7 +332,7 @@ fn a_middle_turned_body_uses_its_own_corridor_and_falls_through_to_the_clear_sid
         let a = shafts(&xs);
         let p = model::plan(
             &a,
-            &serde_json::from_value(json!({"sheet":{"max_size":"A0"}})).unwrap(),
+            &serde_json::from_value(json!({"sheet":{"preferred_max_size":"A0"}})).unwrap(),
         )
         .unwrap();
         let view = p.views.iter().find(|v| v.id == "v:front").unwrap();
@@ -528,10 +528,11 @@ fn a_present_longitudinal_view_is_never_offered_as_a_restoration_fix() {
 fn a_body_local_corridor_preserves_an_authored_unpinned_lane() {
     let a = shafts(&[-80., 0., 80.]);
     let x = |lane| {
-        let spec: Spec = serde_json::from_value(json!({"sheet":{"max_size":"A0"},"dimensions":{
-            "d:f:turned_step:1/step.length":{"place":{"side":"left","lane":lane}}
-        }}))
-        .unwrap();
+        let spec: Spec =
+            serde_json::from_value(json!({"sheet":{"preferred_max_size":"A0"},"dimensions":{
+                "d:f:turned_step:1/step.length":{"place":{"side":"left","lane":lane}}
+            }}))
+            .unwrap();
         model::plan(&a, &spec)
             .unwrap()
             .dimensions

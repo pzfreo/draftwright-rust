@@ -139,7 +139,8 @@ fn placement_problems_are_known() {
     for (name, analysis) in &parts {
         let plan = model::plan(
             analysis,
-            &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+            &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}}))
+                .unwrap(),
         )
         .unwrap();
         for p in plan
@@ -934,7 +935,7 @@ fn cgb245() -> Option<(Analysis, Plan)> {
     let (_, analysis) = corpus_parts().into_iter().find(|(n, _)| n == "cgb245")?;
     let plan = model::plan(
         &analysis,
-        &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+        &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap(),
     )
     .unwrap();
     Some((analysis, plan))

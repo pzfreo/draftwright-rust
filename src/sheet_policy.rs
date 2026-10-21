@@ -1,6 +1,5 @@
-//! Smallest-first automatic paper selection, bounded by the available printer.
+//! Smallest-first automatic paper and sheet-count preferences.
 use std::collections::BTreeSet;
-use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
@@ -11,9 +10,11 @@ use crate::{layout, sheet_fit};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Candidate {
     pub size: String,
-    /// Largest permitted automatic paper (including for refused candidates).
+    /// Preferred largest paper, including for refused candidates.
     #[serde(default)]
-    pub max_size: String,
+    pub preferred_max_size: String,
+    #[serde(default)]
+    pub preferred_max_sheets: usize,
     pub max: usize,
     pub outcome: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -85,11 +86,23 @@ fn failures(analysis: &Analysis, plan: &Plan, floor: f64) -> BTreeSet<(String, V
     // This quality finding is measured from final ink, rather than emitted as a
     // Problem. Use the placer's corridor predicate, including its 1 mm clearance,
     // and compare code + item pair just like the reported crossing findings.
-    failures.extend(
-        crate::dims::leader_on_extension(&plan.dimensions)
-            .into_iter()
-            .map(|subjects| ("leader_on_extension".into(), subjects)),
-    );
+    for sheet in std::iter::once(&plan.sheet).chain(&plan.sheets) {
+        let dimensions: Vec<_> = plan
+            .dimensions
+            .iter()
+            .filter(|d| {
+                plan.views
+                    .iter()
+                    .any(|v| v.id == d.view && v.sheet == sheet.number)
+            })
+            .cloned()
+            .collect();
+        failures.extend(
+            crate::dims::leader_on_extension(&dimensions)
+                .into_iter()
+                .map(|subjects| ("leader_on_extension".into(), subjects)),
+        );
+    }
     // The outline box has no stroke width. At the frame its visible stroke is already
     // outside the drawing area. Use the renderer's line width, and the existing off-sheet
     // code/subject comparison; do not move or recover any candidate's geometry.
@@ -298,28 +311,37 @@ fn candidate_floor(analysis: &Analysis, baseline: &Plan, floor: f64) -> f64 {
     floor.max(standard)
 }
 
-pub(crate) fn page_limit(spec: &Spec) -> usize {
-    if !automatic(spec) {
-        return layout::PAGES.len();
-    }
-    layout::PAGES
-        .iter()
-        .position(|p| p.0 == cap(spec))
-        .map_or(2, |i| i + 1)
+/// Automatic baseline/recovery may use larger paper as its quality reference.
+/// The public selector below applies soft preferences in its ordered trials.
+pub(crate) fn page_limit(_spec: &Spec) -> usize {
+    layout::PAGES.len()
 }
 
 fn cap(spec: &Spec) -> &str {
-    spec.sheet.max_size.as_deref().unwrap_or("A3")
+    spec.sheet.preferred_max_size.as_deref().unwrap_or("A3")
+}
+
+fn preferred_sheets(spec: &Spec) -> usize {
+    spec.sheet.preferred_max_sheets.unwrap_or(2) as usize
 }
 
 fn requests(spec: &Spec) -> Vec<(&'static str, usize)> {
-    let pages = &layout::PAGES[..page_limit(spec)];
-    let maximum = spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9) as usize;
-    pages
+    let preferred = layout::PAGES
+        .iter()
+        .position(|p| p.0 == cap(spec))
+        .unwrap_or(1);
+    let hard = spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9) as usize;
+    let count = preferred_sheets(spec).min(hard);
+    let mut out: Vec<_> = layout::PAGES[..=preferred]
         .iter()
         .map(|p| (p.0, 1))
-        .chain((2..=maximum).map(|n| (pages.last().unwrap().0, n)))
-        .collect()
+        .collect();
+    out.extend((2..=count).map(|n| (layout::PAGES[preferred].0, n)));
+    for p in &layout::PAGES[preferred + 1..] {
+        out.extend((1..=count).map(|n| (p.0, n)));
+    }
+    out.extend((count + 1..=hard).map(|n| ("A0", n)));
+    out
 }
 
 fn rank(plan: &Plan) -> (usize, usize, f64, usize) {
@@ -332,6 +354,7 @@ fn rank(plan: &Plan) -> (usize, usize, f64, usize) {
     )
 }
 
+#[cfg(test)]
 fn complete(analysis: &Analysis, plan: &Plan, floor: f64) -> bool {
     model::findings(plan).clean()
         && model::undrawn_gdt(plan) == 0
@@ -345,237 +368,164 @@ fn complete(analysis: &Analysis, plan: &Plan, floor: f64) -> bool {
             .all(|v| v.scale + 1e-9 >= floor)
 }
 
+/// A readable layout keeps at least the unrestricted reference's reduction
+/// scale (enlargements need not be preserved), plus feature and printed-step
+/// minima. New layout/readability failures or required losses are not accepted.
+fn usable(analysis: &Analysis, plan: &Plan, reference: &Plan, floor: f64) -> bool {
+    if !sheet_fit::inside_frames(analysis, plan)
+        || plan.sheet.scale_factor + 1e-9 < floor
+        || sheet_fit::illegible_steps(analysis, plan) > 0
+        || plan
+            .views
+            .iter()
+            .any(|v| v.id != "v:iso" && v.scale + 1e-9 < floor)
+        || !model::carries_required(reference, plan)
+        || model::findings(plan).dropped > model::findings(reference).dropped
+        || model::undrawn_gdt(plan) > model::undrawn_gdt(reference)
+    {
+        return false;
+    }
+    failures(analysis, plan, floor).is_subset(&failures(analysis, reference, floor))
+}
+
+fn finish_choice(mut plan: Plan, spec: &Spec, candidates: Vec<Candidate>, reason: &str) -> Plan {
+    plan.spec = spec.clone();
+    plan.sheet.default = true;
+    for s in &mut plan.sheets {
+        s.default = true;
+    }
+    let larger = layout::PAGES.iter().position(|p| p.0 == plan.sheet.size)
+        > layout::PAGES.iter().position(|p| p.0 == cap(spec));
+    let more = 1 + plan.sheets.len() > preferred_sheets(spec);
+    if larger || more {
+        let which = match (larger, more) {
+            (true, true) => "paper size and sheet count",
+            (true, false) => "paper size",
+            _ => "sheet count",
+        };
+        plan.problems.push(model::Problem {
+            id: "p:sheet_preference_exceeded:sheet".into(),
+            code: "sheet_preference_exceeded".into(), severity: "info".into(),
+            message: format!("Preferred {which} exceeded: using {} sheet(s) of {} at {}. No layout within preferred {} paper and {} sheet(s) kept all ink inside the frame at a readable scale without additional layout problems or required losses.",
+                1+plan.sheets.len(),plan.sheet.size,plan.sheet.scale,cap(spec),preferred_sheets(spec)),
+            subjects: vec!["sheet".into()], ..Default::default()
+        });
+    }
+    plan.status = crate::completeness::status(&plan.problems);
+    explain(&mut plan, candidates, reason);
+    plan
+}
+
 pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     if automatic(spec) && crate::placement_intent::has_pins(spec) {
         return pinned(analysis, spec);
     }
-    let original_binding = spec.binding.clone();
-    let mut baseline = model::plan_automatic(analysis, spec)?;
+    let baseline = model::plan_automatic(analysis, spec)?;
     if !automatic(spec) {
         return Ok(baseline);
     }
-    if baseline.sheet.size == "A4"
-        && baseline.sheets.is_empty()
-        && complete(
-            analysis,
-            &baseline,
-            crate::sheets::floor(spec).unwrap_or(0.0),
-        )
-    {
-        reuse_baseline(&mut baseline, Vec::new(), 1);
-        return Ok(baseline);
-    }
-    let spec = &baseline.spec.clone();
-    let effective = crate::spec_gdt::effective(analysis, spec)?;
-    let fit_analysis = effective.as_ref();
-    let floor =
-        sheet_fit::min_legible_scale(fit_analysis).max(crate::sheets::floor(spec).unwrap_or(0.0));
-    let bound_floor = candidate_floor(fit_analysis, &baseline, floor);
-    let mut baseline_failures = failures(fit_analysis, &baseline, floor);
-    // Match every baseline problem by code + subject, including informational findings.
-    baseline_failures.extend(baseline.problems.iter().map(problem_key));
-    let mut estimate = None;
+    let intent = baseline.spec.clone();
+    let effective = crate::spec_gdt::effective(analysis, &intent)?;
+    let fit = effective.as_ref();
+    let floor = candidate_floor(
+        fit,
+        &baseline,
+        sheet_fit::min_legible_scale(fit).max(crate::sheets::floor(spec).unwrap_or(0.)),
+    )
+    .max(baseline.sheet.scale_factor.min(1.));
+    let estimate = Estimate::new(fit, &baseline);
     let mut candidates = Vec::new();
-    let mut best = baseline.clone();
-    let mut best_trial = None;
+    let mut best = sheet_fit::inside_frames(fit, &baseline).then(|| baseline.clone());
+    // Whole-view allocations are independent of a count bound once they fit.
+    let mut separated = std::collections::BTreeMap::<String, Option<Plan>>::new();
     for (size, max) in requests(spec) {
-        // A baseline already as good in this preference order needs no forced replay.
-        if baseline.sheet.size == size
-            && baseline.sheets.len() < max
-            && complete(fit_analysis, &baseline, floor)
-        {
-            reuse_baseline(&mut baseline, candidates, max);
-            return Ok(baseline);
-        }
         let mut scales = Vec::new();
-        let mut outcome = format!(
-            "reserved footprints cannot fit at {}",
-            model::scale_name(bound_floor)
-        );
-        if let Some(scale) = estimate
-            .get_or_insert_with(|| Estimate::new(fit_analysis, &baseline))
-            .scale(size, max, bound_floor)
-        {
-            // Explicit scale bypasses the explicit-paper scale search. At most one
-            // smaller standard scale is tried, using the ordinary planner each time.
-            let smaller = layout::SCALES
-                .into_iter()
-                .find(|s| *s < scale && *s + 1e-9 >= floor);
-            for scale in std::iter::once(scale).chain(smaller) {
-                scales.push(model::scale_name(scale));
-                let mut forced = spec.clone();
-                // Binding an unbound result to this same Analysis does not change
-                // intent. Keep the caller's binding so baseline candidate keys match.
-                forced.binding = original_binding.clone();
-                forced.sheet.size = Some(size.into());
-                forced.sheet.scale = Some(model::scale_name(scale));
-                // One-paper candidates must not inherit permission to overflow.
-                if max > 1 || forced.sheets.is_some() {
-                    forced.sheets.get_or_insert_with(Default::default).max = Some(max as u32);
-                }
-                omit_absent_details(fit_analysis, &mut forced, &baseline, scale);
-                // If R5 exhausted its prefixes without a capacity block, a larger
-                // count bound cannot change this same fixed pair. Reuse its refused
-                // result through the existing planning memo; other scales still run.
-                let mut capacity = forced.clone();
-                capacity.sheets.get_or_insert_with(Default::default).max = Some(9);
-                let capacity_key = serde_json::to_vec(&(
-                    capacity,
-                    // Retained session preparation must not carry a larger
-                    // permission into an edit that lowers the author's limit.
-                    spec.sheets.as_ref().and_then(|s| s.max),
-                    crate::planning::nominals_deferred(),
-                    crate::planning::policy_key(analysis),
-                    crate::planning::is_fixed_pair(),
-                ))
-                .expect("candidate Spec serializes");
-                let reused = if max > 1 {
-                    crate::planning::lookup::<Arc<Plan>>(
-                        analysis,
-                        "r5-unblocked-prefixes",
-                        &capacity_key,
-                    )
-                } else {
-                    None
-                };
-                let was_reused = reused.is_some();
-                let result = reused.map_or_else(
-                    || {
-                        crate::planning::fixed_pair(|| model::plan_automatic(analysis, &forced))
-                            .map(Arc::new)
-                    },
-                    Ok,
-                );
-                match result {
-                    Ok(plan) => {
-                        if max > 1
-                            && !was_reused
-                            && !plan.sheet.basis.contains("blocked by sheets.max")
-                        {
-                            crate::planning::store(
-                                analysis,
-                                "r5-unblocked-prefixes",
-                                capacity_key,
-                                plan.clone(),
-                            );
-                        }
-                        let codes: BTreeSet<_> = failures(fit_analysis, &plan, floor)
-                            .difference(&baseline_failures)
-                            .map(|(code, _)| code.clone())
-                            .collect();
-                        if rank(&plan) < rank(&best) {
-                            best = (*plan).clone();
-                            best_trial = Some(candidates.len());
-                        }
-                        if codes.is_empty() && complete(fit_analysis, &plan, floor) {
-                            let reason = format!(
-                                "{size}: clean at {} ({} sheet(s))",
-                                plan.sheet.scale,
-                                1 + plan.sheets.len()
-                            );
-                            candidates.push(Candidate {
-                                max_size: String::new(),
-                                size: size.into(),
-                                max,
-                                outcome: reason.clone(),
-                                scales,
-                            });
-                            let mut plan = Arc::unwrap_or_clone(plan);
-                            plan.spec = spec.clone();
-                            plan.sheet.default = true;
-                            for sheet in &mut plan.sheets {
-                                sheet.default = true;
-                            }
-                            explain(&mut plan, candidates, &reason);
-                            return Ok(plan);
-                        }
-                        let below_minimum = codes.contains("legibility_floor_breached");
-                        let crossed_leaders = codes.contains("annotation_leader_crossing")
-                            || codes.contains("leader_on_extension");
-                        outcome = format!(
-                            "layout/readability problems at {} ({} hard findings, {} required drops; {})",
-                            model::scale_name(scale),
-                            model::findings(&plan).hard,
-                            model::findings(&plan).dropped + model::undrawn_gdt(&plan),
-                            codes.into_iter().collect::<Vec<_>>().join(", ")
-                        );
-                        // Smaller outlines cannot repair a printed-size minimum.
-                        // With crossed leaders and no space drops, use R5/the next
-                        // paper rather than repeating the same routing search.
-                        // A stronger printed-step bound only seeds the first trial:
-                        // keep R5's complete-single-sheet prefix at the ordinary floor.
-                        if below_minimum
-                            || ((model::findings(&plan).hard == 0
-                                || (crossed_leaders && bound_floor <= floor + 1e-9))
-                                && !plan
-                                    .problems
-                                    .iter()
-                                    .any(|p| crate::hole_table::DROPS.contains(&p.code.as_str())))
-                        {
-                            break;
-                        }
-                    }
-                    Err(error) => {
-                        outcome = format!("cannot plan: {}", error.message);
-                        break;
-                    }
-                }
+        let mut outcome = "reserved footprints cannot fit at a readable scale".to_string();
+        let mut trials = Vec::new();
+        if baseline.sheet.size == size && baseline.sheets.len() < max {
+            trials.push(baseline.clone());
+            outcome = "automatic baseline reused".into();
+        } else if let Some(scale) = estimate.scale(size, max, floor) {
+            scales.push(model::scale_name(scale));
+            let mut forced = intent.clone();
+            forced.binding = spec.binding.clone();
+            forced.sheet.size = Some(size.into());
+            forced.sheet.scale = Some(model::scale_name(scale));
+            forced.sheets.get_or_insert_with(Default::default).max = Some(max as u32);
+            omit_absent_details(fit, &mut forced, &baseline, scale);
+            match crate::planning::fixed_pair(|| model::plan_automatic(analysis, &forced)) {
+                Ok(plan) => trials.push(plan),
+                Err(e) => outcome = format!("cannot plan: {}", e.message),
             }
         }
+        if max > 1 {
+            let split = separated.entry(size.into()).or_insert_with(|| {
+                crate::sheets::separate_views(
+                    fit,
+                    &baseline,
+                    size,
+                    spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9) as usize,
+                )
+            });
+            if let Some(plan) = split.as_ref().filter(|p| p.sheets.len() < max) {
+                trials.push(plan.clone());
+            }
+        }
+        for plan in trials {
+            if !sheet_fit::inside_frames(fit, &plan) {
+                outcome = format!(
+                    "hard rejected: view geometry or annotation ink leaves the drawable frame at {}",
+                    plan.sheet.scale
+                );
+                continue;
+            }
+            if best.as_ref().is_none_or(|b| rank(&plan) < rank(b)) {
+                best = Some(plan.clone());
+            }
+            if usable(fit, &plan, &baseline, floor) {
+                let reason = format!(
+                    "{size}: usable at {} ({} sheet(s)); no clipping, readable scale, no additional layout/readability failures or required losses",
+                    plan.sheet.scale,
+                    1 + plan.sheets.len()
+                );
+                candidates.push(Candidate {
+                    size: size.into(),
+                    preferred_max_size: String::new(),
+                    preferred_max_sheets: 0,
+                    max,
+                    outcome: reason.clone(),
+                    scales,
+                });
+                return Ok(finish_choice(plan, &intent, candidates, &reason));
+            }
+            outcome = format!(
+                "refused at {}: additional layout/readability problems, required losses or unreadable scale ({} hard, {} drops)",
+                plan.sheet.scale,
+                model::findings(&plan).hard,
+                model::findings(&plan).dropped
+            );
+        }
         candidates.push(Candidate {
-            max_size: String::new(),
             size: size.into(),
+            preferred_max_size: String::new(),
+            preferred_max_sheets: 0,
             max,
             outcome,
             scales,
         });
     }
-    if let Some(index) = best_trial {
-        candidates[index].outcome += &format!(
-            "; retained as best result within the cap at {} ({} sheet(s))",
-            best.sheet.scale,
-            1 + best.sheets.len()
-        );
-    } else {
-        candidates.push(Candidate {
-            size: best.sheet.size.clone(),
-            max_size: String::new(),
-            max: 1 + best.sheets.len(),
-            scales: Vec::new(),
-            outcome: "automatic baseline retained as best result within the cap".into(),
-        });
-    }
-    best.spec = spec.clone();
-    best.sheet.default = true;
-    for sheet in &mut best.sheets {
-        sheet.default = true;
-    }
-    let maximum = cap(spec);
-    let next = layout::PAGES.get(page_limit(spec)).map(|p| p.0);
-    let fix: Vec<_> = next
-        .into_iter()
-        .map(|size| crate::items::Op::set("sheet/max_size", serde_json::json!(size)))
-        .collect();
+    let mut best = best.ok_or_else(|| Invalid {
+        message: "No unclipped automatic drawing fits on supported paper within sheets.max; increase sheets/max or state an explicit layout.".into(),
+        choices: vec!["sheets/max".into(),"sheet/size".into()],
+    })?;
     best.problems.push(model::Problem {
-        id: "p:sheet_size_capped:sheet".into(),
-        code: "sheet_size_capped".into(),
-        severity: "warning".into(),
-        message: format!("No clean drawing was found within sheet/max_size {maximum}; the best result within the maximum is retained. No larger paper was checked.{}",
-            if next.is_some() { " Raise sheet/max_size to allow larger paper." } else { " A0 is the largest supported paper." }),
-        subjects: vec!["sheet".into()],
-        fixes: if fix.is_empty() { Vec::new() } else { vec![crate::fixes::Fix::from_ops(fix.clone())] },
-        fix,
-        ..Default::default()
+        id:"p:layout_recovery_exhausted:sheet-preferences".into(),
+        code:"layout_recovery_exhausted".into(),severity:"warning".into(),
+        message:"No usable automatic layout was found through A0 within sheets.max; the least-bad unclipped candidate is retained. Its remaining layout, readability and required-information limitations are reported.".into(),
+        subjects:vec!["sheet".into()],..Default::default()
     });
-    best.status = crate::completeness::status(&best.problems);
-    let reason = format!(
-        "{}: best result within sheet/max_size {maximum} at {} ({} sheet(s)); no clean candidate",
-        best.sheet.size,
-        best.sheet.scale,
-        1 + best.sheets.len()
-    );
-    explain(&mut best, candidates, &reason);
-    Ok(best)
+    let reason = "least-bad unclipped candidate; supported-paper search exhausted";
+    Ok(finish_choice(best, &intent, candidates, reason))
 }
 
 fn automatic(spec: &Spec) -> bool {
@@ -657,7 +607,7 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     for problem in canonical
         .problems
         .iter()
-        .filter(|p| p.code == "sheet_size_capped")
+        .filter(|p| p.code == "sheet_preference_exceeded")
     {
         if !plan.problems.iter().any(|p| p.code == problem.code) {
             plan.problems.push(problem.clone());
@@ -689,27 +639,11 @@ fn omit_absent_details(analysis: &Analysis, forced: &mut Spec, baseline: &Plan, 
     }
 }
 
-fn reuse_baseline(plan: &mut Plan, mut candidates: Vec<Candidate>, max: usize) {
-    let size = plan.sheet.size.clone();
-    let reason = format!(
-        "{size}: automatic baseline at {} ({} sheet(s))",
-        plan.sheet.scale,
-        1 + plan.sheets.len()
-    );
-    candidates.push(Candidate {
-        max_size: String::new(),
-        size,
-        max,
-        outcome: "automatic baseline reused".into(),
-        scales: Vec::new(),
-    });
-    explain(plan, candidates, &reason);
-}
-
 fn explain(plan: &mut Plan, mut candidates: Vec<Candidate>, reason: &str) {
     let maximum = cap(&plan.spec).to_string();
     for candidate in &mut candidates {
-        candidate.max_size = maximum.clone();
+        candidate.preferred_max_size = maximum.clone();
+        candidate.preferred_max_sheets = preferred_sheets(&plan.spec);
     }
     let attempts = candidates
         .iter()
@@ -717,8 +651,9 @@ fn explain(plan: &mut Plan, mut candidates: Vec<Candidate>, reason: &str) {
         .collect::<Vec<_>>()
         .join("; ");
     plan.sheet.basis = format!(
-        "{}; sheet/max_size {maximum}; sheet choice: {reason}; {attempts}",
-        plan.sheet.basis
+        "{}; sheet/preferred_max_size {maximum}, sheet/preferred_max_sheets {}; sheet choice: {reason}; {attempts}",
+        plan.sheet.basis,
+        preferred_sheets(&plan.spec)
     );
     plan.sheet_candidates = candidates;
 }
@@ -1042,7 +977,8 @@ mod tests {
             let path = Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join(format!("tests/fixtures/pmi/step/{file}.step.gz"));
             let a = model::analyse_native(&path).unwrap().1;
-            let s: Spec = serde_json::from_value(json!({"sheet":{"max_size":maximum}})).unwrap();
+            let s: Spec =
+                serde_json::from_value(json!({"sheet":{"preferred_max_size":maximum}})).unwrap();
             let p = model::plan_recovered(&a, &s).unwrap();
             assert_eq!(
                 (
@@ -1109,13 +1045,13 @@ mod tests {
         let p = model::plan_recovered(&a, &Spec::default()).unwrap();
         assert_eq!(p.sheet.size, "A4");
         assert_eq!(p.sheet_candidates.len(), 1);
-        assert_eq!(p.sheet_candidates[0].outcome, "automatic baseline reused");
+        assert!(p.sheet_candidates[0].outcome.contains("usable at"));
     }
 
     fn inspection_spec(printer: &str) -> Spec {
         let mut rows = vec![json!(["INSPECTION SCHEDULE", "CHECKED"])];
         rows.extend((0..6).map(|i| json!([format!("FORM AND SIZE {}", "X".repeat(30)), i])));
-        serde_json::from_value(json!({"sheet":{"max_size":printer}, "sheets":{"smallest_scale":"5:1"}, "hole_table":"never", "tables":[{"id":"t:1","rows":rows,"prefer":"tr"}]})).unwrap()
+        serde_json::from_value(json!({"sheet":{"preferred_max_size":printer}, "sheets":{"smallest_scale":"5:1"}, "hole_table":"never", "tables":[{"id":"t:1","rows":rows,"prefer":"tr"}]})).unwrap()
     }
 
     #[test]
@@ -1165,15 +1101,15 @@ mod tests {
         let Some(a) = corpus("cadgenbench/threaded_connector_109.step") else {
             return;
         };
-        let s: Spec = serde_json::from_value(json!({"sheet":{"max_size":"A3"}})).unwrap();
+        let s: Spec = serde_json::from_value(json!({"sheet":{"preferred_max_size":"A3"}})).unwrap();
         let p = model::plan_recovered(&a, &s).unwrap();
         assert_eq!(p.sheet.size, "A3", "{}", p.sheet.basis);
         assert_eq!(p.sheet_candidates.len(), 2);
-        assert_eq!(p.sheet_candidates[1].outcome, "automatic baseline reused");
+        assert!(p.sheet_candidates[1].outcome.contains("usable at"));
     }
 
     #[test]
-    fn default_maximum_caps_a_previously_large_baseline() {
+    fn default_preferences_never_keep_a_clipped_large_part() {
         let a = model::analyse_native(
             &Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join("tests/fixtures/pmi/step/nist_stc_09_asme1_ap242-e4.stp.gz"),
@@ -1181,83 +1117,149 @@ mod tests {
         .unwrap()
         .1;
         let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        assert!(sheet_fit::inside_frames(&a, &p), "{}", p.sheet.basis);
+        assert!(p.sheet.scale_factor >= 0.2, "{}", p.sheet.basis);
+        let exceeded = !["A4", "A3"].contains(&p.sheet.size.as_str()) || p.sheets.len() > 1;
+        let notices: Vec<_> = p
+            .problems
+            .iter()
+            .filter(|p| p.code == "sheet_preference_exceeded")
+            .collect();
+        assert_eq!(notices.len(), usize::from(exceeded));
+        if let Some(n) = notices.first() {
+            assert_eq!(n.severity, "info");
+        }
         assert!(
-            ["A4", "A3"].contains(&p.sheet.size.as_str()),
-            "{}",
-            p.sheet.basis
-        );
-        assert!(
-            p.sheets
+            p.sheet_candidates
                 .iter()
-                .all(|s| ["A4", "A3"].contains(&s.size.as_str()))
+                .all(|c| c.preferred_max_size == "A3" && c.preferred_max_sheets == 2)
         );
-        assert!(complete(&a, &p, 0.0) || p.problems.iter().any(|p| p.code == "sheet_size_capped"));
-        assert!(p.sheet_candidates.iter().all(|c| c.max_size == "A3"));
         for d in &p.dimensions {
-            if let crate::items::State::NotDrawable { reason_code } = &d.state
-                && crate::hole_table::DROPS.contains(&reason_code.as_str())
-            {
+            if let crate::items::State::NotDrawable { reason_code } = &d.state {
                 assert!(
                     p.problems
                         .iter()
                         .any(|q| q.code == *reason_code && q.subjects.contains(&d.id)),
-                    "required drop {} is unreported",
+                    "unreported {}",
                     d.id
                 );
             }
         }
-        let baseline = model::plan_automatic(&a, &Spec::default()).unwrap();
-        assert!(["A4", "A3"].contains(&baseline.sheet.size.as_str()));
     }
 
     #[test]
-    fn failed_bounded_search_reports_its_cap_and_raise_fix() {
-        let mut a = fixture();
-        a.envelope = [[0.0; 3], [100_000.0; 3]];
-        let spec: Spec =
-            serde_json::from_value(json!({"sheet":{"max_size":"A4"},"sheets":{"max":2}})).unwrap();
-        let p = model::plan_recovered(&a, &spec).unwrap();
-        assert_eq!(p.sheet.size, "A4");
-        assert!(p.sheets.len() < 2);
-        let problem = p
+    fn one_advisory_identifies_both_exceeded_preferences() {
+        let a = fixture();
+        let spec = Spec::default();
+        let mut p = model::plan_automatic(&a, &spec).unwrap();
+        p.sheet.size = "A2".into();
+        p.sheets = vec![p.sheet.clone(), p.sheet.clone()];
+        let p = finish_choice(p, &spec, Vec::new(), "test");
+        let notices: Vec<_> = p
             .problems
             .iter()
-            .find(|p| p.code == "sheet_size_capped")
-            .unwrap();
-        assert_eq!(problem.severity, "warning");
-        assert!(problem.message.contains("No larger paper was checked"));
-        assert_eq!(problem.fix[0].path, "sheet/max_size");
-        assert_eq!(problem.fix[0].value, Some(json!("A3")));
-        assert!(p.sheet_candidates.iter().all(|c| c.max_size == "A4"));
-        assert!(p.sheet.basis.contains("sheet/max_size A4"));
+            .filter(|p| p.code == "sheet_preference_exceeded")
+            .collect();
+        assert_eq!(notices.len(), 1);
+        assert_eq!(notices[0].severity, "info");
+        assert_eq!(notices[0].labels().impact, crate::finding::Impact::Advisory);
+        assert!(notices[0].message.contains("paper size and sheet count"));
+        assert!(notices[0].message.contains("3 sheet(s) of A2"));
+        assert!(notices[0].fix.is_empty());
     }
 
     #[test]
-    fn requests_are_smallest_first_and_respect_both_bounds() {
+    fn clipping_rejects_a_candidate_even_without_any_reported_problems() {
+        let a = fixture();
+        let p = model::plan_automatic(&a, &Spec::default()).unwrap();
+        let mut clipped = p.clone();
+        clipped.problems.clear();
+        clipped.views[0].at[0] += clipped.sheet.page[0];
+        assert!(!sheet_fit::inside_frames(&a, &clipped));
+        assert!(!usable(&a, &clipped, &p, 0.));
+        let mut clipped = p.clone();
+        clipped.problems.clear();
+        let dimension = clipped
+            .dimensions
+            .iter_mut()
+            .find_map(|d| d.placed.as_mut())
+            .unwrap();
+        dimension.label_box[2] += clipped.sheet.page[0];
+        assert!(!sheet_fit::inside_frames(&a, &clipped));
+        assert!(!usable(&a, &clipped, &p, 0.));
+    }
+
+    #[test]
+    fn requests_follow_both_soft_preferences_then_the_hard_limit() {
         assert_eq!(
             requests(&Spec::default()),
             vec![
                 ("A4", 1),
                 ("A3", 1),
                 ("A3", 2),
-                ("A3", 3),
-                ("A3", 4),
-                ("A3", 5),
-                ("A3", 6),
-                ("A3", 7),
-                ("A3", 8),
-                ("A3", 9)
+                ("A2", 1),
+                ("A2", 2),
+                ("A1", 1),
+                ("A1", 2),
+                ("A0", 1),
+                ("A0", 2),
+                ("A0", 3),
+                ("A0", 4),
+                ("A0", 5),
+                ("A0", 6),
+                ("A0", 7),
+                ("A0", 8),
+                ("A0", 9)
             ]
         );
-        for (cap, expected) in [
-            ("A4", vec![("A4", 1), ("A4", 2)]),
-            ("A2", vec![("A4", 1), ("A3", 1), ("A2", 1), ("A2", 2)]),
-        ] {
-            let spec: Spec =
-                serde_json::from_value(json!({"sheet":{"max_size":cap},"sheets":{"max":2}}))
-                    .unwrap();
-            assert_eq!(requests(&spec), expected);
-        }
+        let spec: Spec = serde_json::from_value(json!({"sheet":{"preferred_max_size":"A4","preferred_max_sheets":3},"sheets":{"max":2}})).unwrap();
+        assert_eq!(
+            requests(&spec),
+            vec![
+                ("A4", 1),
+                ("A4", 2),
+                ("A3", 1),
+                ("A3", 2),
+                ("A2", 1),
+                ("A2", 2),
+                ("A1", 1),
+                ("A1", 2),
+                ("A0", 1),
+                ("A0", 2)
+            ]
+        );
+        let spec: Spec = serde_json::from_value(json!({"sheet":{"preferred_max_size":"A2","preferred_max_sheets":1},"sheets":{"max":3}})).unwrap();
+        assert_eq!(
+            requests(&spec),
+            vec![
+                ("A4", 1),
+                ("A3", 1),
+                ("A2", 1),
+                ("A1", 1),
+                ("A0", 1),
+                ("A0", 2),
+                ("A0", 3)
+            ]
+        );
+    }
+
+    #[test]
+    fn unreleased_cap_is_unknown_and_preferred_count_must_be_positive() {
+        assert!(
+            serde_json::from_value::<Spec>(json!({"sheet":{"max_size":"A3"}}))
+                .unwrap_err()
+                .to_string()
+                .contains("unknown field")
+        );
+        assert!(
+            serde_json::from_value::<Spec>(json!({"sheet":{"preferred_max_sheets":0}})).is_err()
+        );
+        assert!(
+            serde_json::from_value::<Spec>(json!({"sheet":{"preferred_max_sheets":-1}})).is_err()
+        );
+        assert!(
+            serde_json::from_value::<Spec>(json!({"sheet":{"preferred_max_sheets":100}})).is_ok()
+        );
     }
 
     #[test]
@@ -1270,7 +1272,7 @@ mod tests {
             for message in [
                 "unknown field",
                 "preferred_printer",
-                "sheet/max_size",
+                "sheet/preferred_max_size",
                 "A4 printer",
                 "A3 printer",
             ] {
@@ -1282,7 +1284,7 @@ mod tests {
             &json!([{"op":"set", "path":"sheet/preferred_printer", "value":"A4"}]),
         )
         .unwrap_err();
-        assert!(error.message.contains("sheet/max_size"));
+        assert!(error.message.contains("sheet/preferred_max_size"));
     }
 
     fn assert_passthrough(value: serde_json::Value) {
@@ -1324,7 +1326,7 @@ mod tests {
             model::edit(
                 &spec,
                 &json!([
-                    {"op":"set","path":"sheet/max_size","value":"A4"}
+                    {"op":"set","path":"sheet/preferred_max_size","value":"A4"}
                 ]),
             )
             .unwrap(),
@@ -1337,16 +1339,22 @@ mod tests {
             );
             assert!(plan.sheets.is_empty());
             assert!(plan.sheet_candidates.is_empty());
-            assert!(!plan.problems.iter().any(|p| p.code == "sheet_size_capped"));
+            assert!(
+                !plan
+                    .problems
+                    .iter()
+                    .any(|p| p.code == "sheet_preference_exceeded")
+            );
         }
     }
 
     #[test]
     fn explicit_sheet_count_still_obeys_the_cap() {
         for max in [1, 2] {
-            let spec: Spec =
-                serde_json::from_value(json!({"sheet":{"max_size":"A4"}, "sheets":{"max":max}}))
-                    .unwrap();
+            let spec: Spec = serde_json::from_value(
+                json!({"sheet":{"preferred_max_size":"A4"}, "sheets":{"max":max}}),
+            )
+            .unwrap();
             let p = model::plan_recovered(&fixture(), &spec).unwrap();
             assert_eq!(p.sheet.size, "A4");
             assert!(p.sheets.len() < max as usize);
@@ -1390,19 +1398,21 @@ mod tests {
             ("A4", "1:1", 0)
         );
         assert_eq!(p.sheet_candidates.len(), 1);
-        assert_eq!(p.sheet_candidates[0].outcome, "automatic baseline reused");
+        assert!(p.sheet_candidates[0].outcome.contains("usable at"));
     }
 
     #[test]
-    fn validates_max_size_in_documents_and_typed_specs() {
-        assert!(serde_json::from_value::<Spec>(json!({"sheet":{"max_size":"A5"}})).is_err());
+    fn validates_preferred_max_size_in_documents_and_typed_specs() {
+        assert!(
+            serde_json::from_value::<Spec>(json!({"sheet":{"preferred_max_size":"A5"}})).is_err()
+        );
         let mut s = Spec::default();
-        s.sheet.max_size = Some("A5".into());
+        s.sheet.preferred_max_size = Some("A5".into());
         assert!(
             model::plan_recovered(&fixture(), &s)
                 .unwrap_err()
                 .message
-                .contains("max_size")
+                .contains("preferred_max_size")
         );
     }
 

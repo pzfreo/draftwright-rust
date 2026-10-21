@@ -222,8 +222,8 @@ catalogue! {
     "sheet_assignment_unused" => Advisory, Code, "A sheet assignment has no corresponding drawing item.";
     "sheet_below_smallest_scale" => Readability, Code, "The sheet uses views below the requested legibility scale.";
     "sheet_label_replaced" => Advisory, Code, "Automatic document numbering replaces the authored sheet label.";
+    "sheet_preference_exceeded" => Advisory, Code, "A usable drawing needs larger paper or more sheets than preferred.";
     "sheet_renumbered" => Advisory, Code, "The document sheets were renumbered consecutively.";
-    "sheet_size_capped" => Readability, Code, "No clean automatic layout fits within the available printer's maximum paper size.";
     "slot_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "slot_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "spec_entries_inactive" => Decision, Code, "Authored settings do not apply to any current item.";

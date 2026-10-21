@@ -2275,7 +2275,7 @@ fn sheet_selection_is_bounded_and_keeps_every_outcome() {
     };
     // This conservation oracle has the full ISO paper ladder available. Capped
     // fallbacks may retain reported required drops; sheet_policy tests those.
-    style.sheet.max_size = Some("A0".into());
+    style.sheet.preferred_max_size = Some("A0".into());
     let initial: Vec<_> = planned()
         .iter()
         .map(|(n, a, _)| (n.clone(), a.clone(), model::plan(a, &style).unwrap()))

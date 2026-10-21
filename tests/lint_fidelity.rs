@@ -447,7 +447,8 @@ fn ctc01() -> Drawing {
     std::fs::write(&path, bytes).unwrap();
     let (part, analysis) = model::analyse_native(&path).unwrap();
     // Fidelity compares the original full-ISO PMI drawing, independent of printer limits.
-    let spec = serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap();
+    let spec =
+        serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap();
     let plan = model::plan(&analysis, &spec).unwrap();
     let font = draftwright::text::Font::new(
         std::fs::read(root.join("fonts/IBMPlexMono-Regular.ttf")).unwrap(),

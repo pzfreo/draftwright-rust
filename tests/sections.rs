@@ -91,7 +91,7 @@ fn section_a_a_is_planned_placed_and_drawn() {
     let (part, analysis) = corpus::analyse(&dir, "nist/nist_ftc_06_asme1_rd.stp", "ftc06");
     let plan = model::plan(
         &analysis,
-        &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+        &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap(),
     )
     .unwrap();
     assert_eq!(

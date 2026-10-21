@@ -482,7 +482,7 @@ fn r5_off_sheet_hole_table_keeps_all_rows_and_balloons() {
     let a = analysed("scattered_holes");
     let mut p = model::plan(
         &a,
-        &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+        &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap(),
     )
     .unwrap();
     let id = p

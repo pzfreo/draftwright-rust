@@ -71,7 +71,8 @@ fn view_planning_matches_draftwright_or_is_known() {
         assert_eq!(analysis.binding.source_sha256, f.binding.sha256, "{name}");
         let plan = model::plan(
             &analysis,
-            &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+            &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}}))
+                .unwrap(),
         )
         .unwrap();
         let mut check = |fact: String, same: bool| {

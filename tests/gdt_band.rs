@@ -64,7 +64,11 @@ fn full_paper(a: &Analysis, size: &str) -> Plan {
     let mut spec = Spec::default();
     spec.sheet.size = Some(size.into());
     let p = model::plan_recovered(a, &spec).unwrap();
-    assert!(!p.problems.iter().any(|p| p.code == "sheet_size_capped"));
+    assert!(
+        !p.problems
+            .iter()
+            .any(|p| p.code == "sheet_preference_exceeded")
+    );
     p
 }
 
@@ -236,10 +240,15 @@ fn stc09_without_a_complete_fit_keeps_its_first_drawing_and_reports_the_floor() 
     let capped = p
         .problems
         .iter()
-        .find(|p| p.code == "sheet_size_capped")
+        .find(|p| p.code == "sheet_preference_exceeded")
         .unwrap();
     assert_eq!(capped.severity, "warning");
-    assert!(capped.fix.iter().any(|op| op.path == "sheet/max_size"));
+    assert!(
+        capped
+            .fix
+            .iter()
+            .any(|op| op.path == "sheet/preferred_max_size")
+    );
     assert_eq!(p.status, draftwright::completeness::Status::NeedsAttention);
-    assert!(p.sheet.basis.contains("sheet/max_size A3"));
+    assert!(p.sheet.basis.contains("sheet/preferred_max_size A3"));
 }

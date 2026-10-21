@@ -189,7 +189,8 @@ fn every_source_and_explicit_linear_corridor_is_reserved() {
         let a = model::analyse_native(&dir.join(f)).unwrap().1;
         let p = model::plan_recovered(
             &a,
-            &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+            &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}}))
+                .unwrap(),
         )
         .unwrap();
         let mut n = 0;
@@ -551,7 +552,8 @@ fn reserved_location_corridors_choose_witnesses_clear_of_foreign_holes() {
             .1;
         let p = model::plan_recovered(
             &a,
-            &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+            &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}}))
+                .unwrap(),
         )
         .unwrap();
         let d = p.dimensions.iter().find(|d| d.id == id).unwrap();

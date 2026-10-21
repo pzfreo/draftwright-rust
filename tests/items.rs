@@ -376,7 +376,9 @@ fn on_the_quality_parts_too() {
             .any(|d| matches!(d.state, State::NotDrawable { .. }))
         {
             assert!(
-                plan.problems.iter().any(|p| p.code == "sheet_size_capped"),
+                plan.problems
+                    .iter()
+                    .any(|p| p.code == "sheet_preference_exceeded"),
                 "{file}"
             );
         }

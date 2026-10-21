@@ -125,7 +125,7 @@ fn only_sheet_problems_have_the_sheet_as_subject() {
         "views_do_not_fit",
         "page_fit_uncertain",
         "sheet_below_smallest_scale",
-        "sheet_size_capped",
+        "sheet_preference_exceeded",
         "hole_table_unavailable",
         "general_tolerance_missing",
         "title_field_overflow",

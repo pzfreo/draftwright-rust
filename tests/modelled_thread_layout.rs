@@ -34,7 +34,8 @@ fn modelled_thread_callouts_clear_labels_and_dimension_ink() {
         let (part, analysis) = model::analyse_native_step(&path, &bytes).unwrap();
         let plan = model::plan_recovered(
             &analysis,
-            &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+            &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}}))
+                .unwrap(),
         )
         .unwrap();
         let labels: Vec<_> = plan

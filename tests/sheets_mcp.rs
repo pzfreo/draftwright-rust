@@ -46,7 +46,9 @@ fn r5_qualified_addresses_and_near_are_sheet_local() {
             .contains_key("sheet/size")
     );
     let options = s.options("sheet:2/sheet:2").unwrap();
-    assert!(options.settable.contains_key("sheet/max_size"));
+    assert!(options.settable.contains_key("sheet/preferred_max_size"));
+    assert!(options.settable.contains_key("sheet/preferred_max_sheets"));
+    assert!(!options.settable.contains_key("sheet/max_size"));
     assert!(!options.settable.contains_key("sheet/preferred_printer"));
     let filter: ItemFilter =
         serde_json::from_value(json!({"near":"sheet:2/v:iso","radius":10000})).unwrap();

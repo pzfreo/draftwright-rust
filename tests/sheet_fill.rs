@@ -186,7 +186,11 @@ fn automatic_overflow_never_uses_an_illegible_scale() {
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
     assert!(p.sheet.scale_factor >= 0.1);
     assert_eq!(p.sheet.size, "A3");
-    assert!(p.problems.iter().any(|p| p.code == "sheet_size_capped"));
+    assert!(
+        p.problems
+            .iter()
+            .any(|p| p.code == "sheet_preference_exceeded")
+    );
     assert!(
         p.problems
             .iter()
@@ -505,7 +509,7 @@ fn a_part_needing_large_paper_at_full_size_keeps_large_paper() {
         .1;
     let p = model::plan_recovered(
         &a,
-        &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+        &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap(),
     )
     .unwrap();
     assert!(
@@ -575,7 +579,11 @@ fn an_explicit_sheet_count_does_not_raise_the_default_paper_cap() {
     let p = model::plan_recovered(&a, &spec).unwrap();
     assert_eq!(p.sheet.size, "A3");
     assert!(p.sheets.iter().all(|s| s.size == "A3"));
-    assert!(p.problems.iter().any(|p| p.code == "sheet_size_capped"));
+    assert!(
+        p.problems
+            .iter()
+            .any(|p| p.code == "sheet_preference_exceeded")
+    );
     assert!(
         p.sheet_candidates
             .iter()

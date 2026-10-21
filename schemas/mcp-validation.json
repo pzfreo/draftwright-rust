@@ -57,7 +57,14 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "max_size": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",
@@ -312,7 +319,14 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "max_size": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",
@@ -649,7 +663,14 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "max_size": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",
@@ -890,7 +911,14 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "max_size": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",
@@ -1149,7 +1177,14 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "max_size": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",
@@ -1386,7 +1421,14 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "max_size": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",
@@ -1670,7 +1712,14 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "max_size": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",
@@ -1958,7 +2007,14 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "max_size": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",
@@ -2227,7 +2283,14 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "max_size": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",
@@ -2468,7 +2531,14 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "max_size": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",
@@ -2700,7 +2770,14 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "max_size": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",

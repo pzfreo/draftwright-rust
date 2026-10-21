@@ -268,7 +268,7 @@ mention takes its default.
 
 The design also includes `views/sections` (for example `"sections": [{"id": "A", "through": "f:hole:3"}]`). Feature `anchor` is read for recognition corrections, below; a feature's `note` is read since K1b (below).
 
-- **Fields read:** `sheet` (`size`, `scale`, `max_size`, `title`, `references`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`),
+- **Fields read:** `sheet` (`size`, `scale`, `preferred_max_size`, `title`, `references`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`),
   `iso_scale_factor`, `dimension_source`, `dimension_schemes/<name>` (`scheme`, `axis`, `targets`, `view`, `from`), `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `fit`, `text`, `style`, `place`, `kind`, `between`, `along`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`, `text` for prose callouts and automatic notes), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`, `anchor`, `reclassify`, `suppress`, `split`, `pattern`), `feature_declarations`,
   `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
@@ -501,36 +501,39 @@ not relax safety margins or change sheet-size, scale, detail, fit or datum polic
 
 #### Sheet allocation (R5, Stage I)
 
-`sheet/max_size` is the largest paper available for automatic choice: `"A4"`,
-`"A3"`, `"A2"`, `"A1"` or `"A0"`, default **A3**. Search is smallest first:
-one sheet of each size from A4 through the maximum, then 2–N sheets of the
-maximum size (N is `sheets.max`, or 9). Thus an A4 printer tries 1×A4, 2×A4,
-…; an A3 printer tries 1×A4, 1×A3, 2×A3, …. Extra sheets precede accepting
-hard findings or required drops on one sheet. The automatic baseline and R5's
-larger-paper recovery obey the same cap.
+`sheet/preferred_max_size` (`"A4"` through `"A0"`, default `"A3"`) and
+`sheet/preferred_max_sheets` (integer at least 1, default 2) are soft preferences.
+The existing `sheets.max` is a hard limit (up to 9); preferences never grant
+permission beyond it. Explicit paper, scale and allocation intent take precedence.
+`sheet/keep_layout` retains the author's explicit paper, scale and count, including
+when either preference changes.
 
-Baseline reserved footprints cheaply rule out impossible paper/count requests:
-outlines scale; annotation bands and furniture stay in paper mm. Each trial fixes
-the paper and largest estimated standard scale that keeps primary step spans
-readable, with at most one smaller-scale retry above the readability floor.
-New layout/readability problems reject a candidate; existing problems with the
-same code and subjects are tolerated only when the result has no hard findings,
-required drops, unreadable primary steps or overflowing drawn items. R5 keeps
-principal projections together on sheet 1 and moves auxiliary content in existing
-groups, preserving required content and reporting every required drop.
+Search one sheet at A4, then each size through the preferred maximum. Next try
+2 through the preferred count at that size. If none is usable, increase paper one
+size at a time, trying one through the preferred count at each size. Finally try
+more A0 sheets, up to `sheets.max`. The first usable result wins. Principal and
+auxiliary views can move as complete annotated blocks; dimension, PMI and balloon
+ownership follows the view. Authored view relations and keep-together groups remain
+constraints. Footprint bounds skip impossible single-sheet candidates.
 
-If no candidate passes, retain the best result within the cap, ranked by hard
-findings, required drops, largest first-sheet scale, then fewest sheets.
-`sheet_size_capped` (warning) explains the limit and offers raising `sheet/max_size`.
-It names a larger clean size if cheaply checked, or says no larger paper was checked.
-`Plan.sheet_candidates` records the cap and each trial's refusal or acceptance;
-`sheet.basis` explains the choice. Placement pins retain the unpinned drawing's
-paper, scale and allocation. Explicit `sheet/size` or `sheet/scale` takes precedence,
-including an explicitly requested size above the cap, without a cap finding.
-`sheet/keep_layout: true` retains its explicit paper, scale and count even above
-the cap. Editing only `sheet/max_size` preserves this authored layout guard.
-The removed `sheet/preferred_printer` field is refused with migration guidance:
-use `sheet/max_size: "A4"` for an A4 printer or `"A3"` for an A3 printer.
+A candidate is usable when all geometry and annotation ink fits inside its own
+sheet's drawable frame, the existing feature-opening and printed-step minima hold,
+and it adds no layout/readability failures or required losses relative to the
+unrestricted larger-paper reference. A reduced scale cannot be smaller than that
+reference's scale; enlargements may reduce to 1:1 when the existing minima allow.
+Unsupported requirements and any undrawn items retain their existing findings.
+Clipping is a hard rejection, including for fallback ranking. If no usable result
+exists through A0, retain the least-bad unclipped candidate using the existing
+hard-findings, required-drops, scale and sheet-count ranking, with an explanation.
+
+One `sheet_preference_exceeded` info/advisory notice identifies the size, sheet
+count or both exceeded, the actual paper/scale/count, and why the preferred layout
+was refused. `Plan.sheet_candidates` and `sheet.basis` record the preferences and
+individual decisions. Explicit `sheet/size` or `sheet/scale` bypasses this search.
+
+`preferred_printer` is refused with guidance to `sheet/preferred_max_size`.
+The unreleased `max_size` spelling is not accepted.
+
 
 `sheets.max` allows 1–9 sheets. `sheets.smallest_scale` is an ISO 5455 floor,
 `keep_together` groups view names (also `hole_table`), `hole_table` assigns a rescue
@@ -968,7 +971,7 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
 - **The baseline and explicit-paper scale are chosen on finished drawings** (maintainer, 2026-10-12,
   H6; `model::plan_recovered` / `model::recover`, policy in `sheet_fit::choose`).
   The smallest-first policy above wraps this baseline search. Each
-  standard sheet within `sheet/max_size` and scale at or above the legibility floor
+  standard sheet, trying `sheet/preferred_max_size` first and scale at or above the legibility floor
   is planned and judged. Explicit size or scale bypasses the cap. A
   candidate is valid and complete when it has no hard layout finding, its drawn items and
   views fit inside the border and off the title block, it drops or loses no measurement
