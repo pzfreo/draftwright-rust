@@ -227,6 +227,7 @@ catalogue! {
     "slot_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "spec_entries_inactive" => Decision, Code, "Authored settings do not apply to any current item.";
     "spec_from_other_revision" => Decision, Code, "The user must decide whether to rebind settings from another revision.";
+    "spec_refines_pmi" => Advisory, Code, "The authored designation refines a Specify-written thread.";
     "spec_overrides_pmi" => Decision, Code, "The user-authored control replaces a different PMI control.";
     "step_general_tolerance_disagreement" => Decision, Code, "The authored and PMI general tolerances disagree.";
     "step_level_support_missing" => Incomplete, Code, "Missing shoulder support prevents the step level being stated.";

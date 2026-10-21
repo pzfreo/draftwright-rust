@@ -592,7 +592,7 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     if location::active(analysis, printed) {
         issues.extend(location::coverage(analysis, printed));
     }
-    if matches!(&analysis.pmi, Some(crate::pmi::Reading::Read(r)) if !r.records.is_empty()) {
+    if location::has_station_requirements(analysis) {
         issues.extend(location::sizes(analysis, printed));
     }
     issues

@@ -95,6 +95,8 @@ fn the_spindles_unclaimed_faces_are_its_subjects() {
         .iter()
         .find(|p| p.code == "unclaimed_geometry")
         .expect("the spindle has unclaimed faces");
+    assert_eq!(p.severity, "info");
+    assert_eq!(serde_json::to_value(p).unwrap()["impact"], "advisory");
     let unclaimed = plan.completeness.faces - plan.completeness.claimed_faces;
     assert_eq!(unclaimed, 3);
     assert_eq!(p.subjects.len(), unclaimed, "{:?}", p.subjects);
@@ -225,6 +227,15 @@ fn specs(part: &str, base: &Plan) -> Vec<(String, Spec)> {
             spec(json!({ "views": { v: { "omit": true } } })),
         ));
     }
+    if part == "cnc-review-spindle" {
+        specs.push((
+            "thread and knurl override".into(),
+            spec(json!({"features": {
+                "f:hole:1": {"thread": {"designation": "M5-6H", "length": 8}},
+                "f:turned_step:3": {"knurl": {"pattern": "straight", "pitch": 1.0}}
+            }})),
+        ));
+    }
     if part == "mounting_plate" {
         specs.push((
             "pitch above".into(),
@@ -246,6 +257,13 @@ fn plans() -> &'static [(String, Plan)] {
     static PLANS: std::sync::OnceLock<Vec<(String, Plan)>> = std::sync::OnceLock::new();
     PLANS.get_or_init(|| {
         let mut parts: Vec<(String, Analysis)> = vec![
+            (
+                "cnc-review-spindle".into(),
+                gz(
+                    "samples/cnc-review-spindle.step.gz",
+                    "cnc-review-spindle.step",
+                ),
+            ),
             (
                 "plate (recognition)".into(),
                 model::analyse_with(
@@ -314,6 +332,19 @@ fn plans() -> &'static [(String, Plan)] {
     })
 }
 
+fn assert_public_pmi_message(message: &str) {
+    assert_eq!(carries_id(message), None, "{message}");
+    for internal in [
+        "manufacturing_requirement:#",
+        "features/",
+        "faces/",
+        "spec:",
+        "sheet/default_finish",
+    ] {
+        assert!(!message.contains(internal), "{message}");
+    }
+}
+
 /// #24 across the test parts and every AP242 fixture: no problem message carries an internal
 /// ID (`d:`, `f:`, `v:`, `pmi:`, `n:`, `t:`, `face:`).
 #[test]
@@ -327,6 +358,42 @@ fn no_problem_message_carries_an_internal_id() {
                 found.push(format!("{name}: {} names {id}: {}", p.code, p.message));
             }
         }
+    }
+    // #102: cover the override that was absent from the default-plan inventory, and
+    // lint-only lowering failures (these need not appear among plan problems).
+    let mut a = gz(
+        "samples/cnc-review-spindle.step.gz",
+        "cnc-review-spindle.step",
+    );
+    let mut overrides = 0;
+    for (_, plan) in plans() {
+        for p in plan
+            .problems
+            .iter()
+            .filter(|p| p.code == "spec_overrides_pmi")
+        {
+            overrides += 1;
+            assert_public_pmi_message(&p.message);
+        }
+    }
+    assert!(overrides >= 2);
+    let Some(draftwright::pmi::Reading::Read(r)) = &mut a.pmi else {
+        panic!("PMI fixture")
+    };
+    let requirement = r
+        .records
+        .iter_mut()
+        .find(|r| r.kind == "internal_thread")
+        .unwrap();
+    requirement.kind = "unsupported_manufacturing_process".into();
+    let lint = draftwright::lint::pmi_coverage::coverage(&a, &[]);
+    let lowered: Vec<_> = lint
+        .iter()
+        .filter(|p| p.code == "pmi_not_lowered")
+        .collect();
+    assert!(!lowered.is_empty());
+    for p in lowered {
+        assert_public_pmi_message(&p.message);
     }
     assert!(checked > 200, "{checked} problems checked");
     assert!(

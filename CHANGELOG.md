@@ -13,6 +13,16 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- Unclaimed geometry is informational and advisory on single-solid parts too, retaining
+  the unclaimed faces as subjects (#25).
+- Attribute marked PMI to Specify; compatible Spec thread designations refine its thread
+  and retain its stated length. Override and lint-only lowering messages omit internal
+  entity IDs and Spec paths (#102).
+- Explicit view placements outside the drawing area report a plan error with a fix that
+  removes the placement, including relations without the pin flag (#95).
+- Spec surface finishes on `string_post` no longer activate the dimensional location audit
+  and invent missing-location warnings.
+
 - Radius callouts (#145) try the middle half of a proven circular arc, within 15° of
   radial from the non-material side: towards the centre for concave fillets, away from it
   for convex outside corners. End-on toroidal meridians are supported where proven.

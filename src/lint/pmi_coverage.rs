@@ -255,8 +255,15 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             id,
             severity,
             format!(
-                "AP242 source {id} did not produce a drawing item: {}",
-                crate::pmi::reader_reason(&reason)
+                "The {} {} annotation could not be drawn. Review its requirement and attachment.",
+                if id.starts_with(crate::spec_gdt::SOURCE_PREFIX) {
+                    "Spec"
+                } else if crate::pmi::specify_written(report, id) {
+                    "Specify"
+                } else {
+                    "STEP"
+                },
+                r.kind.replace('_', " ")
             ),
         );
         finding.evidence = Some(reason);

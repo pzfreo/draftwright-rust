@@ -164,7 +164,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `passage_requirement_unsupported` | incomplete | No supported drawing grammar states this feature requirement. |
 | `pinned_item_not_drawn` | decision | The requested pin targets an item that is not drawn. |
 | `pinned_reference_chain_changed` | decision | The authored pin conflicts with the recovered reference chain. |
-| `pinned_view_off_sheet` | readability | The pinned view extends outside the sheet. |
+| `pinned_view_off_sheet` | readability | The explicitly placed view extends outside the drawing area; an error offers removal of its placement. |
 | `pinned_view_overlap` | readability | The pinned view overlaps another view. |
 | `placement_anchor_not_shown` | decision | The requested anchor is absent from the drawing. |
 | `placement_side_not_applicable` | decision | The authored side does not apply to this dimension. |
@@ -223,6 +223,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `slot_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `spec_entries_inactive` | decision | Authored settings do not apply to any current item. |
 | `spec_from_other_revision` | decision | The user must decide whether to rebind settings from another revision. |
+| `spec_refines_pmi` | advisory | The authored designation refines a Specify-written thread. |
 | `spec_overrides_pmi` | decision | The user-authored control replaces a different PMI control. |
 | `step_general_tolerance_disagreement` | decision | The authored and PMI general tolerances disagree. |
 | `step_level_support_missing` | incomplete | Missing shoulder support prevents the step level being stated. |

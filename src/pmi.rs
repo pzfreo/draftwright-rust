@@ -184,6 +184,37 @@ pub struct Record {
     pub geometry: Option<Geometry>,
 }
 
+/// Specify's exact per-requirement STEP authorship token (specify-core-rust #22).
+/// Retained in the existing source diagnostic, so Analysis roundtrips without schema changes.
+const SPECIFY_WRITTEN: &str = "Specify-written PMI (specify-core:written:v1).";
+const SPECIFY_MARKER: &str = "specify-core:written:v1";
+
+pub(crate) fn specify_written(report: &Report, source: &str) -> bool {
+    report
+        .sources
+        .iter()
+        .any(|s| s.id == source && s.reason.starts_with(SPECIFY_WRITTEN))
+}
+
+/// Check only this requirement's root, never a shared feature or a referenced datum.
+fn specify_root(doc: &Document, r: &Record) -> bool {
+    let root = r.part21_id;
+    let direct = match r.kind.as_str() {
+        "internal_thread" | "external_thread" => text_of(doc, root, "THREAD", 1) == SPECIFY_MARKER,
+        "knurl" => text_of(doc, root, "TURNED_KNURL", 0) == SPECIFY_MARKER,
+        _ => false,
+    };
+    direct
+        || r.instances.iter().any(|&link| {
+            ref_of(doc, link, "PROPERTY_DEFINITION_REPRESENTATION", 0) == Some(root)
+                && attributes(doc, root, "PROPERTY_DEFINITION").is_some()
+                && doc.referrers(link).iter().any(|&id| {
+                    text_of(doc, id, "DESCRIPTION_ATTRIBUTE", 0) == SPECIFY_MARKER
+                        && ref_of(doc, id, "DESCRIPTION_ATTRIBUTE", 1) == Some(link)
+                })
+        })
+}
+
 /// A structured requirement's field value, as draftwright holds it: text, or a length in mm.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -737,7 +768,9 @@ pub fn report_part(
             } else {
                 Outcome::PartiallyExtracted
             },
-            reason: if r.blockers.is_empty() && crate::pmi_lowering::no_part_requirement(r) {
+            reason: if specify_root(doc, r) {
+                format!("{SPECIFY_WRITTEN} {}", r.blockers.join("; "))
+            } else if r.blockers.is_empty() && crate::pmi_lowering::no_part_requirement(r) {
                 "info: no requirement stated; read, with no drawing needed".into()
             } else {
                 r.blockers.join("; ")

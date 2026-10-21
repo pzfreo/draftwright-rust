@@ -784,7 +784,10 @@ sheet overrun remains a problem against the pinned ID; its geometry is kept, inc
 hole items that ordinary drop-and-escalate would withdraw. A covered measurement stays covered:
 `omit: false` and a pin do not bypass consolidation or repeat information. A pin that cannot be
 drawn has `pinned_item_not_drawn`, alongside the reason in its typed state. Pinned view collisions
-and overruns have `pinned_view_overlap` and `pinned_view_off_sheet`.
+and overruns have `pinned_view_overlap` and `pinned_view_off_sheet`. Any explicit view
+placement outside the drawing area reports `pinned_view_off_sheet` as a plan error, including
+relations without the optional pin flag. Its fix removes the view placement; adjusting the
+relation is also possible. The view keeps its requested position.
 
 An explicit (unpinned) side or lane for a linear dimension, such as a proposed fix sets, re-runs
 that side's stack spacing (#32, `dims::placement::respace`): when its line would share a
@@ -1292,7 +1295,7 @@ face indices on Analysis features, measured against `binding.face_count`; they d
 this Analysis's recognition inventory, not recognition recall. Optional `stock_faces` records principal boundary plane face IDs. On a single solid,
 those faces receive credit when printed measurements prove all overall extents;
 unrecognised interior/curved faces can still be unclaimed. Older analyses default
-that evidence to empty; a six-face rectangular box can be proved from its profiles. An `unclaimed_geometry` warning names both counts and asks for review,
+that evidence to empty; a six-face rectangular box can be proved from its profiles. An informational, advisory `unclaimed_geometry` finding names both counts and asks for review,
 without inventing missed features. A recognised feature with no drawn measurement is
 reported at warning; absorbed groove floors and bands, pattern members, dimensions
 carried by a hole table, and the existing deliberately undrafted record types retain
@@ -1724,6 +1727,13 @@ item 1, stream K1b; Python draftwright's `Sheet.finish`, `thread`, `knurl`, `not
   lint judges the drawing against the merged reading.
 - **The Spec wins** with `spec_overrides_pmi` (warning) over the file's finish on any of the same
   faces, its default finish, and its thread (of either kind) or knurl on any of the same faces.
+  Messages name Specify when that requirement carries its exact per-item authorship marker;
+  unmarked requirements are attributed only to the STEP file, without claiming who wrote them.
+  A compatible Spec designation refines a Specify-written thread (`spec_refines_pmi`, info,
+  advisory), retaining its full-thread length unless an explicit Spec length replaces it.
+  Messages contain neither Spec paths nor entity IDs; provenance stays in `refs`.
+- Finishes and other manufacturing annotations do not activate dimensional station coverage.
+  Dimensional PMI, datums, geometric controls and explicit origins retain that audit.
 - **Refused** (`invalid`): an unknown feature or face, Ra not positive, an unknown removal or
   knurl pattern, a designation that is not ISO metric or states no pitch where ISO 261 has
   none, a length or pitch not positive, an empty or multi-line note, a thread on a feature of
@@ -2575,3 +2585,16 @@ by retained PMI. Those cells restate the same origin frame and do not add an ind
 locating constraint. Automatic schedules that would retain every source callout stay
 inline; `hole_table: "always"` can request that presentation explicitly. Selected table
 origins are named in the basis and are labelled as origins rather than box minima.
+
+### Specify PMI authorship
+
+Specify's [PMI provenance contract](https://github.com/pzfreo/specify-core-rust/blob/main/docs/pmi-provenance.md)
+uses the exact token `specify-core:written:v1`: `THREAD` description (slot 1),
+`TURNED_KNURL` name (slot 0), or an inverse `DESCRIPTION_ATTRIBUTE` on a requirement's
+own `PROPERTY_DEFINITION_REPRESENTATION`. Draftwright reads these from the raw STEP
+Document and preserves the token in the existing `pmi.sources[].reason` diagnostic as
+`Specify-written PMI (specify-core:written:v1).`, followed by any blockers. This survives
+Analysis serialization without adding schema fields. Authorship is never inherited from a
+shared face, feature, datum, file name or stored interview answers. Lint-only
+`pmi_not_lowered` messages describe the annotation in plain English; the detailed refusal
+remains in `evidence` and the entity identity remains in structured sources.
