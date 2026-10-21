@@ -653,7 +653,7 @@ pub(crate) fn has_new_native_recess_dimensions(analysis: &Analysis) -> bool {
 }
 
 pub(crate) fn has_recess_dimensions(analysis: &Analysis) -> bool {
-    let (canonical, established, comparison) = crate::planning::policy_key(analysis);
+    let (canonical, established, comparison, _) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "recess-presence",
@@ -992,7 +992,7 @@ pub(crate) fn inspection_datum(a: &Analysis) -> Option<(usize, f64)> {
 }
 
 pub(crate) fn detail_levels(a: &Analysis) -> Vec<(String, f64)> {
-    let (canonical, established, comparison) = crate::planning::policy_key(a);
+    let (canonical, established, comparison, _) = crate::planning::policy_key(a);
     crate::planning::memo(
         a,
         "detail-linear-levels",
@@ -1838,7 +1838,7 @@ pub(crate) fn authored_placement_clear(spec: &Spec, dims: &[PlannedDimension]) -
 /// A slot chain must have room for its arrows and its own text between its ends.
 /// New recess annotations reserve extra paper rather than reducing these existing chains.
 pub(crate) fn recess_chain_scale(analysis: &Analysis) -> f64 {
-    let (canonical, established, comparison) = crate::planning::policy_key(analysis);
+    let (canonical, established, comparison, _) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "recess-readable-scale",
