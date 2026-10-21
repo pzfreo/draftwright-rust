@@ -1114,6 +1114,8 @@ fn retained_leader_crossings_have_no_clear_route(path: &Path) {
     let plan = model::plan_recovered(
         &analysis,
         &Spec {
+            // Preserve the historical routing fixture's paper and its available corridors.
+            sheet: serde_json::from_value(serde_json::json!({"size": if path.file_name().unwrap().to_string_lossy().contains("ctc_04") {"A1"} else {"A2"}})).unwrap(),
             hole_table: draftwright::hole_table::Setting::Never,
             ..Spec::default()
         },

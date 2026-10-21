@@ -283,7 +283,9 @@ fn one_feature_problem_query_returns_all_member_fixes() {
     assert!(
         added
             .iter()
-            .all(|p| resolved.iter().any(|q| q["id"] == p["id"]))
+            .all(|p| resolved.iter().any(|q| q["id"] == p["id"])),
+        "new physical findings: {}",
+        serde_json::to_string(added).unwrap()
     );
 }
 

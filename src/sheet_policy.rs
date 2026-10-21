@@ -496,10 +496,6 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                             model::findings(&plan).dropped + model::undrawn_gdt(&plan),
                             codes.into_iter().collect::<Vec<_>>().join(", ")
                         );
-                        if was_reused {
-                            outcome +=
-                                "; R5 prefix search reused: no capacity block at the earlier bound";
-                        }
                         // Smaller outlines cannot repair a printed-size minimum.
                         // With crossed leaders and no space drops, use R5/the next
                         // paper rather than repeating the same routing search.
