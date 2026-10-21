@@ -85,9 +85,10 @@ fn hole_item(d: &draftwright::dims::PlannedDimension) -> bool {
 /// unplaced; what stays off the sheet is no hole item. As in draftwright, no part keeps a table
 /// or draws a balloon; CTC-02 attempts a table and withdraws it, said (`table_dropped`), and a
 /// part whose plan view has fewer than 16 holes outside a pattern says why it has none. *drops*
-/// says whether the capped baseline places any hole item off the sheet. The A3 limit
-/// exposes required losses on the dense NIST parts; every one must keep the same
-/// explicit drop code and severity as the existing escalation contract.
+/// says whether the part's plan places any hole item off the sheet: since the layout reserves
+/// every view's bands (drawing quality 3), CTC-02's and cgb245's place none, so nothing of theirs
+/// is dropped (draftwright drops on both for collisions or crowding, which the port places and
+/// reports: `known_hole_tables.json`).
 fn check_part(name: &str, drops: bool) {
     let Some((_, analysis)) = part(name) else {
         eprintln!("SKIPPED: the corpus is not found");
@@ -171,38 +172,13 @@ fn check_part(name: &str, drops: bool) {
         "{name}: {rows} rows"
     );
     if escalates && !attempted {
-        let failed_pattern_markers = codes(&escalated).contains(&"balloon_dropped")
-            && rows < hole_table::MIN_HOLES
-            && escalated.problems.iter().any(|p| {
-                p.code == "callout_dropped"
-                    && p.subjects
-                        .first()
-                        .is_some_and(|id| id.starts_with("d:f:hole_pattern:"))
-            });
-        // Existing principal schedules already own their coordinates; the rescue
-        // cannot add another owner. A dropped pattern can also attempt only
-        // non-certifying markers, whose failure has its own balloon finding.
-        // Every off-page item still reports its original loss.
-        assert_eq!(
-            serde_json::to_value(&escalated.hole_tables).unwrap(),
-            serde_json::to_value(&first.hole_tables).unwrap()
-        );
         assert!(
             escalated
                 .problems
                 .iter()
                 .filter(|p| matches!(p.code.as_str(), "callout_dropped" | "location_ref_dropped"))
-                .all(|p| p.message.contains("No hole table")
-                    || ((!first.hole_tables.is_empty() || failed_pattern_markers)
-                        && p.message.contains("ran off the sheet"))),
-            "{name}: schedules={}, failed_pattern_markers={failed_pattern_markers}, drops={:?}",
-            first.hole_tables.len(),
-            escalated
-                .problems
-                .iter()
-                .filter(|p| hole_table::DROPS.contains(&p.code.as_str()))
-                .map(|p| (&p.code, &p.message))
-                .collect::<Vec<_>>()
+                .all(|p| p.message.contains("No hole table")),
+            "{name}"
         );
     }
     // The verdict on whether the escalation is attempted, where draftwright's differs.
@@ -217,25 +193,27 @@ fn check_part(name: &str, drops: bool) {
 }
 
 #[test]
-fn ftc09_capped_hole_items_are_drawn_or_reported() {
-    check_part("ftc09", true);
+fn ftc09_keeps_every_hole_item_with_the_reserved_recess_lanes() {
+    check_part("ftc09", false);
 }
 
 #[test]
-fn ftc08_capped_hole_items_are_drawn_or_reported() {
-    check_part("ftc08", true);
+fn ftc08_keeps_every_hole_item_with_the_reserved_recess_lanes() {
+    check_part("ftc08", false);
 }
 
 #[test]
-fn ctc02_capped_hole_items_are_drawn_or_reported() {
-    check_part("ctc02", true);
+fn ctc02_has_no_hole_item_off_the_sheet_to_drop() {
+    check_part("ctc02", false);
 }
 
-/// The capped CTC-04 baseline must report each hole item lost by escalation,
-/// preserving the callout/location distinction and the original severities.
+/// Its one off-sheet hole location (`d:f:hole_pattern:2/location.length.x`, 480) has had
+/// a place since the items merged away stopped holding lanes of their own: two x locations that
+/// fell through below the plan now fit above it, and it takes the first lane below. Nothing of
+/// ctc04's is dropped either.
 #[test]
-fn ctc04_capped_hole_items_are_drawn_or_reported() {
-    check_part("ctc04", true);
+fn ctc04_has_no_hole_item_off_the_sheet_to_drop() {
+    check_part("ctc04", false);
 }
 
 #[test]
@@ -251,11 +229,7 @@ fn rows_match(name: &str) {
         eprintln!("SKIPPED: the corpus is not found");
         return;
     };
-    let plan = model::plan(
-        analysis,
-        &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap(),
-    )
-    .unwrap();
+    let plan = model::plan(analysis, &Spec::default()).unwrap();
     let ours: Vec<HoleRow> = hole_table::table_rows(analysis, &plan);
     // All nominal cells have exact new-policy expectations. Then replay the independent
     // archived Python comparison at its historical display precision, retaining its row set,
@@ -362,11 +336,7 @@ fn a_table_without_every_balloon_is_withdrawn_whole() {
         eprintln!("SKIPPED: the corpus is not found");
         return;
     };
-    let mut first = model::plan(
-        analysis,
-        &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap(),
-    )
-    .unwrap();
+    let mut first = model::plan(analysis, &Spec::default()).unwrap();
     let id = first
         .dimensions
         .iter()
@@ -425,10 +395,7 @@ fn forced() -> (&'static (Part, Analysis), Plan) {
             Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/scattered_holes.step");
         model::analyse_native(&path).unwrap()
     });
-    // The remote-table mechanism fixture retains its original full-paper space.
-    let spec =
-        serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap();
-    let mut p = model::plan(&read.1, &spec).unwrap();
+    let mut p = model::plan(&read.1, &Spec::default()).unwrap();
     let id = p
         .dimensions
         .iter()
@@ -592,11 +559,7 @@ fn an_off_axis_pin_does_not_suppress_a_plan_view_table_attempt() {
     let Some((_, analysis)) = part("ctc02") else {
         return;
     };
-    let mut p = model::plan(
-        analysis,
-        &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap(),
-    )
-    .unwrap();
+    let mut p = model::plan(analysis, &Spec::default()).unwrap();
     let held = p
         .dimensions
         .iter()
@@ -632,7 +595,7 @@ fn an_off_axis_pin_does_not_suppress_a_plan_view_table_attempt() {
 fn retained_leader_crossings_roll_back_the_whole_table_and_restore_fallbacks() {
     let ((_, analysis), successful) = forced();
     assert!(successful.hole_table.is_some());
-    let mut p = model::plan(analysis, &successful.spec).unwrap();
+    let mut p = model::plan(analysis, &Spec::default()).unwrap();
     let v = p.views.iter().find(|v| v.id == "v:plan").unwrap();
     let width = analysis.envelope[1][0] - analysis.envelope[0][0];
     let height = analysis.envelope[1][1] - analysis.envelope[0][1];

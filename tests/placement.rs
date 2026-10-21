@@ -137,12 +137,7 @@ fn placement_problems_are_known() {
     // Per part and code: the problems' messages.
     let mut found: BTreeMap<(String, String), Vec<String>> = BTreeMap::new();
     for (name, analysis) in &parts {
-        let plan = model::plan(
-            analysis,
-            &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}}))
-                .unwrap(),
-        )
-        .unwrap();
+        let plan = model::plan(analysis, &Spec::default()).unwrap();
         for p in plan
             .problems
             .iter()
@@ -933,11 +928,7 @@ fn what_does_not_fit_the_page_is_reported() {
 /// cgb245 (CLI trial, 2026-10-08), with its corpus features.
 fn cgb245() -> Option<(Analysis, Plan)> {
     let (_, analysis) = corpus_parts().into_iter().find(|(n, _)| n == "cgb245")?;
-    let plan = model::plan(
-        &analysis,
-        &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap(),
-    )
-    .unwrap();
+    let plan = model::plan(&analysis, &Spec::default()).unwrap();
     Some((analysis, plan))
 }
 
@@ -1110,7 +1101,6 @@ fn a_location_that_fits_on_neither_side_shares_a_held_lane() {
             Features::Native,
             &Spec {
                 hole_table: draftwright::hole_table::Setting::Never,
-                sheet: serde_json::from_value(serde_json::json!({"size":"A1"})).unwrap(),
                 ..Spec::default()
             },
         )

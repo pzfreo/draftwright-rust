@@ -658,14 +658,6 @@ fn drawing_10000() -> Option<(Analysis, model::Plan, Drawing)> {
 }
 
 fn native_drawing(file: &str, recovered: bool) -> Option<(Analysis, model::Plan, Drawing)> {
-    native_drawing_with(file, recovered, &Spec::default())
-}
-
-fn native_drawing_with(
-    file: &str,
-    recovered: bool,
-    spec: &Spec,
-) -> Option<(Analysis, model::Plan, Drawing)> {
     let corpus = std::env::var("DRAFTWRIGHT_CORPUS")
         .unwrap_or_else(|_| "/Users/paul/repos/quiddity/tests/corpus".into());
     let path = Path::new(&corpus).join(file);
@@ -675,9 +667,9 @@ fn native_drawing_with(
     }
     let (part, a) = model::analyse_native(&path).unwrap();
     let plan = if recovered {
-        model::plan_recovered(&a, spec)
+        model::plan_recovered(&a, &Spec::default())
     } else {
-        model::plan(&a, spec)
+        model::plan(&a, &Spec::default())
     }
     .unwrap();
     let drawing = model::render(&part, &a, &plan, &font()).unwrap();
@@ -842,12 +834,7 @@ fn rounded_slot_radii_keep_their_exact_arcs_on_nist_parts() {
 /// untagged centre table, and each representative tip touches physical arc ink.
 #[test]
 fn recovered_ctc02_keeps_counted_radius_leaders_on_trimmed_arcs() {
-    // Hold the historical paper so this regression measures routing, not paper choice.
-    let mut spec = Spec::default();
-    spec.sheet.size = Some("A0".into());
-    let Some((a, plan, drawing)) =
-        native_drawing_with("nist/nist_ctc_02_asme1_rc.stp", true, &spec)
-    else {
+    let Some((a, plan, drawing)) = native_drawing("nist/nist_ctc_02_asme1_rc.stp", true) else {
         return;
     };
     assert!(plan.radius_table.is_none());
@@ -891,12 +878,7 @@ fn recovered_ctc02_keeps_counted_radius_leaders_on_trimmed_arcs() {
 /// onto a larger sheet at the same geometry scale.
 #[test]
 fn recovered_ftc09_keeps_a1_and_perpendicular_witnesses() {
-    // Hold the historical paper so this regression measures routing, not paper choice.
-    let mut spec = Spec::default();
-    spec.sheet.size = Some("A1".into());
-    let Some((a, plan, drawing)) =
-        native_drawing_with("nist/nist_ftc_09_asme1_rd.stp", true, &spec)
-    else {
+    let Some((a, plan, drawing)) = native_drawing("nist/nist_ftc_09_asme1_rd.stp", true) else {
         return;
     };
     assert_eq!(

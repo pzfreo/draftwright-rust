@@ -24,7 +24,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use draftwright::api::{self, Features};
-use draftwright::model::Plan;
+use draftwright::model::{Plan, Spec};
 use serde::Deserialize;
 
 const VERDICTS: [&str; 3] = [
@@ -92,8 +92,6 @@ fn every_repeated_label_on_the_quality_parts_has_a_verdict() {
     )
     .unwrap();
 
-    // These semantic-label verdicts retain the historical full ISO paper range.
-    // The quality audit separately measures the capped default drawings.
     // Four parts at a time: each plan is independent.
     let next = std::sync::atomic::AtomicUsize::new(0);
     let found: BTreeMap<Key, Vec<String>> = std::thread::scope(|s| {
@@ -106,15 +104,9 @@ fn every_repeated_label_on_the_quality_parts_has_a_verdict() {
                         let Some(part) = parts.get(i) else {
                             return found;
                         };
-                        let plan = api::plan_from(
-                            &dir.join(part),
-                            Features::Native,
-                            &serde_json::from_value(
-                                serde_json::json!({"sheet":{"preferred_max_size":"A0"}}),
-                            )
-                            .unwrap(),
-                        )
-                        .unwrap_or_else(|e| panic!("{part}: {e:?}"));
+                        let plan =
+                            api::plan_from(&dir.join(part), Features::Native, &Spec::default())
+                                .unwrap_or_else(|e| panic!("{part}: {e:?}"));
                         found.extend(repeats(part, &plan));
                     }
                 })

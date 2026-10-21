@@ -780,12 +780,7 @@ fn structural_findings_on_the_ports_own_drawings_are_known() {
                 s.spawn(move || {
                     let f = facts::load(name);
                     let (part, analysis) = corpus::analyse(dir, &f.binding.file, name);
-                    // Keep the captured full-ISO drawing resource for this historical lint ledger.
-                    let spec = serde_json::from_value(
-                        serde_json::json!({"sheet":{"preferred_max_size":"A0"}}),
-                    )
-                    .unwrap();
-                    let plan = model::plan(&analysis, &spec).unwrap();
+                    let plan = model::plan(&analysis, &model::Spec::default()).unwrap();
                     let drawing = model::render(&part, &analysis, &plan, font).unwrap();
                     // The furniture the checks rely on is recorded on every finished sheet.
                     let kinds: Vec<Kind> = drawing.sheet.items.iter().map(|d| d.kind).collect();
